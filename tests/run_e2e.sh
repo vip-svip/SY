@@ -2,7 +2,12 @@
 # 独立端到端验证（不依赖 run_tests.sh 的断言表，逐条人工推导期望值）
 set -u
 MOD="$1"
-T=/tmp/syadgh-verify
+# 沙箱目录：Android 上 /tmp 是只读的，必须优先用 /data/local/tmp
+if [ -d /data/local/tmp ] && [ -w /data/local/tmp ] 2>/dev/null; then
+  T="${SYADGH_TEST_DIR:-/data/local/tmp/syadgh-verify}"
+else
+  T="${SYADGH_TEST_DIR:-/tmp/syadgh-verify}"
+fi
 rm -rf "$T"; mkdir -p "$T/data/rules/dns" "$T/data/config" "$T/data/cache/dns"
 D="$T/data"
 

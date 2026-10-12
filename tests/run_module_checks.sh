@@ -62,6 +62,14 @@ done
 
 has_mod() { [ -n "$NODE" ] && "$NODE" -e "require.resolve('$1')" >/dev/null 2>&1; }
 
+# 临时目录：Android 上 /tmp 只读，优先 /data/local/tmp
+if [ -d /data/local/tmp ] && [ -w /data/local/tmp ] 2>/dev/null; then
+  TMPD="${SYADGH_TEST_DIR:-/data/local/tmp}"
+else
+  TMPD="${SYADGH_TEST_DIR:-/tmp}"
+fi
+mkdir -p "$TMPD" 2>/dev/null || TMPD=/tmp
+
 # ---------- A. 脚本语法 ----------
 chk_scripts() {
   grp "A 脚本语法 (sh -n) 与 shebang"
@@ -69,17 +77,17 @@ chk_scripts() {
   for f in $(ls ./*.sh scripts/*.sh META-INF/com/google/android/update-binary 2>/dev/null); do
     [ -f "$f" ] || continue
     n=$((n + 1))
-    if sh -n "$f" 2>/tmp/sy_sh_err.$$; then ok; else bad "shell 语法错误: $f — $(tr '\n' ' ' </tmp/sy_sh_err.$$ | cut -c1-160)"; fi
+    if sh -n "$f" 2>"$TMPD/sy_sh_err.$$"; then ok; else bad "shell 语法错误: $f — $(tr '\n' ' ' <"$TMPD/sy_sh_err.$$" | cut -c1-160)"; fi
     case "$(head -c 21 "$f")" in
       '#!/system/bin/sh'*|'#!/bin/sh'*|'#!/usr/bin/env sh'*|'#!/sbin/sh'*) ok ;;
       *) bad "shebang 非 POSIX sh: $f" ;;
     esac
   done
-  rm -f /tmp/sy_sh_err.$$
+  rm -f "$TMPD/sy_sh_err.$$"
   printf '  已检查 %s 个 shell 脚本\n' "$n"
   # POSIX sh 兼容性: 禁止 bash 专有语法（先剥离 awk 程序块、注释与引号字符串）
   if [ -n "$PY" ]; then
-    $PY - <<'PYEOF' > /tmp/sy_posix.$$ 2>&1
+    $PY - <<'PYEOF' > "$TMPD/sy_posix.$$" 2>&1
 import os, re, glob
 
 FILES = sorted(glob.glob("*.sh")) + sorted(glob.glob("scripts/*.sh"))
@@ -156,8 +164,8 @@ PYEOF
         OK\|*) ok ;;
         INFO\|*) printf '  %s\n' "${line#INFO|}" ;;
       esac
-    done < /tmp/sy_posix.$$
-    rm -f /tmp/sy_posix.$$
+    done < "$TMPD/sy_posix.$$"
+    rm -f "$TMPD/sy_posix.$$"
   fi
 }
 
@@ -167,16 +175,17 @@ chk_awk() {
   for f in scripts/*.awk; do
     [ -f "$f" ] || continue
     # 提供安全入参桩，避免 BEGIN 阶段因空路径触发 fatal
+    # OUT 必须指向可写目录（Android 上 /tmp 只读，用 $TMPD）
     if awk -v REC=/dev/null -v CASES=/dev/null -v DOMAIN=example.com \
-           -v CLIENT= -v CTAG= -v STRICT=0 -v OUT=/tmp \
+           -v CLIENT= -v CTAG= -v STRICT=0 -v OUT="$TMPD" \
            -v AI= -v BI= -v AN= -v BN= -v HA= -v HB= -v ADENY= -v EXTRA=www -v NOW=x -v SRC=x \
-           -f "$f" /dev/null >/dev/null 2>/tmp/sy_awk_err.$$; then
+           -f "$f" /dev/null >/dev/null 2>"$TMPD/sy_awk_err.$$"; then
       ok
     else
-      bad "awk 解析失败: $f — $(tr '\n' ' ' </tmp/sy_awk_err.$$ | cut -c1-160)"
+      bad "awk 解析失败: $f — $(tr '\n' ' ' <"$TMPD/sy_awk_err.$$" | cut -c1-160)"
     fi
   done
-  rm -f /tmp/sy_awk_err.$$
+  rm -f "$TMPD/sy_awk_err.$$"
   # gawk 专有特性（Android 上不可用）
   for pat in 'gensub(' 'asort(' 'asorti(' 'PROCINFO' 'FPAT' 'systime(' 'strftime(' 'mktime(' 'lshift(' 'rshift(' 'compl(' 'SYMTAB' 'FUNCTAB' 'IGNORECASE' '--re-interval'; do
     hit=$(grep -lF -- "$pat" scripts/*.awk 2>/dev/null | tr '\n' ' ')
@@ -218,23 +227,35 @@ chk_meta() {
     printf '  (无 python，跳过 JSON 深度校验)\n'
   fi
   grep -q '^updateJson=https://' module.prop && ok || bad "module.prop updateJson 非 https 地址"
-  # META-INF
-  for f in META-INF/com/google/android/update-binary META-INF/com/google/android/updater-script; do
-    [ -s "$f" ] && ok || bad "缺少安装器文件: $f"
-  done
-  # 必备文件
-  for f in customize.sh service.sh post-fs-data.sh uninstall.sh action.sh module.prop webroot/index.html .gitattributes; do
+  # 区分「源码仓库」与「设备上已安装的模块」：
+  # KernelSU/Magisk 安装时会剥掉 META-INF/、customize.sh、README.md、.gitattributes，
+  # 因此这些只对源码树校验，装在设备上时跳过而不是报错。
+  if [ -d META-INF ] || [ -f customize.sh ]; then
+    SRC_TREE=1
+  else
+    SRC_TREE=0
+    printf '  [skip] 检测到设备上已安装的模块布局（无 META-INF/customize.sh），跳过打包期文件校验\n'
+  fi
+  # 运行期必备文件（安装后仍应存在）
+  for f in service.sh post-fs-data.sh uninstall.sh action.sh module.prop webroot/index.html; do
     [ -s "$f" ] && ok || bad "缺少文件: $f"
   done
-  # updater-script 标准格式: 仅一行 #MAGISK
-  if [ "$(tr -d ' \r\n' < META-INF/com/google/android/updater-script)" = "#MAGISK" ]; then ok; else bad "updater-script 非标准格式(应仅含 #MAGISK)"; fi
-  grep -q '^SKIPUNZIP=0' customize.sh && ok || bad "customize.sh SKIPUNZIP 必须为 0"
-  # customize.sh 引用的 config 文件必须存在
+  if [ "$SRC_TREE" = "1" ]; then
+    # META-INF
+    for f in META-INF/com/google/android/update-binary META-INF/com/google/android/updater-script; do
+      [ -s "$f" ] && ok || bad "缺少安装器文件: $f"
+    done
+    for f in customize.sh .gitattributes README.md; do
+      [ -s "$f" ] && ok || bad "缺少文件: $f"
+    done
+    # updater-script 标准格式: 仅一行 #MAGISK
+    if [ "$(tr -d ' \r\n' < META-INF/com/google/android/updater-script)" = "#MAGISK" ]; then ok; else bad "updater-script 非标准格式(应仅含 #MAGISK)"; fi
+    grep -q '^SKIPUNZIP=0' customize.sh && ok || bad "customize.sh SKIPUNZIP 必须为 0"
+  fi
+  # customize.sh 引用的 config 文件必须存在（安装后 config/ 仍在）
   for c in sy.conf sources.conf splash_rules.conf mitm_rules.conf whitelist.conf notify_keywords.conf; do
     [ -f "config/$c" ] && ok || bad "customize.sh 引用但缺失: config/$c"
   done
-  # 授权/许可证说明
-  [ -f README.md ] && ok || bad "缺少 README.md"
 }
 
 # ---------- D. 二进制 ABI ----------
@@ -261,9 +282,15 @@ print("static" if b.find(b"/system/bin/linker") < 0 and b.find(b"ld-linux") < 0 
 PYEOF
     fi
   done
-  for a in arm64 arm amd64; do
-    grep -q "abserver-$a" customize.sh && ok || bad "customize.sh 未处理架构 $a"
-  done
+  # customize.sh 是安装期脚本，设备上安装后即被剥离，故仅在源码树校验
+  if [ -f customize.sh ]; then
+    for a in arm64 arm amd64; do
+      grep -q "abserver-$a" customize.sh && ok || bad "customize.sh 未处理架构 $a"
+    done
+    grep -q 'bin/abserver' customize.sh && ok || bad "customize.sh 未生成 bin/abserver"
+  else
+    printf '  [skip] 设备上已安装的模块无 customize.sh，跳过架构分发校验\n'
+  fi
 }
 
 # ---------- E. 脚本间路径引用 ----------
@@ -287,7 +314,9 @@ chk_refs() {
     grep -qE "^${v}=" scripts/common.sh && ok || bad "common.sh 缺少路径变量: $v"
   done
   grep -q 'bin/abserver"' scripts/common.sh && ok || bad "common.sh BIN 未指向 bin/abserver"
-  grep -q 'bin/abserver' customize.sh && ok || bad "customize.sh 未生成 bin/abserver"
+  if [ -f customize.sh ]; then
+    grep -q 'bin/abserver' customize.sh && ok || bad "customize.sh 未生成 bin/abserver"
+  fi
   # service.sh / post-fs-data.sh / action.sh 引用的脚本必须存在
   for f in service.sh post-fs-data.sh action.sh uninstall.sh; do
     for r in $(grep -ohE 'scripts/[a-z_]+\.sh' "$f" 2>/dev/null | sort -u); do
@@ -300,7 +329,7 @@ chk_refs() {
 chk_panel() {
   grp "F 面板 action 覆盖"
   if [ -z "$PY" ]; then printf '  (无 python，跳过)\n'; return; fi
-  $PY - <<'PYEOF' > /tmp/sy_panel.$$ 2>&1
+  $PY - <<'PYEOF' > "$TMPD/sy_panel.$$" 2>&1
 import re, io, os, sys
 
 _raw = io.open("webroot/index.html", encoding="utf-8").read()
@@ -407,8 +436,8 @@ PYEOF
       OK\|*) ok ;;
       INFO\|*) printf '  %s\n' "${line#INFO|}" ;;
     esac
-  done < /tmp/sy_panel.$$
-  rm -f /tmp/sy_panel.$$
+  done < "$TMPD/sy_panel.$$"
+  rm -f "$TMPD/sy_panel.$$"
   grep -q 'id="page-engine"' webroot/index.html && ok || bad "缺少规则引擎页 page-engine"
   grep -q 'data-tab="engine"' webroot/index.html && ok || bad "缺少规则引擎标签"
   grep -q 'case "engine"' webroot/index.html && ok || bad "loadTab 未处理 engine"
@@ -422,7 +451,7 @@ PYEOF
 chk_html() {
   grp "G HTML 结构与 JS 语法"
   if [ -z "$PY" ]; then printf '  (无 python，跳过)\n'; return; fi
-  $PY - "$NODE" <<'PYEOF' > /tmp/sy_html.$$ 2>&1
+  $PY - "$NODE" <<'PYEOF' > "$TMPD/sy_html.$$" 2>&1
 import re, io, os, subprocess, tempfile, sys
 node = sys.argv[1] if len(sys.argv) > 1 else ""
 h = io.open("webroot/index.html", encoding="utf-8").read()
@@ -512,15 +541,15 @@ PYEOF
       OK\|*) ok ;;
       INFO\|*) printf '  %s\n' "${line#INFO|}" ;;
     esac
-  done < /tmp/sy_html.$$
-  rm -f /tmp/sy_html.$$
+  done < "$TMPD/sy_html.$$"
+  rm -f "$TMPD/sy_html.$$"
 }
 
 # ---------- H. 编码卫生 ----------
 chk_encoding() {
   grp "H 编码卫生 (CRLF / BOM / 末尾换行)"
   if [ -z "$PY" ]; then printf '  (无 python，跳过)\n'; return; fi
-  $PY - <<'PYEOF' > /tmp/sy_enc.$$ 2>&1
+  $PY - <<'PYEOF' > "$TMPD/sy_enc.$$" 2>&1
 import os
 TEXT = {".sh",".awk",".md",".conf",".txt",".prop",".json",".go",".mod",".sum",
         ".html",".css",".js",".xml",".yml",".yaml",".tsv",".py"}
@@ -554,8 +583,8 @@ PYEOF
       OK\|*) ok ;;
       INFO\|*) printf '  %s\n' "${line#INFO|}" ;;
     esac
-  done < /tmp/sy_enc.$$
-  rm -f /tmp/sy_enc.$$
+  done < "$TMPD/sy_enc.$$"
+  rm -f "$TMPD/sy_enc.$$"
   # .gitattributes 必须声明 eol=lf
   grep -q 'eol=lf' .gitattributes 2>/dev/null && ok || bad ".gitattributes 未声明 eol=lf"
   grep -q 'update-binary' .gitattributes 2>/dev/null && ok || bad ".gitattributes 未覆盖 update-binary"
@@ -598,28 +627,28 @@ chk_ui_runtime() {
   grp "J 面板资产回归 / 运行时"
   if [ -z "$PY" ]; then printf '  (无 python，跳过)\n'; return; fi
   # 资产基线对比（保证重构不丢功能）
-  if $PY tests/verify_ui_assets.py > /tmp/sy_uia.$$ 2>&1; then
+  if $PY tests/verify_ui_assets.py > "$TMPD/sy_uia.$$" 2>&1; then
     ok; ok; ok
   else
     bad "面板资产基线校验未通过"
   fi
-  grep -E '^\[X\]' /tmp/sy_uia.$$ | while IFS= read -r l; do printf '  %s\n' "$l"; done
-  grep -E '^\[!\]' /tmp/sy_uia.$$ | while IFS= read -r l; do printf '  [warn] %s\n' "${l#\[!\] }"; done
-  if grep -q '^\[OK\] backdrop-filter 仅用于' /tmp/sy_uia.$$; then ok; else bad "backdrop-filter 性能护栏未通过"; fi
-  if grep -q '^\[OK\] CSS 无 animation' /tmp/sy_uia.$$; then ok; else bad "CSS 仍含 animation 声明"; fi
-  if grep -q '^\[OK\] 无 SVG 滤镜噪点层' /tmp/sy_uia.$$; then ok; else bad "存在 SVG 噪点层"; fi
-  rm -f /tmp/sy_uia.$$
+  grep -E '^\[X\]' "$TMPD/sy_uia.$$" | while IFS= read -r l; do printf '  %s\n' "$l"; done
+  grep -E '^\[!\]' "$TMPD/sy_uia.$$" | while IFS= read -r l; do printf '  [warn] %s\n' "${l#\[!\] }"; done
+  if grep -q '^\[OK\] backdrop-filter 仅用于' "$TMPD/sy_uia.$$"; then ok; else bad "backdrop-filter 性能护栏未通过"; fi
+  if grep -q '^\[OK\] CSS 无 animation' "$TMPD/sy_uia.$$"; then ok; else bad "CSS 仍含 animation 声明"; fi
+  if grep -q '^\[OK\] 无 SVG 滤镜噪点层' "$TMPD/sy_uia.$$"; then ok; else bad "存在 SVG 噪点层"; fi
+  rm -f "$TMPD/sy_uia.$$"
   # 真实浏览器布局/截图（可选，仅在装了 playwright 时跑）
   if has_mod playwright; then
-    if "$NODE" tests/ui_screenshot.js > /tmp/sy_uish.$$ 2>&1; then
+    if "$NODE" tests/ui_screenshot.js > "$TMPD/sy_uish.$$" 2>&1; then
       ok; ok; ok
-      grep -cE '^\s+\[ok\]' /tmp/sy_uish.$$ | while read -r n; do printf '  浏览器布局断言 %s 项通过\n' "$n"; done
-      grep -E '实际启用模糊的元素|DOM 节点数|SVG 滤镜节点' /tmp/sy_uish.$$ | while IFS= read -r l; do printf '  %s\n' "$l"; done
+      grep -cE '^\s+\[ok\]' "$TMPD/sy_uish.$$" | while read -r n; do printf '  浏览器布局断言 %s 项通过\n' "$n"; done
+      grep -E '实际启用模糊的元素|DOM 节点数|SVG 滤镜节点' "$TMPD/sy_uish.$$" | while IFS= read -r l; do printf '  %s\n' "$l"; done
     else
       bad "浏览器布局断言未通过"
-      grep -E '\[X\]|页面错误' /tmp/sy_uish.$$ | head -8 | while IFS= read -r l; do printf '  %s\n' "$l"; done
+      grep -E '\[X\]|页面错误' "$TMPD/sy_uish.$$" | head -8 | while IFS= read -r l; do printf '  %s\n' "$l"; done
     fi
-    rm -f /tmp/sy_uish.$$
+    rm -f "$TMPD/sy_uish.$$"
   else
     printf '  (无 playwright，跳过浏览器布局断言)\n'
   fi
@@ -627,14 +656,14 @@ chk_ui_runtime() {
   [ -s tests/ui_baseline.json ] && ok || bad "缺少 tests/ui_baseline.json"
   # jsdom 运行时（有 node 且有 jsdom 才跑）
   if has_mod jsdom; then
-    if "$NODE" tests/ui_runtime_check.js > /tmp/sy_uirt.$$ 2>&1; then
+    if "$NODE" tests/ui_runtime_check.js > "$TMPD/sy_uirt.$$" 2>&1; then
       ok; ok; ok; ok
-      grep -cE '^\s+\[ok\]' /tmp/sy_uirt.$$ | while read -r n; do printf '  jsdom 运行时断言 %s 项通过\n' "$n"; done
+      grep -cE '^\s+\[ok\]' "$TMPD/sy_uirt.$$" | while read -r n; do printf '  jsdom 运行时断言 %s 项通过\n' "$n"; done
     else
       bad "jsdom 运行时校验未通过"
-      grep -E '\[X\]' /tmp/sy_uirt.$$ | head -10 | while IFS= read -r l; do printf '  %s\n' "$l"; done
+      grep -E '\[X\]' "$TMPD/sy_uirt.$$" | head -10 | while IFS= read -r l; do printf '  %s\n' "$l"; done
     fi
-    rm -f /tmp/sy_uirt.$$
+    rm -f "$TMPD/sy_uirt.$$"
   else
     printf '  (无 node/jsdom，跳过运行时校验)\n'
   fi

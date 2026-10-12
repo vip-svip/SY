@@ -143,6 +143,9 @@ SY/
 │   ├── ui_baseline.json      # 面板资产基线清单
 │   ├── ui_runtime_check.js   # jsdom 真实执行面板 JS，模拟导航交互
 │   ├── ui_screenshot.js      # Chromium 渲染截图 + 布局/裁切/性能断言
+│   ├── perf_compare.py       # 真机渲染性能对比（dumpsys gfxinfo，多轮取中位数）
+│   ├── make_heavy_variant.py # 生成"重玻璃"受控变体（DOM 不变，仅换 CSS）
+│   ├── perf_serve.sh         # 在设备上并行起多个面板服务，供同机多版本对比
 │   ├── corpus/01_mixed.txt   # 多语法混合语料
 │   ├── gen_preview.py        # 由面板源码重新生成 ui-preview.html
 │   └── expect.tsv            # 期望命中表
@@ -195,6 +198,8 @@ sh tests/run_e2e.sh .              # 独立端到端验证（每类语法逐条�
 sh tests/run_module_checks.sh all  # 模块静态校验（语法/可移植性/清单/ABI/引用/面板/HTML/编码/链路/UI 运行时）
 sh tests/run_module_checks.sh J    # 只跑面板资产回归 + jsdom 运行时 + Chromium 布局断言
 python tests/gen_preview.py        # 由 webroot/index.html 重新生成 ui-preview.html
+python tests/perf_compare.py <序列号> "新面板=http://127.0.0.1:8848/index.html" \
+                                  "旧面板=http://127.0.0.1:8849/index.html"   # 真机性能对比
 sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版本>.zip + .sha256）
 ```
 
@@ -225,6 +230,40 @@ sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版�
 - 导航不设 `overflow`，窄屏折行而非横向滚动 —— 否则下拉菜单会被滚动容器裁掉。
 
 以上四条均由 `tests/run_module_checks.sh` J 组与 `tests/ui_screenshot.js` 自动断言。
+
+### 真机实测：卡顿确实是可量化复现的
+
+上面四条是"设计约束"，下面是同一台真机上实测出的**违反约束的代价**。
+
+设备：Redmi 23076RA4CB（sky2）· Android 13 · arm64-v8a · KernelSU v3.3.0 · 系统 WebView 111
+· 1080×2460 @ 60Hz · 用系统浏览器加载面板，`dumpsys gfxinfo` 采样，每项 3 轮取中位数。
+
+对比三方：
+
+- **新面板** = 当前发布版本（AGH 骨架 + 磨砂玻璃，`backdrop-filter` 仅 2 处）
+- **旧面板** = v1 历史版本（原 SY 界面）
+- **重玻璃变体** = 用 `make_heavy_variant.py` 从**当前面板**生成，DOM / 内容 / 页高**完全相同**，只把 `backdrop-filter` 铺回全页并加回 `feTurbulence` 噪点层
+
+| 指标 | 新面板 | 旧面板 (v1) | 重玻璃变体（受控） |
+|------|--------|-------------|-------------------|
+| 卡顿帧占比 | **3.68 %** | 100 % | 100 % |
+| P50 帧耗时 | **19 ms** | 150 ms | 250 ms |
+| P90 帧耗时 | **22 ms** | 200 ms | 400 ms |
+| P95 帧耗时 | **24 ms** | 200 ms | 550 ms |
+| P99 帧耗时 | **31 ms** | 200 ms | 750 ms |
+| 丢 Vsync 率 | **0.40 %** | 90.85 % | 99.47 % |
+| UI 线程超时率 | **2.38 %** | 90.85 % | 92.11 % |
+| 绘制命令超时率 | **3.72 %** | 100 % | 100 % |
+| 采样窗口内渲染帧数 | **1262** | 284 | 190 |
+
+结论：
+
+1. **修好了** —— P50 帧耗时从 150 ms 降到 19 ms（**7.9×**），卡顿帧从 100 % 降到 3.68 %，丢 Vsync 率从 90.85 % 降到 0.40 %（**227×**）。
+2. **根因确认** —— 第三列是**受控实验**：DOM 一字未改，只把玻璃模糊铺回全页，P50 立刻从 19 ms 劣化到 250 ms（**13×**），丢 Vsync 率从 0.40 % 冲到 99.47 %。这排除了"是不是内容太多""是不是别的代码"等一切解释，卡顿就是 `backdrop-filter` 铺满全页 + `feTurbulence` 噪点层造成的。
+3. 复现方式：`tests/perf_compare.py`（完整原始输出见 `tests/perf_results.txt`）。
+
+> 已知限制：Android 13 起应用窗口层走 BLAST 缓冲，`SurfaceFlinger --latency` 对该层返回全零，
+> 因此呈现间隔无法采集；结论以 gfxinfo 的帧耗时分位、卡顿帧占比与**按帧数归一化**的超时率为准。
 
 ## 备份与恢复
 

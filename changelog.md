@@ -39,6 +39,16 @@
   - 移除全页 `animation` 声明；过渡只作用于 `transform` / `opacity` / `background-color` / `border-color`。
   - 导航不再使用 `overflow-x:auto`（会把下拉菜单裁掉），窄屏改为折行；下拉展开时按视口做越界换算，360dp 小屏也无横向滚动。
 - 以上约定已固化为自动化护栏：`tests/run_module_checks.sh` 的 J 组会拒绝任何把 `backdrop-filter` 下放、或重新引入 `feTurbulence` / `animation` 的改动。
+- **真机实测（Redmi sky2 / Android 13 / WebView 111 / 1080×2460@60Hz，每项 3 轮取中位数）**：
+
+  | 指标 | 新面板 | 旧面板 (v1) | 重玻璃受控变体 |
+  |------|--------|-------------|---------------|
+  | 卡顿帧占比 | **3.68 %** | 100 % | 100 % |
+  | P50 / P90 / P99 帧耗时 | **19 / 22 / 31 ms** | 150 / 200 / 200 ms | 250 / 400 / 750 ms |
+  | 丢 Vsync 率 | **0.40 %** | 90.85 % | 99.47 % |
+  | 采样窗口内渲染帧数 | **1262** | 284 | 190 |
+
+  其中「重玻璃受控变体」由 `tests/make_heavy_variant.py` 从当前面板生成，DOM 与页高完全相同、只把玻璃模糊铺回全页 —— 它把 P50 从 19 ms 拉到 250 ms（**13×**），从而排除了内容量、业务代码等其它解释，确认卡顿根因就是 `backdrop-filter` 铺满全页叠加 `feTurbulence` 噪点层。完整原始输出见 `tests/perf_results.txt`。
 
 ### 拦截能力
 - 三层拦截：DNS/hosts 内核拦截 + MITM 透明代理 + 开屏广告跳过。
@@ -79,3 +89,9 @@
 - **jsdom 运行时校验**（`tests/ui_runtime_check.js`）：在真实 DOM 中执行面板全部内联 JS，模拟下拉开合、下拉项切页、父项高亮同步、空白处关闭、12 个标签轮转、子标签切换、主题切换，并断言无运行时异常。
 - **Chromium 布局断言**（`tests/ui_screenshot.js`）：在 360 / 412 / 768 / 1280 四种视口下断言下拉菜单真实可见且未被祖先 `overflow` 裁切、命中测试落在菜单内、无横向溢出，同时统计实际启用背景模糊的元素数量并输出验收截图。
 - 打包脚本 `package.sh`（预检 → 打包 → ZIP 内回读校验 → SHA256）与面板静态预览 `ui-preview.html`。
+- **真机全量复跑**（Redmi sky2 / Android 13 / KernelSU v3.3.0）：`run_tests.sh all` **92/92**、`run_e2e.sh` **81/81**、`run_module_checks.sh all` **230/230**，全部通过。20000 条规则编译在真机上耗时 **3s**（桌面 25s）。
+- **真机性能对比工具**（`tests/perf_compare.py` + `tests/perf_serve.sh`）：用 `dumpsys gfxinfo` 采集帧耗时分位、卡顿帧占比与按帧数归一化的超时率；先等页面完全加载再 reset 以排除冷启动首帧，固定手势次数与时长保证两版本输入负载一致，每项 3 轮取中位数，并在渲染进程进入异常态时自动重试。
+- **测试套件的 Android 兼容性修复**（真机复跑暴露的 4 个真实缺陷）：
+  - `run_e2e.sh` 与 `run_module_checks.sh` 硬编码 `/tmp` 作为临时目录，而 Android 的 `/tmp` 是只读的（`mkdir: '/tmp': Read-only file system`），导致真机上 64 项失败；现优先使用 `/data/local/tmp`。
+  - `run_module_checks.sh` B 段向 `awk` 传入 `-v OUT=/tmp`，真机上因目录不可写报 `awk: can't open file /tmp/.emit_meta`；现改用解析出的临时目录。
+  - C / D / E 段按**源码树**校验 `META-INF/`、`customize.sh`、`README.md`、`.gitattributes`，但安装到设备后 KernelSU/Magisk 会剥掉这些文件，导致 11 项误报；现新增源码树检测，识别到"已安装布局"时打印 `[skip]` 并只校验运行期必备文件。
