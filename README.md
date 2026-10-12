@@ -153,6 +153,7 @@ SY/
 ├── tools/                 # 发布工程辅助（不随模块打包）
 │   ├── push_api.py           # Git 直连被限速时，改走 REST API 推送提交
 │   ├── verify_remote.py      # 逐项比对远端 tree 与本地 HEAD（path/mode/blob）
+│   ├── verify_files.py       # 比对若干关键文件的远端内容与本地（走 Contents API）
 │   └── release_update.py     # 替换 Release 附件并复核大小
 ├── ui-preview.html        # 面板静态效果预览（可直接用浏览器打开）
 ├── webroot/index.html     # 面板前端（AdGuard Home 布局骨架 + 磨砂玻璃）
