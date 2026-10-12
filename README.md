@@ -150,6 +150,10 @@ SY/
 │   ├── gen_preview.py        # 由面板源码重新生成 ui-preview.html
 │   └── expect.tsv            # 期望命中表
 ├── package.sh             # 打包脚本（预检 → 打包 → ZIP 校验 → SHA256）
+├── tools/                 # 发布工程辅助（不随模块打包）
+│   ├── push_api.py           # Git 直连被限速时，改走 REST API 推送提交
+│   ├── verify_remote.py      # 逐项比对远端 tree 与本地 HEAD（path/mode/blob）
+│   └── release_update.py     # 替换 Release 附件并复核大小
 ├── ui-preview.html        # 面板静态效果预览（可直接用浏览器打开）
 ├── webroot/index.html     # 面板前端（AdGuard Home 布局骨架 + 磨砂玻璃）
 ├── system/etc/security/cacerts/  # 根证书挂载目标
