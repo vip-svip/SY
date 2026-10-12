@@ -8,107 +8,145 @@
 <script>(function(){try{var t=localStorage.getItem("ab_theme");var el=document.documentElement;if(t==="dark")el.classList.add("theme-dark");else if(t==="light")el.classList.add("theme-light")}catch(e){}})();</script>
 <style>
 /* ============================================================
-   SY · AdGuard Home 融合面板
-   设计基线取自 AdGuard Home（client/src/components/App/index.css）
-   布局：顶部玻璃 header + 横向 nav-tabs + 页面标题 + 卡片栅格
+   SY · AdGuard Home × Shadowrocket 融合面板
+   —— 布局骨架取自 AdGuard Home（玻璃 header + 卡片栅格）
+   —— 信息密度与交互取自 Shadowrocket / Clash 系客户端
+   —— 视觉走「极客终端」路线：深色优先、等宽数字、发丝描边
 
-   性能约定（重要）：
-   · backdrop-filter 只允许出现在 .header 与浮层(.dropdown-menu)上，
-     绝不下放到 .card / .btn / 输入框 —— 否则几百个元素各开一层
-     背景模糊，低端机上必然卡死。
-   · 不使用 SVG feTurbulence 噪点层（每帧重算，代价极高）。
-   · 过渡只作用于 transform / opacity / background-color / border-color。
+   性能契约（真机受控实验锁定的根因，不得违反）：
+   1. backdrop-filter 只允许出现在 .header 与浮层 .dropdown-menu，
+      绝不下放到 .card / .btn / 输入框 —— 否则几百个元素各开一层
+      背景模糊，低端机必卡死。
+   2. 不使用 SVG feTurbulence 噪点层（每帧重算，代价极高）。
+   3. 全页禁止 CSS animation / keyframes；过渡只作用于
+      transform / opacity / background-color / border-color / color。
+   4. position:fixed 元素 ≤ 3（当前：body::before、#toast）。
    ============================================================ */
 
 :root{
-  /* —— AdGuard Home 浅色令牌 —— */
-  --bgcolor:#f5f7fb;
-  --mcolor:#495057;
-  --scolor:rgba(74,74,74,.7);
-  --border-color:rgba(0,40,100,.12);
-  --card-border-color:rgba(0,40,100,.12);
+  /* ---- 底色（深色优先）---- */
+  --bgcolor:#0b0f14;
+  --bgcolor-2:#0f151c;
+  --mcolor:#e6edf3;
+  --scolor:#8b949e;
+  --border-color:rgba(255,255,255,.07);
+  --card-border-color:rgba(255,255,255,.09);
 
-  /* —— 玻璃与卡片 —— */
-  --card-1:rgba(255,255,255,.92);
-  --card-2:rgba(255,255,255,.78);
-  --card-head:rgba(255,255,255,.55);
-  --ctrl-bg:rgba(255,255,255,.82);
-  --ctrl-border:rgba(0,40,100,.16);
-  --hover:rgba(0,40,100,.045);
-  --glass-bg:rgba(255,255,255,.70);
-  --glass-edge:rgba(255,255,255,.65);
+  /* ---- 卡片与玻璃 ---- */
+  --card-1:rgba(22,27,34,.92);
+  --card-2:rgba(17,22,29,.86);
+  --card-head:rgba(255,255,255,.028);
+  --ctrl-bg:rgba(22,27,34,.92);
+  --ctrl-border:rgba(255,255,255,.12);
+  --hover:rgba(255,255,255,.05);
+  --glass-bg:rgba(11,15,20,.74);
+  --glass-edge:rgba(255,255,255,.08);
   --glass-blur:16px;
 
-  /* —— 强调色（对齐 AGH StatsCard）—— */
-  --green:#5eba00;
-  --green-hover:#4b9400;
-  --green79:#67b279;
-  --green-soft:rgba(94,186,0,.12);
-  --blue:#467fcf;
-  --blue-soft:rgba(70,127,207,.12);
-  --red:#d9534f;
-  --red-soft:rgba(217,83,79,.12);
-  --amber:#d58500;
-  --amber-soft:rgba(213,133,0,.13);
-  --purple:#a870b2;
-  --orange:#f67247;
-  /* AGH StatsCard 四色强调（client/src/components/Dashboard/StatsCard.css）*/
-  --stats-card--queries:#5eba00;
-  --stats-card--ads:#f67247;
-  --stats-card--threats:#d58500;
-  --stats-card--adult:#a870b2;
-  --alert-color:#24426c;
+  /* ---- 强调色 ---- */
+  --accent:#58a6ff;
+  --accent-soft:rgba(88,166,255,.14);
+  --accent-2:#a371f7;
+  --green:#3fb950;
+  --green-hover:#4ac463;
+  --green-soft:rgba(63,185,80,.14);
+  --blue:#58a6ff;
+  --blue-soft:rgba(88,166,255,.14);
+  --red:#f85149;
+  --red-soft:rgba(248,81,73,.14);
+  --amber:#d29922;
+  --amber-soft:rgba(210,153,34,.15);
+  --purple:#a371f7;
+  --purple-soft:rgba(163,113,247,.14);
+  --cyan:#2dd4bf;
+  --cyan-soft:rgba(45,212,191,.14);
+
+  /* ---- 延迟色阶（0 最优 → 4 最差）---- */
+  --lat0:#3fb950;
+  --lat1:#7ee787;
+  --lat2:#d29922;
+  --lat3:#f0883e;
+  --lat4:#f85149;
+
+  /* ---- AGH StatsCard 四色（沿用，保持兼容）---- */
+  --stats-card--queries:#3fb950;
+  --stats-card--ads:#f0883e;
+  --stats-card--threats:#d29922;
+  --stats-card--adult:#a371f7;
+
+  --alert-color:#c9d1d9;
+  --alert-border:rgba(88,166,255,.35);
+  --alert-bg:rgba(88,166,255,.10);
+
+  --shadow-1:0 1px 2px rgba(0,0,0,.5);
+  --shadow-2:0 14px 34px -18px rgba(0,0,0,.9);
+  --radius:8px;
+  --radius-sm:6px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+}
+
+/* ---- 浅色 ---- */
+html.theme-light{
+  --bgcolor:#f6f8fa;
+  --bgcolor-2:#eef1f5;
+  --mcolor:#1f2328;
+  --scolor:#656d76;
+  --border-color:rgba(27,31,36,.10);
+  --card-border-color:rgba(27,31,36,.13);
+  --card-1:rgba(255,255,255,.96);
+  --card-2:rgba(251,252,254,.92);
+  --card-head:rgba(27,31,36,.025);
+  --ctrl-bg:#ffffff;
+  --ctrl-border:rgba(27,31,36,.16);
+  --hover:rgba(27,31,36,.05);
+  --glass-bg:rgba(255,255,255,.74);
+  --glass-edge:rgba(255,255,255,.7);
+  --accent:#0969da;
+  --accent-soft:rgba(9,105,218,.10);
+  --green:#1a7f37;
+  --green-hover:#15682c;
+  --green-soft:rgba(26,127,55,.10);
+  --blue:#0969da;
+  --blue-soft:rgba(9,105,218,.10);
+  --red:#cf222e;
+  --red-soft:rgba(207,34,46,.10);
+  --amber:#9a6700;
+  --amber-soft:rgba(154,103,0,.12);
+  --purple:#8250df;
+  --purple-soft:rgba(130,80,223,.10);
+  --cyan:#0d9488;
+  --cyan-soft:rgba(13,148,136,.10);
+  --lat0:#1a7f37;--lat1:#2da44e;--lat2:#bf8700;--lat3:#bc4c00;--lat4:#cf222e;
+  --stats-card--queries:#1a7f37;
+  --stats-card--ads:#bc4c00;
+  --stats-card--threats:#bf8700;
+  --stats-card--adult:#8250df;
+  --alert-color:#0a3069;
   --alert-border:#cbdbf2;
   --alert-bg:#dae5f5;
-
-  --shadow-1:0 1px 2px rgba(16,24,40,.05);
-  --shadow-2:0 12px 28px -20px rgba(16,24,40,.30);
-  --radius:8px;
-  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-  --mono:ui-monospace,Monaco,Menlo,Consolas,"Ubuntu Mono",monospace;
+  --shadow-1:0 1px 2px rgba(16,24,40,.06);
+  --shadow-2:0 12px 28px -20px rgba(16,24,40,.3);
 }
-
-html.theme-dark{
-  --bgcolor:#131313;
-  --mcolor:#e6e6e6;
-  --scolor:#a5a5a5;
-  --border-color:#222;
-  --card-border-color:#3d3d3d;
-  --card-1:rgba(31,31,31,.92);
-  --card-2:rgba(25,25,25,.80);
-  --card-head:rgba(255,255,255,.035);
-  --ctrl-bg:rgba(30,30,30,.85);
-  --ctrl-border:#3d3d3d;
-  --hover:rgba(255,255,255,.055);
-  --glass-bg:rgba(19,19,19,.72);
-  --glass-edge:rgba(255,255,255,.10);
-  --green:#67b279;
-  --green-hover:#58a273;
-  --green-soft:rgba(103,178,121,.16);
-  --red:#e0655f;
-  --red-soft:rgba(224,101,95,.16);
-  --amber:#e0a33a;
-  --alert-color:#e6e6e6;
-  --alert-border:#363648;
-  --alert-bg:#363648;
-  --shadow-1:0 1px 2px rgba(0,0,0,.45);
-  --shadow-2:0 12px 28px -20px rgba(0,0,0,.8);
-}
-
-/* 未显式选择主题时跟随系统 */
-@media (prefers-color-scheme:dark){
-  html:not(.theme-light){
-    --bgcolor:#131313;--mcolor:#e6e6e6;--scolor:#a5a5a5;
-    --border-color:#222;--card-border-color:#3d3d3d;
-    --card-1:rgba(31,31,31,.92);--card-2:rgba(25,25,25,.80);
-    --card-head:rgba(255,255,255,.035);
-    --ctrl-bg:rgba(30,30,30,.85);--ctrl-border:#3d3d3d;
-    --hover:rgba(255,255,255,.055);
-    --glass-bg:rgba(19,19,19,.72);--glass-edge:rgba(255,255,255,.10);
-    --green:#67b279;--green-hover:#58a273;--green-soft:rgba(103,178,121,.16);
-    --red:#e0655f;--red-soft:rgba(224,101,95,.16);--amber:#e0a33a;
-    --alert-color:#e6e6e6;--alert-border:#363648;--alert-bg:#363648;
-    --shadow-1:0 1px 2px rgba(0,0,0,.45);--shadow-2:0 12px 28px -20px rgba(0,0,0,.8);
+@media (prefers-color-scheme:light){
+  html:not(.theme-dark){
+    --bgcolor:#f6f8fa;--bgcolor-2:#eef1f5;--mcolor:#1f2328;--scolor:#656d76;
+    --border-color:rgba(27,31,36,.10);--card-border-color:rgba(27,31,36,.13);
+    --card-1:rgba(255,255,255,.96);--card-2:rgba(251,252,254,.92);
+    --card-head:rgba(27,31,36,.025);--ctrl-bg:#fff;--ctrl-border:rgba(27,31,36,.16);
+    --hover:rgba(27,31,36,.05);--glass-bg:rgba(255,255,255,.74);--glass-edge:rgba(255,255,255,.7);
+    --accent:#0969da;--accent-soft:rgba(9,105,218,.10);
+    --green:#1a7f37;--green-hover:#15682c;--green-soft:rgba(26,127,55,.10);
+    --blue:#0969da;--blue-soft:rgba(9,105,218,.10);
+    --red:#cf222e;--red-soft:rgba(207,34,46,.10);
+    --amber:#9a6700;--amber-soft:rgba(154,103,0,.12);
+    --purple:#8250df;--purple-soft:rgba(130,80,223,.10);
+    --cyan:#0d9488;--cyan-soft:rgba(13,148,136,.10);
+    --lat0:#1a7f37;--lat1:#2da44e;--lat2:#bf8700;--lat3:#bc4c00;--lat4:#cf222e;
+    --stats-card--queries:#1a7f37;--stats-card--ads:#bc4c00;
+    --stats-card--threats:#bf8700;--stats-card--adult:#8250df;
+    --alert-color:#0a3069;--alert-border:#cbdbf2;--alert-bg:#dae5f5;
+    --shadow-1:0 1px 2px rgba(16,24,40,.06);--shadow-2:0 12px 28px -20px rgba(16,24,40,.3);
   }
 }
 
@@ -119,17 +157,25 @@ body{
   font-family:var(--font);font-size:14px;line-height:1.5;
   color:var(--mcolor);background:var(--bgcolor);
   -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
 }
 /* 静态背景光斑：给顶部玻璃提供可模糊的底，本身不含任何模糊滤镜 */
 body::before{
   content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:
-    radial-gradient(820px 460px at 10% -10%,rgba(94,186,0,.15),transparent 62%),
-    radial-gradient(760px 430px at 94% 2%,rgba(70,127,207,.13),transparent 64%),
-    radial-gradient(700px 460px at 50% 110%,rgba(168,112,178,.11),transparent 62%);
+    radial-gradient(760px 420px at 8% -12%,rgba(88,166,255,.16),transparent 62%),
+    radial-gradient(700px 400px at 96% 0%,rgba(163,113,247,.13),transparent 64%),
+    radial-gradient(680px 440px at 50% 112%,rgba(45,212,191,.10),transparent 62%);
 }
-a{color:var(--green-hover);text-decoration:none}
-.mono{font-family:var(--mono);font-size:12px}
+html.theme-light body::before{
+  background:
+    radial-gradient(760px 420px at 8% -12%,rgba(9,105,218,.12),transparent 62%),
+    radial-gradient(700px 400px at 96% 0%,rgba(130,80,223,.10),transparent 64%),
+    radial-gradient(680px 440px at 50% 112%,rgba(13,148,136,.08),transparent 62%);
+}
+a{color:var(--accent);text-decoration:none}
+.mono{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.tiny{font-size:11px;color:var(--scolor)}
 .hide{display:none!important}
 
 /* ================= 顶部玻璃 header ================= */
@@ -145,14 +191,14 @@ a{color:var(--green-hover);text-decoration:none}
   .header{background:var(--bgcolor)}
 }
 .header__inner{
-  max-width:1180px;margin:0 auto;padding:0 14px;
+  max-width:1240px;margin:0 auto;padding:0 14px;
   display:flex;align-items:center;gap:10px;min-height:56px;
 }
 .brand{
   display:flex;align-items:center;gap:8px;flex:none;
   font-size:16px;font-weight:700;color:var(--mcolor);letter-spacing:.2px;
 }
-.brand svg{width:20px;height:20px;fill:var(--green)}
+.brand svg{width:20px;height:20px;fill:var(--accent)}
 .brand__sub{
   font-size:11px;font-weight:500;color:var(--scolor);
   padding:2px 7px;border:1px solid var(--card-border-color);border-radius:20px;
@@ -173,13 +219,16 @@ a{color:var(--green-hover);text-decoration:none}
   transition:color .15s,border-color .15s,background-color .15s;
 }
 .nav-link:hover{color:var(--mcolor);background:var(--hover)}
-.nav-link.on{color:var(--green-hover);border-bottom-color:var(--green);font-weight:600}
+.nav-link.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
 .nav-link .caret{font-size:9px;opacity:.7}
 .header__right{display:flex;align-items:center;gap:8px;flex:none}
 .status-pill{
-  font-size:11.5px;color:var(--scolor);max-width:230px;
+  font-size:11.5px;color:var(--scolor);max-width:250px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+.status-pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--scolor);margin-right:5px;vertical-align:middle}
+.status-pill .dot.on{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.status-pill .dot.off{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 @media (max-width:640px){.status-pill{display:none}}
 /* 窄屏收紧导航，尽量单行放下；放不下则折行，绝不裁切下拉 */
 @media (max-width:520px){
@@ -201,7 +250,7 @@ a{color:var(--green-hover);text-decoration:none}
   width:34px;height:34px;flex:none;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   font-size:15px;color:var(--mcolor);
-  background:var(--ctrl-bg);border:1px solid var(--ctrl-border);border-radius:var(--radius);
+  background:var(--ctrl-bg);border:1px solid var(--ctrl-border);border-radius:var(--radius-sm);
 }
 .icon-btn:hover{background:var(--hover)}
 .icon-btn:active{transform:scale(.95)}
@@ -209,7 +258,7 @@ a{color:var(--green-hover);text-decoration:none}
 /* 下拉菜单：唯一允许使用 backdrop-filter 的浮层 */
 .dropdown-menu{
   position:absolute;top:calc(100% - 1px);left:0;z-index:70;
-  min-width:212px;max-width:calc(100vw - 24px);padding:5px;
+  min-width:222px;max-width:calc(100vw - 24px);padding:5px;
   background:var(--glass-bg);
   border:1px solid var(--card-border-color);border-radius:var(--radius);
   box-shadow:var(--shadow-2);
@@ -222,27 +271,29 @@ a{color:var(--green-hover);text-decoration:none}
 }
 .dropdown-menu.open{display:block}
 /* 必须紧跟基础规则，否则会被后面的 min-width 覆盖掉 */
-@media (max-width:520px){ .dropdown-menu{min-width:186px} }
+@media (max-width:520px){ .dropdown-menu{min-width:196px} }
 .dropdown-item{
   display:block;padding:8px 10px;border-radius:6px;cursor:pointer;
   font-size:13px;color:var(--mcolor);white-space:nowrap;
 }
 .dropdown-item:hover{background:var(--hover)}
-.dropdown-item.on{color:var(--green-hover);font-weight:600;background:var(--green-soft)}
+.dropdown-item.on{color:var(--accent);font-weight:600;background:var(--accent-soft)}
 
 /* ================= 页面容器 ================= */
-.container{max-width:1180px;margin:0 auto;padding:16px 14px 40px}
+.container{max-width:1240px;margin:0 auto;padding:16px 14px 40px}
 .page-title{
   display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
   flex-wrap:wrap;margin:2px 0 14px;
 }
 .page-title h2{margin:0;font-size:20px;font-weight:700;color:var(--mcolor);letter-spacing:-.2px}
-.page-title__sub{font-size:12.5px;color:var(--scolor);margin-top:3px}
+.page-title__sub{font-size:12.5px;color:var(--scolor);margin-top:3px;font-family:var(--mono)}
 .page-title__actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .row{display:flex;flex-wrap:wrap;gap:14px;margin:0}
 .col-12{flex:1 1 100%;min-width:0}
 .col-6{flex:1 1 calc(50% - 7px);min-width:0}
-@media (max-width:820px){.col-6{flex:1 1 100%}}
+.col-4{flex:1 1 calc(33.33% - 10px);min-width:0}
+@media (max-width:900px){.col-4{flex:1 1 calc(50% - 7px)}}
+@media (max-width:820px){.col-6,.col-4{flex:1 1 100%}}
 
 /* ================= 卡片 ================= */
 .card{
@@ -251,14 +302,24 @@ a{color:var(--green-hover);text-decoration:none}
   box-shadow:var(--shadow-1);
   margin-bottom:14px;overflow:hidden;
 }
-.row>.col-12>.card:last-child,.row>.col-6>.card:last-child{margin-bottom:0}
+.row>.col-12>.card:last-child,.row>.col-6>.card:last-child,.row>.col-4>.card:last-child{margin-bottom:0}
 .card-head{
+  position:relative;
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:12px 14px;font-size:13.5px;font-weight:600;color:var(--mcolor);
+  padding:12px 14px 12px 16px;font-size:13.5px;font-weight:600;color:var(--mcolor);
   background:var(--card-head);
   border-bottom:1px solid var(--card-border-color);
 }
-.card-head .tagline{font-weight:400;font-size:11.5px;color:var(--scolor);text-align:right}
+/* 左侧强调轨：卡片标题的可视锚点 */
+.card-head::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--accent);opacity:.75;
+}
+.card.accent-ok>.card-head::before{background:var(--green)}
+.card.accent-warn>.card-head::before{background:var(--amber)}
+.card.accent-err>.card-head::before{background:var(--red)}
+.card.accent-alt>.card-head::before{background:var(--purple)}
+.card-head .tagline{font-weight:400;font-size:11.5px;color:var(--scolor);text-align:right;font-family:var(--mono)}
 .card>.hint:first-of-type{padding-top:12px}
 .card>.hint{padding:0 14px}
 .card>.kv{padding-left:14px;padding-right:14px}
@@ -271,38 +332,48 @@ a{color:var(--green-hover);text-decoration:none}
 .card>.list+.btn-row,.card>.list+.ta{margin-top:10px}
 .card>*:last-child{margin-bottom:14px}
 
-/* ================= 键值行（对齐 AGH Counters 行）================= */
+/* ================= 键值行 ================= */
 .kv{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:9px 0;font-size:13px;border-bottom:1px solid var(--border-color);
 }
 .kv:last-child{border-bottom:none}
 .kv span{color:var(--scolor);flex:none}
-.kv b{font-weight:600;text-align:right;word-break:break-all}
+.kv b{font-weight:600;text-align:right;word-break:break-all;font-family:var(--mono);font-size:12.5px}
 .kv .mono{color:var(--mcolor)}
+.kv.tall{padding:11px 0}
 
-/* ================= 统计数字（对齐 AGH StatsCard）================= */
+/* ================= 指标磁贴 ================= */
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px}
 .grid.cols4{grid-template-columns:repeat(4,1fr);gap:10px}
-@media (max-width:700px){.grid.cols4{grid-template-columns:repeat(2,1fr)}}
+.grid.cols3{grid-template-columns:repeat(3,1fr);gap:10px}
+.grid.cols5{grid-template-columns:repeat(5,1fr);gap:10px}
+@media (max-width:760px){.grid.cols4,.grid.cols5{grid-template-columns:repeat(2,1fr)}.grid.cols3{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:420px){.grid.cols3{grid-template-columns:repeat(2,1fr)}}
 .metric{
   position:relative;overflow:hidden;
-  padding:12px 13px;border-radius:var(--radius);
-  background:var(--card-1);
+  padding:12px 13px;border-radius:var(--radius-sm);
+  background:var(--ctrl-bg);
   border:1px solid var(--card-border-color);
   border-left:3px solid var(--stats-card--queries);
 }
-.metric .n{font-size:23px;font-weight:700;line-height:1.15;color:var(--mcolor);letter-spacing:-.5px}
+.metric .n{
+  font-size:22px;font-weight:700;line-height:1.15;color:var(--mcolor);
+  letter-spacing:-.5px;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .metric .l{font-size:11.5px;color:var(--scolor);margin-top:4px}
 .metric:nth-child(2){border-left-color:var(--stats-card--ads)}
 .metric:nth-child(3){border-left-color:var(--stats-card--threats)}
 .metric:nth-child(4){border-left-color:var(--stats-card--adult)}
+.metric:nth-child(5){border-left-color:var(--cyan)}
+.metric .sub{font-size:11px;color:var(--scolor);font-family:var(--mono);margin-top:2px}
 
-/* ================= 按钮（AGH 紧凑风格）================= */
+/* ================= 按钮 ================= */
 .btn{
   appearance:none;cursor:pointer;font-family:inherit;
-  display:inline-flex;align-items:center;justify-content:center;
-  padding:8px 13px;border-radius:6px;font-size:13px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 13px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;
   color:var(--mcolor);background:var(--ctrl-bg);
   border:1px solid var(--ctrl-border);
   transition:background-color .15s,border-color .15s,color .15s,transform .1s;
@@ -310,31 +381,34 @@ a{color:var(--green-hover);text-decoration:none}
 .btn:hover{background:var(--hover)}
 .btn:active{transform:scale(.985)}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.btn.primary{background:var(--green);border-color:var(--green);color:#fff}
-.btn.primary:hover{background:var(--green-hover);border-color:var(--green-hover)}
-.btn.ok{color:var(--green-hover);border-color:var(--green);background:var(--green-soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.ok{color:var(--green);border-color:var(--green);background:var(--green-soft)}
 .btn.ok:hover{background:var(--green);color:#fff}
 .btn.danger{color:var(--red);border-color:var(--red);background:var(--red-soft)}
 .btn.danger:hover{background:var(--red);color:#fff}
 .btn.sm{padding:5px 10px;font-size:12px;border-radius:5px}
+.btn.xs{padding:3px 8px;font-size:11.5px;border-radius:5px;font-weight:500}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--scolor)}
+.btn.ghost:hover{background:var(--hover);color:var(--mcolor)}
 .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .btn-row .btn{min-width:0}
 
 /* ================= 表单控件 ================= */
-.ta,input[type=text],input[type=url],input[type=number],input[type=search],select{
+.ta,input[type=text],input[type=url],input[type=number],input[type=search],input[type=password],select{
   width:100%;margin-top:8px;padding:9px 11px;
   font-family:inherit;font-size:13px;color:var(--mcolor);
   background:var(--ctrl-bg);
-  border:1px solid var(--ctrl-border);border-radius:6px;
+  border:1px solid var(--ctrl-border);border-radius:var(--radius-sm);
   transition:border-color .15s,box-shadow .15s;
 }
 .ta:focus,input:focus,select:focus{
-  outline:none;border-color:var(--green);
-  box-shadow:0 0 0 3px var(--green-soft);
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
 }
 .ta{min-height:112px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.6}
 select{cursor:pointer}
-input[type=checkbox]{accent-color:var(--green)}
+input[type=checkbox]{accent-color:var(--accent)}
 .hint{font-size:12px;color:var(--scolor);padding:10px 0 2px;line-height:1.6}
 .hint b{color:var(--mcolor)}
 .tagline{font-size:11.5px;color:var(--scolor)}
@@ -374,13 +448,13 @@ input[type=checkbox]{accent-color:var(--green)}
   padding:10px 14px 0;
 }
 .subtab{
-  cursor:pointer;padding:6px 11px;border-radius:6px;
+  cursor:pointer;padding:6px 11px;border-radius:var(--radius-sm);
   font-size:12.5px;font-weight:500;color:var(--scolor);
   border:1px solid transparent;
   transition:background-color .15s,color .15s;
 }
 .subtab:hover{background:var(--hover);color:var(--mcolor)}
-.subtab.on{background:var(--green-soft);color:var(--green-hover);border-color:var(--green);font-weight:600}
+.subtab.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}
 .subpage{padding:0 14px}
 
 /* ================= 语法分布 chips ================= */
@@ -388,22 +462,20 @@ input[type=checkbox]{accent-color:var(--green)}
 .chip{
   display:inline-flex;align-items:center;gap:6px;
   padding:5px 10px;border-radius:20px;font-size:12px;
-  color:var(--mcolor);background:var(--card-1);
+  color:var(--mcolor);background:var(--ctrl-bg);
   border:1px solid var(--card-border-color);
 }
-.chip b{color:var(--green-hover);font-weight:700}
+.chip b{color:var(--accent);font-weight:700;font-family:var(--mono)}
 
 /* ================= 提示条 ================= */
 .alert{
-  margin:12px 14px;padding:10px 12px;border-radius:6px;font-size:12.5px;line-height:1.6;
+  margin:12px 14px;padding:10px 12px;border-radius:var(--radius-sm);font-size:12.5px;line-height:1.6;
   color:var(--alert-color);background:var(--alert-bg);border:1px solid var(--alert-border);
 }
-.alert.ok{color:#1c6b32;background:var(--green-soft);border-color:rgba(94,186,0,.4)}
-.alert.warn{color:#8a5a00;background:var(--amber-soft);border-color:rgba(213,133,0,.4)}
-.alert.err{color:#a02a26;background:var(--red-soft);border-color:rgba(217,83,79,.4)}
-html.theme-dark .alert.ok{color:#8fd6a0}
-html.theme-dark .alert.warn{color:#e8c07a}
-html.theme-dark .alert.err{color:#f0a19c}
+.alert.ok{color:var(--green);background:var(--green-soft);border-color:rgba(63,185,80,.4)}
+.alert.warn{color:var(--amber);background:var(--amber-soft);border-color:rgba(210,153,34,.4)}
+.alert.err{color:var(--red);background:var(--red-soft);border-color:rgba(248,81,73,.4)}
+.alert.plain{margin:10px 0}
 
 /* ================= Toast ================= */
 #toast{
@@ -417,6 +489,233 @@ html.theme-dark .alert.err{color:#f0a19c}
   transition:opacity .2s,transform .2s;
 }
 #toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ============================================================
+   极客控制台专用组件
+   ============================================================ */
+
+/* ---- 工具条 ---- */
+.toolbar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 14px;border-bottom:1px solid var(--border-color);
+  background:var(--card-head);
+}
+.toolbar .sp{flex:1 1 auto}
+.toolbar input[type=text],.toolbar input[type=search],.toolbar select{
+  margin-top:0;width:auto;min-width:130px;padding:6px 10px;font-size:12.5px;
+}
+.toolbar .btn{margin:0}
+
+/* ---- 分段控件 ---- */
+.seg{
+  display:inline-flex;padding:3px;gap:3px;margin:12px 14px 4px;
+  background:var(--ctrl-bg);border:1px solid var(--ctrl-border);border-radius:8px;
+}
+.seg-btn{
+  appearance:none;cursor:pointer;font-family:inherit;
+  padding:6px 14px;border-radius:6px;font-size:12.5px;font-weight:600;
+  color:var(--scolor);background:transparent;border:none;
+  transition:background-color .15s,color .15s;
+}
+.seg-btn:hover{color:var(--mcolor);background:var(--hover)}
+.seg-btn.on{background:var(--accent);color:#fff}
+.seg.wide{display:flex;margin:12px 14px 4px}
+.seg.wide .seg-btn{flex:1 1 0;text-align:center}
+
+/* ---- 统计条 ---- */
+.statline{
+  display:flex;flex-wrap:wrap;gap:6px 18px;
+  padding:10px 14px 12px;font-size:11.5px;color:var(--scolor);
+  border-top:1px solid var(--border-color);
+}
+.statline b{color:var(--mcolor);font-family:var(--mono);font-weight:600}
+.statline .sep{width:1px;background:var(--border-color)}
+
+/* ---- 实时曲线 ---- */
+.spark-wrap{padding:0 14px 6px}
+.spark{display:block;width:100%;height:120px}
+@media (max-width:520px){.spark{height:96px}}
+.spark-legend{display:flex;gap:16px;padding:0 14px 12px;font-size:11.5px;color:var(--scolor)}
+.spark-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* ---- 节点行 ---- */
+.nrow{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;font-size:13px;
+  border-bottom:1px solid var(--border-color);
+  cursor:pointer;
+}
+.nrow:last-child{border-bottom:none}
+.nrow:hover{background:var(--hover)}
+.nrow.on{background:var(--accent-soft)}
+.nrow .idx{flex:none;width:26px;font-family:var(--mono);font-size:11px;color:var(--scolor)}
+.nrow .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nrow .nm .p{font-family:var(--mono);font-size:10.5px;color:var(--scolor);margin-left:6px;
+  border:1px solid var(--card-border-color);border-radius:4px;padding:0 4px}
+.nrow .act{flex:none;display:flex;gap:6px;align-items:center}
+.lat{
+  flex:none;min-width:62px;text-align:center;
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:3px 7px;border-radius:5px;
+  background:var(--hover);color:var(--scolor);
+}
+.lat.p0{background:rgba(63,185,80,.16);color:var(--lat0)}
+.lat.p1{background:rgba(126,231,135,.14);color:var(--lat1)}
+.lat.p2{background:rgba(210,153,34,.16);color:var(--lat2)}
+.lat.p3{background:rgba(240,136,62,.16);color:var(--lat3)}
+.lat.p4{background:rgba(248,81,73,.16);color:var(--lat4)}
+html.theme-light .lat.p0{color:var(--lat0)}
+html.theme-light .lat.p1{color:var(--lat1)}
+html.theme-light .lat.p2{color:var(--lat2)}
+html.theme-light .lat.p3{color:var(--lat3)}
+html.theme-light .lat.p4{color:var(--lat4)}
+.dotbar{flex:none;width:8px;height:8px;border-radius:50%;background:var(--scolor)}
+.dotbar.on{background:var(--green)}
+.dotbar.off{background:var(--red)}
+
+/* ---- 策略组卡片 ---- */
+.grp{margin-bottom:14px;border:1px solid var(--card-border-color);border-radius:var(--radius);overflow:hidden;background:var(--ctrl-bg)}
+.grp-head{
+  display:flex;align-items:center;gap:10px;cursor:pointer;
+  padding:10px 14px;font-size:13.5px;font-weight:600;
+  background:var(--card-head);border-bottom:1px solid var(--card-border-color);
+}
+.grp-head .caret2{flex:none;font-size:10px;color:var(--scolor);transition:transform .15s}
+.grp.fold .grp-head .caret2{transform:rotate(-90deg)}
+.grp-head .gname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp-head .gtype{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--scolor);
+  border:1px solid var(--card-border-color);border-radius:4px;padding:1px 5px}
+.grp-body{display:block}
+.grp.fold .grp-body{display:none}
+
+/* ---- 连接表 ---- */
+.ctbl{width:100%;font-size:12px}
+.ctbl .ch{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  font-size:11px;color:var(--scolor);text-transform:uppercase;letter-spacing:.4px;
+  border-bottom:1px solid var(--border-color);background:var(--card-head);
+  position:sticky;top:56px;z-index:5;
+}
+.ctbl .cr{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  border-bottom:1px solid var(--border-color);cursor:pointer;
+}
+.ctbl .cr:hover{background:var(--hover)}
+.ctbl .c1{flex:1 1 34%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctbl .c2{flex:0 0 18%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--scolor);font-family:var(--mono);font-size:11px}
+.ctbl .c3{flex:0 0 16%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px}
+.ctbl .c4{flex:0 0 14%;text-align:right;font-family:var(--mono);font-size:11px;color:var(--green)}
+.ctbl .c5{flex:0 0 14%;text-align:right;font-family:var(--mono);font-size:11px;color:var(--accent)}
+.ctbl .c6{flex:none;width:26px;text-align:right}
+@media (max-width:760px){
+  .ctbl .c2{display:none}
+  .ctbl .ch .h2{display:none}
+}
+
+/* ---- 终端日志 ---- */
+.term{
+  margin:0 14px 14px;padding:10px 12px;min-height:180px;max-height:46vh;overflow:auto;
+  background:#07090d;border:1px solid var(--card-border-color);border-radius:var(--radius-sm);
+  font-family:var(--mono);font-size:11.5px;line-height:1.65;color:#c9d1d9;
+  white-space:pre-wrap;word-break:break-all;
+}
+html.theme-light .term{background:#0d1117;color:#c9d1d9}
+.term .tl{display:block}
+.term .tl .ts{color:#6e7681}
+.term .tl.info .lv{color:#58a6ff}
+.term .tl.warning .lv,.term .tl.warn .lv{color:#d29922}
+.term .tl.error .lv{color:#f85149}
+.term .tl.debug .lv{color:#8b949e}
+.term .tl .msg{color:#c9d1d9}
+.term .empty{color:#6e7681}
+
+/* ---- 规则行 ---- */
+.rrow{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 14px;font-size:12.5px;
+  border-bottom:1px solid var(--border-color);
+  font-family:var(--mono);
+}
+.rrow:last-child{border-bottom:none}
+.rrow:hover{background:var(--hover)}
+.rrow .ln{flex:none;width:34px;color:var(--scolor);font-size:11px}
+.rrow .kind{
+  flex:none;min-width:104px;font-size:10.5px;font-weight:700;letter-spacing:.2px;
+  padding:2px 6px;border-radius:4px;text-align:center;
+  background:var(--hover);color:var(--scolor);
+}
+.rrow .kind.k-domain{background:rgba(88,166,255,.16);color:var(--accent)}
+.rrow .kind.k-suffix,.rrow .kind.k-keyword{background:rgba(163,113,247,.16);color:var(--purple)}
+.rrow .kind.k-geo{background:rgba(45,212,191,.16);color:var(--cyan)}
+.rrow .kind.k-ip,.rrow .kind.k-port{background:rgba(210,153,34,.16);color:var(--amber)}
+.rrow .kind.k-match,.rrow .kind.k-final{background:rgba(248,81,73,.16);color:var(--red)}
+.rrow .kind.k-logical{background:rgba(63,185,80,.16);color:var(--green)}
+.rrow .pay{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow .pol{flex:none;font-weight:700;font-size:11px;padding:2px 7px;border-radius:4px;
+  background:var(--hover);color:var(--mcolor)}
+.rrow .pol.p-proxy{background:rgba(88,166,255,.16);color:var(--accent)}
+.rrow .pol.p-direct{background:rgba(63,185,80,.16);color:var(--green)}
+.rrow .pol.p-reject{background:rgba(248,81,73,.16);color:var(--red)}
+.rrow.off{opacity:.45}
+.rrow .idx{flex:none;width:22px;font-size:11px;color:var(--scolor)}
+
+/* ---- 代码框 ---- */
+.codebox{
+  margin:0 14px 14px;padding:10px 12px;max-height:52vh;overflow:auto;
+  background:#07090d;border:1px solid var(--card-border-color);border-radius:var(--radius-sm);
+  font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#c9d1d9;
+  white-space:pre;tab-size:2;
+}
+html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
+
+/* ---- 小标签 / 徽标 ---- */
+.pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600;
+  background:var(--hover);color:var(--scolor);border:1px solid transparent;
+}
+.pill.ok{background:var(--green-soft);color:var(--green);border-color:rgba(63,185,80,.35)}
+.pill.warn{background:var(--amber-soft);color:var(--amber);border-color:rgba(210,153,34,.35)}
+.pill.err{background:var(--red-soft);color:var(--red);border-color:rgba(248,81,73,.35)}
+.pill.info{background:var(--accent-soft);color:var(--accent);border-color:rgba(88,166,255,.35)}
+.pill.alt{background:var(--purple-soft);color:var(--purple);border-color:rgba(163,113,247,.35)}
+
+/* ---- 占比条 ---- */
+.bar{height:6px;border-radius:4px;background:var(--hover);overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.bar.g>i{background:var(--green)}
+.bar.r>i{background:var(--red)}
+
+/* ---- 网格小卡（FlClash 风格 widget 网格）---- */
+.wgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px}
+@media (min-width:720px){.wgrid{grid-template-columns:repeat(4,1fr)}}
+.wcard{
+  padding:11px 12px;border-radius:var(--radius-sm);
+  background:var(--ctrl-bg);border:1px solid var(--card-border-color);
+}
+.wcard .wt{font-size:11px;color:var(--scolor);display:flex;align-items:center;gap:5px}
+.wcard .wv{font-size:17px;font-weight:700;font-family:var(--mono);margin-top:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard .ws{font-size:11px;color:var(--scolor);font-family:var(--mono);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- 折叠块 ---- */
+.foldbox{border:1px solid var(--card-border-color);border-radius:var(--radius-sm);margin:0 14px 12px;overflow:hidden}
+.foldbox>.fb-head{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;
+  font-size:12.5px;font-weight:600;background:var(--card-head)}
+.foldbox>.fb-head .caret2{font-size:10px;color:var(--scolor);transition:transform .15s}
+.foldbox.fold>.fb-head .caret2{transform:rotate(-90deg)}
+.foldbox>.fb-body{padding:8px 12px;border-top:1px solid var(--border-color)}
+.foldbox.fold>.fb-body{display:none}
+
+/* ---- 诊断结果 ---- */
+.diag{margin:0 14px 14px;padding:12px;border-radius:var(--radius-sm);font-size:12.5px;line-height:1.7}
+.diag.hit{background:var(--accent-soft);border:1px solid rgba(88,166,255,.4)}
+.diag.ok{background:var(--green-soft);border:1px solid rgba(63,185,80,.4)}
+.diag.no{background:var(--amber-soft);border:1px solid rgba(210,153,34,.4)}
+.diag.err{background:var(--red-soft);border:1px solid rgba(248,81,73,.4)}
+.diag .step{display:flex;gap:8px;padding:3px 0;font-family:var(--mono);font-size:11.5px}
+.diag .step .i{flex:none;width:20px;color:var(--scolor)}
 
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important;animation-duration:.01ms!important}
@@ -435,15 +734,41 @@ html.theme-dark .alert.err{color:#f0a19c}
 
     <nav class="nav-tabs" id="tabs">
       <div class="nav-item">
-        <a class="nav-link on" data-tab="home">仪表盘</a>
+        <a class="nav-link on" data-tab="home">总览</a>
       </div>
 
       <div class="nav-item">
-        <a class="nav-link" data-dd="filters">过滤器 <span class="caret">▼</span></a>
+        <a class="nav-link" data-dd="route">代理路由 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="route">
+          <a class="dropdown-item" data-tab="route-home">代理总览</a>
+          <a class="dropdown-item" data-tab="route-proxy">策略组与节点</a>
+          <a class="dropdown-item" data-tab="route-conn">实时连接</a>
+          <a class="dropdown-item" data-tab="route-rules">规则与分流</a>
+          <a class="dropdown-item" data-tab="route-dns">DNS 与查询</a>
+          <a class="dropdown-item" data-tab="route-logs">内核日志</a>
+          <a class="dropdown-item" data-tab="route-core">内核与配置</a>
+          <a class="dropdown-item" data-tab="proxynode">节点与订阅</a>
+        </div>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="filters">过滤 <span class="caret">▼</span></a>
         <div class="dropdown-menu" data-dd-menu="filters">
           <a class="dropdown-item" data-tab="dns">DNS 拦截列表</a>
           <a class="dropdown-item" data-tab="engine">自定义过滤规则</a>
+          <a class="dropdown-item" data-tab="mitm">加密过滤 · 根证书</a>
           <a class="dropdown-item" data-tab="netblock">拦截服务</a>
+          <a class="dropdown-item" data-tab="notify">通知过滤</a>
+        </div>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="tools">工具 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="tools">
+          <a class="dropdown-item" data-tab="app">内置管理器 App</a>
+          <a class="dropdown-item" data-tab="scripts">脚本扩展</a>
+          <a class="dropdown-item" data-tab="splash">开屏跳过</a>
+          <a class="dropdown-item" data-tab="tools">工具与备份</a>
         </div>
       </div>
 
@@ -452,17 +777,10 @@ html.theme-dark .alert.err{color:#f0a19c}
         <div class="dropdown-menu" data-dd-menu="settings">
           <a class="dropdown-item" data-tab="settings">常规设置</a>
           <a class="dropdown-item" data-tab="dnssrv">DNS 设置</a>
-          <a class="dropdown-item" data-tab="mitm">加密设置 · 根证书</a>
-          <a class="dropdown-item" data-tab="proxynode">代理与节点</a>
-          <a class="dropdown-item" data-tab="scripts">脚本扩展</a>
-          <a class="dropdown-item" data-tab="notify">通知过滤</a>
-          <a class="dropdown-item" data-tab="splash">开屏跳过</a>
+          <a class="dropdown-item" data-tab="sysinfo">系统与日志</a>
         </div>
       </div>
-
-      <div class="nav-item">
-        <a class="nav-link" data-tab="tools">工具与备份</a>
-      </div>
+    </nav>
     </nav>
 
     <div class="header__right">
@@ -474,16 +792,17 @@ html.theme-dark .alert.err{color:#f0a19c}
 
 <div class="container">
 
-  <!-- ================= 仪表盘 ================= -->
+  <!-- ================= 总览 ================= -->
   <section class="page" id="page-home">
     <div class="page-title">
       <div>
-        <h2>仪表盘</h2>
+        <h2>总览</h2>
         <div class="page-title__sub" id="ovTime">-</div>
       </div>
       <div class="page-title__actions">
         <button class="btn primary" id="tgHosts" data-act="hosts-toggle">-</button>
-        <button class="btn" data-act="refresh-home">刷新统计</button>
+        <button class="btn ok" id="tgProxy" data-act="px-toggle">代理 -</button>
+        <button class="btn" data-act="refresh-home">刷新</button>
       </div>
     </div>
 
@@ -495,6 +814,28 @@ html.theme-dark .alert.err{color:#f0a19c}
             <div class="metric"><div class="n" id="ovBlocked">-</div><div class="l">累计拦截</div></div>
             <div class="metric"><div class="n" id="ovMitm">-</div><div class="l">MITM 代理</div></div>
             <div class="metric"><div class="n" id="ovSplash">-</div><div class="l">开屏跳过次数</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card accent-alt">
+          <div class="card-head">代理内核 <span class="tagline" id="hmCore">-</span></div>
+          <div class="wgrid">
+            <div class="wcard"><div class="wt">运行状态</div><div class="wv" id="hmRun">-</div><div class="ws" id="hmMode">-</div></div>
+            <div class="wcard"><div class="wt">当前节点</div><div class="wv" id="hmNode">-</div><div class="ws" id="hmGroup">-</div></div>
+            <div class="wcard"><div class="wt">实时上传</div><div class="wv" id="hmUp">-</div><div class="ws" id="hmUpT">-</div></div>
+            <div class="wcard"><div class="wt">实时下载</div><div class="wv" id="hmDown">-</div><div class="ws" id="hmDownT">-</div></div>
+            <div class="wcard"><div class="wt">活动连接</div><div class="wv" id="hmConn">-</div><div class="ws" id="hmMem">-</div></div>
+            <div class="wcard"><div class="wt">规则 / 规则集</div><div class="wv" id="hmRules">-</div><div class="ws" id="hmRS">-</div></div>
+            <div class="wcard"><div class="wt">出口延迟</div><div class="wv" id="hmDelay">-</div><div class="ws" id="hmMix">-</div></div>
+            <div class="wcard"><div class="wt">系统</div><div class="wv" id="hmSys">-</div><div class="ws" id="hmUptime">-</div></div>
+          </div>
+          <div class="btn-row" style="padding:0 14px 14px">
+            <button class="btn sm" data-act="tab-go" data-v="route-home">代理总览</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-proxy">切换节点</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-conn">实时连接</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-rules">规则分流</button>
           </div>
         </div>
       </div>
@@ -540,6 +881,504 @@ html.theme-dark .alert.err{color:#f0a19c}
     </div>
   </section>
 
+  <!-- ================= 代理总览 ================= -->
+  <section class="page hide" id="page-route-home">
+    <div class="page-title">
+      <div><h2>代理总览</h2><div class="page-title__sub" id="rhSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="px-up">启动内核</button>
+        <button class="btn" data-act="px-restart">重启</button>
+        <button class="btn danger" data-act="px-down">停止</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card accent-ok">
+          <div class="card-head">内核运行状态 <span class="tagline" id="rhVer">-</span></div>
+          <div class="grid cols5">
+            <div class="metric"><div class="n" id="rhUp">-</div><div class="l">↑ 实时上传</div></div>
+            <div class="metric"><div class="n" id="rhDown">-</div><div class="l">↓ 实时下载</div></div>
+            <div class="metric"><div class="n" id="rhConn">-</div><div class="l">活动连接</div></div>
+            <div class="metric"><div class="n" id="rhMem">-</div><div class="l">内核内存</div></div>
+            <div class="metric"><div class="n" id="rhPid">-</div><div class="l">进程 PID</div></div>
+          </div>
+          <div class="spark-wrap"><canvas id="rhSpark" class="spark"></canvas></div>
+          <div class="spark-legend">
+            <span><i style="background:var(--green)"></i>下载</span>
+            <span><i style="background:var(--accent)"></i>上传</span>
+            <span class="sp">60 秒滚动窗口</span>
+          </div>
+          <div class="statline">
+            <span>累计 ↑ <b id="rhUpT">-</b></span>
+            <span>累计 ↓ <b id="rhDownT">-</b></span>
+            <span>模式 <b id="rhModeTxt">-</b></span>
+            <span>规则 <b id="rhRules">-</b></span>
+            <span>规则集 <b id="rhRS">-</b></span>
+            <span>节点 <b id="rhNodes">-</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">当前出口</div>
+          <div class="kv"><span>策略组</span><b id="rhGroup">-</b></div>
+          <div class="kv"><span>选中节点</span><b id="rhNow">-</b></div>
+          <div class="kv"><span>出口延迟</span><b id="rhDelay">-</b></div>
+          <div class="kv"><span>内核</span><b id="rhCore">-</b></div>
+          <div class="kv"><span>配置</span><b id="rhCfg">-</b></div>
+          <div class="btn-row">
+            <button class="btn sm" data-act="rh-ping-all">批量测速</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-proxy">策略组</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">运行模式 <span class="tagline">Clash API 实时切换</span></div>
+          <div class="seg wide" id="rhModes">
+            <button class="seg-btn" data-act="rh-mode" data-v="rule">规则分流</button>
+            <button class="seg-btn" data-act="rh-mode" data-v="global">全局代理</button>
+            <button class="seg-btn" data-act="rh-mode" data-v="direct">全部直连</button>
+          </div>
+          <div class="hint">规则分流按规则表走；全局代理把所有流量交给选中节点；全部直连用于排查（仍会记录连接但不代理）。</div>
+          <div class="kv"><span>混合入站端口</span><b id="rhMport">-</b></div>
+          <div class="kv"><span>TUN 透明代理</span><b id="rhTun">-</b></div>
+          <div class="kv"><span>Clash API</span><b id="rhApi">-</b></div>
+          <div class="kv"><span>私网直连</span><b id="rhPriv">-</b></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">快捷操作 <span class="tagline">改完配置记得重载</span></div>
+          <div class="btn-row">
+            <button class="btn" data-act="rh-reload">重载配置</button>
+            <button class="btn" data-act="rh-fetchrules">更新规则集</button>
+            <button class="btn" data-act="rh-mirrors">镜像测速</button>
+            <button class="btn" data-act="tab-go" data-v="route-core">内核与配置</button>
+            <button class="btn" data-act="tab-go" data-v="app">内置 App</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 策略组与节点 ================= -->
+  <section class="page hide" id="page-route-proxy">
+    <div class="page-title">
+      <div><h2>策略组与节点</h2><div class="page-title__sub" id="rpSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rp-ping-all">全部测速</button>
+        <button class="btn" data-act="rp-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="toolbar">
+            <input type="search" id="rpSearch" placeholder="筛选节点…">
+            <select id="rpSort">
+              <option value="order">原始顺序</option>
+              <option value="delay">按延迟</option>
+              <option value="name">按名称</option>
+            </select>
+            <select id="rpUrl">
+              <option value="http://www.gstatic.com/generate_204">测速：gstatic 204</option>
+              <option value="http://cp.cloudflare.com/generate_204">测速：Cloudflare</option>
+              <option value="http://connectivitycheck.gstatic.com/generate_204">测速：Android 连通性</option>
+              <option value="https://www.google.com/generate_204">测速：Google HTTPS</option>
+            </select>
+            <span class="sp"></span>
+            <button class="btn sm" data-act="rp-collapse">全部折叠</button>
+          </div>
+          <div id="rpGroups" style="padding:14px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 实时连接 ================= -->
+  <section class="page hide" id="page-route-conn">
+    <div class="page-title">
+      <div><h2>实时连接</h2><div class="page-title__sub" id="rcSub">-</div></div>
+      <div class="page-title__actions">
+        <label class="chk"><input type="checkbox" id="rcAuto" checked>自动刷新</label>
+        <button class="btn" data-act="rc-refresh">刷新</button>
+        <button class="btn danger" data-act="rc-close-all">关闭全部</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="grid cols4">
+            <div class="metric"><div class="n" id="rcCount">-</div><div class="l">活动连接</div></div>
+            <div class="metric"><div class="n" id="rcUp">-</div><div class="l">↑ 速率</div></div>
+            <div class="metric"><div class="n" id="rcDown">-</div><div class="l">↓ 速率</div></div>
+            <div class="metric"><div class="n" id="rcMem">-</div><div class="l">内核内存</div></div>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="rcSearch" placeholder="筛选：域名 / 进程 / 规则 / 出口…">
+            <span class="sp"></span>
+            <span class="tiny" id="rcTime">-</span>
+          </div>
+          <div class="ctbl">
+            <div class="ch">
+              <span class="c1">目标 / 主机</span>
+              <span class="c2 h2">进程</span>
+              <span class="c3">命中规则</span>
+              <span class="c4">↑</span>
+              <span class="c5">↓</span>
+              <span class="c6"></span>
+            </div>
+            <div id="rcList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 规则与分流 ================= -->
+  <section class="page hide" id="page-route-rules">
+    <div class="page-title">
+      <div><h2>规则与分流</h2><div class="page-title__sub" id="rrSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="rr-lint">规则体检</button>
+        <button class="btn primary" data-act="rr-compile">重新编译</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="grid cols5">
+            <div class="metric"><div class="n" id="rrRules">-</div><div class="l">规则条数</div></div>
+            <div class="metric"><div class="n" id="rrNodes">-</div><div class="l">节点</div></div>
+            <div class="metric"><div class="n" id="rrGroups">-</div><div class="l">策略组</div></div>
+            <div class="metric"><div class="n" id="rrRS">-</div><div class="l">规则集</div></div>
+            <div class="metric"><div class="n" id="rrErr">-</div><div class="l">错误 / 警告</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card accent-warn">
+          <div class="card-head">命中诊断 <span class="tagline">离线推演，不发包</span></div>
+          <div class="hint">输入域名或 IP，推演它会命中哪一条规则、走哪个出口。支持端口、进程名等条件。</div>
+          <input type="text" id="rrDiagDomain" placeholder="域名，如 www.google.com">
+          <input type="text" id="rrDiagIp" placeholder="目标 IP（可选），如 8.8.8.8">
+          <input type="text" id="rrDiagPort" placeholder="目标端口（可选），如 443">
+          <input type="text" id="rrDiagProc" placeholder="进程名（可选），如 com.tencent.mm">
+          <div class="btn-row">
+            <button class="btn primary" data-act="rr-diag">开始推演</button>
+            <button class="btn" data-act="rr-diag-verbose">含全部步骤</button>
+          </div>
+          <div class="diag hide" id="rrDiagOut"></div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card accent-warn">
+          <div class="card-head">规则体检 <span class="tagline" id="rrLintTag">-</span></div>
+          <div class="list" id="rrLintList"><div class="empty">点上方「规则体检」开始</div></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">规则表 <span class="tagline" id="rrRuleTag">-</span></div>
+          <div class="toolbar">
+            <input type="search" id="rrRuleSearch" placeholder="筛选规则…">
+            <select id="rrRuleFilter">
+              <option value="">全部类型</option>
+              <option value="DOMAIN">DOMAIN 系列</option>
+              <option value="GEOSITE">GEOSITE</option>
+              <option value="GEOIP">GEOIP</option>
+              <option value="IP-CIDR">IP-CIDR 系列</option>
+              <option value="DST-PORT">端口</option>
+              <option value="PROCESS">进程</option>
+              <option value="MATCH">兜底</option>
+            </select>
+            <span class="sp"></span>
+            <button class="btn sm" data-act="rr-add-open">追加规则</button>
+          </div>
+          <div class="foldbox fold" id="rrAddBox">
+            <div class="fb-head" data-act="rr-add-toggle"><span class="caret2">▼</span>追加规则（每行一条）</div>
+            <div class="fb-body">
+              <div class="hint">支持 Clash 风格：<span class="mono">DOMAIN-SUFFIX,google.com,PROXY</span>；也支持 <span class="mono">DOMAIN,ads.test,REJECT</span>、<span class="mono">GEOIP,cn,DIRECT</span>、<span class="mono">DST-PORT,8080,DIRECT</span>。策略可用 PROXY / DIRECT / REJECT 或策略组名。</div>
+              <textarea class="ta" id="rrAddText" placeholder="DOMAIN-SUFFIX,example.com,DIRECT&#10;DOMAIN-KEYWORD,ads,REJECT"></textarea>
+              <div class="btn-row">
+                <button class="btn primary" data-act="rr-add-save">追加并重编译</button>
+                <button class="btn" data-act="rr-add-close">收起</button>
+              </div>
+            </div>
+          </div>
+          <div id="rrRuleList"></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">规则集 <span class="tagline" id="rrRsTag">-</span></div>
+          <div class="hint">.srs 是 sing-box 二进制规则集。模块内置常用规则集，完全离线可用；在线更新会写入可写目录并优先使用。</div>
+          <div class="btn-row">
+            <button class="btn" data-act="rr-fetchrules">在线更新规则集</button>
+            <button class="btn" data-act="rr-mirrors">镜像测速</button>
+          </div>
+          <div class="list mono" id="rrRsList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DNS 与查询 ================= -->
+  <section class="page hide" id="page-route-dns">
+    <div class="page-title">
+      <div><h2>DNS 与查询</h2><div class="page-title__sub" id="rdSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rd-save">保存并重载</button>
+        <button class="btn" data-act="rd-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">解析策略</div>
+          <div class="kv"><span>DNS 总开关</span><b id="rdEnabled">-</b></div>
+          <div class="kv"><span>默认服务器</span><b id="rdFinal">-</b></div>
+          <div class="kv"><span>IP 策略</span><b id="rdStrategy">-</b></div>
+          <div class="kv"><span>FakeIP</span><b id="rdFakeip">-</b></div>
+          <div class="kv"><span>DNS 泄露防护</span><b id="rdLeak">-</b></div>
+          <div class="seg wide">
+            <button class="seg-btn" data-act="rd-preset" data-v="cn">国内优先</button>
+            <button class="seg-btn" data-act="rd-preset" data-v="secure">全加密</button>
+            <button class="seg-btn" data-act="rd-preset" data-v="split">分流解析</button>
+          </div>
+          <div class="hint">「国内优先」用运营商 DNS 解析国内域名，境外域名走加密 DNS 经代理；「全加密」全部走 DoH/DoT；「分流解析」国内直连、境外经代理。</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">上游测速 <span class="tagline">真实 DNS 查询延迟</span></div>
+          <div class="hint">对下列 DNS 服务器发起一次真实查询并计时，用于挑最快的上游。</div>
+          <div class="toolbar">
+            <input type="text" id="rdProbeDomain" value="www.baidu.com" placeholder="测试域名">
+            <button class="btn sm" data-act="rd-probe">开始测速</button>
+          </div>
+          <div class="list" id="rdProbeList"><div class="empty">点「开始测速」</div></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">DNS 服务器列表 <span class="tagline" id="rdSrvTag">-</span></div>
+          <div class="list" id="rdSrvList"></div>
+          <div class="foldbox fold" id="rdAddBox">
+            <div class="fb-head" data-act="rd-add-toggle"><span class="caret2">▼</span>添加 DNS 服务器</div>
+            <div class="fb-body">
+              <input type="text" id="rdAddTag" placeholder="标签，如 local / remote">
+              <input type="text" id="rdAddAddr" placeholder="地址：223.5.5.5 / tls://dns.google:853 / https://1.1.1.1/dns-query">
+              <input type="text" id="rdAddDetour" placeholder="出口（可选）：direct / proxy / 策略组名">
+              <div class="btn-row">
+                <button class="btn primary" data-act="rd-add-save">添加</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">原始 DNS 配置 <span class="tagline">profile.json → dns</span></div>
+          <textarea class="ta" id="rdRaw" style="min-height:180px" placeholder="{}"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="rd-raw-save">保存原始配置</button>
+            <button class="btn" data-act="rd-raw-reload">重新载入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内核日志 ================= -->
+  <section class="page hide" id="page-route-logs">
+    <div class="page-title">
+      <div><h2>内核日志</h2><div class="page-title__sub" id="rlSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rl-pull">抓取一次</button>
+        <label class="chk"><input type="checkbox" id="rlAuto">持续抓取</label>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="toolbar">
+            <select id="rlLevel">
+              <option value="info">级别：info</option>
+              <option value="warning">级别：warning</option>
+              <option value="error">级别：error</option>
+              <option value="debug">级别：debug</option>
+            </select>
+            <input type="number" id="rlLines" value="60" min="10" max="500" style="min-width:90px" placeholder="行数">
+            <span class="sp"></span>
+            <span class="tiny" id="rlStat">-</span>
+            <button class="btn sm" data-act="rl-clear">清空窗口</button>
+            <button class="btn sm" data-act="rl-copy">复制</button>
+          </div>
+          <div class="term" id="rlTerm"><span class="empty">点「抓取一次」或勾选「持续抓取」开始</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内核与配置 ================= -->
+  <section class="page hide" id="page-route-core">
+    <div class="page-title">
+      <div><h2>内核与配置</h2><div class="page-title__sub" id="rkSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="rk-check">配置校验</button>
+        <button class="btn primary" data-act="rk-reload">编译并重载</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">内核信息</div>
+          <div class="kv"><span>路径</span><b id="rkPath">-</b></div>
+          <div class="kv"><span>版本</span><b id="rkVer">-</b></div>
+          <div class="kv"><span>架构</span><b id="rkArch">-</b></div>
+          <div class="kv"><span>大小</span><b id="rkSize">-</b></div>
+          <div class="kv"><span>运行状态</span><b id="rkRun">-</b></div>
+          <div class="kv"><span>PID</span><b id="rkPid">-</b></div>
+          <div class="btn-row">
+            <button class="btn" data-act="tab-go" data-v="proxynode">更换 / 下载内核</button>
+            <button class="btn" data-act="rk-proxy-logs">内核 stderr 日志</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">配置文件</div>
+          <div class="kv"><span>profile.json</span><b id="rkProfile">-</b></div>
+          <div class="kv"><span>config.json</span><b id="rkCfg">-</b></div>
+          <div class="kv"><span>规则集目录</span><b id="rkRsDir">-</b></div>
+          <div class="kv"><span>规则集数量</span><b id="rkRsCount">-</b></div>
+          <div class="kv"><span>混合端口</span><b id="rkMport">-</b></div>
+          <div class="kv"><span>Clash API</span><b id="rkApi">-</b></div>
+          <div class="kv"><span>镜像</span><b id="rkMirror">-</b></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">profile.json（唯一事实源）<span class="tagline" id="rkProfileTag">-</span></div>
+          <div class="hint">节点、策略组、规则、DNS、通用设置都在这里。改完点保存，再点上方「编译并重载」生效。格式：JSON。</div>
+          <textarea class="ta" id="rkProfileText" style="min-height:260px" placeholder="{}"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="rk-profile-save">保存 profile</button>
+            <button class="btn" data-act="rk-profile-reload">重新载入</button>
+            <button class="btn" data-act="rk-profile-format">格式化</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">编译产物 config.json <span class="tagline">只读 · 内核实际读的配置</span></div>
+          <div class="btn-row">
+            <button class="btn" data-act="rk-cfg-load">载入</button>
+            <button class="btn" data-act="rk-cfg-copy">复制</button>
+            <button class="btn" data-act="rk-cfg-download">下载</button>
+          </div>
+          <pre class="codebox" id="rkCfgView">点「载入」查看编译后的内核配置</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内置 App ================= -->
+  <section class="page hide" id="page-app">
+    <div class="page-title">
+      <div><h2>内置管理器 App</h2><div class="page-title__sub" id="apSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="ap-install">安装 / 更新</button>
+        <button class="btn ok" data-act="ap-open">打开</button>
+        <button class="btn danger" data-act="ap-remove">卸载</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card accent-alt">
+          <div class="card-head">安装状态 <span class="tagline" id="apPkg">com.syfusion.manager</span></div>
+          <div class="kv"><span>是否已安装</span><b id="apInstalled">-</b></div>
+          <div class="kv"><span>版本号</span><b id="apVersion">-</b></div>
+          <div class="kv"><span>内置 APK</span><b id="apApk">-</b></div>
+          <div class="kv"><span>APK 大小</span><b id="apSize">-</b></div>
+          <div class="kv"><span>APK SHA-256</span><b id="apSig" class="mono">-</b></div>
+          <div class="btn-row">
+            <button class="btn" data-act="ap-status">刷新状态</button>
+            <button class="btn" data-act="ap-reinstall">强制重装</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">这个 App 能做什么</div>
+          <div class="hint">
+            模块安装时会自动把 <b>SY 管理器</b> 装到桌面（与 LSPosed 内置管理器同理）。它是一个极轻的原生壳，直接复用本面板的全部能力：
+          </div>
+          <div class="kv"><span>一键启停</span><b>桌面图标 / 快捷磁贴</b></div>
+          <div class="kv"><span>状态通知</span><b>常驻通知显示速率与连接数</b></div>
+          <div class="kv"><span>面板入口</span><b>内置 WebView 直开本面板</b></div>
+          <div class="kv"><span>离线可用</span><b>不依赖网络与第三方 App</b></div>
+          <div class="hint">若安装失败，多半是系统限制「安装未知来源应用」或 SELinux 上下文问题；点「强制重装」会用 pm 会话式安装兜底。</div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">安装输出</div>
+          <pre class="codebox" id="apLog">-</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 系统与日志 ================= -->
+  <section class="page hide" id="page-sysinfo">
+    <div class="page-title">
+      <div><h2>系统与日志</h2><div class="page-title__sub" id="siSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="si-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">系统状态</div>
+          <div class="kv"><span>内存占用</span><b id="siMem">-</b></div>
+          <div class="kv"><span>服务组件 CPU</span><b id="siCpu">-</b></div>
+          <div class="kv"><span>开机时长</span><b id="siUp">-</b></div>
+          <div class="kv"><span>面板服务</span><b id="siPanel">-</b></div>
+          <div class="kv"><span>模块版本</span><b id="siVer">-</b></div>
+          <div class="kv"><span>运行环境</span><b id="siEnv">-</b></div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">自检</div>
+          <div class="hint">跑一遍模块自检，确认各组件与依赖是否齐备。</div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="si-selfcheck">运行自检</button>
+            <button class="btn" data-act="si-export">导出诊断包</button>
+          </div>
+          <pre class="codebox" id="siOut" style="min-height:140px">-</pre>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">运行日志<span class="tagline">/data/adb/SY/logs</span></div>
+          <div class="list" id="siLogList"></div>
+          <pre class="codebox" id="siLogView">点击「查看」显示日志内容</pre>
+        </div>
+      </div>
+    </div>
+  </section>
   <!-- ================= DNS 拦截列表 ================= -->
   <section class="page hide" id="page-dns">
     <div class="page-title">
@@ -1430,7 +2269,7 @@ function q(s){ return encodeURIComponent(s); }
   原生侧执行完毕后调用 window[callbackName](errno, stdout, stderr)。
   旧版本亦存在 ksu.exec(command, callbackFn) 两参写法, 一并兜底。
 */
-function ksuExec(cmdStr){
+function ksuExec(cmdStr,timeoutMs){
   return new Promise(function(resolve){
     if(!hasKSU()){ resolve({errno:-1,stdout:"",stderr:"no-ksu-bridge"}); return; }
     var name="__ksucb_"+Math.random().toString(36).slice(2)+Date.now().toString(36);
@@ -1441,7 +2280,7 @@ function ksuExec(cmdStr){
       resolve({errno:(errno==null?0:errno), stdout:String(stdout==null?"":stdout), stderr:String(stderr==null?"":stderr)});
     }
     window[name]=fin;
-    var timer=setTimeout(function(){ fin(-1,"","timeout"); },30000);
+    var timer=setTimeout(function(){ fin(-1,"","timeout"); },timeoutMs||30000);
     // 官方 3 参签名(回调名)
     try{
       var r=window.ksu.exec(cmdStr, "{}", name);
@@ -1473,12 +2312,12 @@ function apiExec(script,args){
     .catch(function(e){ clearTimeout(t); return "ERR: "+((e&&e.name==="AbortError")?"请求超时(已中止,防卡死)":e.message); });
 }
 
-function runScript(name,args){
+function runScript(name,args,timeoutMs){
   args=args||[];
   if(hasKSU()){
     var cmd="sh "+MODDIR+"/scripts/"+name;
     if(args.length) cmd+=" "+args.map(shQuote).join(" ");
-    return ksuExec(cmd).then(function(res){
+    return ksuExec(cmd,timeoutMs).then(function(res){
       var out=res.stdout||"";
       if(res.stderr) out+=(out?"\n":"")+res.stderr;
       return out;
@@ -1526,7 +2365,7 @@ function switchTheme(){
    各页面数据加载
    ============================================================ */
 function loadHome(){
-  return runScript("ctl.sh",["status"]).then(function(s){
+  var p=runScript("ctl.sh",["status"]).then(function(s){
     var d=parseJSON(s)||{};
     var dns=d.dns||{}, mitm=d.mitm||{}, splash=d.splash||{}, panel=d.panel||{}, sys=d.sys||{};
     setText("ovDns", dns.rule_count!=null?dns.rule_count:"-");
@@ -1542,7 +2381,13 @@ function loadHome(){
     setText("ovTime", new Date().toLocaleTimeString());
     setText("abVer","v1.0.0");
     setText("abKsu", KSU_LABEL);
+    setText("hmUptime", sys.uptime||"-");
+    setText("hmSys", KSU_LABEL);
   });
+  // 总览页的「代理内核」磁贴网格需要内核实时状态 / 当前出口 / 规则统计，
+  // 之前只取了 ctl.sh status，导致整片磁贴恒为 "-"。这里补齐同一条数据链。
+  var q=Promise.all([loadRouteStatus(),loadRouteSummary(),loadRouteLive(),loadRouteCurrent()]);
+  return Promise.all([p,q]);
 }
 function setToggle(id,on){
   var b=document.getElementById(id); if(!b) return;
@@ -2240,6 +3085,1365 @@ var actions={
   "eng-clear":function(){ if(!confirm("确定清空引擎编译产物？需重新编译才会恢复。")){return Promise.resolve();} return runScript("dns.sh",["engine-clear"]).then(function(o){toast(msg(o));return Promise.all([loadEngine(),loadFilter()]);}); },
 };
 
+/* ============================================================
+   =============  极客控制台（代理路由层）  =============
+   设计说明：
+     · KernelSU WebUI 里的页面不是 http(s) 同源，fetch("/api/...")
+       打不到 127.0.0.1:8848，所以两种运行环境各走一条通道：
+         KSU 模式 → ksu.exec("sh route.sh …") 拿 JSON 文本
+         局域网   → fetch("/api/clash|/api/route")
+       UI 只认归一化后的对象，屏蔽两边字段名差异。
+     · 实时数据（速率/连接）在 KSU 模式下每次都要 fork，
+       所以刷新间隔按运行环境自适应，别把手机 CPU 打满。
+   ============================================================ */
+
+var CLASH_PORT = 9090;
+var CUR_TAB = "home";
+var PROXY_TABS = { "home":1, "route-home":1, "route-proxy":1, "route-conn":1, "route-logs":1 };
+var LIVE_MS = 0;            /* 由 init 按运行环境决定 */
+var KSU_LONG_MS = 600000;   /* KSU 模式下长任务的超时（下载规则集等） */
+
+/* ---------- 结果解析 ---------- */
+function extractJson(t){
+  t = String(t == null ? "" : t).replace(/\r/g, "").trim();
+  if(!t) return null;
+  var direct = parseJSON(t);
+  if(direct !== null) return direct;
+  var i = t.search(/[[{]/);
+  if(i < 0) return null;
+  var s = t.slice(i);
+  var lastB = s.lastIndexOf("}");
+  var lastK = s.lastIndexOf("]");
+  var last = Math.max(lastB, lastK);
+  if(last < 0) return null;
+  return parseJSON(s.slice(0, last + 1));
+}
+function looksOk(t){ return /(^|\n)\s*OK[:：]/.test(String(t||"")) || /"ok"\s*:\s*true/.test(String(t||"")); }
+function num(v, d){ var x = Number(v); return isFinite(x) ? x : (d == null ? 0 : d); }
+function fmtBytes(n){
+  n = num(n, 0);
+  if(n < 1024) return n + " B";
+  var u = ["KB","MB","GB","TB","PB"], i = -1;
+  do { n /= 1024; i++; } while(n >= 1024 && i < u.length - 1);
+  return n.toFixed(n < 10 ? 2 : 1) + " " + u[i];
+}
+function fmtSpeed(n){ return fmtBytes(n) + "/s"; }
+function fmtPct(v){ return (num(v,0)).toFixed(v < 10 ? 1 : 0) + " %"; }
+function clip(s, n){ s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+/* ---------- 数据通道：Clash API ---------- */
+function clashUrl(sub, params){
+  var qs = "sub=" + q(sub);
+  if(params) for(var k in params){
+    if(params[k] === null || params[k] === undefined || params[k] === "") continue;
+    qs += "&" + k + "=" + q(String(params[k]));
+  }
+  return "/api/clash?" + qs + "&token=" + q(TOKEN);
+}
+var CLASH_FLAG = [["name","-name"],["group","-group"],["to","-to"],["mode","-mode"],
+                  ["level","-level"],["lines","-lines"],["url","-url"],
+                  ["timeout","-timeout"],["id","-close"],["port","-port"]];
+
+function clashRaw(sub, params, timeoutMs){
+  if(hasKSU()){
+    var args = [sub];
+    if(params) for(var i = 0; i < CLASH_FLAG.length; i++){
+      var v = params[CLASH_FLAG[i][0]];
+      if(v === null || v === undefined || v === "") continue;
+      args.push(CLASH_FLAG[i][1], String(v));
+    }
+    args.push("-json");
+    return runScript("route.sh", ["clash"].concat(args), timeoutMs || 40000);
+  }
+  var ctl = new AbortController();
+  var t = setTimeout(function(){ ctl.abort(); }, timeoutMs || 40000);
+  return fetch(clashUrl(sub, params), { headers: { "X-Auth-Token": TOKEN }, signal: ctl.signal })
+    .then(function(r){ return r.text(); })
+    .then(function(x){ clearTimeout(t); return x; })
+    .catch(function(e){ clearTimeout(t); return "ERR: " + ((e && e.name === "AbortError") ? "请求超时" : ((e && e.message) || e)); });
+}
+function clashGet(sub, params, timeoutMs){
+  return clashRaw(sub, params, timeoutMs).then(function(t){
+    var j = extractJson(t);
+    if(j === null) return { ok:false, err: clip(String(t||"无返回").trim(), 160) };
+    return j;
+  });
+}
+function clashDo(sub, params, timeoutMs){
+  return clashRaw(sub, params, timeoutMs).then(function(t){ return looksOk(t) || extractJson(t) !== null && /"ok"\s*:\s*true/.test(t); });
+}
+
+/* 归一化：把 KSU / HTTP 两种返回揉成同一个形状 */
+function normStatus(j){
+  if(!j || j.ok === false) return null;
+  var c = j.connections;
+  return {
+    ok: true,
+    version: j.version || "",
+    mode: j.mode || "",
+    up: num(j.up, 0), down: num(j.down, 0),
+    conn: num(j.conn_count != null ? j.conn_count : (c ? c.length : 0), 0),
+    upTotal: num(j.upload_total != null ? j.upload_total : j.uploadTotal, 0),
+    downTotal: num(j.download_total != null ? j.download_total : j.downloadTotal, 0),
+    memory: num(j.memory, 0)
+  };
+}
+function normTraffic(j){
+  if(!j || j.ok === false) return null;
+  return { ok:true, up: num(j.up,0), down: num(j.down,0) };
+}
+function normProxies(j){
+  if(!j || j.ok === false) return null;
+  return j.proxies || (typeof j === "object" ? j : null);
+}
+function normConns(j){
+  if(!j || j.ok === false) return null;
+  var list = j.connections || [];
+  return {
+    ok: true, list: list,
+    upTotal: num(j.upload_total != null ? j.upload_total : j.uploadTotal, 0),
+    downTotal: num(j.download_total != null ? j.download_total : j.downloadTotal, 0),
+    memory: num(j.memory, 0)
+  };
+}
+function normLogs(j){
+  if(!j) return null;
+  if(Object.prototype.toString.call(j) === "[object Array]") return j;
+  if(j.ok === false) return null;
+  return j.logs || [];
+}
+
+/* ---------- 数据通道：route.sh ---------- */
+function routeRaw(sub, args, timeoutMs){
+  args = args || [];
+  if(hasKSU()){
+    return runScript("route.sh", [sub].concat(args), timeoutMs || 60000);
+  }
+  var ctl = new AbortController();
+  var t = setTimeout(function(){ ctl.abort(); }, timeoutMs || 60000);
+  return fetch("/api/route?sub=" + q(sub) + "&token=" + q(TOKEN), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Auth-Token": TOKEN },
+    signal: ctl.signal,
+    body: JSON.stringify({ args: args })
+  }).then(function(r){ return r.text(); })
+    .then(function(x){ clearTimeout(t); var j = parseJSON(x); return (j && typeof j.out === "string") ? j.out : x; })
+    .catch(function(e){ clearTimeout(t); return "ERR: " + ((e && e.name === "AbortError") ? "请求超时" : ((e && e.message) || e)); });
+}
+function routeJson(sub, args, timeoutMs){
+  return routeRaw(sub, args, timeoutMs).then(function(t){ return extractJson(t); });
+}
+
+/* ---------- 主题色取值（给 canvas 用） ---------- */
+function cssVar(name, fb){
+  try{
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fb;
+  }catch(e){ return fb; }
+}
+function withAlpha(col, a){
+  col = String(col || "").trim();
+  var m6 = /^#([0-9a-f]{6})$/i.exec(col);
+  if(m6){ var n = parseInt(m6[1], 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; }
+  var m3 = /^#([0-9a-f]{3})$/i.exec(col);
+  if(m3){ var s = m3[1]; return "rgba(" + parseInt(s[0]+s[0],16) + "," + parseInt(s[1]+s[1],16) + "," + parseInt(s[2]+s[2],16) + "," + a + ")"; }
+  return col;
+}
+function niceMax(v){
+  v = num(v, 0);
+  if(v <= 1024) return 1024;
+  var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+  var n = v / p;
+  var f = n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 5 ? 5 : 10));
+  return f * p;
+}
+
+/* ============================================================
+   实时曲线（canvas，2Hz，只在页面可见时重绘）
+   ============================================================ */
+function Spark(id){
+  this.el = document.getElementById(id);
+  this.up = [];
+  this.down = [];
+  this.N = 60;
+}
+Spark.prototype.push = function(u, d){
+  this.up.push(num(u, 0));
+  this.down.push(num(d, 0));
+  while(this.up.length > this.N){ this.up.shift(); this.down.shift(); }
+};
+Spark.prototype.reset = function(){ this.up = []; this.down = []; };
+Spark.prototype.draw = function(){
+  var c = this.el;
+  if(!c || !c.getContext) return;
+  try{
+    this._draw(c);
+  }catch(e){ /* canvas 不可用（如无 GPU 的 WebView）时静默降级，绝不能拖垮整个面板 */ }
+};
+Spark.prototype._draw = function(c){
+  var w = c.clientWidth, h = c.clientHeight;
+  if(!w || !h) return;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var cw = Math.round(w * dpr), chh = Math.round(h * dpr);
+  if(c.width !== cw || c.height !== chh){ c.width = cw; c.height = chh; }
+  var g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  var gridCol = cssVar("--border-color", "rgba(255,255,255,.07)");
+  g.strokeStyle = gridCol;
+  g.lineWidth = 1;
+  for(var i = 1; i < 4; i++){
+    var y = Math.round(h * i / 4) + .5;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+  }
+  var max = 1, k;
+  for(k = 0; k < this.up.length; k++){ if(this.up[k] > max) max = this.up[k]; }
+  for(k = 0; k < this.down.length; k++){ if(this.down[k] > max) max = this.down[k]; }
+  max = niceMax(max);
+
+  var colDown = cssVar("--green", "#3fb950");
+  var colUp = cssVar("--accent", "#58a6ff");
+  function line(arr, col, fillA){
+    if(arr.length < 2) return;
+    var n = arr.length, step = w / (n - 1), x, y;
+    g.beginPath();
+    for(var i = 0; i < n; i++){
+      x = i * step;
+      y = h - (arr[i] / max) * (h - 8) - 4;
+      if(i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.strokeStyle = col; g.lineWidth = 1.6; g.lineJoin = "round"; g.lineCap = "round";
+    g.stroke();
+    if(fillA){
+      g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+      g.fillStyle = withAlpha(col, fillA); g.fill();
+    }
+  }
+  line(this.down, colDown, .14);
+  line(this.up, colUp, .12);
+
+  g.fillStyle = cssVar("--scolor", "#8b949e");
+  g.font = "10px ui-monospace,Menlo,monospace";
+  g.fillText(fmtSpeed(max), 4, 11);
+};
+
+/* ============================================================
+   状态容器
+   ============================================================ */
+var RH = { status:null, summary:null, general:null, spark:new Spark("rhSpark"), last:null };
+var RP = { proxies:null, fold:{}, filter:"", sort:"order" };
+var RC = { list:[], filter:"", timer:0, last:null };
+var RL = { lines:[], timer:0 };
+var RR = { rules:[], lint:null };
+var RK = { profile:null, profileRaw:"" };
+var AP = {};
+
+/* ============================================================
+   代理总览
+   ============================================================ */
+function latPill(ms){
+  if(ms == null || ms <= 0) return '<span class="lat p4">超时</span>';
+  return '<span class="lat ' + latClass(ms) + '">' + ms + 'ms</span>';
+}
+function latClass(ms){
+  if(ms == null || ms <= 0) return "p4";
+  if(ms < 100) return "p0";
+  if(ms < 200) return "p1";
+  if(ms < 400) return "p2";
+  if(ms < 800) return "p3";
+  return "p4";
+}
+var GROUP_TYPES = { Selector:1, URLTest:1, Fallback:1, LoadBalance:1, Relay:1 };
+
+function loadRouteStatus(){
+  return routeJson("status-json").then(function(j){
+    if(!j){ setText("rhSub", "无法读取路由状态"); return null; }
+    RH.status = j;
+    setText("rhSub", (j.running === "yes" ? "内核运行中" : "内核未运行") + " · " +
+      (j.core_version ? ("v" + j.core_version) : "内核未安装") + " · " +
+      (j.ruleset_count || 0) + " 个规则集 · 端口 " + (j.mixed_port || "-"));
+    setText("rhVer", j.core_version ? ("sing-box v" + j.core_version) : "未安装内核");
+    setText("rhCore", j.core ? (String(j.core).split("/").pop()) : "-");
+    setText("rhPid", j.pid ? j.pid : "-");
+    setText("rhMport", j.mixed_port || "-");
+    setText("rhApi", "127.0.0.1:" + (j.clash_port || 9090));
+    setText("rhRS", (j.ruleset_count || 0) + " 个");
+    setText("rhCfg", j.config ? ("已生成 " + fmtBytes(j.config_size)) : "未生成");
+    setText("hmRS", (j.ruleset_count || 0) + " 个规则集");
+    setText("hmCore", j.core_version ? ("sing-box v" + j.core_version) : "未安装内核");
+    setText("hmMix", "端口 " + (j.mixed_port || "-"));
+    setText("rkPath", j.core || "未找到内核");
+    setText("rkVer", j.core_version ? ("sing-box v" + j.core_version) : "-");
+    setText("rkArch", j.arch || "-");
+    setText("rkSize", j.core_size ? fmtBytes(j.core_size) : "-");
+    setText("rkRun", j.running === "yes" ? "运行中" : "已停止");
+    setText("rkPid", j.pid || "-");
+    setText("rkProfile", j.profile ? ("存在 " + fmtBytes(j.profile_size)) : "未生成");
+    setText("rkCfg", j.config ? ("存在 " + fmtBytes(j.config_size)) : "未生成");
+    setText("rkRsDir", j.ruleset_dir || "未找到");
+    setText("rkRsCount", (j.ruleset_count || 0) + " 个");
+    setText("rkMport", j.mixed_port || "-");
+    setText("rkApi", "127.0.0.1:" + (j.clash_port || 9090));
+    setText("rkMirror", j.mirror || "testingcf");
+    var tg = document.getElementById("tgProxy");
+    if(tg){
+      tg.textContent = j.running === "yes" ? "代理 已开启" : "代理 已关闭";
+      tg.className = "btn " + (j.running === "yes" ? "ok" : "");
+    }
+    return j;
+  });
+}
+
+function loadRouteSummary(){
+  return routeJson("summary").then(function(j){
+    if(!j){ setText("rrSub", "无法读取 profile（请先添加节点）"); return null; }
+    RH.summary = j;
+    var c = j.counts || {};
+    setText("rhRules", c.rules || 0);
+    setText("rhNodes", c.nodes || 0);
+    setText("rrRules", c.rules || 0);
+    setText("rrNodes", c.nodes || 0);
+    setText("rrGroups", c.groups || 0);
+    setText("rrRS", c.rule_sets || 0);
+    setText("rrErr", (c.errors || 0) + " / " + (c.warnings || 0));
+    setText("rrRuleTag", "共 " + (c.rules || 0) + " 条");
+    setText("rrSub", "节点 " + (c.nodes||0) + " · 策略组 " + (c.groups||0) + " · 规则 " + (c.rules||0) + " · 规则集 " + (c.rule_sets||0));
+    setText("hmRules", (c.rules || 0) + " 条");
+    var g = j.general || {};
+    RH.general = g;
+    setText("rhTun", g.tun_enabled ? "已开启" : "未开启");
+    setText("rhPriv", g.private_direct === false ? "已关闭" : "已开启");
+    setText("rhModeTxt", modeLabel(g.default_mode || "rule"));
+    RR.rules = j.rules || [];
+    renderRules();
+    return j;
+  });
+}
+
+function loadRouteLive(){
+  return clashGet("status").then(function(j){
+    applyStatus(normStatus(j));
+    return LAST_STATUS;
+  });
+}
+var LAST_STATUS = null, LAST_STATUS_AT = 0;
+/* 内核运行模式 -> 中文标签（面板其余文案已中文化，避免出现「模式 rule」这类中英混排） */
+var MODE_LABEL = { rule: "规则分流", global: "全局代理", direct: "全部直连" };
+function modeLabel(m){
+  if(m == null || m === "") return "-";
+  return MODE_LABEL[String(m).toLowerCase()] || String(m);
+}
+function renderSysline(s){
+  var el = document.getElementById("sysline");
+  if(!el) return;
+  if(!s){ el.innerHTML = '<span class="dot off"></span>内核未运行'; return; }
+  el.innerHTML = '<span class="dot on"></span>↑' + fmtSpeed(s.up) + ' ↓' + fmtSpeed(s.down) +
+    ' · ' + s.conn + ' 连接 · ' + modeLabel(s.mode);
+}
+function applyStatus(s){
+  LAST_STATUS = s;
+  LAST_STATUS_AT = Date.now();
+  renderSysline(s);
+  if(!s){
+    setText("rhUp", "-"); setText("rhDown", "-");
+    setText("rhConn", "0"); setText("rhMem", "-");
+    setText("hmRun", "已停止"); setText("hmMode", "内核未运行");
+    setText("rhDelay", "-"); setText("hmDelay", "-");
+    setText("hmUp", "-"); setText("hmDown", "-");
+    $$("#rhModes .seg-btn").forEach(function(b){ b.classList.remove("on"); });
+    return;
+  }
+  setText("rhUp", fmtSpeed(s.up));
+  setText("rhDown", fmtSpeed(s.down));
+  setText("rhConn", s.conn);
+  setText("rhMem", s.memory ? fmtBytes(s.memory) : "-");
+  setText("rhUpT", fmtBytes(s.upTotal));
+  setText("rhDownT", fmtBytes(s.downTotal));
+  setText("rhModeTxt", modeLabel(s.mode));
+  setText("hmRun", "运行中");
+  setText("hmMode", "模式 " + modeLabel(s.mode));
+  setText("hmUp", fmtSpeed(s.up));
+  setText("hmDown", fmtSpeed(s.down));
+  setText("hmUpT", "累计 " + fmtBytes(s.upTotal));
+  setText("hmDownT", "累计 " + fmtBytes(s.downTotal));
+  setText("hmConn", s.conn);
+  setText("hmMem", s.memory ? ("内核 " + fmtBytes(s.memory)) : "-");
+  setText("rcUp", fmtSpeed(s.up));
+  setText("rcDown", fmtSpeed(s.down));
+  setText("rcMem", s.memory ? fmtBytes(s.memory) : "-");
+  setText("rcCount", s.conn);
+  RH.spark.push(s.up, s.down);
+  if(CUR_TAB === "route-home" || CUR_TAB === "home") RH.spark.draw();
+  $$("#rhModes .seg-btn").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-v") === String(s.mode || "").toLowerCase());
+  });
+}
+
+function loadRouteCurrent(){
+  return clashGet("proxies").then(function(j){
+    var px = normProxies(j);
+    if(!px) return null;
+    var mainName = null, i;
+    var names = Object.keys(px);
+    for(i = 0; i < names.length; i++){
+      if(names[i] === "PROXY" || names[i] === "Proxy" || names[i] === "GLOBAL"){ mainName = names[i]; break; }
+    }
+    if(!mainName) for(i = 0; i < names.length; i++){
+      if(GROUP_TYPES[px[names[i]].type]){ mainName = names[i]; break; }
+    }
+    if(!mainName) return null;
+    var g = px[mainName];
+    setText("rhGroup", mainName + " (" + g.type + ")");
+    setText("hmGroup", mainName);
+    var now = g.now || "-";
+    setText("rhNow", now);
+    setText("hmNode", clip(now, 18));
+    var d = null;
+    if(px[now] && px[now].history && px[now].history.length){
+      d = px[now].history[px[now].history.length - 1].delay;
+    }
+    setText("rhDelay", (d == null || d <= 0) ? "未测速" : (d + " ms"));
+    setText("hmDelay", (d == null || d <= 0) ? "-" : (d + " ms"));
+    RH.last = { group: mainName, now: now, px: px };
+    return RH.last;
+  });
+}
+
+function loadRouteHome(){
+  return Promise.all([loadRouteStatus(), loadRouteSummary(), loadRouteLive(), loadRouteCurrent()]);
+}
+
+/* ============================================================
+   策略组与节点
+   ============================================================ */
+function renderProxyGroups(){
+  var box = document.getElementById("rpGroups");
+  if(!box) return;
+  var px = RP.proxies;
+  if(!px){ box.innerHTML = '<div class="empty">内核未运行或 API 不可达</div>'; return; }
+  var groups = [], names = Object.keys(px), i, j;
+  for(i = 0; i < names.length; i++){
+    if(GROUP_TYPES[px[names[i]].type]) groups.push(names[i]);
+  }
+  groups.sort();
+  var kw = RP.filter.toLowerCase();
+  var out = [];
+  for(i = 0; i < groups.length; i++){
+    var gn = groups[i], g = px[gn];
+    var members = (g.all || []).slice();
+    if(kw) members = members.filter(function(m){ return m.toLowerCase().indexOf(kw) >= 0; });
+    if(RP.sort === "delay"){
+      members.sort(function(a, b){ return delayOf(px, a) - delayOf(px, b); });
+    } else if(RP.sort === "name"){
+      members.sort(function(a, b){ return a.localeCompare(b); });
+    }
+    var folded = !!RP.fold[gn];
+    var rows = members.map(function(m, idx){
+      var mv = px[m] || {};
+      var d = delayOf(px, m);
+      var isNow = (m === g.now);
+      var sub = GROUP_TYPES[mv.type];
+      return '<div class="nrow' + (isNow ? ' on' : '') + '" data-act="rp-pick" data-g="' + esc(gn) + '" data-n="' + esc(m) + '">' +
+        '<span class="idx">' + (idx + 1) + '</span>' +
+        '<span class="dotbar ' + (d > 0 ? 'on' : (d === 0 ? 'off' : '')) + '"></span>' +
+        '<span class="nm">' + esc(m) + '<span class="p">' + esc(mv.type || (sub ? "组" : "-")) + '</span></span>' +
+        '<span class="act">' +
+          '<button class="btn xs ghost" data-act="rp-ping" data-n="' + esc(m) + '">测速</button>' +
+          latPill(d) +
+        '</span></div>';
+    }).join("");
+    if(!members.length) rows = '<div class="empty">无匹配成员</div>';
+    out.push('<div class="grp' + (folded ? ' fold' : '') + '" data-g="' + esc(gn) + '">' +
+      '<div class="grp-head" data-act="rp-fold">' +
+        '<span class="caret2">▼</span>' +
+        '<span class="gname">' + esc(gn) + '</span>' +
+        '<span class="pill info">' + esc(g.now || "-") + '</span>' +
+        '<span class="gtype">' + esc(g.type) + '</span>' +
+        '<span class="gtype">' + (g.all || []).length + ' 项</span>' +
+      '</div>' +
+      '<div class="grp-body">' + rows + '</div>' +
+    '</div>');
+  }
+  box.innerHTML = out.length ? out.join("") : '<div class="empty">没有策略组，请先在「节点与订阅」里添加节点</div>';
+  setText("rpSub", groups.length + " 个策略组 · 共 " + Object.keys(px).length + " 个对象");
+}
+function delayOf(px, name){
+  var v = px[name];
+  if(!v || !v.history || !v.history.length) return -1;
+  var d = v.history[v.history.length - 1].delay;
+  return d > 0 ? d : 0;
+}
+function loadRouteProxy(){
+  return clashGet("proxies").then(function(j){
+    RP.proxies = normProxies(j);
+    renderProxyGroups();
+    return RP.proxies;
+  });
+}
+function rpPing(names){
+  var url = ($("#rpUrl") && $("#rpUrl").value) || "http://www.gstatic.com/generate_204";
+  var queue = names.slice(), running = 0, done = 0, max = 4;
+  return new Promise(function(resolve){
+    if(!queue.length){ resolve(); return; }
+    function next(){
+      if(!queue.length && running === 0){ resolve(); return; }
+      while(running < max && queue.length){
+        (function(name){
+          running++;
+          clashGet("delay", { name: name, url: url, timeout: 5000 }, 20000).then(function(j){
+            var d = j && j.delay != null ? num(j.delay, 0) : 0;
+            if(RP.proxies && RP.proxies[name]){
+              RP.proxies[name].history = [{ time: new Date().toISOString(), delay: d }];
+            }
+            running--; done++;
+            setText("rpSub", "测速中… " + done + "/" + names.length);
+            renderProxyGroups();
+            next();
+          });
+        })(queue.shift());
+      }
+    }
+    next();
+  }).then(function(){ toast("测速完成（" + done + " 个）"); return loadRouteProxy(); });
+}
+
+/* ============================================================
+   实时连接
+   ============================================================ */
+function renderConns(){
+  var box = document.getElementById("rcList");
+  if(!box) return;
+  var kw = RC.filter.toLowerCase();
+  var list = RC.list || [];
+  if(kw){
+    list = list.filter(function(c){
+      var m = c.metadata || {};
+      var hay = [m.host, m.destinationIP, m.process, m.processPath, c.rule, c.rulePayload, (c.chains || []).join(" "), m.network].join(" ").toLowerCase();
+      return hay.indexOf(kw) >= 0;
+    });
+  }
+  list = list.slice().sort(function(a, b){ return (num(b.download,0)+num(b.upload,0)) - (num(a.download,0)+num(a.upload,0)); });
+  var cap = list.slice(0, 150);
+  box.innerHTML = cap.length ? cap.map(function(c){
+    var m = c.metadata || {};
+    var host = m.host || m.sniffHost || m.destinationIP || "-";
+    if(m.destinationPort) host += ":" + m.destinationPort;
+    var rule = (c.rule || "") + (c.rulePayload ? " " + c.rulePayload : "");
+    return '<div class="cr">' +
+      '<span class="c1" title="' + esc(host) + '">' + esc(clip(host, 42)) + '</span>' +
+      '<span class="c2" title="' + esc(m.process || m.processPath || "") + '">' + esc(clip(m.process || m.processPath || "-", 22)) + '</span>' +
+      '<span class="c3" title="' + esc(rule) + '">' + esc(clip(rule || "-", 26)) + '</span>' +
+      '<span class="c4">' + esc(fmtBytes(c.upload || 0)) + '</span>' +
+      '<span class="c5">' + esc(fmtBytes(c.download || 0)) + '</span>' +
+      '<span class="c6"><button class="del" data-act="rc-close" data-v="' + esc(c.id) + '">✕</button></span>' +
+    '</div>';
+  }).join("") : '<div class="empty">' + (RC.list.length ? "没有匹配的连接" : "暂无活动连接") + '</div>';
+  setText("rcTime", "更新于 " + new Date().toLocaleTimeString() + " · 显示 " + cap.length + "/" + list.length);
+}
+function loadRouteConn(){
+  return clashGet("conn", null, 25000).then(function(j){
+    var c = normConns(j);
+    if(!c){ RC.list = []; setText("rcSub", "内核未运行或 API 不可达"); renderConns(); return null; }
+    RC.list = c.list;
+    setText("rcCount", c.list.length);
+    setText("rcSub", c.list.length + " 条活动连接 · 累计 ↑ " + fmtBytes(c.upTotal) + " ↓ " + fmtBytes(c.downTotal));
+    renderConns();
+    return c;
+  });
+}
+
+/* ============================================================
+   规则与分流
+   ============================================================ */
+var KIND_CLASS = [
+  [/^DOMAIN$/, "k-domain"], [/^DOMAIN-SUFFIX|^DOMAIN-KEYWORD|^DOMAIN-WILDCARD|^DOMAIN-REGEX/, "k-suffix"],
+  [/^GEOSITE|^RULE-SET|^GEOIP|^IP-ASN/, "k-geo"], [/^IP-CIDR|^SRC-IP-CIDR|^SUBNET/, "k-ip"],
+  [/PORT$/, "k-port"], [/^MATCH|^FINAL/, "k-match"], [/^AND$|^OR$|^NOT$/, "k-logical"],
+  [/^PROCESS|^USER-AGENT|^URL-REGEX|^HEADER|^DEVICE/, "k-domain"]
+];
+function kindClass(k){
+  for(var i = 0; i < KIND_CLASS.length; i++){ if(KIND_CLASS[i][0].test(k)) return KIND_CLASS[i][1]; }
+  return "";
+}
+function polClass(p){
+  p = String(p || "").toUpperCase();
+  if(p === "DIRECT" || p === "PASS") return "p-direct";
+  if(p === "REJECT" || p === "REJECT-DROP") return "p-reject";
+  return "p-proxy";
+}
+function renderRules(){
+  var box = document.getElementById("rrRuleList");
+  if(!box) return;
+  var kw = (($("#rrRuleSearch") || {}).value || "").toLowerCase();
+  var kind = (($("#rrRuleFilter") || {}).value || "").toUpperCase();
+  var list = (RR.rules || []).filter(function(r){
+    if(kind){
+      if(kind === "DOMAIN"){ if(!/^DOMAIN/.test(r.kind)) return false; }
+      else if(kind === "IP-CIDR"){ if(!/^IP-CIDR|^SRC-IP-CIDR|^SUBNET/.test(r.kind)) return false; }
+      else if(kind === "DST-PORT"){ if(!/PORT$/.test(r.kind)) return false; }
+      else if(kind === "PROCESS"){ if(!/^PROCESS/.test(r.kind)) return false; }
+      else if(r.kind !== kind) return false;
+    }
+    if(kw){
+      var hay = (r.kind + " " + r.payload + " " + r.policy).toLowerCase();
+      if(hay.indexOf(kw) < 0) return false;
+    }
+    return true;
+  });
+  var cap = list.slice(0, 300);
+  box.innerHTML = cap.length ? cap.map(function(r, i){
+    return '<div class="rrow' + (r.enabled ? '' : ' off') + '">' +
+      '<span class="idx">' + (i + 1) + '</span>' +
+      '<span class="kind ' + kindClass(r.kind) + '">' + esc(r.kind) + '</span>' +
+      '<span class="pay" title="' + esc(r.payload) + '">' + esc(r.payload) + '</span>' +
+      '<span class="pol ' + polClass(r.policy) + '">' + esc(r.policy || "-") + '</span>' +
+    '</div>';
+  }).join("") : '<div class="empty">没有匹配的规则</div>';
+  if(list.length > cap.length){
+    box.innerHTML += '<div class="empty">仅显示前 ' + cap.length + ' 条，共 ' + list.length + ' 条（用筛选缩小范围）</div>';
+  }
+}
+function renderLint(issues, meta){
+  var box = document.getElementById("rrLintList");
+  if(!box) return;
+  if(!issues || !issues.length){
+    box.innerHTML = '<div class="empty">没有发现问题 ✓</div>';
+    setText("rrLintTag", "全部通过");
+    return;
+  }
+  var order = { error:0, warn:1, info:2 };
+  issues.sort(function(a, b){ return (order[a.level] == null ? 3 : order[a.level]) - (order[b.level] == null ? 3 : order[b.level]); });
+  box.innerHTML = issues.map(function(it){
+    var cls = it.level === "error" ? "err" : (it.level === "warn" ? "warn" : "info");
+    var mark = it.level === "error" ? "错误" : (it.level === "warn" ? "警告" : "提示");
+    return '<div class="row"><span class="t">' +
+      '<span class="pill ' + cls + '">' + mark + '</span> ' + esc(it.msg) +
+      (it.rule ? '<br><span class="mono">' + esc(clip(it.rule, 80)) + '</span>' : '') +
+      (it.line ? '<span class="mono"> · 第' + it.line + '行</span>' : '') +
+      '</span></div>';
+  }).join("");
+  var e = 0, w = 0;
+  issues.forEach(function(i){ if(i.level === "error") e++; else if(i.level === "warn") w++; });
+  setText("rrLintTag", "错误 " + e + " · 警告 " + w + " · 提示 " + (issues.length - e - w));
+}
+function renderDiag(res, verbose){
+  var box = document.getElementById("rrDiagOut");
+  if(!box) return;
+  box.classList.remove("hide");
+  if(!res){ box.className = "diag err"; box.textContent = "推演失败"; return; }
+  var steps = "";
+  if(verbose && res.steps){
+    steps = '<div style="margin-top:8px;border-top:1px solid var(--border-color);padding-top:6px">' +
+      res.steps.map(function(s){
+        return '<div class="step"><span class="i">' + (s.matched ? "✓" : "·") + '</span>' +
+          '<span>' + esc(clip(s.rule || "", 64)) + (s.detail ? ' <span style="color:var(--scolor)">← ' + esc(s.detail) + '</span>' : '') + '</span></div>';
+      }).join("") + '</div>';
+  }
+  if(res.matched){
+    box.className = "diag hit";
+    box.innerHTML = '<b>命中第 ' + res.rule_line + ' 行</b> → 策略 <b>' + esc(res.policy) + '</b>' +
+      '<br><span class="mono">' + esc(res.rule_raw || "") + '</span>' + steps;
+  } else {
+    box.className = "diag no";
+    box.innerHTML = '<b>未命中任何规则</b> → 兜底策略 <b>' + esc(res.policy) + '</b>' + steps;
+  }
+  if(res.notes && res.notes.length){
+    box.innerHTML += '<div class="mono" style="margin-top:6px;color:var(--scolor)">' +
+      res.notes.map(function(n){ return "· " + esc(n); }).join("<br>") + '</div>';
+  }
+}
+function renderRulesets(j){
+  var box = document.getElementById("rrRsList");
+  if(!box) return;
+  if(!j || !j.items || !j.items.length){ box.innerHTML = '<div class="empty">没有可用规则集</div>'; return; }
+  var items = j.items.slice().sort(function(a, b){ return a.name.localeCompare(b.name); });
+  box.innerHTML = items.map(function(x){
+    return '<div class="row"><span class="t">' + esc(x.name) + '</span>' +
+      '<span class="pill ' + (x.from === "local" ? "info" : "") + '">' + (x.from === "local" ? "本地缓存" : "模块内置") + '</span>' +
+      '<span class="tiny">' + fmtBytes(x.size) + '</span></div>';
+  }).join("");
+  setText("rrRsTag", items.length + " 个 · 目录 " + (j.dir || "-"));
+}
+function loadRouteRules(){
+  return Promise.all([
+    loadRouteSummary(),
+    routeJson("rulesets").then(function(j){ renderRulesets(j); return j; })
+  ]);
+}
+function rrLint(){
+  return routeRaw("lint", ["-json"]).then(function(t){
+    var j = extractJson(t);
+    if(!j){ toast("体检失败：" + clip(String(t||"").trim(), 80)); return; }
+    RR.lint = j.issues || [];
+    renderLint(RR.lint, j);
+    toast(RR.lint.length ? ("发现 " + RR.lint.length + " 条问题") : "规则体检通过");
+  });
+}
+function rrDiag(verbose){
+  var d = (($("#rrDiagDomain") || {}).value || "").trim();
+  var ip = (($("#rrDiagIp") || {}).value || "").trim();
+  var port = (($("#rrDiagPort") || {}).value || "").trim();
+  var proc = (($("#rrDiagProc") || {}).value || "").trim();
+  if(!d && !ip){ toast("至少填域名或 IP"); return Promise.resolve(); }
+  var args = ["-json"];
+  if(d) args.push("-domain", d);
+  if(ip) args.push("-ip", ip);
+  if(port) args.push("-port", port);
+  if(proc) args.push("-process", proc);
+  if(verbose) args.push("-v");
+  busy("正在推演…");
+  return routeRaw("test", args).then(function(t){
+    var j = extractJson(t);
+    if(!j){ renderDiag(null); toast("推演失败：" + clip(String(t||"").trim(), 80)); return; }
+    renderDiag(j, verbose);
+  });
+}
+
+/* ============================================================
+   DNS
+   ============================================================ */
+var RD = { profile:null };
+function rdLoad(){
+  return routeRaw("profile").then(function(t){
+    var p = extractJson(t);
+    if(!p){ setText("rdSub", "profile 不可读"); return null; }
+    RD.profile = p;
+    var d = p.dns || {};
+    setText("rdEnabled", d.enabled ? "已开启" : "已关闭");
+    setText("rdFinal", d.final || "(未设置)");
+    setText("rdStrategy", d.strategy || "prefer_ipv4");
+    setText("rdFakeip", d.fake_ip ? ("已开启" + (d.fake_ip_range ? " " + d.fake_ip_range : "")) : "未开启");
+    setText("rdSub", (d.servers || []).length + " 个上游 · 兜底 " + (d.final || "-"));
+    var e = document.getElementById("rdRaw");
+    if(e) e.value = JSON.stringify(d, null, 2);
+    var box = document.getElementById("rdSrvList");
+    var srvs = d.servers || [];
+    box.innerHTML = srvs.length ? srvs.map(function(s, i){
+      return '<div class="row"><span class="t">' + esc(s.tag || ("#" + (i + 1))) +
+        '<br><span class="mono">' + esc(s.address) + '</span>' +
+        (s.detour ? '<span class="tagline"> · 出口 ' + esc(s.detour) + '</span>' : '') +
+        (s.domains && s.domains.length ? '<span class="tagline"> · 仅 ' + esc(s.domains.join(",")) + '</span>' : '') +
+        '</span>' +
+        '<button class="del" data-act="rd-srv-del" data-v="' + i + '">✕</button></div>';
+    }).join("") : '<div class="empty">没有 DNS 上游</div>';
+    setText("rdSrvTag", srvs.length + " 个");
+    var leak = p.general && p.general.private_direct === false ? "未启用私网直连" : "正常";
+    setText("rdLeak", leak);
+    return p;
+  });
+}
+function rdSaveProfile(next){
+  var p = next || RD.profile;
+  if(!p){ toast("没有可保存的内容"); return Promise.resolve(); }
+  busy("正在保存…");
+  return routeRaw("set-profile", [b64(JSON.stringify(p))], 90000).then(function(t){
+    toast(msg(t));
+    if(looksOk(t)) return routeRaw("reload", [], 180000).then(function(){ return rdLoad(); });
+  });
+}
+function rdPreset(name){
+  if(!RD.profile){ toast("profile 未载入"); return Promise.resolve(); }
+  var d = RD.profile.dns || (RD.profile.dns = {});
+  d.enabled = true;
+  if(name === "cn"){
+    d.servers = [
+      { tag:"local", address:"223.5.5.5" },
+      { tag:"remote", address:"https://1.1.1.1/dns-query", detour:"proxy" }
+    ];
+    d.final = "local";
+    d.strategy = "prefer_ipv4";
+    d.rules = [
+      { kind:"GEOSITE", payload:"geolocation-!cn", policy:"remote", enabled:true },
+      { kind:"GEOSITE", payload:"cn", policy:"local", enabled:true }
+    ];
+  } else if(name === "secure"){
+    d.servers = [
+      { tag:"ali", address:"https://dns.alidns.com/dns-query" },
+      { tag:"cf", address:"https://1.1.1.1/dns-query", detour:"proxy" }
+    ];
+    d.final = "ali";
+    d.strategy = "prefer_ipv4";
+    d.rules = [];
+  } else {
+    d.servers = [
+      { tag:"local", address:"223.5.5.5" },
+      { tag:"cn-doh", address:"https://dns.alidns.com/dns-query" },
+      { tag:"remote", address:"tls://1.1.1.1:853", detour:"proxy" }
+    ];
+    d.final = "cn-doh";
+    d.strategy = "prefer_ipv4";
+    d.rules = [
+      { kind:"GEOSITE", payload:"geolocation-!cn", policy:"remote", enabled:true },
+      { kind:"GEOSITE", payload:"cn", policy:"cn-doh", enabled:true }
+    ];
+  }
+  return rdSaveProfile();
+}
+function rdProbe(){
+  var d = (($("#rdProbeDomain") || {}).value || "www.baidu.com").trim();
+  var box = document.getElementById("rdProbeList");
+  box.innerHTML = '<div class="empty">正在并发查询…</div>';
+  return routeRaw("dnsprobe", ["-domain", d, "-timeout", "4", "-json"], 60000).then(function(t){
+    var j = extractJson(t);
+    if(!j || !j.results){ box.innerHTML = '<div class="empty">探测失败：' + esc(clip(String(t||"").trim(), 100)) + '</div>'; return; }
+    var rs = j.results.slice().sort(function(a, b){
+      if(a.ok !== b.ok) return a.ok ? -1 : 1;
+      return a.millis - b.millis;
+    });
+    box.innerHTML = rs.map(function(r){
+      return '<div class="row"><span class="t">' + esc(r.server) +
+        '<br><span class="mono">' + esc(r.kind.toUpperCase()) + ' · ' + esc(r.ok ? (r.answers || []).join(", ") : r.error) + '</span></span>' +
+        (r.ok ? latPill(r.millis) : '<span class="lat p4">失败</span>') + '</div>';
+    }).join("");
+  });
+}
+
+/* ============================================================
+   内核日志
+   ============================================================ */
+function rlRender(){
+  var box = document.getElementById("rlTerm");
+  if(!box) return;
+  if(!RL.lines.length){ box.innerHTML = '<span class="empty">暂无日志</span>'; return; }
+  var cap = RL.lines.slice(-260);
+  box.innerHTML = cap.map(function(l){
+    var lv = String(l.type || "info").toLowerCase();
+    return '<span class="tl ' + esc(lv) + '"><span class="ts">' + esc(new Date().toLocaleTimeString()) +
+      '</span> <span class="lv">[' + esc(lv.toUpperCase()) + ']</span> <span class="msg">' + esc(l.payload) + '</span></span>';
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+  setText("rlStat", RL.lines.length + " 行");
+}
+function rlPull(){
+  var level = ($("#rlLevel") && $("#rlLevel").value) || "info";
+  var lines = num(($("#rlLines") && $("#rlLines").value), 60);
+  return clashGet("logs", { level: level, lines: lines }, 25000).then(function(j){
+    var ls = normLogs(j);
+    if(ls === null){ setText("rlStat", "内核未运行或 API 不可达"); return; }
+    if(ls.length){
+      RL.lines = RL.lines.concat(ls).slice(-400);
+      rlRender();
+    } else {
+      setText("rlStat", "本轮无新日志（" + new Date().toLocaleTimeString() + "）");
+    }
+  });
+}
+
+/* ============================================================
+   内核与配置
+   ============================================================ */
+function rkLoadProfile(){
+  return routeRaw("profile").then(function(t){
+    RK.profileRaw = String(t || "{}").trim();
+    var p = extractJson(RK.profileRaw);
+    RK.profile = p;
+    var e = document.getElementById("rkProfileText");
+    if(e) e.value = p ? JSON.stringify(p, null, 2) : RK.profileRaw;
+    setText("rkProfileTag", p ? ((RK.profileRaw.length) + " 字节") : "解析失败");
+    return p;
+  });
+}
+function rkLoadCfg(){
+  return runScript("proxynode.sh", ["config-get"], 40000).then(function(t){
+    var e = document.getElementById("rkCfgView");
+    var s = String(t || "").trim();
+    if(!s){ e.textContent = "（尚未生成 config.json，先点「编译并重载」）"; return; }
+    var j = extractJson(s);
+    e.textContent = j ? JSON.stringify(j, null, 2) : s;
+    setText("rkSub", "编译产物 " + fmtBytes(s.length));
+  });
+}
+function loadRouteCore(){
+  return Promise.all([loadRouteStatus(), rkLoadProfile(), loadRouteSummary()]);
+}
+
+/* ============================================================
+   内置 App
+   ============================================================ */
+function loadApp(){
+  return runScript("installapp.sh", ["status"], 60000).then(function(t){
+    var j = extractJson(t) || {};
+    AP = j;
+    setText("apInstalled", j.installed ? "已安装 ✓" : (j.bundled ? "未安装" : "模块未打包"));
+    setText("apVersion", j.version || "-");
+    setText("apPkg", j.package || "com.syfusion.manager");
+    setText("apApk", j.bundled ? "app/SYManager.apk" : "缺失");
+    setText("apSize", j.size ? fmtBytes(j.size) : "-");
+    setText("apSig", j.sha256 ? (j.sha256.slice(0, 16) + "…") : "-");
+    setText("apSub", j.installed ? ("已安装 " + (j.version || "") + " · " + (j.package || "")) : "尚未安装");
+    var lg = document.getElementById("apLog");
+    if(lg && lg.textContent === "-") lg.textContent = "点上方按钮执行安装 / 卸载";
+    return j;
+  });
+}
+
+/* ============================================================
+   系统与日志
+   ============================================================ */
+function loadSysInfo(){
+  return runScript("ctl.sh", ["status"]).then(function(s){
+    var d = parseJSON(s) || {};
+    var sys = d.sys || {}, panel = d.panel || {};
+    setText("siMem", sys.mem_used_mb != null ? sys.mem_used_mb + " MB" : "-");
+    setText("siCpu", sys.cpu_pct != null ? sys.cpu_pct + " %" : "-");
+    setText("siUp", sys.uptime || "-");
+    setText("siPanel", panel.running === "yes" ? "运行中" : "已停止");
+    setText("siVer", "v1.0.0");
+    setText("siEnv", KSU_LABEL);
+    setText("siSub", new Date().toLocaleString());
+    return d;
+  });
+}
+function siLoadLogs(){
+  return runScript("logs.sh", ["list"]).then(function(s){
+    var arr = parseJSON(s) || [];
+    var box = document.getElementById("siLogList");
+    if(!box) return;
+    box.innerHTML = arr.length ? arr.map(function(x){
+      return '<div class="row"><span class="t">' + esc(x.name) +
+        '<br><span class="mono">' + esc(x.mtime || "") + ' · ' + esc(String(x.size || 0)) + 'B</span></span>' +
+        '<button class="btn sm" data-act="si-log-view" data-v="' + esc(x.name) + '">查看</button>' +
+        '<button class="del" data-act="log-clear" data-v="' + esc(x.name) + '">✕</button></div>';
+    }).join("") : '<div class="empty">暂无日志</div>';
+  });
+}
+
+/* ============================================================
+   动作表扩展
+   ============================================================ */
+Object.assign(actions, {
+  "tab-go": function(el){
+    var t = el.getAttribute("data-v");
+    if(t) switchTab(t);
+  },
+
+  /* ---- 总览 ---- */
+  "refresh-home": function(){
+    return Promise.all([loadHome(), loadPanel(), loadLogs(), loadRouteLive(), loadRouteCurrent(), loadRouteStatus()])
+      .then(function(){ toast("已刷新"); });
+  },
+  "px-toggle": function(){
+    return routeJson("status-json").then(function(j){
+      var up = j && j.running === "yes";
+      busy(up ? "正在停止内核…" : "正在启动内核…");
+      return runScript("proxynode.sh", [up ? "down" : "up"], 120000);
+    }).then(function(o){
+      toast(msg(o));
+      return Promise.all([loadRouteStatus(), loadRouteLive(), loadRouteCurrent(), loadHome()]);
+    });
+  },
+
+  /* ---- 代理总览 ---- */
+  "px-up": function(){
+    busy("正在启动内核…");
+    return runScript("proxynode.sh", ["up"], 150000).then(function(o){
+      toast(msg(o)); return Promise.all([loadRouteStatus(), loadRouteLive(), loadRouteCurrent()]);
+    });
+  },
+  "px-down": function(){
+    if(!confirm("确定停止代理内核？停止后所有流量将直连。")) return Promise.resolve();
+    busy("正在停止…");
+    return runScript("proxynode.sh", ["down"], 90000).then(function(o){
+      toast(msg(o)); return Promise.all([loadRouteStatus(), loadRouteLive()]);
+    });
+  },
+  "px-restart": function(){
+    busy("正在重启内核…");
+    return runScript("proxynode.sh", ["restart"], 180000).then(function(o){
+      toast(msg(o)); return Promise.all([loadRouteStatus(), loadRouteLive(), loadRouteCurrent()]);
+    });
+  },
+  "rh-mode": function(el){
+    var m = el.getAttribute("data-v");
+    busy("正在切换为 " + m + "…");
+    return clashDo("mode", { mode: m }, 25000).then(function(ok){
+      toast(ok ? ("已切换为 " + m + " 模式") : "切换失败（内核可能未运行）");
+      return loadRouteLive();
+    });
+  },
+  "rh-ping-all": function(){
+    if(!RP.proxies) return loadRouteProxy().then(function(){ return actions["rh-ping-all"](); });
+    var g = RH.last && RH.last.group;
+    var px = RP.proxies;
+    var names = [];
+    if(g && px[g] && px[g].all) names = px[g].all.slice();
+    else names = Object.keys(px).filter(function(k){ return !GROUP_TYPES[px[k].type]; });
+    names = names.filter(function(n){ return px[n] && !GROUP_TYPES[px[n].type]; });
+    if(!names.length){ toast("没有可测速的节点"); return Promise.resolve(); }
+    toast("开始测速 " + names.length + " 个节点…");
+    return rpPing(names);
+  },
+  "rh-reload": function(){
+    busy("正在重编译并重载…");
+    return routeRaw("reload", [], 300000).then(function(t){
+      toast(msg(t));
+      return Promise.all([loadRouteStatus(), loadRouteLive(), loadRouteCurrent(), loadRouteSummary()]);
+    });
+  },
+  "rh-fetchrules": function(){
+    busy("正在更新规则集（可能需要几分钟）…");
+    return routeRaw("fetch-rules", [], 600000).then(function(t){
+      toast(clip(String(t || "").trim().split("\n").pop() || "完成", 100));
+      return Promise.all([loadRouteStatus(), routeJson("rulesets").then(renderRulesets)]);
+    });
+  },
+  "rh-mirrors": function(){
+    busy("正在实测镜像…");
+    return routeRaw("mirrors", ["-probe"], 120000).then(function(t){
+      var box = document.getElementById("rrRsList");
+      var j = extractJson(t);
+      if(j && Object.prototype.toString.call(j) === "[object Array]"){
+        if(box) box.innerHTML = j.map(function(m){
+          return '<div class="row"><span class="t">' + esc(m.name) +
+            '<br><span class="mono">' + esc(m.url) + '</span></span>' +
+            (m.ok ? latPill(m.millis) : '<span class="lat p4">失败</span>') +
+            (m.default ? '<span class="pill info">默认</span>' : '') + '</div>';
+        }).join("");
+        setText("rrRsTag", "镜像实测结果");
+        switchTab("route-rules");
+      } else {
+        toast(clip(String(t || "").trim(), 100));
+      }
+    });
+  },
+
+  /* ---- 策略组 ---- */
+  "rp-refresh": function(){ return loadRouteProxy().then(function(){ toast("已刷新"); }); },
+  "rp-fold": function(el){
+    var grp = el.closest(".grp");
+    if(!grp) return;
+    var name = grp.getAttribute("data-g");
+    RP.fold[name] = !RP.fold[name];
+    grp.classList.toggle("fold", !!RP.fold[name]);
+  },
+  "rp-collapse": function(){
+    var anyOpen = false;
+    Object.keys(RP.fold).forEach(function(k){ if(!RP.fold[k]) anyOpen = true; });
+    Object.keys(RP.fold).forEach(function(k){ RP.fold[k] = true; });
+    if(!anyOpen){
+      RP.fold = {};
+      toast("已全部展开");
+    } else toast("已全部折叠");
+    renderProxyGroups();
+  },
+  "rp-pick": function(el){
+    var g = el.getAttribute("data-g"), n = el.getAttribute("data-n");
+    busy("正在切换到 " + n + "…");
+    return clashDo("select", { group: g, to: n }, 25000).then(function(ok){
+      toast(ok ? (g + " → " + n) : "切换失败");
+      return Promise.all([loadRouteProxy(), loadRouteCurrent()]);
+    });
+  },
+  "rp-ping": function(el){
+    var n = el.getAttribute("data-n");
+    var url = ($("#rpUrl") && $("#rpUrl").value) || "http://www.gstatic.com/generate_204";
+    return clashGet("delay", { name: n, url: url, timeout: 5000 }, 20000).then(function(j){
+      var d = j && j.delay != null ? num(j.delay, 0) : 0;
+      if(RP.proxies && RP.proxies[n]) RP.proxies[n].history = [{ time: new Date().toISOString(), delay: d }];
+      renderProxyGroups();
+      toast(n + " → " + (d > 0 ? (d + " ms") : "测速失败"));
+    });
+  },
+  "rp-ping-all": function(){ return actions["rh-ping-all"](); },
+
+  /* ---- 连接 ---- */
+  "rc-refresh": function(){ return loadRouteConn().then(function(){ toast("已刷新"); }); },
+  "rc-close-all": function(){
+    if(!confirm("确定关闭全部活动连接？")) return Promise.resolve();
+    return clashDo("close", { id: "" }, 25000).then(function(ok){
+      toast(ok ? "已关闭全部连接" : "操作失败");
+      return loadRouteConn();
+    });
+  },
+  "rc-close": function(el){
+    var id = el.getAttribute("data-v");
+    return clashDo("close", { id: id }, 25000).then(function(){ return loadRouteConn(); });
+  },
+
+  /* ---- 规则 ---- */
+  "rr-lint": function(){ return rrLint(); },
+  "rr-compile": function(){
+    busy("正在编译内核配置…");
+    return routeRaw("compile", [], 180000).then(function(t){
+      toast(msg(t));
+      return Promise.all([loadRouteStatus(), rkLoadCfg(), loadRouteSummary()]);
+    });
+  },
+  "rr-diag": function(){ return rrDiag(false); },
+  "rr-diag-verbose": function(){ return rrDiag(true); },
+  "rr-add-toggle": function(){
+    var b = document.getElementById("rrAddBox");
+    if(b) b.classList.toggle("fold");
+  },
+  "rr-add-open": function(){
+    var b = document.getElementById("rrAddBox");
+    if(b) b.classList.remove("fold");
+  },
+  "rr-add-close": function(){
+    var b = document.getElementById("rrAddBox");
+    if(b) b.classList.add("fold");
+  },
+  "rr-add-save": function(){
+    var t = (($("#rrAddText") || {}).value || "").trim();
+    if(!t){ toast("请输入规则"); return Promise.resolve(); }
+    var lines = t.split("\n").map(function(x){ return x.trim(); }).filter(Boolean);
+    var args = [];
+    lines.forEach(function(l){ args.push("-rule", l); });
+    busy("正在追加 " + lines.length + " 条规则…");
+    return routeRaw("add-rule", args, 120000).then(function(o){
+      toast(msg(o));
+      var box = document.getElementById("rrAddText");
+      if(box) box.value = "";
+      return routeRaw("compile", [], 180000).then(function(){
+        return Promise.all([loadRouteSummary(), loadRouteStatus()]);
+      });
+    });
+  },
+  "rr-fetchrules": function(){ return actions["rh-fetchrules"](); },
+  "rr-mirrors": function(){ return actions["rh-mirrors"](); },
+
+  /* ---- DNS ---- */
+  "rd-refresh": function(){ return rdLoad().then(function(){ toast("已刷新"); }); },
+  "rd-save": function(){
+    var e = document.getElementById("rdRaw");
+    if(!RD.profile){ toast("profile 未载入"); return Promise.resolve(); }
+    if(e && e.value.trim()){
+      var d = parseJSON(e.value);
+      if(!d){ toast("DNS 配置不是合法 JSON"); return Promise.resolve(); }
+      RD.profile.dns = d;
+    }
+    return rdSaveProfile();
+  },
+  "rd-raw-save": function(){ return actions["rd-save"](); },
+  "rd-raw-reload": function(){ return rdLoad().then(function(){ toast("已重新载入"); }); },
+  "rd-preset": function(el){ return rdPreset(el.getAttribute("data-v")); },
+  "rd-probe": function(){ return rdProbe(); },
+  "rd-add-toggle": function(){
+    var b = document.getElementById("rdAddBox");
+    if(b) b.classList.toggle("fold");
+  },
+  "rd-add-save": function(){
+    if(!RD.profile) return Promise.resolve();
+    var tag = (($("#rdAddTag") || {}).value || "").trim();
+    var addr = (($("#rdAddAddr") || {}).value || "").trim();
+    var det = (($("#rdAddDetour") || {}).value || "").trim();
+    if(!addr){ toast("请填写地址"); return Promise.resolve(); }
+    var d = RD.profile.dns || (RD.profile.dns = {});
+    if(!d.servers) d.servers = [];
+    var o = { address: addr };
+    if(tag) o.tag = tag;
+    if(det) o.detour = det;
+    d.servers.push(o);
+    return rdSaveProfile();
+  },
+  "rd-srv-del": function(el){
+    if(!RD.profile) return Promise.resolve();
+    var i = num(el.getAttribute("data-v"), -1);
+    var d = RD.profile.dns;
+    if(!d || !d.servers || i < 0) return Promise.resolve();
+    d.servers.splice(i, 1);
+    return rdSaveProfile();
+  },
+
+  /* ---- 内核日志 ---- */
+  "rl-pull": function(){ return rlPull(); },
+  "rl-clear": function(){ RL.lines = []; rlRender(); toast("已清空窗口"); },
+  "rl-copy": function(){
+    var txt = RL.lines.map(function(l){ return "[" + l.type + "] " + l.payload; }).join("\n");
+    copyText(txt);
+  },
+
+  /* ---- 内核与配置 ---- */
+  "rk-check": function(){
+    busy("正在校验内核配置…");
+    return runScript("proxynode.sh", ["config-get"], 40000).then(function(t){
+      var box = document.getElementById("rkCfgView");
+      var s = String(t || "").trim();
+      if(box) box.textContent = s ? (extractJson(s) ? JSON.stringify(extractJson(s), null, 2) : s) : "（尚未生成 config.json）";
+      toast(s ? "配置已载入，见下方预览" : "尚未生成 config.json");
+    });
+  },
+  "rk-reload": function(){ return actions["rh-reload"](); },
+  "rk-profile-save": function(){
+    var e = document.getElementById("rkProfileText");
+    if(!e) return Promise.resolve();
+    var p = parseJSON(e.value);
+    if(!p){ toast("profile 不是合法 JSON"); return Promise.resolve(); }
+    RK.profile = p;
+    RD.profile = p;
+    busy("正在保存 profile…");
+    return routeRaw("set-profile", [b64(JSON.stringify(p))], 90000).then(function(t){
+      toast(msg(t));
+      if(!looksOk(t)) return;
+      return routeRaw("compile", [], 180000).then(function(){
+        return Promise.all([loadRouteStatus(), loadRouteSummary(), rkLoadCfg()]);
+      });
+    });
+  },
+  "rk-profile-reload": function(){ return rkLoadProfile().then(function(){ toast("已重新载入"); }); },
+  "rk-profile-format": function(){
+    var e = document.getElementById("rkProfileText");
+    if(!e) return;
+    var p = parseJSON(e.value);
+    if(!p){ toast("不是合法 JSON，无法格式化"); return; }
+    e.value = JSON.stringify(p, null, 2);
+    toast("已格式化");
+  },
+  "rk-cfg-load": function(){ return rkLoadCfg().then(function(){ toast("已载入编译产物"); }); },
+  "rk-cfg-copy": function(){ copyText(($("#rkCfgView") || {}).textContent || ""); },
+  "rk-cfg-download": function(){
+    var t = ($("#rkCfgView") || {}).textContent || "";
+    if(!t){ toast("先点「载入」"); return; }
+    downloadText("config.json", t);
+  },
+  "rk-proxy-logs": function(){
+    switchTab("route-logs");
+    setTimeout(function(){ rlPull(); }, 200);
+  },
+
+  /* ---- 内置 App ---- */
+  "ap-status": function(){ return loadApp().then(function(){ toast("状态已刷新"); }); },
+  "ap-install": function(){
+    busy("正在安装内置 App…");
+    return runScript("installapp.sh", ["install"], 180000).then(function(t){
+      var box = document.getElementById("apLog");
+      if(box) box.textContent = t || "(无输出)";
+      toast(msg(t));
+      return loadApp();
+    });
+  },
+  "ap-reinstall": function(){
+    if(!confirm("强制重装会先卸载再安装，确定继续？")) return Promise.resolve();
+    busy("正在强制重装…");
+    return runScript("installapp.sh", ["reinstall"], 180000).then(function(t){
+      var box = document.getElementById("apLog");
+      if(box) box.textContent = t || "(无输出)";
+      toast(msg(t));
+      return loadApp();
+    });
+  },
+  "ap-remove": function(){
+    if(!confirm("确定卸载内置管理器 App？")) return Promise.resolve();
+    busy("正在卸载…");
+    return runScript("installapp.sh", ["remove"], 120000).then(function(t){
+      var box = document.getElementById("apLog");
+      if(box) box.textContent = t || "(无输出)";
+      toast(msg(t));
+      return loadApp();
+    });
+  },
+  "ap-open": function(){
+    return runScript("installapp.sh", ["status"], 60000).then(function(t){
+      var j = extractJson(t) || {};
+      if(!j.installed){ toast("请先安装"); return; }
+      return runScript("installapp.sh", ["launch"], 60000).then(function(o){
+        toast(looksOk(o) ? "已启动" : msg(o));
+      }).catch(function(){ toast("启动失败，请从桌面图标打开"); });
+    });
+  },
+
+  /* ---- 系统 ---- */
+  "si-refresh": function(){ return Promise.all([loadSysInfo(), siLoadLogs()]).then(function(){ toast("已刷新"); }); },
+  "si-selfcheck": function(){
+    busy("正在自检…");
+    return runScript("selfcheck.sh", ["all"], 240000).then(function(t){
+      var box = document.getElementById("siOut");
+      if(box) box.textContent = t || "(无输出)";
+      toast("自检完成");
+    });
+  },
+  "si-export": function(){
+    busy("正在生成诊断包…");
+    return runScript("backup.sh", ["export"], 240000).then(function(t){
+      var box = document.getElementById("siOut");
+      if(box) box.textContent = t || "(无输出)";
+      toast(msg(t));
+    });
+  },
+  "si-log-view": function(el){
+    return runScript("logs.sh", ["cat", el.getAttribute("data-v"), "500"], 60000).then(function(t){
+      var box = document.getElementById("siLogView");
+      if(box) box.textContent = (t && t.trim()) ? t : "(空)";
+    });
+  }
+});
+
+/* ---------- 剪贴板 / 下载（无第三方库） ---------- */
+function copyText(t){
+  if(!t){ toast("没有可复制的内容"); return; }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(function(){ toast("已复制 " + t.length + " 字符"); },
+        function(){ legacyCopy(t); });
+      return;
+    }
+  }catch(e){}
+  legacyCopy(t);
+}
+function legacyCopy(t){
+  try{
+    var ta = document.createElement("textarea");
+    ta.value = t; ta.style.position = "fixed"; ta.style.left = "-9999px";
+    document.body.appendChild(ta); ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    toast("已复制");
+  }catch(e){ toast("复制失败，请手动选择"); }
+}
+function downloadText(name, t){
+  try{
+    var blob = new Blob([t], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    toast("已下载 " + name);
+  }catch(e){ copyText(t); }
+}
+
+/* ============================================================
+   事件绑定：筛选 / 自动刷新 / 定时器
+   ============================================================ */
+document.addEventListener("input", function(ev){
+  var id = ev.target && ev.target.id;
+  if(id === "rpSearch"){ RP.filter = ev.target.value; renderProxyGroups(); }
+  else if(id === "rcSearch"){ RC.filter = ev.target.value; renderConns(); }
+  else if(id === "rrRuleSearch"){ renderRules(); }
+});
+document.addEventListener("change", function(ev){
+  var id = ev.target && ev.target.id;
+  if(id === "rpSort"){ RP.sort = ev.target.value; renderProxyGroups(); }
+  else if(id === "rrRuleFilter"){ renderRules(); }
+  else if(id === "rlAuto" || id === "rcAuto") syncLiveTimers();
+  else if(id === "rlLevel"){ RL.lines = []; rlRender(); }
+});
+
+/* 定时器统一管理：只在对应页面可见时跑，避免后台空转烧 CPU */
+function syncLiveTimers(){
+  var t;
+  if(RL.timer){ clearInterval(RL.timer); RL.timer = 0; }
+  if(RC.timer){ clearInterval(RC.timer); RC.timer = 0; }
+  var rlAuto = document.getElementById("rlAuto");
+  if(CUR_TAB === "route-logs" && rlAuto && rlAuto.checked){
+    RL.timer = setInterval(function(){ rlPull(); }, LIVE_MS * 3);
+  }
+  var rcAuto = document.getElementById("rcAuto");
+  if(CUR_TAB === "route-conn" && (!rcAuto || rcAuto.checked)){
+    RC.timer = setInterval(function(){ loadRouteConn(); }, LIVE_MS);
+  }
+  t = 0;
+}
+function tickLive(){
+  if(CUR_TAB === "home" || CUR_TAB === "route-home" || CUR_TAB === "route-proxy"){
+    loadRouteLive();
+  } else if(Date.now() - LAST_STATUS_AT > 20000){
+    /* 其它页面只维持顶部状态条，且降频到 20s 一次，避免后台空转 */
+    loadRouteLive();
+  }
+}
+
 document.addEventListener("click",function(ev){
   var el=ev.target.closest("[data-act]");
   if(!el) return;
@@ -2344,6 +4548,16 @@ case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSou
     case "engine": return loadEngine();
     case "tools": return loadBackups();
     case "settings": return loadSettings();
+    /* ---- 极客控制台 ---- */
+    case "route-home":  return loadRouteHome();
+    case "route-proxy": return loadRouteProxy();
+    case "route-conn":  return loadRouteConn();
+    case "route-rules": return loadRouteRules();
+    case "route-dns":   return rdLoad();
+    case "route-logs":  return rlPull();
+    case "route-core":  return loadRouteCore();
+    case "app":         return loadApp();
+    case "sysinfo":     return Promise.all([loadSysInfo(), siLoadLogs()]);
   }
 }
 /* 关闭所有导航下拉 */
@@ -2382,6 +4596,8 @@ function switchTab(tab){
   $$(".page").forEach(function(p){ p.classList.toggle("hide", p.id!=="page-"+tab); });
   syncNavParent(tab);
   closeDropdowns();
+  CUR_TAB = tab;
+  syncLiveTimers();
   loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
 }
 /* 顶部导航：下拉开合 + 页面切换 */
@@ -2491,11 +4707,19 @@ document.addEventListener("change",function(ev){
 (function init(){
   if(TOKEN){ try{ localStorage.setItem("ab_token",TOKEN); }catch(e){} }
   if(hasKSU()) KSU_LABEL="KSU"; else KSU_LABEL="LAN";
+  /* KSU 模式下每次取数都要 fork 进程，刷新间隔必须放宽，
+     否则光刷新就能把手机 CPU 吃满（与上一版卡顿同源）。 */
+  LIVE_MS = hasKSU() ? 2500 : 1200;
   switchTab("home");
   setInterval(function(){
-    var cur=document.querySelector(".nav-link.on, .dropdown-item.on"); 
-    if(cur&&cur.getAttribute("data-tab")==="home") { loadHome(); loadPanel(); }
-  }, 15000);
+    if(CUR_TAB==="home"){ loadHome(); loadPanel(); }
+    tickLive();
+  },6000);
+  /* 曲线单独按 1s 重绘，只在可见页面画 */
+  setInterval(function(){
+    if(CUR_TAB==="route-home"||CUR_TAB==="home") RH.spark.draw();
+  },1000);
+  window.addEventListener("resize",function(){ setTimeout(function(){ RH.spark.draw(); },150); });
 })();
 </script>
 </body>

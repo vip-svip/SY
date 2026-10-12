@@ -48,6 +48,7 @@ for need in ("module.prop","customize.sh","service.sh","post-fs-data.sh","uninst
              "action.sh","webroot/index.html",
              "META-INF/com/google/android/update-binary",
              "META-INF/com/google/android/updater-script",
+             "scripts/route.sh","scripts/installapp.sh",
              "bin/abserver-arm64","bin/abserver-arm","bin/abserver-amd64"):
     if not os.path.exists(need): errs.append("缺少文件: " + need)
 if errs:
@@ -64,18 +65,20 @@ import os, sys, zipfile, stat
 zip_path = sys.argv[1]
 # 打入 ZIP 的目录/文件（tests 一并包含，便于设备上复跑引擎自检）
 INCLUDE_DIRS = ["bin", "config", "scripts", "src", "system", "webroot",
-                "META-INF", "tests"]
+                "META-INF", "tests", "app", "rulesets"]
 INCLUDE_FILES = ["module.prop", "customize.sh", "post-fs-data.sh", "service.sh",
                  "action.sh", "uninstall.sh", "README.md", "changelog.md",
                  "update.json", ".gitattributes", "ui-preview.html"]
 EXEC_EXT = {".sh"}
 EXEC_NAMES = {"update-binary"}
+# app/build 是构建中间产物（含签名密钥与临时 dex），绝不能进模块包
+EXCLUDE_PARTS = {"build"}
 
 entries = []
 for d in INCLUDE_DIRS:
     if not os.path.isdir(d): continue
     for root, dirs, files in os.walk(d):
-        dirs.sort()
+        dirs[:] = sorted(x for x in dirs if x not in EXCLUDE_PARTS)
         for f in sorted(files):
             entries.append(os.path.join(root, f))
 for f in INCLUDE_FILES:

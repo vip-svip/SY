@@ -80,20 +80,31 @@ REPORT="$LOGDIR/selfcheck.log"
   echo "===== selfcheck done -> $REPORT ====="
 } 2>&1 | tee "$REPORT"
 
-# ---- 可选低风险自愈 ----
-if [ "$1" = "heal" ]; then
-  {
-    echo "===== heal $(date) ====="
-    HS=$(find "$DATA_DIR" -name hosts -type f 2>/dev/null | head -1)
-    if [ -s "$HS" ]; then
-      umount /system/etc/hosts 2>/dev/null
-      mount --bind "$HS" /system/etc/hosts 2>/dev/null && echo "hosts 重新挂载 OK" || echo "hosts 重新挂载 FAIL"
-    fi
-    if [ -f "$MODDIR/scripts/panel.sh" ]; then
-      sh "$MODDIR/scripts/panel.sh" stop   >/dev/null 2>&1
-      sh "$MODDIR/scripts/panel.sh" ensure >/dev/null 2>&1
-      echo "面板重启后进程数: $(ps -A 2>/dev/null | grep -c abserver)"
-    fi
-  } 2>&1 | tee -a "$REPORT"
-fi
+# ---- 子命令分发（上面的诊断报告已输出并落盘）----
+#   diagnose|all|check  仅诊断（all 为面板默认调用的全量自检）
+#   heal                诊断 + 低风险自愈（重挂 hosts / 重启面板）
+case "${1:-diagnose}" in
+  diagnose|all|check)
+    :
+    ;;
+  heal)
+    {
+      echo "===== heal $(date) ====="
+      HS=$(find "$DATA_DIR" -name hosts -type f 2>/dev/null | head -1)
+      if [ -s "$HS" ]; then
+        umount /system/etc/hosts 2>/dev/null
+        mount --bind "$HS" /system/etc/hosts 2>/dev/null && echo "hosts 重新挂载 OK" || echo "hosts 重新挂载 FAIL"
+      fi
+      if [ -f "$MODDIR/scripts/panel.sh" ]; then
+        sh "$MODDIR/scripts/panel.sh" stop   >/dev/null 2>&1
+        sh "$MODDIR/scripts/panel.sh" ensure >/dev/null 2>&1
+        echo "面板重启后进程数: $(ps -A 2>/dev/null | grep -c abserver)"
+      fi
+    } 2>&1 | tee -a "$REPORT"
+    ;;
+  *)
+    echo "usage: selfcheck.sh {diagnose|all|heal}" >&2
+    exit 2
+    ;;
+esac
 exit 0

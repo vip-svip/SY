@@ -103,11 +103,11 @@ setTimeout(() => {
   }
 
   // ---------- 6. 普通 nav-link 切页，下拉父项应取消高亮 ----------
-  const navTools = doc.querySelector('.nav-link[data-tab="tools"]');
-  navTools.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
-  const pt = doc.getElementById("page-tools");
-  if (pt && !pt.classList.contains("hide")) ok("切换到 page-tools");
-  else bad("未切换到 page-tools");
+  const navHome2 = doc.querySelector('.nav-link[data-tab="home"]');
+  navHome2.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  const ph = doc.getElementById("page-home");
+  if (ph && !ph.classList.contains("hide")) ok("切换回 page-home");
+  else bad("未切换到 page-home");
   if (!ddParent.classList.contains("on")) ok("切走后下拉父项高亮取消");
   else bad("切走后下拉父项仍高亮");
 
@@ -118,14 +118,66 @@ setTimeout(() => {
   else bad("点击空白未关闭下拉");
 
   // ---------- 8. 每个 data-tab 都能切换且页面存在 ----------
-  let tabOk = true;
+  let tabOk = true, tabCount = 0;
   for (const el of doc.querySelectorAll("[data-tab]")) {
     const t = el.getAttribute("data-tab");
+    tabCount++;
     win.switchTab(t);
     const pg = doc.getElementById("page-" + t);
     if (!pg || pg.classList.contains("hide")) { bad("switchTab(" + t + ") 未显示 page-" + t); tabOk = false; }
   }
-  if (tabOk) ok("12 个标签全部可切换并命中对应页面");
+  if (tabOk) ok(tabCount + " 个标签全部可切换并命中对应页面");
+
+  // ---------- 8b. 极客控制台各页面渲染不抛错 ----------
+  const geek = ["route-home", "route-proxy", "route-conn", "route-rules", "route-dns", "route-logs", "route-core", "app", "sysinfo"];
+  let geekOk = true;
+  const before = errs.length;
+  for (const t of geek) {
+    win.switchTab(t);
+    const pg = doc.getElementById("page-" + t);
+    if (!pg || pg.classList.contains("hide")) { bad("极客页 page-" + t + " 未显示"); geekOk = false; }
+  }
+  const newErrs = errs.slice(before).filter(e => !/Not implemented|Could not parse CSS|fetch/i.test(e));
+  if (newErrs.length) { bad("极客页产生运行时异常: " + newErrs.slice(0, 3).join(" | ")); geekOk = false; }
+  if (geekOk) ok(geek.length + " 个极客控制台页面均可切换且无异常");
+
+  // ---------- 8c. 新增 actions 处理器已挂到全局 ----------
+  const wantActs = ["tab-go", "px-toggle", "rh-mode", "rp-pick", "rc-close", "rr-diag", "rd-preset", "rl-pull", "rk-profile-save", "ap-install"];
+  const missAct = wantActs.filter(a => typeof win.actions[a] !== "function");
+  if (missAct.length) bad("actions 缺少处理器: " + missAct.join(","));
+  else ok(wantActs.length + " 个极客动作处理器已注册");
+
+  // ---------- 8d. 格式化工具输出正确 ----------
+  const fmtCases = [[0, "0 B"], [512, "512 B"], [1536, "1.50 KB"], [1048576, "1.00 MB"]];
+  const fmtBad = fmtCases.filter(([i, o]) => win.fmtBytes(i) !== o);
+  if (fmtBad.length) bad("fmtBytes 输出异常: " + JSON.stringify(fmtBad));
+  else ok("fmtBytes 单位换算正确");
+
+  // ---------- 8e. 延迟色阶分档 ----------
+  const latCases = [[50, "p0"], [150, "p1"], [300, "p2"], [600, "p3"], [1200, "p4"], [0, "p4"]];
+  const latBad = latCases.filter(([i, o]) => win.latClass(i) !== o);
+  if (latBad.length) bad("latClass 分档异常: " + JSON.stringify(latBad));
+  else ok("latClass 延迟色阶分档正确");
+
+  // ---------- 8f. JSON 抽取能跳过前导非 JSON 文本 ----------
+  const ex1 = win.extractJson("route compile: ok\n{\"a\":1}\n");
+  const ex2 = win.extractJson("ERR: 内核不可达");
+  if (ex1 && ex1.a === 1 && ex2 === null) ok("extractJson 容错解析正确");
+  else bad("extractJson 解析异常: " + JSON.stringify(ex1) + " / " + JSON.stringify(ex2));
+
+  // ---------- 8g. 运行模式中文标签 ----------
+  const modeCases = [["rule", "规则分流"], ["global", "全局代理"], ["direct", "全部直连"],
+                     ["RULE", "规则分流"], [null, "-"], ["weird", "weird"]];
+  const modeBad = modeCases.filter(([i, o]) => win.modeLabel(i) !== o);
+  if (modeBad.length) bad("modeLabel 映射异常: " + JSON.stringify(modeBad));
+  else ok("modeLabel 运行模式中文映射正确");
+
+  // ---------- 8h. 总览页必须挂载代理数据链（否则代理内核磁贴恒为 "-"）----------
+  const homeSrc = String(win.loadHome || "");
+  const needCall = ["loadRouteLive()", "loadRouteCurrent()", "loadRouteSummary()", "loadRouteStatus()"];
+  const missCall = needCall.filter(c => homeSrc.indexOf(c) < 0);
+  if (missCall.length) bad("loadHome 未挂载: " + missCall.join(","));
+  else ok("loadHome 已挂载代理状态 / 当前出口 / 规则统计数据链");
 
   // ---------- 9. 子标签切换 ----------
   win.switchTab("dns");
@@ -151,13 +203,17 @@ setTimeout(() => {
     else bad("主题切换异常");
   } catch (e) { bad("switchTheme() 抛错: " + e.message); }
 
-  // ---------- 12. 导航结构符合 AGH 规范 ----------
-  const navLabels = [...doc.querySelectorAll(".nav-link")].map(a => a.textContent.trim());
+  // ---------- 12. 导航结构 ----------
+  const navLabels = [...doc.querySelectorAll(".nav-link")].map(a => a.textContent.replace(/[▼\s]+$/g, "").trim());
   console.log("  [i]  顶部导航: " + navLabels.join(" / "));
-  if (navLabels.length === 4) ok("导航项 4 个（仪表盘 / 过滤器 / 设置 / 工具与备份）");
-  else bad("导航项数量异常: " + navLabels.length);
-  if (doc.querySelectorAll(".page-title").length === 12) ok("12 个页面均带 page-title 标题栏");
-  else bad("page-title 数量异常: " + doc.querySelectorAll(".page-title").length);
+  const wantNav = ["总览", "代理路由", "过滤", "工具", "设置"];
+  if (navLabels.length === wantNav.length && wantNav.every((n, i) => navLabels[i] === n)) {
+    ok("导航分组为 " + wantNav.join(" / "));
+  } else bad("导航分组异常: " + navLabels.join(","));
+
+  const pageCount = doc.querySelectorAll(".page").length;
+  if (doc.querySelectorAll(".page-title").length === pageCount) ok(pageCount + " 个页面均带 page-title 标题栏");
+  else bad("page-title 数量异常: " + doc.querySelectorAll(".page-title").length + " / 页面 " + pageCount);
 
   console.log("\n  通过 %d 项，失败 %d 项", pass, fail);
   process.exit(fail ? 1 : 0);

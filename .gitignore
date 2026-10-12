@@ -8,3 +8,7 @@ shots/
 
 # 依赖
 node_modules/
+
+# App 构建中间产物（模块只发布 app/SYManager.apk）
+app/build/
+*.idsig

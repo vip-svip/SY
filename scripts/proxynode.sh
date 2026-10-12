@@ -300,7 +300,31 @@ node_to_outbound() { # link
   esac
 }
 
+# gen_config — 生成内核配置
+#
+# 现在由 route.sh 走 profile → abserver route compile 的链路：
+#   · profile.json 是唯一事实源，策略组/规则集/逻辑规则都在里面
+#   · 目标内核版本从真内核读出来，配置语法跟着版本走
+#   · 规则集优先用本地 .srs，没网也能起来
+# 老的内联拼字符串实现保留在 gen_config_legacy，仅在 route.sh
+# 不可用时兜底。
 gen_config() {
+  RS="$(dirname "$0")/route.sh"
+  if [ -f "$RS" ] && [ -x "$BIN" ]; then
+    out="$(sh "$RS" compile 2>&1)"
+    rc=$?
+    if [ $rc -eq 0 ]; then
+      echo "$out"
+      return 0
+    fi
+    # 编译失败时不要把坏配置留下，避免内核读到半截文件
+    echo "$out"
+    echo "WARN: 规则路由编译失败，回退到简化配置"
+  fi
+  gen_config_legacy
+}
+
+gen_config_legacy() {
   sel=$(cat "$SELECTED" 2>/dev/null)
   [ -z "$sel" ] && { echo "ERR: 请先选择节点"; return 1; }
   line=$(sed -n "${sel}p" "$NODES" 2>/dev/null)
@@ -313,14 +337,16 @@ gen_config() {
     printf '  "log": {"level": "warn"},\n'
     printf '  "dns": {\n'
     printf '    "servers": [\n'
+    # 注意：不能给直连 DNS 写 detour:direct，sing-box 1.14 会直接报
+    # "detour to an empty direct outbound makes no sense" 而拒绝启动
     printf '      {"tag": "proxy-dns", "address": "https://1.1.1.1/dns-query", "detour": "proxy"},\n'
-    printf '      {"tag": "local-dns", "address": "223.5.5.5", "detour": "direct"}\n'
+    printf '      {"tag": "local-dns", "address": "223.5.5.5"}\n'
     printf '    ],\n'
     printf '    "strategy": "ipv4_only"\n'
     printf '  },\n'
     printf '  "inbounds": [\n'
-    printf '    {"type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "mtu": 9000, "auto_route": true, "strict_route": true, "stack": "system", "sniff": true},\n'
-    printf '    {"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": %s, "sniff": true}\n' "$PROXY_PORT"
+    printf '    {"type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "mtu": 9000, "auto_route": true, "strict_route": true, "stack": "system"},\n'
+    printf '    {"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": %s}\n' "$PROXY_PORT"
     printf '  ],\n'
     printf '  "outbounds": [\n'
     printf '    %s,\n' "$ob"
@@ -329,8 +355,8 @@ gen_config() {
     printf '  ],\n'
     printf '  "route": {\n'
     printf '    "rules": [\n'
-    printf '      {"protocol": "dns", "outbound": "proxy"},\n'
-    printf '      {"ip_is_private": true, "outbound": "direct"}\n'
+    printf '      {"action": "sniff"},\n'
+    printf '      {"protocol": "dns", "action": "hijack-dns"}\n'
     printf '    ],\n'
     printf '    "final": "proxy",\n'
     printf '    "auto_detect_interface": true\n'

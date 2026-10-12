@@ -1,0 +1,49 @@
+    <nav class="nav-tabs" id="tabs">
+      <div class="nav-item">
+        <a class="nav-link on" data-tab="home">总览</a>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="route">代理路由 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="route">
+          <a class="dropdown-item" data-tab="route-home">代理总览</a>
+          <a class="dropdown-item" data-tab="route-proxy">策略组与节点</a>
+          <a class="dropdown-item" data-tab="route-conn">实时连接</a>
+          <a class="dropdown-item" data-tab="route-rules">规则与分流</a>
+          <a class="dropdown-item" data-tab="route-dns">DNS 与查询</a>
+          <a class="dropdown-item" data-tab="route-logs">内核日志</a>
+          <a class="dropdown-item" data-tab="route-core">内核与配置</a>
+          <a class="dropdown-item" data-tab="proxynode">节点与订阅</a>
+        </div>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="filters">过滤 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="filters">
+          <a class="dropdown-item" data-tab="dns">DNS 拦截列表</a>
+          <a class="dropdown-item" data-tab="engine">自定义过滤规则</a>
+          <a class="dropdown-item" data-tab="mitm">加密过滤 · 根证书</a>
+          <a class="dropdown-item" data-tab="netblock">拦截服务</a>
+          <a class="dropdown-item" data-tab="notify">通知过滤</a>
+        </div>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="tools">工具 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="tools">
+          <a class="dropdown-item" data-tab="app">内置管理器 App</a>
+          <a class="dropdown-item" data-tab="scripts">脚本扩展</a>
+          <a class="dropdown-item" data-tab="splash">开屏跳过</a>
+          <a class="dropdown-item" data-tab="tools">工具与备份</a>
+        </div>
+      </div>
+
+      <div class="nav-item">
+        <a class="nav-link" data-dd="settings">设置 <span class="caret">▼</span></a>
+        <div class="dropdown-menu" data-dd-menu="settings">
+          <a class="dropdown-item" data-tab="settings">常规设置</a>
+          <a class="dropdown-item" data-tab="dnssrv">DNS 设置</a>
+          <a class="dropdown-item" data-tab="sysinfo">系统与日志</a>
+        </div>
+      </div>
+    </nav>

@@ -95,3 +95,61 @@
   - `run_e2e.sh` 与 `run_module_checks.sh` 硬编码 `/tmp` 作为临时目录，而 Android 的 `/tmp` 是只读的（`mkdir: '/tmp': Read-only file system`），导致真机上 64 项失败；现优先使用 `/data/local/tmp`。
   - `run_module_checks.sh` B 段向 `awk` 传入 `-v OUT=/tmp`，真机上因目录不可写报 `awk: can't open file /tmp/.emit_meta`；现改用解析出的临时目录。
   - C / D / E 段按**源码树**校验 `META-INF/`、`customize.sh`、`README.md`、`.gitattributes`，但安装到设备后 KernelSU/Magisk 会剥掉这些文件，导致 11 项误报；现新增源码树检测，识别到"已安装布局"时打印 `[skip]` 并只校验运行期必备文件。
+
+---
+
+## v1.0.0 · 第二阶段 — 代理路由层 / 极客控制台 / 内置管理器 App
+
+> 版本号仍为 **1.0.0**。本阶段把 Shadowrocket 那套「规则路由 + 策略组 + 连接管理」搬进模块底层，
+> 并把面板重做成极客控制台，同时内置一个 LSPosed 式的桌面管理器 App。
+
+### 新增：代理路由层（`scripts/route.sh` + `abserver route` + `abserver clash`）
+- **`profile.json` 成为唯一事实源**：节点 / 策略组 / 规则 / DNS / 常规配置全部落在一份 JSON 里，面板、CLI、脚本读写同一份，不再出现"面板改了脚本不认"。
+- **规则路由编译**：`abserver route compile` 把 profile 编译成 sing-box 配置；规则顺序即匹配顺序，支持 `selector` / `urltest` 策略组。
+- **跨客户端规则语法归一化**：新增 `NormalizeKind`，把 Shadowrocket / Clash / Surge 的同义写法（`DST-PORT`/`DEST-PORT`、`HOST`/`HOST-SUFFIX`/`HOST-KEYWORD`、`DOMAIN-SET`/`IP-SET`/`RULE-SET`、`URL`/`URL-REGEX`、`SRC-IP`/`SOURCE-IP-CIDR`、`IP6-CIDR`、`GEO-SITE`/`GEO-IP`、`PROCESS`、`FINAL-MATCH` 等）统一到内部规范类型。**这条修掉一个真实丢规则 bug**：`DST-PORT` 原先被判为"未知规则类型"而整条丢弃，只留一条 warn。
+- **内核版本适配**：sing-box 各版本语法断代严重，编译器按目标内核版本（`-sb-version`，或 `-kernel` 自动读版本）分支输出 DNS 服务器写法、`default_domain_resolver`、入站 `sniff`、fakeip 区间、`download_detour`、`urltest.interval` 类型等差异。已用真内核 1.11.15 与 1.14.3 双版本 `check` + `run` 实测通过。
+- **规则集离线化**：16 个 `.srs`（sing-box binary 格式）随模块打包；在线更新走镜像测速后择优。
+- **规则集镜像实测换默认**：`abserver route mirrors -probe` 实测发现原先默认的 `cdn.jsdelivr.net` 在国内**直接超时**（等于默认配置不可用），已改为 `testingcf.jsdelivr.net`（0.30 s）。
+- **命中诊断**：`abserver route test -domain -port -process -protocol -v` 逐条列出判定步骤与最终策略；`route lint` 做规则体检；`route explain` 解释单条规则。
+- **DNS 上游真实测速**（`abserver route dnsprobe`）：手写 DNS 报文（无外部 DNS 库），支持 UDP / DoT（2 字节长度前缀）/ DoH（RFC 8484 wire format），并发探测并输出解析结果与耗时。
+- **Clash API 客户端**（`abserver clash`）：`status` / `conn` / `traffic` / `proxies` / `delay` / `select` / `mode` / `logs` / `close`，供面板做连接列表、批量测速、策略组切换、强制关闭连接、日志流。
+- **节点导入**：`route import` 支持 vmess / vless / trojan / ss / ssr / hysteria2 / tuic 分享链接、Clash YAML、base64 订阅。
+
+### 新增：内置管理器 App
+- 模块内打包 `app/SYManager.apk`（约 53 KB），装机时自动安装到桌面，作用等同 LSPosed 内置管理器：桌面图标 / 快捷磁贴一键启停、常驻通知显示速率与连接数、内置 WebView 直开面板、完全离线不联网。
+- `scripts/installapp.sh` 统一安装逻辑（装机时 / 面板按钮 / 开机兜底三处共用），处理四个实测坑：SELinux 上下文 `chcon u:object_r:apk_data_file:s0`、多用户必须 `--user 0`、`pm install` 失败退出码仍为 0 需匹配 `Success`、`install-create/-write/-commit` 会话式兜底。
+- 新增 `launch` 子命令（`am start` → `monkey` → 提示桌面图标三级降级）；`status` 额外输出内置 APK 的 SHA-256 供完整性核对。
+- 面板新增「内置管理器 App」页：安装 / 更新 / 打开 / 卸载 / 强制重装 / 状态刷新。
+
+### 重做：面板 UI → 极客控制台
+- **信息架构重排**：21 个页面收进 5 个导航分组（总览 / 代理路由▾ / 过滤▾ / 工具▾ / 设置▾），新增 9 个极客页面。
+- **新增页面**：代理总览（实时流量 canvas 曲线 + 磁贴网格 + 模式分段控件）、策略组与节点（折叠组 + 筛选/排序 + 批量测速）、实时连接（连接表 + 筛选 + 强制关闭）、规则与分流（统计 + 命中诊断 + 规则体检 + 规则表 + 追加规则 + 规则集）、DNS 与查询（解析策略 + 上游真实测速 + 服务器列表 + 原始 JSON）、内核日志（终端窗 + 级别/行数 + 持续抓取）、内核与配置（内核信息 + `profile.json` 在线编辑 + 编译产物对照）、内置管理器 App、系统与日志（系统状态 + 自检 + 运行日志）。
+- **全新设计令牌**（深色优先，浅色为覆盖层）：`--bgcolor:#0b0f14` / `--mcolor:#e6edf3` / `--accent:#58a6ff` / `--green:#3fb950` / `--lat0..--lat4` 延迟色阶。
+- **新增极客组件**：分段控件 `.seg`、canvas 曲线 `.spark`、节点行 `.nrow`、延迟徽标 `.lat.p0~p4`、连接表 `.ctbl`、终端日志窗 `.term`、规则行 `.rrow`、磁贴网格 `.wgrid`、命中诊断 `.diag`、折叠块 `.foldbox`。
+- **性能契约保持不变**：`backdrop-filter` 仍只允许出现在 `.header` 与 `.dropdown-menu`（实测启用模糊元素 3 个）；无 `feTurbulence`；全页无 `animation`；`position:fixed` 3 处。
+- 面板资产规模：318 个元素 id / 225 个 `data-act` / 225 个 action 处理器 / 131 个 JS 函数 / 21 个页面，零丢失。
+
+### 新增：面板与脚本桥接
+- `abserver serve` 新增 `/api/route`（多参数透传：POST JSON `{"args":[…]}` 或 `a1,a2,…` 查询参数）、`/api/clash`（Clash API 代理），静态资源注入 `window.__SY_TOKEN__`，鉴权接受 `X-Auth-Token` 或 `?token=`。
+- 面板同时支持 **KernelSU `ksu.exec`** 与 **HTTP 脚本桥** 两种运行环境，取数层做归一化，两种通道同一套 UI 逻辑。
+- `route.sh` 新增 `status-json` / `rulesets` / `reload` / `summary` / `set` / `add-node` / `add-rule` / `dnsprobe` 子命令；`set-profile` 先做纯 JSON 合法性校验（用 `route summary` 而非 `lint`，因为后者有 error 时会非零退出）再落盘。
+- `common.sh` 新增全局 `b64dec` / `b64enc`（原先只有 `proxynode.sh` 内部定义，`route.sh` 依赖却拿不到）。
+
+### 修复（本轮暴露的真实缺陷）
+- **`installapp.sh` 真语法错误**：`case` 模式 `*Events injected*` 含未转义空格，POSIX sh 会把模式拆成两个词直接报语法错误（`syntax error near unexpected token`）—— 该分支在 `launch` 时必然触发。已改为 `*Events\ injected*`。
+- **总览页「代理内核」磁贴恒为 `-`**：`loadHome()` 只取了 `ctl.sh status`，从未挂载代理数据链，导致 8 个磁贴（运行状态 / 当前节点 / 上传 / 下载 / 连接 / 规则 / 延迟 / 系统）全部空置。现已挂上 `loadRouteStatus / loadRouteSummary / loadRouteLive / loadRouteCurrent`。
+- **中英混排文案**：「模式 rule」这类混合显示，新增 `modeLabel()` 统一为「规则分流 / 全局代理 / 全部直连」。
+- **面板「签名指纹」恒为 `-`**：改为「APK SHA-256」，由 `installapp.sh` 计算内置 APK 摘要（`sha256sum` → `busybox` → `toybox` 三级回退）。
+- **`selfcheck.sh` 无子命令分发**：面板调用 `selfcheck.sh all` 时落进隐式默认分支。现补上 `case "${1:-diagnose}"` 分发（`diagnose|all|check` / `heal` / `usage`）。
+
+### 测试（本轮）
+- `run_module_checks.sh all`：**331/331 通过**（原 319 项 + 新增断言）。
+- `run_panel_api.sh`：**29/29 通过**（真 `abserver serve`，含鉴权、静态注入、route 全端点、多参数 POST、set-profile、compile、clash、exec）。
+- `run_tests.sh all`：**92/92**（含 20000 条规则编译）。
+- `run_e2e.sh`：**81/81**。
+- `run_kernel_compat.sh`：**10/10**（真内核 1.11.15 + 1.14.3 双版本 `check` + `run` + 离线规则集）。
+- `run_route_e2e.sh`：**9/9**（真流量验证四种规则命中 + Clash API 策略组切换）。
+- `verify_ui_assets.py`：318 id / 225 action / 131 函数零丢失，性能护栏全绿。
+- `ui_runtime_check.js`：**32/32**（新增 `modeLabel` 映射与「`loadHome` 已挂载代理数据链」两条回归断言）。
+- `ui_shot_panel.js`：真实 Chromium 在 412×900（@2x）下逐页渲染线上面板并截图 13 张，注入 KernelSU 假数据，断言零 JS 错误。
+- 测试脚本自身修复：`labels()` 的 `case` 正则现在同时接受 `case "$1" in` 与 `case "${1:-status}" in`；`actions` 处理器提取现在同时扫描 `var actions={…}` 与后续 `Object.assign(actions,{…})` 扩展块；`runScript` 调用提取改为只读数组内部字面量（首元素是变量时判为"无法静态判定"而跳过）；POSIX 检查的 `[[` 规则收紧为「`[[` 后必须跟空白 / `!` / `"`」，不再把 `[[:space:]]` 误判为 bash 专有语法；设计要素断言从 AGH 旧令牌换成新令牌集。

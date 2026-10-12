@@ -4,4 +4,4 @@ version=v1.0.0
 versionCode=10000
 updateJson=https://raw.githubusercontent.com/vip-svip/SY-Fusion/main/update.json
 author=vip-svip
-description=AdGuard Home 内核 × uBlock Origin 语法融合引擎。三层拦截(DNS/hosts 内核 + MITM 透明代理 + 开屏跳过) + 网络拦截 + 网络代理 + 脚本扩展；全语法规则离线可用(AdBlock/AdGuard/uBO、cosmetic、scriptlet、hosts、dnsmasq、正则、DNS 重写)；玻璃磨砂面板。OverlayFS 挂载，卸载零残留，不占 VPN 通道。
+description=AdGuard Home × uBlock Origin 融合引擎；三层拦截(DNS/hosts+MITM+开屏) + Shadowrocket 级代理路由(规则分流/策略组/连接/测速) + 脚本扩展；全语法规则离线可用；极客控制台面板 + 内置管理器 App。卸载零残留，不占 VPN 通道。

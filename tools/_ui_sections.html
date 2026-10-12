@@ -1,0 +1,587 @@
+  <!-- ================= 总览 ================= -->
+  <section class="page" id="page-home">
+    <div class="page-title">
+      <div>
+        <h2>总览</h2>
+        <div class="page-title__sub" id="ovTime">-</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn primary" id="tgHosts" data-act="hosts-toggle">-</button>
+        <button class="btn ok" id="tgProxy" data-act="px-toggle">代理 -</button>
+        <button class="btn" data-act="refresh-home">刷新</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="grid cols4">
+            <div class="metric"><div class="n" id="ovDns">-</div><div class="l">DNS 拦截域名</div></div>
+            <div class="metric"><div class="n" id="ovBlocked">-</div><div class="l">累计拦截</div></div>
+            <div class="metric"><div class="n" id="ovMitm">-</div><div class="l">MITM 代理</div></div>
+            <div class="metric"><div class="n" id="ovSplash">-</div><div class="l">开屏跳过次数</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card accent-alt">
+          <div class="card-head">代理内核 <span class="tagline" id="hmCore">-</span></div>
+          <div class="wgrid">
+            <div class="wcard"><div class="wt">运行状态</div><div class="wv" id="hmRun">-</div><div class="ws" id="hmMode">-</div></div>
+            <div class="wcard"><div class="wt">当前节点</div><div class="wv" id="hmNode">-</div><div class="ws" id="hmGroup">-</div></div>
+            <div class="wcard"><div class="wt">实时上传</div><div class="wv" id="hmUp">-</div><div class="ws" id="hmUpT">-</div></div>
+            <div class="wcard"><div class="wt">实时下载</div><div class="wv" id="hmDown">-</div><div class="ws" id="hmDownT">-</div></div>
+            <div class="wcard"><div class="wt">活动连接</div><div class="wv" id="hmConn">-</div><div class="ws" id="hmMem">-</div></div>
+            <div class="wcard"><div class="wt">规则 / 规则集</div><div class="wv" id="hmRules">-</div><div class="ws" id="hmRS">-</div></div>
+            <div class="wcard"><div class="wt">出口延迟</div><div class="wv" id="hmDelay">-</div><div class="ws" id="hmMix">-</div></div>
+            <div class="wcard"><div class="wt">系统</div><div class="wv" id="hmSys">-</div><div class="ws" id="hmUptime">-</div></div>
+          </div>
+          <div class="btn-row" style="padding:0 14px 14px">
+            <button class="btn sm" data-act="tab-go" data-v="route-home">代理总览</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-proxy">切换节点</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-conn">实时连接</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-rules">规则分流</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">系统状态</div>
+          <div class="kv"><span>内存占用</span><b id="ovMem">-</b></div>
+          <div class="kv"><span>服务组件 CPU</span><b id="ovCpu">-</b></div>
+          <div class="kv"><span>开机时长</span><b id="ovUp">-</b></div>
+          <div class="kv"><span>面板服务</span><b id="ovPanel">-</b></div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">面板服务<span class="tagline">局域网后台</span></div>
+          <div class="hint">同一 Wi-Fi 下用手机/电脑浏览器打开即可管理，无需数据线。若显示「已停止」，点「启动」或「重启」即可拉起。</div>
+          <div class="kv"><span>服务状态</span><b id="pnRun">-</b></div>
+          <div class="kv"><span>监听端口</span><b id="pnPort">-</b></div>
+          <div class="kv"><span>访问地址</span><b id="pnUrl" class="mono">-</b></div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="panel-start">启动</button>
+            <button class="btn ok" data-act="panel-restart">重启</button>
+            <button class="btn danger" data-act="panel-stop">停止</button>
+            <button class="btn" data-act="panel-open">显示访问链接</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">运行日志<span class="tagline">dns / mitm / proxy / 内核</span></div>
+          <div class="hint">查看模块各组件运行日志，辅助定位问题。日志保存在 /data/adb/SY/logs。</div>
+          <div class="list" id="logList"></div>
+          <div class="btn-row">
+            <button class="btn" data-act="logs-refresh">刷新列表</button>
+            <button class="btn danger" data-act="logs-clear-all">清空全部日志</button>
+          </div>
+          <pre class="ta" id="logView" style="white-space:pre-wrap;max-height:40vh;overflow:auto">点击上方「查看」显示日志</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 代理总览 ================= -->
+  <section class="page hide" id="page-route-home">
+    <div class="page-title">
+      <div><h2>代理总览</h2><div class="page-title__sub" id="rhSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="px-up">启动内核</button>
+        <button class="btn" data-act="px-restart">重启</button>
+        <button class="btn danger" data-act="px-down">停止</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card accent-ok">
+          <div class="card-head">内核运行状态 <span class="tagline" id="rhVer">-</span></div>
+          <div class="grid cols5">
+            <div class="metric"><div class="n" id="rhUp">-</div><div class="l">↑ 实时上传</div></div>
+            <div class="metric"><div class="n" id="rhDown">-</div><div class="l">↓ 实时下载</div></div>
+            <div class="metric"><div class="n" id="rhConn">-</div><div class="l">活动连接</div></div>
+            <div class="metric"><div class="n" id="rhMem">-</div><div class="l">内核内存</div></div>
+            <div class="metric"><div class="n" id="rhPid">-</div><div class="l">进程 PID</div></div>
+          </div>
+          <div class="spark-wrap"><canvas id="rhSpark" class="spark"></canvas></div>
+          <div class="spark-legend">
+            <span><i style="background:var(--green)"></i>下载</span>
+            <span><i style="background:var(--accent)"></i>上传</span>
+            <span class="sp">60 秒滚动窗口</span>
+          </div>
+          <div class="statline">
+            <span>累计 ↑ <b id="rhUpT">-</b></span>
+            <span>累计 ↓ <b id="rhDownT">-</b></span>
+            <span>模式 <b id="rhModeTxt">-</b></span>
+            <span>规则 <b id="rhRules">-</b></span>
+            <span>规则集 <b id="rhRS">-</b></span>
+            <span>节点 <b id="rhNodes">-</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">当前出口</div>
+          <div class="kv"><span>策略组</span><b id="rhGroup">-</b></div>
+          <div class="kv"><span>选中节点</span><b id="rhNow">-</b></div>
+          <div class="kv"><span>出口延迟</span><b id="rhDelay">-</b></div>
+          <div class="kv"><span>内核</span><b id="rhCore">-</b></div>
+          <div class="kv"><span>配置</span><b id="rhCfg">-</b></div>
+          <div class="btn-row">
+            <button class="btn sm" data-act="rh-ping-all">批量测速</button>
+            <button class="btn sm" data-act="tab-go" data-v="route-proxy">策略组</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">运行模式 <span class="tagline">Clash API 实时切换</span></div>
+          <div class="seg wide" id="rhModes">
+            <button class="seg-btn" data-act="rh-mode" data-v="rule">规则分流</button>
+            <button class="seg-btn" data-act="rh-mode" data-v="global">全局代理</button>
+            <button class="seg-btn" data-act="rh-mode" data-v="direct">全部直连</button>
+          </div>
+          <div class="hint">规则分流按规则表走；全局代理把所有流量交给选中节点；全部直连用于排查（仍会记录连接但不代理）。</div>
+          <div class="kv"><span>混合入站端口</span><b id="rhMport">-</b></div>
+          <div class="kv"><span>TUN 透明代理</span><b id="rhTun">-</b></div>
+          <div class="kv"><span>Clash API</span><b id="rhApi">-</b></div>
+          <div class="kv"><span>私网直连</span><b id="rhPriv">-</b></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">快捷操作 <span class="tagline">改完配置记得重载</span></div>
+          <div class="btn-row">
+            <button class="btn" data-act="rh-reload">重载配置</button>
+            <button class="btn" data-act="rh-fetchrules">更新规则集</button>
+            <button class="btn" data-act="rh-mirrors">镜像测速</button>
+            <button class="btn" data-act="tab-go" data-v="route-core">内核与配置</button>
+            <button class="btn" data-act="tab-go" data-v="app">内置 App</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 策略组与节点 ================= -->
+  <section class="page hide" id="page-route-proxy">
+    <div class="page-title">
+      <div><h2>策略组与节点</h2><div class="page-title__sub" id="rpSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rp-ping-all">全部测速</button>
+        <button class="btn" data-act="rp-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="toolbar">
+            <input type="search" id="rpSearch" placeholder="筛选节点…">
+            <select id="rpSort">
+              <option value="order">原始顺序</option>
+              <option value="delay">按延迟</option>
+              <option value="name">按名称</option>
+            </select>
+            <select id="rpUrl">
+              <option value="http://www.gstatic.com/generate_204">测速：gstatic 204</option>
+              <option value="http://cp.cloudflare.com/generate_204">测速：Cloudflare</option>
+              <option value="http://connectivitycheck.gstatic.com/generate_204">测速：Android 连通性</option>
+              <option value="https://www.google.com/generate_204">测速：Google HTTPS</option>
+            </select>
+            <span class="sp"></span>
+            <button class="btn sm" data-act="rp-collapse">全部折叠</button>
+          </div>
+          <div id="rpGroups" style="padding:14px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 实时连接 ================= -->
+  <section class="page hide" id="page-route-conn">
+    <div class="page-title">
+      <div><h2>实时连接</h2><div class="page-title__sub" id="rcSub">-</div></div>
+      <div class="page-title__actions">
+        <label class="chk"><input type="checkbox" id="rcAuto" checked>自动刷新</label>
+        <button class="btn" data-act="rc-refresh">刷新</button>
+        <button class="btn danger" data-act="rc-close-all">关闭全部</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="grid cols4">
+            <div class="metric"><div class="n" id="rcCount">-</div><div class="l">活动连接</div></div>
+            <div class="metric"><div class="n" id="rcUp">-</div><div class="l">↑ 速率</div></div>
+            <div class="metric"><div class="n" id="rcDown">-</div><div class="l">↓ 速率</div></div>
+            <div class="metric"><div class="n" id="rcMem">-</div><div class="l">内核内存</div></div>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="rcSearch" placeholder="筛选：域名 / 进程 / 规则 / 出口…">
+            <span class="sp"></span>
+            <span class="tiny" id="rcTime">-</span>
+          </div>
+          <div class="ctbl">
+            <div class="ch">
+              <span class="c1">目标 / 主机</span>
+              <span class="c2 h2">进程</span>
+              <span class="c3">命中规则</span>
+              <span class="c4">↑</span>
+              <span class="c5">↓</span>
+              <span class="c6"></span>
+            </div>
+            <div id="rcList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 规则与分流 ================= -->
+  <section class="page hide" id="page-route-rules">
+    <div class="page-title">
+      <div><h2>规则与分流</h2><div class="page-title__sub" id="rrSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="rr-lint">规则体检</button>
+        <button class="btn primary" data-act="rr-compile">重新编译</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="grid cols5">
+            <div class="metric"><div class="n" id="rrRules">-</div><div class="l">规则条数</div></div>
+            <div class="metric"><div class="n" id="rrNodes">-</div><div class="l">节点</div></div>
+            <div class="metric"><div class="n" id="rrGroups">-</div><div class="l">策略组</div></div>
+            <div class="metric"><div class="n" id="rrRS">-</div><div class="l">规则集</div></div>
+            <div class="metric"><div class="n" id="rrErr">-</div><div class="l">错误 / 警告</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card accent-warn">
+          <div class="card-head">命中诊断 <span class="tagline">离线推演，不发包</span></div>
+          <div class="hint">输入域名或 IP，推演它会命中哪一条规则、走哪个出口。支持端口、进程名等条件。</div>
+          <input type="text" id="rrDiagDomain" placeholder="域名，如 www.google.com">
+          <input type="text" id="rrDiagIp" placeholder="目标 IP（可选），如 8.8.8.8">
+          <input type="text" id="rrDiagPort" placeholder="目标端口（可选），如 443">
+          <input type="text" id="rrDiagProc" placeholder="进程名（可选），如 com.tencent.mm">
+          <div class="btn-row">
+            <button class="btn primary" data-act="rr-diag">开始推演</button>
+            <button class="btn" data-act="rr-diag-verbose">含全部步骤</button>
+          </div>
+          <div class="diag hide" id="rrDiagOut"></div>
+        </div>
+      </div>
+
+      <div class="col-6">
+        <div class="card accent-warn">
+          <div class="card-head">规则体检 <span class="tagline" id="rrLintTag">-</span></div>
+          <div class="list" id="rrLintList"><div class="empty">点上方「规则体检」开始</div></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">规则表 <span class="tagline" id="rrRuleTag">-</span></div>
+          <div class="toolbar">
+            <input type="search" id="rrRuleSearch" placeholder="筛选规则…">
+            <select id="rrRuleFilter">
+              <option value="">全部类型</option>
+              <option value="DOMAIN">DOMAIN 系列</option>
+              <option value="GEOSITE">GEOSITE</option>
+              <option value="GEOIP">GEOIP</option>
+              <option value="IP-CIDR">IP-CIDR 系列</option>
+              <option value="DST-PORT">端口</option>
+              <option value="PROCESS">进程</option>
+              <option value="MATCH">兜底</option>
+            </select>
+            <span class="sp"></span>
+            <button class="btn sm" data-act="rr-add-open">追加规则</button>
+          </div>
+          <div class="foldbox fold" id="rrAddBox">
+            <div class="fb-head" data-act="rr-add-toggle"><span class="caret2">▼</span>追加规则（每行一条）</div>
+            <div class="fb-body">
+              <div class="hint">支持 Clash 风格：<span class="mono">DOMAIN-SUFFIX,google.com,PROXY</span>；也支持 <span class="mono">DOMAIN,ads.test,REJECT</span>、<span class="mono">GEOIP,cn,DIRECT</span>、<span class="mono">DST-PORT,8080,DIRECT</span>。策略可用 PROXY / DIRECT / REJECT 或策略组名。</div>
+              <textarea class="ta" id="rrAddText" placeholder="DOMAIN-SUFFIX,example.com,DIRECT&#10;DOMAIN-KEYWORD,ads,REJECT"></textarea>
+              <div class="btn-row">
+                <button class="btn primary" data-act="rr-add-save">追加并重编译</button>
+                <button class="btn" data-act="rr-add-close">收起</button>
+              </div>
+            </div>
+          </div>
+          <div id="rrRuleList"></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">规则集 <span class="tagline" id="rrRsTag">-</span></div>
+          <div class="hint">.srs 是 sing-box 二进制规则集。模块内置常用规则集，完全离线可用；在线更新会写入可写目录并优先使用。</div>
+          <div class="btn-row">
+            <button class="btn" data-act="rr-fetchrules">在线更新规则集</button>
+            <button class="btn" data-act="rr-mirrors">镜像测速</button>
+          </div>
+          <div class="list mono" id="rrRsList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DNS 与查询 ================= -->
+  <section class="page hide" id="page-route-dns">
+    <div class="page-title">
+      <div><h2>DNS 与查询</h2><div class="page-title__sub" id="rdSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rd-save">保存并重载</button>
+        <button class="btn" data-act="rd-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">解析策略</div>
+          <div class="kv"><span>DNS 总开关</span><b id="rdEnabled">-</b></div>
+          <div class="kv"><span>默认服务器</span><b id="rdFinal">-</b></div>
+          <div class="kv"><span>IP 策略</span><b id="rdStrategy">-</b></div>
+          <div class="kv"><span>FakeIP</span><b id="rdFakeip">-</b></div>
+          <div class="kv"><span>DNS 泄露防护</span><b id="rdLeak">-</b></div>
+          <div class="seg wide">
+            <button class="seg-btn" data-act="rd-preset" data-v="cn">国内优先</button>
+            <button class="seg-btn" data-act="rd-preset" data-v="secure">全加密</button>
+            <button class="seg-btn" data-act="rd-preset" data-v="split">分流解析</button>
+          </div>
+          <div class="hint">「国内优先」用运营商 DNS 解析国内域名，境外域名走加密 DNS 经代理；「全加密」全部走 DoH/DoT；「分流解析」国内直连、境外经代理。</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">上游测速 <span class="tagline">真实 DNS 查询延迟</span></div>
+          <div class="hint">对下列 DNS 服务器发起一次真实查询并计时，用于挑最快的上游。</div>
+          <div class="toolbar">
+            <input type="text" id="rdProbeDomain" value="www.baidu.com" placeholder="测试域名">
+            <button class="btn sm" data-act="rd-probe">开始测速</button>
+          </div>
+          <div class="list" id="rdProbeList"><div class="empty">点「开始测速」</div></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">DNS 服务器列表 <span class="tagline" id="rdSrvTag">-</span></div>
+          <div class="list" id="rdSrvList"></div>
+          <div class="foldbox fold" id="rdAddBox">
+            <div class="fb-head" data-act="rd-add-toggle"><span class="caret2">▼</span>添加 DNS 服务器</div>
+            <div class="fb-body">
+              <input type="text" id="rdAddTag" placeholder="标签，如 local / remote">
+              <input type="text" id="rdAddAddr" placeholder="地址：223.5.5.5 / tls://dns.google:853 / https://1.1.1.1/dns-query">
+              <input type="text" id="rdAddDetour" placeholder="出口（可选）：direct / proxy / 策略组名">
+              <div class="btn-row">
+                <button class="btn primary" data-act="rd-add-save">添加</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">原始 DNS 配置 <span class="tagline">profile.json → dns</span></div>
+          <textarea class="ta" id="rdRaw" style="min-height:180px" placeholder="{}"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="rd-raw-save">保存原始配置</button>
+            <button class="btn" data-act="rd-raw-reload">重新载入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内核日志 ================= -->
+  <section class="page hide" id="page-route-logs">
+    <div class="page-title">
+      <div><h2>内核日志</h2><div class="page-title__sub" id="rlSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="rl-pull">抓取一次</button>
+        <label class="chk"><input type="checkbox" id="rlAuto">持续抓取</label>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="toolbar">
+            <select id="rlLevel">
+              <option value="info">级别：info</option>
+              <option value="warning">级别：warning</option>
+              <option value="error">级别：error</option>
+              <option value="debug">级别：debug</option>
+            </select>
+            <input type="number" id="rlLines" value="60" min="10" max="500" style="min-width:90px" placeholder="行数">
+            <span class="sp"></span>
+            <span class="tiny" id="rlStat">-</span>
+            <button class="btn sm" data-act="rl-clear">清空窗口</button>
+            <button class="btn sm" data-act="rl-copy">复制</button>
+          </div>
+          <div class="term" id="rlTerm"><span class="empty">点「抓取一次」或勾选「持续抓取」开始</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内核与配置 ================= -->
+  <section class="page hide" id="page-route-core">
+    <div class="page-title">
+      <div><h2>内核与配置</h2><div class="page-title__sub" id="rkSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="rk-check">配置校验</button>
+        <button class="btn primary" data-act="rk-reload">编译并重载</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">内核信息</div>
+          <div class="kv"><span>路径</span><b id="rkPath">-</b></div>
+          <div class="kv"><span>版本</span><b id="rkVer">-</b></div>
+          <div class="kv"><span>架构</span><b id="rkArch">-</b></div>
+          <div class="kv"><span>大小</span><b id="rkSize">-</b></div>
+          <div class="kv"><span>运行状态</span><b id="rkRun">-</b></div>
+          <div class="kv"><span>PID</span><b id="rkPid">-</b></div>
+          <div class="btn-row">
+            <button class="btn" data-act="tab-go" data-v="proxynode">更换 / 下载内核</button>
+            <button class="btn" data-act="rk-proxy-logs">内核 stderr 日志</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">配置文件</div>
+          <div class="kv"><span>profile.json</span><b id="rkProfile">-</b></div>
+          <div class="kv"><span>config.json</span><b id="rkCfg">-</b></div>
+          <div class="kv"><span>规则集目录</span><b id="rkRsDir">-</b></div>
+          <div class="kv"><span>规则集数量</span><b id="rkRsCount">-</b></div>
+          <div class="kv"><span>混合端口</span><b id="rkMport">-</b></div>
+          <div class="kv"><span>Clash API</span><b id="rkApi">-</b></div>
+          <div class="kv"><span>镜像</span><b id="rkMirror">-</b></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">profile.json（唯一事实源）<span class="tagline" id="rkProfileTag">-</span></div>
+          <div class="hint">节点、策略组、规则、DNS、通用设置都在这里。改完点保存，再点上方「编译并重载」生效。格式：JSON。</div>
+          <textarea class="ta" id="rkProfileText" style="min-height:260px" placeholder="{}"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="rk-profile-save">保存 profile</button>
+            <button class="btn" data-act="rk-profile-reload">重新载入</button>
+            <button class="btn" data-act="rk-profile-format">格式化</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">编译产物 config.json <span class="tagline">只读 · 内核实际读的配置</span></div>
+          <div class="btn-row">
+            <button class="btn" data-act="rk-cfg-load">载入</button>
+            <button class="btn" data-act="rk-cfg-copy">复制</button>
+            <button class="btn" data-act="rk-cfg-download">下载</button>
+          </div>
+          <pre class="codebox" id="rkCfgView">点「载入」查看编译后的内核配置</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 内置 App ================= -->
+  <section class="page hide" id="page-app">
+    <div class="page-title">
+      <div><h2>内置管理器 App</h2><div class="page-title__sub" id="apSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="ap-install">安装 / 更新</button>
+        <button class="btn ok" data-act="ap-open">打开</button>
+        <button class="btn danger" data-act="ap-remove">卸载</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card accent-alt">
+          <div class="card-head">安装状态 <span class="tagline" id="apPkg">com.syfusion.manager</span></div>
+          <div class="kv"><span>是否已安装</span><b id="apInstalled">-</b></div>
+          <div class="kv"><span>版本号</span><b id="apVersion">-</b></div>
+          <div class="kv"><span>内置 APK</span><b id="apApk">-</b></div>
+          <div class="kv"><span>APK 大小</span><b id="apSize">-</b></div>
+          <div class="kv"><span>APK SHA-256</span><b id="apSig" class="mono">-</b></div>
+          <div class="btn-row">
+            <button class="btn" data-act="ap-status">刷新状态</button>
+            <button class="btn" data-act="ap-reinstall">强制重装</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">这个 App 能做什么</div>
+          <div class="hint">
+            模块安装时会自动把 <b>SY 管理器</b> 装到桌面（与 LSPosed 内置管理器同理）。它是一个极轻的原生壳，直接复用本面板的全部能力：
+          </div>
+          <div class="kv"><span>一键启停</span><b>桌面图标 / 快捷磁贴</b></div>
+          <div class="kv"><span>状态通知</span><b>常驻通知显示速率与连接数</b></div>
+          <div class="kv"><span>面板入口</span><b>内置 WebView 直开本面板</b></div>
+          <div class="kv"><span>离线可用</span><b>不依赖网络与第三方 App</b></div>
+          <div class="hint">若安装失败，多半是系统限制「安装未知来源应用」或 SELinux 上下文问题；点「强制重装」会用 pm 会话式安装兜底。</div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">安装输出</div>
+          <pre class="codebox" id="apLog">-</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 系统与日志 ================= -->
+  <section class="page hide" id="page-sysinfo">
+    <div class="page-title">
+      <div><h2>系统与日志</h2><div class="page-title__sub" id="siSub">-</div></div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="si-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">系统状态</div>
+          <div class="kv"><span>内存占用</span><b id="siMem">-</b></div>
+          <div class="kv"><span>服务组件 CPU</span><b id="siCpu">-</b></div>
+          <div class="kv"><span>开机时长</span><b id="siUp">-</b></div>
+          <div class="kv"><span>面板服务</span><b id="siPanel">-</b></div>
+          <div class="kv"><span>模块版本</span><b id="siVer">-</b></div>
+          <div class="kv"><span>运行环境</span><b id="siEnv">-</b></div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">自检</div>
+          <div class="hint">跑一遍模块自检，确认各组件与依赖是否齐备。</div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="si-selfcheck">运行自检</button>
+            <button class="btn" data-act="si-export">导出诊断包</button>
+          </div>
+          <pre class="codebox" id="siOut" style="min-height:140px">-</pre>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-head">运行日志<span class="tagline">/data/adb/SY/logs</span></div>
+          <div class="list" id="siLogList"></div>
+          <pre class="codebox" id="siLogView">点击「查看」显示日志内容</pre>
+        </div>
+      </div>
+    </div>
+  </section>

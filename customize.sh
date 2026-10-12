@@ -185,6 +185,19 @@ else
   ui_print "! 根证书生成失败 (缺服务组件且无 openssl)，可重启后进面板重装"
 fi
 
+# ============================================================
+#  内置管理器 App
+#  说明：安装失败不影响模块本体，只提示用户可稍后在面板重试。
+#        这里不 return / exit，安装流程必须继续走完。
+# ============================================================
+if [ -f "$MODDIR/app/SYManager.apk" ]; then
+  ui_print "- 正在安装内置管理器 App"
+  APPOUT=$(sh "$MODDIR/scripts/installapp.sh" install 2>&1)
+  ui_print "- $APPOUT"
+else
+  ui_print "! 未打包内置 App，仅面板可用"
+fi
+
 # ---------- 权限 ----------
 ui_print "- 设置文件权限"
 set_perm_recursive "$MODDIR" 0 0 0755 0644
@@ -193,6 +206,7 @@ set_perm_recursive "$DATA_DIR" 0 0 0755 0644
 for f in "$MODDIR"/*.sh "$MODDIR"/scripts/*.sh; do
   [ -f "$f" ] && set_perm "$f" 0 0 0755
 done
+[ -f "$MODDIR/app/SYManager.apk" ] && set_perm "$MODDIR/app/SYManager.apk" 0 0 0644
 if [ -d "$CERT_MOD" ]; then
   set_perm_recursive "$CERT_MOD" 0 0 0755 0644
   for f in "$CERT_MOD"/*.sh; do [ -f "$f" ] && set_perm "$f" 0 0 0755; done
@@ -200,5 +214,6 @@ fi
 
 ui_print "- 安装完成，重启后生效"
 ui_print "- 面板: KernelSU 管理器中点击本模块「打开」按钮"
+ui_print "- 管理器 App: 桌面上的「SY 管理器」"
 ui_print "- 数据目录: $DATA_DIR"
 ui_print "- 根证书: $CERT_MOD (独立子模块)"

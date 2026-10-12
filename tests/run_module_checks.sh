@@ -92,7 +92,8 @@ import os, re, glob
 
 FILES = sorted(glob.glob("*.sh")) + sorted(glob.glob("scripts/*.sh"))
 BANNED = [
-    (r'(?<![$"\w])\[\[', "[[ ]] 条件表达式"),
+    # 真 [[ ]] 后面必跟空白/!/"；POSIX 字符类 [[:alpha:]] 后面是冒号，须排除
+    (r'(?<![$"\w])\[\[(?=[\s!"]|$)', "[[ ]] 条件表达式"),
     (r'(?:^|[;&|(]|then|do|else)\s*local\s+[A-Za-z_]', "local 关键字"),
     (r'^\s*function\s+[A-Za-z_]', "function 关键字"),
     (r'(?:^|[;&|(])\s*(?:source|\.\s)\s+[^\s]', None),  # . 是 POSIX，source 不是
@@ -341,18 +342,29 @@ js_src = "\n".join(re.findall(r'<script\b[^>]*>(.*?)</script>', _raw, re.S | re.
 dyn_acts = set(re.findall(r'data-act=\\?"([a-z0-9\-]+)\\?"', js_src))
 acts = static_acts | dyn_acts
 h = _raw
-m = re.search(r'\nvar actions\s*=\s*\{', h)
-if not m:
+
+def brace_body(s, open_idx):
+    """从 '{' 位置取出配平的花括号块"""
+    i = open_idx; depth = 0
+    while i < len(s):
+        if s[i] == '{': depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0: return s[open_idx:i+1]
+        i += 1
+    return s[open_idx:]
+
+# 处理器可能分布在 var actions={...} 主表 与 后续 Object.assign(actions,{...}) 扩展表
+bodies = []
+for pat in (r'\nvar actions\s*=\s*\{', r'Object\.assign\(\s*actions\s*,\s*\{'):
+    for mm in re.finditer(pat, h):
+        bodies.append(brace_body(h, mm.end() - 1))
+if not bodies:
     print("FAIL|未找到 actions 定义"); sys.exit(0)
-i = m.end() - 1; depth = 0
-while i < len(h):
-    if h[i] == '{': depth += 1
-    elif h[i] == '}':
-        depth -= 1
-        if depth == 0: break
-    i += 1
-body = h[m.end()-1:i+1]
-keys = set(re.findall(r'"([a-z0-9-]+)"\s*:\s*function', body))
+keys = set()
+for body in bodies:
+    keys |= set(re.findall(r'"([a-z0-9-]+)"\s*:\s*function', body))
+print("INFO|actions 定义块 %d 个, 处理器 %d 个" % (len(bodies), len(keys)))
 for a in sorted(acts - keys):
     print("FAIL|data-act 无处理器: " + a)
 for a in sorted(keys - acts):
@@ -366,7 +378,10 @@ def labels(path):
     out = set()
     pos = 0
     while True:
-        cm = re.compile(r'\bcase\s+"\$[0-9A-Za-z_]+"\s+in\b').search(src, pos)
+        # 同时接受 case "$1" in / case "${1}" in / case "${1:-status}" in
+        cm = re.compile(
+            r'\bcase\s+"\$\{[0-9A-Za-z_]+(?:[:?=+-][^}"]*)?\}"\s+in\b'
+            r'|\bcase\s+"\$[0-9A-Za-z_]+"\s+in\b').search(src, pos)
         if not cm: break
         j = cm.end(); depth = 1
         while j < len(src) and depth:
@@ -398,17 +413,15 @@ for cm in re.finditer(r'runScript\(\s*"([A-Za-z0-9_]+\.sh)"\s*,\s*\[', h):
             depth -= 1
             if depth == 0: break
         j += 1
-    arr = h[cm.end()-1:j+1]
-    inner = arr[1:].lstrip()
+    arr = h[cm.end()-1:j+1]          # 形如 ["clash"] 或 [sub, "-x"]
+    body = arr[1:-1]                 # 去掉外层方括号
+    inner = body.lstrip()
     if inner.startswith('"'):
         m2 = re.match(r'"([^"\\]*)"', inner)
         lits = [m2.group(1)] if m2 else []
     else:
-        # 首元素为变量/三元表达式: 取本语句所在行(可能跨行)的全部字面量
-        ls = h.rfind("\n", 0, cm.start()) + 1
-        le = h.find("\n", j)
-        le = len(h) if le < 0 else le
-        lits = re.findall(r'"([^"\\]*)"', h[ls:le])
+        # 首元素为变量/三元表达式 -> 无法静态判定，跳过（只取数组内部字面量会误判）
+        lits = []
     line = h[:cm.start()].count("\n") + 1
     calls.append((cm.group(1), lits, line, arr[:120].replace("\n", " ")))
 
@@ -486,8 +499,10 @@ if subs <= sp: print("OK|子标签/子页面匹配 %d/%d" % (len(subs), len(sp))
 for key, label in [('class="header"', "顶部 header"), ('class="nav-tabs"', "横向 nav-tabs"),
                    ("dropdown-menu", "下拉菜单"), ("page-title", "页面标题栏"),
                    ("col-12", "卡片栅格 col-12"), ("col-6", "卡片栅格 col-6"),
-                   ("--bgcolor:#f5f7fb", "AGH 浅色底 #f5f7fb"), ("--bgcolor:#131313", "AGH 暗色底 #131313"),
-                   ("--green:#5eba00", "AGH 主绿 #5eba00"), ("--card-border-color", "AGH 卡片描边令牌"),
+                   ("--bgcolor:#0b0f14", "深色底 #0b0f14"), ("--bgcolor:#f6f8fa", "浅色底 #f6f8fa"),
+                   ("--green:#3fb950", "主绿 #3fb950"), ("--accent:#58a6ff", "主强调 #58a6ff"),
+                   ("--lat0:#3fb950", "延迟色阶 lat0"), ("--lat4:#f85149", "延迟色阶 lat4"),
+                   ("--card-border-color", "卡片描边令牌"),
                    ("backdrop-filter", "毛玻璃模糊"), ("saturate(", "饱和度增强"),
                    ("@supports not", "降级回退"), ("radial-gradient", "背景光斑"),
                    ("box-shadow", "层次阴影")]:

@@ -160,6 +160,12 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 		c.proxySub(w, r, "panel.sh")
 	case "scripts":
 		c.proxySub(w, r, "scripts_ext.sh")
+	case "route":
+		c.proxySub(w, r, "route.sh")
+	case "proxy":
+		c.proxySub(w, r, "proxynode.sh")
+	case "clash":
+		c.handleClash(w, r)
 	case "backup":
 		c.proxySub(w, r, "backup.sh")
 	case "toggle":
@@ -183,22 +189,52 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 透传子命令到对应脚本(参数经 sub + 其余 query)
+// 透传子命令到对应脚本
+// 参数来源优先级：POST JSON {"args":[...]} > query a1,a2,…（a 等价 a1）
+// 之所以要支持多参数：规则命中诊断 / DNS 探测这类命令带好几个 -flag，
+// 只透传一个参数根本表达不了。
 func (c *serverCtx) proxySub(w http.ResponseWriter, r *http.Request, script string) {
 	sub := para(r, "sub")
-	arg1 := para(r, "a")
 	args := []string{}
 	if sub != "" {
 		args = append(args, sub)
 	}
-	if arg1 != "" {
-		args = append(args, arg1)
-	}
-	// POST body 透传到 stdin(用于 import)
+
 	var stdin io.Reader = nil
 	if r.Method == http.MethodPost {
-		stdin = r.Body
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+		if len(body) > 0 {
+			var req struct {
+				Args []string `json:"args"`
+				Stdin string  `json:"stdin"`
+			}
+			if json.Unmarshal(body, &req) == nil && len(req.Args) > 0 {
+				args = append(args, req.Args...)
+			} else {
+				stdin = bytes.NewReader(body)
+			}
+			if req.Stdin != "" {
+				stdin = strings.NewReader(req.Stdin)
+			}
+		}
 	}
+
+	if len(args) <= 1 {
+		if a := para(r, "a"); a != "" {
+			args = append(args, a)
+		}
+		// 找最大下标，再按顺序补齐，保证 -flag value 成对不错位
+		maxIdx := 0
+		for i := 1; i <= 32; i++ {
+			if para(r, "a"+strconv.Itoa(i)) != "" {
+				maxIdx = i
+			}
+		}
+		for i := 1; i <= maxIdx; i++ {
+			args = append(args, para(r, "a"+strconv.Itoa(i)))
+		}
+	}
+
 	out, err := c.runScriptStdin(script, args, stdin)
 	resp := map[string]interface{}{"ok": err == nil, "out": out}
 	if err != nil {

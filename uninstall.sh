@@ -17,6 +17,14 @@ CERT_MOD="SY_cert"
 # 停止代理内核
 [ -f "$DATA_DIR/rules/proxy/core.pid" ] && kill "$(cat "$DATA_DIR/rules/proxy/core.pid")" 2>/dev/null
 
+# 卸载内置管理器 App
+if [ -f "$MODDIR/scripts/installapp.sh" ]; then
+  sh "$MODDIR/scripts/installapp.sh" remove >/dev/null 2>&1
+else
+  pm uninstall --user 0 com.syfusion.manager >/dev/null 2>&1
+fi
+rm -f /data/local/tmp/SYManager.apk 2>/dev/null
+
 # 撤销 iptables 重定向与防泄露
 sh "$MODDIR/scripts/mitm.sh" down >/dev/null 2>&1
 [ -f "$MODDIR/scripts/proxynode.sh" ] && sh "$MODDIR/scripts/proxynode.sh" leak off >/dev/null 2>&1

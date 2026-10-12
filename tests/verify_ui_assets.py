@@ -123,14 +123,16 @@ if fx > 3:
 else:
     print("[OK] position:fixed 层 %d 个" % fx)
 
-# AGH 设计令牌必须齐备
-for tok in ("--bgcolor:#f5f7fb", "--bgcolor:#131313", "--mcolor:#495057",
-            "--mcolor:#e6e6e6", "--green:#5eba00", "--card-border-color",
-            "--stats-card--ads", "--glass-blur"):
+# 设计令牌必须齐备（深色为默认主题，浅色为主题覆盖）
+for tok in ("--bgcolor:#0b0f14", "--mcolor:#e6edf3", "--green:#3fb950",
+            "--accent:#58a6ff", "--lat0:#3fb950",
+            "--bgcolor:#f6f8fa", "--mcolor:#1f2328", "--green:#1a7f37",
+            "--card-border-color", "--stats-card--ads", "--glass-blur"):
     if tok in raw:
-        print("[OK] AGH 令牌 %s" % tok)
+        print("[OK] 设计令牌 %s" % tok)
     else:
-        print("[!] 缺少 AGH 令牌 %s" % tok)
+        ok = False
+        print("[X] 缺少设计令牌 %s" % tok)
 
 print()
 print("===> %s" % ("全部通过" if ok else "存在问题"))

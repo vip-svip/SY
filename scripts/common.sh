@@ -67,6 +67,10 @@ json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\r\n'
 }
 
+# ---- base64（toybox / busybox 两种写法都兜住）----
+b64dec() { base64 -d 2>/dev/null || base64 --decode 2>/dev/null; }
+b64enc() { base64 2>/dev/null || base64 -e 2>/dev/null; }
+
 # ---- 数值统计 ----
 count_lines() { # file
   [ -f "$1" ] && wc -l < "$1" 2>/dev/null | tr -d ' ' || echo 0

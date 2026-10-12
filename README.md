@@ -1,7 +1,7 @@
 # SY · AdGuard Home 融合广告拦截（KernelSU / Magisk 模块）
 
 > **AdGuard Home 内核 × uBlock Origin 语法** 融合过滤引擎
-> 三层拦截体系 + 全生态脚本扩展 + 玻璃磨砂一体化面板
+> 三层拦截体系 + 全生态脚本扩展 + **Shadowrocket 级代理路由层** + 极客控制台面板 + 内置管理器 App
 > 基于 OverlayFS / bind mount 挂载，卸载无残留，**不占用 VPN 通道**，**完全离线可用**
 
 ---
@@ -16,8 +16,10 @@
 | 第三层 | 增强开屏广告拦截 | `scripts/splash.sh`，内核级窗口监听 + 自动跳过 |
 | 网络拦截 | 域名 / IP / 网段 / 端口 | `scripts/netblock.sh` |
 | 网络代理 | 内置内核 / 节点 / 防 IP 泄露 | `scripts/proxynode.sh` |
+| **代理路由层** | **Shadowrocket 级规则路由 / 策略组 / 连接管理 / 延迟测速** | `scripts/route.sh` + `abserver route`（配置编译）+ `abserver clash`（Clash API 客户端） |
+| **内置 App** | **桌面管理器（LSPosed 式内置 App）** | `app/SYManager.apk` + `scripts/installapp.sh`（`pm` 会话式安装 + SELinux 上下文处理） |
 | 扩展 | 脚本扩展中心 | `scripts/scripts_ext.sh`，油猴脚本 / MITM 规则 / QX-Surge-Loon-SR 兼容 |
-| 面板 | 一体化在线管理 | `webroot/index.html`（**AdGuard Home 布局骨架** + 磨砂玻璃）+ `abserver serve` 内置 Web 服务 |
+| 面板 | 一体化在线管理 | `webroot/index.html`（**极客控制台** + 磨砂玻璃）+ `abserver serve` 内置 Web 服务 |
 
 ---
 
@@ -104,6 +106,108 @@ sh scripts/engine.sh clear          # 清空编译产物
 
 ---
 
+## 代理路由层（Shadowrocket 级能力）
+
+底层用 **sing-box** 做数据面，`scripts/route.sh` + `abserver route` 做控制面，把 Shadowrocket / Clash 那套「规则路由 + 策略组 + 连接管理」完整搬到模块里。`profile.json` 是**唯一事实源**，面板、CLI、脚本都读写同一份，不再出现"面板改了脚本不认"的情况。
+
+### 能力对照
+
+| Shadowrocket 能力 | 本模块实现 |
+|-------------------|-----------|
+| 规则路由（有序规则表） | `abserver route` 把 `profile.json` 编译成 sing-box 配置；规则顺序即匹配顺序 |
+| 策略组（select / url-test / fallback） | `ProxyGroup` 编译为 sing-box `selector` / `urltest` 出站 |
+| 连接列表 / 强制关闭 | `abserver clash conn` / `clash close`（走 Clash API） |
+| 延迟测速（批量） | `abserver clash delay`；面板「策略组与节点」页支持全部测速 |
+| 实时流量曲线 | `abserver clash traffic`，面板 canvas 60 秒滚动窗口 |
+| 内核日志流 | `abserver clash logs -level -lines` |
+| DNS 分流 / FakeIP | `profile.json` 的 `dns` 段，按内核版本自动切换语法 |
+| 规则集（geo 数据） | `rule_set` + `.srs` 二进制格式，**16 个内置规则集随模块离线打包** |
+| 节点订阅 / 分享链接 | `route import`（vmess / vless / trojan / ss / ssr / hysteria2 / tuic / share-link / clash-yaml / base64 订阅） |
+
+### 命令
+
+```sh
+sh scripts/route.sh status-json            # 面板用：内核 / profile / 规则集状态
+sh scripts/route.sh summary                # 面板用：节点 / 策略组 / 规则 / 统计
+sh scripts/route.sh rulesets               # 面板用：内置 + 本地规则集清单
+sh scripts/route.sh set-profile            # 面板用：写入 profile.json（先做 JSON 合法性校验）
+sh scripts/route.sh reload                 # 重编译并热重启内核
+sh scripts/route.sh clash <sub> -json      # 透传 Clash API（status/conn/traffic/proxies/delay/select/mode/logs/close）
+
+# 引擎侧（abserver route ...）
+abserver route compile   -sb-version 1.14.3 -mirror testingcf   # 编译内核配置
+abserver route lint                                             # 规则体检（无效/冗余/冲突）
+abserver route test      -domain www.google.com -port 443 -v     # 单条流量命中诊断（逐条列出判定步骤）
+abserver route explain                                          # 解释某条规则为何命中/不命中
+abserver route import    -in links.txt -format share-links      # 节点导入
+abserver route mirrors   -probe                                 # 规则集镜像测速
+abserver route fetch-rules -dir rulesets                        # 离线规则集抓取
+abserver route dnsprobe  -domain www.baidu.com                  # DNS 上游真实测速（UDP / DoT / DoH）
+abserver clash           -api 127.0.0.1:9090 status -json       # Clash API 客户端
+```
+
+### 跨客户端规则语法
+
+面板与 `profile.json` 直接吃各家客户端的写法，内部统一归一化（`NormalizeKind`）：
+
+```
+DST-PORT / DEST-PORT / DESTINATION-PORT   → 目标端口
+HOST / HOST-SUFFIX / HOST-KEYWORD / HOST-WILDCARD
+DOMAIN-SET / IP-SET / RULE-SET            → 规则集
+URL / URL-REGEX                           → URL 正则
+SRC-IP / SOURCE-IP-CIDR · IP6-CIDR / IPV6-CIDR
+GEO-SITE / GEO-IP / ASN · PROCESS / PROCESS-NAME-REGEX
+FINAL-MATCH / MATCH-ALL                   → 兜底匹配
+```
+
+> 这条归一化修掉了一个真实丢规则 bug：Shadowrocket / Clash 写法的 `DST-PORT` 原先会被判为"未知规则类型"而**整条丢弃**且只留一条 warn。
+
+### 内核版本适配
+
+sing-box 各版本语法断代严重，编译器按目标内核版本分支输出（`-sb-version`，或 `-kernel` 自动读版本）：
+
+| 字段 | 1.11 | 1.12 | 1.13 | 1.14 |
+|------|------|------|------|------|
+| DNS 服务器 | 必须 `address` | `type`/`server` 可用 | 同左 | **`address` 已移除** |
+| `default_domain_resolver` | 不支持 | 起支持 | 同左 | 同左 |
+| 入站 `sniff` | 可用 | 可用 | **已移除**（改路由规则 `action=sniff`） | 已移除 |
+| fakeip 区间 | `dns.fakeip` 块 | 服务器 `inet4_range` | 同左 | **`dns.fakeip` 块已移除** |
+| `download_detour` | 可用 | 可用 | 可用 | 废弃 |
+
+### 规则集镜像（中国大陆实测）
+
+`abserver route mirrors -probe` 实测结果（2026-10，中国大陆网络）：
+
+| 镜像 | 结果 | 耗时 |
+|------|------|------|
+| `testingcf.jsdelivr.net` | 200 | 0.30 s ← **默认** |
+| `fastly.jsdelivr.net` | 200 | 0.87 s |
+| `gh-proxy.com` | 200 | 1.05 s |
+| `ghproxy.net` | 200 | 1.27 s |
+| `cdn.jsdelivr.net` | 超时 | — |
+
+> 原先默认用的就是 `cdn.jsdelivr.net`，在国内等于**默认配置不可用**；现已切到 `testingcf`。
+
+---
+
+## 内置管理器 App
+
+模块里打包了一个极轻的原生 App（`app/SYManager.apk`，约 53 KB），安装时自动装到桌面，作用等同 LSPosed 的内置管理器：
+
+- **桌面图标 / 快捷磁贴** 一键启停代理与拦截；
+- **常驻通知** 显示实时速率与连接数；
+- **内置 WebView** 直接打开本面板，不依赖浏览器；
+- **完全离线**，不联网、不申请敏感权限。
+
+安装由 `scripts/installapp.sh` 负责，三处调用（`customize.sh` 装机时、面板按钮、开机兜底）共用同一份逻辑，踩过的坑都写在脚本头注释里：
+
+1. APK 在 `/data/adb/modules` 下时 SELinux 上下文是模块的，`installd` 读不了 → 先 `chcon u:object_r:apk_data_file:s0`；
+2. Android 11+ 多用户必须显式 `--user 0`；
+3. `pm install` 失败时退出码经常仍是 0 → 必须匹配输出里的 `Success`；
+4. 部分设备只有会话式安装才成功 → `pm install-create / -write / -commit` 兜底。
+
+---
+
 ## 目录结构
 
 ```
@@ -117,8 +221,19 @@ SY/
 ├── .gitattributes         # 统一 LF 换行，防止 Android 上语法错误
 ├── bin/                   # abserver 三架构静态二进制
 │   └── abserver-arm64 / abserver-arm / abserver-amd64
+├── app/                   # 内置管理器 App
+│   └── SYManager.apk      # 约 53 KB，安装时自动装到桌面
+├── rulesets/              # 16 个内置 .srs 离线规则集（sing-box binary 格式）
+├── src/                   # abserver 的 Go 源码（编译产物落到 bin/）
+│   ├── sbcfg.go           # sing-box 配置编译器（按内核版本分支）
+│   ├── rules.go           # 规则模型 / 解析 / 跨客户端别名归一化 / 命中诊断
+│   ├── cmd_route.go       # route 子命令族
+│   ├── cmd_dnsprobe.go    # DNS 上游真实测速（手写 DNS 报文，UDP/DoT/DoH）
+│   ├── api_clash.go       # /api/clash 端点
+│   ├── clashapi.go        # Clash API 客户端
+│   └── serve.go           # 面板 Web 服务 + 脚本桥（/api/route、/api/exec）
 ├── scripts/               # 核心 shell 引擎
-│   ├── common.sh          # 共享库（路径 / 日志 / 配置 / JSON / 导入工具）
+│   ├── common.sh          # 共享库（路径 / 日志 / 配置 / JSON / base64 / 导入工具）
 │   ├── ctl.sh             # 统一控制入口
 │   ├── engine.sh          # 融合过滤引擎驱动器
 │   ├── engine_parse.awk   # 多语法解析器（TSV 规范化）
@@ -131,7 +246,10 @@ SY/
 │   ├── mitm.sh            # MITM 透明代理层
 │   ├── splash.sh          # 开屏跳过层
 │   ├── netblock.sh        # 网络拦截
-│   ├── proxynode.sh       # 网络代理
+│   ├── proxynode.sh       # 网络代理（gen_config 已委托 route.sh）
+│   ├── route.sh           # 代理路由层（profile 单一事实源）
+│   ├── installapp.sh      # 内置 App 安装 / 卸载 / 状态
+│   ├── selfcheck.sh       # 自检 / 低风险自愈
 │   ├── scripts_ext.sh     # 脚本扩展中心
 │   └── lists.sh / ruleset.sh / updater.sh / backup.sh / panel.sh / ...
 ├── config/                # 默认配置模板（不含任何内置拦截规则）
@@ -139,9 +257,13 @@ SY/
 │   ├── run_tests.sh          # 引擎多轮自检（7 轮）
 │   ├── run_e2e.sh            # 独立端到端验证（逐条人工推导期望值）
 │   ├── run_module_checks.sh  # 模块级静态校验（10 组 A–J）
-│   ├── verify_ui_assets.py   # 面板资产回归（176 个 id / 166 个 action 零丢失）
+│   ├── run_panel_api.sh      # 起真 abserver serve，逐端点打 HTTP（29 项）
+│   ├── run_kernel_compat.sh  # 真内核双版本 check + run（1.11.15 / 1.14.3）
+│   ├── run_route_e2e.sh      # 真流量验证规则命中 + Clash API 策略组切换
+│   ├── verify_ui_assets.py   # 面板资产回归（318 个 id / 225 个 action 零丢失）
 │   ├── ui_baseline.json      # 面板资产基线清单
 │   ├── ui_runtime_check.js   # jsdom 真实执行面板 JS，模拟导航交互
+│   ├── ui_shot_panel.js      # 真实 Chromium 逐页渲染线上面板并截图（注入 KSU 桩）
 │   ├── ui_screenshot.js      # Chromium 渲染截图 + 布局/裁切/性能断言
 │   ├── perf_compare.py       # 真机渲染性能对比（dumpsys gfxinfo，多轮取中位数）
 │   ├── make_heavy_variant.py # 生成"重玻璃"受控变体（DOM 不变，仅换 CSS）
@@ -181,12 +303,25 @@ SY/
 ## 服务组件 (abserver)
 
 ```
-abserver fetch  -url URL -out FILE [-timeout SEC]   # HTTP(S) 下载
-abserver ca     -dir DIR [-cn NAME]                 # 生成根 CA
-abserver proxy  -http :8080 -https :8443 ...        # MITM 代理
-abserver serve  -addr :8848 -webroot webroot ...    # 面板 Web 服务
-abserver token                                      # 生成访问令牌
+abserver fetch   -url URL -out FILE [-timeout SEC]   # HTTP(S) 下载
+abserver ca      -dir DIR [-cn NAME]                 # 生成根 CA
+abserver proxy   -http :8080 -https :8443 ...        # MITM 代理
+abserver serve   -addr :8848 -webroot webroot ...    # 面板 Web 服务
+abserver token                                       # 生成访问令牌
+abserver route   <sub>                               # 代理路由层（compile/lint/test/explain/import/…）
+abserver clash   -api HOST:PORT <sub>                # Clash API 客户端（status/conn/proxies/delay/…）
 ```
+
+`abserver serve` 除静态面板外还暴露两个脚本桥，面板与 HTTP 两种运行环境走同一套逻辑：
+
+| 端点 | 作用 |
+|------|------|
+| `GET /api/exec?cmd=…` | 执行 shell（等价 KernelSU 的 `ksu.exec`） |
+| `POST /api/route` `{"args":["summary"]}` | 透传到 `route.sh`，多参数走 JSON 体（避开超长命令行） |
+| `GET /api/clash?sub=status\|conn\|traffic\|proxies\|delay\|select\|mode\|logs\|close` | Clash API 代理 |
+| `GET /api/proxy` `/api/dns` … | 其余脚本子命令透传 |
+
+鉴权接受 `X-Auth-Token` 请求头或 `?token=` 查询参数；静态资源注入 `window.__SY_TOKEN__`，面板自身请求无需再手工拼 token。
 
 ## 安全机制
 
@@ -198,11 +333,17 @@ abserver token                                      # 生成访问令牌
 ## 自检
 
 ```sh
-sh tests/run_tests.sh all          # 引擎多轮自检（功能/幂等/作用域/启发式/性能/语法/健壮性）
-sh tests/run_e2e.sh .              # 独立端到端验证（每类语法逐条推导期望值）
-sh tests/run_module_checks.sh all  # 模块静态校验（语法/可移植性/清单/ABI/引用/面板/HTML/编码/链路/UI 运行时）
+sh tests/run_tests.sh all          # 引擎多轮自检（功能/幂等/作用域/启发式/性能/语法/健壮性）  92 项
+sh tests/run_e2e.sh .              # 独立端到端验证（每类语法逐条推导期望值）              81 项
+sh tests/run_module_checks.sh all  # 模块静态校验（语法/可移植性/清单/ABI/引用/面板/HTML/编码/链路/UI 运行时） 331 项
 sh tests/run_module_checks.sh J    # 只跑面板资产回归 + jsdom 运行时 + Chromium 布局断言
+sh tests/run_panel_api.sh          # 起真 abserver serve，逐端点打 HTTP（含鉴权 / 静态注入 / 多参数 POST）  29 项
+sh tests/run_kernel_compat.sh      # 真 sing-box 内核双版本 check + run（1.11.15 / 1.14.3）  10 项
+sh tests/run_route_e2e.sh          # 真流量验证四种规则命中 + Clash API 策略组切换              9 项
+python tests/verify_ui_assets.py   # 面板资产回归（318 id / 225 action / 131 函数）
 python tests/gen_preview.py        # 由 webroot/index.html 重新生成 ui-preview.html
+node tests/ui_runtime_check.js     # jsdom 真实执行面板 JS，模拟导航交互
+node tests/ui_shot_panel.js shots  # 真实 Chromium 逐页渲染线上面板并截图（注入 KSU 假数据）
 python tests/perf_compare.py <序列号> "新面板=http://127.0.0.1:8848/index.html" \
                                   "旧面板=http://127.0.0.1:8849/index.html"   # 真机性能对比
 sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版本>.zip + .sha256）
@@ -217,15 +358,29 @@ sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版�
 
 ### 面板设计说明
 
-面板采用 **AdGuard Home 的布局骨架与设计令牌**，把 SY 与 uBlock Origin 的全部功能融进 AGH 的信息架构：
+面板是一套 **极客控制台**：沿用 AdGuard Home 的卡片栅格骨架与磨砂玻璃质感，但信息架构按「代理路由 / 过滤 / 工具 / 设置」重新编排，把 21 个页面收进 5 个导航分组。
 
 | 项目 | 取值 |
 |------|------|
-| 布局 | 顶部 sticky 玻璃 `header` + 横向 `nav-tabs`（仪表盘 / 过滤器▾ / 设置▾ / 工具与备份）+ `page-title` 页面标题栏 + `col-12`/`col-6` 卡片栅格 |
-| 浅色令牌 | `--bgcolor:#f5f7fb`、`--mcolor:#495057`、`--card-border-color:rgba(0,40,100,.12)` |
-| 暗色令牌 | `--bgcolor:#131313`、`--card-bgcolor:#1c1c1c`、`--mcolor:#e6e6e6` |
-| 统计卡强调色 | `--stats-card--queries:#5eba00` / `--ads:#f67247` / `--threats:#d58500` / `--adult:#a870b2` |
+| 布局 | 顶部 sticky 玻璃 `header` + 横向 `nav-tabs`（总览 / 代理路由▾ / 过滤▾ / 工具▾ / 设置▾）+ `page-title` 页面标题栏 + `col-12`/`col-6` 卡片栅格 |
+| 暗色令牌（默认） | `--bgcolor:#0b0f14`、`--bgcolor-2:#0f151c`、`--mcolor:#e6edf3`、`--scolor:#656d76` |
+| 浅色令牌 | `--bgcolor:#f6f8fa`、`--bgcolor-2:#eef1f5`、`--mcolor:#1f2328` |
+| 强调色 | `--accent:#58a6ff`、`--green:#3fb950`、`--amber:#d29922`、`--red:#f85149`、`--purple:#a371f7`、`--cyan:#2dd4bf` |
+| 延迟色阶 | `--lat0:#3fb950` → `--lat1:#7ee787` → `--lat2:#d29922` → `--lat3:#f0883e` → `--lat4:#f85149`（`<100 / <200 / <400 / <800 / 其余` ms） |
 | 磨砂玻璃 | `backdrop-filter` **仅**施加在 `.header` 与浮层 `.dropdown-menu` 上 |
+| 极客组件 | `.seg` 分段控件、`.spark` canvas 曲线、`.nrow` 节点行、`.lat.p0~p4` 延迟徽标、`.ctbl` 连接表、`.term` 终端日志窗、`.rrow` 规则行、`.wgrid` 磁贴网格、`.diag` 命中诊断、`.foldbox` 折叠块 |
+
+**导航分组（21 页）**
+
+```
+总览
+代理路由 ▾  代理总览 · 策略组与节点 · 实时连接 · 规则与分流 · DNS 与查询 · 内核日志 · 内核与配置 · 节点与订阅
+过滤     ▾  DNS 拦截列表 · 自定义过滤规则 · 加密过滤·根证书 · 拦截服务 · 通知过滤
+工具     ▾  内置管理器 App · 脚本扩展 · 开屏跳过 · 工具与备份
+设置     ▾  常规设置 · DNS 设置 · 系统与日志
+```
+
+极客向能力集中在新增的 9 个页面里：实时流量曲线（60 秒滚动窗口）、策略组折叠 + 批量测速 + 手动切换、连接表 + 强制关闭单条连接、规则体检 + 单条流量命中诊断（逐条列出判定步骤）、DNS 上游真实测速、内核日志流（级别 / 行数 / 持续抓取）、`profile.json` 在线编辑 + 编译产物对照、内置 App 一键安装/卸载/打开、系统自检 + 诊断包导出。
 
 **性能约定（低端机不卡的关键）**
 
@@ -245,7 +400,7 @@ sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版�
 
 对比三方：
 
-- **新面板** = 当前发布版本（AGH 骨架 + 磨砂玻璃，`backdrop-filter` 仅 2 处）
+- **新面板** = 当前发布版本（极客控制台 + 磨砂玻璃，`backdrop-filter` 仅 2 处）
 - **旧面板** = v1 历史版本（原 SY 界面）
 - **重玻璃变体** = 用 `make_heavy_variant.py` 从**当前面板**生成，DOM / 内容 / 页高**完全相同**，只把 `backdrop-filter` 铺回全页并加回 `feTurbulence` 噪点层
 

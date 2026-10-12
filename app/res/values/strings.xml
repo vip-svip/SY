@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SY 管理器</string>
+    <string name="tile_label">SY 代理</string>
+    <string name="notify_channel">运行状态</string>
+    <string name="notify_channel_desc">常驻通知显示内核状态与实时流量</string>
+    <string name="menu_refresh">刷新</string>
+    <string name="menu_browser">用浏览器打开</string>
+    <string name="menu_restart">重启内核</string>
+    <string name="menu_stop">停止内核</string>
+    <string name="menu_about">关于</string>
+    <string name="panel_unreachable">面板未启动</string>
+</resources>

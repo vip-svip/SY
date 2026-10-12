@@ -47,6 +47,10 @@ func main() {
 		cmdProxy(os.Args[2:])
 	case "serve":
 		cmdServe(os.Args[2:])
+	case "route":
+		cmdRoute(os.Args[2:])
+	case "clash":
+		cmdClash(os.Args[2:])
 	case "token":
 		cmdToken()
 	case "version", "-v", "--version":
@@ -58,13 +62,21 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `abserver - 广告拦截内核服务组件
+	fmt.Fprintln(os.Stderr, `abserver - 广告拦截·规则路由 内核服务组件
 用法:
-  abserver fetch -url URL -out FILE [-timeout SEC]
-  abserver ca    -dir DIR [-cn NAME]
-  abserver proxy -http :PORT -https :PORT -ca-key K -ca-crt C -rules R [-apps LIST] [-whitelist W] [-stats S]
+  abserver fetch -url URL -out FILE [-timeout SEC]          HTTP(S) 下载
+  abserver ca    -dir DIR [-cn NAME]                        生成根 CA
+  abserver proxy -http :PORT -https :PORT -ca-key K -ca-crt C -rules R
+                                                            MITM 广告改写代理
   abserver serve -addr :PORT -webroot DIR -moddir D -datadir D -token T
-  abserver token
+                                                            面板 Web 服务
+  abserver route compile -profile P.json -out C.json        编译 sing-box 配置
+  abserver route lint    -profile P.json                    规则体检
+  abserver route test    -profile P.json -domain D          规则匹配推演
+  abserver route import  -in FILE -format auto [-out P.json]  导入多格式配置
+  abserver route explain -profile P.json                    规则编译对照表
+  abserver clash -api ADDR {status|conn|traffic|proxies|delay|select|mode|logs}
+  abserver token                                            生成访问令牌
   abserver version`)
 }
 
