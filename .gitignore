@@ -2,3 +2,9 @@
 dist/
 *.zip
 *.sha256
+
+# UI 截图（由 tests/ui_screenshot.js 生成，供人工验收）
+shots/
+
+# 依赖
+node_modules/

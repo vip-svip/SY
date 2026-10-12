@@ -18,14 +18,27 @@
 - **规则体检**（`engine verify`）：统计无效规则、`$badfilter` 数量、冗余层级、冲突项。
 - **命中诊断**（`engine test <domain>` / `testfile <file>`）：按后缀逐级求值，输出命中的规则原文、修饰符与重写结果，并单独统计作用于该域名的浏览器侧（cosmetic / 脚本注入）规则；支持批量用例与完整 URL 入参。
 
-### 面板「规则引擎」页
+### 面板「自定义过滤规则」页
 - 融合引擎统计、多语法分布、规则体检、命中诊断、编译产物一屏总览。
 - 一键编译 / 语法分析 / 体检 / 诊断 / 清空。
 
-### 界面：玻璃磨砂质感
-- 全新玻璃拟态设计系统：`backdrop-filter` 毛玻璃模糊 + 饱和度增强、SVG `feTurbulence` 噪点纹理、彩色光晕底、镜面高光、多层阴影。
-- 提供 `@supports not` 降级方案，不支持 `backdrop-filter` 的设备自动回退为实色面板。
-- 深浅色主题同步适配，所有原有页面与交互保持不变。
+### 界面：AdGuard Home 布局骨架 + 磨砂玻璃
+- **面板底层整体换成 AdGuard Home 的界面骨架**，SY 与 uBlock Origin 的全部功能原样融进 AGH 的信息架构：
+  - 顶部 sticky 玻璃 `header`（品牌 + 横向 `nav-tabs`）+ `page-title` 页面标题栏 + `row` / `col-12` / `col-6` 卡片栅格，与 AGH 的 `Dashboard` 结构一致。
+  - 导航改为 AGH 语义：**仪表盘 / 过滤器▾ / 设置▾ / 工具与备份**，下拉浮层承载 12 个功能页。
+  - 设计令牌直接对齐 AGH `client/src/components/App/index.css`：浅色 `--bgcolor:#f5f7fb`、`--mcolor:#495057`、`--border-color:rgba(0,40,100,.12)`；暗色 `--bgcolor:#131313`、`--card-bgcolor:#1c1c1c`、`--mcolor:#e6e6e6`。
+  - 统计卡强调色对齐 AGH `StatsCard.css`：`--stats-card--queries:#5eba00` / `--ads:#f67247` / `--threats:#d58500` / `--adult:#a870b2`。
+  - 磨砂玻璃：`header` 与下拉浮层使用 `backdrop-filter: blur() saturate()`，并提供 `@supports not` 降级；深浅色主题同步适配。
+- **功能零丢失**：176 个元素 id、166 个 `data-act`、12 个页面、5 个子标签、6 个拦截类型标签全部原样保留，仅重排布局与重命名页面标题。已由 `tests/verify_ui_assets.py` 对基线清单逐项断言。
+
+### 性能：彻底修复面板卡顿
+- **根因**：旧样式把 `backdrop-filter` 施加在 `.card` / `.metric` / `.btn` / 输入框 / 标签页等 15 处选择器上，页面上两百多个元素各自开启一层背景模糊；再叠加全屏 SVG `feTurbulence` 噪点层（每帧重算），在 Android WebView 中必然卡死。
+- **修复**：
+  - `backdrop-filter` 全页**只保留 `.header` 与 `.dropdown-menu` 两处**（实测启用模糊的元素从 200+ 降到 3 个）。
+  - 删除 `feTurbulence` 噪点层，改用 `body::before` 的静态 `radial-gradient` 光斑为玻璃提供可模糊底色。
+  - 移除全页 `animation` 声明；过渡只作用于 `transform` / `opacity` / `background-color` / `border-color`。
+  - 导航不再使用 `overflow-x:auto`（会把下拉菜单裁掉），窄屏改为折行；下拉展开时按视口做越界换算，360dp 小屏也无横向滚动。
+- 以上约定已固化为自动化护栏：`tests/run_module_checks.sh` 的 J 组会拒绝任何把 `backdrop-filter` 下放、或重新引入 `feTurbulence` / `animation` 的改动。
 
 ### 拦截能力
 - 三层拦截：DNS/hosts 内核拦截 + MITM 透明代理 + 开屏广告跳过。
@@ -50,6 +63,9 @@
 - **修复规则体检中 `$badfilter` 数量恒为 0**：`$badfilter` 记录在编译阶段即被剔除，现由关闭阶段单独计数后回传给体检结果。
 - **修复 hosts 统计为空、dnsmasq 多域名解析错误、畸形输入未计入无效统计**等问题。
 - **修复多语法分布统计失真**：「修饰符」此前恒为 0（带 `$` 的规则被全部归入 adblock），现按可辨识语法特征分类。
+- **修复下拉菜单被导航滚动容器裁切**：`nav-tabs` 原先设了 `overflow-x:auto`，会把绝对定位的下拉浮层整块裁掉（窄屏尤为明显）；现改为折行布局并在展开时按视口做越界换算。
+- **修复窄屏横向溢出**：360dp 小屏下导航会撑出横向滚动条，现按 520px / 400px 两级断点收紧间距与字号，保证单行放下。
+- **修复移动端样式覆盖失效**：`.dropdown-menu` 的窄屏 `min-width` 覆盖原先声明在基础规则之前，被同优先级的后续规则反向覆盖；现调整到基础规则之后。
 
 ### 优化
 - 解析 → 分类发射 → hosts 生成 → DNS 规则导出全链路单次装载，避免逐行 fork，20000 条规则规模下依然快速。
@@ -58,5 +74,8 @@
 - 证书子模块版本号改为从主模块 `module.prop` 动态读取，消除版本漂移。
 
 ### 测试
-- 引擎多轮自检套件（`tests/run_tests.sh`，7 轮 92 项）、独立端到端验证（`tests/run_e2e.sh`，81 项）与模块级静态校验套件（`tests/run_module_checks.sh`，9 组 295 项）。
-- 打包脚本 `package.sh`（预检 → 打包 → ZIP 内回读校验）与玻璃磨砂面板静态预览 `ui-preview.html`。
+- 引擎多轮自检套件（`tests/run_tests.sh`，7 轮 92 项）、独立端到端验证（`tests/run_e2e.sh`，81 项）与模块级静态校验套件（`tests/run_module_checks.sh`，10 组 319 项）。
+- **面板资产回归**（`tests/verify_ui_assets.py` + `tests/ui_baseline.json`）：对 176 个元素 id、166 个 `data-act`、12 个页面、9 类 `data-*` 与 65 个 JS 函数逐项比对基线，并强制校验性能护栏（`backdrop-filter` 白名单、无 `feTurbulence`、无 `animation`、`position:fixed` 层数上限）。
+- **jsdom 运行时校验**（`tests/ui_runtime_check.js`）：在真实 DOM 中执行面板全部内联 JS，模拟下拉开合、下拉项切页、父项高亮同步、空白处关闭、12 个标签轮转、子标签切换、主题切换，并断言无运行时异常。
+- **Chromium 布局断言**（`tests/ui_screenshot.js`）：在 360 / 412 / 768 / 1280 四种视口下断言下拉菜单真实可见且未被祖先 `overflow` 裁切、命中测试落在菜单内、无横向溢出，同时统计实际启用背景模糊的元素数量并输出验收截图。
+- 打包脚本 `package.sh`（预检 → 打包 → ZIP 内回读校验 → SHA256）与面板静态预览 `ui-preview.html`。

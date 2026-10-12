@@ -17,7 +17,7 @@
 | 网络拦截 | 域名 / IP / 网段 / 端口 | `scripts/netblock.sh` |
 | 网络代理 | 内置内核 / 节点 / 防 IP 泄露 | `scripts/proxynode.sh` |
 | 扩展 | 脚本扩展中心 | `scripts/scripts_ext.sh`，油猴脚本 / MITM 规则 / QX-Surge-Loon-SR 兼容 |
-| 面板 | 一体化在线管理 | `webroot/index.html`（玻璃磨砂）+ `abserver serve` 内置 Web 服务 |
+| 面板 | 一体化在线管理 | `webroot/index.html`（**AdGuard Home 布局骨架** + 磨砂玻璃）+ `abserver serve` 内置 Web 服务 |
 
 ---
 
@@ -138,13 +138,17 @@ SY/
 ├── tests/                 # 自检套件
 │   ├── run_tests.sh          # 引擎多轮自检（7 轮）
 │   ├── run_e2e.sh            # 独立端到端验证（逐条人工推导期望值）
-│   ├── run_module_checks.sh  # 模块级静态校验（9 组）
+│   ├── run_module_checks.sh  # 模块级静态校验（10 组 A–J）
+│   ├── verify_ui_assets.py   # 面板资产回归（176 个 id / 166 个 action 零丢失）
+│   ├── ui_baseline.json      # 面板资产基线清单
+│   ├── ui_runtime_check.js   # jsdom 真实执行面板 JS，模拟导航交互
+│   ├── ui_screenshot.js      # Chromium 渲染截图 + 布局/裁切/性能断言
 │   ├── corpus/01_mixed.txt   # 多语法混合语料
 │   ├── gen_preview.py        # 由面板源码重新生成 ui-preview.html
 │   └── expect.tsv            # 期望命中表
-├── package.sh             # 打包脚本（预检 → 打包 → ZIP 校验）
-├── ui-preview.html        # 玻璃磨砂面板静态效果预览（可直接用浏览器打开）
-├── webroot/index.html     # 玻璃磨砂面板前端
+├── package.sh             # 打包脚本（预检 → 打包 → ZIP 校验 → SHA256）
+├── ui-preview.html        # 面板静态效果预览（可直接用浏览器打开）
+├── webroot/index.html     # 面板前端（AdGuard Home 布局骨架 + 磨砂玻璃）
 ├── system/etc/security/cacerts/  # 根证书挂载目标
 └── META-INF/              # 刷入引导
 ```
@@ -188,13 +192,39 @@ abserver token                                      # 生成访问令牌
 ```sh
 sh tests/run_tests.sh all          # 引擎多轮自检（功能/幂等/作用域/启发式/性能/语法/健壮性）
 sh tests/run_e2e.sh .              # 独立端到端验证（每类语法逐条推导期望值）
-sh tests/run_module_checks.sh all  # 模块静态校验（语法/可移植性/清单/ABI/引用/面板/HTML/编码/链路）
-sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版本>.zip）
+sh tests/run_module_checks.sh all  # 模块静态校验（语法/可移植性/清单/ABI/引用/面板/HTML/编码/链路/UI 运行时）
+sh tests/run_module_checks.sh J    # 只跑面板资产回归 + jsdom 运行时 + Chromium 布局断言
+python tests/gen_preview.py        # 由 webroot/index.html 重新生成 ui-preview.html
+sh package.sh                      # 打包并校验 ZIP（输出 dist/SY_<版本>.zip + .sha256）
 ```
+
+> `run_module_checks.sh` 的 J 组会在检测到 jsdom / playwright 时自动启用真实 DOM 与真实浏览器断言
+> （下拉是否被裁切、各视口是否横向溢出、实际启用背景模糊的元素数量）；未安装时自动跳过。
 
 ## 界面预览
 
-浏览器直接打开 `ui-preview.html` 可查看玻璃磨砂面板的静态效果（样式与真实面板一致，数据为示例值），右上角可切换深浅色。
+浏览器直接打开 `ui-preview.html` 可查看面板静态效果（样式与真实面板一致，数据为示例值），右上角可切换深浅色。
+
+### 面板设计说明
+
+面板采用 **AdGuard Home 的布局骨架与设计令牌**，把 SY 与 uBlock Origin 的全部功能融进 AGH 的信息架构：
+
+| 项目 | 取值 |
+|------|------|
+| 布局 | 顶部 sticky 玻璃 `header` + 横向 `nav-tabs`（仪表盘 / 过滤器▾ / 设置▾ / 工具与备份）+ `page-title` 页面标题栏 + `col-12`/`col-6` 卡片栅格 |
+| 浅色令牌 | `--bgcolor:#f5f7fb`、`--mcolor:#495057`、`--card-border-color:rgba(0,40,100,.12)` |
+| 暗色令牌 | `--bgcolor:#131313`、`--card-bgcolor:#1c1c1c`、`--mcolor:#e6e6e6` |
+| 统计卡强调色 | `--stats-card--queries:#5eba00` / `--ads:#f67247` / `--threats:#d58500` / `--adult:#a870b2` |
+| 磨砂玻璃 | `backdrop-filter` **仅**施加在 `.header` 与浮层 `.dropdown-menu` 上 |
+
+**性能约定（低端机不卡的关键）**
+
+- `backdrop-filter` 全页只允许出现在 `.header` 与 `.dropdown-menu` 两处；一旦下放到 `.card` / `.btn` / 输入框，页面上两百多个元素会各开一层背景模糊，Android WebView 必然卡死。
+- 不使用 SVG `feTurbulence` 噪点层（每帧重算，代价极高），改用 `body::before` 的静态 `radial-gradient` 光斑为玻璃提供可模糊底色。
+- 过渡只作用于 `transform` / `opacity` / `background-color` / `border-color`；全页无 `animation` 声明。
+- 导航不设 `overflow`，窄屏折行而非横向滚动 —— 否则下拉菜单会被滚动容器裁掉。
+
+以上四条均由 `tests/run_module_checks.sh` J 组与 `tests/ui_screenshot.js` 自动断言。
 
 ## 备份与恢复
 

@@ -42,23 +42,58 @@ def grab(text, marker, tag):
 
 style = s[s.index("<style>") + 7 : s.index("</style>")]
 
-appbar = grab(s, '<div class="appbar">', "div")
-tabs = grab(s, '<div class="tabs" id="tabs">', "div")
-
+# 新骨架：<header class="header"> 内含 <nav class="nav-tabs" id="tabs">
+header = grab(s, '<header class="header">', "header")
 home = grab(s, '<section class="page" id="page-home">', "section")
+dns = grab(s, '<section class="page hide" id="page-dns">', "section")
 engine = grab(s, '<section class="page hide" id="page-engine">', "section")
-engine = engine.replace('class="page hide"', 'class="page"', 1)
+# 预览里 dns / engine 保持 hide，靠导航点击切换（与真实面板行为一致）
 
 # 去掉内嵌的“运行日志”大文本框与长日志列表（预览用示例数据填充）
 log_list = """<div class="list" id="logList">
-        <div class="row"><span class="mono">dns.log</span><span class="tag">2.1 KB</span>
-          <button class="btn small" data-act="logs-view">查看</button></div>
-        <div class="row"><span class="mono">mitm.log</span><span class="tag">18.4 KB</span>
-          <button class="btn small" data-act="logs-view">查看</button></div>
-        <div class="row"><span class="mono">proxy.log</span><span class="tag">512 B</span>
-          <button class="btn small" data-act="logs-view">查看</button></div>
+        <div class="row"><span class="mono">dns.log</span><span class="tagline">2.1 KB</span>
+          <button class="btn sm" data-act="logs-view">查看</button></div>
+        <div class="row"><span class="mono">mitm.log</span><span class="tagline">18.4 KB</span>
+          <button class="btn sm" data-act="logs-view">查看</button></div>
+        <div class="row"><span class="mono">proxy.log</span><span class="tagline">512 B</span>
+          <button class="btn sm" data-act="logs-view">查看</button></div>
       </div>"""
 home = re.sub(r'<div class="list" id="logList"></div>', log_list, home)
+
+# DNS 页的规则源列表填示例数据
+repo_list = """<div class="list" id="ruleRepoList">
+        <div class="row"><span class="t">vip-svip/SY-Rules <span class="tagline">AdGuard + uBO 融合规则</span></span>
+          <button class="btn sm primary" data-act="rule-use">选用</button></div>
+        <div class="row"><span class="t">AdguardTeam/AdGuardSDNSFilter <span class="tagline">官方 DNS 过滤</span></span>
+          <button class="btn sm" data-act="rule-use">选用</button></div>
+      </div>"""
+dns = re.sub(r'<div class="list" id="ruleRepoList"></div>', repo_list, dns)
+
+dns = re.sub(
+    r'<div class="list" id="dnsPreview"></div>',
+    '<div class="list" id="dnsPreview">'
+    '<div class="row"><span class="mono">doubleclick.net</span>'
+    '<button class="del" data-act="dns-rule-del">✕</button></div>'
+    '<div class="row"><span class="mono">ads.example.com</span>'
+    '<button class="del" data-act="dns-rule-del">✕</button></div>'
+    '<div class="row"><span class="mono">track.example.org</span>'
+    '<button class="del" data-act="dns-rule-del">✕</button></div>'
+    '<div class="row"><span class="mono">pagead2.googlesyndication.com</span>'
+    '<button class="del" data-act="dns-rule-del">✕</button></div>'
+    '</div>', dns)
+
+for lid, rows in (
+    ("wlList", [("example.com", "wl-del"), ("bank.example.cn", "wl-del")]),
+    ("blList", [("ads.example.com", "bl-del"), ("ad.doubleclick.net", "bl-del")]),
+    ("dnsCustomList", [("my-own-rule.example.com", "dns-custom-del")]),
+    ("srcList", [("https://example.com/ag-rules.txt", "dns-src-del")]),
+    ("fltList", [("AdGuard Base", "lists-del")]),
+):
+    html_rows = "".join(
+        '<div class="row"><span class="mono">%s</span>'
+        '<button class="del" data-act="%s">✕</button></div>' % (t, a) for t, a in rows)
+    dns = re.sub(r'<div class="list" id="%s"></div>' % lid,
+                 '<div class="list" id="%s">%s</div>' % (lid, html_rows), dns)
 
 chips = """<div class="chips" id="engSyntax">
         <span class="chip">adblock <b>31842</b></span>
@@ -113,6 +148,20 @@ VALUES = {
     "engVRedB": "0",
     "engVRedA": "0",
     "engVConf": "1",
+    "hostsMount": "已挂载",
+    "hostsCount": "51,204",
+    "hostsMode": "订阅 + 自定义",
+    "hostsTag": "更新于 12:36:45 · 共 51,204 条",
+    "fltBlock": "58,132",
+    "fltBlockImp": "1,204",
+    "fltAllow": "486",
+    "fltAllowImp": "39",
+    "fltReRw": "221 / 37",
+    "fltTestOut": "ads.example.com → 拦截（命中 ||ads.example.com^）",
+    "dnsPreviewInfo": "当前生效规则 51,204 条（含 3 条排除）",
+    "dnsCustomText": "my-own-rule.example.com",
+    "hostsText": "0.0.0.0 ads.example.com\n0.0.0.0 ad.doubleclick.net",
+    "myRulesText": "||ads.example.com^\n@@||good.example.com^\n||track.com^$important",
 }
 
 TEST_HTML = (
@@ -133,14 +182,14 @@ html = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SY · 玻璃磨砂面板预览</title>
+<title>SY · AdGuard Home 融合面板预览</title>
 <style>
 %s
 </style>
 </head>
 <body>
 %s
-<div class="wrap">
+<div class="container">
 %s
 %s
 %s
@@ -148,7 +197,10 @@ html = """<!DOCTYPE html>
 <script>
 (function(){
   function $(s){return document.querySelector(s)}
-  function set(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
+  function set(id,v){
+    var e=document.getElementById(id); if(!e) return;
+    if(e.tagName==='INPUT'||e.tagName==='TEXTAREA') e.value=v; else e.textContent=v;
+  }
   function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
 
 %s
@@ -163,16 +215,54 @@ html = """<!DOCTYPE html>
       else { el.classList.remove('theme-light'); el.classList.add('theme-dark'); }
     });
   });
-  document.querySelectorAll('.tab').forEach(function(t){
-    t.addEventListener('click', function(){
-      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
-      t.classList.add('on');
-      var name = t.getAttribute('data-tab');
-      document.querySelectorAll('.page').forEach(function(p){
-        p.classList.toggle('hide', p.id !== 'page-'+name);
+  /* 顶部导航：下拉开合 + 页面切换 */
+  function closeDD(){ document.querySelectorAll('.dropdown-menu.open').forEach(function(m){m.classList.remove('open')}); }
+  function openDD(dd, menu){
+    if(!menu) return;
+    var host = dd.parentNode;
+    menu.style.left='0'; menu.style.right='auto';
+    menu.classList.add('open');
+    var vw = document.documentElement.clientWidth;
+    var w = menu.offsetWidth;
+    var hr = host.getBoundingClientRect();
+    var left = hr.left;
+    if(left + w > vw - 8) left = vw - 8 - w;
+    if(left < 8) left = 8;
+    menu.style.left = (left - hr.left) + 'px';
+  }
+  document.getElementById('tabs').addEventListener('click', function(ev){
+    var dd = ev.target.closest('.nav-link[data-dd]');
+    if(dd){
+      var menu = dd.parentNode.querySelector('.dropdown-menu');
+      var was = !!(menu && menu.classList.contains('open'));
+      closeDD();
+      if(menu && !was) openDD(dd, menu);
+      ev.preventDefault();
+      return;
+    }
+    var t = ev.target.closest('[data-tab]');
+    if(!t) return;
+    document.querySelectorAll('[data-tab]').forEach(function(x){x.classList.remove('on')});
+    t.classList.add('on');
+    document.querySelectorAll('.nav-link[data-dd]').forEach(function(p){
+      var m = p.parentNode.querySelector('.dropdown-menu');
+      var hit = false;
+      if(m) m.querySelectorAll('[data-tab]').forEach(function(x){
+        if(x.getAttribute('data-tab')===t.getAttribute('data-tab')) hit = true;
       });
+      p.classList.toggle('on', hit);
+    });
+    closeDD();
+    var name = t.getAttribute('data-tab');
+    document.querySelectorAll('.page').forEach(function(p){
+      p.classList.toggle('hide', p.id !== 'page-'+name);
     });
   });
+  document.addEventListener('click', function(ev){
+    if(ev.target.closest('.nav-tabs')) return;
+    closeDD();
+  });
+  window.addEventListener('resize', closeDD);
   document.querySelectorAll('[data-act]').forEach(function(b){
     var a = b.getAttribute('data-act');
     if(a==='theme') return;
@@ -183,10 +273,10 @@ html = """<!DOCTYPE html>
   });
 })();
 </script>
-<div class="toast" id="toast"></div>
+<div id="toast"></div>
 </body>
 </html>
-""" % (style, appbar, tabs, home, engine, fill_js, repr(TEST_HTML))
+""" % (style, header, home, dns, engine, fill_js, repr(TEST_HTML))
 
 io.open(OUT, "w", encoding="utf-8", newline="\n").write(html)
 print("written %s (%d chars)" % (OUT, len(html)))

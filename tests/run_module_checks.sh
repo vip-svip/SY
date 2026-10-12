@@ -6,6 +6,7 @@
 #   A 脚本语法        B AWK 语法/POSIX 可移植性   C 清单与元数据
 #   D 二进制 ABI      E 脚本间路径引用            F 面板 action 覆盖
 #   G HTML/JS 结构    H 编码卫生(CRLF/BOM)        I 引擎子命令链路
+#   J 面板资产回归 + jsdom 运行时
 #
 #  纯静态检查，不依赖 Android 环境，可在桌面直接跑。
 # ============================================================
@@ -36,6 +37,30 @@ for c in node "C:/Users/admin/.workbuddy-ai/binaries/node/versions/22.22.2-6/nod
 done
 # node 在 PATH 中但可能是 .exe 全路径
 [ -z "$NODE" ] && NODE=""
+
+# node_modules 查找顺序：环境变量 SY_NODE_MODULES → 项目内 → WorkBuddy 托管工作区
+NM=""
+for d in "${SY_NODE_MODULES:-}" "./node_modules" \
+         "C:/Users/admin/.workbuddy-ai/binaries/node/workspace/node_modules" \
+         "$HOME/.workbuddy-ai/binaries/node/workspace/node_modules"; do
+  [ -n "$d" ] && [ -d "$d" ] && { NM="$d"; break; }
+done
+# 若已能直接解析则不需要 NODE_PATH
+if [ -z "$NM" ] && [ -n "$NODE" ] && "$NODE" -e "require.resolve('jsdom')" >/dev/null 2>&1; then
+  NM="."
+fi
+if [ -n "$NM" ] && [ "$NM" != "." ]; then export NODE_PATH="$NM"; fi
+
+# playwright 浏览器目录
+PW_BROWSERS=""
+for d in "${SY_PW_BROWSERS:-}" \
+         "C:/Users/admin/.workbuddy-ai/binaries/node/workspace/pw-browsers" \
+         "$HOME/.workbuddy-ai/binaries/node/workspace/pw-browsers"; do
+  [ -n "$d" ] && [ -d "$d" ] && { PW_BROWSERS="$d"; break; }
+done
+[ -n "$PW_BROWSERS" ] && export PLAYWRIGHT_BROWSERS_PATH="$PW_BROWSERS"
+
+has_mod() { [ -n "$NODE" ] && "$NODE" -e "require.resolve('$1')" >/dev/null 2>&1; }
 
 # ---------- A. 脚本语法 ----------
 chk_scripts() {
@@ -278,8 +303,15 @@ chk_panel() {
   $PY - <<'PYEOF' > /tmp/sy_panel.$$ 2>&1
 import re, io, os, sys
 
-h = io.open("webroot/index.html", encoding="utf-8").read()
-acts = set(re.findall(r'data-act="([^"]+)"', h))
+_raw = io.open("webroot/index.html", encoding="utf-8").read()
+# 静态标记区里的按钮
+markup = re.sub(r'<script\b[^>]*>.*?</script>', '', _raw, flags=re.S | re.I)
+static_acts = set(re.findall(r'data-act="([^"]+)"', markup))
+# JS 动态生成的行内按钮（删除/选择/开关等），模板里形如 data-act="' + ... 或 data-act="xxx"
+js_src = "\n".join(re.findall(r'<script\b[^>]*>(.*?)</script>', _raw, re.S | re.I))
+dyn_acts = set(re.findall(r'data-act=\\?"([a-z0-9\-]+)\\?"', js_src))
+acts = static_acts | dyn_acts
+h = _raw
 m = re.search(r'\nvar actions\s*=\s*\{', h)
 if not m:
     print("FAIL|未找到 actions 定义"); sys.exit(0)
@@ -296,7 +328,8 @@ for a in sorted(acts - keys):
     print("FAIL|data-act 无处理器: " + a)
 for a in sorted(keys - acts):
     print("WARN|处理器无按钮绑定: " + a)
-print("INFO|data-act=%d handlers=%d" % (len(acts), len(keys)))
+print("INFO|data-act 静态 %d + 动态 %d = %d, handlers=%d"
+      % (len(static_acts), len(dyn_acts - static_acts), len(acts), len(keys)))
 
 # ---- 提取每个脚本支持的 case 标签（支持嵌套 case）----
 def labels(path):
@@ -395,35 +428,59 @@ node = sys.argv[1] if len(sys.argv) > 1 else ""
 h = io.open("webroot/index.html", encoding="utf-8").read()
 if h.lstrip().startswith("\ufeff"): print("FAIL|index.html 含 UTF-8 BOM")
 if not re.match(r'^\s*<!DOCTYPE html>', h, re.I): print("FAIL|缺少 <!DOCTYPE html>")
+# markup：剥掉 <script> 内容后的纯标记区，避免 JS 字符串干扰属性统计
+markup = re.sub(r'<script\b[^>]*>.*?</script>', '', h, flags=re.S | re.I)
 for tag in ["html", "head", "body"]:
     o = len(re.findall(r'<%s[\s>]' % tag, h, re.I)); c = len(re.findall(r'</%s>' % tag, h, re.I))
     if o != 1 or c != 1: print("FAIL|<%s> 数量异常 open=%d close=%d" % (tag, o, c))
     else: print("OK|<%s> 配对" % tag)
 for tag in ["section", "style", "script", "textarea", "table", "select", "button"]:
-    o = len(re.findall(r'<%s[\s>]' % tag, h, re.I)); c = len(re.findall(r'</%s>' % tag, h, re.I))
+    src = h if tag in ("style", "script") else markup
+    o = len(re.findall(r'<%s[\s>]' % tag, src, re.I)); c = len(re.findall(r'</%s>' % tag, src, re.I))
     if o != c: print("FAIL|<%s> 不配对 open=%d close=%d" % (tag, o, c))
     else: print("OK|<%s> 配对 %d" % (tag, o))
-do = len(re.findall(r'<div[\s>]', h, re.I)); dc = len(re.findall(r'</div>', h, re.I))
-if abs(do - dc) > 1: print("FAIL|<div> 失衡 open=%d close=%d diff=%d" % (do, dc, do - dc))
-else: print("OK|<div> diff=%d (容差 1)" % (do - dc))
-ids = re.findall(r'\sid="([^"]+)"', h)
+do = len(re.findall(r'<div[\s>]', markup, re.I)); dc = len(re.findall(r'</div>', markup, re.I))
+if do != dc: print("FAIL|<div> 失衡 open=%d close=%d diff=%d" % (do, dc, do - dc))
+else: print("OK|<div> 平衡 %d 组" % do)
+ids = re.findall(r'\sid="([^"]+)"', markup)
 dup = sorted({x for x in ids if ids.count(x) > 1})
 if dup: print("FAIL|重复 id: " + ", ".join(dup))
 else: print("OK|id 唯一 共 %d 个" % len(ids))
-tabs = set(re.findall(r'data-tab="([^"]+)"', h)); pages = set(re.findall(r'id="page-([^"]+)"', h))
+tabs = set(re.findall(r'data-tab="([^"]+)"', markup)); pages = set(re.findall(r'id="page-([^"]+)"', markup))
 for t in sorted(tabs - pages): print("FAIL|标签 %s 无对应 page-%s" % (t, t))
 for p in sorted(pages - tabs): print("FAIL|page-%s 无对应标签" % p)
 if tabs == pages: print("OK|标签/页面一一对应 %d 个" % len(tabs))
-subs = set(re.findall(r'data-sub="([^"]+)"', h)); sp = set(re.findall(r'id="sub-([^"]+)"', h))
+subs = set(re.findall(r'data-sub="([^"]+)"', markup)); sp = set(re.findall(r'id="sub-([^"]+)"', markup))
 for s in sorted(subs - sp): print("FAIL|子标签 %s 无对应 sub-%s" % (s, s))
 if subs <= sp: print("OK|子标签/子页面匹配 %d/%d" % (len(subs), len(sp)))
-for key, label in [("backdrop-filter", "毛玻璃模糊"), ("feTurbulence", "噪点纹理"),
-                   ("saturate(", "饱和度增强"), ("@supports not", "降级回退"),
-                   ("radial-gradient", "彩色光晕"), ("box-shadow", "层次阴影")]:
+# ---- AGH 骨架要素 ----
+for key, label in [('class="header"', "顶部 header"), ('class="nav-tabs"', "横向 nav-tabs"),
+                   ("dropdown-menu", "下拉菜单"), ("page-title", "页面标题栏"),
+                   ("col-12", "卡片栅格 col-12"), ("col-6", "卡片栅格 col-6"),
+                   ("--bgcolor:#f5f7fb", "AGH 浅色底 #f5f7fb"), ("--bgcolor:#131313", "AGH 暗色底 #131313"),
+                   ("--green:#5eba00", "AGH 主绿 #5eba00"), ("--card-border-color", "AGH 卡片描边令牌"),
+                   ("backdrop-filter", "毛玻璃模糊"), ("saturate(", "饱和度增强"),
+                   ("@supports not", "降级回退"), ("radial-gradient", "背景光斑"),
+                   ("box-shadow", "层次阴影")]:
     if key in h: print("OK|设计要素 %s" % label)
     else: print("FAIL|缺少设计要素 %s (%s)" % (label, key))
-if "--blur" in h and "--sat" in h: print("OK|玻璃参数变量 --blur/--sat")
-else: print("FAIL|缺少玻璃参数变量")
+if "--glass-blur" in h: print("OK|玻璃模糊参数 --glass-blur")
+else: print("FAIL|缺少 --glass-blur")
+# ---- 性能护栏 ----
+css_only = "".join(re.findall(r'<style[^>]*>(.*?)</style>', h, re.S | re.I))
+bf = re.findall(r'([^{}]+)\{([^{}]*backdrop-filter[^{}]*)\}', css_only)
+stray = [s.strip().replace("\n", " ") for s, b in bf if "header" not in s and "dropdown-menu" not in s]
+if stray: print("FAIL|backdrop-filter 泄漏到非白名单选择器(会导致卡顿): " + " | ".join(stray))
+else: print("OK|backdrop-filter 仅用于 .header / .dropdown-menu（%d 条）" % len(bf))
+if len(bf) > 4: print("FAIL|backdrop-filter 规则过多 %d 条（应 <=4）" % len(bf))
+if re.search(r"<filter\b|<feTurbulence\b", h): print("FAIL|存在 SVG 滤镜噪点层节点")
+else: print("OK|无 SVG 滤镜噪点层")
+anim = re.findall(r"(?:^|[;{\s])animation\s*:", css_only)
+if anim: print("FAIL|CSS 仍含 %d 处 animation 声明（低端机耗电卡顿）" % len(anim))
+else: print("OK|CSS 无 animation 声明")
+fx = len(re.findall(r"position\s*:\s*fixed", css_only))
+if fx > 3: print("FAIL|position:fixed 层过多 %d 个" % fx)
+else: print("OK|position:fixed 层 %d 个" % fx)
 blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', h, re.S | re.I)
 print("INFO|内联 script 块 %d 个" % len(blocks))
 if node:
@@ -536,10 +593,57 @@ chk_engine_link() {
   grep -q 'dnsrewrite' scripts/engine_parse.awk && ok || bad "engine_parse.awk 未处理 \$dnsrewrite"
 }
 
+# ---------- J. 面板资产回归 + jsdom 运行时 ----------
+chk_ui_runtime() {
+  grp "J 面板资产回归 / 运行时"
+  if [ -z "$PY" ]; then printf '  (无 python，跳过)\n'; return; fi
+  # 资产基线对比（保证重构不丢功能）
+  if $PY tests/verify_ui_assets.py > /tmp/sy_uia.$$ 2>&1; then
+    ok; ok; ok
+  else
+    bad "面板资产基线校验未通过"
+  fi
+  grep -E '^\[X\]' /tmp/sy_uia.$$ | while IFS= read -r l; do printf '  %s\n' "$l"; done
+  grep -E '^\[!\]' /tmp/sy_uia.$$ | while IFS= read -r l; do printf '  [warn] %s\n' "${l#\[!\] }"; done
+  if grep -q '^\[OK\] backdrop-filter 仅用于' /tmp/sy_uia.$$; then ok; else bad "backdrop-filter 性能护栏未通过"; fi
+  if grep -q '^\[OK\] CSS 无 animation' /tmp/sy_uia.$$; then ok; else bad "CSS 仍含 animation 声明"; fi
+  if grep -q '^\[OK\] 无 SVG 滤镜噪点层' /tmp/sy_uia.$$; then ok; else bad "存在 SVG 噪点层"; fi
+  rm -f /tmp/sy_uia.$$
+  # 真实浏览器布局/截图（可选，仅在装了 playwright 时跑）
+  if has_mod playwright; then
+    if "$NODE" tests/ui_screenshot.js > /tmp/sy_uish.$$ 2>&1; then
+      ok; ok; ok
+      grep -cE '^\s+\[ok\]' /tmp/sy_uish.$$ | while read -r n; do printf '  浏览器布局断言 %s 项通过\n' "$n"; done
+      grep -E '实际启用模糊的元素|DOM 节点数|SVG 滤镜节点' /tmp/sy_uish.$$ | while IFS= read -r l; do printf '  %s\n' "$l"; done
+    else
+      bad "浏览器布局断言未通过"
+      grep -E '\[X\]|页面错误' /tmp/sy_uish.$$ | head -8 | while IFS= read -r l; do printf '  %s\n' "$l"; done
+    fi
+    rm -f /tmp/sy_uish.$$
+  else
+    printf '  (无 playwright，跳过浏览器布局断言)\n'
+  fi
+  # 基线清单存在
+  [ -s tests/ui_baseline.json ] && ok || bad "缺少 tests/ui_baseline.json"
+  # jsdom 运行时（有 node 且有 jsdom 才跑）
+  if has_mod jsdom; then
+    if "$NODE" tests/ui_runtime_check.js > /tmp/sy_uirt.$$ 2>&1; then
+      ok; ok; ok; ok
+      grep -cE '^\s+\[ok\]' /tmp/sy_uirt.$$ | while read -r n; do printf '  jsdom 运行时断言 %s 项通过\n' "$n"; done
+    else
+      bad "jsdom 运行时校验未通过"
+      grep -E '\[X\]' /tmp/sy_uirt.$$ | head -10 | while IFS= read -r l; do printf '  %s\n' "$l"; done
+    fi
+    rm -f /tmp/sy_uirt.$$
+  else
+    printf '  (无 node/jsdom，跳过运行时校验)\n'
+  fi
+}
+
 # ---------- 调度 ----------
 which="${1:-all}"
 case "$which" in
-  all) chk_scripts; chk_awk; chk_meta; chk_bin; chk_refs; chk_panel; chk_html; chk_encoding; chk_engine_link ;;
+  all) chk_scripts; chk_awk; chk_meta; chk_bin; chk_refs; chk_panel; chk_html; chk_encoding; chk_engine_link; chk_ui_runtime ;;
   A|a) chk_scripts ;;
   B|b) chk_awk ;;
   C|c) chk_meta ;;
@@ -549,7 +653,8 @@ case "$which" in
   G|g) chk_html ;;
   H|h) chk_encoding ;;
   I|i) chk_engine_link ;;
-  *) echo "usage: sh tests/run_module_checks.sh [all|A|B|C|D|E|F|G|H|I]"; exit 2 ;;
+  J|j) chk_ui_runtime ;;
+  *) echo "usage: sh tests/run_module_checks.sh [all|A|B|C|D|E|F|G|H|I|J]"; exit 2 ;;
 esac
 
 hr
