@@ -1,0 +1,7 @@
+id=SY
+name=SY · AdGuard Home 融合广告拦截
+version=v1.0.0
+versionCode=10000
+updateJson=https://raw.githubusercontent.com/vip-svip/SY-Fusion/main/update.json
+author=vip-svip
+description=AdGuard Home 内核 × uBlock Origin 语法融合引擎。三层拦截(DNS/hosts 内核 + MITM 透明代理 + 开屏跳过) + 网络拦截 + 网络代理 + 脚本扩展；全语法规则离线可用(AdBlock/AdGuard/uBO、cosmetic、scriptlet、hosts、dnsmasq、正则、DNS 重写)；玻璃磨砂面板。OverlayFS 挂载，卸载零残留，不占 VPN 通道。

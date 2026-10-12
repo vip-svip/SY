@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>SY</title>
+<script>(function(){try{var t=localStorage.getItem("ab_theme");var el=document.documentElement;if(t==="dark")el.classList.add("theme-dark");else if(t==="light")el.classList.add("theme-light")}catch(e){}})();</script>
+<style>
+/* ============================================================
+   SY-Fusion · 玻璃磨砂设计系统 (Glassmorphism)
+   ------------------------------------------------------------
+   · 真实毛玻璃：backdrop-filter blur + saturate + 边缘高光
+   · 彩色光晕底 + 细颗粒噪点，形成可感知的磨砂质感
+   · 完整深浅色适配、无 backdrop-filter 环境自动降级
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+:root{
+  color-scheme:light;
+  --blur:22px; --sat:175%;
+  --glass-1:rgba(255,255,255,.60);
+  --glass-2:rgba(255,255,255,.28);
+  --glass-3:rgba(255,255,255,.14);
+  --glass-border:rgba(255,255,255,.72);
+  --glass-edge:rgba(255,255,255,.95);
+  --glass-shadow:0 10px 34px rgba(28,36,72,.13),0 2px 8px rgba(28,36,72,.06);
+  --glass-inset:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.2);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,0) 32%);
+
+  --bg:#eaf0fb;
+  --bg-grad:
+    radial-gradient(58% 42% at 12% -6%,#8fb4ff 0%,rgba(143,180,255,0) 62%),
+    radial-gradient(52% 40% at 96% 6%,#7ee0f0 0%,rgba(126,224,240,0) 60%),
+    radial-gradient(60% 46% at 82% 98%,#f5a8e8 0%,rgba(245,168,232,0) 62%),
+    radial-gradient(46% 36% at 6% 94%,#a7f3d0 0%,rgba(167,243,208,0) 58%),
+    linear-gradient(160deg,#eef3ff 0%,#e7eefc 48%,#f3ecff 100%);
+  --text:#0d1526; --text2:#5c6b86; --text3:#8794ab;
+  --line:rgba(255,255,255,.72); --line2:rgba(13,21,38,.09);
+  --card:var(--glass-1); --card-solid:rgba(255,255,255,.88);
+  --shadow:var(--glass-shadow); --hl:var(--glass-edge); --hl2:rgba(255,255,255,.10);
+  --accent:#3b6df6; --accent-2:#7a5cf0; --on-accent:#ffffff; --accent2:#5c6b86;
+  --ok:#0ea472; --warn:#c9791a; --err:#e0453f;
+  --chip:rgba(59,109,246,.11);
+  --noise:.055;
+}
+
+html.theme-dark{
+  color-scheme:dark;
+  --glass-1:rgba(28,36,58,.58);
+  --glass-2:rgba(28,36,58,.32);
+  --glass-3:rgba(255,255,255,.05);
+  --glass-border:rgba(255,255,255,.14);
+  --glass-edge:rgba(255,255,255,.18);
+  --glass-shadow:0 14px 44px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.35);
+  --glass-inset:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.28);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,0) 34%);
+  --bg:#05080f;
+  --bg-grad:
+    radial-gradient(58% 42% at 10% -8%,#1d3a8f 0%,rgba(29,58,143,0) 60%),
+    radial-gradient(52% 40% at 98% 4%,#0b6d86 0%,rgba(11,109,134,0) 58%),
+    radial-gradient(60% 46% at 84% 98%,#5b21a8 0%,rgba(91,33,168,0) 62%),
+    radial-gradient(46% 36% at 6% 94%,#0f5132 0%,rgba(15,81,50,0) 58%),
+    linear-gradient(160deg,#060a14 0%,#080d1a 50%,#0b0716 100%);
+  --text:#e9eefc; --text2:#9aa8c4; --text3:#7183a3;
+  --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+  --card:var(--glass-1); --card-solid:rgba(20,27,45,.93);
+  --accent:#6f9bff; --accent-2:#a78bfa; --on-accent:#061024; --accent2:#9aa8c4;
+  --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --chip:rgba(111,155,255,.16);
+  --noise:.045;
+}
+@media (prefers-color-scheme:dark){
+  html:not(.theme-light){
+    color-scheme:dark;
+    --glass-1:rgba(28,36,58,.58); --glass-2:rgba(28,36,58,.32);
+    --glass-3:rgba(255,255,255,.05);
+    --glass-border:rgba(255,255,255,.14); --glass-edge:rgba(255,255,255,.18);
+    --glass-shadow:0 14px 44px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.35);
+    --glass-inset:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.28);
+    --sheen:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,0) 34%);
+    --bg:#05080f;
+    --bg-grad:
+      radial-gradient(58% 42% at 10% -8%,#1d3a8f 0%,rgba(29,58,143,0) 60%),
+      radial-gradient(52% 40% at 98% 4%,#0b6d86 0%,rgba(11,109,134,0) 58%),
+      radial-gradient(60% 46% at 84% 98%,#5b21a8 0%,rgba(91,33,168,0) 62%),
+      radial-gradient(46% 36% at 6% 94%,#0f5132 0%,rgba(15,81,50,0) 58%),
+      linear-gradient(160deg,#060a14 0%,#080d1a 50%,#0b0716 100%);
+    --text:#e9eefc; --text2:#9aa8c4; --text3:#7183a3;
+    --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+    --card:var(--glass-1); --card-solid:rgba(20,27,45,.93);
+    --accent:#6f9bff; --accent-2:#a78bfa; --on-accent:#061024; --accent2:#9aa8c4;
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --chip:rgba(111,155,255,.16); --noise:.045;
+  }
+}
+
+html,body{margin:0;padding:0;min-height:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  padding-bottom:112px;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+  transition:background .35s ease,color .35s ease;
+}
+/* 彩色光晕底：为毛玻璃提供可模糊的彩色背景 */
+body::before{
+  content:"";position:fixed;inset:-14%;z-index:-2;pointer-events:none;
+  background-image:var(--bg-grad);background-repeat:no-repeat;
+  filter:blur(8px) saturate(118%);
+}
+/* 细颗粒噪点：磨砂质感的关键 */
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  opacity:var(--noise);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- 顶栏（磨砂） ---------- */
+.appbar{
+  position:sticky;top:0;z-index:50;
+  padding:15px 16px 12px;
+  background:linear-gradient(180deg,var(--glass-1),var(--glass-2));
+  border-bottom:1px solid var(--glass-border);
+  box-shadow:0 6px 26px rgba(28,36,72,.10);
+  backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+}
+.appbar h1{
+  margin:0;font-size:19.5px;font-weight:800;letter-spacing:.2px;
+  display:flex;align-items:center;gap:8px;
+}
+.appbar .sub{font-size:12px;color:var(--text2);margin-top:3px;word-break:break-all}
+.theme-btn{
+  position:absolute;right:14px;top:14px;width:41px;height:41px;border-radius:15px;
+  border:1px solid var(--glass-border);color:var(--text);font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.72),rgba(255,255,255,.32));
+  box-shadow:0 6px 18px rgba(28,36,72,.12),inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  transition:transform .15s,filter .2s;
+}
+html.theme-dark .theme-btn{background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.05))}
+.theme-btn:active{transform:scale(.93)}
+
+.wrap{padding:13px 14px 4px}
+
+/* ---------- 玻璃卡片 ---------- */
+.card{
+  position:relative;isolation:isolate;
+  padding:16px;margin-bottom:13px;border-radius:22px;
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-2));
+  box-shadow:var(--glass-shadow),var(--glass-inset);
+  backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  overflow:hidden;
+}
+.card::after{
+  content:"";position:absolute;left:16px;right:16px;top:0;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--glass-edge),transparent);
+}
+.card-head{
+  font-size:15px;font-weight:800;letter-spacing:.1px;margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.tagline{font-size:11px;font-weight:500;color:var(--text3)}
+.kv{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:9px 0;font-size:13.5px;border-bottom:1px dashed var(--line2);
+}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--text2);flex:none}
+.kv b{font-weight:650;text-align:right;word-break:break-all}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid.cols4{grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:430px){.grid.cols4{grid-template-columns:repeat(2,1fr)}}
+.metric{
+  position:relative;overflow:hidden;padding:14px;border-radius:18px;
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-3));
+  box-shadow:inset 0 1px 0 var(--glass-edge),0 4px 14px rgba(28,36,72,.07);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+}
+.metric .n{
+  font-size:22px;font-weight:800;letter-spacing:-.6px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.metric .l{font-size:11.5px;color:var(--text2);margin-top:5px;letter-spacing:.2px}
+
+/* ---------- 玻璃按钮 ---------- */
+.btn{
+  appearance:none;flex:1;min-width:0;cursor:pointer;font-family:inherit;
+  padding:12px 15px;border-radius:16px;font-size:13.5px;font-weight:700;letter-spacing:.1px;
+  color:var(--text);border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.66),rgba(255,255,255,.30));
+  box-shadow:0 6px 18px rgba(28,36,72,.10),inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  transition:transform .14s cubic-bezier(.34,1.4,.64,1),box-shadow .2s,filter .2s;
+}
+html.theme-dark .btn{background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.045))}
+.btn:hover{filter:brightness(1.04)}
+.btn:active{transform:scale(.965);box-shadow:0 3px 10px rgba(28,36,72,.14),inset 0 1px 0 var(--glass-edge)}
+.btn.primary{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+  box-shadow:0 10px 26px rgba(59,109,246,.36),inset 0 1px 0 rgba(255,255,255,.45);
+}
+.btn.ok{
+  color:var(--ok);border-color:rgba(16,185,129,.42);
+  background-image:linear-gradient(150deg,rgba(16,185,129,.26),rgba(16,185,129,.06));
+  box-shadow:0 8px 20px rgba(16,185,129,.16),inset 0 1px 0 var(--glass-edge);
+}
+.btn.danger{
+  color:var(--err);border-color:rgba(239,68,68,.42);
+  background-image:linear-gradient(150deg,rgba(239,68,68,.24),rgba(239,68,68,.05));
+  box-shadow:0 8px 20px rgba(239,68,68,.15),inset 0 1px 0 var(--glass-edge);
+}
+.btn.sm{padding:7px 12px;font-size:12px;border-radius:12px;flex:none}
+.btn-row{display:flex;gap:9px;margin-top:10px;flex-wrap:wrap}
+.btn-row .btn{min-width:0}
+
+/* ---------- 输入控件 ---------- */
+.ta,input[type=text],input[type=url],input[type=number],select{
+  width:100%;margin-top:8px;padding:11px 13px;font-family:inherit;font-size:13px;
+  color:var(--text);border-radius:14px;border:1px solid var(--glass-border);
+  background-image:linear-gradient(160deg,rgba(255,255,255,.56),rgba(255,255,255,.22));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(12px) saturate(150%);-webkit-backdrop-filter:blur(12px) saturate(150%);
+  outline:none;
+}
+html.theme-dark .ta,html.theme-dark input[type=text],html.theme-dark input[type=url],html.theme-dark input[type=number],html.theme-dark select{
+  background-image:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+}
+.ta{min-height:120px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+input::placeholder,.ta::placeholder{color:var(--text3)}
+select{appearance:none}
+.hint{font-size:11.5px;color:var(--text2);margin:7px 0 2px;line-height:1.55}
+
+/* ---------- 标签 / 分段 ---------- */
+.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:80;margin:0;
+  display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;
+  padding:9px 11px calc(9px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,var(--glass-1),var(--card-solid));
+  border-top:1px solid var(--glass-border);
+  box-shadow:0 -8px 30px rgba(28,36,72,.13);
+  backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:none;white-space:nowrap;cursor:pointer;
+  padding:9px 16px;border-radius:15px;font-size:13px;font-weight:700;
+  color:var(--text2);border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.60),rgba(255,255,255,.26));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  transition:transform .16s,color .2s,background .2s;
+}
+html.theme-dark .tab{background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.04))}
+.tab.on{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+  box-shadow:0 8px 22px rgba(59,109,246,.34),inset 0 1px 0 rgba(255,255,255,.4);
+}
+.tab:active{transform:scale(.96)}
+.subtabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.subtab{
+  cursor:pointer;padding:7px 13px;border-radius:13px;font-size:12.5px;font-weight:700;
+  color:var(--accent);border:1px solid var(--glass-border);background:var(--chip);
+  transition:transform .16s;
+}
+.subtab.on{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+}
+.subtab:active{transform:scale(.96)}
+.subtabline{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+.subchk,.sub{font-size:12.5px;color:var(--text2)}
+.subpage{margin-top:6px}
+
+/* ---------- 提示条 ---------- */
+.alert{border-radius:15px;padding:11px 14px;font-size:12.5px;margin-bottom:10px;line-height:1.55;border:1px solid}
+.alert.warn{background:rgba(245,158,11,.15);color:#a25c07;border-color:rgba(245,158,11,.34)}
+.alert.ok{background:rgba(16,185,129,.15);color:#047857;border-color:rgba(16,185,129,.34)}
+.alert.err{background:rgba(239,68,68,.15);color:#b91c1c;border-color:rgba(239,68,68,.34)}
+html.theme-dark .alert.warn{color:#fbbf24}
+html.theme-dark .alert.ok{color:#4ade80}
+html.theme-dark .alert.err{color:#f87171}
+
+/* ---------- 列表 / 行 ---------- */
+.list{
+  max-height:360px;overflow:auto;margin-top:8px;border-radius:14px;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+}
+.list::-webkit-scrollbar{width:6px;height:6px}
+.list::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.row{
+  display:flex;align-items:center;gap:9px;padding:10px 12px;margin-bottom:7px;
+  border-radius:14px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.56),rgba(255,255,255,.24));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+}
+html.theme-dark .row{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.row .t{flex:1;min-width:0;font-size:12.5px;word-break:break-all}
+.row .del{
+  flex:none;width:32px;height:32px;border-radius:11px;cursor:pointer;font-size:16px;font-weight:700;
+  color:var(--err);border:1px solid rgba(239,68,68,.4);
+  background:linear-gradient(150deg,rgba(239,68,68,.22),rgba(239,68,68,.05));
+}
+.row .ln{flex:none;min-width:26px;text-align:center;font-size:11px;color:var(--text3);font-family:ui-monospace,monospace}
+.chk{
+  display:flex;align-items:center;gap:9px;padding:10px 12px;margin-bottom:7px;font-size:12.5px;
+  border-radius:14px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.54),rgba(255,255,255,.22));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+}
+html.theme-dark .chk{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.chk input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--text2);word-break:break-all}
+.empty{text-align:center;color:var(--text3);font-size:12.5px;padding:20px}
+.glass{
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-2));
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+}
+
+/* ---------- Shadowrocket 风格行 ---------- */
+.sr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line2)}
+.sr-row:last-child{border-bottom:none}
+.sr-row .sr-l{font-size:13.5px;font-weight:600}
+.sr-row .sr-l small{display:block;color:var(--text2);font-size:11px;font-weight:400;margin-top:2px}
+.sr-node{
+  display:flex;align-items:center;gap:11px;padding:12px;margin-bottom:8px;cursor:pointer;
+  border-radius:15px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.56),rgba(255,255,255,.24));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  transition:transform .16s,box-shadow .2s;
+}
+html.theme-dark .sr-node{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.sr-node:active{transform:scale(.985)}
+.sr-node.on{border-color:var(--accent);box-shadow:0 8px 24px rgba(59,109,246,.28),inset 0 1px 0 var(--glass-edge)}
+.sr-node .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--text3);box-shadow:0 0 0 3px rgba(59,109,246,.14)}
+.sr-node.on .dot{background:var(--accent);box-shadow:0 0 0 3px rgba(59,109,246,.34)}
+.sr-node .nm{flex:1;min-width:0;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-node .pf{
+  flex:none;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  padding:3px 8px;border-radius:8px;background:var(--chip);color:var(--accent);
+}
+.sr-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:9px;background:var(--chip);color:var(--accent);
+}
+.sr-badge.on{background:linear-gradient(150deg,rgba(16,185,129,.26),rgba(16,185,129,.08));color:var(--ok)}
+.sr-badge.off{background:rgba(148,163,184,.16);color:var(--text2)}
+
+/* ---------- Toast / 加载 ---------- */
+#toast{
+  position:fixed;left:50%;bottom:30px;z-index:999;max-width:88vw;
+  transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+  padding:12px 19px;border-radius:17px;font-size:13px;color:#fff;
+  background:linear-gradient(150deg,rgba(30,41,59,.88),rgba(30,41,59,.74));
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 14px 38px rgba(0,0,0,.42);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  transition:opacity .25s,transform .25s;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.spin{
+  display:inline-block;width:14px;height:14px;vertical-align:-2px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.45);border-top-color:#fff;animation:sp .7s linear infinite;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.hide{display:none!important}
+
+/* ---------- 引擎页专用 ---------- */
+.bar{height:9px;border-radius:9px;background:rgba(127,145,180,.20);overflow:hidden;margin-top:8px}
+.bar > i{
+  display:block;height:100%;border-radius:9px;
+  background-image:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.chip{
+  font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:11px;
+  background:var(--chip);color:var(--accent);border:1px solid var(--glass-border);
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+}
+.chip b{color:var(--text);font-weight:800}
+
+/* ---------- 无 backdrop-filter 环境降级 ---------- */
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
+  :root{--glass-1:rgba(255,255,255,.90);--glass-2:rgba(255,255,255,.80)}
+  html.theme-dark{--glass-1:rgba(24,31,50,.94);--glass-2:rgba(24,31,50,.88)}
+  .card,.btn,.metric,.tab,.row,.chk,.sr-node,.theme-btn{background-image:none;background-color:var(--glass-1)}
+  .btn.primary,.tab.on{background-color:var(--accent)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <h1>🛡️ SY</h1>
+  <div class="sub" id="sysline">正在连接内核…</div>
+  <button class="theme-btn" data-act="theme" title="切换深浅色">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="tabs" id="tabs">
+    <div class="tab on" data-tab="home">总览</div>
+    <div class="tab" data-tab="dns">hosts 拦截</div>
+    <div class="tab" data-tab="engine">规则引擎</div>
+    <div class="tab" data-tab="dnssrv">DNS</div>
+    <div class="tab" data-tab="netblock">网络拦截</div>
+    <div class="tab" data-tab="proxynode">网络代理</div>
+    <div class="tab" data-tab="mitm">MITM 代理</div>
+    <div class="tab" data-tab="splash">开屏跳过</div>
+    <div class="tab" data-tab="notify">通知过滤</div>
+    <div class="tab" data-tab="scripts">脚本扩展</div>
+    <div class="tab" data-tab="tools">工具</div>
+    <div class="tab" data-tab="settings">设置</div>
+  </div>
+
+  <!-- ================= 总览 ================= -->
+  <section class="page" id="page-home">
+    <div class="card">
+      <div class="card-head">运行总览<span class="tagline" id="ovTime"></span></div><div class="grid cols4">
+        <div class="metric glass"><div class="n" id="ovDns">-</div><div class="l">DNS 拦截域名</div></div>
+        <div class="metric glass"><div class="n" id="ovBlocked">-</div><div class="l">累计拦截</div></div>
+        <div class="metric glass"><div class="n" id="ovMitm">-</div><div class="l">MITM 代理</div></div>
+        <div class="metric glass"><div class="n" id="ovSplash">-</div><div class="l">开屏跳过次数</div></div>
+      </div></div>
+    <div class="card">
+      <div class="card-head">系统状态</div>
+      <div class="kv"><span>内存占用</span><b id="ovMem">-</b></div>
+      <div class="kv"><span>服务组件 CPU</span><b id="ovCpu">-</b></div>
+      <div class="kv"><span>开机时长</span><b id="ovUp">-</b></div>
+      <div class="kv"><span>面板服务</span><b id="ovPanel">-</b></div>
+    </div>
+    <div class="card">
+      <div class="card-head">面板服务（局域网后台）</div>
+      <div class="hint">同一 Wi-Fi 下用手机/电脑浏览器打开即可管理，无需数据线。若显示"已停止"，点「启动」或「重启」即可拉起。</div>
+      <div class="kv"><span>服务状态</span><b id="pnRun">-</b></div>
+      <div class="kv"><span>监听端口</span><b id="pnPort">-</b></div>
+      <div class="kv"><span>访问地址</span><b id="pnUrl" class="mono">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="panel-start">启动</button>
+        <button class="btn ok" data-act="panel-restart">重启</button>
+        <button class="btn danger" data-act="panel-stop">停止</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="panel-open">显示访问链接</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">运行日志<span class="tagline">dns / mitm / proxy / 内核</span></div>
+      <div class="hint">查看模块各组件运行日志，辅助定位问题。日志保存在 /data/adb/SY/logs。</div>
+      <div class="list" id="logList"></div>
+      <div class="btn-row">
+        <button class="btn" data-act="logs-refresh">刷新列表</button>
+        <button class="btn danger" data-act="logs-clear-all">清空全部日志</button>
+      </div>
+      <pre class="ta" id="logView" style="white-space:pre-wrap;max-height:40vh;overflow:auto;margin:0">点击上方「查看」显示日志</pre>
+    </div>
+    <div class="btn-row"><button class="btn primary" data-act="refresh-home">刷新总览</button></div>
+  </section>
+
+  <!-- ================= DNS ================= -->
+  <section class="page hide" id="page-dns">
+    <div class="card">
+      <div class="card-head">hosts 去广告<span class="tagline" id="hostsTag"></span></div>
+      <div class="hint">DNS 层拦截核心：拦截域名写入系统 hosts 并绑定挂载，实现全设备去广告。</div>
+      <div class="kv"><span>拦截开关</span><button class="btn sm primary" id="tgHosts" data-act="hosts-toggle">-</button></div>
+      <div class="kv"><span>挂载状态</span><b id="hostsMount">-</b></div>
+      <div class="kv"><span>生效条目</span><b id="hostsCount">-</b></div>
+      <div class="kv"><span>规则来源</span><b id="hostsMode">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="dns-apply">应用规则</button>
+        <button class="btn ok" data-act="dns-update">更新订阅</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="hosts-load">读取 hosts</button>
+        <button class="btn" data-act="hosts-mount">重新挂载</button>
+        <button class="btn danger" data-act="hosts-unmount">卸载挂载</button>
+        <button class="btn danger" data-act="hosts-clear">一键删除 hosts</button>
+      </div>
+      <textarea class="ta" id="hostsText" placeholder="0.0.0.0 ads.example.com"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="hosts-save">保存并挂载</button>
+        <button class="btn" data-act="hosts-regen">恢复自动生成</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">规则中心</div>
+      <div class="subtabs">
+        <div class="subtab on" data-sub="dns-import">导入规则</div>
+        <div class="subtab" data-sub="dns-custom">自定义规则</div>
+        <div class="subtab" data-sub="dns-preview">已生效规则</div><div class="subtab" data-sub="dns-src">订阅源</div>
+        <div class="subtab" data-sub="dns-black">黑名单</div>
+      </div><div class="subpage" id="sub-dns-import">
+        <div class="hint">支持 AdGuard(||domain^)、hosts、纯域名 三种格式；每行一条。</div>
+        <textarea class="ta" id="dnsImportText" placeholder="||doubleclick.net^&#10;0.0.0.0 ads.example.com&#10;track.example.org"></textarea>
+        <div class="btn-row">
+          <button class="btn primary" data-act="dns-import-text">导入并生效</button>
+          <button class="btn danger" data-act="dns-import-clear">清空输入</button>
+        </div>
+      </div>
+      <div class="subpage hide" id="sub-dns-custom">
+        <div class="hint">当前自定义规则（每行一条），可逐条删除或整体覆盖保存。</div>
+        <div class="list" id="dnsCustomList"></div>
+        <textarea class="ta" id="dnsCustomText" placeholder="每行一条自定义域名"></textarea>
+        <input type="file" id="dnsCustomFile" accept=".txt,.list,.conf,text/plain" style="display:none">
+        <div class="btn-row">
+          <button class="btn primary" data-act="dns-custom-save">覆盖保存</button>
+          <button class="btn ok" data-act="dns-custom-import-file">导入文件</button>
+          <button class="btn" data-act="dns-custom-load">载入当前</button>
+          <button class="btn danger" data-act="dns-custom-clear">清空全部</button>
+        </div>
+      </div>
+      <div class="subpage hide" id="sub-dns-preview">
+        <div class="hint" id="dnsPreviewInfo">-</div>
+        <div class="hint">每行「删除」可将该域名从当前生效规则中移除（加入排除表）。</div>
+        <div class="list" id="dnsPreview"></div>
+<div class="btn-row"><button class="btn" data-act="dns-preview-load">刷新预览</button>
+          <button class="btn danger" data-act="dns-batch-del">批量删除所选</button></div>
+      </div><div class="subpage hide" id="sub-dns-src">
+        <div class="list" id="srcList"></div>
+        <input type="url" id="srcUrl" placeholder="订阅地址 https://.../rules.txt">
+        <input type="text" id="srcName" placeholder="备注名（可选）">
+        <div class="btn-row"><button class="btn primary" data-act="dns-src-add">添加订阅</button></div>
+      </div>
+      <div class="subpage hide" id="sub-dns-black">
+        <div class="hint">黑名单域名强制拦截，优先级高于白名单（同时拦截 www. 子域）。支持批量 / 文件导入。</div>
+        <div class="list" id="blList"></div>
+        <input type="text" id="blInput" placeholder="加入黑名单的域名，如 ads.example.com">
+        <textarea class="ta" id="blImport" placeholder="批量导入：每行一个域名"></textarea>
+        <input type="file" id="blFile" accept=".txt,.list,.conf,text/plain" style="display:none">
+        <div class="btn-row">
+          <button class="btn primary" data-act="bl-add">添加黑名单</button>
+          <button class="btn ok" data-act="bl-import-text">批量导入</button>
+          <button class="btn ok" data-act="bl-import-file">导入文件</button>
+          <button class="btn danger" data-act="bl-batch-del">批量删除所选</button>
+          <button class="btn danger" data-act="bl-clear">清空黑名单</button>
+        </div>
+      </div>
+    </div><div class="card">
+      <div class="card-head">规则源订阅<span class="tagline">从仓库获取拦截规则</span></div>
+      <div class="hint">模块不内置任何规则，拦截规则全部从下方仓库订阅。选用后会自动同步。</div>
+      <div class="list" id="ruleRepoList"></div>
+      <input type="text" id="ruleRepoInput" placeholder="添加规则仓库 owner/repo，如 vip-svip/SY-Rules">
+      <div class="btn-row">
+        <button class="btn primary" data-act="rule-repo-add">添加规则源</button>
+        <button class="btn ok" data-act="rule-sync">同步当前规则源</button>
+      </div>
+    </div><div class="card">
+      <div class="card-head">白名单<span class="tagline">白名单域名不拦截</span></div>
+      <div class="list" id="wlList"></div>
+      <input type="text" id="wlInput" placeholder="加入白名单的域名，如 example.com">
+      <div class="btn-row"><button class="btn primary" data-act="wl-add">添加白名单</button></div>
+    </div>
+  
+    <div class="card">
+      <div class="card-head">过滤引擎<span class="tagline">AdGuard · uBlock Origin 语法</span></div>
+      <div class="hint">兼容 AdGuard/uBlock：拦截 <b>||domain^</b>、放行 <b>@@||domain^</b>、正则 <b>/re/</b>、重写 <b>$dnsrewrite=</b>；修饰符 <b>$important</b>、<b>$badfilter</b>。优先级：重要放行 &gt; 重要拦截 &gt; 普通放行 &gt; 普通拦截。</div>
+      <div class="kv"><span>普通拦截</span><b id="fltBlock">-</b></div>
+      <div class="kv"><span>重要拦截</span><b id="fltBlockImp">-</b></div>
+      <div class="kv"><span>普通放行</span><b id="fltAllow">-</b></div>
+      <div class="kv"><span>重要放行</span><b id="fltAllowImp">-</b></div>
+      <div class="kv"><span>正则 / 重写</span><b id="fltReRw">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="filter-refresh">刷新统计</button>
+        <button class="btn ok" data-act="filter-build">重建过滤</button>
+      </div>
+      <div class="hint">规则表列表（多订阅源，可启停 / 更新 / 删除）：</div>
+      <div class="list" id="fltList"></div>
+      <input type="text" id="fltName" placeholder="规则表名称">
+      <input type="url" id="fltUrl" placeholder="规则表 URL https://.../filter.txt">
+      <input type="text" id="fltCat" placeholder="分类（可选）">
+      <div class="btn-row">
+        <button class="btn primary" data-act="lists-add">添加规则表</button>
+        <button class="btn ok" data-act="lists-update-all">更新全部</button>
+      </div>
+      <div class="hint">自定义过滤规则（My filters，优先级最高，每行一条）：</div>
+      <textarea class="ta" id="myRulesText" placeholder="||ads.example.com^&#10;@@||good.example.com^&#10;||track.com^$important"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="my-rules-save">保存规则</button>
+        <button class="btn" data-act="my-rules-load">载入当前</button>
+        <button class="btn danger" data-act="my-rules-clear">清空规则</button>
+      </div>
+      <div class="kv"><span>域名测试</span><input type="text" id="fltTestIn" placeholder="如 ads.example.com"><button class="btn sm" data-act="filter-test">测试</button></div>
+      <div class="hint" id="fltTestOut">-</div>
+    </div>
+</section>
+
+  <!-- ================= DNSSRV ================= -->
+  <section class="page hide" id="page-dnssrv">
+    <div class="card">
+      <div class="card-head">DNS 接管状态</div>
+      <div class="hint">独立 DNS 层：将全设备 53 端口解析重定向到指定服务器，可防 DNS 泄露。</div>
+      <div class="kv"><span>当前模式</span><b id="dsMode">-</b></div>
+      <div class="kv"><span>服务器数量</span><b id="dsCount">-</b></div>
+      <div class="kv"><span>DoH</span><b id="dsDoh">-</b></div>
+      <div class="kv"><span>DoT</span><b id="dsDot">-</b></div>
+      <div class="kv"><span>防泄露</span><b id="dsLeak">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="ds-apply">应用 DNS 接管</button>
+        <button class="btn danger" data-act="ds-clear">停止接管</button>
+        <button class="btn" data-act="ds-test">解析测试</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">接管模式</div>
+      <div class="btn-row">
+        <button class="btn" data-act="ds-mode" data-v="custom">自定义服务器</button>
+        <button class="btn" data-act="ds-mode" data-v="auto">系统自动</button>
+        <button class="btn" data-act="ds-mode" data-v="off">关闭接管</button>
+      </div>
+      <input type="text" id="dsDohInput" placeholder="DoH 地址，如 https://dns.alidns.com/dns-query">
+      <input type="text" id="dsDotInput" placeholder="DoT 地址，如 tls://dns.google:853">
+      <div class="btn-row">
+        <button class="btn primary" data-act="ds-set-doh">保存 DoH</button>
+        <button class="btn primary" data-act="ds-set-dot">保存 DoT</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn ok" data-act="ds-leak-on">开启防泄露</button>
+        <button class="btn danger" data-act="ds-leak-off">关闭防泄露</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">自定义 DNS 服务器<span class="tagline">按顺序，取第一条生效</span></div>
+      <div class="list" id="dsList"></div>
+      <input type="text" id="dsInput" placeholder="DNS 服务器地址，如 223.5.5.5 或 1.1.1.1">
+      <div class="btn-row">
+        <button class="btn primary" data-act="ds-add">添加服务器</button>
+        <button class="btn danger" data-act="ds-clear-servers">清空列表</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= NETBLOCK ================= -->
+  <section class="page hide" id="page-netblock">
+    <div class="card">
+      <div class="card-head">网络拦截状态</div>
+      <div class="hint">多类型规则拦截：域名 / IP / 网段 / 端口 / 关键词，统一生效。</div>
+      <div class="grid">
+        <div class="metric"><div class="n" id="nbDomain">-</div><div class="l">域名</div></div>
+        <div class="metric"><div class="n" id="nbIp">-</div><div class="l">IP</div></div>
+        <div class="metric"><div class="n" id="nbCidr">-</div><div class="l">网段</div></div>
+        <div class="metric"><div class="n" id="nbPort">-</div><div class="l">端口</div></div>
+      </div>
+      <div class="kv"><span>防火墙规则</span><b id="nbApplied">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="nb-apply">应用拦截规则</button>
+        <button class="btn" data-act="nb-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">添加拦截规则</div>
+      <select id="nbType">
+        <option value="domain">域名 (0.0.0.0 hosts)</option>
+        <option value="ip">单个 IP</option>
+        <option value="cidr">网段 CIDR</option>
+        <option value="port">端口</option>
+        <option value="keyword">关键词 (内容层)</option>
+        <option value="app">应用 (按包名/uid 拦截)</option>
+      </select>
+      <input type="text" id="nbInput" placeholder="规则值，如 ads.example.com / 1.2.3.4 / 10.0.0.0/8 / 8080 / 广告">
+      <div class="btn-row">
+        <button class="btn primary" data-act="nb-add">添加规则</button>
+        <button class="btn ok" data-act="nb-import-file">本地导入</button>
+        <button class="btn ok" data-act="nb-import-net">网络导入</button>
+      </div>
+      <div class="hint">应用拦截：选择应用后该应用的全部流量将被切断（iptables owner 匹配）。</div>
+      <input type="text" id="nbAppSearch" placeholder="搜索已安装应用…">
+      <div class="list" id="nbAppList"></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="nb-apps-load">加载应用列表</button>
+        <button class="btn ok" data-act="nb-apps-add">添加所选应用</button>
+        <button class="btn danger" data-act="nb-apps-batch-del">批量删除所选应用</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">规则列表</div>
+      <div class="subtabline">
+        <span class="subtab on" data-nb="domain">域名</span>
+        <span class="subtab" data-nb="ip">IP</span>
+        <span class="subtab" data-nb="cidr">网段</span>
+        <span class="subtab" data-nb="port">端口</span>
+        <span class="subtab" data-nb="keyword">关键词</span>
+        <span class="subtab" data-nb="app">应用</span>
+      </div>
+      <div class="list" id="nbList"></div>
+      <textarea class="ta" id="nbImport" placeholder="批量导入（每行一条）：&#10;ads.example.com&#10;1.2.3.4&#10;10.0.0.0/8"></textarea>
+      <input type="file" id="nbFile" accept=".txt,.list,.conf,text/plain" style="display:none">
+      <div class="btn-row">
+        <button class="btn primary" data-act="nb-import">批量导入当前类型</button>
+        <button class="btn ok" data-act="nb-import-file2">导入文件</button>
+        <button class="btn danger" data-act="nb-batch-del">批量删除所选</button>
+        <button class="btn danger" data-act="nb-clear">清空当前类型</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PROXYNODE ================= -->
+  <section class="page hide" id="page-proxynode">
+    <div class="card">
+      <div class="card-head">网络代理状态</div>
+      <div id="pnAlert" class="alert warn">正在检测代理内核…</div>
+      <div class="kv"><span>引擎运行</span><b id="pnRunning">-</b></div>
+      <div class="kv"><span>代理内核</span><b id="pnCore">-</b></div>
+      <div class="kv"><span>当前节点</span><b id="pnSel">-</b></div>
+      <div class="kv"><span>节点数量</span><b id="pnCount">-</b></div>
+      <div class="kv"><span>防 IP 泄露</span><b id="pnLeak">-</b></div><div class="btn-row">
+        <button class="btn ok" data-act="pn-up">启动代理</button>
+        <button class="btn danger" data-act="pn-down">停止代理</button>
+        <button class="btn" data-act="pn-restart">重启内核</button>
+        <button class="btn" data-act="pn-gen-config">生成配置</button>
+      </div>
+    </div>
+    <div class="card glass">
+      <div class="card-head">代理内核<span class="tagline">sing-box / xray</span></div>
+      <div class="kv"><span>当前内核</span><b id="pnCore2">-</b></div>
+      <div class="kv"><span>内核配置</span><b id="pnCfg">-</b></div>
+      <div class="hint">未内置内核时点「一键获取内置内核」自动按 CPU 架构下载 sing-box；也可填直链手动下载，或手动放入模块 bin/ 目录。</div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="pn-core-ensure">一键获取内置内核</button>
+        <button class="btn ok" data-act="pn-gen-config2">生成内核配置</button>
+        <button class="btn" data-act="pn-cfg-load">载入配置</button>
+      </div>
+      <input type="url" id="pnCoreUrl" placeholder="内核下载直链（可选），如 https://.../sing-box.tar.gz">
+      <div class="btn-row">
+        <button class="btn" data-act="pn-core-download">手动下载内核</button>
+      </div>
+      <textarea class="ta" id="pnCfgText" placeholder="内核 config.json（可手动编辑后保存）"></textarea>
+      <div class="btn-row"><button class="btn primary" data-act="pn-cfg-save">保存配置</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head">防节点 IP 泄露<span class="tagline">推荐常开</span></div><div class="hint">开启后：代理未就绪时切断直连（杀伤开关）+ DNS 走隧道 + 阻断 WebRTC/组播泄露，杜绝真实 IP 外泄。</div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="pn-leak-on">一键开启防泄露</button>
+        <button class="btn danger" data-act="pn-leak-off">关闭防泄露</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">节点管理</div>
+      <div class="list" id="pnList"></div>
+      <input type="text" id="pnName" placeholder="节点备注名，如 香港 01">
+      <select id="pnProto">
+        <option value="vmess">vmess</option>
+        <option value="vless">vless</option>
+        <option value="trojan">trojan</option>
+        <option value="ss">ss</option>
+        <option value="hysteria2">hysteria2</option>
+        <option value="auto">自动识别</option>
+      </select>
+      <textarea class="ta" id="pnLink" placeholder="节点分享链接，如 vmess://... / vless://... / trojan://... / ss://..."></textarea>
+      <div class="btn-row"><input type="url" id="pnSubUrl" placeholder="节点订阅链接（自动拉取节点）">
+      <div class="btn-row">
+        <button class="btn primary" data-act="pn-add">添加节点</button>
+        <button class="btn ok" data-act="pn-import">批量导入链接</button>
+        <button class="btn ok" data-act="pn-import-url">订阅导入</button>
+        <button class="btn" data-act="pn-refresh">刷新</button>
+        <button class="btn danger" data-act="pn-batch-del">批量删除所选</button>
+        <button class="btn danger" data-act="pn-clear">清空节点</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">代理订阅<span class="tagline">可多订阅同用</span></div>
+      <div class="hint">每个订阅可独立开关；开启的订阅会在「订阅导入 / 更新全部启用订阅」时一起拉取，节点合并使用。</div>
+      <div class="list" id="pnSubList"></div>
+      <input type="url" id="pnSubAdd" placeholder="新增代理订阅链接">
+      <div class="btn-row">
+        <button class="btn primary" data-act="pn-sub-add">添加订阅</button>
+        <button class="btn ok" data-act="pn-sub-update">更新全部启用订阅</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">运行日志</div><div class="list mono" id="pnLogs"></div>
+      <div class="btn-row"><button class="btn" data-act="pn-logs">刷新日志</button></div>
+    </div>
+  </section>
+
+  <!-- ================= MITM ================= -->
+  <section class="page hide" id="page-mitm">
+    <div class="card">
+      <div class="card-head">代理状态</div>
+      <div id="mitmAlert" class="alert warn">正在检测代理组件…</div>
+      <div class="kv"><span>运行状态</span><b id="mitmRun">-</b></div>
+      <div class="kv"><span>根证书</span><b id="mitmCa">-</b></div>
+      <div class="kv"><span>根证书模块</span><b id="mitmCaMod">-</b></div>
+      <div class="kv"><span>证书哈希</span><b id="mitmCaHash">-</b></div>
+      <div class="kv"><span>重定向规则</span><b id="mitmRedirect">-</b></div>
+      <div class="kv"><span>代理端口</span><b id="mitmPort">-</b></div>
+      <div class="btn-row">
+        <button class="btn ok" data-act="mitm-up">开启代理</button>
+        <button class="btn danger" data-act="mitm-down">关闭代理</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="mitm-ca-install">安装根证书</button>
+        <button class="btn ok" data-act="mitm-ca-release">释放证书模块</button>
+        <button class="btn" data-act="mitm-ca-view">查看证书信息</button>
+        <button class="btn danger" data-act="mitm-ca-uninstall">删除根证书</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">拦截统计</div>
+      <div class="grid">
+        <div class="metric"><div class="n" id="stReq">-</div><div class="l">总请求</div></div>
+        <div class="metric"><div class="n" id="stBlocked">-</div><div class="l">已拦截</div></div>
+        <div class="metric"><div class="n" id="stHttps">-</div><div class="l">HTTPS 解密</div></div>
+        <div class="metric"><div class="n" id="stImg">-</div><div class="l">空图替换</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">生效应用<span class="tagline">仅所选应用走代理</span></div>
+      <input type="text" id="appSearch" placeholder="搜索应用包名…">
+      <div class="list" id="appPicker"></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="mitm-apps-save">保存生效应用</button>
+        <button class="btn" data-act="mitm-apps-load">载入已选</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">内容替换规则</div>
+      <div class="hint">支持 域名 / ||域名^ / URL子串 / regex:正则；逐条可删。</div>
+      <div class="list" id="mitmRuleList"></div>
+      <textarea class="ta" id="mitmRules" placeholder="doubleclick.net&#10;||ad.example.com^&#10;regex:.*/banner/.*"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="mitm-rules-add">添加规则</button>
+        <button class="btn" data-act="mitm-rules-reload">刷新列表</button>
+        <button class="btn danger" data-act="mitm-rules-clear">清空规则</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SPLASH ================= -->
+  <section class="page hide" id="page-splash">
+    <div class="card">
+      <div class="card-head">开屏广告跳过</div>
+      <div class="kv"><span>守护进程</span><b id="spRun">-</b></div>
+      <div class="kv"><span>启用状态</span><b id="spEn">-</b></div>
+      <div class="kv"><span>累计跳过</span><b id="spSkip">-</b></div>
+      <div class="btn-row">
+        <button class="btn ok" data-act="splash-start">启动</button>
+        <button class="btn danger" data-act="splash-stop">停止</button>
+        <button class="btn primary" data-act="splash-enable">启用</button>
+        <button class="btn" data-act="splash-disable">停用</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">跳过规则<span class="tagline">包名|备注</span></div>
+      <div class="list" id="spRules"></div>
+      <textarea class="ta" id="spRulesText" placeholder="com.example.app|某应用"></textarea>
+      <input type="file" id="spFile" accept=".txt,.list,.conf,text/plain" style="display:none">
+      <div class="btn-row">
+        <button class="btn primary" data-act="splash-rules-save">覆盖保存</button>
+        <button class="btn ok" data-act="splash-rules-import-text">批量导入文本</button>
+        <button class="btn ok" data-act="splash-rules-import-file">本地导入</button>
+        <button class="btn ok" data-act="splash-rules-import-net">网络导入</button>
+      </div>
+      <input type="url" id="spNetUrl" placeholder="网络导入规则地址（每行 包名|备注）">
+      <div class="btn-row">
+        <button class="btn" data-act="splash-rules-load">载入当前</button>
+        <button class="btn danger" data-act="splash-rules-batch-del">批量删除所选</button>
+        <button class="btn danger" data-act="splash-rules-clear">清空规则</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">跳过记录</div>
+      <div class="list mono" id="spRecords"></div>
+      <div class="btn-row">
+        <button class="btn" data-act="splash-records">刷新记录</button>
+        <button class="btn danger" data-act="splash-records-clear">清空记录</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= NOTIFY ================= -->
+  <section class="page hide" id="page-notify">
+    <div class="card">
+      <div class="card-head">通知栏广告过滤</div>
+      <div class="kv"><span>守护进程</span><b id="ntRun">-</b></div>
+      <div class="kv"><span>累计命中</span><b id="ntCount">-</b></div>
+      <div class="btn-row">
+        <button class="btn ok" data-act="notify-start">启动</button>
+        <button class="btn danger" data-act="notify-stop">停止</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">过滤关键词</div>
+      <div class="list" id="ntKeywords"></div>
+      <input type="text" id="ntInput" placeholder="添加关键词，如 限时、红包、活动">
+      <textarea class="ta" id="ntBatch" placeholder="批量导入：每行一个关键词"></textarea>
+      <input type="file" id="ntFile" accept=".txt,.list,.conf,text/plain" style="display:none">
+      <input type="url" id="ntNetUrl" placeholder="网络导入关键词地址">
+      <div class="btn-row">
+        <button class="btn primary" data-act="notify-add">添加关键词</button>
+        <button class="btn ok" data-act="notify-import-text">批量导入文本</button>
+        <button class="btn ok" data-act="notify-import-file">本地导入</button>
+        <button class="btn ok" data-act="notify-import-net">网络导入</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn danger" data-act="notify-batch-del">批量删除所选</button>
+        <button class="btn danger" data-act="notify-clear">清空关键词</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCRIPTS ================= -->
+  <section class="page hide" id="page-scripts">
+    <div class="card">
+      <div class="card-head">安装脚本</div>
+      <input type="url" id="jsUrl" placeholder="脚本 URL（*.user.js）">
+      <input type="text" id="jsSub" placeholder="订阅地址（可选，自动更新）">
+      <div class="btn-row">
+        <button class="btn primary" data-act="js-install">安装脚本</button>
+        <button class="btn ok" data-act="js-subscribe">添加订阅</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">已安装脚本</div>
+      <div class="list" id="jsList"></div>
+      <div class="btn-row"><button class="btn" data-act="js-refresh">刷新列表</button>
+        <button class="btn ok" data-act="js-update-all">全部更新</button>
+        <button class="btn danger" data-act="js-batch-del">批量删除所选</button>
+      </div></div>
+    <div class="card">
+      <div class="card-head">脚本订阅源</div><div class="hint">订阅数量无限制；每条可单独开关，开启的订阅一起更新，脚本合并使用。</div>
+      <div class="list" id="jsSubList"></div>
+      <div class="btn-row">
+        <button class="btn" data-act="js-subs-refresh">刷新订阅</button>
+        <button class="btn ok" data-act="js-sub-enable">启用所选</button>
+        <button class="btn danger" data-act="js-subs-batch-del">批量删除所选</button>
+      </div>
+    </div><div class="card">
+      <div class="card-head">MITM 规则导入</div>
+      <div class="hint">粘贴 QX / Surge / Loon / Shadowrocket 规则，逐行导入。</div>
+      <textarea class="ta" id="mitmImport" placeholder="||ad.example.com^&#10;regex:.*/track.*"></textarea>
+<div class="btn-row">
+        <button class="btn primary" data-act="js-import-mitm">导入到代理规则</button>
+        <button class="btn ok" data-act="js-mitm-to-script">转为脚本</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TOOLS ================= -->
+  <section class="page hide" id="page-tools">
+    <div class="card">
+      <div class="card-head">备份与恢复</div>
+      <div class="list" id="bkList"></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="bk-export">导出备份</button>
+        <button class="btn" data-act="bk-refresh">刷新列表</button>
+      </div>
+      <div class="hint">列表中的备份可点「恢复」一键还原全部配置，或点「删除」移除。</div>
+    </div>
+    <div class="card">
+      <div class="card-head">从文件恢复备份</div>
+      <div class="hint">选择之前导出的 .tar.gz 备份包，一键恢复全部配置与规则。</div>
+      <input type="file" id="bkFile" accept=".gz,.tar.gz,.tgz,application/gzip" style="display:none">
+      <div class="btn-row"><button class="btn primary" data-act="bk-restore-file">选择备份文件并恢复</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head">数据目录</div>
+      <div class="kv"><span>配置目录</span><b class="mono">/data/adb/SY</b></div>
+      <div class="kv"><span>根证书模块</span><b class="mono">SY_cert</b></div>
+      <div class="hint">根证书在安装主模块时自动生成并释放为独立子模块，重启后系统全局信任。</div>
+    </div>
+    <div class="card">
+      <div class="card-head">关于</div>
+      <div class="kv"><span>模块版本</span><b id="abVer">-</b></div>
+      <div class="kv"><span>内核接口</span><b id="abKsu">-</b></div>
+      <div class="kv"><span>面板服务</span><b id="abPanel">-</b></div>
+    </div>
+  </section>
+
+  <!-- ================= 规则引擎 ================= -->
+  <section class="page hide" id="page-engine">
+    <div class="card">
+      <div class="card-head">融合引擎<span class="tagline">AdGuard Home + uBlock Origin</span></div>
+      <div class="hint">统一解析 hosts / dnsmasq / AdBlock / AdGuard / uBlock 全语法，按
+        <b>重要放行 &gt; 重要拦截 &gt; 普通放行 &gt; 普通拦截</b> 求值，支持 $important、$badfilter、$denyallow、$dnsrewrite、$client/$ctag 作用域。</div>
+      <div class="grid cols4">
+        <div class="metric"><div class="n" id="engBlock">-</div><div class="l">普通拦截</div></div>
+        <div class="metric"><div class="n" id="engBlockImp">-</div><div class="l">重要拦截</div></div>
+        <div class="metric"><div class="n" id="engAllow">-</div><div class="l">普通放行</div></div>
+        <div class="metric"><div class="n" id="engAllowImp">-</div><div class="l">重要放行</div></div>
+      </div>
+      <div class="grid cols4" style="margin-top:8px">
+        <div class="metric"><div class="n" id="engRegex">-</div><div class="l">正则规则</div></div>
+        <div class="metric"><div class="n" id="engRewrite">-</div><div class="l">DNS 重写</div></div>
+        <div class="metric"><div class="n" id="engCosmetic">-</div><div class="l">元素隐藏</div></div>
+        <div class="metric"><div class="n" id="engScriptlet">-</div><div class="l">脚本注入</div></div>
+      </div>
+      <div class="kv"><span>hosts 条目</span><b id="engHosts">-</b></div>
+      <div class="kv"><span>解析记录</span><b id="engRecords">-</b></div>
+      <div class="kv"><span>URL 模式规则</span><b id="engPattern">-</b></div>
+      <div class="kv"><span>规则表</span><b id="engLists">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="eng-build">重新编译</button>
+        <button class="btn" data-act="eng-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">多语法分布<span class="tagline">syntax</span></div>
+      <div class="chips" id="engSyntax"><div class="empty">加载中…</div></div>
+      <div class="hint">覆盖：AdBlock/AdGuard 网络规则、修饰符、元素隐藏、脚本注入、CSS 注入、扩展 CSS、HTML 过滤、JS 注入、hosts、dnsmasq、正则、DNS 重写、纯域名清单。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">规则体检<span class="tagline">verify</span></div>
+      <div class="kv"><span>解析记录</span><b id="engVRecords">-</b></div>
+      <div class="kv"><span>无效规则</span><b id="engVInvalid">-</b></div>
+      <div class="kv"><span>$badfilter 规则</span><b id="engVBadf">-</b></div>
+      <div class="kv"><span>冗余拦截（被遮蔽）</span><b id="engVRedB">-</b></div>
+      <div class="kv"><span>冗余放行（被遮蔽）</span><b id="engVRedA">-</b></div>
+      <div class="kv"><span>拦截/放行同域覆盖</span><b id="engVConf">-</b></div>
+      <div class="hint">「同域覆盖」在 Adblock 语义下属正常：放行规则优先于拦截规则。</div>
+      <div class="btn-row"><button class="btn" data-act="eng-verify">执行体检</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">规则命中诊断<span class="tagline">test</span></div>
+      <div class="hint">输入域名，查看由哪条规则命中及其优先级。</div>
+      <input type="text" id="engTestInput" placeholder="域名或 URL，例如 ads.example.com 或 https://cdn.example.com/ads/banner.js">
+      <div class="btn-row"><button class="btn primary" data-act="eng-test">诊断</button></div>
+      <div class="alert" id="engTestOut" style="margin-top:10px;display:none"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">编译产物<span class="tagline">rules/engine</span></div>
+      <div class="kv"><span>hosts</span><b class="mono">rules/engine/hosts</b></div>
+      <div class="kv"><span>DNS 规则</span><b class="mono">rules/engine/dnsrules.conf</b></div>
+      <div class="kv"><span>原始记录</span><b class="mono">cache/engine/records.tsv</b></div>
+      <div class="hint">hosts 供 /system/etc/hosts 绑定挂载；dnsrules.conf 为 AdGuard Home / dnsmasq 兼容格式，可交给本地解析器或第三方工具消费。</div>
+      <div class="btn-row">
+        <button class="btn" data-act="eng-syntax">语法分析</button>
+        <button class="btn danger" data-act="eng-clear">清空产物</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="page hide" id="page-settings">
+    <div class="card">
+      <div class="card-head">模块设置<span class="tagline">重启后保留</span></div>
+      <div class="hint">以下开关持久化保存在 /data/adb/SY，重启设备或重刷面板都不会丢失或还原。</div>
+      <div class="kv"><span>开屏广告跳过</span><button class="btn sm primary" data-act="set-toggle" data-k="SPLASH_ENABLE">-</button></div>
+      <div class="kv"><span>通知栏广告过滤</span><button class="btn sm primary" data-act="set-toggle" data-k="NOTIFY_ENABLE">-</button></div>
+      <div class="kv"><span>DNS 级拦截</span><button class="btn sm primary" data-act="set-toggle" data-k="DNS_ENABLE">-</button></div>
+      <div class="kv"><span>MITM 透明代理</span><button class="btn sm primary" data-act="set-toggle" data-k="MITM_ENABLE">-</button></div>
+      <div class="kv"><span>代理防 IP 泄露</span><button class="btn sm primary" data-act="set-toggle" data-k="PROXY_LEAK">-</button></div>
+      <div class="kv"><span>面板服务自启</span><button class="btn sm primary" data-act="set-toggle" data-k="PANEL_AUTOSTART">-</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head">代理内核</div>
+      <div class="hint">sing-box 内核版本与下载镜像（网络受限时可自定义镜像地址）。</div>
+      <input type="text" id="setCoreVer" placeholder="内核版本，如 1.10.1">
+      <input type="url" id="setCoreUrl" placeholder="自定义下载地址（留空用官方源）">
+      <div class="btn-row">
+        <button class="btn primary" data-act="set-save-core">保存内核设置</button>
+        <button class="btn ok" data-act="pn-core-ensure">一键获取内置内核</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">模块在线更新<span class="tagline">读取 GitHub Release</span></div>
+      <div class="kv"><span>当前版本</span><b id="updCur">-</b></div>
+      <div class="kv"><span>更新源</span><b id="updRepo">-</b></div>
+      <div class="kv"><span>安装方式</span><b id="updMethod">-</b></div>
+      <input type="text" id="updRepoInput" placeholder="更新仓库 owner/repo，如 vip-svip/SY-Fusion">
+      <div class="btn-row">
+        <button class="btn" data-act="upd-save-repo">保存更新源</button>
+        <button class="btn primary" data-act="upd-check">检查更新</button>
+        <button class="btn ok" data-act="upd-run">立即更新</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">全部设置项<span class="tagline">key=value</span></div>
+      <textarea class="ta" id="setDump" placeholder="SPLASH_ENABLE=1"></textarea>
+      <div class="btn-row">
+        <button class="btn" data-act="settings-load">载入</button>
+        <button class="btn primary" data-act="settings-save">保存</button>
+        <button class="btn danger" data-act="settings-reset">重置为默认</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   命令桥 — 同时兼容两种运行环境
+   1) KernelSU WebUI:  window.ksu.exec(cmd, opts, callback) 或 (cmd, callback)
+   2) 局域网浏览器:    HTTP POST /api/exec  (由 abserver serve 提供)
+   ============================================================ */
+var TOKEN = (function(){
+  try{ if(window.__SY_TOKEN__) return String(window.__SY_TOKEN__); }catch(e){}
+  try{ var m=location.search.match(/[?&]token=([^&]+)/); if(m) return decodeURIComponent(m[1]); }catch(e){}
+  try{ return localStorage.getItem("ab_token")||""; }catch(e){ return ""; }
+})();
+var MODDIR="/data/adb/modules/SY";
+var KSU_LABEL="HTTP";
+
+function hasKSU(){ return !!(window.ksu && typeof window.ksu.exec==="function"); }
+function q(s){ return encodeURIComponent(s); }
+
+/*
+  ==== KernelSU WebUI 官方桥接机制 ====
+  官方 npm 包 kernelsu 的 exec 实现为:
+     window.ksu.exec(command, JSON.stringify(options), callbackName)
+  其中 callbackName 是在 window 上注册的回调函数“名字符串”,
+  原生侧执行完毕后调用 window[callbackName](errno, stdout, stderr)。
+  旧版本亦存在 ksu.exec(command, callbackFn) 两参写法, 一并兜底。
+*/
+function ksuExec(cmdStr){
+  return new Promise(function(resolve){
+    if(!hasKSU()){ resolve({errno:-1,stdout:"",stderr:"no-ksu-bridge"}); return; }
+    var name="__ksucb_"+Math.random().toString(36).slice(2)+Date.now().toString(36);
+    var settled=false;
+    function fin(errno,stdout,stderr){
+      if(settled) return; settled=true;
+      try{ delete window[name]; }catch(e){}
+      resolve({errno:(errno==null?0:errno), stdout:String(stdout==null?"":stdout), stderr:String(stderr==null?"":stderr)});
+    }
+    window[name]=fin;
+    var timer=setTimeout(function(){ fin(-1,"","timeout"); },30000);
+    // 官方 3 参签名(回调名)
+    try{
+      var r=window.ksu.exec(cmdStr, "{}", name);
+      if(typeof r==="string" && r!==""){ clearTimeout(timer); fin(0,r,""); return; }
+      return;
+    }catch(e){}
+    // 兜底: 2 参(函数回调)旧版
+    try{
+      clearTimeout(timer);
+      var r2=window.ksu.exec(cmdStr, function(errno,stdout,stderr){ fin(errno,stdout,stderr); });
+      if(typeof r2==="string" && r2!==""){ fin(0,r2,""); }
+      return;
+    }catch(e2){
+      clearTimeout(timer); fin(-1,"",String((e2&&e2.message)||e2));
+    }
+  });
+}
+function shQuote(a){ return "'"+String(a).replace(/'/g,"'\\''")+"'"; }
+
+function apiExec(script,args){
+  var ctl=new AbortController();
+  var t=setTimeout(function(){ ctl.abort(); },150000);
+  return fetch("/api/exec?token="+q(TOKEN),{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    signal:ctl.signal,
+    body:JSON.stringify({cmd:script.replace(/\.sh$/,""),args:args||[]})
+  }).then(function(r){return r.json()})
+    .then(function(j){ clearTimeout(t); if(j&&typeof j.out!=="undefined") return String(j.out); if(j&&j.err) return "ERR: "+j.err; return ""; })
+    .catch(function(e){ clearTimeout(t); return "ERR: "+((e&&e.name==="AbortError")?"请求超时(已中止,防卡死)":e.message); });
+}
+
+function runScript(name,args){
+  args=args||[];
+  if(hasKSU()){
+    var cmd="sh "+MODDIR+"/scripts/"+name;
+    if(args.length) cmd+=" "+args.map(shQuote).join(" ");
+    return ksuExec(cmd).then(function(res){
+      var out=res.stdout||"";
+      if(res.stderr) out+=(out?"\n":"")+res.stderr;
+      return out;
+    });
+  }
+  return apiExec(name,args);
+}
+
+/* ---------- 结果反馈解析 ---------- */
+function msg(o){
+  var t=String(o==null?"":o).replace(/\r/g,"").trim();
+  if(!t) return "未获取到输出（命令可能超时或无返回，请重试）";
+  var lines=t.split("\n").map(function(x){return x.trim()}).filter(Boolean);
+  for(var i=0;i<lines.length;i++){
+    if(/^(ERR|Error|错误|失败|PERM|usage)/i.test(lines[i]))
+      return "⚠ "+lines[i].replace(/^(ERR|Error|错误|失败|PERM)[:：]?\s*/i,"");
+  }
+  for(var j=0;j<lines.length;j++){ if(/^OK/i.test(lines[j])) return lines[j].replace(/^OK[:：]?\s*/i,""); }
+  return lines[lines.length-1].slice(0,160);
+}
+function toast(m){
+  var el=$("#toast"); el.textContent=m; el.classList.add("show");
+  clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove("show")},2600);
+}
+function busy(m){ toast(m||"处理中…"); }
+
+/* ---------- 小工具 ---------- */
+function $(s){ return document.querySelector(s); }
+function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+function setText(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]}); }
+function b64(s){ try{ return btoa(unescape(encodeURIComponent(s))); }catch(e){ return ""; } }
+function parseJSON(s){ try{ return JSON.parse(String(s||"").trim()); }catch(e){ return null; } }
+
+/* ---------- 主题 ---------- */
+function switchTheme(){
+  var el=document.documentElement, dark=el.classList.contains("theme-dark");
+  if(dark){ el.classList.remove("theme-dark"); el.classList.add("theme-light"); }
+  else{ el.classList.remove("theme-light"); el.classList.add("theme-dark"); }
+  try{ localStorage.setItem("ab_theme", el.classList.contains("theme-dark")?"dark":"light"); }catch(e){}
+  toast(el.classList.contains("theme-dark")?"已切换为深色模式":"已切换为浅色模式");
+}
+
+/* ============================================================
+   各页面数据加载
+   ============================================================ */
+function loadHome(){
+  return runScript("ctl.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    var dns=d.dns||{}, mitm=d.mitm||{}, splash=d.splash||{}, panel=d.panel||{}, sys=d.sys||{};
+    setText("ovDns", dns.rule_count!=null?dns.rule_count:"-");
+    setText("ovBlocked", dns.blocked_total!=null?dns.blocked_total:"0");
+    setText("ovMitm", mitm.running==="yes"?"运行中":"已停止");
+    setText("ovSplash", splash.skip_total!=null?splash.skip_total:"0");
+    setText("ovMem", (sys.mem_used_mb!=null?sys.mem_used_mb+" MB":"-"));
+    setText("ovCpu", (sys.cpu_pct!=null?sys.cpu_pct+" %":"-"));
+    setText("ovUp", sys.uptime||"-");
+    setText("ovPanel", panel.running==="yes"?"运行中":"已停止");
+    setText("abPanel", panel.running==="yes"?"运行中":"已停止");
+    setText("sysline", "DNS "+(dns.rule_count||0)+" 条 · 拦截 "+(dns.blocked_total||0)+" 次 · 内核 "+KSU_LABEL);
+    setText("ovTime", new Date().toLocaleTimeString());
+    setText("abVer","v1.0.0");
+    setText("abKsu", KSU_LABEL);
+  });
+}
+function setToggle(id,on){
+  var b=document.getElementById(id); if(!b) return;
+  b.textContent = on?"已开启":"已关闭";
+  b.classList.toggle("primary", !!on);
+  b.classList.toggle("ok", !!on);
+}
+
+/* 面板服务专用状态加载 (含访问地址) */
+function loadPanel(){
+  return Promise.all([
+    runScript("panel.sh",["status"]),
+    runScript("panel.sh",["url"])
+  ]).then(function(r){
+    var st=parseJSON(r[0])||{};
+    var running=st.running==="yes";
+    setText("pnRun", running?"运行中 ✓":"已停止");
+    setText("pnPort", st.port||"-");
+    setText("pnUrl", (r[1]||"").trim()||(st.lan_ip?("http://"+st.lan_ip+":"+(st.port||8848)):"-"));
+    setText("ovPanel", running?"运行中":"已停止");
+    setText("abPanel", running?"运行中":"已停止");
+  });
+}
+
+function loadLogs(){
+  return runScript("logs.sh",["list"]).then(function(s){
+    var arr=parseJSON(s)||[];
+    var box=$("#logList"); if(!box) return;
+    box.innerHTML = arr.length? arr.map(function(x){
+      return '<div class="row"><span class="t">'+esc(x.name)+'<br><span class="mono">'+esc(x.mtime||"")+' · '+esc(String(x.size||0))+'B</span></span>'+
+        '<button class="del" data-act="log-view" data-v="'+esc(x.name)+'">查看</button>'+
+        '<button class="del" data-act="log-clear" data-v="'+esc(x.name)+'">清空</button></div>';
+    }).join("") : '<div class="empty">暂无日志</div>';
+  });
+}
+function loadRuleSources(){
+  return runScript("ruleset.sh",["serve-list"]).then(function(s){
+    var arr=parseJSON(s)||[];
+    var box=$("#ruleRepoList"); if(!box) return;
+    box.innerHTML = arr.length? arr.map(function(x){
+      return '<div class="row"><span class="t">'+esc(x.name)+'<br><span class="mono">'+esc(x.repo)+'</span></span>'+
+        (x.active? '<span class="tagline">当前</span>' : '<button class="btn sm primary" data-act="rule-use" data-v="'+esc(x.repo)+'">选用</button>')+'</div>';
+    }).join("") : '<div class="empty">暂无规则源</div>';
+  });
+}
+function loadUpdate(){
+  return runScript("updater.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    setText("updRepo", d.repo||"-");
+    setText("updCur", d.current||"-");
+    setText("updMethod", d.method||"-");
+    var e=$("#updRepoInput"); if(e && !e.value) e.value=d.repo||"";
+  });
+}
+function loadDnsStatus(){
+  return runScript("dns.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    setText("ovDns", d.rule_count!=null?d.rule_count:"-");
+  });
+}
+function loadHosts(){
+  return runScript("dns.sh",["hosts-status"]).then(function(s){
+    var st=parseJSON(s);
+    if(st){
+      setText("hostsMount", st.mounted==="yes"?"已挂载 ✓":"未挂载");
+      setText("hostsCount", (st.entries||0)+" 行");
+      setText("hostsMode", st.manual==="yes"?"手动编辑":"自动（订阅+内置库）");
+      setToggle("tgHosts", st.mounted==="yes");
+    }
+    return runScript("dns.sh",["hosts-get"]).then(function(t){
+      var e=$("#hostsText"); if(e) e.value=t||"";
+      setText("hostsTag", (t&&t.trim())?("（"+t.trim().split("\n").length+" 行）"):"");
+    });
+  });
+}
+function loadCustom(){
+  return runScript("dns.sh",["custom-list"]).then(function(t){
+    var list=$("#dnsCustomList"); var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    list.innerHTML = rows.length? rows.map(function(x){
+      return '<div class="row"><span class="t">'+esc(x.trim())+'</span>'+
+        '<button class="del" data-act="dns-custom-del" data-v="'+esc(x.trim())+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无自定义规则</div>';
+  });
+}
+function loadPreview(){
+  return runScript("dns.sh",["rules-preview","300"]).then(function(t){
+    var lines=(t||"").split("\n");
+    var info=[]; var body=[];
+    lines.forEach(function(l){ if(/^TOTAL=|^CUSTOM=|^---$/.test(l)) info.push(l); else if(l.trim()) body.push(l.trim()); });
+    var e=$("#dnsPreviewInfo"); if(e) e.textContent = info.join(" · ").replace(/TOTAL=/,"总计 ").replace(/CUSTOM=/,"自定义 ").replace(/---/,"");
+    $("#dnsPreview").innerHTML = body.length? body.map(function(x){return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(x)+'"><span class="t mono">'+esc(x)+'</span>'+
+      '<button class="del" data-act="dns-rule-del" data-v="'+esc(x)+'">✕</button></div>'}).join("") : '<div class="empty">暂无生效规则</div>';
+  });
+}
+function loadSources(){
+  return runScript("dns.sh",["sources-list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    var idx=1;
+    $("#srcList").innerHTML = rows.length? rows.map(function(x){
+      var cur=idx++; var parts=x.split("|");
+      var name=parts.length>1?parts[0]:"源"+cur; var url=parts.length>1?parts[1]:parts[0];
+      return '<div class="row"><span class="t">'+esc(name)+'<br><span class="mono">'+esc(url)+'</span></span>'+
+        '<button class="del" data-act="dns-src-del" data-v="'+cur+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无订阅源</div>';
+  });
+}
+function collectChecked(sel){
+  var arr=[];
+  $$(sel+" input[type=checkbox]").forEach(function(c){ if(c.checked) arr.push(c.getAttribute("data-v")); });
+  return arr.join(",");
+}
+function loadWhitelist(){
+  return runScript("dns.sh",["whitelist-list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    $("#wlList").innerHTML = rows.length? rows.map(function(x){
+      return '<div class="row"><span class="t">'+esc(x.trim())+'</span>'+
+        '<button class="del" data-act="wl-del" data-v="'+esc(x.trim())+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无白名单</div>';
+  });
+}
+function loadBlacklist(){
+  return runScript("dns.sh",["blacklist-list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    var box=$("#blList"); if(!box) return;
+    box.innerHTML = rows.length? rows.map(function(x){
+      return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(x.trim())+'"><span class="t">'+esc(x.trim())+'</span>'+
+        '<button class="del" data-act="bl-del" data-v="'+esc(x.trim())+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无黑名单</div>';
+  });
+}
+
+function loadFilter(){
+  return runScript("dns.sh",["filter-stats"]).then(function(t){
+    var s=parseJSON(t)||{};
+    setText("fltBlock", s.block||0);
+    setText("fltBlockImp", s.block_important||0);
+    setText("fltAllow", s.allow||0);
+    setText("fltAllowImp", s.allow_important||0);
+    setText("fltReRw", (s.regex||0)+" / "+(s.rewrite||0));
+  });
+}
+function loadLists(){
+  return runScript("dns.sh",["lists"]).then(function(t){
+    var arr=parseJSON(t)||[];
+    var box=$("#fltList"); if(!box) return;
+    box.innerHTML = arr.length? arr.map(function(x){
+      var on=(x.enabled==1||x.enabled==="1");
+      return '<div class="row"><span class="t">'+esc(x.name)+' <span class="mono">'+esc(x.url)+'</span><br><span class="tagline">'+esc(x.category||"")+' · '+(x.count||0)+' 条</span></span>'+
+        '<button class="btn sm '+(on?"primary":"")+'" data-act="lists-toggle" data-v="'+esc(x.name)+'" data-on="'+(on?1:0)+'">'+(on?"已启用":"已停用")+'</button>'+
+        '<button class="btn sm" data-act="lists-update" data-v="'+esc(x.name)+'">更新</button>'+
+        '<button class="del" data-act="lists-del" data-v="'+esc(x.name)+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无规则表</div>';
+  });
+}
+function loadMyRules(){
+  return runScript("dns.sh",["my-rules-get"]).then(function(t){ var e=$("#myRulesText"); if(e) e.value=t||""; });
+}
+
+/* ---------- MITM ---------- */
+var APP_CACHE=null, APP_SELECTED=[];
+function loadApps(){
+  return runScript("ctl.sh",["apps"]).then(function(a){
+    APP_CACHE=(a||"").split("\n").map(function(x){return x.trim()}).filter(Boolean);
+    return runScript("mitm.sh",["apps-get"]).then(function(sel){
+      APP_SELECTED=(sel||"").split(",").map(function(x){return x.trim()}).filter(Boolean);
+      renderApps("");
+    });
+  });
+}
+function renderApps(filter){
+  var box=$("#appPicker");
+  if(!APP_CACHE){ box.innerHTML='<div class="empty">正在读取应用列表…</div>'; return; }
+  var f=(filter||"").toLowerCase();
+  var list=APP_CACHE.filter(function(p){return !f||p.toLowerCase().indexOf(f)>=0}).slice(0,200);
+  box.innerHTML = list.length? list.map(function(p){
+    var on=APP_SELECTED.indexOf(p)>=0;
+    return '<label class="chk"><input type="checkbox" data-app="'+esc(p)+'"'+(on?" checked":"")+'> <span>'+esc(p)+'</span></label>';
+  }).join("") : '<div class="empty">无匹配应用</div>';
+}
+function loadMitmRules(){
+  return runScript("mitm.sh",["rules-list-lines"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+    $("#mitmRuleList").innerHTML = rows.length? rows.map(function(x){
+      var i=x.indexOf("|"); var ln=x.slice(0,i); var body=x.slice(i+1);
+      return '<div class="row"><span class="ln">'+esc(ln)+'</span><span class="t mono">'+esc(body)+'</span>'+
+        '<button class="del" data-act="mitm-rule-del" data-v="'+esc(ln)+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无代理规则</div>';
+  });
+}
+function loadMitmStats(){
+  return runScript("mitm.sh",["stats"]).then(function(t){
+    var s=parseJSON(t)||{};
+    setText("stReq", s.requests||0);
+    setText("stBlocked", s.blocked||0);
+    setText("stHttps", s.https_decrypted||0);
+    setText("stImg", s.blank_images||0);
+  });
+}
+function loadMitmStatus(){
+  return Promise.all([
+    runScript("mitm.sh",["status"]),
+    runScript("mitm.sh",["ca-status"]),
+    runScript("mitm.sh",["rules-count"])
+  ]).then(function(r){
+    var st=parseJSON(r[0])||{}, ca=parseJSON(r[1])||{}, rc=parseJSON(r[2])||{};
+    var running = st.running==="yes";
+    setText("mitmRun", running?"运行中 ✓":"已停止");
+    setText("mitmPort", st.port?st.port:(st.listen||"-"));
+    setText("mitmRedirect", (rc.rules!=null?rc.rules:"-")+" 条");
+    setText("mitmCa", ca.installed==="yes"?"已安装 ✓":"未安装");
+    // 根证书独立子模块联动状态
+    var modTxt="-";
+    if(ca.submodule==="yes"){ modTxt = ca.submodule_enabled==="yes" ? "已释放 ✓" : "已禁用"; }
+    else { modTxt = "未释放"; }
+    setText("mitmCaMod", modTxt);
+    setText("mitmCaHash", ca.hash||"-");
+    var al=$("#mitmAlert");
+    if(ca.generated!=="yes"){ al.className="alert err"; al.textContent="⚠ 根证书尚未生成，请点击「安装根证书」"; }
+    else if(ca.installed!=="yes"){ al.className="alert warn"; al.textContent="⚠ 根证书已生成但未安装到系统，请点击「安装根证书」"; }
+    else if(ca.submodule!=="yes"){ al.className="alert warn"; al.textContent="⚠ 证书已就绪，但独立根证书模块未释放，点击「安装根证书」自动释放"; }
+    else { al.className="alert ok"; al.textContent="✓ 代理组件就绪，根证书模块已释放并信任"; }
+    setText("ovMitm", running?"运行中":"已停止");
+  });
+}
+
+/* ---------- SPLASH ---------- */
+function loadSplash(){
+  return runScript("splash.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    setText("spRun", d.running==="yes"?"运行中 ✓":"已停止");
+    setText("spEn", d.enabled==="1"?"已启用":"已停用");
+    setText("spSkip", d.skip_total||0);
+  });
+}
+function loadSplashRules(){
+  return runScript("splash.sh",["rules-list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    $("#spRules").innerHTML = rows.length? rows.map(function(x){return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(x.trim())+'"><span class="t mono">'+esc(x.trim())+'</span></div>'}).join("") : '<div class="empty">暂无规则</div>';
+  });
+}
+function loadSplashRecords(){
+  return runScript("splash.sh",["records"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()}).slice(-50).reverse();
+    $("#spRecords").innerHTML = rows.length? rows.map(function(x){return '<div class="row"><span class="t mono">'+esc(x)+'</span></div>'}).join("") : '<div class="empty">暂无记录</div>';
+  });
+}
+
+/* ---------- NOTIFY ---------- */
+function loadNotify(){
+  return Promise.all([runScript("notify.sh",["status"]), runScript("notify.sh",["keywords"])]).then(function(r){
+    var d=parseJSON(r[0])||{};
+    setText("ntRun", d.running==="yes"?"运行中 ✓":"已停止");
+    setText("ntCount", d.blocked||0);
+    var rows=(r[1]||"").split("\n").filter(function(x){return x.trim()&&x.charAt(0)!=="#"});
+    $("#ntKeywords").innerHTML = rows.length? rows.map(function(x){return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(x.trim())+'"><span class="t">'+esc(x.trim())+'</span></div>'}).join("") : '<div class="empty">暂无关键词</div>';
+  });
+}
+
+/* ---------- SCRIPTS ---------- */
+function loadScripts(){
+  return runScript("scripts_ext.sh",["list"]).then(function(t){
+    var arr=parseJSON(t); var box=$("#jsList"); if(!box) return;
+    if(!arr||!arr.length){ box.innerHTML='<div class="empty">暂无脚本</div>'; return; }
+    box.innerHTML = arr.map(function(s){
+      return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(s.file)+'">'+
+        '<span class="t">'+esc(s.name)+'<br><span class="mono">'+esc(s.file)+'</span></span>'+
+        '<button class="btn sm" data-act="js-update" data-v="'+esc(s.file)+'">更新</button>'+
+        '<button class="del" data-act="js-del" data-v="'+esc(s.file)+'">✕</button></div>';
+    }).join("");
+  });
+}
+function loadSubs(){
+  return runScript("scripts_ext.sh",["subs-list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+    var box=$("#jsSubList"); if(!box) return;
+    if(!rows.length){ box.innerHTML='<div class="empty">暂无订阅源</div>'; return; }
+    box.innerHTML = rows.map(function(x){
+      var p=x.split("|"); var idx=p[0], en=p[1], url=p[2], iv=p[3]; var on=(en==="1");
+      return '<div class="row"><input type="checkbox" class="subchk" data-v="'+esc(idx)+'">'+
+        '<span class="t mono">'+esc(url)+'<br>每'+esc(iv)+'h</span>'+
+        '<button class="btn sm '+(on?"primary":"")+'" data-act="js-sub-toggle" data-v="'+esc(idx)+'">'+(on?"已启用":"已停用")+'</button>'+
+        '<button class="del" data-act="js-sub-del" data-v="'+esc(idx)+'">✕</button></div>';
+    }).join("");
+  });
+}
+
+/* ---------- BACKUP ---------- */
+function loadBackups(){
+  return runScript("backup.sh",["list"]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+    $("#bkList").innerHTML = rows.length? rows.map(function(x){
+      return '<div class="row"><span class="t mono">'+esc(x)+'</span>'+
+        '<button class="btn sm ok" data-act="bk-restore" data-v="'+esc(x)+'">恢复</button>'+
+        '<button class="del" data-act="bk-del" data-v="'+esc(x)+'">✕</button></div>';
+    }).join("") : '<div class="empty">暂无备份</div>';
+  });
+}
+
+/* ---------- 文件读取助手 ---------- */
+function readFileText(input,cb){
+  var f=input.files&&input.files[0]; if(!f){ toast("未选择文件"); return; }
+  var r=new FileReader();
+  r.onload=function(){ cb(String(r.result||"")); };
+  r.onerror=function(){ toast("⚠ 读取文件失败"); };
+  r.readAsText(f);
+}
+function readFileB64(input,cb){
+  var f=input.files&&input.files[0]; if(!f){ toast("未选择文件"); return; }
+  var r=new FileReader();
+  r.onload=function(){
+    var bytes=new Uint8Array(r.result), bin="";
+    for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+    cb(btoa(bin));
+  };
+  r.onerror=function(){ toast("⚠ 读取文件失败"); };
+  r.readAsArrayBuffer(f);
+}
+
+/* ---------- DNSSRV ---------- */
+function loadDnsSrv(){
+  return runScript("dnssrv.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    var m={custom:"自定义服务器",auto:"系统自动",off:"已关闭"}[d.mode]||d.mode||"-";
+    setText("dsMode", m);
+    setText("dsCount", (d.count||0)+" 个");
+    setText("dsDoh", d.doh||"未设置");
+    setText("dsDot", d.dot||"未设置");
+    setText("dsLeak", d.leak==="yes"?"已开启 ✓":"未开启");
+    var di=$("#dsDohInput"); if(di&&!di.value) di.value=d.doh||"";
+    var ti=$("#dsDotInput"); if(ti&&!ti.value) ti.value=d.dot||"";
+    return runScript("dnssrv.sh",["servers"]).then(function(t){
+      var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+      $("#dsList").innerHTML = rows.length? rows.map(function(x){
+        var i=x.indexOf("|"); var no=x.slice(0,i); var v=x.slice(i+1);
+        return '<div class="row"><span class="ln">'+esc(no)+'</span><span class="t mono">'+esc(v)+'</span>'+
+          '<button class="del" data-act="ds-del" data-v="'+esc(v)+'">✕</button></div>';
+      }).join("") : '<div class="empty">暂无自定义 DNS 服务器</div>';
+    });
+  });
+}
+
+/* ---------- NETBLOCK ---------- */
+var NB_TYPE="domain";
+function loadNetblock(){
+  return runScript("netblock.sh",["status"]).then(function(s){
+    var d=parseJSON(s)||{};
+    setText("nbDomain", d.domain||0); setText("nbIp", d.ip||0);
+    setText("nbCidr", d.cidr||0); setText("nbPort", d.port||0);
+    setText("nbApplied", d.applied==="yes"?"已生效 ✓":"未生效");
+    return loadNbList();
+  });
+}
+function loadNbList(){
+  return runScript("netblock.sh",["list",NB_TYPE]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+    $("#nbList").innerHTML = rows.length? rows.map(function(x){
+      var i=x.indexOf("|"); var no=x.slice(0,i); var v=x.slice(i+1);
+      return '<div class="row"><input type="checkbox" class="chk" data-v="'+esc(v)+'"><span class="ln">'+esc(no)+'</span><span class="t mono">'+esc(v)+'</span>'+
+        '<button class="del" data-act="nb-del" data-v="'+esc(v)+'">✕</button></div>';
+    }).join("") : '<div class="empty">当前类型暂无规则</div>';
+  });
+}
+
+/* ---------- 应用列表(网络拦截用) ---------- */
+function loadNbApps(){
+  return runScript("netblock.sh",["apps-list",($("#nbAppSearch")?$("#nbAppSearch").value:"")]).then(function(t){
+    var rows=(t||"").split("\n").filter(function(x){return x.trim()});
+    var box=$("#nbAppList"); if(!box) return;
+    box.innerHTML = rows.length? rows.map(function(x){
+      var p=x.split("|"); var pkg=p[0], lbl=p[1]||p[0];
+      return '<label class="chk"><input type="checkbox" data-v="'+esc(pkg)+'" data-pkg="'+esc(pkg)+'"> <span>'+esc(lbl)+'<br><span class="mono">'+esc(pkg)+'</span></span></label>';
+    }).join("") : '<div class="empty">无匹配应用（需真机环境）</div>';
+  });
+}
+
+/* ---------- SETTINGS 持久化 ---------- */
+function loadSettings(){
+  return runScript("settings.sh",["dump"]).then(function(s){
+    var d=parseJSON(s)||{};
+    $$('[data-act="set-toggle"]').forEach(function(b){
+      var k=b.getAttribute("data-k"); var on=(d[k]==="1");
+      b.textContent = on?"已开启":"已关闭";
+      b.classList.toggle("primary", on); b.classList.toggle("ok", on);
+    });
+    var cv=$("#setCoreVer"); if(cv&&!cv.value) cv.value=d.PROXY_CORE_VER||"";
+    var cu=$("#setCoreUrl"); if(cu&&!cu.value) cu.value=d.PROXY_CORE_URL||"";
+  });
+}
+
+/* ---------- PROXYNODE ---------- */
+function loadProxyNode(){
+  return Promise.all([
+    runScript("proxynode.sh",["status"]),
+    runScript("proxynode.sh",["nodes"]),
+    runScript("proxynode.sh",["subs"]),
+    runScript("proxynode.sh",["config-get"])
+  ]).then(function(r){
+    var d=parseJSON(r[0])||{};
+    var leak=(d.leak==="yes");
+    setText("pnRunning", d.running==="yes"?"运行中 ✓":"已停止");
+    setText("pnCore", (d.core&&d.core!=="none")?d.core:"未安装");
+    setText("pnCore2", (d.core&&d.core!=="none")?d.core:"未安装");
+    setText("pnSel", d.selected?d.selected:"未选择");
+    setText("pnCount", d.nodes||0);
+    setText("pnLeak", leak?"已开启 ✓":"未开启");
+    setText("pnCfg", d.config==="yes"?"已生成":"未生成");
+    var alert=$("#pnAlert");
+    if(alert){
+      if(d.running==="yes"){ alert.className="alert ok"; alert.textContent="代理内核运行中，节点："+(d.selected||"未选择")+"，出口端口 "+(d.port||2080)+"。"; }
+      else if(d.core&&d.core!=="none"){ alert.className="alert warn"; alert.textContent="内核已就绪（"+d.core+"），选择节点后点「启动代理」。"; }
+      else { alert.className="alert warn"; alert.textContent="未检测到代理内核。可在下方「代理内核」处下载或放入 bin/，节点与防泄露可独立配置。"; }
+    }
+    var box=$("#pnList");
+    if(box){
+      var rows=(r[1]||"").split("\n").filter(function(x){return x.trim()});
+      box.innerHTML = rows.length? rows.map(function(x){
+        var p=x.split("|"); var idx=p[0], name=p[1], proto=p[2], link=p[3];
+        return '<div class="sr-node"><input type="checkbox" class="chk" data-v="'+esc(idx)+'">'+
+          '<span class="dot"></span>'+
+          '<span class="nm">'+esc(name)+'</span>'+
+          '<span class="pf">'+esc(proto)+'</span>'+
+          '<button class="btn sm primary" data-act="pn-select" data-v="'+esc(idx)+'">使用</button>'+
+          '<button class="del" data-act="pn-del" data-v="'+esc(idx)+'">✕</button></div>';
+      }).join("") : '<div class="empty">暂无节点</div>';
+    }
+    var sbox=$("#pnSubList");
+    if(sbox){
+      var srows=(r[2]||"").split("\n").filter(function(x){return x.trim()});
+      sbox.innerHTML = srows.length? srows.map(function(x, i){
+        var p=x.split("|"); var en=p[0], url=p[1]; var on=(en==="1");
+        return '<div class="row"><input type="checkbox" class="subchk" data-v="'+(i+1)+'">'+
+          '<span class="t mono">'+esc(url)+'</span>'+
+          '<button class="btn sm '+(on?"primary":"")+'" data-act="pn-sub-toggle" data-v="'+(i+1)+'">'+(on?"已启用":"已停用")+'</button></div>';
+      }).join("") : '<div class="empty">暂无代理订阅</div>';
+    }
+    var ct=$("#pnCfgText"); if(ct && !ct.value && r[3]) ct.value=r[3];
+  });
+}
+
+/* ============================================================
+   事件委托
+   ============================================================ */
+var actions={
+  "theme":function(){ switchTheme(); },
+
+  "refresh-home":function(){ return Promise.all([loadHome(),loadPanel()]).then(function(){toast("总览已刷新")}); },
+
+  /* ---- 面板服务控制 ---- */
+  "panel-start":function(){ busy("正在启动面板服务…"); return runScript("panel.sh",["ensure"]).then(function(o){toast(msg(o));return loadPanel()}); },
+  "panel-restart":function(){ busy("正在重启面板服务…"); return runScript("panel.sh",["restart"]).then(function(o){toast(msg(o));return loadPanel()}); },
+  "panel-stop":function(){ return runScript("panel.sh",["stop"]).then(function(o){toast(msg(o));return loadPanel()}); },
+  "panel-open":function(){ return runScript("panel.sh",["url"]).then(function(u){ var s=(u||"").trim(); toast(s?("访问: "+s):"无法获取访问地址"); }); },
+
+  /* ---- DNS ---- */
+  "dns-apply":function(){ busy("正在应用 DNS 规则…"); return runScript("dns.sh",["apply"]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "dns-update":function(){ busy("正在更新订阅…"); return runScript("dns.sh",["update"]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "hosts-load":function(){ return loadHosts().then(function(){toast("hosts 已读取")}); },
+  "hosts-mount":function(){ return runScript("dns.sh",["hosts-mount"]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "hosts-unmount":function(){ return runScript("dns.sh",["hosts-unmount"]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "hosts-clear":function(){ if(!confirm("确定一键删除全部 hosts 拦截条目？此操作会清空当前拦截规则。")){return Promise.resolve();} busy("正在一键删除…"); return runScript("dns.sh",["hosts-clear"]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "hosts-save":function(){ var t=$("#hostsText").value; if(!t.trim()){toast("内容为空");return} busy("保存中…"); return runScript("dns.sh",["hosts-set-b64",b64(t)]).then(function(o){toast(msg(o));return loadHosts()}); },
+  "hosts-regen":function(){ busy("恢复自动生成…"); return runScript("dns.sh",["hosts-regen"]).then(function(o){toast(msg(o));return loadHosts()}); },
+
+  "dns-import-text":function(){
+    var t=$("#dnsImportText").value; if(!t.trim()){toast("请输入规则");return}
+    busy("导入中…");
+    return runScript("dns.sh",["import-b64",b64(t)]).then(function(o){
+      toast(msg(o)); $("#dnsImportText").value=""; loadCustom(); loadPreview(); loadHosts();
+    });
+  },
+  "dns-import-clear":function(){ $("#dnsImportText").value=""; toast("已清空输入"); },
+
+  "dns-custom-save":function(){ var t=$("#dnsCustomText").value; busy("保存中…"); return runScript("dns.sh",["custom-save-b64",b64(t)]).then(function(o){toast(msg(o));loadCustom();loadPreview();loadHosts()}); },
+  "dns-custom-load":function(){ return runScript("dns.sh",["custom-list"]).then(function(t){ $("#dnsCustomText").value=t||""; toast("已载入当前规则"); }); },
+  "dns-custom-clear":function(){ busy("清空中…"); return runScript("dns.sh",["custom-clear"]).then(function(o){toast(msg(o));loadCustom();loadPreview();loadHosts()}); },
+  "dns-custom-del":function(el){
+    var v=el.getAttribute("data-v");
+    return runScript("dns.sh",["custom-list"]).then(function(t){
+      var rows=(t||"").split("\n").filter(function(x){return x.trim()&&x.trim()!==v});
+      return runScript("dns.sh",["custom-save-b64",b64(rows.join("\n"))]).then(function(o){toast(msg(o));loadCustom();loadPreview();loadHosts()});
+    });
+  },
+  "dns-preview-load":function(){ return loadPreview().then(function(){toast("预览已刷新")}); },
+  "dns-src-add":function(){
+    var u=$("#srcUrl").value.trim(); var n=$("#srcName").value.trim();
+    if(!u){toast("请输入订阅地址");return}
+    return runScript("dns.sh",["sources-add",u,n]).then(function(o){toast(msg(o));$("#srcUrl").value="";$("#srcName").value="";loadSources()});
+  },
+  "dns-src-del":function(el){ return runScript("dns.sh",["sources-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadSources()}); },
+  "wl-add":function(){ var d=$("#wlInput").value.trim(); if(!d){toast("请输入域名");return} return runScript("dns.sh",["whitelist-add",d]).then(function(o){toast(msg(o));$("#wlInput").value="";loadWhitelist();loadHosts()}); },
+  "wl-del":function(el){ return runScript("dns.sh",["whitelist-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadWhitelist();loadHosts()}); },
+
+  /* ---- MITM ---- */
+  "mitm-up":function(){ busy("正在开启代理…"); return runScript("mitm.sh",["up"]).then(function(o){toast(msg(o));return loadMitmStatus()}); },
+  "mitm-down":function(){ busy("正在关闭代理…"); return runScript("mitm.sh",["down"]).then(function(o){toast(msg(o));return loadMitmStatus()}); },
+  "mitm-ca-install":function(){ busy("正在安装根证书并释放子模块…"); return runScript("mitm.sh",["ca-install"]).then(function(o){toast(msg(o));return loadMitmStatus()}); },
+  "mitm-ca-release":function(){ busy("正在释放根证书模块…"); return runScript("mitm.sh",["ca-release"]).then(function(o){toast(msg(o));return loadMitmStatus()}); },
+  "mitm-ca-uninstall":function(){ if(!confirm("确定删除根证书？将从系统证书区与子模块中彻底移除。")){return Promise.resolve();} busy("正在删除根证书…"); return runScript("mitm.sh",["ca-uninstall"]).then(function(o){toast(msg(o));return loadMitmStatus()}); },
+  "mitm-ca-view":function(){ return runScript("mitm.sh",["ca-cert"]).then(function(o){ var t=(o||"").trim(); toast(t?("证书:\n"+t.slice(0,300)):"未找到证书"); }); },
+  "mitm-apps-save":function(){
+    var sel=$$('#appPicker input[type=checkbox]').filter(function(c){return c.checked}).map(function(c){return c.getAttribute("data-app")});
+    return runScript("mitm.sh",["apps-set",sel.join(",")]).then(function(o){toast(msg(o))});
+  },
+  "mitm-apps-load":function(){ return loadApps().then(function(){toast("已载入已选应用")}); },
+  "mitm-rules-add":function(){ var t=$("#mitmRules").value; if(!t.trim()){toast("请输入规则");return} return runScript("mitm.sh",["rules-add-b64",b64(t)]).then(function(o){toast(msg(o));$("#mitmRules").value="";loadMitmRules();loadMitmStatus()}); },
+  "mitm-rules-reload":function(){ return loadMitmRules().then(function(){toast("规则已刷新")}); },
+  "mitm-rules-clear":function(){ return runScript("mitm.sh",["rules-clear"]).then(function(o){toast(msg(o));loadMitmRules();loadMitmStatus()}); },
+  "mitm-rule-del":function(el){ return runScript("mitm.sh",["rules-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadMitmRules();loadMitmStatus()}); },
+
+  /* ---- SPLASH ---- */
+  "splash-start":function(){ return runScript("splash.sh",["start"]).then(function(o){toast(msg(o));loadSplash()}); },
+  "splash-stop":function(){ return runScript("splash.sh",["stop"]).then(function(o){toast(msg(o));loadSplash()}); },
+  "splash-enable":function(){ return runScript("splash.sh",["enable"]).then(function(o){toast(msg(o));loadSplash()}); },
+  "splash-disable":function(){ return runScript("splash.sh",["disable"]).then(function(o){toast(msg(o));loadSplash()}); },
+  "splash-rules-save":function(){ var t=$("#spRulesText").value; return runScript("splash.sh",["rules-save-b64",b64(t)]).then(function(o){toast(msg(o));loadSplashRules()}); },
+  "splash-rules-load":function(){ return runScript("splash.sh",["rules-list"]).then(function(t){ $("#spRulesText").value=t||""; toast("已载入当前规则"); }); },
+  "splash-records":function(){ return loadSplashRecords().then(function(){toast("记录已刷新")}); },
+  "splash-records-clear":function(){ return runScript("splash.sh",["clear-records"]).then(function(o){toast(msg(o));loadSplashRecords()}); },
+
+  /* ---- NOTIFY ---- */
+  "notify-start":function(){ return runScript("notify.sh",["start"]).then(function(o){toast(msg(o));loadNotify()}); },
+  "notify-stop":function(){ return runScript("notify.sh",["stop"]).then(function(o){toast(msg(o));loadNotify()}); },
+  "notify-add":function(){ var k=$("#ntInput").value.trim(); if(!k){toast("请输入关键词");return} return runScript("notify.sh",["keyword-add",k]).then(function(o){toast(msg(o));$("#ntInput").value="";loadNotify()}); },
+
+  /* ---- SCRIPTS ---- */
+  "js-install":function(){
+    var u=$("#jsUrl").value.trim(); if(!u){toast("请输入脚本 URL");return}
+    busy("正在安装…");
+    return runScript("scripts_ext.sh",["install-url",u]).then(function(o){toast(msg(o));$("#jsUrl").value="";loadScripts()});
+  },
+  "js-subscribe":function(){
+    var u=$("#jsSub").value.trim(); if(!u){toast("请输入订阅地址");return}
+    return runScript("scripts_ext.sh",["subscribe",u]).then(function(o){toast(msg(o));$("#jsSub").value="";loadSubs()});
+  },
+  "js-refresh":function(){ return loadScripts().then(function(){toast("列表已刷新")}); },
+  "js-update-all":function(){ busy("正在更新全部订阅…"); return runScript("scripts_ext.sh",["update-all"]).then(function(o){toast(msg(o));loadScripts()}); },
+  "js-update":function(el){ busy("正在更新…"); return runScript("scripts_ext.sh",["update",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadScripts()}); },
+  "js-del":function(el){ return runScript("scripts_ext.sh",["remove",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadScripts()}); },
+  "js-subs-refresh":function(){ return loadSubs().then(function(){toast("订阅已刷新")}); },
+  "js-sub-del":function(el){ return runScript("scripts_ext.sh",["subs-remove",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadSubs()}); },
+  "js-import-mitm":function(){
+    var t=$("#mitmImport").value; if(!t.trim()){toast("请输入规则");return}
+    return runScript("scripts_ext.sh",["import-mitm-b64",b64(t)]).then(function(o){toast(msg(o));$("#mitmImport").value=""});
+  },
+
+  /* ---- BACKUP ---- */
+  "bk-export":function(){ busy("正在导出…"); return runScript("backup.sh",["export"]).then(function(o){toast(msg(o));loadBackups()}); },
+  "bk-refresh":function(){ return loadBackups().then(function(){toast("列表已刷新")}); },
+  "bk-del":function(el){ return runScript("backup.sh",["delete",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadBackups()}); },
+  "bk-restore":function(el){ busy("正在恢复备份…"); return runScript("backup.sh",["import",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadBackups()}); },
+  "bk-restore-file":function(){ $("#bkFile").click(); },
+
+  /* ---- DNS 生效规则删除 ---- */
+  "dns-rule-del":function(el){ busy("正在从生效规则移除…"); return runScript("dns.sh",["rules-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadPreview();loadHosts();loadDnsStatus()}); },
+
+  /* ---- 自定义规则文件导入 ---- */
+  "dns-custom-import-file":function(){ $("#dnsCustomFile").click(); },
+
+  /* ---- DNSSRV ---- */
+  "ds-apply":function(){ busy("正在应用 DNS 接管…"); return runScript("dnssrv.sh",["apply"]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-clear":function(){ busy("正在停止接管…"); return runScript("dnssrv.sh",["clear"]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-test":function(){ busy("正在测试解析…"); return runScript("dnssrv.sh",["test"]).then(function(o){toast(msg(o))}); },
+  "ds-mode":function(el){ return runScript("dnssrv.sh",["set-mode",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-set-doh":function(){ var u=$("#dsDohInput").value.trim(); return runScript("dnssrv.sh",["set-doh",u]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-set-dot":function(){ var u=$("#dsDotInput").value.trim(); return runScript("dnssrv.sh",["set-dot",u]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-leak-on":function(){ return runScript("dnssrv.sh",["leak","on"]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-leak-off":function(){ return runScript("dnssrv.sh",["leak","off"]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-add":function(){ var s=$("#dsInput").value.trim(); if(!s){toast("请输入 DNS 地址");return} return runScript("dnssrv.sh",["add-server",s]).then(function(o){toast(msg(o));$("#dsInput").value="";loadDnsSrv()}); },
+  "ds-del":function(el){ return runScript("dnssrv.sh",["del-server",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+  "ds-clear-servers":function(){ return runScript("dnssrv.sh",["clear-servers"]).then(function(o){toast(msg(o));loadDnsSrv()}); },
+
+  /* ---- 黑名单 ---- */
+  "bl-add":function(){ var d=$("#blInput").value.trim(); if(!d){toast("请输入域名");return} return runScript("dns.sh",["blacklist-add",d]).then(function(o){toast(msg(o));$("#blInput").value="";loadBlacklist();loadPreview();loadHosts()}); },
+  "bl-del":function(el){ return runScript("dns.sh",["blacklist-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadBlacklist();loadPreview();loadHosts()}); },
+  "bl-clear":function(){ busy("正在清空黑名单…"); return runScript("dns.sh",["blacklist-clear"]).then(function(o){toast(msg(o));loadBlacklist();loadPreview();loadHosts()}); },
+  "bl-import-text":function(){ var t=$("#blImport").value; if(!t.trim()){toast("请输入内容");return} return runScript("dns.sh",["blacklist-import-b64",b64(t)]).then(function(o){toast(msg(o));$("#blImport").value="";loadBlacklist();loadPreview();loadHosts()}); },
+  "bl-import-file":function(){ var f=$("#blFile"); if(f) f.click(); },
+  "bl-batch-del":function(){ var v=collectChecked("#blList"); if(!v){toast("请先勾选");return} var arr=v.split(","); return Promise.all(arr.map(function(dm){ return runScript("dns.sh",["blacklist-del",dm]); })).then(function(){ toast("已删除 "+arr.length+" 条"); loadBlacklist(); loadPreview(); loadHosts(); }); },
+
+  /* ---- 生效规则批量删除 ---- */
+  "dns-batch-del":function(){ var v=collectChecked("#dnsPreview"); if(!v){toast("请先勾选");return} return runScript("dns.sh",["rules-del-multi",v]).then(function(o){toast(msg(o));loadPreview();loadHosts();loadDnsStatus()}); },
+
+  /* ---- 脚本订阅开关 / 批量 ---- */
+  "js-sub-toggle":function(el){ return runScript("scripts_ext.sh",["subs-toggle",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadSubs()}); },
+  "js-sub-del":function(el){ return runScript("scripts_ext.sh",["subs-remove",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadSubs()}); },
+  "js-subs-batch-del":function(){ var v=collectChecked("#jsSubList"); if(!v){toast("请先勾选");return} return runScript("scripts_ext.sh",["subs-remove-multi",v]).then(function(o){toast(msg(o));loadSubs()}); },
+  "js-sub-enable":function(){ var v=collectChecked("#jsSubList"); if(!v){toast("请先勾选");return} return runScript("scripts_ext.sh",["subs-enable-multi",v]).then(function(o){toast(msg(o));loadSubs()}); },
+  "js-batch-del":function(){ var v=collectChecked("#jsList"); if(!v){toast("请先勾选");return} return runScript("scripts_ext.sh",["remove-multi",v]).then(function(o){toast(msg(o));loadScripts()}); },
+  "js-mitm-to-script":function(){ busy("正在转换…"); return runScript("scripts_ext.sh",["mitm-to-script"]).then(function(o){toast(msg(o));loadScripts()}); },
+
+  /* ---- 网络代理扩展 ---- */
+  "pn-restart":function(){ busy("正在重启内核…"); return runScript("proxynode.sh",["restart"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-gen-config":function(){ return runScript("proxynode.sh",["gen-config"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-gen-config2":function(){ return runScript("proxynode.sh",["gen-config"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-core-download":function(){ var u=$("#pnCoreUrl").value.trim(); if(!u){toast("请输入内核下载直链");return} busy("正在下载内核…"); return runScript("proxynode.sh",["core-download",u]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-cfg-load":function(){ return runScript("proxynode.sh",["config-get"]).then(function(t){ var e=$("#pnCfgText"); if(e) e.value=t||""; toast("配置已载入"); }); },
+  "pn-cfg-save":function(){ var t=$("#pnCfgText").value; return runScript("proxynode.sh",["config-set-b64",b64(t)]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-import-url":function(){ var u=$("#pnSubUrl").value.trim(); if(!u){toast("请输入订阅链接");return} busy("正在拉取订阅…"); return runScript("proxynode.sh",["import-url",u]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-batch-del":function(){ var v=collectChecked("#pnList"); if(!v){toast("请先勾选");return} return runScript("proxynode.sh",["del-nodes",v]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-sub-add":function(){ var u=$("#pnSubAdd").value.trim(); if(!u){toast("请输入订阅链接");return} return runScript("proxynode.sh",["sub-add",u]).then(function(o){toast(msg(o));$("#pnSubAdd").value="";loadProxyNode()}); },
+  "pn-sub-update":function(){ busy("正在更新订阅…"); return runScript("proxynode.sh",["sub-update"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-sub-toggle":function(el){ return runScript("proxynode.sh",["sub-toggle",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadProxyNode()}); },
+
+  /* ---- NETBLOCK ---- */
+  "nb-apply":function(){ busy("正在应用网络拦截…"); return runScript("netblock.sh",["apply"]).then(function(o){toast(msg(o));loadNetblock()}); },
+  "nb-refresh":function(){ return loadNetblock().then(function(){toast("已刷新")}); },
+  "nb-add":function(){ var t=$("#nbType").value; var v=$("#nbInput").value.trim(); if(!v){toast("请输入规则值");return} return runScript("netblock.sh",["add",t,v]).then(function(o){toast(msg(o));$("#nbInput").value="";loadNetblock()}); },
+  "nb-del":function(el){ return runScript("netblock.sh",["del",NB_TYPE,el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadNetblock()}); },
+  "nb-clear":function(){ return runScript("netblock.sh",["clear",NB_TYPE]).then(function(o){toast(msg(o));loadNetblock()}); },
+  "nb-import":function(){ var t=$("#nbImport").value; if(!t.trim()){toast("请输入规则");return} busy("正在导入…"); return runScript("netblock.sh",["import-b64",NB_TYPE,b64(t)]).then(function(o){toast(msg(o));$("#nbImport").value="";loadNetblock()}); },
+
+  /* ---- PROXYNODE ---- */
+  "pn-up":function(){ busy("正在启动代理…"); return runScript("proxynode.sh",["up"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-down":function(){ busy("正在停止代理…"); return runScript("proxynode.sh",["down"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-leak-on":function(){ busy("正在开启防泄露…"); return runScript("proxynode.sh",["leak","on"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-leak-off":function(){ return runScript("proxynode.sh",["leak","off"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-add":function(){ var n=$("#pnName").value.trim(); var p=$("#pnProto").value; var l=$("#pnLink").value.trim(); if(!l){toast("请输入节点分享链接");return} return runScript("proxynode.sh",["add-node",n,p,l]).then(function(o){toast(msg(o));$("#pnName").value="";$("#pnLink").value="";loadProxyNode()}); },
+  "pn-import":function(){ var l=$("#pnLink").value.trim(); if(!l.trim()){toast("请粘贴节点链接");return} busy("正在导入…"); return runScript("proxynode.sh",["import-b64",b64(l)]).then(function(o){toast(msg(o));$("#pnLink").value="";loadProxyNode()}); },
+  "pn-select":function(el){ busy("正在选择节点…"); return runScript("proxynode.sh",["select",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-del":function(el){ return runScript("proxynode.sh",["del-node",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-clear":function(){ return runScript("proxynode.sh",["clear-nodes"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "pn-refresh":function(){ return loadProxyNode().then(function(){toast("已刷新")}); },
+  "pn-core-ensure":function(){ busy("正在获取内置内核…"); return runScript("proxynode.sh",["core-ensure"]).then(function(o){toast(msg(o));loadProxyNode()}); },
+  "splash-rules-import-file":function(){ var f=$("#spFile"); if(f) f.click(); },
+  "notify-import-file":function(){ var f=$("#ntFile"); if(f) f.click(); },
+  "nb-import-file":function(){ var f=$("#nbFile"); if(f) f.click(); },
+  "nb-import-file2":function(){ var f=$("#nbFile"); if(f) f.click(); },
+  /* ---- SPLASH 批量/网络/本地导入 ---- */
+  "splash-rules-import-text":function(){ var t=$("#spRulesText").value; if(!t.trim()){toast("请输入规则");return} busy("导入中…"); return runScript("splash.sh",["rules-import-b64",b64(t)]).then(function(o){toast(msg(o));$("#spRulesText").value="";loadSplashRules()}); },
+  "splash-rules-import-net":function(){ var u=$("#spNetUrl").value.trim(); if(!u){toast("请输入规则地址");return} busy("正在网络导入…"); return runScript("splash.sh",["rules-import-net",u]).then(function(o){toast(msg(o));loadSplashRules()}); },
+  "splash-rules-batch-del":function(){ var v=collectChecked("#spRules"); if(!v){toast("请先勾选");return} return runScript("splash.sh",["rules-del-multi",v]).then(function(o){toast(msg(o));loadSplashRules()}); },
+  "splash-rules-clear":function(){ return runScript("splash.sh",["rules-clear"]).then(function(o){toast(msg(o));loadSplashRules()}); },
+  /* ---- NOTIFY 批量/网络/本地导入 ---- */
+  "notify-import-text":function(){ var t=$("#ntBatch").value; if(!t.trim()){toast("请输入关键词");return} busy("导入中…"); return runScript("notify.sh",["keyword-add-b64",b64(t)]).then(function(o){toast(msg(o));$("#ntBatch").value="";loadNotify()}); },
+  "notify-import-net":function(){ var u=$("#ntNetUrl").value.trim(); if(!u){toast("请输入关键词地址");return} busy("正在网络导入…"); return runScript("notify.sh",["keyword-import-net",u]).then(function(o){toast(msg(o));loadNotify()}); },
+  "notify-batch-del":function(){ var v=collectChecked("#ntKeywords"); if(!v){toast("请先勾选");return} return runScript("notify.sh",["keyword-del-multi",v]).then(function(o){toast(msg(o));loadNotify()}); },
+  "notify-clear":function(){ return runScript("notify.sh",["keywords-clear"]).then(function(o){toast(msg(o));loadNotify()}); },
+  /* ---- NETBLOCK 应用 + 导入 ---- */
+  "nb-apps-load":function(){ return loadNbApps().then(function(){toast("应用列表已加载")}); },
+  "nb-apps-add":function(){
+    var pkgs=$$("#nbAppList input[type=checkbox]").filter(function(c){return c.checked}).map(function(c){return c.getAttribute("data-pkg")});
+    if(!pkgs.length){toast("请先勾选应用");return}
+    busy("正在添加应用…");
+    return pkgs.reduce(function(pr,p){ return pr.then(function(){ return runScript("netblock.sh",["apps-add",p,p]); }); }, Promise.resolve()).then(function(){ toast("已添加 "+pkgs.length+" 个应用"); loadNetblock(); });
+  },
+  "nb-apps-batch-del":function(){ var v=collectChecked("#nbAppList"); if(!v){toast("请先勾选");return} return runScript("netblock.sh",["apps-del-multi",v]).then(function(o){toast(msg(o));loadNetblock()}); },
+  "nb-import-net":function(){ var u=prompt("请输入网络导入地址（当前类型 "+NB_TYPE+"）"); if(!u) return; busy("正在网络导入…"); return runScript("netblock.sh",["import-net",NB_TYPE,u]).then(function(o){toast(msg(o));loadNetblock()}); },
+  "nb-batch-del":function(){ var v=collectChecked("#nbList"); if(!v){toast("请先勾选");return} return runScript("netblock.sh",["del-multi",NB_TYPE,v]).then(function(o){toast(msg(o));loadNetblock()}); },
+  /* ---- SETTINGS 持久化 ---- */
+  "set-toggle":function(el){ var k=el.getAttribute("data-k"); var cur=(el.textContent||"").trim()==="已开启"; var nv=cur?"0":"1"; busy("保存中…"); return runScript("settings.sh",["set",k,nv]).then(function(o){toast(msg(o));loadSettings()}); },
+  "set-save-core":function(){ var v=$("#setCoreVer").value.trim(); var u=$("#setCoreUrl").value.trim(); return runScript("settings.sh",["set","PROXY_CORE_VER",v||"1.10.1"]).then(function(){ return runScript("settings.sh",["set","PROXY_CORE_URL",u]); }).then(function(){ toast("内核设置已保存"); loadSettings(); }); },
+  "settings-load":function(){ return runScript("settings.sh",["all"]).then(function(t){ $("#setDump").value=t||""; toast("已载入设置"); }); },
+  "settings-save":function(){ var t=$("#setDump").value; return runScript("settings.sh",["save-b64",b64(t)]).then(function(o){toast(msg(o));loadSettings()}); },
+  "settings-reset":function(){ return runScript("settings.sh",["reset"]).then(function(o){toast(msg(o));loadSettings()}); },
+  "pn-logs":function(){ return runScript("proxynode.sh",["logs"]).then(function(t){ $("#pnLogs").innerHTML=((t||"").trim()?esc(t).replace(/\n/g,"<br>"):"暂无日志"); }); },
+
+  /* ---- LOGS ---- */
+  "logs-refresh":function(){ return loadLogs().then(function(){ toast("已刷新"); }); },
+  "log-view":function(el){ return runScript("logs.sh",["cat",el.getAttribute("data-v"),"500"]).then(function(t){ var box=$("#logView"); if(box) box.textContent=(t&&t.trim())?t:"(空)"; }); },
+  "log-clear":function(el){ return runScript("logs.sh",["clear",el.getAttribute("data-v")]).then(function(o){toast(msg(o));return loadLogs();}); },
+  "logs-clear-all":function(){ if(!confirm("确定清空全部日志？")){return Promise.resolve();} return runScript("logs.sh",["clear-all"]).then(function(o){toast(msg(o));var b=$("#logView");if(b)b.textContent="";return loadLogs();}); },
+
+  /* ---- RULE SOURCES ---- */
+  "rule-use":function(el){ busy("正在切换规则源…"); return runScript("ruleset.sh",["use-source",el.getAttribute("data-v")]).then(function(o){toast(msg(o));return Promise.all([loadRuleSources(),loadDnsStatus()]);}); },
+  "rule-repo-add":function(){ var r=$("#ruleRepoInput").value.trim(); if(!r){toast("请输入 owner/repo");return Promise.resolve();} return runScript("ruleset.sh",["append-repo",r]).then(function(o){toast(msg(o));$("#ruleRepoInput").value="";return loadRuleSources();}); },
+  "rule-sync":function(){ busy("正在同步规则…"); return runScript("ruleset.sh",["sync"]).then(function(o){toast(msg(o));return loadDnsStatus();}); },
+
+  /* ---- MODULE UPDATE ---- */
+  "upd-save-repo":function(){ var r=$("#updRepoInput").value.trim(); return runScript("updater.sh",["set-repo",r]).then(function(o){toast(msg(o));return loadUpdate();}); },
+  "upd-check":function(){ busy("正在检查更新…"); return runScript("updater.sh",["check"]).then(function(o){toast(msg(o));return loadUpdate();}); },
+  "upd-run":function(){ if(!confirm("确定在线更新模块？将下载最新版本并通过 KernelSU/Magisk 安装。")){return Promise.resolve();} busy("正在更新模块…"); return runScript("updater.sh",["update"]).then(function(o){toast(msg(o));return loadUpdate();}); },
+
+  /* ---- HOSTS TOGGLE ---- */
+  "hosts-toggle":function(){ return runScript("dns.sh",["hosts-status"]).then(function(s){ var st=parseJSON(s)||{}; if(st.mounted==="yes"){ return runScript("dns.sh",["hosts-unmount"]); } else { return runScript("dns.sh",["hosts-mount"]); } }).then(function(o){toast(msg(o));return loadHosts();}); },
+
+  /* ---- 过滤引擎 (AdGuard/uBlock) ---- */
+  "filter-refresh":function(){ return loadFilter().then(function(){toast("统计已刷新")}); },
+  "filter-build":function(){ busy("正在重建过滤…"); return runScript("dns.sh",["filter-build"]).then(function(o){toast(msg(o));return Promise.all([loadFilter(),loadHosts(),loadDnsStatus()]);}); },
+  "filter-test":function(){ var d=$("#fltTestIn").value.trim(); if(!d){toast("请输入域名");return} return runScript("dns.sh",["filter-test",d]).then(function(o){ var r=parseJSON(o); setText("fltTestOut", r? (r.domain+" → "+r.priority+(r.rule?("  ["+r.rule+"]"):"")) : ((o||"").trim()+" ← "+d)); }); },
+  "lists-add":function(){ var n=$("#fltName").value.trim(); var u=$("#fltUrl").value.trim(); var c=$("#fltCat").value.trim(); if(!n||!u){toast("请填写名称与 URL");return} return runScript("dns.sh",["lists-add",n,u,c]).then(function(o){toast(msg(o));$("#fltName").value="";$("#fltUrl").value="";$("#fltCat").value="";loadLists();}); },
+  "lists-del":function(el){ return runScript("dns.sh",["lists-del",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadLists();loadFilter();}); },
+  "lists-update":function(el){ busy("正在更新规则表…"); return runScript("dns.sh",["lists-update",el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadLists();loadFilter();}); },
+  "lists-update-all":function(){ busy("正在更新全部规则表…"); return runScript("dns.sh",["lists-update"]).then(function(o){toast(msg(o));loadLists();loadFilter();}); },
+  "lists-toggle":function(el){ var on=el.getAttribute("data-on")==="1"; var act=on?"lists-disable":"lists-enable"; return runScript("dns.sh",[act,el.getAttribute("data-v")]).then(function(o){toast(msg(o));loadLists();loadFilter();}); },
+  "my-rules-load":function(){ return loadMyRules().then(function(){toast("已载入当前规则")}); },
+  "my-rules-save":function(){ var t=$("#myRulesText").value; busy("正在保存并重建…"); return runScript("dns.sh",["my-rules-save-b64",b64(t)]).then(function(o){toast(msg(o));return Promise.all([loadMyRules(),loadFilter(),loadHosts()]);}); },
+  "my-rules-clear":function(){ if(!confirm("确定清空自定义过滤规则？")){return Promise.resolve();} return runScript("dns.sh",["my-rules-clear"]).then(function(o){toast(msg(o));return Promise.all([loadMyRules(),loadFilter(),loadHosts()]);}); },
+
+  /* ---- 融合规则引擎 ---- */
+  "eng-refresh":function(){ return loadEngine().then(function(){toast("引擎状态已刷新")}); },
+  "eng-build":function(){ busy("正在编译全部规则…"); return runScript("dns.sh",["engine-build"]).then(function(o){toast(msg(o));return Promise.all([loadEngine(),loadHosts(),loadDnsStatus(),loadFilter()]);}); },
+  "eng-syntax":function(){ return loadEngineSyntax().then(function(){toast("语法分析完成")}); },
+  "eng-verify":function(){ return loadEngineVerify().then(function(){toast("体检完成")}); },
+  "eng-test":function(){ return engRunTest(); },
+  "eng-clear":function(){ if(!confirm("确定清空引擎编译产物？需重新编译才会恢复。")){return Promise.resolve();} return runScript("dns.sh",["engine-clear"]).then(function(o){toast(msg(o));return Promise.all([loadEngine(),loadFilter()]);}); },
+};
+
+document.addEventListener("click",function(ev){
+  var el=ev.target.closest("[data-act]");
+  if(!el) return;
+  var act=el.getAttribute("data-act");
+  if(actions[act]){ try{ var r=actions[act](el); if(r&&r.catch) r.catch(function(e){toast("⚠ "+(e&&e.message||e))}); }catch(e){ toast("⚠ "+(e&&e.message||e)); } }
+});
+
+/* ---------- 融合规则引擎页 ---------- */
+var ENG_SYN_LABEL={
+  "adblock":"AdBlock/AdGuard","modifiers":"修饰符","cosmetic":"元素隐藏","scriptlet":"脚本注入",
+  "css-inject":"CSS 注入","extended-css":"扩展 CSS","html-filter":"HTML 过滤","js-inject":"JS 注入",
+  "hosts":"hosts","dnsmasq":"dnsmasq","regex":"正则","dnsrewrite":"DNS 重写","plain-domain":"纯域名"
+};
+function loadEngine(){
+  return Promise.all([loadEngineStats(),loadEngineSyntax(),loadEngineVerify()]);
+}
+function loadEngineStats(){
+  return runScript("dns.sh",["engine-stats"]).then(function(t){
+    var s=parseJSON(t)||{};
+    setText("engBlock", s.block!=null?s.block:"-");
+    setText("engBlockImp", s.block_important!=null?s.block_important:"-");
+    setText("engAllow", s.allow!=null?s.allow:"-");
+    setText("engAllowImp", s.allow_important!=null?s.allow_important:"-");
+    setText("engRegex", (s.regex!=null?s.regex:"-")+(s.regex_allow?(" / "+s.regex_allow):""));
+    setText("engRewrite", s.rewrite!=null?s.rewrite:"-");
+    setText("engCosmetic", (s.cosmetic_hide!=null?s.cosmetic_hide:"-")+(s.cosmetic_unhide?(" / "+s.cosmetic_unhide):""));
+    setText("engScriptlet", s.scriptlets!=null?s.scriptlets:"-");
+    setText("engHosts", (s.hosts_lines!=null?s.hosts_lines:0)+" 行");
+    setText("engRecords", s.records!=null?s.records:"-");
+    setText("engPattern", (s.pattern_block||0)+" / "+(s.pattern_allow||0)+(s.heuristic?("（启发式 "+s.heuristic+"）"):""));
+    setText("engLists", s.lists!=null?s.lists:"-");
+  });
+}
+function loadEngineSyntax(){
+  return runScript("dns.sh",["engine-syntax"]).then(function(t){
+    var s=parseJSON(t)||{}; var by=s.by_syntax||{};
+    var box=$("#engSyntax"); if(!box) return;
+    var keys=Object.keys(by);
+    if(!keys.length){ box.innerHTML='<div class="empty">暂无数据，请先点「重新编译」</div>'; return; }
+    keys.sort(function(a,b){ return by[b]-by[a]; });
+    var html=keys.map(function(k){
+      return '<span class="chip">'+esc(ENG_SYN_LABEL[k]||k)+' <b>'+by[k]+'</b></span>';
+    }).join("");
+    html+='<span class="chip">合计 <b>'+(s.total||0)+'</b></span>';
+    if(s.invalid){ html+='<span class="chip">无效 <b>'+s.invalid+'</b></span>'; }
+    box.innerHTML=html;
+  });
+}
+function loadEngineVerify(){
+  return runScript("dns.sh",["engine-verify"]).then(function(t){
+    var v=parseJSON(t)||{};
+    setText("engVRecords", v.records!=null?v.records:"-");
+    setText("engVInvalid", v.invalid!=null?v.invalid:"-");
+    setText("engVBadf", v.badfilter_rules!=null?v.badfilter_rules:"-");
+    setText("engVRedB", v.redundant_block!=null?v.redundant_block:"-");
+    setText("engVRedA", v.redundant_allow!=null?v.redundant_allow:"-");
+    setText("engVConf", v.conflicts!=null?v.conflicts:"-");
+  });
+}
+function engRunTest(){
+  var inp=$("#engTestInput"); var box=$("#engTestOut");
+  var d=inp?inp.value.trim():"";
+  if(!d){ toast("请输入域名"); return Promise.resolve(); }
+  busy("正在诊断…");
+  return runScript("dns.sh",["engine-test",d]).then(function(t){
+    var r=parseJSON(t);
+    if(!box) return;
+    box.style.display="block";
+    if(!r){ box.className="alert warn"; box.textContent=(t||"无返回").slice(0,300); return; }
+    var M={
+      "important-allow":["ok","重要放行"],
+      "important-block":["err","重要拦截"],
+      "allow":["ok","普通放行"],
+      "block":["err","普通拦截"],
+      "dnsrewrite":["warn","DNS 重写"],
+      "important-rewrite":["warn","重要 DNS 重写"],
+      "none":["warn","未命中（默认放行）"]
+    };
+    var m=M[r.priority]||["warn", esc(r.priority||"-")];
+    box.className="alert "+m[0];
+    box.innerHTML='<b>'+esc(r.domain)+'</b> → '+m[1]+
+      (r.rule?'<br><span class="mono">规则: '+esc(r.rule)+'</span>':'')+
+      (r.mods?'<br><span class="mono">修饰符: '+esc(r.mods)+'</span>':'')+
+      (r.rewrite?'<br><span class="mono">重写: '+esc(r.rewrite)+'</span>':'')+
+      (r.cosmetic?('<br><span class="mono">浏览器侧规则: '+r.cosmetic+' 条'+(r.cosmetic_rules?'（'+esc(r.cosmetic_rules)+'）':'')+'</span>'):'');
+  });
+}
+
+/* ---------- 标签切换 ---------- */
+var loaded={};
+function loadTab(tab){
+  switch(tab){
+    case "home": return Promise.all([loadHome(),loadPanel(),loadLogs()]);
+case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSources(),loadRuleSources(),loadWhitelist(),loadBlacklist(),loadFilter(),loadLists(),loadMyRules()]);
+    case "dnssrv": return loadDnsSrv();
+    case "netblock": return loadNetblock();
+    case "proxynode": return loadProxyNode();
+    case "mitm": return Promise.all([loadMitmStatus(),loadMitmStats(),loadApps(),loadMitmRules()]);
+    case "splash": return Promise.all([loadSplash(),loadSplashRules(),loadSplashRecords()]);
+    case "notify": return loadNotify();
+    case "scripts": return Promise.all([loadScripts(),loadSubs()]);
+    case "engine": return loadEngine();
+    case "tools": return loadBackups();
+    case "settings": return loadSettings();
+  }
+}
+function switchTab(tab){
+  $$(".tab").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===tab); });
+  $$(".page").forEach(function(p){ p.classList.toggle("hide", p.id!=="page-"+tab); });
+  loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
+}
+document.getElementById("tabs").addEventListener("click",function(ev){
+  var t=ev.target.closest(".tab"); if(t) switchTab(t.getAttribute("data-tab"));
+});
+/* 子页切换 */
+document.addEventListener("click",function(ev){
+  var st=ev.target.closest(".subtab"); if(!st) return;
+  var id=st.getAttribute("data-sub");
+  $$(".subtabs .subtab").forEach(function(x){ x.classList.toggle("on", x===st); });
+  $$(".subpage").forEach(function(p){ p.classList.toggle("hide", p.id!=="sub-"+id); });
+});
+/* 应用搜索 */
+document.addEventListener("input",function(ev){
+  if(ev.target.id==="appSearch"){ renderApps(ev.target.value); }
+});
+/* 文件导入: 自定义规则 */
+document.addEventListener("change",function(ev){
+  if(ev.target.id==="dnsCustomFile"){
+    readFileText(ev.target,function(txt){
+      var cur=$("#dnsCustomText").value;
+      var merged=(cur?cur.replace(/\s+$/,"")+"\n":"")+txt;
+      busy("正在导入自定义规则文件…");
+      runScript("dns.sh",["custom-save-b64",b64(merged)]).then(function(o){
+        toast(msg(o)); ev.target.value=""; loadCustom(); loadPreview(); loadHosts();
+      });
+    });
+  }
+  if(ev.target.id==="bkFile"){
+    readFileB64(ev.target,function(b){
+      busy("正在从文件恢复备份…");
+      runScript("backup.sh",["import-b64",b]).then(function(o){
+        toast(msg(o)); ev.target.value=""; loadBackups();
+      });
+    });
+  }
+  if(ev.target.id==="spFile"){
+    readFileB64(ev.target,function(b){
+      busy("正在导入开屏规则文件…");
+      runScript("splash.sh",["rules-import-b64",b]).then(function(o){
+        toast(msg(o)); ev.target.value=""; loadSplashRules();
+      });
+    });
+  }
+  if(ev.target.id==="ntFile"){
+    readFileB64(ev.target,function(b){
+      busy("正在导入通知关键词文件…");
+      runScript("notify.sh",["keyword-add-b64",b]).then(function(o){
+        toast(msg(o)); ev.target.value=""; loadNotify();
+      });
+    });
+  }
+  if(ev.target.id==="nbFile"){
+    readFileB64(ev.target,function(b){
+      busy("正在导入网络拦截规则文件…");
+      runScript("netblock.sh",["import-b64",NB_TYPE,b]).then(function(o){
+        toast(msg(o)); ev.target.value=""; loadNetblock();
+      });
+    });
+  }
+});
+/* 网络拦截子类型切换 */
+document.addEventListener("click",function(ev){
+  var st=ev.target.closest(".subtab[data-nb]"); if(!st) return;
+  NB_TYPE=st.getAttribute("data-nb");
+  $$(".subtab[data-nb]").forEach(function(x){ x.classList.toggle("on", x===st); });
+  loadNbList();
+});
+/* 应用勾选状态维护 */
+document.addEventListener("change",function(ev){
+  if(ev.target.matches('#appPicker input[type=checkbox]')){
+    var p=ev.target.getAttribute("data-app");
+    if(ev.target.checked){ if(APP_SELECTED.indexOf(p)<0) APP_SELECTED.push(p); }
+    else { APP_SELECTED=APP_SELECTED.filter(function(x){return x!==p}); }
+  }
+});
+
+/* ---------- 启动 ---------- */
+document.addEventListener("change",function(ev){
+  var t=ev.target;
+  if(t&&t.id==="blFile"&&t.files&&t.files[0]){
+    var fr=new FileReader();
+    fr.onload=function(){ runScript("dns.sh",["blacklist-import-b64",b64(String(fr.result))]).then(function(o){toast(msg(o));loadBlacklist();loadPreview();loadHosts()}); };
+    fr.readAsText(t.files[0]);
+  }
+});
+(function init(){
+  if(TOKEN){ try{ localStorage.setItem("ab_token",TOKEN); }catch(e){} }
+  if(hasKSU()) KSU_LABEL="KSU"; else KSU_LABEL="LAN";
+  switchTab("home");
+  setInterval(function(){
+    var cur=document.querySelector(".tab.on"); 
+    if(cur&&cur.getAttribute("data-tab")==="home") { loadHome(); loadPanel(); }
+  }, 15000);
+})();
+</script>
+</body>
+</html>

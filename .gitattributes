@@ -1,0 +1,31 @@
+# 统一换行符：仓库内一律使用 LF，避免在 Android 上出现 `\r` 导致的语法错误
+* text=auto eol=lf
+
+*.sh      text eol=lf
+*.awk     text eol=lf
+*.conf    text eol=lf
+*.prop    text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.go      text eol=lf
+*.mod     text eol=lf
+*.html    text eol=lf
+*.css     text eol=lf
+*.js      text eol=lf
+*.tsv     text eol=lf
+*.py      text eol=lf
+
+# 安装器脚本必须保持 LF，CRLF 会导致 Android 上安装失败
+update-binary  text eol=lf
+updater-script text eol=lf
+
+# 二进制文件不做任何转换
+bin/*      -text -diff
+*.zip      binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.webp     binary
+*.so       binary
+*.apk      binary

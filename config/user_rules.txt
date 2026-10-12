@@ -1,0 +1,12 @@
+# ============================================================
+#  自定义过滤规则 (My filters)  — 兼容 AdGuard / uBlock Origin 语法
+#  示例:
+#    ||ads.example.com^          拦截该域名及其子域
+#    example.com                 纯域名拦截(含子域)
+#    @@||good.example.com^       放行例外
+#    /banner\d+/                 正则拦截
+#    ||track.com^$dnsrewrite=0.0.0.0   解析重写
+#    ||bad.com^$important        重要拦截(优先于普通放行)
+#    ||bad.com^$badfilter        关闭同名规则
+#  注释行以 ! # ; 开头
+# ============================================================

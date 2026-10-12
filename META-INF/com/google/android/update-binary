@@ -1,0 +1,117 @@
+#!/sbin/sh
+# ============================================================
+#  Magisk / KernelSU 通用安装引导 (update-binary)
+#  1) 优先加载 Magisk/KernelSU 提供的 util_functions.sh，走标准安装流程
+#  2) 若两者都缺失（如纯 KernelSU 环境无 magisk 目录），
+#     自动降级为自包含安装器，功能与标准流程等价
+#  安装流程最终委托给模块根目录的 customize.sh
+# ============================================================
+umask 022
+OUTFD=$2
+ZIPFILE=$3
+
+ui_print() { echo "$1"; }
+abort() { ui_print "$1"; exit 1; }
+
+# ---------- 定位 util_functions.sh ----------
+UF=""
+for c in \
+  /data/adb/magisk/util_functions.sh \
+  /data/adb/ksu/util_functions.sh \
+  /data/adb/modules/magisk/util_functions.sh \
+  /data/adb/modules_update/magisk/util_functions.sh
+do
+  [ -f "$c" ] && { UF="$c"; break; }
+done
+
+if [ -n "$UF" ]; then
+  . "$UF"
+  # KernelSU 中 MAGISK_VER_CODE 恒为 25200，仅对真 Magisk 做低版本拦截
+  if [ -n "$MAGISK_VER_CODE" ] && [ "$MAGISK_VER_CODE" -lt 20400 ] 2>/dev/null; then
+    ui_print "*******************************"
+    ui_print " Please install Magisk v20.4+! "
+    ui_print "*******************************"
+    exit 1
+  fi
+  install_module
+  exit 0
+fi
+
+# ============================================================
+#  自包含回退安装器
+# ============================================================
+ui_print "- 未检测到 util_functions.sh，启用内置安装器"
+
+BUSYBOX=""
+for b in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox /system/bin/busybox; do
+  [ -x "$b" ] && { BUSYBOX="$b"; break; }
+done
+
+TMP="${TMPDIR:-/dev/tmp}/sy_install.$$"
+rm -rf "$TMP" 2>/dev/null
+mkdir -p "$TMP" 2>/dev/null || abort "! 无法创建临时目录 $TMP"
+MODPATH="$TMP/module"
+mkdir -p "$MODPATH"
+
+ui_print "- 解压模块到临时目录"
+if [ -n "$BUSYBOX" ]; then
+  "$BUSYBOX" unzip -o "$ZIPFILE" -d "$MODPATH" >/dev/null 2>&1
+elif command -v unzip >/dev/null 2>&1; then
+  unzip -o "$ZIPFILE" -d "$MODPATH" >/dev/null 2>&1
+else
+  abort "! 缺少 unzip，无法解压模块"
+fi
+[ -f "$MODPATH/module.prop" ] || abort "! 解压失败：未找到 module.prop"
+
+# ---- 安装器函数（与 Magisk 语义一致）----
+set_perm() {
+  chown "$2.$3" "$1" 2>/dev/null
+  chmod "$4" "$1" 2>/dev/null
+  [ -n "$5" ] && command -v chcon >/dev/null 2>&1 && chcon "$5" "$1" 2>/dev/null
+  return 0
+}
+set_perm_recursive() {
+  _d="$1"; _o="$2"; _g="$3"; _dp="$4"; _fp="$5"; _c="$6"
+  set_perm "$_d" "$_o" "$_g" "$_dp" "$_c"
+  for _f in "$_d"/*; do
+    [ -e "$_f" ] || continue
+    if [ -d "$_f" ]; then set_perm_recursive "$_f" "$_o" "$_g" "$_dp" "$_fp" "$_c"
+    else set_perm "$_f" "$_o" "$_g" "$_fp" "$_c"; fi
+  done
+  return 0
+}
+# 回退环境下的默认值
+: "${ARCH:=arm64}"
+: "${API:=$(getprop ro.build.version.sdk 2>/dev/null)}"
+[ -n "$API" ] || API=30
+: "${IS64BIT:=true}"
+
+# ---- 执行模块定制安装 ----
+if [ -f "$MODPATH/customize.sh" ]; then
+  ui_print "- 执行 customize.sh"
+  . "$MODPATH/customize.sh"
+else
+  ui_print "! 模块缺少 customize.sh，跳过定制步骤"
+fi
+
+# ---- 落地到模块目录 ----
+MODID="$(sed -n 's/^id=//p' "$MODPATH/module.prop" 2>/dev/null | tr -d '\r' | head -n1)"
+[ -n "$MODID" ] || abort "! module.prop 缺少 id"
+
+DEST="/data/adb/modules_update/$MODID"
+ui_print "- 安装到 $DEST"
+rm -rf "$DEST" 2>/dev/null
+mkdir -p "$DEST" 2>/dev/null || abort "! 无法写入 $DEST"
+# 拷贝内容（含隐藏文件）
+if [ -n "$BUSYBOX" ]; then
+  "$BUSYBOX" cp -a "$MODPATH/." "$DEST/" 2>/dev/null
+else
+  cp -a "$MODPATH/." "$DEST/" 2>/dev/null || cp -R "$MODPATH/." "$DEST/" 2>/dev/null
+fi
+
+# 标记：重启后由内核/管理器完成切换
+touch "$DEST/update" 2>/dev/null
+rm -rf "$TMP" 2>/dev/null
+
+ui_print "- 安装完成，请重启设备生效"
+exit 0

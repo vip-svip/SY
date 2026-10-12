@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SY · 玻璃磨砂面板预览</title>
+<style>
+
+/* ============================================================
+   SY-Fusion · 玻璃磨砂设计系统 (Glassmorphism)
+   ------------------------------------------------------------
+   · 真实毛玻璃：backdrop-filter blur + saturate + 边缘高光
+   · 彩色光晕底 + 细颗粒噪点，形成可感知的磨砂质感
+   · 完整深浅色适配、无 backdrop-filter 环境自动降级
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+:root{
+  color-scheme:light;
+  --blur:22px; --sat:175%;
+  --glass-1:rgba(255,255,255,.60);
+  --glass-2:rgba(255,255,255,.28);
+  --glass-3:rgba(255,255,255,.14);
+  --glass-border:rgba(255,255,255,.72);
+  --glass-edge:rgba(255,255,255,.95);
+  --glass-shadow:0 10px 34px rgba(28,36,72,.13),0 2px 8px rgba(28,36,72,.06);
+  --glass-inset:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.2);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,0) 32%);
+
+  --bg:#eaf0fb;
+  --bg-grad:
+    radial-gradient(58% 42% at 12% -6%,#8fb4ff 0%,rgba(143,180,255,0) 62%),
+    radial-gradient(52% 40% at 96% 6%,#7ee0f0 0%,rgba(126,224,240,0) 60%),
+    radial-gradient(60% 46% at 82% 98%,#f5a8e8 0%,rgba(245,168,232,0) 62%),
+    radial-gradient(46% 36% at 6% 94%,#a7f3d0 0%,rgba(167,243,208,0) 58%),
+    linear-gradient(160deg,#eef3ff 0%,#e7eefc 48%,#f3ecff 100%);
+  --text:#0d1526; --text2:#5c6b86; --text3:#8794ab;
+  --line:rgba(255,255,255,.72); --line2:rgba(13,21,38,.09);
+  --card:var(--glass-1); --card-solid:rgba(255,255,255,.88);
+  --shadow:var(--glass-shadow); --hl:var(--glass-edge); --hl2:rgba(255,255,255,.10);
+  --accent:#3b6df6; --accent-2:#7a5cf0; --on-accent:#ffffff; --accent2:#5c6b86;
+  --ok:#0ea472; --warn:#c9791a; --err:#e0453f;
+  --chip:rgba(59,109,246,.11);
+  --noise:.055;
+}
+
+html.theme-dark{
+  color-scheme:dark;
+  --glass-1:rgba(28,36,58,.58);
+  --glass-2:rgba(28,36,58,.32);
+  --glass-3:rgba(255,255,255,.05);
+  --glass-border:rgba(255,255,255,.14);
+  --glass-edge:rgba(255,255,255,.18);
+  --glass-shadow:0 14px 44px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.35);
+  --glass-inset:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.28);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,0) 34%);
+  --bg:#05080f;
+  --bg-grad:
+    radial-gradient(58% 42% at 10% -8%,#1d3a8f 0%,rgba(29,58,143,0) 60%),
+    radial-gradient(52% 40% at 98% 4%,#0b6d86 0%,rgba(11,109,134,0) 58%),
+    radial-gradient(60% 46% at 84% 98%,#5b21a8 0%,rgba(91,33,168,0) 62%),
+    radial-gradient(46% 36% at 6% 94%,#0f5132 0%,rgba(15,81,50,0) 58%),
+    linear-gradient(160deg,#060a14 0%,#080d1a 50%,#0b0716 100%);
+  --text:#e9eefc; --text2:#9aa8c4; --text3:#7183a3;
+  --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+  --card:var(--glass-1); --card-solid:rgba(20,27,45,.93);
+  --accent:#6f9bff; --accent-2:#a78bfa; --on-accent:#061024; --accent2:#9aa8c4;
+  --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --chip:rgba(111,155,255,.16);
+  --noise:.045;
+}
+@media (prefers-color-scheme:dark){
+  html:not(.theme-light){
+    color-scheme:dark;
+    --glass-1:rgba(28,36,58,.58); --glass-2:rgba(28,36,58,.32);
+    --glass-3:rgba(255,255,255,.05);
+    --glass-border:rgba(255,255,255,.14); --glass-edge:rgba(255,255,255,.18);
+    --glass-shadow:0 14px 44px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.35);
+    --glass-inset:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.28);
+    --sheen:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,0) 34%);
+    --bg:#05080f;
+    --bg-grad:
+      radial-gradient(58% 42% at 10% -8%,#1d3a8f 0%,rgba(29,58,143,0) 60%),
+      radial-gradient(52% 40% at 98% 4%,#0b6d86 0%,rgba(11,109,134,0) 58%),
+      radial-gradient(60% 46% at 84% 98%,#5b21a8 0%,rgba(91,33,168,0) 62%),
+      radial-gradient(46% 36% at 6% 94%,#0f5132 0%,rgba(15,81,50,0) 58%),
+      linear-gradient(160deg,#060a14 0%,#080d1a 50%,#0b0716 100%);
+    --text:#e9eefc; --text2:#9aa8c4; --text3:#7183a3;
+    --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+    --card:var(--glass-1); --card-solid:rgba(20,27,45,.93);
+    --accent:#6f9bff; --accent-2:#a78bfa; --on-accent:#061024; --accent2:#9aa8c4;
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --chip:rgba(111,155,255,.16); --noise:.045;
+  }
+}
+
+html,body{margin:0;padding:0;min-height:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  padding-bottom:112px;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+  transition:background .35s ease,color .35s ease;
+}
+/* 彩色光晕底：为毛玻璃提供可模糊的彩色背景 */
+body::before{
+  content:"";position:fixed;inset:-14%;z-index:-2;pointer-events:none;
+  background-image:var(--bg-grad);background-repeat:no-repeat;
+  filter:blur(8px) saturate(118%);
+}
+/* 细颗粒噪点：磨砂质感的关键 */
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  opacity:var(--noise);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- 顶栏（磨砂） ---------- */
+.appbar{
+  position:sticky;top:0;z-index:50;
+  padding:15px 16px 12px;
+  background:linear-gradient(180deg,var(--glass-1),var(--glass-2));
+  border-bottom:1px solid var(--glass-border);
+  box-shadow:0 6px 26px rgba(28,36,72,.10);
+  backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+}
+.appbar h1{
+  margin:0;font-size:19.5px;font-weight:800;letter-spacing:.2px;
+  display:flex;align-items:center;gap:8px;
+}
+.appbar .sub{font-size:12px;color:var(--text2);margin-top:3px;word-break:break-all}
+.theme-btn{
+  position:absolute;right:14px;top:14px;width:41px;height:41px;border-radius:15px;
+  border:1px solid var(--glass-border);color:var(--text);font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.72),rgba(255,255,255,.32));
+  box-shadow:0 6px 18px rgba(28,36,72,.12),inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  transition:transform .15s,filter .2s;
+}
+html.theme-dark .theme-btn{background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.05))}
+.theme-btn:active{transform:scale(.93)}
+
+.wrap{padding:13px 14px 4px}
+
+/* ---------- 玻璃卡片 ---------- */
+.card{
+  position:relative;isolation:isolate;
+  padding:16px;margin-bottom:13px;border-radius:22px;
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-2));
+  box-shadow:var(--glass-shadow),var(--glass-inset);
+  backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(var(--sat));
+  overflow:hidden;
+}
+.card::after{
+  content:"";position:absolute;left:16px;right:16px;top:0;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--glass-edge),transparent);
+}
+.card-head{
+  font-size:15px;font-weight:800;letter-spacing:.1px;margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.tagline{font-size:11px;font-weight:500;color:var(--text3)}
+.kv{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:9px 0;font-size:13.5px;border-bottom:1px dashed var(--line2);
+}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--text2);flex:none}
+.kv b{font-weight:650;text-align:right;word-break:break-all}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid.cols4{grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:430px){.grid.cols4{grid-template-columns:repeat(2,1fr)}}
+.metric{
+  position:relative;overflow:hidden;padding:14px;border-radius:18px;
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-3));
+  box-shadow:inset 0 1px 0 var(--glass-edge),0 4px 14px rgba(28,36,72,.07);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+}
+.metric .n{
+  font-size:22px;font-weight:800;letter-spacing:-.6px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.metric .l{font-size:11.5px;color:var(--text2);margin-top:5px;letter-spacing:.2px}
+
+/* ---------- 玻璃按钮 ---------- */
+.btn{
+  appearance:none;flex:1;min-width:0;cursor:pointer;font-family:inherit;
+  padding:12px 15px;border-radius:16px;font-size:13.5px;font-weight:700;letter-spacing:.1px;
+  color:var(--text);border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.66),rgba(255,255,255,.30));
+  box-shadow:0 6px 18px rgba(28,36,72,.10),inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  transition:transform .14s cubic-bezier(.34,1.4,.64,1),box-shadow .2s,filter .2s;
+}
+html.theme-dark .btn{background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.045))}
+.btn:hover{filter:brightness(1.04)}
+.btn:active{transform:scale(.965);box-shadow:0 3px 10px rgba(28,36,72,.14),inset 0 1px 0 var(--glass-edge)}
+.btn.primary{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+  box-shadow:0 10px 26px rgba(59,109,246,.36),inset 0 1px 0 rgba(255,255,255,.45);
+}
+.btn.ok{
+  color:var(--ok);border-color:rgba(16,185,129,.42);
+  background-image:linear-gradient(150deg,rgba(16,185,129,.26),rgba(16,185,129,.06));
+  box-shadow:0 8px 20px rgba(16,185,129,.16),inset 0 1px 0 var(--glass-edge);
+}
+.btn.danger{
+  color:var(--err);border-color:rgba(239,68,68,.42);
+  background-image:linear-gradient(150deg,rgba(239,68,68,.24),rgba(239,68,68,.05));
+  box-shadow:0 8px 20px rgba(239,68,68,.15),inset 0 1px 0 var(--glass-edge);
+}
+.btn.sm{padding:7px 12px;font-size:12px;border-radius:12px;flex:none}
+.btn-row{display:flex;gap:9px;margin-top:10px;flex-wrap:wrap}
+.btn-row .btn{min-width:0}
+
+/* ---------- 输入控件 ---------- */
+.ta,input[type=text],input[type=url],input[type=number],select{
+  width:100%;margin-top:8px;padding:11px 13px;font-family:inherit;font-size:13px;
+  color:var(--text);border-radius:14px;border:1px solid var(--glass-border);
+  background-image:linear-gradient(160deg,rgba(255,255,255,.56),rgba(255,255,255,.22));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  backdrop-filter:blur(12px) saturate(150%);-webkit-backdrop-filter:blur(12px) saturate(150%);
+  outline:none;
+}
+html.theme-dark .ta,html.theme-dark input[type=text],html.theme-dark input[type=url],html.theme-dark input[type=number],html.theme-dark select{
+  background-image:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+}
+.ta{min-height:120px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+input::placeholder,.ta::placeholder{color:var(--text3)}
+select{appearance:none}
+.hint{font-size:11.5px;color:var(--text2);margin:7px 0 2px;line-height:1.55}
+
+/* ---------- 标签 / 分段 ---------- */
+.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:80;margin:0;
+  display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;
+  padding:9px 11px calc(9px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,var(--glass-1),var(--card-solid));
+  border-top:1px solid var(--glass-border);
+  box-shadow:0 -8px 30px rgba(28,36,72,.13);
+  backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:none;white-space:nowrap;cursor:pointer;
+  padding:9px 16px;border-radius:15px;font-size:13px;font-weight:700;
+  color:var(--text2);border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.60),rgba(255,255,255,.26));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  transition:transform .16s,color .2s,background .2s;
+}
+html.theme-dark .tab{background-image:var(--sheen),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.04))}
+.tab.on{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+  box-shadow:0 8px 22px rgba(59,109,246,.34),inset 0 1px 0 rgba(255,255,255,.4);
+}
+.tab:active{transform:scale(.96)}
+.subtabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.subtab{
+  cursor:pointer;padding:7px 13px;border-radius:13px;font-size:12.5px;font-weight:700;
+  color:var(--accent);border:1px solid var(--glass-border);background:var(--chip);
+  transition:transform .16s;
+}
+.subtab.on{
+  color:var(--on-accent);border-color:transparent;
+  background-image:linear-gradient(150deg,var(--accent),var(--accent-2));
+}
+.subtab:active{transform:scale(.96)}
+.subtabline{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+.subchk,.sub{font-size:12.5px;color:var(--text2)}
+.subpage{margin-top:6px}
+
+/* ---------- 提示条 ---------- */
+.alert{border-radius:15px;padding:11px 14px;font-size:12.5px;margin-bottom:10px;line-height:1.55;border:1px solid}
+.alert.warn{background:rgba(245,158,11,.15);color:#a25c07;border-color:rgba(245,158,11,.34)}
+.alert.ok{background:rgba(16,185,129,.15);color:#047857;border-color:rgba(16,185,129,.34)}
+.alert.err{background:rgba(239,68,68,.15);color:#b91c1c;border-color:rgba(239,68,68,.34)}
+html.theme-dark .alert.warn{color:#fbbf24}
+html.theme-dark .alert.ok{color:#4ade80}
+html.theme-dark .alert.err{color:#f87171}
+
+/* ---------- 列表 / 行 ---------- */
+.list{
+  max-height:360px;overflow:auto;margin-top:8px;border-radius:14px;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+}
+.list::-webkit-scrollbar{width:6px;height:6px}
+.list::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.row{
+  display:flex;align-items:center;gap:9px;padding:10px 12px;margin-bottom:7px;
+  border-radius:14px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.56),rgba(255,255,255,.24));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+}
+html.theme-dark .row{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.row .t{flex:1;min-width:0;font-size:12.5px;word-break:break-all}
+.row .del{
+  flex:none;width:32px;height:32px;border-radius:11px;cursor:pointer;font-size:16px;font-weight:700;
+  color:var(--err);border:1px solid rgba(239,68,68,.4);
+  background:linear-gradient(150deg,rgba(239,68,68,.22),rgba(239,68,68,.05));
+}
+.row .ln{flex:none;min-width:26px;text-align:center;font-size:11px;color:var(--text3);font-family:ui-monospace,monospace}
+.chk{
+  display:flex;align-items:center;gap:9px;padding:10px 12px;margin-bottom:7px;font-size:12.5px;
+  border-radius:14px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.54),rgba(255,255,255,.22));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+}
+html.theme-dark .chk{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.chk input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--text2);word-break:break-all}
+.empty{text-align:center;color:var(--text3);font-size:12.5px;padding:20px}
+.glass{
+  border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,var(--glass-1),var(--glass-2));
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+}
+
+/* ---------- Shadowrocket 风格行 ---------- */
+.sr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line2)}
+.sr-row:last-child{border-bottom:none}
+.sr-row .sr-l{font-size:13.5px;font-weight:600}
+.sr-row .sr-l small{display:block;color:var(--text2);font-size:11px;font-weight:400;margin-top:2px}
+.sr-node{
+  display:flex;align-items:center;gap:11px;padding:12px;margin-bottom:8px;cursor:pointer;
+  border-radius:15px;border:1px solid var(--glass-border);
+  background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.56),rgba(255,255,255,.24));
+  box-shadow:inset 0 1px 0 var(--glass-edge);
+  transition:transform .16s,box-shadow .2s;
+}
+html.theme-dark .sr-node{background-image:var(--sheen),linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.035))}
+.sr-node:active{transform:scale(.985)}
+.sr-node.on{border-color:var(--accent);box-shadow:0 8px 24px rgba(59,109,246,.28),inset 0 1px 0 var(--glass-edge)}
+.sr-node .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--text3);box-shadow:0 0 0 3px rgba(59,109,246,.14)}
+.sr-node.on .dot{background:var(--accent);box-shadow:0 0 0 3px rgba(59,109,246,.34)}
+.sr-node .nm{flex:1;min-width:0;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-node .pf{
+  flex:none;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  padding:3px 8px;border-radius:8px;background:var(--chip);color:var(--accent);
+}
+.sr-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:9px;background:var(--chip);color:var(--accent);
+}
+.sr-badge.on{background:linear-gradient(150deg,rgba(16,185,129,.26),rgba(16,185,129,.08));color:var(--ok)}
+.sr-badge.off{background:rgba(148,163,184,.16);color:var(--text2)}
+
+/* ---------- Toast / 加载 ---------- */
+#toast{
+  position:fixed;left:50%;bottom:30px;z-index:999;max-width:88vw;
+  transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+  padding:12px 19px;border-radius:17px;font-size:13px;color:#fff;
+  background:linear-gradient(150deg,rgba(30,41,59,.88),rgba(30,41,59,.74));
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 14px 38px rgba(0,0,0,.42);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  transition:opacity .25s,transform .25s;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.spin{
+  display:inline-block;width:14px;height:14px;vertical-align:-2px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.45);border-top-color:#fff;animation:sp .7s linear infinite;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.hide{display:none!important}
+
+/* ---------- 引擎页专用 ---------- */
+.bar{height:9px;border-radius:9px;background:rgba(127,145,180,.20);overflow:hidden;margin-top:8px}
+.bar > i{
+  display:block;height:100%;border-radius:9px;
+  background-image:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.chip{
+  font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:11px;
+  background:var(--chip);color:var(--accent);border:1px solid var(--glass-border);
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+}
+.chip b{color:var(--text);font-weight:800}
+
+/* ---------- 无 backdrop-filter 环境降级 ---------- */
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
+  :root{--glass-1:rgba(255,255,255,.90);--glass-2:rgba(255,255,255,.80)}
+  html.theme-dark{--glass-1:rgba(24,31,50,.94);--glass-2:rgba(24,31,50,.88)}
+  .card,.btn,.metric,.tab,.row,.chk,.sr-node,.theme-btn{background-image:none;background-color:var(--glass-1)}
+  .btn.primary,.tab.on{background-color:var(--accent)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+</style>
+</head>
+<body>
+<div class="appbar">
+  <h1>🛡️ SY</h1>
+  <div class="sub" id="sysline">正在连接内核…</div>
+  <button class="theme-btn" data-act="theme" title="切换深浅色">🌓</button>
+</div>
+<div class="wrap">
+<div class="tabs" id="tabs">
+    <div class="tab on" data-tab="home">总览</div>
+    <div class="tab" data-tab="dns">hosts 拦截</div>
+    <div class="tab" data-tab="engine">规则引擎</div>
+    <div class="tab" data-tab="dnssrv">DNS</div>
+    <div class="tab" data-tab="netblock">网络拦截</div>
+    <div class="tab" data-tab="proxynode">网络代理</div>
+    <div class="tab" data-tab="mitm">MITM 代理</div>
+    <div class="tab" data-tab="splash">开屏跳过</div>
+    <div class="tab" data-tab="notify">通知过滤</div>
+    <div class="tab" data-tab="scripts">脚本扩展</div>
+    <div class="tab" data-tab="tools">工具</div>
+    <div class="tab" data-tab="settings">设置</div>
+  </div>
+<section class="page" id="page-home">
+    <div class="card">
+      <div class="card-head">运行总览<span class="tagline" id="ovTime"></span></div><div class="grid cols4">
+        <div class="metric glass"><div class="n" id="ovDns">-</div><div class="l">DNS 拦截域名</div></div>
+        <div class="metric glass"><div class="n" id="ovBlocked">-</div><div class="l">累计拦截</div></div>
+        <div class="metric glass"><div class="n" id="ovMitm">-</div><div class="l">MITM 代理</div></div>
+        <div class="metric glass"><div class="n" id="ovSplash">-</div><div class="l">开屏跳过次数</div></div>
+      </div></div>
+    <div class="card">
+      <div class="card-head">系统状态</div>
+      <div class="kv"><span>内存占用</span><b id="ovMem">-</b></div>
+      <div class="kv"><span>服务组件 CPU</span><b id="ovCpu">-</b></div>
+      <div class="kv"><span>开机时长</span><b id="ovUp">-</b></div>
+      <div class="kv"><span>面板服务</span><b id="ovPanel">-</b></div>
+    </div>
+    <div class="card">
+      <div class="card-head">面板服务（局域网后台）</div>
+      <div class="hint">同一 Wi-Fi 下用手机/电脑浏览器打开即可管理，无需数据线。若显示"已停止"，点「启动」或「重启」即可拉起。</div>
+      <div class="kv"><span>服务状态</span><b id="pnRun">-</b></div>
+      <div class="kv"><span>监听端口</span><b id="pnPort">-</b></div>
+      <div class="kv"><span>访问地址</span><b id="pnUrl" class="mono">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="panel-start">启动</button>
+        <button class="btn ok" data-act="panel-restart">重启</button>
+        <button class="btn danger" data-act="panel-stop">停止</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="panel-open">显示访问链接</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">运行日志<span class="tagline">dns / mitm / proxy / 内核</span></div>
+      <div class="hint">查看模块各组件运行日志，辅助定位问题。日志保存在 /data/adb/SY/logs。</div>
+      <div class="list" id="logList">
+        <div class="row"><span class="mono">dns.log</span><span class="tag">2.1 KB</span>
+          <button class="btn small" data-act="logs-view">查看</button></div>
+        <div class="row"><span class="mono">mitm.log</span><span class="tag">18.4 KB</span>
+          <button class="btn small" data-act="logs-view">查看</button></div>
+        <div class="row"><span class="mono">proxy.log</span><span class="tag">512 B</span>
+          <button class="btn small" data-act="logs-view">查看</button></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="logs-refresh">刷新列表</button>
+        <button class="btn danger" data-act="logs-clear-all">清空全部日志</button>
+      </div>
+      <pre class="ta" id="logView" style="white-space:pre-wrap;max-height:40vh;overflow:auto;margin:0">点击上方「查看」显示日志</pre>
+    </div>
+    <div class="btn-row"><button class="btn primary" data-act="refresh-home">刷新总览</button></div>
+  </section>
+<section class="page" id="page-engine">
+    <div class="card">
+      <div class="card-head">融合引擎<span class="tagline">AdGuard Home + uBlock Origin</span></div>
+      <div class="hint">统一解析 hosts / dnsmasq / AdBlock / AdGuard / uBlock 全语法，按
+        <b>重要放行 &gt; 重要拦截 &gt; 普通放行 &gt; 普通拦截</b> 求值，支持 $important、$badfilter、$denyallow、$dnsrewrite、$client/$ctag 作用域。</div>
+      <div class="grid cols4">
+        <div class="metric"><div class="n" id="engBlock">-</div><div class="l">普通拦截</div></div>
+        <div class="metric"><div class="n" id="engBlockImp">-</div><div class="l">重要拦截</div></div>
+        <div class="metric"><div class="n" id="engAllow">-</div><div class="l">普通放行</div></div>
+        <div class="metric"><div class="n" id="engAllowImp">-</div><div class="l">重要放行</div></div>
+      </div>
+      <div class="grid cols4" style="margin-top:8px">
+        <div class="metric"><div class="n" id="engRegex">-</div><div class="l">正则规则</div></div>
+        <div class="metric"><div class="n" id="engRewrite">-</div><div class="l">DNS 重写</div></div>
+        <div class="metric"><div class="n" id="engCosmetic">-</div><div class="l">元素隐藏</div></div>
+        <div class="metric"><div class="n" id="engScriptlet">-</div><div class="l">脚本注入</div></div>
+      </div>
+      <div class="kv"><span>hosts 条目</span><b id="engHosts">-</b></div>
+      <div class="kv"><span>解析记录</span><b id="engRecords">-</b></div>
+      <div class="kv"><span>URL 模式规则</span><b id="engPattern">-</b></div>
+      <div class="kv"><span>规则表</span><b id="engLists">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="eng-build">重新编译</button>
+        <button class="btn" data-act="eng-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">多语法分布<span class="tagline">syntax</span></div>
+      <div class="chips" id="engSyntax">
+        <span class="chip">adblock <b>31842</b></span>
+        <span class="chip">modifiers <b>9157</b></span>
+        <span class="chip">元素隐藏 <b>8420</b></span>
+        <span class="chip">脚本注入 <b>1265</b></span>
+        <span class="chip">CSS 注入 <b>412</b></span>
+        <span class="chip">扩展 CSS <b>286</b></span>
+        <span class="chip">HTML 过滤 <b>174</b></span>
+        <span class="chip">JS 注入 <b>63</b></span>
+        <span class="chip">hosts <b>51204</b></span>
+        <span class="chip">dnsmasq <b>980</b></span>
+        <span class="chip">正则 <b>221</b></span>
+        <span class="chip">DNS 重写 <b>37</b></span>
+        <span class="chip">纯域名 <b>18660</b></span>
+      </div>
+      <div class="hint">覆盖：AdBlock/AdGuard 网络规则、修饰符、元素隐藏、脚本注入、CSS 注入、扩展 CSS、HTML 过滤、JS 注入、hosts、dnsmasq、正则、DNS 重写、纯域名清单。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">规则体检<span class="tagline">verify</span></div>
+      <div class="kv"><span>解析记录</span><b id="engVRecords">-</b></div>
+      <div class="kv"><span>无效规则</span><b id="engVInvalid">-</b></div>
+      <div class="kv"><span>$badfilter 规则</span><b id="engVBadf">-</b></div>
+      <div class="kv"><span>冗余拦截（被遮蔽）</span><b id="engVRedB">-</b></div>
+      <div class="kv"><span>冗余放行（被遮蔽）</span><b id="engVRedA">-</b></div>
+      <div class="kv"><span>拦截/放行同域覆盖</span><b id="engVConf">-</b></div>
+      <div class="hint">「同域覆盖」在 Adblock 语义下属正常：放行规则优先于拦截规则。</div>
+      <div class="btn-row"><button class="btn" data-act="eng-verify">执行体检</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">规则命中诊断<span class="tagline">test</span></div>
+      <div class="hint">输入域名，查看由哪条规则命中及其优先级。</div>
+      <input type="text" id="engTestInput" placeholder="域名或 URL，例如 ads.example.com 或 https://cdn.example.com/ads/banner.js">
+      <div class="btn-row"><button class="btn primary" data-act="eng-test">诊断</button></div>
+      <div class="alert" id="engTestOut" style="margin-top:10px;display:none"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">编译产物<span class="tagline">rules/engine</span></div>
+      <div class="kv"><span>hosts</span><b class="mono">rules/engine/hosts</b></div>
+      <div class="kv"><span>DNS 规则</span><b class="mono">rules/engine/dnsrules.conf</b></div>
+      <div class="kv"><span>原始记录</span><b class="mono">cache/engine/records.tsv</b></div>
+      <div class="hint">hosts 供 /system/etc/hosts 绑定挂载；dnsrules.conf 为 AdGuard Home / dnsmasq 兼容格式，可交给本地解析器或第三方工具消费。</div>
+      <div class="btn-row">
+        <button class="btn" data-act="eng-syntax">语法分析</button>
+        <button class="btn danger" data-act="eng-clear">清空产物</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function(){
+  function $(s){return document.querySelector(s)}
+  function set(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+
+  set('sysline', '内核运行中 · AdGuard Home 融合引擎 v1.0.0');
+  set('ovTime', '更新于 12:36:45');
+  set('ovDns', '51,204');
+  set('ovBlocked', '1,284,930');
+  set('ovMitm', '运行中');
+  set('ovSplash', '376');
+  set('ovMem', '42.6 MB');
+  set('ovCpu', '1.8%');
+  set('ovUp', '3 天 07:12');
+  set('ovPanel', '运行中');
+  set('pnRun', '运行中');
+  set('pnPort', '8080');
+  set('pnUrl', 'http://192.168.1.23:8080');
+  set('logView', '$ tail -n 3 dns.log\n[12:36:41] query ads.doubleclick.net -> BLOCKED (||doubleclick.net^)\n[12:36:42] query cdn.example.com -> PASS\n[12:36:44] engine reloaded: 68,711 rules');
+  set('engBlock', '58,132');
+  set('engBlockImp', '1,204');
+  set('engAllow', '486');
+  set('engAllowImp', '39');
+  set('engRegex', '221');
+  set('engRewrite', '37');
+  set('engCosmetic', '8,420 / 1,860');
+  set('engScriptlet', '1,265');
+  set('engHosts', '51,204 行');
+  set('engRecords', '68,711');
+  set('engPattern', '3,082');
+  set('engLists', '14 张规则表');
+  set('engVRecords', '68,711');
+  set('engVInvalid', '42');
+  set('engVBadf', '118');
+  set('engVRedB', '0');
+  set('engVRedA', '0');
+  set('engVConf', '1');
+
+  var to = document.getElementById('engTestOut');
+  if(to){ to.innerHTML = '<span class="mono">域名: ads.doubleclick.net</span><br><b>结果: 拦截</b> &nbsp; 优先级: important-block<br><span class="mono">命中规则: ||doubleclick.net^$important</span><br><span class="mono">修饰符: important</span><br><span class="mono">浏览器侧规则: 3 条（H:.ad-banner | S:set-constant, adFlag, false | …）</span>'; to.style.display=''; to.className='alert ok'; }
+
+  document.querySelectorAll('[data-act="theme"]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var el=document.documentElement;
+      if(el.classList.contains('theme-dark')){ el.classList.remove('theme-dark'); el.classList.add('theme-light'); }
+      else { el.classList.remove('theme-light'); el.classList.add('theme-dark'); }
+    });
+  });
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
+      t.classList.add('on');
+      var name = t.getAttribute('data-tab');
+      document.querySelectorAll('.page').forEach(function(p){
+        p.classList.toggle('hide', p.id !== 'page-'+name);
+      });
+    });
+  });
+  document.querySelectorAll('[data-act]').forEach(function(b){
+    var a = b.getAttribute('data-act');
+    if(a==='theme') return;
+    b.addEventListener('click', function(){
+      var el=$('#toast'); if(el){ el.textContent='预览模式：按钮 '+a+' 不产生实际动作'; el.classList.add('show');
+        clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove('show')},2200); }
+    });
+  });
+})();
+</script>
+<div class="toast" id="toast"></div>
+</body>
+</html>

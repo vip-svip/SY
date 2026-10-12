@@ -1,0 +1,78 @@
+! ============================================================
+!  SY-Fusion 融合引擎测试语料 — 覆盖 AdGuard / uBlock / hosts / dnsmasq
+! ============================================================
+[Adblock Plus 2.0]
+
+! ---------- 基础域锚定 ----------
+||block-a.test^
+||block-b.test^$important
+||block-c.test^$third-party
+||block-d.test^$3p
+||block-e.test^$domain=site.test
+
+! ---------- 例外规则 ----------
+@@||allow-a.test^
+@@||allow-b.test^$important
+||both-a.test^
+@@||both-a.test^
+
+! ---------- 路径 / 模式 / 精确锚点 ----------
+||path-a.test/ads/x.js
+|http://exact.test/only
+/regex-a\.test\/ads/
+
+! ---------- 通配 ----------
+||wild-a.*^
+*.wild-b.test
+
+! ---------- hosts 格式 ----------
+0.0.0.0 hosts-a.test
+127.0.0.1 hosts-b.test hosts-c.test
+::1 hosts-d.test
+1.2.3.4 hosts-rw.test
+
+! ---------- dnsmasq 格式 ----------
+address=/dnsmasq-a.test/
+address=/dnsmasq-b.test/1.1.1.1
+local=/dnsmasq-c.test/
+server=/dnsmasq-d.test/8.8.8.8
+
+! ---------- 纯域名清单 ----------
+plain-a.test
+
+! ---------- $badfilter ----------
+||badf-a.test^$badfilter
+||badf-a.test^
+
+! ---------- DNS 重写 ----------
+||rw-a.test^$dnsrewrite=NOERROR;A;10.0.0.9
+||rw-b.test^$dnsrewrite=NXDOMAIN
+
+! ---------- 组合修饰符 ----------
+||combo-a.test^$important,third-party
+||combo-b.test^$script,image,stylesheet
+
+! ---------- 客户端作用域 ----------
+||scope-a.test^$client=10.0.0.5
+
+! ---------- 注释与畸形输入（不得导致崩溃） ----------
+# 井号注释
+; 分号注释
+[]
+$$
+||
+@@
+$$$%%%
+:::::
+||||
+
+! ---------- cosmetic / 注入 ----------
+cosmetic.test##.ad
+cosmetic.test,other.test##.sponsor
+##.generic-banner
+cosmetic.test#@#.allowed
+cosmetic.test##+js(set-constant, x, 1)
+cosmetic.test#%#//scriptlet('abort-on-property-read', 'y')
+cosmetic.test#$#.z { display:none }
+cosmetic.test#?#div:has(> .ad)
+cosmetic.test$$script[data-src="b"]
