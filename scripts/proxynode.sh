@@ -54,15 +54,36 @@ core_arch() {
   esac
 }
 
-core_autodownload() { # 自动下载官方 sing-box 内核到 bin/
+core_autodownload() { # 下载 sing-box 内核到 bin/（多镜像回退）
   arch=$(core_arch)
   ver=$(cfg_get PROXY_CORE_VER "1.10.1")
-  url=$(cfg_get PROXY_CORE_URL "")
-  [ -z "$url" ] && url="https://github.com/SagerNet/sing-box/releases/download/v${ver}/sing-box-${ver}-linux-${arch}.tar.gz"
+  custom=$(cfg_get PROXY_CORE_URL "")
+  pkg="sing-box-${ver}-linux-${arch}.tar.gz"
   mkdir -p "$MODDIR/bin"
   out="$MODDIR/bin/_core_${ver}_${arch}.tar.gz"
-  if ! http_get "$url" "$out" 120; then
-    rm -f "$out"; echo "ERR: 内核下载失败（可在设置中配置镜像 PROXY_CORE_URL）"; return 1
+  # 镜像顺序：用户自定义 → 官方 → 国内可达的镜像。
+  # 官方 github.com 在部分网络下不可达（实测超时/ECONNRESET），
+  # 只给一个地址等于"按钮点了没反应"——所以必须多源回退，并逐个报结果。
+  official="https://github.com/SagerNet/sing-box/releases/download/v${ver}/${pkg}"
+  list=""
+  [ -n "$custom" ] && list="$custom"
+  list="$list $official"
+  list="$list https://mirror.ghproxy.com/${official}"
+  list="$list https://gh-proxy.com/${official}"
+  list="$list https://ghfast.top/${official}"
+  ok="no"
+  for u in $list; do
+    [ -z "$u" ] && continue
+    log "proxynode: 尝试内核源 $u"
+    if http_get "$u" "$out" 120 && [ -s "$out" ]; then ok="yes"; break; fi
+    rm -f "$out"
+    echo "  源不可用，换下一个: $u"
+  done
+  if [ "$ok" != "yes" ]; then
+    echo "ERR: 所有内核源都不可用（已尝试 $(printf '%s' "$list" | wc -w | tr -d ' ') 个）。"
+    echo "     可在「设置 → 代理内核」填一个可用的直链 PROXY_CORE_URL，"
+    echo "     或手动把 sing-box 放到 $MODDIR/bin/sing-box（面板「内核」处可指定路径）。"
+    return 1
   fi
   ( cd "$MODDIR/bin" && tar -xzf "$out" 2>/dev/null )
   rm -f "$out"
@@ -70,11 +91,10 @@ core_autodownload() { # 自动下载官方 sing-box 内核到 bin/
   for cand in "$MODDIR/bin/sing-box" "$MODDIR/bin"/sing-box-*/sing-box; do
     [ -f "$cand" ] && { chmod 0755 "$cand"; found="$cand"; break; }
   done
-  [ -z "$found" ] && { echo "ERR: 解压后未找到 sing-box"; return 1; }
+  [ -z "$found" ] && { echo "ERR: 解压后未找到 sing-box（包可能不完整）"; return 1; }
   echo "$found" > "$CORE_FLAG"
-  echo "OK: 内置内核已就绪 -> $(basename "$found")"
+  echo "OK: 内核已就绪 -> $(basename "$found")"
 }
-
 core_ensure() { # 确保有可用内核, 无则自动获取
   cur=$(core_path)
   if [ -n "$cur" ]; then echo "OK: 内核已存在 $cur"; return 0; fi
@@ -460,11 +480,10 @@ case "$1" in
       # 先清理残留实例，避免旧进程占用 tun/端口导致启动失败（内核“又出bug”根因）
       sh "$0" down >/dev/null 2>&1
       : > "$LOGS/proxy.log"
-      if command -v setsid >/dev/null 2>&1; then
-        setsid nohup "$CORE" run -c "$CFG" > "$LOGS/proxy.log" 2>&1 </dev/null &
-      else
-        nohup "$CORE" run -c "$CFG" > "$LOGS/proxy.log" 2>&1 </dev/null &
-      fi
+      # 用统一起进程函数：Android 上 nohup/setsid 可用性因 ROM 而异，
+      # 旧版直接调 nohup，缺命令时 "nohup: not found" → 内核永远起不来（用户看到"内核不生效"）。
+      # bg_spawn 逐级降级，永因缺命令而失败。
+      pid_started=$(bg_spawn "$LOGS/proxy.log" "$CORE" run -c "$CFG")
       run="no"; pid=""; try=0
       while [ "$try" -lt 15 ]; do
         sleep 0.4

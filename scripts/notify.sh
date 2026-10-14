@@ -35,7 +35,7 @@ daemon() {
 
 case "$1" in
   daemon) daemon ;;
-  start)  nohup sh "$0" daemon >/dev/null 2>&1 & echo "OK: 通知拦截已启动" ;;
+  start)  npid=$(bg_spawn "$LOGS/notify.log" sh "$0" daemon); echo "OK: 通知拦截已启动 (pid $npid)" ;;
   stop)   [ -f "$RUN/notify.pid" ] && kill "$(cat "$RUN/notify.pid")" 2>/dev/null; rm -f "$RUN/notify.pid"; echo "OK: 已停止" ;;
   status) running="no"; [ -f "$RUN/notify.pid" ] && kill -0 "$(cat "$RUN/notify.pid")" 2>/dev/null && running="yes"; echo "{\"running\":\"$running\",\"blocked\":$(count_lines "$RECORDS"),\"keywords\":$(count_lines "$KW_FILE")}" ;;
   keywords) cat "$KW_FILE" 2>/dev/null ;;

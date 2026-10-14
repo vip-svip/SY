@@ -51,6 +51,8 @@ func main() {
 		cmdRoute(os.Args[2:])
 	case "clash":
 		cmdClash(os.Args[2:])
+	case "geoip":
+		cmdGeoip(os.Args[2:])
 	case "token":
 		cmdToken()
 	case "version", "-v", "--version":
@@ -76,6 +78,8 @@ func usage() {
   abserver route import  -in FILE -format auto [-out P.json]  导入多格式配置
   abserver route explain -profile P.json                    规则编译对照表
   abserver clash -api ADDR {status|conn|traffic|proxies|delay|select|mode|logs}
+  abserver geoip -db DIR {-ip IP | -file F | -compare A,B} [-json]
+                                                            离线 IP 归属/ASN 查询与泄露对比
   abserver token                                            生成访问令牌
   abserver version`)
 }

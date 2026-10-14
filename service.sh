@@ -57,7 +57,7 @@ fi
 
 # 开屏跳过守护
 if [ "${SPLASH_ENABLE:-1}" = "1" ]; then
-  nohup sh "$MODDIR/scripts/splash.sh" daemon >/dev/null 2>&1 &
+  bg_spawn "$DATA_DIR/logs/splash.log" sh "$MODDIR/scripts/splash.sh" daemon >/dev/null
   echo "splash daemon started pid=$!"
 fi
 
@@ -68,6 +68,21 @@ if [ "${PANEL_ENABLE:-1}" = "1" ]; then
   ( sleep 25; sh "$MODDIR/scripts/panel.sh" ensure >>"$LOG" 2>&1 ) &
 fi
 
+
+# 隐私护盾: 反诈/风控应用隔离 + 能力面收紧（仅总开关开启时）
+if [ "${PRIVACY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/privacy_guard.sh" ]; then
+  sh "$MODDIR/scripts/privacy_guard.sh" apply
+fi
+
+# 游戏隐私保护: 不让游戏读取隐私（仅总开关开启时）
+if [ "${GAME_PRIVACY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/game_privacy.sh" ]; then
+  sh "$MODDIR/scripts/game_privacy.sh" apply
+fi
+
+# 剪贴板监视（仅总开关开启时）
+if [ "${CLIPGUARD_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/clip_guard.sh" ]; then
+  sh "$MODDIR/scripts/clip_guard.sh" apply
+fi
 echo "=== service init done ==="
 
 # ---- 开机后台同步外置规则库 (在线时, 不阻塞启动) ----

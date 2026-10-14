@@ -1,9 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ===== 无障碍服务 / LSPosed（Manifest 引用，不可删） ===== -->
     <string name="acc_service_label">SY 联动服务</string>
     <string name="acc_service_desc">用于开屏广告自动跳过，以及按应用收敛隐私出口（DNS/IP/VPN/节点防泄露）。数据全部本地处理，不联网、不上传。</string>
     <string name="xposed_desc">SY-Fusion 模块联动：按应用应用隐私收敛与拦截策略。需在 LSPosed 中勾选作用域并重启目标应用。</string>
     <string-array name="xposed_scope">
         <item>com.syfusion.manager</item>
     </string-array>
+
+    <!-- ===== 隐私防泄露菜单 ===== -->
+    <string name="menu_privacy_status">隐私防泄露状态</string>
+    <string name="menu_privacy_on">开启全部隐私防护</string>
+    <string name="menu_privacy_off">关闭全部隐私防护</string>
+    <string name="menu_privacy_panic">应急加固（全防护+快照）</string>
+    <string name="menu_privacy_restore">恢复默认（移除规则）</string>
+    <string name="menu_privacy_apps">隐私收敛应用清单</string>
+
+    <!-- 无障碍服务（别名，供部分设备显示） -->
+    <string name="acc_label">SY 联动服务</string>
+    <string name="acc_desc">识别并自动点击开屏「跳过」按钮；目标应用切前台时通知模块收敛隐私出口。不读取输入、不上传任何数据。</string>
+
+    <!-- ===== Hook 子系统 / Root / 运营商隐私 ===== -->
+    <string name="menu_hook_status">Hook 能力与事件</string>
+    <string name="menu_hook_events">最近 Hook 事件</string>
+    <string name="menu_hook_mode">切换 Hook 模式</string>
+    <string name="menu_hook_clear">清空 Hook 事件</string>
+    <string name="menu_carrier_on">运营商隐私收敛（开/关）</string>
+    <string name="menu_root_status">Root 权限状态</string>
 </resources>

@@ -271,7 +271,21 @@ public class MainActivity extends Activity {
         menu.add(0, 2, 1, R.string.menu_browser);
         menu.add(0, 3, 2, R.string.menu_restart);
         menu.add(0, 4, 3, R.string.menu_stop);
-        menu.add(0, 5, 4, R.string.menu_about);
+        // 隐私防泄露子功能
+        menu.add(0, 6, 4, R.string.menu_privacy_status);
+        menu.add(0, 7, 5, R.string.menu_privacy_on);
+        menu.add(0, 8, 6, R.string.menu_privacy_off);
+        menu.add(0, 9, 7, R.string.menu_privacy_panic);
+        menu.add(0, 10, 8, R.string.menu_privacy_restore);
+        menu.add(0, 11, 9, R.string.menu_privacy_apps);
+        // Hook 子系统 / Root / 运营商隐私
+        menu.add(0, 12, 10, R.string.menu_hook_status);
+        menu.add(0, 13, 11, R.string.menu_hook_events);
+        menu.add(0, 14, 12, R.string.menu_hook_mode);
+        menu.add(0, 15, 13, R.string.menu_hook_clear);
+        menu.add(0, 16, 14, R.string.menu_carrier_on);
+        menu.add(0, 17, 15, R.string.menu_root_status);
+        menu.add(0, 5, 16, R.string.menu_about);
         return true;
     }
 
@@ -295,6 +309,42 @@ public class MainActivity extends Activity {
                 return true;
             case 4:
                 runRootAsync(RootShell.stopCore(), "停止内核");
+                return true;
+            case 6:
+                showCmd(new Cmd() { public String run() { return RootShell.leakStatus(); } }, "隐私防泄露状态");
+                return true;
+            case 7:
+                runLeakAsync(RootShell.leakAll(true), "开启全部隐私防护");
+                return true;
+            case 8:
+                runLeakAsync(RootShell.leakAll(false), "关闭全部隐私防护");
+                return true;
+            case 9:
+                runLeakAsync(RootShell.leakPanic(), "应急加固");
+                return true;
+            case 10:
+                runLeakAsync(RootShell.leakRestore(), "恢复默认");
+                return true;
+            case 11:
+                showCmd(new Cmd() { public String run() { return RootShell.leakApps("list"); } }, "隐私收敛应用清单");
+                return true;
+            case 12:
+                showCmd(new Cmd() { public String run() { return RootShell.hookStatus(); } }, "Hook 能力与事件");
+                return true;
+            case 13:
+                showCmd(new Cmd() { public String run() { return RootShell.hookEvents(50); } }, "最近 Hook 事件");
+                return true;
+            case 14:
+                runCmd(new Cmd() { public String run() { return cycleHookMode(); } }, "切换 Hook 模式");
+                return true;
+            case 15:
+                runCmd(new Cmd() { public String run() { return RootShell.hookClear(); } }, "清空 Hook 事件");
+                return true;
+            case 16:
+                runCmd(new Cmd() { public String run() { return RootShell.carrierToggle(true); } }, "运营商隐私收敛");
+                return true;
+            case 17:
+                showCmd(new Cmd() { public String run() { return RootShell.rootStatus(); } }, "Root 权限状态");
                 return true;
             case 5:
                 new android.app.AlertDialog.Builder(this)
@@ -337,6 +387,101 @@ public class MainActivity extends Activity {
                 });
             }
         }, "root-op").start();
+    }
+
+    /** 异步执行 leakguard 操作，完成后 toast 首行结果。 */
+    private void runLeakAsync(final String ignored, final String what) {
+        toast(what + "…");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String out;
+                if (what.startsWith("开启")) out = RootShell.leakAll(true);
+                else if (what.startsWith("关闭")) out = RootShell.leakAll(false);
+                else if (what.startsWith("应急")) out = RootShell.leakPanic();
+                else out = RootShell.leakRestore();
+                final String msg = (out == null || out.trim().length() == 0)
+                        ? (what + "完成") : firstLine(out);
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        toast(msg);
+                    }
+                });
+            }
+        }, "leak-op").start();
+    }
+
+    /** 命令式取值（后台执行，避免阻塞 UI 线程）。 */
+    private interface Cmd {
+        String run();
+    }
+
+    private void showCmd(final Cmd cmd, final String title) {
+        toast(title + "…");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String out = cmd.run();
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        new android.app.AlertDialog.Builder(MainActivity.this)
+                                .setTitle(title)
+                                .setMessage(out == null || out.length() == 0 ? "无输出" : out)
+                                .setPositiveButton("知道了", null)
+                                .show();
+                    }
+                });
+            }
+        }, "sy-cmd").start();
+    }
+
+    private void runCmd(final Cmd cmd, final String what) {
+        toast(what + "…");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String out = cmd.run();
+                final String msg = (out == null || out.trim().length() == 0) ? (what + "完成") : firstLine(out);
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        toast(msg);
+                    }
+                });
+            }
+        }, "sy-cmd-run").start();
+    }
+
+    /** Hook 模式循环：targets → all → off → targets。 */
+    private String cycleHookMode() {
+        String cur = RootShell.hookMode(null);
+        if (cur == null) cur = "targets";
+        cur = cur.trim();
+        String next = "targets".equals(cur) ? "all" : ("all".equals(cur) ? "off" : "targets");
+        String r = RootShell.hookMode(next);
+        return "hook mode: " + cur + " -> " + next + "\n" + r;
+    }
+
+    /** 异步取一段文本并弹窗展示（状态/清单）。 */
+    private void showTextAsync(final String command, final String title) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String out = command;
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        new android.app.AlertDialog.Builder(MainActivity.this)
+                                .setTitle(title)
+                                .setMessage(out == null || out.length() == 0 ? "无输出" : out)
+                                .setPositiveButton("知道了", null)
+                                .show();
+                    }
+                });
+            }
+        }, "leak-show").start();
     }
 
     private static String firstLine(String s) {

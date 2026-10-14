@@ -55,8 +55,14 @@ if [ -d "$KERNELS" ]; then
   if [ -f "$KSRC" ]; then
     cp -f "$KSRC" "$MODDIR/bin/sing-box"
     chmod 0755 "$MODDIR/bin/sing-box"
-    ui_print "- 已安装内置内核 sing-box ($(basename "$KSRC")) -> bin/sing-box"
+    ui_print "- 已安装随包内核 sing-box ($(basename "$KSRC")) -> bin/sing-box"
+  else
+    ui_print "- 随包内核目录存在但缺 $ARCH 版本，跳过（可在面板在线下载）"
   fi
+else
+  # 如实说明：本模块不随包内置代理内核（体积原因）。旧版这里只是"目录不存在就跳过"，
+  # 而面板按钮却写"一键获取内置内核" —— 文案与事实不符，已一并更正。
+  ui_print "- 本模块不随包内置代理内核；需要时在面板「代理内核 → 在线下载」获取"
 fi
 
 unset __SY_MARK

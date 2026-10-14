@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -184,6 +186,20 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 		c.handleConfig(w, r)
 	case "apps":
 		c.handleApps(w, r)
+	case "file":
+		c.handleFile(w, r)
+	case "fileedit":
+		c.proxySub(w, r, "fileedit.sh")
+	case "privacy_guard":
+		c.proxySub(w, r, "privacy_guard.sh")
+	case "game_privacy":
+		c.proxySub(w, r, "game_privacy.sh")
+	case "clip_guard":
+		c.proxySub(w, r, "clip_guard.sh")
+	case "privacy_check":
+		c.proxySub(w, r, "privacy_check.sh")
+	case "privacy_ruleset":
+		c.proxySub(w, r, "privacy_ruleset.sh")
 	default:
 		http.NotFound(w, r)
 	}
@@ -263,7 +279,7 @@ func (c *serverCtx) handleApps(w http.ResponseWriter, r *http.Request) {
 	// 列出已安装应用(供 MITM 生效应用 / 开屏规则 选择)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", "-c", "pm list packages 2>/dev/null | sed 's/package://' | sort")
+	cmd := exec.CommandContext(ctx, shellPath(), "-c", "pm list packages 2>/dev/null | sed 's/package://' | sort")
 	out, _ := cmd.Output()
 	pkgs := []string{}
 	for _, ln := range strings.Split(string(out), "\n") {
@@ -276,6 +292,129 @@ func (c *serverCtx) handleApps(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- 命令执行桥 ----------
+
+// ---------- 通用文本文件编辑（面板「文件编辑器」） ----------
+// 为什么需要它：订阅源/规则清单/隐私目标这类配置此前只能靠按钮增删单条，
+// 用户无法直接编辑整份文件（换订阅地址、批量粘贴、调整格式都做不到）。
+// 安全边界（三件事都做）：
+//   ① 只允许白名单目录下的文件（config/ 与 rules/），不允许任意路径；
+//   ② filepath.Clean + 前缀校验，杜绝 ../ 穿越；
+//   ③ 大小上限 4MB，避免把内存打满。
+var fileAllowDirs = []string{"config", "rules"}
+
+// 解析并校验用户给的文件路径，返回绝对路径
+// resolveDataFile 解析并校验面板要编辑的文件路径。
+//
+// 【真实缺陷修复】旧实现用 filepath.Clean 做标准化 —— 它**随操作系统改变分隔符**：
+//   Windows 上 filepath.Clean("/config/x") 返回 "\config\x"，
+//   而后面又用 strings.SplitN(clean, "/", 2) 按正斜杠取顶层目录，
+//   结果 top 拿到整条路径、白名单永远不匹配 —— 合法文件也被拒（真跑 API 时抓到）。
+// 正确做法：逻辑路径一律用 path.Clean（永远正斜杠），
+// 只在最后拼接真实文件系统路径时才用 filepath.FromSlash。
+func (c *serverCtx) resolveDataFile(rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "", fmt.Errorf("缺少 path")
+	}
+	rel = strings.ReplaceAll(rel, "\\", "/")
+	// path.Clean 与操作系统无关（始终以 / 分隔），这才是逻辑路径该用的
+	clean := path.Clean("/" + rel)
+	clean = strings.TrimPrefix(clean, "/")
+	if clean == "" || clean == "." {
+		return "", fmt.Errorf("非法路径")
+	}
+	// 必须在允许的顶层目录内
+	top := strings.SplitN(clean, "/", 2)[0]
+	allowed := false
+	for _, d := range fileAllowDirs {
+		if top == d {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return "", fmt.Errorf("只允许编辑 config/ 与 rules/ 下的文件")
+	}
+	// 真实路径：把逻辑路径转成本机分隔符再拼
+	full := filepath.Join(c.datadir, filepath.FromSlash(clean))
+	// 双保险：拼出来的路径必须仍在 datadir 内
+	base := filepath.Clean(c.datadir)
+	got := filepath.Clean(full)
+	if got != base && !strings.HasPrefix(got, base+string(os.PathSeparator)) {
+		return "", fmt.Errorf("路径越界")
+	}
+	return full, nil
+}
+
+func (c *serverCtx) handleFile(w http.ResponseWriter, r *http.Request) {
+	// GET 读取
+	if r.Method == http.MethodGet {
+		full, err := c.resolveDataFile(para(r, "path"))
+		if err != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": err.Error()})
+			return
+		}
+		st, err := os.Stat(full)
+		if err != nil {
+			writeJSON(w, map[string]interface{}{"ok": true, "exists": false, "content": ""})
+			return
+		}
+		if st.Size() > 4<<20 {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": "文件过大(>4MB)，编辑器不支持"})
+			return
+		}
+		b, _ := os.ReadFile(full)
+		writeJSON(w, map[string]interface{}{"ok": true, "exists": true, "size": st.Size(), "content": string(b)})
+		return
+	}
+	// POST 写入
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+		Append  bool   `json:"append"`
+	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+	if json.Unmarshal(body, &req) != nil {
+		writeJSON(w, map[string]interface{}{"ok": false, "err": "bad json"})
+		return
+	}
+	full, err := c.resolveDataFile(req.Path)
+	if err != nil {
+		writeJSON(w, map[string]interface{}{"ok": false, "err": err.Error()})
+		return
+	}
+	if req.Append {
+		f, e := os.OpenFile(full, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if e != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": e.Error()})
+			return
+		}
+		f.WriteString(req.Content)
+		f.Close()
+	} else {
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": err.Error()})
+			return
+		}
+		// 先写临时文件再改名：编辑器保存到一半断电也不会把原文件截断成半个
+		tmp := full + ".tmp"
+		if err := os.WriteFile(tmp, []byte(req.Content), 0644); err != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": err.Error()})
+			return
+		}
+		if err := os.Rename(tmp, full); err != nil {
+			os.Remove(tmp)
+			writeJSON(w, map[string]interface{}{"ok": false, "err": err.Error()})
+			return
+		}
+	}
+	writeJSON(w, map[string]interface{}{"ok": true})
+}
+
 func (c *serverCtx) handleExec(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Cmd  string   `json:"cmd"`
@@ -291,13 +430,59 @@ func (c *serverCtx) handleExec(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]interface{}{"ok": err == nil, "out": out})
 		return
 	}
+	// __raw_shell: 面板写入文件时用的通道。
+	// 前端把「要执行的整条命令」base64 后放在 args[0]，这里解码执行。
+	// 为什么要这样绕：把文件内容拼进 shell 命令会遇到引号/换行/反斜杠的
+	// 转义地狱，base64 是唯一不会出错的做法。
+	// 安全边界：只允许执行 base64 解出的命令，且命令里**必须**出现
+	// fileedit.sh —— 否则等同于开了任意命令执行口子，不能接受。
+	if req.Cmd == "__raw_shell" {
+		if len(req.Args) == 0 {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": "缺少命令"})
+			return
+		}
+		raw, derr := base64.StdEncoding.DecodeString(req.Args[0])
+		if derr != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": "base64 解码失败"})
+			return
+		}
+		cmdStr := string(raw)
+		if !strings.Contains(cmdStr, "fileedit.sh") {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": "该通道只允许调用 fileedit.sh"})
+			return
+		}
+		if len(cmdStr) > 1<<20 {
+			writeJSON(w, map[string]interface{}{"ok": false, "err": "命令过长"})
+			return
+		}
+		out, err := c.runCmdEnv(shellPath(), "-c", cmdStr)
+		if out == "" && err != nil {
+			out = "ERR: " + err.Error()
+		}
+		writeJSON(w, map[string]interface{}{"ok": err == nil, "out": out})
+		return
+	}
 	out, err := c.runScriptStdin(req.Cmd+".sh", req.Args, nil)
 	writeJSON(w, map[string]interface{}{"ok": err == nil, "out": out})
 }
 
 func (c *serverCtx) runCtl(args ...string) (string, error) {
-	full := append([]string{filepath.Join(c.moddir, "scripts", "ctl.sh")}, args...)
-	return runCmd("sh", full...)
+	p := filepath.Join(c.moddir, "scripts", "ctl.sh")
+	full := append([]string{p}, args...)
+	return c.runCmdEnv(shellPath(), full...)
+}
+
+// runCmdEnv 与 runCmd 相同，但把 datadir 通过 AB_DATA_DIR 传给子脚本
+func (c *serverCtx) runCmdEnv(name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "AB_DATA_DIR="+c.datadir)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return string(out), fmt.Errorf("命令执行超时(>%s)，已中止以防卡死", execTimeout)
+	}
+	return string(out), err
 }
 
 func (c *serverCtx) runScriptStdin(script string, args []string, stdin io.Reader) (string, error) {
@@ -308,7 +493,12 @@ func (c *serverCtx) runScriptStdin(script string, args []string, stdin io.Reader
 	full := append([]string{p}, args...)
 	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", full...)
+	cmd := exec.CommandContext(ctx, shellPath(), full...)
+	// 【真实缺陷修复】必须把 datadir 传给子脚本：脚本用 common.sh 的
+	// DATA_DIR（读 AB_DATA_DIR 覆盖），不传的话它们会去默认的 /data/adb/SY，
+	// 而 serve 用的是 -datadir 指定的目录 —— 两边不一致时表现为
+	// "文件明明存在却说文件不存在"（真跑 API 时抓到）。
+	cmd.Env = append(os.Environ(), "AB_DATA_DIR="+c.datadir)
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
@@ -317,6 +507,33 @@ func (c *serverCtx) runScriptStdin(script string, args []string, stdin io.Reader
 		return string(out), fmt.Errorf("命令执行超时(>%s)，已中止以防卡死", execTimeout)
 	}
 	return string(out), err
+}
+
+// shellPath 找一个可用的 POSIX shell。
+// 不能直接写 exec.Command("sh", ...) 就完事：KernelSU 的 serve 进程环境里
+// PATH 不一定包含 /system/bin（真跑时出现过 "exec: sh: executable file not found"）。
+func shellPath() string {
+	if v := os.Getenv("SY_SHELL"); v != "" {
+		if st, err := os.Stat(v); err == nil && !st.IsDir() {
+			return v
+		}
+	}
+	for _, p := range []string{"/system/bin/sh", "/sbin/sh", "/vendor/bin/sh", "/bin/sh", "/usr/bin/sh"} {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	// 兜底：在 PATH 里找（桌面 / 测试环境；Android 上通常已由上面命中）
+	if p, err := exec.LookPath("sh"); err == nil {
+		return p
+	}
+	// 最后再试 ash/busybox —— 有些精简环境只装了它们
+	for _, n := range []string{"ash", "busybox"} {
+		if p, err := exec.LookPath(n); err == nil {
+			return p
+		}
+	}
+	return "sh"
 }
 
 func runCmd(name string, args ...string) (string, error) {

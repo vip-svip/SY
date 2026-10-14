@@ -1,0 +1,32 @@
+SY-Fusion 离线数据来源与许可说明
+================================
+
+本模块 data/ 下打包的都是「隐私/归属参考数据」，不含任何过滤规则
+（广告/追踪拦截规则由用户自行安装，模块不自带）。所有数据均属公开发布的
+授权/网段/归属数据，并明确允许再分发。
+
+1) DB-IP Lite (country / asn / city)
+   - 文件: dbip-country-lite-*.mmdb, dbip-asn-lite-*.mmdb, dbip-city-lite-*.mmdb
+   - 来源: https://db-ip.com  (https://download.db-ip.com/free/)
+   - 许可: CC BY 4.0（允许再分发，需署名）
+   - 用途: abserver geoip 的主归属/ASN 查询
+
+2) IP2Location LITE DB1
+   - 文件: ip2location-lite-db1.csv
+   - 来源: https://lite.ip2location.com
+   - 用途: abserver geoip -xdb 交叉校验国家
+
+3) RIR 授权注册库 (delegated extended)
+   - 文件: rir/ripencc.txt rir/apnic.txt rir/arin.txt rir/lacnic.txt rir/afrinic.txt
+   - 来源: RIPE / APNIC / ARIN / LACNIC / AFRINIC 公开统计文件
+   - 用途: abserver geoip -owner 查注册局与分配日期
+
+4) 云厂商 / CDN 网段
+   - 文件: cloud/aws-ip-ranges.json, cloud/gcloud.txt, cloud/goog.txt,
+           cloud/cloudflare-v4.txt, cloud/cloudflare-v6.txt
+   - 来源: Amazon AWS ip-ranges / Google Cloud & Google 官方网段 / Cloudflare 官方网段
+   - 用途: abserver geoip -cloud 识别云 / CDN 出口
+
+不含: MaxMind GeoLite2（其许可禁止再分发）。
+
+本数据仅用于本机隐私判读（出口归属核对、泄露判定），不构成任何投资/法律建议。

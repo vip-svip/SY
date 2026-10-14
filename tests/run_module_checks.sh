@@ -12,6 +12,10 @@
 # ============================================================
 set -u
 
+# set -u 下 HOME 可能未定义（部分 recovery/精简环境），先给默认值，
+# 否则脚本第一处 "$HOME/..." 就会 "parameter not set" 直接退出。
+HOME="${HOME:-/tmp}"
+
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 MOD="$(cd "$TESTS_DIR/.." && pwd)"
 cd "$MOD" || exit 1

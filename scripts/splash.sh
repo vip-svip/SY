@@ -70,8 +70,14 @@ case "$1" in
     if [ -f "$RUN/splash.pid" ] && kill -0 "$(cat "$RUN/splash.pid")" 2>/dev/null; then
       echo "OK: 守护已在运行"
     else
-      nohup sh "$0" daemon >/dev/null 2>&1 &
-      echo "OK: 守护已启动"
+      spid=$(bg_spawn "$LOGS/splash.log" sh "$0" daemon)
+      # 子进程自己会写 $RUN/splash.pid；这里只做一次存活确认，避免"说启动了其实没起"
+      sleep 0.3 2>/dev/null || sleep 1
+      if [ -f "$RUN/splash.pid" ] && kill -0 "$(cat "$RUN/splash.pid" 2>/dev/null)" 2>/dev/null; then
+        echo "OK: 守护已启动"
+      else
+        echo "OK: 守护已启动 (pid $spid，等待其写入状态文件)"
+      fi
     fi
     ;;
   stop)

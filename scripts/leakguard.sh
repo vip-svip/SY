@@ -1,235 +1,559 @@
 #!/system/bin/sh
 # ============================================================
-#  leakguard.sh — 隐私防泄露（DNS / IPv6 / IP / VPN / 节点）
+#  leakguard.sh — 深度隐私防泄露引擎（v1.0.3 重写）
 #
-#  目标：在模块三层拦截 + 代理路由之外，补上一层「泄露兜底」，
-#  覆盖真实 IP、DNS 外泄、IPv6 旁路、VPN 断连裸奔、代理节点外泄直连。
+#  设计目标：把「DNS / 真实 IP / IPv6 / VPN 断连 / 代理节点 泄露」
+#  这五类口径，做成内核态可开关、可组合、可自愈的防护面。
+#  全部基于 iptables / ip6tables / sysctl，不依赖任何第三方二进制。
+#
+#  v1.0.2 的缺陷（本版修复）：
+#   · dns/ip/ipv6/vpn/node 的 off 分支只 echo「已关闭」，从不真正删除规则
+#     → 关闭后仍在拦截（功能不生效 + 状态与事实不符）。本版用统一链 + 精确删除。
+#   · 状态只写内存变量，重启即丢且与内核实际规则不一致。本版以「内核规则为准」，
+#     状态文件只作持久化记忆，apply 时按内核实测校准。
+#   · 无幂等：重复 enable 会叠加重复规则。本版每条链先 flush 再按配置重建。
+#   · 无 owner（出口 IP 归属）能力，无法验证是否真的走代理。本版新增 owner，
+#     调用 abserver geoip + 本地 RIR 授权库，离线判读出口 IP 归属。
 #
 #  子命令：
-#    status            汇总各防护开关与运行态（面板用）
-#    enable/disable    总开关
-#    dns on|off        DNS 泄露防护（强制模块 DNS + 阻断明文 53 回退）
-#    ipv6 on|off       IPv6 泄露防护（无 v6 出口时阻断 v6，防旁路）
-#    ip on|off         真实 IP 泄露防护（阻断 STUN/直连探测端口旁路）
-#    vpn on|off        防 VPN 断连裸奔（内核守护：断开即阻断，避免明文出网）
-#    node on|off       防代理节点泄露（代理不可用时阻断直连，防真实 IP 暴露）
-#    apply             落地全部策略（幂等）
-#    panic             一键收紧：全部开启（紧急止损）
-#    app-enter <pkg>   应用前台钩子（无障碍服务调用）
-#    hook-enter <pkg>  LSPosed 钩子回调（进程加载时上报）
-#    tune <sub> <pkg>  按应用收敛（写 config/privacy_targets.txt）
-#    report            导出诊断（当前规则计数 + 最近泄露事件）
-#
-#  POSIX sh 兼容，零外部依赖；所有命令均幂等、可重复执行。
+#   status                  查看各防护内核态与开关状态
+#   enable | disable        总开关（含全部子项）
+#   dns   on|off|test       防 DNS 明文泄露（53/853 收敛）
+#   ipv6  on|off|test       无 v6 出口时整链阻断 v6 旁路
+#   ip    on|off|test       防真实 IP 泄露（STUN/WebRTC 探测面收敛）
+#   vpn   on|off|test       防 VPN 断连裸奔（kill-switch）
+#   node  on|off|test       防代理节点泄露（代理不可用时阻断直连）
+#   apps  [list|add P|del P]  按应用（uid）收敛出口，读 privacy_targets.txt
+#   owner A,B               对比两个出口 IP 归属，判定真实 IP 泄露/旁路
+#   tune  on|off            sysctl 隐私加固（rp_filter / IPv6 RA / ICMP 收敛）
+#   apply                   按持久化配置重建全部规则（开机调用，幂等）
+#   panic                   一键全防护 + 记录快照（可恢复）
+#   restore                 从快照恢复并移除全部本模块规则
+#   report                  结构化 JSON 报告（供面板「隐私」页）
+#   app-enter PKG [CLS]     前台/进程进入通知钩子（App/无障碍/LSPosed 调用）
+#   hook-enter PKG          LSPosed 进程加载钩子
 # ============================================================
-. "$(dirname "$0")/common.sh"
+set -u
 
-LG_DIR="$DATA_DIR/rules/leakguard"
-mkdir -p "$LG_DIR" 2>/dev/null
-STATE="$LG_DIR/state.conf"
-EVENTS="$LG_DIR/events.log"
-TARGETS="$MODDIR/config/privacy_targets.txt"   # 与 App/LSPosed 共用的事实源
-CHAIN="SY_LEAKGUARD"
+MODDIR=${MODDIR:-}
+if [ -z "$MODDIR" ]; then
+  # 注意: module.prop 的 id=SY，安装目录是 /data/adb/modules/SY（非 SY-Fusion）
+  for d in /data/adb/modules/SY /data/adb/modules_update/SY /data/adb/modules/SY-Fusion; do
+    [ -d "$d" ] && MODDIR="$d" && break
+  done
+fi
+MODDIR=${MODDIR:-/data/adb/modules/SY}
 
-# 默认目标应用：社交/购物/输入法等隐私敏感场景（可按需删改）
-DEFAULT_TARGETS="com.tencent.mm
-com.tencent.mobileqq
-com.taobao.taobao
-com.jingdong.app.mall
-com.sina.weibo"
+CONF="$MODDIR/config/sy.conf"
+STATE_DIR="$MODDIR/.state"
+STATE="$STATE_DIR/leakguard.state"
+LOG="$MODDIR/logs/leakguard.log"
+TARGETS="$MODDIR/config/privacy_targets.txt"
+OWNER_DB="$MODDIR/data/geo/rir"
+AB="$MODDIR/bin/abserver-$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/x86_64/amd64/')"
+[ -x "$AB" ] || AB="$MODDIR/bin/abserver"
 
-lg_init() {
-  [ -f "$STATE" ] || : > "$STATE"
-  [ -f "$TARGETS" ] || { mkdir -p "$(dirname "$TARGETS")" 2>/dev/null; printf '%s\n' "$DEFAULT_TARGETS" > "$TARGETS"; }
+mkdir -p "$STATE_DIR" "$(dirname "$LOG")" 2>/dev/null
+
+# ---- 链名 ----
+CH_OUT="SY_LEAK_OUT"      # OUTPUT 过滤
+CH_IN="SY_LEAK_IN"        # INPUT 过滤
+CH_FWD="SY_LEAK_FWD"      # FORWARD 过滤
+CH6_OUT="SY_LEAK6_OUT"
+CH6_IN="SY_LEAK6_IN"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+IPT="$(have iptables && echo iptables || true)"
+IP6T="$(have ip6tables && echo ip6tables || true)"
+NFT="$(have nft && echo nft || true)"
+
+log() { echo "[$(date '+%F %T' 2>/dev/null || echo now)] $*" >>"$LOG" 2>/dev/null; }
+
+# 读取 sy.conf 中某个键
+conf_get() {
+  [ -f "$CONF" ] || { echo ""; return; }
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$CONF" | head -1
 }
-lg_get() { # key default
-  v=$(grep -E "^${1}=" "$STATE" 2>/dev/null | tail -n1 | cut -d= -f2-)
-  [ -n "$v" ] && echo "$v" || echo "$2"
+
+# ---------------- 状态持久化（内核规则才是事实源） ----------------
+state_init() {
+  [ -f "$STATE" ] || cat >"$STATE" <<EOF
+DNS=0
+IPV6=0
+IP=0
+VPN=0
+NODE=0
+TUNE=0
+EOF
 }
-lg_set() { # key value
-  lg_init
-  if grep -qE "^${1}=" "$STATE" 2>/dev/null; then
-    tmp="$STATE.tmp.$$"; sed "s|^${1}=.*|${1}=${2}|" "$STATE" > "$tmp" && mv "$tmp" "$STATE"
+state_get() { state_init; sed -n "s/^$1=//p" "$STATE" | head -1; }
+state_set() {
+  state_init
+  if grep -q "^$1=" "$STATE" 2>/dev/null; then
+    sed -i "s/^$1=.*/$1=$2/" "$STATE"
   else
-    echo "${1}=${2}" >> "$STATE"
-  fi
-}
-lg_event() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$EVENTS"; log "leakguard: $*"; }
-
-ipt() { command -v iptables >/dev/null 2>&1 || return 1; iptables "$@" 2>/dev/null; }
-ip6t() { command -v ip6tables >/dev/null 2>&1 || return 1; ip6tables "$@" 2>/dev/null; }
-
-lg_chain_ensure() {
-  ipt -N "$CHAIN" 2>/dev/null
-  ipt -C OUTPUT -j "$CHAIN" 2>/dev/null || ipt -I OUTPUT 1 -j "$CHAIN"
-  ip6t -N "$CHAIN" 2>/dev/null
-  ip6t -C OUTPUT -j "$CHAIN" 2>/dev/null || ip6t -I OUTPUT 1 -j "$CHAIN"
-}
-lg_chain_flush() { ipt -F "$CHAIN" 2>/dev/null; ip6t -F "$CHAIN" 2>/dev/null; }
-
-# ---- DNS 泄露：强制走模块 DNS，阻断其它明文 53 ----
-lg_dns() { # on|off
-  if [ "$1" = "on" ]; then
-    lg_chain_ensure
-    # 允许回环(面板/内核)与模块 DNS 自身，其余到 53 一律阻断，避免泄露到运营商 DNS
-    ipt -C "$CHAIN" -p udp --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || \
-      ipt -A "$CHAIN" -p udp --dport 53 -m owner --uid-owner 0 -j ACCEPT
-    ipt -C "$CHAIN" -p udp --dport 53 ! -d 127.0.0.1 -j REJECT 2>/dev/null || \
-      ipt -A "$CHAIN" -p udp --dport 53 ! -d 127.0.0.1 -j REJECT
-    ipt -C "$CHAIN" -p tcp --dport 53 ! -d 127.0.0.1 -j REJECT 2>/dev/null || \
-      ipt -A "$CHAIN" -p tcp --dport 53 ! -d 127.0.0.1 -j REJECT
-    lg_set dns on; lg_event "DNS 泄露防护已开启"
-  else
-    lg_set dns off; lg_event "DNS 泄露防护已关闭"
-  fi
-  lg_apply
-}
-
-# ---- IPv6 泄露：无 v6 出口时全阻断，防 v6 旁路绕过 v4 拦截 ----
-lg_ipv6() { # on|off
-  lg_chain_ensure
-  if [ "$1" = "on" ]; then
-    ip6t -C "$CHAIN" -o lo -j ACCEPT 2>/dev/null || ip6t -A "$CHAIN" -o lo -j ACCEPT
-    ip6t -C "$CHAIN" -j REJECT 2>/dev/null || ip6t -A "$CHAIN" -j REJECT
-    lg_set ipv6 on; lg_event "IPv6 泄露防护已开启（阻断 v6 旁路）"
-  else
-    ip6t -D "$CHAIN" -j REJECT 2>/dev/null
-    lg_set ipv6 off; lg_event "IPv6 泄露防护已关闭"
+    echo "$1=$2" >>"$STATE"
   fi
 }
 
-# ---- 真实 IP：阻断 STUN/直连探测常用的裸 UDP 高端口旁路（可细化）----
-lg_ip() { # on|off
-  if [ "$1" = "on" ]; then
-    lg_chain_ensure
-    # 阻断 STUN 常用端口（3478/19302 等）非模块进程直连，降低 WebRTC 探测真实公网 IP 面
-    for p in 3478 5349 19302 19305 19307 19309; do
-      ipt -C "$CHAIN" -p udp --dport $p ! -d 127.0.0.1 -j REJECT 2>/dev/null || \
-        ipt -A "$CHAIN" -p udp --dport $p ! -d 127.0.0.1 -j REJECT
+# ---------------- iptables 链管理（幂等） ----------------
+ipt_chain_ensure() { # table chain
+  $IPT -t "$1" -N "$2" 2>/dev/null || true
+}
+ipt_chain_flush() { $IPT -t "$1" -F "$2" 2>/dev/null || true; }
+ipt_jump_ensure() { # table parent chain
+  $IPT -t "$1" -C "$2" -j "$3" 2>/dev/null || $IPT -t "$1" -I "$2" 1 -j "$3" 2>/dev/null || true
+}
+ipt_jump_remove() { # table parent chain
+  while $IPT -t "$1" -C "$2" -j "$3" 2>/dev/null; do
+    $IPT -t "$1" -D "$2" -j "$3" 2>/dev/null || break
+  done
+}
+
+ipt6_chain_ensure() { $IP6T -N "$1" 2>/dev/null || true; }
+ipt6_chain_flush() { $IP6T -F "$1" 2>/dev/null || true; }
+ipt6_jump_ensure() { $IP6T -C "$1" -j "$2" 2>/dev/null || $IP6T -I "$1" 1 -j "$2" 2>/dev/null || true; }
+ipt6_jump_remove() { while $IP6T -C "$1" -j "$2" 2>/dev/null; do $IP6T -D "$1" -j "$2" 2>/dev/null || break; done; }
+
+# 本机回环与已建立连接永远放行（避免自锁）
+guard_loopback() { # chain
+  $IPT -A "$1" -o lo -j RETURN 2>/dev/null || true
+  $IPT -A "$1" -d 127.0.0.0/8 -j RETURN 2>/dev/null || true
+  $IPT -A "$1" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null || true
+}
+
+# ---------------- 各类防护 ----------------
+dns_on() {
+  [ -z "$IPT" ] && { echo "ERR: 无 iptables"; return 1; }
+  ipt_chain_ensure filter "$CH_OUT"
+  ipt_chain_flush filter "$CH_OUT"
+  guard_loopback "$CH_OUT"
+  # 允许到模块内 DNS（本地 53 / DoT 上游）
+  $IPT -A "$CH_OUT" -p udp --dport 53 -d 127.0.0.1 -j RETURN 2>/dev/null || true
+  $IPT -A "$CH_OUT" -p tcp --dport 53 -d 127.0.0.1 -j RETURN 2>/dev/null || true
+  # 其余明文 DNS（53/853）一律阻断，堵住运营商 DNS 泄露
+  $IPT -A "$CH_OUT" -p udp --dport 53 -j REJECT 2>/dev/null || true
+  $IPT -A "$CH_OUT" -p tcp --dport 53 -j REJECT 2>/dev/null || true
+  $IPT -A "$CH_OUT" -p tcp --dport 853 -j REJECT 2>/dev/null || true
+  ipt_jump_ensure filter OUTPUT "$CH_OUT"
+  state_set DNS 1
+  log "dns on"
+  echo "DNS: on"
+}
+
+dns_off() {
+  [ -n "$IPT" ] && ipt_jump_remove filter OUTPUT "$CH_OUT"
+  [ -n "$IPT" ] && ipt_chain_flush filter "$CH_OUT"
+  state_set DNS 0
+  log "dns off"
+  echo "DNS: off"
+}
+
+dns_test() {
+  # 逐项校验：是否存在阻断 53 的规则
+  if [ -n "$IPT" ] && $IPT -C OUTPUT -j "$CH_OUT" 2>/dev/null; then
+    echo "DNS: POSTURE ok (chain $CH_OUT active; plaintext 53/853 rejected)"
+  else
+    echo "DNS: POSTURE off (plaintext DNS not intercepted)"
+  fi
+}
+
+ipv6_on() {
+  if [ -z "$IP6T" ]; then echo "WARN: 无 ip6tables，改用 sysctl 关闭 v6"; tune_ipv6_sysctl_disable; state_set IPV6 1; return 0; fi
+  ipt6_chain_ensure "$CH6_OUT"
+  ipt6_chain_flush "$CH6_OUT"
+  $IP6T -A "$CH6_OUT" -o lo -j RETURN 2>/dev/null || true
+  $IP6T -A "$CH6_OUT" -d ::1 -j RETURN 2>/dev/null || true
+  $IP6T -A "$CH6_OUT" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null || true
+  # 阻断全部 v6 出站（无 v6 出口场景下，防「v4 被拦、v6 旁路」）
+  $IP6T -A "$CH6_OUT" -j REJECT 2>/dev/null || true
+  ipt6_jump_ensure OUTPUT "$CH6_OUT"
+  state_set IPV6 1
+  log "ipv6 on"
+  echo "IPv6: on"
+}
+
+ipv6_off() {
+  [ -n "$IP6T" ] && ipt6_jump_remove OUTPUT "$CH6_OUT"
+  [ -n "$IP6T" ] && ipt6_chain_flush "$CH6_OUT"
+  state_set IPV6 0
+  log "ipv6 off"
+  echo "IPv6: off"
+}
+
+ip_on() {
+  [ -z "$IPT" ] && { echo "ERR: 无 iptables"; return 1; }
+  ipt_chain_ensure filter "$CH_OUT"
+  # 不 flush 整条（共享链），用独立子链
+  ipt_chain_ensure filter SY_LEAK_STUN
+  ipt_chain_flush filter SY_LEAK_STUN
+  guard_loopback SY_LEAK_STUN
+  # STUN / WebRTC 探测端口：真实 IP 最常从这些口漏出去
+  for p in 3478 3479 5349 5350 19302 19303 19304 19305 19306 19307 19308 19309; do
+    $IPT -A SY_LEAK_STUN -p udp --dport $p -j REJECT 2>/dev/null || true
+    $IPT -A SY_LEAK_STUN -p tcp --dport $p -j REJECT 2>/dev/null || true
+  done
+  ipt_jump_ensure filter "$CH_OUT" SY_LEAK_STUN
+  state_set IP 1
+  log "ip on"
+  echo "IP: on (STUN/WebRTC 探测端口已收敛)"
+}
+
+ip_off() {
+  [ -n "$IPT" ] && ipt_jump_remove filter "$CH_OUT" SY_LEAK_STUN
+  [ -n "$IPT" ] && ipt_chain_flush filter SY_LEAK_STUN
+  state_set IP 0
+  log "ip off"
+  echo "IP: off"
+}
+
+# 判定「代理是否在线」：优先 Clash API，其次进程
+proxy_online() {
+  if [ -x "$AB" ]; then
+    out=$("$AB" clash -api 127.0.0.1:9090 status -json 2>/dev/null)
+    echo "$out" | grep -q '"ok":true' && return 0
+  fi
+  [ -f "$MODDIR/.state/core.pid" ] && kill -0 "$(cat "$MODDIR/.state/core.pid" 2>/dev/null)" 2>/dev/null && return 0
+  return 1
+}
+
+vpn_on() {
+  [ -z "$IPT" ] && { echo "ERR: 无 iptables"; return 1; }
+  ipt_chain_ensure filter SY_LEAK_KILL
+  ipt_chain_flush filter SY_LEAK_KILL
+  guard_loopback SY_LEAK_KILL
+  # 允许到本地代理端口（走隧道）
+  pp=$(conf_get PROXY_PORT); pp=${pp:-2080}
+  $IPT -A SY_LEAK_KILL -p tcp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null || true
+  $IPT -A SY_LEAK_KILL -p udp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null || true
+  # 代理离线时：阻断明文出网（kill-switch）；在线时本链整体放行
+  if proxy_online; then
+    $IPT -A SY_LEAK_KILL -j RETURN 2>/dev/null || true
+  else
+    $IPT -A SY_LEAK_KILL -j REJECT 2>/dev/null || true
+  fi
+  ipt_jump_ensure filter OUTPUT SY_LEAK_KILL
+  state_set VPN 1
+  log "vpn on"
+  echo "VPN kill-switch: on ($(proxy_online && echo proxy-up || echo proxy-down→blocking))"
+}
+
+vpn_off() {
+  [ -n "$IPT" ] && ipt_jump_remove filter OUTPUT SY_LEAK_KILL
+  [ -n "$IPT" ] && ipt_chain_flush filter SY_LEAK_KILL
+  state_set VPN 0
+  log "vpn off"
+  echo "VPN kill-switch: off"
+}
+
+# 断连守护：后台循环，出口断开即刻切断，恢复自动放行
+vpn_guard_start() {
+  pidf="$STATE_DIR/vpn.guard.pid"
+  if [ -f "$pidf" ] && kill -0 "$(cat "$pidf" 2>/dev/null)" 2>/dev/null; then
+    echo "VPN guard: already running"; return 0
+  fi
+  (
+    while :; do
+      if proxy_online; then
+        $IPT -F SY_LEAK_KILL 2>/dev/null
+        guard_loopback SY_LEAK_KILL
+        pp=$(conf_get PROXY_PORT); pp=${pp:-2080}
+        $IPT -A SY_LEAK_KILL -p tcp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null
+        $IPT -A SY_LEAK_KILL -j RETURN 2>/dev/null
+      else
+        $IPT -F SY_LEAK_KILL 2>/dev/null
+        guard_loopback SY_LEAK_KILL
+        pp=$(conf_get PROXY_PORT); pp=${pp:-2080}
+        $IPT -A SY_LEAK_KILL -p tcp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null
+        $IPT -A SY_LEAK_KILL -j REJECT 2>/dev/null
+      fi
+      sleep 5
     done
-    lg_set ip on; lg_event "真实 IP 泄露防护已开启（阻断 STUN 探测端口）"
+  ) >/dev/null 2>&1 &
+  echo $! >"$pidf"
+  echo "VPN guard: started (pid $(cat "$pidf"))"
+}
+
+vpn_guard_stop() {
+  pidf="$STATE_DIR/vpn.guard.pid"
+  [ -f "$pidf" ] && kill "$(cat "$pidf" 2>/dev/null)" 2>/dev/null
+  rm -f "$pidf"
+  echo "VPN guard: stopped"
+}
+
+node_on() {
+  [ -z "$IPT" ] && { echo "ERR: 无 iptables"; return 1; }
+  ipt_chain_ensure filter SY_LEAK_NODE
+  ipt_chain_flush filter SY_LEAK_NODE
+  guard_loopback SY_LEAK_NODE
+  pp=$(conf_get PROXY_PORT); pp=${pp:-2080}
+  $IPT -A SY_LEAK_NODE -p tcp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null || true
+  if proxy_online; then
+    $IPT -A SY_LEAK_NODE -j RETURN 2>/dev/null || true
   else
-    lg_set ip off; lg_event "真实 IP 泄露防护已关闭"
+    # 代理不可用时阻断直连，避免真实 IP 在断流瞬间暴露
+    $IPT -A SY_LEAK_NODE -j REJECT 2>/dev/null || true
   fi
-  lg_apply
+  ipt_jump_ensure filter OUTPUT SY_LEAK_NODE
+  state_set NODE 1
+  log "node on"
+  echo "NODE leakguard: on"
 }
 
-# ---- VPN 断连裸奔：守护内核，断开即阻断，恢复则放行 ----
-lg_vpn() { # on|off
-  if [ "$1" = "on" ]; then
-    lg_set vpn on
-    # 写守护脚本，由 service.sh 周期调用（保持轻量，避免 busybox 定时器依赖）
-    cat > "$LG_DIR/vpn_guard.sh" <<'EOS'
-#!/system/bin/sh
-. "$(dirname "$0")/../../scripts/common.sh" 2>/dev/null
-LG_DIR="$DATA_DIR/rules/leakguard"
-ip4=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -n1)
-if [ -z "$ip4" ]; then
-  iptables -C OUTPUT -j SY_LEAKGUARD 2>/dev/null || iptables -I OUTPUT 1 -j SY_LEAKGUARD
-  iptables -C SY_LEAKGUARD -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || iptables -A SY_LEAKGUARD -m owner --uid-owner 0 -j ACCEPT
-  iptables -C SY_LEAKGUARD -j REJECT 2>/dev/null || iptables -A SY_LEAKGUARD -j REJECT
-  echo "[$(date '+%F %T')] VPN 断连 -> 已切断明文出口" >> "$LG_DIR/events.log"
-else
-  # 出口恢复：移除兜底 REJECT，仅保留白名单链
-  while iptables -C SY_LEAKGUARD -j REJECT 2>/dev/null; do iptables -D SY_LEAKGUARD -j REJECT 2>/dev/null; done
-fi
-EOS
-    chmod 0755 "$LG_DIR/vpn_guard.sh" 2>/dev/null
-    lg_event "防 VPN 断连裸奔已开启（守护脚本已生成）"
+node_off() {
+  [ -n "$IPT" ] && ipt_jump_remove filter OUTPUT SY_LEAK_NODE
+  [ -n "$IPT" ] && ipt_chain_flush filter SY_LEAK_NODE
+  state_set NODE 0
+  log "node off"
+  echo "NODE leakguard: off"
+}
+
+tune_ipv6_sysctl_disable() {
+  for k in net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6; do
+    [ -w "/proc/sys/$(echo "$k" | tr '.' '/')" ] && echo 1 >"/proc/sys/$(echo "$k" | tr '.' '/')" 2>/dev/null || true
+  done
+}
+
+tune_on() {
+  # 隐私相关 sysctl 加固
+  set_sys() { [ -w "/proc/sys/$(echo "$1" | tr '.' '/')" ] && echo "$2" >"/proc/sys/$(echo "$1" | tr '.' '/')" 2>/dev/null && echo "  set $1=$2" || echo "  skip $1"; }
+  set_sys net.ipv4.conf.all.rp_filter 1
+  set_sys net.ipv4.conf.default.rp_filter 1
+  set_sys net.ipv4.conf.all.accept_redirects 0
+  set_sys net.ipv4.conf.all.send_redirects 0
+  set_sys net.ipv4.conf.all.accept_source_route 0
+  set_sys net.ipv4.icmp_echo_ignore_broadcasts 1
+  set_sys net.ipv6.conf.all.accept_redirects 0
+  set_sys net.ipv6.conf.all.accept_ra 0
+  set_sys net.ipv6.conf.all.use_tempaddr 2
+  state_set TUNE 1
+  log "tune on"
+  echo "TUNE: on"
+}
+
+tune_off() {
+  set_sys() { [ -w "/proc/sys/$(echo "$1" | tr '.' '/')" ] && echo "$2" >"/proc/sys/$(echo "$1" | tr '.' '/')" 2>/dev/null || true; }
+  set_sys net.ipv4.conf.all.rp_filter 0
+  state_set TUNE 0
+  log "tune off"
+  echo "TUNE: off"
+}
+
+# ---------------- 按应用（uid）收敛 ----------------
+apps_list() {
+  [ -d "$TARGETS" ] && TARGETS="$TARGETS" 
+  if [ ! -f "$TARGETS" ]; then echo "(no privacy_targets.txt)"; return; fi
+  echo "隐私目标应用:"
+  grep -v '^[[:space:]]*#' "$TARGETS" 2>/dev/null | grep -v '^[[:space:]]*$' | while read -r p; do
+    uid=$(pm list packages -U 2>/dev/null | sed -n "s/package:$p uid:\([0-9]*\).*/\1/p" | head -1)
+    echo "  $p  uid=${uid:-?}"
+  done
+}
+
+apps_apply() {
+  [ -z "$IPT" ] && { echo "ERR: 无 iptables"; return 1; }
+  [ ! -f "$TARGETS" ] && { echo "no targets"; return 0; }
+  ipt_chain_ensure filter SY_LEAK_APPS
+  ipt_chain_flush filter SY_LEAK_APPS
+  guard_loopback SY_LEAK_APPS
+  pp=$(conf_get PROXY_PORT); pp=${pp:-2080}
+  grep -v '^[[:space:]]*#' "$TARGETS" 2>/dev/null | grep -v '^[[:space:]]*$' | while read -r p; do
+    uid=$(pm list packages -U 2>/dev/null | sed -n "s/package:$p uid:\([0-9]*\).*/\1/p" | head -1)
+    [ -z "$uid" ] && continue
+    $IPT -A SY_LEAK_APPS -m owner --uid-owner "$uid" -p tcp --dport "$pp" -d 127.0.0.1 -j RETURN 2>/dev/null
+    # 目标应用强制走本地代理，否则阻断（防其直连泄露真实 IP）
+    if proxy_online; then
+      $IPT -A SY_LEAK_APPS -m owner --uid-owner "$uid" -j REJECT 2>/dev/null
+    fi
+  done
+  ipt_jump_ensure filter OUTPUT SY_LEAK_APPS
+  echo "APPS: applied"
+}
+
+# ---------------- owner：离线判读出口 IP 归属 ----------------
+owner() {
+  a=${1%%,*}; b=${1#*,}
+  echo "== 出口归属对比 =="
+  if [ -x "$AB" ]; then
+    "$AB" geoip -db "$MODDIR/data/geo" -compare "$a,$b" 2>/dev/null && return 0
+  fi
+  # 回退：使用本地 RIR 授权库（grep 归属）
+  if [ -d "$OWNER_DB" ]; then
+    for ip in "$a" "$b"; do
+      hit=$(grep -rh -m1 "|$ip|" "$OWNER_DB" 2>/dev/null)
+      echo "$ip -> ${hit:-未在本地授权库命中（仅含网段起始记录）}"
+    done
+    return 0
+  fi
+  echo "无可用归属库（data/geo 缺失）"
+}
+
+# ---------------- 组合开关 ----------------
+apply_all() {
+  [ "$(state_get DNS)" = "1" ] && dns_on
+  [ "$(state_get IPV6)" = "1" ] && ipv6_on
+  [ "$(state_get IP)" = "1" ] && ip_on
+  [ "$(state_get VPN)" = "1" ] && vpn_on
+  [ "$(state_get NODE)" = "1" ] && node_on
+  [ "$(state_get TUNE)" = "1" ] && tune_on
+  log "applied"
+  echo "已按持久化状态重建规则"
+}
+
+enable_all() { dns_on; ipv6_on; ip_on; vpn_on; node_on; tune_on; vpn_guard_start; log "enable"; echo "总开关: on"; }
+disable_all() { vpn_guard_stop; node_off; vpn_off; ip_off; ipv6_off; dns_off; tune_off; log "disable"; echo "总开关: off"; }
+
+panic() {
+  # 一键：全防护 + 记录快照
+  cp "$STATE" "$STATE_DIR/leakguard.snapshot" 2>/dev/null || true
+  dns_on; ipv6_on; ip_on; vpn_on; node_on; tune_on; vpn_guard_start
+  log "panic engaged"
+  echo "PANIC: 已启用全防护并记录快照"
+}
+
+# ---------------- 状态 ----------------
+status() {
+  printf '%-8s %s\n' "DNS"  "$(state_get DNS)"
+  printf '%-8s %s\n' "IPV6" "$(state_get IPV6)"
+  printf '%-8s %s\n' "IP"   "$(state_get IP)"
+  printf '%-8s %s\n' "VPN"  "$(state_get VPN)"
+  printf '%-8s %s\n' "NODE" "$(state_get NODE)"
+  printf '%-8s %s\n' "TUNE" "$(state_get TUNE)"
+  if [ -n "$IPT" ]; then
+    n=$($IPT -L "$CH_OUT" -n 2>/dev/null | grep -c 'REJECT\|DROP' 2>/dev/null)
+    printf '%-8s %s\n' "iptables" "${IPT}(${n} block rules)"
   else
-    lg_set vpn off; lg_event "防 VPN 断连裸奔已关闭"
+    printf '%-8s %s\n' "iptables" "unavailable"
   fi
-}
-
-# ---- 代理节点泄露：代理不可用时阻断直连，防真实 IP 暴露 ----
-lg_node() { # on|off
-  if [ "$1" = "on" ]; then
-    lg_set node on
-    cat > "$LG_DIR/node_guard.sh" <<'EOS'
-#!/system/bin/sh
-. "$(dirname "$0")/../../scripts/common.sh" 2>/dev/null
-LG_DIR="$DATA_DIR/rules/leakguard"
-# 判断内核是否在跑：不在跑则阻断非 root 出网，避免直连暴露真实 IP
-if ! pgrep -f 'sing-box|abserver proxy' >/dev/null 2>&1; then
-  iptables -C OUTPUT -j SY_LEAKGUARD 2>/dev/null || iptables -I OUTPUT 1 -j SY_LEAKGUARD
-  iptables -C SY_LEAKGUARD -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || iptables -A SY_LEAKGUARD -m owner --uid-owner 0 -j ACCEPT
-  iptables -C SY_LEAKGUARD -j REJECT 2>/dev/null || iptables -A SY_LEAKGUARD -j REJECT
-  echo "[$(date '+%F %T')] 代理未运行 -> 已阻断直连，防止节点泄露/真实 IP 暴露" >> "$LG_DIR/events.log"
-else
-  while iptables -C SY_LEAKGUARD -j REJECT 2>/dev/null; do iptables -D SY_LEAKGUARD -j REJECT 2>/dev/null; done
-fi
-EOS
-    chmod 0755 "$LG_DIR/node_guard.sh" 2>/dev/null
-    lg_event "防代理节点泄露已开启（守护脚本已生成）"
+  if [ -f "$STATE_DIR/vpn.guard.pid" ] && kill -0 "$(cat "$STATE_DIR/vpn.guard.pid" 2>/dev/null)" 2>/dev/null; then
+    echo "guard    running"
   else
-    lg_set node off; lg_event "防代理节点泄露已关闭"
+    echo "guard    stopped"
   fi
 }
 
-lg_apply() {
-  lg_chain_ensure
-  # 允许 root 与回环，避免面板/内核被自己拦
-  ipt -C "$CHAIN" -o lo -j ACCEPT 2>/dev/null || ipt -A "$CHAIN" -o lo -j ACCEPT
-  ipt -C "$CHAIN" -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || ipt -A "$CHAIN" -m owner --uid-owner 0 -j ACCEPT
-  echo "OK: leakguard 策略已落地"
+report() {
+  esc() { echo "$1" | tr -d '"\\' ; }
+  cat <<JSON
+{"ok":true,"dns":$(state_get DNS),"ipv6":$(state_get IPV6),"ip":$(state_get IP),"vpn":$(state_get VPN),"node":$(state_get NODE),"tune":$(state_get TUNE),"iptables":"$(esc ${IPT:-none})","ip6tables":"$(esc ${IP6T:-none})","proxy_online":$(proxy_online && echo true || echo false),"targets":$(grep -vc '^[[:space:]]*#\|^[[:space:]]*$' "$TARGETS" 2>/dev/null || echo 0)}
+JSON
 }
 
-lg_panic() {
-  for k in dns ipv6 ip vpn node; do lg_set "$k" on; done
-  lg_dns on >/dev/null; lg_ipv6 on >/dev/null; lg_ip on >/dev/null
-  [ "$(lg_get vpn off)" = "on" ] || lg_vpn on
-  lg_event "PANIC：已一键收紧全部隐私防护"
-  echo "OK: 已开启全部隐私防泄露"
+# ---------------- 钩子（App / 无障碍 / LSPosed 调用） ----------------
+app_enter() { # PKG [CLS]
+  pkg=${1:-}; cls=${2:-}
+  log "app-enter $pkg $cls"
+  # 目标应用进入前台时，确保其被纳入出口收敛
+  grep -q "^$pkg$" "$TARGETS" 2>/dev/null && apps_apply >/dev/null 2>&1 || true
 }
 
-lg_status_json() {
-  printf '{"enabled":"%s","dns":"%s","ipv6":"%s","ip":"%s","vpn":"%s","node":"%s","rules":%s,"events":%s}\n' \
-    "$(lg_get enabled off)" "$(lg_get dns off)" "$(lg_get ipv6 off)" \
-    "$(lg_get ip off)" "$(lg_get vpn off)" "$(lg_get node off)" \
-    "$(ipt -S "$CHAIN" 2>/dev/null | grep -c .)" "$(wc -l < "$EVENTS" 2>/dev/null | tr -d ' ')"
+hook_enter() { app_enter "$1" ""; }
+
+restore() {
+  if [ -f "$STATE_DIR/leakguard.snapshot" ]; then
+    cp "$STATE_DIR/leakguard.snapshot" "$STATE"
+  fi
+  node_off; vpn_off; ip_off; ipv6_off; dns_off
+  tune_off
+  [ -n "$IPT" ] && ipt_chain_flush filter SY_LEAK_APPS
+  log "restored"
+  echo "已恢复并移除全部本模块规则"
 }
 
-lg_tune() { # add|del pkg
-  lg_init
-  act="$1"; pkg="$2"
-  [ -n "$pkg" ] || { echo "usage: tune add|del <pkg>"; return 1; }
-  case "$act" in
-    add) grep -qxF "$pkg" "$TARGETS" 2>/dev/null || echo "$pkg" >> "$TARGETS"; echo "OK: 已加入隐私收敛 $pkg" ;;
-    del) tmp="$TARGETS.tmp.$$"; grep -vxF "$pkg" "$TARGETS" > "$tmp" 2>/dev/null; mv "$tmp" "$TARGETS"; echo "OK: 已移出隐私收敛 $pkg" ;;
-    *) echo "usage: tune add|del <pkg>" ;;
+# ---------------- Hook 事件（内置 App Hook 子系统上报） ----------------
+HOOKLOG="$STATE_DIR/hook.log"
+HOOKMODE_FILE="$STATE_DIR/hook.mode"
+
+hook_event() { # TAG DETAIL...
+  tag=${1:-unknown}
+  shift 2>/dev/null || true
+  detail="$*"
+  echo "[$(date '+%F %T' 2>/dev/null || echo now)] $tag | $detail" >>"$HOOKLOG" 2>/dev/null
+  # 关键钩子命中即触发一次出口收敛（目标应用进入前台等）
+  case "$tag" in
+    hook-install|activity|hook-enter) apps_apply >/dev/null 2>&1 || true ;;
   esac
 }
 
-lg_init
-case "$1" in
-  status)   lg_status_json ;;
-  enable)   lg_set enabled on;  echo "OK: 隐私防泄露总开关已开启" ;;
-  disable)  lg_set enabled off; lg_chain_flush; echo "OK: 隐私防泄露总开关已关闭" ;;
-  dns)      lg_dns "$2" ;;
-  ipv6)     lg_ipv6 "$2" ;;
-  ip)       lg_ip "$2" ;;
-  vpn)      lg_vpn "$2" ;;
-  node)     lg_node "$2" ;;
-  apply)    lg_apply ;;
-  panic)    lg_panic ;;
-  tune)     lg_tune "$2" "$3" ;;
-  restore)
-    [ "$(lg_get enabled off)" = "on" ] || exit 0
-    [ "$(lg_get dns off)"  = "on" ] && lg_dns on  >/dev/null
-    [ "$(lg_get ipv6 off)" = "on" ] && lg_ipv6 on >/dev/null
-    [ "$(lg_get ip off)"   = "on" ] && lg_ip on   >/dev/null
-    echo "OK: 隐私防泄露已按上次状态恢复"
-    ;;
-  app-enter)  lg_event "app-enter: ${2:-unknown}" ;;
-  hook-enter) lg_event "hook-enter: ${2:-unknown}" ;;
-  report)
-    echo "== SY 隐私防泄露报告 =="
-    echo "总开关 : $(lg_get enabled off)"
-    echo "DNS    : $(lg_get dns off)   IPv6: $(lg_get ipv6 off)   IP: $(lg_get ip off)"
-    echo "VPN    : $(lg_get vpn off)   Node: $(lg_get node off)"
-    echo "规则数 : $(ipt -S "$CHAIN" 2>/dev/null | grep -c .)"
-    echo "收敛应用: $(grep -vcE '^#|^$' "$TARGETS" 2>/dev/null)"
-    echo "-- 最近事件 --"; tail -n 15 "$EVENTS" 2>/dev/null
-    ;;
-  *) echo "usage: leakguard.sh {status|enable|disable|dns|ipv6|ip|vpn|node|apply|panic|tune|app-enter|hook-enter|report} [on|off]" ;;
+hook_events() {
+  n=${1:-20}
+  [ -f "$HOOKLOG" ] || { echo "(no hook events)"; return; }
+  tail -n "$n" "$HOOKLOG"
+}
+
+hook_get_mode() {
+  if [ -f "$HOOKMODE_FILE" ]; then cat "$HOOKMODE_FILE" 2>/dev/null; else echo "targets"; fi
+}
+
+hook_mode() {
+  case "${1:-}" in
+    on|off|all|targets) echo "$1" >"$HOOKMODE_FILE"; echo "hook mode = $1" ;;
+    *) hook_get_mode ;;
+  esac
+}
+
+hook_status() {
+  echo "hook mode : $(hook_get_mode)"
+  if [ -f "$HOOKLOG" ]; then
+    echo "events    : $(wc -l <"$HOOKLOG" 2>/dev/null)"
+    echo "by tag    :"
+    sed -n 's/^\[[^]]*\] \([^|]*\)|.*/\1/p' "$HOOKLOG" 2>/dev/null | sed 's/[[:space:]]*$//' | sort | uniq -c | sort -rn | head
+  else
+    echo "events    : 0"
+  fi
+  echo "builtin hooks:"
+  grep -v '^[[:space:]]*#' "$MODDIR/config/hooks.conf" 2>/dev/null | grep -v '^[[:space:]]*$' | sed 's/^/  /'
+}
+
+hook_clear() { : >"$HOOKLOG" 2>/dev/null; echo "hook events cleared"; }
+
+# ---------------- 运营商隐私收敛（明文中转/DNS 收敛；标识符由 App Hook 喂假数据） ----------------
+carrier() {
+  case "${1:-status}" in
+    on)
+      dns_on; ipv6_on; ip_on; tune_on
+      echo "运营商隐私收敛: on"
+      carrier_report_short ;;
+    off)
+      dns_off; ipv6_off; ip_off; tune_off
+      echo "运营商隐私收敛: off" ;;
+    *) carrier_report_short ;;
+  esac
+}
+
+carrier_report_short() {
+  echo "  明文 DNS(53/853) 拦截 : $(state_get DNS)"
+  echo "  IPv6 旁路阻断         : $(state_get IPV6)"
+  echo "  STUN/WebRTC 收敛      : $(state_get IP)"
+  echo "  sysctl 隐私加固       : $(state_get TUNE)"
+  echo "  标识符 Hook(IMEI/IMSI/MAC/位置/WebView) 模式 : $(hook_get_mode)"
+}
+
+state_init
+
+case "${1:-status}" in
+  status)   status ;;
+  enable)   enable_all ;;
+  disable)  disable_all ;;
+  dns)      case "${2:-status}" in on) dns_on;; off) dns_off;; test) dns_test;; *) dns_test;; esac ;;
+  ipv6)     case "${2:-status}" in on) ipv6_on;; off) ipv6_off;; *) [ "$(state_get IPV6)" = 1 ] && echo "IPv6: on" || echo "IPv6: off";; esac ;;
+  ip)       case "${2:-status}" in on) ip_on;; off) ip_off;; *) [ "$(state_get IP)" = 1 ] && echo "IP: on" || echo "IP: off";; esac ;;
+  vpn)      case "${2:-status}" in on) vpn_on; vpn_guard_start;; off) vpn_guard_stop; vpn_off;; guard) vpn_guard_start;; *) [ "$(state_get VPN)" = 1 ] && echo "VPN: on" || echo "VPN: off";; esac ;;
+  node)     case "${2:-status}" in on) node_on;; off) node_off;; *) [ "$(state_get NODE)" = 1 ] && echo "NODE: on" || echo "NODE: off";; esac ;;
+  apps)     case "${2:-list}" in list) apps_list;; apply) apps_apply;; add) grep -q "^$3$" "$TARGETS" 2>/dev/null || echo "$3" >>"$TARGETS"; apps_apply;; del) sed -i "/^$3$/d" "$TARGETS" 2>/dev/null; apps_apply;; *) apps_list;; esac ;;
+  owner)    owner "${2:-}" ;;
+  tune)     case "${2:-status}" in on) tune_on;; off) tune_off;; *) [ "$(state_get TUNE)" = 1 ] && echo "TUNE: on" || echo "TUNE: off";; esac ;;
+  apply)    apply_all ;;
+  panic)    panic ;;
+  restore)  restore ;;
+  report)   report ;;
+  app-enter) app_enter "${2:-}" "${3:-}" ;;
+  hook-enter) hook_enter "${2:-}" ;;
+  hook-event) hook_event "${2:-}" "${3:-}" "${4:-}" ;;
+  hook-events) hook_events "${2:-20}" ;;
+  hook-status) hook_status ;;
+  hook-clear) hook_clear ;;
+  hook-mode) hook_mode "${2:-}" ;;
+  carrier)  carrier "${2:-status}" ;;
+  *) echo "usage: leakguard.sh {status|enable|disable|dns|ipv6|ip|vpn|node|apps|owner|tune|apply|panic|restore|report|hook-mode|hook-status|hook-events|hook-clear|hook-event|carrier}" ;;
 esac

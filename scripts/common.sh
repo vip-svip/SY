@@ -161,3 +161,47 @@ batch_del_field() { # <target_file> <comma_values> [sep]
   rm -f "$dl"
   echo "$(count_lines "$tf")"
 }
+
+# ============================================================
+#  后台进程启动（脱离调用方会话）
+#  ------------------------------------------------------------
+#  为什么必须集中一个函数：Android 上 nohup / setsid 的可用性
+#  因 ROM 差异很大 —— toybox 有 nohup 无 setsid，busybox 两者都无，
+#  精简 ROM 可能都没有。此前 proxynode.sh / panel.sh / notify.sh /
+#  splash.sh / service.sh 各自直接调 nohup，一旦命令不存在就
+#  "nohup: not found" 静默失败：
+#    · 代理内核起不来（用户看到"内核不生效"）
+#    · 面板起不来
+#    · 开屏跳过不起作用
+#  这里按可用性逐级降级，并且**永不因为缺命令而失败**。
+#
+#  用法: bg_spawn <日志文件> <命令...>
+#  返回: 0=已启动（echo pid 到 stdout）
+# ============================================================
+bg_spawn() { # <logfile> <cmd> [args...]
+  _bg_log="$1"; shift
+  [ -n "$_bg_log" ] || _bg_log=/dev/null
+  if command -v setsid >/dev/null 2>&1; then
+    # setsid 优先级最高：真正脱离会话（Android 一般没有 setsid）
+    setsid "$@" > "$_bg_log" 2>&1 </dev/null &
+    echo $!
+    return 0
+  fi
+  if command -v nohup >/dev/null 2>&1; then
+    nohup "$@" > "$_bg_log" 2>&1 </dev/null &
+    echo $!
+    return 0
+  fi
+  # 兜底：两者都没有时，直接后台 + 丢弃 SIGHUP（用 trap 无法跨进程，
+  # 所以退化为普通后台进程；在 service.sh 这类由 init 拉起的场景已足够）
+  "$@" > "$_bg_log" 2>&1 </dev/null &
+  echo $!
+  return 0
+}
+
+# 判断某个后台进程是否还活着（按 pid 文件）
+bg_alive() { # <pidfile>
+  [ -f "$1" ] || return 1
+  _p=$(cat "$1" 2>/dev/null)
+  [ -n "$_p" ] && kill -0 "$_p" 2>/dev/null
+}

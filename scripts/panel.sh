@@ -3,7 +3,7 @@
 #  panel.sh — 管理面板 Web 服务 控制脚本
 #  内置超轻量 Web 服务(基于 abserver serve)，随模块生命周期启停，
 #  支持本地 + 局域网访问，自带身份验证。
-#  用法: panel.sh {start|stop|restart|status|ensure|token|port|url}
+#  用法: panel.sh {start|stop|restart|status|info|ensure|token|port|url}
 #
 #  关键修复: 用 setsid + nohup 让 serve 进程完全脱离调用方会话，
 #            避免 service.sh 结束后被系统连带回收，导致面板显示"已停止"。
@@ -73,8 +73,8 @@ start() {
   curpid=""
   [ -f "$PANEL_PID_FILE" ] && curpid=$(cat "$PANEL_PID_FILE" 2>/dev/null)
   if is_alive "$curpid" || port_listening; then
-    [ -z "$curpid" ] && curpid=$(pid_on_port)
-    echo "OK: 面板已在运行 pid=${curpid:-?} 端口=$PANEL_PORT"
+    # 端口在监听但 pid 文件丢了：不为了显示一个 pid 而遍历上万个 fd
+    echo "OK: 面板已在运行 pid=${curpid:-未知(端口在监听)} 端口=$PANEL_PORT"
     return 0
   fi
 
@@ -85,24 +85,14 @@ start() {
   rm -f "$PANEL_PID_FILE"
 
   # --- 关键: 用 setsid 脱离会话 + nohup 忽略挂断，确保 service.sh 退出后仍存活 ---
-  if command -v setsid >/dev/null 2>&1; then
-    setsid "$BIN" serve \
+  # 用统一起进程函数（nohup/setsid 在部分 ROM 上不存在 → 旧版面板起不来）
+  panel_pid=$(bg_spawn "$PANEL_LOG" "$BIN" serve \
       -addr ":$PANEL_PORT" \
       -webroot "$MODDIR/webroot" \
       -moddir "$MODDIR" \
       -datadir "$DATA_DIR" \
-      -token "$TOKEN" \
-      > "$PANEL_LOG" 2>&1 &
-  else
-    nohup "$BIN" serve \
-      -addr ":$PANEL_PORT" \
-      -webroot "$MODDIR/webroot" \
-      -moddir "$MODDIR" \
-      -datadir "$DATA_DIR" \
-      -token "$TOKEN" \
-      > "$PANEL_LOG" 2>&1 &
-  fi
-  echo $! > "$PANEL_PID_FILE"
+      -token "$TOKEN")
+  echo "$panel_pid" > "$PANEL_PID_FILE"
 
   # --- 启动后校验: 等待进程存活并端口监听 (最多 ~5s) ---
   i=0
@@ -155,6 +145,22 @@ case "$1" in
   stop)    stop ;;
   restart) stop; sleep 1; start ;;
   ensure)  ensure ;;
+  info)
+    # 合并 status + url：面板首页每 6 秒轮询一次，旧版要 fork 两个脚本
+    # （panel.sh status 与 panel.sh url），而 url 内部还要 gen_token + lan_ip。
+    # 合并成一次调用，减少一半的进程创建与 /proc 读取。
+    running="no"; pid=""
+    if [ -f "$PANEL_PID_FILE" ]; then
+      pid=$(cat "$PANEL_PID_FILE" 2>/dev/null)
+      if is_alive "$pid"; then running="yes"; else pid=""; rm -f "$PANEL_PID_FILE"; fi
+    fi
+    if [ "$running" = "no" ] && port_listening; then running="yes"; fi
+    gen_token
+    ip=$(lan_ip); [ -z "$ip" ] && ip="127.0.0.1"
+    tok=$(cat "$PANEL_TOKEN_FILE" 2>/dev/null)
+    printf '{"running":"%s","pid":"%s","port":%s,"lan_ip":"%s","url":"http://%s:%s/?token=%s"}\n' \
+      "$running" "$pid" "$PANEL_PORT" "$ip" "$ip" "$PANEL_PORT" "$tok"
+    ;;
   status)
     running="no"; pid=""
     if [ -f "$PANEL_PID_FILE" ]; then
@@ -166,10 +172,14 @@ case "$1" in
         rm -f "$PANEL_PID_FILE"   # 清理失效 pid 文件
       fi
     fi
-    # 端口兜底: 即使 pid 文件丢失，只要端口在监听就算运行
+    # 端口兜底: 即使 pid 文件丢失，只要端口在监听就算运行。
+    # 【性能】pid_on_port 要遍历 /proc/[0-9]*/fd/*（手机上万个 readlink），
+    # 而面板首页每 6 秒轮询一次 status —— 会明显卡顿。
+    # 所以这里不再主动扫 pid：端口在监听就报 running，pid 留空；
+    # 只有调用方显式要 full 时才扫描。
     if [ "$running" = "no" ] && port_listening; then
       running="yes"
-      pid=$(pid_on_port)
+      if [ "${2:-}" = "full" ]; then pid=$(pid_on_port); else pid=""; fi
     fi
     ip=$(lan_ip)
     echo "{\"running\":\"$running\",\"pid\":\"$pid\",\"port\":$PANEL_PORT,\"lan_ip\":\"$ip\"}"
@@ -181,5 +191,5 @@ case "$1" in
     ip=$(lan_ip); [ -z "$ip" ] && ip="127.0.0.1"
     echo "http://$ip:$PANEL_PORT/?token=$(cat "$PANEL_TOKEN_FILE")"
     ;;
-  *) echo "usage: panel.sh {start|stop|restart|status|ensure|token|port|url}" ;;
+  *) echo "usage: panel.sh {start|stop|restart|status|info|ensure|token|port|url}" ;;
 esac

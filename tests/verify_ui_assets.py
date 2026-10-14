@@ -12,6 +12,19 @@
 """
 import io, os, re, sys, json, collections
 
+# ---- 输出编码强制 UTF-8 ----------------------------------------------------
+# 中文 Windows 上 Python 默认用 GBK 写 stdout，于是 [OK] 后面的中文会变成 GBK 字节；
+# 而 run_module_checks.sh 用 UTF-8 的中文串去 grep，必然匹配失败 —— 表现为
+# "backdrop-filter 性能护栏未通过"这类**假失败**（实际检查全过）。
+# 这里把 stdout/stderr 重新配置为 UTF-8 且不因编码错误中断。
+try:
+    import sys as _sys
+    _sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    _sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "webroot", "index.html")
 BASE = os.path.join(ROOT, "tests", "ui_baseline.json")

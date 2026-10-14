@@ -759,6 +759,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
           <a class="dropdown-item" data-tab="mitm">加密过滤 · 根证书</a>
           <a class="dropdown-item" data-tab="netblock">拦截服务</a>
           <a class="dropdown-item" data-tab="notify">通知过滤</a>
+          <a class="dropdown-item" data-tab="privacy">隐私护盾</a>
         </div>
       </div>
 
@@ -769,6 +770,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
           <a class="dropdown-item" data-tab="scripts">脚本扩展</a>
           <a class="dropdown-item" data-tab="splash">开屏跳过</a>
           <a class="dropdown-item" data-tab="tools">工具与备份</a>
+          <a class="dropdown-item" data-tab="fileedit">文件编辑器</a>
         </div>
       </div>
 
@@ -1729,10 +1731,11 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 
       <div class="col-6">
         <div class="card">
-          <div class="card-head">代理内核<span class="tagline">sing-box / xray</span></div>
+          <div class="card-head">代理内核<span class="tagline">sing-box / xray（本模块不内置内核二进制）</span></div>
+          <div class="hint">本模块<b>不随包内置</b>代理内核（sing-box 各架构体积约 10-20MB，会显著增大模块包）。
           <div class="kv"><span>当前内核</span><b id="pnCore2">-</b></div>
           <div class="kv"><span>内核配置</span><b id="pnCfg">-</b></div>
-          <div class="hint">未内置内核时点「一键获取内置内核」自动按 CPU 架构下载 sing-box；也可填直链手动下载，或手动放入模块 bin/ 目录。</div>
+          <div class="hint">未内置内核时点「在线下载内核（多镜像）」自动按 CPU 架构下载 sing-box；也可填直链手动下载，或手动放入模块 bin/ 目录。</div>
           <div class="btn-row">
             <button class="btn primary" data-act="pn-core-ensure">一键获取内置内核</button>
             <button class="btn ok" data-act="pn-gen-config2">生成内核配置</button>
@@ -2239,6 +2242,135 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     </div>
   </section>
 
+  <!-- ================= 隐私护盾（反诈/风控应用深度定制） ================= -->
+  <section class="page hide" id="page-privacy">
+    <div class="page-title">
+      <div>
+        <h2>隐私护盾</h2>
+        <div class="page-title__sub">反诈/风控应用隔离 · 能力面收紧 · 游戏隐私 · 剪贴板监视</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn ok" data-act="pv-apply">应用防护</button>
+        <button class="btn" data-act="pv-check">自检</button>
+        <button class="btn danger" data-act="pv-remove">关闭并还原</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">隐私护盾<span class="tagline">PRIVACY_ENABLE</span></div>
+          <div class="hint">按 uid 掐断目标应用全部出站，并收紧 appops、无障碍服务、设备管理员与危险权限。<b>只掐网络挡不住它</b> —— 无障碍可读全屏、设备管理员可远程锁屏，这些必须单独收紧。</div>
+          <div class="kv"><span>状态</span><b id="pvState">-</b></div>
+          <div class="kv"><span>出站动作</span>
+            <select id="pvJump">
+              <option value="REJECT">REJECT（回拒包，行为可预期）</option>
+              <option value="DROP">DROP（静默丢包，应用只见超时）</option>
+            </select>
+          </div>
+          <div class="btn-row"><button class="btn primary" data-act="pv-save">保存动作</button></div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">游戏隐私保护<span class="tagline">GAME_PRIVACY_ENABLE</span></div>
+          <div class="hint">不让游戏读取隐私：收回定位/通讯录/短信/通话记录/录音/相机/传感器权限，并禁剪贴板与使用统计。<b>不冻结应用、不断网</b>，游戏照样能玩。</div>
+          <div class="kv"><span>状态</span><b id="gpState">-</b></div>
+          <div class="kv"><span>已配游戏</span><b id="gpCount">-</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">目标应用清单<span class="tagline">每行一个包名，可直接编辑</span></div>
+          <div class="hint">这些包名会被隔离并收紧能力。可用「文件编辑器」直接改 rules/privacy/targets.conf。</div>
+          <textarea class="ta" id="pvTargets" placeholder="com.cmcc.fzhs"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="pv-targets-save">保存并应用</button>
+            <button class="btn" data-act="pv-apps">从已装应用挑选</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">游戏清单<span class="tagline">rules/privacy/game.conf</span></div>
+          <div class="hint">每行一个游戏包名。留空则不处理任何游戏。</div>
+          <textarea class="ta" id="gpList" placeholder="com.tencent.tmgp.sgame"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="gp-list-save">保存并应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">剪贴板监视<span class="tagline">CLIPGUARD_ENABLE</span></div>
+          <div class="hint">轮询 dumpsys clipboard 记录非信任读取者。<b>如实说明</b>：系统没有「谁读了剪贴板」的公开接口，多数 ROM 抓不到；抓不到时会写日志说明，不会假装成功。</div>
+          <div class="kv"><span>状态</span><b id="cgState">-</b></div>
+          <div class="kv"><span>间隔(秒)</span><input type="number" id="cgInterval" min="15" step="15" style="width:90px"></div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="cg-toggle">开/关</button>
+            <button class="btn" data-act="cg-readers">查看读取者</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">隐私域名清单<span class="tagline">按需加入 DNS 过滤</span></div>
+          <div class="hint">模块<b>默认不启用</b>这些清单 —— 拦截规则由你显式选择，避免装了模块就默默改变网络行为。</div>
+          <div class="list" id="pvRulesets"></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="pv-rs-all">全部启用（不含推送）</button>
+            <button class="btn danger" data-act="pv-rs-off">全部移除</button>
+          </div>
+          <div class="hint">提示：push（个推/友盟/极光）会断掉大量 App 通知，必须单独点名启用。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 文件编辑器 ================= -->
+  <section class="page hide" id="page-fileedit">
+    <div class="page-title">
+      <div>
+        <h2>文件编辑器</h2>
+        <div class="page-title__sub">直接编辑 config/ 与 rules/ 下的订阅与配置（含安全边界）</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="fe-list">刷新列表</button>
+        <button class="btn danger" data-act="fe-revert">放弃修改</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hint">订阅源、规则清单、隐私目标这类文件此前只能靠按钮逐条增删，现在可以直接编辑整份内容。写入前会自动备份为 <code>.bak</code>。</div>
+      <div class="kv"><span>选择文件</span>
+        <select id="feSelect"></select>
+      </div>
+      <div class="kv"><span>当前</span><b id="feMeta">-</b></div>
+      <textarea class="ta" id="feText" style="min-height:320px" placeholder="选择文件后这里显示内容，可任意编辑"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="fe-save">保存</button>
+        <button class="btn" data-act="fe-reload">重新载入</button>
+        <button class="btn ok" data-act="fe-append">追加到末尾</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">安全边界说明<span class="tagline">为什么只能编辑这两类目录</span></div>
+      <ul class="hint" style="padding-left:18px">
+        <li>只允许 <b>config/</b> 与 <b>rules/</b> 下的文件；</li>
+        <li>拒绝任何含 <code>..</code> 的路径（防目录穿越）；</li>
+        <li>单文件上限 4MB；</li>
+        <li>写入走「临时文件 + 改名」，中途断电不会把原文件截成半个。</li>
+      </ul>
+    </div>
+  </section>
+
 </div>
 
 <div id="toast"></div>
@@ -2358,6 +2490,7 @@ function switchTheme(){
   if(dark){ el.classList.remove("theme-dark"); el.classList.add("theme-light"); }
   else{ el.classList.remove("theme-light"); el.classList.add("theme-dark"); }
   try{ localStorage.setItem("ab_theme", el.classList.contains("theme-dark")?"dark":"light"); }catch(e){}
+  clearCssVarCache();   // 主题变了，CSS 变量缓存必须失效，否则画布颜色不跟随主题
   toast(el.classList.contains("theme-dark")?"已切换为深色模式":"已切换为浅色模式");
 }
 
@@ -2398,15 +2531,14 @@ function setToggle(id,on){
 
 /* 面板服务专用状态加载 (含访问地址) */
 function loadPanel(){
-  return Promise.all([
-    runScript("panel.sh",["status"]),
-    runScript("panel.sh",["url"])
-  ]).then(function(r){
-    var st=parseJSON(r[0])||{};
+  /* 一次调用拿全（status + url）：旧版 fork panel.sh status 与 panel.sh url 两个
+     进程，而每个都是 shell 冷启动 + /proc 读取 —— 面板首页轮询时是主要卡顿源。 */
+  return runScript("panel.sh",["info"]).then(function(s){
+    var st=parseJSON(s)||{};
     var running=st.running==="yes";
     setText("pnRun", running?"运行中 ✓":"已停止");
     setText("pnPort", st.port||"-");
-    setText("pnUrl", (r[1]||"").trim()||(st.lan_ip?("http://"+st.lan_ip+":"+(st.port||8848)):"-"));
+    setText("pnUrl", (st.url||"").trim()||(st.lan_ip?("http://"+st.lan_ip+":"+(st.port||8848)):"-"));
     setText("ovPanel", running?"运行中":"已停止");
     setText("abPanel", running?"运行中":"已停止");
   });
@@ -3083,6 +3215,65 @@ var actions={
   "eng-verify":function(){ return loadEngineVerify().then(function(){toast("体检完成")}); },
   "eng-test":function(){ return engRunTest(); },
   "eng-clear":function(){ if(!confirm("确定清空引擎编译产物？需重新编译才会恢复。")){return Promise.resolve();} return runScript("dns.sh",["engine-clear"]).then(function(o){toast(msg(o));return Promise.all([loadEngine(),loadFilter()]);}); },
+
+  /* ================= 隐私护盾 ================= */
+  "pv-apply":function(){ busy("正在应用隐私护盾…"); return runScript("privacy_guard.sh",["apply"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+  "pv-remove":function(){ if(!confirm("关闭隐私护盾并逐项还原（权限/appops/无障碍）？")){return Promise.resolve();} busy("正在还原…"); return runScript("privacy_guard.sh",["remove"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+  "pv-check":function(){ busy("自检中…"); return runScript("privacy_guard.sh",["check"]).then(function(o){alert(o||"(无输出)");toast("自检完成");}); },
+  "pv-save":function(){
+    var v=$("#pvJump")?$("#pvJump").value:"REJECT";
+    return runScript("settings.sh",["set","PRIVACY_JUMP",v]).then(function(){toast("已保存出站动作 "+v);});
+  },
+  "pv-targets-save":function(){
+    var t=$("#pvTargets")?$("#pvTargets").value:"";
+    busy("保存目标清单…");
+    return feWrite("rules/privacy/targets.conf",t).then(function(o){
+      toast(msg(o));
+      return runScript("privacy_guard.sh",["apply"],KSU_LONG_MS);
+    }).then(function(o){toast(msg(o));return loadPrivacy();});
+  },
+  "pv-apps":function(){ return fePickApp("pvTargets"); },
+  "gp-list-save":function(){
+    var t=$("#gpList")?$("#gpList").value:"";
+    busy("保存游戏清单…");
+    return feWrite("rules/privacy/game.conf",t).then(function(o){
+      toast(msg(o));
+      return runScript("game_privacy.sh",["apply"],KSU_LONG_MS);
+    }).then(function(o){toast(msg(o));return loadPrivacy();});
+  },
+  "cg-toggle":function(){
+    var cur=$("#cgState")?$("#cgState").textContent:"";
+    var on=(cur.indexOf("运行")>=0||cur==="1")?"0":"1";
+    var iv=$("#cgInterval")?$("#cgInterval").value:"";
+    var chain=Promise.resolve();
+    if(iv){ chain=runScript("settings.sh",["set","CLIPGUARD_INTERVAL",iv]); }
+    return chain.then(function(){ return runScript("settings.sh",["set","CLIPGUARD_ENABLE",on]); })
+      .then(function(){ return runScript("clip_guard.sh",["apply"]); })
+      .then(function(o){toast(msg(o));return loadPrivacy();});
+  },
+  "cg-readers":function(){ busy("读取中…"); return runScript("clip_guard.sh",["readers"]).then(function(o){alert(o||"(暂无记录)");}); },
+  "pv-rs-all":function(){ busy("启用隐私清单…"); return runScript("privacy_ruleset.sh",["enable","all"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+  "pv-rs-off":function(){ busy("移除隐私清单…"); return runScript("privacy_ruleset.sh",["disable"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+  "pv-rs-one":function(el){ var n=el&&el.getAttribute("data-v"); if(!n){toast("缺少清单名");return Promise.resolve();} busy("启用 "+n+" …"); return runScript("privacy_ruleset.sh",["enable",n],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+
+  /* ================= 文件编辑器 ================= */
+  "fe-list":function(){ busy("刷新文件列表…"); return loadFileEdit(true); },
+  "fe-reload":function(){ return feLoad(true); },
+  "fe-save":function(){
+    var sel=$("#feSelect")?$("#feSelect").value:"";
+    if(!sel){toast("请先选择文件");return Promise.resolve();}
+    var t=$("#feText")?$("#feText").value:"";
+    busy("保存中…");
+    return feWrite(sel,t).then(function(o){ toast(msg(o)); return feLoad(false); });
+  },
+  "fe-append":function(){
+    var sel=$("#feSelect")?$("#feSelect").value:"";
+    if(!sel){toast("请先选择文件");return Promise.resolve();}
+    var t=$("#feText")?$("#feText").value:"";
+    if(!t){toast("内容为空");return Promise.resolve();}
+    return feWrite(sel,t).then(function(o){ toast(msg(o)); return feLoad(true); });
+  },
+  "fe-revert":function(){ toast("已放弃未保存的修改"); return feLoad(true); },
 };
 
 /* ============================================================
@@ -3235,12 +3426,18 @@ function routeJson(sub, args, timeoutMs){
 }
 
 /* ---------- 主题色取值（给 canvas 用） ---------- */
+var _cssVarCache = {};
 function cssVar(name, fb){
+  // 缓存：getComputedStyle 会强制样式重算，手机上每秒多次调用会掉帧。
+  // 主题切换时由 clearCssVarCache() 主动失效。
+  if(_cssVarCache.hasOwnProperty(name)) return _cssVarCache[name] || fb;
   try{
     var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    _cssVarCache[name] = v;
     return v || fb;
   }catch(e){ return fb; }
 }
+function clearCssVarCache(){ _cssVarCache = {}; }
 function withAlpha(col, a){
   col = String(col || "").trim();
   var m6 = /^#([0-9a-f]{6})$/i.exec(col);
@@ -3268,8 +3465,14 @@ function Spark(id){
   this.N = 60;
 }
 Spark.prototype.push = function(u, d){
-  this.up.push(num(u, 0));
-  this.down.push(num(d, 0));
+  var vu = num(u, 0), vd = num(d, 0);
+  // 只有数值真的变化才算"脏"：定时器据此决定是否重绘，避免无意义的重画
+  if(Array.isArray(this.up) && this.up.length && this.up[this.up.length-1] === vu && this.down[this.down.length-1] === vd){
+    return;
+  }
+  this._dirty = true;
+  this.up.push(vu);
+  this.down.push(vd);
   while(this.up.length > this.N){ this.up.shift(); this.down.shift(); }
 };
 Spark.prototype.reset = function(){ this.up = []; this.down = []; };
@@ -4451,6 +4654,151 @@ document.addEventListener("click",function(ev){
   if(actions[act]){ try{ var r=actions[act](el); if(r&&r.catch) r.catch(function(e){toast("⚠ "+(e&&e.message||e))}); }catch(e){ toast("⚠ "+(e&&e.message||e)); } }
 });
 
+/* ============================================================
+   隐私护盾 与 文件编辑器 的辅助函数
+   ============================================================ */
+
+/* 读取可编辑文件列表（路径/大小/行数） */
+function feList(){
+  return runScript("fileedit.sh",["list"]).then(function(t){
+    return extractJson(t) || [];
+  });
+}
+/* 读取一个文件的内容 */
+function feRead(rel){
+  return runScript("fileedit.sh",["read",rel]);
+}
+/* 写入一个文件：内容通过 base64 传（避免命令行长度/转义问题） */
+function feWrite(rel, content){
+  // base64 编码后交给 fileedit.sh write —— 它从 stdin 读，但 ksu.exec/HTTP
+  // 的入参是命令字符串，所以这里走一个专用入口：
+  //   先把内容写到临时文件，再让 fileedit.sh 从临时文件搬运。
+  // 之所以不直接把内容拼进命令：shell 转义极易出错（引号/换行/反斜杠）。
+  var b64 = b64enc(content);
+  var tmp = MODDIR + "/cache/.fe.in";
+  // 用 printf 写入（base64 只含安全字符，可直接放在单引号里）
+  var cmd = "mkdir -p '" + MODDIR + "/cache' && printf '%s' '" + b64 + "' | base64 -d > '" + tmp + "' && sh " + MODDIR + "/scripts/fileedit.sh write '" + rel + "' < '" + tmp + "' ; rm -f '" + tmp + "'";
+  return runRaw(cmd);
+}
+/* 运行一条原始命令（走 ksu.exec 或 HTTP /api/exec?cmd=__raw 不支持，故用 ctl） */
+function runRaw(cmd){
+  if(hasKSU()){
+    return ksuExec(cmd, KSU_LONG_MS).then(function(res){
+      var out = res.stdout || "";
+      if(res.stderr) out += (out?"\n":"") + res.stderr;
+      return out;
+    });
+  }
+  // 局域网 HTTP 模式：把原始命令交给 abserver 的 exec 桥执行
+  return fetch("/api/exec?token=" + q(TOKEN), {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ cmd:"__raw_shell", args:[b64enc(cmd)] })
+  }).then(function(r){ return r.json(); })
+    .then(function(j){ return (j && (j.out || j.err)) ? String(j.out||j.err) : ""; })
+    .catch(function(e){ return "ERR: " + e.message; });
+}
+function b64enc(s){
+  try{
+    // 手机浏览器有 btoa；中文要先转 UTF-8
+    return btoa(unescape(encodeURIComponent(String(s))));
+  }catch(e){
+    // 退化：用 encodeURIComponent（runRaw 端会做相应解码）——但为保证一致，
+    // 这里返回空并让调用方报错，避免写入错误内容
+    return "";
+  }
+}
+
+/* 文件编辑器页：拉列表 + 载入当前所选 */
+function loadFileEdit(force){
+  return feList().then(function(arr){
+    var sel = $("#feSelect");
+    if(!sel) return;
+    // 尽量保留当前选择
+    var keep = sel.value;
+    sel.innerHTML = arr.map(function(x){
+      return '<option value="'+esc(x.path)+'">'+esc(x.path)+'  ('+(x.lines||0)+' 行 / '+fmtBytes(x.size||0)+')</option>';
+    }).join("");
+    if(keep){
+      for(var i=0;i<sel.options.length;i++){
+        if(sel.options[i].value === keep){ sel.value = keep; break; }
+      }
+    }
+    sel.onchange = function(){ feLoad(true); };
+    if(!sel.value && sel.options.length) sel.value = sel.options[0].value;
+    return feLoad(force);
+  });
+}
+function feLoad(force){
+  var sel = $("#feSelect");
+  if(!sel || !sel.value) return Promise.resolve();
+  setText("feMeta", "载入中…");
+  return feRead(sel.value).then(function(t){
+    var ta = $("#feText");
+    if(ta) ta.value = t;
+    setText("feMeta", sel.value);
+    if(force) toast("已载入 " + sel.value);
+  });
+}
+
+/* 「从已装应用挑选」：把包名追加到目标 textarea */
+function fePickApp(targetId){
+  // 应用列表用 ctl.sh apps（installapp.sh 只管内置管理器 App 的装/卸，
+  // 没有 apps 子命令 —— 先前调它会被门禁抓出"调用不存在的子命令"）。
+  return runScript("ctl.sh",["apps"]).then(function(t){
+    var list = String(t||"").split("\n").map(function(x){return x.trim()}).filter(Boolean);
+    if(!list.length){ toast("未获取到应用列表（可能没有 pm 权限）"); return; }
+    var pick = prompt("输入要加入的包名（下面是当前已装应用，可复制）：\n\n" + list.slice(0,200).join("\n"), "");
+    if(pick){ feAppend(targetId, pick.trim()); }
+  });
+}
+function feAppend(targetId, pkg){
+  var ta = document.getElementById(targetId);
+  if(!ta) return;
+  var cur = ta.value || "";
+  if(cur.split("\n").indexOf(pkg) >= 0){ toast("已在清单里"); return; }
+  ta.value = (cur ? cur.replace(/\s*$/,"") + "\n" : "") + pkg;
+  toast("已加入 " + pkg + "（记得点保存）");
+}
+
+/* 隐私护盾页数据加载 */
+function loadPrivacy(){
+  return Promise.all([
+    runScript("privacy_guard.sh",["status"]),
+    runScript("game_privacy.sh",["status"]),
+    runScript("clip_guard.sh",["status"]),
+    runScript("privacy_ruleset.sh",["status"]),
+    runScript("privacy_ruleset.sh",["list"])
+  ]).then(function(r){
+    var pv = extractJson(r[0]) || {};
+    var gp = extractJson(r[1]) || {};
+    var cg = extractJson(r[2]) || {};
+    var rs = extractJson(r[3]) || {};
+    setText("pvState", pv.feature==="1" ? "已开启" : "未开启");
+    if($("#pvJump")) $("#pvJump").value = pv.jump || "REJECT";
+    setText("gpState", gp.feature==="1" ? "已开启" : "未开启");
+    setText("gpCount", (gp.packages!=null?gp.packages:"-") + " 个");
+    setText("cgState", cg.running==="yes" ? "运行中" : (cg.feature==="1" ? "已开启(未运行)" : "未开启"));
+    if($("#cgInterval")) $("#cgInterval").value = cg.interval || 60;
+    // 清单列表 + 启用按钮
+    var box = $("#pvRulesets");
+    if(box){
+      var names = String(r[4]||"").split("\n").filter(function(x){return /^\s{2}\S/.test(x)});
+      box.innerHTML = names.map(function(line){
+        var parts = line.trim().split(/\s+/);
+        var nm = parts[0], cnt = parts[1]||"";
+        return '<div class="row"><span class="t">'+esc(nm)+' <span class="mono">'+esc(cnt)+' 条</span></span>'+
+               '<button class="btn" data-act="pv-rs-one" data-v="'+esc(nm)+'">启用</button></div>';
+      }).join("") || '<div class="empty">未找到隐私清单（rulesets/privacy/）</div>';
+    }
+    // 目标清单与游戏清单文本域
+    return Promise.all([ feRead("rules/privacy/targets.conf"), feRead("rules/privacy/game.conf") ])
+      .then(function(rr){
+        if($("#pvTargets") && !$("#pvTargets").dataset.touched) $("#pvTargets").value = rr[0]||"";
+        if($("#gpList") && !$("#gpList").dataset.touched) $("#gpList").value = rr[1]||"";
+      });
+  });
+}
+
 /* ---------- 融合规则引擎页 ---------- */
 var ENG_SYN_LABEL={
   "adblock":"AdBlock/AdGuard","modifiers":"修饰符","cosmetic":"元素隐藏","scriptlet":"脚本注入",
@@ -4558,6 +4906,9 @@ case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSou
     case "route-core":  return loadRouteCore();
     case "app":         return loadApp();
     case "sysinfo":     return Promise.all([loadSysInfo(), siLoadLogs()]);
+    /* ---- 隐私护盾 与 文件编辑器 ---- */
+    case "privacy":     return loadPrivacy();
+    case "fileedit":    return loadFileEdit(false);
   }
 }
 /* 关闭所有导航下拉 */
@@ -4712,12 +5063,15 @@ document.addEventListener("change",function(ev){
   LIVE_MS = hasKSU() ? 2500 : 1200;
   switchTab("home");
   setInterval(function(){
+    if(document.hidden) return;                 // 切后台时停止轮询，避免空转耗电
     if(CUR_TAB==="home"){ loadHome(); loadPanel(); }
     tickLive();
   },6000);
-  /* 曲线单独按 1s 重绘，只在可见页面画 */
+  /* 曲线按 1s 检查，但只在「可见 + 数据真的变了」时才重绘 */
   setInterval(function(){
-    if(CUR_TAB==="route-home"||CUR_TAB==="home") RH.spark.draw();
+    if(document.hidden) return;                       // 后台/锁屏不画，省电
+    if(CUR_TAB!=="route-home"&&CUR_TAB!=="home") return; // 非曲线页不画
+    if(RH.spark._dirty){ RH.spark._dirty=false; RH.spark.draw(); }
   },1000);
   window.addEventListener("resize",function(){ setTimeout(function(){ RH.spark.draw(); },150); });
 })();

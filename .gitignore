@@ -1,23 +1,26 @@
-# 打包产物（作为 Release 附件发布，不入库）
+# 数据目录里的运行时产物不入库
+*.log
+*.pid
+*.tmp
+*.bak
+
+# 地理数据库：dbip-city-lite.mmdb 单文件 121MB，超过 GitHub 100MB 单文件硬限制。
+# 这些文件由 fetch_data.sh 在设备上按需下载，**不入库**（原 SY-Fusion 仓库也没入库）。
+data/geo/*.mmdb
+data/geo/*.csv
+data/geo/cloud/*
+data/geo/rir/*
+data/geo/**/*.json
+
+# 构建产物
 dist/
 *.zip
-*.sha256
 
-# UI 截图（由 tests/ui_screenshot.js 生成，供人工验收）
-shots/
+# 本地面板缓存
+cache/
+logs/
 
-# 依赖
-node_modules/
-
-# App 构建中间产物（模块只发布 app/SYManager.apk）
-app/build/
-*.idsig
-
-# 离线数据包由 scripts/fetch_data.sh 现场抓取，不入 git（体积大、可复现），
-# 但打包时会被一并写入发布 ZIP。
-data/**/*.mmdb
-data/**/*.db
-data/**/*.dat
-data/**/*.csv
-data/**/*.gz
-data/lists/*.txt
+# 编辑器/OS
+.DS_Store
+Thumbs.db
+*.swp
