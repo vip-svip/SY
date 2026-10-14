@@ -1,0 +1,9 @@
+# SY-Fusion 隐私收敛目标应用清单
+# 这里列出的包名会在其切到前台 / 被 LSPosed 加载时，
+# 通过 leakguard.sh 的通知钩子收紧出口策略（DNS/IP/VPN/节点防泄露）。
+# 每行一个包名，# 开头为注释。可被面板「隐私防泄露」页直接编辑。
+com.tencent.mm
+com.tencent.mobileqq
+com.taobao.taobao
+com.jingdong.app.mall
+com.sina.weibo

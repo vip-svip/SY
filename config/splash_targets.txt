@@ -1,0 +1,9 @@
+# SY-Fusion 开屏跳过：目标应用清单（无障碍服务读取）
+# 仅对下列应用启用「自动点击跳过广告按钮」，避免误伤。
+com.taobao.taobao
+com.jingdong.app.mall
+com.tencent.mm
+com.eg.android.AlipayGphone
+com.sina.weibo
+com.baidu.BaiduMap
+tv.danmaku.bili

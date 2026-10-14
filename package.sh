@@ -26,7 +26,7 @@ printf '%s\n' "== 预检 =="
 "$PY" - <<'PYEOF'
 import os, sys, json
 TEXT = {".sh",".awk",".md",".conf",".txt",".prop",".json",".go",".mod",".html",".css",".js",".tsv",".py"}
-BIN  = {".zip",".png",".jpg",".jpeg",".webp",".so",".apk"}
+BIN  = {".zip",".png",".jpg",".jpeg",".webp",".so",".apk",".db",".mmdb",".srs",".dat"}
 errs = []
 for root, dirs, files in os.walk("."):
     if ".git" in root.split(os.sep): continue
@@ -65,7 +65,7 @@ import os, sys, zipfile, stat
 zip_path = sys.argv[1]
 # 打入 ZIP 的目录/文件（tests 一并包含，便于设备上复跑引擎自检）
 INCLUDE_DIRS = ["bin", "config", "scripts", "src", "system", "webroot",
-                "META-INF", "tests", "app", "rulesets"]
+                "META-INF", "tests", "app", "rulesets", "data"]
 INCLUDE_FILES = ["module.prop", "customize.sh", "post-fs-data.sh", "service.sh",
                  "action.sh", "uninstall.sh", "README.md", "changelog.md",
                  "update.json", ".gitattributes", "ui-preview.html"]
@@ -91,7 +91,12 @@ with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         arc = p.replace(os.sep, "/")
         data = open(p, "rb").read()
         zi = zipfile.ZipInfo(arc, date_time=(2026, 1, 1, 0, 0, 0))
-        zi.compress_type = zipfile.ZIP_DEFLATED
+        # data/ 下是已高度优化的二进制库(mmdb/db/dat)：DEFLATE 收益低、还拖慢装机，
+        # 直接 STORED；其余文本/脚本仍走 DEFLATE。
+        if arc.startswith("data/") and os.path.splitext(arc)[1].lower() in (".mmdb", ".db", ".dat"):
+            zi.compress_type = zipfile.ZIP_STORED
+        else:
+            zi.compress_type = zipfile.ZIP_DEFLATED
         base = os.path.basename(p)
         if base in EXEC_NAMES or os.path.splitext(base)[1] in EXEC_EXT:
             zi.external_attr = (stat.S_IFREG | 0o755) << 16

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="acc_service_label">SY 联动服务</string>
+    <string name="acc_service_desc">用于开屏广告自动跳过，以及按应用收敛隐私出口（DNS/IP/VPN/节点防泄露）。数据全部本地处理，不联网、不上传。</string>
+    <string name="xposed_desc">SY-Fusion 模块联动：按应用应用隐私收敛与拦截策略。需在 LSPosed 中勾选作用域并重启目标应用。</string>
+    <string-array name="xposed_scope">
+        <item>com.syfusion.manager</item>
+    </string-array>
+</resources>

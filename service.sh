@@ -31,6 +31,11 @@ if [ -f "$MODDIR/scripts/netblock.sh" ]; then
   sh "$MODDIR/scripts/netblock.sh" apply
 fi
 
+# 隐私防泄露: 开机恢复（仅当上次为开启状态；DNS/IPv6/IP/VPN/节点）
+if [ -f "$MODDIR/scripts/leakguard.sh" ]; then
+  sh "$MODDIR/scripts/leakguard.sh" restore
+fi
+
 # DNS 接管 (独立 DNS 页启用时)
 if [ "${DNSSRV_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/dnssrv.sh" ]; then
   sh "$MODDIR/scripts/dnssrv.sh" apply

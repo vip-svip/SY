@@ -1,5 +1,36 @@
 # SY 模块更新日志
 
+## v1.0.2 — 隐私防泄露强化 + 内置 App 联动（无障碍 / LSPosed）
+
+> 本版聚焦「隐私防泄露」与「App 与模块深度联动」，并修复已知缺陷。
+
+### 新增：隐私防泄露（scripts/leakguard.sh）
+- **DNS 泄露防护**：强制走模块 DNS，阻断其余明文 53 回退，防止查询泄露到运营商 DNS。
+- **IPv6 泄露防护**：无 v6 出口时整链阻断 v6，堵住「v4 被拦、v6 旁路」的经典泄漏口径。
+- **真实 IP 泄露防护**：阻断 STUN 类探测端口（3478/5349/19302…）的裸连，收敛 WebRTC 探测面。
+- **防 VPN 断连裸奔**：内核守护，出口断开即刻切断明文出网，恢复后自动放行。
+- **防代理节点泄露**：代理不可用时阻断直连，避免真实 IP 在断流瞬间暴露。
+- 支持 `status/enable/disable/dns/ipv6/ip/vpn/node/apply/panic/restore/tune/report` 子命令；开机按上次状态自动恢复。
+
+### 新增：内置 App 与模块联动
+- **无障碍服务**（`SyAccessibilityService`）：在 App 进程内识别并点击「跳过」按钮，对 splash.sh 覆盖不到的 RN/WebView 开屏做兜底；目标应用切前台时通知模块收敛出口。
+- **LSPosed 入口**（`SyXposedEntry`）：`xposed_init` + 运行时反射桥接（零编译期依赖）；对隐私目标应用挂轻量钩子并上报模块。
+- Manifest 新增 `BIND_ACCESSIBILITY_SERVICE`、`QUERY_ALL_PACKAGES` 与 LSPosed 元数据。
+- 三方共用同一份 `config/privacy_targets.txt` / `splash_targets.txt`，杜绝「面板改了脚本不认」。
+
+### 新增：离线隐私数据包（scripts/fetch_data.sh → data/）
+- 内置 **DB-IP Lite**（city/asn/country，CC BY 4.0，许可允许再分发）+ sing-geoip/geosite + MetaCubeX geoip/geosite + 一批追踪/广告清单，供完全离线判定 IP 归属与域名分类。
+- 不含 MaxMind GeoLite2（其许可禁止再分发），并在 `data/geo/NOTICE.txt` 列明来源与许可。
+
+### 修复
+- **`tools/build_apk.sh` 只能在 Windows 跑**：旧版写死 `javac.exe`/`d8.bat`/`C:/…`，本版按 `uname` 自动适配 Windows / Linux / macOS，并自动探测 JDK 与 build-tools。
+- **`package.sh`**：纳入 `data/` 目录，并对已高度优化的二进制库（mmdb/db/dat）改用 STORED，避免无意义二次压缩拖慢装机。
+- 保留 v1.0.1 的修复（规则静默丢弃、`rm -rf` 误删防护、`ls|grep -c` 计数、SC2221、Go gofmt/死代码等）。
+
+### 验证
+- Go `build`/`vet`/`staticcheck` 干净；`shellcheck`（warning 级）干净。
+- 自检套件全部通过；APK 经 `apksigner verify` 校验（含 v1+v2 签名）。
+
 ## v1.0.1 — 稳定性与正确性修复
 
 > 本版为缺陷修复版本，聚焦正确性与稳定性，不引入新功能。

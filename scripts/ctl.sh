@@ -61,7 +61,7 @@ case "$1" in
     shift
     sh "$D/scripts_ext.sh" "$@"
     ;;
-  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel)
+  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|leakguard)
     sub="$1"; shift
     sh "$D/$sub.sh" "$@"
     ;;

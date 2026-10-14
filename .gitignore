@@ -12,3 +12,12 @@ node_modules/
 # App 构建中间产物（模块只发布 app/SYManager.apk）
 app/build/
 *.idsig
+
+# 离线数据包由 scripts/fetch_data.sh 现场抓取，不入 git（体积大、可复现），
+# 但打包时会被一并写入发布 ZIP。
+data/**/*.mmdb
+data/**/*.db
+data/**/*.dat
+data/**/*.csv
+data/**/*.gz
+data/lists/*.txt
