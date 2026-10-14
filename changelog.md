@@ -1,5 +1,21 @@
 # SY 模块更新日志
 
+## v1.0.1 — 稳定性与正确性修复
+
+> 本版为缺陷修复版本，聚焦正确性与稳定性，不引入新功能。
+
+### 修复
+- **规则导入不再静默丢规则**：`abserver route` 的 Shadowrocket 配置导入中，`[Host]` 段此前被**静默丢弃**（既不入库也无提示），现改为显式告警输出，与 `url-rewrite` / `mitm` 分支处理一致，避免「导入成功但规则没生效」。
+- **`uninstall.sh` 误删防护**：证书子模块清理的 `rm -rf` 增加 `${VAR:?}` 空值保护，避免变量为空时误删根路径。
+- **`scripts/route.sh` 规则集计数健壮性**：用 shell 通配计数替代 `ls | grep -c`，避免空目录或异常文件名导致的解析错误。
+- **`scripts/scripts_ext.sh`**：修正 case 通配重叠（`*.js|*.user.js` → `*.js`），消除 shellcheck SC2221 告警。
+- **Go 源码规范化与死代码清理**：`gofmt` 规范化 `clashapi.go`/`importcfg.go`/`main.go`/`model.go`/`rules.go`/`sbcfg.go`/`serve.go`；移除未使用的 `hostLines`（staticcheck U1000）与死函数 `dedupStrings`；修正一处错误文案。
+- **三架构二进制重编译**：以发布参数（`CGO_ENABLED=0`、`-trimpath -ldflags "-s -w"`）重新交叉编译 `bin/abserver-arm64|arm|amd64`，并校验 ELF 头。
+
+### 验证
+- Go `build` / `go vet` / `staticcheck` 全部干净；`shellcheck`（warning 级）干净。
+- 自检套件：引擎 `run_tests.sh` 92/92、模块 `run_module_checks.sh` 324/324、面板 API `run_panel_api.sh` 29/29 全部通过。
+
 ## v1.0.0 — AdGuard Home × uBlock Origin 融合版
 
 > 首个正式版本。以 AdGuard Home 的规则语义为内核，融合 uBlock Origin 的匹配与优先级模型，
