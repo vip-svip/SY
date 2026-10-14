@@ -1732,12 +1732,12 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div class="col-6">
         <div class="card">
           <div class="card-head">代理内核<span class="tagline">sing-box / xray（本模块不内置内核二进制）</span></div>
-          <div class="hint">本模块<b>不随包内置</b>代理内核（sing-box 各架构体积约 10-20MB，会显著增大模块包）。
+          <div class="hint">本模块<b>不随包内置</b>代理内核（sing-box 各架构体积约 10-20MB，会显著增大模块包）。</div>
           <div class="kv"><span>当前内核</span><b id="pnCore2">-</b></div>
           <div class="kv"><span>内核配置</span><b id="pnCfg">-</b></div>
           <div class="hint">未内置内核时点「在线下载内核（多镜像）」自动按 CPU 架构下载 sing-box；也可填直链手动下载，或手动放入模块 bin/ 目录。</div>
           <div class="btn-row">
-            <button class="btn primary" data-act="pn-core-ensure">一键获取内置内核</button>
+            <button class="btn primary" data-act="pn-core-ensure">在线下载内核（多镜像）</button>
             <button class="btn ok" data-act="pn-gen-config2">生成内核配置</button>
             <button class="btn" data-act="pn-cfg-load">载入配置</button>
           </div>
@@ -2220,12 +2220,12 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div class="col-6">
         <div class="card">
           <div class="card-head">代理内核</div>
-          <div class="hint">sing-box 内核版本与下载镜像（网络受限时可自定义镜像地址）。</div>
+          <div class="hint">sing-box 内核版本与下载镜像。本模块<b>不随包内置</b>内核二进制，点下载会依次尝试官方源与多个镜像。</div>
           <input type="text" id="setCoreVer" placeholder="内核版本，如 1.10.1">
           <input type="url" id="setCoreUrl" placeholder="自定义下载地址（留空用官方源）">
           <div class="btn-row">
             <button class="btn primary" data-act="set-save-core">保存内核设置</button>
-            <button class="btn ok" data-act="pn-core-ensure">一键获取内置内核</button>
+            <button class="btn ok" data-act="pn-core-ensure">在线下载内核（多镜像）</button>
           </div>
         </div>
       </div>
