@@ -206,7 +206,7 @@ route_status_json() {
   core="$(route_core_path)"; ver="$(route_core_ver)"; rsdir="$(route_rs_dir)"
   psz=0; [ -f "$PROFILE" ] && psz=$(wc -c < "$PROFILE" 2>/dev/null | tr -d ' ')
   csz=0; [ -f "$CFG" ] && csz=$(wc -c < "$CFG" 2>/dev/null | tr -d ' ')
-  nrs=0; [ -n "$rsdir" ] && nrs=$(ls "$rsdir" 2>/dev/null | grep -c '\.srs$' | tr -d ' ')
+  nrs=0; if [ -n "$rsdir" ]; then for f in "$rsdir"/*.srs; do [ -e "$f" ] && nrs=$((nrs+1)); done; fi
   coresz=0; [ -n "$core" ] && [ -f "$core" ] && coresz=$(wc -c < "$core" 2>/dev/null | tr -d ' ')
   arch="$(getprop ro.product.cpu.abi 2>/dev/null)"
   printf '{"profile":%s,"profile_size":%s,"config":%s,"config_size":%s,' \

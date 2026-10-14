@@ -50,7 +50,7 @@ install_url() {
   url="$1"
   [ -z "$url" ] && { echo "ERR: 缺少URL"; exit 1; }
   base=$(basename "$url" | sed 's/[?].*$//')
-  case "$base" in *.js|*.user.js) ;; *) base="script_$(date +%s).js" ;; esac
+  case "$base" in *.js) ;; *) base="script_$(date +%s).js" ;; esac
   out="$JS_DIR/$base"
   if http_get "$url" "$out" 40; then
     if ! scan_malicious "$out"; then

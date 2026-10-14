@@ -78,14 +78,14 @@ func (c *ClashClient) do(method, path string, body []byte) ([]byte, error) {
 // ---------- 数据结构 ----------
 
 type ClashConn struct {
-	ID       string `json:"id"`
-	Upload   int64  `json:"upload"`
-	Download int64  `json:"download"`
-	Start    string `json:"start"`
-	Chains   []string `json:"chains"`
-	Rule     string `json:"rule"`
-	RulePayload string `json:"rulePayload"`
-	Metadata struct {
+	ID          string   `json:"id"`
+	Upload      int64    `json:"upload"`
+	Download    int64    `json:"download"`
+	Start       string   `json:"start"`
+	Chains      []string `json:"chains"`
+	Rule        string   `json:"rule"`
+	RulePayload string   `json:"rulePayload"`
+	Metadata    struct {
 		Network         string `json:"network"`
 		Type            string `json:"type"`
 		SourceIP        string `json:"sourceIP"`
@@ -101,21 +101,21 @@ type ClashConn struct {
 }
 
 type ClashConnections struct {
-	DownloadTotal int64        `json:"downloadTotal"`
-	UploadTotal   int64        `json:"uploadTotal"`
-	Memory        int64        `json:"memory"`
+	DownloadTotal int64       `json:"downloadTotal"`
+	UploadTotal   int64       `json:"uploadTotal"`
+	Memory        int64       `json:"memory"`
 	Connections   []ClashConn `json:"connections"`
 }
 
 type ClashProxy struct {
-	Type    string `json:"type"`
-	Now     string `json:"now"`
+	Type    string   `json:"type"`
+	Now     string   `json:"now"`
 	All     []string `json:"all"`
 	History []struct {
 		Time  string `json:"time"`
 		Delay int    `json:"delay"`
 	} `json:"history"`
-	UDP  bool `json:"udp"`
+	UDP   bool `json:"udp"`
 	Alive bool `json:"alive"`
 }
 

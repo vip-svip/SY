@@ -137,27 +137,27 @@ func finishProfile(p *Profile) {
 // ---------- Clash / mihomo YAML ----------
 
 type clashDoc struct {
-	Port           int                      `yaml:"port"`
-	SocksPort      int                      `yaml:"socks-port"`
-	MixedPort      int                      `yaml:"mixed-port"`
-	AllowLan       bool                     `yaml:"allow-lan"`
-	Mode           string                   `yaml:"mode"`
-	LogLevel       string                   `yaml:"log-level"`
-	ExternalCtrl   string                   `yaml:"external-controller"`
-	Secret         string                   `yaml:"secret"`
-	DNS            map[string]any           `yaml:"dns"`
-	Proxies        []map[string]any         `yaml:"proxies"`
-	ProxyGroups    []map[string]any         `yaml:"proxy-groups"`
-	Rules          []string                 `yaml:"rules"`
+	Port           int                       `yaml:"port"`
+	SocksPort      int                       `yaml:"socks-port"`
+	MixedPort      int                       `yaml:"mixed-port"`
+	AllowLan       bool                      `yaml:"allow-lan"`
+	Mode           string                    `yaml:"mode"`
+	LogLevel       string                    `yaml:"log-level"`
+	ExternalCtrl   string                    `yaml:"external-controller"`
+	Secret         string                    `yaml:"secret"`
+	DNS            map[string]any            `yaml:"dns"`
+	Proxies        []map[string]any          `yaml:"proxies"`
+	ProxyGroups    []map[string]any          `yaml:"proxy-groups"`
+	Rules          []string                  `yaml:"rules"`
 	RuleProviders  map[string]map[string]any `yaml:"rule-providers"`
 	ProxyProviders map[string]map[string]any `yaml:"proxy-providers"`
-	Tun            map[string]any           `yaml:"tun"`
+	Tun            map[string]any            `yaml:"tun"`
 }
 
 func importClashYAML(text string) (*Profile, error) {
 	var d clashDoc
 	if err := yaml.Unmarshal([]byte(text), &d); err != nil {
-		return nil, fmt.Errorf("Clash YAML 解析失败: %v", err)
+		return nil, fmt.Errorf("解析 Clash YAML 失败: %v", err)
 	}
 	p := &Profile{Source: "clash-yaml"}
 
@@ -424,7 +424,6 @@ func importShadowrocketConf(text string) (*Profile, error) {
 	section := ""
 	seen := map[string]int{}
 
-	var hostLines []string
 	for _, raw := range strings.Split(text, "\n") {
 		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
@@ -473,7 +472,7 @@ func importShadowrocketConf(text string) (*Profile, error) {
 			}
 			p.Rules = append(p.Rules, r)
 		case "host":
-			hostLines = append(hostLines, line)
+			p.Warnings = append(p.Warnings, fmt.Sprintf("Host 映射规则 %q 未导入（hosts 由 DNS 拦截模块统一管理）", firstToken(line, 40)))
 		case "url rewrite":
 			p.Warnings = append(p.Warnings, fmt.Sprintf("URL 重写规则 %q 未导入（sing-box 无对应能力）", firstToken(line, 40)))
 		case "mitm":

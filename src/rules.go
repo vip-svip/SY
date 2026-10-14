@@ -36,37 +36,37 @@ type ruleKindInfo struct {
 }
 
 var ruleKinds = map[string]ruleKindInfo{
-	RDomain:            {SBField: "domain", NeedsDomain: true, Supported: true},
-	RDomainSuffix:      {SBField: "domain_suffix", NeedsDomain: true, Supported: true},
-	RDomainKeyword:     {SBField: "domain_keyword", NeedsDomain: true, Supported: true},
-	RDomainRegex:       {SBField: "domain_regex", NeedsDomain: true, Supported: true},
-	RDomainWildcard:    {SBField: "domain_regex", NeedsDomain: true, Supported: true, Note: "通配符会被翻译为正则"},
-	RIPCIDR:            {SBField: "ip_cidr", NeedsIP: true, Supported: true},
-	RIPCIDR6:           {SBField: "ip_cidr", NeedsIP: true, Supported: true},
-	RIPASN:             {NeedsIP: true, Supported: false, Note: "sing-box 无 ASN 匹配，需转换为 IP-CIDR 规则集"},
-	RGeoIP:             {SBField: "rule_set", NeedsIP: true, Supported: true, Note: "编译为 geoip 规则集引用"},
-	RGeoSite:           {SBField: "rule_set", NeedsDomain: true, Supported: true, Note: "编译为 geosite 规则集引用"},
-	RSrcIPCIDR:         {SBField: "source_ip_cidr", Supported: true},
-	RSrcPort:           {SBField: "source_port", Supported: true},
-	RDstPort:           {SBField: "port", Supported: true},
-	RInPort:            {Supported: false, Note: "sing-box 用 inbound 标签匹配，需改写为 inbound 规则"},
-	RProcessName:       {SBField: "process_name", Supported: true, Note: "Android 上等效字段为 package_name"},
-	RProcessPath:       {SBField: "process_path", Supported: true},
-	RProcessNameRegex:  {SBField: "process_path_regex", Supported: true},
-	RUserAgent:         {Supported: false, Note: "sing-box 不嗅探 User-Agent，无法表达"},
-	RURLRegex:          {Supported: false, Note: "sing-box 只匹配域名不匹配完整 URL，无法表达"},
-	RHeader:            {Supported: false, Note: "sing-box 不支持按 HTTP 头匹配"},
-	RProtocol:          {SBField: "protocol", Supported: true},
-	RNetwork:           {SBField: "network", Supported: true},
-	RDeviceName:        {Supported: false, Note: "sing-box 不支持设备名匹配"},
-	RSubnet:            {Supported: false, Note: "sing-box 不支持子网标签匹配"},
-	RCellRadio:         {Supported: false, Note: "sing-box 不支持蜂窝制式匹配"},
-	RRuleSet:           {SBField: "rule_set", Supported: true},
-	RMatch:             {Supported: true, Note: "编译为 route.final"},
-	RFinal:             {Supported: true, Note: "编译为 route.final"},
-	RAnd:               {Supported: true, Note: "编译为 logical/and"},
-	ROr:                {Supported: true, Note: "编译为 logical/or"},
-	RNot:               {Supported: true, Note: "编译为 logical/not(invert)"},
+	RDomain:           {SBField: "domain", NeedsDomain: true, Supported: true},
+	RDomainSuffix:     {SBField: "domain_suffix", NeedsDomain: true, Supported: true},
+	RDomainKeyword:    {SBField: "domain_keyword", NeedsDomain: true, Supported: true},
+	RDomainRegex:      {SBField: "domain_regex", NeedsDomain: true, Supported: true},
+	RDomainWildcard:   {SBField: "domain_regex", NeedsDomain: true, Supported: true, Note: "通配符会被翻译为正则"},
+	RIPCIDR:           {SBField: "ip_cidr", NeedsIP: true, Supported: true},
+	RIPCIDR6:          {SBField: "ip_cidr", NeedsIP: true, Supported: true},
+	RIPASN:            {NeedsIP: true, Supported: false, Note: "sing-box 无 ASN 匹配，需转换为 IP-CIDR 规则集"},
+	RGeoIP:            {SBField: "rule_set", NeedsIP: true, Supported: true, Note: "编译为 geoip 规则集引用"},
+	RGeoSite:          {SBField: "rule_set", NeedsDomain: true, Supported: true, Note: "编译为 geosite 规则集引用"},
+	RSrcIPCIDR:        {SBField: "source_ip_cidr", Supported: true},
+	RSrcPort:          {SBField: "source_port", Supported: true},
+	RDstPort:          {SBField: "port", Supported: true},
+	RInPort:           {Supported: false, Note: "sing-box 用 inbound 标签匹配，需改写为 inbound 规则"},
+	RProcessName:      {SBField: "process_name", Supported: true, Note: "Android 上等效字段为 package_name"},
+	RProcessPath:      {SBField: "process_path", Supported: true},
+	RProcessNameRegex: {SBField: "process_path_regex", Supported: true},
+	RUserAgent:        {Supported: false, Note: "sing-box 不嗅探 User-Agent，无法表达"},
+	RURLRegex:         {Supported: false, Note: "sing-box 只匹配域名不匹配完整 URL，无法表达"},
+	RHeader:           {Supported: false, Note: "sing-box 不支持按 HTTP 头匹配"},
+	RProtocol:         {SBField: "protocol", Supported: true},
+	RNetwork:          {SBField: "network", Supported: true},
+	RDeviceName:       {Supported: false, Note: "sing-box 不支持设备名匹配"},
+	RSubnet:           {Supported: false, Note: "sing-box 不支持子网标签匹配"},
+	RCellRadio:        {Supported: false, Note: "sing-box 不支持蜂窝制式匹配"},
+	RRuleSet:          {SBField: "rule_set", Supported: true},
+	RMatch:            {Supported: true, Note: "编译为 route.final"},
+	RFinal:            {Supported: true, Note: "编译为 route.final"},
+	RAnd:              {Supported: true, Note: "编译为 logical/and"},
+	ROr:               {Supported: true, Note: "编译为 logical/or"},
+	RNot:              {Supported: true, Note: "编译为 logical/not(invert)"},
 }
 
 // RuleKindSupported 该规则类型能否编译到 sing-box
@@ -84,41 +84,42 @@ func KnownRuleKind(kind string) bool {
 // kindAliases 各家客户端的同义写法 → 内部规范类型。
 //
 // 为什么必须有这层：
-//   Shadowrocket / Surge / Quantumult X / Clash 的规则类型名互不相同，
-//   用户从网上抄来的规则经常因为一个连字符或一个同义词就被判成
-//   "未知规则类型"而整条丢弃 —— 这正是"多语法多规则"里最容易踩的坑。
-//   统一收口在这里，导入 / 手写 / 追加规则三条路径都能受益。
+//
+//	Shadowrocket / Surge / Quantumult X / Clash 的规则类型名互不相同，
+//	用户从网上抄来的规则经常因为一个连字符或一个同义词就被判成
+//	"未知规则类型"而整条丢弃 —— 这正是"多语法多规则"里最容易踩的坑。
+//	统一收口在这里，导入 / 手写 / 追加规则三条路径都能受益。
 var kindAliases = map[string]string{
 	// 端口
-	"DST-PORT":      RDstPort,   // Shadowrocket / Clash 写法
-	"DEST-PORT":     RDstPort,
+	"DST-PORT":         RDstPort, // Shadowrocket / Clash 写法
+	"DEST-PORT":        RDstPort,
 	"DESTINATION-PORT": RDstPort,
-	"INBOUND-PORT":  RInPort,
-	"IN-PORT":       RInPort,
+	"INBOUND-PORT":     RInPort,
+	"IN-PORT":          RInPort,
 	// Surge 的 HOST 家族
 	"HOST":          RDomain,
 	"HOST-SUFFIX":   RDomainSuffix,
 	"HOST-KEYWORD":  RDomainKeyword,
 	"HOST-WILDCARD": RDomainWildcard,
-	"DOMAIN-SET":    RRuleSet,   // Shadowrocket 域名集
-	"IP-SET":        RRuleSet,   // Shadowrocket IP 集
+	"DOMAIN-SET":    RRuleSet, // Shadowrocket 域名集
+	"IP-SET":        RRuleSet, // Shadowrocket IP 集
 	"RULE-SET":      RRuleSet,
 	"URL":           RURLRegex,
 	"URL-REGEX":     RURLRegex,
 	// 地址
-	"SRC-IP":        RSrcIPCIDR,
+	"SRC-IP":         RSrcIPCIDR,
 	"SOURCE-IP-CIDR": RSrcIPCIDR,
-	"IP6-CIDR":      RIPCIDR6,
-	"IPV6-CIDR":     RIPCIDR6,
-	"GEO-SITE":      RGeoSite,
-	"GEO-IP":        RGeoIP,
-	"ASN":           RIPASN,
+	"IP6-CIDR":       RIPCIDR6,
+	"IPV6-CIDR":      RIPCIDR6,
+	"GEO-SITE":       RGeoSite,
+	"GEO-IP":         RGeoIP,
+	"ASN":            RIPASN,
 	// 进程 / 设备
-	"PROCESS":       RProcessName,
+	"PROCESS":            RProcessName,
 	"PROCESS-NAME-REGEX": RProcessNameRegex,
 	// 兜底
-	"FINAL-MATCH":   RMatch,
-	"MATCH-ALL":     RMatch,
+	"FINAL-MATCH": RMatch,
+	"MATCH-ALL":   RMatch,
 }
 
 // NormalizeKind 把各家写法归一成内部规范类型（大小写不敏感）
@@ -330,11 +331,11 @@ func ParseRules(text string) ([]Rule, []string) {
 // ---------- 体检 ----------
 
 type Issue struct {
-	Level  string `json:"level"` // error / warn / info
-	Line   int    `json:"line,omitempty"`
-	Rule   string `json:"rule,omitempty"`
-	Code   string `json:"code"`
-	Msg    string `json:"msg"`
+	Level string `json:"level"` // error / warn / info
+	Line  int    `json:"line,omitempty"`
+	Rule  string `json:"rule,omitempty"`
+	Code  string `json:"code"`
+	Msg   string `json:"msg"`
 }
 
 // LintRules 规则体检

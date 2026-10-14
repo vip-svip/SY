@@ -9,8 +9,8 @@ package main
 
 import (
 	"crypto/ecdsa"
-	"crypto/md5"
 	"crypto/elliptic"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"

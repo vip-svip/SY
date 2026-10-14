@@ -66,9 +66,9 @@ func (v sbVer) String() string {
 }
 
 // 语法能力开关
-func (v sbVer) newDNSServerForm() bool      { return v.atLeast(1, 12) } // type/server
+func (v sbVer) newDNSServerForm() bool         { return v.atLeast(1, 12) } // type/server
 func (v sbVer) hasDefaultDomainResolver() bool { return v.atLeast(1, 12) }
-func (v sbVer) legacyInboundSniff() bool    { return !v.atLeast(1, 13) }
+func (v sbVer) legacyInboundSniff() bool       { return !v.atLeast(1, 13) }
 
 // normalizeVer 空/非法版本一律落到默认版本，避免产出半新半旧的配置。
 func normalizeVer(s string) sbVer {
@@ -82,13 +82,14 @@ func normalizeVer(s string) sbVer {
 // 规则集远程源。
 //
 // 实测（中国大陆网络，2026-10）：
-//   testingcf.jsdelivr.net   200 / 0.30s   ← 默认
-//   fastly.jsdelivr.net      200 / 0.87s
-//   gh-proxy.com             200 / 1.05s
-//   ghproxy.net              200 / 1.27s
-//   cdn.jsdelivr.net         000 / 超时    ← 很多人默认用这个，实际不通
-//   gcore.jsdelivr.net       000 / 31s
-//   raw.githubusercontent.com 000 / 不通
+//
+//	testingcf.jsdelivr.net   200 / 0.30s   ← 默认
+//	fastly.jsdelivr.net      200 / 0.87s
+//	gh-proxy.com             200 / 1.05s
+//	ghproxy.net              200 / 1.27s
+//	cdn.jsdelivr.net         000 / 超时    ← 很多人默认用这个，实际不通
+//	gcore.jsdelivr.net       000 / 31s
+//	raw.githubusercontent.com 000 / 不通
 //
 // 所以默认走 testingcf，并保留整条镜像链；同时支持把 .srs 落到本地，
 // 彻底离线可用（模块的使用场景常常就是没有网的时候）。
@@ -154,19 +155,19 @@ type sbConfig struct {
 }
 
 type sbDNS struct {
-	Servers          []any      `json:"servers"`
-	Rules            []any      `json:"rules,omitempty"`
-	Final            string     `json:"final,omitempty"`
-	Strategy         string     `json:"strategy,omitempty"`
-	IndependentCache bool       `json:"independent_cache,omitempty"`
-	DisableCache     bool       `json:"disable_cache,omitempty"`
-	FakeIP           *sbFakeIP  `json:"fakeip,omitempty"` // 仅 1.12 之前用
+	Servers          []any     `json:"servers"`
+	Rules            []any     `json:"rules,omitempty"`
+	Final            string    `json:"final,omitempty"`
+	Strategy         string    `json:"strategy,omitempty"`
+	IndependentCache bool      `json:"independent_cache,omitempty"`
+	DisableCache     bool      `json:"disable_cache,omitempty"`
+	FakeIP           *sbFakeIP `json:"fakeip,omitempty"` // 仅 1.12 之前用
 }
 
 // sbFakeIP 旧式（<1.12）的 fakeip 配置块。
 // 1.12 起 fakeip 区间挪到 DNS 服务器对象上，这个块被移除。
 type sbFakeIP struct {
-	Enabled   bool   `json:"enabled"`
+	Enabled    bool   `json:"enabled"`
 	Inet4Range string `json:"inet4_range,omitempty"`
 	Inet6Range string `json:"inet6_range,omitempty"`
 }
@@ -180,7 +181,7 @@ type sbRoute struct {
 }
 
 type sbExperimental struct {
-	ClashAPI *sbClashAPI `json:"clash_api,omitempty"`
+	ClashAPI  *sbClashAPI  `json:"clash_api,omitempty"`
 	CacheFile *sbCacheFile `json:"cache_file,omitempty"`
 }
 

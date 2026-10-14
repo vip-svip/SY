@@ -205,8 +205,8 @@ func (c *serverCtx) proxySub(w http.ResponseWriter, r *http.Request, script stri
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
 		if len(body) > 0 {
 			var req struct {
-				Args []string `json:"args"`
-				Stdin string  `json:"stdin"`
+				Args  []string `json:"args"`
+				Stdin string   `json:"stdin"`
 			}
 			if json.Unmarshal(body, &req) == nil && len(req.Args) > 0 {
 				args = append(args, req.Args...)

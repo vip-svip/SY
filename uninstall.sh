@@ -39,7 +39,7 @@ for c in /data/adb/modules/*/system/etc/security/cacerts/*.0 ; do
 done
 rm -rf /data/adb/SY_cert 2>/dev/null
 # 证书子模块残留(含 modules / modules_update)
-rm -rf "$MODROOT/$CERT_MOD" 2>/dev/null
+rm -rf "${MODROOT:?}/${CERT_MOD:?}" 2>/dev/null
 rm -rf /data/adb/modules_update/$CERT_MOD 2>/dev/null
 # 子模块自带的 overlay CA 目录
 rm -rf "$MODROOT/$CERT_MOD/system" 2>/dev/null

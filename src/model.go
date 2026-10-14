@@ -27,14 +27,14 @@ type Node struct {
 	AlterID int    `json:"alter_id,omitempty"`
 	Flow    string `json:"flow,omitempty"`
 	// shadowsocks / ssr
-	Method     string `json:"method,omitempty"`
-	Password   string `json:"password,omitempty"`
-	SSRProtocol string `json:"ssr_protocol,omitempty"`
+	Method           string `json:"method,omitempty"`
+	Password         string `json:"password,omitempty"`
+	SSRProtocol      string `json:"ssr_protocol,omitempty"`
 	SSRProtocolParam string `json:"ssr_protocol_param,omitempty"`
-	SSRObfs    string `json:"ssr_obfs,omitempty"`
-	SSRObfsParam string `json:"ssr_obfs_param,omitempty"`
-	Plugin     string `json:"plugin,omitempty"`
-	PluginOpts string `json:"plugin_opts,omitempty"`
+	SSRObfs          string `json:"ssr_obfs,omitempty"`
+	SSRObfsParam     string `json:"ssr_obfs_param,omitempty"`
+	Plugin           string `json:"plugin,omitempty"`
+	PluginOpts       string `json:"plugin_opts,omitempty"`
 	// tls 家族
 	TLS         bool     `json:"tls,omitempty"`
 	SNI         string   `json:"sni,omitempty"`
@@ -56,11 +56,11 @@ type Node struct {
 	// http / socks
 	Username string `json:"username,omitempty"`
 	// wireguard
-	PrivateKey string `json:"private_key,omitempty"`
-	PeerPublicKey string `json:"peer_public_key,omitempty"`
-	PreSharedKey string `json:"pre_shared_key,omitempty"`
-	LocalAddress []string `json:"local_address,omitempty"`
-	MTU          int      `json:"mtu,omitempty"`
+	PrivateKey    string   `json:"private_key,omitempty"`
+	PeerPublicKey string   `json:"peer_public_key,omitempty"`
+	PreSharedKey  string   `json:"pre_shared_key,omitempty"`
+	LocalAddress  []string `json:"local_address,omitempty"`
+	MTU           int      `json:"mtu,omitempty"`
 	// 元数据
 	Source  string `json:"source,omitempty"` // 来源：manual / sub:<url> / file
 	RawLink string `json:"raw_link,omitempty"`
@@ -81,53 +81,53 @@ const (
 
 // ProxyGroup 一个策略组。proxies 里的名字既可指节点也可指另一个组。
 type ProxyGroup struct {
-	Name      string   `json:"name"`
-	Type      string   `json:"type"`
-	Proxies   []string `json:"proxies"`
-	URL       string   `json:"url,omitempty"`
-	Interval  int      `json:"interval,omitempty"`
-	Tolerance int      `json:"tolerance,omitempty"`
-	Strategy  string   `json:"strategy,omitempty"` // load-balance: consistent-hashing / round-robin / sticky-sessions
-	Lazy      bool     `json:"lazy,omitempty"`
-	DisableUDP bool    `json:"disable_udp,omitempty"`
-	Icon      string   `json:"icon,omitempty"`
+	Name       string   `json:"name"`
+	Type       string   `json:"type"`
+	Proxies    []string `json:"proxies"`
+	URL        string   `json:"url,omitempty"`
+	Interval   int      `json:"interval,omitempty"`
+	Tolerance  int      `json:"tolerance,omitempty"`
+	Strategy   string   `json:"strategy,omitempty"` // load-balance: consistent-hashing / round-robin / sticky-sessions
+	Lazy       bool     `json:"lazy,omitempty"`
+	DisableUDP bool     `json:"disable_udp,omitempty"`
+	Icon       string   `json:"icon,omitempty"`
 }
 
 // ---------- 规则 ----------
 
 // 规则类型（Shadowrocket / Clash / Surge 语法超集）
 const (
-	RDomain        = "DOMAIN"
-	RDomainSuffix  = "DOMAIN-SUFFIX"
-	RDomainKeyword = "DOMAIN-KEYWORD"
-	RDomainWildcard = "DOMAIN-WILDCARD"
-	RDomainRegex   = "DOMAIN-REGEX"
-	RIPCIDR        = "IP-CIDR"
-	RIPCIDR6       = "IP-CIDR6"
-	RIPASN         = "IP-ASN"
-	RGeoIP         = "GEOIP"
-	RGeoSite       = "GEOSITE"
-	RSrcIPCIDR     = "SRC-IP-CIDR"
-	RSrcPort       = "SRC-PORT"
-	RDstPort       = "DEST-PORT"
-	RInPort        = "IN-PORT"
-	RProcessName   = "PROCESS-NAME"
-	RProcessPath   = "PROCESS-PATH"
+	RDomain           = "DOMAIN"
+	RDomainSuffix     = "DOMAIN-SUFFIX"
+	RDomainKeyword    = "DOMAIN-KEYWORD"
+	RDomainWildcard   = "DOMAIN-WILDCARD"
+	RDomainRegex      = "DOMAIN-REGEX"
+	RIPCIDR           = "IP-CIDR"
+	RIPCIDR6          = "IP-CIDR6"
+	RIPASN            = "IP-ASN"
+	RGeoIP            = "GEOIP"
+	RGeoSite          = "GEOSITE"
+	RSrcIPCIDR        = "SRC-IP-CIDR"
+	RSrcPort          = "SRC-PORT"
+	RDstPort          = "DEST-PORT"
+	RInPort           = "IN-PORT"
+	RProcessName      = "PROCESS-NAME"
+	RProcessPath      = "PROCESS-PATH"
 	RProcessNameRegex = "PROCESS-NAME-REGEX"
-	RUserAgent     = "USER-AGENT"
-	RURLRegex      = "URL-REGEX"
-	RHeader        = "HEADER"
-	RProtocol      = "PROTOCOL"
-	RNetwork       = "NETWORK"
-	RDeviceName    = "DEVICE-NAME"
-	RSubnet        = "SUBNET"
-	RCellRadio     = "CELLULAR-RADIO"
-	RRuleSet       = "RULE-SET"
-	RMatch         = "MATCH"
-	RFinal         = "FINAL"
-	RAnd           = "AND"
-	ROr            = "OR"
-	RNot           = "NOT"
+	RUserAgent        = "USER-AGENT"
+	RURLRegex         = "URL-REGEX"
+	RHeader           = "HEADER"
+	RProtocol         = "PROTOCOL"
+	RNetwork          = "NETWORK"
+	RDeviceName       = "DEVICE-NAME"
+	RSubnet           = "SUBNET"
+	RCellRadio        = "CELLULAR-RADIO"
+	RRuleSet          = "RULE-SET"
+	RMatch            = "MATCH"
+	RFinal            = "FINAL"
+	RAnd              = "AND"
+	ROr               = "OR"
+	RNot              = "NOT"
 )
 
 // 特殊策略
@@ -145,10 +145,10 @@ type Rule struct {
 	Payload   string `json:"payload"`
 	Policy    string `json:"policy"`
 	NoResolve bool   `json:"no_resolve,omitempty"`
-	Src       bool   `json:"src,omitempty"`     // IP-CIDR 加 src 前缀时匹配源地址
-	Invert    bool   `json:"invert,omitempty"`  // 取反（sing-box 的 invert）
-	Mode      string `json:"mode,omitempty"`    // 逻辑规则：and / or / not
-	Rules     []Rule `json:"rules,omitempty"`   // 逻辑规则的子规则
+	Src       bool   `json:"src,omitempty"`    // IP-CIDR 加 src 前缀时匹配源地址
+	Invert    bool   `json:"invert,omitempty"` // 取反（sing-box 的 invert）
+	Mode      string `json:"mode,omitempty"`   // 逻辑规则：and / or / not
+	Rules     []Rule `json:"rules,omitempty"`  // 逻辑规则的子规则
 	Raw       string `json:"raw,omitempty"`
 	Line      int    `json:"line,omitempty"`
 	Enabled   bool   `json:"enabled"`
@@ -161,7 +161,7 @@ type Rule struct {
 // RuleSet 一个远程或本地规则集。对应 sing-box 的 rule_set / Clash 的 rule-provider。
 type RuleSet struct {
 	Name     string `json:"name"`
-	Type     string `json:"type"` // inline / local / remote
+	Type     string `json:"type"`             // inline / local / remote
 	Format   string `json:"format,omitempty"` // source / binary
 	Path     string `json:"path,omitempty"`
 	URL      string `json:"url,omitempty"`
@@ -174,43 +174,43 @@ type RuleSet struct {
 // ---------- DNS ----------
 
 type DNSServer struct {
-	Tag        string   `json:"tag,omitempty"`
-	Address    string   `json:"address"`
-	Detour     string   `json:"detour,omitempty"`
-	Domains    []string `json:"domains,omitempty"`
-	Strategy   string   `json:"strategy,omitempty"`
-	ClientSubnet string `json:"client_subnet,omitempty"`
+	Tag          string   `json:"tag,omitempty"`
+	Address      string   `json:"address"`
+	Detour       string   `json:"detour,omitempty"`
+	Domains      []string `json:"domains,omitempty"`
+	Strategy     string   `json:"strategy,omitempty"`
+	ClientSubnet string   `json:"client_subnet,omitempty"`
 }
 
 type DNSConfig struct {
-	Enabled     bool        `json:"enabled"`
-	Servers     []DNSServer `json:"servers"`
-	Final       string      `json:"final,omitempty"`
-	Strategy    string      `json:"strategy,omitempty"` // prefer_ipv4 / ipv4_only / prefer_ipv6 / ipv6_only
-	FakeIP      bool        `json:"fake_ip,omitempty"`
-	FakeIPRange string      `json:"fake_ip_range,omitempty"`
-	FakeIPFilter []string   `json:"fake_ip_filter,omitempty"`
-	IndependentCache bool   `json:"independent_cache,omitempty"`
-	DisableCache bool       `json:"disable_cache,omitempty"`
-	Rules       []Rule      `json:"rules,omitempty"` // DNS 专用规则（domain → server）
+	Enabled          bool        `json:"enabled"`
+	Servers          []DNSServer `json:"servers"`
+	Final            string      `json:"final,omitempty"`
+	Strategy         string      `json:"strategy,omitempty"` // prefer_ipv4 / ipv4_only / prefer_ipv6 / ipv6_only
+	FakeIP           bool        `json:"fake_ip,omitempty"`
+	FakeIPRange      string      `json:"fake_ip_range,omitempty"`
+	FakeIPFilter     []string    `json:"fake_ip_filter,omitempty"`
+	IndependentCache bool        `json:"independent_cache,omitempty"`
+	DisableCache     bool        `json:"disable_cache,omitempty"`
+	Rules            []Rule      `json:"rules,omitempty"` // DNS 专用规则（domain → server）
 }
 
 // ---------- 通用 ----------
 
 type GeneralConfig struct {
-	LogLevel     string `json:"log_level,omitempty"`
-	MixedPort    int    `json:"mixed_port,omitempty"`
-	TunEnabled   bool   `json:"tun_enabled,omitempty"`
-	TunStack     string `json:"tun_stack,omitempty"`
-	TunMTU       int    `json:"tun_mtu,omitempty"`
-	AutoRoute    bool   `json:"auto_route,omitempty"`
-	StrictRoute  bool   `json:"strict_route,omitempty"`
-	ClashAPI     bool   `json:"clash_api,omitempty"`
-	ClashAPIPort int    `json:"clash_api_port,omitempty"`
+	LogLevel       string `json:"log_level,omitempty"`
+	MixedPort      int    `json:"mixed_port,omitempty"`
+	TunEnabled     bool   `json:"tun_enabled,omitempty"`
+	TunStack       string `json:"tun_stack,omitempty"`
+	TunMTU         int    `json:"tun_mtu,omitempty"`
+	AutoRoute      bool   `json:"auto_route,omitempty"`
+	StrictRoute    bool   `json:"strict_route,omitempty"`
+	ClashAPI       bool   `json:"clash_api,omitempty"`
+	ClashAPIPort   int    `json:"clash_api_port,omitempty"`
 	ClashAPISecret string `json:"clash_api_secret,omitempty"`
-	DefaultMode  string `json:"default_mode,omitempty"` // rule / global / direct
-	SniffEnabled bool   `json:"sniff_enabled,omitempty"`
-	FinalPolicy  string `json:"final_policy,omitempty"`
+	DefaultMode    string `json:"default_mode,omitempty"` // rule / global / direct
+	SniffEnabled   bool   `json:"sniff_enabled,omitempty"`
+	FinalPolicy    string `json:"final_policy,omitempty"`
 	// SingBoxVersion 目标内核版本，决定配置用哪一代语法。
 	// 留空按最新稳定版处理。语法断代（实测得出）：
 	//   DNS 服务器     1.12 起 type/server，1.14 起旧式 address 被移除
@@ -229,11 +229,11 @@ func (g *GeneralConfig) PrivateDirectOn() bool {
 
 // Profile 一份完整的配置档案，也是各格式导入的统一落点。
 type Profile struct {
-	Nodes    []Node       `json:"nodes"`
-	Groups   []ProxyGroup `json:"groups"`
-	Rules    []Rule       `json:"rules"`
-	RuleSets []RuleSet    `json:"rule_sets,omitempty"`
-	DNS      DNSConfig    `json:"dns"`
+	Nodes    []Node        `json:"nodes"`
+	Groups   []ProxyGroup  `json:"groups"`
+	Rules    []Rule        `json:"rules"`
+	RuleSets []RuleSet     `json:"rule_sets,omitempty"`
+	DNS      DNSConfig     `json:"dns"`
 	General  GeneralConfig `json:"general"`
 	// 导入诊断
 	Warnings []string `json:"warnings,omitempty"`
@@ -297,19 +297,6 @@ func atoiSafe(s string) int {
 		return -n
 	}
 	return n
-}
-
-func dedupStrings(in []string) []string {
-	seen := map[string]bool{}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if s == "" || seen[s] {
-			continue
-		}
-		seen[s] = true
-		out = append(out, s)
-	}
-	return out
 }
 
 // 策略是否指向某个策略组
