@@ -216,7 +216,7 @@ start_proxy() {
     -https ":$PROXY_PORT" \
     -ca-key "$CA_KEY" \
     -ca-crt "$CA_CRT" \
-    -rules "$MITM_DIR/active.json" \
+    -rules "$MITM_DIR/active.txt" \
     -apps "$(cfg_get MITM_APPS '')" \
     -whitelist "$WHITELIST" \
     -stats "$DATA_DIR/stats_mitm.json" \
@@ -240,30 +240,31 @@ stop_proxy() {
 
 # ---------- 规则转换 (QX/Surge/Loon/Shadowrocket -> json) ----------
 reload_rules() {
-  out="$MITM_DIR/active.json"
-  echo '{"rules":[' > "$out"
-  first=1
-  # 合并所有 mitm_rules/*.conf
+  # 【真机根因修复】旧实现输出的是 JSON（{"rules":[{"raw":"..."}]}），
+  # 而 Go 端 loadRules 读的是**纯文本行**（域名/||域名^/子串/regex:正则/域##选择器）。
+  # 两边格式不匹配 → MITM 把 JSON 当域名，规则实际全部不生效（空壳）。
+  # 现统一为纯文本：一行一条规则，Go 端直接按行解析。
+  out="$MITM_DIR/active.txt"
+  : > "$out"
+  # ① 用户/订阅来的 MITM 规则（config/mitm_rules.conf + rules/mitm/*.conf）
   for f in "$MITM_RULES" "$MITM_DIR"/*.conf; do
     [ -f "$f" ] || continue
-    awk -v first="$first" '
-      BEGIN{ n=0 }
-      /^[[:space:]]*[#;]/ { next }
-      /^[[:space:]]*$/ { next }
-      # Surge/QX: ^https?://... url-regex / 直接 url pattern
-      {
-        line=$0
-        gsub(/\\/, "\\\\", line)
-        gsub(/"/, "\\\"", line)
-        printf "%s{\"raw\":\"%s\"}\n", (n>0?",":""), line
-        n++
-      }
-    ' "$f" >> "$out"
-    first=0
+    grep -v "^[[:space:]]*[#;]" "$f" 2>/dev/null | grep -v "^[[:space:]]*$" >> "$out"
   done
-  # 也解析 config/mitm_rules.conf
-  echo ']}' >> "$out"
-  log "mitm: 规则已重载"
+  # ② 内置规则里"网络类"（||domain^ 等）也交给 MITM 做资源级拦截
+  if [ -s "$DATA_DIR/rules/builtin-active" ]; then
+    cat "$DATA_DIR/rules/builtin-active" >> "$out" 2>/dev/null
+  fi
+  # ③ 【关键】内置规则里的"元素隐藏类"（## 语法）—— 这批只能靠注入 CSS 生效
+  if [ -s "$DATA_DIR/rules/builtin-cosmetic" ]; then
+    cat "$DATA_DIR/rules/builtin-cosmetic" >> "$out" 2>/dev/null
+  fi
+  # 兼容：如果还有旧的 active.json，也把它里面的 raw 规则抽出来（用 sed 提取）
+  if [ -f "$MITM_DIR/active.json" ]; then
+    sed -n "s/.*\"raw\":\"\(.*\)\".*/\1/p" "$MITM_DIR/active.json" 2>/dev/null >> "$out"
+  fi
+  n=$(grep -c . "$out" 2>/dev/null | head -n1); [ -z "$n" ] && n=0
+  log "mitm: 规则已重载（纯文本 $n 行，含元素隐藏规则）"
 }
 
 case "$1" in
@@ -276,7 +277,7 @@ case "$1" in
       running="yes"; pid=$(cat "$RUN/proxy.pid")
     fi
     ca="no"; [ -f "$CA_CRT" ] && ca="yes"
-    redirected=$(iptables -t nat -S OUTPUT 2>/dev/null | grep -c REDIRECT)
+    redirected=$(iptables -t nat -S OUTPUT 2>/dev/null | grep -c REDIRECT | head -n1); [ -z "$redirected" ] && redirected=0
     echo "{\"running\":\"$running\",\"pid\":\"$pid\",\"ca_ready\":\"$ca\",\"iptables_rules\":$redirected,\"port\":$PROXY_PORT}"
     ;;
   ca-cert)
@@ -319,7 +320,7 @@ case "$1" in
     [ -f "$st" ] && cat "$st" || echo '{"requests":0,"https_decrypted":0,"blocked":0,"blank_images":0,"blocked_js":0,"fields_trimmed":0}'
     ;;
   rules-count)
-    n=$(grep -cvE '^[[:space:]]*(#|$)' "$MITM_RULES" 2>/dev/null)
+    n=$(grep -vE '^[[:space:]]*(#|$)' "$MITM_RULES" 2>/dev/null | grep -c . | head -n1); [ -z "$n" ] && n=0
     printf '{"rules":%s}\n' "${n:-0}"
     ;;
   rules-reload)

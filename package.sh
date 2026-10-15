@@ -29,7 +29,10 @@ TEXT = {".sh",".awk",".md",".conf",".txt",".prop",".json",".go",".mod",".html","
 BIN  = {".zip",".png",".jpg",".jpeg",".webp",".so",".apk",".db",".mmdb",".srs",".dat"}
 errs = []
 for root, dirs, files in os.walk("."):
-    if ".git" in root.split(os.sep): continue
+    # 【构建产物排除】app/build 是 aapt2/javac/d8 的中间输出（含 Windows 工具写出的
+    # CRLF 文件），不属于模块内容；xposed_stub 只在编译期用、不进包。
+    parts = root.split(os.sep)
+    if ".git" in parts or "build" in parts or "xposed_stub" in parts: continue
     for f in files:
         p = os.path.join(root, f)
         ext = os.path.splitext(f)[1].lower()
@@ -71,6 +74,15 @@ INCLUDE_FILES = ["module.prop", "customize.sh", "post-fs-data.sh", "service.sh",
                  "update.json", ".gitattributes", "ui-preview.html"]
 EXEC_EXT = {".sh"}
 EXEC_NAMES = {"update-binary"}
+
+# 【真机缺陷修复】bin/ 下的**二进制**（abserver-<架构>、内置内核 sing-box-<架构>）
+# 过去一律写成 644，装到真机后 `bin/sing-box` 报 "can't execute: Permission denied"，
+# 内核永远起不来（真机实测）。customize.sh 虽然 chmod 过，但**重启后 KernelSU
+# 会按 ZIP 记录的权限重新挂载**，644 被恢复，chmod 白做。
+# 因此必须在**打包时**就把二进制写成 755 —— 这是唯一可靠的位置。
+EXEC_BIN_PREFIXES = ("bin/",)
+EXEC_BIN_NAMES = {"sing-box", "xray", "v2ray", "busybox", "abserver"}
+
 # app/build 是构建中间产物（含签名密钥与临时 dex），绝不能进模块包
 EXCLUDE_PARTS = {"build"}
 
@@ -98,7 +110,14 @@ with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         else:
             zi.compress_type = zipfile.ZIP_DEFLATED
         base = os.path.basename(p)
-        if base in EXEC_NAMES or os.path.splitext(base)[1] in EXEC_EXT:
+        # 可执行：脚本、update-binary、以及 bin/ 下的二进制（含内核）
+        is_exec = (base in EXEC_NAMES or os.path.splitext(base)[1] in EXEC_EXT
+                   or arc.startswith(EXEC_BIN_PREFIXES)
+                   or base in EXEC_BIN_NAMES)
+        # bin/kernels/VERSION 是文本记录，不需要执行位
+        if base == "VERSION":
+            is_exec = False
+        if is_exec:
             zi.external_attr = (stat.S_IFREG | 0o755) << 16
         else:
             zi.external_attr = (stat.S_IFREG | 0o644) << 16
@@ -111,12 +130,25 @@ PYEOF
 
 printf '%s\n' "== 校验 ZIP =="
 "$PY" - "$ZIP" <<'PYEOF'
-import sys, zipfile, io, json
+import sys, zipfile, io, json, os
 z = zipfile.ZipFile(sys.argv[1])
 names = z.namelist()
 bad = z.testzip()
 if bad: print("  x ZIP 损坏: " + bad); sys.exit(1)
 print("  条目数: %d" % len(names))
+# 【真机缺陷护栏】bin/ 下的二进制必须带执行位，否则真机无法运行
+# 只校验**二进制**（VERSION 是文本记录，不受此限）
+skip = {"VERSION"}
+# 注意：external_attr 是 32 位值（0x81ed0000），unix 权限在**高 16 位**，
+# 直接 & 0o111 取的是低位（恒为 0）→ 会误报"无执行位"。必须先 >>16。
+def _perm(n):
+    return (z.getinfo(n).external_attr >> 16) & 0o777
+noexec = [n for n in names if n.startswith("bin/") and not n.endswith("/")
+          and os.path.basename(n) not in skip
+          and not (_perm(n) & 0o111)]
+if noexec:
+    print("  x bin/ 下无执行位: " + ", ".join(noexec)); sys.exit(1)
+print("  OK: bin/ 下二进制均带执行位")
 # 回读 module.prop
 mp = z.read("module.prop").decode("utf-8")
 d = dict(l.split("=", 1) for l in mp.strip().split("\n") if "=" in l)

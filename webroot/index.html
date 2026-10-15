@@ -346,6 +346,31 @@ pre,.mono{max-width:100%;overflow-x:auto}
 .icon-btn:hover{background:var(--hover)}
 .icon-btn:active{transform:scale(.95)}
 
+/* ================= 堆栈式导航（仿微信） ================= */
+/* 为什么这么做：抽屉是"弹出选择"、返回时没有层级感；改成真实列表页 + 页面堆栈后，
+   进入/返回有明确层级，且与系统返回键一致。 */
+.wsgrid{display:flex;flex-direction:column}
+.wsitem{display:flex;align-items:center;gap:12px;min-height:52px;padding:10px 4px;
+  cursor:pointer;border-bottom:1px solid var(--border-color);transition:background-color .15s}
+.wsitem:last-child{border-bottom:0}
+.wsitem:hover{background:var(--hover)}
+.wsitem:active{background:var(--accent-soft)}
+.wsitem__ico{flex:none;width:34px;height:34px;border-radius:9px;display:flex;
+  align-items:center;justify-content:center;font-size:15px;
+  background:var(--accent-soft);color:var(--accent)}
+.wsitem__t{flex:1;min-width:0}
+.wsitem__n{font-size:14.5px;color:var(--mcolor)}
+.wsitem__d{font-size:11.5px;color:var(--scolor);margin-top:2px;font-family:var(--mono)}
+.wsitem__c{flex:none;color:var(--scolor);font-size:17px}
+
+/* 返回条：跟随内容滚动，不是常驻顶栏 */
+.backbar{display:flex;align-items:center;margin:0 0 8px}
+.backbar__btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;
+  padding:0 12px 0 6px;border:1px solid var(--ctrl-border);border-radius:var(--radius-sm);
+  background:var(--ctrl-bg);color:var(--mcolor);font-size:13.5px;cursor:pointer}
+.backbar__btn:hover{background:var(--hover)}
+.backbar__arrow{font-size:20px;line-height:1;margin-top:-2px}
+
 /* ================= 页面容器 ================= */
 .container{max-width:1240px;margin:0 auto;padding:16px 14px 40px}
 .page-title{
@@ -855,6 +880,13 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 <body>
 
 <div class="container">
+
+  <!-- 堆栈导航返回条：只在进入第二层（功能页）后出现 -->
+  <div class="backbar hide" id="backBar">
+    <button class="backbar__btn" data-act="nav-back" aria-label="返回上一级">
+      <span class="backbar__arrow">‹</span><span id="backTitle">返回</span>
+    </button>
+  </div>
 
   <!-- ================= 总览 ================= -->
   <section class="page" id="page-home">
@@ -1692,6 +1724,57 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     </div>
   </section>
 
+  <!-- ================= 工作区列表页（堆栈导航第一层，仿微信 tab 页） ================= -->
+  <section class="page hide" id="page-wslist">
+    <div class="page-title">
+      <div>
+        <h2 id="wsTitle2">运行</h2>
+        <div class="page-title__sub" id="wsSub2">选择要进入的功能</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="wsgrid" id="wsGrid"></div>
+    </div>
+  </section>
+
+  <!-- ================= 内置规则（三份，各自独立可编辑启停） ================= -->
+  <section class="page hide" id="page-builtin">
+    <div class="page-title">
+      <div>
+        <h2>内置规则</h2>
+        <div class="page-title__sub">去水印 · 反广告拦截 · 阻止诱导下载（各可查看/编辑/启停）</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="br-apply">汇总应用</button>
+        <button class="btn" data-act="br-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card accent-alt">
+      <div class="card-head">生效方式说明<span class="tagline">如实标注</span></div>
+      <div class="hint">
+        三份规则里有两类：<b>网络类</b>（如 <span class="mono">||domain^</span>）可被 DNS/hosts 拦截，
+        会真正生效；<b>元素隐藏类</b>（<span class="mono">##...</span>，如网页水印、诱导下载按钮）
+        <b>纯 DNS 无法实现</b> —— 必须由 MITM 注入 CSS 才能隐藏。
+        下面每份规则都按类型分别显示条数，不会把"元素隐藏"算进 DNS 拦截数。
+      </div>
+    </div>
+
+    <div id="brList"></div>
+
+    <div class="card">
+      <div class="card-head">规则内容<span class="tagline" id="brFileName">未选择</span></div>
+      <div class="hint">直接编辑并保存。保存会写入 <span class="mono">data/rules/builtin-user/</span>，
+        <b>不覆盖模块内置原件</b>，重刷模块也不会丢你的修改。</div>
+      <textarea class="ta" id="brText" style="min-height:320px" placeholder="选择上方任一规则的「编辑」后，这里显示内容"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="br-save">保存</button>
+        <button class="btn" data-act="br-reload">重新载入</button>
+        <button class="btn danger" data-act="br-reset">恢复内置版本</button>
+      </div>
+      <div id="brOut" class="hint"></div>
+    </div>
+  </section>
   <!-- ================= 代理控制面（MagicNet 契约移植） ================= -->
   <section class="page hide" id="page-proxyctl">
     <div class="page-title">
@@ -3719,6 +3802,44 @@ var actions={
   "pv-rs-off":function(){ busy("移除隐私清单…"); return runScript("privacy_ruleset.sh",["disable"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-one":function(el){ var n=el&&el.getAttribute("data-v"); if(!n){toast("缺少清单名");return Promise.resolve();} busy("启用 "+n+" …"); return runScript("privacy_ruleset.sh",["enable",n],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
 
+  /* ================= 内置规则（三份） ================= */
+  "br-refresh":function(){ busy("刷新规则…"); return loadBuiltin(); },
+  "br-apply":function(){ busy("汇总应用…"); return runScript("builtin_rules.sh",["apply"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadBuiltin(true); }); },
+  "br-on":function(el){ var k=el.getAttribute("data-k"); busy("启用…"); return runScript("builtin_rules.sh",["on",k],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadBuiltin(true); }); },
+  "br-off":function(el){ var k=el.getAttribute("data-k"); busy("停用…"); return runScript("builtin_rules.sh",["off",k],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadBuiltin(true); }); },
+  "br-view":function(el){
+    var k=el.getAttribute("data-k"); BR_KEY=k;
+    busy("载入规则…");
+    return runScript("builtin_rules.sh",["view",k],KSU_LONG_MS).then(function(o){
+      var ta=$("#brText"); if(ta) ta.value=String(o||"");
+      setText("brFileName", k + ".txt");
+      toast("已载入 " + k);
+    });
+  },
+  "br-reload":function(){
+    if(!BR_KEY){ toast("请先选择一份规则"); return Promise.resolve(); }
+    return runScript("builtin_rules.sh",["view",BR_KEY],KSU_LONG_MS).then(function(o){
+      var ta=$("#brText"); if(ta) ta.value=String(o||"");
+      toast("已重新载入");
+    });
+  },
+  "br-save":function(){
+    if(!BR_KEY){ toast("请先选择一份规则"); return Promise.resolve(); }
+    var t=$("#brText")?$("#brText").value:"";
+    busy("保存中…");
+    // 内容经 stdin 传给脚本（避免超长命令行参数）
+    return runScriptStdin("builtin_rules.sh",["save",BR_KEY],t).then(function(o){
+      toast(msg(o));
+      var b=$("#brOut"); if(b) b.textContent=String(o||"").trim();
+      return loadBuiltin(true);
+    });
+  },
+  "br-reset":function(){
+    if(!BR_KEY){ toast("请先选择一份规则"); return Promise.resolve(); }
+    if(!confirm("恢复内置版本？你对这份规则的修改会丢失。")) return Promise.resolve();
+    return runScript("builtin_rules.sh",["reset",BR_KEY]).then(function(o){ toast(msg(o)); return loadBuiltin(true); });
+  },
+
   /* ================= 代理控制面（MagicNet 契约） ================= */
   "pm-refresh":function(){ busy("刷新就绪状态…"); return loadProxyCtl(); },
   "pm-start":function(){ busy("启动代理…"); return runScript("proxyrun.sh",["start"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return Promise.all([loadProxyCtl(),loadProxyrun()]); }); },
@@ -5402,6 +5523,59 @@ function feAppend(targetId, pkg){
   toast("已加入 " + pkg + "（记得点保存）");
 }
 
+/* ============ 内置规则页 ============ */
+var BR_KEY = "";
+function loadBuiltin(force){
+  return runScript("builtin_rules.sh",["list"]).then(function(t){
+    var arr = extractJson(t);
+    if(!arr || !arr.length){ setText("brList","(读取失败)"); return; }
+    var box = document.getElementById("brList");
+    if(!box) return;
+    box.innerHTML = arr.map(function(x){
+      var on = x.enabled==="1";
+      var chipCls = on ? "chip ok" : "chip mute";
+      return '<div class="card">' +
+        '<div class="card-head">' + esc(x.name) + '<span class="tagline">' + esc(x.key) + '.txt</span></div>' +
+        '<div class="kv"><span>状态</span><b class="' + chipCls + '"><span class="dot"></span>' + (on?"已启用":"未启用") + '</b></div>' +
+        '<div class="kv"><span>可被 DNS 拦截（网络类）</span><b>' + (x.network||0) + ' 条</b></div>' +
+        '<div class="kv"><span>需 MITM 注入（元素隐藏类）</span><b>' + (x.cosmetic||0) + ' 条</b></div>' +
+        '<div class="kv"><span>总有效行</span><b>' + (x.total||0) + ' 行</b></div>' +
+        '<div class="btn-row">' +
+          (on ? '<button class="btn danger" data-act="br-off" data-k="'+esc(x.key)+'">停用</button>'
+              : '<button class="btn ok" data-act="br-on" data-k="'+esc(x.key)+'">启用</button>') +
+          '<button class="btn" data-act="br-view" data-k="'+esc(x.key)+'">查看 / 编辑</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+    if(force) toast("已刷新");
+  }).catch(function(e){ setText("brList","读取失败: " + (e&&e.message||e)); });
+}
+
+/* 把内容经 stdin 传给脚本（HTTP 模式走 body，KSU 模式走临时文件） */
+function runScriptStdin(name, args, content){
+  if(hasKSU()){
+    // KSU：先把内容写到临时文件，再让脚本从文件读（避免命令行长度限制）
+    var b64 = b64enc(content);
+    var cmd = "sh " + MODDIR + "/scripts/" + name + " " + args.map(shQuote).join(" ") +
+              " ; ";
+    // 简化：把 base64 交给 shell 解码后管道给脚本
+    var full = "printf %s '" + b64 + "' | base64 -d | sh " + MODDIR + "/scripts/" + name + " " + args.map(shQuote).join(" ");
+    return ksuExec(full, KSU_LONG_MS).then(function(res){
+      var out = res.stdout||""; if(res.stderr) out += (out?"\n":"") + res.stderr;
+      return out;
+    });
+  }
+  // HTTP：POST body 作为 stdin
+  return fetch("/api/exec?token=" + q(TOKEN), {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({cmd: name.replace(/\.sh$/,""), args: args, stdin: content})
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if(j && typeof j.out !== "undefined") return String(j.out);
+    if(j && j.err) return "ERR: " + j.err;
+    return "";
+  }).catch(function(e){ return "ERR: " + (e&&e.message||e); });
+}
+
 /* ============ 代理控制面（就绪三层 + 事务 + 分流） ============ */
 var PM_POL = "proxy";
 function loadProxyCtl(alsoApps){
@@ -5656,6 +5830,7 @@ function loadTab(tab){
     case "route-dns":   return rdLoad();
     case "route-logs":  return rlPull();
     case "route-core":  return loadRouteCore();
+    case "builtin":    return loadBuiltin();
     case "proxyctl":    return loadProxyCtl();
     case "app":         return loadApp();
     case "sysinfo":     return Promise.all([loadSysInfo(), siLoadLogs()]);
@@ -5672,8 +5847,14 @@ function loadTab(tab){
   }
 }
 /* ============================================================
-   底部导航（移动端）：点击 → 切到对应工作区的首页
-   与 switchTab 联动，高亮当前工作区；桌面端隐藏（CSS）。
+   堆栈式导航（仿微信）
+   ------------------------------------------------------------
+   层级：底部入口(工作区) → 工作区列表页 → 具体功能页。
+   · 点底部入口：进该工作区；若已在列表页，直接进上次访问的功能页。
+   · 点列表项：入栈到功能页，出现返回条。
+   · 返回：功能页 → 列表页（逐层回退）。
+   · 系统返回键走同一套（history.pushState + popstate）。
+   · 抽屉保留为"快速切换"浮层，主路径是列表页。
    ============================================================ */
 var WS = {
   run:    [["home","总览"],["sysinfo","系统与日志"],["tools","工具与备份"]],
@@ -5682,24 +5863,40 @@ var WS = {
            ["route-dns","DNS 与查询"],["route-logs","内核日志"],["route-core","内核与配置"]],
   shield: [["privacy","隐私护盾"],["leakguard","网络防泄露"],["fxguard","FX 深度抵抗"],
            ["netblock","拦截服务"],["notify","通知过滤"]],
-  filter: [["dns","DNS 拦截列表"],["engine","自定义过滤规则"],["mitm","加密过滤 · 根证书"],
-           ["splash","开屏跳过"],["fileedit","文件编辑器"]],
+  filter: [["dns","DNS 拦截列表"],["builtin","内置规则"],["engine","自定义过滤规则"],
+           ["mitm","加密过滤 · 根证书"],["splash","开屏跳过"],["fileedit","文件编辑器"]],
   more:   [["settings","常规设置"],["dnssrv","DNS 设置"],["app","内置管理器 App"],["scripts","脚本扩展"]]
 };
 var WSNAME = {run:"运行", proxy:"代理", shield:"隐私", filter:"过滤", more:"更多"};
+var WSICO  = {run:"⌂", proxy:"⇄", shield:"🛡", filter:"⊘", more:"⋯"};
+var WS_DESC = {
+  home:"总览 · 一键防护 · 拦截统计", sysinfo:"内存/CPU/负载 与实时日志", tools:"备份导出与恢复",
+  "route-home":"内核/节点/端口 综合状态", proxynode:"订阅导入与节点选择",
+  proxyctl:"就绪三层 · 配置事务 · 分流", "route-proxy":"策略组与出站",
+  "route-conn":"实时连接与延迟", "route-rules":"规则命中与解释",
+  "route-dns":"DNS 查询与上游", "route-logs":"内核运行日志", "route-core":"配置编译与路径",
+  privacy:"按应用隔离隐私出口", leakguard:"DNS/IP/IPv6/VPN 防泄露",
+  fxguard:"上报端点与清单收敛", netblock:"域名/网段/端口/应用拦截", notify:"通知关键词过滤",
+  dns:"hosts 规则、来源与白名单", builtin:"去水印 · 反广告拦截 · 阻止诱导下载",
+  engine:"AdGuard × uBlock 规则引擎", mitm:"证书与 HTTPS 元素隐藏",
+  splash:"开屏广告自动跳过", fileedit:"配置与规则在线编辑",
+  settings:"常用开关与持久化", dnssrv:"独立 DNS 接管", app:"SY 管理器 App", scripts:"用户脚本扩展"
+};
 
-/* 收起抽屉 */
+/* ---------- 导航状态 ---------- */
+var NAV = { stack: [], ws: "run" };
+var CUR_TAB = "home";
+
+/* 收起抽屉（保留为快速切换浮层） */
 function wsClose(){
   var s=document.getElementById("wsheet");
   if(s) s.classList.remove("open");
 }
-/* 展开抽屉：列出该工作区的页面，高亮当前页 */
 function wsOpen(ws){
   var s=document.getElementById("wsheet"), box=document.getElementById("wsList");
   if(!s || !box) return;
   var list=WS[ws]||[];
   setText("wsTitle", WSNAME[ws]||ws);
-  /* 记住的"上次访问"优先作为高亮项 */
   var last="";
   try{ last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
   var cur = (CUR_TAB && list.some(function(x){return x[0]===CUR_TAB;})) ? CUR_TAB : (last||(list[0]?list[0][0]:""));
@@ -5709,78 +5906,144 @@ function wsOpen(ws){
   }).join("");
   s.classList.add("open");
 }
-function syncBottomNav(tab){
-  var items=$$(".bnav-item");           /* 必须用 $ 选全部：$ 是 querySelector 只返回第一个，对单个元素调 forEach 会抛错 */
-  if(!items.length) return;
-  /* tab → 工作区（与 WS 表保持一致） */
-  var ws="run";
-  for (var k in WS) {
-    if (WS[k].some(function(x){ return x[0]===tab; })) { ws=k; break; }
-  }
-  items.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-ws")===ws); });
-  var s=document.getElementById("wsheet");
-  if(s && s.classList.contains("open")) wsOpen(ws);   /* 抽屉开着时同步高亮 */
+function wslabel(ws,tab){
+  var l=WS[ws]||[];
+  for(var i=0;i<l.length;i++){ if(l[i][0]===tab) return l[i][1]; }
+  return tab;
 }
-function switchTab(tab){
-  $$("[data-tab]").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===tab); });
-  $$(".page").forEach(function(p){ p.classList.toggle("hide", p.id!=="page-"+tab); });
+function wsOf(tab){
+  for (var k in WS) { if (WS[k].some(function(x){ return x[0]===tab; })) return k; }
+  return "run";
+}
+
+/* 渲染工作区列表页 */
+function renderWsList(ws){
+  var box = document.getElementById("wsGrid");
+  if(!box) return;
+  var list = WS[ws]||[];
+  var last="";
+  try{ last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
+  setText("wsTitle2", WSNAME[ws]||ws);
+  setText("wsSub2", list.length + " 个功能" + (last ? (" · 上次进入: " + wslabel(ws,last)) : ""));
+  box.innerHTML = list.map(function(x){
+    return '<div class="wsitem" data-nav-tab="'+esc(x[0])+'">'+
+      '<div class="wsitem__ico">'+esc(WSICO[ws]||"•")+'</div>'+
+      '<div class="wsitem__t"><div class="wsitem__n">'+esc(x[1])+'</div>'+
+      '<div class="wsitem__d">'+esc(WS_DESC[x[0]]||x[0])+'</div></div>'+
+      '<div class="wsitem__c">›</div>'+
+    '</div>';
+  }).join("");
+}
+
+/* 显示某一页（只负责显示） */
+function showPage(id){
+  $$(".page").forEach(function(pg){ pg.classList.toggle("hide", pg.id!=="page-"+id); });
+  $$("[data-tab]").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===id); });
+  window.scrollTo(0,0);
+}
+function updateBackBar(){
+  var bar = document.getElementById("backBar");
+  if(!bar) return;
+  var deep = NAV.stack.length > 1;
+  bar.classList.toggle("hide", !deep);
+  if(deep){ setText("backTitle", WSNAME[NAV.ws] + " · " + wslabel(NAV.ws, NAV.stack[NAV.stack.length-1])); }
+}
+/* 进入工作区（第一层） */
+function navToWs(ws){
+  if(!WS[ws]) ws="run";
+  NAV.ws = ws;
+  NAV.stack = [ws];
+  CUR_TAB = "wslist";
+  renderWsList(ws);
+  showPage("wslist");
+  syncBottomNav();
+  updateBackBar();
+  try{ history.pushState({sy:1, ws:ws, deep:false}, ""); }catch(e){}
+}
+/* 进入功能页（第二层，入栈） */
+function navToTab(tab, pushHistory){
+  var ws = wsOf(tab);
+  NAV.ws = ws;
+  NAV.stack = [ws, tab];
   CUR_TAB = tab;
-  syncBottomNav(tab);          /* 底部导航高亮 */
+  showPage(tab);
+  syncBottomNav();
+  updateBackBar();
+  try{ localStorage.setItem("ab_last_"+ws, tab); }catch(e){}
+  if(pushHistory !== false){ try{ history.pushState({sy:1, ws:ws, tab:tab, deep:true}, ""); }catch(e){} }
   syncLiveTimers();
   loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
 }
-/* ============================================================
-   底部导航（5 入口）+ 工作区抽屉
-   ------------------------------------------------------------
-   交互：点入口 → 弹出抽屉，列出该工作区的全部页面 → 点页面直达。
-   为什么不用顶部下拉：手机上顶部最难按，而且 26 个页面靠下拉展开
-   要两次点击、还占满一屏顶部。现在顶部完全移除，导航只在底部。
-   记住每个工作区最后访问的页面，再点同一入口时直接回到它。
-   ============================================================ */
+/* 回退一层 */
+function navBack(){
+  if(NAV.stack.length > 1){
+    NAV.stack = [NAV.ws];
+    CUR_TAB = "wslist";
+    renderWsList(NAV.ws);
+    showPage("wslist");
+    updateBackBar();
+    return true;
+  }
+  return false;
+}
+/* 兼容旧调用 */
+function switchTab(tab){
+  if(tab==="wslist"){ navToWs(NAV.ws); return; }
+  navToTab(tab);
+}
+function syncBottomNav(){
+  var items=$$(".bnav-item");   /* 必须 $$：$ 只返回第一个，forEach 会抛错 */
+  if(!items.length) return;
+  items.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-ws")===NAV.ws); });
+  var s=document.getElementById("wsheet");
+  if(s && s.classList.contains("open")) wsOpen(NAV.ws);
+}
 
-/* 底部入口点击 */
+/* ---------- 事件 ---------- */
 document.addEventListener("click",function(ev){
-  /* 入口 */
+  /* ① 底部入口 */
   var b=ev.target.closest(".bnav-item");
   if(b){
     var ws=b.getAttribute("data-ws");
     if(!ws) return;
-    /* 已经是当前工作区且抽屉没开 → 直接回到该区（不弹抽屉，减少一次点击） */
-    var s=document.getElementById("wsheet");
-    var opened = s && s.classList.contains("open");
-    if(b.classList.contains("on") && !opened){
-      var list=WS[ws]||[];
+    if(NAV.ws===ws && NAV.stack.length>1){
+      navBack();                        /* 已在深层：再点同一入口 = 回列表页 */
+    } else if(NAV.ws===ws && CUR_TAB==="wslist"){
       var last="";
       try{ last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
-      var target=list.some(function(x){return x[0]===last;}) ? last : (list[0]?list[0][0]:"");
-      if(target) switchTab(target);
-      return;
+      var lst=WS[ws]||[];
+      var tgt=lst.some(function(x){return x[0]===last;}) ? last : (lst[0]?lst[0][0]:"");
+      if(tgt) navToTab(tgt); else navToWs(ws);
+    } else {
+      navToWs(ws);
     }
-    /* 首次点或换工作区 → 切到该区首选页 + 弹抽屉供选具体页 */
-    if(!b.classList.contains("on")){
-      var l2=WS[ws]||[], l2last="";
-      try{ l2last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
-      var t2=l2.some(function(x){return x[0]===l2last;}) ? l2last : (l2[0]?l2[0][0]:"");
-      if(t2) switchTab(t2);
-    }
-    wsOpen(ws);
-    ev.preventDefault();
-    return;
-  }
-  /* 抽屉里的页面项 */
-  var it=ev.target.closest(".wsheet__item");
-  if(it){
-    var tab=it.getAttribute("data-tab");
-    var sheet=document.getElementById("wsheet");
-    var ws2="";
-    if(sheet){ var cur=null; var it2=$$(".bnav-item"); for(var i=0;i<it2.length;i++){ if(it2[i].classList.contains("on")) cur=it2[i]; } if(cur) ws2=cur.getAttribute("data-ws"); }
-    if(tab){ switchTab(tab); try{ if(ws2) localStorage.setItem("ab_last_"+ws2, tab); }catch(e){} }
     wsClose();
     ev.preventDefault();
     return;
   }
-  /* 关闭：遮罩、抓手、✕ 都带 data-act="ws-close" */
+  /* ② 列表项 → 功能页 */
+  var it=ev.target.closest(".wsitem[data-nav-tab]");
+  if(it){ navToTab(it.getAttribute("data-nav-tab")); ev.preventDefault(); return; }
+  /* ③ 抽屉项（快速切换） */
+  var di=ev.target.closest(".wsheet__item");
+  if(di){ var t2=di.getAttribute("data-tab"); if(t2) navToTab(t2); wsClose(); ev.preventDefault(); return; }
+  /* ④ 返回条 */
+  if(ev.target.closest('[data-act="nav-back"]')){
+    if(navBack()){ try{ history.back(); }catch(e){} } else { navToWs(NAV.ws); }
+    ev.preventDefault();
+    return;
+  }
+  /* ⑤ 关闭抽屉 */
   if(ev.target.closest('[data-act="ws-close"]')){ wsClose(); ev.preventDefault(); }
+});
+window.addEventListener("popstate",function(ev){
+  var st = ev.state;
+  if(st && st.sy){
+    if(st.deep && st.tab) navToTab(st.tab, false);
+    else navToWs(st.ws||"run");
+  } else {
+    navBack();
+  }
 });
 /* Escape 收起抽屉（键盘可用性） */
 document.addEventListener("keydown",function(ev){ if(ev.key==="Escape") wsClose(); });

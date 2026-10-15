@@ -25,3 +25,8 @@ logs/
 .DS_Store
 Thumbs.db
 *.swp
+
+# APK 构建中间产物（aapt2/javac/d8 的输出、调试密钥库）
+app/build/
+app/debug.keystore
+app/*.apk.idsig

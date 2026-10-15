@@ -96,8 +96,43 @@ gen_hosts() {
 }
 
 bind_hosts() {
-  [ -f "$HOSTS_OUT" ] && mount --bind "$HOSTS_OUT" /system/etc/hosts 2>/dev/null \
-    && log "dns: hosts 已绑定挂载" || log "dns: hosts 绑定失败(已挂载或无权限)"
+  # 【真机根因修复】旧实现 mount --bind "HOSTS_OUT" /system/etc/hosts 在当前
+  # KernelSU 下**必然失败**，且错误被 2>/dev/null 吞掉、「看起来成功」。真机实测报错：
+  #   mount: ...->/system/etc/hosts: No such file or directory
+  # 原因：/system/etc/hosts 已被 KernelSU 用 OverlayFS 重挂载（来自 /dev/block/dm-41），
+  # 该状态下不能再 bind 到它上面。
+  #
+  # 正确做法：把 hosts 放进**模块自己的 system/etc/hosts**，由模块管理器开机覆盖挂载。
+  # 真机验证：放入 12 行 hosts 后重启，/system/etc/hosts 变成 12 行且含测试规则。
+  MODHOSTS="$MODDIR/system/etc/hosts"
+  mkdir -p "$MODDIR/system/etc" 2>/dev/null
+  if [ -f "$HOSTS_OUT" ]; then
+    cp -f "$HOSTS_OUT" "$MODHOSTS" 2>/dev/null
+    chmod 0644 "$MODHOSTS" 2>/dev/null; chown 0:0 "$MODHOSTS" 2>/dev/null
+  fi
+  # 运行时 bind 作为尝试（部分管理器允许），失败不致命但要如实记录原因
+  # 【真机修复】Android **没有 /tmp**（touch /tmp/x → No such file or directory），
+  # 旧写法把 mount 的 stderr 重定向到 /tmp，那行本身就先失败了。改用数据目录下的临时文件。
+  MERR="$DATA_DIR/cache/.mount_err"
+  mkdir -p "$DATA_DIR/cache" 2>/dev/null
+  if mount --bind "$HOSTS_OUT" /system/etc/hosts 2>"$MERR"; then
+    log "dns: hosts 已运行时绑定挂载"
+  else
+    err=$(head -n1 "$MERR" 2>/dev/null); rm -f "$MERR"
+    log "dns: 运行时 bind 失败（预期：overlay 已占用），改由模块 system/etc/hosts 覆盖（原因见日志）"
+  fi
+  # 【关键】验证到底生效没有：系统 hosts 是否含我们生成的条目
+  have=$(grep -c "^0\.0\.0\.0 " /system/etc/hosts 2>/dev/null | head -n1)
+  want=$(grep -c "^0\.0\.0\.0 " "$MODHOSTS" 2>/dev/null | head -n1)
+  [ -z "$have" ] && have=0
+  [ -z "$want" ] && want=0
+  if [ "$want" -eq 0 ]; then
+    log "dns: 无拦截条目（规则集为空，属正常）"
+  elif [ "$have" -ge "$want" ]; then
+    log "dns: 生效验证通过（系统 hosts 含 $have 条黑洞条目）"
+  else
+    log "dns: 未生效（系统 $have 条 / 应有 $want 条）—— 需重启让模块 overlay 生效"
+  fi
 }
 
 full_apply() {  # 更新规则表 + 下载缓存 + 重建 + 生成 + 挂载

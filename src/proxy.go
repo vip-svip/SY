@@ -52,6 +52,10 @@ type proxyStats struct {
 	BlankImg   int64 `json:"blank_images"`
 	AdJS       int64 `json:"blocked_js"`
 	FieldsTrim int64 `json:"fields_trimmed"`
+	// 【元素隐藏】注入 CSS 的页面数 / 注入的选择器条数
+	CssInjectPages int64 `json:"css_inject_pages"`
+	CssInjectRules int64 `json:"css_inject_rules"`
+	CosmeticLoaded int64 `json:"cosmetic_loaded"`
 }
 
 type caManager struct {
@@ -161,7 +165,12 @@ func cmdProxy(args []string) {
 		}
 	}
 	rs := loadRules(*rules)
-	fmt.Printf("MITM rules loaded: domain=%d url=%d regex=%d\n", len(rs.blockDomain), len(rs.blockURL), len(rs.blockRe))
+	cosN := 0
+	for _, v := range rs.cosmetic {
+		cosN += len(v)
+	}
+	st.CosmeticLoaded = int64(cosN)
+	fmt.Printf("MITM rules loaded: domain=%d url=%d regex=%d cosmetic=%d (元素隐藏,需注入CSS)\n", len(rs.blockDomain), len(rs.blockURL), len(rs.blockRe), cosN)
 	// 生效应用(由 iptables 层按 UID 精确分流；此处记录以便日志与统计)
 	if strings.TrimSpace(*apps) != "" {
 		fmt.Println("MITM scoped apps:", *apps)
@@ -252,9 +261,14 @@ type bufferedConn struct {
 func (b *bufferedConn) Read(p []byte) (int, error) { return b.r.Read(p) }
 
 type ruleSet struct {
-	blockDomain []string         // 域名后缀
-	blockURL    []string         // URL 子串
-	blockRe     []*regexp.Regexp // 正则
+	blockDomain []string         // 域名后缀（拦截）
+	blockURL    []string         // URL 子串（拦截）
+	blockRe     []*regexp.Regexp // 正则（拦截）
+
+	// 【元素隐藏规则】## 语法：domain##selector 或 domain##selector:style(...)
+	// 这类规则**不能靠拦截域名实现**，必须把选择器转成 CSS 注入到页面里。
+	// 按域名分组：key 是域名（小写，无前导 www. 的也建一份），value 是 CSS 选择器列表。
+	cosmetic   map[string][]string
 }
 
 func (rs *ruleSet) match(host, url string) bool {
@@ -294,6 +308,39 @@ func loadRules(path string) *ruleSet {
 			if re, e := regexp.Compile(strings.TrimSpace(ln[6:])); e == nil {
 				rs.blockRe = append(rs.blockRe, re)
 			}
+			continue
+		}
+		// 【元素隐藏规则】host##selector... —— 收集为注入用 CSS，不当作拦截
+		// 语法来自 uBlock/AdGuard：可选前导 host（域名），## 之后是选择器；
+		// 选择器可带 :style(...) 或 :remove() 等后缀，这里统一转成 CSS 规则。
+		if i := strings.Index(ln, "##"); i >= 0 {
+			host := strings.TrimSpace(ln[:i])
+			sel := strings.TrimSpace(ln[i+2:])
+			if sel == "" {
+				continue
+			}
+			// 去掉 uBlock 扩展操作符，转成等效 CSS
+			css := sel
+			if j := strings.Index(css, ":style("); j >= 0 {
+				inner := css[j+7:]
+				if k := strings.LastIndex(inner, ")"); k >= 0 {
+					inner = inner[:k]
+				}
+				css = css[:j] + "{" + inner + "}"
+			} else if j := strings.Index(css, ":remove()"); j >= 0 {
+				css = css[:j] + "{display:none!important}"
+			} else {
+				// 无显式操作符 → 默认隐藏（uBlock 的 ## 语义就是隐藏）
+				if !strings.Contains(css, "{") {
+					css = css + "{display:none!important}"
+				}
+			}
+			if rs.cosmetic == nil {
+				rs.cosmetic = map[string][]string{}
+			}
+			host = strings.ToLower(strings.TrimSpace(host))
+			host = strings.TrimPrefix(host, "www.")
+			rs.cosmetic[host] = append(rs.cosmetic[host], css)
 			continue
 		}
 		// SY 语法 ||domain^
@@ -413,13 +460,102 @@ func (h *mitmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			body = nb
 		}
 	}
+	// 【元素隐藏】HTML 响应注入 CSS（## 规则的真实实现）
+	// 只有 HTML 才注入；JSON/CSS/JS/图片都不动，避免破坏资源。
+	if h.rules != nil && h.rules.cosmetic != nil &&
+		strings.Contains(strings.ToLower(ct), "text/html") {
+		if css := h.cosmeticCSS(host); css != "" {
+			if nb, ok := injectCSS(body, css); ok {
+				body = nb
+				atomic.AddInt64(&h.st.CssInjectPages, 1)
+				atomic.AddInt64(&h.st.CssInjectRules, int64(strings.Count(css, "\n")+1))
+				// 注入后长度变了，必须更新 Content-Length，否则客户端会截断
+				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+			}
+		}
+	}
 	for k, vv := range resp.Header {
+		// 跳过原 Content-Length（已按注入后的长度重设）
+		if strings.EqualFold(k, "Content-Length") {
+			continue
+		}
 		for _, v := range vv {
 			w.Header().Add(k, v)
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
+}
+
+// cosmeticCSS 返回该 host 需要注入的 CSS（无则空串）。
+// 匹配规则：精确 host 优先；再做后缀匹配（如 a.b.com 命中 b.com 的规则）。
+func (h *mitmHandler) cosmeticCSS(host string) string {
+	if h.rules == nil || h.rules.cosmetic == nil {
+		return ""
+	}
+	h2 := strings.ToLower(stripPort(host))
+	h2 = strings.TrimPrefix(h2, "www.")
+	var sels []string
+	if v, ok := h.rules.cosmetic[h2]; ok {
+		sels = append(sels, v...)
+	}
+	// 后缀匹配：example.com 的规则也应用到 sub.example.com
+	for k, v := range h.rules.cosmetic {
+		if k == "" {
+			// 无 host 的规则（全局）也采纳
+			sels = append(sels, v...)
+			continue
+		}
+		if k == h2 || strings.HasSuffix(h2, "."+k) {
+			sels = append(sels, v...)
+		}
+	}
+	if len(sels) == 0 {
+		return ""
+	}
+	// 去重（同一选择器在多个规则里出现很常见）
+	seen := map[string]bool{}
+	out := make([]string, 0, len(sels))
+	for _, s := range sels {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// injectCSS 把一段 CSS 注入 HTML 响应。
+// 注入位置优先级：</head> 前 > <body> 后 > 直接前置到文档开头。
+func injectCSS(body []byte, css string) ([]byte, bool) {
+	if css == "" || len(body) == 0 {
+		return body, false
+	}
+	tag := "<style data-sy-cosmetic>" + css + "</style>"
+	low := strings.ToLower(string(body))
+	if i := strings.Index(low, "</head>"); i >= 0 {
+		out := make([]byte, 0, len(body)+len(tag))
+		out = append(out, body[:i]...)
+		out = append(out, []byte(tag)...)
+		out = append(out, body[i:]...)
+		return out, true
+	}
+	if i := strings.Index(low, "<body"); i >= 0 {
+		if j := strings.Index(low[i:], ">"); j >= 0 {
+			at := i + j + 1
+			out := make([]byte, 0, len(body)+len(tag))
+			out = append(out, body[:at]...)
+			out = append(out, []byte(tag)...)
+			out = append(out, body[at:]...)
+			return out, true
+		}
+	}
+	// 没有 head/body 的（少见）：仅在看起来像 HTML 时前置
+	if strings.Contains(low, "<html") {
+		out := append([]byte(tag), body...)
+		return out, true
+	}
+	return body, false
 }
 
 func (h *mitmHandler) forward(w http.ResponseWriter, r *http.Request) {

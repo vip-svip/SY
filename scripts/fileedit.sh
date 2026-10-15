@@ -43,7 +43,7 @@ fe_resolve() {
   # 内部状态文件与引擎产物不允许直接编辑（面板里也不列出）：
   # 它们是模块的"账本"，用户改坏会导致权限/appops 还原失败。
   case "$rel" in
-    *.state|*.uid|*.pid|*.spark|*/.emit_meta|rules/engine/*|*/rules/engine/*)
+    *.state|*.uid|*.pid|*.spark|*/.emit_meta|rules/engine/*|*/rules/engine/*|*.token|*/panel.token)
       echo "ERR: 这是模块内部文件，不允许编辑（避免破坏还原记录）"; return 1 ;;
   esac
   full="$DATA_DIR/$rel"
@@ -64,7 +64,7 @@ fe_list() {
       #   *.state / *.uid / *.spark / .emit_meta / rules/engine/*（引擎编译产物，
       #   改了下一次重编译就被覆盖）/ rules/dns/hosts（自动生成）
       case "$f" in
-        *.state|*.uid|*.pid|*.spark|*/.emit_meta|*/.whitelist.patterns|*/netblock.resolved|*/hosts.generated)
+        *.state|*.uid|*.pid|*.spark|*/.emit_meta|*/.whitelist.patterns|*/netblock.resolved|*/hosts.generated|*.token|*/panel.token|*/.token)
           continue ;;
         */rules/engine/*)
           continue ;;

@@ -72,28 +72,53 @@ cg_loop() {
 cg_apply() {
   cg_android || { echo "(非 Android 环境，跳过)"; return 0; }
   if [ "$(cfg_get CLIPGUARD_ENABLE 0)" != "1" ]; then cg_remove; return 0; fi
-  # 已在运行？判据两条，避免"pid 文件存在但进程已死"与"PID 被复用"两种误判
+  # 【真机缺陷修复 A】旧判据用 `*clipguard*` 匹配 cmdline，但真实 cmdline 是
+  # `.../clip_guard.sh loop` —— 带**下划线**，判据永远不匹配 → 每次都"重新启动"
+  # → 监视进程叠加（真机实测出现两个 loop 实例：6949 与 12953）。
+  # 改为匹配真实脚本名 clip_guard。
+  # 【真机缺陷修复 B】旧版先 bg_spawn 再 cpid=$! —— 但 bg_spawn 内部自己 & 并 echo pid，
+  # 外层 $! 拿到的是 **bg_spawn 子 shell 的 pid**（转瞬即逝），与 cg_loop 内部写的 $$
+  # 互相冲突，于是 pid 文件里是个已死进程（真机实测 pid 文件=14459，实际存活 6949）。
+  # 现在统一：pid 只由**真实 loop 进程**写（cg_loop 里的 $$），apply 不再猜。
   if [ -f "$CG_PID" ]; then
     old=$(cat "$CG_PID" 2>/dev/null)
-    if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
-      if [ -r "/proc/$old/cmdline" ]; then
-        cmd=$(tr '\0' ' ' < "/proc/$old/cmdline" 2>/dev/null)
-        case "$cmd" in *clipguard*) echo "OK: 剪贴板监视已在运行 (pid $old)"; return 0 ;; esac
-        log "clip_guard: pid $old 存在但不是监视进程（PID 复用），重新启动"
-      else
-        echo "OK: 剪贴板监视已在运行 (pid $old)"; return 0
-      fi
-    else
-      rm -f "$CG_PID" 2>/dev/null
+    if [ -n "$old" ] && [ -d "/proc/$old" ]; then
+      cmd=$(tr "\0" " " < "/proc/$old/cmdline" 2>/dev/null)
+      case "$cmd" in
+        *clip_guard.sh*)
+          echo "OK: 剪贴板监视已在运行 (pid $old)"
+          return 0 ;;
+      esac
+      log "clip_guard: pid $old 存在但不是监视进程（PID 复用），重新启动"
     fi
+    rm -f "$CG_PID" 2>/dev/null
   fi
-  # 竞态修复：pid 由**父进程**写（$! 直接可得），子进程不再负责写 pid 文件。
-  # 旧版让 loop 自己写 $$，而 apply 紧接着 kill -0 检查时子进程可能还没写 ——
-  # 判定"未运行"→ 再启一个 → 监视进程叠加。
+  # 兜底：pid 文件丢了但进程还在（例如上面判定误删），按 cmdline 找回来
+  for pp in /proc/[0-9]*; do
+    [ -r "$pp/cmdline" ] || continue
+    cc=$(tr "\0" " " < "$pp/cmdline" 2>/dev/null)
+    case "$cc" in
+      *clip_guard.sh*loop*)
+        echo "${pp#/proc/}" > "$CG_PID" 2>/dev/null
+        echo "OK: 剪贴板监视已在运行 (pid ${pp#/proc/})"
+        return 0 ;;
+    esac
+  done
   bg_spawn "$LOGS/clipguard.log" sh "$0" loop >/dev/null
-  cpid=$!
-  sleep 0.3 2>/dev/null || sleep 1
-  echo "OK: 剪贴板监视已启动（本 ROM 若不支持读取者枚举会在日志说明）"
+  # 等子进程自己写 pid（cg_loop 第一件事就是 echo $$ > CG_PID），最多等 3 秒
+  t=0
+  while [ "$t" -lt 30 ]; do
+    sleep 0.1 2>/dev/null || sleep 1
+    if [ -s "$CG_PID" ]; then
+      rp=$(cat "$CG_PID" 2>/dev/null)
+      if [ -n "$rp" ] && [ -d "/proc/$rp" ]; then
+        echo "OK: 剪贴板监视已启动 (pid $rp)"
+        return 0
+      fi
+    fi
+    t=$((t+1))
+  done
+  echo "WARN: 监视已启动但未能确认 pid（可能被 SELinux 限制）；可在状态里查看"
 }
 
 cg_remove() {
@@ -115,7 +140,9 @@ cg_status() {
     pid=$(cat "$CG_PID" 2>/dev/null)
     kill -0 "$pid" 2>/dev/null && running="yes" || pid=""
   fi
-  n=0; [ -f "$CG_STATE" ] && n=$(grep -vc "^#" "$CG_STATE" 2>/dev/null || echo 0)
+  # grep -c 无匹配时输出 0 但退出码 1，`|| echo 0` 会产生 "0\n0"（真机显示成两行）。
+  # 正确写法：先取输出，再单独兜底。
+  n=0; [ -f "$CG_STATE" ] && n=$(grep -v "^#" "$CG_STATE" 2>/dev/null | grep -c . | head -n1); [ -z "$n" ] && n=0
   printf '{"feature":"%s","running":"%s","pid":"%s","interval":"%s","readers":%s}\n' \
     "$(cfg_get CLIPGUARD_ENABLE 0)" "$running" "$pid" "$(cfg_get CLIPGUARD_INTERVAL 60)" "${n:-0}"
 }

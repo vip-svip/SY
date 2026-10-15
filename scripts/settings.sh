@@ -45,7 +45,8 @@ case "$1" in
   save-b64) # 批量写入 key=value 文本
     [ -z "$2" ] && { echo "ERR: 空内容"; exit 1; }
     echo "$2" | base64 -d 2>/dev/null | sed -e 's/\r$//' -e '/^[[:space:]]*$/d' > "$SET_FILE"
-    echo "OK: 设置已保存（$(grep -c '=' "$SET_FILE" 2>/dev/null || echo 0) 项）"
+    _n=$(grep -c "=" "$SET_FILE" 2>/dev/null | head -n1); [ -z "$_n" ] && _n=0
+  echo "OK: 设置已保存（$_n 项）"
     ;;
   reset) : > "$SET_FILE"; echo "OK: 设置已重置为默认" ;;
   *) echo "usage: settings.sh {get|set|all|dump|reset} [key] [value]" ;;

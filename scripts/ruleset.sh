@@ -43,7 +43,8 @@ sync() {
       "rules/splash_rules.conf|$RDIR/splash_rules.conf" \
       "rules/notify_keywords.conf|$RDIR/notify_keywords.conf" \
       "manifest.json|$RDIR/manifest.json" ; do
-    p="${pair%%|*}"; o="${pair##*|}"
+    # 【真机缺陷修复】mksh 下 ${x%%|*} / ${x##*|} 返回空，改用 sed 切分（见 offline.sh 同类说明）
+  p=$(printf '%s' "$pair" | sed 's/|.*//'); o=$(printf '%s' "$pair" | sed 's/.*|//')
     if _fetch "$p" "$o"; then ok=$((ok+1)); log "ruleset: 拉取 $p OK"; else
       bad=$((bad+1)); log "ruleset: 拉取 $p 失败(保留旧缓存)"
       [ -s "$o" ] || : > "$o"
@@ -53,7 +54,7 @@ sync() {
   # 将远端规则落到各功能实际读取的工作配置路径
   for pair in "whitelist.txt|whitelist.conf" "mitm_rules.conf|mitm_rules.conf" \
               "splash_rules.conf|splash_rules.conf" "notify_keywords.conf|notify_keywords.conf"; do
-    rf="$RDIR/${pair%%|*}"; cf="$DATA_DIR/config/${pair##*|}"
+    rf="$RDIR/$(printf '%s' "$pair" | sed 's/|.*//')"; cf="$DATA_DIR/config/$(printf '%s' "$pair" | sed 's/.*|//')"
     [ -s "$rf" ] && { mkdir -p "$DATA_DIR/config"; cp -f "$rf" "$cf"; }
   done
   # 拉取成功后应用: 重建 DNS 规则
@@ -74,7 +75,7 @@ sources_json() {
   if [ -f "$SOURCES" ]; then
     while IFS= read -r line; do
       case "$line" in ""|\#*) continue ;; esac
-      nm="${line%%|*}"; rp="${line##*|}"
+      nm=$(printf '%s' "$line" | sed 's/|.*//'); rp=$(printf '%s' "$line" | sed 's/.*|//')
       [ "$rp" = "$line" ] && rp="$nm"
       rp=$(printf '%s' "$rp" | tr -d '[:space:]')
       nm=$(printf '%s' "$nm" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')

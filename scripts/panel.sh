@@ -63,9 +63,24 @@ gen_token() {
 }
 
 lan_ip() {
-  ip=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
-  [ -z "$ip" ] && ip=$(ifconfig 2>/dev/null | grep -oE 'inet [0-9.]+' | grep -v 127.0.0.1 | head -n1 | awk '{print $2}')
-  echo "$ip"
+  # 【真机缺陷修复】旧版用 `ip route get 1 | awk '{print $7}'` 取本机 IP ——
+  # 依赖"第 7 个字段正好是地址"。真机（MIUI/Android 13）实际输出是：
+  #   1.0.0.0 via 192.168.0.1 dev wlan0 table wlan0 src 192.168.0.16 uid 0
+  # 多了一个 `table <iface>` 字段，$7 变成 "src"、$8 才是地址 → 面板显示成
+  # 接口名/错误值（真机实测 lan_ip 返回了 "wlan0"）。
+  # 改为按 `src` 关键字提取（与字段位置无关，任何内核版本都稳）：
+  ip=$(ip route get 1 2>/dev/null | sed -n 's/.*src \([0-9][0-9.]*\).*/\1/p' | head -n1)
+  # 兜底 1：从默认路由表里找 src（部分 ROM 的 ip route get 输出更简）
+  [ -z "$ip" ] && ip=$(ip route 2>/dev/null | sed -n 's/.*src \([0-9][0-9.]*\).*/\1/p' | head -n1)
+  # 兜底 2：直接读接口地址（不依赖 ip 命令的文本格式）
+  [ -z "$ip" ] && ip=$(ip -4 addr show 2>/dev/null | sed -n 's/.*inet \([0-9][0-9.]*\).*/\1/p' | grep -v '^127\.' | head -n1)
+  # 兜底 3：老式 ifconfig
+  [ -z "$ip" ] && ip=$(ifconfig 2>/dev/null | sed -n 's/.*inet addr:\([0-9][0-9.]*\).*/\1/p; s/.*inet \([0-9][0-9.]*\).*/\1/p' | grep -v '^127\.' | head -n1)
+  # 最后校验：必须是合法 IPv4，否则不返回（让调用方显式用 127.0.0.1）
+  case "$ip" in
+    [0-9]*.[0-9]*.[0-9]*.[0-9]*) echo "$ip" ;;
+    *) echo "" ;;
+  esac
 }
 
 start() {

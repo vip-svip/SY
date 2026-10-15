@@ -99,12 +99,28 @@ pc_accessibility() {
 }
 
 pc_device_admin() {
-  command -v dpm >/dev/null 2>&1 || { skip "无 dpm 命令，无法枚举设备管理员"; return; }
-  out=$(dpm list packages 2>/dev/null)
-  case "$out" in ""|*"No active admin"*) ok "无第三方设备管理员"; return ;; esac
+  # 【真机缺陷修复】旧版调 `dpm list packages` —— Android 13 的 dpm **没有 list 子命令**，
+  # 真机实测返回 "Unknown command: list" + 一大段用法帮助，于是把帮助文本当成了
+  # 设备管理员列表逐行打印（体检报告里出现 [其他] Unknown / command: / Usage: / help）。
+  # 现在改读权威来源：
+  #   ① /data/system/device_policies.xml（设备管理员注册表，root 可读）
+  #   ② 退化到 dumpsys device_policy（部分 ROM 有输出）
+  #  ③ 两者都读不到时**如实报「跳过」**，绝不用会返回帮助文本的命令冒充枚举。
+  pkgs=""
+  if [ -r /data/system/device_policies.xml ]; then
+    pkgs=$(sed -n 's/.*<admin name="\([^"]*\)".*/$\1/p' /data/system/device_policies.xml 2>/dev/null | cut -d/ -f1 | sort -u | tr "\n" " ")
+  fi
+  if [ -z "$pkgs" ] && command -v dumpsys >/dev/null 2>&1; then
+    pkgs=$(dumpsys device_policy 2>/dev/null | sed -n "s/.*packageName=\([^ ]*\).*/$\1/p" | sort -u | tr "\n" " ")
+  fi
+  if [ -z "$pkgs" ]; then
+    skip "读不到设备管理员注册表（无 device_policies.xml，且 dumpsys device_policy 无输出）"
+    return
+  fi
   n=0
   echo "  -- 设备管理员（可远程擦除/锁屏/强制密码）--"
-  for pkg in $out; do
+  for pkg in $pkgs; do
+    [ -n "$pkg" ] || continue
     n=$((n+1))
     if pc_is_target "$pkg"; then
       echo "  [目标应用] $pkg   ← 建议由「隐私护盾」移除"
@@ -135,7 +151,11 @@ pc_fx_check() {
 pc_hosts() {
   [ -f /system/etc/hosts ] || { skip "本机无 /system/etc/hosts（非 Android 环境）"; return; }
   if mount 2>/dev/null | grep -q "/system/etc/hosts"; then
-    n=$(grep -c "^0\.0\.0\.0 " /system/etc/hosts 2>/dev/null || echo 0)
+    # 【真机缺陷修复】`grep -c ... || echo 0` 是坏写法：grep -c 在"无匹配"时
+    # 输出 0 但**退出码为 1**，于是 `|| echo 0` 又追加一行 → 变量变成两行，
+    # 打印出来就是两行（真机 hosts 那行显示成 "0\n0 条黑洞条目"）。
+    n=$(grep -c "^0\.0\.0\.0 " /system/etc/hosts 2>/dev/null | head -n1)
+    [ -z "$n" ] && n=0
     ok "hosts 已挂载生效（$n 条黑洞条目）"
   else
     warn "hosts 未挂载（检查 DNS 页是否已应用规则）"

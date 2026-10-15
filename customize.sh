@@ -218,6 +218,32 @@ fi
 ui_print "- 设置文件权限"
 set_perm_recursive "$MODDIR" 0 0 0755 0644
 set_perm_recursive "$DATA_DIR" 0 0 0755 0644
+
+# 【真机根因修复】必须给 bin/ 下**所有**二进制执行位。
+# 真机实测：KernelSU 的 `ksud module install` 解压时按 umask(022) 给 0644，
+# **忽略 ZIP 记录的执行位** —— 所以"打包时写成 755"在 KernelSU 上无效。
+# 旧版只 chmod 了 bin/abserver 与 bin/sing-box 两个副本，漏了：
+#   · bin/abserver-<架构>（运行时按架构找的就是它）
+#   · bin/kernels/sing-box-<架构>（内置内核本体）
+# 结果真机上内核报 "can't execute: Permission denied"，代理与防泄露全起不来。
+for f in "$MODDIR"/bin/* "$MODDIR"/bin/kernels/*; do
+  [ -f "$f" ] || continue
+  case "$f" in
+    */VERSION) set_perm "$f" 0 0 0644 ;;
+    *) set_perm "$f" 0 0 0755 ;;
+  esac
+done
+chmod 0755 "$MODDIR/bin/"* 2>/dev/null
+chmod 0755 "$MODDIR/bin/kernels/"sing-box-* 2>/dev/null
+# 安装后立刻自检：内核到底能不能执行（装机时就能看见结论，不必等重启）
+_kc="$MODDIR/bin/kernels/sing-box-$ARCH"
+if [ -f "$_kc" ]; then
+  if "$_kc" version >/dev/null 2>&1; then
+    ui_print "- 内核自检: 可执行 ($($_kc version 2>/dev/null | head -n1))"
+  else
+    ui_print "! 内核自检失败: 无法执行 $_kc（请把安装日志发给作者）"
+  fi
+fi
 [ -f "$MODDIR/bin/abserver" ] && set_perm "$MODDIR/bin/abserver" 0 0 0755
 for f in "$MODDIR"/*.sh "$MODDIR"/scripts/*.sh; do
   [ -f "$f" ] && set_perm "$f" 0 0 0755

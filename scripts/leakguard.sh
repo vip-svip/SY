@@ -45,6 +45,9 @@ set -u
 #  随 rm -rf DATA_DIR 一并清理，符合「卸载零残留」。
 if [ -f "$(dirname "$0")/common.sh" ]; then
   . "$(dirname "$0")/common.sh"
+
+# 内置 App 的包名（多处用于自检，集中定义避免写错）
+PKG_NAME="com.syfusion.manager"
 fi
 
 # common.sh 未加载成功时的兜底（保证脚本独立可跑）
@@ -505,7 +508,7 @@ status() {
   printf '%-8s %s\n' "NODE" "$(state_get NODE)"
   printf '%-8s %s\n' "TUNE" "$(state_get TUNE)"
   if [ -n "$IPT" ]; then
-    n=$($IPT -L "$CH_OUT" -n 2>/dev/null | grep -c 'REJECT\|DROP' 2>/dev/null)
+    n=$($IPT -L "$CH_OUT" -n 2>/dev/null | grep -cE 'REJECT|DROP' 2>/dev/null | head -n1); [ -z "$n" ] && n=0
     printf '%-8s %s\n' "iptables" "${IPT}(${n} block rules)"
   else
     printf '%-8s %s\n' "iptables" "unavailable"
@@ -586,14 +589,36 @@ hook_mode() {
 hook_status() {
   echo "hook mode : $(hook_get_mode)"
   if [ -f "$HOOKLOG" ]; then
-    echo "events    : $(wc -l <"$HOOKLOG" 2>/dev/null)"
-    echo "by tag    :"
-    sed -n 's/^\[[^]]*\] \([^|]*\)|.*/\1/p' "$HOOKLOG" 2>/dev/null | sed 's/[[:space:]]*$//' | sort | uniq -c | sort -rn | head
+    echo "events    : $(wc -l <"$HOOKLOG" 2>/dev/null | head -n1)"
+    sed -n "s/^\[[^]]*\] \([^|]*)\|.*/\1/p" "$HOOKLOG" 2>/dev/null | sed "s/[[:space:]]*$//" | sort | uniq -c
   else
-    echo "events    : 0"
+    echo "events    : 0（尚无事件）"
   fi
   echo "builtin hooks:"
-  grep -v '^[[:space:]]*#' "$MODDIR/config/hooks.conf" 2>/dev/null | grep -v '^[[:space:]]*$' | sed 's/^/  /'
+  grep -v "^[[:space:]]*#" "$MODDIR/config/hooks.conf" 2>/dev/null | grep -v "^[[:space:]]*$" | sed "s/^/  /"
+  echo ""
+  echo "生效前提自检（为什么 events 可能是 0）:"
+  if [ -d /data/adb/lspd ]; then
+    if find /data/adb/lspd/modules -maxdepth 3 2>/dev/null | grep -q "$PKG_NAME"; then
+      echo "  [OK]   LSPosed 已识别本模块（Xposed hook 可生效）"
+    else
+      echo "  [缺失] LSPosed 在运行，但**尚未启用本模块**"
+      echo "         请在 LSPosed 里启用 SY 并勾选作用域，然后重启目标应用"
+    fi
+  else
+    echo "  [不可用] 未检测到 LSPosed；Xposed 注入不可用"
+    echo "           （无障碍跳广告不依赖 Xposed，仍可用）"
+  fi
+  _acc=$(settings get secure enabled_accessibility_services 2>/dev/null)
+  case "$_acc" in
+    *com.syfusion.manager*) echo "  [OK]   无障碍服务已启用（跳开屏广告可用）" ;;
+    *) echo "  [缺失] 无障碍服务未启用 —— 到设置→无障碍 打开「SY 联动服务」" ;;
+  esac
+  if pm path com.syfusion.manager >/dev/null 2>&1; then
+    echo "  [OK]   内置 App 已安装"
+  else
+    echo "  [缺失] 内置 App 未安装 —— 面板「内置 App」页可一键安装"
+  fi
 }
 
 hook_clear() { : >"$HOOKLOG" 2>/dev/null; echo "hook events cleared"; }

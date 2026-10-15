@@ -19,6 +19,19 @@ sleep 8
 exec >>"$LOG" 2>&1
 echo "=== service start $(date) ==="
 
+# 【真机缺陷修复】只 source 配置是不够的：脚本下面要用 bg_spawn（统一起后台进程），
+# 而它定义在 scripts/common.sh 里。旧版没 source → 真机 service.log 出现
+# "bg_spawn: not found"，开屏守护起不来（pid 为空）。
+# 现在先接管路径变量，再 source common.sh，最后读配置。
+MY_MODDIR="$MODDIR"
+MY_DATA_DIR="$DATA_DIR"
+if [ -f "$MODDIR/scripts/common.sh" ]; then
+  . "$MODDIR/scripts/common.sh"
+fi
+# common.sh 会按 $0 重新推导 MODDIR/DATA_DIR，这里恢复成开机脚本应有的值
+MODDIR="$MY_MODDIR"
+DATA_DIR="$MY_DATA_DIR"
+LOG="$DATA_DIR/logs/service.log"
 if [ -f "$DATA_DIR/config/sy.conf" ]; then
   . "$DATA_DIR/config/sy.conf"
 fi
@@ -53,6 +66,11 @@ fi
 # MITM: 若启用则开启透明代理与重定向
 if [ "${MITM_ENABLE:-0}" = "1" ]; then
   sh "$MODDIR/scripts/mitm.sh" up
+fi
+
+# 内置 App 兜底：未安装则装；无障碍服务丢了就恢复（跳开屏广告的前提）
+if [ -f "$MODDIR/scripts/installapp.sh" ]; then
+  sh "$MODDIR/scripts/installapp.sh" ensure >/dev/null 2>&1
 fi
 
 # 开屏跳过守护

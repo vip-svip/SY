@@ -214,6 +214,8 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 		c.proxySub(w, r, "proxymgr.sh")
 	case "proxycfg":
 		c.proxySub(w, r, "proxycfg.sh")
+	case "builtin_rules":
+		c.proxySub(w, r, "builtin_rules.sh")
 	case "kernel":
 		c.proxySub(w, r, "kernel.sh")
 	case "route_gen":

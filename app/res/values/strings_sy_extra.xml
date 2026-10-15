@@ -4,8 +4,29 @@
     <string name="acc_service_label">SY 联动服务</string>
     <string name="acc_service_desc">用于开屏广告自动跳过，以及按应用收敛隐私出口（DNS/IP/VPN/节点防泄露）。数据全部本地处理，不联网、不上传。</string>
     <string name="xposed_desc">SY-Fusion 模块联动：按应用应用隐私收敛与拦截策略。需在 LSPosed 中勾选作用域并重启目标应用。</string>
+    <!-- 【真机根因修复】旧 scope 只有 com.syfusion.manager —— 意味着 hook
+         只对 SY 自己的进程生效，对任何目标应用（游戏/风控/需跳广告的 App）
+         都不生效。这正是"hook 不工作"的真实原因（不是代码空壳）。
+         xposed_scope 的语义是"模块**建议**的作用域"，用户在 LSPosed 里勾选
+         的实际范围才是准。这里给出默认建议范围（常见需要 hook 的目标），
+         同时用户可在 LSPosed 中自行增减。 -->
     <string-array name="xposed_scope">
+        <!-- 管理器自身（用于面板与 hook 事件上报） -->
         <item>com.syfusion.manager</item>
+        <!-- Android 系统框架：标识符（IMEI/IMSI/MAC）与位置 API 的宿主 -->
+        <item>android</item>
+        <item>com.android.systemui</item>
+        <!-- WebView 与浏览器：阻止网页读取设备指纹/诱导下载 -->
+        <item>com.android.webview</item>
+        <item>com.android.chrome</item>
+        <item>com.android.browser</item>
+        <!-- 常见需要收敛隐私/跳过开屏的应用（用户可自行增减） -->
+        <item>com.tencent.mm</item>
+        <item>com.tencent.mobileqq</item>
+        <item>com.taobao.taobao</item>
+        <item>com.jingdong.app.mall</item>
+        <item>com.xingin.xhs</item>
+        <item>com.ss.android.ugc.aweme</item>
     </string-array>
 
     <!-- ===== 隐私防泄露菜单 ===== -->

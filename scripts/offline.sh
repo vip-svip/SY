@@ -25,31 +25,41 @@ OFFLINE_PROBE_HOST="connectivitycheck.gstatic.com"
 #  ① DNS 能解析出 IP（最快，通常几十毫秒）
 #  ② TCP 能连上（用 abserver 的探测或 nslookup 的返回）
 net_check() {
-  # 判据 ① 系统是否有默认路由（没路由必然无网）
-  if [ -r /proc/net/route ]; then
-    has_route=0
-    while IFS= read -r line; do
-      # 默认路由的 Destination 字段是全 0
-      set -- $line
-      case "$2" in 00000000) has_route=1 ;; esac
-    done < /proc/net/route
-    [ "$has_route" = "0" ] && { echo "no-route"; return 1; }
+  # 【真机缺陷修复】旧版两条判据在真机上**全都误报无网**（实测）：
+  #   ① 读 /proc/net/route 找 Destination=00000000 —— Android 用多路由表，
+  #      默认路由不在该文件里（实测该文件只有 192.168.0.0/24 一条），
+  #      于是永远判"没有默认路由"；
+  #   ② 读 getprop net.dns1/dns2 —— Android 10+ 这两个 prop 已废弃（实测为空）。
+  #   结果：有网时也报 offline，导致「断网优化」把在线环境当离线，跳过全部网络操作。
+  # 现在改为**真实连通性探测**（优先轻量、再退到 HTTP）。
+
+  # 判据 ①：能否连通一个公网 IP（不依赖 DNS、不依赖路由表格式）
+  if command -v ping >/dev/null 2>&1; then
+    if ping -c 1 -W 2 $OFFLINE_PROBE_IP >/dev/null 2>&1; then echo "online"; return 0; fi
   fi
-  # 判据 ② DNS 解析（用 abserver 或 getprop 的 DNS）
-  if command -v getprop >/dev/null 2>&1; then
-    dns1=$(getprop net.dns1 2>/dev/null)
-    dns2=$(getprop net.dns2 2>/dev/null)
-    [ -n "$dns1$dns2" ] || { echo "no-dns"; return 1; }
+  # 判据 ②：HTTP 204 探测（部分网络禁 ICMP，但 HTTP 通）
+  if command -v curl >/dev/null 2>&1; then
+    if curl -s -m 5 -o /dev/null "$OFFLINE_PROBE_URL" 2>/dev/null; then echo "online"; return 0; fi
   fi
-  # 判据 ③ 真解析一次（最可靠，但慢；只在上面都过时做）
+  # 判据 ③：能不能解析出地址（有 DNS 但 ICMP/HTTP 被禁的少数环境）
   if command -v nslookup >/dev/null 2>&1; then
-    if nslookup www.baidu.com >/dev/null 2>&1 || nslookup "$OFFLINE_PROBE_HOST" >/dev/null 2>&1; then
-      echo "online"; return 0
-    fi
+    if nslookup $OFFLINE_PROBE_HOST >/dev/null 2>&1; then echo "online"; return 0; fi
     echo "dns-fail"; return 1
   fi
-  # 没有 nslookup：只能给出「路由与 DNS 配置在」的结论（如实标注为不确定）
-  echo "likely-online"; return 0
+  # 判据 ④：有没有默认网络（dumpsys 在 Android 上是权威的）
+  if command -v dumpsys >/dev/null 2>&1; then
+    if dumpsys connectivity 2>/dev/null | grep -q "Active default network"; then echo "online"; return 0; fi
+    echo "no-default-network"; return 1
+  fi
+  # 判据 ⑤：兜底看接口是否有非回环地址（最弱，但比"只看路由表"可靠）
+  if command -v ip >/dev/null 2>&1; then
+    if ip -4 addr show 2>/dev/null | sed -n "s/.*inet \([0-9][0-9.]*\).*/\1/p" | grep -qv "^127\."; then
+      echo "likely-online"; return 0
+    fi
+    echo "no-address"; return 1
+  fi
+  # 什么都探测不了：如实报"未知"，不假装无网也不假装有网
+  echo "unknown"; return 2
 }
 
 # 等待网络就绪（开机后网络通常晚于 boot_completed 十几秒）
@@ -66,8 +76,11 @@ net_wait() { # [最长秒数]
 # 用法: net_need "<做什么>" [缓存文件]
 net_need() { # <描述> [缓存文件]
   desc="$1"; cache="$2"
-  if net_check >/dev/null 2>&1; then return 0; fi
-  reason=$(net_check 2>/dev/null)
+  # unknown 时**不要**当成无网（旧版只看退出码，会把"探测不了"当"没网"）
+  rc=0; reason=$(net_check 2>/dev/null) || rc=$?
+  [ "$rc" = "2" ] && return 0   # 探测不了 → 放行，让调用方自己失败
+  [ "$rc" = "0" ] && return 0
+  [ -z "$reason" ] && return 0
   case "$reason" in
     no-route) msg="没有默认路由（多半是没连 Wi-Fi/移动数据，或飞行模式）" ;;
     no-dns)   msg="没有配置 DNS（网络还没就绪，或 DNS 被改坏了）" ;;
@@ -100,7 +113,12 @@ cache_report() {
     "rules/proxy/nodes.conf|已保存的节点" \
     "rules/fx/block_domains.txt|FX 深度抵抗清单" \
     "data/geo/dbip-country-lite.mmdb|离线 GeoIP 库" ; do
-    p="$DATA_DIR/${pair%%|*}"; label="${pair##*|}";
+    # 【真机缺陷修复】Android 的 sh 是 mksh(MIRBSD KSH R59)，它下
+    # ${pair%%|*} / ${pair##*|} **返回空**（本机 ash/busybox 上正常）——
+    # 于是整个 cache-report 的标签与路径解析全空（真机实测）。
+    # 改用 sed 按分隔符切分（与 shell 实现无关，任何 Android 版本都稳）。
+    p="$DATA_DIR/$(printf '%s' "$pair" | sed 's/|.*//')"
+    label="$(printf '%s' "$pair" | sed 's/.*|//')"
     if [ -s "$p" ]; then
       printf "  %-38s %s  (%s 行)\n" "$label" "可用" "$(count_lines "$p")"
     else
