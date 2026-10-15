@@ -260,28 +260,59 @@ a{color:var(--accent);text-decoration:none}
 }
 .wsheet__item.on .wsdot{background:var(--accent)}
 
+/* ================= 底部导航：玻璃 + 选中放大镜（仿新版酷安） ================= */
+/* 设计：毛玻璃底（半透明 + backdrop-filter）+ 选中项"放大镜"——图标与文字整体
+   放大并浮起，配一条短指示条与背后光晕。为什么这样：底部是拇指热区，选中态必须
+   一眼可辨；放大镜让"当前在哪"不必读文字就能看出来。 */
 .bottomnav{
   position:fixed;left:0;right:0;bottom:0;z-index:60;
   display:none;
-  background:var(--bgcolor);
-  border-top:1px solid var(--card-border-color);
+  background:var(--glass-bg);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter:blur(var(--glass-blur)) saturate(180%);
+  border-top:1px solid var(--glass-edge);
+  box-shadow:0 -8px 24px -12px rgba(0,0,0,.45);
   /* 处理系统安全区（手势条/虚拟键）：不加这条会被挡住 */
   padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* 不支持 backdrop-filter 时退回实色，避免半透明导致文字糊成一片 */
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
+  .bottomnav{background:var(--bgcolor)}
 }
 .bottomnav__inner{
   display:grid;grid-template-columns:repeat(5,1fr);
   max-width:1240px;margin:0 auto;
+  padding:0 6px;
 }
 .bnav-item{
+  position:relative;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  min-height:56px;padding:6px 2px;cursor:pointer;
+  min-height:58px;padding:6px 2px;cursor:pointer;
   color:var(--scolor);font-size:11px;line-height:1.2;
   border:none;background:none;
   -webkit-tap-highlight-color:transparent;
+  transition:transform .22s cubic-bezier(.34,1.56,.64,1),color .18s;
+  transform-origin:50% 78%;
 }
-.bnav-item:active{background:rgba(127,127,127,.12)}
-.bnav-item.on{color:var(--accent);font-weight:600}
-.bnav-item svg{width:22px;height:22px;fill:currentColor;display:block}
+.bnav-item:active{opacity:.75}
+/* 选中：放大镜 —— 整体放大浮起 + 高亮 */
+.bnav-item.on{color:var(--accent);font-weight:600;transform:translateY(-3px) scale(1.14)}
+.bnav-item svg{width:22px;height:22px;fill:currentColor;display:block;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+.bnav-item.on svg{transform:scale(1.12)}
+/* 选中项下方指示条（短、圆角、accent 色） */
+.bnav-item::after{
+  content:"";position:absolute;bottom:2px;left:50%;
+  width:0;height:3px;border-radius:2px;background:var(--accent);
+  transform:translateX(-50%);opacity:0;
+  transition:width .22s ease,opacity .22s ease;
+}
+.bnav-item.on::after{width:18px;opacity:1}
+/* 选中项背后的光晕（放大镜高光） */
+.bnav-item.on::before{
+  content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:38px;height:38px;border-radius:50%;
+  background:var(--accent-soft);z-index:-1;
+}
 
 /* 手机端：给内容留出底部导航的高度，避免最后一行被遮住 */
 @media (max-width:899px){
@@ -345,6 +376,35 @@ pre,.mono{max-width:100%;overflow-x:auto}
 }
 .icon-btn:hover{background:var(--hover)}
 .icon-btn:active{transform:scale(.95)}
+
+/* ================= 页面转场（三级栈的滑动） ================= */
+/* 为什么加：换页"啪一下"会让人丢失层级感；横向滑动是 iOS/微信的既有语汇，
+   用户不用学就知道"这是进去了"还是"这是退出来了"。 */
+.page{will-change:transform,opacity}
+html.reduce-motion .page{transition:none!important;transform:none!important}
+
+/* ================= 主题选项（外观页控制） ================= */
+html.dense .card{padding:10px}
+html.dense .kv{padding:7px 0}
+html.dense .btn{min-height:34px}
+html.dense .page-title{margin:2px 0 10px}
+html.font-s{font-size:13px}
+html.font-m{font-size:14px}
+html.font-l{font-size:16px}
+html.font-s .page-title h2{font-size:18px}
+html.font-l .page-title h2{font-size:22px}
+html.font-s .bnav-item,html.font-s .btn{font-size:11px}
+html.font-l .bnav-item,html.font-l .btn{font-size:13px}
+html.no-glass .bottomnav{background:var(--bgcolor);-webkit-backdrop-filter:none;backdrop-filter:none}
+html.no-magnify .bnav-item.on{transform:none}
+html.no-magnify .bnav-item.on svg{transform:none}
+html.no-magnify .bnav-item.on::before{display:none}
+html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{transition:none!important;animation:none!important}
+html.no-glow body::before{display:none}
+html[data-accent="purple"]{--accent:#a371f7;--accent-soft:rgba(163,113,247,.14)}
+html[data-accent="green"]{--accent:#3fb950;--accent-soft:rgba(63,185,80,.14)}
+html[data-accent="cyan"]{--accent:#2dd4bf;--accent-soft:rgba(45,212,191,.14)}
+html[data-accent="blue"]{--accent:#58a6ff;--accent-soft:rgba(88,166,255,.14)}
 
 /* ================= 堆栈式导航（仿微信） ================= */
 /* 为什么这么做：抽屉是"弹出选择"、返回时没有层级感；改成真实列表页 + 页面堆栈后，
@@ -2432,6 +2492,139 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
   </section>
 
   <!-- ================= 常规设置 ================= -->
+  <!-- ================= 外观与主题 ================= -->
+  <section class="page hide" id="page-theme">
+    <div class="page-title">
+      <div>
+        <h2>外观与主题</h2>
+        <div class="page-title__sub">立即生效 · 面板与内置 App 同步</div>
+      </div>
+    </div>
+    <div class="card accent-alt">
+      <div class="card-head">配色<span class="tagline">深色 / 浅色 / 跟随系统</span></div>
+      <div class="kv"><span>主题模式</span>
+        <div class="psel" id="themeSeg2">
+          <button data-act="theme-dark">深色</button>
+          <button data-act="theme-light">浅色</button>
+          <button data-act="theme-auto">跟随系统</button>
+        </div>
+      </div>
+      <div class="kv"><span>强调色</span>
+        <div class="psel" id="accentSeg">
+          <button data-act="accent-blue">蓝</button>
+          <button data-act="accent-purple">紫</button>
+          <button data-act="accent-green">绿</button>
+          <button data-act="accent-cyan">青</button>
+        </div>
+      </div>
+      <div class="kv"><span>背景光斑</span><button class="btn sm primary" data-act="glow-toggle">切换</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head">布局与可读性</div>
+      <div class="kv"><span>界面密度</span>
+        <div class="psel" id="densitySeg2">
+          <button data-act="dense-off">宽松</button>
+          <button data-act="dense-on">紧凑</button>
+        </div>
+      </div>
+      <div class="kv"><span>字体大小</span>
+        <div class="psel" id="fontSeg2">
+          <button data-act="font-s">小</button>
+          <button data-act="font-m">标准</button>
+          <button data-act="font-l">大</button>
+        </div>
+      </div>
+      <div class="kv"><span>底部导航毛玻璃</span><button class="btn sm primary" data-act="glass-toggle">切换</button></div>
+      <div class="kv"><span>底部导航放大镜</span><button class="btn sm primary" data-act="magnify-toggle">切换</button></div>
+      <div class="kv"><span>减少动效（省电/更流畅）</span><button class="btn sm primary" data-act="motion-toggle">切换</button></div>
+    </div>
+    <div class="card">
+      <div class="card-head">预览<span class="tagline">改完立即应用</span></div>
+      <div class="hint">主题存于 localStorage，重开面板保留。内置 App 侧跟随系统深浅色（App 内「更多 → 切换主题」）。</div>
+      <div class="row" style="margin-top:10px">
+        <div class="col-6"><div class="card"><div class="card-head">卡片示例</div>
+          <div class="kv"><span>正常</span><b class="chip ok"><span class="dot"></span>就绪</b></div>
+          <div class="kv"><span>警告</span><b class="chip warn"><span class="dot"></span>注意</b></div>
+          <div class="kv"><span>错误</span><b class="chip bad"><span class="dot"></span>失败</b></div>
+        </div></div>
+        <div class="col-6"><div class="card"><div class="card-head">控件示例</div>
+          <div class="btn-row"><button class="btn primary">主要</button><button class="btn">次要</button></div>
+          <div class="hint">按钮、卡片、标签都会跟随主题。</div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Hook 与注入（规则可自定义 + 多语法导入） ================= -->
+  <section class="page hide" id="page-hook">
+    <div class="page-title">
+      <div>
+        <h2>Hook 与注入</h2>
+        <div class="page-title__sub">自定义规则 · 多语法导入 · 生效自检</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="hk-refresh">刷新</button>
+        <button class="btn primary" data-act="hk-apply">应用</button>
+      </div>
+    </div>
+
+    <div class="card accent-alt">
+      <div class="card-head">生效前提自检<span class="tagline">为什么没生效</span></div>
+      <div id="hkPre" class="hint">读取中…</div>
+      <div class="btn-row">
+        <button class="btn" data-act="hk-recheck">重新自检</button>
+        <button class="btn" data-act="hk-install">一键准备（装 App + 开无障碍）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">Hook 模式<span class="tagline">作用范围</span></div>
+      <div class="kv"><span>当前模式</span><b id="hkMode">-</b></div>
+      <div class="psel" id="hkModeSeg">
+        <button data-act="hk-mode" data-v="targets">仅目标应用</button>
+        <button data-act="hk-mode" data-v="all">全部作用域</button>
+        <button data-act="hk-mode" data-v="off">关闭 Hook</button>
+      </div>
+      <div class="hint">targets = 只对「隐私护盾」清单里的应用装钩子；all = 对 LSPosed 作用域内所有应用；off = 只记录进程进入。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">自定义 Hook 规则<span class="tagline">你自己的目标</span></div>
+      <div class="hint">每行一条：<span class="mono">标签 类名#方法名</span>。支持 <span class="mono">#</span> 注释。
+        例：<span class="mono">myhook android.app.Activity#onResume</span></div>
+      <textarea class="ta" id="hkRules" style="min-height:180px" placeholder="myhook android.app.Activity#onResume"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="hk-save-rules">保存规则</button>
+        <button class="btn" data-act="hk-load-rules">载入</button>
+        <button class="btn danger" data-act="hk-clear-rules">清空自定义</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">多语法导入<span class="tagline">粘贴即识别</span></div>
+      <div class="hint">支持格式：<span class="mono">域名</span> · <span class="mono">||域名^</span> · <span class="mono">/路径正则/</span> ·
+        <span class="mono">@@域名</span> · <span class="mono">domain##选择器</span> · <span class="mono">hosts 格式（0.0.0.0 域名）</span> ·
+        <span class="mono">AdGuard/uBlock 语法</span>。会按类型自动分流：网络类→DNS 引擎，元素隐藏类→MITM 注入。</div>
+      <textarea class="ta" id="hkImport" style="min-height:160px" placeholder="||ads.example.com^&#10;baidu.com##div.watermark&#10;0.0.0.0 tracker.example.com"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="hk-import">识别并导入</button>
+        <button class="btn" data-act="hk-analyze">只看识别结果</button>
+      </div>
+      <div id="hkImportOut" class="hint"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">事件与统计<span class="tagline">真实计数</span></div>
+      <div class="kv"><span>Hook 事件数</span><b id="hkEvents">-</b></div>
+      <div class="kv"><span>内置钩子数</span><b id="hkBuiltin">-</b></div>
+      <div class="kv"><span>自定义规则数</span><b id="hkCustomN">-</b></div>
+      <div class="card-head" style="margin-top:8px">最近事件</div>
+      <textarea class="ta" id="hkEventLog" readonly style="min-height:130px" placeholder="(暂无)"></textarea>
+      <div class="btn-row"><button class="btn" data-act="hk-events">刷新事件</button>
+        <button class="btn danger" data-act="hk-clear-events">清空事件</button></div>
+    </div>
+  </section>
+
   <section class="page hide" id="page-settings">
     <div class="page-title">
       <div>
@@ -2447,6 +2640,33 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     <div class="row">
       <div class="col-6">
         <div class="card">
+          <div class="card accent-alt">
+            <div class="card-head">外观与主题<span class="tagline">立即生效</span></div>
+            <div class="kv"><span>主题</span>
+              <div class="psel" id="themeSeg">
+                <button data-act="theme-dark">深色</button>
+                <button data-act="theme-light">浅色</button>
+                <button data-act="theme-auto">跟随系统</button>
+              </div>
+            </div>
+            <div class="kv"><span>界面密度</span>
+              <div class="psel" id="densitySeg">
+                <button data-act="dense-off">宽松</button>
+                <button data-act="dense-on">紧凑</button>
+              </div>
+            </div>
+            <div class="kv"><span>字体大小</span>
+              <div class="psel" id="fontSeg">
+                <button data-act="font-s">小</button>
+                <button data-act="font-m">标准</button>
+                <button data-act="font-l">大</button>
+              </div>
+            </div>
+            <div class="kv"><span>底部导航毛玻璃</span><button class="btn sm primary" data-act="glass-toggle">切换</button></div>
+            <div class="kv"><span>减少动效（省电/流畅）</span><button class="btn sm primary" data-act="motion-toggle">切换</button></div>
+            <div class="hint">主题会同时作用于面板与内置 App（App 侧跟随系统深浅色）。</div>
+          </div>
+          <div style="height:12px"></div>
           <div class="card-head">功能开关<span class="tagline">点一下即切换</span></div>
           <div class="kv"><span>★ 一键全防护（推荐新手）</span>
             <button class="btn sm primary" data-act="one-click-on">开启全部</button></div>
@@ -3510,6 +3730,36 @@ function loadProxyNode(){
    ============================================================ */
 var actions={
   "theme":function(){ switchTheme(); },
+  /* ---- 外观页 ---- */
+  "theme-dark":function(){ setThemeMode("dark"); },
+  "theme-light":function(){ setThemeMode("light"); },
+  "theme-auto":function(){ setThemeMode("auto"); },
+  "dense-on":function(){ optSet("density","on"); applyThemeOpts(); toast("已切紧凑布局"); },
+  "dense-off":function(){ optSet("density","off"); applyThemeOpts(); toast("已切宽松布局"); },
+  "font-s":function(){ optSet("font","s"); applyThemeOpts(); },
+  "font-m":function(){ optSet("font","m"); applyThemeOpts(); },
+  "font-l":function(){ optSet("font","l"); applyThemeOpts(); },
+  "glass-toggle":function(){ var v=optGet("glass","on")==="on"?"off":"on"; optSet("glass",v); applyThemeOpts(); toast(v==="on"?"底部毛玻璃：开":"底部毛玻璃：关"); },
+  "magnify-toggle":function(){ var v=optGet("magnify","on")==="on"?"off":"on"; optSet("magnify",v); applyThemeOpts(); toast(v==="on"?"放大镜效果：开":"放大镜效果：关"); },
+  "motion-toggle":function(){ var v=optGet("motion","on")==="on"?"off":"on"; optSet("motion",v); applyThemeOpts(); toast(v==="on"?"减少动效：开":"减少动效：关"); },
+  "glow-toggle":function(){ var v=optGet("glow","on")==="on"?"off":"on"; optSet("glow",v); applyThemeOpts(); toast(v==="on"?"背景光斑：开":"背景光斑：关"); },
+  "accent-blue":function(){ optSet("accent","blue"); applyThemeOpts(); clearCssVarCache(); },
+  "accent-purple":function(){ optSet("accent","purple"); applyThemeOpts(); clearCssVarCache(); },
+  "accent-green":function(){ optSet("accent","green"); applyThemeOpts(); clearCssVarCache(); },
+  "accent-cyan":function(){ optSet("accent","cyan"); applyThemeOpts(); clearCssVarCache(); },
+  /* ---- Hook 页 ---- */
+  "hk-refresh":function(){ return loadHook(); },
+  "hk-recheck":function(){ return loadHook(true); },
+  "hk-install":function(){ busy("准备中…"); return runScript("installapp.sh",["ensure"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadHook(true); }); },
+  "hk-mode":function(el){ var v=el.getAttribute("data-v"); busy("切换…"); return runScript("leakguard.sh",["hook-mode",v]).then(function(o){ toast(msg(o)); return loadHook(true); }); },
+  "hk-apply":function(){ busy("应用规则…"); return runScript("hook_rules.sh",["apply"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadHook(true); }); },
+  "hk-save-rules":function(){ var tx=$("#hkRules")?$("#hkRules").value:""; busy("保存…"); return runScriptStdin("hook_rules.sh",["save-custom"],tx).then(function(o){ toast(msg(o)); return loadHook(true); }); },
+  "hk-load-rules":function(){ return runScript("hook_rules.sh",["list-custom"]).then(function(o){ var ta=$("#hkRules"); if(ta) ta.value=String(o||""); toast("已载入自定义规则"); }); },
+  "hk-clear-rules":function(){ if(!confirm("清空全部自定义 Hook 规则？")) return Promise.resolve(); return runScript("hook_rules.sh",["clear-custom"]).then(function(o){ toast(msg(o)); return loadHook(true); }); },
+  "hk-analyze":function(){ var tx=$("#hkImport")?$("#hkImport").value:""; return runScriptStdin("hook_rules.sh",["analyze"],tx).then(function(o){ setText("hkImportOut", String(o||"").trim()); }); },
+  "hk-import":function(){ var tx=$("#hkImport")?$("#hkImport").value:""; if(!tx.trim()){ toast("请先粘贴规则"); return Promise.resolve(); } busy("导入中…"); return runScriptStdin("hook_rules.sh",["import"],tx).then(function(o){ setText("hkImportOut", String(o||"").trim()); toast("已导入"); var ta=$("#hkImport"); if(ta) ta.value=""; }); },
+  "hk-events":function(){ return loadHookEvents(); },
+  "hk-clear-events":function(){ return runScript("leakguard.sh",["hook-clear"]).then(function(o){ toast(msg(o)); return loadHookEvents(); }); },
 
   "refresh-home":function(){ return Promise.all([loadHome(),loadPanel()]).then(function(){toast("总览已刷新")}); },
 
@@ -5822,6 +6072,8 @@ function loadTab(tab){
     case "engine": return loadEngine();
     case "tools": return loadBackups();
     case "settings": return loadSettings();
+    case "theme": return Promise.resolve(applyThemeOpts());
+    case "hook": return loadHook();
     /* ---- 极客控制台 ---- */
     case "route-home":  return loadRouteHome();
     case "route-proxy": return loadRouteProxy();
@@ -5865,7 +6117,8 @@ var WS = {
            ["netblock","拦截服务"],["notify","通知过滤"]],
   filter: [["dns","DNS 拦截列表"],["builtin","内置规则"],["engine","自定义过滤规则"],
            ["mitm","加密过滤 · 根证书"],["splash","开屏跳过"],["fileedit","文件编辑器"]],
-  more:   [["settings","常规设置"],["dnssrv","DNS 设置"],["app","内置管理器 App"],["scripts","脚本扩展"]]
+  more:   [["settings","常规设置"],["theme","外观与主题"],["hook","Hook 与注入"],
+           ["dnssrv","DNS 设置"],["app","内置管理器 App"],["scripts","脚本扩展"]]
 };
 var WSNAME = {run:"运行", proxy:"代理", shield:"隐私", filter:"过滤", more:"更多"};
 var WSICO  = {run:"⌂", proxy:"⇄", shield:"🛡", filter:"⊘", more:"⋯"};
@@ -5880,11 +6133,12 @@ var WS_DESC = {
   dns:"hosts 规则、来源与白名单", builtin:"去水印 · 反广告拦截 · 阻止诱导下载",
   engine:"AdGuard × uBlock 规则引擎", mitm:"证书与 HTTPS 元素隐藏",
   splash:"开屏广告自动跳过", fileedit:"配置与规则在线编辑",
-  settings:"常用开关与持久化", dnssrv:"独立 DNS 接管", app:"SY 管理器 App", scripts:"用户脚本扩展"
+  settings:"常用开关与持久化", theme:"主题 · 密度 · 字体 · 动效",
+  hook:"自定义 Hook 规则 · 多语法导入",
+  dnssrv:"独立 DNS 接管", app:"SY 管理器 App", scripts:"用户脚本扩展"
 };
 
 /* ---------- 导航状态 ---------- */
-var NAV = { stack: [], ws: "run" };
 var CUR_TAB = "home";
 
 /* 收起抽屉（保留为快速切换浮层） */
@@ -5935,10 +6189,112 @@ function renderWsList(ws){
   }).join("");
 }
 
+/* ================= 外观与主题 ================= */
+var THEME_OPTS = {density:"ab_density", font:"ab_font", glass:"ab_glass", magnify:"ab_magnify", motion:"ab_motion", accent:"ab_accent", glow:"ab_glow"};
+function optGet(k, d){ try { var v=localStorage.getItem(THEME_OPTS[k]); return v===null?d:v; } catch(e){ return d; } }
+function optSet(k, v){ try { localStorage.setItem(THEME_OPTS[k], v); } catch(e){} }
+function applyThemeOpts(){
+  var el = document.documentElement;
+  el.classList.toggle("dense", optGet("density","off")==="on");
+  var f = optGet("font","m");
+  el.classList.remove("font-s","font-m","font-l"); el.classList.add("font-"+f);
+  el.classList.toggle("no-glass", optGet("glass","on")!=="on");
+  el.classList.toggle("no-magnify", optGet("magnify","on")!=="on");
+  el.classList.toggle("reduce-motion", optGet("motion","on")==="on");
+  el.classList.toggle("no-glow", optGet("glow","on")!=="on");
+  el.setAttribute("data-accent", optGet("accent","blue"));
+  syncThemeSegs();
+}
+function segOn(boxId, act){
+  var box=document.getElementById(boxId); if(!box) return;
+  var bs=box.querySelectorAll("button");
+  for(var i=0;i<bs.length;i++){
+    var a=bs[i].getAttribute("data-act"), v=bs[i].getAttribute("data-v");
+    bs[i].classList.toggle("on", a===act || v===act);
+  }
+}
+function syncThemeSegs(){
+  var el=document.documentElement;
+  var auto=optGet("themeAuto","0")==="1";
+  var cur = auto?"theme-auto":(el.classList.contains("theme-dark")?"theme-dark":"theme-light");
+  segOn("themeSeg", cur); segOn("themeSeg2", cur);
+  var d = optGet("density","off")==="on" ? "dense-on":"dense-off";
+  segOn("densitySeg", d); segOn("densitySeg2", d);
+  var f = "font-"+optGet("font","m");
+  segOn("fontSeg", f); segOn("fontSeg2", f);
+  segOn("accentSeg", "accent-"+optGet("accent","blue"));
+}
+function setThemeMode(mode){
+  var el=document.documentElement;
+  if(mode==="auto"){
+    optSet("themeAuto","1");
+    var lt = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    el.classList.remove("theme-dark","theme-light");
+    el.classList.add(lt?"theme-light":"theme-dark");
+  } else {
+    optSet("themeAuto","0");
+    el.classList.remove("theme-dark","theme-light");
+    el.classList.add(mode==="light"?"theme-light":"theme-dark");
+    try{ localStorage.setItem("ab_theme", mode); }catch(e){}
+  }
+  clearCssVarCache(); syncThemeSegs();
+  toast(mode==="auto"?"主题：跟随系统":(mode==="light"?"主题：浅色":"主题：深色"));
+}
+try{ if(window.matchMedia){ window.matchMedia("(prefers-color-scheme: light)").addEventListener("change",function(){ if(optGet("themeAuto","0")==="1") setThemeMode("auto"); }); } }catch(e){}
+
+/* ================= Hook 与注入 ================= */
+function loadHook(announce){
+  return Promise.all([
+    runScript("leakguard.sh",["hook-status"]).catch(function(){ return ""; }),
+    runScript("hook_rules.sh",["stats"]).catch(function(){ return ""; })
+  ]).then(function(res){
+    var st = String(res[0]||"");
+    var sm = String(res[1]||"");
+    // 前提自检：直接展示脚本给出的「为什么没生效」
+    var pre = [];
+    var lines = st.split("\n");
+    for (var i=0;i<lines.length;i++){
+      if (lines[i].indexOf("[OK]")>=0 || lines[i].indexOf("[缺失]")>=0 || lines[i].indexOf("[不可用]")>=0) pre.push(lines[i]);
+    }
+    setText("hkPre", pre.length ? pre.join("\n") : "(自检无输出)");
+    // 模式
+    var mm = st.match(/hook mode\s*:\s*(\S+)/);
+    setText("hkMode", mm?mm[1]:"-");
+    // 内置钩子数
+    var bm = st.match(/builtin hooks:/);
+    var bn = 0;
+    if (bm) { var bIdx = st.indexOf("builtin hooks:"); var seg = st.slice(bIdx).split("\n"); for (var j=1;j<seg.length;j++){ if (seg[j].indexOf("  ")===0) bn++; else if (seg[j].trim()==="") break; } }
+    setText("hkBuiltin", String(bn));
+    // 事件数
+    var em = st.match(/events\s*:\s*(\d+)/);
+    setText("hkEvents", em?em[1]:"0");
+    // hook_rules stats（JSON）
+    try {
+      var j = extractJson(sm);
+      if (j) {
+        setText("hkCustomN", String(j.custom||0));
+        if ($("#hkRules") && j.customText) $("#hkRules").value = j.customText;
+      }
+    } catch(e){}
+    if (announce) toast("已刷新");
+    return loadHookEvents();
+  });
+}
+function loadHookEvents(){
+  return runScript("leakguard.sh",["hook-events","30"]).then(function(o){
+    var ta=$("#hkEventLog"); if(ta) ta.value=String(o||"(暂无)").slice(0,4000);
+  }).catch(function(){});
+}
 /* 显示某一页（只负责显示） */
-function showPage(id){
-  $$(".page").forEach(function(pg){ pg.classList.toggle("hide", pg.id!=="page-"+id); });
+function showPage(id, anim){
+  var target = null;
+  $$(".page").forEach(function(pg){
+    var on = pg.id==="page-"+id;
+    if(on) target = pg;
+    pg.classList.toggle("hide", !on);
+  });
   $$("[data-tab]").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===id); });
+  if(anim) pageTransition(target, anim);
   window.scrollTo(0,0);
 }
 function updateBackBar(){
@@ -5949,24 +6305,59 @@ function updateBackBar(){
   if(deep){ setText("backTitle", WSNAME[NAV.ws] + " · " + wslabel(NAV.ws, NAV.stack[NAV.stack.length-1])); }
 }
 /* 进入工作区（第一层） */
-function navToWs(ws){
+/* ============================================================
+   三级堆栈导航（模仿微信的信息层级）
+   ------------------------------------------------------------
+   微信的层级：底部 tab → 会话/列表页 → 聊天/详情页。
+   本面板对应：底部入口(工作区) → 工作区列表 → 功能页。
+   关键体验点（这次补齐的）：
+     · 入栈/出栈都有**横向滑动转场**（进入从右滑入、返回向右滑出），
+       和微信一致，而不是"啪一下换页"；
+     · 返回栈是**真栈**（NAV.stack 数组），支持任意层级回退；
+     · 系统返回键/浏览器返回键与返回条走同一套；
+     · 底部入口在深层时再点一次 = 回到该工作区列表（微信点 tab 同理）。
+   ============================================================ */
+var NAV = { stack: [], ws: "run", animating: false };
+
+/* 页面转场：dir = "push"（新页从右进）| "pop"（当前页向右出） */
+function pageTransition(pageEl, dir){
+  if(!pageEl) return;
+  var reduce = optGet ? optGet("motion","on")==="on" : false;
+  if(reduce){ pageEl.style.transform=""; pageEl.style.opacity=""; return; }
+  var from = dir==="push" ? 18 : -18;
+  var to   = 0;
+  pageEl.style.transition = "none";
+  pageEl.style.transform = "translateX(" + from + "px)";
+  pageEl.style.opacity = "0.6";
+  // 强制 reflow 后再过渡，否则浏览器会合并两帧、看不到动画
+  void pageEl.offsetWidth;
+  pageEl.style.transition = "transform .26s cubic-bezier(.32,.72,0,1), opacity .26s ease";
+  pageEl.style.transform = "translateX(" + to + "px)";
+  pageEl.style.opacity = "1";
+}
+
+/* 进入工作区（第 2 级）：显示该工作区的功能列表 */
+function navToWs(ws, noAnim){
   if(!WS[ws]) ws="run";
   NAV.ws = ws;
-  NAV.stack = [ws];
+  NAV.stack = ["ws:"+ws];
   CUR_TAB = "wslist";
   renderWsList(ws);
-  showPage("wslist");
+  var el = document.getElementById("page-wslist");
+  showPage("wslist", noAnim ? null : "pop");
   syncBottomNav();
   updateBackBar();
   try{ history.pushState({sy:1, ws:ws, deep:false}, ""); }catch(e){}
 }
-/* 进入功能页（第二层，入栈） */
+
+/* 进入功能页（第 3 级）：入栈 */
 function navToTab(tab, pushHistory){
+  if(tab==="wslist"){ navToWs(NAV.ws); return; }
   var ws = wsOf(tab);
   NAV.ws = ws;
-  NAV.stack = [ws, tab];
+  NAV.stack = ["ws:"+ws, "tab:"+tab];
   CUR_TAB = tab;
-  showPage(tab);
+  showPage(tab, "push");
   syncBottomNav();
   updateBackBar();
   try{ localStorage.setItem("ab_last_"+ws, tab); }catch(e){}
@@ -5974,14 +6365,25 @@ function navToTab(tab, pushHistory){
   syncLiveTimers();
   loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
 }
-/* 回退一层 */
+
+/* 回退一级（真栈语义）：功能页 → 列表页 → （到头则不再回） */
 function navBack(){
   if(NAV.stack.length > 1){
-    NAV.stack = [NAV.ws];
-    CUR_TAB = "wslist";
-    renderWsList(NAV.ws);
-    showPage("wslist");
+    NAV.stack.pop();
+    var top = NAV.stack[NAV.stack.length-1] || ("ws:"+NAV.ws);
+    if(top.indexOf("ws:")===0){
+      NAV.ws = top.slice(3);
+      CUR_TAB = "wslist";
+      renderWsList(NAV.ws);
+      showPage("wslist", "pop");
+    } else {
+      var tb = top.slice(4);
+      CUR_TAB = tb;
+      showPage(tb, "pop");
+      loadTab(tb).catch(function(){});
+    }
     updateBackBar();
+    syncBottomNav();
     return true;
   }
   return false;
@@ -6135,6 +6537,7 @@ document.addEventListener("change",function(ev){
   /* KSU 模式下每次取数都要 fork 进程，刷新间隔必须放宽，
      否则光刷新就能把手机 CPU 吃满（与上一版卡顿同源）。 */
   LIVE_MS = hasKSU() ? 2500 : 1200;
+  applyThemeOpts();
   switchTab("home");
   setInterval(function(){
     if(document.hidden) return;                 // 切后台时停止轮询，避免空转耗电

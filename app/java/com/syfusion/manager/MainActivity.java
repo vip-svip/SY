@@ -12,8 +12,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
@@ -36,6 +34,7 @@ import android.widget.Toolbar;
 public class MainActivity extends Activity {
 
     private WebView web;
+    private LinearLayout navHolder;
     private TextView tvCore, tvMode, tvUp, tvDown, tvConn;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private int port = PanelApi.DEFAULT_PORT;
@@ -101,12 +100,243 @@ public class MainActivity extends Activity {
         });
         web.setWebChromeClient(new WebChromeClient());
         web.setBackgroundColor(getColor(R.color.bg));
+        // 底部导航：替代原来的右上角三个点菜单
         root.addView(web, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        navHolder = buildBottomNav();
+        root.addView(navHolder, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         setContentView(root);
         askNotificationPermission();
         ensurePanelAndLoad();
+    }
+
+    /* ============================================================
+     *  底部导航（替代原来的右上角三个点菜单）
+     *  为什么改：三个点菜单是 17 个扁平项，用户要一次次展开才知道有什么；
+     *  改成底部 4 个入口后，一级直达、二级用「更多」页列出全部能力。
+     *  这也和模块 WebUI 的底部导航保持一致（同一个信息架构）。
+     * ============================================================ */
+    private LinearLayout navBar;
+    private final java.util.List<TextView> navItems = new java.util.ArrayList<TextView>();
+    private final String[] NAV_LABELS = {"面板", "状态", "防护", "更多"};
+    private int curNav = 0;
+
+    private LinearLayout buildBottomNav() {
+        navBar = new LinearLayout(this);
+        navBar.setOrientation(LinearLayout.HORIZONTAL);
+        navBar.setBackgroundColor(getColor(R.color.surface));
+        navBar.setPadding(dp(4), dp(4), dp(4), dp(6));
+        for (int i = 0; i < NAV_LABELS.length; i++) {
+            final int idx = i;
+            TextView t = new TextView(this);
+            t.setText(NAV_LABELS[i]);
+            t.setGravity(Gravity.CENTER);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            t.setTextColor(getColor(R.color.text_dim));
+            t.setPadding(dp(4), dp(10), dp(4), dp(10));
+            t.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { onNavPick(idx); }
+            });
+            navItems.add(t);
+            navBar.addView(t, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        paintNav();
+        return navBar;
+    }
+
+    private void paintNav() {
+        for (int i = 0; i < navItems.size(); i++) {
+            navItems.get(i).setTextColor(getColor(i == curNav ? R.color.accent : R.color.text_dim));
+        }
+    }
+
+    private void onNavPick(int idx) {
+        curNav = idx;
+        paintNav();
+        switch (idx) {
+            case 0:
+                // 面板：载入 WebUI 首页（把 17 个菜单项的位置交给面板本身）
+                web.loadUrl(PanelApi.base(port) + "/");
+                break;
+            case 1:
+                showTextAsync(RootShell.rootStatus(), "运行状态");
+                break;
+            case 2:
+                showDefenseSheet();
+                break;
+            case 3:
+                showMoreSheet();
+                break;
+        }
+    }
+
+    /* 「防护」页：把原本散在菜单里的隐私类操作集中起来，每个都是明确的按钮 */
+    private void showDefenseSheet() {
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(8), dp(12), dp(8));
+        box.setBackgroundColor(getColor(R.color.bg));
+        addAction(box, "隐私防泄露状态", new Runnable() {
+            @Override public void run() {
+                showCmd(new Cmd() { public String run() { return RootShell.leakStatus(); } }, "隐私防泄露状态");
+            }
+        });
+        addAction(box, "开启全部隐私防护", new Runnable() {
+            @Override public void run() {
+                runLeakAsync(RootShell.leakAll(true), "开启全部隐私防护");
+            }
+        });
+        addAction(box, "关闭全部隐私防护", new Runnable() {
+            @Override public void run() {
+                runLeakAsync(RootShell.leakAll(false), "关闭全部隐私防护");
+            }
+        });
+        addAction(box, "运营商隐私收敛", new Runnable() {
+            @Override public void run() {
+                runRootAsync(RootShell.carrierToggle(true), "运营商隐私收敛");
+            }
+        });
+        addAction(box, "紧急恢复（还原全部改动）", new Runnable() {
+            @Override public void run() {
+                runLeakAsync(RootShell.leakPanic(), "紧急恢复");
+            }
+        });
+        addAction(box, "恢复上次状态", new Runnable() {
+            @Override public void run() {
+                runLeakAsync(RootShell.leakRestore(), "恢复上次状态");
+            }
+        });
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("防护")
+                .setView(scroll(box))
+                .setPositiveButton("关闭", null)
+                .show();
+    }
+
+    /* 「更多」页：内核/主题/Hook/关于 —— 原本三个点菜单里的项全部在这 */
+    private void showMoreSheet() {
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(8), dp(12), dp(8));
+        box.setBackgroundColor(getColor(R.color.bg));
+        addAction(box, "刷新面板", new Runnable() {
+            @Override public void run() { web.reload(); toast("已刷新"); }
+        });
+        addAction(box, "用浏览器打开", new Runnable() {
+            @Override public void run() {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(PanelApi.base(port) + "/")));
+                } catch (Exception e) { toast("没有可用的浏览器"); }
+            }
+        });
+        addAction(box, "重启内核", new Runnable() {
+            @Override public void run() { runRootAsync(RootShell.restartCore(), "重启内核"); }
+        });
+        addAction(box, "停止内核", new Runnable() {
+            @Override public void run() { runRootAsync(RootShell.stopCore(), "停止内核"); }
+        });
+        addAction(box, "切换主题（跟随面板）", new Runnable() {
+            @Override public void run() { toggleTheme(); }
+        });
+        addAction(box, "Hook 状态", new Runnable() {
+            @Override public void run() {
+                showTextAsync(RootShell.hookStatus(), "Hook 状态");
+            }
+        });
+        addAction(box, "Hook 事件记录", new Runnable() {
+            @Override public void run() {
+                showTextAsync(RootShell.hookEvents(30), "Hook 事件记录");
+            }
+        });
+        addAction(box, "切换 Hook 模式", new Runnable() {
+            @Override public void run() {
+                toast(cycleHookMode());
+            }
+        });
+        addAction(box, "清空 Hook 记录", new Runnable() {
+            @Override public void run() {
+                runRootAsync(RootShell.hookClear(), "清空 Hook 记录");
+            }
+        });
+        addAction(box, "Root 权限状态", new Runnable() {
+            @Override public void run() {
+                showCmd(new Cmd() { public String run() { return RootShell.rootStatus(); } }, "Root 权限状态");
+            }
+        });
+        addAction(box, "关于", new Runnable() {
+            @Override public void run() { showAbout(); }
+        });
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("更多")
+                .setView(scroll(box))
+                .setPositiveButton("关闭", null)
+                .show();
+    }
+
+    private View scroll(View v) {
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(v);
+        return sv;
+    }
+
+    private void addAction(LinearLayout parent, String label, final Runnable act) {
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        t.setTextColor(getColor(R.color.text));
+        t.setPadding(dp(10), dp(14), dp(10), dp(14));
+        t.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { act.run(); }
+        });
+        parent.addView(t, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    /* 主题：App 侧跟随系统深浅色（面板内部有自己的主题，两者各自独立） */
+    private void toggleTheme() {
+        int cur = getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        boolean dark = cur == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        android.content.SharedPreferences sp = getSharedPreferences("sy", MODE_PRIVATE);
+        sp.edit().putBoolean("app_dark", !dark).apply();
+        applyAppTheme(!dark);
+        toast(!dark ? "App 主题：深色" : "App 主题：浅色");
+    }
+
+    private void applyAppTheme(boolean dark) {
+        int bg = dark ? Color.parseColor("#0E1116") : Color.parseColor("#F6F7F9");
+        int surface = dark ? Color.parseColor("#161B22") : Color.parseColor("#FFFFFF");
+        int text = dark ? Color.parseColor("#E6EDF3") : Color.parseColor("#1F2328");
+        int dim = dark ? Color.parseColor("#8B949E") : Color.parseColor("#6E7781");
+        findViewById(android.R.id.content).setBackgroundColor(bg);
+        if (navBar != null) navBar.setBackgroundColor(surface);
+        web.setBackgroundColor(bg);
+        appDark = dark;
+        // 状态条与导航文字一起刷新
+        for (TextView t : navItems) t.setTextColor(t == navItems.get(curNav) ? getColor(R.color.accent) : dim);
+        setStatColors(text, dim);
+    }
+
+    private boolean appDark = true;
+    private void setStatColors(int text, int dim) {
+        TextView[] all = {tvCore, tvMode, tvUp, tvDown, tvConn};
+        for (TextView t : all) if (t != null) t.setTextColor(text);
+    }
+
+    private void showAbout() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.app_name)
+                .setMessage("SY 内置管理器\n\n"
+                        + "面板地址：" + PanelApi.base(port) + "\n"
+                        + "模块目录：" + RootShell.MODDIR + "\n"
+                        + "root：" + (RootShell.hasRoot() ? "可用" : "不可用") + "\n\n"
+                        + "本 App 做四件事：拉起面板、展示状态、转发需要 root 的操作、"
+                        + "承载 Hook 与无障碍跳广告。所有配置都在模块面板里完成。")
+                .setPositiveButton("知道了", null)
+                .show();
     }
 
     private View buildStatusStrip() {
@@ -262,104 +492,6 @@ public class MainActivity extends Activity {
                 }
             } catch (Exception ignored) {
             }
-        }
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(0, 1, 0, R.string.menu_refresh);
-        menu.add(0, 2, 1, R.string.menu_browser);
-        menu.add(0, 3, 2, R.string.menu_restart);
-        menu.add(0, 4, 3, R.string.menu_stop);
-        // 隐私防泄露子功能
-        menu.add(0, 6, 4, R.string.menu_privacy_status);
-        menu.add(0, 7, 5, R.string.menu_privacy_on);
-        menu.add(0, 8, 6, R.string.menu_privacy_off);
-        menu.add(0, 9, 7, R.string.menu_privacy_panic);
-        menu.add(0, 10, 8, R.string.menu_privacy_restore);
-        menu.add(0, 11, 9, R.string.menu_privacy_apps);
-        // Hook 子系统 / Root / 运营商隐私
-        menu.add(0, 12, 10, R.string.menu_hook_status);
-        menu.add(0, 13, 11, R.string.menu_hook_events);
-        menu.add(0, 14, 12, R.string.menu_hook_mode);
-        menu.add(0, 15, 13, R.string.menu_hook_clear);
-        menu.add(0, 16, 14, R.string.menu_carrier_on);
-        menu.add(0, 17, 15, R.string.menu_root_status);
-        menu.add(0, 5, 16, R.string.menu_about);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case 1:
-                web.reload();
-                toast("已刷新");
-                return true;
-            case 2:
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse(PanelApi.base(port) + "/")));
-                } catch (Exception e) {
-                    toast("没有可用的浏览器");
-                }
-                return true;
-            case 3:
-                runRootAsync(RootShell.restartCore(), "重启内核");
-                return true;
-            case 4:
-                runRootAsync(RootShell.stopCore(), "停止内核");
-                return true;
-            case 6:
-                showCmd(new Cmd() { public String run() { return RootShell.leakStatus(); } }, "隐私防泄露状态");
-                return true;
-            case 7:
-                runLeakAsync(RootShell.leakAll(true), "开启全部隐私防护");
-                return true;
-            case 8:
-                runLeakAsync(RootShell.leakAll(false), "关闭全部隐私防护");
-                return true;
-            case 9:
-                runLeakAsync(RootShell.leakPanic(), "应急加固");
-                return true;
-            case 10:
-                runLeakAsync(RootShell.leakRestore(), "恢复默认");
-                return true;
-            case 11:
-                showCmd(new Cmd() { public String run() { return RootShell.leakApps("list"); } }, "隐私收敛应用清单");
-                return true;
-            case 12:
-                showCmd(new Cmd() { public String run() { return RootShell.hookStatus(); } }, "Hook 能力与事件");
-                return true;
-            case 13:
-                showCmd(new Cmd() { public String run() { return RootShell.hookEvents(50); } }, "最近 Hook 事件");
-                return true;
-            case 14:
-                runCmd(new Cmd() { public String run() { return cycleHookMode(); } }, "切换 Hook 模式");
-                return true;
-            case 15:
-                runCmd(new Cmd() { public String run() { return RootShell.hookClear(); } }, "清空 Hook 事件");
-                return true;
-            case 16:
-                runCmd(new Cmd() { public String run() { return RootShell.carrierToggle(true); } }, "运营商隐私收敛");
-                return true;
-            case 17:
-                showCmd(new Cmd() { public String run() { return RootShell.rootStatus(); } }, "Root 权限状态");
-                return true;
-            case 5:
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle(R.string.app_name)
-                        .setMessage("SY Fusion 内置管理器\n\n"
-                                + "面板地址：" + PanelApi.base(port) + "\n"
-                                + "模块目录：" + RootShell.MODDIR + "\n"
-                                + "root：" + (RootShell.hasRoot() ? "可用" : "不可用") + "\n\n"
-                                + "本 App 只做三件事：拉起面板、展示状态、"
-                                + "转发需要 root 的操作。所有配置都在模块面板里完成。")
-                        .setPositiveButton("知道了", null)
-                        .show();
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
         }
     }
 

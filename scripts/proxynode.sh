@@ -1,4 +1,5 @@
-#!/system/bin/sh
+    printf '      {"action": "sniff", "outbound": "direct"}\n'
+    printf '    ],\n'
 # ============================================================
 #  proxynode.sh — 网络代理模块（内核 + 节点 + 订阅 + 防 IP 泄露）
 #  · 节点管理: vmess/vless/trojan/ss/hysteria2 分享链接，多节点
@@ -390,12 +391,73 @@ gen_config_legacy() {
   [ -z "$sel" ] && { echo "ERR: 请先选择节点"; return 1; }
   line=$(sed -n "${sel}p" "$NODES" 2>/dev/null)
   [ -z "$line" ] && { echo "ERR: 节点 #$sel 不存在"; return 1; }
-  link=$(echo "$line" | cut -d'|' -f3-)
+  link=$(echo "$line" | cut -d"|" -f3-)
+  # 【真机缺陷修复】用户添加的常常是**订阅地址**（http(s)://...），
+  # 旧版直接把它当节点链接交给 node_to_outbound 解析 → 必然失败，
+  # 于是"有节点但生不出配置"，面板报「内核缺少配置」（真机实测）。
+  # 现在：识别出 http(s) 订阅地址时**先拉取展开**成真实节点，再解析。
+  case "$link" in
+    http://*|https://*)
+      echo "订阅地址，正在拉取…"
+      _sub_url="$link"
+      _tmp="$CACHE/proxysub.gen.tmp"
+      mkdir -p "$CACHE" 2>/dev/null
+      if http_get "$_sub_url" "$_tmp" 40; then
+        # 【性能缺陷修复】旧版把整个订阅内容塞进 shell 变量再用 printf/grep 传参，
+        # 大订阅必然报 "Argument list too long"（真机实测）。改为**全程文件流**：
+        # 内容始终留在临时文件里，只用 grep/tr 直接读文件。
+        if ! grep -qE "://" "$_tmp" 2>/dev/null; then
+          # 不含明文链接 → 大概率是整体 base64，解码回写同一文件
+          _dec=$(b64dec < "$_tmp" 2>/dev/null | head -c 2000000)
+          if [ -n "$_dec" ]; then
+            printf "%s" "$_dec" > "$_tmp.dec" 2>/dev/null
+            mv "$_tmp.dec" "$_tmp" 2>/dev/null
+          fi
+        fi
+        # 【真机缺陷修复】订阅常见两种形态：① base64/明文分享链接 ② Clash YAML
+        #   （proxies: 列表）。旧版只找 vmess:// 这类链接，遇到 Clash YAML 就报
+        #   「没有可用的节点链接」，于是永远生不出配置（真机实测订阅就是 Clash YAML）。
+        # 现在：先按分享链接找；找不到再按 Clash/sing-box 配置解析（复用已有函数）。
+        _first=$(tr -d "\r" < "$_tmp" 2>/dev/null | grep -m1 -E "^(vmess|vless|trojan|ss|hysteria2|hy2)://")
+        if [ -n "$_first" ]; then
+          _proto=$(printf "%s" "$_first" | sed "s|://.*||")
+          [ "$_proto" = "hy2" ] && _proto="hysteria2"
+          _n=$(count_lines "$NODES")
+          printf "%s|%s|%s\n" "订阅节点$((_n+1))" "$_proto" "$_first" >> "$NODES" 2>/dev/null
+          link="$_first"
+          echo "OK: 订阅已展开为节点（$_proto）"
+        else
+          # 不是分享链接 → 当作 Clash / sing-box 配置解析（复用项目已有能力）
+          _before=$(count_lines "$NODES")
+          _config_to_tsv < "$_tmp" 2>/dev/null | _tsv_to_nodes >/dev/null 2>&1
+          _after=$(count_lines "$NODES")
+          if [ "$_after" -gt "$_before" ]; then
+            echo "OK: 订阅（Clash/sing-box 配置）已解析，新增 $((_after-_before)) 个节点"
+            # 取新增里的第一条作为本次要生成配置的节点
+            _first=$(sed -n "$((_before+1))p" "$NODES" 2>/dev/null | cut -d"|" -f3-)
+            # 选中它
+            echo "$((_before+1))" > "$SELECTED"
+            link="$_first"
+          else
+            echo "ERR: 订阅无法解析为节点（既无分享链接，也不是 Clash/sing-box 配置）"
+            echo "     已下载原文到 $_tmp，可手动检查"
+            return 1
+          fi
+        fi
+      else
+        echo "ERR: 订阅下载失败（检查网络或订阅地址）"
+        return 1
+      fi
+      ;;
+  esac
   ob=$(node_to_outbound "$link")
   [ -z "$ob" ] && { echo "ERR: 节点链接解析失败，请检查格式"; return 1; }
   {
     printf '{\n'
     printf '  "log": {"level": "warn"},\n'
+    printf '  "experimental": {\n'
+    printf '    "clash_api": {"external_controller": "127.0.0.1:9090", "default_mode": "rule"}\n'
+    printf '  },\n'
     printf '  "dns": {\n'
     printf '    "servers": [\n'
     # 注意：不能给直连 DNS 写 detour:direct，sing-box 1.14 会直接报
@@ -416,8 +478,12 @@ gen_config_legacy() {
     printf '  ],\n'
     printf '  "route": {\n'
     printf '    "rules": [\n'
-    printf '      {"action": "sniff"},\n'
-    printf '      {"protocol": "dns", "action": "hijack-dns"}\n'
+      # 【真机缺陷修复】sing-box **1.10.x 要求每条 route 规则带 outbound 字段**，
+      # 只有 1.11+ 才接受 {"action":"sniff"} 这种纯 action 短语法。
+      # 旧版写了短语法 → 1.10.1 直接报 "parse rule[0]: missing outbound field"，
+      # 内核起不来（真机实测）。下面用 1.10 兼容写法（带 outbound）。
+    printf '      {"protocol": "dns", "outbound": "direct"},\n'
+    printf '      {"action": "sniff", "outbound": "direct"}\n'
     printf '    ],\n'
     printf '    "final": "proxy",\n'
     printf '    "auto_detect_interface": true\n'
