@@ -69,7 +69,7 @@ if [ "${PANEL_ENABLE:-1}" = "1" ]; then
 fi
 
 
-# 隐私护盾: 反诈/风控应用隔离 + 能力面收紧（仅总开关开启时）
+# 隐私护盾: FX/风控应用隔离 + 能力面收紧（仅总开关开启时）
 if [ "${PRIVACY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/privacy_guard.sh" ]; then
   sh "$MODDIR/scripts/privacy_guard.sh" apply
 fi
@@ -77,6 +77,11 @@ fi
 # 游戏隐私保护: 不让游戏读取隐私（仅总开关开启时）
 if [ "${GAME_PRIVACY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/game_privacy.sh" ]; then
   sh "$MODDIR/scripts/game_privacy.sh" apply
+fi
+
+# FX 深度抵抗（仅总开关开启时）
+if [ "${FX_DEEPGUARD_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/fx_deepguard.sh" ]; then
+  sh "$MODDIR/scripts/fx_deepguard.sh" apply
 fi
 
 # 剪贴板监视（仅总开关开启时）

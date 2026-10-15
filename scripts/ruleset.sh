@@ -25,6 +25,14 @@ _fetch() { # relpath outfile ; 0 on success
 }
 
 sync() {
+  # 断网优化：无网时明确告知并沿用上次缓存，不空等超时
+  # （旧行为是逐个 url 等 40s 超时，用户看到"卡住"，且不知道是没网）
+  if [ -f "$(dirname "$0")/offline.sh" ]; then
+    sh "$(dirname "$0")/offline.sh" need "同步规则库（$REPO）" "$RDIR/block.txt" || {
+      echo "提示：DNS 拦截会继续使用本地已缓存的规则，功能不受影响。"
+      return 0
+    }
+  fi
   [ -z "$REPO" ] && { echo "ERR: 未配置规则仓库"; return 1; }
   ok=0; bad=0
   for pair in \

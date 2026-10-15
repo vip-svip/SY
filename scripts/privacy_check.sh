@@ -7,7 +7,7 @@
 #   ② 系统云备份（设备数据上云）
 #   ③ 无障碍服务枚举（可读全屏内容 + 模拟点击 —— 隐私外泄最大的一面）
 #   ④ 设备管理员枚举（可远程擦除/锁屏/强制密码）
-#   ⑤ 反诈/风控应用存在性（读同一份隐私护盾目标清单）
+#   ⑤ FX/风控应用存在性（读同一份隐私护盾目标清单）
 #   ⑥ hosts 拦截生效性
 #   ⑦ iptables 封锁链在位性
 #   ⑧ 剪贴板监视状态
@@ -24,10 +24,24 @@ skip() { echo "  [跳过] $1"; SKIP=$((SKIP+1)); }
 
 echo "=========== SY 隐私外泄体检（$MODE）==========="
 
+# 读一个 settings 值，并校验返回内容的合法性。
+# 【真实缺陷修复】旧版直接把 settings get 的输出当配置值用：
+#   若命令失败、或 ROM 返回了命令回显/键名/异常文本（实测出现过），
+#   就会被当成"真实配置"展示 —— 用户看到「云备份开启（backup_enabled=backup_enabled）」
+#   这种一眼假的值。现在统一校验：只接受看起来像合法值的输出，否则回退为「未知」。
+pc_setting() { # <namespace> <key> [fallback]
+  ns="$1"; key="$2"; fb="${3:-}"
+  raw=$(settings get "$ns" "$key" 2>/dev/null)
+  case "$raw" in
+    ""|null|*"$key"*) echo "$fb" ;;   # 空/字面 null/回显了键名 → 视为无效
+    *) echo "$raw" ;;
+  esac
+}
+
 pc_private_dns() {
   command -v settings >/dev/null 2>&1 || { skip "无 settings 命令，无法读取私有 DNS 配置（不是「无风险」）"; return; }
-  v=$(settings get global private_dns_mode 2>/dev/null)
-  h=$(settings get global private_dns_specifier 2>/dev/null)
+  v=$(pc_setting global private_dns_mode "")
+  h=$(pc_setting global private_dns_specifier "")
   if [ "$v" = "hostname" ] && [ -n "$h" ] && [ "$h" != "null" ]; then
     warn "私有 DNS 已强制（$h）：其 DoT 查询绕过本模块 hosts，拦截域名可能仍被解析"
   else
@@ -37,10 +51,12 @@ pc_private_dns() {
 
 pc_backup() {
   command -v settings >/dev/null 2>&1 || { skip "无 settings 命令，无法读取云备份状态"; return; }
-  v=$(settings get global backup_enabled 2>/dev/null)
+  v=$(pc_setting global backup_enabled "")
   case "$v" in
-    0|null|"") ok "系统云备份未开启" ;;
-    *) warn "云备份开启（backup_enabled=$v）：应用数据可能上云" ;;
+    0|""|null) ok "系统云备份未开启" ;;
+    1) warn "云备份开启：应用数据可能上云" ;;
+    # 其它值说明 settings 没返回可信结果 —— 如实报"无法判定"，不猜
+    *) skip "云备份状态无法判定（settings 返回异常值）" ;;
   esac
 }
 
@@ -50,7 +66,7 @@ pc_targets() {
   if [ -s "$tf" ]; then
     grep -vE "^[[:space:]]*(#|$)" "$tf" 2>/dev/null | tr -d "\r" | tr "," "\n" | grep -v "^$"
   else
-    echo "$(cfg_get PRIVACY_PACKAGES com.cmcc.fzhs)" | tr "," "\n" | grep -v "^$"
+    echo "$(cfg_get PRIVACY_PACKAGES '')" | tr "," "\n" | grep -v "^$"
   fi
 }
 pc_is_target() {
@@ -60,12 +76,15 @@ pc_is_target() {
 
 pc_accessibility() {
   command -v settings >/dev/null 2>&1 || { skip "无 settings 命令，无法枚举无障碍服务"; return; }
-  acc=$(settings get secure enabled_accessibility_services 2>/dev/null)
+  acc=$(pc_setting secure enabled_accessibility_services "")
   case "$acc" in ""|null) ok "未启用任何无障碍服务"; return ;; esac
   n=0
   echo "  -- 已启用的无障碍服务（可读全屏/模拟点击，请逐个确认是否必需）--"
   for svc in $(printf '%s' "$acc" | tr ":" " "); do
     [ -z "$svc" ] && continue
+    # 合法服务条目形如 com.example/.Service（含 /）；不含 / 的文本说明 settings
+    # 返回的不是服务列表（实测某些 ROM 会返回 "off"/键名等），此时如实跳过。
+    case "$svc" in */*) ;; *) continue ;; esac
     n=$((n+1))
     pkg=${svc%%/*}
     if pc_is_target "$pkg"; then
@@ -75,8 +94,8 @@ pc_accessibility() {
     fi
   done
   [ "$n" -gt 0 ] && warn "存在 $n 个已启用的无障碍服务（无障碍是隐私外泄的最大通道）"
-  sc=$(settings get secure accessibility_shortcut_target_service 2>/dev/null)
-  case "$sc" in ""|null) ;; *) echo "  [注意] 无障碍快捷方式指向: $sc" ;; esac
+  sc=$(pc_setting secure accessibility_shortcut_target_service "")
+  case "$sc" in ""|null) ;; */*) echo "  [注意] 无障碍快捷方式指向: $sc" ;; esac
 }
 
 pc_device_admin() {
@@ -96,7 +115,7 @@ pc_device_admin() {
   [ "$n" -gt 0 ] && warn "存在 $n 个设备管理员（确认都是你自己激活的）"
 }
 
-pc_antifraud() {
+pc_fx_check() {
   command -v pm >/dev/null 2>&1 || { skip "pm 不可用，无法枚举已安装应用（不是「未发现」）"; return; }
   found=0
   for p in $(pc_targets) com.lenovo.leos.pms.vpt com.huawei.systemmanager com.oppo.safe; do
@@ -109,7 +128,7 @@ pc_antifraud() {
   if [ "$found" = "1" ]; then
     warn "上面列出的应用在读写你的使用情况；建议开启「隐私护盾」隔离"
   else
-    ok "未发现目标清单内的反诈/风控应用"
+    ok "未发现目标清单内的FX/风控应用"
   fi
 }
 
@@ -155,7 +174,7 @@ pc_private_dns
 pc_backup
 pc_accessibility
 pc_device_admin
-pc_antifraud
+pc_fx_check
 pc_hosts
 pc_iptables
 pc_clip

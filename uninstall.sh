@@ -45,6 +45,11 @@ if [ -f "$MODDIR/scripts/privacy_guard.sh" ]; then
   sh "$MODDIR/scripts/privacy_guard.sh" remove >/dev/null 2>&1 && echo "- 隐私护盾已还原（权限/appops/无障碍/网络链）"
 fi
 
+# ---------- 1.5) FX 深度抵抗还原（先还原 appops，再删数据目录）----------
+if [ -f "$MODDIR/scripts/fx_deepguard.sh" ]; then
+  sh "$MODDIR/scripts/fx_deepguard.sh" remove >/dev/null 2>&1 && echo "- FX 深度抵抗已还原"
+fi
+
 # ---------- 2) 游戏隐私保护还原 ----------
 if [ -f "$MODDIR/scripts/game_privacy.sh" ]; then
   sh "$MODDIR/scripts/game_privacy.sh" remove >/dev/null 2>&1 && echo "- 游戏隐私保护已还原"

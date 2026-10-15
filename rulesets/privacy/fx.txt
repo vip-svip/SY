@@ -1,0 +1,36 @@
+# ============================================================
+#  SY 隐私增强域名清单 · FX 风控/指纹类（来源可追溯，非编造）
+#  文件名: fx.txt
+#  用法: 这些清单在「隐私护盾」页可一键加入 DNS 过滤（写入 user_rules.txt），
+#        也可以直接复制到 DNS 页的自定义规则里。
+#  说明: 模块**默认不启用**这些清单 —— 拦截规则由用户显式选择，
+#        避免装了模块就默默改变网络行为。
+#  ============================================================
+cmpassport.com
+config.cmpassport.com
+log.cmpassport.com
+log1.cmpassport.com
+fengkongcloud.com
+static.fengkongcloud.com
+tracker.fengkongcloud.com
+fp-it.fengkongcloud.com
+dun.163.com
+fp-upload.dun.163.com
+ye.dun.163yun.com
+nim.qiyukf.com
+appjiagu.com
+a.appjiagu.com
+b.appjiagu.com
+c.appjiagu.com
+j.appjiagu.com
+p.appjiagu.com
+s.appjiagu.com
+api.appjiagu.com
+shuzilm.cn
+shuzisms.cn
+fpshuzilm.cn
+tdipmap.com
+mob.com
+mobcdn.com
+g.189.cn
+open.wo.cn

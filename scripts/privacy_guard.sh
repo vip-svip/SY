@@ -1,11 +1,11 @@
 #!/system/bin/sh
 # ============================================================
-#  privacy_guard.sh — 隐私护盾：反诈/风控应用深度定制 + 能力面收紧
+#  privacy_guard.sh — 隐私护盾：FX/风控应用深度定制 + 能力面收紧
 #  ------------------------------------------------------------
-#  融合自 GuardShield 模块，按 SY 的约定重写：
-#   · 配置读写用 SY 的 cfg_get / cfg_set（不再自带一套 conf_*）
-#   · iptables 链名用 SY_* 前缀，避免与已安装的 GuardShield 模块冲突
-#   · 状态文件写到 $DATA_DIR/rules/privacy/ 下
+ #  按 SY 的约定实现：
+ #   · 配置读写用 SY 的 cfg_get / cfg_set
+ #   · iptables 链名用 SY_* 前缀（避免与其他模块的链名冲突）
+ #   · 状态文件写到 $DATA_DIR/rules/privacy/ 下
 #
 #  三层手段：
 #   ① 网络隔离：按 uid 掐断目标应用全部出站（IPv4+IPv6，REJECT 或 DROP）
@@ -25,17 +25,19 @@
 PG_DIR="$DATA_DIR/rules/privacy"
 PG_DONE="$PG_DIR/restore.state"     # 记录"本来有、被我收走的"，用于精确还原
 PG_TARGETS="$PG_DIR/targets.conf"  # 目标包名（每行一个，逗号分隔也接受）
-PG_CHAIN="SY_PG"                   # IPv4 链名（前缀 SY 避免与 GuardShield 冲突）
+PG_CHAIN="SY_PG"                   # IPv4 链名（前缀 SY，避免与其他模块链名冲突）
 PG_CHAIN6="SY_PG6"                 # IPv6 链名
 TAB=$(printf '\t')
 mkdir -p "$PG_DIR" 2>/dev/null
 
 # 目标包名：优先读面板可编辑的 targets.conf，其次读 sy.conf 的 PRIVACY_PACKAGES
 pg_packages() {
+  # 目标包名来源：优先面板可编辑的 targets.conf，其次 sy.conf 的 PRIVACY_PACKAGES。
+  # 逗号分隔的支持用 tr 拆行（这里不写字面 \n，避免转义层级出错）。
   if [ -s "$PG_TARGETS" ]; then
-    grep -vE '^[[:space:]]*(#|$)' "$PG_TARGETS" 2>/dev/null | tr -d '\r' | tr ',' '\n' | grep -v '^$'
+    grep -vE "^[[:space:]]*(#|$)" "$PG_TARGETS" 2>/dev/null | tr -d "\r" | grep -v "^[[:space:]]*$"
   else
-    echo "$(cfg_get PRIVACY_PACKAGES com.cmcc.fzhs)" | tr ',' '\n' | grep -v '^$'
+    cfg_get PRIVACY_PACKAGES "" | tr "," "\n" | grep -v "^$"
   fi
 }
 

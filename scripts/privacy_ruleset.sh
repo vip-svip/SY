@@ -5,7 +5,7 @@
 #  模块默认**不启用**这些清单：拦截规则由用户显式选择，
 #  避免装了模块就默默改变网络行为（本模块的既定原则）。
 #
-#  清单来源：rulesets/privacy/{antifraud,tracker,adblock,antiadblock,push}.txt
+#  清单来源：rulesets/privacy/{fx,tracker,adblock,antiadblock,push}.txt
 #  写入目标：$DATA_DIR/config/user_rules.txt（AdGuard/uBO 语法）
 #  幂等：重复 enable 会先删掉上一次由本脚本写入的段落，不会堆叠。
 #

@@ -822,6 +822,20 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 
       <div class="col-12">
         <div class="card accent-alt">
+          <div class="card-head">一键全防护<span class="tagline">小白友好 · 一次开全</span></div>
+          <div class="hint">不确定该开哪几项？点下面这个按钮：会把<b>隐私护盾、FX 深度抵抗、剪贴板监视</b>
+            一次性开启，并立即应用。每一项都可以随时在对应页面单独关掉。</div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="one-click-on">一键启用全防护</button>
+            <button class="btn danger" data-act="one-click-off">一键关闭并还原</button>
+            <button class="btn" data-act="one-click-status">查看防护状态</button>
+          </div>
+          <div class="kv"><span>防护总览</span><b id="ocSummary">-</b></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card accent-alt">
           <div class="card-head">代理内核 <span class="tagline" id="hmCore">-</span></div>
           <div class="wgrid">
             <div class="wcard"><div class="wt">运行状态</div><div class="wv" id="hmRun">-</div><div class="ws" id="hmMode">-</div></div>
@@ -2242,12 +2256,12 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     </div>
   </section>
 
-  <!-- ================= 隐私护盾（反诈/风控应用深度定制） ================= -->
+  <!-- ================= 隐私护盾（FX/风控应用深度定制） ================= -->
   <section class="page hide" id="page-privacy">
     <div class="page-title">
       <div>
         <h2>隐私护盾</h2>
-        <div class="page-title__sub">反诈/风控应用隔离 · 能力面收紧 · 游戏隐私 · 剪贴板监视</div>
+        <div class="page-title__sub">FX/风控应用隔离 · 能力面收紧 · 游戏隐私 · 网络泄露防护</div>
       </div>
       <div class="page-title__actions">
         <button class="btn ok" data-act="pv-apply">应用防护</button>
@@ -2286,7 +2300,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
         <div class="card">
           <div class="card-head">目标应用清单<span class="tagline">每行一个包名，可直接编辑</span></div>
           <div class="hint">这些包名会被隔离并收紧能力。可用「文件编辑器」直接改 rules/privacy/targets.conf。</div>
-          <textarea class="ta" id="pvTargets" placeholder="com.cmcc.fzhs"></textarea>
+          <textarea class="ta" id="pvTargets" placeholder="每行一个包名，例如 com.example.risk"></textarea>
           <div class="btn-row">
             <button class="btn primary" data-act="pv-targets-save">保存并应用</button>
             <button class="btn" data-act="pv-apps">从已装应用挑选</button>
@@ -3255,6 +3269,43 @@ var actions={
   "pv-rs-all":function(){ busy("启用隐私清单…"); return runScript("privacy_ruleset.sh",["enable","all"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-off":function(){ busy("移除隐私清单…"); return runScript("privacy_ruleset.sh",["disable"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-one":function(el){ var n=el&&el.getAttribute("data-v"); if(!n){toast("缺少清单名");return Promise.resolve();} busy("启用 "+n+" …"); return runScript("privacy_ruleset.sh",["enable",n],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+
+  /* ================= 一键全防护（小白友好） ================= */
+  "one-click-on":function(){ busy("正在启用全防护（4 项开关 + 3 项应用）…");
+    return runScript("oneclick.sh",["on"],KSU_LONG_MS).then(function(o){
+      // on 的输出是多行进度，取最后一行 OK 作为提示，详情弹出来
+      var t=String(o||"");
+      var lines=t.split("\n").filter(Boolean);
+      var last="";
+      for(var i=lines.length-1;i>=0;i--){ if(/^OK/.test(lines[i])){ last=lines[i]; break; } }
+      if(!last) last=lines.length?lines[lines.length-1]:"";
+      toast(msg(last||"已启用"));
+      setTimeout(function(){ if(t.length>400 || lines.length>6) alert(t); }, 200);
+      return Promise.all([loadHome(),loadPrivacy()]).then(function(){ return loadOneClick(); });
+    });
+  },
+  "one-click-off":function(){
+    if(!confirm("这会关闭全防护并逐项还原（权限 / appops / 无障碍），确定？")){ return Promise.resolve(); }
+    busy("正在关闭并还原…");
+    return runScript("oneclick.sh",["off"],KSU_LONG_MS).then(function(o){
+      toast(msg(o));
+      return Promise.all([loadHome(),loadPrivacy()]).then(function(){ return loadOneClick(); });
+    });
+  },
+  "one-click-status":function(){
+    busy("读取防护状态…");
+    return runScript("oneclick.sh",["status"]).then(function(o){
+      var s=extractJson(o)||{};
+      var txt="防护状态：已启用 "+(s.enabled_count||0)+" / "+(s.total||5)+" 项\n\n"
+        +"隐私护盾: "+(s.privacy==="1"?"开":"关")+"\n"
+        +"FX 深度抵抗: "+(s.fx==="1"?"开":"关")+"\n"
+        +"剪贴板监视: "+(s.clip==="1"?"开":"关")+"\n"
+        +"防泄露总开关: "+(s.leak==="1"?"开":"关")+"\n"
+        +"游戏隐私保护: "+(s.game==="1"?"开":"关");
+      alert(txt);
+      return loadOneClick();
+    });
+  },
 
   /* ================= 文件编辑器 ================= */
   "fe-list":function(){ busy("刷新文件列表…"); return loadFileEdit(true); },
@@ -4760,6 +4811,16 @@ function feAppend(targetId, pkg){
   toast("已加入 " + pkg + "（记得点保存）");
 }
 
+/* 一键全防护状态（首页卡片） */
+function loadOneClick(){
+  if(!document.getElementById("ocSummary")) return Promise.resolve();
+  return runScript("oneclick.sh",["status"]).then(function(o){
+    var s=extractJson(o)||{};
+    var n=s.enabled_count||0, tot=s.total||5;
+    setText("ocSummary", n+" / "+tot+" 项已启用"+(n>=3?"（防护已生效）":"（建议点上方一键启用）"));
+  }).catch(function(e){ setText("ocSummary","读取失败"); });
+}
+
 /* 隐私护盾页数据加载 */
 function loadPrivacy(){
   return Promise.all([
@@ -4884,7 +4945,7 @@ function engRunTest(){
 var loaded={};
 function loadTab(tab){
   switch(tab){
-    case "home": return Promise.all([loadHome(),loadPanel(),loadLogs()]);
+    case "home": return Promise.all([loadHome(),loadPanel(),loadLogs(),loadOneClick()]);
 case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSources(),loadRuleSources(),loadWhitelist(),loadBlacklist(),loadFilter(),loadLists(),loadMyRules()]);
     case "dnssrv": return loadDnsSrv();
     case "netblock": return loadNetblock();

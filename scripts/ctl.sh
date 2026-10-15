@@ -58,6 +58,7 @@ case "$1" in
       privacy) [ "$new" = "1" ] && sh "$D/privacy_guard.sh" apply >/dev/null 2>&1 || sh "$D/privacy_guard.sh" remove >/dev/null 2>&1 ;;
       game)    [ "$new" = "1" ] && sh "$D/game_privacy.sh" apply >/dev/null 2>&1 || sh "$D/game_privacy.sh" remove >/dev/null 2>&1 ;;
       clipguard) [ "$new" = "1" ] && sh "$D/clip_guard.sh" apply >/dev/null 2>&1 || sh "$D/clip_guard.sh" remove >/dev/null 2>&1 ;;
+      fxguard)   [ "$new" = "1" ] && sh "$D/fx_deepguard.sh" apply >/dev/null 2>&1 || sh "$D/fx_deepguard.sh" remove >/dev/null 2>&1 ;;
     esac
     echo "OK: $f -> $new"
     ;;
@@ -88,11 +89,11 @@ case "$1" in
     shift
     sh "$D/scripts_ext.sh" "$@"
     ;;
-  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|leakguard|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset)
+  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|leakguard|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick)
     sub="$1"; shift
     sh "$D/$sub.sh" "$@"
     ;;
   *)
-    echo "usage: ctl.sh {status|toggle <f>|restart <f>|apps|dns|mitm|splash|scripts|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset ...}"
+    echo "usage: ctl.sh {status|toggle <f>|restart <f>|apps|dns|mitm|splash|scripts|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick ...}"
     ;;
 esac

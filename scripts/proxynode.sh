@@ -55,6 +55,15 @@ core_arch() {
 }
 
 core_autodownload() { # 下载 sing-box 内核到 bin/（多镜像回退）
+  # 断网优化：无网时不要逐个镜像等超时（3 个源 × 120s ≈ 6 分钟卡顿）
+  if [ -f "$(dirname "$0")/offline.sh" ]; then
+    if ! sh "$(dirname "$0")/offline.sh" check >/dev/null 2>&1; then
+      echo "ERR: 当前检测不到网络，无法下载内核。"
+      echo "     可在「设置 → 代理内核」填可用的直链 PROXY_CORE_URL，"
+      echo "     或手动把 sing-box 放到 $MODDIR/bin/sing-box（面板「内核」处可指定路径）。"
+      return 1
+    fi
+  fi
   arch=$(core_arch)
   ver=$(cfg_get PROXY_CORE_VER "1.10.1")
   custom=$(cfg_get PROXY_CORE_URL "")

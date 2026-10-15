@@ -35,25 +35,44 @@
 # ============================================================
 set -u
 
-MODDIR=${MODDIR:-}
-if [ -z "$MODDIR" ]; then
-  # 注意: module.prop 的 id=SY，安装目录是 /data/adb/modules/SY（非 SY-Fusion）
+# ---- 路径与配置：统一走 common.sh 的约定 ----
+# 【真实缺陷修复】旧版自己实现 conf_get，并把状态写进 MODDIR/.state（模块目录）。
+#  这与项目其他脚本（都 source common.sh、用 DATA_DIR）不一致，后果有两个：
+#   ① 面板/脚本用 -datadir 或 AB_DATA_DIR 指定数据目录时，本脚本读到的配置与
+#      其他组件不是同一份 —— 表现为「开了防泄露但状态显示未开」；
+#   ② 状态文件落在模块目录里，**卸载后残留**（uninstall 只清 DATA_DIR）。
+#  现在统一：配置读 DATA_DIR/config/sy.conf，状态落到 DATA_DIR/rules/leakguard/，
+#  随 rm -rf DATA_DIR 一并清理，符合「卸载零残留」。
+if [ -f "$(dirname "$0")/common.sh" ]; then
+  . "$(dirname "$0")/common.sh"
+fi
+
+# common.sh 未加载成功时的兜底（保证脚本独立可跑）
+if [ -z "${DATA_DIR:-}" ]; then
+  DATA_DIR="${AB_DATA_DIR:-}"
+  if [ -z "$DATA_DIR" ]; then
+    DATA_DIR=/data/adb/SY
+    [ -d "$DATA_DIR" ] || DATA_DIR=/data/SY
+  fi
+fi
+if [ -z "${MODDIR:-}" ]; then
   for d in /data/adb/modules/SY /data/adb/modules_update/SY /data/adb/modules/SY-Fusion; do
     [ -d "$d" ] && MODDIR="$d" && break
   done
 fi
-MODDIR=${MODDIR:-/data/adb/modules/SY}
+MODDIR="${MODDIR:-/data/adb/modules/SY}"
 
-CONF="$MODDIR/config/sy.conf"
-STATE_DIR="$MODDIR/.state"
+CONF="$DATA_DIR/config/sy.conf"
+STATE_DIR="$DATA_DIR/rules/leakguard"
 STATE="$STATE_DIR/leakguard.state"
-LOG="$MODDIR/logs/leakguard.log"
-TARGETS="$MODDIR/config/privacy_targets.txt"
+LOG="${LOGS:-$DATA_DIR/logs}/leakguard.log"
+TARGETS="$DATA_DIR/config/privacy_targets.txt"
 OWNER_DB="$MODDIR/data/geo/rir"
 AB="$MODDIR/bin/abserver-$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/x86_64/amd64/')"
 [ -x "$AB" ] || AB="$MODDIR/bin/abserver"
 
 mkdir -p "$STATE_DIR" "$(dirname "$LOG")" 2>/dev/null
+
 
 # ---- 链名 ----
 CH_OUT="SY_LEAK_OUT"      # OUTPUT 过滤
@@ -70,10 +89,14 @@ NFT="$(have nft && echo nft || true)"
 log() { echo "[$(date '+%F %T' 2>/dev/null || echo now)] $*" >>"$LOG" 2>/dev/null; }
 
 # 读取 sy.conf 中某个键
-conf_get() {
-  [ -f "$CONF" ] || { echo ""; return; }
-  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$CONF" | head -1
-}
+# conf_get 由 common.sh 提供；这里只在未加载成功时兜底，
+# 避免两个同名函数互相覆盖导致「读配置的行为随加载顺序而变」。
+if ! command -v conf_get >/dev/null 2>&1; then
+  conf_get() {
+    [ -f "$CONF" ] || { echo ""; return; }
+    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$CONF" | head -1
+  }
+fi
 
 # ---------------- 状态持久化（内核规则才是事实源） ----------------
 state_init() {
@@ -176,6 +199,12 @@ ipv6_on() {
 ipv6_off() {
   [ -n "$IP6T" ] && ipt6_jump_remove OUTPUT "$CH6_OUT"
   [ -n "$IP6T" ] && ipt6_chain_flush "$CH6_OUT"
+  # 【真实缺陷修复】旧版只 flush 链、不删链 —— 空链会残留在 ip6tables 里；
+  # 若用户反复开关，还可能在别的表留下同名链（表现为"关不掉"）。
+  [ -n "$IP6T" ] && $IP6T -X "$CH6_OUT" 2>/dev/null || true
+  # 【真实缺陷修复】若之前因为「没有 ip6tables」而用 sysctl 关了 v6，
+  # 关闭防护时必须把 sysctl 还原，否则 IPv6 被永久禁用（用户会以为网络坏了）。
+  tune_ipv6_sysctl_restore
   state_set IPV6 0
   log "ipv6 off"
   echo "IPv6: off"
@@ -308,6 +337,18 @@ node_off() {
   echo "NODE leakguard: off"
 }
 
+# 还原 IPv6 sysctl（关闭防护 / 卸载时调用）。
+# 【真实缺陷修复】旧版 tune_ipv6_sysctl_disable 把 disable_ipv6 置 1 后，
+# **没有任何路径把它改回 0** —— 用户关掉防护或卸载模块后，IPv6 依然是禁用的，
+# 表现为"用了一阵子之后家里 Wi-Fi 的 v6 莫名其妙没了"。
+tune_ipv6_sysctl_restore() {
+  for k in net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6; do
+    f="/proc/sys/$(echo "$k" | tr '.' '/')"
+    [ -w "$f" ] && echo 0 >"$f" 2>/dev/null || true
+  done
+  log "ipv6 sysctl restored"
+}
+
 tune_ipv6_sysctl_disable() {
   for k in net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6; do
     [ -w "/proc/sys/$(echo "$k" | tr '.' '/')" ] && echo 1 >"/proc/sys/$(echo "$k" | tr '.' '/')" 2>/dev/null || true
@@ -332,8 +373,21 @@ tune_on() {
 }
 
 tune_off() {
-  set_sys() { [ -w "/proc/sys/$(echo "$1" | tr '.' '/')" ] && echo "$2" >"/proc/sys/$(echo "$1" | tr '.' '/')" 2>/dev/null || true; }
+  # 【真实缺陷修复】旧版只把 rp_filter 改回 0，其余 8 项加固（accept_redirects /
+  # accept_source_route / accept_ra / use_tempaddr 等）**从不还原** ——
+  # 用户关掉防护后，系统仍处在加固状态，且没有任何提示。
+  # 这里逐项还原到 Linux 默认值。
+  set_sys() { [ -w "/proc/sys/$(echo "$1" | tr '.' '/')" ] && echo "$2" >"/proc/sys/$(echo "$1" | tr '.' '/')" 2>/dev/null && echo "  restore $1=$2" || true; }
   set_sys net.ipv4.conf.all.rp_filter 0
+  set_sys net.ipv4.conf.default.rp_filter 0
+  set_sys net.ipv4.conf.all.accept_redirects 1
+  set_sys net.ipv4.conf.all.send_redirects 1
+  set_sys net.ipv4.conf.all.accept_source_route 0
+  set_sys net.ipv4.icmp_echo_ignore_broadcasts 1
+  set_sys net.ipv6.conf.all.accept_redirects 0
+  set_sys net.ipv6.conf.all.accept_ra 1
+  set_sys net.ipv6.conf.all.use_tempaddr 0
+  tune_ipv6_sysctl_restore
   state_set TUNE 0
   log "tune off"
   echo "TUNE: off"
