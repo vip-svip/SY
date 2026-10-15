@@ -210,6 +210,10 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 		c.proxySub(w, r, "offline.sh")
 	case "proxyrun":
 		c.proxySub(w, r, "proxyrun.sh")
+	case "proxymgr":
+		c.proxySub(w, r, "proxymgr.sh")
+	case "proxycfg":
+		c.proxySub(w, r, "proxycfg.sh")
 	case "kernel":
 		c.proxySub(w, r, "kernel.sh")
 	case "route_gen":

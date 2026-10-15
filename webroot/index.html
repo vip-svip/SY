@@ -808,6 +808,69 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important;animation-duration:.01ms!important}
 }
+
+/* ============================================================
+   UI 重构（2026 设计刷新层）
+   ------------------------------------------------------------
+   原则（参考 MagicNet 的 DESIGN.md 与本项目既有约束）：
+     · 用留白与排版划分内容，不靠发光/渐变堆叠制造"科技感"；
+     · 一个信息层级只用一种强调手段（颜色 or 字重 or 尺寸），不叠加；
+     · 状态一律用语义色 + 文字/形状双重表达（不单靠颜色，色盲可用）；
+     · 触控目标 ≥ 44px；输入 ≥ 16px（避免 iOS/WebView 自动放大）；
+     · 任何宽度下不允许横向溢出。
+   这一层只做"加法"：不改既有令牌与既有选择器，避免破坏已有页面。
+   ============================================================ */
+
+/* 8px 间距刻度（统一各页面的松紧，之前各页自己写死 px，显得零散） */
+.s1{margin-bottom:8px}.s2{margin-bottom:16px}.s3{margin-bottom:24px}.s4{margin-bottom:32px}
+
+/* 状态指示片：语义色 + 文字，双重表达 */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;border-radius:999px;
+  font-size:12px;font-weight:600;line-height:1.6;
+  border:1px solid var(--ctrl-border);background:var(--hover);color:var(--scolor);
+  white-space:nowrap;
+}
+.chip.ok{color:var(--green);border-color:var(--green);background:var(--green-soft)}
+.chip.warn{color:var(--amber);border-color:var(--amber);background:var(--amber-soft)}
+.chip.bad{color:var(--red);border-color:var(--red);background:var(--red-soft)}
+.chip.mute{color:var(--scolor)}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+
+/* 分段控件：三选一（应用分流策略用），比三行 radio 更清楚 */
+.seg{display:flex;gap:0;border:1px solid var(--ctrl-border);border-radius:10px;overflow:hidden;margin:4px 0 10px}
+.seg>button{
+  flex:1 1 0;min-height:44px;border:0;background:transparent;color:var(--scolor);
+  font-size:13px;cursor:pointer;padding:0 8px;
+}
+.seg>button+button{border-left:1px solid var(--ctrl-border)}
+.seg>button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+
+/* 就绪语义行：左标签 右状态，逐层讲清 */
+.layer{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 0;border-bottom:1px solid var(--border-color);
+}
+.layer:last-child{border-bottom:0}
+.layer__k{flex:0 0 92px;font-size:13px;color:var(--scolor);padding-top:2px}
+.layer__v{flex:1 1 auto;min-width:0}
+.layer__title{font-size:14px;color:var(--mcolor);margin-bottom:3px}
+.layer__why{font-size:12px;color:var(--scolor);overflow-wrap:anywhere}
+
+/* 空状态：明确告诉用户"这里没有内容"以及下一步，而不是空白 */
+.empty{
+  padding:18px 12px;text-align:center;color:var(--scolor);font-size:13px;
+  border:1px dashed var(--card-border-color);border-radius:10px;
+}
+
+/* 行内键值对在窄屏不挤：标签与值各占一行 */
+@media (max-width:420px){
+  .kv{flex-direction:column;align-items:flex-start;gap:2px}
+  .layer{flex-direction:column;gap:4px}
+  .layer__k{flex:none}
+}
+
 </style>
 </head>
 <body>
@@ -836,6 +899,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
           <a class="dropdown-item" data-tab="route-logs">内核日志</a>
           <a class="dropdown-item" data-tab="route-core">内核与配置</a>
           <a class="dropdown-item" data-tab="proxynode">节点与订阅</a>
+          <a class="dropdown-item" data-tab="proxyctl">代理控制面</a>
         </div>
       </div>
 
@@ -889,6 +953,9 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div>
         <h2>总览</h2>
         <div class="page-title__sub" id="ovTime">-</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn" data-act="refresh-home">刷新</button>
       </div>
     </div>
 
@@ -1716,6 +1783,98 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     </div>
   </section>
 
+  <!-- ================= 代理控制面（MagicNet 契约移植） ================= -->
+  <section class="page hide" id="page-proxyctl">
+    <div class="page-title">
+      <div>
+        <h2>代理控制面</h2>
+        <div class="page-title__sub">就绪三层判定 · 配置事务回滚 · 应用分流</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="pm-start">启动</button>
+        <button class="btn danger" data-act="pm-stop">停止</button>
+        <button class="btn" data-act="pm-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card accent-alt">
+      <div class="card-head">就绪判定<span class="tagline">进程在跑 ≠ 网络已通</span></div>
+      <div class="hint">
+        三层独立判定。<b>只有「API 就绪 且 数据面就绪」才算真正可用</b>；
+        证据不足一律显示「未知」，不会被当成通过。
+      </div>
+      <div class="layer">
+        <div class="layer__k">① 内核进程</div>
+        <div class="layer__v"><div class="layer__title" id="pmProc">-</div>
+          <div class="layer__why" id="pmProcWhy">-</div></div>
+      </div>
+      <div class="layer">
+        <div class="layer__k">② 控制 API</div>
+        <div class="layer__v"><div class="layer__title" id="pmApi">-</div>
+          <div class="layer__why" id="pmApiWhy">-</div></div>
+      </div>
+      <div class="layer">
+        <div class="layer__k">③ 数据面</div>
+        <div class="layer__v"><div class="layer__title" id="pmDp">-</div>
+          <div class="layer__why" id="pmDpWhy">-</div></div>
+      </div>
+      <div class="kv"><span>综合状态</span><b id="pmLife">-</b></div>
+      <div class="kv"><span>节点 / 策略</span><b id="pmCounts">-</b></div>
+      <div class="btn-row">
+        <button class="btn" data-act="pm-health">查看逐层判据</button>
+        <button class="btn" data-act="pm-probe">主动探测</button>
+      </div>
+      <div id="pmOut" class="hint"></div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">配置事务<span class="tagline">候选 → 校验 → 原子替换</span></div>
+          <div class="hint">
+            改配置不再直接覆盖运行中的文件：先生成候选，用内核自己校验，
+            通过才原子替换；旧配置自动留成备份，随时可回滚。
+          </div>
+          <div class="kv"><span>事务阶段</span><b id="pcPhase">-</b></div>
+          <div class="kv"><span>运行 / 候选 / 备份</span><b id="pcSizes">-</b></div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="pc-apply">生成并应用</button>
+            <button class="btn" data-act="pc-rollback">回滚到上一份</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">应用分流<span class="tagline">按包名逐应用设置</span></div>
+          <div class="hint">
+            <b>proxy</b> 走节点代理 · <b>direct</b> 被接管但直连（"别用代理"选它）·
+            <b>bypass</b> 完全离开本模块（外部 VPN 共存场景）。
+          </div>
+          <input type="text" id="pmPkg" placeholder="包名，如 com.example.browser">
+          <div class="seg" id="pmPolSeg">
+            <button data-act="pm-pol" data-v="proxy" class="on">proxy 代理</button>
+            <button data-act="pm-pol" data-v="direct">direct 直连</button>
+            <button data-act="pm-pol" data-v="bypass">bypass 绕过</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="pm-app-add">添加 / 更新策略</button>
+            <button class="btn" data-act="pm-app-list">查看清单</button>
+            <button class="btn danger" data-act="pm-app-apply">重新应用</button>
+          </div>
+          <div id="pmApps" class="hint"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">为什么不合并到「代理与节点」页<span class="tagline">说明</span></div>
+      <div class="hint">
+        「代理与节点」负责<b>节点/订阅/内核配置的编辑</b>（改什么）；
+        本页负责<b>它到底跑没跑通、配置能不能回滚、哪个应用走哪条路</b>（跑得对不对）。
+        两者职责不同，混在一页会让"改配置"和"看状态"互相干扰。
+      </div>
+    </div>
+  </section>
   <!-- ================= 拦截服务 ================= -->
   <section class="page hide" id="page-netblock">
     <div class="page-title">
@@ -3635,6 +3794,58 @@ var actions={
   "pv-rs-off":function(){ busy("移除隐私清单…"); return runScript("privacy_ruleset.sh",["disable"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-one":function(el){ var n=el&&el.getAttribute("data-v"); if(!n){toast("缺少清单名");return Promise.resolve();} busy("启用 "+n+" …"); return runScript("privacy_ruleset.sh",["enable",n],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
 
+  /* ================= 代理控制面（MagicNet 契约） ================= */
+  "pm-refresh":function(){ busy("刷新就绪状态…"); return loadProxyCtl(); },
+  "pm-start":function(){ busy("启动代理…"); return runScript("proxyrun.sh",["start"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return Promise.all([loadProxyCtl(),loadProxyrun()]); }); },
+  "pm-stop":function(){ busy("停止代理…"); return runScript("proxyrun.sh",["stop"]).then(function(o){ toast(msg(o)); return Promise.all([loadProxyCtl(),loadProxyrun()]); }); },
+  "pm-health":function(){ busy("读取逐层判据…");
+    return runScript("proxymgr.sh",["health"]).then(function(o){
+      var b=$("#pmOut"); if(b) b.textContent=String(o||"").trim();
+      toast("判据见下方");
+    });
+  },
+  "pm-probe":function(){ busy("主动探测…");
+    return runScript("proxymgr.sh",["probe"],KSU_LONG_MS).then(function(o){
+      var b=$("#pmOut"); if(b) b.textContent=String(o||"").trim();
+      toast("探测完成");
+    });
+  },
+  "pm-pol":function(el){
+    var v=el&&el.getAttribute("data-v"); if(!v) return Promise.resolve();
+    $("#pmPolSeg>button").forEach(function(b){ b.classList.toggle("on", b===el); });
+    PM_POL=v; return Promise.resolve();
+  },
+  "pm-app-add":function(){
+    var pkg=$("#pmPkg")?$("#pmPkg").value.trim():"";
+    if(!pkg){ toast("请填写包名"); return Promise.resolve(); }
+    busy("写入策略并应用…");
+    return runScript("proxymgr.sh",["app","add",pkg,PM_POL||"proxy"],KSU_LONG_MS).then(function(o){
+      toast(msg(o)); return loadProxyCtl(true);
+    });
+  },
+  "pm-app-list":function(){
+    return runScript("proxymgr.sh",["app","list"]).then(function(o){
+      var b=$("#pmApps"); if(b) b.textContent=String(o||"").trim()||"（还没有策略）";
+    });
+  },
+  "pm-app-apply":function(){ busy("重新应用策略…");
+    return runScript("proxymgr.sh",["app","apply"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadProxyCtl(true); });
+  },
+  "pc-apply":function(){
+    busy("生成候选 → 校验 → 提交…");
+    return runScript("proxycfg.sh",["apply"],KSU_LONG_MS).then(function(o){
+      var t2=String(o||"");
+      // 事务失败必须让用户看见原因，不能只 toast 一句
+      if(/ERR|不通过|失败/.test(t2)) alert(t2); else toast(msg(t2));
+      return loadProxyCtl();
+    });
+  },
+  "pc-rollback":function(){
+    if(!confirm("回滚到上一次有效配置？内核需重启才生效。")) return Promise.resolve();
+    busy("回滚…");
+    return runScript("proxycfg.sh",["rollback"]).then(function(o){ toast(msg(o)); return loadProxyCtl(); });
+  },
+
   /* ================= 代理内核生命周期 ================= */
   "pr-start":function(){ busy("启动代理内核…"); return runScript("proxyrun.sh",["start"],KSU_LONG_MS).then(function(o){ toast(msg(o)); var b=$("#prOut"); if(b) b.textContent=String(o||"").trim(); return loadProxyrun(); }); },
   "pr-stop":function(){ busy("停止代理内核…"); return runScript("proxyrun.sh",["stop"]).then(function(o){ toast(msg(o)); return loadProxyrun(); }); },
@@ -5266,6 +5477,46 @@ function feAppend(targetId, pkg){
   toast("已加入 " + pkg + "（记得点保存）");
 }
 
+/* ============ 代理控制面（就绪三层 + 事务 + 分流） ============ */
+var PM_POL = "proxy";
+function loadProxyCtl(alsoApps){
+  return Promise.all([
+    runScript("proxymgr.sh",["status"]),
+    runScript("proxycfg.sh",["status"])
+  ]).then(function(r){
+    var s=extractJson(r[0])||{}, c=extractJson(r[1])||{};
+    var d=(s.data||{}), tl=(c.data||{});
+    var proc=(d.process||{}), api=(d.api||{}), dp=(d.dataplane||{}), rd=(d.readiness||{});
+    // ① 进程层
+    var pTxt = proc.state==="running" ? ("运行中（PID "+(proc.pid||"?")+"）")
+             : proc.state==="stopped" ? "未运行" : "无法确认";
+    setText("pmProc", pTxt);
+    setText("pmProcWhy", proc.state==="unknown" ? "缺 pgrep 或被 SELinux 限制 —— 这不算停，也不算在跑" : "能不能被证明在跑，是就绪的第一层");
+    // ② API 层
+    setText("pmApi", api.ready ? "已就绪" : "未就绪");
+    setText("pmApiWhy", api.ready ? ("端点 "+(api.endpoint||"-")+" 有响应 —— 这是流量真的进内核的硬证据")
+                                  : "无响应。进程可能在跑但配置没生效，所以不算就绪");
+    // ③ 数据面
+    var dpTxt = dp.state==="present" ? "已就绪" : (dp.state==="unknown" ? "未知" : "未就绪");
+    setText("pmDp", dpTxt);
+    setText("pmDpWhy", dp.state==="present" ? ("数据面类型: "+(dp.kind||"-"))
+             : dp.state==="unknown" ? "证据不足（缺 ip/iptables 工具）—— 不当作通过"
+             : "未检测到数据面，流量实际未进内核");
+    setText("pmLife", (d.lifecycle||"-") + (rd.overall ? "（真正可用）" : "（尚不可用）"));
+    setText("pmCounts", "节点 "+(d.nodes||0)+" · 应用策略 "+(d.apps||0));
+    // 事务
+    setText("pcPhase", tl.phase||"idle");
+    setText("pcSizes", (tl.run_bytes||0)+" / "+(tl.candidate_bytes||0)+" / "+(tl.prev_bytes||0)+" 字节");
+    if(alsoApps) return pmlLoadApps();
+    return Promise.resolve();
+  });
+}
+function pmlLoadApps(){
+  return runScript("proxymgr.sh",["app","list"]).then(function(o){
+    var b=$("#pmApps"); if(b) b.textContent=String(o||"").trim()||"（还没有策略）";
+  });
+}
+
 /* ============ 代理内核状态 ============ */
 function loadProxyrun(){
   return runScript("proxyrun.sh",["status"]).then(function(t){
@@ -5480,6 +5731,7 @@ function loadTab(tab){
     case "route-dns":   return rdLoad();
     case "route-logs":  return rlPull();
     case "route-core":  return loadRouteCore();
+    case "proxyctl":    return loadProxyCtl();
     case "app":         return loadApp();
     case "sysinfo":     return Promise.all([loadSysInfo(), siLoadLogs()]);
     /* ---- 隐私护盾 与 文件编辑器 ---- */
