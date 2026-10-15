@@ -16,6 +16,18 @@ public final class RootShell {
     private static final int TIMEOUT_MS = 20000;
     private static volatile Boolean sHasRoot = null;
 
+    /**
+     * 【真机缺陷修复】su 串行锁。
+     * 现象：同一页面同时发起 10+ 个 su -c 进程时，部分请求返回空串
+     *      （真机实测：同一页里 hosts 条目能读到 4800，而用同样命令的
+     *       规则列表却是 0）。
+     * 原因：KernelSU 的 su 在高并发下新进程会被限流/排队，先起来的
+     *      进程拿不到输出就退出。
+     * 处理：把 root 命令**串行化**。UI 的读取都在后台线程，串行只影响
+     *      总耗时（十几条命令约 1~2 秒），换来确定性。
+     */
+    private static final Object SU_LOCK = new Object();
+
     private RootShell() {}
 
     public static final String MODDIR = "/data/adb/modules/SY";
@@ -35,6 +47,12 @@ public final class RootShell {
     }
 
     public static String exec(String cmd, int timeoutMs) {
+        synchronized (SU_LOCK) {
+            return execLocked(cmd, timeoutMs);
+        }
+    }
+
+    private static String execLocked(String cmd, int timeoutMs) {
         Process p = null;
         try {
             p = new ProcessBuilder("su", "-c", cmd)
@@ -59,32 +77,39 @@ public final class RootShell {
             reader.setDaemon(true);
             reader.start();
 
-            // su 某些实现需要把命令写到 stdin 才执行
+            /*
+             * 【真机缺陷修复】旧实现有两个问题，导致 UI 上所有数值都是 0：
+             *   ① 超时后立即 p.destroy() 再 reader.join(500) —— 进程被杀时
+             *      管道里尚未读走的数据一起丢掉，sb 常常是空串；
+             *   ② 无条件把 cmd 写进 stdin（su 已经用 -c 执行了，这些字节会
+             *      被 shell 当成第二条命令读，可能干扰输出）。
+             * 现在改为：等进程自然退出（最多 timeoutMs）→ 等 reader 读完
+             * （最多 2s）→ 再返回。只有超时才 destroy，并且 destroy 前先给
+             * reader 时间把已有数据读完。
+             */
             try {
                 OutputStreamWriter w = new OutputStreamWriter(p.getOutputStream());
-                w.write(cmd);
-                w.write("\n");
-                w.flush();
+                w.flush();   // 不写命令，只确保 shell 退出；命令已由 -c 传入
                 w.close();
             } catch (Exception ignored) {
             }
 
+            boolean exited = false;
             long deadline = System.currentTimeMillis() + timeoutMs;
             while (System.currentTimeMillis() < deadline) {
                 try {
                     p.exitValue();
+                    exited = true;
                     break;
                 } catch (IllegalThreadStateException still) {
-                    Thread.sleep(50);
+                    Thread.sleep(30);
                 }
             }
-            try {
-                p.exitValue();
-            } catch (IllegalThreadStateException still) {
-                p.destroy();
-            }
-            reader.join(500);
-            return sb.toString();
+            // 先让 reader 把管道里剩下的数据读完（这是旧版丢数据的地方）
+            reader.join(exited ? 800 : 2000);
+            String out = sb.toString();
+            if (!exited) p.destroy();
+            return out;
         } catch (Exception e) {
             return null;
         } finally {

@@ -9,5 +9,5 @@
     <color name="ok">#FF3FB950</color>
     <color name="warn">#FFD29922</color>
     <color name="err">#FFF85149</color>
-    <color name="ic_launcher_background">#FF5B5BD6</color>
+    <color name="ic_launcher_background">#FFFFFFFF</color>
 </resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SY 图标（描边风格，24dp viewport；颜色由代码 setColorFilter 指定以便跟随主题） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:pathData="M5,3.5 H19 A1.5,1.5 0 0,1 20.5,5 V19 A1.5,1.5 0 0,1 19,20.5 H5 A1.5,1.5 0 0,1 3.5,19 V5 A1.5,1.5 0 0,1 5,3.5 Z M8.2,12.2 L11,15 L16,9.6"
+        android:strokeColor="#FF111111"
+        android:strokeWidth="1.75"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -86,6 +86,10 @@ case "$1" in
     ;;
   enable)  cfg_set SPLASH_ENABLE 1; echo "on" > "$STATE"; echo "OK: 已启用" ;;
   disable) cfg_set SPLASH_ENABLE 0; echo "OK: 已停用" ;;
+  toggle)  # 【真机缺陷修复】App 侧 UI 需要"一键切换"，而旧版只有 enable/disable
+            # （真机实测 App 调 toggle 得到 usage 报错、显示"无输出"）。
+            _t=$(cfg_get SPLASH_ENABLE 1); [ -z "$_t" ] && _t=1
+            if [ "$_t" = "1" ]; then sh "$0" disable; else sh "$0" enable; fi ;;
   status)
     running="no"; [ -f "$RUN/splash.pid" ] && kill -0 "$(cat "$RUN/splash.pid")" 2>/dev/null && running="yes"
     en=$(cfg_get SPLASH_ENABLE 1)
