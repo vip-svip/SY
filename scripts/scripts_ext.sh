@@ -335,7 +335,18 @@ case "$1" in
   subs-enable-multi) subs_enable_multi "$2" ;;
   rollback)      rollback "$2" ;;
   info)
-    for m in "$META_DIR"/*.meta; do [ -f "$m" ] && { echo "--- $(basename "$m")"; cat "$m"; }; done
+    # 【健壮性修复】旧实现在没有脚本时 for 循环体不执行，脚本最后一条命令的退出码
+    # 变成非零 —— 面板会把"没装脚本"误报成错误。这里显式判断空目录并正常返回。
+    if [ ! -d "$META_DIR" ] || [ -z "$(ls -A "$META_DIR" 2>/dev/null)" ]; then
+      echo "（还没有安装任何脚本）"
+    else
+      for m in "$META_DIR"/*.meta; do
+        [ -f "$m" ] || continue
+        echo "--- $(basename "$m")"
+        cat "$m"
+      done
+    fi
+    exit 0
     ;;
   import-mitm-b64)
     [ -z "$2" ] && { echo "ERR: 空内容"; exit 1; }

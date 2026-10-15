@@ -32,6 +32,20 @@ fe_resolve() {
     config|rules) ;;
     *) echo "ERR: 只允许编辑 config/ 与 rules/ 下的文件"; return 1 ;;
   esac
+  # 【缺陷修复】旧版只做顶层目录白名单，但 fe_list 只列 config/ 与 rules/ 的**直属文件**
+  # （用 "$DATA_DIR/$d"/* ，不带 -R），于是 rules/proxy/ 下的订阅与节点文件
+  # （subs.conf / nodes.conf）**在面板里根本看不到、也就无法编辑** ——
+  # 而用户明确要求「订阅文件要能编辑」。这里放行子目录（白名单仍是 config 与 rules），
+  # 并在 fe_list 里递归列出，使订阅/节点/清单都能直接改。
+  case "$rel" in
+    *'/../'*|..*) echo "ERR: 路径不允许包含 .."; return 1 ;;
+  esac
+  # 内部状态文件与引擎产物不允许直接编辑（面板里也不列出）：
+  # 它们是模块的"账本"，用户改坏会导致权限/appops 还原失败。
+  case "$rel" in
+    *.state|*.uid|*.pid|*.spark|*/.emit_meta|rules/engine/*|*/rules/engine/*)
+      echo "ERR: 这是模块内部文件，不允许编辑（避免破坏还原记录）"; return 1 ;;
+  esac
   full="$DATA_DIR/$rel"
   echo "$full"
   return 0
@@ -43,8 +57,18 @@ fe_list() {
   first=1
   for d in config rules; do
     [ -d "$DATA_DIR/$d" ] || continue
-    for f in "$DATA_DIR/$d"/*; do
+    # 递归：把 rules/proxy/subs.conf 这类子目录文件也列出来
+    for f in $(find "$DATA_DIR/$d" -type f 2>/dev/null | sort); do
       [ -f "$f" ] || continue
+      # 隐藏模块内部文件：用户改动它们会让状态记录与内核实际不一致
+      #   *.state / *.uid / *.spark / .emit_meta / rules/engine/*（引擎编译产物，
+      #   改了下一次重编译就被覆盖）/ rules/dns/hosts（自动生成）
+      case "$f" in
+        *.state|*.uid|*.pid|*.spark|*/.emit_meta|*/.whitelist.patterns|*/netblock.resolved|*/hosts.generated)
+          continue ;;
+        */rules/engine/*)
+          continue ;;
+      esac
       rel="${f#$DATA_DIR/}"
       sz=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
       ln=$(wc -l < "$f" 2>/dev/null | tr -d ' ')
