@@ -178,40 +178,6 @@ a{color:var(--accent);text-decoration:none}
 .tiny{font-size:11px;color:var(--scolor)}
 .hide{display:none!important}
 
-/* ================= 顶部玻璃 header ================= */
-.header{
-  position:sticky;top:0;z-index:60;
-  background:var(--glass-bg);
-  border-bottom:1px solid var(--card-border-color);
-  box-shadow:var(--shadow-1);
-  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(170%);
-  backdrop-filter:blur(var(--glass-blur)) saturate(170%);
-}
-@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
-  .header{background:var(--bgcolor)}
-}
-.header__inner{
-  max-width:1240px;margin:0 auto;padding:0 14px;
-  display:flex;align-items:center;gap:10px;min-height:56px;
-}
-.brand{
-  display:flex;align-items:center;gap:8px;flex:none;
-  font-size:16px;font-weight:700;color:var(--mcolor);letter-spacing:.2px;
-}
-.brand svg{width:20px;height:20px;fill:var(--accent)}
-.brand__sub{
-  font-size:11px;font-weight:500;color:var(--scolor);
-  padding:2px 7px;border:1px solid var(--card-border-color);border-radius:20px;
-}
-.nav-tabs{
-  display:flex;align-items:stretch;gap:2px;
-  margin-left:12px;flex:1 1 auto;min-width:0;
-  /* 注意：这里绝不能设 overflow:auto/hidden —— 那会把下拉菜单裁掉。
-     窄屏改为折行（flex-wrap），保证下拉永远可见。 */
-  flex-wrap:wrap;overflow:visible;
-}
-.nav-item{position:relative;flex:none}
-
 /* ============================================================
    底部导航（移动端优先）
    为什么加它：顶部是 4 个下拉，手机上一要看不出"总共有什么"，
@@ -243,6 +209,57 @@ a{color:var(--accent);text-decoration:none}
 /* 关键错误必须可见：折叠区里若有失败提示，展开态样式更醒目 */
 .adv[open] .adv-warn{color:var(--bad)}
 
+/* ============================================================
+   底部导航（5 入口）+ 工作区抽屉
+   ------------------------------------------------------------
+   为什么改成这样：原设计是「顶部 4 个下拉 + 底部 4 个入口」，同一套导航
+   在顶部与底部各铺一遍 —— 手机上顶部本来就最难按，而且 26 个页面靠
+   下拉展开，既占顶部空间、又要两次点击。现在：
+     · 顶部完全移除（一屏之内不再有任何常驻横栏）；
+     · 底部 5 个入口覆盖全部工作区；
+     · 点入口弹出抽屉，列出该工作区的所有页面 —— 一次点击直达。
+   ============================================================ */
+
+/* 抽屉：从底部滑出的页面选择面板 */
+.wsheet{position:fixed;inset:0;z-index:80;display:none}
+.wsheet.open{display:block}
+.wsheet__mask{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+.wsheet__panel{
+  position:absolute;left:0;right:0;bottom:0;
+  background:var(--bgcolor);
+  border-top:1px solid var(--card-border-color);
+  border-radius:16px 16px 0 0;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  max-height:72vh;display:flex;flex-direction:column;
+  box-shadow:0 -8px 32px rgba(0,0,0,.28);
+}
+.wsheet__grip{
+  width:40px;height:4px;border-radius:2px;background:var(--ctrl-border);
+  margin:9px auto 3px;cursor:pointer;flex:none;
+}
+.wsheet__head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 14px 10px;flex:none;
+  border-bottom:1px solid var(--border-color);
+}
+.wsheet__head b{font-size:15px;color:var(--mcolor)}
+.wsheet__list{
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:6px 8px 14px;
+}
+.wsheet__item{
+  display:flex;align-items:center;gap:10px;
+  min-height:52px;padding:0 12px;border-radius:10px;
+  color:var(--mcolor);font-size:14.5px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.wsheet__item:active{background:var(--hover)}
+.wsheet__item.on{color:var(--accent);background:var(--accent-soft);font-weight:600}
+.wsheet__item .wsdot{
+  width:6px;height:6px;border-radius:50%;background:var(--ctrl-border);flex:none;
+}
+.wsheet__item.on .wsdot{background:var(--accent)}
+
 .bottomnav{
   position:fixed;left:0;right:0;bottom:0;z-index:60;
   display:none;
@@ -252,7 +269,7 @@ a{color:var(--accent);text-decoration:none}
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
 .bottomnav__inner{
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(5,1fr);
   max-width:1240px;margin:0 auto;
 }
 .bnav-item{
@@ -279,11 +296,16 @@ a{color:var(--accent);text-decoration:none}
   table{display:block;max-width:100%;overflow-x:auto}
   pre,code,.mono{max-width:100%;overflow-x:auto}
   /* 顶部下拉收窄：手机上横向空间紧张，品牌副标题隐藏 */
-  .brand__sub{display:none}
-  .nav-tabs{margin-left:6px;gap:0}
-  .nav-link{padding:0 9px;font-size:13px}
+  
   /* 输入框至少 16px，否则 iOS/部分 WebView 会自动放大页面 */
-  input,textarea,select{font-size:16px}
+  /* 手机端输入字号强制 16px：iOS Safari / 部分 Android WebView 在 <16px 时会
+     自动放大整个页面（用户点输入框页面突然变大），这是必须避免的。
+     注意：项目里有 `input[type=search],select{font-size:12.5px}` 这类
+     「属性+类」选择器，优先级高于纯类型选择器 —— 普通声明压不住，
+     所以这里用 !important（移动端防放大属硬要求，值得用）。 */
+  input,textarea,select,.ta,.inp{font-size:16px !important}
+  /* 说明文字 12px 在手机上偏小，提到 13px 更易读；行高保持 1.6 */
+  .hint,.layer__why,.tagline{font-size:13px}
   /* 主操作按钮最小 48px 触控高度（MagicNet 的设计约束） */
   .btn{min-height:44px}
   .btn.primary{min-height:48px}
@@ -299,73 +321,30 @@ pre,.mono{max-width:100%;overflow-x:auto}
 @media (max-height:480px) and (orientation:landscape){
   .bnav-item{min-height:48px}
 }
-.nav-link{
-  display:flex;align-items:center;gap:6px;
-  padding:0 12px;height:56px;white-space:nowrap;cursor:pointer;
-  font-size:13.5px;font-weight:500;color:var(--scolor);
-  border-bottom:2px solid transparent;
-  transition:color .15s,border-color .15s,background-color .15s;
-}
-.nav-link:hover{color:var(--mcolor);background:var(--hover)}
-.nav-link.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-.nav-link .caret{font-size:9px;opacity:.7}
-.header__right{display:flex;align-items:center;gap:8px;flex:none}
-.status-pill{
-  font-size:11.5px;color:var(--scolor);max-width:250px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.status-pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--scolor);margin-right:5px;vertical-align:middle}
-.status-pill .dot.on{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
-.status-pill .dot.off{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
-@media (max-width:640px){.status-pill{display:none}}
+
+@media (max-width:640px){}
 /* 窄屏收紧导航，尽量单行放下；放不下则折行，绝不裁切下拉 */
 @media (max-width:520px){
-  .header__inner{padding:0 8px;gap:6px}
-  .brand__sub{display:none}
-  .nav-tabs{margin-left:2px;gap:0}
-  .nav-link{padding:0 8px;height:48px;font-size:12.5px}
+  
+  
 }
 /* 360dp 小屏再收一档，保证单行不溢出 */
 @media (max-width:400px){
-  .header__inner{padding:0 8px;gap:6px}
-  .brand{gap:6px;font-size:15px}
-  .brand svg{width:18px;height:18px}
-  .nav-link{padding:0 6px;height:46px;font-size:12px}
-  .nav-link .caret{font-size:8px}
-  .icon-btn{width:30px;height:30px;font-size:14px}
-}
+  
+  
+  
+  }
 .icon-btn{
-  width:34px;height:34px;flex:none;padding:0;cursor:pointer;
+  /* 【UI 修复】旧值 34px 低于 44px 触控目标下限，手机上难点中。
+     注意：这里才是最后生效的那条规则（同名规则后定义者胜），
+     所以尺寸必须改在这里，改前面的那条不会起作用（真机浏览器实测发现）。 */
+  width:44px;height:44px;flex:none;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  font-size:15px;color:var(--mcolor);
+  font-size:16px;color:var(--mcolor);
   background:var(--ctrl-bg);border:1px solid var(--ctrl-border);border-radius:var(--radius-sm);
 }
 .icon-btn:hover{background:var(--hover)}
 .icon-btn:active{transform:scale(.95)}
-
-/* 下拉菜单：唯一允许使用 backdrop-filter 的浮层 */
-.dropdown-menu{
-  position:absolute;top:calc(100% - 1px);left:0;z-index:70;
-  min-width:222px;max-width:calc(100vw - 24px);padding:5px;
-  background:var(--glass-bg);
-  border:1px solid var(--card-border-color);border-radius:var(--radius);
-  box-shadow:var(--shadow-2);
-  -webkit-backdrop-filter:blur(20px) saturate(180%);
-  backdrop-filter:blur(20px) saturate(180%);
-  display:none;
-}
-@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
-  .dropdown-menu{background:var(--bgcolor)}
-}
-.dropdown-menu.open{display:block}
-/* 必须紧跟基础规则，否则会被后面的 min-width 覆盖掉 */
-@media (max-width:520px){ .dropdown-menu{min-width:196px} }
-.dropdown-item{
-  display:block;padding:8px 10px;border-radius:6px;cursor:pointer;
-  font-size:13px;color:var(--mcolor);white-space:nowrap;
-}
-.dropdown-item:hover{background:var(--hover)}
-.dropdown-item.on{color:var(--accent);font-weight:600;background:var(--accent-soft)}
 
 /* ================= 页面容器 ================= */
 .container{max-width:1240px;margin:0 auto;padding:16px 14px 40px}
@@ -494,7 +473,7 @@ pre,.mono{max-width:100%;overflow-x:auto}
   outline:none;border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft);
 }
-.ta{min-height:112px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.6}
+.ta{min-height:112px;resize:vertical;font-family:var(--mono);font-size:16px;line-height:1.6}
 select{cursor:pointer}
 input[type=checkbox]{accent-color:var(--accent)}
 .hint{font-size:12px;color:var(--scolor);padding:10px 0 2px;line-height:1.6}
@@ -839,13 +818,13 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 .chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 
 /* 分段控件：三选一（应用分流策略用），比三行 radio 更清楚 */
-.seg{display:flex;gap:0;border:1px solid var(--ctrl-border);border-radius:10px;overflow:hidden;margin:4px 0 10px}
-.seg>button{
+.psel{display:flex;gap:0;border:1px solid var(--ctrl-border);border-radius:10px;overflow:hidden;margin:4px 0 10px}
+.psel>button{
   flex:1 1 0;min-height:44px;border:0;background:transparent;color:var(--scolor);
   font-size:13px;cursor:pointer;padding:0 8px;
 }
-.seg>button+button{border-left:1px solid var(--ctrl-border)}
-.seg>button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.psel>button+button{border-left:1px solid var(--ctrl-border)}
+.psel>button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 
 /* 就绪语义行：左标签 右状态，逐层讲清 */
 .layer{
@@ -874,76 +853,6 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 </style>
 </head>
 <body>
-
-<header class="header">
-  <div class="header__inner">
-    <div class="brand">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6.2c0 5.3 3.8 10.3 9 11.8 5.2-1.5 9-6.5 9-11.8V5l-9-4Zm0 3.6 5 2.2v4.4c0 3.6-2.4 7.2-5 8.5-2.6-1.3-5-4.9-5-8.5V6.8l5-2.2Z"/></svg>
-      <span>SY</span>
-      <span class="brand__sub">AdGuard Home</span>
-    </div>
-
-    <nav class="nav-tabs" id="tabs">
-      <div class="nav-item">
-        <a class="nav-link on" data-tab="home">总览</a>
-      </div>
-
-      <div class="nav-item">
-        <a class="nav-link" data-dd="route">代理路由 <span class="caret">▼</span></a>
-        <div class="dropdown-menu" data-dd-menu="route">
-          <a class="dropdown-item" data-tab="route-home">代理总览</a>
-          <a class="dropdown-item" data-tab="route-proxy">策略组与节点</a>
-          <a class="dropdown-item" data-tab="route-conn">实时连接</a>
-          <a class="dropdown-item" data-tab="route-rules">规则与分流</a>
-          <a class="dropdown-item" data-tab="route-dns">DNS 与查询</a>
-          <a class="dropdown-item" data-tab="route-logs">内核日志</a>
-          <a class="dropdown-item" data-tab="route-core">内核与配置</a>
-          <a class="dropdown-item" data-tab="proxynode">节点与订阅</a>
-          <a class="dropdown-item" data-tab="proxyctl">代理控制面</a>
-        </div>
-      </div>
-
-      <div class="nav-item">
-        <a class="nav-link" data-dd="filters">过滤 <span class="caret">▼</span></a>
-        <div class="dropdown-menu" data-dd-menu="filters">
-          <a class="dropdown-item" data-tab="dns">DNS 拦截列表</a>
-          <a class="dropdown-item" data-tab="engine">自定义过滤规则</a>
-          <a class="dropdown-item" data-tab="mitm">加密过滤 · 根证书</a>
-          <a class="dropdown-item" data-tab="netblock">拦截服务</a>
-          <a class="dropdown-item" data-tab="notify">通知过滤</a>
-          <a class="dropdown-item" data-tab="privacy">隐私护盾</a>
-          <a class="dropdown-item" data-tab="leakguard">网络防泄露</a>
-          <a class="dropdown-item" data-tab="fxguard">FX 深度抵抗</a>
-        </div>
-      </div>
-
-      <div class="nav-item">
-        <a class="nav-link" data-dd="tools">工具 <span class="caret">▼</span></a>
-        <div class="dropdown-menu" data-dd-menu="tools">
-          <a class="dropdown-item" data-tab="app">内置管理器 App</a>
-          <a class="dropdown-item" data-tab="scripts">脚本扩展</a>
-          <a class="dropdown-item" data-tab="splash">开屏跳过</a>
-          <a class="dropdown-item" data-tab="tools">工具与备份</a>
-          <a class="dropdown-item" data-tab="fileedit">文件编辑器</a>
-        </div>
-      </div>
-
-      <div class="nav-item">
-        <a class="nav-link" data-dd="settings">设置 <span class="caret">▼</span></a>
-        <div class="dropdown-menu" data-dd-menu="settings">
-          <a class="dropdown-item" data-tab="settings">常规设置</a>
-          <a class="dropdown-item" data-tab="dnssrv">DNS 设置</a>
-          <a class="dropdown-item" data-tab="sysinfo">系统与日志</a>
-        </div>
-      </div>
-    </nav>
-
-    <div class="header__right">
-      <span class="status-pill" id="sysline">正在连接内核…</span>
-      <button class="icon-btn" data-act="theme" title="切换深浅色">🌓</button>
-    </div>
-  </div>
-</header>
 
 <div class="container">
 
@@ -1851,7 +1760,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
             <b>bypass</b> 完全离开本模块（外部 VPN 共存场景）。
           </div>
           <input type="text" id="pmPkg" placeholder="包名，如 com.example.browser">
-          <div class="seg" id="pmPolSeg">
+          <div class="psel" id="pmPolSeg">
             <button data-act="pm-pol" data-v="proxy" class="on">proxy 代理</button>
             <button data-act="pm-pol" data-v="direct">direct 直连</button>
             <button data-act="pm-pol" data-v="bypass">bypass 绕过</button>
@@ -2888,28 +2797,44 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
 
 </div>
 
-
 <!-- ================= 底部导航（移动端） ================= -->
 <nav class="bottomnav" id="bottomnav" aria-label="主导航">
   <div class="bottomnav__inner">
-    <button class="bnav-item" data-tab="home" data-ws="run">
+    <button class="bnav-item" data-ws="run" data-first="home">
       <svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></svg>
       <span>运行</span>
     </button>
-    <button class="bnav-item" data-tab="route-home" data-ws="route">
+    <button class="bnav-item" data-ws="proxy" data-first="route-home">
       <svg viewBox="0 0 24 24"><path d="M4 20V6h2v14zm14 0V4h2v16zM7 8h7l-2-2 3-3 5 5-5 5-3-3 2-2H7zm10 6h-7l2-2-3-3-5 5 5 5 3-3-2-2h7z"/></svg>
-      <span>路由</span>
+      <span>代理</span>
     </button>
-    <button class="bnav-item" data-tab="privacy" data-ws="shield">
+    <button class="bnav-item" data-ws="shield" data-first="privacy">
       <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5zm0 4v10c2.8-1 4.8-3.6 5-7.6L12 6z"/></svg>
       <span>隐私</span>
     </button>
-    <button class="bnav-item" data-tab="dns" data-ws="filter">
+    <button class="bnav-item" data-ws="filter" data-first="dns">
       <svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
       <span>过滤</span>
     </button>
+    <button class="bnav-item" data-ws="more" data-first="settings">
+      <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9 4a9 9 0 00-.1-1.3l2-1.6-2-3.4-2.4 1a9 9 0 00-2.2-1.3L15.9 2h-3.8l-.4 2.4a9 9 0 00-2.2 1.3l-2.4-1-2 3.4 2 1.6a9 9 0 000 2.6l-2 1.6 2 3.4 2.4-1a9 9 0 002.2 1.3l.4 2.4h3.8l.4-2.4a9 9 0 002.2-1.3l2.4 1 2-3.4-2-1.6A9 9 0 0021 12z"/></svg>
+      <span>更多</span>
+    </button>
   </div>
 </nav>
+
+<!-- ================= 底部抽屉：点入口后展开该工作区的全部页面 ================= -->
+<div class="wsheet" id="wsheet" role="dialog" aria-label="页面选择">
+  <div class="wsheet__mask" data-act="ws-close"></div>
+  <div class="wsheet__panel">
+    <div class="wsheet__grip" data-act="ws-close"></div>
+    <div class="wsheet__head">
+      <b id="wsTitle">运行</b>
+      <button class="icon-btn" data-act="ws-close" title="收起" aria-label="收起">✕</button>
+    </div>
+    <div class="wsheet__list" id="wsList"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -3812,7 +3737,7 @@ var actions={
   },
   "pm-pol":function(el){
     var v=el&&el.getAttribute("data-v"); if(!v) return Promise.resolve();
-    $("#pmPolSeg>button").forEach(function(b){ b.classList.toggle("on", b===el); });
+    $$("#pmPolSeg>button").forEach(function(b){ b.classList.toggle("on", b===el); });
     PM_POL=v; return Promise.resolve();
   },
   "pm-app-add":function(){
@@ -5746,97 +5671,120 @@ function loadTab(tab){
       return Promise.resolve();
   }
 }
-/* 关闭所有导航下拉 */
-function closeDropdowns(){
-  $$(".dropdown-menu.open").forEach(function(m){ m.classList.remove("open"); });
-}
-/* 展开下拉并做视口越界修正（left 是相对 .nav-item 的，必须换算成偏移量） */
-function openDropdown(dd,menu){
-  if(!menu) return;
-  var host=dd.parentNode;                 /* .nav-item，position:relative */
-  menu.style.left="0"; menu.style.right="auto";
-  menu.classList.add("open");             /* 先显示才能量到宽度 */
-  var vw=document.documentElement.clientWidth;
-  var w=menu.offsetWidth;
-  var hr=host.getBoundingClientRect();
-  var left=hr.left;                       /* 默认与父项左对齐 */
-  if(left+w>vw-8) left=vw-8-w;            /* 右越界 → 向左推 */
-  if(left<8) left=8;                      /* 左越界 → 贴左边距 */
-  menu.style.left=(left-hr.left)+"px";    /* 换算为相对父项的偏移 */
-}
-/* 下拉父项高亮：当前 tab 位于哪个下拉里，父项就点亮 */
-function syncNavParent(tab){
-  $$(".nav-link[data-dd]").forEach(function(p){
-    var menu=p.parentNode.querySelector(".dropdown-menu");
-    var hit=false;
-    if(menu){
-      $$(".dropdown-menu [data-tab]").forEach(function(x){
-        if(x.parentNode===menu && x.getAttribute("data-tab")===tab) hit=true;
-      });
-    }
-    p.classList.toggle("on", hit);
-  });
-}
 /* ============================================================
    底部导航（移动端）：点击 → 切到对应工作区的首页
    与 switchTab 联动，高亮当前工作区；桌面端隐藏（CSS）。
    ============================================================ */
+var WS = {
+  run:    [["home","总览"],["sysinfo","系统与日志"],["tools","工具与备份"]],
+  proxy:  [["route-home","代理总览"],["proxynode","节点与订阅"],["proxyctl","代理控制面"],
+           ["route-proxy","策略组与节点"],["route-conn","实时连接"],["route-rules","规则与分流"],
+           ["route-dns","DNS 与查询"],["route-logs","内核日志"],["route-core","内核与配置"]],
+  shield: [["privacy","隐私护盾"],["leakguard","网络防泄露"],["fxguard","FX 深度抵抗"],
+           ["netblock","拦截服务"],["notify","通知过滤"]],
+  filter: [["dns","DNS 拦截列表"],["engine","自定义过滤规则"],["mitm","加密过滤 · 根证书"],
+           ["splash","开屏跳过"],["fileedit","文件编辑器"]],
+  more:   [["settings","常规设置"],["dnssrv","DNS 设置"],["app","内置管理器 App"],["scripts","脚本扩展"]]
+};
+var WSNAME = {run:"运行", proxy:"代理", shield:"隐私", filter:"过滤", more:"更多"};
+
+/* 收起抽屉 */
+function wsClose(){
+  var s=document.getElementById("wsheet");
+  if(s) s.classList.remove("open");
+}
+/* 展开抽屉：列出该工作区的页面，高亮当前页 */
+function wsOpen(ws){
+  var s=document.getElementById("wsheet"), box=document.getElementById("wsList");
+  if(!s || !box) return;
+  var list=WS[ws]||[];
+  setText("wsTitle", WSNAME[ws]||ws);
+  /* 记住的"上次访问"优先作为高亮项 */
+  var last="";
+  try{ last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
+  var cur = (CUR_TAB && list.some(function(x){return x[0]===CUR_TAB;})) ? CUR_TAB : (last||(list[0]?list[0][0]:""));
+  box.innerHTML = list.map(function(x){
+    return '<div class="wsheet__item'+(x[0]===cur?' on':'')+'" data-tab="'+esc(x[0])+'">'+
+           '<span class="wsdot"></span><span>'+esc(x[1])+'</span></div>';
+  }).join("");
+  s.classList.add("open");
+}
 function syncBottomNav(tab){
-  var items=$(".bnav-item");
+  var items=$$(".bnav-item");           /* 必须用 $ 选全部：$ 是 querySelector 只返回第一个，对单个元素调 forEach 会抛错 */
   if(!items.length) return;
-  /* 把 tab 映射到工作区：一个工作区覆盖多个 tab */
-  var ws = "run";
-  if(/^(route-|proxynode)/.test(tab)) ws="route";
-  else if(/^(privacy|leakguard|fxguard|game)/.test(tab)) ws="shield";
-  else if(/^(dns|engine|mitm|netblock|notify|fileedit|scripts)/.test(tab)) ws="filter";
-  else if(tab==="home") ws="run";
+  /* tab → 工作区（与 WS 表保持一致） */
+  var ws="run";
+  for (var k in WS) {
+    if (WS[k].some(function(x){ return x[0]===tab; })) { ws=k; break; }
+  }
   items.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-ws")===ws); });
+  var s=document.getElementById("wsheet");
+  if(s && s.classList.contains("open")) wsOpen(ws);   /* 抽屉开着时同步高亮 */
 }
 function switchTab(tab){
   $$("[data-tab]").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===tab); });
   $$(".page").forEach(function(p){ p.classList.toggle("hide", p.id!=="page-"+tab); });
-  syncNavParent(tab);
-  closeDropdowns();
   CUR_TAB = tab;
   syncBottomNav(tab);          /* 底部导航高亮 */
   syncLiveTimers();
   loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
 }
-/* 顶部导航：下拉开合 + 页面切换 */
-document.getElementById("tabs").addEventListener("click",function(ev){
-  var dd=ev.target.closest(".nav-link[data-dd]");
-  if(dd){
-    var menu=dd.parentNode.querySelector(".dropdown-menu");
-    var wasOpen=!!(menu&&menu.classList.contains("open"));
-    closeDropdowns();
-    if(menu&&!wasOpen) openDropdown(dd,menu);
+/* ============================================================
+   底部导航（5 入口）+ 工作区抽屉
+   ------------------------------------------------------------
+   交互：点入口 → 弹出抽屉，列出该工作区的全部页面 → 点页面直达。
+   为什么不用顶部下拉：手机上顶部最难按，而且 26 个页面靠下拉展开
+   要两次点击、还占满一屏顶部。现在顶部完全移除，导航只在底部。
+   记住每个工作区最后访问的页面，再点同一入口时直接回到它。
+   ============================================================ */
+
+/* 底部入口点击 */
+document.addEventListener("click",function(ev){
+  /* 入口 */
+  var b=ev.target.closest(".bnav-item");
+  if(b){
+    var ws=b.getAttribute("data-ws");
+    if(!ws) return;
+    /* 已经是当前工作区且抽屉没开 → 直接回到该区（不弹抽屉，减少一次点击） */
+    var s=document.getElementById("wsheet");
+    var opened = s && s.classList.contains("open");
+    if(b.classList.contains("on") && !opened){
+      var list=WS[ws]||[];
+      var last="";
+      try{ last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
+      var target=list.some(function(x){return x[0]===last;}) ? last : (list[0]?list[0][0]:"");
+      if(target) switchTab(target);
+      return;
+    }
+    /* 首次点或换工作区 → 切到该区首选页 + 弹抽屉供选具体页 */
+    if(!b.classList.contains("on")){
+      var l2=WS[ws]||[], l2last="";
+      try{ l2last=localStorage.getItem("ab_last_"+ws)||""; }catch(e){}
+      var t2=l2.some(function(x){return x[0]===l2last;}) ? l2last : (l2[0]?l2[0][0]:"");
+      if(t2) switchTab(t2);
+    }
+    wsOpen(ws);
     ev.preventDefault();
     return;
   }
-  var t=ev.target.closest("[data-tab]");
-  if(t) switchTab(t.getAttribute("data-tab"));
+  /* 抽屉里的页面项 */
+  var it=ev.target.closest(".wsheet__item");
+  if(it){
+    var tab=it.getAttribute("data-tab");
+    var sheet=document.getElementById("wsheet");
+    var ws2="";
+    if(sheet){ var cur=null; var it2=$$(".bnav-item"); for(var i=0;i<it2.length;i++){ if(it2[i].classList.contains("on")) cur=it2[i]; } if(cur) ws2=cur.getAttribute("data-ws"); }
+    if(tab){ switchTab(tab); try{ if(ws2) localStorage.setItem("ab_last_"+ws2, tab); }catch(e){} }
+    wsClose();
+    ev.preventDefault();
+    return;
+  }
+  /* 关闭：遮罩、抓手、✕ 都带 data-act="ws-close" */
+  if(ev.target.closest('[data-act="ws-close"]')){ wsClose(); ev.preventDefault(); }
 });
-/* 底部导航点击 */
-document.addEventListener("click",function(ev){
-  var b=ev.target.closest(".bnav-item");
-  if(!b) return;
-  var tab=b.getAttribute("data-tab");
-  if(!tab) return;
-  /* 记住每个工作区最后访问的 tab，下次点同一入口直接回去 */
-  switchTab(tab);
-  try{ localStorage.setItem("ab_last_"+b.getAttribute("data-ws"), tab); }catch(e){}
-  ev.preventDefault();
-});
+/* Escape 收起抽屉（键盘可用性） */
+document.addEventListener("keydown",function(ev){ if(ev.key==="Escape") wsClose(); });
 
-/* 点击导航以外区域关闭下拉 */
-document.addEventListener("click",function(ev){
-  if(ev.target.closest(".nav-tabs")) return;
-  closeDropdowns();
-});
-/* 旋转屏幕 / 改变窗口尺寸后下拉位置会失效，直接收起 */
-window.addEventListener("resize",closeDropdowns);
-window.addEventListener("orientationchange",closeDropdowns);
-document.addEventListener("keydown",function(ev){ if(ev.key==="Escape") closeDropdowns(); });
 /* 子页切换 */
 document.addEventListener("click",function(ev){
   var st=ev.target.closest(".subtab"); if(!st) return;

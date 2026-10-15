@@ -97,22 +97,49 @@ pm_api() {
 
 # ---------- ③ 数据面层 ----------
 pm_dataplane() {
-  mode=$(cfg_get PROXY_MODE "")
-  [ -z "$mode" ] && mode="tun"
-  case "$mode" in
-    tun)
-      if command -v ip >/dev/null 2>&1; then
-        if ip link show "$(cfg_get PROXY_TUN_IF tun0)" >/dev/null 2>&1; then echo "present:tun"; return 0; fi
-        echo "absent:tun"; return 1
+  # 【真实缺陷修复】旧版读 cfg_get PROXY_MODE，但该键**从未在 sy.conf 里定义**，
+  # 于是永远走默认 "tun" —— 而 SY 实际支持两种数据面（由内核配置决定）：
+  #   · tun   : 配置含 {"type":"tun"}，判据 = TUN 接口在 sysfs 存在
+  #   · mixed : 配置含 {"type":"mixed","listen_port":N}，判据 = 该端口在监听
+  # 只判 tun 会让 mixed 模式永远报 unknown（把"其实通了"说成"不知道"）。
+  # 现在直接从内核配置推断数据面类型，与实际运行形态一致。
+  if [ ! -s "$PM_CFG" ]; then echo "unknown:no-config"; return 1; fi
+  # 【缺陷修复】grep -c 在"无匹配"时**输出 0 但退出码为 1**，所以 `|| echo 0`
+  # 会再追加一行，has_tun 变成 "0<换行>0" —— 与 "0" 比较时不相等，
+  # 于是明明没有 tun 也会错误进入 tun 分支（真跑复现）。
+  # 正确写法：先取输出，再单独兜底，不做 `|| echo`（-c 永远有输出）。
+  has_tun=$(grep -c '"type"[[:space:]]*:[[:space:]]*"tun"' "$PM_CFG" 2>/dev/null | head -n1)
+  [ -z "$has_tun" ] && has_tun=0
+  tun_if=$(sed -n 's/.*"interface_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PM_CFG" 2>/dev/null | head -n1)
+  [ -z "$tun_if" ] && tun_if=$(cfg_get PROXY_TUN_IF tun0)
+  # ① tun 优先（配置里明确写了 tun）
+  if [ "${has_tun:-0}" != "0" ] && [ -n "${has_tun:-}" ]; then
+    if command -v ip >/dev/null 2>&1; then
+      if ip link show "$tun_if" >/dev/null 2>&1; then echo "present:tun($tun_if)"; return 0; fi
+      echo "absent:tun($tun_if) 配置要 tun 但接口不在"; return 1
+    fi
+    echo "unknown:tun 无 ip 命令，无法验证接口"; return 1
+  fi
+  # ② mixed 端口（用户态代理）
+  mix_port=$(sed -n 's/.*"listen_port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$PM_CFG" 2>/dev/null | head -n1)
+  if [ -n "$mix_port" ]; then
+    if command -v netstat >/dev/null 2>&1 || command -v ss >/dev/null 2>&1; then
+      listening=no
+      if netstat -tln 2>/dev/null | grep -q ":$mix_port "; then listening=yes; fi
+      if [ "$listening" = "no" ] && command -v ss >/dev/null 2>&1; then
+        ss -tln 2>/dev/null | grep -q ":$mix_port " && listening=yes
       fi
-      echo "unknown:tun"; return 1 ;;
-    *)
-      if command -v iptables >/dev/null 2>&1; then
-        if iptables -t filter -nL OUTPUT 2>/dev/null | grep -q "SY_LEAK_OUT"; then echo "present:dns-capture"; return 0; fi
-        echo "absent:dns-capture"; return 1
-      fi
-      echo "unknown:dns-capture"; return 1 ;;
-  esac
+      if [ "$listening" = "yes" ]; then echo "present:mixed-port($mix_port)"; return 0; fi
+      echo "absent:mixed-port($mix_port) 未在监听"; return 1
+    fi
+    echo "unknown:mixed-port 无 netstat/ss，无法验证端口"; return 1
+  fi
+  # ③ 配置在但既无 tun 也无 mixed：退回明文 DNS 拦截作为旁证（并如实标注）
+  if command -v iptables >/dev/null 2>&1; then
+    if iptables -t filter -nL OUTPUT 2>/dev/null | grep -q "SY_LEAK_OUT"; then echo "present:dns-capture"; return 0; fi
+    echo "absent:none 配置无 tun/mixed，也无 DNS 拦截"; return 1
+  fi
+  echo "unknown:none 无法判定"; return 1
 }
 
 pm_lifecycle() { # <proc> <api> <dp>

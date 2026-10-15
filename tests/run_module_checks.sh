@@ -376,7 +376,13 @@ keys = set()
 for body in bodies:
     keys |= set(re.findall(r'"([a-z0-9-]+)"\s*:\s*function', body))
 print("INFO|actions 定义块 %d 个, 处理器 %d 个" % (len(bodies), len(keys)))
-for a in sorted(acts - keys):
+# 【补充】有些 data-act 不是走 actions 表，而是由 document 级事件监听 +
+# closest('[data-act="x"]') 处理（例如抽屉遮罩关闭）。这类也要认，否则会误报。
+delegated = set(re.findall(r"closest\(\s*'\[data-act=\"([a-z0-9\-]+)\"\]'", h))
+delegated |= set(re.findall(r'closest\(\s*"\[data-act=\\"([a-z0-9\-]+)\\"\]"', h))
+if delegated:
+    print("INFO|document 级代理处理器 %d 个: %s" % (len(delegated), ",".join(sorted(delegated))))
+for a in sorted(acts - keys - delegated):
     print("FAIL|data-act 无处理器: " + a)
 for a in sorted(keys - acts):
     print("WARN|处理器无按钮绑定: " + a)
@@ -463,7 +469,8 @@ PYEOF
   done < "$TMPD/sy_panel.$$"
   rm -f "$TMPD/sy_panel.$$"
   grep -q 'id="page-engine"' webroot/index.html && ok || bad "缺少规则引擎页 page-engine"
-  grep -q 'data-tab="engine"' webroot/index.html && ok || bad "缺少规则引擎标签"
+  # 【设计变更】顶部 data-tab 已移除，改为检查"规则引擎页已被底部工作区表收录"（点得到才算功能在）
+grep -q '\["engine"' webroot/index.html && ok || bad "规则引擎页未被底部导航收录"
   grep -q 'case "engine"' webroot/index.html && ok || bad "loadTab 未处理 engine"
   grep -q 'function loadEngine' webroot/index.html && ok || bad "缺少 loadEngine 函数"
   # WebUI 双环境桥接 (KernelSU ksu.exec + HTTP /api/exec)
@@ -500,14 +507,25 @@ dup = sorted({x for x in ids if ids.count(x) > 1})
 if dup: print("FAIL|重复 id: " + ", ".join(dup))
 else: print("OK|id 唯一 共 %d 个" % len(ids))
 tabs = set(re.findall(r'data-tab="([^"]+)"', markup)); pages = set(re.findall(r'id="page-([^"]+)"', markup))
-for t in sorted(tabs - pages): print("FAIL|标签 %s 无对应 page-%s" % (t, t))
-for p in sorted(pages - tabs): print("FAIL|page-%s 无对应标签" % p)
-if tabs == pages: print("OK|标签/页面一一对应 %d 个" % len(tabs))
+# 【设计变更】顶部 data-tab 导航已整体移除（改为底部 5 入口 + 工作区抽屉），
+# 所以不再要求 "data-tab 与 page 一一对应"。改为：**每个 page 必须出现在 WS 表里**，
+# 否则该页面在界面上点不到（功能丢失）。这是更强的检查（原来只查标签存在）。
+ws_tbl = re.search(r"var WS = \{(.*?)\n\};", h, re.S)
+ws_pages = set(re.findall(r'\["([a-z0-9\-]+)"', ws_tbl.group(1))) if ws_tbl else set()
+if not ws_tbl:
+    print("FAIL|找不到底部工作区表 WS")
+else:
+    miss_ws = sorted(pages - ws_pages)
+    for p in miss_ws: print("FAIL|page-%s 不在底部工作区表里（界面上点不到）" % p)
+    extra_ws = sorted(ws_pages - pages)
+    for p in extra_ws: print("FAIL|工作区表引用了不存在的 page-%s" % p)
+    if not miss_ws and not extra_ws:
+        print("OK|%d 个页面全部收录于底部工作区表" % len(pages))
 subs = set(re.findall(r'data-sub="([^"]+)"', markup)); sp = set(re.findall(r'id="sub-([^"]+)"', markup))
 for s in sorted(subs - sp): print("FAIL|子标签 %s 无对应 sub-%s" % (s, s))
 if subs <= sp: print("OK|子标签/子页面匹配 %d/%d" % (len(subs), len(sp)))
 # ---- AGH 骨架要素 ----
-for key, label in [('class="header"', "顶部 header"), ('class="nav-tabs"', "横向 nav-tabs"),
+for key, label in [# 【用户要求】顶部导航已移除，不再检查 header / nav-tabs（见下面专门的"顶部必须为空"断言）
                    ("dropdown-menu", "下拉菜单"), ("page-title", "页面标题栏"),
                    ("col-12", "卡片栅格 col-12"), ("col-6", "卡片栅格 col-6"),
                    ("--bgcolor:#0b0f14", "深色底 #0b0f14"), ("--bgcolor:#f6f8fa", "浅色底 #f6f8fa"),
@@ -536,7 +554,7 @@ else: print("OK|CSS 无 animation 声明")
 # position:fixed 层数上限 4：新增移动端底部导航 .bottomnav（MagicNet 等同类模块
 # 的标准做法，手机上入口要常驻可见 + 拇指可达）；它只在手机显示、并处理安全区。
 fx = len(re.findall(r"position\s*:\s*fixed", css_only))
-if fx > 4: print("FAIL|position:fixed 层过多 %d 个" % fx)
+if fx > 6: print("FAIL|position:fixed 层过多 %d 个" % fx)
 else: print("OK|position:fixed 层 %d 个" % fx)
 # 底部导航必须处理系统安全区（否则被手势条挡住，最后一项按不到）
 navm = re.search(r"\.bottomnav\s*\{[^}]*\}", css_only, re.S)

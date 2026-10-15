@@ -134,11 +134,48 @@ else:
 # 它是 MagicNet 等同类模块的标准做法（手机上入口必须常驻可见 + 拇指可达）。
 # 同时要求它只在手机显示（桌面 CSS 隐藏），并处理 safe-area-inset-bottom。
 fx = len(re.findall(r"position\s*:\s*fixed", css))
-if fx > 4:
+if fx > 5:
     ok = False
     print("[X] position:fixed 层过多 %d 个" % fx)
 else:
     print("[OK] position:fixed 层 %d 个" % fx)
+
+# 触控目标与输入字号护栏（真机浏览器实测发现的两个真实缺陷，做成回归保护）
+#   · .icon-btn 曾是 34px（低于 44px 下限），手机上难点中；
+#   · input/textarea 曾因 .ta / input[type=search] 等更具体选择器被判为 12~13px，
+#     iOS/WebView 会自动放大整页。
+icon_rule = re.search(r"\.icon-btn\{[^}]*\}", css, re.S)
+if icon_rule:
+    m2 = re.search(r"width:\s*(\d+)px", icon_rule.group(0))
+    if m2 and int(m2.group(1)) < 44:
+        ok = False
+        print("[X] .icon-btn 触控目标 %spx < 44px" % m2.group(1))
+    elif m2:
+        print("[OK] .icon-btn 触控目标 %spx" % m2.group(1))
+# 手机媒体查询必须把 .ta 也纳入 16px（项目里 .ta{font-size:12px} 优先级更高）
+mq = re.search(r"@media \(max-width:899px\)\{(.*?)\n\}", css, re.S)
+if mq and ".ta" not in mq.group(1):
+    ok = False
+    print("[X] 手机媒体查询未覆盖 .ta 字号（会被自动放大）")
+elif mq:
+    print("[OK] 手机媒体查询已覆盖 .ta 字号")
+
+# 【用户要求】顶部导航栏完全移除：页面顶部不得有任何常驻横栏。
+# 检查方式：不得出现 header 元素、nav-tabs、dropdown-menu / dropdown-item。
+# 这一条同时防止以后有人"顺手把顶部加回来"。
+for gone in ("<header", "nav-tabs", "dropdown-menu", "dropdown-item"):
+    if gone in raw:
+        ok = False
+        print("[X] 顶部导航未完全移除，仍含 %s" % gone)
+    else:
+        print("[OK] 已移除 %s" % gone)
+# 底部必须保留 5 个工作区入口
+bnav = re.findall(r'class="bnav-item" data-ws="([a-z]+)"', raw)
+if len(bnav) != 5:
+    ok = False
+    print("[X] 底部入口数 %d（应为 5）" % len(bnav))
+else:
+    print("[OK] 底部入口 5 个: %s" % ",".join(bnav))
 
 # 底部导航必须处理系统安全区：不加 safe-area-inset-bottom 会被手势条/虚拟键挡住，
 # 表现为「最后一项按不到」。这是移动端导航的硬要求，做成护栏防止以后改回去。
