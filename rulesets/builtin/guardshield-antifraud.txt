@@ -1,0 +1,35 @@
+# ============================================================
+#  SY 内置规则 — FX 反诈域名
+#  来源: GuardShield-v0.1.0 归档（/privacy-guard 系列同源）
+#  有效域名: 28 条（纯域名 → 可被 DNS/hosts 直接拦截，**真生效**）
+#  编辑: 面板「内置规则」页可查看/编辑/启停；用户改动静默存到
+#        data/rules/builtin-user/，不覆盖本内置副本。
+# ============================================================
+cmpassport.com
+config.cmpassport.com
+log.cmpassport.com
+log1.cmpassport.com
+fengkongcloud.com
+static.fengkongcloud.com
+tracker.fengkongcloud.com
+fp-it.fengkongcloud.com
+dun.163.com
+fp-upload.dun.163.com
+ye.dun.163yun.com
+nim.qiyukf.com
+appjiagu.com
+a.appjiagu.com
+b.appjiagu.com
+c.appjiagu.com
+j.appjiagu.com
+p.appjiagu.com
+s.appjiagu.com
+api.appjiagu.com
+shuzilm.cn
+shuzisms.cn
+fpshuzilm.cn
+tdipmap.com
+mob.com
+mobcdn.com
+g.189.cn
+open.wo.cn

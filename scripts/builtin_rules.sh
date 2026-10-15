@@ -17,13 +17,18 @@ BR_SRC="$MODDIR/rulesets/builtin"
 BR_USER="$DATA_DIR/rules/builtin-user"
 BR_STATE="$DATA_DIR/rules/builtin.state"
 mkdir -p "$BR_USER" 2>/dev/null
-BR_LIST="watermark antiadblock noappdownload"
+BR_LIST="watermark antiadblock noappdownload guardshield-adblock guardshield-antiadblock guardshield-antifraud guardshield-push guardshield-tracker"
 
 br_name() { # <key> -> 中文名
   case "$1" in
     watermark)      echo "去水印（网页水印隐藏）" ;;
     antiadblock)    echo "反广告拦截检测" ;;
     noappdownload)  echo "阻止网页诱导下载 App" ;;
+    guardshield-adblock)      echo "广告域名（GuardShield）" ;;
+    guardshield-antiadblock)  echo "反广告拦截检测（GuardShield）" ;;
+    guardshield-antifraud)    echo "FX 反诈域名（GuardShield）" ;;
+    guardshield-push)         echo "推送与统计域名（GuardShield）" ;;
+    guardshield-tracker)      echo "追踪器域名（GuardShield）" ;;
     *) echo "$1" ;;
   esac
 }

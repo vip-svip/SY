@@ -1,0 +1,67 @@
+# ============================================================
+#  SY 内置规则 — 推送/统计域名
+#  来源: GuardShield-v0.1.0 归档（/privacy-guard 系列同源）
+#  有效域名: 60 条（纯域名 → 可被 DNS/hosts 直接拦截，**真生效**）
+#  编辑: 面板「内置规则」页可查看/编辑/启停；用户改动静默存到
+#        data/rules/builtin-user/，不覆盖本内置副本。
+# ============================================================
+aaid.umeng.com
+alog.umeng.com
+alog.umengcloud.com
+alogs.umeng.com
+alogsus.umeng.com
+alogus.umeng.com
+api-gi.getui.com
+api.gi.igexin.com
+api.wsq.umeng.com
+api.y.igexin.com
+ar.umeng.com
+aspect-upush.umeng.com
+at.umeng.com
+au.umeng.com
+audid.umeng.com
+b-gi.getui.com
+b-gtc.getui.com
+c-gi.getui.com
+c-gtc.getui.com
+c-hzgt2.getui.com
+ccs.umeng.com
+cdn-sdk-opt.getui.com
+cnlogs.umeng.com
+cnlogs.umengcloud.com
+dev.umeng.com
+dsp.ads.umeng.com
+errlog.umeng.com
+errnewlog.umeng.com
+ex.umengcloud.com
+getui.com
+gs.getui.com
+igexin.com
+lc.getui.com
+msg.umengcloud.com
+new-aaid.umeng.com
+new-aaid.umeng.com.gds.alibabadns.com
+oc.umeng.com
+offmsg.umeng.com
+plbslog.umeng.com
+resolve.umeng.com
+sdk-open-phone.getui.com
+sdk.conf.igexin.com
+sdk.open.amp.igexin.com
+sdk.open.lbs.igexin.com
+sdk.open.phone.igexin.com
+sdk.open.talk.getui.com
+sdk.open.talk.igexin.com
+sec.umeng.com
+talk.nz.igexin.com
+talk.nz4.getui.com
+udash.umengcloud.com
+ulogs.umeng.com
+ulogs.umengcloud.com
+umeng.com
+umeng.com.gds.alibabadns.com
+umengcloud.com
+upoll.umengcloud.com
+utoken.umeng.com
+utop.umengcloud.com
+www.umeng.com

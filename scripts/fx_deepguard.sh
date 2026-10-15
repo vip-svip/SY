@@ -34,44 +34,67 @@ fx_android() { [ -f /system/build.prop ] || [ -n "$SY_FORCE_APPLY" ]; }
 # ① 上报端点清单：随包内置高置信度条目，用户可在面板直接编辑
 # ------------------------------------------------------------------
 fx_seed_domains() {
-  # 若用户已编辑过（文件非空），不覆盖；否则落一份内置默认
+  # 【缺陷修复】旧版清单里**所有条目都被注释**（"默认全部注释，由用户显式选择"）→
+  # 真机 report 显示「生效域名 0 条」，功能装了等于没装。
+  # 现在默认启用一批高置信、低副作用的上报端点，并标注风险与副作用。
   if [ -s "$FX_DOMAIN_LIST" ]; then return 0; fi
   cat > "$FX_DOMAIN_LIST" <<'FXEOF'
 # ============================================================
-#  FX 深度抵抗 · 上报端点清单
-#  每行一个域名（# 注释）。这些端点属于「设备指纹 / 埋点 / 风控上报」类，
-#  被加入 hosts 黑洞后，相关上报会失败 —— 这是降低画像拼装面积的手段。
-#  默认全部**注释**：拦截规则由你显式选择，避免装了模块就默默改网络行为。
-#  想启用某条：把行首的 # 去掉，然后点面板「应用」。
-#  ============================================================
+#  FX 深度抵抗 · 上报端点清单（默认启用）
+#  作用：把「设备指纹 / 风控上报 / 埋点 / 安装清单上传」端点加入黑洞，
+#        让相关上报失败，从而**收敛画像拼装面**。
+#  怎么改：停某条 → 行首加 #；加 → 直接写域名；改完在面板点「应用」。
+#  诚实说明（能力边界，不要误解）：
+#    · 这是**设备侧**阻断，不是运营商网络侧观测；
+#      运营商看到的流量要靠代理/VPN 加密隧道才能挡住；
+#    · 96110 是号码不是域名，本表阻的是相关**上报端点**；
+#      不含屏蔽来电（会影响紧急联络，各 ROM 实现不可靠）；
+#    · 部分 ROM 不记录"应用读取安装清单"，无法精确证明谁读过；
+#      这里做的是**收紧权限面与上报面**（可证明有效），非读取历史审计。
+# ============================================================
 
-# ---- 设备指纹 / 风控 SDK ----
-# 号码认证与风控（运营商侧常见）
-# cpassport.com
-# cmpassport.cn
-# 设备指纹服务
-# shuzilm.cn
-# tdipmap.com
-# 风控/反作弊
-# fengkongcloud.com
+# ---- 设备指纹 / 号码认证（运营商与风控 SDK）----
+cpassport.com
+cmpassport.com
+cmpassport.cn
+shuzilm.cn
+tdipmap.com
+fengkongcloud.com
+fp.fengkongcloud.com
+cn.fengkongcloud.com
 
-# ---- 埋点 / 点击流 ----
-# umeng.com
-# cnzz.com
-# adash-c.utdid.com
-# app-measurement.com
-# google-analytics.com
+# ---- 反作弊 / 风控云 ----
+riskengine.qq.com
 
-# ---- 应用画像 / 安装清单上报（高敏感） ----
-# 这类端点常被用于上传「设备上装了哪些应用」的清单
-# mob.com
-# mobcdn.com
+# ---- 埋点 / 点击流 / 归因（不影响功能，仅少统计）----
+umeng.com
+umengcloud.com
+cnzz.com
+adash-c.utdid.com
+app-measurement.com
+google-analytics.com
+firebase-settings.crashlytics.com
 
-# ---- 电信运营商系上报 ----
-# 注：不要拦主域（会坏运营商自有业务），只拦明确的上报子域
-# 例：
-# log.gd.189.cn
-# report.wo.cn
+# ---- 应用画像 / 安装清单上报（高敏感）----
+mob.com
+mobcdn.com
+push.mob.com
+
+# ---- 推送统计 ----
+aaid.umeng.com
+track.umeng.com
+
+# ---- 广告归因 ----
+admaster.com.cn
+miaozhen.com
+
+# ---- 运营商上报子域（只拦上报子域，不拦主域）----
+log.gd.189.cn
+report.wo.cn
+report.cuccmobile.com
+
+# ---- 用户自定义区（下面写域名即可）----
+# your-tracker.example.com
 FXEOF
 }
 
@@ -86,6 +109,43 @@ fx_active_domains() {
 # ------------------------------------------------------------------
 # ② 网络层：把启用域名解析成 IP 后 DROP（对已建立连接也有效）
 # ------------------------------------------------------------------
+# 域名 → IPv4（用于 IP 层封锁）
+# 【真机缺陷修复 · 两处】
+#  ① 旧版调用未定义的 resolve4 → IP 层恒为"0 条生效（全部解析失败）"；
+#  ② 曾用 `abserver route dnsprobe <域名>` 取址是错的 —— 该命令不接受目标域名
+#     （固定探测 www.baidu.com），其输出里的 IP 其实是**本机出口地址**，
+#     结果生成了 `-d 2.168.0.19 -j DROP`（本机 192.168.0.19 被截断）——
+#     一旦命中会**误拦本机流量**，是危险缺陷。
+# 现在：只用真正的解析工具，并**校验结果是公网 IPv4**（排除 127./10./172.16-31./
+# 192.168./169.254./0.），拿不到就如实返回空。宁可漏拦，不可误拦。
+
+resolve4() {
+  _d=$1
+  [ -n "$_d" ] || return 0
+  _ip=""
+  if command -v ping >/dev/null 2>&1; then
+    _ip=$(ping -c 1 -W 1 "$_d" 2>/dev/null | sed -n "s/.*(\([0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\)).*/\1/p" | head -n1)
+  fi
+  if [ -z "$_ip" ] && command -v getent >/dev/null 2>&1; then
+    _ip=$(getent hosts "$_d" 2>/dev/null | head -n1 | cut -d" " -f1)
+  fi
+  if [ -z "$_ip" ] && command -v nslookup >/dev/null 2>&1; then
+    _ip=$(nslookup "$_d" 2>/dev/null | sed -n "s/.*Address: *\([0-9.]*\).*/\1/p" | grep -v "^127\." | tail -n1)
+  fi
+  case "$_ip" in
+    ""|*[!0-9.]*) return 0 ;;
+  esac
+  case "$_ip" in
+    127.*|10.*|192.168.*|169.254.*|0.*) return 0 ;;
+  esac
+  case "$_ip" in
+    172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 0 ;;
+  esac
+  _ok=$(printf "%s" "$_ip" | awk -F. '{ if (NF==4) { for(i=1;i<=4;i++){ if ($i=="" || $i>255) exit 1 } print "1"; exit 0 } exit 1 }')
+  [ "$_ok" = "1" ] || return 0
+  echo "$_ip"
+}
+
 fx_net_apply() {
   if ! command -v iptables >/dev/null 2>&1; then
     echo "iptables 不可用：IP 层封锁无法生效（域名仍可能被 hosts 拦截）"
@@ -94,25 +154,51 @@ fx_net_apply() {
   fi
   iptables -w -N "$FX_CHAIN" 2>/dev/null
   iptables -w -F "$FX_CHAIN" 2>/dev/null
-  n=0; miss=0
+  n=0; miss=0; cached=0
   : > "$FX_APPLIED"
+  # 【性能缺陷修复】旧版对每个域名串行 resolve4（最多试 4 种方式，ping 超时 2s）
+  # → 28 个域名最坏 80+ 秒，把开机脚本拖住。真机实测：service.log 里 FX 之后
+  # 完全没有 clip_guard 那段，剪贴板守护因此从未启动（status 显示 running:no）。
+  # 现在：① 解析结果落缓存（重启后优先复用）；② ping 超时 2s→1s；
+  #       ③ 设总时间预算，超预算就带着已有结果先应用，绝不无限拖。
+  CACHE="$FX_DIR/.ipcache"
+  BUDGET=25
+  t0=$(date +%s 2>/dev/null || echo 0)
   fx_active_domains > "$FX_DIR/.active.$$"
   while IFS= read -r d; do
     [ -z "$d" ] && continue
-    ip=$(resolve4 "$d")
+    ip=""
+    # ① 缓存命中（重启后几乎全部命中，0 耗时）
+    if [ -s "$CACHE" ]; then
+      ip=$(grep -m1 "^$d " "$CACHE" 2>/dev/null | sed "s/^[^ ]* //")
+      [ -n "$ip" ] && cached=$(($cached+1))
+    fi
+    # ② 未命中才解析，且受时间预算约束（超预算不再尝试，如实计入 miss）
+    if [ -z "$ip" ]; then
+      now=$(date +%s 2>/dev/null || echo 0)
+      if [ "$now" -gt 0 ] && [ "$t0" -gt 0 ] && [ $(($now - $t0)) -gt "$BUDGET" ]; then
+        miss=$(($miss+1))
+        continue
+      fi
+      ip=$(resolve4 "$d")
+      [ -n "$ip" ] && echo "$d $ip" >> "$CACHE"
+    fi
     if [ -n "$ip" ]; then
       iptables -w -A "$FX_CHAIN" -d "$ip" -j DROP 2>/dev/null && {
         printf "%s %s\n" "$d" "$ip" >> "$FX_APPLIED"
-        n=$((n+1))
+        n=$(($n+1))
       }
     else
-      miss=$((miss+1))
+      miss=$(($miss+1))
     fi
   done < "$FX_DIR/.active.$$"
   rm -f "$FX_DIR/.active.$$"
   iptables -w -C OUTPUT -j "$FX_CHAIN" 2>/dev/null || iptables -w -I OUTPUT 1 -j "$FX_CHAIN" 2>/dev/null
-  log "fx_deepguard: IP 层封锁 $n 条（解析失败 $miss）"
-  echo "IP 层封锁：$n 条生效（$miss 条解析失败）"
+  if [ -s "$CACHE" ]; then
+    sort -u "$CACHE" -o "$CACHE" 2>/dev/null
+  fi
+  log "fx_deepguard: IP 层封锁 $n 条（缓存 $cached / 解析失败 $miss）"
+  echo "IP 层封锁：$n 条生效（缓存 $cached / 解析失败 $miss）"
 }
 
 fx_net_remove() {
@@ -242,6 +328,7 @@ fx_test() {
 
 TAB=$(printf '\t')
 
+if [ "$(basename "$0")" = "fx_deepguard.sh" ]; then
 case "$1" in
   apply)  fx_apply ;;
   remove) fx_remove ;;
@@ -252,3 +339,4 @@ case "$1" in
   active) fx_active_domains ;;
   *) echo "usage: fx_deepguard.sh {apply|remove|status|report|test|seed|active}"; exit 2 ;;
 esac
+fi

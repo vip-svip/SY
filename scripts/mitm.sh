@@ -219,6 +219,7 @@ start_proxy() {
     -rules "$MITM_DIR/active.txt" \
     -apps "$(cfg_get MITM_APPS '')" \
     -whitelist "$WHITELIST" \
+    -guard "$MITM_DIR/guard.js" \
     -stats "$DATA_DIR/stats_mitm.json" \
     > "$LOGS/mitm_proxy.log" 2>&1 &
   echo $! > "$RUN/proxy.pid"
@@ -264,6 +265,22 @@ reload_rules() {
     sed -n "s/.*\"raw\":\"\(.*\)\".*/\1/p" "$MITM_DIR/active.json" 2>/dev/null >> "$out"
   fi
   n=$(grep -c . "$out" 2>/dev/null | head -n1); [ -z "$n" ] && n=0
+  # 【新增】生成页面侧守卫载荷 guard.js —— 由 Go 端内联注入到 HTML。
+  # 内容 = 反指纹 + 网络守卫 + 外发拦截（来自 privacy-guard-extension 归档）。
+  # 注意：这几个脚本设计为在**页面上下文**执行，这里只做拼接，不改写语义。
+  gsrc="$MODDIR/webroot/js"
+  gout="$MITM_DIR/guard.js"
+  if [ -d "$gsrc" ]; then
+    : > "$gout"
+    for f in "$gsrc/pg-fingerprint.js" "$gsrc/pg-network.js" "$gsrc/pg-egress.js"; do
+      [ -s "$f" ] || continue
+      echo "/* ---- $(basename $f) ---- */" >> "$gout"
+      cat "$f" >> "$gout"
+      echo "" >> "$gout"
+    done
+    gn=$(wc -c < "$gout" 2>/dev/null | tr -d " "); [ -z "$gn" ] && gn=0
+    log "mitm: 页面守卫载荷 $gn 字节（反指纹+网络守卫+外发拦截）"
+  fi
   log "mitm: 规则已重载（纯文本 $n 行，含元素隐藏规则）"
 }
 

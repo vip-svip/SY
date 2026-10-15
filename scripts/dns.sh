@@ -96,43 +96,48 @@ gen_hosts() {
 }
 
 bind_hosts() {
-  # 【真机根因修复】旧实现 mount --bind "HOSTS_OUT" /system/etc/hosts 在当前
-  # KernelSU 下**必然失败**，且错误被 2>/dev/null 吞掉、「看起来成功」。真机实测报错：
-  #   mount: ...->/system/etc/hosts: No such file or directory
-  # 原因：/system/etc/hosts 已被 KernelSU 用 OverlayFS 重挂载（来自 /dev/block/dm-41），
-  # 该状态下不能再 bind 到它上面。
+  # 【真机根因】要让新生成的 hosts **立即**生效，必须处理两层挂载：
+  #   ① 模块 system/etc/hosts → 供**重启后**由模块管理器覆盖挂载（长期机制）
+  #   ② 运行时 bind mount → 让**本次**生成的规则马上生效（即时机制）
+  # 旧版只做 ①，于是面板改完规则、apply 之后系统 hosts 仍是开机时那一份
+  # （真机实测：引擎编译出 6245 行 hosts，系统 hosts 仍是 12 行旧内容）。
   #
-  # 正确做法：把 hosts 放进**模块自己的 system/etc/hosts**，由模块管理器开机覆盖挂载。
-  # 真机验证：放入 12 行 hosts 后重启，/system/etc/hosts 变成 12 行且含测试规则。
+  # 运行时要成功 bind，必须先放开管理器的 overlay 占用：实测 `mount --bind`
+  # 直接打在 overlay 上会报 "No such file or directory"，把 overlay umount 掉再 bind 即可。
   MODHOSTS="$MODDIR/system/etc/hosts"
   mkdir -p "$MODDIR/system/etc" 2>/dev/null
-  if [ -f "$HOSTS_OUT" ]; then
-    cp -f "$HOSTS_OUT" "$MODHOSTS" 2>/dev/null
-    chmod 0644 "$MODHOSTS" 2>/dev/null; chown 0:0 "$MODHOSTS" 2>/dev/null
+  [ -f "$HOSTS_OUT" ] || { log "dns: 无 hosts 产物，跳过挂载"; return 1; }
+  cp -f "$HOSTS_OUT" "$MODHOSTS" 2>/dev/null
+  chmod 0644 "$MODHOSTS" 2>/dev/null; chown 0:0 "$MODHOSTS" 2>/dev/null
+
+  # ① 先彻底卸载（含管理器 overlay 与上一次我们的 bind）
+  umount /system/etc/hosts 2>/dev/null
+  umount -l /system/etc/hosts 2>/dev/null
+  # ② 复制到临时位置再 bind（避免直接把模块内文件挂到系统上，卸载时互相牵连）
+  TMPH="$CACHE/hosts.bind"
+  mkdir -p "$CACHE" 2>/dev/null
+  cp -f "$HOSTS_OUT" "$TMPH" 2>/dev/null || { log "dns: 临时 hosts 复制失败"; return 1; }
+  chmod 0644 "$TMPH" 2>/dev/null; chown 0:0 "$TMPH" 2>/dev/null
+  # ③ bind（不同内核对 SELinux label 要求不同，先试再兜底）
+  if ! mount --bind "$TMPH" /system/etc/hosts 2>/dev/null; then
+    chcon u:object_r:system_file:s0 "$TMPH" 2>/dev/null
+    mount --bind "$TMPH" /system/etc/hosts 2>/dev/null
   fi
-  # 运行时 bind 作为尝试（部分管理器允许），失败不致命但要如实记录原因
-  # 【真机修复】Android **没有 /tmp**（touch /tmp/x → No such file or directory），
-  # 旧写法把 mount 的 stderr 重定向到 /tmp，那行本身就先失败了。改用数据目录下的临时文件。
-  MERR="$DATA_DIR/cache/.mount_err"
-  mkdir -p "$DATA_DIR/cache" 2>/dev/null
-  if mount --bind "$HOSTS_OUT" /system/etc/hosts 2>"$MERR"; then
-    log "dns: hosts 已运行时绑定挂载"
-  else
-    err=$(head -n1 "$MERR" 2>/dev/null); rm -f "$MERR"
-    log "dns: 运行时 bind 失败（预期：overlay 已占用），改由模块 system/etc/hosts 覆盖（原因见日志）"
-  fi
-  # 【关键】验证到底生效没有：系统 hosts 是否含我们生成的条目
+  # ④ 【必须验证】系统 hosts 是否真含我们的黑洞条目
+  want=$(grep -c "^0\.0\.0\.0 " "$HOSTS_OUT" 2>/dev/null | head -n1)
   have=$(grep -c "^0\.0\.0\.0 " /system/etc/hosts 2>/dev/null | head -n1)
-  want=$(grep -c "^0\.0\.0\.0 " "$MODHOSTS" 2>/dev/null | head -n1)
-  [ -z "$have" ] && have=0
   [ -z "$want" ] && want=0
+  [ -z "$have" ] && have=0
+  if [ "$want" -gt 0 ] && [ "$have" -ge "$want" ]; then
+    log "dns: hosts 已生效（系统黑洞条目 $have / 应 $want）"
+    return 0
+  fi
   if [ "$want" -eq 0 ]; then
     log "dns: 无拦截条目（规则集为空，属正常）"
-  elif [ "$have" -ge "$want" ]; then
-    log "dns: 生效验证通过（系统 hosts 含 $have 条黑洞条目）"
-  else
-    log "dns: 未生效（系统 $have 条 / 应有 $want 条）—— 需重启让模块 overlay 生效"
+    return 0
   fi
+  log "dns: 运行时 bind 未生效（系统 $have / 应 $want）—— 模块 system/etc/hosts 已写好，重启后生效"
+  return 1
 }
 
 full_apply() {  # 更新规则表 + 下载缓存 + 重建 + 生成 + 挂载

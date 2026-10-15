@@ -56,6 +56,7 @@ type proxyStats struct {
 	CssInjectPages int64 `json:"css_inject_pages"`
 	CssInjectRules int64 `json:"css_inject_rules"`
 	CosmeticLoaded int64 `json:"cosmetic_loaded"`
+	GuardInjectPages int64 `json:"guard_inject_pages"`
 }
 
 type caManager struct {
@@ -141,6 +142,8 @@ func cmdProxy(args []string) {
 	caKey := fs.String("ca-key", "", "CA 私钥")
 	caCrt := fs.String("ca-crt", "", "CA 证书")
 	rules := fs.String("rules", "", "规则文件")
+	// 页面侧守卫脚本文件（可选）：内容会被内联注入到 HTML，用于反指纹与防外发。
+	guardFile := fs.String("guard", "", "页面守卫脚本（内联注入 HTML）")
 	apps := fs.String("apps", "", "生效应用(逗号分隔)")
 	whitelist := fs.String("whitelist", "", "白名单文件")
 	statsPath := fs.String("stats", "", "统计输出")
@@ -165,6 +168,12 @@ func cmdProxy(args []string) {
 		}
 	}
 	rs := loadRules(*rules)
+	var guardSrc string
+	if *guardFile != "" {
+		if b, err := os.ReadFile(*guardFile); err == nil {
+			guardSrc = string(b)
+		}
+	}
 	cosN := 0
 	for _, v := range rs.cosmetic {
 		cosN += len(v)
@@ -187,7 +196,7 @@ func cmdProxy(args []string) {
 		}()
 	}
 
-	handler := &mitmHandler{ca: cm, wl: wl, rules: rs, st: &st}
+	handler := &mitmHandler{ca: cm, wl: wl, rules: rs, st: &st, guard: guardSrc}
 	// HTTP 透明
 	go func() {
 		srv := &http.Server{Addr: *httpAddr, Handler: handler}
@@ -380,6 +389,9 @@ type mitmHandler struct {
 	ca     *caManager
 	wl     []string
 	rules  *ruleSet
+	// 【新增】页面侧守卫脚本（反指纹/网络守卫/外发拦截）的**内联载荷**。
+	// 由 -guard 参数指向一个 .js 文件；启动时读进内存，只注入 HTML 响应。
+	guard  string
 	st     *proxyStats
 	lastAd net.Addr
 	mu     sync.Mutex
@@ -474,6 +486,14 @@ func (h *mitmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// 【新增】页面侧守卫脚本注入（反指纹 / WebRTC IP 阻断 / 防敏感外发）
+	if h.guard != "" && strings.Contains(strings.ToLower(ct), "text/html") {
+		if nb, ok := injectScript(body, h.guard); ok {
+			body = nb
+			atomic.AddInt64(&h.st.GuardInjectPages, 1)
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		}
+	}
 	for k, vv := range resp.Header {
 		// 跳过原 Content-Length（已按注入后的长度重设）
 		if strings.EqualFold(k, "Content-Length") {
@@ -527,6 +547,41 @@ func (h *mitmHandler) cosmeticCSS(host string) string {
 
 // injectCSS 把一段 CSS 注入 HTML 响应。
 // 注入位置优先级：</head> 前 > <body> 后 > 直接前置到文档开头。
+// injectScript 把一段 JS **内联**注入 HTML（内联的原因：页面 CSP 常拦外链，
+// 而反指纹脚本必须在页面主世界尽早执行）。
+// 注入位置：<head> 之后第一处（越早越好），退化到 <body> 后或前置。
+func injectScript(body []byte, js string) ([]byte, bool) {
+	if js == "" || len(body) == 0 {
+		return body, false
+	}
+	tag := "<script data-sy-guard>(function(){try{" + js + "}catch(e){}})();</" + "script>"
+	low := strings.ToLower(string(body))
+	if i := strings.Index(low, "<head"); i >= 0 {
+		if j := strings.Index(low[i:], ">"); j >= 0 {
+			at := i + j + 1
+			out := make([]byte, 0, len(body)+len(tag))
+			out = append(out, body[:at]...)
+			out = append(out, []byte(tag)...)
+			out = append(out, body[at:]...)
+			return out, true
+		}
+	}
+	if i := strings.Index(low, "<body"); i >= 0 {
+		if j := strings.Index(low[i:], ">"); j >= 0 {
+			at := i + j + 1
+			out := make([]byte, 0, len(body)+len(tag))
+			out = append(out, body[:at]...)
+			out = append(out, []byte(tag)...)
+			out = append(out, body[at:]...)
+			return out, true
+		}
+	}
+	if strings.Contains(low, "<html") {
+		return append([]byte(tag), body...), true
+	}
+	return body, false
+}
+
 func injectCSS(body []byte, css string) ([]byte, bool) {
 	if css == "" || len(body) == 0 {
 		return body, false

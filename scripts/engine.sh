@@ -88,6 +88,10 @@ collect_files() {
     case "$bn" in all_domains.txt|filter_*|list_*|.filter_*|records.tsv) continue ;; esac
     [ -s "$f" ] && echo "$f"
   done
+  # 【真机缺陷修复】内置规则（面板「内置规则」页启用的那些）汇总在
+  # $DATA_DIR/rules/builtin-active —— 旧版引擎**完全不读它**，所以用户在面板
+  # 启用了 6013 条规则却一条都不进 DNS 引擎（"启用了也不生效"的根因）。
+  [ -s "$DATA_DIR/rules/builtin-active" ] && echo "$DATA_DIR/rules/builtin-active"
   # 模块内置 / 外置规则
   for f in \
     "$DATA_DIR/rules/remote/block.txt" \
