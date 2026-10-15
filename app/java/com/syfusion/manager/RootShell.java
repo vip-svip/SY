@@ -222,4 +222,184 @@ public final class RootShell {
         sb.append(root ? "所有特权操作均通过 su -c 执行。" : "未获得 root：请在 KernelSU/Magisk 中授予本应用 root。");
         return sb.toString();
     }
+
+    // ================= 模块联动扩展（原生 App 直接调用，不走 HTTP） =================
+    // 说明：这些方法都调用模块内**真实脚本**。App 不依赖面板进程，
+    // 所以即使面板没启动，这些功能依然可用 —— 这正是"联动模块而非联动网页"。
+
+    /** 通用：调用任意模块脚本（name 可带 .sh） */
+    public static String call(String scriptName, String args) {
+        return script(scriptName, args);
+    }
+
+    /** 代理内核状态（proxyrun.sh status，JSON） */
+    public static String proxyRunStatus() {
+        return script("proxyrun.sh", "status");
+    }
+
+    /** 就绪三层（proxymgr.sh status，MagicNet 契约 JSON） */
+    public static String proxyMgrStatus() {
+        return script("proxymgr.sh", "status");
+    }
+
+    /** 代理健康检查（人类可读的逐层报告） */
+    public static String proxyHealth() {
+        return script("proxymgr.sh", "health");
+    }
+
+    /** 当前内核版本/路径 */
+    public static String proxyCore() {
+        return script("proxyrun.sh", "core");
+    }
+
+    /** 内核节点完整数据（proxynodes.sh list，JSON 含详细字段） */
+    public static String nodesList() {
+        return script("proxynodes.sh", "list");
+    }
+
+    /** 重建节点详细数据 */
+    public static String nodesBuildMeta() {
+        return script("proxynodes.sh", "build-meta");
+    }
+
+    /** 运行模式：direct / global / rule；null=查询 */
+    public static String proxyMode(String mode) {
+        return script("proxynodes.sh", "mode" + (mode == null ? "" : " " + mode));
+    }
+
+    /** 生效验证（5 步逐条报告：配置/进程/API/数据面/真实连通性） */
+    public static String proxyVerify() {
+        return script("proxynodes.sh", "verify");
+    }
+
+    /** 支持的协议清单 */
+    public static String protocols() {
+        return script("proxynodes.sh", "protocols");
+    }
+
+    /** 内置规则清单（8 份，JSON） */
+    public static String builtinRules() {
+        return script("builtin_rules.sh", "list");
+    }
+
+    /** 启用/停用某份内置规则 */
+    public static String builtinRuleToggle(String key, boolean on) {
+        return script("builtin_rules.sh", (on ? "on " : "off ") + key);
+    }
+
+    /** DNS 引擎状态（含拦截条数） */
+    public static String dnsStatus() {
+        return script("dns.sh", "status");
+    }
+
+    /** DNS 规则总表条数 */
+    public static String dnsTotal() {
+        return script("dns.sh", "total");
+    }
+
+    /** FX 深度抵抗状态 */
+    public static String fxStatus() {
+        return script("fx_deepguard.sh", "status");
+    }
+
+    /** FX 深度抵抗报告（人类可读） */
+    public static String fxReport() {
+        return script("fx_deepguard.sh", "report");
+    }
+
+    /** 剪贴板监视状态 */
+    public static String clipStatus() {
+        return script("clip_guard.sh", "status");
+    }
+
+    /** 一键全防护状态 */
+    public static String oneClickStatus() {
+        return script("oneclick.sh", "status");
+    }
+
+    /** 一键开启全部防护 */
+    public static String oneClickOn() {
+        return script("oneclick.sh", "on");
+    }
+
+    /** 一键关闭全部防护 */
+    public static String oneClickOff() {
+        return script("oneclick.sh", "off");
+    }
+
+    /** Hook 自定义规则统计 */
+    public static String hookRuleStats() {
+        return script("hook_rules.sh", "stats");
+    }
+
+    /** Hook 自定义规则内容 */
+    public static String hookRulesCustom() {
+        return script("hook_rules.sh", "list-custom");
+    }
+
+    /** 保存 Hook 自定义规则（内容通过临时文件传入，避免超长命令行） */
+    public static String hookRulesSave(String content) {
+        String stage = "/data/local/tmp/sy_hook_rules.txt";
+        String b64 = android.util.Base64.encodeToString(
+                content == null ? new byte[0] : content.getBytes(), android.util.Base64.NO_WRAP);
+        // 用 base64 经 stdin 传给脚本，避免引号/长度问题
+        return exec("printf %s '" + b64 + "' | base64 -d | sh " + MODDIR
+                + "/scripts/hook_rules.sh save-custom");
+    }
+
+    /** 多语法导入（内容经 base64 传入） */
+    public static String hookRulesImport(String content) {
+        String b64 = android.util.Base64.encodeToString(
+                content == null ? new byte[0] : content.getBytes(), android.util.Base64.NO_WRAP);
+        return exec("printf %s '" + b64 + "' | base64 -d | sh " + MODDIR
+                + "/scripts/hook_rules.sh import");
+    }
+
+    /** 多语法识别（只看结果，不写入） */
+    public static String hookRulesAnalyze(String content) {
+        String b64 = android.util.Base64.encodeToString(
+                content == null ? new byte[0] : content.getBytes(), android.util.Base64.NO_WRAP);
+        return exec("printf %s '" + b64 + "' | base64 -d | sh " + MODDIR
+                + "/scripts/hook_rules.sh analyze");
+    }
+
+    /** 内置 App 自检与修复（未装则装；无障碍丢了就恢复） */
+    public static String appEnsure() {
+        return script("installapp.sh", "ensure");
+    }
+
+    /** 模块自检（selfcheck.sh，诊断模块完整性） */
+    public static String selfCheck() {
+        return script("selfcheck.sh", "all");
+    }
+
+    /** 设备信息（用于"适配多种手机"的诊断） */
+    public static String deviceInfo() {
+        StringBuilder sb = new StringBuilder();
+        String[][] props = {
+            {"ro.product.model", "机型"},
+            {"ro.product.brand", "品牌"},
+            {"ro.build.version.release", "Android 版本"},
+            {"ro.build.version.sdk", "SDK"},
+            {"ro.product.cpu.abi", "ABI"},
+            {"ro.product.cpu.abilist", "ABI 列表"},
+            {"ro.miui.ui.version.name", "MIUI"},
+            {"ro.build.version.opporom", "ColorOS"},
+            {"ro.vivo.os.version", "OriginOS"},
+            {"ro.build.version.emui", "EMUI"},
+            {"ro.semc.version.cust", "Sony"},
+            {"ro.build.version.oneui", "OneUI"},
+        };
+        for (String[] kv : props) {
+            String v = exec("getprop " + kv[0], 4000);
+            if (v != null && v.trim().length() > 0) {
+                sb.append(kv[1]).append(": ").append(v.trim()).append('\n');
+            }
+        }
+        String kern = exec("uname -a", 4000);
+        if (kern != null) sb.append("内核: ").append(kern.trim()).append('\n');
+        String rootMgr = exec("[ -d /data/adb/ksu ] && echo KernelSU || ([ -d /data/adb/ap ] && echo APatch || ([ -d /data/adb/magisk ] && echo Magisk || echo unknown))", 5000);
+        if (rootMgr != null) sb.append("Root 管理器: ").append(rootMgr.trim()).append('\n');
+        return sb.toString();
+    }
 }

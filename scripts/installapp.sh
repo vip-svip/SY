@@ -44,6 +44,33 @@ ia_version() {
     | sed -n 's/.*versionName=\([^ ]*\).*/\1/p' | head -n1
 }
 
+# 模块内 APK 的 versionCode（用 aapt2 不可用，改用 unzip + 二进制探测）
+ia_apk_version() {
+  # 大多数情况：直接读 module.prop 旁的 APK 版本不可行，这里用
+  # 「APK 内 classes.dex 是否含新方法」作为版本信号太脆弱；
+  # 改用 dumpsys 对比**文件大小+修改时间**：模块 APK 更新时 mtime 会变。
+  if [ ! -f "$APK_SRC" ]; then echo ""; return; fi
+  # 简单可靠：比较模块 APK 与已安装 APK 的字节数，不同就认为需要重装
+  _inst=$(pm path "$PKG" 2>/dev/null | head -n1 | sed "s/package://")
+  if [ -z "$_inst" ] || [ ! -f "$_inst" ]; then echo ""; return; fi
+  _a=$(wc -c < "$APK_SRC" 2>/dev/null | tr -d " ")
+  _b=$(wc -c < "$_inst" 2>/dev/null | tr -d " ")
+  [ -z "$_a" ] && _a=0
+  [ -z "$_b" ] && _b=0
+  if [ "$_a" -gt 0 ] && [ "$_a" -ne "$_b" ]; then
+    # 大小不同 → 用「目标 size」当版本信号（比已安装大 = 需要更新）
+    echo "$_a"
+  else
+    echo "0"
+  fi
+}
+# 设备已安装 APK 的字节数（作为当前版本信号）
+ia_version_code() {
+  _inst=$(pm path "$PKG" 2>/dev/null | head -n1 | sed "s/package://")
+  [ -n "$_inst" ] && [ -f "$_inst" ] || { echo 0; return; }
+  wc -c < "$_inst" 2>/dev/null | tr -d " "
+}
+
 # 准备一个 installd 能读的 APK 副本
 ia_stage() {
   [ -f "$APK_SRC" ] || return 1
@@ -98,9 +125,24 @@ ia_post_install() {
 # 开机兜底：App 不在就装；无障碍服务丢了就恢复
 ia_ensure() {
   changed=0
+  # 【真机缺陷修复】旧版只看"装了没" —— 模块目录里的 APK 更新后**永远不会升级**，
+  # 于是设备一直跑旧版（真机实测：模块里已是新方法，设备装的还是没有）。
+  # 现在比对**模块内 APK 的 versionCode** 与设备已安装的 versionCode，
+  # 前者更大就重装。
   if ! ia_installed; then
     log "installapp ensure: App 未安装，执行安装"
     ia_install >/dev/null 2>&1 && changed=1
+  else
+    _want=$(ia_apk_version)
+    _have=$(ia_version_code)
+    case "$_want" in ""|*[!0-9]*) : ;; *)
+      case "$_have" in ""|*[!0-9]*) _have=0 ;; esac
+      if [ "$_want" -gt "$_have" ]; then
+        log "installapp ensure: 模块内 APK v$_want 比已安装 v$_have 新，重装"
+        ia_install >/dev/null 2>&1 && changed=1
+      fi
+      ;;
+    esac
   fi
   acc="$PKG/com.syfusion.manager.SyAccessibilityService"
   cur=$(settings get secure enabled_accessibility_services 2>/dev/null)

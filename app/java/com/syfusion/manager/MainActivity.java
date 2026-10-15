@@ -97,8 +97,102 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
+
+            // 【真机缺陷修复】旧版没有 onReceivedError —— 加载失败时 WebView 显示
+            // 系统默认错误页（"网页无法打开"），用户看到的就是"异常弹窗/像崩溃"。
+            // 现在改为显示面板自己的离线页，并提供重试。
+            @Override
+            public void onReceivedError(WebView v, android.webkit.WebResourceRequest req,
+                                        android.webkit.WebResourceError err) {
+                if (req != null && req.isForMainFrame()) {
+                    v.loadDataWithBaseURL(null, offlineHtml(), "text/html", "utf-8", null);
+                }
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView v, android.webkit.WebResourceRequest req,
+                                            android.webkit.WebResourceResponse resp) {
+                // 面板 4xx/5xx 时同样给离线页，避免系统错误页
+                if (req != null && req.isForMainFrame() && resp != null && resp.getStatusCode() >= 400) {
+                    v.loadDataWithBaseURL(null, offlineHtml(), "text/html", "utf-8", null);
+                }
+            }
         });
-        web.setWebChromeClient(new WebChromeClient());
+        // 【真机缺陷修复】旧版用空的 WebChromeClient —— 后果有两个：
+        //  ① 面板里的 JS alert()/confirm()/prompt() 会弹**系统默认对话框**
+        //     （样式与面板完全不一致，用户看到的就是"异常网页弹窗"）；
+        //  ② 页面加载失败时 WebView 显示系统默认错误页（"网页无法打开"），
+        //     而不是面板自己的离线提示，看起来像崩溃。
+        // 现在全部接管：JS 对话框用面板配色自绘，加载失败显示可重试页。
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView v, String url, String msg,
+                                     final android.webkit.JsResult result) {
+                // 用面板配色，而不是系统灰框
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setTitle("提示")
+                        .setMessage(msg == null ? "" : msg)
+                        .setPositiveButton("知道了", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int w) {
+                                result.confirm();
+                            }
+                        })
+                        .setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+                            @Override public void onCancel(android.content.DialogInterface d) { result.cancel(); }
+                        })
+                        .show();
+                return true;   // 已处理，不再走系统默认
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView v, String url, String msg,
+                                       final android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setTitle("请确认")
+                        .setMessage(msg == null ? "" : msg)
+                        .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int w) {
+                                result.confirm();
+                            }
+                        })
+                        .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int w) {
+                                result.cancel();
+                            }
+                        })
+                        .setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+                            @Override public void onCancel(android.content.DialogInterface d) { result.cancel(); }
+                        })
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView v, String url, String msg, String def,
+                                      final android.webkit.JsPromptResult result) {
+                final android.widget.EditText et = new android.widget.EditText(MainActivity.this);
+                et.setText(def == null ? "" : def);
+                et.setHint("输入内容");
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setTitle(msg == null ? "输入" : msg)
+                        .setView(et)
+                        .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int w) {
+                                result.confirm(et.getText() == null ? "" : et.getText().toString());
+                            }
+                        })
+                        .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener() {
+                            @Override public void onClick(android.content.DialogInterface d, int w) {
+                                result.cancel();
+                            }
+                        })
+                        .setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+                            @Override public void onCancel(android.content.DialogInterface d) { result.cancel(); }
+                        })
+                        .show();
+                return true;
+            }
+        });
         web.setBackgroundColor(getColor(R.color.bg));
         // 底部导航：替代原来的右上角三个点菜单
         root.addView(web, new LinearLayout.LayoutParams(

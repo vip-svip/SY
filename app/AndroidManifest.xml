@@ -13,8 +13,8 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.syfusion.manager"
-    android:versionCode="10301"
-    android:versionName="1.0.4">
+    android:versionCode="10303"
+    android:versionName="1.0.6">
     <!-- 【真机缺陷修复】targetSdk 未声明 → 新系统（Android 14+）会拒绝安装或
          降级行为；minSdk 24 与代码用法一致（无 AndroidX）。 -->
        <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
@@ -46,8 +46,14 @@
         android:allowBackup="false"
         android:supportsRtl="true">
 
+        <!-- 【架构变更】桌面启动项指向**原生界面**（SyNativeActivity）：
+             用户要求"本地 App、联动模块而不是联动网页"。
+             原生界面所有操作直接调用模块脚本（RootShell），不经过 HTTP、
+             不依赖面板进程 —— 面板没起来也能用。
+             MainActivity（WebView 版）保留为可选的"网页面板"入口，
+             但它不再是桌面图标指向的主界面。 -->
         <activity
-            android:name=".MainActivity"
+            android:name=".SyNativeActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
@@ -57,6 +63,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:label="@string/app_name" />
 
         <service
             android:name=".CoreService"
