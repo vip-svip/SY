@@ -8,6 +8,7 @@
 # 这些文件由 fetch_data.sh 在设备上按需下载，**不入库**（原 SY-Fusion 仓库也没入库）。
 data/geo/*.mmdb
 data/geo/*.csv
+data/geo/*.gz
 data/geo/cloud/*
 data/geo/rir/*
 data/geo/**/*.json

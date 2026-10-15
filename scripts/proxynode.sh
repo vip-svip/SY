@@ -508,7 +508,23 @@ case "$1" in
     [ -z "$sel" ] && { echo "ERR: 请先选择节点"; exit 1; }
     CORE="$(core_path)"
     [ -f "$CFG" ] || gen_config >/dev/null 2>&1
-    if [ -n "$CORE" ] && [ -f "$CFG" ]; then
+    # 【健壮性】内核文件在、但架构与本机不符时，直接启动只会 exec format error，
+    # 用户看到的是含糊的"启动后立即退出"。这里先做一次真实可执行性验证：
+    # 能报出版本号才算"这个内核在本机跑得起来"。
+    CORE_OK="no"
+    if [ -n "$CORE" ] && [ -f "$CORE" ]; then
+      chmod 0755 "$CORE" 2>/dev/null
+      if "$CORE" version >/dev/null 2>&1; then
+        CORE_OK="yes"
+      else
+        echo "ERR: 内核 $CORE 无法在本机执行（架构不符或文件损坏）。"
+        echo "     本机架构: $(core_arch) / ABI: $(getprop ro.product.cpu.abi 2>/dev/null)"
+        echo "     可用内核: $(ls "$MODDIR/bin/kernels" 2>/dev/null | tr '\n' ' ')"
+        echo "     bin/kernels 里应有 sing-box-$(core_arch)。若缺失请重刷模块。"
+        exit 1
+      fi
+    fi
+    if [ "$CORE_OK" = "yes" ] && [ -f "$CFG" ]; then
       chmod 0755 "$CORE" 2>/dev/null
       # 启动前预校验配置：配置错误时给出可读原因，避免“点启动代理失败”却无提示
       chk="$("$CORE" check -c "$CFG" 2>&1)"; rc=$?

@@ -17,36 +17,17 @@ REMOVED="$DNS_DIR/removed.txt"
 UPSTREAM="$DATA_DIR/rules/remote/upstream.txt"
 BLACKLIST="$DATA_DIR/config/blacklist.conf"
 NETBLOCK_DIR="$DATA_DIR/rules/netblock"
+# 【死代码清理】下面三个函数被删除了，原因是**定义了但从未被调用**，也没有任何
+# 跨脚本引用（全仓库检索确认）：
+#   · parse_rule_file() —— 单文件规则解析。此能力已由 engine.sh 的融合引擎承担，
+#     引擎支持 AdGuard/hosts/dnsmasq 全语法且带统计与优先级，这里是重复实现。
+#   · is_whitelisted() / is_blacklisted() —— 逐域名线性匹配。同样由引擎的
+#     白/黑名单匹配承担。留在这里会让"读代码的人以为走后一条路径"。
+# 删掉它们不是"减功能"：对应能力仍在，且是引擎那一份（被真正使用的那份）。
+
 mkdir -p "$RAW_DIR" "$DNS_DIR"
 
 # ---------- 解析单条规则文件 ----------
-parse_rule_file() { # infile outfile
-  infile="$1"; outfile="$2"
-  [ -f "$infile" ] || return 0
-  awk '
-    /^[[:space:]]*[#!;]/ { next }
-    /^[[:space:]]*$/ { next }
-    {
-      line=$0
-      if (line ~ /^\|\|/) {                     # AdGuard: ||domain^
-        sub(/^\|\|/, "", line); if (line ~ /\//) { next }; sub(/[\^|*].*$/, "", line); d=line
-      }
-      else if (line ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[[:space:]]+/) {  # hosts
-        n=split(line, a, /[[:space:]]+/); d=a[2]
-      }
-      else if (line ~ /^address=\//) {           # dnsmasq
-        sub(/^address=\//, "", line); sub(/\/.*$/, "", line); d=line
-      }
-      else if (line ~ /^\/\//) { d="" }
-      else { d=line }
-      gsub(/[[:space:]]/, "", d)
-      if (d == "" || d == "localhost") next
-      if (d !~ /\./) next
-      if (d ~ /[^a-zA-Z0-9._-]/) next
-      print d
-    }
-  ' "$infile" 2>/dev/null >> "$outfile"
-}
 
 # ---------- 下载所有订阅源(仅下载到 RAW_DIR) ----------
 fetch_sources() {
@@ -112,30 +93,6 @@ gen_hosts() {
   mv "$tmp" "$HOSTS_OUT"
   chmod 0644 "$HOSTS_OUT" 2>/dev/null; chown 0:0 "$HOSTS_OUT" 2>/dev/null
   log "dns: hosts 生成完成 ($(count_lines "$HOSTS_OUT") 行)"
-}
-
-is_whitelisted() {
-  d="$1"
-  [ -f "$WHITELIST" ] || return 1
-  while IFS= read -r w; do
-    case "$w" in ""|\#*) continue ;; esac
-    w=$(echo "$w" | tr -d '[:space:]')
-    [ -z "$w" ] && continue
-    case "$d" in "$w"|*."$w") return 0 ;; esac
-  done < "$WHITELIST"
-  return 1
-}
-
-is_blacklisted() {
-  d="$1"
-  [ -f "$BLACKLIST" ] || return 1
-  while IFS= read -r b; do
-    case "$b" in ""|\#*) continue ;; esac
-    b=$(echo "$b" | tr -d '[:space:]')
-    [ -z "$b" ] && continue
-    case "$d" in "$b"|*."$b") return 0 ;; esac
-  done < "$BLACKLIST"
-  return 1
 }
 
 bind_hosts() {

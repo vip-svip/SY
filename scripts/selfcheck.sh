@@ -6,10 +6,26 @@
 #    heal            仅做低风险自愈: 重新挂载 hosts + 重启面板
 #  作者: vip-svip
 # ============================================================
-MODDIR=${0%/*}/..
-DATA_DIR=/data/adb/SY
-[ -d "$DATA_DIR" ] || DATA_DIR=/data/SY
-LOGDIR="$DATA_DIR/logs"
+# 【缺陷修复】旧版自己推导路径且**硬编码 DATA_DIR=/data/adb/SY**，完全不读
+# AB_DATA_DIR —— 在自定义数据目录的场景下，自检报告会指向错误的目录，
+# 于是「自检说一切正常/全部缺失」都与事实不符。
+# 现在与其他脚本一致：优先 source common.sh（它负责路径与 AB_DATA_DIR），
+# 未加载成功时再兜底。
+if [ -f "$(dirname "$0")/common.sh" ]; then
+  . "$(dirname "$0")/common.sh"
+fi
+if [ -z "${DATA_DIR:-}" ]; then
+  DATA_DIR="${AB_DATA_DIR:-}"
+  if [ -z "$DATA_DIR" ]; then
+    DATA_DIR=/data/adb/SY
+    [ -d "$DATA_DIR" ] || DATA_DIR=/data/SY
+  fi
+fi
+if [ -z "${MODDIR:-}" ]; then
+  MODDIR="${0%/*}/.."
+  [ -d "$MODDIR/scripts" ] || MODDIR=/data/adb/modules/SY
+fi
+LOGDIR="${LOGS:-$DATA_DIR/logs}"
 mkdir -p "$LOGDIR" 2>/dev/null
 REPORT="$LOGDIR/selfcheck.log"
 
@@ -31,7 +47,7 @@ REPORT="$LOGDIR/selfcheck.log"
   echo
 
   echo "## 数据目录 (maxdepth 3)"
-  find "$DATA_DIR" -maxdepth 3 2>/dev/null | sed 's/^/  /'
+  find "$DATA_DIR" -maxdepth 3 2>/dev/null || find "$DATA_DIR" 2>/dev/null | head -n 200 | sed 's/^/  /'
   echo
 
   echo "## 日志尾部"

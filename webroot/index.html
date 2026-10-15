@@ -270,6 +270,14 @@ a{color:var(--accent);text-decoration:none}
 @media (max-width:899px){
   .bottomnav{display:block}
   .container{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+  /* 【UI 修复】窄屏横向溢出保护：长域名/长路径/长 URL 会把页面撑宽，
+     手机上表现为"页面能左右晃动、右边内容被切掉"。
+     这里三重防护：容器不溢出 + 长串强制断行 + 表格/预格式块横向滚动而不撑破布局。 */
+  html,body{overflow-x:hidden}
+  .container{max-width:100%;overflow-x:hidden}
+  .kv b,.kv span,.hint,.list .item,.metric .l{overflow-wrap:anywhere;word-break:break-word}
+  table{display:block;max-width:100%;overflow-x:auto}
+  pre,code,.mono{max-width:100%;overflow-x:auto}
   /* 顶部下拉收窄：手机上横向空间紧张，品牌副标题隐藏 */
   .brand__sub{display:none}
   .nav-tabs{margin-left:6px;gap:0}
@@ -283,6 +291,10 @@ a{color:var(--accent);text-decoration:none}
 @media (min-width:900px){
   .container{padding-bottom:24px}
 }
+/* 任何宽度下都不允许横向溢出（MagicNet 设计约束：页面内容不能横向溢出） */
+.kv b,.kv span{overflow-wrap:anywhere}
+table{max-width:100%;overflow-x:auto}
+pre,.mono{max-width:100%;overflow-x:auto}
 /* 横屏时缩短导航高度，但不缩小触控目标 */
 @media (max-height:480px) and (orientation:landscape){
   .bnav-item{min-height:48px}
@@ -5449,7 +5461,7 @@ var loaded={};
 function loadTab(tab){
   switch(tab){
     case "home": return Promise.all([loadHome(),loadPanel(),loadLogs(),loadOneClick()]);
-case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSources(),loadRuleSources(),loadWhitelist(),loadBlacklist(),loadFilter(),loadLists(),loadMyRules()]);
+    case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSources(),loadRuleSources(),loadWhitelist(),loadBlacklist(),loadFilter(),loadLists(),loadMyRules()]);
     case "dnssrv": return loadDnsSrv();
     case "netblock": return loadNetblock();
     case "proxynode": return loadProxyNode();
@@ -5475,6 +5487,11 @@ case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSou
     case "leakguard":   return loadLeakguard();
     case "fxguard":     return loadFxguard(false);
     case "fileedit":    return loadFileEdit(false);
+    default:
+      // 【健壮性】旧版没有 default：未知 tab 会静默返回 undefined，
+      // 页面切过去是空白的，且控制台没有任何线索。这里明确提示，便于排查。
+      toast("未知页面: " + tab);
+      return Promise.resolve();
   }
 }
 /* 关闭所有导航下拉 */

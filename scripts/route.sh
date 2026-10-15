@@ -37,18 +37,58 @@ RS_BUILTIN="$MODDIR/rulesets"
 PROXY_PORT=$(cfg_get PROXY_PORT 2080)
 CLASH_PORT=$(cfg_get CLASH_API_PORT 9090)
 
-AB="$BIN"
-[ -x "$AB" ] || AB="$MODDIR/bin/abserver"
+# 【缺陷修复】旧版兜底写死 "$MODDIR/bin/abserver"，但随包分发的是**带架构后缀**的
+# bin/abserver-<arch>（没有无后缀文件）→ $AB 指向不存在的路径，
+# 所有调用都报 "bin/abserver: not found"（面板点"配置校验/编译"即报此错）。
+# 现在：优先用 common.sh 已按架构解析好的 $BIN；其次按架构自己找；
+AB="${BIN:-}"
+if [ ! -x "$AB" ]; then
+  _ra=$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/^armv8l$/arm64/;s/^armv7l$/armv7/;s/x86_64/amd64/')
+  for _c in "$MODDIR/bin/abserver-$_ra" "$MODDIR/bin/abserver-armv7" "$MODDIR/bin/abserver-arm" "$MODDIR/bin/abserver"; do
+    if [ -f "$_c" ]; then
+      [ -x "$_c" ] || chmod 0755 "$_c" 2>/dev/null
+      AB="$_c"; break
+    fi
+  done
+  unset _ra _c
+fi
+# 刻意不跨架构兜底：把错架构的二进制喂过来只会 exec format error，更难排查。
+# AB 留空时由调用方报明确错误（见下面 route_need_ab）。
+route_need_ab() {
+  # 【缺陷修复】判据必须是"文件真实存在且可执行"，不能只判"$AB 非空"：
+  # common.sh 在都找不到时会保留一个**指向不存在文件的占位值**（bin/abserver），
+  # 只判非空会把占位值当成真组件放行，于是仍报 "not found"。
+  if [ -n "$AB" ] && [ -f "$AB" ]; then
+    [ -x "$AB" ] || chmod 0755 "$AB" 2>/dev/null
+    return 0
+  fi
+  echo "ERR: 未找到可用的 abserver 服务组件。"
+  echo "     应在 bin/ 下存在 abserver-<本机架构>（如 abserver-arm64）。"
+  echo "     当前 $AB="$AB"（文件不存在）。请重刷模块，或检查 bin/ 是否完整。"
+  return 1
+}
 
 # ---------- 内核 ----------
 route_core_path() {
   if [ -n "${CORE_FLAG:-}" ] && [ -f "$CORE_FLAG" ]; then cat "$CORE_FLAG"; return; fi
-  for c in "$MODDIR/bin/sing-box" "$MODDIR/bin/singbox" \
-           "$MODDIR/bin/kernels/"sing-box-* "$MODDIR/bin/core/"sing-box-* \
-           "$MODDIR/bin/"sing-box-*/sing-box "$PN/.core_path"; do
-    [ -x "$c" ] && { echo "$c"; return; }
-    [ -f "$c" ] && { cat "$c"; return; }
+  # 【缺陷修复】旧版用 "$MODDIR/bin/kernels/"sing-box-* 通配符遍历，会**跨架构**命中：
+  # arm64 设备上可能挑到 amd64 的内核（前缀相同），运行即 exec format error。
+  # 现在先按本机架构精确挑，再退到不带架构后缀的统一名。
+  _ca=$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/^armv8l$/arm64/;s/^armv7l$/armv7/;s/x86_64/amd64/')
+  for c in "$MODDIR/bin/kernels/sing-box-$_ca" \
+           "$MODDIR/bin/sing-box" "$MODDIR/bin/singbox" \
+           "$MODDIR/bin/kernels/sing-box" "$MODDIR/bin/core/sing-box-$_ca" \
+           "$MODDIR/bin/"sing-box-*/sing-box; do
+    if [ -f "$c" ]; then
+      # 【缺陷修复】上一版这里对所有候选都用了 cat —— 本意是读"记录内核路径的
+      # 文本文件"，结果把**内核二进制本身**（ELF）也 cat 了出来，# status 输出里出现一大段乱码（真跑复现）。
+      # 二进制必须 echo 路径，不能 cat 内容。
+      [ -x "$c" ] || chmod 0755 "$c" 2>/dev/null
+      echo "$c"; return
+    fi
   done
+  # 只有这个候选是"内容是路径"的记录文件，才该 cat
+  if [ -f "$PN/.core_path" ]; then cat "$PN/.core_path"; return; fi
   echo ""
 }
 
@@ -252,6 +292,15 @@ route_reload() {
     echo "OK: 配置已重载（内核未运行）"
   fi
 }
+
+# 【缺陷修复】旧版把 route_need_ab 定义好了却**从不调用**，$AB 为空时下面 20 多行
+# 的 "$AB" route ... 会变成 "" route ... → 报错含糊甚至静默失败，
+# 用户看到的是"点了没反应"。这里在分发入口统一校验，一处覆盖全部调用点。
+case "${1:-status}" in
+  summary|set|add-node|add-rule|dnsprobe|lint|explain|test|import|mirrors|fetch-rules|clash|compile)
+    route_need_ab || exit 1
+    ;;
+esac
 
 case "${1:-status}" in
   status)      route_status ;;
