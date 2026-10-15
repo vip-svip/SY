@@ -29,30 +29,62 @@ PROXY_PORT=$(cfg_get PROXY_PORT 2080)
 PROXY_ENABLE=$(cfg_get PROXY_ENABLE 0)
 
 # ---------- 内核探测 ----------
+# ---------- 内核探测：架构判定 + 路径查找（core_path 依赖 core_arch，必须先定义）----------
+core_arch() {
+  # 【缺陷修复】旧版对 32 位 ARM 返回 "arm"，但 sing-box 官方发布的包名是
+  # sing-box-<版本>-linux-**armv7**（没有 "arm" 这个包）。按旧返回值去下载
+  # 必然 404 —— 32 位 ARM 设备永远装不上内核。这里改为返回 armv7。
+  abi=$(getprop ro.product.cpu.abi 2>/dev/null)
+  case "$abi" in
+    *arm64*|*aarch64*) echo arm64 ;;
+    *armeabi-v7a*|*armv7*) echo armv7 ;;
+    *armeabi*) echo armv7 ;;   # 兼容老式 armeabi 值
+    *x86_64*|*amd64*|*x64*) echo amd64 ;;
+    *i386*|*i686*) echo 386 ;;
+    *) echo arm64 ;;
+  esac
+}
+
 core_path() {
-  if [ -n "$CORE_FLAG" ] && [ -f "$CORE_FLAG" ]; then cat "$CORE_FLAG"; return; fi
-  for c in "$MODDIR/bin/sing-box" "$MODDIR/bin/singbox" "$MODDIR/bin/xray" \
-           "$MODDIR/bin/kernels/"sing-box-* "$MODDIR/bin/kernels/"singbox-* \
-           "$MODDIR/bin/kernels/"xray-* "$MODDIR/bin/kernels/sing-box" \
-           "$MODDIR/bin/core/"sing-box-* "$MODDIR/bin/bin/"sing-box-* \
-           "$MODDIR/bin/v2ray" "/data/adb/SY/bin/sing-box" "/system/bin/sing-box"; do
-    [ -x "$c" ] && { echo "$c"; return; }
+  # 【缺陷修复】旧版用 "$MODDIR/bin/kernels/"sing-box-* 这样的通配符遍历，
+  # 会**跨架构**命中：arm64 设备上可能挑到 amd64 的内核（因为 amd64 的
+  # sing-box- 前缀同样匹配 sing-box-*），运行即崩（exec format error）。
+  # 现在先按本机架构精确挑，再退到不带架构后缀的统一名，最后才是兜底。
+  if [ -n "$CORE_FLAG" ] && [ -f "$CORE_FLAG" ]; then
+    # 只认可执行的、且架构对得上的记录
+    rec=$(cat "$CORE_FLAG" 2>/dev/null)
+    if [ -n "$rec" ] && [ -x "$rec" ]; then echo "$rec"; return; fi
+  fi
+  arch=$(core_arch)
+  for c in \
+    "$MODDIR/bin/kernels/sing-box-$arch" \
+    "$MODDIR/bin/sing-box" \
+    "$MODDIR/bin/singbox" \
+    "$MODDIR/bin/kernels/sing-box" \
+    "$MODDIR/bin/kernels/singbox" \
+    "$MODDIR/bin/core/sing-box-$arch" \
+    "$MODDIR/bin/bin/sing-box-$arch" \
+    "$MODDIR/bin/xray" "$MODDIR/bin/v2ray" \
+    "$DATA_DIR/bin/sing-box-$arch" \
+    "/system/bin/sing-box"; do
+    # 【健壮性】文件在但执行位丢了（重刷模块/复制文件常丢权限）→ 补权限再返回。
+    # 只认 -x 会让"内核明明在却说没有"，这是用户看到"内核不生效"的常见成因之一。
+    if [ -f "$c" ]; then
+      if [ ! -x "$c" ]; then chmod 0755 "$c" 2>/dev/null; fi
+      { [ -x "$c" ] || [ -f "$c" ]; } && { echo "$c"; return; }
+    fi
+  done
+  # 兜底：若确实只有别名的内核，如实返回（并让调用方校验架构）
+  for c in "$MODDIR/bin/kernels/"sing-box-*; do
+    [ -f "$c" ] || continue
+    [ -x "$c" ] || chmod 0755 "$c" 2>/dev/null
+    { [ -x "$c" ] || [ -f "$c" ]; } && { echo "$c"; return; }
   done
   echo ""
 }
 CORE="$(core_path)"
 
 # ---------- 内置内核: 架构探测 + 自动下载 ----------
-core_arch() {
-  abi=$(getprop ro.product.cpu.abi 2>/dev/null)
-  case "$abi" in
-    *arm64*|*aarch64*) echo arm64 ;;
-    *armeabi*|*armv7*|*arm*) echo arm ;;
-    *x86_64*|*amd64*|*x64*) echo amd64 ;;
-    *i386*|*i686*) echo 386 ;;
-    *) echo arm64 ;;
-  esac
-}
 
 core_autodownload() { # 下载 sing-box 内核到 bin/（多镜像回退）
   # 断网优化：无网时不要逐个镜像等超时（3 个源 × 120s ≈ 6 分钟卡顿）

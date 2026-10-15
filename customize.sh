@@ -28,7 +28,10 @@ ui_print "- 设备架构: ABI=$ABI / machine=$MACHINE"
 
 case "$ABI $MACHINE" in
   *arm64*|*aarch64*)            ARCH=arm64 ;;
-  *armeabi*|*armv7*|*arm*)      ARCH=arm ;;
+  # 【缺陷修复】32 位 ARM 必须是 armv7：sing-box 官方包名只有 armv7，没有 "arm"。
+  # 旧版算成 arm → KSRC="$KERNELS/sing-box-arm" 永不存在 → 刷入时静默跳过内置内核
+  # → 用户装完发现「代理用不了/内核不生效」。这是该问题的真正根因。
+  *armeabi-v7a*|*armv7*|*armeabi*|*arm*) ARCH=armv7 ;;
   *x86_64*|*amd64*|*x64*)       ARCH=amd64 ;;
   *i386*|*i686*|*x86*)          ARCH=amd64 ;;
   *)                            ARCH=arm64 ;;
@@ -50,19 +53,26 @@ fi
 # ---------- 内置代理内核(sing-box): 随包, 按架构安装 ----------
 KERNELS="$MODDIR/bin/kernels"
 if [ -d "$KERNELS" ]; then
+  # 按本机架构精确取；**不再回退到 arm64**（旧版缺 arm 版本时退到 arm64，
+  # 会把 aarch64 内核装到 32 位 ARM 设备上 —— 装上就 exec format error，
+  # 比"没装"更难排查）。
   KSRC="$KERNELS/sing-box-$ARCH"
-  [ -f "$KSRC" ] || KSRC="$KERNELS/sing-box-arm64"
   if [ -f "$KSRC" ]; then
     cp -f "$KSRC" "$MODDIR/bin/sing-box"
     chmod 0755 "$MODDIR/bin/sing-box"
-    ui_print "- 已安装随包内核 sing-box ($(basename "$KSRC")) -> bin/sing-box"
+    # 校验确实是可执行体（ELF 魔数 7f 45 4c 46），避免复制到空/坏文件
+    if [ "$(head -c 4 "$MODDIR/bin/sing-box" | od -An -tx1 | tr -d " \n")" = "7f454c46" ]; then
+      ui_print "- 已安装内置内核 sing-box ($ARCH) -> bin/sing-box"
+    else
+      ui_print "! 内核文件异常（非 ELF），已移除避免误用；请在面板重新下载"
+      rm -f "$MODDIR/bin/sing-box"
+    fi
   else
-    ui_print "- 随包内核目录存在但缺 $ARCH 版本，跳过（可在面板在线下载）"
+    ui_print "! 内置内核里没有 $ARCH 架构的版本（可用: $(ls "$KERNELS" 2>/dev/null | tr '\n' ' '))"
+    ui_print "- 可在面板「代理内核」在线下载，或把内核放到 bin/kernels/"
   fi
 else
-  # 如实说明：本模块不随包内置代理内核（体积原因）。旧版这里只是"目录不存在就跳过"，
-  # 而面板按钮却写"一键获取内置内核" —— 文案与事实不符，已一并更正。
-  ui_print "- 本模块不随包内置代理内核；需要时在面板「代理内核 → 在线下载」获取"
+  ui_print "- 本次包不含内置内核目录；可在面板「代理内核」在线下载"
 fi
 
 unset __SY_MARK

@@ -66,6 +66,13 @@ done
 
 has_mod() { [ -n "$NODE" ] && "$NODE" -e "require.resolve('$1')" >/dev/null 2>&1; }
 
+# 【真实缺陷修复】内联 Python 的 print 在中文 Windows 上默认走 GBK 编码，
+# 而本脚本用 UTF-8 的中文串去 grep 结果 → 检查项会**漏报或误报**
+# （实测：新增的 .bottomnav 安全区检查没出现在输出里）。
+# 统一强制 UTF-8，让中文输出与 grep 模式一致。
+PYTHONIOENCODING=utf-8
+PYTHONUTF8=1
+export PYTHONIOENCODING PYTHONUTF8
 # 临时目录：Android 上 /tmp 只读，优先 /data/local/tmp
 if [ -d /data/local/tmp ] && [ -w /data/local/tmp ] 2>/dev/null; then
   TMPD="${SYADGH_TEST_DIR:-/data/local/tmp}"
@@ -526,9 +533,16 @@ else: print("OK|无 SVG 滤镜噪点层")
 anim = re.findall(r"(?:^|[;{\s])animation\s*:", css_only)
 if anim: print("FAIL|CSS 仍含 %d 处 animation 声明（低端机耗电卡顿）" % len(anim))
 else: print("OK|CSS 无 animation 声明")
+# position:fixed 层数上限 4：新增移动端底部导航 .bottomnav（MagicNet 等同类模块
+# 的标准做法，手机上入口要常驻可见 + 拇指可达）；它只在手机显示、并处理安全区。
 fx = len(re.findall(r"position\s*:\s*fixed", css_only))
-if fx > 3: print("FAIL|position:fixed 层过多 %d 个" % fx)
+if fx > 4: print("FAIL|position:fixed 层过多 %d 个" % fx)
 else: print("OK|position:fixed 层 %d 个" % fx)
+# 底部导航必须处理系统安全区（否则被手势条挡住，最后一项按不到）
+navm = re.search(r"\.bottomnav\s*\{[^}]*\}", css_only, re.S)
+if navm is None: print("FAIL|缺少 .bottomnav 移动端底部导航")
+elif "safe-area-inset-bottom" not in navm.group(0): print("FAIL|.bottomnav 未处理 safe-area-inset-bottom")
+else: print("OK|.bottomnav 安全区已处理")
 blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', h, re.S | re.I)
 print("INFO|内联 script 块 %d 个" % len(blocks))
 if node:

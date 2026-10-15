@@ -5,8 +5,19 @@
 # ============================================================
 
 # ---- 路径 ----
-MODDIR="$(cd "$(dirname "$0")/.." && pwd)"
-[ -d "$MODDIR/scripts" ] || MODDIR=/data/adb/modules/SY
+MODDIR=/data/adb/modules/SY                                          # 默认：KernelSU 固定路径
+# 【健壮性修复】旧版无条件用 dirname($0)/.. 推导 MODDIR，假设"调用方一定在
+# scripts/ 下"。但 uninstall.sh 在模块**根**、测试脚本在别处 —— 此时会推成模块的
+# 上级目录，导致所有 "$MODDIR/..." 判断为假（还原被跳过、BIN 找不到、面板报缺失）。
+# 改为：① 调用方显式传入的 MODDIR 优先 ② 其次 dirname($0)/.. 若其下确有 scripts/
+# ③ 否则沿用上面的 KernelSU 固定路径。
+if [ -n "${MODDIR_OVERRIDE:-}" ] && [ -d "$MODDIR_OVERRIDE/scripts" ]; then
+  MODDIR="$MODDIR_OVERRIDE"
+else
+  _md="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
+  [ -n "$_md" ] && [ -d "$_md/scripts" ] && MODDIR="$_md"
+  unset _md
+fi
 # 数据目录：优先 /data/adb/SY；可用 AB_DATA_DIR 覆盖（便于测试/自定义）
 DATA_DIR="${AB_DATA_DIR:-}"
 if [ -z "$DATA_DIR" ]; then
@@ -28,7 +39,30 @@ RUN="$DATA_DIR/run"
 CACHE="$DATA_DIR/cache"
 SCRIPTS_DIR="$DATA_DIR/scripts"
 BACKUP_DIR="$DATA_DIR/backup"
-BIN="$MODDIR/bin/abserver"
+# 【缺陷修复】旧版硬编码 BIN="$MODDIR/bin/abserver"，但随包分发的是**带架构后缀**的
+# bin/abserver-{arm64,armv7,arm,amd64}（没有不带后缀的 abserver）。后果是所有用 $BIN
+# 的地方（面板拉起、DNS 引擎、路由编译…）`[ -x "$BIN" ]` 恒为假 → 面板报
+# 「服务组件缺失」、引擎不生效 —— 这是"功能不生效"的大片根因。
+# 现在按本机架构解析；找不到就留原值，让调用方明确报「服务组件缺失」（不做跨架构兜底）
+_sy_arch=$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/^armv8l$/arm64/;s/^armv7l$/armv7/;s/x86_64/amd64/')
+BIN=""
+for _c in "$MODDIR/bin/abserver-$_sy_arch" "$DATA_DIR/bin/abserver-$_sy_arch"; do
+  if [ -f "$_c" ]; then
+    [ -x "$_c" ] || chmod 0755 "$_c" 2>/dev/null
+    BIN="$_c"; break
+  fi
+done
+# 兼容：32 位设备上历史命名 abserver-arm，以及自己指定路径的情况
+if [ -z "$BIN" ] && [ "$_sy_arch" = "armv7" ]; then
+  for _c in "$MODDIR/bin/abserver-armv7" "$MODDIR/bin/abserver-arm"; do
+    if [ -f "$_c" ]; then
+      [ -x "$_c" ] || chmod 0755 "$_c" 2>/dev/null
+      BIN="$_c"; break
+    fi
+  done
+fi
+[ -z "$BIN" ] && BIN="$MODDIR/bin/abserver"
+unset _sy_arch _c
 
 mkdir -p "$LOGS" "$RUN" "$CACHE" "$DNS_DIR" "$MITM_DIR" "$SPLASH_DIR" \
          "$SCRIPTS_DIR" "$BACKUP_DIR" 2>/dev/null

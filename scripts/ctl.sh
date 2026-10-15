@@ -89,11 +89,11 @@ case "$1" in
     shift
     sh "$D/scripts_ext.sh" "$@"
     ;;
-  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|leakguard|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick)
+  dns|mitm|splash|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|leakguard|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick|proxyrun|kernel)
     sub="$1"; shift
     sh "$D/$sub.sh" "$@"
     ;;
   *)
-    echo "usage: ctl.sh {status|toggle <f>|restart <f>|apps|dns|mitm|splash|scripts|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick ...}"
+    echo "usage: ctl.sh {status|toggle <f>|restart <f>|apps|dns|mitm|splash|scripts|backup|notify|panel|dnssrv|netblock|proxynode|ruleset|kernel|privacy_guard|game_privacy|clip_guard|privacy_check|privacy_ruleset|fx_deepguard|offline|oneclick|proxyrun|kernel ...}"
     ;;
 esac

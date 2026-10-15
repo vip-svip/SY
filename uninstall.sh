@@ -67,6 +67,13 @@ if [ -f "$UR" ]; then
   echo "- 隐私清单段落已移除（用户自有规则保留）"
 fi
 
+# ---------- 3.5) 停止代理内核（内置内核 live 进程必须先停，否则删目录后进程仍在跑）----------
+if [ -f "$MODDIR/scripts/proxyrun.sh" ]; then
+  sh "$MODDIR/scripts/proxyrun.sh" stop >/dev/null 2>&1 && echo "- 代理内核已停止"
+fi
+# 兜底：即使脚本缺失也按命令行杀（内置内核随模块目录一起删掉）
+pkill -f "sing-box" 2>/dev/null
+
 # ---------- 4) 停止后台进程（按 pid 文件精确停，不用 pkill 模糊匹配）----------
 for pf in "$DATA_DIR/run/panel.pid" "$DATA_DIR/run/core.pid" "$DATA_DIR/rules/proxy/core.pid" \
           "$DATA_DIR/run/clipguard.pid" "$DATA_DIR/run/splash.pid" "$DATA_DIR/run/mitm.pid" \

@@ -68,8 +68,23 @@ STATE="$STATE_DIR/leakguard.state"
 LOG="${LOGS:-$DATA_DIR/logs}/leakguard.log"
 TARGETS="$DATA_DIR/config/privacy_targets.txt"
 OWNER_DB="$MODDIR/data/geo/rir"
-AB="$MODDIR/bin/abserver-$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/x86_64/amd64/')"
-[ -x "$AB" ] || AB="$MODDIR/bin/abserver"
+# 【缺陷修复】uname -m 在 32 位 ARM 上返回 armv7l / armv8l，
+# 旧映射只处理 aarch64 与 x86_64，会派生出 bin/abserver-armv7l（不存在）→
+# 然后兜底到 bin/abserver（也不存在）→ 本脚本的 geoip/owner 能力永远不可用。
+# 这里补齐映射，并把兜底顺序写全（含 -arm / -armv7 两种历史命名）。
+AB="$MODDIR/bin/abserver-$(uname -m 2>/dev/null | sed 's/aarch64/arm64/;s/^armv8l$/arm64/;s/^armv7l$/armv7/;s/x86_64/amd64/')"
+if [ ! -x "$AB" ]; then
+  for c in "$MODDIR/bin/abserver" "$MODDIR/bin/abserver-arm" "$MODDIR/bin/abserver-armv7" \
+           "$MODDIR/bin/abserver-arm64" "$MODDIR/bin/abserver-amd64"; do
+    [ -x "$c" ] && { AB="$c"; break; }
+  done
+fi
+if [ ! -x "$AB" ]; then
+  for c in "$MODDIR/bin/abserver" "$MODDIR/bin/abserver-arm" "$MODDIR/bin/abserver-armv7" \
+           "$MODDIR/bin/abserver-arm64" "$MODDIR/bin/abserver-amd64"; do
+    [ -f "$c" ] && { chmod 0755 "$c" 2>/dev/null; AB="$c"; break; }
+  done
+fi
 
 mkdir -p "$STATE_DIR" "$(dirname "$LOG")" 2>/dev/null
 
@@ -426,14 +441,30 @@ apps_apply() {
 
 # ---------------- owner：离线判读出口 IP 归属 ----------------
 owner() {
-  a=${1%%,*}; b=${1#*,}
+  # 【缺陷修复】旧版 b=${1#*,} 在"只传一个 IP"时不会得到空串，
+  # 而是**返回原串**（因为没有逗号可删）—— 于是同一个 IP 被对比两次，
+  # 输出两行一模一样的结果，看起来像"核对跑了两遍"。
+  # 这里显式判断有没有逗号。
+  case "$1" in
+    *,*) a=${1%%,*}; b=${1#*,} ;;
+    *)   a=$1; b="" ;;
+  esac
   echo "== 出口归属对比 =="
-  if [ -x "$AB" ]; then
-    "$AB" geoip -db "$MODDIR/data/geo" -compare "$a,$b" 2>/dev/null && return 0
+  if [ -z "$a" ]; then echo "请提供一个 IP"; return 1; fi
+  if [ -n "$b" ] && [ "$a" = "$b" ]; then
+    echo "提示：两个 IP 相同（$a），对比没有意义"; b=""
   fi
-  # 回退：使用本地 RIR 授权库（grep 归属）
+  if [ -x "$AB" ]; then
+    if [ -n "$b" ]; then
+      "$AB" geoip -db "$MODDIR/data/geo" -compare "$a,$b" 2>/dev/null && return 0
+    else
+      "$AB" geoip -db "$MODDIR/data/geo" -ip "$a" 2>/dev/null && return 0
+    fi
+  fi
+  # 回退：本地 RIR 授权库（grep 归属）
   if [ -d "$OWNER_DB" ]; then
-    for ip in "$a" "$b"; do
+    if [ -n "$b" ]; then set -- "$a" "$b"; else set -- "$a"; fi
+    for ip in "$@"; do
       hit=$(grep -rh -m1 "|$ip|" "$OWNER_DB" 2>/dev/null)
       echo "$ip -> ${hit:-未在本地授权库命中（仅含网段起始记录）}"
     done
@@ -488,8 +519,14 @@ status() {
 
 report() {
   esc() { echo "$1" | tr -d '"\\' ; }
+  # 【缺陷修复】旧版在 JSON 里用 grep -vc 'A\|B'：\| 是 GNU BRE 扩展，
+  # toybox/busybox grep 支持不一致 → 计数可能虚高甚至报错。改为两次 grep -v 串联。
+  tcount=$(grep -v "^[[:space:]]*#" "$TARGETS" 2>/dev/null | grep -v "^[[:space:]]*$" | wc -l | tr -d " ")
+  [ -z "$tcount" ] && tcount=0
+  hookmode=$(hook_get_mode 2>/dev/null)
+  [ -z "$hookmode" ] && hookmode="unknown"
   cat <<JSON
-{"ok":true,"dns":$(state_get DNS),"ipv6":$(state_get IPV6),"ip":$(state_get IP),"vpn":$(state_get VPN),"node":$(state_get NODE),"tune":$(state_get TUNE),"iptables":"$(esc ${IPT:-none})","ip6tables":"$(esc ${IP6T:-none})","proxy_online":$(proxy_online && echo true || echo false),"targets":$(grep -vc '^[[:space:]]*#\|^[[:space:]]*$' "$TARGETS" 2>/dev/null || echo 0)}
+{"ok":true,"dns":$(state_get DNS),"ipv6":$(state_get IPV6),"ip":$(state_get IP),"vpn":$(state_get VPN),"node":$(state_get NODE),"tune":$(state_get TUNE),"iptables":"$(esc ${IPT:-none})","ip6tables":"$(esc ${IP6T:-none})","proxy_online":$(proxy_online && echo true || echo false),"targets":${tcount},"hook_mode":"$(esc $hookmode)"}
 JSON
 }
 

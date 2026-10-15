@@ -129,12 +129,28 @@ if anim:
 else:
     print("[OK] CSS 无 animation 声明")
 
+# position:fixed 层数上限。
+# 从 3 提到 4 的理由（不是放宽标准，是功能需要）：新增了移动端底部导航 .bottomnav，
+# 它是 MagicNet 等同类模块的标准做法（手机上入口必须常驻可见 + 拇指可达）。
+# 同时要求它只在手机显示（桌面 CSS 隐藏），并处理 safe-area-inset-bottom。
 fx = len(re.findall(r"position\s*:\s*fixed", css))
-if fx > 3:
+if fx > 4:
     ok = False
     print("[X] position:fixed 层过多 %d 个" % fx)
 else:
     print("[OK] position:fixed 层 %d 个" % fx)
+
+# 底部导航必须处理系统安全区：不加 safe-area-inset-bottom 会被手势条/虚拟键挡住，
+# 表现为「最后一项按不到」。这是移动端导航的硬要求，做成护栏防止以后改回去。
+nav_raw = re.search(r"\.bottomnav\s*\{[^}]*\}", css, re.S)
+if nav_raw is None:
+    ok = False
+    print("[X] 缺少 .bottomnav（移动端底部导航）")
+elif "safe-area-inset-bottom" not in nav_raw.group(0):
+    ok = False
+    print("[X] .bottomnav 未处理 safe-area-inset-bottom（会被系统手势条挡住）")
+else:
+    print("[OK] .bottomnav 已处理 safe-area-inset-bottom")
 
 # 设计令牌必须齐备（深色为默认主题，浅色为主题覆盖）
 for tok in ("--bgcolor:#0b0f14", "--mcolor:#e6edf3", "--green:#3fb950",

@@ -79,6 +79,11 @@ if [ "${GAME_PRIVACY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/game_privacy.s
   sh "$MODDIR/scripts/game_privacy.sh" apply
 fi
 
+# 代理内核：PROXY_ENABLE=1 时开机自动拉起（内置内核已在 bin/kernels）
+if [ "${PROXY_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/proxyrun.sh" ]; then
+  sh "$MODDIR/scripts/proxyrun.sh" start >>"$LOG" 2>&1
+fi
+
 # FX 深度抵抗（仅总开关开启时）
 if [ "${FX_DEEPGUARD_ENABLE:-0}" = "1" ] && [ -f "$MODDIR/scripts/fx_deepguard.sh" ]; then
   sh "$MODDIR/scripts/fx_deepguard.sh" apply

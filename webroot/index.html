@@ -211,6 +211,82 @@ a{color:var(--accent);text-decoration:none}
   flex-wrap:wrap;overflow:visible;
 }
 .nav-item{position:relative;flex:none}
+
+/* ============================================================
+   底部导航（移动端优先）
+   为什么加它：顶部是 4 个下拉，手机上一要看不出"总共有什么"，
+   二要两次点击才能到某个功能。底部四项是「入口」，进去以后再用
+   页内导航选具体功能 —— 这就是把 23 个页面从"藏在下拉里"变成
+   "先选工作区、再选页面"。
+   桌面端（>=900px）隐藏底部导航，顶部下拉已够用。
+   ============================================================ */
+/* ============================================================
+   可展开的"高级"区块（原生 details）
+   为什么用它：复杂页面（如 DNS 过滤有 30+ 个按钮）全摊开会把
+   小白吓住 —— 他只需要看到"主操作"，次要的一堆参数按需展开。
+   用原生 details 而不是自定义折叠：键盘/无障碍行为免费拿到。
+   ============================================================ */
+.adv{
+  margin-top:12px;border-top:1px solid var(--card-border-color);
+}
+.adv>summary{
+  cursor:pointer;list-style:none;padding:10px 0 8px;
+  font-size:13px;color:var(--scolor);display:flex;align-items:center;gap:6px;
+  min-height:44px;   /* 触控目标不小于 44px */
+}
+.adv>summary::-webkit-details-marker{display:none}
+.adv>summary::before{content:"▸";transition:.15s;display:inline-block}
+.adv[open]>summary::before{transform:rotate(90deg)}
+.adv>summary:hover{color:var(--mcolor)}
+.adv[open]>summary{border-bottom:1px solid var(--card-border-color);margin-bottom:10px}
+.adv-body{padding-bottom:6px}
+/* 关键错误必须可见：折叠区里若有失败提示，展开态样式更醒目 */
+.adv[open] .adv-warn{color:var(--bad)}
+
+.bottomnav{
+  position:fixed;left:0;right:0;bottom:0;z-index:60;
+  display:none;
+  background:var(--bgcolor);
+  border-top:1px solid var(--card-border-color);
+  /* 处理系统安全区（手势条/虚拟键）：不加这条会被挡住 */
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.bottomnav__inner{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  max-width:1240px;margin:0 auto;
+}
+.bnav-item{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-height:56px;padding:6px 2px;cursor:pointer;
+  color:var(--scolor);font-size:11px;line-height:1.2;
+  border:none;background:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.bnav-item:active{background:rgba(127,127,127,.12)}
+.bnav-item.on{color:var(--accent);font-weight:600}
+.bnav-item svg{width:22px;height:22px;fill:currentColor;display:block}
+
+/* 手机端：给内容留出底部导航的高度，避免最后一行被遮住 */
+@media (max-width:899px){
+  .bottomnav{display:block}
+  .container{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+  /* 顶部下拉收窄：手机上横向空间紧张，品牌副标题隐藏 */
+  .brand__sub{display:none}
+  .nav-tabs{margin-left:6px;gap:0}
+  .nav-link{padding:0 9px;font-size:13px}
+  /* 输入框至少 16px，否则 iOS/部分 WebView 会自动放大页面 */
+  input,textarea,select{font-size:16px}
+  /* 主操作按钮最小 48px 触控高度（MagicNet 的设计约束） */
+  .btn{min-height:44px}
+  .btn.primary{min-height:48px}
+}
+@media (min-width:900px){
+  .container{padding-bottom:24px}
+}
+/* 横屏时缩短导航高度，但不缩小触控目标 */
+@media (max-height:480px) and (orientation:landscape){
+  .bnav-item{min-height:48px}
+}
 .nav-link{
   display:flex;align-items:center;gap:6px;
   padding:0 12px;height:56px;white-space:nowrap;cursor:pointer;
@@ -760,6 +836,8 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
           <a class="dropdown-item" data-tab="netblock">拦截服务</a>
           <a class="dropdown-item" data-tab="notify">通知过滤</a>
           <a class="dropdown-item" data-tab="privacy">隐私护盾</a>
+          <a class="dropdown-item" data-tab="leakguard">网络防泄露</a>
+          <a class="dropdown-item" data-tab="fxguard">FX 深度抵抗</a>
         </div>
       </div>
 
@@ -783,7 +861,6 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
         </div>
       </div>
     </nav>
-    </nav>
 
     <div class="header__right">
       <span class="status-pill" id="sysline">正在连接内核…</span>
@@ -800,11 +877,6 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div>
         <h2>总览</h2>
         <div class="page-title__sub" id="ovTime">-</div>
-      </div>
-      <div class="page-title__actions">
-        <button class="btn primary" id="tgHosts" data-act="hosts-toggle">-</button>
-        <button class="btn ok" id="tgProxy" data-act="px-toggle">代理 -</button>
-        <button class="btn" data-act="refresh-home">刷新</button>
       </div>
     </div>
 
@@ -1615,12 +1687,18 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div class="col-12">
         <div class="card">
           <div class="card-head">自定义 DNS 服务器<span class="tagline">按顺序，取第一条生效</span></div>
+          <div class="hint">上面「接管模式」选「自定义服务器」时，这里列出的地址才是实际使用的。</div>
           <div class="list" id="dsList"></div>
-          <input type="text" id="dsInput" placeholder="DNS 服务器地址，如 223.5.5.5 或 1.1.1.1">
-          <div class="btn-row">
-            <button class="btn primary" data-act="ds-add">添加服务器</button>
-            <button class="btn danger" data-act="ds-clear-servers">清空列表</button>
-          </div>
+          <details class="adv">
+            <summary>高级：手动添加 / 清空服务器</summary>
+            <div class="adv-body">
+              <input type="text" id="dsInput" placeholder="DNS 服务器地址，如 223.5.5.5 或 1.1.1.1">
+              <div class="btn-row">
+                <button class="btn primary" data-act="ds-add">添加服务器</button>
+                <button class="btn danger" data-act="ds-clear-servers">清空列表</button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>
@@ -2206,7 +2284,14 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
     <div class="row">
       <div class="col-6">
         <div class="card">
-          <div class="card-head">功能开关</div>
+          <div class="card-head">功能开关<span class="tagline">点一下即切换</span></div>
+          <div class="kv"><span>★ 一键全防护（推荐新手）</span>
+            <button class="btn sm primary" data-act="one-click-on">开启全部</button></div>
+          <div class="kv"><span>隐私护盾（FX/风控应用隔离）</span><button class="btn sm primary" data-act="set-toggle" data-k="PRIVACY_ENABLE">-</button></div>
+          <div class="kv"><span>FX 深度抵抗（上报端点）</span><button class="btn sm primary" data-act="set-toggle" data-k="FX_DEEPGUARD_ENABLE">-</button></div>
+          <div class="kv"><span>剪贴板监视</span><button class="btn sm primary" data-act="set-toggle" data-k="CLIPGUARD_ENABLE">-</button></div>
+          <div class="kv"><span>网络防泄露总开关</span><button class="btn sm primary" data-act="set-toggle" data-k="LEAK_GUARD">-</button></div>
+          <div class="kv"><span>游戏隐私保护</span><button class="btn sm primary" data-act="set-toggle" data-k="GAME_PRIVACY_ENABLE">-</button></div>
           <div class="kv"><span>开屏广告跳过</span><button class="btn sm primary" data-act="set-toggle" data-k="SPLASH_ENABLE">-</button></div>
           <div class="kv"><span>通知栏广告过滤</span><button class="btn sm primary" data-act="set-toggle" data-k="NOTIFY_ENABLE">-</button></div>
           <div class="kv"><span>DNS 级拦截</span><button class="btn sm primary" data-act="set-toggle" data-k="DNS_ENABLE">-</button></div>
@@ -2222,7 +2307,7 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
           <div class="kv"><span>当前版本</span><b id="updCur">-</b></div>
           <div class="kv"><span>更新源</span><b id="updRepo">-</b></div>
           <div class="kv"><span>安装方式</span><b id="updMethod">-</b></div>
-          <input type="text" id="updRepoInput" placeholder="更新仓库 owner/repo，如 vip-svip/SY-Fusion">
+          <input type="text" id="updRepoInput" placeholder="更新仓库 owner/repo，如 vip-svip/SY">
           <div class="btn-row">
             <button class="btn" data-act="upd-save-repo">保存更新源</button>
             <button class="btn primary" data-act="upd-check">检查更新</button>
@@ -2247,7 +2332,13 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
       <div class="col-6">
         <div class="card">
           <div class="card-head">全部设置项<span class="tagline">key=value</span></div>
-          <textarea class="ta" id="setDump" placeholder="SPLASH_ENABLE=1"></textarea>
+          <div class="hint">普通使用不需要动这里 —— 上面的开关已经覆盖常用项。这里是给熟悉配置的人直接改原始键值用的。</div>
+          <details class="adv">
+            <summary>高级：直接编辑原始配置</summary>
+            <div class="adv-body">
+              <textarea class="ta" id="setDump" placeholder="SPLASH_ENABLE=1"></textarea>
+            </div>
+          </details>
           <div class="btn-row">
             <button class="btn danger" data-act="settings-reset">重置为默认</button>
           </div>
@@ -2345,6 +2436,245 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
         </div>
       </div>
     </div>
+
+    <!-- 常用操作放在页面下部：手机单手可达（拇指区），不再放顶部 -->
+    <div class="card accent-alt" id="homeActions">
+      <div class="card-head">常用操作<span class="tagline">放在下面 = 手机好按</span></div>
+      <div class="hint">这三个是最常用的开关。放页面下部是为了单手能够到（顶部要移手）。</div>
+      <div class="btn-row">
+        <button class="btn primary" id="tgHosts" data-act="hosts-toggle">-</button>
+        <button class="btn ok" id="tgProxy" data-act="px-toggle">代理 -</button>
+        <button class="btn" data-act="refresh-home">刷新状态</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 网络防泄露（VPN/DNS/节点/IP 六维） ================= -->
+  <section class="page hide" id="page-leakguard">
+    <div class="page-title">
+      <div>
+        <h2>网络防泄露</h2>
+        <div class="page-title__sub">DNS · IPv6 · 真实 IP · VPN 断连 · 代理节点 · 系统加固 六维</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="lg-all-on">全部开启</button>
+        <button class="btn danger" data-act="lg-all-off">全部关闭</button>
+        <button class="btn" data-act="lg-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card accent-alt">
+      <div class="card-head">代理内核（加密隧道）<span class="tagline">内置，随包分发</span></div>
+      <div class="hint">
+        这一项和上面六项的关系：DNS/IP/节点收敛是「别泄露」，而代理是<b>真加密</b>。
+        只有内核跑起来、节点通，运营商在网络侧才看不到你访问了哪些站点 ——
+        否则「运营商挡不住」就只是句空话。<br>
+        内核已<b>随包内置</b>（sing-box，arm64/armv7/amd64 三种架构），不需要联网下载。
+      </div>
+      <div class="kv"><span>内核</span><b id="prCore">-</b></div>
+      <div class="kv"><span>架构 / 版本</span><b id="prArch">-</b></div>
+      <div class="kv"><span>运行状态</span><b id="prRun">-</b></div>
+      <div class="kv"><span>配置 / 节点</span><b id="prCfg">-</b></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="pr-start">启动代理</button>
+        <button class="btn danger" data-act="pr-stop">停止代理</button>
+        <button class="btn" data-act="pr-selftest">链路自检</button>
+        <button class="btn" data-act="pr-ensure">检查内核</button>
+      </div>
+      <div class="hint" id="prOut"></div>
+    </div>
+    <div class="card accent-alt">
+      <div class="card-head">一键操作<span class="tagline">不确定开哪个就点这个</span></div>
+      <div class="hint">下面六项各自防一类泄露。点「全部开启」会一起打开并立即生效；每一项也能单独开关，下方有各自的说明与状态。</div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="lg-panic">一键全防护 + 记录快照</button>
+        <button class="btn danger" data-act="lg-restore">恢复并移除全部规则</button>
+        <button class="btn" data-act="lg-report">查看详细报告</button>
+      </div>
+      <div class="kv"><span>总状态</span><b id="lgSummary">-</b></div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">① 防 DNS 明文泄露<span class="tagline">53 / 853 端口收敛</span></div>
+          <div class="hint">未加密的 DNS 查询会被中间网络看到你访问了哪些域名。开启后拦截明文 DNS（53）与加密 DNS（853）直连，把解析收敛到本模块。</div>
+          <div class="kv"><span>状态</span><b id="lgDns">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="dns">开启</button>
+            <button class="btn" data-act="lg-off" data-v="dns">关闭</button>
+            <button class="btn" data-act="lg-test" data-v="dns">检测</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">② 防 IPv6 旁路<span class="tagline">无 v6 出口时整链阻断</span></div>
+          <div class="hint">很多规则只拦 IPv4，流量走 IPv6 就绕过去了。没有可用 IPv6 出口时开启本项，直接阻断 v6 出站（含 sysctl 兜底）。关闭时会**还原** sysctl，不会把 IPv6 永久关掉。</div>
+          <div class="kv"><span>状态</span><b id="lgIpv6">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="ipv6">开启</button>
+            <button class="btn" data-act="lg-off" data-v="ipv6">关闭</button>
+            <button class="btn" data-act="lg-test" data-v="ipv6">检测</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">③ 防真实 IP 泄露<span class="tagline">STUN / WebRTC 探测面收敛</span></div>
+          <div class="hint">网页可用 WebRTC/STUN 探到你的真实出口 IP，绕过代理。开启后收敛这些探测面（3478/19302 等端口与组播）。</div>
+          <div class="kv"><span>状态</span><b id="lgIp">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="ip">开启</button>
+            <button class="btn" data-act="lg-off" data-v="ip">关闭</button>
+            <button class="btn" data-act="lg-test" data-v="ip">检测</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">④ 防 VPN 断连裸奔<span class="tagline">kill-switch</span></div>
+          <div class="hint">VPN/代理一断，流量会以真实 IP 直连。开启后由守护进程盯着，一旦代理不可用就阻断普通直连，避免"断线瞬间"泄露。</div>
+          <div class="kv"><span>状态</span><b id="lgVpn">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="vpn">开启</button>
+            <button class="btn" data-act="lg-off" data-v="vpn">关闭</button>
+            <button class="btn" data-act="lg-test" data-v="vpn">检测</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">⑤ 防代理节点泄露<span class="tagline">代理不可用时不直连</span></div>
+          <div class="hint">代理节点配置错误或挂掉时，应用可能自动回退直连。开启后代理不可用即阻断，宁可断网也不泄露。</div>
+          <div class="kv"><span>状态</span><b id="lgNode">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="node">开启</button>
+            <button class="btn" data-act="lg-off" data-v="node">关闭</button>
+            <button class="btn" data-act="lg-test" data-v="node">检测</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">⑥ 系统隐私加固<span class="tagline">sysctl 收敛</span></div>
+          <div class="hint">收紧内核网络参数：反向路径过滤、拒绝 ICMP 重定向、拒绝路由通告、IPv6 临时地址。关闭时会**逐项还原**到默认值。</div>
+          <div class="kv"><span>状态</span><b id="lgTune">-</b></div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-on" data-v="tune">开启</button>
+            <button class="btn" data-act="lg-off" data-v="tune">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">运营商隐私收敛<span class="tagline">明文 DNS + v6 + STUN + 加固</span></div>
+          <div class="hint">一次把上面①~③⑥ 组合起来，专门降低运营商侧可观测面。</div>
+          <div class="btn-row">
+            <button class="btn ok" data-act="lg-carrier-on">开启</button>
+            <button class="btn" data-act="lg-carrier-off">关闭</button>
+            <button class="btn" data-act="lg-carrier">查看三行摘要</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">目标应用<span class="tagline">按 uid 收敛出口</span></div>
+          <div class="hint">只对下列应用收敛出口。留空则对所有应用生效。可用「文件编辑器」直接改 config/privacy_targets.txt。</div>
+          <div class="kv"><span>已配数量</span><b id="lgTargets">-</b></div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="lg-apps-apply">应用到目标应用</button>
+            <button class="btn" data-act="lg-apps-list">查看清单</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">出口归属核对<span class="tagline">判断是否真的走了代理</span></div>
+      <div class="hint">对比两个 IP 的归属（离线 GeoIP 库，不发外部请求）。用来验证"我以为走了代理，其实没有"。</div>
+      <input type="text" id="lgOwnerA" placeholder="出口 IP A，如 1.2.3.4">
+      <input type="text" id="lgOwnerB" placeholder="出口 IP B（可留空，与 A 对比）">
+      <div class="btn-row">
+        <button class="btn primary" data-act="lg-owner">核对归属</button>
+      </div>
+      <div id="lgOwnerOut" class="hint"></div>
+    </div>
+  </section>
+
+  <!-- ================= FX 深度抵抗 ================= -->
+  <section class="page hide" id="page-fxguard">
+    <div class="page-title">
+      <div>
+        <h2>FX 深度抵抗</h2>
+        <div class="page-title__sub">上报端点拦截 · 安装清单读取面收敛（96110 / 运营商 / 网站）</div>
+      </div>
+      <div class="page-title__actions">
+        <button class="btn primary" data-act="fx-apply">应用</button>
+        <button class="btn danger" data-act="fx-remove">关闭并还原</button>
+        <button class="btn" data-act="fx-refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="card accent-alt">
+      <div class="card-head">它做什么、不做什么<span class="tagline">如实说明</span></div>
+      <div class="hint">
+        <b>能做</b>：阻断设备上那些"把上网记录 / 安装应用清单交出去"的上报端点；<br>
+        收紧目标应用读取安装清单与使用记录的权限面。<br><br>
+        <b>做不到（不假装）</b>：运营商在网络侧看你流量 —— 那需要加密隧道；<br>
+        "屏蔽 96110 来电" —— 会影响紧急联络，且各 ROM 实现不可靠，本模块不做；<br>
+        "证明谁读了剪贴板/安装清单" —— 系统没有这个公开接口。
+      </div>
+      <div class="kv"><span>状态</span><b id="fxState">-</b></div>
+      <div class="kv"><span>生效域名</span><b id="fxActive">-</b></div>
+      <div class="kv"><span>IP 层规则</span><b id="fxIprules">-</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">上报端点清单<span class="tagline">默认全部注释 = 不拦任何东西</span></div>
+      <div class="hint">
+        每行一个域名。<b>默认全部注释</b> —— 想拦哪条就把行首 # 去掉，然后点上方「应用」。<br>
+        这样设计的原因：拦截规则该由你显式选择，装了模块就默默改网络行为是不对的。
+      </div>
+      <textarea class="ta" id="fxDomains" style="min-height:220px" placeholder="# cpassport.com&#10;# shuzilm.cn"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" data-act="fx-domains-save">保存并应用</button>
+        <button class="btn" data-act="fx-reload">重新载入</button>
+        <button class="btn ok" data-act="fx-seed">生成默认清单</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">目标应用<span class="tagline">rules/fx/targets.conf</span></div>
+          <div class="hint">每行一个包名。留空则复用"隐私护盾"的目标清单。</div>
+          <textarea class="ta" id="fxTargets" placeholder="每行一个包名"></textarea>
+          <div class="btn-row">
+            <button class="btn primary" data-act="fx-targets-save">保存并应用</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="card">
+          <div class="card-head">自检与报告<span class="tagline">验证是否真的生效</span></div>
+          <div class="btn-row">
+            <button class="btn" data-act="fx-test">自检</button>
+            <button class="btn" data-act="fx-report">详细报告</button>
+          </div>
+          <div id="fxOut" class="hint"></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ================= 文件编辑器 ================= -->
@@ -2386,6 +2716,29 @@ html.theme-light .codebox{background:#0d1117;color:#c9d1d9}
   </section>
 
 </div>
+
+
+<!-- ================= 底部导航（移动端） ================= -->
+<nav class="bottomnav" id="bottomnav" aria-label="主导航">
+  <div class="bottomnav__inner">
+    <button class="bnav-item" data-tab="home" data-ws="run">
+      <svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></svg>
+      <span>运行</span>
+    </button>
+    <button class="bnav-item" data-tab="route-home" data-ws="route">
+      <svg viewBox="0 0 24 24"><path d="M4 20V6h2v14zm14 0V4h2v16zM7 8h7l-2-2 3-3 5 5-5 5-3-3 2-2H7zm10 6h-7l2-2-3-3-5 5 5 5 3-3-2-2h7z"/></svg>
+      <span>路由</span>
+    </button>
+    <button class="bnav-item" data-tab="privacy" data-ws="shield">
+      <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5zm0 4v10c2.8-1 4.8-3.6 5-7.6L12 6z"/></svg>
+      <span>隐私</span>
+    </button>
+    <button class="bnav-item" data-tab="dns" data-ws="filter">
+      <svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+      <span>过滤</span>
+    </button>
+  </div>
+</nav>
 
 <div id="toast"></div>
 
@@ -3269,6 +3622,96 @@ var actions={
   "pv-rs-all":function(){ busy("启用隐私清单…"); return runScript("privacy_ruleset.sh",["enable","all"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-off":function(){ busy("移除隐私清单…"); return runScript("privacy_ruleset.sh",["disable"],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
   "pv-rs-one":function(el){ var n=el&&el.getAttribute("data-v"); if(!n){toast("缺少清单名");return Promise.resolve();} busy("启用 "+n+" …"); return runScript("privacy_ruleset.sh",["enable",n],KSU_LONG_MS).then(function(o){toast(msg(o));return loadPrivacy();}); },
+
+  /* ================= 代理内核生命周期 ================= */
+  "pr-start":function(){ busy("启动代理内核…"); return runScript("proxyrun.sh",["start"],KSU_LONG_MS).then(function(o){ toast(msg(o)); var b=$("#prOut"); if(b) b.textContent=String(o||"").trim(); return loadProxyrun(); }); },
+  "pr-stop":function(){ busy("停止代理内核…"); return runScript("proxyrun.sh",["stop"]).then(function(o){ toast(msg(o)); return loadProxyrun(); }); },
+  "pr-ensure":function(){ busy("检查内核…"); return runScript("proxyrun.sh",["status"]).then(function(o){ var s=extractJson(o)||{}; alert("内核: "+(s.core||"(未找到)")+"\n架构: "+(s.arch||"-")+"\n版本: "+(s.version||"-")+"\n运行: "+(s.running?"是":"否")); return loadProxyrun(); }); },
+  "pr-selftest":function(){ busy("链路自检…"); return runScript("proxyrun.sh",["selftest"],KSU_LONG_MS).then(function(o){ var b=$("#prOut"); if(b) b.textContent=String(o||"").trim(); toast("自检完成，详情见下方"); }); },
+
+  /* ================= 网络防泄露（六维） ================= */
+  "lg-refresh":function(){ busy("刷新防泄露状态…"); return loadLeakguard(); },
+  "lg-on":function(el){ return lgToggle(el,"on"); },
+  "lg-off":function(el){ return lgToggle(el,"off"); },
+  "lg-test":function(el){
+    var d=el&&el.getAttribute("data-v"); if(!d){toast("缺少维度");return Promise.resolve();}
+    busy("检测中…");
+    return runScript("leakguard.sh",[d,"test"]).then(function(o){ alert(String(o||"").trim()||"(无输出)"); });
+  },
+  "lg-all-on":function(){ busy("正在开启全部防护…");  return runScript("leakguard.sh",["enable"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadLeakguard(); }); },
+  "lg-all-off":function(){ busy("正在关闭…"); return runScript("leakguard.sh",["disable"]).then(function(o){ toast(msg(o)); return loadLeakguard(); }); },
+  "lg-panic":function(){
+    if(!confirm("一键全防护会立即启用六项并记录快照，确定？")){ return Promise.resolve(); }
+    busy("正在启用全防护…");
+    return runScript("leakguard.sh",["panic"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadLeakguard(); });
+  },
+  "lg-restore":function(){
+    if(!confirm("这会移除本模块的全部防泄露规则并恢复快照，确定？")){ return Promise.resolve(); }
+    busy("正在恢复…");
+    return runScript("leakguard.sh",["restore"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadLeakguard(); });
+  },
+  "lg-report":function(){ busy("生成报告…"); return runScript("leakguard.sh",["report"]).then(function(o){
+      var s=extractJson(o)||{};
+      var t="防泄露详细报告\n\n"
+        +"DNS 明文拦截: "+(s.dns==="1"?"开":"关")+"\n"
+        +"IPv6 旁路阻断: "+(s.ipv6==="1"?"开":"关")+"\n"
+        +"真实 IP 收敛: "+(s.ip==="1"?"开":"关")+"\n"
+        +"VPN 断连保护: "+(s.vpn==="1"?"开":"关")+"\n"
+        +"节点泄露阻断: "+(s.node==="1"?"开":"关")+"\n"
+        +"系统加固: "+(s.tune==="1"?"开":"关")+"\n\n"
+        +"iptables: "+(s.iptables||"-")+"   ip6tables: "+(s.ip6tables||"-")+"\n"
+        +"代理在线: "+(s.proxy_online?"是":"否")+"\n"
+        +"目标应用数: "+(s.targets||0)+"\n"
+        +"Hook 模式: "+(s.hook_mode||"-");
+      alert(t);
+  }); },
+  "lg-carrier-on":function(){ busy("开启运营商隐私收敛…"); return runScript("leakguard.sh",["carrier","on"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadLeakguard(); }); },
+  "lg-carrier-off":function(){ busy("关闭…"); return runScript("leakguard.sh",["carrier","off"]).then(function(o){ toast(msg(o)); return loadLeakguard(); }); },
+  "lg-carrier":function(){ return runScript("leakguard.sh",["carrier","status"]).then(function(o){ alert(String(o||"").trim()); }); },
+  "lg-apps-apply":function(){ busy("应用到目标应用…"); return runScript("leakguard.sh",["apps","apply"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadLeakguard(); }); },
+  "lg-apps-list":function(){ return runScript("leakguard.sh",["apps","list"]).then(function(o){ alert(String(o||"").trim()||"(清单为空)"); }); },
+  "lg-owner":function(){
+    var a=$("#lgOwnerA")?$("#lgOwnerA").value.trim():"";
+    var b=$("#lgOwnerB")?$("#lgOwnerB").value.trim():"";
+    if(!a){ toast("请填入出口 IP A"); return Promise.resolve(); }
+    busy("核对归属…");
+    return runScript("leakguard.sh",["owner",a+(b?(","+b):"")]).then(function(o){
+      var out=String(o||"").trim();
+      var box=$("#lgOwnerOut"); if(box) box.textContent=out;
+      toast("核对完成（结果见下方）");
+    });
+  },
+
+  /* ================= FX 深度抵抗 ================= */
+  "fx-refresh":function(){ busy("刷新…"); return loadFxguard(); },
+  "fx-apply":function(){ busy("应用 FX 深度抵抗…"); return runScript("fx_deepguard.sh",["apply"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadFxguard(); }); },
+  "fx-remove":function(){ busy("关闭并还原…"); return runScript("fx_deepguard.sh",["remove"],KSU_LONG_MS).then(function(o){ toast(msg(o)); return loadFxguard(); }); },
+  "fx-seed":function(){ busy("生成默认清单…"); return runScript("fx_deepguard.sh",["seed"]).then(function(o){ toast(msg(o)); return loadFxguard(); }); },
+  "fx-reload":function(){ return loadFxguard(true); },
+  "fx-test":function(){ busy("自检中…"); return runScript("fx_deepguard.sh",["test"]).then(function(o){
+      var box=$("#fxOut"); if(box) box.textContent=String(o||"").trim();
+      toast("自检完成");
+  }); },
+  "fx-report":function(){ busy("生成报告…"); return runScript("fx_deepguard.sh",["report"]).then(function(o){
+      var box=$("#fxOut"); if(box) box.textContent=String(o||"").trim();
+      toast("报告已生成");
+  }); },
+  "fx-domains-save":function(){
+    var t=$("#fxDomains")?$("#fxDomains").value:"";
+    busy("保存清单并应用…");
+    return feWrite("rules/fx/block_domains.txt",t).then(function(o){
+      toast(msg(o));
+      return runScript("fx_deepguard.sh",["apply"],KSU_LONG_MS);
+    }).then(function(o){ toast(msg(o)); return loadFxguard(); });
+  },
+  "fx-targets-save":function(){
+    var t=$("#fxTargets")?$("#fxTargets").value:"";
+    busy("保存目标并应用…");
+    return feWrite("rules/fx/targets.conf",t).then(function(o){
+      toast(msg(o));
+      return runScript("fx_deepguard.sh",["apply"],KSU_LONG_MS);
+    }).then(function(o){ toast(msg(o)); return loadFxguard(); });
+  },
 
   /* ================= 一键全防护（小白友好） ================= */
   "one-click-on":function(){ busy("正在启用全防护（4 项开关 + 3 项应用）…");
@@ -4811,6 +5254,66 @@ function feAppend(targetId, pkg){
   toast("已加入 " + pkg + "（记得点保存）");
 }
 
+/* ============ 代理内核状态 ============ */
+function loadProxyrun(){
+  return runScript("proxyrun.sh",["status"]).then(function(t){
+    var s=extractJson(t)||{};
+    setText("prCore", s.core||"(未找到内置内核)");
+    setText("prArch", (s.arch||"-")+" / "+(s.version||"-"));
+    setText("prRun", s.running?("运行中 PID "+(s.pid||"-")):"未运行");
+    setText("prCfg", (s.config==="yes"?"已生成":"未生成")+" / "+(s.nodes||0)+" 个节点");
+  }).catch(function(){ setText("prCore","读取失败"); });
+}
+
+/* ============ 网络防泄露页 ============ */
+function loadLeakguard(){
+  loadProxyrun();
+  return runScript("leakguard.sh",["report"]).then(function(t){
+    var s=extractJson(t)||{};
+    var on=0;
+    var map=[["lgDns","dns"],["lgIpv6","ipv6"],["lgIp","ip"],["lgVpn","vpn"],["lgNode","node"],["lgTune","tune"]];
+    map.forEach(function(p){
+      var v=s[p[1]];
+      setText(p[0], v==="1" ? "已开启" : (v==="0" ? "未开启" : "-"));
+      if(v==="1") on++;
+    });
+    setText("lgSummary", on+" / 6 项已开启"+(on>=4?"（主要泄露面已收敛）":"（建议点上方「全部开启」）"));
+    setText("lgTargets", (s.targets!=null?s.targets:"-")+" 个");
+    return runScript("leakguard.sh",["apps","list"]).then(function(a){
+      var n=String(a||"").split("\n").filter(function(x){return x.trim()&&x.trim()[0]!=="#"}).length;
+      setText("lgTargets", n+" 个");
+    }).catch(function(){ });
+  });
+}
+function lgToggle(el,onoff){
+  var d=el&&el.getAttribute("data-v"); if(!d){toast("缺少维度");return Promise.resolve();}
+  var args=(d==="vpn" && onoff==="on") ? ["vpn","on"] : [d,onoff];
+  busy((onoff==="on"?"开启 ":"关闭 ")+d+"…");
+  return runScript("leakguard.sh",args,KSU_LONG_MS).then(function(o){
+    toast(msg(o));
+    return loadLeakguard();
+  });
+}
+
+/* ============ FX 深度抵抗页 ============ */
+function loadFxguard(force){
+  return Promise.all([
+    runScript("fx_deepguard.sh",["status"]),
+    runScript("fx_deepguard.sh",["active"]),
+    feRead("rules/fx/block_domains.txt"),
+    feRead("rules/fx/targets.conf")
+  ]).then(function(r){
+    var s=extractJson(r[0])||{};
+    setText("fxState", s.enabled==="1" ? "已开启" : "未开启");
+    setText("fxActive", (s.active_domains!=null?s.active_domains:"-")+" 条");
+    setText("fxIprules", (s.ip_rules!=null?s.ip_rules:"-")+" 条");
+    var dom=$("#fxDomains"), tgt=$("#fxTargets");
+    if(dom && !dom.dataset.touched) dom.value = r[2]||"";
+    if(tgt && !tgt.dataset.touched) tgt.value = r[3]||"";
+    if(force) toast("已重新载入");
+  });
+}
+
 /* 一键全防护状态（首页卡片） */
 function loadOneClick(){
   if(!document.getElementById("ocSummary")) return Promise.resolve();
@@ -4969,6 +5472,8 @@ case "dns": return Promise.all([loadDnsStatus(),loadHosts(),loadCustom(),loadSou
     case "sysinfo":     return Promise.all([loadSysInfo(), siLoadLogs()]);
     /* ---- 隐私护盾 与 文件编辑器 ---- */
     case "privacy":     return loadPrivacy();
+    case "leakguard":   return loadLeakguard();
+    case "fxguard":     return loadFxguard(false);
     case "fileedit":    return loadFileEdit(false);
   }
 }
@@ -5003,12 +5508,28 @@ function syncNavParent(tab){
     p.classList.toggle("on", hit);
   });
 }
+/* ============================================================
+   底部导航（移动端）：点击 → 切到对应工作区的首页
+   与 switchTab 联动，高亮当前工作区；桌面端隐藏（CSS）。
+   ============================================================ */
+function syncBottomNav(tab){
+  var items=$(".bnav-item");
+  if(!items.length) return;
+  /* 把 tab 映射到工作区：一个工作区覆盖多个 tab */
+  var ws = "run";
+  if(/^(route-|proxynode)/.test(tab)) ws="route";
+  else if(/^(privacy|leakguard|fxguard|game)/.test(tab)) ws="shield";
+  else if(/^(dns|engine|mitm|netblock|notify|fileedit|scripts)/.test(tab)) ws="filter";
+  else if(tab==="home") ws="run";
+  items.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-ws")===ws); });
+}
 function switchTab(tab){
   $$("[data-tab]").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-tab")===tab); });
   $$(".page").forEach(function(p){ p.classList.toggle("hide", p.id!=="page-"+tab); });
   syncNavParent(tab);
   closeDropdowns();
   CUR_TAB = tab;
+  syncBottomNav(tab);          /* 底部导航高亮 */
   syncLiveTimers();
   loadTab(tab).catch(function(e){ toast("⚠ 加载失败: "+(e&&e.message||e)); });
 }
@@ -5026,6 +5547,18 @@ document.getElementById("tabs").addEventListener("click",function(ev){
   var t=ev.target.closest("[data-tab]");
   if(t) switchTab(t.getAttribute("data-tab"));
 });
+/* 底部导航点击 */
+document.addEventListener("click",function(ev){
+  var b=ev.target.closest(".bnav-item");
+  if(!b) return;
+  var tab=b.getAttribute("data-tab");
+  if(!tab) return;
+  /* 记住每个工作区最后访问的 tab，下次点同一入口直接回去 */
+  switchTab(tab);
+  try{ localStorage.setItem("ab_last_"+b.getAttribute("data-ws"), tab); }catch(e){}
+  ev.preventDefault();
+});
+
 /* 点击导航以外区域关闭下拉 */
 document.addEventListener("click",function(ev){
   if(ev.target.closest(".nav-tabs")) return;

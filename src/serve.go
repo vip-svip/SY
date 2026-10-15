@@ -200,6 +200,46 @@ func (c *serverCtx) handleAPI(w http.ResponseWriter, r *http.Request) {
 		c.proxySub(w, r, "privacy_check.sh")
 	case "privacy_ruleset":
 		c.proxySub(w, r, "privacy_ruleset.sh")
+	case "leakguard":
+		c.proxySub(w, r, "leakguard.sh")
+	case "fx_deepguard":
+		c.proxySub(w, r, "fx_deepguard.sh")
+	case "oneclick":
+		c.proxySub(w, r, "oneclick.sh")
+	case "offline":
+		c.proxySub(w, r, "offline.sh")
+	case "proxyrun":
+		c.proxySub(w, r, "proxyrun.sh")
+	case "kernel":
+		c.proxySub(w, r, "kernel.sh")
+	case "route_gen":
+		c.proxySub(w, r, "route.sh")
+	case "game_privacy_ui":
+		c.proxySub(w, r, "game_privacy.sh")
+	case "ruleset_ui":
+		c.proxySub(w, r, "ruleset.sh")
+	case "settings_ui":
+		c.proxySub(w, r, "settings.sh")
+	case "logs_ui":
+		c.proxySub(w, r, "logs.sh")
+	case "updater_ui":
+		c.proxySub(w, r, "updater.sh")
+	case "dnssrv_ui":
+		c.proxySub(w, r, "dnssrv.sh")
+	case "netblock_ui":
+		c.proxySub(w, r, "netblock.sh")
+	case "splash_ui":
+		c.proxySub(w, r, "splash.sh")
+	case "notify_ui":
+		c.proxySub(w, r, "notify.sh")
+	case "scripts_ext_ui":
+		c.proxySub(w, r, "scripts_ext.sh")
+	case "proxynode_ui":
+		c.proxySub(w, r, "proxynode.sh")
+	case "mitm_ui":
+		c.proxySub(w, r, "mitm.sh")
+	case "panel_ui":
+		c.proxySub(w, r, "panel.sh")
 	default:
 		http.NotFound(w, r)
 	}
