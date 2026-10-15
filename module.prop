@@ -3,5 +3,5 @@ name=SY
 version=v1.0.4
 versionCode=10400
 author=vip-svip
-description=版本 v1.0.4 · 作者 vip-svip · 后台 http://127.0.0.1:8848
+description=后台 http://127.0.0.1:8848
 updateJson=https://raw.githubusercontent.com/vip-svip/SY/main/update.json
