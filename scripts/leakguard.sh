@@ -599,12 +599,28 @@ hook_status() {
   echo ""
   echo "生效前提自检（为什么 events 可能是 0）:"
   if [ -d /data/adb/lspd ]; then
-    if find /data/adb/lspd/modules -maxdepth 3 2>/dev/null | grep -q "$PKG_NAME"; then
-      echo "  [OK]   LSPosed 已识别本模块（Xposed hook 可生效）"
+    # 【真机缺陷修复】旧判断查的是 /data/adb/lspd/modules/<uid>/<pkg>/ ——
+    # 那是「模块写文件的目录」，不代表启用状态。真机事实：本模块已启用
+    # （LSPosed 日志有 [SY-Fusion] loaded），但该目录里只有另一个模块
+    # com.Lwely.vip，于是这里长期误报「尚未启用本模块」。
+    # 现在按两个**真实依据**判断：
+    #   ① modules_config.db 登记了本模块（LSPosed 已识别）
+    #   ② 模块日志里出现过 [SY-Fusion]（注入真的跑起来了）
+    _db="/data/adb/lspd/config/modules_config.db"
+    _recognized="no"
+    [ -f "$_db" ] && strings "$_db" 2>/dev/null | grep -q "$PKG_NAME" && _recognized="yes"
+    _injected="no"
+    grep -qs "SY-Fusion" /data/adb/lspd/log/modules_*.log 2>/dev/null && _injected="yes"
+    if [ "$_injected" = "yes" ]; then
+      echo "  [OK]   Xposed 注入已生效（日志中有 SY-Fusion 记录）"
+    elif [ "$_recognized" = "yes" ]; then
+      echo "  [OK]   LSPosed 已识别本模块（目标应用启动时注入）"
     else
-      echo "  [缺失] LSPosed 在运行，但**尚未启用本模块**"
-      echo "         请在 LSPosed 里启用 SY 并勾选作用域，然后重启目标应用"
+      echo "  [缺失] LSPosed 未识别本模块 —— 请在 LSPosed 里启用 SY 并勾选作用域"
     fi
+    # 作用域提示：只有被勾选的应用才会被注入 —— 这是 events 长期为 0 的常见原因
+    _tn=$(grep -vE "^[[:space:]]*(#|$)" "$MODDIR/config/privacy_targets.txt" 2>/dev/null | wc -l | tr -d " ")
+    echo "  [提示] 仅作用域内的应用会被注入；当前隐私目标 ${_tn:-0} 个，都需要在 LSPosed 里勾选"
   else
     echo "  [不可用] 未检测到 LSPosed；Xposed 注入不可用"
     echo "           （无障碍跳广告不依赖 Xposed，仍可用）"

@@ -145,6 +145,37 @@ public class SyNativeActivity extends Activity {
         final TextView dnSp = Ui.text2(this, "↓ 0 B/s", 15f, Ui.text(this));
         final TextView cfgName = Ui.text2(this, "自动选择", 16f, Ui.text(this));
 
+        // ⓪ 【新增】大开关：一键开启 / 关闭 VPN（用户指出"VPN 里没有开启的按钮"）
+        final LinearLayout sw = Ui.card(this, null);
+        LinearLayout swb = Ui.body(sw);
+        LinearLayout swRow = Ui.hrow(this);
+        swRow.addView(Ui.icon(this, "ic_vpn", 26, Ui.iconColor(this)));
+        LinearLayout swTxt = Ui.col(this);
+        swTxt.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        final TextView swTitle = Ui.text2(this, "代理未开启", 18f, Ui.text(this));
+        swTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
+        final TextView swSub = Ui.text2(this, "点右侧按钮启动内核", 12.5f, Ui.dim(this));
+        swSub.setPadding(0, Ui.dp(this, 3), 0, 0);
+        swTxt.addView(swTitle);
+        swTxt.addView(swSub);
+        swRow.addView(swTxt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        final TextView powerBtn = Ui.pill(this, "开启", true, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                // 【真机缺陷修复】旧版 VPN 页没有开关，用户找不到"怎么开"。
+                // 现在按当前状态切换：未连 → 启动内核；已连 → 停止内核。
+                String cur = swTitle.getText().toString();
+                boolean running = cur.contains("已开启");
+                if (running) {
+                    runAndShow("关闭内核", new Call() { public String run() { return RootShell.nodesDown(); } });
+                } else {
+                    runAndShow("开启内核", new Call() { public String run() { return RootShell.nodesUp(); } });
+                }
+            }
+        });
+        swRow.addView(powerBtn);
+        swb.addView(swRow);
+        content.addView(sw);
+
         // ① 运行时长 / 连接（两列）
         content.addView(Ui.twoCol(this,
                 smallCard("ic_clock", "运行时长", upTime),
@@ -169,18 +200,26 @@ public class SyNativeActivity extends Activity {
         b3.addView(cfgName);
         content.addView(c3);
 
-        // ④ 规则 | 全局 切换
+        // ④ 直连 | 规则 | 全局 切换
+        // 【用户要求】参考图只有"规则|全局"，但用户明确要补上"直连" —— 三种模式齐全。
+        // 直连=全部不走代理；规则=按规则分流；全局=全部走代理。
         final LinearLayout seg = Ui.hrow(this);
         seg.setBackground(Ui.round(this, Ui.card(this), 0, 12));
+        final TextView modeDirect = segBtn("直连", false);
         final TextView modeRule = segBtn("规则", true);
         final TextView modeGlobal = segBtn("全局", false);
-        seg.addView(modeRule, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        seg.addView(modeGlobal, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        final TextView[] modeBtns = { modeDirect, modeRule, modeGlobal };
+        for (TextView b : modeBtns) {
+            seg.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        modeDirect.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { switchMode3("direct", modeBtns); }
+        });
         modeRule.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { switchMode("rule", modeRule, modeGlobal); }
+            @Override public void onClick(View v) { switchMode3("rule", modeBtns); }
         });
         modeGlobal.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { switchMode("global", modeRule, modeGlobal); }
+            @Override public void onClick(View v) { switchMode3("global", modeBtns); }
         });
         LinearLayout segWrap = Ui.col(this);
         segWrap.setPadding(0, 0, 0, Ui.dp(this, 12));
@@ -222,7 +261,8 @@ public class SyNativeActivity extends Activity {
         });
         content.addView(bottom);
 
-        loadVpn(upTime, connState, upTv, dnTv, upSp, dnSp, cfgName, nodeName, modeRule, modeGlobal);
+        loadVpn(upTime, connState, upTv, dnTv, upSp, dnSp, cfgName, nodeName,
+                modeDirect, modeRule, modeGlobal, powerBtn, swTitle, swSub);
     }
 
     /** 单值小卡：图标 + 标题 + 大数字 */
@@ -284,18 +324,28 @@ public class SyNativeActivity extends Activity {
         return b;
     }
 
-    private void switchMode(final String mode, final TextView a, final TextView b) {
-        runAndShow("切换" + ("global".equals(mode) ? "全局" : "规则") + "模式", new Call() {
+    /**
+     * 三态切换：直连 / 规则 / 全局。
+     * 【用户要求】参考图只有"规则|全局"，用户要补"直连"，这里三种模式齐全。
+     * 模式名与脚本约定一致（proxynodes.sh mode 读到 direct/rule/global）。
+     */
+    private void switchMode3(final String mode, final TextView[] btns) {
+        String label = "direct".equals(mode) ? "直连" : ("global".equals(mode) ? "全局" : "规则");
+        runAndShow("切换到" + label + "模式", new Call() {
             public String run() { return RootShell.proxyMode(mode); } });
-        a.setTextColor("rule".equals(mode) ? Ui.text(this) : Ui.dim(this));
-        a.setBackground(Ui.round(this, "rule".equals(mode) ? Ui.line(this) : 0x00000000, 0, 12));
-        b.setTextColor("global".equals(mode) ? Ui.text(this) : Ui.dim(this));
-        b.setBackground(Ui.round(this, "global".equals(mode) ? Ui.line(this) : 0x00000000, 0, 12));
+        // 三个按钮的选中态：选中的用 line 底色 + 主文字色，其余透明 + 次文字色
+        String[] ids = { "direct", "rule", "global" };
+        for (int i = 0; i < btns.length && i < ids.length; i++) {
+            boolean on = ids[i].equals(mode);
+            btns[i].setTextColor(on ? Ui.text(this) : Ui.dim(this));
+            btns[i].setBackground(Ui.round(this, on ? Ui.line(this) : 0x00000000, 0, 12));
+        }
     }
 
     private void loadVpn(final TextView upTime, final TextView conn, final TextView upTv, final TextView dnTv,
                          final TextView upSp, final TextView dnSp, final TextView cfg, final TextView node,
-                         final TextView rule, final TextView global) {
+                         final TextView direct, final TextView rule, final TextView global,
+                         final TextView powerBtn, final TextView swTitle, final TextView swSub) {
         new Thread(new Runnable() {
             @Override public void run() {
                 final String core = RootShell.proxyRunStatus();
@@ -310,6 +360,16 @@ public class SyNativeActivity extends Activity {
                     boolean run = "true".equals(Jake.str(core, "running")) || "yes".equals(Jake.str(core, "running"));
                     upTime.setText(nz(etime));
                     conn.setText(run ? "已连接" : "未连接");
+                    // 大开关状态（用户要求：VPN 页要有明确的开启按钮）
+                    if (swTitle != null) swTitle.setText(run ? "代理已开启" : "代理未开启");
+                    if (swSub != null) swSub.setText(run ? "内核运行中 · 点右侧按钮关闭" : "点右侧按钮启动内核");
+                    if (powerBtn != null) {
+                        powerBtn.setText(run ? "关闭" : "开启");
+                        powerBtn.setTextColor(run ? android.graphics.Color.WHITE : Ui.text(SyNativeActivity.this));
+                        powerBtn.setBackground(Ui.round(SyNativeActivity.this,
+                                run ? Ui.accent(SyNativeActivity.this) : Ui.card(SyNativeActivity.this),
+                                run ? 0 : Ui.line(SyNativeActivity.this), 19));
+                    }
                     conn.setTextColor(run ? Ui.okc(SyNativeActivity.this) : Ui.dim(SyNativeActivity.this));
                     // 【真机缺陷修复】proxyrun.sh status 里没有 up/down 字段，
                     // 旧写法拿到空串 → 显示 "↑ B" 没有数字。改为取不到就显示 0。
@@ -323,11 +383,16 @@ public class SyNativeActivity extends Activity {
                     cfg.setText(cfgName == null || cfgName.length() == 0 ? "自动选择" : cfgName);
                     String nn = nodes == null ? "" : nodes.trim();
                     node.setText(nn.length() == 0 ? "自动选择" : (nn.length() > 40 ? nn.substring(0, 40) + "…" : nn));
-                    boolean isGlobal = "global".equals(mode);
-                    rule.setTextColor(!isGlobal ? Ui.text(SyNativeActivity.this) : Ui.dim(SyNativeActivity.this));
-                    rule.setBackground(Ui.round(SyNativeActivity.this, !isGlobal ? Ui.line(SyNativeActivity.this) : 0x00000000, 0, 12));
-                    global.setTextColor(isGlobal ? Ui.text(SyNativeActivity.this) : Ui.dim(SyNativeActivity.this));
-                    global.setBackground(Ui.round(SyNativeActivity.this, isGlobal ? Ui.line(SyNativeActivity.this) : 0x00000000, 0, 12));
+                    // 三态高亮（直连/规则/全局）—— mode 由 proxynodes.sh mode 返回
+                    String m = mode == null ? "rule" : mode.trim();
+                    String[] ids = { "direct", "rule", "global" };
+                    for (int i = 0; i < 3; i++) {
+                        boolean on = ids[i].equals(m);
+                        TextView b = (i == 0) ? direct : (i == 1 ? rule : global);
+                        if (b == null) continue;
+                        b.setTextColor(on ? Ui.text(SyNativeActivity.this) : Ui.dim(SyNativeActivity.this));
+                        b.setBackground(Ui.round(SyNativeActivity.this, on ? Ui.line(SyNativeActivity.this) : 0x00000000, 0, 12));
+                    }
                 }});
             }
         }, "sy-vpn").start();
