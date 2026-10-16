@@ -1557,14 +1557,44 @@ public class SyNativeActivity extends Activity {
             box.addView(Ui.row(this, "详细报告", "", true, new View.OnClickListener() {
                 @Override public void onClick(View v) { showText("防泄露报告", RootShell.leakReport()); }
             })[0]);
-            box.addView(Ui.row(this, "全部开启", "", true, new View.OnClickListener() {
-                @Override public void onClick(View v) { runAndShow("全部开启", new Call() {
-                    public String run() { return RootShell.leakAll(true); } }); }
-            })[0]);
-            box.addView(Ui.row(this, "全部关闭", "", true, new View.OnClickListener() {
-                @Override public void onClick(View v) { runAndShow("全部关闭", new Call() {
-                    public String run() { return RootShell.leakAll(false); } }); }
-            })[0]);
+                        // 【用户要求】防 IP 泄露不再提供"全部开启/全部关闭"，
+            // 三级页同样改为**每一项独立的开启/关闭**（与隐私主页一致）。
+            String[] lk3 = { "ip", "ipv6", "vpn", "node", "dns" };
+            String[] ll3 = { "IP 泄露防护", "IPv6 泄露防护", "VPN 出口收敛", "节点防泄露", "DNS 明文泄露" };
+            for (int q = 0; q < lk3.length; q++) {
+                final String k3 = lk3[q];
+                final String n3 = ll3[q];
+                LinearLayout one3 = Ui.col(this);
+                one3.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+                TextView t3 = Ui.text2(this, n3, 14.5f, Ui.text(this));
+                t3.setPadding(0, 0, 0, Ui.dp(this, 6));
+                one3.addView(t3);
+                one3.addView(Ui.rowOf(this,
+                        Ui.button(this, "开启", true, new View.OnClickListener() {
+                            @Override public void onClick(View v) {
+                                new Thread(new Runnable() { @Override public void run() {
+                                    RootShell.leakToggle(k3, true);
+                                    ui.post(new Runnable() { @Override public void run() {
+                                        toast(n3 + " 已开启");
+                                        renderStackTop();
+                                    }});
+                                }}, "sy-l3-on").start();
+                            }
+                        }),
+                        Ui.button(this, "关闭", false, new View.OnClickListener() {
+                            @Override public void onClick(View v) {
+                                new Thread(new Runnable() { @Override public void run() {
+                                    RootShell.leakToggle(k3, false);
+                                    ui.post(new Runnable() { @Override public void run() {
+                                        toast(n3 + " 已关闭");
+                                        renderStackTop();
+                                    }});
+                                }}, "sy-l3-off").start();
+                            }
+                        })));
+                box.addView(one3);
+                if (q < lk3.length - 1) box.addView(Ui.divider(this));
+            }
             box.addView(Ui.divider(this));
             box.addView(Ui.row(this, "隐私护盾状态", "", true, new View.OnClickListener() {
                 @Override public void onClick(View v) { showText("隐私护盾", RootShell.privacyGuardStatus()); }
