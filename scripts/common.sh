@@ -76,12 +76,22 @@ logf() { # 指定文件
 }
 
 # ---- 配置读取 ----
+# 【真实缺陷修复 · 关键】
+# 模块有**两份**配置文件，历史上各脚本各读一份，导致"面板设了但脚本读不到"：
+#   · $CONFIG       = data/config/sy.conf          （内核/拦截类开关）
+#   · module_settings.conf                          （settings.sh 写入）
+# 真机案例：面板/App 把 FX_ANTICHEAT 写进 module_settings.conf，
+# 而 fx_deepguard.sh 用 cfg_get 读 sy.conf → 永远读默认值，
+# 专项开关"看起来能点、实际不生效"（空壳）。
+# 现在 cfg_get 按顺序查两份文件，先命中先用 —— 所有脚本立即一致。
+SET_FILE="$DATA_DIR/config/module_settings.conf"
 cfg_get() { # key [default]
   key="$1"; def="$2"
-  if [ -f "$CONFIG" ]; then
-    v=$(grep -E "^[[:space:]]*${key}=" "$CONFIG" 2>/dev/null | tail -n1 | sed "s/^[[:space:]]*${key}=//")
+  for _f in "$CONFIG" "$SET_FILE"; do
+    [ -f "$_f" ] || continue
+    v=$(grep -E "^[[:space:]]*${key}=" "$_f" 2>/dev/null | tail -n1 | sed "s/^[[:space:]]*${key}=//")
     [ -n "$v" ] && { echo "$v"; return; }
-  fi
+  done
   echo "$def"
 }
 

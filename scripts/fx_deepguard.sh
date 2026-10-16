@@ -100,10 +100,79 @@ FXEOF
 
 # 把清单里生效的域名写进 hosts（复用 dns 引擎生成的 hosts 由 dns.sh 负责，
 # 这里只输出「用户在本清单里启用的域名」，交给 netblock/DNS 层处理）
+# 分组标记：清单里用分组注释标明每批域名的用途，
+# 专项开关据此**真正**过滤域名（不是只改 UI —— 那样就是空壳）。
+FX_GROUP_ANTICHEAT="反作弊 / 风控云"
+FX_GROUP_DEVICEID="设备指纹 / 号码认证"
+
 fx_active_domains() {
   [ -f "$FX_DOMAIN_LIST" ] || return 0
-  grep -vE "^[[:space:]]*(#|$)" "$FX_DOMAIN_LIST" 2>/dev/null | tr -d "\r" \
-    | grep -vE "^[[:space:]]*$" | sed "s/[[:space:]]*#.*$//" | sort -u
+  # 专项开关按**分组标题**过滤域名（真正生效，不是只改 UI）。
+  #   FX_ANTICHEAT=0 剔除「反作弊 / 风控云」整组
+  #   FX_DEVICEID=0  剔除「设备指纹 / 号码认证」整组
+  #
+  # 【真机缺陷修复 · 两次踩坑记录】
+  #   ① 先用 awk 内嵌程序：mksh 把 `\n` 当字面量 → "non-terminated string"，
+  #      静默失败（active 仍输出全部 26 条）；
+  #   ② 再改为 `_grp=$(echo "$_line" | sed "s/...//")`：mksh 下这种**多层引号
+  #      命令替换**返回空串（实测 `NOMATCH []`），于是 _grp 恒空、过滤永不生效。
+  #   现在改为**纯 shell 参数替换**（不用 sed、不用 awk），mksh/ash/busybox 一致。
+  ac=$(cfg_get FX_ANTICHEAT 1)
+  did=$(cfg_get FX_DEVICEID 1)
+  [ -n "$ac" ] || ac=1
+  [ -n "$did" ] || did=1
+  _grp=""
+  _skip=0
+  _out="$FX_DIR/.active.$$"
+  : > "$_out"
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      *"# ---- "*)
+        # 去掉前缀 "# ---- "，再去掉尾部 " ----" 与右侧括号说明
+        _g="${_line#*# ---- }"
+        _g="${_g% ----}"
+        _g="${_g%----}"
+        # 去掉中文括号说明（保留主名，便于 substring 匹配）
+        # 【真机缺陷修复】只保留中文括号这一条：${_g%%(*} 里的 "(" 会被
+        # mksh 当成参数替换语法中未闭合的括号，导致 "no closing quote"，
+        # 整个脚本 syntax error（ash 检查却通过 —— 这是 mksh 的差异）。
+        _g="${_g%%（*}"
+        # 去尾部空白
+        while [ "${_g% }" != "$_g" ]; do _g="${_g% }"; done
+        _grp="$_g"
+        continue ;;
+    esac
+    case "$_line" in
+      ""|"#"*|" "*"#"*) continue ;;
+    esac
+    _d="$_line"
+    _d="${_d%%#*}"
+    while [ "${_d% }" != "$_d" ]; do _d="${_d% }"; done
+    [ -n "$_d" ] || continue
+    _hit_ac=0
+    _hit_did=0
+    case "$_grp" in
+      *"$FX_GROUP_ANTICHEAT"*) _hit_ac=1 ;;
+    esac
+    case "$_grp" in
+      *"$FX_GROUP_DEVICEID"*) _hit_did=1 ;;
+    esac
+    if [ "$_hit_ac" = "1" ] && [ "$ac" != "1" ]; then
+      _skip=$((_skip+1))
+      continue
+    fi
+    if [ "$_hit_did" = "1" ] && [ "$did" != "1" ]; then
+      _skip=$((_skip+1))
+      continue
+    fi
+    echo "$_d" >> "$_out"
+  done < "$FX_DOMAIN_LIST"
+  sort -u "$_out" 2>/dev/null
+  rm -f "$_out" 2>/dev/null
+  if [ "$_skip" -gt 0 ] 2>/dev/null; then
+    log "fx: 专项开关跳过 $_skip 个域名 (anticheat=$ac deviceid=$did)"
+  fi
+  return 0
 }
 
 # ------------------------------------------------------------------

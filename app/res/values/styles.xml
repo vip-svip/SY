@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 深色极客风：与面板同一套配色，避免 App 与网页两副面孔 -->
+    <!--
+    全屏主题（消除上下黑边）。
+
+    真机现象：原本用 Theme.Material.NoActionBar 且 targetSdk 34，在较新系统上
+    窗口被强制 edge-to-edge，而 App 没有处理 system insets，状态栏与导航栏区域
+    露出 windowBackground 的深色，看起来就是上下黑边。
+
+    处理要点：
+      1. 状态栏与导航栏设为透明，不再有独立色块；
+      2. windowLayoutInDisplayCutoutMode 设为 shortEdges，刘海区域也铺满；
+      3. 内容延伸到系统栏下方，由代码按实际 inset 补内边距；
+      4. 系统栏图标亮暗由代码按深浅色主题设置，见 SyNativeActivity.applyEdgeToEdge。
+    -->
     <style name="SyTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:colorPrimary">@color/accent</item>
         <item name="android:colorAccent">@color/accent</item>
@@ -8,8 +20,11 @@
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:textColorPrimary">@color/text</item>
         <item name="android:textColorSecondary">@color/text_dim</item>
-        <item name="android:statusBarColor">@color/surface</item>
-        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <style name="SyStat">

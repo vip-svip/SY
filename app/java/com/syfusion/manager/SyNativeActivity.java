@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
@@ -38,6 +39,12 @@ public class SyNativeActivity extends Activity {
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private LinearLayout content;
+    /** 内容滚动容器（切页/进堆栈时要回到顶部，否则标题会被滚出屏幕） */
+    private ScrollView contentScroll;
+    /** 底部栏容器（insets 适配与堆栈返回栏都作用于它） */
+    private View navBar;
+    /** 最近一次读到的系统栏 inset（重渲染时复用，避免每次都要等回调） */
+    private int insetTop = 0, insetBottom = 0;
     private final TextView[] navItems = new TextView[5];
     private int curNav = 0;
     /** 内置规则 JSON 缓存：让详情弹窗立刻有内容可渲染（见 showBuiltinRules 注释） */
@@ -53,20 +60,54 @@ public class SyNativeActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // 【全屏优化】让内容铺满整屏（消除上下黑边）
+        applyEdgeToEdge();
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.page(this));
 
         ScrollView sv = new ScrollView(this);
+        contentScroll = sv;
         content = Ui.col(this);
         content.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 90));
         sv.addView(content);
         root.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        root.addView(buildNav(), new LinearLayout.LayoutParams(
+        navBar = buildNav();
+        root.addView(navBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(root);
+
+        // 【全屏优化】按实际 inset 给内容顶部让开状态栏、给底栏让开手势条。
+        // 写死内边距在不同机型（刘海/挖孔/手势条）上都不准，必须读真实 inset。
+        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                int top = 0, bottom = 0, left = 0, right = 0;
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    android.graphics.Insets b = insets.getInsets(
+                            WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                    top = b.top; bottom = b.bottom; left = b.left; right = b.right;
+                } else {
+                    top = insets.getSystemWindowInsetTop();
+                    bottom = insets.getSystemWindowInsetBottom();
+                    left = insets.getSystemWindowInsetLeft();
+                    right = insets.getSystemWindowInsetRight();
+                }
+                insetTop = top; insetBottom = bottom;
+                content.setPadding(Ui.dp(SyNativeActivity.this, 14) + left,
+                        Ui.dp(SyNativeActivity.this, 12) + top,
+                        Ui.dp(SyNativeActivity.this, 14) + right,
+                        Ui.dp(SyNativeActivity.this, 90));
+                if (navBar != null) {
+                    navBar.setPadding(Ui.dp(SyNativeActivity.this, 6), Ui.dp(SyNativeActivity.this, 8),
+                            Ui.dp(SyNativeActivity.this, 6), Ui.dp(SyNativeActivity.this, 14) + bottom);
+                }
+                return insets;
+            }
+        });
+        root.requestApplyInsets();
         showTab(0);
     }
 
@@ -75,6 +116,12 @@ public class SyNativeActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setBackgroundColor(Ui.card(this));
         bar.setPadding(Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 14));
+        buildNavInto(bar);
+        return bar;
+    }
+
+    /** 把 5 项导航填进容器（堆栈返回时用它恢复导航） */
+    private void buildNavInto(LinearLayout bar) {
         for (int i = 0; i < NAV.length; i++) {
             final int idx = i;
             LinearLayout cell = Ui.col(this);
@@ -95,7 +142,6 @@ public class SyNativeActivity extends Activity {
             bar.addView(cell, new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         }
-        return bar;
     }
 
     private void paintNav() {
@@ -108,10 +154,92 @@ public class SyNativeActivity extends Activity {
         }
     }
 
+    /* ===== 堆栈导航（三级/四级页面）=====
+     * 用户要求：不再用弹窗，改成真正的堆栈。
+     *   进入下一级 -> 压栈并渲染新页，底部栏换成返回栏；
+     *   点返回栏或按系统返回键 -> 弹栈回上一级；
+     *   栈空 -> 恢复底部 5 项导航。
+     */
+    private final java.util.ArrayList<StackPage> pageStack = new java.util.ArrayList<StackPage>();
+
+    private static class StackPage {
+        final String title;
+        final Runnable render;
+        StackPage(String t, Runnable r) { title = t; render = r; }
+    }
+
+    /** 压入一个三级（或更深）页面 */
+    private void pushPage(String title, Runnable render) {
+        pageStack.add(new StackPage(title, render));
+        renderStackTop();
+    }
+
+    /** 弹栈；栈空则恢复底部导航 */
+    private void popPage() {
+        if (pageStack.isEmpty()) return;
+        pageStack.remove(pageStack.size() - 1);
+        renderStackTop();
+    }
+
+    /** 渲染栈顶 */
+    private void renderStackTop() {
+        if (pageStack.isEmpty()) {
+            setNavMode(false, null);
+            showTab(curNav);
+            return;
+        }
+        StackPage top = pageStack.get(pageStack.size() - 1);
+        content.removeAllViews();
+        setNavMode(true, top.title);
+        // 【真机缺陷修复】切页必须回到顶部：ScrollView 会沿用上一页的滚动位置，
+        // 真机上表现为"三级页标题被滚出去、顶部只露出中间几行"。
+        applyContentPadding();
+        if (contentScroll != null) contentScroll.scrollTo(0, 0);
+        top.render.run();
+    }
+
+    /** 切换底部栏：false=5 项导航；true=返回栏 */
+    private void setNavMode(boolean back, String title) {
+        if (!(navBar instanceof LinearLayout)) return;
+        LinearLayout bar = (LinearLayout) navBar;
+        bar.removeAllViews();
+        if (back) {
+            LinearLayout rw = Ui.hrow(this);
+            rw.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
+            rw.addView(Ui.icon(this, "ic_arrow_back", 22, Ui.iconColor(this)));
+            TextView tt = Ui.text2(this, title == null ? "返回" : title, 16f, Ui.text(this));
+            tt.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
+            tt.setPadding(Ui.dp(this, 10), 0, 0, 0);
+            rw.addView(tt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            rw.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { popPage(); }
+            });
+            bar.addView(rw, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 52)));
+        } else {
+            buildNavInto(bar);
+            paintNav();
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!pageStack.isEmpty()) { popPage(); return; }
+        super.onBackPressed();
+    }
+
+    /** 打开三级页（堆栈版，调用点不用改） */
+    private void level3(final String which) {
+        pushPage(which, new Runnable() {
+            @Override public void run() { renderLevel3(which); }
+        });
+    }
+
     private void showTab(int idx) {
         curNav = idx;
         paintNav();
         content.removeAllViews();
+        applyContentPadding();
+        if (contentScroll != null) contentScroll.scrollTo(0, 0);
         if (idx == 0) tabVpn();
         else if (idx == 1) tabAd();
         else if (idx == 2) tabPrivacy();
@@ -496,45 +624,191 @@ public class SyNativeActivity extends Activity {
         content.addView(Ui.twoCol(this, cardPrivacy(), cardA11y()));
 
         // Hook（原规则页）
-        LinearLayout c2 = Ui.card(this, "Hook 与注入", new View.OnClickListener() {
-            @Override public void onClick(View v) { level3("隐私保护"); }
-        });
-        LinearLayout b2 = Ui.body(c2);
-        final EditText et = new EditText(this);
-        et.setHint("每行一条：标签 类名#方法名，或粘贴任意规则（自动识别语法）");
-        et.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        et.setHintTextColor(Ui.dim(this));
-        et.setTextColor(Ui.text(this));
-        et.setMinLines(3);
-        b2.addView(Ui.hint(this, "支持：域名 / ||domain^ / 正则 / ##选择器 / hosts / AdGuard 语法"));
-        b2.addView(et);
-        b2.addView(Ui.rowOf(this,
-                Ui.button(this, "识别", false, new View.OnClickListener() {
-                    @Override public void onClick(View v) { showText("识别结果",
-                            RootShell.hookRulesAnalyze(et.getText().toString())); }
-                }),
-                Ui.button(this, "导入并应用", true, new View.OnClickListener() {
-                    @Override public void onClick(View v) { runAndShow("导入规则", new Call() {
-                        public String run() { return RootShell.hookRulesImport(et.getText().toString()); } }); }
-                })));
-        b2.addView(Ui.rowOf(this,
-                Ui.button(this, "Hook 状态", false, new View.OnClickListener() {
-                    @Override public void onClick(View v) { showText("Hook 状态", RootShell.hookStatus()); }
-                }),
-                Ui.button(this, "Hook 事件", false, new View.OnClickListener() {
-                    @Override public void onClick(View v) { showText("Hook 事件", RootShell.hookEvents(40)); }
-                }),
-                Ui.button(this, "清空事件", false, new View.OnClickListener() {
-                    @Override public void onClick(View v) { runAndShow("清空", new Call() {
-                        public String run() { return RootShell.hookClear(); } }); }
-                })));
-        content.addView(c2);
+
 
         // 运行时开关（隐私相关）
         content.addView(switchCard("防护开关", new String[][]{
                 {"隐私护盾（FX/风控隔离）", "PRIVACY_ENABLE"}, {"网络防泄露总开关", "LEAK_ENABLE"},
                 {"游戏隐私保护", "GAME_PRIVACY_ENABLE"}, {"FX 深度抵抗", "FX_DEEPGUARD_ENABLE"},
                 {"剪贴板监视", "CLIPGUARD_ENABLE"}}));
+
+        // ================= 防 IP 泄露（用户要求归入隐私页） =================
+        // 网页把这些能力拆在「隐私护盾 / 网络防泄露 / FX」三页，用户要求收敛到隐私页，
+        // 形成一眼看全的"泄露面清单"：IP / IPv6 / VPN / 节点 / DNS 五个出口。
+        LinearLayout leakCard = Ui.card(this, "防 IP 泄露", new View.OnClickListener() {
+            @Override public void onClick(View v) { level3("防护详情"); }
+        });
+        LinearLayout lb = Ui.body(leakCard);
+        lb.addView(Ui.hint(this, "阻断把上网记录/安装清单上报的端点，并收敛设备真实出口 IP。"));
+
+        final View[][] leakRows = new View[5][];
+        final String[] leakKeys = { "ip", "ipv6", "vpn", "node", "dns" };
+        final String[] leakLabels = { "IP 泄露防护", "IPv6 泄露防护", "VPN 出口收敛", "节点防泄露", "DNS 明文泄露" };
+        for (int k = 0; k < leakKeys.length; k++) {
+            final String key = leakKeys[k];
+            final String label = leakLabels[k];
+            View[] rw = Ui.rowSwitch(this, label, false, new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    new Thread(new Runnable() { @Override public void run() {
+                        final String cur = RootShell.exec("sh " + RootShell.MODDIR
+                                + "/scripts/leakguard.sh " + key + " status 2>/dev/null", 8000);
+                        final boolean on = cur != null && cur.contains("on");
+                        RootShell.leakToggle(key, !on);
+                        ui.post(new Runnable() { @Override public void run() {
+                            toast(label + " 已" + (!on ? "开启" : "关闭"));
+                            renderStackTop();
+                        }});
+                    }}, "sy-leak-t").start();
+                }
+            });
+            leakRows[k] = rw;
+            lb.addView(rw[0]);
+        }
+
+        lb.addView(Ui.divider(this));
+        lb.addView(Ui.row(this, "全部开启", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { runAndShow("全部开启", new Call() {
+                public String run() { return RootShell.leakAll(true); } }); }
+        })[0]);
+        lb.addView(Ui.row(this, "全部关闭", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { runAndShow("全部关闭", new Call() {
+                public String run() { return RootShell.leakAll(false); } }); }
+        })[0]);
+        lb.addView(Ui.row(this, "运营商防泄露", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("运营商状态", RootShell.carrierStatus()); }
+        })[0]);
+        lb.addView(Ui.row(this, "归属对比（查真实 IP 泄露）", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("归属对比", RootShell.leakOwner("", "")); }
+        })[0]);
+        lb.addView(Ui.row(this, "应用出口收敛（按应用）", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("应用出口", RootShell.leakApps("list")); }
+        })[0]);
+        lb.addView(Ui.divider(this));
+        lb.addView(Ui.row(this, "查看详细报告", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("防泄露报告", RootShell.leakReport()); }
+        })[0]);
+        lb.addView(Ui.row(this, "应急恢复（还原全部改动）", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { runAndShow("应急恢复", new Call() {
+                public String run() { return RootShell.leakPanic(); } }); }
+        })[0]);
+        content.addView(leakCard);
+
+        // ================= 反诈与反作弊（用户要求） =================
+        // 内容来源（全部可核实，不是凭空写）：
+        //   · 本模块既有 guardshield-antifraud.txt（28 条 FX 反诈域名）与
+        //     fx_deepguard.sh 的上报端点清单；
+        //   · 设备指纹/号码认证（cmpassport/cpassport/风控云）—— 运营商侧画像；
+        //   · 反作弊 SDK（riskengine 等）与营销归因（umeng/cnzz 等）。
+        // 这里把「开关 + 清单 + 报告 + 一键」都放到隐私页，形成完整闭环。
+        LinearLayout fxCard = Ui.card(this, "反诈与反作弊", new View.OnClickListener() {
+            @Override public void onClick(View v) { level3("防护详情"); }
+        });
+        LinearLayout fb = Ui.body(fxCard);
+        fb.addView(Ui.hint(this, "阻断设备指纹/风控上报/反作弊/归因端点，收敛画像拼装面。"));
+
+        // 主开关：FX 深度抵抗（读真实状态）
+        final View[] fxSw = Ui.rowSwitch(this, "FX 深度抵抗（反诈）", false,
+                new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new Thread(new Runnable() { @Override public void run() {
+                    final String st = RootShell.fxStatus();
+                    final boolean on = "1".equals(Jake.str(st, "enabled"));
+                    RootShell.script("fx_deepguard.sh", on ? "remove" : "apply");
+                    ui.post(new Runnable() { @Override public void run() {
+                        toast("FX 深度抵抗 " + (on ? "已关闭" : "已开启"));
+                        renderStackTop();
+                    }});
+                }}, "sy-fx-t").start();
+            }
+        });
+        fb.addView(fxSw[0]);
+
+        // 反作弊 SDK 专项开关（写进配置，由 fx 应用时读取）
+        final View[] aceSw = Ui.rowSwitch(this, "反作弊 SDK 阻断", false,
+                new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new Thread(new Runnable() { @Override public void run() {
+                    String cur = RootShell.settingsGet("FX_ANTICHEAT");
+                    boolean on = cur != null && cur.contains("1");
+                    RootShell.settingsSet("FX_ANTICHEAT", on ? "0" : "1");
+                    ui.post(new Runnable() { @Override public void run() {
+                        toast("反作弊阻断 " + (!on ? "已开启" : "已关闭"));
+                        renderStackTop();
+                    }});
+                }}, "sy-ace-t").start();
+            }
+        });
+        fb.addView(aceSw[0]);
+
+        // 设备指纹/号码认证专项开关
+        final View[] fpSw = Ui.rowSwitch(this, "设备指纹/号码认证阻断", false,
+                new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new Thread(new Runnable() { @Override public void run() {
+                    String cur = RootShell.settingsGet("FX_DEVICEID");
+                    boolean on = cur != null && cur.contains("1");
+                    RootShell.settingsSet("FX_DEVICEID", on ? "0" : "1");
+                    ui.post(new Runnable() { @Override public void run() {
+                        toast("指纹阻断 " + (!on ? "已开启" : "已关闭"));
+                        renderStackTop();
+                    }});
+                }}, "sy-fp-t").start();
+            }
+        });
+        fb.addView(fpSw[0]);
+
+        fb.addView(Ui.divider(this));
+        fb.addView(Ui.row(this, "查看域名清单", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("反诈域名清单", RootShell.script("fx_deepguard.sh", "active")); }
+        })[0]);
+        fb.addView(Ui.row(this, "查看完整报告", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("FX 报告", RootShell.fxReport()); }
+        })[0]);
+        fb.addView(Ui.row(this, "重建内置清单", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { runAndShow("重建清单", new Call() {
+                public String run() { return RootShell.script("fx_deepguard.sh", "seed"); } }); }
+        })[0]);
+        fb.addView(Ui.row(this, "测试拦截效果", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("测试结果", RootShell.script("fx_deepguard.sh", "test")); }
+        })[0]);
+        content.addView(fxCard);
+
+        // 异步读反诈三开关的真实状态
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final String fx = RootShell.fxStatus();
+                final String ac = RootShell.settingsGet("FX_ANTICHEAT");
+                final String fp = RootShell.settingsGet("FX_DEVICEID");
+                ui.post(new Runnable() { @Override public void run() {
+                    setSwOn((TextView) fxSw[1], "1".equals(Jake.str(fx, "enabled")));
+                    setSwOn((TextView) aceSw[1], ac != null && ac.trim().endsWith("1"));
+                    setSwOn((TextView) fpSw[1], fp != null && fp.trim().endsWith("1"));
+                }});
+            }
+        }, "sy-fx-init").start();
+
+        // 异步读五个泄露面的真实开关状态
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final boolean[] st = new boolean[5];
+                for (int k = 0; k < leakKeys.length; k++) {
+                    String v = RootShell.exec("sh " + RootShell.MODDIR
+                            + "/scripts/leakguard.sh " + leakKeys[k] + " status 2>/dev/null", 8000);
+                    st[k] = v != null && v.contains("on");
+                }
+                ui.post(new Runnable() { @Override public void run() {
+                    for (int k = 0; k < 5; k++) {
+                        TextView swx = (TextView) leakRows[k][1];
+                        swx.setBackground(Ui.round(SyNativeActivity.this,
+                                st[k] ? Ui.accent(SyNativeActivity.this) : Ui.card(SyNativeActivity.this),
+                                st[k] ? 0 : Ui.trackOff(SyNativeActivity.this), 13));
+                        swx.setGravity(st[k] ? (Gravity.END | Gravity.CENTER_VERTICAL)
+                                             : (Gravity.START | Gravity.CENTER_VERTICAL));
+                        swx.setTextColor(st[k] ? android.graphics.Color.WHITE : Ui.trackOff(SyNativeActivity.this));
+                    }
+                }});
+            }
+        }, "sy-leak-init").start();
 
         // ---- 网页端功能入口（补齐）----
         content.addView(Ui.twoCol(this,
@@ -622,6 +896,40 @@ public class SyNativeActivity extends Activity {
             @Override public void onClick(View v) { showText("脚本扩展", RootShell.script("scripts_ext.sh", "list")); }
         })[0]);
         content.addView(c3);
+
+        LinearLayout hookCard = Ui.card(this, "Hook 与注入", new View.OnClickListener() {
+            @Override public void onClick(View v) { level3("隐私保护"); }
+        });
+        LinearLayout hookBody = Ui.body(hookCard);
+        final EditText et = new EditText(this);
+        et.setHint("每行一条：标签 类名#方法名，或粘贴任意规则（自动识别语法）");
+        et.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        et.setHintTextColor(Ui.dim(this));
+        et.setTextColor(Ui.text(this));
+        et.setMinLines(3);
+        hookBody.addView(Ui.hint(this, "支持：域名 / ||domain^ / 正则 / ##选择器 / hosts / AdGuard 语法"));
+        hookBody.addView(et);
+        hookBody.addView(Ui.rowOf(this,
+                Ui.button(this, "识别", false, new View.OnClickListener() {
+                    @Override public void onClick(View v) { showText("识别结果",
+                            RootShell.hookRulesAnalyze(et.getText().toString())); }
+                }),
+                Ui.button(this, "导入并应用", true, new View.OnClickListener() {
+                    @Override public void onClick(View v) { runAndShow("导入规则", new Call() {
+                        public String run() { return RootShell.hookRulesImport(et.getText().toString()); } }); }
+                })));
+        hookBody.addView(Ui.rowOf(this,
+                Ui.button(this, "Hook 状态", false, new View.OnClickListener() {
+                    @Override public void onClick(View v) { showText("Hook 状态", RootShell.hookStatus()); }
+                }),
+                Ui.button(this, "Hook 事件", false, new View.OnClickListener() {
+                    @Override public void onClick(View v) { showText("Hook 事件", RootShell.hookEvents(40)); }
+                }),
+                Ui.button(this, "清空事件", false, new View.OnClickListener() {
+                    @Override public void onClick(View v) { runAndShow("清空", new Call() {
+                        public String run() { return RootShell.hookClear(); } }); }
+                })));
+        content.addView(hookCard);
     }
 
     /* ================= ⑤ 设置 ================= */
@@ -750,19 +1058,19 @@ public class SyNativeActivity extends Activity {
      * 为什么不再写死"（8 份）"：份数是脚本算出来的，写死会在规则变动后失真。
      */
     private void showBuiltinRules() {
+        pushPage("内置规则", new Runnable() {
+            @Override public void run() { renderBuiltinRules(); }
+        });
+    }
+
+    private void renderBuiltinRules() {
+        content.addView(Ui.title(this, "内置规则"));
         final LinearLayout box = Ui.col(this);
-        box.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 16));
+        content.addView(box);
+        box.setPadding(Ui.dp(this, 0), Ui.dp(this, 0), Ui.dp(this, 0), Ui.dp(this, 40));
         final TextView sum = Ui.text2(this, "读取中…", 13f, Ui.dim(this));
         sum.setPadding(0, 0, 0, Ui.dp(this, 8));
         box.addView(sum);
-        final ScrollView sv = new ScrollView(this);
-        sv.addView(box);
-        final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this)
-                .setTitle("内置规则")
-                .setView(sv)
-                .setNegativeButton("关闭", null)
-                .create();
-        dlg.show();
 
         new Thread(new Runnable() {
             @Override public void run() {
@@ -793,8 +1101,7 @@ public class SyNativeActivity extends Activity {
                                         RootShell.builtinRuleToggle(key, !enabled);
                                         ui.post(new Runnable() { @Override public void run() {
                                             toast(name + " → " + (!enabled ? "开" : "关"));
-                                            dlg.dismiss();
-                                            showBuiltinRules();
+                                            renderStackTop();
                                         }});
                                     }}, "sy-br").start();
                                 }
@@ -948,16 +1255,12 @@ public class SyNativeActivity extends Activity {
         return (n == null || n.trim().length() == 0) ? "0" : n.trim();
     }
 
-    private void level3(final String which) {
+    /** 渲染三级页内容（堆栈版，不再用弹窗） */
+    private void renderLevel3(final String which) {
+        content.addView(Ui.title(this, which));
         final LinearLayout box = Ui.col(this);
-        final ScrollView sv = new ScrollView(this);
-        sv.addView(box);
-        final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this)
-                .setTitle(which)
-                .setView(sv)
-                .setNegativeButton("关闭", null)
-                .create();
-        box.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 16));
+        content.addView(box);
+        box.setPadding(Ui.dp(this, 0), Ui.dp(this, 0), Ui.dp(this, 0), Ui.dp(this, 40));
 
         if ("规则管理".equals(which)) {
             box.addView(Ui.row(this, "hosts 总行数", "读取中…", false, null)[0]);
@@ -1544,7 +1847,6 @@ public class SyNativeActivity extends Activity {
                 }
             }, "sy-l3").start();
         }
-        dlg.show();
     }
 
     /** 从行容器里取出右侧值 TextView（rowValue 返回的数组第 2 项是 View，实际是 TextView） */
@@ -1666,6 +1968,50 @@ public class SyNativeActivity extends Activity {
             sb.append(t, i, Math.min(t.length(), i + 56)).append('\n');
         }
         return sb.toString();
+    }
+
+    /**
+     * 让内容铺满整屏（含系统栏区域），并按深浅色设置系统栏图标。
+     * 低版本用已废弃的 SYSTEM_UI_FLAG_*，高版本用 WindowInsetsController，两条路径都保留。
+     */
+    private void applyEdgeToEdge() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                getWindow().setDecorFitsSystemWindows(false);
+                android.view.WindowInsetsController c = getWindow().getInsetsController();
+                if (c != null) {
+                    // 深色主题 -> 浅色图标；浅色主题 -> 深色图标
+                    c.setSystemBarsAppearance(Ui.dark(this) ? 0
+                            : android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                }
+            } else {
+                getWindow().getDecorView().setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+            }
+            getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 设置开关视觉状态（隐私页的多个开关共用；与 Ui.pillSwitch 外观一致） */
+    private void setSwOn(TextView sw, boolean on) {
+        if (sw == null) return;
+        sw.setBackground(Ui.round(this, on ? Ui.accent(this) : Ui.card(this),
+                on ? 0 : Ui.trackOff(this), 13));
+        sw.setGravity(on ? (Gravity.END | Gravity.CENTER_VERTICAL)
+                        : (Gravity.START | Gravity.CENTER_VERTICAL));
+        sw.setTextColor(on ? android.graphics.Color.WHITE : Ui.trackOff(this));
+    }
+
+    /** 应用内容区内边距（含状态栏/手势条 inset）；切页时调用，保证顶部不被状态栏压住 */
+    private void applyContentPadding() {
+        if (content == null) return;
+        content.setPadding(Ui.dp(this, 14), Ui.dp(this, 12) + insetTop,
+                Ui.dp(this, 14), Ui.dp(this, 90) + insetBottom);
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
