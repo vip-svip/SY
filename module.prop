@@ -1,7 +1,7 @@
 id=SY
 name=SY
-version=v1.0.38
-versionCode=13800
+version=v1.0.39
+versionCode=13900
 author=vip-svip
 description=后台 http://127.0.0.1:8848
 updateJson=https://raw.githubusercontent.com/vip-svip/SY/main/update.json

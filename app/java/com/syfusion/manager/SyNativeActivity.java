@@ -236,6 +236,9 @@ public class SyNativeActivity extends Activity {
 
     private void showTab(int idx) {
         curNav = idx;
+        // 切底部导航 = 退出所有堆栈层级（调用方可能是导航点击、返回栈空、或外部触发）
+        if (!pageStack.isEmpty()) pageStack.clear();
+        setNavMode(false, null);
         paintNav();
         content.removeAllViews();
         applyContentPadding();
@@ -1965,28 +1968,45 @@ public class SyNativeActivity extends Activity {
             @Override public void run() {
                 final String out = c.run();
                 ui.post(new Runnable() { @Override public void run() {
+                    // 【真机缺陷修复】旧版这里无条件 showTab(0)，会在压入结果页后
+                    // 立刻清空堆栈 —— 表现是"结果页一闪而过、直接回到主页"。
+                    // 现在只压栈显示结果，导航由返回栏/返回键逐级回退。
                     showText(title, out);
-                    if (curNav == 0) showTab(0);
                 }});
             }
         }, "sy-cmd").start();
     }
 
+    /**
+     * 显示一段脚本输出 —— **原生堆栈页**，不再是弹窗。
+     *
+     * 【用户要求】三级/四级与所有结果的展示界面统一改成原生堆栈：
+     *   · 点进去 → pushPage 压栈，底部栏变返回栏，返回键/返回栏逐级回退；
+     *   · 内容可滚动、可长按选中复制；
+     *   · 与「DNS 与规则」「内置规则」等三级页保持同一套交互。
+     *
+     * 这个方法被调用 110 处，改在这里等于所有结果页一次性堆栈化。
+     *
+     * 【保留的历史修复】内容仍走 wrapForDisplay()（单行超长 JSON 主动断行），
+     * 并用可滚动 + 等宽字体的 TextView —— 真机上曾出现"弹窗只有标题、正文空白"，
+     * 原因是 setMessage 对无空白长串不折行，整段被推到可视区之外。
+     */
     private void showText(final String title, final String body) {
+        final String t = title;
+        final String s0 = body;
+        pushPage(title, new Runnable() {
+            @Override public void run() { renderText(t, s0); }
+        });
+    }
+
+    /** 渲染文本结果页（堆栈版） */
+    private void renderText(String title, String body) {
         String s = (body == null || body.trim().length() == 0) ? "(无输出)" : body.trim();
         s = wrapForDisplay(s);
         if (s.length() > 12000) s = s.substring(0, 12000) + "\n…（已截断）";
 
-        /*
-         * 【真机缺陷修复·关键】不用 AlertDialog.setMessage 显示脚本输出。
-         *
-         * 真机证据：dns.sh engine-stats 明明返回 312 字符（logcat:
-         *   cmd=...dns.sh engine-stats exit=true len=312），但弹窗只有标题、正文空白。
-         * 原因：脚本输出是**没有空格的长 JSON**，setMessage 内部单行不折行，
-         *       整段被推到可视区之外。
-         * 处理：自己放一个可滚动、可选中、带等宽字体的 TextView ——
-         *       折行规则由我们自己控制，长内容也不会溢出。
-         */
+        content.addView(Ui.title(this, title));
+
         final TextView tv = new TextView(this);
         tv.setText(s);
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
@@ -1994,15 +2014,26 @@ public class SyNativeActivity extends Activity {
         tv.setTypeface(android.graphics.Typeface.MONOSPACE);
         tv.setTextIsSelectable(true);
         tv.setHorizontallyScrolling(false);
-        tv.setPadding(Ui.dp(this, 18), Ui.dp(this, 10), Ui.dp(this, 18), Ui.dp(this, 10));
+        tv.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 40));
+        content.addView(tv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        final ScrollView sv = new ScrollView(this);
-        sv.addView(tv);
-        new android.app.AlertDialog.Builder(this)
-                .setTitle(title)
-                .setView(sv)
-                .setPositiveButton("知道了", null)
-                .show();
+        // 长内容提供「复制全部」——堆栈页没有弹窗的"知道了"，用这个收尾
+        content.addView(Ui.rowOf(this,
+                Ui.button(this, "复制全部", false, new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                                getSystemService(CLIPBOARD_SERVICE);
+                        if (cm != null) {
+                            cm.setPrimaryClip(android.content.ClipData.newPlainText("SY",
+                                    tv.getText().toString()));
+                            toast("已复制到剪贴板");
+                        }
+                    }
+                }),
+                Ui.button(this, "返回", true, new View.OnClickListener() {
+                    @Override public void onClick(View v) { popPage(); }
+                })));
     }
 
     /**

@@ -13,8 +13,8 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.syfusion.manager"
-    android:versionCode="10337"
-    android:versionName="1.0.38">
+    android:versionCode="10338"
+    android:versionName="1.0.39">
     <!-- 【真机缺陷修复】targetSdk 未声明 → 新系统（Android 14+）会拒绝安装或
          降级行为；minSdk 24 与代码用法一致（无 AndroidX）。 -->
        <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
