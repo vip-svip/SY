@@ -641,39 +641,71 @@ public class SyNativeActivity extends Activity {
         LinearLayout lb = Ui.body(leakCard);
         lb.addView(Ui.hint(this, "阻断把上网记录/安装清单上报的端点，并收敛设备真实出口 IP。"));
 
+        // 【用户要求】删除「全部开启 / 全部关闭」两个全局按钮，
+        // 改为**每一项都有独立的开启/关闭按钮** —— 避免一键误开全部（风险太大）。
+        // 每行 = 图标 + 名称 + 当前状态 + 独立的「开启」/「关闭」按钮。
         final View[][] leakRows = new View[5][];
         final String[] leakKeys = { "ip", "ipv6", "vpn", "node", "dns" };
         final String[] leakLabels = { "IP 泄露防护", "IPv6 泄露防护", "VPN 出口收敛", "节点防泄露", "DNS 明文泄露" };
+        final String[] leakDescs = {
+            "收敛设备真实出口 IP（防旁路泄露）",
+            "阻断 IPv6 直连绕过（避免 v4 走代理、v6 裸奔）",
+            "锁定 VPN 出口，禁止非隧道流量",
+            "节点侧防泄露（避免真实 IP 随节点落日志）",
+            "拦截明文 DNS（53/853），防解析被观测",
+        };
         for (int k = 0; k < leakKeys.length; k++) {
             final String key = leakKeys[k];
             final String label = leakLabels[k];
-            View[] rw = Ui.rowSwitch(this, label, false, new View.OnClickListener() {
-                @Override public void onClick(View v) {
-                    new Thread(new Runnable() { @Override public void run() {
-                        final String cur = RootShell.exec("sh " + RootShell.MODDIR
-                                + "/scripts/leakguard.sh " + key + " status 2>/dev/null", 8000);
-                        final boolean on = cur != null && cur.contains("on");
-                        RootShell.leakToggle(key, !on);
-                        ui.post(new Runnable() { @Override public void run() {
-                            toast(label + " 已" + (!on ? "开启" : "关闭"));
-                            renderStackTop();
-                        }});
-                    }}, "sy-leak-t").start();
-                }
-            });
-            leakRows[k] = rw;
-            lb.addView(rw[0]);
+            // 每项一个小卡：标题行 + 说明 + 两个独立按钮
+            LinearLayout one = Ui.col(this);
+            one.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+
+            LinearLayout head = Ui.hrow(this);
+            head.addView(Ui.icon(this, Ui.iconOf(label), 20, Ui.iconColor(this)));
+            TextView name = Ui.text2(this, label, 14.5f, Ui.text(this));
+            name.setPadding(Ui.dp(this, 8), 0, 0, 0);
+            head.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            // 当前状态徽标（异步填真实值）
+            final TextView badge = Ui.text2(this, "…", 12f, Ui.dim(this));
+            head.addView(badge);
+            one.addView(head);
+
+            TextView desc = Ui.text2(this, leakDescs[k], 12f, Ui.dim(this));
+            desc.setPadding(Ui.dp(this, 28), Ui.dp(this, 3), 0, Ui.dp(this, 8));
+            one.addView(desc);
+
+            // 两个**独立**按钮：开启 / 关闭（明确指定状态，不做"取反"猜测）
+            one.addView(Ui.rowOf(this,
+                    Ui.button(this, "开启", true, new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            new Thread(new Runnable() { @Override public void run() {
+                                RootShell.leakToggle(key, true);
+                                ui.post(new Runnable() { @Override public void run() {
+                                    toast(label + " 已开启");
+                                    renderStackTop();
+                                }});
+                            }}, "sy-leak-on").start();
+                        }
+                    }),
+                    Ui.button(this, "关闭", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            new Thread(new Runnable() { @Override public void run() {
+                                RootShell.leakToggle(key, false);
+                                ui.post(new Runnable() { @Override public void run() {
+                                    toast(label + " 已关闭");
+                                    renderStackTop();
+                                }});
+                            }}, "sy-leak-off").start();
+                        }
+                    })));
+
+            leakRows[k] = new View[]{ one, badge };
+            lb.addView(one);
+            if (k < leakKeys.length - 1) lb.addView(Ui.divider(this));
         }
 
         lb.addView(Ui.divider(this));
-        lb.addView(Ui.row(this, "全部开启", "", true, new View.OnClickListener() {
-            @Override public void onClick(View v) { runAndShow("全部开启", new Call() {
-                public String run() { return RootShell.leakAll(true); } }); }
-        })[0]);
-        lb.addView(Ui.row(this, "全部关闭", "", true, new View.OnClickListener() {
-            @Override public void onClick(View v) { runAndShow("全部关闭", new Call() {
-                public String run() { return RootShell.leakAll(false); } }); }
-        })[0]);
         lb.addView(Ui.row(this, "运营商防泄露", "", true, new View.OnClickListener() {
             @Override public void onClick(View v) { showText("运营商状态", RootShell.carrierStatus()); }
         })[0]);
@@ -795,7 +827,8 @@ public class SyNativeActivity extends Activity {
             }
         }, "sy-fx-init").start();
 
-        // 异步读五个泄露面的真实开关状态
+        // 异步读五个泄露面的真实状态，填到每项的徽标上（不是开关背景 ——
+        // 用户要求改独立按钮后，这一行只做「状态显示」。）
         new Thread(new Runnable() {
             @Override public void run() {
                 final boolean[] st = new boolean[5];
@@ -806,13 +839,10 @@ public class SyNativeActivity extends Activity {
                 }
                 ui.post(new Runnable() { @Override public void run() {
                     for (int k = 0; k < 5; k++) {
-                        TextView swx = (TextView) leakRows[k][1];
-                        swx.setBackground(Ui.round(SyNativeActivity.this,
-                                st[k] ? Ui.accent(SyNativeActivity.this) : Ui.card(SyNativeActivity.this),
-                                st[k] ? 0 : Ui.trackOff(SyNativeActivity.this), 13));
-                        swx.setGravity(st[k] ? (Gravity.END | Gravity.CENTER_VERTICAL)
-                                             : (Gravity.START | Gravity.CENTER_VERTICAL));
-                        swx.setTextColor(st[k] ? android.graphics.Color.WHITE : Ui.trackOff(SyNativeActivity.this));
+                        TextView badge = (TextView) leakRows[k][1];
+                        if (badge == null) continue;
+                        badge.setText(st[k] ? "已开启" : "未开启");
+                        badge.setTextColor(st[k] ? Ui.okc(SyNativeActivity.this) : Ui.dim(SyNativeActivity.this));
                     }
                 }});
             }
