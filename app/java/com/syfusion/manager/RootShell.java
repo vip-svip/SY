@@ -109,6 +109,12 @@ public final class RootShell {
             reader.join(exited ? 800 : 2000);
             String out = sb.toString();
             if (!exited) p.destroy();
+            // 【诊断】真机排查用：把命令与返回长度写进 logcat（tag=SY-SHELL）。
+            // 之前"数值全 0 / 弹窗空白"只能靠猜，加日志后能一眼看到是空返回还是没执行。
+            try {
+                android.util.Log.d("SY-SHELL", "cmd=" + cmd + " exit=" + exited
+                        + " len=" + out.length() + " head=" + (out.length() > 60 ? out.substring(0, 60) : out));
+            } catch (Throwable ignored) {}
             return out;
         } catch (Exception e) {
             return null;
@@ -426,5 +432,318 @@ public final class RootShell {
         String rootMgr = exec("[ -d /data/adb/ksu ] && echo KernelSU || ([ -d /data/adb/ap ] && echo APatch || ([ -d /data/adb/magisk ] && echo Magisk || echo unknown))", 5000);
         if (rootMgr != null) sb.append("Root 管理器: ").append(rootMgr.trim()).append('\n');
         return sb.toString();
+    }
+
+    /* ====================================================================
+     * 以下是"补齐网页功能"新增的方法。
+     *
+     * 每个方法都**严格对照脚本的真实 usage**（在真机上跑 sh <script>.sh
+     * 拿到），不凭猜测写子命令 —— splash.sh 之前就因为 App 调了不存在的
+     * toggle 而永远显示"无输出"，所以这次先取 usage 再写代码。
+     * ==================================================================== */
+
+    /* ---- dns.sh ---- */
+    public static String dnsApply()          { return script("dns.sh", "apply"); }
+    public static String dnsUpdate()         { return script("dns.sh", "update"); }
+    public static String dnsHostsMount()     { return script("dns.sh", "hosts-mount"); }
+    public static String dnsHostsUnmount()   { return script("dns.sh", "hosts-unmount"); }
+    /** 【核对后修正】dns.sh 没有 hosts-clear，真实子命令是 hosts-toggle（切挂载） */
+    public static String dnsHostsToggle()    { return script("dns.sh", "hosts-toggle"); }
+    /** dns.sh clear：清空规则/引擎数据 */
+    public static String dnsClear()          { return script("dns.sh", "clear"); }
+    public static String dnsHostsRegen()     { return script("dns.sh", "hosts-regen"); }
+    public static String dnsHostsStatus()    { return script("dns.sh", "hosts-status"); }
+    public static String dnsFilterBuild()    { return script("dns.sh", "filter-build"); }
+    public static String dnsFilterStats()    { return script("dns.sh", "filter-stats"); }
+    public static String dnsEngineStats()    { return script("dns.sh", "engine-stats"); }
+    public static String dnsEngineClear()    { return script("dns.sh", "engine-clear"); }
+    public static String dnsEngineVerify()   { return script("dns.sh", "engine-verify"); }
+    public static String dnsEngineSyntax()   { return script("dns.sh", "engine-syntax"); }
+    public static String dnsCustomList()     { return script("dns.sh", "custom-list"); }
+    public static String dnsCustomClear()    { return script("dns.sh", "custom-clear"); }
+    public static String dnsBlacklistList()  { return script("dns.sh", "blacklist-list"); }
+    public static String dnsBlacklistClear() { return script("dns.sh", "blacklist-clear"); }
+    public static String dnsWhitelistList()  { return script("dns.sh", "whitelist-list"); }
+    public static String dnsSources()        { return script("dns.sh", "sources-list"); }
+    public static String dnsLists()          { return script("dns.sh", "lists"); }
+    public static String dnsListsClear()     { return script("dns.sh", "lists-clear"); }
+    public static String dnsMyRulesGet()     { return script("dns.sh", "my-rules-get"); }
+    public static String dnsMyRulesClear()   { return script("dns.sh", "my-rules-clear"); }
+    public static String dnsStatsSummary()   { return script("dns.sh", "stats-summary"); }
+    public static String dnsRulesPreview()   { return script("dns.sh", "rules-preview"); }
+    public static String dnsExport()         { return script("dns.sh", "export"); }
+    public static String dnsFilterTest(String domain) { return script("dns.sh", "filter-test " + q(domain)); }
+    public static String dnsBlacklistAdd(String d) { return script("dns.sh", "blacklist-add " + q(d)); }
+    public static String dnsBlacklistDel(String d) { return script("dns.sh", "blacklist-del " + q(d)); }
+    public static String dnsWhitelistAdd(String d) { return script("dns.sh", "whitelist-add " + q(d)); }
+    public static String dnsWhitelistDel(String d) { return script("dns.sh", "whitelist-del " + q(d)); }
+    public static String dnsSourcesAdd(String url, String name) { return script("dns.sh", "sources-add " + q(url) + " " + q(name)); }
+    public static String dnsSourcesDel(String name) { return script("dns.sh", "sources-del " + q(name)); }
+    public static String dnsRulesDelMulti(String csv) { return script("dns.sh", "rules-del-multi " + q(csv)); }
+    /** 导入自定义规则文本（base64 走 stdin，避免命令行过长） */
+    public static String dnsCustomSave(String text) { return stdinTo("dns.sh", "custom-save-b64", text); }
+    public static String dnsMyRulesSave(String text) { return stdinTo("dns.sh", "my-rules-save-b64", text); }
+    public static String dnsImportText(String text) { return stdinTo("dns.sh", "import-b64 custom", text); }
+    public static String dnsBlacklistImport(String text) { return stdinTo("dns.sh", "blacklist-import-b64", text); }
+    public static String dnsHostsSet(String text) { return stdinTo("dns.sh", "hosts-set-b64", text); }
+
+    /* ---- dnssrv.sh ---- */
+    public static String dnsSrvStatus()       { return script("dnssrv.sh", "status"); }
+    public static String dnsSrvServers()      { return script("dnssrv.sh", "servers"); }
+    public static String dnsSrvApply()        { return script("dnssrv.sh", "apply"); }
+    public static String dnsSrvClear()        { return script("dnssrv.sh", "clear"); }
+    public static String dnsSrvTest()         { return script("dnssrv.sh", "test"); }
+    public static String dnsSrvSetMode(String m)   { return script("dnssrv.sh", "set-mode " + q(m)); }
+    public static String dnsSrvSetDoh(String u)    { return script("dnssrv.sh", "set-doh " + q(u)); }
+    public static String dnsSrvSetDot(String u)    { return script("dnssrv.sh", "set-dot " + q(u)); }
+    public static String dnsSrvLeak(String onoff)  { return script("dnssrv.sh", "leak " + q(onoff)); }
+    public static String dnsSrvAddServer(String s) { return script("dnssrv.sh", "add-server " + q(s)); }
+    public static String dnsSrvDelServer(String s) { return script("dnssrv.sh", "del-server " + q(s)); }
+    public static String dnsSrvClearServers()      { return script("dnssrv.sh", "clear-servers"); }
+
+    /* ---- ruleset.sh ---- */
+    public static String rulesetSync()        { return script("ruleset.sh", "sync"); }
+    public static String rulesetStatus()      { return script("ruleset.sh", "status"); }
+    public static String rulesetGetRepo()     { return script("ruleset.sh", "get-repo"); }
+    public static String rulesetSetRepo(String r)   { return script("ruleset.sh", "set-repo " + q(r)); }
+    public static String rulesetSetBranch(String b) { return script("ruleset.sh", "set-branch " + q(b)); }
+    public static String rulesetSetMirror(String u) { return script("ruleset.sh", "set-mirror " + q(u)); }
+
+    /* ---- mitm.sh ---- */
+    public static String mitmRestart()        { return script("mitm.sh", "restart"); }
+    public static String mitmCaStatus()       { return script("mitm.sh", "ca-status"); }
+    public static String mitmCaRelease()      { return script("mitm.sh", "ca-release"); }
+    // 【核对后移除】mitm.sh 没有 ca-uninstall 子命令（真实只有 ca-install/ca-release）
+    public static String mitmStats()          { return script("mitm.sh", "stats"); }
+    public static String mitmRulesCount()     { return script("mitm.sh", "rules-count"); }
+    public static String mitmRulesReload()    { return script("mitm.sh", "rules-reload"); }
+    public static String mitmRulesList()      { return script("mitm.sh", "rules-list"); }
+    public static String mitmRulesListLines() { return script("mitm.sh", "rules-list-lines"); }
+    public static String mitmRulesClear()     { return script("mitm.sh", "rules-clear"); }
+    public static String mitmAppsGet()        { return script("mitm.sh", "apps-get"); }
+    public static String mitmAppsSet(String csv) { return script("mitm.sh", "apps-set " + q(csv)); }
+    public static String mitmRuleDel(String id)  { return script("mitm.sh", "rules-del " + q(id)); }
+    public static String mitmRulesAdd(String text) { return stdinTo("mitm.sh", "rules-add-b64", text); }
+    public static String mitmRulesImport(String text) { return stdinTo("mitm.sh", "rules-import", text); }
+
+    /* ---- splash.sh ---- */
+    public static String splashStart()        { return script("splash.sh", "start"); }
+    public static String splashStop()         { return script("splash.sh", "stop"); }
+    public static String splashEnable()       { return script("splash.sh", "enable"); }
+    public static String splashDisable()      { return script("splash.sh", "disable"); }
+    public static String splashRulesList()    { return script("splash.sh", "rules-list"); }
+    public static String splashRulesClear()   { return script("splash.sh", "rules-clear"); }
+    public static String splashRecords()      { return script("splash.sh", "records"); }
+    public static String splashClearRecords() { return script("splash.sh", "clear-records"); }
+    public static String splashRulesAdd(String text) { return stdinTo("splash.sh", "rules-import-b64", text); }
+    public static String splashRulesImportNet(String u) { return script("splash.sh", "rules-import-net " + q(u)); }
+    public static String splashRulesDelMulti(String csv) { return script("splash.sh", "rules-del-multi " + q(csv)); }
+
+    /* ---- notify.sh ---- */
+    public static String notifyStart()        { return script("notify.sh", "start"); }
+    public static String notifyStop()         { return script("notify.sh", "stop"); }
+    public static String notifyStatus()       { return script("notify.sh", "status"); }
+    public static String notifyKeywords()     { return script("notify.sh", "keywords"); }
+    public static String notifyRecords()      { return script("notify.sh", "records"); }
+    public static String notifyKeywordAdd(String k) { return script("notify.sh", "keyword-add " + q(k)); }
+    public static String notifyKeywordDel(String k) { return script("notify.sh", "keyword-del " + q(k)); }
+    public static String notifyKeywordsClear() { return script("notify.sh", "keywords-clear"); }
+    public static String notifyImportNet(String u) { return script("notify.sh", "keyword-import-net " + q(u)); }
+    public static String notifyKeywordsAdd(String text) { return stdinTo("notify.sh", "keyword-add-b64", text); }
+
+    /* ---- netblock.sh ---- */
+    public static String netblockStatus()     { return script("netblock.sh", "status"); }
+    public static String netblockList()       { return script("netblock.sh", "list"); }
+    public static String netblockApply()      { return script("netblock.sh", "apply"); }
+    public static String netblockPreview()    { return script("netblock.sh", "preview"); }
+    public static String netblockAppsList()   { return script("netblock.sh", "apps-list"); }
+    public static String netblockAdd(String type, String v) { return script("netblock.sh", "add " + q(type) + " " + q(v)); }
+    public static String netblockDel(String type, String v) { return script("netblock.sh", "del " + q(type) + " " + q(v)); }
+    public static String netblockDelMulti(String type, String v) { return script("netblock.sh", "del-multi " + q(type) + " " + q(v)); }
+    public static String netblockClear(String type) { return script("netblock.sh", "clear " + q(type)); }
+    public static String netblockAppsAdd(String p) { return script("netblock.sh", "apps-add " + q(p) + " " + q(p)); }
+    public static String netblockAppsDelMulti(String v) { return script("netblock.sh", "apps-del-multi " + q(v)); }
+    public static String netblockImportNet(String type, String u) { return script("netblock.sh", "import-net " + q(type) + " " + q(u)); }
+    public static String netblockImport(String type, String text) { return stdinTo("netblock.sh", "import-b64 " + q(type), text); }
+
+    /* ---- settings.sh（真实语法 get/set/all/dump/reset） ---- */
+    public static String settingsAll()        { return script("settings.sh", "all"); }
+    public static String settingsDump()       { return script("settings.sh", "dump"); }
+    public static String settingsGet(String k) { return script("settings.sh", "get " + q(k)); }
+    public static String settingsSet(String k, String v) { return script("settings.sh", "set " + q(k) + " " + q(v)); }
+    public static String settingsReset()      { return script("settings.sh", "reset"); }
+
+    /* ---- backup.sh ---- */
+    public static String backupExport()       { return script("backup.sh", "export"); }
+    public static String backupList()         { return script("backup.sh", "list"); }
+    public static String backupImport(String file) { return script("backup.sh", "import " + q(file)); }
+    public static String backupDelete(String name) { return script("backup.sh", "delete " + q(name)); }
+
+    /* ---- logs.sh ---- */
+    public static String logsList()           { return script("logs.sh", "list"); }
+    public static String logsCat(String name, int n) { return script("logs.sh", "cat " + q(name) + " " + n); }
+    public static String logsClear(String name) { return script("logs.sh", "clear " + q(name)); }
+    public static String logsClearAll()       { return script("logs.sh", "clear-all"); }
+
+    /* ---- updater.sh ---- */
+    public static String updaterCheck()       { return script("updater.sh", "check"); }
+    public static String updaterUpdate(boolean force) { return script("updater.sh", force ? "update force" : "update"); }
+    public static String updaterStatus()      { return script("updater.sh", "status"); }
+    public static String updaterSetRepo(String r) { return script("updater.sh", "set-repo " + q(r)); }
+
+    /* ---- scripts_ext.sh ---- */
+    public static String scriptsList()        { return script("scripts_ext.sh", "list"); }
+    public static String scriptsListJson()    { return script("scripts_ext.sh", "list-json"); }
+    public static String scriptsInfo(String n) { return script("scripts_ext.sh", "info " + q(n)); }
+    public static String scriptsUpdateAll()   { return script("scripts_ext.sh", "update-all"); }
+    public static String scriptsUpdate(String n) { return script("scripts_ext.sh", "update " + q(n)); }
+    public static String scriptsRemove(String n) { return script("scripts_ext.sh", "remove " + q(n)); }
+    public static String scriptsRemoveMulti(String csv) { return script("scripts_ext.sh", "remove-multi " + q(csv)); }
+    public static String scriptsRollback(String n) { return script("scripts_ext.sh", "rollback " + q(n)); }
+    public static String scriptsInstallUrl(String u) { return script("scripts_ext.sh", "install-url " + q(u)); }
+    public static String scriptsInstallFile(String f) { return script("scripts_ext.sh", "install-file " + q(f)); }
+    public static String scriptsSubscribe(String u) { return script("scripts_ext.sh", "subscribe " + q(u)); }
+    public static String scriptsSubsList()    { return script("scripts_ext.sh", "subs-list"); }
+    public static String scriptsSubsListJson() { return script("scripts_ext.sh", "subs-list-json"); }
+    public static String scriptsSubsRemove(String id) { return script("scripts_ext.sh", "subs-remove " + q(id)); }
+    public static String scriptsSubsRemoveMulti(String csv) { return script("scripts_ext.sh", "subs-remove-multi " + q(csv)); }
+    public static String scriptsSubsToggle(String id) { return script("scripts_ext.sh", "subs-toggle " + q(id)); }
+    public static String scriptsSubsEnableMulti(String csv) { return script("scripts_ext.sh", "subs-enable-multi " + q(csv)); }
+    public static String scriptsImportMitm(String text) { return stdinTo("scripts_ext.sh", "import-mitm-b64", text); }
+    public static String scriptsMitmToScript() { return script("scripts_ext.sh", "mitm-to-script"); }
+
+    /* ---- 隐私相关 ---- */
+    public static String privacyGuardApply()  { return script("privacy_guard.sh", "apply"); }
+    public static String privacyGuardCheck()  { return script("privacy_guard.sh", "check"); }
+    public static String privacyGuardRemove() { return script("privacy_guard.sh", "remove"); }
+    public static String privacyGuardStatus() { return script("privacy_guard.sh", "status"); }
+    public static String gamePrivacyApply()   { return script("game_privacy.sh", "apply"); }
+    public static String gamePrivacyRemove()  { return script("game_privacy.sh", "remove"); }
+    public static String gamePrivacyStatus()  { return script("game_privacy.sh", "status"); }
+    public static String privacyRsList()      { return script("privacy_ruleset.sh", "list"); }
+    public static String privacyRsStatus()    { return script("privacy_ruleset.sh", "status"); }
+    public static String privacyRsEnable(String names) { return script("privacy_ruleset.sh", "enable " + q(names)); }
+    public static String privacyRsDisable(String names) { return script("privacy_ruleset.sh", "disable " + q(names)); }
+    public static String privacyRsClear()     { return script("privacy_ruleset.sh", "clear"); }
+    public static String clipReaders()        { return script("clip_guard.sh", "readers"); }
+
+    /* ---- proxycfg.sh ---- */
+    public static String proxycfgStage(boolean fromGen) { return script("proxycfg.sh", fromGen ? "stage --from-gen" : "stage"); }
+    public static String proxycfgCheck()      { return script("proxycfg.sh", "check"); }
+    public static String proxycfgCommit()     { return script("proxycfg.sh", "commit"); }
+    public static String proxycfgRollback()   { return script("proxycfg.sh", "rollback"); }
+    public static String proxycfgStatus()     { return script("proxycfg.sh", "status"); }
+    public static String proxycfgApply()      { return script("proxycfg.sh", "apply"); }
+
+    /* ---- ctl.sh ---- */
+    public static String ctlStatus()          { return script("ctl.sh", "status"); }
+    public static String ctlToggle(String feature) { return script("ctl.sh", "toggle " + q(feature)); }
+    public static String ctlRestart(String feature) { return script("ctl.sh", "restart " + q(feature)); }
+    public static String ctlSection(String name) { return script("ctl.sh", q(name)); }
+
+    /* ---- fileedit.sh ---- */
+    public static String fileeditList()       { return script("fileedit.sh", "list"); }
+    public static String fileeditRead(String rel) { return script("fileedit.sh", "read " + q(rel)); }
+    public static String fileeditInfo(String rel) { return script("fileedit.sh", "info " + q(rel)); }
+    public static String fileeditHashes()     { return script("fileedit.sh", "hashes"); }
+    public static String fileeditWrite(String rel, String text) { return stdinTo("fileedit.sh", "write " + q(rel), text); }
+    public static String fileeditAppend(String rel, String text) { return stdinTo("fileedit.sh", "append " + q(rel), text); }
+
+    /* ---- 代理节点 / 控制面 ---- */
+    public static String nodesUp()            { return script("proxynode.sh", "up"); }
+    public static String nodesDown()          { return script("proxynode.sh", "down"); }
+    public static String nodesRestart()       { return script("proxynode.sh", "restart"); }
+    public static String nodesGenConfig()     { return script("proxynode.sh", "gen-config"); }
+    public static String nodesConfigGet()     { return script("proxynode.sh", "config-get"); }
+    public static String nodesConfigSet(String text) { return stdinTo("proxynode.sh", "config-set-b64", text); }
+    public static String nodesCoreEnsure()    { return script("proxynode.sh", "core-ensure"); }
+    public static String nodesCoreDownload(String u) { return script("proxynode.sh", "core-download " + q(u)); }
+    public static String nodesLogs()          { return script("proxynode.sh", "logs"); }
+    public static String nodesLeak(String onoff) { return script("proxynode.sh", "leak " + q(onoff)); }
+    public static String nodesSelect(String idx) { return script("proxynode.sh", "select " + q(idx)); }
+    public static String nodesDel(String idx) { return script("proxynode.sh", "del-node " + q(idx)); }
+    public static String nodesClear()         { return script("proxynode.sh", "clear-nodes"); }
+    public static String nodesAdd(String name, String proto, String link) { return script("proxynode.sh", "add-node " + q(name) + " " + q(proto) + " " + q(link)); }
+    public static String nodesImportUrl(String u) { return script("proxynode.sh", "import-url " + q(u)); }
+    public static String nodesImportText(String text) { return stdinTo("proxynode.sh", "import-b64", text); }
+    public static String nodesSubAdd(String u)     { return script("proxynode.sh", "sub-add " + q(u)); }
+    public static String nodesSubUpdate()     { return script("proxynode.sh", "sub-update"); }
+    public static String nodesSubToggle(String idx) { return script("proxynode.sh", "sub-toggle " + q(idx)); }
+    public static String proxyMgrProbe()      { return script("proxymgr.sh", "probe"); }
+    public static String proxyMgrAppList()    { return script("proxymgr.sh", "app list"); }
+    public static String proxyMgrAppAdd(String pkg, String pol) { return script("proxymgr.sh", "app add " + q(pkg) + " " + q(pol == null ? "proxy" : pol)); }
+    public static String proxyMgrAppApply()   { return script("proxymgr.sh", "app apply"); }
+
+    /* ---- selfcheck ---- */
+    public static String selfcheckAll()       { return script("selfcheck.sh", "all"); }
+
+    /* ====================================================================
+     * 基础设施
+     * ==================================================================== */
+
+    /** shell 单引号转义：防止域名/URL/路径里的字符被 shell 解释 */
+    private static String q(String s) {
+        if (s == null) return "''";
+        return "'" + s.replace("'", "'\\''") + "'";
+    }
+
+    /**
+     * 把文本以 base64 写进脚本的标准输入后再执行子命令。
+     *
+     * 为什么需要它：网页端把内容直接拼进命令行参数（xxx-b64 <内容>），
+     * 内容稍大就撞上 "Argument list too long"（模块里已经踩过这个坑）。
+     * App 侧改成：内容 -> base64 -> 写进 su 的 stdin，脚本自己解码，
+     * 命令行长度恒定。
+     */
+    public static String stdinTo(String scriptName, String args, String text) {
+        synchronized (SU_LOCK) {
+            Process p = null;
+            try {
+                String cmd = "sh " + MODDIR + "/scripts/" + scriptName
+                        + " " + (args == null ? "" : args);
+                p = new ProcessBuilder("su", "-c", cmd)
+                        .redirectErrorStream(true)
+                        .start();
+                final Process fp = p;
+                final StringBuilder sb = new StringBuilder();
+                Thread reader = new Thread(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            BufferedReader br = new BufferedReader(
+                                    new InputStreamReader(fp.getInputStream()));
+                            String line;
+                            while ((line = br.readLine()) != null) {
+                                sb.append(line).append('\n');
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                });
+                reader.setDaemon(true);
+                reader.start();
+                OutputStreamWriter w = new OutputStreamWriter(p.getOutputStream());
+                if (text != null) {
+                    String b64 = android.util.Base64.encodeToString(
+                            text.getBytes("UTF-8"), android.util.Base64.NO_WRAP);
+                    w.write(b64);
+                }
+                w.write("\n");
+                w.flush();
+                w.close();
+                long deadline = System.currentTimeMillis() + TIMEOUT_MS;
+                boolean exited = false;
+                while (System.currentTimeMillis() < deadline) {
+                    try { p.exitValue(); exited = true; break; }
+                    catch (IllegalThreadStateException still) { Thread.sleep(30); }
+                }
+                reader.join(exited ? 800 : 2000);
+                String out = sb.toString();
+                if (!exited) p.destroy();
+                return out;
+            } catch (Exception e) {
+                return "ERR: " + e.getMessage();
+            } finally {
+                if (p != null) { try { p.destroy(); } catch (Exception ignored) {} }
+            }
+        }
     }
 }

@@ -343,7 +343,7 @@ public class SyNativeActivity extends Activity {
 
         // DNS 与规则（原规则页）
         final LinearLayout c = Ui.card(this, "DNS 与规则", new View.OnClickListener() {
-            @Override public void onClick(View v) { level3("规则管理"); }
+            @Override public void onClick(View v) { level3("DNS 与规则"); }
         });
         LinearLayout b1 = Ui.body(c);
         final View[] total = Ui.row(this, "hosts 条目", "读取中…", false, null);
@@ -393,6 +393,18 @@ public class SyNativeActivity extends Activity {
         content.addView(switchCard("拦截开关", new String[][]{
                 {"DNS 级拦截", "DNS_ENABLE"}, {"MITM 透明代理", "MITM_ENABLE"},
                 {"开屏广告跳过", "SPLASH_ENABLE"}, {"通知栏广告过滤", "NOTIFY_ENABLE"}}));
+
+        // ---- 网页端功能入口（补齐）----
+        // DNS 与规则 / DNS 服务器 / 开屏跳过 / 通知过滤 / 拦截服务 / MITM 细节
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_dns2", "DNS 与规则细节", new Runnable() { public void run() { level3("DNS 与规则"); } }),
+                entryCard("ic_globe", "DNS 服务器", new Runnable() { public void run() { level3("DNS 服务器"); } })));
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_skip", "开屏跳过", new Runnable() { public void run() { level3("开屏跳过"); } }),
+                entryCard("ic_bell", "通知过滤", new Runnable() { public void run() { level3("通知过滤"); } })));
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_shield_sm", "拦截服务", new Runnable() { public void run() { level3("拦截服务"); } }),
+                entryCard("ic_lock", "MITM 细节", new Runnable() { public void run() { level3("MITM 功能"); } })));
     }
 
     /* ================= ③ 隐私 ================= */
@@ -458,6 +470,17 @@ public class SyNativeActivity extends Activity {
                 {"隐私护盾（FX/风控隔离）", "PRIVACY_ENABLE"}, {"网络防泄露总开关", "LEAK_ENABLE"},
                 {"游戏隐私保护", "GAME_PRIVACY_ENABLE"}, {"FX 深度抵抗", "FX_DEEPGUARD_ENABLE"},
                 {"剪贴板监视", "CLIPGUARD_ENABLE"}}));
+
+        // ---- 网页端功能入口（补齐）----
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_shield_sm", "防护详情", new Runnable() { public void run() { level3("防护详情"); } }),
+                entryCard("ic_fingerprint", "隐私护盾", new Runnable() { public void run() { showText("隐私护盾", RootShell.privacyGuardStatus()); } })));
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_lock", "隐私规则集", new Runnable() { public void run() { showText("隐私规则集", RootShell.privacyRsList()); } }),
+                entryCard("ic_clipboard", "剪贴板读取者", new Runnable() { public void run() { showText("剪贴板读取者", RootShell.clipReaders()); } })));
+        content.addView(Ui.twoCol(this,
+                entryCard("ic_game", "游戏隐私", new Runnable() { public void run() { showText("游戏隐私", RootShell.gamePrivacyStatus()); } }),
+                entryCard("ic_leak", "防泄露报告", new Runnable() { public void run() { showText("防泄露报告", RootShell.leakReport()); } })));
     }
 
     /* ================= ④ 脚本（内核 / 节点 / 工具） ================= */
@@ -992,6 +1015,450 @@ public class SyNativeActivity extends Activity {
                 @Override public void onClick(View v) { runAndShow("清空记录", new Call() {
                     public String run() { return RootShell.script("splash.sh", "clear-records"); } }); }
             })[0]);
+
+        } else if ("DNS 与规则".equals(which)) {
+            box.addView(Ui.hint(this, "DNS 级拦截的完整控制：规则应用、hosts 挂载、引擎重建、名单与规则源。"));
+            box.addView(Ui.row(this, "应用规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应用规则", new Call() {
+                    public String run() { return RootShell.dnsApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "更新规则源", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("更新规则源", new Call() {
+                    public String run() { return RootShell.dnsUpdate(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "hosts 状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("hosts 状态", RootShell.dnsHostsStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "重新生成 hosts", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("重建 hosts", new Call() {
+                    public String run() { return RootShell.dnsHostsRegen(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "重建引擎", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("重建引擎", new Call() {
+                    public String run() { return RootShell.dnsFilterBuild(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "引擎统计", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("引擎统计", RootShell.dnsEngineStats()); }
+            })[0]);
+            box.addView(Ui.row(this, "引擎语法检查", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("语法检查", RootShell.dnsEngineSyntax()); }
+            })[0]);
+            box.addView(Ui.row(this, "清空引擎", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空引擎", new Call() {
+                    public String run() { return RootShell.dnsEngineClear(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "黑名单", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("黑名单", RootShell.dnsBlacklistList()); }
+            })[0]);
+            box.addView(Ui.row(this, "白名单", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("白名单", RootShell.dnsWhitelistList()); }
+            })[0]);
+            box.addView(Ui.row(this, "自定义规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("自定义规则", RootShell.dnsCustomList()); }
+            })[0]);
+            box.addView(Ui.row(this, "我的规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("我的规则", RootShell.dnsMyRulesGet()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "规则源列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("规则源", RootShell.dnsSources()); }
+            })[0]);
+            box.addView(Ui.row(this, "订阅规则列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("规则列表", RootShell.dnsLists()); }
+            })[0]);
+            box.addView(Ui.row(this, "同步规则源", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("同步规则源", new Call() {
+                    public String run() { return RootShell.rulesetSync(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            final EditText dnsTest = new EditText(this);
+            dnsTest.setHint("输入域名，测试会被拦截还是放行");
+            dnsTest.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f);
+            dnsTest.setHintTextColor(Ui.dim(this));
+            dnsTest.setTextColor(Ui.text(this));
+            box.addView(dnsTest);
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "测试域名", true, new View.OnClickListener() {
+                        @Override public void onClick(View v) { showText("测试结果",
+                                RootShell.dnsFilterTest(dnsTest.getText().toString().trim())); }
+                    }),
+                    Ui.button(this, "导入规则", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("导入规则", new Call() {
+                            public String run() { return RootShell.dnsImportText(dnsTest.getText().toString()); } }); }
+                    })));
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "导出规则", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { showText("导出", RootShell.dnsExport()); }
+                    }),
+                    Ui.button(this, "统计摘要", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { showText("统计摘要", RootShell.dnsStatsSummary()); }
+                    }),
+                    Ui.button(this, "清空名单", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("清空名单", new Call() {
+                            public String run() { return RootShell.dnsBlacklistClear(); } }); }
+                    })));
+
+        } else if ("DNS 服务器".equals(which)) {
+            box.addView(Ui.hint(this, "加密 DNS（DoH/DoT）与防明文泄露。国内优先 / 全加密 / 分流解析三种模式。"));
+            box.addView(Ui.row(this, "DNS 服务器状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("DNS 服务器", RootShell.dnsSrvStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "服务器列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("服务器列表", RootShell.dnsSrvServers()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "应用配置", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应用 DNS", new Call() {
+                    public String run() { return RootShell.dnsSrvApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "连通性测试", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("DNS 测试", RootShell.dnsSrvTest()); }
+            })[0]);
+            box.addView(Ui.row(this, "清空服务器", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空", new Call() {
+                    public String run() { return RootShell.dnsSrvClearServers(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "模式：国内优先", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("模式", new Call() {
+                    public String run() { return RootShell.dnsSrvSetMode("cn"); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "模式：全加密", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("模式", new Call() {
+                    public String run() { return RootShell.dnsSrvSetMode("secure"); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "模式：分流解析", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("模式", new Call() {
+                    public String run() { return RootShell.dnsSrvSetMode("split"); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "开启防 DNS 泄露", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("防泄露", new Call() {
+                    public String run() { return RootShell.dnsSrvLeak("on"); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "关闭防 DNS 泄露", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("防泄露", new Call() {
+                    public String run() { return RootShell.dnsSrvLeak("off"); } }); }
+            })[0]);
+
+        } else if ("防护详情".equals(which)) {
+            box.addView(Ui.hint(this, "隐私护盾 + 防泄露 + 规则集的全部细节。每一项都可单独执行。"));
+            box.addView(Ui.row(this, "防泄露状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("防泄露状态", RootShell.leakStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "详细报告", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("防泄露报告", RootShell.leakReport()); }
+            })[0]);
+            box.addView(Ui.row(this, "全部开启", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("全部开启", new Call() {
+                    public String run() { return RootShell.leakAll(true); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "全部关闭", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("全部关闭", new Call() {
+                    public String run() { return RootShell.leakAll(false); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "隐私护盾状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("隐私护盾", RootShell.privacyGuardStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "隐私护盾应用", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应用", new Call() {
+                    public String run() { return RootShell.privacyGuardApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "隐私护盾检查", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("检查", RootShell.privacyGuardCheck()); }
+            })[0]);
+            box.addView(Ui.row(this, "隐私护盾还原", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("还原", new Call() {
+                    public String run() { return RootShell.privacyGuardRemove(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "隐私规则集", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("隐私规则集", RootShell.privacyRsList()); }
+            })[0]);
+            box.addView(Ui.row(this, "启用全部隐私规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("启用规则", new Call() {
+                    public String run() { return RootShell.privacyRsEnable("all"); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "清空隐私规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空规则", new Call() {
+                    public String run() { return RootShell.privacyRsClear(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "游戏隐私状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("游戏隐私", RootShell.gamePrivacyStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "游戏隐私应用", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("游戏隐私", new Call() {
+                    public String run() { return RootShell.gamePrivacyApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "剪贴板读取者", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("剪贴板读取者", RootShell.clipReaders()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "应急恢复（还原全部）", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应急恢复", new Call() {
+                    public String run() { return RootShell.leakPanic(); } }); }
+            })[0]);
+
+        } else if ("系统与日志".equals(which)) {
+            box.addView(Ui.row(this, "日志列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("日志列表", RootShell.logsList()); }
+            })[0]);
+            box.addView(Ui.row(this, "内核日志", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("内核日志", RootShell.logsCat("kernel", 300)); }
+            })[0]);
+            box.addView(Ui.row(this, "服务日志", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("服务日志", RootShell.logsCat("service", 300)); }
+            })[0]);
+            box.addView(Ui.row(this, "清空全部日志", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空日志", new Call() {
+                    public String run() { return RootShell.logsClearAll(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "备份列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("备份列表", RootShell.backupList()); }
+            })[0]);
+            box.addView(Ui.row(this, "立即备份", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("备份", new Call() {
+                    public String run() { return RootShell.backupExport(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "检查更新", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("检查更新", RootShell.updaterCheck()); }
+            })[0]);
+            box.addView(Ui.row(this, "更新状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("更新状态", RootShell.updaterStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "立即更新模块", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("更新模块", new Call() {
+                    public String run() { return RootShell.updaterUpdate(false); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "总控状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("总控状态", RootShell.ctlStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "全部自检", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("自检报告", RootShell.selfcheckAll()); }
+            })[0]);
+            box.addView(Ui.row(this, "可编辑文件列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("可编辑文件", RootShell.fileeditList()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "脚本扩展列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("脚本扩展", RootShell.scriptsList()); }
+            })[0]);
+            box.addView(Ui.row(this, "更新全部脚本", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("更新脚本", new Call() {
+                    public String run() { return RootShell.scriptsUpdateAll(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "订阅列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("订阅列表", RootShell.scriptsSubsList()); }
+            })[0]);
+
+        } else if ("代理节点".equals(which)) {
+            box.addView(Ui.row(this, "节点列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("节点", RootShell.nodesList()); }
+            })[0]);
+            box.addView(Ui.row(this, "内核配置", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("内核配置", RootShell.nodesConfigGet()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "启动内核", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("启动", new Call() {
+                    public String run() { return RootShell.nodesUp(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "停止内核", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("停止", new Call() {
+                    public String run() { return RootShell.nodesDown(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "重启内核", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("重启", new Call() {
+                    public String run() { return RootShell.nodesRestart(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "生成配置", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("生成配置", new Call() {
+                    public String run() { return RootShell.nodesGenConfig(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "配置事务状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("配置事务", RootShell.proxycfgStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "事务：暂存", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("暂存", RootShell.proxycfgStage(true)); }
+            })[0]);
+            box.addView(Ui.row(this, "事务：校验", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("校验", RootShell.proxycfgCheck()); }
+            })[0]);
+            box.addView(Ui.row(this, "事务：提交", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("提交", new Call() {
+                    public String run() { return RootShell.proxycfgCommit(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "事务：回滚", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("回滚", new Call() {
+                    public String run() { return RootShell.proxycfgRollback(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "内核日志", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("内核日志", RootShell.nodesLogs()); }
+            })[0]);
+            box.addView(Ui.row(this, "内核文件清单", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("内核", RootShell.proxyCore()); }
+            })[0]);
+            box.addView(Ui.row(this, "内核自检", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("内核自检", new Call() {
+                    public String run() { return RootShell.nodesCoreEnsure(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "分应用代理列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("分应用代理", RootShell.proxyMgrAppList()); }
+            })[0]);
+            box.addView(Ui.row(this, "应用分应用策略", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应用策略", new Call() {
+                    public String run() { return RootShell.proxyMgrAppApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "节点探测", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("节点探测", RootShell.proxyMgrProbe()); }
+            })[0]);
+
+
+        } else if ("开屏跳过".equals(which)) {
+            box.addView(Ui.row(this, "守护状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("开屏状态", RootShell.script("splash.sh", "status")); }
+            })[0]);
+            box.addView(Ui.row(this, "启动守护", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("启动", new Call() {
+                    public String run() { return RootShell.splashStart(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "停止守护", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("停止", new Call() {
+                    public String run() { return RootShell.splashStop(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "跳过记录", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("跳过记录", RootShell.splashRecords()); }
+            })[0]);
+            box.addView(Ui.row(this, "清空记录", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空", new Call() {
+                    public String run() { return RootShell.splashClearRecords(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "规则列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("开屏规则", RootShell.splashRulesList()); }
+            })[0]);
+            box.addView(Ui.row(this, "清空规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空规则", new Call() {
+                    public String run() { return RootShell.splashRulesClear(); } }); }
+            })[0]);
+            final EditText spIn = new EditText(this);
+            spIn.setHint("粘贴开屏规则 / 或填规则订阅 URL");
+            spIn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+            spIn.setHintTextColor(Ui.dim(this));
+            spIn.setTextColor(Ui.text(this));
+            box.addView(spIn);
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "导入规则", true, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("导入", new Call() {
+                            public String run() { return RootShell.splashRulesAdd(spIn.getText().toString()); } }); }
+                    }),
+                    Ui.button(this, "网络导入", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("网络导入", new Call() {
+                            public String run() { return RootShell.splashRulesImportNet(spIn.getText().toString().trim()); } }); }
+                    })));
+
+        } else if ("通知过滤".equals(which)) {
+            box.addView(Ui.row(this, "状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("通知过滤", RootShell.notifyStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "关键词列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("关键词", RootShell.notifyKeywords()); }
+            })[0]);
+            box.addView(Ui.row(this, "过滤记录", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("记录", RootShell.notifyRecords()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "启动", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("启动", new Call() {
+                    public String run() { return RootShell.notifyStart(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "停止", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("停止", new Call() {
+                    public String run() { return RootShell.notifyStop(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "清空关键词", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("清空", new Call() {
+                    public String run() { return RootShell.notifyKeywordsClear(); } }); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            final EditText nfIn = new EditText(this);
+            nfIn.setHint("输入要过滤的关键词，或粘贴多行 / 订阅 URL");
+            nfIn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+            nfIn.setHintTextColor(Ui.dim(this));
+            nfIn.setTextColor(Ui.text(this));
+            box.addView(nfIn);
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "加关键词", true, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("添加", new Call() {
+                            public String run() { return RootShell.notifyKeywordAdd(nfIn.getText().toString().trim()); } }); }
+                    }),
+                    Ui.button(this, "批量导入", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("导入", new Call() {
+                            public String run() { return RootShell.notifyKeywordsAdd(nfIn.getText().toString()); } }); }
+                    }),
+                    Ui.button(this, "网络导入", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("网络导入", new Call() {
+                            public String run() { return RootShell.notifyImportNet(nfIn.getText().toString().trim()); } }); }
+                    })));
+
+        } else if ("拦截服务".equals(which)) {
+            box.addView(Ui.row(this, "状态", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("拦截服务", RootShell.netblockStatus()); }
+            })[0]);
+            box.addView(Ui.row(this, "规则列表", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("规则", RootShell.netblockList()); }
+            })[0]);
+            box.addView(Ui.row(this, "应用规则", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { runAndShow("应用", new Call() {
+                    public String run() { return RootShell.netblockApply(); } }); }
+            })[0]);
+            box.addView(Ui.row(this, "预览生效项", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("预览", RootShell.netblockPreview()); }
+            })[0]);
+            box.addView(Ui.divider(this));
+            box.addView(Ui.row(this, "应用白名单", "", true, new View.OnClickListener() {
+                @Override public void onClick(View v) { showText("应用清单", RootShell.netblockAppsList()); }
+            })[0]);
+            final EditText nbIn = new EditText(this);
+            nbIn.setHint("填域名 / IP / 网段 / 包名，或粘贴多行规则");
+            nbIn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+            nbIn.setHintTextColor(Ui.dim(this));
+            nbIn.setTextColor(Ui.text(this));
+            box.addView(nbIn);
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "加域名", true, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("添加域名", new Call() {
+                            public String run() { return RootShell.netblockAdd("domain", nbIn.getText().toString().trim()); } }); }
+                    }),
+                    Ui.button(this, "加 IP", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("添加 IP", new Call() {
+                            public String run() { return RootShell.netblockAdd("ip", nbIn.getText().toString().trim()); } }); }
+                    }),
+                    Ui.button(this, "加应用", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("添加应用", new Call() {
+                            public String run() { return RootShell.netblockAppsAdd(nbIn.getText().toString().trim()); } }); }
+                    })));
+            box.addView(Ui.rowOf(this,
+                    Ui.button(this, "批量导入", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("导入", new Call() {
+                            public String run() { return RootShell.netblockImport("domain", nbIn.getText().toString()); } }); }
+                    }),
+                    Ui.button(this, "清空域名", false, new View.OnClickListener() {
+                        @Override public void onClick(View v) { runAndShow("清空", new Call() {
+                            public String run() { return RootShell.netblockClear("domain"); } }); }
+                    })));
+
         }
 
         // 异步填充前四行的真实值（仅规则管理页需要）
@@ -1072,12 +1539,68 @@ public class SyNativeActivity extends Activity {
 
     private void showText(final String title, final String body) {
         String s = (body == null || body.trim().length() == 0) ? "(无输出)" : body.trim();
-        if (s.length() > 4000) s = s.substring(0, 4000) + "\n…（已截断）";
+        s = wrapForDisplay(s);
+        if (s.length() > 12000) s = s.substring(0, 12000) + "\n…（已截断）";
+
+        /*
+         * 【真机缺陷修复·关键】不用 AlertDialog.setMessage 显示脚本输出。
+         *
+         * 真机证据：dns.sh engine-stats 明明返回 312 字符（logcat:
+         *   cmd=...dns.sh engine-stats exit=true len=312），但弹窗只有标题、正文空白。
+         * 原因：脚本输出是**没有空格的长 JSON**，setMessage 内部单行不折行，
+         *       整段被推到可视区之外。
+         * 处理：自己放一个可滚动、可选中、带等宽字体的 TextView ——
+         *       折行规则由我们自己控制，长内容也不会溢出。
+         */
+        final TextView tv = new TextView(this);
+        tv.setText(s);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+        tv.setTextColor(Ui.text(this));
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        tv.setTextIsSelectable(true);
+        tv.setHorizontallyScrolling(false);
+        tv.setPadding(Ui.dp(this, 18), Ui.dp(this, 10), Ui.dp(this, 18), Ui.dp(this, 10));
+
+        final ScrollView sv = new ScrollView(this);
+        sv.addView(tv);
         new android.app.AlertDialog.Builder(this)
                 .setTitle(title)
-                .setMessage(s)
+                .setView(sv)
                 .setPositiveButton("知道了", null)
                 .show();
+    }
+
+    /**
+     * 把脚本输出整理成"能读、能换行"的文本。
+     *   · 单行 JSON：在每个 `,` 与 `{` `[` 之后断行，键值对齐；
+     *   · 其余内容：按 60 字符软折行（防止无空白长串溢出）；
+     *   · 已经是多行的（脚本本来就分行输出）原样保留。
+     */
+    private String wrapForDisplay(String s) {
+        if (s == null) return "(无输出)";
+        String t = s.trim();
+        if (t.length() == 0) return "(无输出)";
+        // 已经是多行：不动
+        if (t.indexOf('\n') >= 0 && t.split("\n").length > 2) return t;
+        // 单行 JSON：结构化断行
+        if (t.startsWith("{") || t.startsWith("[")) {
+            StringBuilder sb = new StringBuilder();
+            boolean inStr = false;
+            for (int i = 0; i < t.length(); i++) {
+                char ch = t.charAt(i);
+                if (ch == '"') inStr = !inStr;
+                sb.append(ch);
+                if (!inStr && (ch == ',' || ch == '{' || ch == '[')) sb.append('\n');
+            }
+            return sb.toString().replace(",\n", ",\n");
+        }
+        // 普通长串：每 56 字符软折行
+        if (t.length() <= 56) return t;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < t.length(); i += 56) {
+            sb.append(t, i, Math.min(t.length(), i + 56)).append('\n');
+        }
+        return sb.toString();
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
