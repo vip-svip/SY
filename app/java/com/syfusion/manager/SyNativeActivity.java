@@ -771,6 +771,14 @@ public class SyNativeActivity extends Activity {
         fb.addView(Ui.row(this, "测试拦截效果", "", true, new View.OnClickListener() {
             @Override public void onClick(View v) { showText("测试结果", RootShell.script("fx_deepguard.sh", "test")); }
         })[0]);
+        fb.addView(Ui.divider(this));
+        // 厂商内核完整性检测（inte.ko 类）情报 —— 只读透明，不做绕过
+        // 背景：一加/OPPO ColorOS 内核的 inte.ko 会记录"启动后新加载的 .ko"
+        // 与 sys_call_table 劫持，结果经 /proc/inte_ko 暴露给游戏反作弊。
+        // 这里把这件事变透明：有没有该机制、记了什么、本模块会不会被记。
+        fb.addView(Ui.row(this, "内核完整性检测情报（inte）", "", true, new View.OnClickListener() {
+            @Override public void onClick(View v) { showText("inte 检测情报", RootShell.inteReport()); }
+        })[0]);
         content.addView(fxCard);
 
         // 异步读反诈三开关的真实状态

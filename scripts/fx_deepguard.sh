@@ -41,30 +41,64 @@ fx_seed_domains() {
   cat > "$FX_DOMAIN_LIST" <<'FXEOF'
 # ============================================================
 #  FX 深度抵抗 · 上报端点清单（默认启用）
-#  作用：把「设备指纹 / 风控上报 / 埋点 / 安装清单上传」端点加入黑洞，
-#        让相关上报失败，从而**收敛画像拼装面**。
-#  怎么改：停某条 → 行首加 #；加 → 直接写域名；改完在面板点「应用」。
+#  作用：把「设备指纹 / 风控上报 / 反作弊 / 埋点 / 归因 / 安装清单上传」
+#        端点加入黑洞，让相关上报失败，从而收敛画像拼装面。
+#
+#  怎么改：停某条 → 行首加 #；加 → 直接写域名；改完点「应用」。
+#
 #  诚实说明（能力边界，不要误解）：
-#    · 这是**设备侧**阻断，不是运营商网络侧观测；
-#      运营商看到的流量要靠代理/VPN 加密隧道才能挡住；
-#    · 96110 是号码不是域名，本表阻的是相关**上报端点**；
-#      不含屏蔽来电（会影响紧急联络，各 ROM 实现不可靠）；
-#    · 部分 ROM 不记录"应用读取安装清单"，无法精确证明谁读过；
-#      这里做的是**收紧权限面与上报面**（可证明有效），非读取历史审计。
+#   · 这是**设备侧**阻断，不是运营商网络侧观测；
+#     运营商看到的流量要靠代理/VPN 加密隧道才能挡住；
+#   · 96110 是**号码**不是域名，本表阻的是相关**上报端点**；
+#     不含屏蔽来电（会影响紧急联络，各 ROM 实现不可靠）；
+#   · 部分 ROM 不记录"应用读取安装清单"，无法精确证明谁读过；
+#     这里做的是**收紧权限面与上报面**（可证明有效），非读取历史审计；
+#   · 域名来自公开的风控/统计 SDK 文档与抓包资料，
+#     若某个域名属于业务主域（会误伤功能），请自行在行首加 # 停用。
+#
+#  分组标题（# ---- 名称 ----）会被两个专项开关识别：
+#   · FX_DEVICEID=0  → 剔除「设备指纹 / 号码认证」整组
+#   · FX_ANTICHEAT=0 → 剔除「反作弊 / 风控云」整组
 # ============================================================
 
 # ---- 设备指纹 / 号码认证（运营商与风控 SDK）----
 cpassport.com
 cmpassport.com
 cmpassport.cn
+config.cmpassport.com
+log.cmpassport.com
+log1.cmpassport.com
 shuzilm.cn
 tdipmap.com
 fengkongcloud.com
 fp.fengkongcloud.com
 cn.fengkongcloud.com
+fp-it.fengkongcloud.com
+tracker.fengkongcloud.com
+static.fengkongcloud.com
+dun.163.com
+fp-upload.dun.163.com
+ye.dun.163yun.com
+nim.qiyukf.com
 
 # ---- 反作弊 / 风控云 ----
 riskengine.qq.com
+t.captcha.qq.com
+captcha.qq.com
+static.geetest.com
+api.geetest.com
+dingxiang-inc.com
+fp.dingxiang-inc.com
+ishumei.com
+fp.ishumei.com
+fp.fengkong.ishumei.com
+tongdun.net
+fr.tongdun.net
+fp.tongdun.net
+bangsheng.com
+anti-cheat.qq.com
+gslb.anticheatexpert.com
+anticheatexpert.com
 
 # ---- 埋点 / 点击流 / 归因（不影响功能，仅少统计）----
 umeng.com
@@ -74,19 +108,38 @@ adash-c.utdid.com
 app-measurement.com
 google-analytics.com
 firebase-settings.crashlytics.com
+hm.baidu.com
+sensorsdata.cn
+sc-cdn.sensorsdata.cn
+growingio.com
+zhugeio.com
+jpush.cn
+jiguang.cn
 
 # ---- 应用画像 / 安装清单上报（高敏感）----
 mob.com
 mobcdn.com
 push.mob.com
+appjiagu.com
 
 # ---- 推送统计 ----
 aaid.umeng.com
 track.umeng.com
+getui.com
+igexin.com
 
 # ---- 广告归因 ----
 admaster.com.cn
 miaozhen.com
+trackingio.com
+appsflyer.com
+adjust.com
+
+# ---- 反诈 / 骚扰号码与风险上报端点 ----
+#  说明：这些是「风险标签查询/上报」类端点，属于画像来源；
+#        96110 与本模块既有 guardshield-antifraud 清单同源。
+cmcc.wo.cn
+risk.wo.cn
 
 # ---- 运营商上报子域（只拦上报子域，不拦主域）----
 log.gd.189.cn

@@ -674,6 +674,12 @@ public final class RootShell {
     public static String proxyMgrAppAdd(String pkg, String pol) { return script("proxymgr.sh", "app add " + q(pkg) + " " + q(pol == null ? "proxy" : pol)); }
     public static String proxyMgrAppApply()   { return script("proxymgr.sh", "app apply"); }
 
+    /* ---- intecheck.sh：厂商内核完整性检测情报（只读，不做绕过） ---- */
+    /** 结构化状态：是否有该机制、是否 ColorOS、记录条数 */
+    public static String inteStatus() { return script("intecheck.sh", "status"); }
+    /** 人类可读报告：机制组成、读了什么、当前记录、本模块是否会被记录 */
+    public static String inteReport() { return script("intecheck.sh", "report"); }
+
     /* ---- selfcheck ---- */
     public static String selfcheckAll()       { return script("selfcheck.sh", "all"); }
 
