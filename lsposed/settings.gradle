@@ -1,0 +1,19 @@
+// PrivacyGuard LSPosed 子模块：Gradle 设置
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://api.xposed.info/' }
+    }
+}
+
+rootProject.name = 'PrivacyGuardHook'
+include ':app'
