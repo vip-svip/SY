@@ -5,11 +5,8 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.ResolveInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.ActivityInfo;
-import android.content.pm.ServiceInfo;
-import android.content.pm.ProviderInfo;
 import android.os.Build;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,139 +22,140 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public final class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "PrivacyGuardHook";
     private static final Set<String> HIDE = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "com.android.vpndialogs",
-        "com.wireguard.android",
-        "com.openvpn",
-        "de.blinkt.openvpn",
-        "com.nordvpn.android",
-        "com.expressvpn.vpn",
-        "com.surfshark.vpnclient.android",
-        "com.cloudflare.onedotonedotonedotone",
-        "com.protonvpn.android",
-        "com.privateinternetaccess.android",
-        "com.strongvpn",
-        "com.pia",
-        "com.ixolit.ipvanish"
+        "com.android.vpndialogs", "com.wireguard.android", "com.openvpn",
+        "de.blinkt.openvpn", "com.nordvpn.android", "com.expressvpn.vpn",
+        "com.surfshark.vpnclient.android", "com.cloudflare.onedotonedotonedotone",
+        "com.protonvpn.android", "com.privateinternetaccess.android",
+        "com.strongvpn", "com.pia", "com.ixolit.ipvanish"
     )));
 
-    @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
-        if (lpparam == null || lpparam.packageName == null) return;
-        if (lpparam.packageName.equals("de.privacyguard.hook")) return;
+    @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam p) {
+        if (p == null || p.packageName == null || p.packageName.equals("de.privacyguard.hook")) return;
         try {
-            hookPackageManager(lpparam.classLoader);
-            hookActivityThread(lpparam.classLoader);
-            XposedBridge.log(TAG + ": hooks installed in " + lpparam.packageName);
+            hookClientPackageManager(p.classLoader);
+            if ("android".equals(p.packageName)) hookSystemPackageManager(p.classLoader);
+            XposedBridge.log(TAG + ": installed for " + p.packageName);
         } catch (Throwable t) {
-            XposedBridge.log(TAG + ": hook setup error in " + lpparam.packageName + " " + t);
+            XposedBridge.log(TAG + ": setup error in " + p.packageName + ": " + t);
         }
     }
 
-    private static boolean hidden(String packageName) {
-        return packageName != null && HIDE.contains(packageName);
-    }
+    private static boolean hidden(String name) { return name != null && HIDE.contains(name); }
 
-    private static void hookPackageManager(ClassLoader loader) {
-        hookMethods(loader, "android.app.ApplicationPackageManager", "getPackageInfo", new ResultFilter() {
-            public Object filter(Object result) { return hiddenPackageInfo(result); }
+    private static void hookClientPackageManager(ClassLoader loader) {
+        hook(loader, "android.app.ApplicationPackageManager", "getPackageInfo", r -> {
+            if (r instanceof PackageInfo && hidden(((PackageInfo) r).packageName)) return null;
+            return r;
         });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "getApplicationInfo", new ResultFilter() {
-            public Object filter(Object result) { return hiddenApplicationInfo(result); }
+        hook(loader, "android.app.ApplicationPackageManager", "getApplicationInfo", r -> {
+            if (r instanceof ApplicationInfo && hidden(((ApplicationInfo) r).packageName)) return null;
+            return r;
         });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "getInstalledPackages", new ResultFilter() {
-            public Object filter(Object result) { return filterPackageInfos(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "getInstalledApplications", new ResultFilter() {
-            public Object filter(Object result) { return filterApplicationInfos(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "queryIntentActivities", new ResultFilter() {
-            public Object filter(Object result) { return filterResolveInfos(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "queryIntentServices", new ResultFilter() {
-            public Object filter(Object result) { return filterResolveInfos(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "queryBroadcastReceivers", new ResultFilter() {
-            public Object filter(Object result) { return filterResolveInfos(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "resolveActivity", new ResultFilter() {
-            public Object filter(Object result) { return filterResolveInfo(result); }
-        });
-        hookMethods(loader, "android.app.ApplicationPackageManager", "resolveService", new ResultFilter() {
-            public Object filter(Object result) { return filterResolveInfo(result); }
-        });
-    }
-
-    private static void hookActivityThread(ClassLoader loader) {
-        hookMethods(loader, "android.app.ApplicationPackageManager", "getLaunchIntentForPackage", new ResultFilter() {
-            public Object filter(Object result) {
-                if (result instanceof Intent) {
-                    ComponentName c = ((Intent) result).getComponent();
-                    if (c != null && hidden(c.getPackageName())) return null;
-                }
-                return result;
+        hook(loader, "android.app.ApplicationPackageManager", "getInstalledPackages", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "getInstalledApplications", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "queryIntentActivities", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "queryIntentServices", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "queryBroadcastReceivers", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "resolveActivity", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "resolveService", MainHook::filterContainer);
+        hook(loader, "android.app.ApplicationPackageManager", "getLaunchIntentForPackage", r -> {
+            if (r instanceof Intent) {
+                ComponentName c = ((Intent) r).getComponent();
+                if (c != null && hidden(c.getPackageName())) return null;
             }
+            return r;
         });
     }
 
-    private interface ResultFilter { Object filter(Object result); }
+    /*
+     * The "android" LSPosed scope also loads the module in system_server on
+     * compatible builds. Filtering here is the cross-app path; client hooks
+     * alone only affect processes in which LSPosed loads this module.
+     */
+    private static void hookSystemPackageManager(ClassLoader loader) {
+        String[] classes = {
+            "com.android.server.pm.PackageManagerService",
+            "com.android.server.pm.ComputerEngine"
+        };
+        String[] methods = {
+            "getPackageInfoInternal", "getApplicationInfoInternal",
+            "getInstalledPackages", "getInstalledApplications",
+            "queryIntentActivitiesInternal", "queryIntentServicesInternal",
+            "queryIntentReceiversInternal", "resolveIntent"
+        };
+        for (String cn : classes) for (String mn : methods) {
+            hook(loader, cn, mn, MainHook::filterContainer);
+        }
+    }
 
-    private static void hookMethods(ClassLoader loader, String className, String methodName, final ResultFilter filter) {
+    private interface Filter { Object apply(Object result) throws Throwable; }
+
+    private static void hook(ClassLoader loader, String className, String methodName, Filter filter) {
         try {
-            Class<?> clazz = XposedHelpersSafe.findClass(className, loader);
-            for (Method method : clazz.getDeclaredMethods()) {
-                if (!method.getName().equals(methodName)) continue;
-                XposedBridge.hookMethod(method, new XC_MethodHook() {
-                    @Override protected void afterHookedMethod(MethodHookParam param) {
-                        try { param.setResult(filter.filter(param.getResult())); }
-                        catch (Throwable ignored) { }
+            Class<?> c = Class.forName(className, false, loader);
+            for (Method m : c.getDeclaredMethods()) {
+                if (!m.getName().equals(methodName)) continue;
+                XposedBridge.hookMethod(m, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        try { p.setResult(filter.apply(p.getResult())); }
+                        catch (Throwable t) { XposedBridge.log(TAG + ": result filter failed " + className + "." + methodName + ": " + t); }
                     }
                 });
             }
         } catch (Throwable t) {
-            XposedBridge.log(TAG + ": unable to hook " + className + "." + methodName + ": " + t);
+            XposedBridge.log(TAG + ": unavailable " + className + "." + methodName + ": " + t);
         }
     }
 
-    private static Object hiddenPackageInfo(Object result) {
-        if (result instanceof PackageInfo && hidden(((PackageInfo) result).packageName)) return null;
+    private static Object filterContainer(Object result) throws Throwable {
+        if (result == null) return null;
+        if (result instanceof PackageInfo) {
+            return hidden(((PackageInfo) result).packageName) ? null : result;
+        }
+        if (result instanceof ApplicationInfo) {
+            return hidden(((ApplicationInfo) result).packageName) ? null : result;
+        }
+        if (result instanceof ResolveInfo) {
+            return hidden(resolvePackage((ResolveInfo) result)) ? null : result;
+        }
+        if (result instanceof List) return filterList((List<?>) result);
+        // PackageManagerService commonly wraps results in ParceledListSlice.
+        // Mutate only a recognized List field; leave unknown framework objects untouched.
+        for (Class<?> c = result.getClass(); c != null; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if (!List.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object value = f.get(result);
+                    if (value instanceof List) f.set(result, filterList((List<?>) value));
+                    return result;
+                } catch (Throwable ignored) { }
+            }
+        }
         return result;
     }
-    private static Object hiddenApplicationInfo(Object result) {
-        if (result instanceof ApplicationInfo && hidden(((ApplicationInfo) result).packageName)) return null;
-        return result;
-    }
-    private static Object filterPackageInfos(Object result) {
-        if (!(result instanceof List)) return result;
-        List<?> in = (List<?>) result; List<PackageInfo> out = new ArrayList<>();
-        for (Object o : in) if (o instanceof PackageInfo && !hidden(((PackageInfo)o).packageName)) out.add((PackageInfo)o);
+
+    private static List<?> filterList(List<?> in) {
+        List<Object> out = new ArrayList<>(in.size());
+        for (Object o : in) {
+            String pkg = packageName(o);
+            if (pkg == null || !hidden(pkg)) out.add(o);
+        }
         return out;
     }
-    private static Object filterApplicationInfos(Object result) {
-        if (!(result instanceof List)) return result;
-        List<?> in = (List<?>) result; List<ApplicationInfo> out = new ArrayList<>();
-        for (Object o : in) if (o instanceof ApplicationInfo && !hidden(((ApplicationInfo)o).packageName)) out.add((ApplicationInfo)o);
-        return out;
-    }
-    private static Object filterResolveInfos(Object result) {
-        if (!(result instanceof List)) return result;
-        List<?> in = (List<?>) result; List<ResolveInfo> out = new ArrayList<>();
-        for (Object o : in) if (o instanceof ResolveInfo && !hidden(resolvePackage((ResolveInfo)o))) out.add((ResolveInfo)o);
-        return out;
-    }
-    private static Object filterResolveInfo(Object result) {
-        if (result instanceof ResolveInfo && hidden(resolvePackage((ResolveInfo)result))) return null;
-        return result;
-    }
-    private static String resolvePackage(ResolveInfo ri) {
-        if (ri == null) return null;
-        if (ri.activityInfo != null) return ri.activityInfo.packageName;
-        if (ri.serviceInfo != null) return ri.serviceInfo.packageName;
-        if (ri.providerInfo != null) return ri.providerInfo.packageName;
+
+    private static String packageName(Object o) {
+        if (o instanceof PackageInfo) return ((PackageInfo) o).packageName;
+        if (o instanceof ApplicationInfo) return ((ApplicationInfo) o).packageName;
+        if (o instanceof ResolveInfo) return resolvePackage((ResolveInfo) o);
         return null;
     }
 
-    private static final class XposedHelpersSafe {
-        static Class<?> findClass(String name, ClassLoader loader) throws ClassNotFoundException {
-            return Class.forName(name, false, loader);
-        }
+    private static String resolvePackage(ResolveInfo r) {
+        if (r == null) return null;
+        if (r.activityInfo != null) return r.activityInfo.packageName;
+        if (r.serviceInfo != null) return r.serviceInfo.packageName;
+        if (r.providerInfo != null) return r.providerInfo.packageName;
+        return null;
     }
 }
