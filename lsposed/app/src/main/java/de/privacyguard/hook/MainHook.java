@@ -34,7 +34,7 @@ public final class MainHook implements IXposedHookLoadPackage {
         try {
             // Legacy LSPosed identifies system_server as "system"; "android"
             // is the separate framework UI process on recent LSPosed versions.
-            if ("system".equals(p.packageName) || "system_server".equals(p.processName)) {
+            if ("system".equals(p.packageName) || "system".equals(p.processName) || "system_server".equals(p.processName)) {
                 hookSystemPackageManager(p.classLoader);
             } else {
                 hookClientPackageManager(p.classLoader);
