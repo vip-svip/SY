@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="xposed_scope">
+        <!-- Legacy LSPosed uses "system" for system_server. -->
+        <item>system</item>
+        <!-- Keep Android system UI scoped too; it is distinct from system_server. -->
         <item>android</item>
     </string-array>
 </resources>
