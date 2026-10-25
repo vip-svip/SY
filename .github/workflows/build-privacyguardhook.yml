@@ -1,0 +1,67 @@
+name: Build PrivacyGuardHook APK
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fx-v1.0.0-privacyguardhook-build
+    paths:
+      - "lsposed/**"
+      - ".github/workflows/build-privacyguardhook.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify source tree
+        run: |
+          set -euo pipefail
+          test -f lsposed/settings.gradle
+          test -f lsposed/app/build.gradle
+          test -f lsposed/app/src/main/AndroidManifest.xml
+          test -f lsposed/app/src/main/assets/xposed_init
+          test -f lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
+          grep -q 'de.privacyguard.hook.MainHook' lsposed/app/src/main/assets/xposed_init
+
+      - name: Build release APK
+        working-directory: lsposed
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
+
+      - name: Verify APK and record checksum
+        run: |
+          set -euo pipefail
+          APK="lsposed/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$APK"
+          mkdir -p artifact
+          cp "$APK" artifact/PrivacyGuardHook-unsigned.apk
+          sha256sum artifact/PrivacyGuardHook-unsigned.apk | tee artifact/SHA256SUMS
+          unzip -t artifact/PrivacyGuardHook-unsigned.apk
+          unzip -p artifact/PrivacyGuardHook-unsigned.apk assets/xposed_init | grep -q 'de.privacyguard.hook.MainHook'
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrivacyGuardHook-unsigned-${{ github.sha }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
