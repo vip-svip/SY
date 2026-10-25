@@ -32,9 +32,14 @@ public final class MainHook implements IXposedHookLoadPackage {
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam p) {
         if (p == null || p.packageName == null || p.packageName.equals("de.privacyguard.hook")) return;
         try {
-            hookClientPackageManager(p.classLoader);
-            if ("android".equals(p.packageName)) hookSystemPackageManager(p.classLoader);
-            XposedBridge.log(TAG + ": installed for " + p.packageName);
+            // Legacy LSPosed identifies system_server as "system"; "android"
+            // is the separate framework UI process on recent LSPosed versions.
+            if ("system".equals(p.packageName) || "system_server".equals(p.processName)) {
+                hookSystemPackageManager(p.classLoader);
+            } else {
+                hookClientPackageManager(p.classLoader);
+            }
+            XposedBridge.log(TAG + ": installed for " + p.packageName + "/" + p.processName);
         } catch (Throwable t) {
             XposedBridge.log(TAG + ": setup error in " + p.packageName + ": " + t);
         }
