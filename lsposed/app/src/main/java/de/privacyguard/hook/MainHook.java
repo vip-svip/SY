@@ -77,11 +77,13 @@ public final class MainHook implements IXposedHookLoadPackage {
             "com.android.server.pm.PackageManagerService",
             "com.android.server.pm.ComputerEngine"
         };
+        // Hook outward-facing PackageManagerService entry points only. Avoid
+        // internal helpers because framework code also calls them during installs.
         String[] methods = {
-            "getPackageInfoInternal", "getApplicationInfoInternal",
+            "getPackageInfo", "getApplicationInfo",
             "getInstalledPackages", "getInstalledApplications",
-            "queryIntentActivitiesInternal", "queryIntentServicesInternal",
-            "queryIntentReceiversInternal", "resolveIntent"
+            "queryIntentActivities", "queryIntentServices",
+            "queryIntentReceivers", "resolveIntent"
         };
         for (String cn : classes) for (String mn : methods) {
             hook(loader, cn, mn, MainHook::filterContainer);
