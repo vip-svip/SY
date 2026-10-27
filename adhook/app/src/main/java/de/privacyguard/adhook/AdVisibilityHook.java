@@ -67,6 +67,7 @@ public final class AdVisibilityHook extends XposedModule {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
             "advertisement", "advertising", "splashad", "splash_ad", "splash-ad",
             "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
+            "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash",
             "mimo_ad", "mimoad", "mobad", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "bannerad", "banner_ad", "banner-ad", "interstitial", "rewardedad",
@@ -75,7 +76,8 @@ public final class AdVisibilityHook extends XposedModule {
     };
     private static final String[] SPLASH_MARKERS = {
             "splashad", "splash_ad", "splash-ad", "splashadvert", "launch_ad", "launchad",
-            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage"
+            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
+            "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash"
     };
     private static final String[] FEED_MARKERS = {
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
