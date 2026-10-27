@@ -1,0 +1,174 @@
+name: Build local recursive Unbound DNS for FX Android ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-unbound-android-arm64.yml"
+      - ".github/dns/Unbound-root.hints"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-arm64:
+    name: Cross-build Unbound recursive resolver for Android ARM64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout FX root-hints source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies and root trust anchor seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential perl make m4 flex bison dns-root-data unbound
+          test -s /usr/share/dns/root.key
+          grep -q 'DNSKEY' /usr/share/dns/root.key
+          mkdir -p artifact
+          cp /usr/share/dns/root.key artifact/root.key.seed
+          cp .github/dns/Unbound-root.hints artifact/root.hints
+          grep -q 'A.ROOT-SERVERS.NET.*198.41.0.4' artifact/root.hints
+          grep -q 'M.ROOT-SERVERS.NET.*202.12.27.33' artifact/root.hints
+          sha256sum artifact/root.key.seed artifact/root.hints | tee artifact/DATA-SHA256SUMS
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android NDK r26b
+        run: sdkmanager "ndk;26.1.10909125"
+
+      - name: Download and verify Unbound 1.26.2 and OpenSSL 3.5.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-all-errors https://nlnetlabs.nl/downloads/unbound/unbound-1.26.2.tar.gz -o unbound.tar.gz
+          echo "d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7  unbound.tar.gz" | sha256sum --check
+          curl --fail --location --retry 3 --retry-all-errors https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz -o openssl.tar.gz
+          echo "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a  openssl.tar.gz" | sha256sum --check
+          tar -xzf unbound.tar.gz
+          tar -xzf openssl.tar.gz
+
+      - name: Build static OpenSSL for Android ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          TOOLBIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export ANDROID_NDK_ROOT="$NDK"
+          export ANDROID_NDK_HOME="$NDK"
+          export PATH="$TOOLBIN:$PATH"
+          OPENSSL_PREFIX="$GITHUB_WORKSPACE/openssl-android"
+          cd openssl-3.5.9
+          ./Configure android-arm64 no-shared no-tests no-docs no-apps --prefix="$OPENSSL_PREFIX" --openssldir=/data/adb/privacyguard/unbound/ssl -D__ANDROID_API__=24
+          make -j2
+          make install_sw
+          test -s "$OPENSSL_PREFIX/lib/libcrypto.a"
+          test -s "$OPENSSL_PREFIX/lib/libssl.a"
+
+      - name: Cross-compile Unbound 1.26.2 for Android ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          TOOLBIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export PATH="$TOOLBIN:$PATH"
+          export CC="$TOOLBIN/aarch64-linux-android24-clang"
+          export AR="$TOOLBIN/llvm-ar"
+          export RANLIB="$TOOLBIN/llvm-ranlib"
+          export STRIP="$TOOLBIN/llvm-strip"
+          OPENSSL_PREFIX="$GITHUB_WORKSPACE/openssl-android"
+          export CPPFLAGS="-I$OPENSSL_PREFIX/include"
+          export CFLAGS="-O2 -fPIC -D__ANDROID_API__=24"
+          export LDFLAGS="-L$OPENSSL_PREFIX/lib -Wl,-z,relro,-z,now"
+          cd unbound-1.26.2
+          ./configure \
+            --host=aarch64-linux-android \
+            --prefix="$GITHUB_WORKSPACE/unbound-android" \
+            --with-ssl="$OPENSSL_PREFIX" \
+            --without-libexpat \
+            --without-libevent \
+            --with-pthreads \
+            --disable-shared \
+            --enable-static \
+            --with-conf-file=/data/adb/privacyguard/unbound/unbound.conf \
+            --with-pidfile=/data/adb/privacyguard/unbound/unbound.pid
+          make -j2
+          make install
+          mkdir -p "$GITHUB_WORKSPACE/artifact"
+          cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound" "$GITHUB_WORKSPACE/artifact/unbound"
+          cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
+          "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
+          file "$GITHUB_WORKSPACE/artifact/unbound" | tee "$GITHUB_WORKSPACE/artifact/FILE.txt"
+          readelf -h "$GITHUB_WORKSPACE/artifact/unbound" | grep -E 'Machine:.*AArch64'
+          readelf -lW "$GITHUB_WORKSPACE/artifact/unbound" | grep -F '/system/bin/linker64'
+          if readelf -d "$GITHUB_WORKSPACE/artifact/unbound" | grep -Eiq 'lib(ssl|crypto)[.]so'; then
+            echo "Unbound must statically link the OpenSSL libraries bundled for Android" >&2
+            exit 1
+          fi
+          sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
+
+      - name: Validate Android build config with the pinned source's host checker
+        shell: bash
+        run: |
+          set -euo pipefail
+          T="$RUNNER_TEMP/fx-unbound-check"
+          mkdir -p "$T"
+          cp artifact/root.hints "$T/root.hints"
+          cp artifact/root.key.seed "$T/root.key"
+          cat > "$T/unbound.conf" <<EOF
+          server:
+            username: ""
+            chroot: ""
+            directory: "$T"
+            interface: 127.0.0.1
+            port: 5353
+            access-control: 127.0.0.0/8 allow
+            do-ip4: yes
+            do-ip6: yes
+            do-udp: yes
+            do-tcp: yes
+            root-hints: "$T/root.hints"
+            auto-trust-anchor-file: "$T/root.key"
+            qname-minimisation: yes
+            harden-glue: yes
+            harden-dnssec-stripped: yes
+            edns-buffer-size: 1232
+            max-udp-size: 1232
+            msg-cache-size: 8m
+            rrset-cache-size: 16m
+            key-cache-size: 4m
+            prefetch: yes
+            hide-identity: yes
+            hide-version: yes
+            use-syslog: no
+            verbosity: 1
+          EOF
+          unbound-checkconf "$T/unbound.conf"
+          echo "PASS: Unbound 1.26.2 configuration accepted with loopback-only recursive caching, DNSSEC trust anchor and bundled root hints."
+
+      - name: Write compatibility boundary
+        shell: bash
+        run: |
+          cat > artifact/BUILD-INFO.txt <<'EOF'
+          Component: Unbound recursive/caching DNS resolver.
+          Source: official NLnet Labs Unbound 1.26.2, source SHA256 d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7.
+          Crypto: static OpenSSL 3.5.9, source SHA256 603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a.
+          Target: Android ARM64, Android NDK r26b, API level 24; ELF interpreter /system/bin/linker64.
+          The resolver listens only on loopback port 5353. AdGuard Home remains the local filtering front-end on loopback port 53.
+          This artifact build and config check do not prove direct root/authoritative DNS reachability on a mobile network. Runtime health probes and fail-open rollback are required.
+          EOF
+
+      - name: Upload local recursive DNS runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-unbound-android-arm64-v1.26.2
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
