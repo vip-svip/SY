@@ -168,11 +168,12 @@ jobs:
             port: 5353
             access-control: 127.0.0.0/8 allow
             do-ip4: yes
-            do-ip6: yes
+            do-ip6: no
             do-udp: yes
             do-tcp: yes
             root-hints: "$T/root.hints"
-            auto-trust-anchor-file: "$T/root.key"
+            trust-anchor-file: "$T/root.key"
+            module-config: "validator iterator"
             qname-minimisation: yes
             harden-glue: yes
             harden-dnssec-stripped: yes
@@ -181,7 +182,11 @@ jobs:
             msg-cache-size: 8m
             rrset-cache-size: 16m
             key-cache-size: 4m
+            neg-cache-size: 4m
+            cache-min-ttl: 0
+            cache-max-ttl: 86400
             prefetch: yes
+            prefetch-key: yes
             hide-identity: yes
             hide-version: yes
             use-syslog: no
