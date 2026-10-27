@@ -1,8 +1,8 @@
 #!/system/bin/sh
 # Remove only Hook APKs tracked as installed by FX's bundled-app installer.
 set -u
-STATE_DIR=\${2:-\${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}}
-LOG=\${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
+STATE_DIR=${2:-${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}}
+LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
 log_msg() {
   _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) remove_adhook_app: $*"
   printf '%s\n' "$_msg" >> "$LOG" 2>/dev/null || :
