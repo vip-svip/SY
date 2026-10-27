@@ -152,7 +152,7 @@ jobs:
           done
           sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-anchor" "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
 
-      - name: Validate Android build config with the pinned source's host checker
+      - name: Validate Android runtime config with Ubuntu's host-side Unbound checker
         shell: bash
         run: |
           set -euo pipefail
