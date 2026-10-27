@@ -64,11 +64,13 @@ public final class AdVisibilityHook extends XposedModule {
     };
     private static final String[] STRONG_AD_MARKERS = {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
-            "advertisement", "advertising", "splashad", "splash_ad", "splash-ad",
+            "splashad", "splash_ad", "splash-ad",
             "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
             "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash",
             "mimo_ad", "mimoad", "mobad", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
+            "nativeexpress", "expressadview", "ttadview", "ksadview", "ksadframelayout",
+            "hmsadview", "mimoadview", "nativeadcontainer", "nativeadview",
             "bannerad", "banner_ad", "banner-ad", "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
             "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
@@ -353,15 +355,18 @@ public final class AdVisibilityHook extends XposedModule {
         String id = resourceName(view);
         String evidence = cls + " " + id;
         boolean strong = hasAny(evidence, STRONG_AD_MARKERS);
-        boolean sdkView = hasAny(cls, AD_CLASS_MARKERS);
-        if (!strong && !sdkView) {
+        boolean sdkNamespace = hasAny(cls, AD_CLASS_MARKERS);
+        // A SDK namespace alone is not proof that every custom View is an ad:
+        // SDK packages may also contain controls, placeholders and telemetry views.
+        boolean sdkAdView = sdkNamespace && hasAny(cls, STRONG_AD_MARKERS);
+        if (!strong && !sdkAdView) {
             if (view instanceof TextView && hasAdLabel((TextView) view)) {
                 ParentEvidence parent = findStrongAdParent(view);
                 return parent != null && categoryMatches(parent.value, target, false);
             }
             return false;
         }
-        return categoryMatches(evidence, target, sdkView);
+        return categoryMatches(evidence, target, sdkAdView);
     }
 
     private ParentEvidence findStrongAdParent(View view) {
