@@ -7,7 +7,7 @@ REMOVER="$ROOT/scripts/remove_adhook_app.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$INSTALLER" ] || fail "installer helper missing"
 [ -s "$REMOVER" ] || fail "remover helper missing"
-TMP="\${TMPDIR:-/tmp}/fx-adhook-installer-test-$$"
+TMP="${TMPDIR:-/tmp}/fx-adhook-installer-test-$$"
 mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 printf 'fake legacy apk payload\n' > "$TMP/mod/optional/PrivacyGuardHook.apk"
@@ -27,7 +27,7 @@ case "$1" in
     if grep -Fxq "$pkg" "$STATE/installed" 2>/dev/null; then echo "package:/data/app/$pkg/base.apk"; else exit 1; fi
     ;;
   install)
-    [ "\${2:-}" = "-r" ] || exit 2
+    [ "${2:-}" = "-r" ] || exit 2
     apk=$3
     [ -s "$apk" ] || exit 3
     case "$(basename "$apk")" in
