@@ -100,14 +100,6 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean remoteFilesAvailable;
     private String currentPackage = "";
 
-    private static final class Target {
-        boolean splash;
-        boolean feed;
-        boolean overlay;
-        boolean memberDiag;
-        boolean enabled() { return splash || feed || overlay || memberDiag; }
-    }
-
     private static final class ParentEvidence {
         final String value;
         ParentEvidence(String value) { this.value = value; }
@@ -147,72 +139,35 @@ public final class AdVisibilityHook extends XposedModule {
 
     private boolean loadConfig() {
         if (!remoteFilesAvailable) return false;
-        // AutoCloseInputStream owns the descriptor, so it is closed exactly once.
+        // Do not activate a partially parsed target list. The independent parser
+        // validates the entire config before any target is committed.
+        targets.clear();
+        adsEnabled = false;
         try (InputStreamReader isr = new InputStreamReader(
                     new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME)),
                     StandardCharsets.UTF_8);
              BufferedReader reader = new BufferedReader(isr)) {
-            String section = "";
+            StringBuilder content = new StringBuilder();
             String line;
             int lines = 0;
             while ((line = reader.readLine()) != null) {
                 if (++lines > 1000) {
-                    logFx(Log.WARN, "remote config exceeds 1000 lines; rejected");
-                    targets.clear();
+                    logFx(Log.WARN, "remote config exceeds 1000 lines; rejecting all targets");
                     return false;
                 }
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    section = line.substring(1, line.length() - 1);
-                    continue;
-                }
-                if (section.isEmpty()) {
-                    int eq = line.indexOf('=');
-                    if (eq > 0 && "hook_ads_enabled".equals(line.substring(0, eq).trim())) {
-                        adsEnabled = "1".equals(line.substring(eq + 1).trim());
-                    }
-                } else if ("list:hook_targets".equals(section)) {
-                    parseTarget(line);
-                }
+                content.append(line).append('\n');
             }
+            HookTargetConfigParser.Result parsed = HookTargetConfigParser.parse(content.toString());
+            adsEnabled = parsed.adsEnabled;
+            targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
             targets.clear();
-            logFx(Log.WARN, "openRemoteFile failed: " + t.getClass().getSimpleName());
+            adsEnabled = false;
+            logFx(Log.WARN, "remote config rejected; no hooks enabled (" +
+                    t.getClass().getSimpleName() + ")");
             return false;
         }
-    }
-
-    private void parseTarget(String line) {
-        // FX list row: package,splash=1,feed=0,overlay=1,member_diag=0|note|1
-        String config = line.trim();
-        int metadata = config.indexOf('|');
-        if (metadata >= 0) config = config.substring(0, metadata);
-        String[] parts = config.split(",");
-        if (parts.length < 2) return;
-        String pkg = parts[0].trim();
-        if (!validPackage(pkg) || NEVER.contains(pkg)) return;
-        Target target = new Target();
-        Set<String> seen = new HashSet<>();
-        for (int i = 1; i < parts.length; i++) {
-            int eq = parts[i].indexOf('=');
-            if (eq <= 0) return;
-            String key = parts[i].substring(0, eq).trim();
-            String value = parts[i].substring(eq + 1).trim();
-            if (!("0".equals(value) || "1".equals(value)) || !seen.add(key)) return;
-            boolean enabled = "1".equals(value);
-            if ("splash".equals(key)) target.splash = enabled;
-            else if ("feed".equals(key)) target.feed = enabled;
-            else if ("overlay".equals(key)) target.overlay = enabled;
-            else if ("member_diag".equals(key)) target.memberDiag = enabled;
-            else return;
-        }
-        if (target.enabled()) targets.put(pkg, target);
-    }
-
-    private static boolean validPackage(String pkg) {
-        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
     }
 
     private void installAdViewHooks(final String pkg, final Target target) {
