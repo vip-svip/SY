@@ -33,19 +33,21 @@ static int add_label(unsigned char *out, size_t *n, const char *s) {
 int main(int argc, char **argv) {
     const char *ip = argc > 1 ? argv[1] : "127.0.0.1";
     long port = argc > 2 ? strtol(argv[2], NULL, 10) : 5353;
+    long timeout = argc > 3 ? strtol(argv[3], NULL, 10) : 5;
     struct sockaddr_in server;
     unsigned char query[512] = {0}, reply[4096];
-    struct timeval tv = {2, 0};
+    struct timeval tv = {5, 0};
     struct timespec ts;
     uint16_t id, flags, rcode;
     size_t n = 12;
     int fd;
     char label[64];
 
-    if (port < 1 || port > 65535) {
-        fputs("invalid DNS probe port\n", stderr);
+    if (port < 1 || port > 65535 || timeout < 1 || timeout > 10) {
+        fputs("invalid DNS probe port/timeout (timeout must be 1..10 seconds)\n", stderr);
         return 64;
     }
+    tv.tv_sec = timeout;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
     server.sin_port = htons((uint16_t)port);
