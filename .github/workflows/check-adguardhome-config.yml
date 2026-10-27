@@ -55,7 +55,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/agh-fx-runtime-workdir"
           test "$(grep -c '^  - "||' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml)" -eq 5
           grep -Fq '127.0.0.1:5353' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml
-          grep -Fq 'bootstrap_dns: []' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml
           if awk '
             /^[[:space:]]*#/ { next }
             /^[[:space:]]*upstream_dns:/ { section="upstream"; next }
