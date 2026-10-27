@@ -1,0 +1,43 @@
+name: Fetch AdGuard Home ARM64 binary
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-adguardhome-arm64.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-and-verify:
+    name: Fetch and verify official release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download official AdGuard Home v0.107.79
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.79/AdGuardHome_linux_arm64.tar.gz"
+          EXPECTED="3f7893c18e8aaadc456d0452839190561c306ca95175a2254958be80a769c1ae"
+          curl --fail --location --retry 3 --retry-all-errors "$URL" -o AdGuardHome_linux_arm64.tar.gz
+          echo "$EXPECTED  AdGuardHome_linux_arm64.tar.gz" | sha256sum --check
+          tar -tzf AdGuardHome_linux_arm64.tar.gz > archive-list.txt
+          AGH_MEMBER="$(awk '/(^|\\/)AdGuardHome$/ { print; exit }' archive-list.txt)"
+          test -n "$AGH_MEMBER"
+          tar -xzf AdGuardHome_linux_arm64.tar.gz -- "$AGH_MEMBER"
+          test -f "$AGH_MEMBER"
+          file "$AGH_MEMBER"
+          readelf -h "$AGH_MEMBER" | grep -E 'Machine:.*AArch64'
+          mkdir -p artifact-adguardhome
+          install -m 0755 "$AGH_MEMBER" artifact-adguardhome/AdGuardHome
+          sha256sum artifact-adguardhome/AdGuardHome | tee artifact-adguardhome/SHA256SUMS
+          printf '%s\n' 'Official AdGuard Home v0.107.79. Release archive SHA-256 verified and binary ELF machine verified as AArch64. This does not claim Android runtime compatibility; test on Android/ARM64 before enabling DNS redirection.' > artifact-adguardhome/BUILD-STATUS.txt
+
+      - name: Upload verified ARM64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: adguardhome-android-arm64-v0.107.79
+          path: artifact-adguardhome/
+          if-no-files-found: error
+          retention-days: 14
