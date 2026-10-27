@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/check-adguardhome-config.yml"
       - ".github/dns/AdGuardHome.yaml"
+      - ".github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml"
 
 permissions:
   contents: read
@@ -43,4 +44,18 @@ jobs:
           cp .github/dns/AdGuardHome-with-fx-rules.yaml "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml"
           mkdir -p "$RUNNER_TEMP/agh-fx-check-workdir"
           "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml" -w "$RUNNER_TEMP/agh-fx-check-workdir" --no-check-update
-          echo "PASS: official AdGuard Home accepted the dynamically generated FX domain-rule block. Android runtime behavior still requires device testing."
+echo "PASS: official AdGuard Home accepted the dynamically generated FX domain-rule block. Android runtime behavior still requires device testing."
+      - name: Validate exact FX v1.0.0 runtime DNS config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$RUNNER_TEMP/AdGuardHome-FX-runtime.yaml"
+          mkdir -p "$RUNNER_TEMP/agh-fx-runtime-workdir"
+          test "$(grep -c '^  - "||' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml)" -eq 5
+          if grep -Eiq 'ads|advert|splash|watermark|open.?screen|IP-CIDR|PACKAGE-NAME|DOMAIN-KEYWORD' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml; then
+            echo "FAIL: non anti-fraud rules found in runtime DNS config" >&2
+            exit 1
+          fi
+          "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome-FX-runtime.yaml" -w "$RUNNER_TEMP/agh-fx-runtime-workdir" --no-check-update
+          echo "PASS: exact FX v1.0.0 opt-in runtime DNS config accepted by official AdGuard Home v0.107.79. Device runtime and network routing still require testing."
+
