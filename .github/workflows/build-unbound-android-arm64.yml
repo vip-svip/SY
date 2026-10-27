@@ -126,11 +126,13 @@ jobs:
             --with-conf-file=/data/adb/privacyguard/unbound/unbound.conf \
             --with-pidfile=/data/adb/privacyguard/unbound/unbound.pid
           make -j2
-          make install
+          # Do not run make install: the configured Android absolute runtime paths
+          # would cause the build container to try creating /data/adb/... on host.
           mkdir -p "$GITHUB_WORKSPACE/artifact"
-          cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound" "$GITHUB_WORKSPACE/artifact/unbound"
-          cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
-          "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
+          cp unbound "$GITHUB_WORKSPACE/artifact/unbound"
+          cp unbound-checkconf "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
+          cp unbound-anchor "$GITHUB_WORKSPACE/artifact/unbound-anchor"
+          "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-anchor"
           "$CC" -std=c11 -O2 -Wall -Wextra -Werror "$GITHUB_WORKSPACE/scripts/localdns-probe.c" -o "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
           "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
           cp "$GITHUB_WORKSPACE/.github/dns/Unbound-root.hints" "$GITHUB_WORKSPACE/artifact/root.hints"
@@ -143,11 +145,11 @@ jobs:
             echo "Unbound must statically link OpenSSL and Expat for Android" >&2
             exit 1
           fi
-          for f in unbound unbound-checkconf fx-dns-probe root.hints root.key.seed; do
+          for f in unbound unbound-checkconf unbound-anchor fx-dns-probe root.hints root.key.seed; do
             test -s "$GITHUB_WORKSPACE/artifact/$f"
             sha256sum "$GITHUB_WORKSPACE/artifact/$f" | awk '{print $1 "  " $2}' > "$GITHUB_WORKSPACE/artifact/$f.sha256"
           done
-          sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
+          sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-anchor" "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
 
       - name: Validate Android build config with the pinned source's host checker
         shell: bash
