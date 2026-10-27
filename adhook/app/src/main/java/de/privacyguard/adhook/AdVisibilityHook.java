@@ -7,6 +7,8 @@ import android.content.res.Resources;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -14,47 +16,48 @@ import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.XposedModuleInterface;
 
 /**
- * FXAdHook: opt-in ad-view detector for one LSPosed-scoped application.
- * Missing or invalid configuration is a no-op. Billing diagnostics are read-only.
+ * FXAdHook (modern libxposed API).
+ *
+ * The target app runs as an ordinary application UID, not root. It MUST NOT read
+ * /data/adb or /data/local/tmp directly. The root-side FX generator publishes a
+ * private config through LSPosed's Remote Files directory; this entry reads it
+ * with openRemoteFile(). If the remote-file capability or config is unavailable,
+ * this entry fails closed and installs no hooks.
+ *
+ * Billing diagnostics are read-only; purchase results and entitlements are never changed.
  */
-public final class AdVisibilityHook implements IXposedHookLoadPackage {
+public final class AdVisibilityHook extends XposedModule {
     private static final String TAG = "FXAdHook";
-    private static final String CONFIG_PATH = "/data/local/tmp/privacyguard/xposed.conf";
-    private static final String SELF = "de.privacyguard.adhook";
-    private static final Set<String> NEVER = new HashSet<>(Arrays.asList(
-            "android", "system", "de.privacyguard.hook", SELF, "org.lsposed.manager",
-            "com.android.systemui", "com.android.settings",
-            "com.android.permissioncontroller", "com.google.android.permissioncontroller",
-            "com.android.packageinstaller", "com.google.android.packageinstaller",
-            "com.android.phone", "com.android.server.telecom"));
+    private static final String CONFIG_NAME = "fx-hook-targets.conf";
+    private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
     private static final Set<String> BILLING_METHODS = new HashSet<>(Arrays.asList(
             "isReady", "queryPurchases", "queryPurchasesAsync", "queryPurchaseHistoryAsync",
             "queryProductDetailsAsync", "querySkuDetailsAsync", "launchBillingFlow",
             "acknowledgePurchase", "consumeAsync", "consumePurchase", "getConnectionState"));
     private static final String[] AD_CLASS_MARKERS = {
-            "com.google.android.gms.ads",
-            "com.bytedance.sdk.openadsdk", "com.pangle",
+            "com.google.android.gms.ads", "com.bytedance.sdk.openadsdk", "com.pangle",
             "com.qq.e.ads", "com.kwad.sdk", "com.baidu.mobads",
-            "com.applovin", "com.facebook.ads", "com.unity3d.services.ads",
-            "com.sigmob.sdk",
+            "com.applovin", "com.facebook.ads", "com.unity3d.services.ads", "com.sigmob.sdk",
             "com.huawei.hms.ads", "com.huawei.openalliance.ad",
             "com.miui.zeus.mimo.sdk", "com.xiaomi.ad",
             "com.heytap.msp.mobad.api", "com.vivo.mobilead",
@@ -85,148 +88,168 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
             "full_screen_ad", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
 
-    private final Map<String, String> top = new HashMap<>();
     private final Map<String, Target> targets = new HashMap<>();
-    private final WeakHashMap<Activity, Long> lastScan = new WeakHashMap<>();
+    private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
+    private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
-    private String packageName = "";
-    private Target target;
+    private boolean adsEnabled;
+    private boolean configLoaded;
+    private boolean remoteFilesAvailable;
+    private String currentPackage = "";
 
     private static final class Target {
-        boolean splash, feed, overlay, memberDiag;
+        boolean splash;
+        boolean feed;
+        boolean overlay;
+        boolean memberDiag;
         boolean enabled() { return splash || feed || overlay || memberDiag; }
     }
+
     private static final class ParentEvidence {
         final String value;
-        ParentEvidence(String v) { value = v; }
+        ParentEvidence(String value) { this.value = value; }
     }
 
     @Override
-    public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpp) {
-        packageName = lpp.packageName == null ? "" : lpp.packageName;
-        if (isProtectedPackage(packageName)) return;
-        if (!loadConfig()) {
-            log("inactive: missing/unreadable config");
+    public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
+        remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
+        if (!remoteFilesAvailable) {
+            log(Log.WARN, "Remote Files capability unavailable; feature disabled safely", null);
             return;
         }
-        if (!"1".equals(top.get("hook_ads_enabled"))) {
-            log("inactive: master switch off");
-            return;
-        }
-        target = targets.get(packageName);
-        if (target == null || !target.enabled()) {
-            log("inactive: package not selected in FX target list");
-            return;
-        }
-        if (target.splash || target.feed || target.overlay) installAdViewHook();
-        if (target.memberDiag) installReadOnlyBillingDiagnostics(lpp.classLoader);
-        log("loaded package=" + packageName + " splash=" + target.splash +
-                " feed=" + target.feed + " overlay=" + target.overlay +
-                " memberDiagReadOnly=" + target.memberDiag +
-                " android=" + Build.VERSION.SDK_INT);
+        configLoaded = loadConfig();
+        log(configLoaded
+                ? "remote target config loaded; selected targets=" + targets.size()
+                : "remote target config unavailable/invalid; no-op", null);
+    }
+
+    @Override
+    public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
+        final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
+        currentPackage = pkg;
+        if (NEVER.contains(pkg)) return;
+        if (!configLoaded || !adsEnabled) return;
+        final Target target = targets.get(pkg);
+        if (target == null || !target.enabled()) return;
+        if (!hooksInstalledFor.add(pkg)) return;
+        if (target.splash || target.feed || target.overlay) installAdViewHooks(pkg, target);
+        if (target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        log(Log.INFO, "package ready=" + pkg +
+                " splash=" + target.splash + " feed=" + target.feed +
+                " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
+                " sdk=" + Build.VERSION.SDK_INT, null);
     }
 
     private boolean loadConfig() {
-        File file = new File(CONFIG_PATH);
-        if (!file.isFile() || !file.canRead()) return false;
-        String section = "";
-        try (BufferedReader r = new BufferedReader(new FileReader(file))) {
+        if (!remoteFilesAvailable) return false;
+        try (ParcelFileDescriptor pfd = openRemoteFile(CONFIG_NAME);
+             FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
+             InputStreamReader isr = new InputStreamReader(fis, StandardCharsets.UTF_8);
+             BufferedReader reader = new BufferedReader(isr)) {
+            String section = "";
             String line;
-            while ((line = r.readLine()) != null) {
+            int lines = 0;
+            while ((line = reader.readLine()) != null) {
+                if (++lines > 1000) {
+                    log(Log.WARN, "remote config exceeds 1000 lines; rejected", null);
+                    targets.clear();
+                    return false;
+                }
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 if (line.startsWith("[") && line.endsWith("]")) {
                     section = line.substring(1, line.length() - 1);
                     continue;
                 }
-                if ("list:hook_targets".equals(section)) {
+                if (section.isEmpty()) {
+                    int eq = line.indexOf('=');
+                    if (eq > 0 && "hook_ads_enabled".equals(line.substring(0, eq).trim())) {
+                        adsEnabled = "1".equals(line.substring(eq + 1).trim());
+                    }
+                } else if ("list:hook_targets".equals(section)) {
                     parseTarget(line);
-                } else if (section.isEmpty()) {
-                    int i = line.indexOf('=');
-                    if (i > 0) top.put(line.substring(0, i).trim(), line.substring(i + 1).trim());
                 }
             }
             return true;
         } catch (Throwable t) {
-            log("config parse failed: " + t.getClass().getSimpleName());
+            targets.clear();
+            log(Log.WARN, "openRemoteFile failed: " + t.getClass().getSimpleName(), null);
             return false;
         }
     }
 
     private void parseTarget(String line) {
-        // Main FX list format: package,splash=1,feed=0,overlay=1,member_diag=0|note|1
-        // The generic config list uses "|" for metadata; feature flags are comma-delimited.
+        // FX list row: package,splash=1,feed=0,overlay=1,member_diag=0|note|1
         String config = line.trim();
         int metadata = config.indexOf('|');
         if (metadata >= 0) config = config.substring(0, metadata);
         String[] parts = config.split(",");
         if (parts.length < 2) return;
         String pkg = parts[0].trim();
-        if (!validPackage(pkg)) return;
-        Target t = new Target();
+        if (!validPackage(pkg) || NEVER.contains(pkg)) return;
+        Target target = new Target();
+        Set<String> seen = new HashSet<>();
         for (int i = 1; i < parts.length; i++) {
             int eq = parts[i].indexOf('=');
-            if (eq <= 0) continue;
+            if (eq <= 0) return;
             String key = parts[i].substring(0, eq).trim();
             String value = parts[i].substring(eq + 1).trim();
-            if (!("0".equals(value) || "1".equals(value))) continue;
-            boolean yes = "1".equals(value);
-            if ("splash".equals(key)) t.splash = yes;
-            else if ("feed".equals(key)) t.feed = yes;
-            else if ("overlay".equals(key)) t.overlay = yes;
-            else if ("member_diag".equals(key)) t.memberDiag = yes;
+            if (!("0".equals(value) || "1".equals(value)) || !seen.add(key)) return;
+            boolean enabled = "1".equals(value);
+            if ("splash".equals(key)) target.splash = enabled;
+            else if ("feed".equals(key)) target.feed = enabled;
+            else if ("overlay".equals(key)) target.overlay = enabled;
+            else if ("member_diag".equals(key)) target.memberDiag = enabled;
+            else return;
         }
-        if (t.enabled()) targets.put(pkg, t);
+        if (target.enabled()) targets.put(pkg, target);
     }
 
     private static boolean validPackage(String pkg) {
         return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
     }
 
-    private void installAdViewHook() {
+    private void installAdViewHooks(final String pkg, final Target target) {
         try {
-            XposedHelpers.findAndHookMethod(Instrumentation.class, "callActivityOnResume",
-                    Activity.class, new XC_MethodHook() {
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            try {
-                                if (!(param.args[0] instanceof Activity)) return;
-                                Activity a = (Activity) param.args[0];
-                                if (!packageName.equals(a.getPackageName())) return;
-                                // Some SDKs present ads as a dedicated Activity instead of a View.
-                                // Only dismiss when both an SDK namespace and a category-specific
-                                // ad Activity marker match; never finish arbitrary app activities.
-                                if (maybeDismissSdkAdActivity(a)) return;
-                                scheduleScans(a);
-                            } catch (Throwable t) {
-                                log("resume hook failed: " + t.getClass().getSimpleName());
-                            }
-                        }
-                    });
-            log("activity ad view observer installed");
-        } catch (Throwable t) {
-            log("activity ad view observer unavailable: " + t.getClass().getSimpleName());
-        }
-        installTransientWindowHooks();
-    }
-
-    /** Dialog and PopupWindow content is often outside the Activity decor tree. */
-    private void installTransientWindowHooks() {
-        try {
-            XposedHelpers.findAndHookMethod(Dialog.class, "show", new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam param) {
-                    try {
-                        Dialog dialog = (Dialog) param.thisObject;
-                        Window window = dialog.getWindow();
-                        if (window != null) scheduleRootScans(window.getDecorView());
-                    } catch (Throwable t) {
-                        log("dialog scan hook failed: " + t.getClass().getSimpleName());
+            Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
+            hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                try {
+                    Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                    if (arg instanceof Activity) {
+                        Activity activity = (Activity) arg;
+                        if (pkg.equals(activity.getPackageName())) scheduleScans(activity, target);
                     }
+                } catch (Throwable t) {
+                    log(Log.WARN, "activity resume observer failed: " + t.getClass().getSimpleName(), null);
                 }
+                return result;
             });
-            log("dialog ad view observer installed");
+            log(Log.INFO, "activity ad observer installed for " + pkg, null);
         } catch (Throwable t) {
-            log("dialog ad view observer unavailable: " + t.getClass().getSimpleName());
+            log(Log.WARN, "activity ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName(), null);
         }
+
+        try {
+            Method show = Dialog.class.getDeclaredMethod("show");
+            hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                try {
+                    Object object = chain.getThisObject();
+                    if (object instanceof Dialog) {
+                        Window window = ((Dialog) object).getWindow();
+                        if (window != null) scheduleRootScans(window.getDecorView(), target, pkg);
+                    }
+                } catch (Throwable t) {
+                    log(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName(), null);
+                }
+                return result;
+            });
+            log(Log.INFO, "dialog ad observer installed for " + pkg, null);
+        } catch (Throwable t) {
+            log(Log.WARN, "dialog ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName(), null);
+        }
+
         int popupHooks = 0;
         try {
             for (Method method : PopupWindow.class.getDeclaredMethods()) {
@@ -234,61 +257,29 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
                 if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) ||
                         method.isSynthetic() || method.isBridge()) continue;
                 try {
-                    XposedBridge.hookMethod(method, new XC_MethodHook() {
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            try {
-                                PopupWindow popup = (PopupWindow) param.thisObject;
-                                View content = popup.getContentView();
-                                if (content != null) scheduleRootScans(content);
-                            } catch (Throwable t) {
-                                log("popup scan hook failed: " + t.getClass().getSimpleName());
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        try {
+                            Object object = chain.getThisObject();
+                            if (object instanceof PopupWindow) {
+                                View content = ((PopupWindow) object).getContentView();
+                                if (content != null) scheduleRootScans(content, target, pkg);
                             }
+                        } catch (Throwable t) {
+                            log(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName(), null);
                         }
+                        return result;
                     });
                     popupHooks++;
                 } catch (Throwable ignored) {}
             }
         } catch (Throwable t) {
-            log("popup hook enumeration failed: " + t.getClass().getSimpleName());
+            log(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName(), null);
         }
-        log("popup ad view observers installed=" + popupHooks);
+        log(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg, null);
     }
 
-    private static boolean isProtectedPackage(String pkg) {
-        if (NEVER.contains(pkg)) return true;
-        return pkg.startsWith("com.android.providers.") ||
-                pkg.startsWith("com.android.permissioncontroller.");
-    }
-
-    private boolean maybeDismissSdkAdActivity(final Activity activity) {
-        final String cls = lower(activity.getClass().getName());
-        boolean sdk = false;
-        for (String marker : AD_CLASS_MARKERS) {
-            if (cls.contains(marker)) { sdk = true; break; }
-        }
-        if (!sdk) return false;
-        boolean splash = target.splash && hasAny(cls, new String[]{
-                "splashad", "splash_ad", "adsplash", "ad_splash", "launchscreenad",
-                "launchadactivity", "openadactivity", "appopenad"
-        });
-        boolean overlay = target.overlay && hasAny(cls, new String[]{
-                "adactivity", "ad_activity", "interstitial", "fullscreen",
-                "full_screen", "rewarded", "videoadactivity", "ttfullscreen",
-                "ksfullscreen", "overlayad"
-        });
-        if (!splash && !overlay) return false;
-        try {
-            if (!activity.isFinishing()) activity.finish();
-            log("dismissed recognized SDK ad Activity package=" + packageName +
-                    " class=" + shortName(cls) + " category=" + (splash ? "splash" : "overlay"));
-            return true;
-        } catch (Throwable t) {
-            log("SDK ad Activity finish failed: " + t.getClass().getSimpleName());
-            return false;
-        }
-    }
-
-    private void scheduleScans(final Activity activity) {
+    private void scheduleScans(final Activity activity, final Target target) {
         final View decor;
         try {
             if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
@@ -296,15 +287,15 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
         } catch (Throwable t) { return; }
         if (decor == null) return;
         long now = System.currentTimeMillis();
-        synchronized (lastScan) {
-            Long prior = lastScan.get(activity);
+        synchronized (lastActivityScan) {
+            Long prior = lastActivityScan.get(activity);
             if (prior != null && now - prior < 350L) return;
-            lastScan.put(activity, now);
+            lastActivityScan.put(activity, now);
         }
-        scheduleRootScans(decor);
+        scheduleRootScans(decor, target, activity.getPackageName());
     }
 
-    private void scheduleRootScans(final View initialRoot) {
+    private void scheduleRootScans(final View initialRoot, final Target target, final String pkg) {
         if (initialRoot == null) return;
         long now = System.currentTimeMillis();
         synchronized (lastRootScan) {
@@ -314,33 +305,30 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
         }
         final Handler handler;
         try { handler = new Handler(Looper.getMainLooper()); }
-        catch (Throwable t) { log("main handler unavailable"); return; }
+        catch (Throwable t) { log(Log.WARN, "main thread handler unavailable", null); return; }
         final int[] delays = new int[]{180, 650, 1500, 3200};
         for (final int delay : delays) {
             try {
-                handler.postDelayed(new Runnable() {
-                    @Override public void run() {
-                        try {
-                            View root = initialRoot;
-                            View currentRoot = initialRoot.getRootView();
-                            if (currentRoot != null) root = currentRoot;
-                            scanTree(root, root, 0, new int[]{0});
-                        } catch (Throwable t) {
-                            log("scan failed: " + t.getClass().getSimpleName());
-                        }
+                handler.postDelayed(() -> {
+                    try {
+                        View root = initialRoot.getRootView();
+                        if (root == null) root = initialRoot;
+                        scanTree(root, root, 0, new int[]{0}, target, pkg);
+                    } catch (Throwable t) {
+                        log(Log.WARN, "bounded view scan failed: " + t.getClass().getSimpleName(), null);
                     }
                 }, delay);
             } catch (Throwable ignored) {}
         }
     }
 
-    private void scanTree(View view, View root, int depth, int[] count) {
+    private void scanTree(View view, View root, int depth, int[] count, Target target, String pkg) {
         if (view == null || depth > 20 || count[0]++ >= 1800) return;
-        if (view != root && shouldHide(view)) {
+        if (view != root && shouldHide(view, target)) {
             try {
                 if (view.getVisibility() != View.GONE) {
                     view.setVisibility(View.GONE);
-                    log("hidden ad view in " + packageName + " class=" + shortName(view.getClass().getName()));
+                    log(Log.INFO, "hidden ad view in " + pkg + " class=" + shortName(view.getClass().getName()), null);
                 }
                 return;
             } catch (Throwable ignored) {}
@@ -352,27 +340,29 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
         for (int i = 0; i < n && count[0] < 1800; i++) {
             View child;
             try { child = group.getChildAt(i); } catch (Throwable t) { continue; }
-            scanTree(child, root, depth + 1, count);
+            scanTree(child, root, depth + 1, count, target, pkg);
         }
     }
 
-    private boolean shouldHide(View view) {
+    private boolean shouldHide(View view, Target target) {
         String cls = lower(view.getClass().getName());
         String id = resourceName(view);
         String evidence = cls + " " + id;
         boolean strong = hasAny(evidence, STRONG_AD_MARKERS);
-        boolean sdkAdView = false;
-        for (String marker : AD_CLASS_MARKERS) {
-            if (cls.contains(marker)) { sdkAdView = true; break; }
-        }
-        if (!strong && !sdkAdView) {
+        boolean sdkView = hasAny(cls, AD_CLASS_MARKERS);
+        if (!strong && !sdkView) {
             if (view instanceof TextView && hasAdLabel((TextView) view)) {
                 ParentEvidence parent = findStrongAdParent(view);
-                return parent != null && categoryMatches(parent.value, false);
+                return parent != null && categoryMatches(parent.value, target, false);
             }
             return false;
         }
-        return categoryMatches(evidence, sdkAdView);
+        return categoryMatches(evidence, target, sdkView);
+    }
+
+    private static final class ParentEvidence {
+        final String value;
+        ParentEvidence(String value) { this.value = value; }
     }
 
     private ParentEvidence findStrongAdParent(View view) {
@@ -385,23 +375,21 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
         return null;
     }
 
-    private boolean categoryMatches(String evidence, boolean sdkAdView) {
+    private boolean categoryMatches(String evidence, Target target, boolean sdkView) {
         String e = lower(evidence);
-        boolean splash = hasAny(e, SPLASH_MARKERS);
-        boolean overlay = hasAny(e, OVERLAY_MARKERS);
-        boolean feed = hasAny(e, FEED_MARKERS) || sdkAdView;
-        if (splash) return target.splash;
-        if (overlay) return target.overlay;
-        if (feed) return target.feed;
+        if (hasAny(e, SPLASH_MARKERS)) return target.splash;
+        if (hasAny(e, OVERLAY_MARKERS)) return target.overlay;
+        if (hasAny(e, FEED_MARKERS)) return target.feed;
+        if (sdkView) return target.feed;
         int enabled = (target.splash ? 1 : 0) + (target.feed ? 1 : 0) + (target.overlay ? 1 : 0);
         return enabled == 1;
     }
 
     private static boolean hasAdLabel(TextView text) {
         try {
-            CharSequence c = text.getText();
-            CharSequence d = text.getContentDescription();
-            String all = lower(String.valueOf(c)) + " " + lower(String.valueOf(d));
+            CharSequence content = text.getText();
+            CharSequence desc = text.getContentDescription();
+            String all = lower(String.valueOf(content)) + " " + lower(String.valueOf(desc));
             return all.equals("广告") || all.contains("广告位") || all.contains("赞助") ||
                     all.contains("sponsored") || all.contains("advertisement") ||
                     all.equals("ad choices") || all.contains("跳过广告");
@@ -419,48 +407,45 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
 
     private void installReadOnlyBillingDiagnostics(ClassLoader loader) {
         try {
-            Class<?> billing = XposedHelpers.findClassIfExists(
-                    "com.android.billingclient.api.BillingClient", loader);
-            if (billing == null) {
-                log("member diagnostic unavailable: Google Play Billing client class not found");
-                return;
-            }
+            Class<?> billing = Class.forName("com.android.billingclient.api.BillingClient", false, loader);
             int hooked = 0;
-            for (Method m : billing.getDeclaredMethods()) {
-                if (!BILLING_METHODS.contains(m.getName()) || m.isSynthetic()) continue;
+            for (Method method : billing.getDeclaredMethods()) {
+                if (!BILLING_METHODS.contains(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
                 try {
-                    XposedBridge.hookMethod(m, new XC_MethodHook() {
-                        @Override protected void beforeHookedMethod(MethodHookParam param) {
-                            log("billing diagnostic call: " + param.method.getName());
-                        }
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            Object result = param.getResult();
-                            String type = result == null ? "void/null" : result.getClass().getSimpleName();
-                            log("billing diagnostic return: " + param.method.getName() + " type=" + type);
-                        }
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        log(Log.INFO, "billing diagnostic call=" + method.getName() +
+                                " returnType=" + (result == null ? "null" : result.getClass().getSimpleName()), null);
+                        return result;
                     });
                     hooked++;
                 } catch (Throwable ignored) {}
             }
-            log("read-only billing diagnostic hooks=" + hooked);
+            log(Log.INFO, "read-only billing diagnostics hooks=" + hooked, null);
         } catch (Throwable t) {
-            log("billing diagnostics unavailable: " + t.getClass().getSimpleName());
+            log(Log.INFO, "billing diagnostics unavailable: Google Play Billing client not found", null);
         }
     }
 
     private static String lower(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
+
     private static boolean hasAny(String value, String[] tokens) {
         for (String token : tokens) if (value.contains(token)) return true;
         return false;
     }
+
     private static String shortName(String value) {
         if (value == null) return "?";
         int i = value.lastIndexOf('.');
         return i >= 0 ? value.substring(i + 1) : value;
     }
-    private static void log(String message) {
-        try { XposedBridge.log("[" + TAG + "] " + message); } catch (Throwable ignored) {}
+
+    private void log(int priority, String message, Throwable error) {
+        try {
+            if (error == null) log(priority, TAG, message);
+            else log(priority, TAG, message, error);
+        } catch (Throwable ignored) {}
     }
 }
