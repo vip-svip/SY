@@ -105,7 +105,8 @@ statistics:
   enabled: false
 filters: []
 whitelist_filters: []
-user_rules: []
+user_rules: # FX_MANAGED_RULES_BEGIN
+  # FX_MANAGED_RULES_END
 dhcp:
   enabled: false
   interface_name: ""
