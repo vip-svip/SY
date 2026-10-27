@@ -2,14 +2,14 @@
 # Install bundled LSPosed Hook APKs as ordinary /data/app packages.
 # This avoids requiring a KernelSU metamodule merely to expose Hook APKs under /system/priv-app.
 set -u
-MODDIR=\${1:-}
+MODDIR=${1:-}
 if [ -z "$MODDIR" ]; then
   _d=$(dirname "$0" 2>/dev/null)
   MODDIR=$(cd "$_d/.." 2>/dev/null && pwd)
 fi
-STATE_DIR=\${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
-TMP_DIR=\${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
-LOG=\${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
+STATE_DIR=${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
+TMP_DIR=${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
+LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
 mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :
 log_msg() {
   _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) install_adhook_app: $*"
@@ -30,7 +30,7 @@ install_one() {
   fi
   _prior=$(cat "$_marker" 2>/dev/null)
   if package_present "$_pkg" && [ "$_prior" = "$_actual" ]; then log_msg "already installed and unchanged: $_pkg"; return 0; fi
-  _stage="$TMP_DIR/.fx-adhook-\${_slug}-$$.apk"
+  _stage="$TMP_DIR/.fx-adhook-${_slug}-$$.apk"
   rm -f "$_stage" 2>/dev/null
   if ! cp "$_apk" "$_stage" 2>/dev/null; then log_msg "WARN: cannot stage APK for PackageManager: $_pkg"; return 1; fi
   chmod 0644 "$_stage" 2>/dev/null || :
