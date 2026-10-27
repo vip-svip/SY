@@ -69,8 +69,9 @@ jobs:
         shell: bash
         run: |
           APK=adhook/app/build/outputs/apk/debug/app-debug.apk
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify "$APK"
+          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$APK"
           unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
           unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
           unzip -p "$APK" assets/xposed_init 2>/dev/null && exit 1 || true
