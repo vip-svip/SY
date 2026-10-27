@@ -46,26 +46,35 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
             "queryProductDetailsAsync", "querySkuDetailsAsync", "launchBillingFlow",
             "acknowledgePurchase", "consumeAsync", "consumePurchase", "getConnectionState"));
     private static final String[] AD_CLASS_MARKERS = {
-            "com.google.android.gms.ads", "com.bytedance.sdk.openadsdk",
+            "com.google.android.gms.ads",
+            "com.bytedance.sdk.openadsdk", "com.pangle",
             "com.qq.e.ads", "com.kwad.sdk", "com.baidu.mobads",
             "com.applovin", "com.facebook.ads", "com.unity3d.services.ads",
-            "com.sigmob.sdk", "com.pangle"
+            "com.sigmob.sdk",
+            "com.huawei.hms.ads", "com.huawei.openalliance.ad",
+            "com.miui.zeus.mimo.sdk", "com.xiaomi.ad",
+            "com.heytap.msp.mobad.api", "com.vivo.mobilead",
+            "com.hihonor.adsdk", "com.meishu.sdk"
     };
     private static final String[] STRONG_AD_MARKERS = {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
             "advertisement", "advertising", "splashad", "splash_ad", "splash-ad",
+            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
+            "mimo_ad", "mimoad", "mobad", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "bannerad", "banner_ad", "banner-ad", "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
             "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
     private static final String[] SPLASH_MARKERS = {
-            "splashad", "splash_ad", "splash-ad", "splashadvert", "launch_ad", "launchad"
+            "splashad", "splash_ad", "splash-ad", "splashadvert", "launch_ad", "launchad",
+            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage"
     };
     private static final String[] FEED_MARKERS = {
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "bannerad", "banner_ad", "banner-ad", "adview", "ad_view", "adcontainer",
-            "ad_container", "adslot", "ad_slot"
+            "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mobad",
+            "hms_ads", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad"
     };
     private static final String[] OVERLAY_MARKERS = {
             "interstitial", "rewardedad", "rewarded_ad", "fullscreenad",
@@ -317,7 +326,7 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
         if (!strong && !sdkAdView) {
             if (view instanceof TextView && hasAdLabel((TextView) view)) {
                 ParentEvidence parent = findStrongAdParent(view);
-                return parent != null && categoryMatches(parent.value, true);
+                return parent != null && categoryMatches(parent.value, false);
             }
             return false;
         }
