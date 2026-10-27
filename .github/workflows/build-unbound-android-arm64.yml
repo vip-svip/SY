@@ -52,8 +52,11 @@ jobs:
           echo "d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7  unbound.tar.gz" | sha256sum --check
           curl --fail --location --retry 3 --retry-all-errors https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz -o openssl.tar.gz
           echo "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a  openssl.tar.gz" | sha256sum --check
+          curl --fail --location --retry 3 --retry-all-errors https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz -o expat.tar.xz
+          echo "1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051  expat.tar.xz" | sha256sum --check
           tar -xzf unbound.tar.gz
           tar -xzf openssl.tar.gz
+          tar -xJf expat.tar.xz
 
       - name: Build static OpenSSL for Android ARM64
         shell: bash
@@ -72,6 +75,24 @@ jobs:
           test -s "$OPENSSL_PREFIX/lib/libcrypto.a"
           test -s "$OPENSSL_PREFIX/lib/libssl.a"
 
+      - name: Build static Expat for Android ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          PREFIX="$GITHUB_WORKSPACE/expat-android"
+          cmake -S expat-2.9.0/expat -B expat-build \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=24 \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_TESTS=OFF \
+            -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
+            -DEXPAT_BUILD_DOCS=OFF -DEXPAT_WITH_LIBBSD=OFF
+          cmake --build expat-build --parallel 2
+          cmake --install expat-build
+          test -s "$PREFIX/include/expat.h"
+          test -s "$PREFIX/lib/libexpat.a"
+
       - name: Cross-compile Unbound 1.26.2 for Android ARM64
         shell: bash
         run: |
@@ -84,15 +105,16 @@ jobs:
           export RANLIB="$TOOLBIN/llvm-ranlib"
           export STRIP="$TOOLBIN/llvm-strip"
           OPENSSL_PREFIX="$GITHUB_WORKSPACE/openssl-android"
-          export CPPFLAGS="-I$OPENSSL_PREFIX/include"
+          EXPAT_PREFIX="$GITHUB_WORKSPACE/expat-android"
+          export CPPFLAGS="-I$OPENSSL_PREFIX/include -I$EXPAT_PREFIX/include"
           export CFLAGS="-O2 -fPIC -D__ANDROID_API__=24"
-          export LDFLAGS="-L$OPENSSL_PREFIX/lib -Wl,-z,relro,-z,now"
+          export LDFLAGS="-L$OPENSSL_PREFIX/lib -L$EXPAT_PREFIX/lib -Wl,-z,relro,-z,now"
           cd unbound-1.26.2
           ./configure \
             --host=aarch64-linux-android \
             --prefix="$GITHUB_WORKSPACE/unbound-android" \
             --with-ssl="$OPENSSL_PREFIX" \
-            --without-libexpat \
+            --with-libexpat="$EXPAT_PREFIX" \
             --without-libevent \
             --with-pthreads \
             --disable-shared \
