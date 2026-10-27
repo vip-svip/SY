@@ -498,8 +498,34 @@ public final class AdVisibilityHook extends XposedModule {
                 } catch (Throwable ignored) {}
             }
             logFx(Log.INFO, "read-only billing diagnostics hooks=" + hooked);
+            installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingResult",
+                    "getResponseCode", "billing responseCode");
+            installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
+                    "getPurchaseState", "billing purchaseState");
         } catch (Throwable t) {
             logFx(Log.INFO, "billing diagnostics unavailable: Google Play Billing client not found");
+        }
+    }
+
+    /**
+     * Read numeric status fields only. Never log product IDs, account data,
+     * purchase JSON, obfuscated account IDs or purchase tokens.
+     */
+    private void installBillingValueDiagnostic(ClassLoader loader, String className,
+                                               String methodName, String label) {
+        try {
+            Class<?> type = Class.forName(className, false, loader);
+            Method method = type.getMethod(methodName);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                if (result instanceof Number) {
+                    logFx(Log.INFO, label + "=" + ((Number) result).intValue());
+                }
+                return result;
+            });
+            logFx(Log.INFO, "read-only value diagnostic installed=" + label);
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "value diagnostic unavailable=" + label + " reason=" + t.getClass().getSimpleName());
         }
     }
 
