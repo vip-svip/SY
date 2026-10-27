@@ -1,0 +1,109 @@
+name: Build FXAdHook LSPosed APK
+
+on:
+  push:
+    branches: [fx-hook-audit160]
+    paths:
+      - "adhook/**"
+      - ".github/workflows/build-fx-adhook.yml"
+      - "scripts/install_adhook_app.sh"
+      - "scripts/remove_adhook_app.sh"
+      - "scripts/tests/adhook-app-installer-regression.sh"
+  pull_request:
+    branches: [main]
+    paths:
+      - "adhook/**"
+      - ".github/workflows/build-fx-adhook.yml"
+      - "scripts/install_adhook_app.sh"
+      - "scripts/remove_adhook_app.sh"
+      - "scripts/tests/adhook-app-installer-regression.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Install SDK packages
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
+          else
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
+      - name: Validate modern API, secure config transport, and read-only diagnostics
+        shell: bash
+        run: |
+          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java
+          test -s "$PARSER_SRC"
+          test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
+          grep -q 'HookTargetConfigParser.parse' "$JAVA_SRC"
+          grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
+          test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
+          test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
+          test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
+          grep -q 'io.github.libxposed' adhook/app/build.gradle
+          grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
+          grep -q 'staticScope=false' adhook/app/src/main/resources/META-INF/xposed/module.prop
+          grep -q 'openRemoteFile' "$JAVA_SRC"
+          grep -q 'AutoCloseInputStream' "$JAVA_SRC"
+          grep -q 'PROP_CAP_REMOTE' "$JAVA_SRC"
+          grep -q 'Dialog.class' "$JAVA_SRC"
+          grep -q 'PopupWindow.class' "$JAVA_SRC"
+          grep -q 'installDynamicAdChildHooks' "$JAVA_SRC"
+          grep -q 'scheduleAddedViewCheck' "$JAVA_SRC"
+          grep -q 'dynamic ad child observers installed' "$JAVA_SRC"
+          grep -q 'billing responseCode' "$JAVA_SRC"
+          grep -q 'billing purchaseState' "$JAVA_SRC"
+          grep -q 'concrete billing value diagnostics installed=' "$JAVA_SRC"
+          grep -q 'Never log product IDs' "$JAVA_SRC"
+          grep -q 'versionCode 10000' adhook/app/build.gradle
+          grep -q 'com.huawei.hms.ads' "$JAVA_SRC"
+          grep -q 'com.miui.zeus.mimo.sdk' "$JAVA_SRC"
+          grep -q 'com.heytap.msp.mobad.api' "$JAVA_SRC"
+          ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "$JAVA_SRC"
+          ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "$JAVA_SRC"
+          ! test -f adhook/app/src/main/assets/xposed_init
+          test -s scripts/install_adhook_app.sh
+          test -s scripts/remove_adhook_app.sh
+          grep -q 'pm install -r' scripts/install_adhook_app.sh
+          ! grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' scripts/install_adhook_app.sh scripts/remove_adhook_app.sh
+      - name: Run parser and deployment regression tests, then build APK
+        run: |
+          sh scripts/tests/adhook-app-installer-regression.sh
+          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+      - name: Verify APK is signed and has modern Xposed resources
+        shell: bash
+        run: |
+          APK=adhook/app/build/outputs/apk/debug/app-debug.apk
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -s "$APK"
+          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$APK"
+          unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
+          unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
+          unzip -p "$APK" assets/xposed_init 2>/dev/null && exit 1 || true
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXAdHook-apk
+          path: adhook/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'de.privacyguard.adhook'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'de.privacyguard.adhook'
+        minSdk 28
+        targetSdk 34
+        versionCode 10000
+        versionName '1.0.0'
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+dependencies {
+    // Modern LSPosed API enables Remote Files, avoiding SELinux-denied reads of /data/local/tmp.
+    compileOnly 'io.github.libxposed:api:101.0.1'
+    testImplementation 'junit:junit:4.13.2'
+}
