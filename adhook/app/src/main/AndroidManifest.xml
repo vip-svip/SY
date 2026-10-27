@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="de.privacyguard.adhook">
-    <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="34" />
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34" />
     <application
         android:label="FX Ad Hook"
+        android:description="FX per-app ad-view detection and read-only subscription diagnostics. Requires LSPosed scope and FX target selection."
         android:allowBackup="false"
-        android:usesCleartextTraffic="false">
-        <meta-data android:name="xposedmodule" android:value="true" />
-        <meta-data android:name="xposedminversion" android:value="82" />
-        <meta-data android:name="xposeddescription" android:value="FX per-app ad view detection and read-only billing diagnostics. Requires module target selection and LSPosed scope. Does not alter purchase entitlement." />
-        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
-    </application>
+        android:usesCleartextTraffic="false" />
 </manifest>
