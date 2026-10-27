@@ -37,10 +37,13 @@ jobs:
           cache: true
           cache-dependency-path: adguardhome/go.sum
 
-      - name: Install Android SDK and NDK r26b
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: ndk;26.1.10909125
+          packages: platform-tools
+
+      - name: Install NDK r26b
+        run: sdkmanager "ndk;26.1.10909125"
 
       - name: Build embedded web UI
         working-directory: adguardhome
