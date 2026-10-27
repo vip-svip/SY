@@ -38,7 +38,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/agh-check-workdir"
           "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome.yaml" -w "$RUNNER_TEMP/agh-check-workdir" --no-check-update
           echo "PASS: official AdGuard Home v0.107.79 accepted the schema-34 loopback-only base DNS config."
-          EXPECTED_FX_CONFIG="a8a873da8231a07bbde9867664538d2f3d227e1ed3d66122f4cc505b4c8072f0"
+          EXPECTED_FX_CONFIG="f214d625a6bff1df6b8fb6b9ff8c53e9e90d3625810e1a2c4cbe9a15377a030c"
           echo "$EXPECTED_FX_CONFIG  .github/dns/AdGuardHome-with-fx-rules.yaml" | sha256sum --check
           cp .github/dns/AdGuardHome-with-fx-rules.yaml "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml"
           mkdir -p "$RUNNER_TEMP/agh-fx-check-workdir"
