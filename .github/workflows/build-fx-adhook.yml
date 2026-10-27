@@ -47,6 +47,11 @@ jobs:
         shell: bash
         run: |
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java
+          test -s "$PARSER_SRC"
+          test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
+          grep -q 'HookTargetConfigParser.parse' "$JAVA_SRC"
+          grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
           test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
           test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
@@ -72,8 +77,8 @@ jobs:
           ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "$JAVA_SRC"
           ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "$JAVA_SRC"
           ! test -f adhook/app/src/main/assets/xposed_init
-      - name: Build APK
-        run: gradle --no-daemon -p adhook :app:assembleDebug
+      - name: Run parser regression tests and build APK
+        run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK is signed and has modern Xposed resources
         shell: bash
         run: |
