@@ -49,10 +49,6 @@ public final class AdVisibilityHook extends XposedModule {
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
-    private static final Set<String> BILLING_METHODS = new HashSet<>(Arrays.asList(
-            "isReady", "queryPurchases", "queryPurchasesAsync", "queryPurchaseHistoryAsync",
-            "queryProductDetailsAsync", "querySkuDetailsAsync", "launchBillingFlow",
-            "acknowledgePurchase", "consumeAsync", "consumePurchase", "getConnectionState"));
     private static final String[] AD_CLASS_MARKERS = {
             "com.google.android.gms.ads", "com.bytedance.sdk.openadsdk", "com.pangle",
             "com.qq.e.ads", "com.kwad.sdk", "com.baidu.mobads",
@@ -293,8 +289,8 @@ public final class AdVisibilityHook extends XposedModule {
     /**
      * Ad SDKs often insert feed/native ad views after Activity.onResume and after
      * the first four delayed scans. Observe child insertion only inside processes
-     * already explicitly scoped to a selected app, then perform a bounded check
-     * on that subtree. This covers late-loading/scroll-loaded ads without polling
+     * already explicitly scoped to a selected app, then check the inserted view itself with the same conservative markers. Child
+     * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
     private void installDynamicAdChildHooks(final String pkg, final Target target) {
@@ -346,9 +342,6 @@ public final class AdVisibilityHook extends XposedModule {
                                     " class=" + shortName(added.getClass().getName()));
                         }
                         return;
-                    }
-                    if (added instanceof ViewGroup) {
-                        scanTree(added, added, 0, new int[]{0}, target, pkg);
                     }
                 } catch (Throwable t) {
                     logFx(Log.DEBUG, "dynamic ad subtree scan failed: " + t.getClass().getSimpleName());
@@ -482,37 +475,23 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
     private void installReadOnlyBillingDiagnostics(ClassLoader loader) {
-        try {
-            Class<?> billing = Class.forName("com.android.billingclient.api.BillingClient", false, loader);
-            int hooked = 0;
-            for (Method method : billing.getDeclaredMethods()) {
-                if (!BILLING_METHODS.contains(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        Object result = chain.proceed();
-                        logFx(Log.INFO, "billing diagnostic call=" + method.getName() +
-                                " returnType=" + (result == null ? "null" : result.getClass().getSimpleName()));
-                        return result;
-                    });
-                    hooked++;
-                } catch (Throwable ignored) {}
-            }
-            logFx(Log.INFO, "read-only billing diagnostics hooks=" + hooked);
-            installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingResult",
-                    "getResponseCode", "billing responseCode");
-            installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
-                    "getPurchaseState", "billing purchaseState");
-        } catch (Throwable t) {
-            logFx(Log.INFO, "billing diagnostics unavailable: Google Play Billing client not found");
-        }
+        int installed = 0;
+        // Hook concrete value getters which apps actually call. Hooking abstract
+        // BillingClient declarations alone can look successful while never firing.
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingResult",
+                "getResponseCode", "billing responseCode")) installed++;
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
+                "getPurchaseState", "billing purchaseState")) installed++;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "read-only concrete billing value diagnostics installed=" + installed + "/2");
     }
 
     /**
      * Read numeric status fields only. Never log product IDs, account data,
      * purchase JSON, obfuscated account IDs or purchase tokens.
      */
-    private void installBillingValueDiagnostic(ClassLoader loader, String className,
-                                               String methodName, String label) {
+    private boolean installBillingValueDiagnostic(ClassLoader loader, String className,
+                                                  String methodName, String label) {
         try {
             Class<?> type = Class.forName(className, false, loader);
             Method method = type.getMethod(methodName);
@@ -524,8 +503,10 @@ public final class AdVisibilityHook extends XposedModule {
                 return result;
             });
             logFx(Log.INFO, "read-only value diagnostic installed=" + label);
+            return true;
         } catch (Throwable t) {
             logFx(Log.DEBUG, "value diagnostic unavailable=" + label + " reason=" + t.getClass().getSimpleName());
+            return false;
         }
     }
 
