@@ -173,7 +173,7 @@ jobs:
             do-udp: yes
             do-tcp: yes
             root-hints: "$T/root.hints"
-            trust-anchor-file: "$T/root.key"
+            auto-trust-anchor-file: "$T/root.key"
             module-config: "validator iterator"
             qname-minimisation: yes
             harden-glue: yes
