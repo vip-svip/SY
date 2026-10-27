@@ -16,7 +16,6 @@ import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -146,9 +145,10 @@ public final class AdVisibilityHook extends XposedModule {
 
     private boolean loadConfig() {
         if (!remoteFilesAvailable) return false;
-        try (ParcelFileDescriptor pfd = openRemoteFile(CONFIG_NAME);
-             FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
-             InputStreamReader isr = new InputStreamReader(fis, StandardCharsets.UTF_8);
+        // AutoCloseInputStream owns the descriptor, so it is closed exactly once.
+        try (InputStreamReader isr = new InputStreamReader(
+                    new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME)),
+                    StandardCharsets.UTF_8);
              BufferedReader reader = new BufferedReader(isr)) {
             String section = "";
             String line;
