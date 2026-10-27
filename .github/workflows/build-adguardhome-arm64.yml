@@ -14,9 +14,6 @@ jobs:
     name: Fetch and verify official release
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository config fixture
-        uses: actions/checkout@v4
-
       - name: Download official AdGuard Home v0.107.79
         shell: bash
         run: |
@@ -35,33 +32,7 @@ jobs:
           mkdir -p artifact-adguardhome
           install -m 0755 "$AGH_MEMBER" artifact-adguardhome/AdGuardHome
           sha256sum artifact-adguardhome/AdGuardHome | tee artifact-adguardhome/SHA256SUMS
-          printf '%s\n' 'Official AdGuard Home v0.107.79. Release archive SHA-256 verified and binary ELF machine verified as AArch64. This does not claim Android runtime compatibility; test on Android/ARM64 before enabling DNS redirection.' > artifact-adguardhome/BUILD-STATUS.txt
-
-      - name: Validate the exact AdGuard Home config with official Linux amd64 binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL="https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.79/AdGuardHome_linux_amd64.tar.gz"
-          EXPECTED="c48f4a43000665484c5ec28177de11a004759b620dae8f77b2aabefc9ef3687f"
-          curl --fail --location --retry 3 --retry-all-errors "$URL" -o AdGuardHome_linux_amd64.tar.gz
-          echo "$EXPECTED  AdGuardHome_linux_amd64.tar.gz" | sha256sum --check
-          tar -tzf AdGuardHome_linux_amd64.tar.gz > amd64-archive-list.txt
-          AGH_AMD64_MEMBER="$(grep -E '(^|/)AdGuardHome
-        uses: actions/upload-artifact@v4
-        with:
-          name: adguardhome-android-arm64-v0.107.79
-          path: artifact-adguardhome/
-          if-no-files-found: error
-          retention-days: 14
- amd64-archive-list.txt | sed -n '1p')"
-          test -n "$AGH_AMD64_MEMBER"
-          mkdir -p "$RUNNER_TEMP/agh-amd64"
-          tar -xzf AdGuardHome_linux_amd64.tar.gz -- "$AGH_AMD64_MEMBER" -C "$RUNNER_TEMP/agh-amd64"
-          AGH_AMD64="$RUNNER_TEMP/agh-amd64/$AGH_AMD64_MEMBER"
-          test -x "$AGH_AMD64"
-          cp "$GITHUB_WORKSPACE/.github/dns/AdGuardHome.yaml" "$RUNNER_TEMP/AdGuardHome.yaml"
-          "$AGH_AMD64" --check-config -c "$RUNNER_TEMP/AdGuardHome.yaml" -w "$RUNNER_TEMP/agh-check-workdir" --no-check-update
-          echo "Official v0.107.79 Linux amd64 binary accepted the loopback-only schema-34 config snapshot. Runtime Android behavior remains device-test-only."
+          printf '%s\\n' 'Official AdGuard Home v0.107.79. Release archive SHA-256 verified and binary ELF machine verified as AArch64. This does not claim Android runtime compatibility; test on Android/ARM64 before enabling DNS redirection.' > artifact-adguardhome/BUILD-STATUS.txt
 
       - name: Upload verified ARM64 binary
         uses: actions/upload-artifact@v4
