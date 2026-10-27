@@ -54,7 +54,6 @@ querylog:
 statistics:
   enabled: false
   interval: 10d
-  size_memory: 1000
   ignored: []
   ignored_enabled: false
 schema_version: 34
