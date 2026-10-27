@@ -6,6 +6,11 @@ on:
     paths:
       - "adhook/**"
       - ".github/workflows/build-fx-adhook.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "adhook/**"
+      - ".github/workflows/build-fx-adhook.yml"
   workflow_dispatch:
 
 permissions:
@@ -37,10 +42,10 @@ jobs:
           grep -q 'member diagnostic' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           ! grep -Eq 'param\\.setResult|setResult\\(' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
       - name: Build APK
-        run: gradle --no-daemon -p adhook :app:assembleRelease
+        run: gradle --no-daemon -p adhook :app:assembleDebug
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: FXAdHook-apk
-          path: adhook/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: adhook/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
