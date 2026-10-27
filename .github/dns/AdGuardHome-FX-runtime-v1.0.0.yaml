@@ -21,10 +21,9 @@ dns:
   port: 53
   # All cache misses go to the device-local Unbound recursive resolver.
   # Unbound queries root/TLD/authoritative servers directly, with no fixed
-  # Tencent/Alibaba/Cloudflare forwarding resolver.
+  # No external forwarding resolver is configured here.
   upstream_dns:
   - 127.0.0.1:5353
-  bootstrap_dns: []
   cache_enabled: true
   cache_size: 4194304
   hostsfile_enabled: false
