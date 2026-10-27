@@ -1,0 +1,91 @@
+name: Build AdGuard Home for Android ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-adguardhome-android-arm64.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-arm64:
+    name: Cross-build Android ARM64 executable
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout official AdGuard Home source
+        uses: actions/checkout@v4
+        with:
+          repository: AdguardTeam/AdGuardHome
+          ref: v0.107.79
+          path: adguardhome
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: adguardhome/client_v2/package-lock.json
+
+      - name: Set up Go from official source toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.6"
+          cache: true
+          cache-dependency-path: adguardhome/go.sum
+
+      - name: Install Android SDK and NDK r26b
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;26.1.10909125
+
+      - name: Build embedded web UI
+        working-directory: adguardhome
+        run: |
+          set -euo pipefail
+          make js-deps
+          make js-build
+          test -d build
+          test -n "$(find build -type f -print -quit)"
+
+      - name: Cross-compile for Android ARM64
+        working-directory: adguardhome
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          CC="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+          CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
+          test -x "$CC"
+          mkdir -p ../artifact
+          CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC="$CC" CXX="$CXX" \
+            go build -trimpath -buildvcs=false \
+            -ldflags="-s -w -X github.com/AdguardTeam/AdGuardHome/internal/version.version=v0.107.79 -X github.com/AdguardTeam/AdGuardHome/internal/version.channel=release" \
+            -o ../artifact/AdGuardHome .
+          test -s ../artifact/AdGuardHome
+          file ../artifact/AdGuardHome | tee ../artifact/FILE.txt
+          readelf -h ../artifact/AdGuardHome | grep -E 'Machine:.*AArch64'
+          readelf -lW ../artifact/AdGuardHome | grep -F '/system/bin/linker64'
+          sha256sum ../artifact/AdGuardHome | tee ../artifact/SHA256SUMS
+
+      - name: Write compatibility boundary
+        shell: bash
+        run: |
+          cat > artifact/BUILD-STATUS.txt <<'EOF'
+          Build target: Android arm64 (GOOS=android GOARCH=arm64), Android NDK r26b, API level 24.
+          Source: official AdGuard Home v0.107.79.
+          CI verifies AArch64 ELF and Android /system/bin/linker64 interpreter.
+          This verifies the build target, not runtime operation on a rooted OnePlus 12.
+          Before enabling FX DNS redirects, test startup/shutdown, loopback bind, UDP/TCP DNS, upstream resolution, IPv6, SELinux, VPN coexistence and fail-open rollback on-device.
+          EOF
+
+      - name: Upload Android ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adguardhome-android-arm64-v0.107.79
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
