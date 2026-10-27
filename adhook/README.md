@@ -4,7 +4,7 @@ This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP s
 
 ## Activation contract
 1. In FX WebUI, enable the master switch and select one or more installed apps with ad categories.
-2. Reboot after installing/upgrading FX so Android scans the FXAdHook system app.
+2. The FX installer places both Hook APKs as ordinary Android apps under `/data/app` via PackageManager. This does not require a metamodule for the Hook APKs. Reboot after installing/upgrading FX so LSPosed scans the module; if install-time PackageManager installation fails, the boot service retries and logs to `/data/adb/privacyguard/adhook-install.log`.
 3. In LSPosed Manager, enable FX Ad Hook and include the exact same apps in its scope.
 4. Force-stop and reopen the target app after changing configuration.
 
@@ -30,3 +30,7 @@ The main FX module publishes list:hook_targets rows in this form; the root-side 
 com.example.app,splash=1,feed=1,overlay=0,member_diag=1|LSPosed应用Hook|1
 
 Top-level hook_ads_enabled=1 is required. `lsposed_enabled` controls the older PrivacyGuard hooks, not this separately-scoped ad module. API 101 Remote Files support is required; older legacy-only Xposed hosts won't run this modern module. The module's LSPosed scope is intentionally opt-in: choose each target both here and in LSPosed Manager.
+
+
+## Installer boundary
+The bundled Hook APKs are stored under `optional/`, not `system/priv-app/`, and `scripts/install_adhook_app.sh` stages them under `/data/local/tmp` then installs them as ordinary apps. It checks the APK SHA-256, skips unchanged installs, retries a few times, and never edits DNS/VPN/firewall settings. The same helper is exercised by a host-side PackageManager stub test. Note that FX's separate `/system/etc/hosts` overlay still requires a compatible KernelSU metamodule for that hosts feature; this change only removes that requirement from Hook APK deployment.
