@@ -40,7 +40,11 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
     private static final String CONFIG_PATH = "/data/local/tmp/privacyguard/xposed.conf";
     private static final String SELF = "de.privacyguard.adhook";
     private static final Set<String> NEVER = new HashSet<>(Arrays.asList(
-            "android", "system", "de.privacyguard.hook", SELF, "org.lsposed.manager"));
+            "android", "system", "de.privacyguard.hook", SELF, "org.lsposed.manager",
+            "com.android.systemui", "com.android.settings",
+            "com.android.permissioncontroller", "com.google.android.permissioncontroller",
+            "com.android.packageinstaller", "com.google.android.packageinstaller",
+            "com.android.phone", "com.android.server.telecom"));
     private static final Set<String> BILLING_METHODS = new HashSet<>(Arrays.asList(
             "isReady", "queryPurchases", "queryPurchasesAsync", "queryPurchaseHistoryAsync",
             "queryProductDetailsAsync", "querySkuDetailsAsync", "launchBillingFlow",
@@ -100,7 +104,7 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpp) {
         packageName = lpp.packageName == null ? "" : lpp.packageName;
-        if (NEVER.contains(packageName)) return;
+        if (isProtectedPackage(packageName)) return;
         if (!loadConfig()) {
             log("inactive: missing/unreadable config");
             return;
@@ -188,6 +192,10 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
                                 if (!(param.args[0] instanceof Activity)) return;
                                 Activity a = (Activity) param.args[0];
                                 if (!packageName.equals(a.getPackageName())) return;
+                                // Some SDKs present ads as a dedicated Activity instead of a View.
+                                // Only dismiss when both an SDK namespace and a category-specific
+                                // ad Activity marker match; never finish arbitrary app activities.
+                                if (maybeDismissSdkAdActivity(a)) return;
                                 scheduleScans(a);
                             } catch (Throwable t) {
                                 log("resume hook failed: " + t.getClass().getSimpleName());
@@ -244,6 +252,40 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
             log("popup hook enumeration failed: " + t.getClass().getSimpleName());
         }
         log("popup ad view observers installed=" + popupHooks);
+    }
+
+    private static boolean isProtectedPackage(String pkg) {
+        if (NEVER.contains(pkg)) return true;
+        return pkg.startsWith("com.android.providers.") ||
+                pkg.startsWith("com.android.permissioncontroller.");
+    }
+
+    private boolean maybeDismissSdkAdActivity(final Activity activity) {
+        final String cls = lower(activity.getClass().getName());
+        boolean sdk = false;
+        for (String marker : AD_CLASS_MARKERS) {
+            if (cls.contains(marker)) { sdk = true; break; }
+        }
+        if (!sdk) return false;
+        boolean splash = target.splash && hasAny(cls, new String[]{
+                "splashad", "splash_ad", "adsplash", "ad_splash", "launchscreenad",
+                "launchadactivity", "openadactivity", "appopenad"
+        });
+        boolean overlay = target.overlay && hasAny(cls, new String[]{
+                "adactivity", "ad_activity", "interstitial", "fullscreen",
+                "full_screen", "rewarded", "videoadactivity", "ttfullscreen",
+                "ksfullscreen", "overlayad"
+        });
+        if (!splash && !overlay) return false;
+        try {
+            if (!activity.isFinishing()) activity.finish();
+            log("dismissed recognized SDK ad Activity package=" + packageName +
+                    " class=" + shortName(cls) + " category=" + (splash ? "splash" : "overlay"));
+            return true;
+        } catch (Throwable t) {
+            log("SDK ad Activity finish failed: " + t.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private void scheduleScans(final Activity activity) {
