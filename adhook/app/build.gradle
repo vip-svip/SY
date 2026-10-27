@@ -9,7 +9,7 @@ android {
         minSdk 28
         targetSdk 34
         versionCode 2
-        versionName '1.0.0-audit160'
+        versionName '1.0.0'
     }
     buildTypes {
         release { minifyEnabled false }
