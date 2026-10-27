@@ -28,110 +28,59 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           root = Path("quickjs")
-          def replace_once(rel, old, new):
+
+          def sub_once(rel, pattern, repl, flags=0):
               p = root / rel
-              s = p.read_text()
-              n = s.count(old)
-              if n != 1:
-                  raise SystemExit(f"{rel}: expected one patch anchor, found {n}")
-              p.write_text(s.replace(old, new, 1))
+              source = p.read_text()
+              updated, count = re.subn(pattern, repl, source, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f"{rel}: expected one patch anchor, found {count}: {pattern}")
+              p.write_text(updated)
 
-          replace_once("quickjs.h",
-          """JS_EXTERN void JS_SetModuleLoaderFunc2(JSRuntime *rt,
-                                               JSModuleNormalizeFunc *module_normalize,
-                                               JSModuleLoaderFunc2 *module_loader,
-                                               JSModuleCheckSupportedImportAttributes *module_check_attrs,
-                                               void *opaque);
-          """,
-          """JS_EXTERN void JS_SetModuleLoaderFunc2(JSRuntime *rt,
-                                               JSModuleNormalizeFunc *module_normalize,
-                                               JSModuleLoaderFunc2 *module_loader,
-                                               JSModuleCheckSupportedImportAttributes *module_check_attrs,
-                                               void *opaque);
+          # Public API declaration: anchor on the adjacent normalizer comment to
+          # avoid depending on whitespace in the upstream function prototype.
+          sub_once("quickjs.h",
+              r"(?m)^/\* Set an attributes-aware module normalizer\. Call after JS_SetModuleLoaderFunc2\. \*/$",
+              "/* FX: disable privileged/native module imports after trusted host initialization. */\nJS_EXTERN void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled);\n\n/* Set an attributes-aware module normalizer. Call after JS_SetModuleLoaderFunc2. */")
 
-          /* FX: disable privileged/native module imports after trusted host initialization. */
-          JS_EXTERN void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled);
-          """)
+          sub_once("quickjs.c",
+              r"(?m)^([ \t]*)JSModuleCheckSupportedImportAttributes \*module_check_attrs;\n\1void \*module_loader_opaque;\n",
+              lambda m: m.group(0) + m.group(1) + "bool disable_privileged_module_imports; /* FX script sandbox */\n")
 
-          replace_once("quickjs.c",
-          """    JSModuleCheckSupportedImportAttributes *module_check_attrs;
-              void *module_loader_opaque;
-          """,
-          """    JSModuleCheckSupportedImportAttributes *module_check_attrs;
-              void *module_loader_opaque;
-              bool disable_privileged_module_imports; /* FX script sandbox */
-          """)
+          sub_once("quickjs.c",
+              r"(?m)^int JS_SetModulePrivateValue\(JSContext \*ctx, JSModuleDef \*m, JSValue val\)$",
+              "void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled)\n{\n    if (rt)\n        rt->disable_privileged_module_imports = enabled;\n}\n\nint JS_SetModulePrivateValue(JSContext *ctx, JSModuleDef *m, JSValue val)")
 
-          replace_once("quickjs.c",
-          """void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
-                                          JSModuleNormalizeFunc2 *module_normalize)
-          {
-              rt->module_normalize_has_attr = true;
-              rt->normalize_u.module_normalize_func2 = module_normalize;
-          }
-          """,
-          """void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
-                                          JSModuleNormalizeFunc2 *module_normalize)
-          {
-              rt->module_normalize_has_attr = true;
-              rt->normalize_u.module_normalize_func2 = module_normalize;
-          }
+          # This guard is deliberately before loaded-module cache lookup, because
+          # --std preloads the native modules for the trusted host prelude.
+          sub_once("quickjs.c",
+              r"(?m)^([ \t]*)module_name = JS_NewAtom\(ctx, cname\);$",
+              r"""\1if (rt->disable_privileged_module_imports) {
+          \1    const char *suffix = strrchr(cname, '.');
+          \1    bool native_module = suffix && !strcmp(suffix, ".so");
+          \1    bool privileged_module = !strcmp(cname, "qjs:std") ||
+          \1                             !strcmp(cname, "qjs:os") ||
+          \1                             !strcmp(cname, "qjs:bjson");
+          \1    if (native_module || privileged_module) {
+          \1        JS_ThrowReferenceError(ctx, "privileged/native module import disabled by FX: %s", cname);
+          \1        js_free(ctx, cname);
+          \1        return NULL;
+          \1    }
+          \1}
+          \1module_name = JS_NewAtom(ctx, cname);""")
 
-          void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled)
-          {
-              if (rt)
-                  rt->disable_privileged_module_imports = enabled;
-          }
-          """)
-
-          replace_once("quickjs.c",
-          """    if (!cname)
-              return NULL;
-
-              module_name = JS_NewAtom(ctx, cname);
-          """,
-          """    if (!cname)
-              return NULL;
-
-              /* Must run before cache lookup: --std preloads these modules for
-                 the trusted host, but script code must not recover them by import(). */
-              if (rt->disable_privileged_module_imports) {
-                  const char *suffix = strrchr(cname, '.');
-                  bool native_module = suffix && !strcmp(suffix, ".so");
-                  bool privileged_module = !strcmp(cname, "qjs:std") ||
-                                           !strcmp(cname, "qjs:os") ||
-                                           !strcmp(cname, "qjs:bjson");
-                  if (native_module || privileged_module) {
-                      JS_ThrowReferenceError(ctx, "privileged/native module import disabled by FX: %s", cname);
-                      js_free(ctx, cname);
-                      return NULL;
-                  }
-              }
-
-              module_name = JS_NewAtom(ctx, cname);
-          """)
-
-          replace_once("qjs.c",
-          """        for(i = 0; i < include_count; i++) {
-                  if (eval_file(ctx, include_list[i], 0))
-                      goto fail;
-              }
-
-              if (standalone) {
-          """,
-          """        for(i = 0; i < include_count; i++) {
-                  if (eval_file(ctx, include_list[i], 0))
-                      goto fail;
-              }
-
-              /* The trusted host prelude captured private std/os references.
-                 Block subsequent user-script imports, including module-cache hits. */
-              if (load_std)
-                  JS_SetModuleImportSandbox(rt, true);
-
-              if (standalone) {
-          """)
+          qjs = root / "qjs.c"
+          s = qjs.read_text()
+          loop = s.index("for(i = 0; i < include_count; i++) {")
+          target = s.index("if (standalone) {", loop)
+          line_start = s.rfind("\n", 0, target) + 1
+          guard = ("        /* The trusted host prelude captured private std/os references. */\n"
+                   "        /* Restrict user scripts after includes; cache hits are also blocked. */\n"
+                   "        if (load_std)\n"
+                   "            JS_SetModuleImportSandbox(rt, true);\n\n")
+          qjs.write_text(s[:line_start] + guard + s[line_start:])
           print("FX QuickJS module import boundary patches applied")
           PY
 
@@ -148,19 +97,32 @@ jobs:
           cmake -S quickjs -B build-host -DCMAKE_BUILD_TYPE=Release -DQJS_BUILD_LIBC=ON -DQJS_BUILD_EXAMPLES=OFF
           cmake --build build-host --target qjs_exe -j2
           cat > host-prelude.js <<'EOF'
+          const _fxSmokeStd = std;
           globalThis.std = undefined;
           globalThis.os = undefined;
           globalThis.bjson = undefined;
+          globalThis.__fxSmokeFinish = function(ok, message) {
+            if (!ok) {
+              console.error('SECURITY FAILURE: ' + message);
+              _fxSmokeStd.exit(1);
+            }
+            console.log('FX module import boundary smoke: PASS');
+            _fxSmokeStd.exit(0);
+          };
           EOF
           cat > sandbox-smoke.js <<'EOF'
-          import('qjs:os').then(() => { throw new Error('SECURITY FAILURE: qjs:os import allowed'); },
-            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedOS = true; });
-          import('qjs:std').then(() => { throw new Error('SECURITY FAILURE: qjs:std import allowed'); },
-            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedSTD = true; });
-          import('qjs:bjson').then(() => { throw new Error('SECURITY FAILURE: qjs:bjson import allowed'); },
-            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedBJSON = true; });
-          import('/system/lib64/libc.so').then(() => { throw new Error('SECURITY FAILURE: native .so import allowed'); },
-            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedSO = true; });
+          const cases = [
+            ['qjs:os', e => String(e).includes('disabled by FX')],
+            ['qjs:std', e => String(e).includes('disabled by FX')],
+            ['qjs:bjson', e => String(e).includes('disabled by FX')],
+            ['/system/lib64/libc.so', e => String(e).includes('disabled by FX')]
+          ];
+          Promise.all(cases.map(([name, expected]) =>
+            import(name).then(() => ({name, ok:false}), e => ({name, ok:expected(e)}))
+          )).then(results => {
+            const bad = results.find(r => !r.ok);
+            globalThis.__fxSmokeFinish(!bad, bad ? bad.name + ' import was not blocked' : '');
+          }).catch(e => globalThis.__fxSmokeFinish(false, String(e)));
           EOF
           build-host/qjs --std -C -I host-prelude.js sandbox-smoke.js
           sha256sum build-host/qjs
@@ -184,7 +146,7 @@ jobs:
           readelf -h artifact/qjs | grep -E 'Machine:.*AArch64'
           readelf -lW artifact/qjs | grep -F '/system/bin/linker64'
           printf '%s\n' 'QuickJS-NG v0.17.0; Android arm64-v8a; NDK r26b; API 24' > artifact/BUILD-INFO.txt
-          printf '%s\n' 'Hardened: qjs:std/qjs:os/qjs:bjson and native .so imports are blocked after the trusted host prelude initializes.' >> artifact/BUILD-INFO.txt
+          printf '%s\n' 'Hardened: qjs:std/qjs:os/qjs:bjson and native .so imports blocked after trusted host initialization.' >> artifact/BUILD-INFO.txt
           printf '%s\n' 'This checks build target and host sandbox behavior, not OnePlus 12 runtime operation.' >> artifact/BUILD-INFO.txt
           (cd artifact && sha256sum qjs > SHA256SUMS)
 
