@@ -15,7 +15,7 @@ Effects require both gates: the app is listed in xposed.conf as a selected targe
 - Feed/banner: native_ad, feed_ad, banner_ad, AdView, ad_container, plus known SDK View class namespaces.
 - Interstitial/overlay: interstitial, rewarded_ad, fullscreenad, ad_dialog, ad_popup.
 - A visible "广告" or "Sponsored" label alone is never enough to hide a view; a strong resource-id/class marker or matching parent container is required.
-- Scans are bounded (max 1,800 views/depth 20), triggered on activity resume, and retried four times; no continuous polling.
+- Scans are bounded (max 1,800 views/depth 20), triggered on Activity resume and `Dialog.show()` / `PopupWindow` show calls, and retried four times; no continuous polling.
 - Class/resource naming is app-specific. No generic heuristic can guarantee all proprietary apps; unrecognized layouts need an app-specific rule.
 
 ## Membership diagnostics
