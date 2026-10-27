@@ -54,6 +54,7 @@ jobs:
           grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
           grep -q 'staticScope=false' adhook/app/src/main/resources/META-INF/xposed/module.prop
           grep -q 'openRemoteFile' "$JAVA_SRC"
+          grep -q 'AutoCloseInputStream' "$JAVA_SRC"
           grep -q 'PROP_CAP_REMOTE' "$JAVA_SRC"
           grep -q 'Dialog.class' "$JAVA_SRC"
           grep -q 'PopupWindow.class' "$JAVA_SRC"
