@@ -8,7 +8,7 @@ This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP s
 3. In LSPosed Manager, enable FX Ad Hook and include the exact same apps in its scope.
 4. Force-stop and reopen the target app after changing configuration.
 
-Effects require both gates: the app is listed in xposed.conf as a selected target and LSPosed actually loads this module into that process. Missing or invalid config is a no-op.
+Effects require both gates: the app is listed in the FX-generated target config and LSPosed actually loads this module into that process because the same package is in LSPosed Manager scope. The target process cannot read root files directly. FX publishes only the small hook target list to `/data/adb/lspd/modules/<user>/de.privacyguard.adhook/files/fx-hook-targets.conf`; the module reads it via modern libxposed API 101 `openRemoteFile()`. If Remote Files is unavailable, missing, unreadable, or malformed, it fails closed/no-op.
 
 ## Built-in heuristic rules
 - Splash/open-app: `splash_ad`, `splashad`, `ad_splash`, `open_ad`, `launch_ad`, `launchscreenad`, `splashpage`.
@@ -23,7 +23,7 @@ Effects require both gates: the app is listed in xposed.conf as a selected targe
 member_diag is read-only. If Google Play Billing's BillingClient class is present, it records method names and result types only. It does not alter returned results, entitlement flags, purchase state, SKU, account data, or purchase tokens; it is not a VIP unlocker.
 
 ## Config
-The main FX module publishes list:hook_targets rows in this form:
+The main FX module publishes list:hook_targets rows in this form; the root-side generator mirrors only `hook_ads_enabled` and this list into LSPosed Remote Files:
 com.example.app,splash=1,feed=1,overlay=0,member_diag=1|LSPosed应用Hook|1
 
-Top-level hook_ads_enabled=1 is required. lsposed_enabled controls the older PrivacyGuard hooks, not this separately-scoped ad module.
+Top-level hook_ads_enabled=1 is required. `lsposed_enabled` controls the older PrivacyGuard hooks, not this separately-scoped ad module. API 101 Remote Files support is required; older legacy-only Xposed hosts won't run this modern module. The module's LSPosed scope is intentionally opt-in: choose each target both here and in LSPosed Manager.
