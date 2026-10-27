@@ -32,7 +32,7 @@ jobs:
           tar -xzf agh-linux-amd64.tar.gz -C "$RUNNER_TEMP/agh-amd64" -- "$MEMBER"
           AGH="$RUNNER_TEMP/agh-amd64/$MEMBER"
           test -x "$AGH"
-          EXPECTED_CONFIG="fdf81b355b057509d5acde4b1ed3b39e8a04fed71484081b0c1793a9fa4d6e3e"
+          EXPECTED_CONFIG="26019a67be1484035d7d2366dcdf2c9aa3db3f2ed03b39dc28e173a021b51fc4"
           echo "$EXPECTED_CONFIG  .github/dns/AdGuardHome.yaml" | sha256sum --check
           cp .github/dns/AdGuardHome.yaml "$RUNNER_TEMP/AdGuardHome.yaml"
           mkdir -p "$RUNNER_TEMP/agh-check-workdir"
