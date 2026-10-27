@@ -29,7 +29,7 @@ jobs:
           MEMBER="$(awk '{ n=split($0,p,"/"); if(p[n]=="AdGuardHome"){print; exit} }' archive-list.txt)"
           test -n "$MEMBER"
           mkdir -p "$RUNNER_TEMP/agh-amd64"
-          tar -xzf agh-linux-amd64.tar.gz -- "$MEMBER" -C "$RUNNER_TEMP/agh-amd64"
+          tar -xzf agh-linux-amd64.tar.gz -C "$RUNNER_TEMP/agh-amd64" -- "$MEMBER"
           AGH="$RUNNER_TEMP/agh-amd64/$MEMBER"
           test -x "$AGH"
           EXPECTED_CONFIG="fdf81b355b057509d5acde4b1ed3b39e8a04fed71484081b0c1793a9fa4d6e3e"
