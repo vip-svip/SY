@@ -24,6 +24,7 @@ dns:
   # Tencent/Alibaba/Cloudflare forwarding resolver.
   upstream_dns:
   - 127.0.0.1:5353
+  bootstrap_dns: []
   cache_enabled: true
   cache_size: 4194304
   hostsfile_enabled: false
