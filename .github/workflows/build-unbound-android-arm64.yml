@@ -81,12 +81,16 @@ jobs:
           set -euo pipefail
           NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
           PREFIX="$GITHUB_WORKSPACE/expat-android"
-          cmake -S expat-2.9.0/expat -B expat-build \
+          EXPAT_CMAKE="$(find "$GITHUB_WORKSPACE" -maxdepth 4 -type f -name CMakeLists.txt -print -quit)"
+          test -n "$EXPAT_CMAKE"
+          EXPAT_SOURCE="$(dirname "$EXPAT_CMAKE")"
+          echo "Expat CMake source: $EXPAT_SOURCE"
+          cmake -S "$EXPAT_SOURCE" -B expat-build \
             -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=24 \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
             -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_TESTS=OFF \
-            -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
+            -DEXPAT_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF \
             -DEXPAT_BUILD_DOCS=OFF -DEXPAT_WITH_LIBBSD=OFF
           cmake --build expat-build --parallel 2
           cmake --install expat-build
