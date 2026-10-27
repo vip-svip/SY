@@ -34,7 +34,7 @@ jobs:
       - name: Install SDK packages
         shell: bash
         run: |
-          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK_ROOT="\${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
             SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
           else
@@ -43,24 +43,37 @@ jobs:
           test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
-      - name: Validate scope and read-only billing diagnostics
+      - name: Validate modern API, secure config transport, and read-only diagnostics
+        shell: bash
         run: |
-          test -f adhook/app/src/main/assets/xposed_init
-          grep -q 'hook_ads_enabled' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'member diagnostic' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'Dialog.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'PopupWindow.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'maybeDismissSdkAdActivity' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'splashactivity' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'ppssplash' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'com.android.systemui' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'android:value="82"' adhook/app/src/main/AndroidManifest.xml
-          grep -q 'com.huawei.hms.ads' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'com.miui.zeus.mimo.sdk' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          grep -q 'com.heytap.msp.mobad.api' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          ! grep -Eq 'param[.]setResult|setResult[(]' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
+          test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
+          test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
+          grep -q 'io.github.libxposed' adhook/app/build.gradle
+          grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
+          grep -q 'staticScope=false' adhook/app/src/main/resources/META-INF/xposed/module.prop
+          grep -q 'openRemoteFile' "$JAVA_SRC"
+          grep -q 'PROP_CAP_REMOTE' "$JAVA_SRC"
+          grep -q 'Dialog.class' "$JAVA_SRC"
+          grep -q 'PopupWindow.class' "$JAVA_SRC"
+          grep -q 'com.huawei.hms.ads' "$JAVA_SRC"
+          grep -q 'com.miui.zeus.mimo.sdk' "$JAVA_SRC"
+          grep -q 'com.heytap.msp.mobad.api' "$JAVA_SRC"
+          ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "$JAVA_SRC"
+          ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "$JAVA_SRC"
+          ! test -f adhook/app/src/main/assets/xposed_init
       - name: Build APK
         run: gradle --no-daemon -p adhook :app:assembleDebug
+      - name: Verify APK is signed and has modern Xposed resources
+        shell: bash
+        run: |
+          APK=adhook/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify "$APK"
+          unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
+          unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
+          unzip -p "$APK" assets/xposed_init 2>/dev/null && exit 1 || true
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
