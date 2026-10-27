@@ -1,0 +1,197 @@
+name: Build hardened QuickJS-NG for FX Android ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-quickjs-fx-sandbox.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned QuickJS-NG source
+        uses: actions/checkout@v4
+        with:
+          repository: quickjs-ng/quickjs
+          ref: v0.17.0
+          path: quickjs
+          persist-credentials: false
+
+      - name: Apply FX import boundary hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("quickjs")
+          def replace_once(rel, old, new):
+              p = root / rel
+              s = p.read_text()
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f"{rel}: expected one patch anchor, found {n}")
+              p.write_text(s.replace(old, new, 1))
+
+          replace_once("quickjs.h",
+          """JS_EXTERN void JS_SetModuleLoaderFunc2(JSRuntime *rt,
+                                               JSModuleNormalizeFunc *module_normalize,
+                                               JSModuleLoaderFunc2 *module_loader,
+                                               JSModuleCheckSupportedImportAttributes *module_check_attrs,
+                                               void *opaque);
+          """,
+          """JS_EXTERN void JS_SetModuleLoaderFunc2(JSRuntime *rt,
+                                               JSModuleNormalizeFunc *module_normalize,
+                                               JSModuleLoaderFunc2 *module_loader,
+                                               JSModuleCheckSupportedImportAttributes *module_check_attrs,
+                                               void *opaque);
+
+          /* FX: disable privileged/native module imports after trusted host initialization. */
+          JS_EXTERN void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled);
+          """)
+
+          replace_once("quickjs.c",
+          """    JSModuleCheckSupportedImportAttributes *module_check_attrs;
+              void *module_loader_opaque;
+          """,
+          """    JSModuleCheckSupportedImportAttributes *module_check_attrs;
+              void *module_loader_opaque;
+              bool disable_privileged_module_imports; /* FX script sandbox */
+          """)
+
+          replace_once("quickjs.c",
+          """void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
+                                          JSModuleNormalizeFunc2 *module_normalize)
+          {
+              rt->module_normalize_has_attr = true;
+              rt->normalize_u.module_normalize_func2 = module_normalize;
+          }
+          """,
+          """void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
+                                          JSModuleNormalizeFunc2 *module_normalize)
+          {
+              rt->module_normalize_has_attr = true;
+              rt->normalize_u.module_normalize_func2 = module_normalize;
+          }
+
+          void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled)
+          {
+              if (rt)
+                  rt->disable_privileged_module_imports = enabled;
+          }
+          """)
+
+          replace_once("quickjs.c",
+          """    if (!cname)
+              return NULL;
+
+              module_name = JS_NewAtom(ctx, cname);
+          """,
+          """    if (!cname)
+              return NULL;
+
+              /* Must run before cache lookup: --std preloads these modules for
+                 the trusted host, but script code must not recover them by import(). */
+              if (rt->disable_privileged_module_imports) {
+                  const char *suffix = strrchr(cname, '.');
+                  bool native_module = suffix && !strcmp(suffix, ".so");
+                  bool privileged_module = !strcmp(cname, "qjs:std") ||
+                                           !strcmp(cname, "qjs:os") ||
+                                           !strcmp(cname, "qjs:bjson");
+                  if (native_module || privileged_module) {
+                      JS_ThrowReferenceError(ctx, "privileged/native module import disabled by FX: %s", cname);
+                      js_free(ctx, cname);
+                      return NULL;
+                  }
+              }
+
+              module_name = JS_NewAtom(ctx, cname);
+          """)
+
+          replace_once("qjs.c",
+          """        for(i = 0; i < include_count; i++) {
+                  if (eval_file(ctx, include_list[i], 0))
+                      goto fail;
+              }
+
+              if (standalone) {
+          """,
+          """        for(i = 0; i < include_count; i++) {
+                  if (eval_file(ctx, include_list[i], 0))
+                      goto fail;
+              }
+
+              /* The trusted host prelude captured private std/os references.
+                 Block subsequent user-script imports, including module-cache hits. */
+              if (load_std)
+                  JS_SetModuleImportSandbox(rt, true);
+
+              if (standalone) {
+          """)
+          print("FX QuickJS module import boundary patches applied")
+          PY
+
+      - name: Install Android NDK r26b
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned NDK
+        run: sdkmanager "ndk;26.1.10909125"
+
+      - name: Build hardened host test binary
+        run: |
+          set -euo pipefail
+          cmake -S quickjs -B build-host -DCMAKE_BUILD_TYPE=Release -DQJS_BUILD_LIBC=ON -DQJS_BUILD_EXAMPLES=OFF
+          cmake --build build-host --target qjs_exe -j2
+          cat > host-prelude.js <<'EOF'
+          globalThis.std = undefined;
+          globalThis.os = undefined;
+          globalThis.bjson = undefined;
+          EOF
+          cat > sandbox-smoke.js <<'EOF'
+          import('qjs:os').then(() => { throw new Error('SECURITY FAILURE: qjs:os import allowed'); },
+            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedOS = true; });
+          import('qjs:std').then(() => { throw new Error('SECURITY FAILURE: qjs:std import allowed'); },
+            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedSTD = true; });
+          import('qjs:bjson').then(() => { throw new Error('SECURITY FAILURE: qjs:bjson import allowed'); },
+            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedBJSON = true; });
+          import('/system/lib64/libc.so').then(() => { throw new Error('SECURITY FAILURE: native .so import allowed'); },
+            e => { if (!String(e).includes('disabled by FX')) throw e; globalThis.__blockedSO = true; });
+          EOF
+          build-host/qjs --std -C -I host-prelude.js sandbox-smoke.js
+          sha256sum build-host/qjs
+
+      - name: Cross-compile Android ARM64 binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          cmake -S quickjs -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQJS_BUILD_LIBC=ON \
+            -DQJS_BUILD_EXAMPLES=OFF
+          cmake --build build-android --target qjs_exe -j2
+          mkdir -p artifact
+          install -m 0755 build-android/qjs artifact/qjs
+          file artifact/qjs | tee artifact/FILE.txt
+          readelf -h artifact/qjs | grep -E 'Machine:.*AArch64'
+          readelf -lW artifact/qjs | grep -F '/system/bin/linker64'
+          printf '%s\n' 'QuickJS-NG v0.17.0; Android arm64-v8a; NDK r26b; API 24' > artifact/BUILD-INFO.txt
+          printf '%s\n' 'Hardened: qjs:std/qjs:os/qjs:bjson and native .so imports are blocked after the trusted host prelude initializes.' >> artifact/BUILD-INFO.txt
+          printf '%s\n' 'This checks build target and host sandbox behavior, not OnePlus 12 runtime operation.' >> artifact/BUILD-INFO.txt
+          (cd artifact && sha256sum qjs > SHA256SUMS)
+
+      - name: Upload hardened Android runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-quickjs-ng-android-arm64-sandbox-v0.17.0
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
