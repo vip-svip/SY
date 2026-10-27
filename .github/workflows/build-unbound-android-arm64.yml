@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/build-unbound-android-arm64.yml"
       - ".github/dns/Unbound-root.hints"
+      - "scripts/localdns-probe.c"
 
 permissions:
   contents: read
@@ -168,7 +169,7 @@ jobs:
             port: 5353
             access-control: 127.0.0.0/8 allow
             do-ip4: yes
-            do-ip6: no
+            do-ip6: yes
             do-udp: yes
             do-tcp: yes
             root-hints: "$T/root.hints"
@@ -182,9 +183,13 @@ jobs:
             msg-cache-size: 8m
             rrset-cache-size: 16m
             key-cache-size: 4m
-            neg-cache-size: 4m
+            neg-cache-size: 2m
             cache-min-ttl: 0
             cache-max-ttl: 86400
+            serve-expired: yes
+            serve-expired-ttl: 86400
+            serve-expired-reply-ttl: 30
+            aggressive-nsec: yes
             prefetch: yes
             prefetch-key: yes
             hide-identity: yes
