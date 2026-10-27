@@ -34,7 +34,7 @@ jobs:
       - name: Install SDK packages
         shell: bash
         run: |
-          SDK_ROOT="\${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
             SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
           else
