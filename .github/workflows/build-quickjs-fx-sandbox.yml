@@ -62,7 +62,10 @@ jobs:
           \1    bool native_module = suffix && !strcmp(suffix, ".so");
           \1    bool privileged_module = !strcmp(cname, "qjs:std") ||
           \1                             !strcmp(cname, "qjs:os") ||
-          \1                             !strcmp(cname, "qjs:bjson");
+          \1                             !strcmp(cname, "qjs:bjson") ||
+          \1                             !strcmp(cname, "std") ||
+          \1                             !strcmp(cname, "os") ||
+          \1                             !strcmp(cname, "bjson");
           \1    if (native_module || privileged_module) {
           \1        JS_ThrowReferenceError(ctx, "privileged/native module import disabled by FX: %s", cname);
           \1        js_free(ctx, cname);
@@ -115,7 +118,10 @@ jobs:
             ['qjs:os', e => String(e).includes('disabled by FX')],
             ['qjs:std', e => String(e).includes('disabled by FX')],
             ['qjs:bjson', e => String(e).includes('disabled by FX')],
-            ['/system/lib64/libc.so', e => String(e).includes('disabled by FX')]
+            ['/system/lib64/libc.so', e => String(e).includes('disabled by FX')],
+            ['std', e => String(e).includes('disabled by FX')],
+            ['os', e => String(e).includes('disabled by FX')],
+            ['bjson', e => String(e).includes('disabled by FX')]
           ];
           Promise.all(cases.map(([name, expected]) =>
             import(name).then(() => ({name, ok:false}), e => ({name, ok:expected(e)}))
