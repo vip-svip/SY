@@ -23,7 +23,7 @@ jobs:
           curl --fail --location --retry 3 --retry-all-errors "$URL" -o AdGuardHome_linux_arm64.tar.gz
           echo "$EXPECTED  AdGuardHome_linux_arm64.tar.gz" | sha256sum --check
           tar -tzf AdGuardHome_linux_arm64.tar.gz > archive-list.txt
-          AGH_MEMBER="$(awk '$NF == "AdGuardHome" { print; exit }' archive-list.txt)"
+          AGH_MEMBER="$(awk '{ n=split($0, p, \"/\"); if (p[n] == \"AdGuardHome\") { print; exit } }' archive-list.txt)"
           test -n "$AGH_MEMBER"
           tar -xzf AdGuardHome_linux_arm64.tar.gz -- "$AGH_MEMBER"
           test -f "$AGH_MEMBER"
