@@ -120,9 +120,11 @@ public final class AdVisibilityHook extends XposedModule {
             return;
         }
         configLoaded = loadConfig();
-        log(configLoaded
-                ? "remote target config loaded; selected targets=" + targets.size()
-                : "remote target config unavailable/invalid; no-op", null);
+        logFx(configLoaded
+                ? Log.INFO : Log.WARN,
+                configLoaded
+                        ? "remote target config loaded; selected targets=" + targets.size()
+                        : "remote target config unavailable/invalid; no-op");
     }
 
     @Override
@@ -360,11 +362,6 @@ public final class AdVisibilityHook extends XposedModule {
             return false;
         }
         return categoryMatches(evidence, target, sdkView);
-    }
-
-    private static final class ParentEvidence {
-        final String value;
-        ParentEvidence(String value) { this.value = value; }
     }
 
     private ParentEvidence findStrongAdParent(View view) {
