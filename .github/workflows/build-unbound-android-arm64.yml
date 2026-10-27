@@ -127,14 +127,23 @@ jobs:
           cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound" "$GITHUB_WORKSPACE/artifact/unbound"
           cp "$GITHUB_WORKSPACE/unbound-android/sbin/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
           "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf"
+          "$CC" -std=c11 -O2 -Wall -Wextra -Werror "$GITHUB_WORKSPACE/scripts/localdns-probe.c" -o "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
+          "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
+          cp "$GITHUB_WORKSPACE/.github/dns/Unbound-root.hints" "$GITHUB_WORKSPACE/artifact/root.hints"
           file "$GITHUB_WORKSPACE/artifact/unbound" | tee "$GITHUB_WORKSPACE/artifact/FILE.txt"
           readelf -h "$GITHUB_WORKSPACE/artifact/unbound" | grep -E 'Machine:.*AArch64'
           readelf -lW "$GITHUB_WORKSPACE/artifact/unbound" | grep -F '/system/bin/linker64'
-          if readelf -d "$GITHUB_WORKSPACE/artifact/unbound" | grep -Eiq 'lib(ssl|crypto)[.]so'; then
-            echo "Unbound must statically link the OpenSSL libraries bundled for Android" >&2
+          readelf -h "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | grep -E 'Machine:.*AArch64'
+          readelf -lW "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | grep -F '/system/bin/linker64'
+          if readelf -d "$GITHUB_WORKSPACE/artifact/unbound" | grep -Eiq 'lib(ssl|crypto|expat)[.]so'; then
+            echo "Unbound must statically link OpenSSL and Expat for Android" >&2
             exit 1
           fi
-          sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
+          for f in unbound unbound-checkconf fx-dns-probe root.hints root.key.seed; do
+            test -s "$GITHUB_WORKSPACE/artifact/$f"
+            sha256sum "$GITHUB_WORKSPACE/artifact/$f" | awk '{print $1 "  " $2}' > "$GITHUB_WORKSPACE/artifact/$f.sha256"
+          done
+          sha256sum "$GITHUB_WORKSPACE/artifact/unbound" "$GITHUB_WORKSPACE/artifact/unbound-checkconf" "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | tee "$GITHUB_WORKSPACE/artifact/BINARY-SHA256SUMS"
 
       - name: Validate Android build config with the pinned source's host checker
         shell: bash
@@ -182,6 +191,8 @@ jobs:
           Component: Unbound recursive/caching DNS resolver.
           Source: official NLnet Labs Unbound 1.26.2, source SHA256 d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7.
           Crypto: static OpenSSL 3.5.9, source SHA256 603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a.
+          XML dependency: static Expat 2.9.0, source SHA256 1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051.
+          Includes the FX uncached DNS health-probe helper and SHA-256 manifests for binaries/root data.
           Target: Android ARM64, Android NDK r26b, API level 24; ELF interpreter /system/bin/linker64.
           The resolver listens only on loopback port 5353. AdGuard Home remains the local filtering front-end on loopback port 53.
           This artifact build and config check do not prove direct root/authoritative DNS reachability on a mobile network. Runtime health probes and fail-open rollback are required.
