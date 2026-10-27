@@ -37,4 +37,10 @@ jobs:
           cp .github/dns/AdGuardHome.yaml "$RUNNER_TEMP/AdGuardHome.yaml"
           mkdir -p "$RUNNER_TEMP/agh-check-workdir"
           "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome.yaml" -w "$RUNNER_TEMP/agh-check-workdir" --no-check-update
-          echo "PASS: official AdGuard Home v0.107.79 accepted the schema-34 loopback-only DNS config. This validates config schema, not Android runtime compatibility."
+          echo "PASS: official AdGuard Home v0.107.79 accepted the schema-34 loopback-only base DNS config."
+          EXPECTED_FX_CONFIG="a8a873da8231a07bbde9867664538d2f3d227e1ed3d66122f4cc505b4c8072f0"
+          echo "$EXPECTED_FX_CONFIG  .github/dns/AdGuardHome-with-fx-rules.yaml" | sha256sum --check
+          cp .github/dns/AdGuardHome-with-fx-rules.yaml "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml"
+          mkdir -p "$RUNNER_TEMP/agh-fx-check-workdir"
+          "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml" -w "$RUNNER_TEMP/agh-fx-check-workdir" --no-check-update
+          echo "PASS: official AdGuard Home accepted the dynamically generated FX domain-rule block. Android runtime behavior still requires device testing."
