@@ -49,6 +49,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          AGH="$(find "$RUNNER_TEMP/agh-amd64" -type f -name AdGuardHome -perm -u+x | head -1)"
+          test -x "$AGH"
           cp .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$RUNNER_TEMP/AdGuardHome-FX-runtime.yaml"
           mkdir -p "$RUNNER_TEMP/agh-fx-runtime-workdir"
           test "$(grep -c '^  - "||' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml)" -eq 5
