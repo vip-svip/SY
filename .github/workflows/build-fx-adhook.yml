@@ -50,6 +50,9 @@ jobs:
           grep -q 'member diagnostic' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'Dialog.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'PopupWindow.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'maybeDismissSdkAdActivity' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'com.android.systemui' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'android:value="82"' adhook/app/src/main/AndroidManifest.xml
           grep -q 'com.huawei.hms.ads' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'com.miui.zeus.mimo.sdk' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'com.heytap.msp.mobad.api' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
