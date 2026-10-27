@@ -51,6 +51,8 @@ jobs:
           grep -q 'Dialog.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'PopupWindow.class' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'maybeDismissSdkAdActivity' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'splashactivity' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'ppssplash' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'com.android.systemui' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'android:value="82"' adhook/app/src/main/AndroidManifest.xml
           grep -q 'com.huawei.hms.ads' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
