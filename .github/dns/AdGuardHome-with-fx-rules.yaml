@@ -107,10 +107,8 @@ filters: []
 whitelist_filters: []
 user_rules: # FX_MANAGED_RULES_BEGIN
   - '||gjfzpt.cn^'
-  - '||fzapp-test-tyy.gjfzpt.cn^'
-  - '||oss.gjfzpt.cn^'
-  - '||fzapp.gjfzpt.cn^'
-  - '||fzapph5.gjfzpt.cn^'
+  - '||block.example^'
+  - '@@||allow.example^'
   # FX_MANAGED_RULES_END
 dhcp:
   enabled: false
