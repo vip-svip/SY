@@ -19,15 +19,11 @@ dns:
   - 127.0.0.1
   - ::1
   port: 53
+  # All cache misses go to the device-local Unbound recursive resolver.
+  # Unbound queries root/TLD/authoritative servers directly, with no fixed
+  # Tencent/Alibaba/Cloudflare forwarding resolver.
   upstream_dns:
-  - tls://one.one.one.one
-  - tls://dns.alidns.com
-  # Bootstrap IPs are queried directly only for the DoT hostname lookup.
-  # apply.sh exempts root-owned engine/bootstrap traffic from FX DNS redirection
-  # and DNS-lockdown rules to prevent a self-referential resolver loop.
-  bootstrap_dns:
-  - 1.1.1.1
-  - 223.5.5.5
+  - 127.0.0.1:5353
   cache_enabled: true
   cache_size: 4194304
   hostsfile_enabled: false
