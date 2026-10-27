@@ -23,6 +23,6 @@ member_diag is read-only. If Google Play Billing's BillingClient class is presen
 
 ## Config
 The main FX module publishes list:hook_targets rows in this form:
-com.example.app|splash=1|feed=1|overlay=0|member_diag=1
+com.example.app,splash=1,feed=1,overlay=0,member_diag=1|LSPosed应用Hook|1
 
 Top-level hook_ads_enabled=1 is required. lsposed_enabled controls the older PrivacyGuard hooks, not this separately-scoped ad module.
