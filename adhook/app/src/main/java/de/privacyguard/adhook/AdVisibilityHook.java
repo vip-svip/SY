@@ -116,7 +116,7 @@ public final class AdVisibilityHook extends XposedModule {
     public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
         if (!remoteFilesAvailable) {
-            log(Log.WARN, "Remote Files capability unavailable; feature disabled safely", null);
+            logFx(Log.WARN, "Remote Files capability unavailable; feature disabled safely");
             return;
         }
         configLoaded = loadConfig();
@@ -136,10 +136,10 @@ public final class AdVisibilityHook extends XposedModule {
         if (!hooksInstalledFor.add(pkg)) return;
         if (target.splash || target.feed || target.overlay) installAdViewHooks(pkg, target);
         if (target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
-        log(Log.INFO, "package ready=" + pkg +
+        logFx(Log.INFO, "package ready=" + pkg +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
-                " sdk=" + Build.VERSION.SDK_INT, null);
+                " sdk=" + Build.VERSION.SDK_INT);
     }
 
     private boolean loadConfig() {
@@ -153,7 +153,7 @@ public final class AdVisibilityHook extends XposedModule {
             int lines = 0;
             while ((line = reader.readLine()) != null) {
                 if (++lines > 1000) {
-                    log(Log.WARN, "remote config exceeds 1000 lines; rejected", null);
+                    logFx(Log.WARN, "remote config exceeds 1000 lines; rejected");
                     targets.clear();
                     return false;
                 }
@@ -175,7 +175,7 @@ public final class AdVisibilityHook extends XposedModule {
             return true;
         } catch (Throwable t) {
             targets.clear();
-            log(Log.WARN, "openRemoteFile failed: " + t.getClass().getSimpleName(), null);
+            logFx(Log.WARN, "openRemoteFile failed: " + t.getClass().getSimpleName());
             return false;
         }
     }
@@ -223,13 +223,13 @@ public final class AdVisibilityHook extends XposedModule {
                         if (pkg.equals(activity.getPackageName())) scheduleScans(activity, target);
                     }
                 } catch (Throwable t) {
-                    log(Log.WARN, "activity resume observer failed: " + t.getClass().getSimpleName(), null);
+                    logFx(Log.WARN, "activity resume observer failed: " + t.getClass().getSimpleName());
                 }
                 return result;
             });
-            log(Log.INFO, "activity ad observer installed for " + pkg, null);
+            logFx(Log.INFO, "activity ad observer installed for " + pkg);
         } catch (Throwable t) {
-            log(Log.WARN, "activity ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName(), null);
+            logFx(Log.WARN, "activity ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName());
         }
 
         try {
@@ -243,13 +243,13 @@ public final class AdVisibilityHook extends XposedModule {
                         if (window != null) scheduleRootScans(window.getDecorView(), target, pkg);
                     }
                 } catch (Throwable t) {
-                    log(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName(), null);
+                    logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName());
                 }
                 return result;
             });
-            log(Log.INFO, "dialog ad observer installed for " + pkg, null);
+            logFx(Log.INFO, "dialog ad observer installed for " + pkg);
         } catch (Throwable t) {
-            log(Log.WARN, "dialog ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName(), null);
+            logFx(Log.WARN, "dialog ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName());
         }
 
         int popupHooks = 0;
@@ -268,7 +268,7 @@ public final class AdVisibilityHook extends XposedModule {
                                 if (content != null) scheduleRootScans(content, target, pkg);
                             }
                         } catch (Throwable t) {
-                            log(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName(), null);
+                            logFx(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName());
                         }
                         return result;
                     });
@@ -276,9 +276,9 @@ public final class AdVisibilityHook extends XposedModule {
                 } catch (Throwable ignored) {}
             }
         } catch (Throwable t) {
-            log(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName(), null);
+            logFx(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName());
         }
-        log(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg, null);
+        logFx(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg);
     }
 
     private void scheduleScans(final Activity activity, final Target target) {
@@ -307,7 +307,7 @@ public final class AdVisibilityHook extends XposedModule {
         }
         final Handler handler;
         try { handler = new Handler(Looper.getMainLooper()); }
-        catch (Throwable t) { log(Log.WARN, "main thread handler unavailable", null); return; }
+        catch (Throwable t) { logFx(Log.WARN, "main thread handler unavailable"); return; }
         final int[] delays = new int[]{180, 650, 1500, 3200};
         for (final int delay : delays) {
             try {
@@ -317,7 +317,7 @@ public final class AdVisibilityHook extends XposedModule {
                         if (root == null) root = initialRoot;
                         scanTree(root, root, 0, new int[]{0}, target, pkg);
                     } catch (Throwable t) {
-                        log(Log.WARN, "bounded view scan failed: " + t.getClass().getSimpleName(), null);
+                        logFx(Log.WARN, "bounded view scan failed: " + t.getClass().getSimpleName());
                     }
                 }, delay);
             } catch (Throwable ignored) {}
@@ -330,7 +330,7 @@ public final class AdVisibilityHook extends XposedModule {
             try {
                 if (view.getVisibility() != View.GONE) {
                     view.setVisibility(View.GONE);
-                    log(Log.INFO, "hidden ad view in " + pkg + " class=" + shortName(view.getClass().getName()), null);
+                    logFx(Log.INFO, "hidden ad view in " + pkg + " class=" + shortName(view.getClass().getName()));
                 }
                 return;
             } catch (Throwable ignored) {}
@@ -416,16 +416,16 @@ public final class AdVisibilityHook extends XposedModule {
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
-                        log(Log.INFO, "billing diagnostic call=" + method.getName() +
-                                " returnType=" + (result == null ? "null" : result.getClass().getSimpleName()), null);
+                        logFx(Log.INFO, "billing diagnostic call=" + method.getName() +
+                                " returnType=" + (result == null ? "null" : result.getClass().getSimpleName()));
                         return result;
                     });
                     hooked++;
                 } catch (Throwable ignored) {}
             }
-            log(Log.INFO, "read-only billing diagnostics hooks=" + hooked, null);
+            logFx(Log.INFO, "read-only billing diagnostics hooks=" + hooked);
         } catch (Throwable t) {
-            log(Log.INFO, "billing diagnostics unavailable: Google Play Billing client not found", null);
+            logFx(Log.INFO, "billing diagnostics unavailable: Google Play Billing client not found");
         }
     }
 
@@ -444,10 +444,7 @@ public final class AdVisibilityHook extends XposedModule {
         return i >= 0 ? value.substring(i + 1) : value;
     }
 
-    private void log(int priority, String message, Throwable error) {
-        try {
-            if (error == null) log(priority, TAG, message);
-            else log(priority, TAG, message, error);
-        } catch (Throwable ignored) {}
+    private void logFx(int priority, String message) {
+        try { log(priority, TAG, message); } catch (Throwable ignored) {}
     }
 }
