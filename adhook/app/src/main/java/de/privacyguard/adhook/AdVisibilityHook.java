@@ -135,7 +135,12 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
     }
 
     private void parseTarget(String line) {
-        String[] parts = line.split("\\|");
+        // Main FX list format: package,splash=1,feed=0,overlay=1,member_diag=0|note|1
+        // The generic config list uses "|" for metadata; feature flags are comma-delimited.
+        String config = line.trim();
+        int metadata = config.indexOf('|');
+        if (metadata >= 0) config = config.substring(0, metadata);
+        String[] parts = config.split(",");
         if (parts.length < 2) return;
         String pkg = parts[0].trim();
         if (!validPackage(pkg)) return;
@@ -144,7 +149,9 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
             int eq = parts[i].indexOf('=');
             if (eq <= 0) continue;
             String key = parts[i].substring(0, eq).trim();
-            boolean yes = "1".equals(parts[i].substring(eq + 1).trim());
+            String value = parts[i].substring(eq + 1).trim();
+            if (!("0".equals(value) || "1".equals(value))) continue;
+            boolean yes = "1".equals(value);
             if ("splash".equals(key)) t.splash = yes;
             else if ("feed".equals(key)) t.feed = yes;
             else if ("overlay".equals(key)) t.overlay = yes;
