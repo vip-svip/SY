@@ -1,11 +1,16 @@
 package de.privacyguard.adhook;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.app.Instrumentation;
 import android.content.res.Resources;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -70,6 +75,7 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
     private final Map<String, String> top = new HashMap<>();
     private final Map<String, Target> targets = new HashMap<>();
     private final WeakHashMap<Activity, Long> lastScan = new WeakHashMap<>();
+    private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private String packageName = "";
     private Target target;
 
@@ -179,10 +185,56 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
                             }
                         }
                     });
-            log("ad view observer installed");
+            log("activity ad view observer installed");
         } catch (Throwable t) {
-            log("ad view observer unavailable: " + t.getClass().getSimpleName());
+            log("activity ad view observer unavailable: " + t.getClass().getSimpleName());
         }
+        installTransientWindowHooks();
+    }
+
+    /** Dialog and PopupWindow content is often outside the Activity decor tree. */
+    private void installTransientWindowHooks() {
+        try {
+            XposedHelpers.findAndHookMethod(Dialog.class, "show", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    try {
+                        Dialog dialog = (Dialog) param.thisObject;
+                        Window window = dialog.getWindow();
+                        if (window != null) scheduleRootScans(window.getDecorView());
+                    } catch (Throwable t) {
+                        log("dialog scan hook failed: " + t.getClass().getSimpleName());
+                    }
+                }
+            });
+            log("dialog ad view observer installed");
+        } catch (Throwable t) {
+            log("dialog ad view observer unavailable: " + t.getClass().getSimpleName());
+        }
+        int popupHooks = 0;
+        try {
+            for (Method method : PopupWindow.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) ||
+                        method.isSynthetic() || method.isBridge()) continue;
+                try {
+                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                        @Override protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                PopupWindow popup = (PopupWindow) param.thisObject;
+                                View content = popup.getContentView();
+                                if (content != null) scheduleRootScans(content);
+                            } catch (Throwable t) {
+                                log("popup scan hook failed: " + t.getClass().getSimpleName());
+                            }
+                        }
+                    });
+                    popupHooks++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            log("popup hook enumeration failed: " + t.getClass().getSimpleName());
+        }
+        log("popup ad view observers installed=" + popupHooks);
     }
 
     private void scheduleScans(final Activity activity) {
@@ -198,15 +250,30 @@ public final class AdVisibilityHook implements IXposedHookLoadPackage {
             if (prior != null && now - prior < 350L) return;
             lastScan.put(activity, now);
         }
+        scheduleRootScans(decor);
+    }
+
+    private void scheduleRootScans(final View initialRoot) {
+        if (initialRoot == null) return;
+        long now = System.currentTimeMillis();
+        synchronized (lastRootScan) {
+            Long prior = lastRootScan.get(initialRoot);
+            if (prior != null && now - prior < 350L) return;
+            lastRootScan.put(initialRoot, now);
+        }
+        final Handler handler;
+        try { handler = new Handler(Looper.getMainLooper()); }
+        catch (Throwable t) { log("main handler unavailable"); return; }
         final int[] delays = new int[]{180, 650, 1500, 3200};
         for (final int delay : delays) {
             try {
-                decor.postDelayed(new Runnable() {
+                handler.postDelayed(new Runnable() {
                     @Override public void run() {
                         try {
-                            if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
-                            View root = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
-                            if (root != null) scanTree(root, root, 0, new int[]{0});
+                            View root = initialRoot;
+                            View currentRoot = initialRoot.getRootView();
+                            if (currentRoot != null) root = currentRoot;
+                            scanTree(root, root, 0, new int[]{0});
                         } catch (Throwable t) {
                             log("scan failed: " + t.getClass().getSimpleName());
                         }
