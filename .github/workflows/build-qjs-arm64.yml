@@ -76,7 +76,26 @@ jobs:
           EXPECTED="3f7893c18e8aaadc456d0452839190561c306ca95175a2254958be80a769c1ae"
           curl --fail --location --retry 3 --retry-all-errors "$URL" -o AdGuardHome_linux_arm64.tar.gz
           echo "$EXPECTED  AdGuardHome_linux_arm64.tar.gz" | sha256sum --check --status
-          tar -tzf AdGuardHome_linux_arm64.tar.gz | grep -Eq '(^|/)AdGuardHome$'
+          tar -tzf AdGuardHome_linux_arm64.tar.gz > archive-list.txt
+          grep -Eq '(^|/)AdGuardHome
+          mkdir -p artifact-adguardhome
+          tar -xzf AdGuardHome_linux_arm64.tar.gz --wildcards '*/AdGuardHome'
+          AGH="$(find . -type f -path '*/AdGuardHome' -print -quit)"
+          test -n "$AGH"
+          file "$AGH"
+          readelf -h "$AGH" | grep -E 'Machine:.*AArch64'
+          install -m 0755 "$AGH" artifact-adguardhome/AdGuardHome
+          sha256sum artifact-adguardhome/AdGuardHome | tee artifact-adguardhome/SHA256SUMS
+          printf '%s\n' 'Official AdGuard Home v0.107.79; release archive SHA-256 verified; ARM64 ELF verified. Android runtime compatibility still requires device testing.' > artifact-adguardhome/BUILD-STATUS.txt
+
+      - name: Upload verified AdGuard Home ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adguardhome-android-arm64-v0.107.79
+          path: artifact-adguardhome/
+          if-no-files-found: error
+          retention-days: 14
+ archive-list.txt
           mkdir -p artifact-adguardhome
           tar -xzf AdGuardHome_linux_arm64.tar.gz --wildcards '*/AdGuardHome'
           AGH="$(find . -type f -path '*/AdGuardHome' -print -quit)"
