@@ -69,9 +69,12 @@ public final class AdVisibilityHook extends XposedModule {
             "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash",
             "mimo_ad", "mimoad", "mobad", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
-            "nativeexpress", "expressadview", "ttadview", "ksadview", "ksadframelayout",
-            "hmsadview", "mimoadview", "nativeadcontainer", "nativeadview",
-            "bannerad", "banner_ad", "banner-ad", "interstitial", "rewardedad",
+            "nativeexpress", "nativeexpressadview", "expressadview", "adexpressview", "ttadview",
+            "ksadview", "ksadframelayout", "hmsadview", "hmsnativead", "ppsnative",
+            "mimoadview", "mimofeed", "nativeadcontainer", "nativeadview", "bannercontainer",
+            "adbanner", "videoadview",
+            "bannerad", "banner_ad", "banner-ad", "bannercontainer", "adbanner",
+            "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
             "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
@@ -83,8 +86,9 @@ public final class AdVisibilityHook extends XposedModule {
     private static final String[] FEED_MARKERS = {
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "bannerad", "banner_ad", "banner-ad", "adview", "ad_view", "adcontainer",
-            "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mobad",
-            "hms_ads", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad"
+            "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mimofeed", "mobad",
+            "hms_ads", "hmsnativead", "ppsnative", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
+            "bannercontainer", "adbanner", "videoadview"
     };
     private static final String[] OVERLAY_MARKERS = {
             "interstitial", "rewardedad", "rewarded_ad", "fullscreenad",
@@ -283,6 +287,74 @@ public final class AdVisibilityHook extends XposedModule {
             logFx(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName());
         }
         logFx(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg);
+        installDynamicAdChildHooks(pkg, target);
+    }
+
+    /**
+     * Ad SDKs often insert feed/native ad views after Activity.onResume and after
+     * the first four delayed scans. Observe child insertion only inside processes
+     * already explicitly scoped to a selected app, then perform a bounded check
+     * on that subtree. This covers late-loading/scroll-loaded ads without polling
+     * the entire view tree continuously.
+     */
+    private void installDynamicAdChildHooks(final String pkg, final Target target) {
+        int installed = 0;
+        Set<String> hooked = new HashSet<>();
+        try {
+            for (Method method : ViewGroup.class.getDeclaredMethods()) {
+                if (!"addView".equals(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
+                if ((method.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0) continue;
+                Class<?>[] types = method.getParameterTypes();
+                if (types.length == 0 || !View.class.isAssignableFrom(types[0])) continue;
+                String signature = method.toGenericString();
+                if (!hooked.add(signature)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        try {
+                            Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                            if (arg instanceof View) scheduleAddedViewCheck((View) arg, target, pkg);
+                        } catch (Throwable t) {
+                            logFx(Log.WARN, "dynamic child observer failed: " + t.getClass().getSimpleName());
+                        }
+                        return result;
+                    });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "addView overload unavailable: " + t.getClass().getSimpleName());
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName());
+        }
+        logFx(Log.INFO, "dynamic ad child observers installed=" + installed + " for " + pkg);
+    }
+
+    private void scheduleAddedViewCheck(final View added, final Target target, final String pkg) {
+        if (added == null) return;
+        final Handler handler;
+        try { handler = new Handler(Looper.getMainLooper()); }
+        catch (Throwable t) { return; }
+        try {
+            handler.postDelayed(() -> {
+                try {
+                    if (added.getParent() == null) return;
+                    if (shouldHide(added, target)) {
+                        if (added.getVisibility() != View.GONE) {
+                            added.setVisibility(View.GONE);
+                            logFx(Log.INFO, "hidden dynamically added ad view in " + pkg +
+                                    " class=" + shortName(added.getClass().getName()));
+                        }
+                        return;
+                    }
+                    if (added instanceof ViewGroup) {
+                        scanTree(added, added, 0, new int[]{0}, target, pkg);
+                    }
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "dynamic ad subtree scan failed: " + t.getClass().getSimpleName());
+                }
+            }, 80L);
+        } catch (Throwable ignored) {}
     }
 
     private void scheduleScans(final Activity activity, final Target target) {
