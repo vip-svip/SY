@@ -33,6 +33,10 @@ public final class UnifiedHookConfigParser {
             this.memberDiag = memberDiag;
             this.privacy = privacy;
         }
+
+        public boolean enabled() {
+            return splash || feed || overlay || memberDiag;
+        }
     }
 
     public static final class Result {
