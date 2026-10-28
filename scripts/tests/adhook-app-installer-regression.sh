@@ -80,7 +80,10 @@ for flag in activityObserverInstalled dialogObserverInstalled popupObserversInst
 done
 ! grep -q 'adObserversInstalled' "$HOOK_SRC" || fail "obsolete all-or-nothing observer state remains"
 grep -q 'if (!dynamicChildObserversInstalled) dynamicChildObserversInstalled = installDynamicAdChildHooks();' "$HOOK_SRC" || fail "dynamic observer failure is not retryable"
-grep -q 'return installed > 0;' "$HOOK_SRC" || fail "dynamic observer success is not reported"
+grep -q 'popupObserverMethods.add(key)' "$HOOK_SRC" || fail "popup overload successes are not tracked individually"
+grep -q 'dynamicChildObserverMethods.add(key)' "$HOOK_SRC" || fail "addView overload successes are not tracked individually"
+grep -q 'eligible > 0 && popupObserverMethods.size() >= eligible' "$HOOK_SRC" || fail "partial popup registration incorrectly counts as complete"
+grep -q 'eligible > 0 && dynamicChildObserverMethods.size() >= eligible' "$HOOK_SRC" || fail "partial child registration incorrectly counts as complete"
 grep -q 'private UnifiedHookConfigParser.Target adTargetFor(String pkg)' "$HOOK_SRC" || fail "package-scoped dynamic target resolver missing"
 grep -q 'installDynamicAdChildHooks()' "$HOOK_SRC" || fail "global dynamic child observer not installed"
 ! grep -q 'installAdViewHooks(pkg, target)' "$HOOK_SRC" || fail "old package-capturing observer call remains"
