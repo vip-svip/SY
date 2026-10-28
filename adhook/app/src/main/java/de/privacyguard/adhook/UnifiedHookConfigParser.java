@@ -1,0 +1,132 @@
+package de.privacyguard.adhook;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Arrays;
+
+/**
+ * Versioned, transactional configuration model for the single FX Hook APK.
+ * This parser is intentionally independent from the current ad-only parser until
+ * the runtime migration is switched over in a later change.
+ */
+public final class UnifiedHookConfigParser {
+    private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook",
+            "org.lsposed.manager")));
+
+    private UnifiedHookConfigParser() {}
+
+    public static final class Target {
+        public final boolean splash;
+        public final boolean feed;
+        public final boolean overlay;
+        public final boolean memberDiag;
+        public final boolean privacy;
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy) {
+            this.splash = splash;
+            this.feed = feed;
+            this.overlay = overlay;
+            this.memberDiag = memberDiag;
+            this.privacy = privacy;
+        }
+    }
+
+    public static final class Result {
+        public final boolean adsEnabled;
+        public final boolean privacyEnabled;
+        public final Map<String, Target> targets;
+
+        private Result(boolean adsEnabled, boolean privacyEnabled, Map<String, Target> targets) {
+            this.adsEnabled = adsEnabled;
+            this.privacyEnabled = privacyEnabled;
+            this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
+        }
+    }
+
+    public static Result parse(String text) {
+        if (text == null) throw new IllegalArgumentException("null config");
+        if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
+        String[] lines = text.split("\\R", -1);
+        if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
+
+        boolean schemaSeen = false, adsSeen = false, privacySeen = false, sectionSeen = false;
+        boolean ads = false, privacy = false;
+        String section = "";
+        Map<String, Target> targets = new LinkedHashMap<>();
+
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            if (line.startsWith("[") || line.endsWith("]")) {
+                if (!line.startsWith("[") || !line.endsWith("]") || line.length() < 3)
+                    throw new IllegalArgumentException("malformed section");
+                String next = line.substring(1, line.length() - 1).trim();
+                if (!"list:targets".equals(next) || sectionSeen)
+                    throw new IllegalArgumentException("unsupported or duplicate section");
+                sectionSeen = true;
+                section = next;
+                continue;
+            }
+            if (section.isEmpty()) {
+                int eq = line.indexOf('=');
+                if (eq < 1) throw new IllegalArgumentException("malformed top-level key");
+                String key = line.substring(0, eq).trim();
+                String value = line.substring(eq + 1).trim();
+                if ("schema_version".equals(key)) {
+                    if (schemaSeen || !"1".equals(value)) throw new IllegalArgumentException("unsupported schema");
+                    schemaSeen = true;
+                } else if ("ads_enabled".equals(key)) {
+                    if (adsSeen || !bit(value)) throw new IllegalArgumentException("invalid ads_enabled");
+                    adsSeen = true; ads = "1".equals(value);
+                } else if ("privacy_enabled".equals(key)) {
+                    if (privacySeen || !bit(value)) throw new IllegalArgumentException("invalid privacy_enabled");
+                    privacySeen = true; privacy = "1".equals(value);
+                } else {
+                    throw new IllegalArgumentException("unknown top-level key");
+                }
+                continue;
+            }
+
+            String[] parts = line.split(",", -1);
+            if (parts.length < 2) throw new IllegalArgumentException("target requires at least one feature");
+            String pkg = parts[0].trim();
+            if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
+                throw new IllegalArgumentException("invalid, protected or duplicate package");
+            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false;
+            Set<String> seen = new HashSet<>();
+            for (int i = 1; i < parts.length; i++) {
+                int eq = parts[i].indexOf('=');
+                if (eq < 1) throw new IllegalArgumentException("malformed feature");
+                String key = parts[i].substring(0, eq).trim();
+                String value = parts[i].substring(eq + 1).trim();
+                if (!seen.add(key) || !bit(value)) throw new IllegalArgumentException("duplicate or invalid feature");
+                boolean on = "1".equals(value);
+                switch (key) {
+                    case "ads_splash": splash = on; break;
+                    case "ads_feed": feed = on; break;
+                    case "ads_overlay": overlay = on; break;
+                    case "member_diag": member = on; break;
+                    case "privacy": targetPrivacy = on; break;
+                    default: throw new IllegalArgumentException("unknown target feature");
+                }
+            }
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy));
+        }
+
+        if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
+            throw new IllegalArgumentException("missing required schema fields");
+        return new Result(ads, privacy, targets);
+    }
+
+    private static boolean bit(String value) {
+        return "0".equals(value) || "1".equals(value);
+    }
+
+    private static boolean validPackage(String pkg) {
+        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
+    }
+}
