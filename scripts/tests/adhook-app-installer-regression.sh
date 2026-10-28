@@ -71,4 +71,12 @@ sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "tracked package cleanup failed"
 if grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' "$INSTALLER" "$REMOVER"; then
   fail "APK installer unexpectedly contains networking mutations"
 fi
+# Static regression guard for the modern ad observer's process-global hooks.
+HOOK_SRC="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+[ -s "$HOOK_SRC" ] || fail "modern Hook source missing"
+grep -q 'if (adObserversInstalled) return;' "$HOOK_SRC" || fail "global ad observer is not guarded against duplicate installation"
+grep -q 'private UnifiedHookConfigParser.Target adTargetFor(String pkg)' "$HOOK_SRC" || fail "package-scoped dynamic target resolver missing"
+grep -q 'installDynamicAdChildHooks();' "$HOOK_SRC" || fail "global dynamic child observer not installed"
+! grep -q 'installAdViewHooks(pkg, target)' "$HOOK_SRC" || fail "old package-capturing observer call remains"
+! grep -q 'installDynamicAdChildHooks(pkg, target)' "$HOOK_SRC" || fail "old package-capturing dynamic observer call remains"
 echo "PASS: Hook APKs install as ordinary apps, idempotently update, and clean up without network mutations"
