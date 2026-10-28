@@ -62,7 +62,7 @@ public final class UnifiedHookConfigParser {
     }
 
     public static Result parse(String text) {
-        if (text != null && text.contains("hook_ads_enabled=")) return parseLegacyAdsConfig(text);
+        if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
         if (text == null) throw new IllegalArgumentException("null config");
         if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
         String[] lines = text.split("\\R", -1);
@@ -137,6 +137,19 @@ public final class UnifiedHookConfigParser {
         return new Result(ads, privacy, targets);
     }
 
+
+    /** Only an actual top-level legacy key selects the legacy parser; comments must not. */
+    private static boolean hasLegacyMasterKey(String text) {
+        if (text == null) return false;
+        for (String raw : text.split("\\R", -1)) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            if (line.startsWith("[")) return false;
+            int eq = line.indexOf('=');
+            return eq > 0 && "hook_ads_enabled".equals(line.substring(0, eq).trim());
+        }
+        return false;
+    }
 
     /** Backward compatibility for existing FX generators; privacy remains disabled. */
     private static Result parseLegacyAdsConfig(String text) {
