@@ -95,6 +95,7 @@ public final class AdVisibilityHook extends XposedModule {
 
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
+    private final Set<String> privacyIdentifierHooksInstalledFor = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -143,9 +144,13 @@ public final class AdVisibilityHook extends XposedModule {
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
+        // Retry privacy registration independently from the one-shot package guard.
+        if (privacyForPackage && !privacyIdentifierHooksInstalledFor.contains(pkg)
+                && installPrivacyIdentifierHooks(pkg)) {
+            privacyIdentifierHooksInstalledFor.add(pkg);
+        }
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
-        if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
@@ -194,7 +199,7 @@ public final class AdVisibilityHook extends XposedModule {
      * It is opt-in per package and only intercepts Settings.Secure.ANDROID_ID.
      * All other secure settings and all other identifier APIs remain untouched.
      */
-    private void installPrivacyIdentifierHooks(final String pkg) {
+    private boolean installPrivacyIdentifierHooks(final String pkg) {
         try {
             Method getString = Settings.Secure.class.getDeclaredMethod(
                     "getString", ContentResolver.class, String.class);
@@ -214,9 +219,11 @@ public final class AdVisibilityHook extends XposedModule {
                 }
             });
             logFx(Log.INFO, "app-scoped Android ID privacy hook installed for " + pkg);
+            return true;
         } catch (Throwable t) {
             logFx(Log.WARN, "Android ID privacy hook unavailable for " + pkg +
                     ": " + t.getClass().getSimpleName());
+            return false;
         }
     }
 
