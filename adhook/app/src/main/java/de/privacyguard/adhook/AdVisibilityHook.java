@@ -170,7 +170,7 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
-    private void installAdViewHooks(final String pkg, final HookTargetConfigParser.Target target) {
+    private void installAdViewHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
         try {
             Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
             hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
@@ -248,7 +248,7 @@ public final class AdVisibilityHook extends XposedModule {
      * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
-    private void installDynamicAdChildHooks(final String pkg, final HookTargetConfigParser.Target target) {
+    private void installDynamicAdChildHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
         int installed = 0;
         Set<String> hooked = new HashSet<>();
         try {
@@ -281,7 +281,7 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(Log.INFO, "dynamic ad child observers installed=" + installed + " for " + pkg);
     }
 
-    private void scheduleAddedViewCheck(final View added, final HookTargetConfigParser.Target target, final String pkg) {
+    private void scheduleAddedViewCheck(final View added, final UnifiedHookConfigParser.Target target, final String pkg) {
         if (added == null) return;
         final Handler handler;
         try { handler = new Handler(Looper.getMainLooper()); }
@@ -305,7 +305,7 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable ignored) {}
     }
 
-    private void scheduleScans(final Activity activity, final HookTargetConfigParser.Target target) {
+    private void scheduleScans(final Activity activity, final UnifiedHookConfigParser.Target target) {
         final View decor;
         try {
             if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
@@ -321,7 +321,7 @@ public final class AdVisibilityHook extends XposedModule {
         scheduleRootScans(decor, target, activity.getPackageName());
     }
 
-    private void scheduleRootScans(final View initialRoot, final HookTargetConfigParser.Target target, final String pkg) {
+    private void scheduleRootScans(final View initialRoot, final UnifiedHookConfigParser.Target target, final String pkg) {
         if (initialRoot == null) return;
         long now = System.currentTimeMillis();
         synchronized (lastRootScan) {
@@ -348,7 +348,7 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
-    private void scanTree(View view, View root, int depth, int[] count, HookTargetConfigParser.Target target, String pkg) {
+    private void scanTree(View view, View root, int depth, int[] count, UnifiedHookConfigParser.Target target, String pkg) {
         if (view == null || depth > 20 || count[0]++ >= 1800) return;
         if (view != root && shouldHide(view, target)) {
             try {
@@ -370,7 +370,7 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
-    private boolean shouldHide(View view, HookTargetConfigParser.Target target) {
+    private boolean shouldHide(View view, UnifiedHookConfigParser.Target target) {
         String cls = lower(view.getClass().getName());
         String id = resourceName(view);
         String evidence = cls + " " + id;
@@ -399,7 +399,7 @@ public final class AdVisibilityHook extends XposedModule {
         return null;
     }
 
-    private boolean categoryMatches(String evidence, HookTargetConfigParser.Target target, boolean sdkView) {
+    private boolean categoryMatches(String evidence, UnifiedHookConfigParser.Target target, boolean sdkView) {
         String e = lower(evidence);
         if (hasAny(e, SPLASH_MARKERS)) return target.splash;
         if (hasAny(e, OVERLAY_MARKERS)) return target.overlay;
