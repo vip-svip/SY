@@ -99,6 +99,7 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           test -s "$APK"
           "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$APK"
+          sha256sum "$APK"
           unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
           unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
           unzip -p "$APK" assets/xposed_init 2>/dev/null && exit 1 || true
