@@ -25,6 +25,29 @@ public class UnifiedHookConfigParserTest {
         assertTrue(target.privacy);
     }
 
+
+    @Test
+    public void legacyAdConfigRemainsCompatibleAndDoesNotEnablePrivacy() {
+        String legacy = "hook_ads_enabled=1\\n" +
+                "[list:hook_targets]\\n" +
+                "com.example.app,splash=1,feed=0,overlay=1,member_diag=0 | legacy metadata\\n";
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(legacy);
+        assertTrue(result.adsEnabled);
+        assertFalse(result.privacyEnabled);
+        UnifiedHookConfigParser.Target target = result.targets.get("com.example.app");
+        assertNotNull(target);
+        assertTrue(target.splash);
+        assertFalse(target.feed);
+        assertTrue(target.overlay);
+        assertFalse(target.privacy);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownLegacyTargetOption() {
+        UnifiedHookConfigParser.parse("hook_ads_enabled=1\\n[list:hook_targets]\\n" +
+                "com.example.app,make_vip=1\\n");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingRequiredSwitch() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\n[list:targets]\n");
