@@ -15,7 +15,9 @@ public final class PrivacyIdentifier {
      */
     public static String forPackage(String packageName, String originalAndroidId) {
         if (originalAndroidId == null || originalAndroidId.isEmpty()) return originalAndroidId;
-        String pkg = packageName == null ? "" : packageName;
+        // Fail open if package scoping is unavailable; never emit one shared synthetic ID.
+        if (packageName == null || packageName.isEmpty()) return originalAndroidId;
+        String pkg = packageName;
         String input = "FX-ANDROID-ID-v1:" + pkg + ":" + originalAndroidId;
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

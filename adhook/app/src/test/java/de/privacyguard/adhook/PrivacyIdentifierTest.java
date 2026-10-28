@@ -33,6 +33,17 @@ public class PrivacyIdentifierTest {
     }
 
     @Test
+    public void missingPackageFailsOpenToOriginalIdentifier() {
+        assertEquals("device-id-1", PrivacyIdentifier.forPackage(null, "device-id-1"));
+        assertEquals("device-id-1", PrivacyIdentifier.forPackage("", "device-id-1"));
+    }
+
+    @Test
+    public void emptyOriginalIdentifierRemainsEmpty() {
+        assertEquals("", PrivacyIdentifier.forPackage("com.example.app", ""));
+    }
+
+    @Test
     public void nullPackageNameIsHandledDeterministically() {
         assertEquals(PrivacyIdentifier.forPackage("", "device-id-1"),
                 PrivacyIdentifier.forPackage(null, "device-id-1"));
