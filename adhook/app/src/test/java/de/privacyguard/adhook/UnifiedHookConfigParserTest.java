@@ -69,9 +69,9 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void commentMentioningLegacyKeyDoesNotSelectLegacyParser() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "# old key hook_ads_enabled=1 is documentation only\\n" +
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n" +
-                "[list:targets]\\ncom.example.app,privacy=1\\n");
+                "# old key hook_ads_enabled=1 is documentation only\n" +
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.app,privacy=1\n");
         assertFalse(result.adsEnabled);
         assertTrue(result.privacyEnabled);
         assertTrue(result.isPrivacyEnabledFor("com.example.app"));
