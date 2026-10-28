@@ -81,7 +81,23 @@ public final class AdVisibilityHook extends XposedModule {
             "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
             "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
-    };
+                "adnative",
+            "adsnative",
+            "atnativesplash",
+            "nativesplash",
+            "tpsplash",
+            "appopenadview",
+            "splashadcontainer",
+            "splashnativead",
+            "adwebview",
+            "adtextview",
+            "adcardview",
+            "nativeadcomponent",
+            "nativeadfragment",
+            "openadsplash",
+            "appopensplash",
+            "splashadwebview",
+};
     private static final String[] SPLASH_MARKERS = {
             "splashad", "splash_ad", "splash-ad", "splashadvert", "splashadview", "splash_ad_view",
             "ad_splash", "ad-splash", "ad_splash_view", "adsplashview",
@@ -95,13 +111,32 @@ public final class AdVisibilityHook extends XposedModule {
             "frontad", "front_ad", "front-ad", "openingad", "opening_ad", "opening-ad",
             "splashscreenad", "splashscreen_ad", "splash_screen_ad", "splash_screen_adview",
             "splashpage", "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash"
-    };
+                "nativesplash",
+            "atnativesplash",
+            "tpsplash",
+            "appopensplash",
+            "openadsplash",
+            "splashadcontainer",
+            "splashnativead",
+            "splashadwebview",
+};
     private static final String[] FEED_MARKERS = {
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "bannerad", "banner_ad", "banner-ad", "adview", "ad_view", "adcontainer",
             "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mimofeed", "mobad",
             "hms_ads", "hmsnativead", "ppsnative", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "bannercontainer", "adbanner", "videoadview"
+                "adnative",
+            "adsnative",
+            "adwebview",
+            "adtextview",
+            "adcardview",
+            "nativeadcomponent",
+            "nativeadfragment",
+};
+    // Never hide the actual skip/close/countdown control: only hide its ad container.
+    private static final String[] PROTECTED_AD_CONTROLS = {
+            "skip", "countdown", "close_button", "closebutton", "close-btn", "adchoices", "ad_choices"
     };
     private static final String[] OVERLAY_MARKERS = {
             "interstitial", "rewardedad", "rewarded_ad", "fullscreenad",
@@ -391,6 +426,7 @@ public final class AdVisibilityHook extends XposedModule {
         String cls = lower(view.getClass().getName());
         String id = resourceName(view);
         String evidence = cls + " " + id;
+        if (hasAny(evidence, PROTECTED_AD_CONTROLS)) return false;
         boolean strong = hasAny(evidence, STRONG_AD_MARKERS);
         boolean sdkNamespace = hasAny(cls, AD_CLASS_MARKERS);
         // A SDK namespace alone is not proof that every custom View is an ad:
