@@ -3,6 +3,8 @@ package de.privacyguard.adhook;
 import android.app.Activity;
 import android.app.Dialog;
 import android.app.Instrumentation;
+import android.content.ContentResolver;
+import android.provider.Settings;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Handler;
@@ -19,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,6 +99,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
+    private boolean privacyEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private String currentPackage = "";
@@ -125,13 +129,18 @@ public final class AdVisibilityHook extends XposedModule {
         final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
         currentPackage = pkg;
         if (NEVER.contains(pkg)) return;
-        if (!configLoaded || !adsEnabled) return;
+        if (!configLoaded) return;
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
-        if (target == null || !target.enabled()) return;
+        if (target == null) return;
+        final boolean adsForPackage = adsEnabled && target.enabled();
+        final boolean privacyForPackage = privacyEnabled && target.privacy;
+        if (!adsForPackage && !privacyForPackage) return;
         if (!hooksInstalledFor.add(pkg)) return;
-        if (target.splash || target.feed || target.overlay) installAdViewHooks(pkg, target);
-        if (target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks(pkg, target);
+        if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         logFx(Log.INFO, "package ready=" + pkg +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -143,6 +152,7 @@ public final class AdVisibilityHook extends XposedModule {
         // validates the entire config before any target is committed.
         targets.clear();
         adsEnabled = false;
+        privacyEnabled = false;
         try (InputStreamReader isr = new InputStreamReader(
                     new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME)),
                     StandardCharsets.UTF_8);
@@ -159,14 +169,56 @@ public final class AdVisibilityHook extends XposedModule {
             }
             UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
             adsEnabled = parsed.adsEnabled;
+            privacyEnabled = parsed.privacyEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
             targets.clear();
             adsEnabled = false;
+            privacyEnabled = false;
             logFx(Log.WARN, "remote config rejected; no hooks enabled (" +
                     t.getClass().getSimpleName() + ")");
             return false;
+        }
+    }
+
+    /**
+     * First migrated privacy hook: provide a stable, app-specific Android ID.
+     * It is opt-in per package and only intercepts Settings.Secure.ANDROID_ID.
+     * All other secure settings and all other identifier APIs remain untouched.
+     */
+    private void installPrivacyIdentifierHooks(final String pkg) {
+        try {
+            Method getString = Settings.Secure.class.getDeclaredMethod(
+                    "getString", ContentResolver.class, String.class);
+            hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                try {
+                    Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                    if (Settings.Secure.ANDROID_ID.equals(key)) {
+                        return stableAppAndroidId(pkg);
+                    }
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "Android ID privacy hook fallback for " + pkg);
+                }
+                return chain.proceed();
+            });
+            logFx(Log.INFO, "app-scoped Android ID privacy hook installed for " + pkg);
+        } catch (Throwable t) {
+            logFx(Log.WARN, "Android ID privacy hook unavailable for " + pkg +
+                    ": " + t.getClass().getSimpleName());
+        }
+    }
+
+    private static String stableAppAndroidId(String pkg) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(("FX-ANDROID-ID-v1:" + pkg).getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) out.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xff));
+            return out.toString();
+        } catch (Throwable ignored) {
+            // Preserve the platform result rather than returning a malformed identifier.
+            return null;
         }
     }
 
