@@ -49,6 +49,16 @@ public final class UnifiedHookConfigParser {
             this.privacyEnabled = privacyEnabled;
             this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
         }
+
+        public boolean isAdsEnabledFor(String packageName) {
+            Target target = targets.get(packageName);
+            return adsEnabled && target != null && target.enabled();
+        }
+
+        public boolean isPrivacyEnabledFor(String packageName) {
+            Target target = targets.get(packageName);
+            return privacyEnabled && target != null && target.privacy;
+        }
     }
 
     public static Result parse(String text) {
