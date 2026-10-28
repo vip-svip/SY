@@ -2,7 +2,7 @@ name: Build FXAdHook LSPosed APK
 
 on:
   push:
-    branches: [fx-hook-audit160]
+    branches: [fx-hook-audit160, fx-v1.0.0-unified-hook-integration]
     paths:
       - "adhook/**"
       - ".github/workflows/build-fx-adhook.yml"
@@ -53,10 +53,11 @@ jobs:
         shell: bash
         run: |
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java
+          PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           test -s "$PARSER_SRC"
           test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
-          grep -q 'HookTargetConfigParser.parse' "$JAVA_SRC"
+          test -s adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
+          grep -q 'UnifiedHookConfigParser.parse' "$JAVA_SRC"
           grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
           test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
