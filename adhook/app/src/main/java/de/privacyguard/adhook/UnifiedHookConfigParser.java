@@ -48,6 +48,7 @@ public final class UnifiedHookConfigParser {
     }
 
     public static Result parse(String text) {
+        if (text != null && text.contains("hook_ads_enabled=")) return parseLegacyAdsConfig(text);
         if (text == null) throw new IllegalArgumentException("null config");
         if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
         String[] lines = text.split("\\R", -1);
@@ -120,6 +121,60 @@ public final class UnifiedHookConfigParser {
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
             throw new IllegalArgumentException("missing required schema fields");
         return new Result(ads, privacy, targets);
+    }
+
+
+    /** Backward compatibility for existing FX generators; privacy remains disabled. */
+    private static Result parseLegacyAdsConfig(String text) {
+        if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
+        String[] lines = text.split("\\R", -1);
+        if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
+        boolean masterSeen = false, ads = false, sectionSeen = false;
+        String section = "";
+        Map<String, Target> targets = new LinkedHashMap<>();
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            if (line.startsWith("[") || line.endsWith("]")) {
+                if (!"[list:hook_targets]".equals(line) || sectionSeen)
+                    throw new IllegalArgumentException("unsupported or duplicate legacy section");
+                sectionSeen = true; section = "targets"; continue;
+            }
+            if (section.isEmpty()) {
+                int eq = line.indexOf('=');
+                if (eq < 1 || !"hook_ads_enabled".equals(line.substring(0, eq).trim()) || masterSeen)
+                    throw new IllegalArgumentException("invalid legacy top-level option");
+                String value = line.substring(eq + 1).trim();
+                if (!bit(value)) throw new IllegalArgumentException("invalid legacy master switch");
+                masterSeen = true; ads = "1".equals(value); continue;
+            }
+            int metadata = line.indexOf('|');
+            String config = (metadata >= 0 ? line.substring(0, metadata) : line).trim();
+            String[] parts = config.split(",", -1);
+            if (parts.length < 2) throw new IllegalArgumentException("malformed legacy target");
+            String pkg = parts[0].trim();
+            if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
+                throw new IllegalArgumentException("invalid or duplicate legacy package");
+            boolean splash = false, feed = false, overlay = false, member = false;
+            Set<String> seen = new HashSet<>();
+            for (int i = 1; i < parts.length; i++) {
+                int eq = parts[i].indexOf('=');
+                if (eq < 1) throw new IllegalArgumentException("malformed legacy feature");
+                String key = parts[i].substring(0, eq).trim(), value = parts[i].substring(eq + 1).trim();
+                if (!seen.add(key) || !bit(value)) throw new IllegalArgumentException("duplicate or invalid legacy feature");
+                boolean on = "1".equals(value);
+                switch (key) {
+                    case "splash": splash = on; break;
+                    case "feed": feed = on; break;
+                    case "overlay": overlay = on; break;
+                    case "member_diag": member = on; break;
+                    default: throw new IllegalArgumentException("unknown legacy feature");
+                }
+            }
+            targets.put(pkg, new Target(splash, feed, overlay, member, false));
+        }
+        if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
+        return new Result(ads, false, targets);
     }
 
     private static boolean bit(String value) {
