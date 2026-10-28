@@ -28,6 +28,17 @@ public class PrivacyIdentifierTest {
     }
 
     @Test
+    public void emptyOriginalIdentifierRemainsEmpty() {
+        assertEquals("", PrivacyIdentifier.forPackage("com.example.app", ""));
+    }
+
+    @Test
+    public void nullPackageNameIsHandledDeterministically() {
+        assertEquals(PrivacyIdentifier.forPackage("", "device-id-1"),
+                PrivacyIdentifier.forPackage(null, "device-id-1"));
+    }
+
+    @Test
     public void identifierHasAndroidIdCompatibleHexShape() {
         assertTrue(PrivacyIdentifier.forPackage("com.example.app", "device-id-1").matches("[0-9a-f]{16}"));
     }
