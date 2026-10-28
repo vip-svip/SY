@@ -217,8 +217,8 @@ public final class AdVisibilityHook extends XposedModule {
             for (int i = 0; i < 8; i++) out.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xff));
             return out.toString();
         } catch (Throwable ignored) {
-            // Preserve the platform result rather than returning a malformed identifier.
-            return null;
+            // SHA-256 is available on Android; retain a deterministic 16-hex fallback defensively.
+            return String.format(Locale.ROOT, "%016x", ((long) pkg.hashCode()) & 0xffffffffL);
         }
     }
 
