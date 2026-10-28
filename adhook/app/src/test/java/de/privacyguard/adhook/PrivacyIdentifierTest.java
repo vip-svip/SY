@@ -5,19 +5,30 @@ import static org.junit.Assert.*;
 
 public class PrivacyIdentifierTest {
     @Test
-    public void identifierIsStableForTheSamePackage() {
-        assertEquals(PrivacyIdentifier.forPackage("com.example.app"),
-                PrivacyIdentifier.forPackage("com.example.app"));
+    public void identifierIsStableForTheSamePackageAndDevice() {
+        assertEquals(PrivacyIdentifier.forPackage("com.example.app", "device-id-1"),
+                PrivacyIdentifier.forPackage("com.example.app", "device-id-1"));
     }
 
     @Test
     public void identifierIsScopedToPackageName() {
-        assertNotEquals(PrivacyIdentifier.forPackage("com.example.app"),
-                PrivacyIdentifier.forPackage("com.example.other"));
+        assertNotEquals(PrivacyIdentifier.forPackage("com.example.app", "device-id-1"),
+                PrivacyIdentifier.forPackage("com.example.other", "device-id-1"));
+    }
+
+    @Test
+    public void identifierIsScopedToDeviceAndPackage() {
+        assertNotEquals(PrivacyIdentifier.forPackage("com.example.app", "device-id-1"),
+                PrivacyIdentifier.forPackage("com.example.app", "device-id-2"));
+    }
+
+    @Test
+    public void nullOriginalIdentifierRemainsNull() {
+        assertNull(PrivacyIdentifier.forPackage("com.example.app", null));
     }
 
     @Test
     public void identifierHasAndroidIdCompatibleHexShape() {
-        assertTrue(PrivacyIdentifier.forPackage("com.example.app").matches("[0-9a-f]{16}"));
+        assertTrue(PrivacyIdentifier.forPackage("com.example.app", "device-id-1").matches("[0-9a-f]{16}"));
     }
 }
