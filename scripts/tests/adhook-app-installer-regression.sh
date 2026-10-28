@@ -75,6 +75,9 @@ fi
 HOOK_SRC="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
 [ -s "$HOOK_SRC" ] || fail "modern Hook source missing"
 grep -q 'private synchronized void installAdViewHooks()' "$HOOK_SRC" || fail "global ad observer installer is not synchronized"
+OBS_LINE=$(grep -n 'installAdViewHooks();' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
+GUARD_LINE=$(grep -n 'if (!hooksInstalledFor.add(pkg)) return;' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
+[ -n "$OBS_LINE" ] && [ -n "$GUARD_LINE" ] && [ "$OBS_LINE" -lt "$GUARD_LINE" ] || fail "per-package guard prevents retrying global observers"
 for flag in activityObserverInstalled dialogObserverInstalled popupObserversInstalled dynamicChildObserversInstalled; do
   grep -q "private volatile boolean $flag;" "$HOOK_SRC" || fail "missing independent observer state: $flag"
 done
