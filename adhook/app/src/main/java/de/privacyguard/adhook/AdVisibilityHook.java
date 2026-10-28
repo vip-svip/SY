@@ -145,10 +145,7 @@ public final class AdVisibilityHook extends XposedModule {
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
-        if (privacyForPackage && !privacyIdentifierHooksInstalledFor.contains(pkg)
-                && installPrivacyIdentifierHooks(pkg)) {
-            privacyIdentifierHooksInstalledFor.add(pkg);
-        }
+        if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         logFx(Log.INFO, "package ready=" + pkg +
@@ -199,7 +196,8 @@ public final class AdVisibilityHook extends XposedModule {
      * It is opt-in per package and only intercepts Settings.Secure.ANDROID_ID.
      * All other secure settings and all other identifier APIs remain untouched.
      */
-    private boolean installPrivacyIdentifierHooks(final String pkg) {
+    private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
+        if (privacyIdentifierHooksInstalledFor.contains(pkg)) return true;
         try {
             Method getString = Settings.Secure.class.getDeclaredMethod(
                     "getString", ContentResolver.class, String.class);
@@ -218,6 +216,7 @@ public final class AdVisibilityHook extends XposedModule {
                     return original;
                 }
             });
+            privacyIdentifierHooksInstalledFor.add(pkg);
             logFx(Log.INFO, "app-scoped Android ID privacy hook installed for " + pkg);
             return true;
         } catch (Throwable t) {
