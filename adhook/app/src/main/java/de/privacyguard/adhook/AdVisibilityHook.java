@@ -95,6 +95,7 @@ public final class AdVisibilityHook extends XposedModule {
 
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
+    private volatile boolean adObserversInstalled;
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
@@ -135,7 +136,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         if (!adsForPackage && !privacyForPackage) return;
         if (!hooksInstalledFor.add(pkg)) return;
-        if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks(pkg, target);
+        if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         logFx(Log.INFO, "package ready=" + pkg +
@@ -213,7 +214,12 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
 
-    private void installAdViewHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
+    /** Install process-global framework observers once; resolve app scope per callback. */
+    private void installAdViewHooks() {
+        synchronized (this) {
+            if (adObserversInstalled) return;
+            adObserversInstalled = true;
+        }
         try {
             Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
             hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
@@ -222,18 +228,13 @@ public final class AdVisibilityHook extends XposedModule {
                     Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                     if (arg instanceof Activity) {
                         Activity activity = (Activity) arg;
-                        if (pkg.equals(activity.getPackageName())) scheduleScans(activity, target);
+                        UnifiedHookConfigParser.Target target = adTargetFor(activity.getPackageName());
+                        if (target != null) scheduleScans(activity, target);
                     }
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "activity resume observer failed: " + t.getClass().getSimpleName());
-                }
+                } catch (Throwable t) { logFx(Log.WARN, "activity observer failed: " + t.getClass().getSimpleName()); }
                 return result;
             });
-            logFx(Log.INFO, "activity ad observer installed for " + pkg);
-        } catch (Throwable t) {
-            logFx(Log.WARN, "activity ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName());
-        }
-
+        } catch (Throwable t) { logFx(Log.WARN, "activity observer unavailable: " + t.getClass().getSimpleName()); }
         try {
             Method show = Dialog.class.getDeclaredMethod("show");
             hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
@@ -241,25 +242,21 @@ public final class AdVisibilityHook extends XposedModule {
                 try {
                     Object object = chain.getThisObject();
                     if (object instanceof Dialog) {
-                        Window window = ((Dialog) object).getWindow();
-                        if (window != null) scheduleRootScans(window.getDecorView(), target, pkg);
+                        Dialog dialog = (Dialog) object;
+                        String pkg = dialog.getContext().getPackageName();
+                        UnifiedHookConfigParser.Target target = adTargetFor(pkg);
+                        Window window = dialog.getWindow();
+                        if (target != null && window != null) scheduleRootScans(window.getDecorView(), target, pkg);
                     }
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName());
-                }
+                } catch (Throwable t) { logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName()); }
                 return result;
             });
-            logFx(Log.INFO, "dialog ad observer installed for " + pkg);
-        } catch (Throwable t) {
-            logFx(Log.WARN, "dialog ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName());
-        }
-
-        int popupHooks = 0;
+        } catch (Throwable t) { logFx(Log.WARN, "dialog observer unavailable: " + t.getClass().getSimpleName()); }
+        int installed = 0;
         try {
             for (Method method : PopupWindow.class.getDeclaredMethods()) {
                 String name = method.getName();
-                if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) ||
-                        method.isSynthetic() || method.isBridge()) continue;
+                if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) || method.isSynthetic() || method.isBridge()) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
@@ -267,21 +264,27 @@ public final class AdVisibilityHook extends XposedModule {
                             Object object = chain.getThisObject();
                             if (object instanceof PopupWindow) {
                                 View content = ((PopupWindow) object).getContentView();
-                                if (content != null) scheduleRootScans(content, target, pkg);
+                                if (content != null) {
+                                    String pkg = content.getContext().getPackageName();
+                                    UnifiedHookConfigParser.Target target = adTargetFor(pkg);
+                                    if (target != null) scheduleRootScans(content, target, pkg);
+                                }
                             }
-                        } catch (Throwable t) {
-                            logFx(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName());
-                        }
+                        } catch (Throwable t) { logFx(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName()); }
                         return result;
                     });
-                    popupHooks++;
+                    installed++;
                 } catch (Throwable ignored) {}
             }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName());
-        }
-        logFx(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg);
-        installDynamicAdChildHooks(pkg, target);
+        } catch (Throwable t) { logFx(Log.WARN, "popup observers unavailable: " + t.getClass().getSimpleName()); }
+        logFx(Log.INFO, "global popup observers installed=" + installed);
+        installDynamicAdChildHooks();
+    }
+
+    private UnifiedHookConfigParser.Target adTargetFor(String pkg) {
+        if (pkg == null || !adsEnabled || NEVER.contains(pkg)) return null;
+        UnifiedHookConfigParser.Target target = targets.get(pkg);
+        return target != null && target.enabled() && (target.splash || target.feed || target.overlay) ? target : null;
     }
 
     /**
@@ -291,7 +294,7 @@ public final class AdVisibilityHook extends XposedModule {
      * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
-    private void installDynamicAdChildHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
+    private void installDynamicAdChildHooks() {
         int installed = 0;
         Set<String> hooked = new HashSet<>();
         try {
@@ -299,29 +302,26 @@ public final class AdVisibilityHook extends XposedModule {
                 if (!"addView".equals(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
                 if ((method.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0) continue;
                 Class<?>[] types = method.getParameterTypes();
-                if (types.length == 0 || !View.class.isAssignableFrom(types[0])) continue;
-                String signature = method.toGenericString();
-                if (!hooked.add(signature)) continue;
+                if (types.length == 0 || !View.class.isAssignableFrom(types[0]) || !hooked.add(method.toGenericString())) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
                         try {
                             Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                            if (arg instanceof View) scheduleAddedViewCheck((View) arg, target, pkg);
-                        } catch (Throwable t) {
-                            logFx(Log.WARN, "dynamic child observer failed: " + t.getClass().getSimpleName());
-                        }
+                            if (arg instanceof View) {
+                                View added = (View) arg;
+                                String pkg = added.getContext().getPackageName();
+                                UnifiedHookConfigParser.Target target = adTargetFor(pkg);
+                                if (target != null) scheduleAddedViewCheck(added, target, pkg);
+                            }
+                        } catch (Throwable t) { logFx(Log.WARN, "dynamic child observer failed: " + t.getClass().getSimpleName()); }
                         return result;
                     });
                     installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "addView overload unavailable: " + t.getClass().getSimpleName());
-                }
+                } catch (Throwable t) { logFx(Log.DEBUG, "addView overload unavailable: " + t.getClass().getSimpleName()); }
             }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName());
-        }
-        logFx(Log.INFO, "dynamic ad child observers installed=" + installed + " for " + pkg);
+        } catch (Throwable t) { logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName()); }
+        logFx(Log.INFO, "global dynamic ad child observers installed=" + installed);
     }
 
     private void scheduleAddedViewCheck(final View added, final UnifiedHookConfigParser.Target target, final String pkg) {
