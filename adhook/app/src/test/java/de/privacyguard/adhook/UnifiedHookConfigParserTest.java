@@ -66,6 +66,17 @@ public class UnifiedHookConfigParserTest {
         assertFalse(result.isPrivacyEnabledFor("com.example.app"));
     }
 
+    @Test
+    public void commentMentioningLegacyKeyDoesNotSelectLegacyParser() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "# old key hook_ads_enabled=1 is documentation only\\n" +
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n" +
+                "[list:targets]\\ncom.example.app,privacy=1\\n");
+        assertFalse(result.adsEnabled);
+        assertTrue(result.privacyEnabled);
+        assertTrue(result.isPrivacyEnabledFor("com.example.app"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingRequiredSwitch() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\n[list:targets]\n");
