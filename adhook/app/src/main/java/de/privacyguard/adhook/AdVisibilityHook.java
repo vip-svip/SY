@@ -95,7 +95,10 @@ public final class AdVisibilityHook extends XposedModule {
 
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
-    private volatile boolean adObserversInstalled;
+    private volatile boolean activityObserverInstalled;
+    private volatile boolean dialogObserverInstalled;
+    private volatile boolean popupObserversInstalled;
+    private volatile boolean dynamicChildObserversInstalled;
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
@@ -216,8 +219,7 @@ public final class AdVisibilityHook extends XposedModule {
 
     /** Install process-global framework observers once; resolve app scope per callback. */
     private synchronized void installAdViewHooks() {
-        if (adObserversInstalled) return;
-        try {
+        if (!activityObserverInstalled) try {
             Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
             hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                 Object result = chain.proceed();
@@ -231,8 +233,9 @@ public final class AdVisibilityHook extends XposedModule {
                 } catch (Throwable t) { logFx(Log.WARN, "activity observer failed: " + t.getClass().getSimpleName()); }
                 return result;
             });
+            activityObserverInstalled = true;
         } catch (Throwable t) { logFx(Log.WARN, "activity observer unavailable: " + t.getClass().getSimpleName()); }
-        try {
+        if (!dialogObserverInstalled) try {
             Method show = Dialog.class.getDeclaredMethod("show");
             hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                 Object result = chain.proceed();
@@ -248,7 +251,9 @@ public final class AdVisibilityHook extends XposedModule {
                 } catch (Throwable t) { logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName()); }
                 return result;
             });
+            dialogObserverInstalled = true;
         } catch (Throwable t) { logFx(Log.WARN, "dialog observer unavailable: " + t.getClass().getSimpleName()); }
+        if (!popupObserversInstalled) {
         int installed = 0;
         try {
             for (Method method : PopupWindow.class.getDeclaredMethods()) {
@@ -275,10 +280,9 @@ public final class AdVisibilityHook extends XposedModule {
             }
         } catch (Throwable t) { logFx(Log.WARN, "popup observers unavailable: " + t.getClass().getSimpleName()); }
         logFx(Log.INFO, "global popup observers installed=" + installed);
-        installDynamicAdChildHooks();
-        // Mark complete only after every observer family has had an installation attempt.
-        // The synchronized method prevents concurrent duplicate installation while running.
-        adObserversInstalled = true;
+        popupObserversInstalled = installed > 0;
+        }
+        if (!dynamicChildObserversInstalled) dynamicChildObserversInstalled = installDynamicAdChildHooks();
     }
 
     private UnifiedHookConfigParser.Target adTargetFor(String pkg) {
@@ -294,7 +298,7 @@ public final class AdVisibilityHook extends XposedModule {
      * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
-    private void installDynamicAdChildHooks() {
+    private boolean installDynamicAdChildHooks() {
         int installed = 0;
         Set<String> hooked = new HashSet<>();
         try {
@@ -322,6 +326,7 @@ public final class AdVisibilityHook extends XposedModule {
             }
         } catch (Throwable t) { logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName()); }
         logFx(Log.INFO, "global dynamic ad child observers installed=" + installed);
+        return installed > 0;
     }
 
     private void scheduleAddedViewCheck(final View added, final UnifiedHookConfigParser.Target target, final String pkg) {
