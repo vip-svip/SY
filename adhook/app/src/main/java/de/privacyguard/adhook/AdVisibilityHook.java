@@ -194,7 +194,9 @@ public final class AdVisibilityHook extends XposedModule {
                 try {
                     Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                     if (Settings.Secure.ANDROID_ID.equals(key)) {
-                        return PrivacyIdentifier.forPackage(pkg);
+                        Object original = chain.proceed();
+                        return original instanceof String
+                                ? PrivacyIdentifier.forPackage(pkg, (String) original) : original;
                     }
                 } catch (Throwable t) {
                     logFx(Log.WARN, "Android ID privacy hook fallback for " + pkg);
