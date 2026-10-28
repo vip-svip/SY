@@ -140,8 +140,10 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         if (!adsForPackage && !privacyForPackage) return;
-        if (!hooksInstalledFor.add(pkg)) return;
+        // Global observers must get another chance on each eligible package load;
+        // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
+        if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         logFx(Log.INFO, "package ready=" + pkg +
