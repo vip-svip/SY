@@ -191,17 +191,19 @@ public final class AdVisibilityHook extends XposedModule {
             Method getString = Settings.Secure.class.getDeclaredMethod(
                     "getString", ContentResolver.class, String.class);
             hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                try {
-                    Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
-                    if (Settings.Secure.ANDROID_ID.equals(key)) {
-                        Object original = chain.proceed();
-                        return original instanceof String
-                                ? PrivacyIdentifier.forPackage(pkg, (String) original) : original;
-                    }
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "Android ID privacy hook fallback for " + pkg);
+                Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                // Proceed exactly once. Calling proceed again after a thrown exception can
+                // re-enter the original method twice and violate interceptor chain semantics.
+                Object original = chain.proceed();
+                if (!Settings.Secure.ANDROID_ID.equals(key) || !(original instanceof String)) {
+                    return original;
                 }
-                return chain.proceed();
+                try {
+                    return PrivacyIdentifier.forPackage(pkg, (String) original);
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "Android ID privacy transform fallback for " + pkg);
+                    return original;
+                }
             });
             logFx(Log.INFO, "app-scoped Android ID privacy hook installed for " + pkg);
         } catch (Throwable t) {
