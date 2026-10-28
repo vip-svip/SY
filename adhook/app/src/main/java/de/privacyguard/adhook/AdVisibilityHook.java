@@ -215,11 +215,8 @@ public final class AdVisibilityHook extends XposedModule {
 
 
     /** Install process-global framework observers once; resolve app scope per callback. */
-    private void installAdViewHooks() {
-        synchronized (this) {
-            if (adObserversInstalled) return;
-            adObserversInstalled = true;
-        }
+    private synchronized void installAdViewHooks() {
+        if (adObserversInstalled) return;
         try {
             Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
             hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
@@ -279,6 +276,9 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable t) { logFx(Log.WARN, "popup observers unavailable: " + t.getClass().getSimpleName()); }
         logFx(Log.INFO, "global popup observers installed=" + installed);
         installDynamicAdChildHooks();
+        // Mark complete only after every observer family has had an installation attempt.
+        // The synchronized method prevents concurrent duplicate installation while running.
+        adObserversInstalled = true;
     }
 
     private UnifiedHookConfigParser.Target adTargetFor(String pkg) {
