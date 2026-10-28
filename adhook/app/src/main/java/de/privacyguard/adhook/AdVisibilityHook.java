@@ -337,7 +337,7 @@ public final class AdVisibilityHook extends XposedModule {
             }
         } catch (Throwable t) { logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName()); }
         boolean complete = eligible > 0 && dynamicChildObserverMethods.size() >= eligible;
-        logFx(Log.INFO, "global dynamic ad child observers newly installed=" + installedNow + ", complete=" + complete);
+        logFx(Log.INFO, "global dynamic ad child observers installed; newly=" + installedNow + ", complete=" + complete);
         return complete;
     }
 
