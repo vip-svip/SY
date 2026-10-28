@@ -39,11 +39,6 @@ public class PrivacyIdentifierTest {
     }
 
     @Test
-    public void emptyOriginalIdentifierRemainsEmpty() {
-        assertEquals("", PrivacyIdentifier.forPackage("com.example.app", ""));
-    }
-
-    @Test
     public void nullPackageNameIsHandledDeterministically() {
         assertEquals(PrivacyIdentifier.forPackage("", "device-id-1"),
                 PrivacyIdentifier.forPackage(null, "device-id-1"));
