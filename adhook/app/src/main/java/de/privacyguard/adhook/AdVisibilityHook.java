@@ -60,10 +60,18 @@ public final class AdVisibilityHook extends XposedModule {
     };
     private static final String[] STRONG_AD_MARKERS = {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
-            "splashad", "splash_ad", "splash-ad",
-            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
+            "splashad", "splash_ad", "splash-ad", "splashadview", "splash_ad_view", "adsplashview",
+            "ad_splash", "ad-splash", "ad_splash_view", "open_ad", "openad", "open_app_ad", "open-app-ad",
+            "appopenad", "appopen_ad", "appopen-ad", "app_open_ad", "app-open-ad",
+            "launchscreenad", "launchscreen_ad", "launch_screen_ad", "launch-screen-ad",
+            "launch_ad_view", "launchadview", "launch_ad_container", "launchadcontainer",
+            "startupad", "startup_ad", "startup-ad", "startupadview", "startup_ad_view",
+            "appstartad", "app_start_ad", "app-start-ad", "firstscreenad", "first_screen_ad",
+            "entryad", "entry_ad", "entry-ad", "welcomead", "welcome_ad", "welcome-ad",
+            "frontad", "front_ad", "front-ad", "openingad", "opening_ad", "opening-ad",
+            "applicationopenad", "application_open_ad", "splashscreenad", "splash_screen_ad",
+            "splashscreen_ad", "splash_screen_adview",
             "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash",
-            "mimo_ad", "mimoad", "mobad", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
             "nativeexpress", "nativeexpressadview", "expressadview", "adexpressview", "ttadview",
             "ksadview", "ksadframelayout", "hmsadview", "hmsnativead", "ppsnative",
@@ -75,9 +83,18 @@ public final class AdVisibilityHook extends XposedModule {
             "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
     private static final String[] SPLASH_MARKERS = {
-            "splashad", "splash_ad", "splash-ad", "splashadvert", "launch_ad", "launchad",
-            "ad_splash", "ad-splash", "open_ad", "openad", "launchscreenad", "splashpage",
-            "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash"
+            "splashad", "splash_ad", "splash-ad", "splashadvert", "splashadview", "splash_ad_view",
+            "ad_splash", "ad-splash", "ad_splash_view", "adsplashview",
+            "launch_ad", "launchad", "launchscreenad", "launchscreen_ad", "launch_screen_ad",
+            "launch-screen-ad", "launch_ad_view", "launchadview", "launch_ad_container", "launchadcontainer",
+            "open_ad", "openad", "open_app_ad", "open-app-ad", "appopenad", "appopen_ad", "appopen-ad",
+            "app_open_ad", "app-open-ad", "applicationopenad", "application_open_ad",
+            "startupad", "startup_ad", "startup-ad", "startupadview", "startup_ad_view",
+            "appstartad", "app_start_ad", "app-start-ad", "firstscreenad", "first_screen_ad",
+            "entryad", "entry_ad", "entry-ad", "welcomead", "welcome_ad", "welcome-ad",
+            "frontad", "front_ad", "front-ad", "openingad", "opening_ad", "opening-ad",
+            "splashscreenad", "splashscreen_ad", "splash_screen_ad", "splash_screen_adview",
+            "splashpage", "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash"
     };
     private static final String[] FEED_MARKERS = {
             "feedad", "feed_ad", "feed-ad", "nativead", "native_ad", "native-ad",
