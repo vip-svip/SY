@@ -9,8 +9,9 @@ public final class PrivacyIdentifier {
     private PrivacyIdentifier() {}
 
     /**
-     * Returns a deterministic 16-hex identifier unique to this package and device's original ID.
-     * Different devices do not receive the same replacement merely because they run the same app.
+     * Returns a deterministic 16-hex identifier scoped to this package and the device's
+     * original ID. If a cryptographic digest cannot be created, preserve the original
+     * value instead of silently substituting a weaker, collision-prone hash.
      */
     public static String forPackage(String packageName, String originalAndroidId) {
         if (originalAndroidId == null || originalAndroidId.isEmpty()) return originalAndroidId;
@@ -20,11 +21,13 @@ public final class PrivacyIdentifier {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(input.getBytes(StandardCharsets.UTF_8));
             StringBuilder out = new StringBuilder(16);
-            for (int i = 0; i < 8; i++) out.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xff));
+            for (int i = 0; i < 8; i++) {
+                out.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xff));
+            }
             return out.toString();
-        } catch (Throwable ignored) {
-            // Defensive fallback retains both inputs; Android provides SHA-256.
-            return String.format(Locale.ROOT, "%016x", ((long) (pkg + ":" + originalAndroidId).hashCode()) & 0xffffffffL);
+        } catch (Exception ignored) {
+            // Fail open to the platform value: do not manufacture a weaker identifier.
+            return originalAndroidId;
         }
     }
 }
