@@ -91,7 +91,7 @@ public final class AdVisibilityHook extends XposedModule {
             "full_screen_ad", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
 
-    private final Map<String, HookTargetConfigParser.Target> targets = new HashMap<>();
+    private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
@@ -126,7 +126,7 @@ public final class AdVisibilityHook extends XposedModule {
         currentPackage = pkg;
         if (NEVER.contains(pkg)) return;
         if (!configLoaded || !adsEnabled) return;
-        final HookTargetConfigParser.Target target = targets.get(pkg);
+        final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null || !target.enabled()) return;
         if (!hooksInstalledFor.add(pkg)) return;
         if (target.splash || target.feed || target.overlay) installAdViewHooks(pkg, target);
@@ -157,7 +157,7 @@ public final class AdVisibilityHook extends XposedModule {
                 }
                 content.append(line).append('\n');
             }
-            HookTargetConfigParser.Result parsed = HookTargetConfigParser.parse(content.toString());
+            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
             adsEnabled = parsed.adsEnabled;
             targets.putAll(parsed.targets);
             return true;
