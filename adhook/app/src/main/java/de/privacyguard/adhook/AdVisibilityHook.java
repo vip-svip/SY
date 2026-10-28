@@ -56,7 +56,12 @@ public final class AdVisibilityHook extends XposedModule {
             "com.huawei.hms.ads", "com.huawei.openalliance.ad",
             "com.miui.zeus.mimo.sdk", "com.xiaomi.ad",
             "com.heytap.msp.mobad.api", "com.vivo.mobilead",
-            "com.hihonor.adsdk", "com.meishu.sdk"
+            "com.hihonor.adsdk", "com.meishu.sdk",
+            // Additional namespaces cross-checked against the public Fuck-AD SDK registry.
+            "com.anythink", "com.tradplus.ads", "com.mbridge.msdk",
+            "com.vungle.ads", "com.ironsource", "com.unity3d.ads",
+            "com.bigossp", "com.bytedance.sdk", "com.qq.e.comm.plugin",
+            "com.kwad.components"
     };
     private static final String[] STRONG_AD_MARKERS = {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
