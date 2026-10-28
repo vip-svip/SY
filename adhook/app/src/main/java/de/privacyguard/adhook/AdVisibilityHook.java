@@ -80,7 +80,7 @@ public final class AdVisibilityHook extends XposedModule {
             "bannerad", "banner_ad", "banner-ad", "bannercontainer", "adbanner",
             "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
-            "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
+            "adslot", "ad_slot", "ad-slot", "ad_dialog", "ad_popup", "adpopup", "overlay_ad",
                 "adnative",
             "adsnative",
             "atnativesplash",
@@ -110,7 +110,7 @@ public final class AdVisibilityHook extends XposedModule {
             "entryad", "entry_ad", "entry-ad", "welcomead", "welcome_ad", "welcome-ad",
             "frontad", "front_ad", "front-ad", "openingad", "opening_ad", "opening-ad",
             "splashscreenad", "splashscreen_ad", "splash_screen_ad", "splash_screen_adview",
-            "splashpage", "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash"
+            "splashpage", "splashview", "splashactivity", "splashcontainer", "ppssplash", "mimosplash",
                 "nativesplash",
             "atnativesplash",
             "tpsplash",
@@ -125,7 +125,7 @@ public final class AdVisibilityHook extends XposedModule {
             "bannerad", "banner_ad", "banner-ad", "adview", "ad_view", "adcontainer",
             "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mimofeed", "mobad",
             "hms_ads", "hmsnativead", "ppsnative", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
-            "bannercontainer", "adbanner", "videoadview"
+            "bannercontainer", "adbanner", "videoadview",
                 "adnative",
             "adsnative",
             "adwebview",
