@@ -10,6 +10,21 @@ This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP s
 
 Effects require both gates: the app is listed in the FX-generated target config and LSPosed actually loads this module into that process because the same package is in LSPosed Manager scope. The target process cannot read root files directly. FX publishes only the small hook target list to `/data/adb/lspd/modules/<user>/de.privacyguard.adhook/files/fx-hook-targets.conf`; the module reads it via modern libxposed API 101 `openRemoteFile()`. If Remote Files is unavailable, missing, unreadable, oversized, or malformed, it fails closed/no-op. The parser validates the entire payload transactionally: missing/duplicate master switches, duplicate packages/options, invalid flags, unsupported sections, and malformed rows reject the whole config instead of activating a partial target list.
 
+## Privacy-hook migration status
+
+The unified API 101 entry now contains an initial opt-in Android ID isolation hook. When the unified config has both `privacy_enabled=1` and a target row with `privacy=1`, calls to `Settings.Secure.getString(..., ANDROID_ID)` receive a stable app-specific 16-hex identifier. Other secure settings are passed through unchanged. This is a narrow first migration slice, not parity with the legacy PrivacyGuard hook set.
+
+Important: the current FX root-side publisher still emits the legacy ad-only format. The parser deliberately forces privacy off for that format, so this privacy hook will remain inactive until the root-side generator and UI are migrated to publish the versioned unified schema. Do not enable it by manually changing unrelated legacy switches. This work has not been verified on a physical device.
+
+Unified config shape:
+```text
+schema_version=1
+ads_enabled=1
+privacy_enabled=0
+[list:targets]
+com.example.app,ads_splash=1,ads_feed=0,ads_overlay=1,member_diag=0,privacy=0
+```
+
 ## Built-in heuristic rules
 - Splash/open-app: `splash_ad`, `splashad`, `ad_splash`, `open_ad`, `launch_ad`, `launchscreenad`, `splashpage`.
 - Feed/banner/native: `native_ad`, `feed_ad`, `banner_ad`, `AdView`, `ad_container`, `ad_slot`.
