@@ -51,8 +51,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void privacyOnlyTargetWorksWhenAdsMasterSwitchIsOff() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n" +
-                "[list:targets]\\ncom.example.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=0,privacy=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=0,privacy=1\n");
         assertFalse(result.isAdsEnabledFor("com.example.app"));
         assertTrue(result.isPrivacyEnabledFor("com.example.app"));
     }
@@ -60,8 +60,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void privacyMasterSwitchOffOverridesPerPackagePrivacyFlag() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=1\\nprivacy_enabled=0\\n" +
-                "[list:targets]\\ncom.example.app,ads_splash=1,ads_feed=0,ads_overlay=0,member_diag=0,privacy=1\\n");
+                "schema_version=1\nads_enabled=1\nprivacy_enabled=0\n" +
+                "[list:targets]\ncom.example.app,ads_splash=1,ads_feed=0,ads_overlay=0,member_diag=0,privacy=1\n");
         assertTrue(result.isAdsEnabledFor("com.example.app"));
         assertFalse(result.isPrivacyEnabledFor("com.example.app"));
     }
