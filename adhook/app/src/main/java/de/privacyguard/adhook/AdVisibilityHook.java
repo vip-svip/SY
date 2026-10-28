@@ -195,7 +195,7 @@ public final class AdVisibilityHook extends XposedModule {
                 try {
                     Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                     if (Settings.Secure.ANDROID_ID.equals(key)) {
-                        return stableAppAndroidId(pkg);
+                        return PrivacyIdentifier.forPackage(pkg);
                     }
                 } catch (Throwable t) {
                     logFx(Log.WARN, "Android ID privacy hook fallback for " + pkg);
@@ -209,18 +209,6 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
-    private static String stableAppAndroidId(String pkg) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(("FX-ANDROID-ID-v1:" + pkg).getBytes(StandardCharsets.UTF_8));
-            StringBuilder out = new StringBuilder(16);
-            for (int i = 0; i < 8; i++) out.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xff));
-            return out.toString();
-        } catch (Throwable ignored) {
-            // SHA-256 is available on Android; retain a deterministic 16-hex fallback defensively.
-            return String.format(Locale.ROOT, "%016x", ((long) pkg.hashCode()) & 0xffffffffL);
-        }
-    }
 
     private void installAdViewHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
         try {
