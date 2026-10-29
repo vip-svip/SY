@@ -1,0 +1,6 @@
+id=privacyguard
+name=FX
+version=1.0.0
+versionCode=10000
+author=PrivacyGuard
+description=FX 1.0.0：本地 Hosts 与订阅路由分离，包含独立证书子模块。
