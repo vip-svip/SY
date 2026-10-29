@@ -46,10 +46,10 @@ install_one() {
       # Only claim package ownership when it did not exist before FX installed it.
       # Never let module removal uninstall an app package that predated FX.
       if [ "$_was_present" = 0 ]; then
-        _owned_tmp="$_owned.tmp.$"
+        _owned_tmp="${_owned}.tmp.$$"
         (umask 077; printf 'fx-managed-v1\n' > "$_owned_tmp") && chmod 0600 "$_owned_tmp" 2>/dev/null && mv -f "$_owned_tmp" "$_owned" 2>/dev/null || log_msg "WARN: ownership marker could not be persisted for $_pkg"
       fi
-      _marker_tmp="$_marker.tmp.$"
+      _marker_tmp="${_marker}.tmp.$$"
       (umask 077; printf '%s\n' "$_actual" > "$_marker_tmp") &&
         chmod 0600 "$_marker_tmp" 2>/dev/null && mv -f "$_marker_tmp" "$_marker" 2>/dev/null
       if [ -s "$_marker" ] && [ "$(cat "$_marker" 2>/dev/null)" = "$_actual" ]; then _installed=1; break; fi
