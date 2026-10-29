@@ -108,6 +108,18 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void rejectsOversizedLegacyConfigBeforeLegacyDispatch() {
+        StringBuilder text = new StringBuilder("hook_ads_enabled=1\\n[list:hook_targets]\\n");
+        for (int i = 0; i < 22000; i++) text.append("com.example.app,ads_splash=1\\n");
+        UnifiedHookConfigParser.parse(text.toString());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNullConfigWithParserException() {
+        UnifiedHookConfigParser.parse(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void rejectsUtf8ConfigOver64KiBEvenWhenCharacterCountIsLower() {
         StringBuilder text = new StringBuilder("#");
         for (int i = 0; i < 22000; i++) text.append('界');
