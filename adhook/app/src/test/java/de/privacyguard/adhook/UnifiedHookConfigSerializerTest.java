@@ -83,8 +83,8 @@ public class UnifiedHookConfigSerializerTest {
 
     @Test
     public void legacyAdsConfigNeverEnablesPrivacy() {
-        String legacy = "hook_ads_enabled=1\\n[list:hook_targets]\\n"
-                + "com.example.app,splash=1,feed=0,overlay=0,member_diag=0|Example|1\\n";
+        String legacy = "hook_ads_enabled=1\n[list:hook_targets]\n"
+                + "com.example.app,splash=1,feed=0,overlay=0,member_diag=0|Example|1\n";
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(legacy);
 
         assertTrue(parsed.isAdsEnabledFor("com.example.app"));
@@ -94,15 +94,15 @@ public class UnifiedHookConfigSerializerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void parserRejectsDuplicateTargetFeature() {
-        UnifiedHookConfigParser.parse("schema_version=1\\nads_enabled=1\\nprivacy_enabled=1\\n"
-                + "[list:targets]\\ncom.example.app,ads_splash=1,ads_splash=0\\n");
+        UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\nprivacy_enabled=1\n"
+                + "[list:targets]\ncom.example.app,ads_splash=1,ads_splash=0\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void parserRejectsConfigOver64KiB() {
-        StringBuilder oversized = new StringBuilder("schema_version=1\\nads_enabled=1\\n"
-                + "privacy_enabled=0\\n[list:targets]\\n");
-        while (oversized.length() <= 65536) oversized.append("#padding\\n");
+        StringBuilder oversized = new StringBuilder("schema_version=1\nads_enabled=1\n"
+                + "privacy_enabled=0\n[list:targets]\n");
+        while (oversized.length() <= 65536) oversized.append("#padding\n");
         UnifiedHookConfigParser.parse(oversized.toString());
     }
 
