@@ -108,6 +108,13 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void rejectsUtf8ConfigOver64KiBEvenWhenCharacterCountIsLower() {
+        StringBuilder text = new StringBuilder("#");
+        for (int i = 0; i < 22000; i++) text.append('界');
+        UnifiedHookConfigParser.parse(text.toString());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void rejectsDuplicateFeatureKeys() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\nprivacy_enabled=1\n" +
                 "[list:targets]\ncom.example.app,privacy=1,privacy=0\n");
