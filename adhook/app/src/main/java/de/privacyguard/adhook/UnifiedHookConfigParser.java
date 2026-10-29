@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Versioned, transactional configuration model for the single FX Hook APK.
@@ -64,7 +65,7 @@ public final class UnifiedHookConfigParser {
     public static Result parse(String text) {
         if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
         if (text == null) throw new IllegalArgumentException("null config");
-        if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
+        if (text.getBytes(StandardCharsets.UTF_8).length > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
         String[] lines = text.split("\\R", -1);
         if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
 
@@ -153,7 +154,7 @@ public final class UnifiedHookConfigParser {
 
     /** Backward compatibility for existing FX generators; privacy remains disabled. */
     private static Result parseLegacyAdsConfig(String text) {
-        if (text.length() > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
+        if (text.getBytes(StandardCharsets.UTF_8).length > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
         String[] lines = text.split("\\R", -1);
         if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
         boolean masterSeen = false, ads = false, sectionSeen = false;
