@@ -174,6 +174,13 @@ public final class AdVisibilityHook extends XposedModule {
                     logFx(Log.WARN, "remote config exceeds 1000 lines; rejecting all targets");
                     return false;
                 }
+                // Enforce the parser's byte/character budget while streaming. Checking
+                // only after building the StringBuilder allows one giant line to exhaust
+                // the target app process before the parser can reject it.
+                if (content.length() + line.length() + 1 > 65536) {
+                    logFx(Log.WARN, "remote config exceeds 64 KiB; rejecting all targets");
+                    return false;
+                }
                 content.append(line).append('\n');
             }
             UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
