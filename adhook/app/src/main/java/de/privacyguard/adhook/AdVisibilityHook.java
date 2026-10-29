@@ -17,9 +17,12 @@ import android.view.Window;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -157,33 +160,33 @@ public final class AdVisibilityHook extends XposedModule {
 
     private boolean loadConfig() {
         if (!remoteFilesAvailable) return false;
-        // Do not activate a partially parsed target list. The independent parser
-        // validates the entire config before any target is committed.
+        // Bound bytes before decoding so a single giant line cannot grow a StringBuilder
+        // without limit. The wire format is UTF-8 and the 64 KiB limit is byte-based.
         targets.clear();
         adsEnabled = false;
         privacyEnabled = false;
-        try (InputStreamReader isr = new InputStreamReader(
-                    new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME)),
-                    StandardCharsets.UTF_8);
-             BufferedReader reader = new BufferedReader(isr)) {
-            StringBuilder content = new StringBuilder();
-            String line;
-            int lines = 0;
-            while ((line = reader.readLine()) != null) {
-                if (++lines > 1000) {
-                    logFx(Log.WARN, "remote config exceeds 1000 lines; rejecting all targets");
-                    return false;
-                }
-                // Enforce the parser's byte/character budget while streaming. Checking
-                // only after building the StringBuilder allows one giant line to exhaust
-                // the target app process before the parser can reject it.
-                if (content.length() + line.length() + 1 > 65536) {
+        try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
+             ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
+            byte[] chunk = new byte[4096];
+            int count;
+            while ((count = input.read(chunk)) != -1) {
+                if (bytes.size() + count > 65536) {
                     logFx(Log.WARN, "remote config exceeds 64 KiB; rejecting all targets");
                     return false;
                 }
-                content.append(line).append('\n');
+                bytes.write(chunk, 0, count);
             }
-            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
+            String content;
+            try {
+                content = StandardCharsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(bytes.toByteArray())).toString();
+            } catch (CharacterCodingException malformed) {
+                logFx(Log.WARN, "remote config is not valid UTF-8; rejecting all targets");
+                return false;
+            }
+            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content);
             adsEnabled = parsed.adsEnabled;
             privacyEnabled = parsed.privacyEnabled;
             targets.putAll(parsed.targets);
