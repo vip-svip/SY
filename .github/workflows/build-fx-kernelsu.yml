@@ -29,18 +29,26 @@ jobs:
             fx-module/scripts/certmgr.sh
             fx-module/webroot/index.html
           )
-          missing=0
+          missing=()
           for f in "${required[@]}"; do
-            if [[ ! -s "$f" ]]; then echo "::error file=$f::Required FX module file is missing or empty"; missing=1; fi
+            if [[ ! -s "$f" ]]; then
+              echo "::error file=$f::Required FX module file is missing or empty: $f"
+              missing+=("$f")
+            fi
           done
-          [[ "$missing" -eq 0 ]] || exit 1
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing required FX sources:"
+            printf ' - %s\\n' "${missing[@]}"
+            echo "Packaging intentionally stopped; do not create a partial ZIP."
+            exit 1
+          fi
           grep -qx 'version=1.0.0' fx-module/module.prop
           grep -qx 'versionCode=10000' fx-module/module.prop
       - name: Shell syntax and permissions
         shell: bash
         run: |
           set -euo pipefail
-          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do sh -n "$f"; done
+          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
           for f in customize.sh post-fs-data.sh service.sh uninstall.sh; do
             test -x "fx-module/$f" || { echo "::error file=fx-module/$f::Entrypoint is not executable"; exit 1; }
           done
