@@ -1,0 +1,61 @@
+name: FX 1.0.0 KernelSU package
+on:
+  push:
+    branches: [fx-v1.0.0-unified-hook-integration]
+    paths:
+      - 'fx-module/**'
+      - '.github/workflows/build-fx-kernelsu.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate required module files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            fx-module/module.prop
+            fx-module/customize.sh
+            fx-module/post-fs-data.sh
+            fx-module/service.sh
+            fx-module/uninstall.sh
+            fx-module/scripts/apply.sh
+            fx-module/scripts/default.conf
+            fx-module/scripts/util.sh
+            fx-module/scripts/certmgr.sh
+            fx-module/webroot/index.html
+          )
+          missing=0
+          for f in "${required[@]}"; do
+            if [[ ! -s "$f" ]]; then echo "::error file=$f::Required FX module file is missing or empty"; missing=1; fi
+          done
+          [[ "$missing" -eq 0 ]] || exit 1
+          grep -qx 'version=1.0.0' fx-module/module.prop
+          grep -qx 'versionCode=10000' fx-module/module.prop
+      - name: Shell syntax and permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do sh -n "$f"; done
+          for f in customize.sh post-fs-data.sh service.sh uninstall.sh; do
+            test -x "fx-module/$f" || { echo "::error file=fx-module/$f::Entrypoint is not executable"; exit 1; }
+          done
+      - name: Package KernelSU ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          (cd fx-module && zip -qr ../dist/FX-v1.0.0-Iter5.zip .)
+          unzip -tq dist/FX-v1.0.0-Iter5.zip
+          sha256sum dist/FX-v1.0.0-Iter5.zip | tee dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-Iter5
+          path: |
+            dist/FX-v1.0.0-Iter5.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
