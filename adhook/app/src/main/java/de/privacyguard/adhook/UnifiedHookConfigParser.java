@@ -63,9 +63,12 @@ public final class UnifiedHookConfigParser {
     }
 
     public static Result parse(String text) {
-        if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
         if (text == null) throw new IllegalArgumentException("null config");
+        // Enforce the same byte and line limits before dispatching to either parser.
+        // Legacy configs must not bypass the limits enforced for schema v1.
         if (text.getBytes(StandardCharsets.UTF_8).length > 65536) throw new IllegalArgumentException("config exceeds 64 KiB");
+        if (text.split("\\R", -1).length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
+        if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
         String[] lines = text.split("\\R", -1);
         if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
 
