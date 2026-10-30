@@ -17,6 +17,13 @@ public class PrivacyHookConfigParserTest {
         assertFalse(result.inScope("org.other.app"));
     }
 
+    @Test public void disabledMasterGatesAllFeaturesAndProfiles() {
+        PrivacyHookConfigParser.Result result = PrivacyHookConfigParser.parse(
+                "lsposed_enabled=0\nlsposed_profile=aggressive\nspoof_model=1\nhide_ksu=1\n");
+        assertFalse(result.enabled("spoof_model"));
+        assertFalse(result.enabled("hide_ksu"));
+    }
+
     @Test public void compatProfileDisablesRiskyKeys() {
         PrivacyHookConfigParser.Result result = PrivacyHookConfigParser.parse(
                 "lsposed_enabled=1\nlsposed_profile=compat\nblock_pm_query=1\n");
