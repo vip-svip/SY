@@ -41,7 +41,7 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 
 ## Remaining gaps and safety constraints
 
-- API-101 now includes opt-in, bounded member-class discovery: it caps APK files, scanned class entries, candidate classes, elapsed scan time and automatic getter hooks. It observes only selected candidate methods and never changes returned values. GitHub Actions compiled the APK and verified the discovery markers in DEX.
+- API-101 now includes opt-in, bounded member-class discovery: it caps APK files, scanned class entries, candidate classes, elapsed scan time and automatic getter hooks. It observes only selected candidate methods, caps member-state log observations, avoids retaining raw UI text, and never changes returned values. GitHub Actions compiled the APK and verified the discovery markers in DEX.
 - API-101 now recognizes the requested Chinese rewarded-flow UI evidence, preserves matching rewarded-flow views from ad hiding, and records bounded observe-only lifecycle candidates. It does not fabricate reward callbacks or alter server validation.
 - Membership/Billing handling remains read-only. Never modify purchase state, forge VIP entitlements, or bypass anti-fraud controls.
 - The packages remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`. There is no verified single Hook APK.
@@ -59,9 +59,9 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 
 ## Latest API-101 build provenance
 
-- Source/workflow commit: `8d69b579fa921ddce1f482619f47298888715b1b`
-- GitHub Actions run: [41059922912](https://github.com/vip-svip/SY/actions/runs/41059922912) — success
-- APK SHA-256: `cbab80fe056f8417939d2889093331c64d6f4c9638e38fb60f36d67aac118817`
+- Source/workflow commit: `1d8de5ed4d5aaab3db3e4047f8ba9ab2d4a722aa`
+- GitHub Actions run: [41060413338](https://github.com/vip-svip/SY/actions/runs/41060413338) — success
+- APK SHA-256: `5985f74fa2819a9a64a1d53a8808e70bdf9f7b7dedec5d9831906c9de521126c`
 - CI verified: Java/Gradle compile, unit tests, APK signature, modern LSPosed metadata/resources, and bounded member/rewarded-flow DEX markers.
 - The artifact is an API-101 Hook APK build artifact, not yet merged with the legacy API-82 Hook and not yet inserted into the complete KernelSU ZIP.
 - No physical OnePlus 12 LSPosed injection or runtime behavior test has been performed.
