@@ -34,6 +34,12 @@ public final class UnifiedHookConfigSerializer {
                     .append(",privacy=").append(target.privacy ? '1' : '0')
                     .append(",exif_strip=").append(target.exifStrip ? '1' : '0')
                     .append(",clipboard_read_block=").append(target.clipboardReadBlock ? '1' : '0')
+                    .append(",sensor_accel=").append(target.sensorAccel ? '1' : '0')
+                    .append(",sensor_gyro=").append(target.sensorGyro ? '1' : '0')
+                    .append(",sensor_light=").append(target.sensorLight ? '1' : '0')
+                    .append(",sensor_magnet=").append(target.sensorMagnet ? '1' : '0')
+                    .append(",sensor_pressure=").append(target.sensorPressure ? '1' : '0')
+                    .append(",sensor_prox=").append(target.sensorProx ? '1' : '0')
                     .append('\n');
         }
 

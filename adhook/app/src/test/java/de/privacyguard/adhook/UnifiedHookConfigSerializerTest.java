@@ -130,4 +130,15 @@ public class UnifiedHookConfigSerializerTest {
         UnifiedHookConfigParser.parse(oversized.toString());
     }
 
+    @Test
+    public void serializerRoundTripsAllSixSensorFlags() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.sensors", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false, true, true, true, true, true, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.sensors");
+        assertTrue(t.sensorAccel && t.sensorGyro && t.sensorLight && t.sensorMagnet && t.sensorPressure && t.sensorProx);
+        assertTrue(text.contains("sensor_prox=1"));
+    }
+
 }

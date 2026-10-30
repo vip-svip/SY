@@ -28,8 +28,16 @@ public final class UnifiedHookConfigParser {
         public final boolean privacy;
         public final boolean exifStrip;
         public final boolean clipboardReadBlock;
+        public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    false, false, false, false, false, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -37,6 +45,9 @@ public final class UnifiedHookConfigParser {
             this.privacy = privacy;
             this.exifStrip = exifStrip;
             this.clipboardReadBlock = clipboardReadBlock;
+            this.sensorAccel = sensorAccel; this.sensorGyro = sensorGyro;
+            this.sensorLight = sensorLight; this.sensorMagnet = sensorMagnet;
+            this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
         }
 
         public boolean enabled() {
@@ -73,6 +84,11 @@ public final class UnifiedHookConfigParser {
         public boolean isClipboardReadBlockedFor(String packageName) {
             Target target = targets.get(packageName);
             return privacyEnabled && target != null && target.clipboardReadBlock;
+        }
+
+        public boolean isSensorHiddenFor(String packageName, int sensorType) {
+            Target target = targets.get(packageName);
+            return privacyEnabled && SensorPrivacyPolicy.isEnabled(target, sensorType);
         }
     }
 
@@ -130,6 +146,7 @@ public final class UnifiedHookConfigParser {
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -146,10 +163,16 @@ public final class UnifiedHookConfigParser {
                     case "privacy": targetPrivacy = on; break;
                     case "exif_strip": exifStrip = on; break;
                     case "clipboard_read_block": clipboardReadBlock = on; break;
+                    case "sensor_accel": sensorAccel = on; break;
+                    case "sensor_gyro": sensorGyro = on; break;
+                    case "sensor_light": sensorLight = on; break;
+                    case "sensor_magnet": sensorMagnet = on; break;
+                    case "sensor_pressure": sensorPressure = on; break;
+                    case "sensor_prox": sensorProx = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)

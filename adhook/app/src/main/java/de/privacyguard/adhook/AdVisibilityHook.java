@@ -103,6 +103,7 @@ public final class AdVisibilityHook extends XposedModule {
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
     private volatile boolean clipboardReadHooksInstalled;
+    private volatile boolean sensorHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -150,7 +151,9 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         final boolean exifForPackage = privacyEnabled && target.exifStrip;
         final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage) return;
+        final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro
+                || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx);
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -158,10 +161,11 @@ public final class AdVisibilityHook extends XposedModule {
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
+        if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -277,6 +281,50 @@ public final class AdVisibilityHook extends XposedModule {
         }
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "read-time EXIF privacy redaction installed=" + installed + " for " + pkg);
+    }
+
+    /**
+     * Opt-in per-app sensor enumeration redaction. The framework class is resolved
+     * from the boot class loader; unknown APIs and hook failures leave original results
+     * untouched. Shared-package processes fail open.
+     */
+    private synchronized boolean installSensorEnumerationHooks(final String pkg) {
+        if (sensorHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.hardware.SensorManager", false, null);
+            for (final Method method : type.getDeclaredMethods()) {
+                final String name = method.getName();
+                Class<?>[] parameters = method.getParameterTypes();
+                if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name))
+                        || parameters.length < 1 || parameters[0] != int.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                                if (!(arg instanceof Integer)) return chain.proceed();
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (!SensorPrivacyPolicy.shouldHide(privacyEnabled, processPackages.size(),
+                                        activePackage, active, ((Integer) arg).intValue())) {
+                                    return chain.proceed();
+                                }
+                                if ("getSensorList".equals(name)) return Collections.emptyList();
+                                return null;
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "sensor hook unavailable: " + name + "(" + parameters.length + ")");
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "SensorManager unavailable; sensor privacy fails open (" + t.getClass().getSimpleName() + ")");
+            return false;
+        }
+        sensorHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "opt-in sensor enumeration hooks installed=" + installed + " for " + pkg);
+        return sensorHooksInstalled;
     }
 
     /**
