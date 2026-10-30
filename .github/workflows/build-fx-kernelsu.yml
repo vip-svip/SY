@@ -5,6 +5,7 @@ on:
     paths:
       - 'fx-module/**'
       - 'fx-patches/**'
+      - 'scripts/tests/**'
       - '.github/workflows/build-fx-kernelsu.yml'
   workflow_dispatch:
 permissions:
