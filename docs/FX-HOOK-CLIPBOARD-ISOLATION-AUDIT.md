@@ -24,3 +24,8 @@ Parser/serializer host round-trip checks and package shell/JS regressions are se
 - Result: parser/serializer unit tests, Android debug APK build, APK signature verification, Xposed metadata checks, and DEX marker checks all passed.
 - APK SHA-256: `778b07f84b924629969a849c4ef2b8ce68df3bed277e638190f583b2e79d9991`
 - This verifies CI build output, not LSPosed injection or behavior on a physical OnePlus 12.
+
+
+## Follow-up wording accuracy check
+
+The root FX package settings UI was corrected to describe this as process-local clipboard shadowing. It no longer claims that different apps' clipboards are mutually invisible at OS level; it explicitly states that shared processes fail open and that this is not system-wide cross-app isolation. Host regression checks verify the UI claim.
