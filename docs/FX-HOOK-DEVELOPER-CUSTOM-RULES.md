@@ -11,10 +11,10 @@ schema_version=1
 ads_enabled=0
 privacy_enabled=0
 [list:targets]
-com.example.vpn,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|true|100,dev_rule_2=login|Lcom/example/vpn/auth/Session;->isLoggedIn()Z|RETURN_TRUE|50,dev_rule_3=update|com.example.vpn.update.Policy.shouldShowUpdate()Z|false|10
+com.example.vpn,dev_hook_enabled=1,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|RETURN_TRUE|100,dev_rule_2=login|Lcom/example/vpn/auth/Session;->isLoggedIn()Z|RETURN_TRUE|50,dev_rule_3=update|com.example.vpn.update.Policy.shouldShowUpdate()Z|RETURN_FALSE|10,dev_rule_4=trace|com.example.vpn.auth.AuthState#isEnabled()Z|OBSERVE_ONLY|0
 ```
 
-Field order is `id|method-descriptor|action|priority`.
+Field order is `id|method-descriptor|action|priority`. `dev_hook_enabled=1` is mandatory; without it all custom rules remain inert even for a debuggable package.
 
 Supported method descriptor forms:
 - Java reflection form: `com.example.vpn.auth.AuthState#isVip()Z`
@@ -23,7 +23,7 @@ Supported method descriptor forms:
 
 All forms normalize to an exact declared zero-argument primitive-boolean method. Fuzzy matching, overload guessing, parameters, object returns, and non-boolean methods are rejected.
 
-Actions: `true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`. Priority is an integer from -1000 through 1000; higher priority is installed first. If multiple rules point to the same method, the highest-priority rule wins because the runtime registry de-duplicates exact Method objects. The rule count is capped at 16 per package.
+Actions: `true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`, `OBSERVE` / `OBSERVE_ONLY` (call the original method and record hits), and `OFF` / `DISABLED` (do not install that rule). Priority is an integer from -1000 through 1000; higher priority is installed first. Duplicate rule IDs or duplicate method descriptors are rejected during parsing instead of silently shadowing each other. The rule count is capped at 16 per package. Rule changes take effect when the target process is restarted; this build does not dynamically detach a live hook when its remote config changes.
 
 ## Preset use cases
 
@@ -37,4 +37,4 @@ These are local UI/state fixtures only. They do not mint credentials, create pur
 
 Rules install only when the selected package is marked `ApplicationInfo.FLAG_DEBUGGABLE`, the package matches the configured package exactly, and the owner class belongs to that package namespace. The module fails closed when a descriptor cannot be parsed or resolved. Remove the rule and force-stop/restart the app to start a process without the fixture. Existing hooks are not dynamically removed from a live process by editing Remote Files.
 
-Host-side tests cover syntax normalization, package scoping, invalid actions/signatures, rule limits and serializer round-trip. GitHub Actions is the build gate; device-level LSPosed verification remains separate.
+Host-side tests cover syntax normalization, package scoping, explicit opt-in, duplicate detection, action handling, invalid signatures, rule limits and serializer round-trip. GitHub Actions is the build gate; device-level LSPosed verification remains separate.
