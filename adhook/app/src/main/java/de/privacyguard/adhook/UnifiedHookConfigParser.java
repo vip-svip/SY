@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -42,6 +44,7 @@ public final class UnifiedHookConfigParser {
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
+        public final List<DeveloperHookRule> developerRules = new ArrayList<>();
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
@@ -260,6 +263,7 @@ public final class UnifiedHookConfigParser {
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
+            List<DeveloperHookRule> developerRules = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -267,6 +271,13 @@ public final class UnifiedHookConfigParser {
                 String key = parts[i].substring(0, eq).trim();
                 String value = parts[i].substring(eq + 1).trim();
                 if (!seen.add(key)) throw new IllegalArgumentException("duplicate feature");
+                if (key.matches("dev_rule_[0-9]{1,2}")) {
+                    if (developerRulesCount(developerRules) >= 16) throw new IllegalArgumentException("too many developer rules");
+                    DeveloperHookRule rule = DeveloperHookRule.parse(value, pkg);
+                    if (rule == null) throw new IllegalArgumentException("invalid developer rule");
+                    developerRules.add(rule);
+                    continue;
+                }
                 if ("dev_test_vip_method".equals(key) || "dev_test_login_method".equals(key) || "dev_test_hide_update_method".equals(key)) {
                     if (!validDeveloperBooleanMethodSpec(value, pkg)) throw new IllegalArgumentException("invalid developer test method descriptor");
                     if ("dev_test_vip_method".equals(key)) developerVipMethod=value;
@@ -308,6 +319,7 @@ public final class UnifiedHookConfigParser {
             parsedTarget.developerVipMethod = developerVipMethod;
             parsedTarget.developerLoginMethod = developerLoginMethod;
             parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
+            parsedTarget.developerRules.addAll(developerRules);
             targets.put(pkg, parsedTarget);
         }
 
@@ -382,6 +394,8 @@ public final class UnifiedHookConfigParser {
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
         return new Result(ads, false, false, false, false, false, targets);
     }
+
+    private static int developerRulesCount(List<DeveloperHookRule> rules) { return rules.size(); }
 
     private static boolean validDeveloperBooleanMethodSpec(String value, String packageName) {
         if (value == null || value.length() > 512) return false;
