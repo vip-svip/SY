@@ -21,7 +21,7 @@ Configuration must be read through LSPosed Remote Files, parsed transactionally,
 - The modern `AdVisibilityHook` runtime uses `UnifiedHookConfigParser.parse(content)` and LSPosed Remote Files.
 - The legacy entrypoint is 2,073 lines / 96,340 bytes in the current FX ZIP; it is available for source migration.
 - The modern API-101 runtime contains package-scoped ad View observers, read-only Billing diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, and sensor privacy policy. Source presence is not proof of device behavior.
-- Rewarded-ad Chinese UI evidence, dynamic member-class discovery, and a bounded member DEX candidate scan are not yet implemented in the API-101 source.
+- API-101 now includes Chinese rewarded-flow UI evidence, bounded member DEX candidate scanning, dynamic class-load observation, and capped read-only candidate getter hooks. GitHub Actions verified compilation, signing, Xposed resources and the expected DEX markers; no OnePlus 12 runtime verification has been performed.
 - Billing and membership handling must remain read-only. Never synthesize rewarded-ad callbacks, purchases, or server-side entitlements.
 - The two APK package identities remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`.
 - The KernelSU module package workflow must fail closed if required module source files are missing; never emit a partial ZIP.
@@ -29,7 +29,7 @@ Configuration must be read through LSPosed Remote Files, parsed transactionally,
 ## Remaining migration sequence
 
 1. Create a method-by-method inventory from the supplied 2,073-line legacy source and map each switch to its existing UI/config key.
-2. Port deterministic, low-risk privacy protections first, with independent opt-in switches, package-scope checks, API guards, and fail-open compatibility behavior.
+2. Continue porting deterministic, low-risk privacy protections with independent opt-in switches, package-scope checks, API guards, and fail-open compatibility behavior. The bounded membership observer is diagnostic-only and must not change entitlement state.
 3. Keep destructive or high-breakage transforms (package/process hiding, telephony, location, camera/microphone, filesystem and system-property manipulation) disabled until each has dedicated API/OEM regression tests.
 4. Port the ad runtime and read-only membership diagnostics without changing ad reward callbacks, purchase state, or server-side validation.
 5. Consolidate package identity, LSPosed metadata, entrypoint, target scope and Remote Files transport only after every retained feature has an explicit migration status and the single APK builds in CI.
