@@ -171,6 +171,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesMicrophoneBlockFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.audio,mic_block=1\n").targets.get("com.example.audio");
+        assertNotNull(target);
+        assertTrue(target.micBlock);
+    }
+
+    @Test
     public void parsesCameraIdPrivacyFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
