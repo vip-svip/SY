@@ -20,7 +20,7 @@ Configuration must be read through LSPosed Remote Files, parsed transactionally,
 
 - The modern `AdVisibilityHook` runtime uses `UnifiedHookConfigParser.parse(content)` and LSPosed Remote Files.
 - The legacy entrypoint is 2,073 lines / 96,340 bytes in the current FX ZIP; it is available for source migration.
-- The modern API-101 runtime contains package-scoped ad View observers, read-only Billing diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, and sensor privacy policy. Source presence is not proof of device behavior.
+- The modern API-101 runtime contains package-scoped ad View observers, read-only Billing/member diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, sensor enumeration/rate policy, Wi-Fi scan suppression, active-notification read suppression, and notification permission-query masking. Source presence and host tests are not proof of device behavior.
 - API-101 now includes Chinese rewarded-flow UI evidence, bounded member DEX candidate scanning, dynamic class-load observation, and capped read-only candidate getter hooks. GitHub Actions verified compilation, signing, Xposed resources and the expected DEX markers; no OnePlus 12 runtime verification has been performed.
 - Billing and membership handling must remain read-only. Never synthesize rewarded-ad callbacks, purchases, or server-side entitlements.
 - The two APK package identities remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`.
@@ -46,8 +46,8 @@ A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **73 dist
 | Radio/device state | `spoof_bt_mac`, `spoof_wifi_mac`, `spoof_battery`, `spoof_screen`, `spoof_storage` | Not migrated |
 | Kernel/root/filesystem | `block_kernel_version`, `hide_kernel_debug`, `block_logcat`, `hide_su`, `hide_magisk`, `hide_ksu`, `block_rootcheck_libs`, `block_mounts`, `hide_mounts`, `hide_sysfs_nodes`, `fs_hide`, `fs_isolate`, `fs_rootlist`, `fs_attrs`, `fs_vfs` | Not migrated; keep disabled pending API/OEM tests |
 | System/app visibility | `syssvc_hide`, `app_list`, `block_pm_query`, `block_process_list`, `k_task`, `block_mediastore`, `block_net_ifaces`, `block_netstats`, `vpn_hide` | Not migrated; high compatibility risk |
-| Clipboard/input/notifications | `clipboard`, `clipboard_isolate`, `block_ime_logging`, `block_notif_listen`, `hide_notif_perm`, `usagestats_off`, `a11y_hide` | Clipboard read policy is partially migrated under a new explicit switch; remaining switches are not migrated |
-| Location/Wi-Fi | `mock_location`, `perapp_mock`, `gps`, `gps_accuracy`, `gnss_spoof`, `disable_passive_loc`, `block_wifi_scan` | Not migrated |
+| Clipboard/input/notifications | `clipboard`, `clipboard_isolate`, `block_ime_logging`, `block_notif_listen`, `hide_notif_perm`, `usagestats_off`, `a11y_hide` | Clipboard read policy, active-notification read suppression, and notification permission-query masking are partially migrated under independent modern gates; clipboard isolation, IME, usage and accessibility remain unported |
+| Location/Wi-Fi | `mock_location`, `perapp_mock`, `gps`, `gps_accuracy`, `gnss_spoof`, `disable_passive_loc`, `block_wifi_scan` | Wi-Fi scan partially migrated; all location/GNSS switches not migrated |
 | Sensors | `sensor_accel`, `sensor_gyro`, `sensor_light`, `sensor_magnet`, `sensor_pressure`, `sensor_prox`, `sensor_rate_limit` | Partially migrated with modern sensor selection/rate-limit policies; not full API-82 parity |
 | Camera/audio/biometrics | `cam_null`, `cam_hw_hide`, `mic_block`, `mic_hw_hide`, `audio_fp_block`, `hide_fingerprint_hw`, `hide_face_hw` | Not migrated |
 | Metadata/advertising ID | `exif_strip`, `ad_id_unify` | EXIF read-time redaction is partially migrated; Advertising ID unification is not |
@@ -62,9 +62,18 @@ The GitHub branch's `fx-module/` subtree currently contains only 7 tracked paths
 The current Library FX ZIP has the full module source at its archive root (including the root entrypoints, `scripts/`, and `webroot/`), not under `fx-module/`. Restoring the full module tree into the GitHub build layout is a separate required step before a complete GitHub KernelSU package can be produced. The latest working archive at `/mnt/data/fxwork/FX-v1.0.0-KernelSU.zip` now embeds the CI-built API-101 APK with its matching SHA-256 sidecar and build provenance. The original Library ZIP remains untouched. The working archive still contains both Hook APKs because the legacy API-82 feature set has not yet been fully migrated into one package.
 
 
-## 2026-10-30 continuation — Wi-Fi scan migration
+## 2026-10-30 continuation — Wi-Fi scan and notification migration
 
 - Migrated the historical `block_wifi_scan` behavior into API 101 as two independently validated gates: the existing global master (`wifi_scan_enabled`) and per-app target flag (`wifi_scan_block`).
 - Runtime intercepts only `WifiManager.getScanResults()`, `startScan()`, and `isScanAlwaysAvailable()`; network association, DNS, VPN and socket paths are untouched.
 - Shared-package processes and protected packages fail open. The old API 82 implementation remains in place until full parity and single-APK consolidation are complete.
-- Host-side parser/serializer/policy checks pass; Android CI build and real-device injection remain pending.
+- Host-side parser/serializer/policy checks and Android CI build pass; real-device injection and behavior remain pending.
+
+
+## 2026-10-30 continuation — API-101 config/notification verification
+
+- The FX KernelSU ZIP root-side publisher `scripts/gen_xposed_conf.sh` emits the versioned API-101 Remote Files schema; the old API-82 `xposed.conf` consumer remains separate.
+- API-101 now parses/serializes `notification_listen_enabled` + per-target `notification_listen_block`, and `notification_permission_hide_enabled` + per-target `notification_permission_hide` independently.
+- Runtime hooks active-notification read APIs and `NotificationManager.areNotificationsEnabled()` only for explicitly selected target packages. The latter masks an app-visible query; it does not revoke or alter the OS permission, listener registration, posting, or notification display.
+- Policy tests verify shared-package/protected-package/master-off fail-open behavior. CI run `41074509939` passed unit tests, APK assembly, signature verification, Xposed resource checks, and DEX marker checks.
+- APK SHA-256: `3a113bcecedd203f7aab32f1b84803a85cd11282b4ec47d4ddbec1b819bf8822`. Standalone API-101 debug artifact only; not merged with API-82. No physical OnePlus 12 verification.
