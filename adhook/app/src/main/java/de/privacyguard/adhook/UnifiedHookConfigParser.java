@@ -37,6 +37,16 @@ public final class UnifiedHookConfigParser {
                     false, false, false, false, false, false, false, false);
         }
 
+        // Source-compatible overload for existing sensor policy tests and callers.
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, false);
+        }
+
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
                boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock) {
