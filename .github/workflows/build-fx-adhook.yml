@@ -55,6 +55,13 @@ jobs:
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java
           test -s "$PARSER_SRC"
+          PRIVACY_PARSER=adhook/app/src/main/java/de/privacyguard/adhook/PrivacyHookConfigParser.java
+          PRIVACY_TEST=adhook/app/src/test/java/de/privacyguard/adhook/PrivacyHookConfigParserTest.java
+          test -s "$PRIVACY_PARSER"
+          test -s "$PRIVACY_TEST"
+          grep -q 'The master switch gates every feature' "$PRIVACY_PARSER"
+          grep -q 'lsposed_enabled' "$PRIVACY_TEST"
+          ! grep -q 'Set.of(' "$PRIVACY_PARSER"
           test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
           grep -q 'HookTargetConfigParser.parse' "$JAVA_SRC"
           grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
