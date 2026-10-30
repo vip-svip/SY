@@ -43,6 +43,63 @@ public final class DeveloperExecutableDescriptor {
         return new DeveloperExecutableDescriptor(owner,name,parsed,result);
     }
 
+    /**
+     * Converts a Java source-style exact signature to a JVM descriptor.
+     * Accepted form: com.example.Foo#run(java.lang.String,int[])java.lang.Object
+     * Generic type arguments are intentionally rejected: runtime erasure must be explicit.
+     */
+    public static String fromJavaSignature(String value, String packageName) {
+        if (value == null || packageName == null || value.length() > 768) return null;
+        int open = value.indexOf('(');
+        int close = value.indexOf(')', open + 1);
+        if (open <= 0 || close < open || close != value.lastIndexOf(')')) return null;
+        int hash = value.lastIndexOf('#', open);
+        int dot = value.lastIndexOf('.', open);
+        int split = Math.max(hash, dot);
+        if (split <= 0) return null;
+        String owner = value.substring(0, split);
+        String name = value.substring(split + 1, open);
+        if (!owner.startsWith(packageName + ".") || !name.matches("[A-Za-z_$][A-Za-z0-9_$]*|<init>")) return null;
+        String argsText = value.substring(open + 1, close).trim();
+        List<String> args = new ArrayList<>();
+        if (!argsText.isEmpty()) {
+            for (String part : argsText.split(",", -1)) {
+                String descriptor = javaTypeDescriptor(part.trim(), false);
+                if (descriptor == null || args.size() >= 64) return null;
+                args.add(descriptor);
+            }
+        }
+        String result = javaTypeDescriptor(value.substring(close + 1).trim(), true);
+        if (result == null || ("<init>".equals(name) && !"V".equals(result))) return null;
+        StringBuilder out = new StringBuilder("L").append(owner.replace('.', '/')).append(";->")
+                .append(name).append('(');
+        for (String arg : args) out.append(arg);
+        out.append(')').append(result);
+        String descriptor = out.toString();
+        return parse(descriptor, packageName) == null ? null : descriptor;
+    }
+
+    private static String javaTypeDescriptor(String type, boolean allowVoid) {
+        if (type == null || type.isEmpty() || type.indexOf('<') >= 0 || type.indexOf('>') >= 0) return null;
+        int dimensions = 0;
+        while (type.endsWith("[]")) { dimensions++; type = type.substring(0, type.length() - 2).trim(); }
+        if (dimensions > 255 || type.isEmpty()) return null;
+        String base;
+        switch (type) {
+            case "boolean": base = "Z"; break; case "byte": base = "B"; break;
+            case "char": base = "C"; break; case "short": base = "S"; break;
+            case "int": base = "I"; break; case "long": base = "J"; break;
+            case "float": base = "F"; break; case "double": base = "D"; break;
+            case "void": if (!allowVoid || dimensions != 0) return null; base = "V"; break;
+            default:
+                if (!type.matches("[A-Za-z_$][A-Za-z0-9_$.]*")) return null;
+                base = "L" + type.replace('.', '/') + ";";
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < dimensions; i++) out.append('[');
+        return out.append(base).toString();
+    }
+
     public Executable resolve(ClassLoader loader) throws ReflectiveOperationException {
         if (loader==null) return null;
         Class<?> c=Class.forName(owner,false,loader);
