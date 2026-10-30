@@ -76,3 +76,5 @@
 - This is deliberately conservative: packages declaring a shared UID lose API82 Hook features rather than risk process-global package attribution leaking one target's policy into another. Normal single-UID apps continue through the existing path.
 - Local regression `scripts/tests/v1.0.0-api82-shared-uid-fail-open-regression.sh` passed. MainHook SHA-256: `af70deb28288105c6698deba134123d565552e90d1fb7317c02ea85b96a7c412`; regression SHA-256: `8791e0eb0b0464237485b8594c0881e4784985ad39dce50e3316e8e3bd66dc0c`.
 - This change is not yet compiled against the legacy API82 Gradle project and is not yet part of the API101 GitHub artifact. Treat it as a locally patched source plus static regression only, not as a verified legacy APK.
+
+- GitHub 验证分支已另外保存可审阅的统一 diff：`tools/fx-api82-source/shared-uid-fail-open.patch`（提交 `07b7bbcfa85e3d1792969ec22bbe0f8a2aa2e71a`）。当前分支尚未包含完整 `lsposed/` 工程，因此该补丁没有进入 API82 云端编译；API82 仍待完整工程同步和 Gradle 编译。
