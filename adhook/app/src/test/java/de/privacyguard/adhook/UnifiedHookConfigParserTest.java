@@ -240,6 +240,16 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesIndependentBiometricHardwarePrivacyFlags() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.bio,hide_fingerprint_hw=1,hide_face_hw=0\n").targets.get("com.example.bio");
+        assertNotNull(target);
+        assertTrue(target.hideFingerprintHw);
+        assertFalse(target.hideFaceHw);
+    }
+
+    @Test
     public void parsesClipboardIsolationFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
