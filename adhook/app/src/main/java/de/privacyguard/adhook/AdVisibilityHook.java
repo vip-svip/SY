@@ -785,7 +785,11 @@ public final class AdVisibilityHook extends XposedModule {
         hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     Object result = chain.proceed();
-                    if (result instanceof Class<?>) inspectDynamicallyLoadedMemberClass((Class<?>) result);
+                    // ClassLoader hooks are process-global. Do not inspect another
+                    // package's member classes when package identity is ambiguous.
+                    if (processPackages.size() == 1 && result instanceof Class<?>) {
+                        inspectDynamicallyLoadedMemberClass((Class<?>) result);
+                    }
                     return result;
                 });
     }
