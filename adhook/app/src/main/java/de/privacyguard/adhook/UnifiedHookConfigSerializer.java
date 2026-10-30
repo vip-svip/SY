@@ -47,6 +47,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",mic_block=").append(target.micBlock ? '1' : '0')
                     .append(",disable_passive_loc=").append(target.disablePassiveLocation ? '1' : '0')
                     .append(",region_diag=").append(target.regionDiag ? '1' : '0')
+                    .append(",block_mediastore=").append(target.blockMediaStore ? '1' : '0')
                     .append('\n');
         }
 
