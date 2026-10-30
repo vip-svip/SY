@@ -28,6 +28,7 @@ public final class UnifiedHookConfigParser {
         public final boolean privacy;
         public final boolean exifStrip;
         public final boolean clipboardReadBlock;
+        public final boolean clipboardIsolate;
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
         public final boolean sensorRateLimit;
         public final boolean wifiScanBlock;
@@ -60,6 +61,10 @@ public final class UnifiedHookConfigParser {
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -67,6 +72,7 @@ public final class UnifiedHookConfigParser {
             this.privacy = privacy;
             this.exifStrip = exifStrip;
             this.clipboardReadBlock = clipboardReadBlock;
+            this.clipboardIsolate = clipboardIsolate;
             this.sensorAccel = sensorAccel; this.sensorGyro = sensorGyro;
             this.sensorLight = sensorLight; this.sensorMagnet = sensorMagnet;
             this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
@@ -87,14 +93,16 @@ public final class UnifiedHookConfigParser {
         public final boolean wifiScanEnabled;
         public final boolean notificationListenEnabled;
         public final boolean notificationPermissionHideEnabled;
+        public final boolean clipboardIsolationEnabled;
         public final Map<String, Target> targets;
 
-        private Result(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, Map<String, Target> targets) {
+        private Result(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled, Map<String, Target> targets) {
             this.adsEnabled = adsEnabled;
             this.privacyEnabled = privacyEnabled;
             this.wifiScanEnabled = wifiScanEnabled;
             this.notificationListenEnabled = notificationListenEnabled;
             this.notificationPermissionHideEnabled = notificationPermissionHideEnabled;
+            this.clipboardIsolationEnabled = clipboardIsolationEnabled;
             this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
         }
 
@@ -111,6 +119,11 @@ public final class UnifiedHookConfigParser {
         public boolean isExifStripEnabledFor(String packageName) {
             Target target = targets.get(packageName);
             return privacyEnabled && target != null && target.exifStrip;
+        }
+
+        public boolean isClipboardIsolatedFor(String packageName) {
+            Target target = targets.get(packageName);
+            return privacyEnabled && clipboardIsolationEnabled && target != null && target.clipboardIsolate;
         }
 
         public boolean isClipboardReadBlockedFor(String packageName) {
@@ -149,8 +162,8 @@ public final class UnifiedHookConfigParser {
         String[] lines = text.split("\\R", -1);
         if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
 
-        boolean schemaSeen = false, adsSeen = false, privacySeen = false, wifiScanSeen = false, notificationListenSeen = false, notificationPermissionHideSeen = false, sectionSeen = false;
-        boolean ads = false, privacy = false, wifiScan = false, notificationListen = false, notificationPermissionHide = false;
+        boolean schemaSeen = false, adsSeen = false, privacySeen = false, wifiScanSeen = false, notificationListenSeen = false, notificationPermissionHideSeen = false, clipboardIsolationSeen = false, sectionSeen = false;
+        boolean ads = false, privacy = false, wifiScan = false, notificationListen = false, notificationPermissionHide = false, clipboardIsolation = false;
         String section = "";
         Map<String, Target> targets = new LinkedHashMap<>();
 
@@ -187,6 +200,9 @@ public final class UnifiedHookConfigParser {
                 } else if ("notification_listen_enabled".equals(key)) {
                     if (notificationListenSeen || !bit(value)) throw new IllegalArgumentException("invalid notification_listen_enabled");
                     notificationListenSeen = true; notificationListen = "1".equals(value);
+                } else if ("clipboard_isolate_enabled".equals(key)) {
+                    if (clipboardIsolationSeen || !bit(value)) throw new IllegalArgumentException("invalid clipboard_isolate_enabled");
+                    clipboardIsolationSeen = true; clipboardIsolation = "1".equals(value);
                 } else if ("notification_permission_hide_enabled".equals(key)) {
                     if (notificationPermissionHideSeen || !bit(value)) throw new IllegalArgumentException("invalid notification_permission_hide_enabled");
                     notificationPermissionHideSeen = true; notificationPermissionHide = "1".equals(value);
@@ -201,7 +217,7 @@ public final class UnifiedHookConfigParser {
             String pkg = parts[0].trim();
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
-            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
+            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
@@ -219,6 +235,7 @@ public final class UnifiedHookConfigParser {
                     case "privacy": targetPrivacy = on; break;
                     case "exif_strip": exifStrip = on; break;
                     case "clipboard_read_block": clipboardReadBlock = on; break;
+                    case "clipboard_isolate": clipboardIsolate = on; break;
                     case "sensor_accel": sensorAccel = on; break;
                     case "sensor_gyro": sensorGyro = on; break;
                     case "sensor_light": sensorLight = on; break;
@@ -232,12 +249,13 @@ public final class UnifiedHookConfigParser {
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget));
+            if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
             throw new IllegalArgumentException("missing required schema fields");
-        return new Result(ads, privacy, wifiScan, notificationListen, notificationPermissionHide, targets);
+        return new Result(ads, privacy, wifiScan, notificationListen, notificationPermissionHide, clipboardIsolation, targets);
     }
 
 
@@ -304,7 +322,7 @@ public final class UnifiedHookConfigParser {
             targets.put(pkg, new Target(splash, feed, overlay, member, false, false, false));
         }
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
-        return new Result(ads, false, false, false, false, targets);
+        return new Result(ads, false, false, false, false, false, targets);
     }
 
     private static boolean bit(String value) {
