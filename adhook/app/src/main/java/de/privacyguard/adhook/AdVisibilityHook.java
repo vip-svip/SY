@@ -218,7 +218,7 @@ public final class AdVisibilityHook extends XposedModule {
                 } else {
                     // Value replacement remains limited to the existing explicit zero-arg boolean Debug fixture.
                     installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
-                            rule.descriptor, rule.action, ruleLabel);
+                            legacyBooleanDescriptor(rule.descriptor, pkg), rule.action, ruleLabel);
                 }
             }
         }
@@ -271,6 +271,14 @@ public final class AdVisibilityHook extends XposedModule {
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
+    private String legacyBooleanDescriptor(String descriptor, String packageName) {
+        if (descriptor == null || !descriptor.startsWith("L")) return descriptor;
+        DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+        if (parsed == null || !parsed.parameterDescriptors.isEmpty()
+                || !"Z".equals(parsed.returnDescriptor) || "<init>".equals(parsed.name)) return descriptor;
+        return parsed.owner + "#" + parsed.name + "()Z";
+    }
+
     /**
      * Read-only method observer for explicitly opted-in debuggable packages.
      * Logs signature, argument types, result type, duration and exception class only;
@@ -282,7 +290,14 @@ public final class AdVisibilityHook extends XposedModule {
                 targetDeveloperOptIn(packageName), packageName, packageName)) return;
         DeveloperExecutableDescriptor parsed;
         try {
-            parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            String jvmDescriptor = descriptor;
+            if (!jvmDescriptor.startsWith("L")) {
+                int split = jvmDescriptor.indexOf('#');
+                if (split <= 0 || !jvmDescriptor.endsWith("()Z")) return;
+                jvmDescriptor = "L" + jvmDescriptor.substring(0, split).replace('.', '/')
+                        + ";->" + jvmDescriptor.substring(split + 1, jvmDescriptor.length() - 3) + "()Z";
+            }
+            parsed = DeveloperExecutableDescriptor.parse(jvmDescriptor, packageName);
             if (parsed == null || "<init>".equals(parsed.name)) return;
             java.lang.reflect.Executable executable = parsed.resolve(loader);
             if (!(executable instanceof Method)) return;
