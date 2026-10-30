@@ -220,6 +220,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesClipboardIsolationFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.clip,clipboard_isolate=1\n").targets.get("com.example.clip");
+        assertNotNull(target);
+        assertTrue(target.clipboardIsolate);
+    }
+
+    @Test
     public void parsesAudioFingerprintPrivacyFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
