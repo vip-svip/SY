@@ -230,6 +230,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesInputMethodPrivacyFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.ime,block_ime_logging=1\n").targets.get("com.example.ime");
+        assertNotNull(target);
+        assertTrue(target.blockImeLogging);
+    }
+
+    @Test
     public void parsesIndependentBiometricHardwarePrivacyFlags() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
