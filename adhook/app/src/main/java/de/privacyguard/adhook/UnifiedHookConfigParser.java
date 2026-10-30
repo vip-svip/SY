@@ -36,10 +36,11 @@ public final class UnifiedHookConfigParser {
         public final boolean micBlock;
         public final boolean disablePassiveLocation;
         public final boolean regionDiag;
+        public final boolean blockMediaStore;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false, false, false, false, false, false, false);
+                    false, false, false, false, false, false, false, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -47,7 +48,7 @@ public final class UnifiedHookConfigParser {
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
                     sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, false, false, false, false, false, false);
+                    sensorRateLimit, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -93,6 +94,17 @@ public final class UnifiedHookConfigParser {
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
                boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
                boolean micBlock, boolean disablePassiveLocation, boolean regionDiag) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock,
+                    disablePassiveLocation, regionDiag, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
+               boolean micBlock, boolean disablePassiveLocation, boolean regionDiag, boolean blockMediaStore) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -110,6 +122,7 @@ public final class UnifiedHookConfigParser {
             this.micBlock = micBlock;
             this.disablePassiveLocation = disablePassiveLocation;
             this.regionDiag = regionDiag;
+            this.blockMediaStore = blockMediaStore;
         }
 
         public boolean enabled() {
@@ -239,10 +252,11 @@ public final class UnifiedHookConfigParser {
                     case "mic_block": micBlock = on; break;
                     case "disable_passive_loc": disablePassiveLocation = on; break;
                     case "region_diag": regionDiag = on; break;
+                    case "block_mediastore": blockMediaStore = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
