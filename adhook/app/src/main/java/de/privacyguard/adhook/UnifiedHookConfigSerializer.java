@@ -70,6 +70,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",notification_listen_block=").append(target.notificationListenBlock ? '1' : '0')
                     .append(",notification_permission_hide=").append(target.notificationPermissionHide ? '1' : '0')
                     .append(",mic_silence=").append(target.microphoneSilence ? '1' : '0')
+                    .append(",camera_access_block=").append(target.cameraAccessBlock ? '1' : '0')
                     .append('\n');
         }
 
