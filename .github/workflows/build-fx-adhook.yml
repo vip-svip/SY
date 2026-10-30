@@ -58,6 +58,13 @@ jobs:
           test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
           test -s adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
           grep -q 'UnifiedHookConfigParser.parse' "$JAVA_SRC"
+          grep -q 'installExifStripHooks' "$JAVA_SRC"
+          grep -q 'isExifStripEnabledFor' "$PARSER_SRC"
+          grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'shouldRedactTag' adhook/app/src/main/java/de/privacyguard/adhook/ExifPrivacyPolicy.java
+          grep -q 'parsesOptInExifPrivacyFeatureIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
+          grep -q 'serializerRoundTripsExifRedactionIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
+          grep -q 'redactsGpsCoordinatesAndGpsMetadata' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
           grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
           test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
@@ -94,6 +101,7 @@ jobs:
       - name: Run parser and deployment regression tests, then build APK
         run: |
           sh scripts/tests/adhook-app-installer-regression.sh
+          grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK is signed and has modern Xposed resources
         shell: bash
