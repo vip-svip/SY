@@ -1,6 +1,7 @@
 package de.privacyguard.adhook;
 
 import android.app.Activity;
+import android.media.AudioRecord;
 import android.app.Dialog;
 import android.app.Instrumentation;
 import android.app.Application;
@@ -131,6 +132,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
+    private volatile boolean microphoneSilenceHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -197,7 +199,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
         final boolean notificationListenForPackage = notificationListenEnabled && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target.notificationPermissionHide;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage) return;
+        final boolean microphoneSilenceForPackage = privacyEnabled && target.microphoneSilence;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -210,16 +213,55 @@ public final class AdVisibilityHook extends XposedModule {
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
+        if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    private void installAudioRecordSilenceHooks(String packageName) {
+        if (microphoneSilenceHooksInstalled) return;
+        synchronized (this) {
+            if (microphoneSilenceHooksInstalled) return;
+            try {
+                for (Method method : AudioRecord.class.getDeclaredMethods()) {
+                    if (!"read".equals(method.getName()) || method.getReturnType() != int.class
+                            || method.getParameterTypes().length == 0
+                            || !AudioRecordSilencePolicy.supports(method.getParameterTypes()[0])) continue;
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        if (!isMicrophoneSilenceAuthorized()) return chain.proceed();
+                        Object[] args = chain.getArgs().toArray();
+                        int bufferStart = 0;
+                        if (args.length > 0 && args[0] instanceof java.nio.ByteBuffer) {
+                            bufferStart = ((java.nio.ByteBuffer) args[0]).position();
+                        }
+                        Object result = chain.proceed();
+                        if (result instanceof Integer && ((Integer) result) > 0) {
+                            AudioRecordSilencePolicy.zero(args, (Integer) result, bufferStart);
+                        }
+                        return result;
+                    });
+                }
+                microphoneSilenceHooksInstalled = true;
+                logFx(Log.INFO, "AudioRecord read silence hooks installed for " + packageName);
+            } catch (Throwable t) {
+                logFx(Log.WARN, "AudioRecord silence hook registration failed; capture remains unchanged (" + t + ")");
+            }
+        }
+    }
+
+    private boolean isMicrophoneSilenceAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        String onlyPackage = processPackages.iterator().next();
+        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
+        return selected != null && selected.microphoneSilence;
     }
 
     private boolean loadConfig() {
