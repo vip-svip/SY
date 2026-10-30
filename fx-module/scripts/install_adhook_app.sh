@@ -63,16 +63,11 @@ install_one() {
       rm -f "$_stage" 2>/dev/null
       return 1
     fi
-    cat "$_pm_log" >> "$LOG" 2>/dev/null || :
-    if grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate' "$_pm_log" 2>/dev/null; then
-      log_msg "ERROR: signing certificate differs for $_pkg; refusing replacement without uninstall or data loss"
-      break
-    fi
     log_msg "WARN: PackageManager install attempt $_attempt/3 failed for $_pkg"
     _attempt=$((_attempt+1))
     [ "$_attempt" -le 3 ] && sleep 2
   done
-  rm -f "$_stage" "$_pm_log" 2>/dev/null
+  rm -f "$_stage" 2>/dev/null
   if [ "$_installed" = 1 ]; then
     log_msg "installed as ordinary app; LSPosed activation requires its module/scope and a reboot: $_pkg"; return 0
   fi
