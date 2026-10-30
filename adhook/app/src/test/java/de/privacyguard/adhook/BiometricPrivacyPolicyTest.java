@@ -14,7 +14,9 @@ public class BiometricPrivacyPolicyTest {
         UnifiedHookConfigParser.Target t = target("hide_fingerprint_hw=1,hide_face_hw=0");
         assertTrue(BiometricPrivacyPolicy.shouldHideFingerprint(true, 1, "com.example.bio", t));
         assertFalse(BiometricPrivacyPolicy.shouldHideFace(true, 1, "com.example.bio", t));
-        assertTrue(BiometricPrivacyPolicy.shouldReportNoBiometricHardware(true, 1, "com.example.bio", t));
+        assertFalse(BiometricPrivacyPolicy.shouldReportNoBiometricHardware(true, 1, "com.example.bio", t));
+        UnifiedHookConfigParser.Target both = target("hide_fingerprint_hw=1,hide_face_hw=1");
+        assertTrue(BiometricPrivacyPolicy.shouldReportNoBiometricHardware(true, 1, "com.example.bio", both));
     }
 
     @Test public void biometricHidingRequiresMasterAndSinglePackage() {
