@@ -30,11 +30,13 @@ public class UnifiedHookConfigSerializerTest {
     public void serializerRoundTripsMultipleDeveloperRules() {
         UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
-                "com.example.vpn,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|true|100," +
+                "com.example.vpn,dev_hook_enabled=1,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|true|100," +
                 "dev_rule_2=update|com.example.vpn.update.Policy.shouldShowUpdate()Z|false|10\n");
         String encoded = UnifiedHookConfigSerializer.serialize(false, false, input.targets);
         UnifiedHookConfigParser.Result output = UnifiedHookConfigParser.parse(encoded);
         assertEquals(2, output.targets.get("com.example.vpn").developerRules.size());
+        assertTrue(output.targets.get("com.example.vpn").developerHooksEnabled);
+        assertTrue(encoded.contains("dev_hook_enabled=1"));
         assertEquals("vip", output.targets.get("com.example.vpn").developerRules.get(0).id);
         assertTrue(output.targets.get("com.example.vpn").developerRules.get(0).replacement);
         assertFalse(output.targets.get("com.example.vpn").developerRules.get(1).replacement);
