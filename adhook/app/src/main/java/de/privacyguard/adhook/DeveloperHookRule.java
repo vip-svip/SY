@@ -69,9 +69,9 @@ public final class DeveloperHookRule {
         Set<String> claimed = new HashSet<>();
         List<DeveloperHookRule> selected = new ArrayList<>();
         for (DeveloperHookRule rule : ordered) {
-            // A highest-priority DISABLED entry masks lower-priority rules for this descriptor.
-            if (!claimed.add(rule.descriptor)) continue;
-            if (rule.action != Action.DISABLED) selected.add(rule);
+            // DISABLED is an inert entry: it does not claim the descriptor or shadow an active rule.
+            if (rule.action == Action.DISABLED) continue;
+            if (claimed.add(rule.descriptor)) selected.add(rule);
         }
         return Collections.unmodifiableList(selected);
     }
