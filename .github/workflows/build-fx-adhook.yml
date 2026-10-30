@@ -112,3 +112,12 @@ jobs:
           name: FXAdHook-apk
           path: adhook/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Upload matching Hook source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXAdHook-source
+          path: |
+            adhook/
+            scripts/install_adhook_app.sh
+            scripts/remove_adhook_app.sh
+          if-no-files-found: error
