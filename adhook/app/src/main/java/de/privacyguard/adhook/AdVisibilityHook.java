@@ -204,9 +204,9 @@ public final class AdVisibilityHook extends XposedModule {
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null) return;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        final boolean developerTestForPackage = debuggableTarget && (target.developerVipMethod != null
-                || target.developerLoginMethod != null || target.developerHideUpdateMethod != null
-                || !target.developerRules.isEmpty());
+        final boolean developerTestForPackage = debuggableTarget && target.developerHooksEnabled
+                && (target.developerVipMethod != null || target.developerLoginMethod != null
+                || target.developerHideUpdateMethod != null || !target.developerRules.isEmpty());
         if (developerTestForPackage) {
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerVipMethod, true, "vip");
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
@@ -272,9 +272,14 @@ public final class AdVisibilityHook extends XposedModule {
      * The exact package must be debuggable; descriptors are exact zero-arg boolean methods.
      * These fixtures are never enabled in release builds and are not an authorization credential.
      */
+    private boolean targetDeveloperOptIn(String packageName) {
+        UnifiedHookConfigParser.Target target = targets.get(packageName);
+        return target != null && target.developerHooksEnabled;
+    }
+
     private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
             boolean debuggableBuild, String descriptor, boolean replacement, String label) {
-        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild, true, packageName, packageName)) return;
+        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
         Method method = DeveloperOwnedBooleanHook.resolve(loader, packageName, packageName,
                 debuggableBuild, true, descriptor);
         if (method == null || developerTestHookedMethods.contains(method)) return;
