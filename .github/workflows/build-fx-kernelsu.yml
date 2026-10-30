@@ -16,7 +16,7 @@ jobs:
       - name: Restore complete module source from Release when checkout is incomplete
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: \${{ github.token }}
         run: |
           set -euo pipefail
           required=(
@@ -25,7 +25,7 @@ jobs:
             scripts/certmgr.sh webroot/index.html
           )
           complete=1
-          for f in "${required[@]}"; do
+          for f in "\${required[@]}"; do
             [[ -s "fx-module/$f" ]] || complete=0
           done
           if (( complete == 0 )); then
@@ -48,18 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           required=(
-            fx-module/module.prop
-            fx-module/customize.sh
-            fx-module/post-fs-data.sh
-            fx-module/service.sh
-            fx-module/uninstall.sh
-            fx-module/scripts/apply.sh
-            fx-module/scripts/default.conf
-            fx-module/scripts/util.sh
-            fx-module/scripts/certmgr.sh
-            fx-module/webroot/index.html
+            fx-module/module.prop fx-module/customize.sh
+            fx-module/post-fs-data.sh fx-module/service.sh
+            fx-module/uninstall.sh fx-module/scripts/apply.sh
+            fx-module/scripts/default.conf fx-module/scripts/util.sh
+            fx-module/scripts/certmgr.sh fx-module/webroot/index.html
           )
-          for f in "${required[@]}"; do
+          for f in "\${required[@]}"; do
             [[ -s "$f" ]] || { echo "::error file=$f::Required FX module file is missing or empty"; exit 1; }
           done
           grep -qx 'version=1.0.0' fx-module/module.prop
@@ -80,8 +75,6 @@ jobs:
               if file -b "$f" | grep -q '^ELF '; then chmod 0755 "$f"; fi
             done < <(find fx-module/bin -type f -print0)
           fi
-          # Repair the known stale pg-mitm sidecar from the exact binary in this
-          # release archive. All other checksum mismatches remain hard failures.
           if [[ -s fx-module/bin/arm64/pg-mitm && -s fx-module/bin/arm64/pg-mitm.sha256 ]]; then
             if ! (cd fx-module/bin/arm64 && sha256sum -c pg-mitm.sha256); then
               echo "::warning file=fx-module/bin/arm64/pg-mitm.sha256::Stale pg-mitm checksum sidecar; regenerating from the packaged binary."
@@ -91,26 +84,8 @@ jobs:
           while IFS= read -r -d '' manifest; do
             dir="$(dirname "$manifest")"
             base="$(basename "$manifest")"
-            target="${base%.sha256}"
-            if ! grep -Eq '^[[:xdigit:]]{64}[[:space:]]+\*?[^[:space:]]+
-      - name: Package and verify KernelSU ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          (cd fx-module && zip -qr ../dist/FX-v1.0.0.zip .)
-          unzip -tq dist/FX-v1.0.0.zip
-          unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
-          unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
-          sha256sum dist/FX-v1.0.0.zip | tee dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
-        with:
-          name: FX-v1.0.0-KernelSU
-          path: |
-            dist/FX-v1.0.0.zip
-            dist/SHA256SUMS
-          if-no-files-found: error
- "$manifest"; then
+            target="\${base%.sha256}"
+            if ! awk 'NF >= 2 && $1 ~ /^[[:xdigit:]]{64}$/ { ok=1 } END { exit !ok }' "$manifest"; then
               [[ -s "$dir/$target" ]] || { echo "::error file=$manifest::Malformed checksum manifest and target file is absent"; exit 1; }
               echo "::warning file=$manifest::Non-standard checksum manifest; normalizing against its adjacent packaged file."
               (cd "$dir" && sha256sum "$target" > "$base")
