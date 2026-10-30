@@ -8,7 +8,7 @@ on:
       - ".github/workflows/build-fx-adhook.yml"
       - "scripts/install_adhook_app.sh"
       - "scripts/remove_adhook_app.sh"
-      - "scripts/tests/adhook-app-installer-regression.sh"
+      - "scripts/tests/**"
   pull_request:
     branches: [main]
     paths:
