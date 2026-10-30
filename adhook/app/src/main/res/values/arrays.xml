@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No ordinary app is hooked until the user explicitly selects its LSPosed scope. -->
+    <string-array name="xposed_scope">
+        <item>android</item>
+    </string-array>
+</resources>
