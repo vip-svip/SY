@@ -194,4 +194,22 @@ public class UnifiedHookConfigParserTest {
         assertFalse(result.isWifiScanBlockedFor("com.example.wifi"));
     }
 
+    @Test
+    public void parsesOptInNotificationListenBlockWithIndependentMaster() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_listen_enabled=1\n[list:targets]\n" +
+                "com.example.notify,notification_listen_block=1\n");
+        assertTrue(result.isNotificationListenBlockedFor("com.example.notify"));
+        assertFalse(result.isNotificationListenBlockedFor("com.example.other"));
+        assertFalse(result.isPrivacyEnabledFor("com.example.notify"));
+    }
+
+    @Test
+    public void notificationListenMasterDefaultsOffForOlderRemoteFiles() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.notify,notification_listen_block=1\n");
+        assertFalse(result.isNotificationListenBlockedFor("com.example.notify"));
+    }
+
 }
