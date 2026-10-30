@@ -159,6 +159,23 @@ public class UnifiedHookConfigParserTest {
         assertFalse(result.isClipboardReadBlockedFor("com.example.clip"));
     }
 
+    @Test
+    public void parsesWifiScanAndCellInfoPrivacyFlagsIndependently() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.radio,wifi_scan_hide=1,cell_info_hide=0\n");
+        UnifiedHookConfigParser.Target target = result.targets.get("com.example.radio");
+        assertNotNull(target);
+        assertTrue(target.wifiScanHide);
+        assertFalse(target.cellInfoHide);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsInvalidWifiScanFlag() {
+        UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.radio,wifi_scan_hide=2\n");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDuplicateFeatureKeys() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\nprivacy_enabled=1\n" +
