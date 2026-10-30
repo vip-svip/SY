@@ -24,6 +24,16 @@ public class HookTargetConfigParserTest {
     }
 
     @Test
+    public void skipAndCloseControlLabelsAreProtected() {
+        assertTrue(AdVisibilityHook.isProtectedAdControlText("跳过广告"));
+        assertTrue(AdVisibilityHook.isProtectedAdControlText("关闭广告"));
+        assertTrue(AdVisibilityHook.isProtectedAdControlText("Skip Ad"));
+        assertTrue(AdVisibilityHook.isProtectedAdControlText("3秒后跳过"));
+        assertFalse(AdVisibilityHook.isProtectedAdControlText("广告位"));
+        assertFalse(AdVisibilityHook.isProtectedAdControlText("Sponsored"));
+    }
+
+    @Test
     public void membershipDiagnosticsRemainAvailableWhenAdMasterIsOff() {
         HookTargetConfigParser.Result result = HookTargetConfigParser.parse(
                 "hook_ads_enabled=0\n[list:hook_targets]\n" +
