@@ -18,6 +18,19 @@ PG_MODDIR=$MODDIR
 PG=/data/adb/privacyguard
 mkdir -p "$PG" 2>/dev/null
 
+# ZIP extraction can preserve an overly restrictive mode on the bundled ARM64 QuickJS.
+# Repair it before any later runtime task is started; failure is logged and does not
+# block DNS/VPN startup.
+_QJS_BIN="$MODDIR/bin/arm64/qjs"
+if [ -f "$_QJS_BIN" ]; then
+  chmod 0755 "$_QJS_BIN" 2>/dev/null || :
+  if [ ! -x "$_QJS_BIN" ]; then
+    echo "[$(date '+%m-%d %H:%M:%S')] QuickJS: bundled qjs is present but still not executable after chmod" >> "$PG/boot.log"
+  else
+    echo "[$(date '+%m-%d %H:%M:%S')] QuickJS: executable permission verified" >> "$PG/boot.log"
+  fi
+fi
+
 pg_ca_boot_id() { cat /proc/sys/kernel/random/boot_id 2>/dev/null; }
 pg_ca_mark_synced() {
   _pcm_id=$(pg_ca_boot_id)
