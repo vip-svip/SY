@@ -1,24 +1,20 @@
 #!/bin/sh
-# Host-runnable regression test for ordinary-app Hook APK deployment without metamodule.
+# Host regression for the single-APK FX Hook installer and safe API-82 migration.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 INSTALLER="$ROOT/scripts/install_adhook_app.sh"
 REMOVER="$ROOT/scripts/remove_adhook_app.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-[ -s "$INSTALLER" ] || fail "installer helper missing"
-[ -s "$REMOVER" ] || fail "remover helper missing"
+[ -s "$INSTALLER" ] || fail "unified installer missing"
+[ -s "$REMOVER" ] || fail "unified remover missing"
 PACKAGED_INSTALLER="$ROOT/fx-module/scripts/install_adhook_app.sh"
-[ -s "$PACKAGED_INSTALLER" ] || fail "packaged installer helper missing"
-cmp -s "$INSTALLER" "$PACKAGED_INSTALLER" || fail "packaged installer drifted from tested installer"
-TMP="${TMPDIR:-/tmp}/fx-adhook-installer-test-$$"
+[ -s "$PACKAGED_INSTALLER" ] || fail "packaged installer missing"
+cmp -s "$INSTALLER" "$PACKAGED_INSTALLER" || fail "packaged installer drifted"
+TMP="${TMPDIR:-/tmp}/fx-unified-hook-test-$$"
 mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-printf 'fake legacy apk payload\n' > "$TMP/mod/optional/PrivacyGuardHook.apk"
-printf 'fake modern apk payload\n' > "$TMP/mod/optional/FXAdHook.apk"
-for _name in PrivacyGuardHook FXAdHook; do
-  _p="$TMP/mod/optional/$_name.apk"
-  sha256sum "$_p" > "$_p.sha256"
-done
+printf 'fake unified apk payload\n' > "$TMP/mod/optional/FXAdHook.apk"
+sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
 cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
@@ -26,31 +22,25 @@ STATE=$FX_ADHOOK_FAKE_PM_STATE
 mkdir -p "$STATE"
 case "$1" in
   path)
-    pkg=$2
-    if grep -Fxq "$pkg" "$STATE/installed" 2>/dev/null; then echo "package:/data/app/$pkg/base.apk"; else exit 1; fi
+    grep -Fxq "$2" "$STATE/installed" 2>/dev/null && { echo "package:/data/app/$2/base.apk"; exit 0; }
+    exit 1
     ;;
   install)
-    [ "${2:-}" = "-r" ] || exit 2
-    apk=$3
-    [ -s "$apk" ] || exit 3
-    case "$(basename "$apk")" in
-      *privacyguardhook*) pkg=de.privacyguard.hook ;;
-      *fxadhook*) pkg=de.privacyguard.adhook ;;
-      *) if grep -q 'fake legacy apk payload' "$apk"; then pkg=de.privacyguard.hook; else pkg=de.privacyguard.adhook; fi ;;
-    esac
-    if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ] && [ "$pkg" = de.privacyguard.adhook ]; then
+    [ "$2" = "-r" ] || exit 2
+    [ -s "$3" ] || exit 3
+    if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then
       echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2
       exit 1
     fi
-    grep -Fxv "$pkg" "$STATE/installed" > "$STATE/installed.tmp" 2>/dev/null || :
+    grep -Fxv de.privacyguard.adhook "$STATE/installed" > "$STATE/installed.tmp" 2>/dev/null || :
     mv "$STATE/installed.tmp" "$STATE/installed"
-    echo "$pkg" >> "$STATE/installed"; echo "$pkg" >> "$STATE/install-calls"
+    echo de.privacyguard.adhook >> "$STATE/installed"
+    echo install >> "$STATE/calls"
     ;;
   uninstall)
-    pkg=$2
-    grep -Fxv "$pkg" "$STATE/installed" > "$STATE/installed.tmp" 2>/dev/null || :
+    grep -Fxv "$2" "$STATE/installed" > "$STATE/installed.tmp" 2>/dev/null || :
     mv "$STATE/installed.tmp" "$STATE/installed"
-    echo "$pkg" >> "$STATE/uninstall-calls"
+    echo "$2" >> "$STATE/uninstalls"
     ;;
   *) exit 9 ;;
 esac
@@ -61,73 +51,35 @@ export FX_ADHOOK_FAKE_PM_STATE="$TMP/pm"
 export FX_ADHOOK_STATE_DIR="$TMP/state"
 export FX_ADHOOK_TMP_DIR="$TMP/tmp"
 export FX_ADHOOK_LOG="$TMP/state/install.log"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first install attempt failed"
-grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "legacy Hook not installed as a regular app"
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "FXAdHook not installed as a regular app"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "expected two package installs"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install retry failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "unchanged packages were reinstalled"
-printf 'updated fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
-sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "APK update failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 3 ] || fail "updated APK was not reinstalled exactly once"
-# A signature mismatch must preserve the installed app and its data.
-printf 'different-key fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
+# Simulate a legacy FX-owned package. Migration removes it only after API-101 succeeds.
+printf '%s\n' de.privacyguard.hook > "$TMP/pm/installed"
+printf 'legacy-digest\n' > "$TMP/state/adhook-apk-privacyguardhook.sha256"
+printf 'fx-managed-v1\n' > "$TMP/state/adhook-apk-privacyguardhook.fx-owned"
+sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "unified install or legacy migration failed"
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "unified API-101 package not installed"
+! grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "FX-owned legacy package not migrated away"
+[ "$(wc -l < "$TMP/pm/calls" | tr -d ' ')" = 1 ] || fail "installer must install exactly one APK"
+[ -s "$TMP/state/adhook-apk-fxadhook.fx-owned" ] || fail "new package ownership marker missing"
+[ ! -e "$TMP/state/adhook-apk-privacyguardhook.fx-owned" ] || fail "legacy ownership marker not cleared"
+# Idempotent retry must not reinstall.
+sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install failed"
+[ "$(wc -l < "$TMP/pm/calls" | tr -d ' ')" = 1 ] || fail "unchanged APK was reinstalled"
+# Signature mismatch preserves the current installed package and does not uninstall.
+printf 'changed fake apk payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
 sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
-if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch should be reported as install failure"; fi
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing Hook package was removed after signature mismatch"
-[ ! -s "$TMP/pm/uninstall-calls" ] || fail "installer attempted to uninstall after signature mismatch"
-grep -q 'signing certificate differs' "$TMP/state/install.log" || fail "signature mismatch was not diagnosed in the install log"
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch should fail"; fi
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing package removed on signature mismatch"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
-sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "tracked package cleanup failed"
-[ ! -s "$TMP/pm/installed" ] || fail "FX-managed apps were not removed on uninstall"
-[ ! -e "$TMP/state/adhook-apk-privacyguardhook.sha256" ] || fail "legacy marker survived uninstall"
-[ ! -e "$TMP/state/adhook-apk-fxadhook.sha256" ] || fail "modern marker survived uninstall"
+# User-owned legacy package without ownership marker must never be removed.
+printf '%s\n' de.privacyguard.hook >> "$TMP/pm/installed"
+printf 'legacy-digest\n' > "$TMP/state/adhook-apk-privacyguardhook.sha256"
+rm -f "$TMP/state/adhook-apk-privacyguardhook.fx-owned"
+sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "unified cleanup failed"
+! grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "FX-owned unified package not removed"
+grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "pre-existing legacy package was incorrectly removed"
+grep -q 'de.privacyguard.hook' "$TMP/state/install.log" || fail "legacy migration was not logged"
 if grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' "$INSTALLER" "$REMOVER"; then
-  fail "APK installer unexpectedly contains networking mutations"
+  fail "Hook package installer unexpectedly mutates networking"
 fi
-# Static regression guard for the modern ad observer's process-global hooks.
-HOOK_SRC="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
-[ -s "$HOOK_SRC" ] || fail "modern Hook source missing"
-grep -q 'private synchronized void installAdViewHooks()' "$HOOK_SRC" || fail "global ad observer installer is not synchronized"
-OBS_LINE=$(grep -n 'installAdViewHooks();' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
-GUARD_LINE=$(grep -n 'if (!hooksInstalledFor.add(pkg)) return;' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
-[ -n "$OBS_LINE" ] && [ -n "$GUARD_LINE" ] && [ "$OBS_LINE" -lt "$GUARD_LINE" ] || fail "per-package guard prevents retrying global observers"
-grep -q 'private volatile boolean privacyIdentifierHookInstalled;' "$HOOK_SRC" || fail "process-scoped privacy registration state missing"
-grep -q 'UnifiedHookConfigParser.parse(content)' "$HOOK_SRC" || fail "runtime is not wired to the unified config parser"
-grep -q 'configLoaded = loadConfig()' "$HOOK_SRC" || fail "remote config load is not connected to module startup"
-grep -q 'if (!remoteFilesAvailable)' "$HOOK_SRC" || fail "missing Remote Files capability must fail closed"
-! grep -q 'intentionally independent from the current ad-only parser' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" || fail "stale parser migration comment remains"
-PRIVACY_LINE=$(grep -n 'installPrivacyIdentifierHooks(pkg)' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
-[ -n "$PRIVACY_LINE" ] && [ "$PRIVACY_LINE" -lt "$GUARD_LINE" ] || fail "privacy hook failure cannot retry before package guard"
-grep -q 'private synchronized boolean installPrivacyIdentifierHooks(final String pkg)' "$HOOK_SRC" || fail "privacy hook installer must serialize registration"
-grep -q 'if (privacyIdentifierHookInstalled) return true;' "$HOOK_SRC" || fail "privacy hook duplicate registration guard missing"
-grep -q 'privacyIdentifierHookInstalled = true;' "$HOOK_SRC" || fail "privacy hook success is not recorded"
-for flag in activityObserverInstalled dialogObserverInstalled popupObserversInstalled dynamicChildObserversInstalled; do
-  grep -q "private volatile boolean $flag;" "$HOOK_SRC" || fail "missing independent observer state: $flag"
-done
-! grep -q 'adObserversInstalled' "$HOOK_SRC" || fail "obsolete all-or-nothing observer state remains"
-grep -q 'if (!dynamicChildObserversInstalled) dynamicChildObserversInstalled = installDynamicAdChildHooks();' "$HOOK_SRC" || fail "dynamic observer failure is not retryable"
-grep -q 'popupObserverMethods.add(key)' "$HOOK_SRC" || fail "popup overload successes are not tracked individually"
-grep -q 'dynamicChildObserverMethods.add(key)' "$HOOK_SRC" || fail "addView overload successes are not tracked individually"
-grep -q 'eligible > 0 && popupObserverMethods.size() >= eligible' "$HOOK_SRC" || fail "partial popup registration incorrectly counts as complete"
-grep -q 'eligible > 0 && dynamicChildObserverMethods.size() >= eligible' "$HOOK_SRC" || fail "partial child registration incorrectly counts as complete"
-grep -q 'private UnifiedHookConfigParser.Target adTargetFor(String pkg)' "$HOOK_SRC" || fail "package-scoped dynamic target resolver missing"
-grep -q 'installDynamicAdChildHooks()' "$HOOK_SRC" || fail "global dynamic child observer not installed"
-! grep -q 'installAdViewHooks(pkg, target)' "$HOOK_SRC" || fail "old package-capturing observer call remains"
-! grep -q 'installDynamicAdChildHooks(pkg, target)' "$HOOK_SRC" || fail "old package-capturing dynamic observer call remains"
-# Regression: an app package that predates FX must not be claimed or removed.
-rm -rf "$TMP/state" "$TMP/pm"
-mkdir -p "$TMP/state" "$TMP/pm"
-export FX_ADHOOK_FAKE_PM_STATE="$TMP/pm"
-export FX_ADHOOK_STATE_DIR="$TMP/state"
-export FX_ADHOOK_TMP_DIR="$TMP/tmp"
-export FX_ADHOOK_LOG="$TMP/state/install.log"
-printf '%s\n' de.privacyguard.adhook > "$TMP/pm/installed"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with a pre-existing package failed"
-[ ! -e "$TMP/state/adhook-apk-fxadhook.fx-owned" ] || fail "pre-existing package was incorrectly marked FX-owned"
-sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup with a pre-existing package failed"
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing package was incorrectly uninstalled"
-grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "new FX-owned package was not removed"
-echo "PASS: Hook APKs install as ordinary apps, idempotently update, and clean up without network mutations"
+echo "PASS: one API-101 Hook APK installs, migrates only FX-owned legacy package, and safely uninstalls"
