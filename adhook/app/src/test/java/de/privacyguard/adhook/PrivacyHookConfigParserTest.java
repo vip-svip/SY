@@ -26,7 +26,7 @@ public class PrivacyHookConfigParserTest {
 
     @Test public void compatProfileDisablesRiskyKeys() {
         PrivacyHookConfigParser.Result result = PrivacyHookConfigParser.parse(
-                "lsposed_enabled=1\nlsposed_profile=compat\nblock_pm_query=1\n");
+                "lsposed_enabled=1\nlsposed_profile=compat\nblock_pm_query=1\nspoof_model=1\n");
         assertFalse(result.enabled("block_pm_query"));
         assertTrue(result.enabled("spoof_model"));
     }
