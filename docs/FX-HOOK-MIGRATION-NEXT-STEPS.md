@@ -38,7 +38,7 @@ Configuration must be read through LSPosed Remote Files, parsed transactionally,
 
 ## Legacy runtime switch inventory
 
-A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **73 distinct literal `on("...")` switches**. This is the verified Java runtime inventory; older UI/migration notes may count additional presentation/configuration keys separately.
+A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **75 distinct literal `on("...")` switches**. This count is enforced by `scripts/tests/v1.0.0-fxhook-migration-baseline-regression.sh` against both the source and the 75-row migration matrix. Two entries are legacy literal labels (`Camera disabled by PrivacyGuard` and `Permission denied`); they are included because the runtime checks them through the same `on(...)` gate.
 
 | Feature group | Legacy switches | API-101 migration status |
 |---|---|---|
