@@ -243,7 +243,7 @@ public final class AdVisibilityHook extends XposedModule {
                 if (!"open".equals(method.getName()) || !java.lang.reflect.Modifier.isStatic(method.getModifiers())
                         || cameraAccessHookedMethods.contains(method)) continue;
                 try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
                         if (isCameraAccessBlockAuthorized()) {
                             throw new SecurityException("Camera access disabled by FX Hook privacy setting");
                         }
@@ -259,7 +259,7 @@ public final class AdVisibilityHook extends XposedModule {
                 for (Method method : CameraManager.class.getDeclaredMethods()) {
                     if (!"openCamera".equals(method.getName()) || cameraAccessHookedMethods.contains(method)) continue;
                     try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
                             if (isCameraAccessBlockAuthorized()) {
                                 throw new SecurityException("Camera access disabled by FX Hook privacy setting");
                             }
