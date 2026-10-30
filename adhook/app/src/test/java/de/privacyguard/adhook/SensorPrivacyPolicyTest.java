@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public class SensorPrivacyPolicyTest {
     private UnifiedHookConfigParser.Target target(boolean a, boolean g, boolean l, boolean m, boolean p, boolean x) {
-        return new UnifiedHookConfigParser.Target(false,false,false,false,false,false,false,a,g,l,m,p,x);
+        return new UnifiedHookConfigParser.Target(false,false,false,false,false,false,false,a,g,l,m,p,x,false);
     }
     @Test public void mapsOnlySixSensorTypes() {
         UnifiedHookConfigParser.Target t=target(true,true,true,true,true,true);
