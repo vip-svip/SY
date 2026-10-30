@@ -75,6 +75,7 @@ jobs:
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           python3 tools/fx-api101-source/patch_notification_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          echo "5121fcc4ec803390c691154cdacbd3c4d1443bf26db45fa05a5fe5f6a2e64dcf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           mkdir -p adhook/app/src/main/java/de/privacyguard/hook
           cat tools/fx-api82-source/MainHook.gz.b64.part1 tools/fx-api82-source/MainHook.gz.b64.part2 tools/fx-api82-source/MainHook.gz.b64.part3 tools/fx-api82-source/MainHook.gz.b64.part3b tools/fx-api82-source/MainHook.gz.b64.part4 tools/fx-api82-source/MainHook.gz.b64.part5 tools/fx-api82-source/MainHook.gz.b64.part6 tools/fx-api82-source/MainHook.gz.b64.part6b tools/fx-api82-source/MainHook.gz.b64.part7 tools/fx-api82-source/MainHook.gz.b64.part8 | base64 -d | gzip -dc > adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           echo "77cec8b8e28b3673b4c8badc93aa1e1a49dff2f289779d4ca72b97b1f0dcc562  adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | sha256sum -c -
