@@ -171,6 +171,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesMediaStoreBlockFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.gallery,block_mediastore=1\n").targets.get("com.example.gallery");
+        assertNotNull(target);
+        assertTrue(target.blockMediaStore);
+    }
+
+    @Test
     public void parsesRegionDiagnosticFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
