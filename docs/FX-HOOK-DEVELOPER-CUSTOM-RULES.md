@@ -23,7 +23,7 @@ Supported method descriptor forms:
 
 All forms normalize to an exact declared zero-argument primitive-boolean method. Fuzzy matching, overload guessing, parameters, object returns, and non-boolean methods are rejected.
 
-Actions: `true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`, `OBSERVE` / `OBSERVE_ONLY` (call the original method and record hits), and `OFF` / `DISABLED` (do not install that rule). Priority is an integer from -1000 through 1000; higher priority is installed first. Duplicate rule IDs or duplicate method descriptors are rejected during parsing instead of silently shadowing each other. The rule count is capped at 16 per package. Rule changes take effect when the target process is restarted; this build does not dynamically detach a live hook when its remote config changes.
+Actions: `true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`, `OBSERVE` / `OBSERVE_ONLY` (call the original method and record hits), and `OFF` / `DISABLED` (do not install that rule). Priority is an integer from -1000 through 1000; higher priority is installed first. Duplicate rule IDs are rejected. If multiple active rules target the same exact method, the highest-priority rule wins; equal priorities preserve config order. A disabled higher-priority rule does not shadow a lower-priority active rule. The rule count is capped at 16 per package. Rule changes take effect when the target process is restarted; this build does not dynamically detach a live hook when its remote config changes.
 
 ## Preset use cases
 
