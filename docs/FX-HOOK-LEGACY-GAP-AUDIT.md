@@ -1,34 +1,34 @@
 # FX 1.0.0 Legacy Hook Gap Audit
 
-Branch: `fx-v1.0.0-unified-hook-integration`
-Audit source: `FX-v1.0.0-Iter5.zip` (preserved; not modified)
-Audit date: 2026-10-29
+Branch: `fx-v1.0.0-cloud-validation`
+Audit source: restored API82 MainHook.java snapshot plus API101 source patch chain (validation branch; original FX ZIP remains untouched)
+Audit date: 2026-10-30
 
 ## Verified host-side checks
 
 - `scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh`: PASS
 - `scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh`: PASS
-- These tests do not prove LSPosed injection or behavior on a physical OnePlus 12.
+- These tests do not prove LSPosed injection or behavior on a physical OnePlus 12. Latest validation run 41058264335 passed the API82/API101 single-APK build, exact-source patch hashes, host regressions, JUnit tests, signature/DEX/metadata checks and artifact upload.
 
 ## Legacy implementation inventory
 
 The Iter5 `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` contains the following distinct feature groups. The modern `adhook` runtime is not feature-equivalent; it currently implements ad-view observers, read-only membership diagnostics, and an opt-in package-scoped Android ID transform only.
 
-| Legacy method/group | Migration status in modern runtime | Risk / next action |
+| Legacy method/group | API101 migration status | Remaining coverage / risk |
 |---|---|---|
-| `buildSpoof`, `kernelVersionHide`, `sysPropsHide` | Not migrated | Preserve as legacy-only until API 101 equivalents and regression tests exist |
-| `secureSettingsSpoof`, `serialSpoof`, `telephonySpoof` | Not migrated; Android ID transform is narrower | Do not claim IMEI/SIM/serial coverage |
-| `btWifiMacSpoof`, `batterySpoof`, `screenSpoof`, `storageSpoof` | Not migrated | High compatibility risk; migrate individually with fail-open behavior |
-| `sysSvcHide`, `clipboardGuard` | Clipboard read blocking and process-local `clipboard_isolate` are partially migrated to API101; legacy fake-text mode is not migrated. `sysSvcHide` remains unmigrated. | Clipboard isolation is in-memory per target process; multi-process synchronization and change-listener notifications are not covered. |
-| `appListHide`, `pmQueryHide`, `procListHide` | Not migrated | High false-positive / app-breakage risk; do not enable by default |
-| `mediastoreHide`, `netIfacesHide`, `netStatsHide`, `vpnHide` | Not migrated | Must not interfere with VPN coexistence or network diagnostics |
-| `imeHide` | Not migrated | Verify keyboard and input method compatibility |
-| `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide`, `sensorHide` | Not migrated | Require explicit per-feature opt-in and API-specific tests |
-| `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | `micBlock` and `audioFpBlock` have opt-in API101 AudioRecord buffer handling; `hide_fingerprint_hw` and `hide_face_hw` have opt-in API101 capability-query filtering. `cameraNull` remains unmigrated. | Microphone silence does not cover MediaRecorder/AAudio/Oboe/native capture; audio-fingerprint mitigation perturbs samples and is not a universal defense. BiometricManager reports no hardware only when both face and fingerprint are hidden; OEM-specific biometric APIs may remain observable. |
-| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide`, `exifStrip` | API101 has opt-in active-notification/permission-query, usage-statistics and accessibility enumeration filtering plus EXIF read-time redaction. | Does not revoke system permissions, disable services or rewrite EXIF files; continue per-API compatibility tests. |
-| `rootHide`, `fsHooks` and filesystem attribute/VFS helpers | Not migrated | High stability risk; keep disabled until tested on target Android/OEM builds |
-| `adIdUnify` | Not migrated | Distinct from Android ID; do not imply Advertising ID coverage |
-
+| buildSpoof, kernelVersionHide, sysPropsHide | Not migrated | Device build/system property spoofing remains legacy-only; do not claim kernel or property concealment parity. |
+| secureSettingsSpoof, serialSpoof, telephonySpoof | Android ID only | IMEI/SIM/serial/line number and secure-settings spoofing are not migrated. |
+| btWifiMacSpoof, batterySpoof, screenSpoof, storageSpoof | Not migrated | Device identity and hardware property spoofing remain deferred pending API-specific compatibility tests. |
+| clipboardGuard, sysSvcHide | Clipboard read block and process-local isolation migrated; system-service hiding not migrated | Clipboard isolation is process-local and in-memory; multi-process synchronization/listener notifications are not covered. |
+| appListHide, pmQueryHide, procListHide | Not migrated | High app-breakage risk: package/process enumeration must be filtered type-safely and only under explicit safety tiers. |
+| mediastoreHide, netIfacesHide, netStatsHide, vpnHide | MediaStore read/query privacy migrated; network/VPN concealment not migrated | Do not interfere with VPN coexistence, routing, network diagnostics or connectivity checks. |
+| imeHide / block_ime_logging | Migrated | Empty-list responses cover InputMethodManager IME/subtype enumeration only; may break keyboard selection and subtype discovery. |
+| locationMock, gnssSpoof, passiveLocHide, wifiScanHide, sensorHide | Passive-location suppression, Wi-Fi scan privacy and sensor enumeration/rate controls migrated | Location spoofing (mock_location, perapp_mock, gnss_spoof, gps_accuracy) remains unmigrated; passive-location hiding is not spoofing. Cell-info privacy is also migrated. |
+| cameraNull, micBlock, mic_hw_hide, audioFpBlock, bioHide | mic_block silence, mic_hw_hide input enumeration, audio_fp_block sample perturbation and fingerprint/face capability-query concealment migrated | mic_block does not cover MediaRecorder/AAudio/Oboe/native capture; mic_hw_hide does not remove FEATURE_MICROPHONE or every OEM API; audio perturbation is not universal; cameraNull remains unmigrated. BiometricManager reports no hardware if either biometric concealment flag is active. |
+| notifHide, notifPermHide, usageHide, a11yHide, exifStrip | Active-notification queries, notification-enabled query, queryUsageStats, accessibility-service enumeration and EXIF getter redaction migrated | These are app-facing query transformations; they do not revoke Android permissions, disable notification services or rewrite EXIF files. |
+| hide_notif_perm, block_notif_listen, usagestats_off, a11y_hide | Migrated to independent per-target flags | Explicit opt-in only; accessibility and notification query hiding can break host-app features. |
+| rootHide, fsHooks and filesystem attribute/VFS helpers | Not migrated | High stability and security compatibility risk; remain disabled pending per-API design and device tests. |
+| adIdUnify | Not migrated | Distinct from Android ID; do not imply Advertising ID coverage. |
 ## Configuration and activation invariants
 
 1. The modern Remote Files payload is versioned and parsed transactionally.
@@ -43,5 +43,6 @@ The Iter5 `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` contain
 1. Add a single runtime ownership rule so old and modern modules cannot both install overlapping hooks unintentionally.
 2. Keep legacy features explicitly labelled as legacy until each has a modern API 101 implementation and tests.
 3. Migrate low-risk, deterministic features first; add API-level and package-scope tests before enabling any feature.
-4. Test APK installation/update/removal and Remote Files access on a real LSPosed device.
-5. Only then integrate a validated APK into the complete FX ZIP. Do not replace the preserved Iter5 archive with an unverified candidate.
+4. Complete root-side FX UI/config publisher integration so every new per-target field is published consistently to legacy xposed.conf and API101 Remote Files; this is not yet proven in the validation branch.
+5. Test APK installation/update/removal and Remote Files access on a real LSPosed device.
+6. Only then integrate a validated APK into the complete FX ZIP. Do not replace the preserved Iter5 archive with an unverified candidate.
