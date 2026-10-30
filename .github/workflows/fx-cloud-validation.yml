@@ -75,6 +75,8 @@ jobs:
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           python3 tools/fx-api101-source/patch_notification_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          python3 tools/fx-api101-source/patch_biometric_privacy.py
+          sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           echo "5121fcc4ec803390c691154cdacbd3c4d1443bf26db45fa05a5fe5f6a2e64dcf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_biometric_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
@@ -116,6 +118,7 @@ jobs:
           bash scripts/tests/v1.0.0-audio-fingerprint-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-clipboard-isolation-api101-regression.sh
           bash scripts/tests/v1.0.0-notification-system-surface-privacy-api101-regression.sh
+          bash scripts/tests/v1.0.0-biometric-hardware-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-biometric-hardware-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
