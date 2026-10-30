@@ -23,6 +23,7 @@ once("    private boolean audioFingerprintHooksInstalled;\n",
 
 once(
     "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
 
     "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
     "        final boolean regionDiagForPackage = target.regionDiag;\n"
@@ -32,6 +33,7 @@ once(
     "                && !micBlockForPackage && !micHwHideForPackage && !audioFpForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
     "                && !mediaStoreForPackage) return;\n",
     "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
 
     "        final boolean blockNotifListenForPackage = privacyEnabled && target.blockNotifListen;\n"
     "        final boolean hideNotifPermForPackage = privacyEnabled && target.hideNotifPerm;\n"
