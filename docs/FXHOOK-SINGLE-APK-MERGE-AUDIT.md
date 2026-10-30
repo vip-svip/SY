@@ -4,7 +4,7 @@
 
 ## 当前实际状态
 
-- 旧版：API-82，包名 `de.privacyguard.hook`，入口 `MainHook`，约 96 KB Java 源码，包含 75 个旧配置开关。
+- 旧版：API-82，包名 `de.privacyguard.hook`，入口 `MainHook`，约 96 KB Java 源码，包含 75 个旧版配置开关。
 - 新版：libxposed API 101，包名 `de.privacyguard.adhook`，入口 `AdVisibilityHook`，使用 LSPosed Remote Files。
 - KernelSU ZIP 当前必须继续携带并安装两个 APK，直到旧版开关逐项迁移或明确废弃。
 - 不得为了得到“一个 APK”的表象而删除旧 APK、静默丢失配置或声称功能等价。
