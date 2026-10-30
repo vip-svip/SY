@@ -125,6 +125,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean privacyIdentifierHookInstalled;
     private volatile boolean clipboardReadHooksInstalled;
     private volatile boolean sensorHooksInstalled;
+    private volatile boolean wifiScanHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -143,6 +144,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
     private boolean privacyEnabled;
+    private boolean wifiScanEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private volatile String currentPackage = "";
@@ -183,7 +185,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
                 || target.sensorRateLimit);
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage) return;
+        final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -192,13 +195,14 @@ public final class AdVisibilityHook extends XposedModule {
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
+        if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -211,6 +215,7 @@ public final class AdVisibilityHook extends XposedModule {
         targets.clear();
         adsEnabled = false;
         privacyEnabled = false;
+        wifiScanEnabled = false;
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
              ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
             byte[] chunk = new byte[4096];
@@ -235,6 +240,7 @@ public final class AdVisibilityHook extends XposedModule {
             UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content);
             adsEnabled = parsed.adsEnabled;
             privacyEnabled = parsed.privacyEnabled;
+            wifiScanEnabled = parsed.wifiScanEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
@@ -424,6 +430,51 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in clipboard read protection installed=" + installed + " for " + pkg);
         return clipboardReadHooksInstalled;
+    }
+
+    /**
+     * Opt-in Wi-Fi scan suppression. It is scoped to a single-package process;
+     * shared-UID/shared-process cases fail open to avoid affecting another app.
+     * Wi-Fi association, DHCP, sockets, VPN routing and DNS are not intercepted.
+     */
+    private synchronized boolean installWifiScanPrivacyHooks(final String pkg) {
+        if (wifiScanHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.net.wifi.WifiManager", false, null);
+            for (final Method method : type.getDeclaredMethods()) {
+                final String name = method.getName();
+                final Class<?> result = method.getReturnType();
+                final boolean listResult = "getScanResults".equals(name)
+                        && java.util.List.class.isAssignableFrom(result);
+                final boolean booleanResult = ("startScan".equals(name)
+                        || "isScanAlwaysAvailable".equals(name)) && result == boolean.class;
+                if (!listResult && !booleanResult) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (WifiScanPrivacyPolicy.shouldBlock(wifiScanEnabled, processPackages.size(),
+                                        activePackage, active)) {
+                                    return listResult ? Collections.emptyList() : Boolean.FALSE;
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "Wi-Fi scan hook unavailable: " + name);
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "WifiManager unavailable; Wi-Fi scan privacy fails open ("
+                    + t.getClass().getSimpleName() + ")");
+            return false;
+        }
+        wifiScanHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "opt-in Wi-Fi scan privacy hooks installed=" + installed + " for " + pkg);
+        return wifiScanHooksInstalled;
     }
 
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {

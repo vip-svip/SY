@@ -176,4 +176,22 @@ public class UnifiedHookConfigParserTest {
         assertFalse(result.isSensorHiddenFor("com.example.sensors", 4));
     }
 
+    @Test
+    public void parsesOptInWifiScanBlockIndependently() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nwifi_scan_enabled=1\n[list:targets]\n" +
+                "com.example.wifi,privacy=0,wifi_scan_block=1\n");
+        assertTrue(result.isWifiScanBlockedFor("com.example.wifi"));
+        assertFalse(result.isWifiScanBlockedFor("com.example.other"));
+        assertFalse(result.isPrivacyEnabledFor("com.example.wifi"));
+    }
+
+    @Test
+    public void wifiScanMasterOffOverridesPerAppFlag() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nwifi_scan_enabled=0\n[list:targets]\n" +
+                "com.example.wifi,wifi_scan_block=1\n");
+        assertFalse(result.isWifiScanBlockedFor("com.example.wifi"));
+    }
+
 }
