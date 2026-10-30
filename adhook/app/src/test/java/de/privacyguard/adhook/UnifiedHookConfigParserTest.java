@@ -207,6 +207,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesAudioFingerprintPrivacyFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.audio,audio_fp_block=1\n").targets.get("com.example.audio");
+        assertNotNull(target);
+        assertTrue(target.audioFpBlock);
+    }
+
+    @Test
     public void parsesMicrophoneHardwareHideFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
