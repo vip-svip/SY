@@ -55,6 +55,10 @@ The bundled Hook APKs are stored under `optional/`, not `system/priv-app/`, and 
 
 A per-target `camera_access_block=1` option is available under the global privacy master. It intercepts legacy `Camera.open()` and Camera2 `CameraManager.openCamera()` calls and propagates a `SecurityException` to the requesting app. This is an explicit access denial, not a fake "camera hardware absent" response. The option is disabled by default; shared-package processes and unknown targets fail open. It does not alter system camera permission state and does not guarantee coverage of vendor-private camera APIs.
 
+## Per-app MediaStore query privacy
+
+A per-target `media_store_query_block=1` option is available under the global privacy master. It returns an empty cursor only for `content://media` queries from the selected app in a single-package process. Other content providers, direct file access, media writes, and downloads are not intercepted. The feature is disabled by default and fails open for shared-package processes or unrecognized targets. This is a read-query privacy boundary, not a filesystem permission replacement.
+
 ## Explicit microphone access denial
 
 A per-target `mic_access_block=1` option is available under the global privacy master. It rejects `AudioRecord.startRecording()` overloads and `MediaRecorder.start()` with a `SecurityException`. This is distinct from `mic_silence=1`, which zeroes successful `AudioRecord.read()` buffers after capture. The access-denial option is disabled by default, does not fabricate noise or spoof microphone hardware state, and fails open for shared-package processes or unknown targets. It does not replace Android runtime permission controls and cannot cover every vendor-specific or native audio capture path.
