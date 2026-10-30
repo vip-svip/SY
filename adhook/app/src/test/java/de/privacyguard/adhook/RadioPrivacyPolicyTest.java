@@ -22,5 +22,6 @@ public class RadioPrivacyPolicyTest {
         assertTrue(RadioPrivacyPolicy.shouldHideCellInfo(true, 1, "com.example.radio", t));
         assertFalse(RadioPrivacyPolicy.shouldHideCellInfo(false, 1, "com.example.radio", t));
         assertFalse(RadioPrivacyPolicy.shouldHideCellInfo(true, 2, "com.example.radio", t));
+        assertFalse(RadioPrivacyPolicy.shouldHideCellInfo(true, 1, "org.lsposed.manager", t));
     }
 }
