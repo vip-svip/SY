@@ -11,7 +11,7 @@ public class UnifiedHookConfigSerializerTest {
     private static Map<String, UnifiedHookConfigParser.Target> target(boolean ads, boolean privacy) {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.app", new UnifiedHookConfigParser.Target(
-                ads, false, false, false, privacy));
+                ads, false, false, false, privacy, false));
         return targets;
     }
 
@@ -36,8 +36,8 @@ public class UnifiedHookConfigSerializerTest {
     @Test
     public void outputIsDeterministicAndSortsPackageNames() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
-        targets.put("org.example.zed", new UnifiedHookConfigParser.Target(false, true, false, false, false));
-        targets.put("com.example.alpha", new UnifiedHookConfigParser.Target(true, false, false, false, true));
+        targets.put("org.example.zed", new UnifiedHookConfigParser.Target(false, true, false, false, false, false));
+        targets.put("com.example.alpha", new UnifiedHookConfigParser.Target(true, false, false, false, true, false));
         String first = UnifiedHookConfigSerializer.serialize(true, true, targets);
         String second = UnifiedHookConfigSerializer.serialize(true, true, targets);
         assertEquals(first, second);
@@ -47,7 +47,7 @@ public class UnifiedHookConfigSerializerTest {
     @Test(expected = IllegalArgumentException.class)
     public void refusesProtectedSystemPackages() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
-        targets.put("android", new UnifiedHookConfigParser.Target(false, false, false, false, true));
+        targets.put("android", new UnifiedHookConfigParser.Target(false, false, false, false, true, false));
         UnifiedHookConfigSerializer.serialize(false, true, targets);
     }
 
@@ -70,6 +70,18 @@ public class UnifiedHookConfigSerializerTest {
         assertFalse(parsed.isAdsEnabledFor("com.example.privacyonly"));
         assertTrue(parsed.isPrivacyEnabledFor("com.example.privacyonly"));
         assertFalse(parsed.isPrivacyEnabledFor("com.example.other"));
+    }
+
+    @Test
+    public void serializerRoundTripsExifRedactionIndependently() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.exif", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(text);
+        assertTrue(parsed.isExifStripEnabledFor("com.example.exif"));
+        assertFalse(parsed.isPrivacyEnabledFor("com.example.exif"));
+        assertTrue(text.contains("exif_strip=1"));
     }
 
     @Test
