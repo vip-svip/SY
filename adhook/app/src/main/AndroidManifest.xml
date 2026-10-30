@@ -3,7 +3,7 @@
     package="de.privacyguard.adhook">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34" />
     <application
-        android:label="FXHook"
+        android:label="FX Hook"
         android:allowBackup="false"
         android:usesCleartextTraffic="false" />
 </manifest>
