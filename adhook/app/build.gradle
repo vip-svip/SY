@@ -22,5 +22,7 @@ android {
 dependencies {
     // Modern LSPosed API enables Remote Files, avoiding SELinux-denied reads of /data/local/tmp.
     compileOnly 'io.github.libxposed:api:101.0.1'
+    // Legacy Xposed API 82 entry is compiled against the framework API, never bundled.
+    compileOnly 'de.robv.android.xposed:api:82'
     testImplementation 'junit:junit:4.13.2'
 }
