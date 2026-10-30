@@ -250,8 +250,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesMicrophoneSilenceAsOptInPrivacyFeature() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n" +
-                "[list:targets]\\ncom.example.audio,mic_silence=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.audio,mic_silence=1\n");
         assertTrue(result.privacyEnabled);
         assertTrue(result.targets.get("com.example.audio").microphoneSilence);
     }
@@ -259,7 +259,7 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void legacyConfigNeverEnablesMicrophoneSilence() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.app,splash=1\\n");
+                "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
         assertFalse(result.targets.get("com.example.app").microphoneSilence);
     }
 }
