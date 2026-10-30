@@ -117,11 +117,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Gradle for unified FX Hook APK
+      - name: Set up Gradle to rebuild modern FX Hook APK
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Install Android SDK packages for unified Hook
+      - name: Install Android SDK packages for FX Hook APK
         shell: bash
         run: |
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
