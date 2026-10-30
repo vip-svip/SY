@@ -96,3 +96,12 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 - API-101 `clipboard_read_block` is not equivalent and must not be used as a substitute.
 - Added detailed migration acceptance criteria to `docs/FXHOOK-MIGRATION-MATRIX.md` and `docs/FXHOOK-CLIPBOARD-ISOLATION-AUDIT.md` in the FX 1.0.0 working ZIP.
 - API-101 clipboard-isolation runtime/config/UI implementation remains pending; no device verification.
+
+
+## 2026-10-30 — clipboard isolation migration completed in CI/package
+
+- API-101 parser, serializer, and runtime now implement distinct clipboard isolation master/per-target config and process-local shadow hooks.
+- Root FX package working copy wires editor, publisher, apply publication gate, and status JSON/UI.
+- CI run `41080488374` passed unit tests, Android debug APK build, signing/metadata checks, and DEX markers; APK SHA-256 `778b07f84b924629969a849c4ef2b8ce68df3bed277e638190f583b2e79d9991`.
+- Shared processes fail open; `clipboard_isolate` and `clipboard_read_block` are mutually exclusive. This is not OS-wide cross-app isolation.
+- Remaining acceptance: OnePlus 12 physical-device LSPosed test; merge API-82 and API-101 into one APK/application; continue remaining legacy Hook migration.
