@@ -249,6 +249,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesAdvertisingIdUnifyFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.ads,ad_id_unify=1\n").targets.get("com.example.ads");
+        assertNotNull(target);
+        assertTrue(target.adIdUnify);
+    }
+
+    @Test
     public void parsesClipboardIsolationFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
