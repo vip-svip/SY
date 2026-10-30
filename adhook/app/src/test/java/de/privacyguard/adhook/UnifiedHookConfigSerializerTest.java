@@ -180,8 +180,8 @@ public class UnifiedHookConfigSerializerTest {
     @Test
     public void serializerRoundTripsNotificationPermissionHideMasterAndTarget() {
         UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\nnotification_permission_hide_enabled=1\\n" +
-                "[list:targets]\\ncom.example.notify,notification_permission_hide=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_permission_hide_enabled=1\n" +
+                "[list:targets]\ncom.example.notify,notification_permission_hide=1\n");
         assertTrue(input.targets.get("com.example.notify").notificationPermissionHide);
         String text = UnifiedHookConfigSerializer.serialize(false, false, false, false, true, input.targets);
         assertTrue(text.contains("notification_permission_hide_enabled=1"));
