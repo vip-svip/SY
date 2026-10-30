@@ -42,7 +42,7 @@ install_one() {
   if command -v chcon >/dev/null 2>&1; then chcon u:object_r:shell_data_file:s0 "$_stage" 2>/dev/null || :; fi
   _attempt=1; _installed=0
   while [ "$_attempt" -le 3 ]; do
-    _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+    if [ -f "$LOG" ]; then _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0); else _log_lines=0; fi
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
       # Only claim package ownership when it did not exist before FX installed it.
       # Never let module removal uninstall an app package that predated FX.
