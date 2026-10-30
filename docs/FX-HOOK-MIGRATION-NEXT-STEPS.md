@@ -78,3 +78,13 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 - Active-notification read suppression is limited to selected read APIs; OS permission state and notification posting/display are not changed.
 - Policy tests verify shared-package/protected-package/master-off fail-open behavior. CI run `41074509939` passed unit tests, APK assembly, signature verification, Xposed resource checks, and DEX marker checks.
 - APK SHA-256: `3a113bcecedd203f7aab32f1b84803a85cd11282b4ec47d4ddbec1b819bf8822`. Standalone API-101 debug artifact only; not merged with API-82. No physical OnePlus 12 verification.
+
+
+## 2026-10-30 continuation — notification permission-query wiring
+
+- Updated the FX 1.0.0 package working copy to wire the existing `hide_notif_perm` master to API-101 `notification_permission_hide_enabled` and per-target `notification_permission_hide_block` to `notification_permission_hide`.
+- Updated `scripts/apply.sh` publication gating so this feature alone triggers Remote Files publication when targets are selected.
+- Updated `scripts/status.sh` JSON and FXHook UI status counts for this master/target pair.
+- Updated per-app editor parse/default/validation/save paths; UI description explicitly says this masks only the app-visible permission-status query and does not alter Android authorization.
+- Regression tests: Remote Files end-to-end fixture, notification migration, remote status JSON, Wi-Fi scan, migration baseline, package completeness; all pass. All 33 inline JavaScript blocks pass `node --check`; shell syntax checks pass.
+- These root-side files are not present in the Hook-only GitHub branch, so this patch is in the current FX KernelSU ZIP working copy. It has not been tested on OnePlus 12 with LSPosed.
