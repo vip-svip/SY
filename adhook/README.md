@@ -67,3 +67,8 @@ The EXIF migration also intercepts `getLatLong(float[])` and returns `false` wit
 ### Clipboard isolation (API-101, 2026-10-30)
 
 `clipboard_isolate` is a distinct per-target privacy feature, gated by both `privacy_enabled=1` and `clipboard_isolate_enabled=1`. It shadows successful `setPrimaryClip(ClipData)` writes within the current process and returns that process-local shadow for `getPrimaryClip()` / `hasPrimaryClip()`. Shared-package processes fail open. It conflicts with `clipboard_read_block`; the parser rejects a target enabling both. This is process-local shadowing, not OS-wide cross-app clipboard isolation. CI build and device validation status are tracked separately.
+
+
+### Single-APK merge status (2026-10-30)
+
+The API-101 app is the intended future unified runtime, but it is not yet a replacement for the API-82 module. The two packages have different application IDs, Hook APIs, entrypoint lifecycles, config transports, and minimum Android versions. Do not merge by simply renaming package IDs or removing the legacy APK. See `docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md` for migration policy, upgrade/rollback requirements, and features that must not be ported as stealth/evasion behavior. The current KernelSU installer intentionally preserves both APKs until feature parity and a signing-compatible upgrade path are proven.
