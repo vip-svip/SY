@@ -156,7 +156,7 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void legacyConfigNeverEnablesExifRedaction() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
+                "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1,feed=0,overlay=0,member_diag=0 | legacy metadata\n");
         assertFalse(result.isExifStripEnabledFor("com.example.app"));
     }
 
