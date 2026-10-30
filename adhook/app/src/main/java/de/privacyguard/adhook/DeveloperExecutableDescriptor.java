@@ -91,6 +91,12 @@ public final class DeveloperExecutableDescriptor {
             case "int": base = "I"; break; case "long": base = "J"; break;
             case "float": base = "F"; break; case "double": base = "D"; break;
             case "void": if (!allowVoid || dimensions != 0) return null; base = "V"; break;
+            // A bare JVM type code is not a Java source type; do not reinterpret legacy ()Z rules as class Z.
+            case "V": case "Z": case "B": case "C": case "S": case "I":
+            case "J": case "F": case "D": return null;
+            case "String": case "Object": case "Boolean": case "Byte": case "Character":
+            case "Short": case "Integer": case "Long": case "Float": case "Double":
+                base = "Ljava/lang/" + type + ";"; break;
             default:
                 if (!type.matches("[A-Za-z_$][A-Za-z0-9_$.]*")) return null;
                 base = "L" + type.replace('.', '/') + ";";
