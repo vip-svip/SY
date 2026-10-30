@@ -31,6 +31,7 @@ public final class UnifiedHookConfigParser {
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
         public final boolean sensorRateLimit;
         public final boolean wifiScanBlock;
+        public final boolean notificationListenBlock;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
@@ -44,12 +45,16 @@ public final class UnifiedHookConfigParser {
                boolean sensorRateLimit) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
                     sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, false);
+                    sensorRateLimit, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
                boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -62,6 +67,7 @@ public final class UnifiedHookConfigParser {
             this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
             this.sensorRateLimit = sensorRateLimit;
             this.wifiScanBlock = wifiScanBlock;
+            this.notificationListenBlock = notificationListenBlock;
         }
 
         public boolean enabled() {
@@ -73,12 +79,14 @@ public final class UnifiedHookConfigParser {
         public final boolean adsEnabled;
         public final boolean privacyEnabled;
         public final boolean wifiScanEnabled;
+        public final boolean notificationListenEnabled;
         public final Map<String, Target> targets;
 
-        private Result(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, Map<String, Target> targets) {
+        private Result(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, Map<String, Target> targets) {
             this.adsEnabled = adsEnabled;
             this.privacyEnabled = privacyEnabled;
             this.wifiScanEnabled = wifiScanEnabled;
+            this.notificationListenEnabled = notificationListenEnabled;
             this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
         }
 
@@ -111,6 +119,11 @@ public final class UnifiedHookConfigParser {
             Target target = targets.get(packageName);
             return wifiScanEnabled && target != null && target.wifiScanBlock;
         }
+
+        public boolean isNotificationListenBlockedFor(String packageName) {
+            Target target = targets.get(packageName);
+            return notificationListenEnabled && target != null && target.notificationListenBlock;
+        }
     }
 
     public static Result parse(String text) {
@@ -123,8 +136,8 @@ public final class UnifiedHookConfigParser {
         String[] lines = text.split("\\R", -1);
         if (lines.length > 1000) throw new IllegalArgumentException("config exceeds 1000 lines");
 
-        boolean schemaSeen = false, adsSeen = false, privacySeen = false, wifiScanSeen = false, sectionSeen = false;
-        boolean ads = false, privacy = false, wifiScan = false;
+        boolean schemaSeen = false, adsSeen = false, privacySeen = false, wifiScanSeen = false, notificationListenSeen = false, sectionSeen = false;
+        boolean ads = false, privacy = false, wifiScan = false, notificationListen = false;
         String section = "";
         Map<String, Target> targets = new LinkedHashMap<>();
 
@@ -158,6 +171,9 @@ public final class UnifiedHookConfigParser {
                 } else if ("wifi_scan_enabled".equals(key)) {
                     if (wifiScanSeen || !bit(value)) throw new IllegalArgumentException("invalid wifi_scan_enabled");
                     wifiScanSeen = true; wifiScan = "1".equals(value);
+                } else if ("notification_listen_enabled".equals(key)) {
+                    if (notificationListenSeen || !bit(value)) throw new IllegalArgumentException("invalid notification_listen_enabled");
+                    notificationListenSeen = true; notificationListen = "1".equals(value);
                 } else {
                     throw new IllegalArgumentException("unknown top-level key");
                 }
@@ -170,7 +186,7 @@ public final class UnifiedHookConfigParser {
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
-            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -195,15 +211,16 @@ public final class UnifiedHookConfigParser {
                     case "sensor_prox": sensorProx = on; break;
                     case "sensor_rate_limit": sensorRateLimit = on; break;
                     case "wifi_scan_block": wifiScanBlock = on; break;
+                    case "notification_listen_block": notificationListenBlock = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
             throw new IllegalArgumentException("missing required schema fields");
-        return new Result(ads, privacy, wifiScan, targets);
+        return new Result(ads, privacy, wifiScan, notificationListen, targets);
     }
 
 
@@ -270,7 +287,7 @@ public final class UnifiedHookConfigParser {
             targets.put(pkg, new Target(splash, feed, overlay, member, false, false, false));
         }
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
-        return new Result(ads, false, false, targets);
+        return new Result(ads, false, false, false, targets);
     }
 
     private static boolean bit(String value) {
