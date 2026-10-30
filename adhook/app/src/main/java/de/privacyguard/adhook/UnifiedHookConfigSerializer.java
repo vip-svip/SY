@@ -46,6 +46,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",camera_id_hide=").append(target.cameraIdHide ? '1' : '0')
                     .append(",mic_block=").append(target.micBlock ? '1' : '0')
                     .append(",disable_passive_loc=").append(target.disablePassiveLocation ? '1' : '0')
+                    .append(",region_diag=").append(target.regionDiag ? '1' : '0')
                     .append('\n');
         }
 
