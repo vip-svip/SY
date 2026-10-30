@@ -113,8 +113,15 @@ jobs:
           unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
           unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
           unzip -l "$APK" | grep -q 'assets/xposed_init'
-          unzip -p "$APK" classes.dex | strings | grep -q 'de/privacyguard/hook/MainHook'
-          "$SDK_ROOT/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -q 'xposedmodule'
+          DEX_DIR="$(mktemp -d)"
+          unzip -q "$APK" 'classes*.dex' -d "$DEX_DIR"
+          DEX_HIT=0
+          for dex in "$DEX_DIR"/classes*.dex; do
+            if strings "$dex" | grep -q 'de/privacyguard/hook/MainHook'; then DEX_HIT=1; break; fi
+          done
+          test "$DEX_HIT" -eq 1
+          "$SDK_ROOT/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > "$DEX_DIR/manifest.txt"
+          grep -q 'xposedmodule' "$DEX_DIR/manifest.txt"
 
       - name: Upload validation APK
         uses: actions/upload-artifact@v4
