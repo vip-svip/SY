@@ -18,11 +18,12 @@ Field order is `id|method-descriptor|action|priority`. `dev_hook_enabled=1` is m
 
 Supported method descriptor forms:
 - Exact JVM form: `Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;`
+- Java source form: `com.example.vpn.Trace#dispatch(java.lang.String,int[])java.lang.Object`
 - Exact constructor form: `Lcom/example/vpn/Trace;-><init>(I)V`
 - Legacy Java form: `com.example.vpn.auth.AuthState#isVip()Z` (zero-argument boolean only)
 - Dotted legacy form: `com.example.vpn.auth.AuthState.isVip()Z`
 
-JVM descriptors resolve the exact declared executable, including overload parameters, arrays, object types and return type. `OBSERVE` / `OBSERVE_ONLY` supports methods and constructors. The observer calls the original executable and records only argument type names, result type, instance type, exception class, duration and a bounded hit count; it never serializes argument values, tokens, credentials or returned objects. Constructor observations report the constructed instance type after successful construction.
+JVM descriptors and Java source signatures resolve the exact declared executable, including overload parameters, primitive/object/array types and return type. Java source signatures must specify erased types; generic type arguments are rejected rather than guessed. `OBSERVE` / `OBSERVE_ONLY` supports methods and constructors. The observer calls the original executable and records only argument type names, result type, instance type, exception class, duration and a bounded hit count; it never serializes argument values, tokens, credentials or returned objects. Constructor observations report the constructed instance type after successful construction.
 
 Value-replacement actions (`true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`) remain restricted to exact zero-argument primitive-boolean methods in the existing Debug fixture path. They are not a general-purpose result mutator and cannot be used to alter network authorization, billing responses, purchase tokens or server entitlements. Non-boolean methods, parameterized methods and constructors are observation-only.
 ## Preset use cases
