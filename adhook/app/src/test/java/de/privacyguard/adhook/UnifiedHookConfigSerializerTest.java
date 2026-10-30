@@ -154,4 +154,16 @@ public class UnifiedHookConfigSerializerTest {
         assertTrue(UnifiedHookConfigParser.parse(text).isWifiScanBlockedFor("com.example.wifi"));
     }
 
+    @Test
+    public void serializerRoundTripsNotificationListenMasterAndTarget() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.notify", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, false, false, true, targets);
+        assertTrue(text.contains("notification_listen_enabled=1"));
+        assertTrue(text.contains("notification_listen_block=1"));
+        assertTrue(UnifiedHookConfigParser.parse(text).isNotificationListenBlockedFor("com.example.notify"));
+    }
+
 }
