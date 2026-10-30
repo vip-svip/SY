@@ -31,6 +31,17 @@ public class DeveloperHookRuleTest {
         assertEquals("com.example.vpn.update.UpdatePolicy#shouldShowUpdate()Z", rule.descriptor);
     }
 
+    @Test public void supportsObserveAndDisabledActions() {
+        DeveloperHookRule observe = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace#isEnabled()Z|OBSERVE_ONLY|0", "com.example.vpn");
+        DeveloperHookRule disabled = DeveloperHookRule.parse(
+                "off|com.example.vpn.Trace#isEnabled()Z|DISABLED|-1", "com.example.vpn");
+        assertNotNull(observe);
+        assertEquals(DeveloperHookRule.Action.OBSERVE, observe.action);
+        assertNotNull(disabled);
+        assertEquals(DeveloperHookRule.Action.DISABLED, disabled.action);
+    }
+
     @Test public void rejectsOutOfPackageAndUnsupportedSignature() {
         assertNull(DeveloperHookRule.parse("x|com.other.App#isVip()Z|true|1", "com.example.vpn"));
         assertNull(DeveloperHookRule.parse("x|com.example.vpn.App#isVip(Ljava/lang/String;)Z|true|1", "com.example.vpn"));
