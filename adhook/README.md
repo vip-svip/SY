@@ -1,4 +1,4 @@
-# FXAdHook (LSPosed)
+# FX Hook (LSPosed)
 
 This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP status and never modifies billing results or purchase tokens.
 
