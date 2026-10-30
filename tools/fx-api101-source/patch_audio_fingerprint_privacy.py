@@ -125,5 +125,8 @@ once("    /** Hide input-device enumeration for the selected app only; no system
      method + "    /** Hide input-device enumeration for the selected app only; no system-wide audio routing is changed. */\n")
 
 path.write_text(source)
+expected = "fb46869ec48b21592927d39b0ae06143bb53b6c3578f7a15b1eda06d60cfd45f"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"audio fingerprint privacy source hash mismatch: {actual}")
 print("API101 audio fingerprint privacy patch: PASS", actual)
