@@ -257,9 +257,27 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesExplicitCameraAccessDenialPerTarget() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
+                "com.example.camera,camera_access_block=1\\n");
+        assertTrue(result.targets.get("com.example.camera").cameraAccessBlock);
+        assertFalse(result.targets.get("com.example.other") != null);
+        assertTrue(result.privacyEnabled);
+    }
+
+    @Test
+    public void legacyConfigNeverEnablesCameraAccessDenial() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.app,splash=1\\n");
+        assertFalse(result.targets.get("com.example.app").cameraAccessBlock);
+    }
+
+    @Test
     public void legacyConfigNeverEnablesMicrophoneSilence() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
                 "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
         assertFalse(result.targets.get("com.example.app").microphoneSilence);
     }
 }
+
