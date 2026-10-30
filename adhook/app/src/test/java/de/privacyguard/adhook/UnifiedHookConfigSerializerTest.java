@@ -131,6 +131,20 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsWifiScanAndCellInfoFlags() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.radio", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, true, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.radio");
+        assertTrue(t.wifiScanHide);
+        assertTrue(t.cellInfoHide);
+        assertTrue(text.contains("wifi_scan_hide=1"));
+        assertTrue(text.contains("cell_info_hide=1"));
+    }
+
+    @Test
     public void serializerRoundTripsAllSixSensorFlags() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.sensors", new UnifiedHookConfigParser.Target(
