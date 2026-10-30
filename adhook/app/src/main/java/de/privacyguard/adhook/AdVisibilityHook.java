@@ -153,6 +153,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
+    private HookTargetConfigParser.Result currentConfig;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private String currentPackage = "";
@@ -182,12 +183,15 @@ public final class AdVisibilityHook extends XposedModule {
         final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
         currentPackage = pkg;
         if (NEVER.contains(pkg)) return;
-        if (!configLoaded || !adsEnabled) return;
+        if (!configLoaded) return;
         final HookTargetConfigParser.Target target = targets.get(pkg);
-        if (target == null || !target.enabled()) return;
+        final HookTargetConfigParser.Result config = currentConfig;
+        if (target == null || config == null || !config.isAnyFeatureEnabledFor(pkg)) return;
         if (!hooksInstalledFor.add(pkg)) return;
-        if (target.splash || target.feed || target.overlay) installAdViewHooks(pkg, target);
-        if (target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        if (config.isAdFilteringEnabledFor(pkg)) installAdViewHooks(pkg, target);
+        if (config.isMemberDiagnosticsEnabledFor(pkg)) {
+            installReadOnlyBillingDiagnostics(param.getClassLoader());
+        }
         logFx(Log.INFO, "package ready=" + pkg +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
@@ -215,13 +219,15 @@ public final class AdVisibilityHook extends XposedModule {
                 content.append(line).append('\n');
             }
             HookTargetConfigParser.Result parsed = HookTargetConfigParser.parse(content.toString());
+            currentConfig = parsed;
             adsEnabled = parsed.adsEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
             targets.clear();
+            currentConfig = null;
             adsEnabled = false;
-            logFx(Log.WARN, "remote config rejected; no hooks enabled (" +
+            logFx(Log.WARN, "remote config rejected; no hooks enabled ("
                     t.getClass().getSimpleName() + ")");
             return false;
         }
