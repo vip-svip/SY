@@ -55,6 +55,22 @@ public class DeveloperHookRuleTest {
         assertEquals("Lcom/example/vpn/Trace;->copy([BZ)[B", rule.descriptor);
     }
 
+    @Test public void sourceParserDoesNotConfuseJvmBooleanCodeWithClassName() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "legacy|com.example.vpn.AuthState#isVip()Z|RETURN_TRUE|1",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("com.example.vpn.AuthState#isVip()Z", rule.descriptor);
+    }
+
+    @Test public void resolvesCommonJavaLangSimpleNames() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace#dispatch(String)Object|OBSERVE|1",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;)Ljava/lang/Object;", rule.descriptor);
+    }
+
     @Test public void rejectsGenericJavaSourceSignatureWithoutErasure() {
         assertNull(DeveloperHookRule.parse(
                 "trace|com.example.vpn.Trace#dispatch(java.util.List<java.lang.String>)java.lang.Object|OBSERVE|25",
