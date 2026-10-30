@@ -39,6 +39,28 @@ public class DeveloperHookRuleTest {
         assertEquals(DeveloperHookRule.Action.OBSERVE, rule.action);
     }
 
+    @Test public void acceptsJavaSourceSignatureWithTypedArgumentsAndObjectReturn() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace#dispatch(java.lang.String,int[])java.lang.Object|OBSERVE|25",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;", rule.descriptor);
+    }
+
+    @Test public void acceptsJavaSourceSignatureWithPrimitiveAndArrayReturn() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace#copy(byte[],boolean)byte[]|OBSERVE|25",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Trace;->copy([BZ)[B", rule.descriptor);
+    }
+
+    @Test public void rejectsGenericJavaSourceSignatureWithoutErasure() {
+        assertNull(DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace#dispatch(java.util.List<java.lang.String>)java.lang.Object|OBSERVE|25",
+                "com.example.vpn"));
+    }
+
     @Test public void acceptsDottedSyntaxAndFalseAction() {
         DeveloperHookRule rule = DeveloperHookRule.parse(
                 "update|com.example.vpn.update.UpdatePolicy.shouldShowUpdate()Z|false|10",
