@@ -11,8 +11,9 @@ public class MemberProfileGraphTest {
         long expiresAt;
     }
     static class SessionState {
+        static int invoked;
         EntitlementState entitlement;
-        EntitlementState currentEntitlement() { return entitlement; }
+        EntitlementState currentEntitlement() { invoked++; return entitlement; }
         void update(EntitlementState next) { entitlement = next; }
     }
     static class Unrelated {
@@ -30,7 +31,7 @@ public class MemberProfileGraphTest {
                 && e.kind == MemberProfileGraph.ReferenceKind.METHOD_RETURN));
         assertTrue(edges.stream().anyMatch(e -> e.toClass.equals(EntitlementState.class.getName())
                 && e.kind == MemberProfileGraph.ReferenceKind.METHOD_PARAMETER));
-        assertNull(SessionState.class.getDeclaredFields()[0].getDeclaringClass() == null ? null : null);
+        assertEquals(0, SessionState.invoked);
     }
 
     @Test public void ignoresTypesOutsideSuppliedIndex() {
