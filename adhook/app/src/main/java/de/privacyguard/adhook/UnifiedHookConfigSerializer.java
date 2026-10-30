@@ -33,6 +33,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",member_diag=").append(target.memberDiag ? '1' : '0')
                     .append(",privacy=").append(target.privacy ? '1' : '0')
                     .append(",exif_strip=").append(target.exifStrip ? '1' : '0')
+                    .append(",clipboard_read_block=").append(target.clipboardReadBlock ? '1' : '0')
                     .append('\n');
         }
 

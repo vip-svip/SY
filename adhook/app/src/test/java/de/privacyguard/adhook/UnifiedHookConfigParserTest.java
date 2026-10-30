@@ -142,6 +142,23 @@ public class UnifiedHookConfigParserTest {
         assertFalse(result.isExifStripEnabledFor("com.example.app"));
     }
 
+    @Test
+    public void parsesOptInClipboardReadBlockIndependently() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.clip,privacy=0,clipboard_read_block=1\n");
+        assertTrue(result.isClipboardReadBlockedFor("com.example.clip"));
+        assertFalse(result.isPrivacyEnabledFor("com.example.clip"));
+    }
+
+    @Test
+    public void privacyMasterSwitchOffOverridesClipboardReadBlock() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n" +
+                "[list:targets]\ncom.example.clip,clipboard_read_block=1\n");
+        assertFalse(result.isClipboardReadBlockedFor("com.example.clip"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDuplicateFeatureKeys() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=1\nprivacy_enabled=1\n" +

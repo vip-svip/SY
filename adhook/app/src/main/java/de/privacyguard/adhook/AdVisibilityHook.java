@@ -98,9 +98,11 @@ public final class AdVisibilityHook extends XposedModule {
 
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
+    private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
     // Settings.Secure.getString is process-global. Register one interceptor per process;
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
+    private volatile boolean clipboardReadHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -139,6 +141,7 @@ public final class AdVisibilityHook extends XposedModule {
     public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
         final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
         currentPackage = pkg;
+        processPackages.add(pkg);
         if (NEVER.contains(pkg)) return;
         if (!configLoaded) return;
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
@@ -146,17 +149,19 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         final boolean exifForPackage = privacyEnabled && target.exifStrip;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage) return;
+        final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
+        if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -253,6 +258,47 @@ public final class AdVisibilityHook extends XposedModule {
         }
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "read-time EXIF privacy redaction installed=" + installed + " for " + pkg);
+    }
+
+    /**
+     * Opt-in clipboard read protection. Writes remain untouched; reads are hidden only
+     * for a single-package process. Shared-package processes fail open to avoid
+     * blocking clipboard access for an unrelated package sharing the same process.
+     */
+    private synchronized boolean installClipboardReadBlockHooks(final String pkg) {
+        if (clipboardReadHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.content.ClipboardManager", false, null);
+            for (String name : new String[]{"getPrimaryClip", "hasPrimaryClip", "getText"}) {
+                try {
+                    final Method method = type.getDeclaredMethod(name);
+                    final boolean booleanResult = "hasPrimaryClip".equals(name);
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (ClipboardPrivacyPolicy.shouldBlockRead(privacyEnabled, processPackages.size(),
+                                        activePackage, active)) {
+                                    return booleanResult ? Boolean.FALSE : null;
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (NoSuchMethodException missing) {
+                    logFx(Log.DEBUG, "clipboard API unavailable: " + name);
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "clipboard hook unavailable: " + name);
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "clipboard manager unavailable: " + t.getClass().getSimpleName());
+            return false;
+        }
+        clipboardReadHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "opt-in clipboard read protection installed=" + installed + " for " + pkg);
+        return clipboardReadHooksInstalled;
     }
 
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {

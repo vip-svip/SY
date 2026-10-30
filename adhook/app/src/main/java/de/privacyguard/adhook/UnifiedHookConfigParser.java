@@ -27,14 +27,16 @@ public final class UnifiedHookConfigParser {
         public final boolean memberDiag;
         public final boolean privacy;
         public final boolean exifStrip;
+        public final boolean clipboardReadBlock;
 
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip) {
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
             this.memberDiag = memberDiag;
             this.privacy = privacy;
             this.exifStrip = exifStrip;
+            this.clipboardReadBlock = clipboardReadBlock;
         }
 
         public boolean enabled() {
@@ -66,6 +68,11 @@ public final class UnifiedHookConfigParser {
         public boolean isExifStripEnabledFor(String packageName) {
             Target target = targets.get(packageName);
             return privacyEnabled && target != null && target.exifStrip;
+        }
+
+        public boolean isClipboardReadBlockedFor(String packageName) {
+            Target target = targets.get(packageName);
+            return privacyEnabled && target != null && target.clipboardReadBlock;
         }
     }
 
@@ -122,7 +129,7 @@ public final class UnifiedHookConfigParser {
             String pkg = parts[0].trim();
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
-            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false;
+            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -138,10 +145,11 @@ public final class UnifiedHookConfigParser {
                     case "member_diag": member = on; break;
                     case "privacy": targetPrivacy = on; break;
                     case "exif_strip": exifStrip = on; break;
+                    case "clipboard_read_block": clipboardReadBlock = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
@@ -210,7 +218,7 @@ public final class UnifiedHookConfigParser {
                     default: throw new IllegalArgumentException("unknown legacy feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, false, false));
+            targets.put(pkg, new Target(splash, feed, overlay, member, false, false, false));
         }
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
         return new Result(ads, false, targets);

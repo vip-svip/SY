@@ -54,3 +54,6 @@ The bundled Hook APKs are stored under `optional/`, not `system/priv-app/`, and 
 ## EXIF privacy migration slice
 
 The API-101 module supports an opt-in `exif_strip=1` feature independently per target, under the global privacy master switch. It redacts GPS, Make/Model, and DateTime values returned by framework/AndroidX ExifInterface getters only; it does not rewrite files or intercept every third-party EXIF parser. The matching source snapshot is published alongside the APK in GitHub Actions.
+
+
+Clipboard read protection is a separate opt-in per-target privacy feature (`clipboard_read_block=1`). It blocks `getPrimaryClip`, `hasPrimaryClip`, and legacy `getText` reads while leaving clipboard writes untouched. To avoid cross-package side effects, it fails open in processes where more than one package is loaded.

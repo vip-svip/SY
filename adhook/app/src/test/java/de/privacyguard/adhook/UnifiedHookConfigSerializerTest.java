@@ -85,6 +85,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsClipboardReadBlockIndependently() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.clip", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(text);
+        assertTrue(parsed.isClipboardReadBlockedFor("com.example.clip"));
+        assertTrue(text.contains("clipboard_read_block=1"));
+        assertFalse(parsed.isClipboardReadBlockedFor("com.example.other"));
+    }
+
+    @Test
     public void disabledPrivacyMasterOverridesPerAppPrivacyFlag() {
         String text = UnifiedHookConfigSerializer.serialize(true, false, target(true, true));
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(text);
