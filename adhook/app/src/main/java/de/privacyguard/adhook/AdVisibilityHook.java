@@ -98,7 +98,9 @@ public final class AdVisibilityHook extends XposedModule {
 
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
-    private final Set<String> privacyIdentifierHooksInstalledFor = ConcurrentHashMap.newKeySet();
+    // Settings.Secure.getString is process-global. Register one interceptor per process;
+    // adding one per package would stack transforms when a process exposes multiple packages.
+    private volatile boolean privacyIdentifierHookInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -207,7 +209,7 @@ public final class AdVisibilityHook extends XposedModule {
      * All other secure settings and all other identifier APIs remain untouched.
      */
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
-        if (privacyIdentifierHooksInstalledFor.contains(pkg)) return true;
+        if (privacyIdentifierHookInstalled) return true;
         try {
             Method getString = Settings.Secure.class.getDeclaredMethod(
                     "getString", ContentResolver.class, String.class);
@@ -219,15 +221,22 @@ public final class AdVisibilityHook extends XposedModule {
                 if (!Settings.Secure.ANDROID_ID.equals(key) || !(original instanceof String)) {
                     return original;
                 }
+                // This interceptor is installed once in this target process. Resolve the
+                // active package at call time instead of stacking one captured-package
+                // interceptor for every PackageReady callback.
+                String activePackage = currentPackage;
+                UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
+                if (!privacyEnabled || activeTarget == null || !activeTarget.privacy ||
+                        NEVER.contains(activePackage)) return original;
                 try {
-                    return PrivacyIdentifier.forPackage(pkg, (String) original);
+                    return PrivacyIdentifier.forPackage(activePackage, (String) original);
                 } catch (Throwable t) {
-                    logFx(Log.WARN, "Android ID privacy transform fallback for " + pkg);
+                    logFx(Log.WARN, "Android ID privacy transform fallback for " + activePackage);
                     return original;
                 }
             });
-            privacyIdentifierHooksInstalledFor.add(pkg);
-            logFx(Log.INFO, "app-scoped Android ID privacy hook installed for " + pkg);
+            privacyIdentifierHookInstalled = true;
+            logFx(Log.INFO, "process-scoped Android ID privacy hook installed for " + pkg);
             return true;
         } catch (Throwable t) {
             logFx(Log.WARN, "Android ID privacy hook unavailable for " + pkg +
