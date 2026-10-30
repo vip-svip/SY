@@ -326,7 +326,7 @@ audit = """# FX Hook 单 APK 合并结果 — FX 1.0.0
 
 - 唯一安装包：optional/FXAdHook.apk
 - 唯一 applicationId：de.privacyguard.adhook
-- 唯一运行时：libxposed API 101
+- 唯一 API-101 运行时：libxposed
 - 唯一入口：de.privacyguard.adhook.AdVisibilityHook
 - 唯一配置通道：LSPosed Remote Files fx-hook-targets.conf
 - API-82 PrivacyGuardHook.apk 不再打入新的 FX ZIP，也不再由安装器安装。
