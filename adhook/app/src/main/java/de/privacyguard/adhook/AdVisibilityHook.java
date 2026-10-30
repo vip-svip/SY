@@ -214,8 +214,9 @@ public final class AdVisibilityHook extends XposedModule {
             java.util.List<DeveloperHookRule> orderedRules = new java.util.ArrayList<>(target.developerRules);
             java.util.Collections.sort(orderedRules, (left, right) -> Integer.compare(right.priority, left.priority));
             for (DeveloperHookRule rule : orderedRules) {
+                if (rule.action == DeveloperHookRule.Action.DISABLED) continue;
                 installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
-                        rule.descriptor, rule.replacement, rule.id + "@" + rule.priority);
+                        rule.descriptor, rule.action, rule.id + "@" + rule.priority);
             }
         }
         final boolean adsForPackage = adsEnabled && target.enabled();
@@ -279,6 +280,12 @@ public final class AdVisibilityHook extends XposedModule {
 
     private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
             boolean debuggableBuild, String descriptor, boolean replacement, String label) {
+        installDeveloperBooleanTestHook(loader, packageName, debuggableBuild, descriptor,
+                replacement ? DeveloperHookRule.Action.RETURN_TRUE : DeveloperHookRule.Action.RETURN_FALSE, label);
+    }
+
+    private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
         if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
         Method method = DeveloperOwnedBooleanHook.resolve(loader, packageName, packageName,
                 debuggableBuild, true, descriptor);
@@ -292,7 +299,8 @@ public final class AdVisibilityHook extends XposedModule {
                             logFx(Log.INFO, "developer Debug fixture hit=" + label
                                     + " package=" + packageName + " count=" + hits);
                         }
-                        return replacement;
+                        if (action == DeveloperHookRule.Action.OBSERVE) return chain.proceed();
+                        return action == DeveloperHookRule.Action.RETURN_TRUE;
                     });
             developerTestHookedMethods.add(method);
             logFx(Log.INFO, "developer Debug UI fixture installed=" + label
