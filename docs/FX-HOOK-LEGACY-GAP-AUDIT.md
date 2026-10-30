@@ -24,7 +24,7 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 | `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide` | Wi-Fi scan partially migrated; location/GNSS not migrated | Wi-Fi scan uses independent global and per-target gates; location/GNSS transformations remain disabled and are not ported |
 | `sensorHide` | Partially migrated | Sensor enumeration hiding and sampling-rate policy exist; not full parity |
 | `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | Not migrated | Can break camera, calls, audio and authentication |
-| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Notification read suppression and permission-query masking partially migrated; usage/accessibility not migrated | Active-notification reads and `areNotificationsEnabled()` query have independent config gates and fail-open policy tests; no notification permission is revoked or changed |
+| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Active-notification read suppression partially migrated; permission-query masking is source-only/dormant; usage/accessibility not migrated | `notification_listen_enabled` + target `notification_listen_block` are published end-to-end. `notification_permission_hide_enabled` + target `notification_permission_hide` exist in API-101 parser/runtime but are absent from the current FX target editor and root publisher, so that hook cannot be activated through FX UI yet. No OS permission is revoked or changed |
 | `exifStrip` | Partially migrated | Read-time EXIF redaction exists; verify GPS getter coverage on device |
 | `rootHide`, `fsHooks` and filesystem/VFS helpers | Not migrated | High stability risk; keep disabled pending device tests |
 | `adIdUnify` | Not migrated | Advertising ID is distinct from Android ID |
@@ -33,7 +33,7 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 
 - Package-scoped ad View observers and ad marker matching.
 - Read-only Billing diagnostics for concrete response/purchase-state getters.
-- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, sensor enumeration/rate policies, Wi-Fi scan suppression, active-notification read suppression, and notification permission-query masking.
+- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, sensor enumeration/rate policies, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking is parser/runtime source only; publisher/UI wiring is missing.
 - Remote Files configuration is bounded, UTF-8 validated, parsed transactionally, and fails closed when unavailable/invalid.
 - UI target selection and LSPosed Manager scope both gate target-process effects.
 
