@@ -88,3 +88,11 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 - Updated per-app editor parse/default/validation/save paths; UI description explicitly says this masks only the app-visible permission-status query and does not alter Android authorization.
 - Regression tests: Remote Files end-to-end fixture, notification migration, remote status JSON, Wi-Fi scan, migration baseline, package completeness; all pass. All 33 inline JavaScript blocks pass `node --check`; shell syntax checks pass.
 - These root-side files are not present in the Hook-only GitHub branch, so this patch is in the current FX KernelSU ZIP working copy. It has not been tested on OnePlus 12 with LSPosed.
+
+
+## 2026-10-30 continuation — clipboard isolation audit
+
+- Audited legacy API-82 `clipboardGuard()`: `clipboard_isolate` caches the process's own successful `setPrimaryClip()` value and shadows `getPrimaryClip()` / `hasPrimaryClip()` reads. It is process-local shadow state, not OS-level cross-app isolation.
+- API-101 `clipboard_read_block` is not equivalent and must not be used as a substitute.
+- Added detailed migration acceptance criteria to `docs/FXHOOK-MIGRATION-MATRIX.md` and `docs/FXHOOK-CLIPBOARD-ISOLATION-AUDIT.md` in the FX 1.0.0 working ZIP.
+- API-101 clipboard-isolation runtime/config/UI implementation remains pending; no device verification.
