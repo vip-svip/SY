@@ -6,6 +6,7 @@ on:
     paths:
       - "adhook/**"
       - "scripts/tests/**"
+      - "tools/fx-api101-source/**"
       - ".github/workflows/fx-cloud-validation.yml"
 
 permissions:
@@ -41,6 +42,11 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Restore exact local FX Hook source snapshot
+        shell: bash
+        run: |
+          base64 -d tools/fx-api101-source/AdVisibilityHook.java.gz.b64 | gzip -dc > adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          echo "658b49b63159e7071ca3e22e158435b5833e5c1d82fe64543c2ac88266f0a02f  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
       - name: Validate API 101 project wiring
         shell: bash
         run: |
