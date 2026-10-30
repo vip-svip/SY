@@ -15,7 +15,7 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void acceptsSixtyFourCustomRulesPerTarget() {
         StringBuilder config = new StringBuilder(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
                 "com.example.owned,dev_hook_enabled=1");
         for (int i = 1; i <= UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET; i++) {
             config.append(",dev_rule_").append(i).append("=r").append(i)
@@ -32,7 +32,7 @@ public class UnifiedHookConfigParserTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsSixtyFiveCustomRulesPerTarget() {
         StringBuilder config = new StringBuilder(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
                 "com.example.owned,dev_hook_enabled=1");
         for (int i = 1; i <= 65; i++) {
             config.append(",dev_rule_").append(i).append("=r").append(i)
