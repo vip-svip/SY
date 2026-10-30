@@ -74,3 +74,12 @@ For rewarded ads, the Hook can identify and preserve the real rewarded-ad flow a
 - Connect the Hook's single target/config registry to the FX UI and root-side config publisher.
 - Validate the complete KernelSU ZIP and module lifecycle separately from the Hook APK.
 - Perform real-device verification on the OnePlus 12; CI cannot substitute for it.
+
+## Microphone privacy migration checkpoint (2026-10-30)
+
+API-101 now wires the existing `mic_block` config flag into opt-in `AudioRecord.read()` interception. The root config parser already accepts `mic_block`; the new `AudioPrivacyPolicy` keeps suppression disabled unless the privacy master switch is enabled, exactly one package is attributed to the process, and that package's own `mic_block` flag is enabled. System, FX Hook, LSPosed Manager, unknown targets and shared-UID processes fail open.
+
+The interceptor zero-fills supported `AudioRecord.read()` byte[], short[], float[] and ByteBuffer buffers and returns the number of zeroed elements/bytes. It does not claim to cover `MediaRecorder`, native audio capture, vendor-specific paths or every OEM implementation. It must be verified on target devices before describing it as complete microphone protection.
+
+GitHub Actions run `41052177773` (commit `b608ed9678d8b94dd4f8a8431391c55692b45d88`) passed all regression checks, JUnit tests, API82+API101 single-APK compilation, APK signature verification and metadata/DEX checks. Validation artifact `FXHook-API82-API101-single-apk-validation` ID `12974079489`, SHA-256 `51ae857a080e98eb55437efa9da38dd6010e09c345ee50f864fb25d7b2926cae`. This is a debug-signed validation artifact only, not the final release APK or KernelSU ZIP, and does not establish runtime loading on either framework or real-device microphone behavior.
+
