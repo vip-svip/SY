@@ -412,7 +412,10 @@ public final class AdVisibilityHook extends XposedModule {
                 // interceptor for every PackageReady callback.
                 String activePackage = currentPackage;
                 UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
-                if (!privacyEnabled || activeTarget == null || !activeTarget.privacy ||
+                // Fail open when multiple package identities share this process:
+                // currentPackage is process-global and cannot safely identify the caller.
+                if (!privacyEnabled || processPackages.size() != 1 ||
+                        activeTarget == null || !activeTarget.privacy ||
                         NEVER.contains(activePackage)) return original;
                 try {
                     return PrivacyIdentifier.forPackage(activePackage, (String) original);
