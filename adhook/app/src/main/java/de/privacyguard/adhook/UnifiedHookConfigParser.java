@@ -36,6 +36,7 @@ public final class UnifiedHookConfigParser {
         public final boolean notificationPermissionHide;
         public final boolean microphoneSilence;
         public final boolean cameraAccessBlock;
+        public final boolean locationAccessBlock;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
@@ -75,6 +76,10 @@ public final class UnifiedHookConfigParser {
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -92,6 +97,7 @@ public final class UnifiedHookConfigParser {
             this.notificationPermissionHide = notificationPermissionHide;
             this.microphoneSilence = microphoneSilence;
             this.cameraAccessBlock = cameraAccessBlock;
+            this.locationAccessBlock = locationAccessBlock;
         }
 
         public boolean enabled() {
@@ -230,7 +236,7 @@ public final class UnifiedHookConfigParser {
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
-            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -260,11 +266,12 @@ public final class UnifiedHookConfigParser {
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
                     case "camera_access_block": cameraAccessBlock = on; break;
+                    case "location_access_block": locationAccessBlock = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
             if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
