@@ -18,6 +18,10 @@ The API-101 source restoration pipeline applies bounded, hash-checked patches be
 
 These are CI/build and static regression results. They are not proof of behavior on a OnePlus 12 or every target app.
 
+## Installer migration
+
+The module-side installer now prefers optional/FXHook.apk and installs only applicationId de.privacyguard.adhook when that unified artifact is present. It does not install both historical APKs in that path. The old two-APK path remains only as an explicitly logged transitional fallback while the merged APK artifact is not yet bundled. The remover tracks the unified package marker as well. Host regression coverage verifies the one-package path and the transitional fallback. This installer change does not mean FXHook.apk has already been built or included in the current KernelSU archive.
+
 ## API-82 and API-101 consolidation
 
 The two implementations are not yet consolidated into one installable APK. The current validation APK is API-101 only.
