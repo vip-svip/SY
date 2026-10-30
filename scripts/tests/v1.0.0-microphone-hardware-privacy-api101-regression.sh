@@ -8,6 +8,7 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 grep -q 'installMicrophoneHardwarePrivacyHooks' "$SRC" || fail 'microphone hardware hook installer missing'
 grep -q 'AudioManager' "$SRC" || fail 'AudioManager input-device enumeration missing'
 grep -q 'getDevices' "$SRC" || fail 'AudioManager.getDevices interception missing'
+grep -q 'getMicrophones' "$SRC" || fail 'AudioManager.getMicrophones interception missing'
 grep -q 'getRoutedDevice' "$SRC" || fail 'AudioRecord routed-device metadata interception missing'
 grep -q 'getActiveMicrophones' "$SRC" || fail 'active microphone metadata interception missing'
 grep -q 'MicrophoneHardwarePrivacyPolicy.shouldHideInputDevices' "$SRC" || fail 'fail-open policy not connected'
