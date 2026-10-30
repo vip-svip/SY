@@ -58,6 +58,8 @@ jobs:
           echo "550aef6699758c72c6c1237a521bbf022ca7f66e33b820a1b5e4c04007f21368  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_microphone_privacy.py
           echo "155423b0452ba5866449695bc21795622f2bf5bd44a54ec121911c1a982ec4b3  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          python3 tools/fx-api101-source/patch_passive_location_privacy.py
+          echo "130da4f15b96def49dfb8e5f83170f38d6aa3b847e6afc284b8d894ab4d892cf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
       - name: Validate API 101 project wiring
         shell: bash
         run: |
@@ -78,6 +80,7 @@ jobs:
           bash scripts/tests/v1.0.0-camera-id-privacy-api101-regression.sh
           bash scripts/tests/adhook-app-installer-regression.sh
           bash scripts/tests/v1.0.0-microphone-privacy-api101-regression.sh
+          bash scripts/tests/v1.0.0-passive-location-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
         run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
