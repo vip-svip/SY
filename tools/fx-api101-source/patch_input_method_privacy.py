@@ -87,5 +87,8 @@ once("    private boolean shouldHideFingerprintHardware() {\n",
      method + "    private boolean shouldHideFingerprintHardware() {\n")
 
 path.write_text(source)
+expected = "abe61fe86118a3f0586dde534a7a638b596c61ba9cf7530479c8c79416f87bb4"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"input-method privacy source hash mismatch: {actual}")
 print("API101 input-method privacy patch: PASS", actual)
