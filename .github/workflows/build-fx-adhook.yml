@@ -110,6 +110,7 @@ jobs:
           ! grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' scripts/install_adhook_app.sh scripts/remove_adhook_app.sh
       - name: Run parser and deployment regression tests, then build APK
         run: |
+          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           sh scripts/tests/adhook-app-installer-regression.sh
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'notification_permission_hide_enabled' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
