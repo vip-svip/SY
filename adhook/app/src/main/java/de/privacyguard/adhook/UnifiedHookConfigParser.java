@@ -10,8 +10,8 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Versioned, transactional configuration model for the single FX Hook APK.
- * This parser is intentionally independent from the current ad-only parser until
- * the runtime migration is switched over in a later change.
+ * AdVisibilityHook uses this parser directly for both the versioned unified schema
+ * and backward-compatible legacy ad-only payloads. Legacy payloads never enable privacy.
  */
 public final class UnifiedHookConfigParser {
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
