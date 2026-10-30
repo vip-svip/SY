@@ -55,54 +55,53 @@ jobs:
       - name: Validate modern API, secure config transport, and read-only diagnostics
         shell: bash
         run: |
-          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           test -s "$PARSER_SRC"
           test -s adhook/app/src/test/java/de/privacyguard/adhook/HookTargetConfigParserTest.java
           test -s adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
-          grep -q 'UnifiedHookConfigParser.parse' "$JAVA_SRC"
-          grep -q 'installExifStripHooks' "$JAVA_SRC"
+          grep -q 'UnifiedHookConfigParser.parse' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'installExifStripHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'isExifStripEnabledFor' "$PARSER_SRC"
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
           grep -q 'shouldRedactTag' adhook/app/src/main/java/de/privacyguard/adhook/ExifPrivacyPolicy.java
           grep -q 'parsesOptInExifPrivacyFeatureIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
           grep -q 'serializerRoundTripsExifRedactionIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
           grep -q 'redactsGpsCoordinatesAndGpsMetadata' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
-          grep -q 'getLatLong' "$JAVA_SRC"
-          grep -q 'getAltitude' "$JAVA_SRC"
+          grep -q 'getLatLong' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'getAltitude' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'directCoordinateAccessorsAreRedacted' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
-          grep -q 'installClipboardReadBlockHooks' "$JAVA_SRC"
+          grep -q 'installClipboardReadBlockHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'clipboard_read_block' "$PARSER_SRC"
-          grep -q 'ClipboardPrivacyPolicy.shouldBlockRead' "$JAVA_SRC"
+          grep -q 'ClipboardPrivacyPolicy.shouldBlockRead' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'sharedPackageProcessFailsOpen' adhook/app/src/test/java/de/privacyguard/adhook/ClipboardPrivacyPolicyTest.java
-          grep -q 'remote config rejected; no hooks enabled' "$JAVA_SRC"
+          grep -q 'remote config rejected; no hooks enabled' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           test -f adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/module.prop
           test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
           grep -q 'io.github.libxposed' adhook/app/build.gradle
           grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
           grep -q 'staticScope=false' adhook/app/src/main/resources/META-INF/xposed/module.prop
-          grep -q 'openRemoteFile' "$JAVA_SRC"
-          grep -q 'AutoCloseInputStream' "$JAVA_SRC"
-          grep -q 'remote config exceeds 64 KiB' "$JAVA_SRC"
-          grep -q 'bytes.size() + count > 65536' "$JAVA_SRC"
-          grep -q 'CodingErrorAction.REPORT' "$JAVA_SRC"
-          grep -q 'PROP_CAP_REMOTE' "$JAVA_SRC"
-          grep -q 'Dialog.class' "$JAVA_SRC"
-          grep -q 'PopupWindow.class' "$JAVA_SRC"
-          grep -q 'installDynamicAdChildHooks' "$JAVA_SRC"
-          grep -q 'scheduleAddedViewCheck' "$JAVA_SRC"
-          grep -q 'dynamic ad child observers installed' "$JAVA_SRC"
-          grep -q 'billing responseCode' "$JAVA_SRC"
-          grep -q 'billing purchaseState' "$JAVA_SRC"
-          grep -q 'concrete billing value diagnostics installed=' "$JAVA_SRC"
-          grep -q 'Never log product IDs' "$JAVA_SRC"
+          grep -q 'openRemoteFile' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'AutoCloseInputStream' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'remote config exceeds 64 KiB' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'bytes.size() + count > 65536' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'CodingErrorAction.REPORT' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'PROP_CAP_REMOTE' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'Dialog.class' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'PopupWindow.class' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'installDynamicAdChildHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'scheduleAddedViewCheck' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'dynamic ad child observers installed' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'billing responseCode' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'billing purchaseState' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'concrete billing value diagnostics installed=' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'Never log product IDs' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'versionCode 10000' adhook/app/build.gradle
-          grep -q 'com.huawei.hms.ads' "$JAVA_SRC"
-          grep -q 'com.miui.zeus.mimo.sdk' "$JAVA_SRC"
-          grep -q 'com.heytap.msp.mobad.api' "$JAVA_SRC"
-          ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "$JAVA_SRC"
-          ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "$JAVA_SRC"
+          grep -q 'com.huawei.hms.ads' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'com.miui.zeus.mimo.sdk' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'com.heytap.msp.mobad.api' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           ! test -f adhook/app/src/main/assets/xposed_init
           test -s scripts/install_adhook_app.sh
           test -s scripts/remove_adhook_app.sh
@@ -115,9 +114,9 @@ jobs:
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'notification_permission_hide_enabled' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'notification_permission_hide' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
-          grep -q 'installNotificationPermissionPrivacyHooks' "$JAVA_SRC"
-          grep -q 'areNotificationsEnabled' "$JAVA_SRC"
-          grep -q 'NotificationPrivacyPolicy.shouldHidePermission' "$JAVA_SRC"
+          grep -q 'installNotificationPermissionPrivacyHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'areNotificationsEnabled' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'NotificationPrivacyPolicy.shouldHidePermission' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'shouldHidePermission' adhook/app/src/main/java/de/privacyguard/adhook/NotificationPrivacyPolicy.java
           grep -q 'hidesOnlyExplicitNotificationPermissionQueryTarget' adhook/app/src/test/java/de/privacyguard/adhook/NotificationPrivacyPolicyTest.java
           grep -q 'notificationPermissionQueryFailsOpenWhenMasterOffSharedOrProtected' adhook/app/src/test/java/de/privacyguard/adhook/NotificationPrivacyPolicyTest.java
@@ -144,7 +143,7 @@ jobs:
           done
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           for token in "领取金币" "看视频领" "看广告领" "激励视频" "广告奖励"; do
-            grep -Fq "$token" "$JAVA_SRC" || { echo "::error::Source missing rewarded UI evidence marker: $token"; exit 1; }
+            grep -Fq "$token" "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" || { echo "::error::Source missing rewarded UI evidence marker: $token"; exit 1; }
           done
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
