@@ -116,3 +116,9 @@ Run [41058540824](https://github.com/vip-svip/SY/actions/runs/41058540824), comm
 This snapshot adds API101 input-method enumeration privacy (`block_ime_logging`) to the existing opt-in migrations. It hides selected InputMethodManager enabled/list/subtype enumeration APIs only; it does not inspect or block typed text or key events. It may affect keyboard selection. All shared-process and protected-package safeguards remain fail-open.
 
 The complete source snapshot was synchronized into the recovered local FX tree. This does not complete 73-flag parity. API82/API101 runtime framework discovery/arbitration, config equivalence and permissions on real LSPosed devices, release-key continuity, remaining legacy migrations, full KernelSU packaging and OnePlus 12 verification remain open.
+
+## Advertising ID privacy migration — 2026-10-30
+
+API101 now supports opt-in app-scoped Advertising ID replacement for recognized Google Mobile Services `AdvertisingIdClient.Info.getId()` and selected Huawei OAID String getters. The deterministic UUID is scoped to the selected package. The policy requires the privacy master switch, explicit per-app selection, a single-package process, and a non-protected package; unknown SDKs and shared processes fail open. This does not alter account identity, purchase receipts, rewards, membership or server entitlements.
+
+Run [41060719905](https://github.com/vip-svip/SY/actions/runs/41060719905), commit `556869114cf89012e2069bf758b95a08fb563ca5`, passed JUnit, host regressions, source restoration, one-APK wiring, Android Debug APK assembly, signature/DEX/metadata checks and artifact upload. Complete source artifact `12978916825`; Debug APK artifact `12979845912`. This remains a debug-signed validation build, not release or OnePlus 12 verification.
