@@ -1339,12 +1339,35 @@ public final class AdVisibilityHook extends XposedModule {
         if (!memberCandidateClasses.add(name)) return;
         int count = memberClassesInspected.incrementAndGet();
         if (count > MAX_DYNAMIC_MEMBER_CLASSES) return;
-        if (!hasMemberStateField(candidate)) return;
+        boolean fieldCandidate = hasMemberStateField(candidate);
+        boolean methodCandidate = hasMemberStateMethod(candidate);
+        if (!fieldCandidate && !methodCandidate) return;
         logFx(Log.INFO, "member discovery candidate=" + shortName(name)
-                + " member-field-candidate=" + hasMemberStateField(candidate)
+                + " member-field-candidate=" + fieldCandidate
+                + " member-method-candidate=" + methodCandidate
                 + " member-interface-candidate=" + candidate.isInterface()
                 + " obfuscated-status-candidate=" + !isMemberClassNameCandidate(name));
         installReadOnlyMemberCandidateHook(candidate);
+    }
+
+    /** Inspect method metadata only; never invoke candidate methods during discovery. */
+    private boolean hasMemberStateMethod(Class<?> candidate) {
+        try {
+            Method[] methods = candidate.getDeclaredMethods();
+            int limit = Math.min(methods.length, 128);
+            for (int i = 0; i < limit; i++) {
+                Method method = methods[i];
+                MemberCandidateClassifier.Candidate classification =
+                        MemberCandidateClassifier.inspect(method);
+                String methodName = lower(method.getName());
+                boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
+                if (getter && classification.kind != MemberCandidateClassifier.Kind.UNKNOWN
+                        && classification.isWorthInspecting()) return true;
+                if (classification.kind == MemberCandidateClassifier.Kind.ASYNC_FLOW
+                        && method.getParameterTypes().length == 1) return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     private boolean hasMemberStateField(Class<?> candidate) {
@@ -1379,13 +1402,16 @@ public final class AdVisibilityHook extends XposedModule {
                         || method.isSynthetic() || method.isBridge()
                         || method.getParameterTypes().length != 0) continue;
                 String methodName = lower(method.getName());
-                Class<?> resultType = method.getReturnType();
+                MemberCandidateClassifier.Candidate classification =
+                        MemberCandidateClassifier.inspect(method);
                 boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
-                boolean stateName = hasAny(methodName, MEMBER_STATE_FIELD_MARKERS);
-                boolean stateType = hasMemberStateType(resultType)
-                        || resultType == boolean.class || resultType == Boolean.class
-                        || Number.class.isAssignableFrom(resultType) || resultType.isEnum();
-                if (!getter || (!stateName && !stateType)) continue;
+                boolean suspendLike = classification.kind == MemberCandidateClassifier.Kind.ASYNC_FLOW
+                        && method.getParameterTypes().length == 1;
+                // Getter-like methods may expose Boolean, numeric, String, Enum, or
+                // object/bean state. Kotlin suspend signatures are observed separately.
+                // No candidate method is invoked by the discovery path itself.
+                if ((!getter && !suspendLike)
+                        || classification.kind == MemberCandidateClassifier.Kind.UNKNOWN) continue;
                 String key = method.toGenericString();
                 if (!memberHookedMethods.add(key)) continue;
                 try {
