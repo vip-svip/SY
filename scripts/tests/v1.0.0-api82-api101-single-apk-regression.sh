@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+LEGACY="$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java"
+MODERN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
+GRADLE="$ROOT/adhook/app/build.gradle"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+[ -s "$LEGACY" ] || fail "legacy API82 entry source missing"
+[ -s "$MODERN" ] || fail "modern API101 entry source missing"
+[ -s "$ROOT/adhook/app/src/main/assets/xposed_init" ] || fail "legacy xposed_init missing"
+grep -Fxq 'de.privacyguard.hook.MainHook' "$ROOT/adhook/app/src/main/assets/xposed_init" || fail "legacy entry class mismatch"
+grep -Fxq 'de.privacyguard.adhook.AdVisibilityHook' "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "modern entry class mismatch"
+grep -q "applicationId 'de.privacyguard.adhook'" "$GRADLE" || fail "single applicationId not set"
+grep -q "de.robv.android.xposed:api:82" "$GRADLE" || fail "legacy API82 compileOnly dependency missing"
+grep -q "io.github.libxposed:api:101.0.1" "$GRADLE" || fail "modern API101 compileOnly dependency missing"
+grep -q 'android:name="xposedmodule"' "$MANIFEST" || fail "legacy manifest metadata missing"
+grep -q 'android:name="xposedminversion"' "$MANIFEST" || fail "legacy minimum framework metadata missing"
+grep -q 'android:name="xposedscope"' "$MANIFEST" || fail "legacy scope metadata missing"
+grep -q 'minApiVersion=101' "$ROOT/adhook/app/src/main/resources/META-INF/xposed/module.prop" || fail "modern module metadata missing"
+grep -q 'isModernLibXposedRuntimeAvailable' "$LEGACY" || fail "legacy entry has no API101 runtime arbitration"
+grep -q 'Class.forName("io.github.libxposed.api.XposedModule"' "$LEGACY" || fail "legacy entry cannot detect modern runtime"
+grep -q 'modern libxposed runtime detected; legacy entry skipped' "$LEGACY" || fail "legacy entry does not fail open on API101"
+grep -q 'lpp.appInfo.sharedUserId' "$LEGACY" || fail "legacy shared-UID fail-open guard missing"
+grep -q 'SELF_PKG_API101' "$LEGACY" || fail "legacy entry does not exclude unified Hook app"
+grep -q 'if (!"1".equals(master))' "$LEGACY" || fail "legacy entry does not require explicit master enable"
+! grep -q 'io.github.libxposed.api' "$LEGACY" || fail "legacy entry gained a compile-time modern API reference"
+echo "PASS: one applicationId, dual entry metadata, API82/API101 compileOnly APIs, runtime arbitration and legacy fail-open guards"
