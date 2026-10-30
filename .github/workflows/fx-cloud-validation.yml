@@ -70,6 +70,7 @@ jobs:
           echo "654d39cea7bb3c1c19bebf1dbd56808e395a66de7edc161d7d12d7c8dcb3fdbf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_audio_fingerprint_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          echo "fb46869ec48b21592927d39b0ae06143bb53b6c3578f7a15b1eda06d60cfd45f  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           mkdir -p adhook/app/src/main/java/de/privacyguard/hook
           cat tools/fx-api82-source/MainHook.gz.b64.part1 tools/fx-api82-source/MainHook.gz.b64.part2 tools/fx-api82-source/MainHook.gz.b64.part3 tools/fx-api82-source/MainHook.gz.b64.part3b tools/fx-api82-source/MainHook.gz.b64.part4 tools/fx-api82-source/MainHook.gz.b64.part5 tools/fx-api82-source/MainHook.gz.b64.part6 tools/fx-api82-source/MainHook.gz.b64.part6b tools/fx-api82-source/MainHook.gz.b64.part7 tools/fx-api82-source/MainHook.gz.b64.part8 | base64 -d | gzip -dc > adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           echo "77cec8b8e28b3673b4c8badc93aa1e1a49dff2f289779d4ca72b97b1f0dcc562  adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | sha256sum -c -
