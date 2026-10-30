@@ -80,7 +80,7 @@ public final class UnifiedHookConfigSerializer {
                 if (rule == null || ruleIndex > 16) throw new IllegalArgumentException("invalid developer rule list");
                 out.append(",dev_rule_").append(ruleIndex++).append('=')
                         .append(rule.id).append('|').append(rule.descriptor).append('|')
-                        .append(rule.replacement ? "true" : "false").append('|').append(rule.priority);
+                        .append(rule.action.name()).append('|').append(rule.priority);
             }
             out.append('\n');
         }
