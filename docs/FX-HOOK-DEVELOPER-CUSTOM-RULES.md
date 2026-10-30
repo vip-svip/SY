@@ -14,11 +14,12 @@ privacy_enabled=0
 com.example.vpn,dev_hook_enabled=1,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|RETURN_TRUE|100,dev_rule_2=login|Lcom/example/vpn/auth/Session;->isLoggedIn()Z|RETURN_TRUE|50,dev_rule_3=update|com.example.vpn.update.Policy.shouldShowUpdate()Z|RETURN_FALSE|10,dev_rule_4=trace|com.example.vpn.auth.AuthState#isEnabled()Z|OBSERVE_ONLY|0
 ```
 
-Field order is `id|method-descriptor|action|priority`. `dev_hook_enabled=1` is mandatory; without it all custom rules remain inert even for a debuggable package.
+Field order is `id|method-descriptor|action|priority`. For the same exact descriptor, the highest-priority rule wins; a highest-priority `DISABLED` entry suppresses lower-priority entries. Equal priorities preserve config order. `dev_hook_enabled=1` is mandatory; without it all custom rules remain inert even for a debuggable package.
 
 Supported method descriptor forms:
 - Exact JVM form: `Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;`
 - Java source form: `com.example.vpn.Trace#dispatch(java.lang.String,int[])java.lang.Object`
+- Dotted Java source form: `com.example.vpn.Trace.dispatch(String,int[])Object` (simple `java.lang` names are accepted)
 - Exact constructor form: `Lcom/example/vpn/Trace;-><init>(I)V`
 - Legacy Java form: `com.example.vpn.auth.AuthState#isVip()Z` (zero-argument boolean only)
 - Dotted legacy form: `com.example.vpn.auth.AuthState.isVip()Z`
