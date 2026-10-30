@@ -120,6 +120,9 @@ jobs:
           set -euo pipefail
           sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
           sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
+          sh scripts/tests/adhook-app-installer-regression.sh
+          sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
       - name: Package and verify KernelSU ZIP
         shell: bash
         run: |
