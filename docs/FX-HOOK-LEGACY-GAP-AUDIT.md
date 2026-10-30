@@ -17,14 +17,14 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 | `secureSettingsSpoof`, `serialSpoof`, `telephonySpoof` | Not migrated | Android ID transform is narrower; no IMEI/SIM/serial claim |
 | `btWifiMacSpoof`, `batterySpoof`, `screenSpoof`, `storageSpoof` | Not migrated | Requires per-API/OEM tests |
 | `sysSvcHide` | Not migrated | High compatibility risk |
-| `clipboardGuard` | Partially migrated | Modern clipboard-read policy exists; validate Android API and target-app compatibility |
+| `clipboardGuard` | Partially migrated | Modern clipboard-read policy is wired to independent per-target config; writes remain untouched; physical compatibility still pending |
 | `appListHide`, `pmQueryHide`, `procListHide` | Not migrated | High false-positive/app-breakage risk; do not enable by default |
 | `mediastoreHide`, `netIfacesHide`, `netStatsHide`, `vpnHide` | Not migrated | Must not interfere with VPN coexistence or diagnostics |
 | `imeHide` | Not migrated | Requires keyboard/input-method compatibility tests |
-| `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide` | Not migrated | Requires independent opt-in and API-specific tests |
+| `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide` | Wi-Fi scan partially migrated; location/GNSS not migrated | Wi-Fi scan uses independent global and per-target gates; location/GNSS transformations remain disabled and are not ported |
 | `sensorHide` | Partially migrated | Sensor enumeration hiding and sampling-rate policy exist; not full parity |
 | `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | Not migrated | Can break camera, calls, audio and authentication |
-| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Not migrated | Separate each behavior and test independently |
+| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Notification read suppression and permission-query masking partially migrated; usage/accessibility not migrated | Active-notification reads and `areNotificationsEnabled()` query have independent config gates and fail-open policy tests; no notification permission is revoked or changed |
 | `exifStrip` | Partially migrated | Read-time EXIF redaction exists; verify GPS getter coverage on device |
 | `rootHide`, `fsHooks` and filesystem/VFS helpers | Not migrated | High stability risk; keep disabled pending device tests |
 | `adIdUnify` | Not migrated | Advertising ID is distinct from Android ID |
@@ -33,7 +33,7 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 
 - Package-scoped ad View observers and ad marker matching.
 - Read-only Billing diagnostics for concrete response/purchase-state getters.
-- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, and sensor enumeration/rate policies.
+- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, sensor enumeration/rate policies, Wi-Fi scan suppression, active-notification read suppression, and notification permission-query masking.
 - Remote Files configuration is bounded, UTF-8 validated, parsed transactionally, and fails closed when unavailable/invalid.
 - UI target selection and LSPosed Manager scope both gate target-process effects.
 
@@ -57,7 +57,14 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 6. Verify host regressions and APK signature in CI; separately verify OnePlus 12 injection and behavior.
 
 
-## Latest API-101 build provenance
+## Latest API-101 build provenance (2026-10-30)
+
+- Documentation/config integration commits: `9b6a2eb3` and `024c9ce6`.
+- Latest CI: [41074509939](https://github.com/vip-svip/SY/actions/runs/41074509939) — success; parser/deployment regressions, unit tests, debug APK assembly, APK signature, Xposed metadata/resources, and DEX marker checks passed.
+- APK SHA-256: `3a113bcecedd203f7aab32f1b84803a85cd11282b4ec47d4ddbec1b819bf8822`.
+- Artifact: `FXAdHook-apk`, ID `12985798934`, artifact ZIP SHA-256 `8895c8a458570c289a1a34656eee971a3e3234dc3a07fb8504cd22018ce9d83c`, expires 2027-01-28.
+- This remains a standalone debug API-101 APK, not a unified FXHook APK or full KernelSU package.
+
 
 - Source/workflow commit: `55c356f061643401a62042d9809806c38c5f5537`
 - GitHub Actions run: [41060759194](https://github.com/vip-svip/SY/actions/runs/41060759194) — success
