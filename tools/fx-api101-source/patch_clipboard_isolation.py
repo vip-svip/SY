@@ -29,9 +29,25 @@ once(
     "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
     "        final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro\n")
 once(
-    "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage) return;\n",
+    "        final boolean micHwHideForPackage = privacyEnabled && target.micHwHide;\n"
+    "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
+    "        final boolean regionDiagForPackage = target.regionDiag;\n"
+    "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
     "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
-    "                && !clipboardIsolateForPackage && !sensorForPackage) return;\n")
+    "                && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
+    "                && !micBlockForPackage && !micHwHideForPackage && !audioFpForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
+    "                && !mediaStoreForPackage) return;\n",
+    "        final boolean micHwHideForPackage = privacyEnabled && target.micHwHide;\n"
+    "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
+    "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
+    "        final boolean regionDiagForPackage = target.regionDiag;\n"
+    "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
+    "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
+    "                && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
+    "                && !micBlockForPackage && !micHwHideForPackage && !audioFpForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
+    "                && !mediaStoreForPackage) return;\n")
 once(
     "        if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);\n",
     "        if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);\n"
