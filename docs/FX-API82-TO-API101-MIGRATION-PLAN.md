@@ -110,3 +110,10 @@ Legacy `cameraNull()` and `cam_hw_hide` need separate review. Returning null or 
 - No `startRecording()` interception, microphone hardware hiding, synthetic-noise injection, MediaRecorder/camera audio interception, or native capture coverage is claimed.
 - UI label explicitly states this is not equivalent to disabling Android's microphone permission.
 - Parser/serializer round-trip and buffer-boundary tests added. GitHub Actions run `41085666969` passed Android debug compilation, unit tests, the dedicated AudioRecord regression, APK signature verification, and libxposed metadata checks. Built APK SHA-256: `b23b259e0f0f08a0c9b3ceb46b11cdf451a280e1f40e8a2128078448fbcbca01`. OnePlus 12 / LSPosed runtime verification remains pending.
+
+
+## 2026-10-31 — AudioRecord overload registration hardening
+
+The API-101 runtime now tracks successfully installed AudioRecord.read overloads individually rather than using one process-wide completion boolean. This prevents one failed overload from suppressing all remaining registrations and permits a failed overload to be retried when another eligible target package loads. Registration failures are logged per overload; unsupported/failed overloads remain unchanged (fail-open).
+
+Added policy tests for direct ByteBuffer original-position handling and bounded array offset/read-count behavior, and expanded the shell regression to assert per-overload registration tracking. This remains an AudioRecord-only data-silencing feature: it does not revoke Android microphone permission and does not cover MediaRecorder, camera audio, or native capture paths. Android APK compilation and OnePlus 12 runtime verification remain pending.
