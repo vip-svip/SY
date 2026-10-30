@@ -4,7 +4,7 @@ import hashlib
 
 path = Path("adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java")
 source = path.read_text()
-base = "fb46869ec48b21592927d39b0ae06143bb53b6c3578f7a15b1eda06d60cfd45f"
+base = "2d846cd492d279a88c77a41fd2117802b5ad6f4bf91463934e82f1d010e245d2"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
 if actual != base:
     raise SystemExit(f"unexpected API101 source before notification privacy patch: {actual}")
