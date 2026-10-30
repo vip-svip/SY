@@ -48,7 +48,7 @@ jobs:
           base64 -d tools/fx-api101-source/AdVisibilityHook.java.gz.b64 | gzip -dc > adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           echo "658b49b63159e7071ca3e22e158435b5833e5c1d82fe64543c2ac88266f0a02f  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_rewarded_flow.py
-          echo "45ece5042197c8e7418e120a76b54250413b922a5f01412d1a17ceb9ed3c1fe5  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          echo "b3fa4c33d1efebad7681cf7afc7433073c036e41ea71f6d97ff0ad0aa8b92b86  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
       - name: Validate API 101 project wiring
         shell: bash
         run: |
