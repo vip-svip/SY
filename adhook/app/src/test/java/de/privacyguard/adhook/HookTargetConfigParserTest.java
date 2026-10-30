@@ -24,6 +24,25 @@ public class HookTargetConfigParserTest {
     }
 
     @Test
+    public void membershipDiagnosticsRemainAvailableWhenAdMasterIsOff() {
+        HookTargetConfigParser.Result result = HookTargetConfigParser.parse(
+                "hook_ads_enabled=0\\n[list:hook_targets]\\n" +
+                "com.example.app,splash=0,feed=0,overlay=0,member_diag=1\\n");
+        assertFalse(result.isAdFilteringEnabledFor("com.example.app"));
+        assertTrue(result.isMemberDiagnosticsEnabledFor("com.example.app"));
+        assertTrue(result.isAnyFeatureEnabledFor("com.example.app"));
+    }
+
+    @Test
+    public void adFeaturesStayDisabledWhenAdMasterIsOff() {
+        HookTargetConfigParser.Result result = HookTargetConfigParser.parse(
+                "hook_ads_enabled=0\\n[list:hook_targets]\\n" +
+                "com.example.app,splash=1,feed=1,overlay=1,member_diag=0\\n");
+        assertFalse(result.isAdFilteringEnabledFor("com.example.app"));
+        assertFalse(result.isMemberDiagnosticsEnabledFor("com.example.app"));
+        assertFalse(result.isAnyFeatureEnabledFor("com.example.app"));
+    }
+    @Test
     public void allowsDisabledMasterAndExplicitlyDisabledTarget() {
         HookTargetConfigParser.Result result = HookTargetConfigParser.parse(
                 "hook_ads_enabled=0\n[list:hook_targets]\n" +
