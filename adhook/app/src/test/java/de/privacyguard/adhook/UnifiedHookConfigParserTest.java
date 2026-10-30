@@ -15,13 +15,34 @@ public class UnifiedHookConfigParserTest {
     public void parsesExactDeveloperDebugBooleanHookDescriptors() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
-                "com.example.owned,dev_test_vip_method=com.example.owned.AuthRepo#isVip()Z," +
+                "com.example.owned,dev_hook_enabled=1,dev_test_vip_method=com.example.owned.AuthRepo#isVip()Z," +
                 "dev_test_login_method=com.example.owned.SessionRepo#isLoggedIn()Z," +
                 "dev_test_hide_update_method=com.example.owned.UpdatePolicy#shouldShowUpdate()Z\n");
         UnifiedHookConfigParser.Target target = result.targets.get("com.example.owned");
         assertEquals("com.example.owned.AuthRepo#isVip()Z", target.developerVipMethod);
         assertEquals("com.example.owned.SessionRepo#isLoggedIn()Z", target.developerLoginMethod);
         assertEquals("com.example.owned.UpdatePolicy#shouldShowUpdate()Z", target.developerHideUpdateMethod);
+    }
+
+    @Test
+    public void customHookRequiresExplicitOptIn() {
+        UnifiedHookConfigParser.Result disabled = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.owned,dev_rule_1=vip|com.example.owned.AuthRepo#isVip()Z|true|1\n");
+        assertFalse(disabled.targets.get("com.example.owned").developerHooksEnabled);
+
+        UnifiedHookConfigParser.Result enabled = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.owned,dev_hook_enabled=1,dev_rule_1=vip|com.example.owned.AuthRepo#isVip()Z|true|1\n");
+        assertTrue(enabled.targets.get("com.example.owned").developerHooksEnabled);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDuplicateCustomRuleTarget() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.owned,dev_rule_1=a|com.example.owned.AuthRepo#isVip()Z|true|1," +
+                "dev_rule_2=b|com.example.owned.AuthRepo#isVip()Z|false|2\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
