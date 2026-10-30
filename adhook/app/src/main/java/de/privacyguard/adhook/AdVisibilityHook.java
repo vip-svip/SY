@@ -210,6 +210,12 @@ public final class AdVisibilityHook extends XposedModule {
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerVipMethod, true, "vip");
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerHideUpdateMethod, false, "hide-update");
+            java.util.List<DeveloperHookRule> orderedRules = new java.util.ArrayList<>(target.developerRules);
+            java.util.Collections.sort(orderedRules, (left, right) -> Integer.compare(right.priority, left.priority));
+            for (DeveloperHookRule rule : orderedRules) {
+                installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
+                        rule.descriptor, rule.replacement, rule.id + "@" + rule.priority);
+            }
         }
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean memberDiagForPackage = target.memberDiag;
