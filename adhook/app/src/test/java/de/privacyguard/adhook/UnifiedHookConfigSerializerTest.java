@@ -182,7 +182,7 @@ public class UnifiedHookConfigSerializerTest {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.notify", new UnifiedHookConfigParser.Target(
                 false, false, false, false, false, false, false,
-                false, false, false, false, false, false, false, false, true));
+                false, false, false, false, false, false, false, false, false, true));
         String text = UnifiedHookConfigSerializer.serialize(false, false, false, false, true, targets);
         assertTrue(text.contains("notification_permission_hide_enabled=1"));
         assertTrue(text.contains("notification_permission_hide=1"));
