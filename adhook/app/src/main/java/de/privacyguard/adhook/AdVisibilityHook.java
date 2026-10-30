@@ -533,7 +533,7 @@ public final class AdVisibilityHook extends XposedModule {
             if (getString.getReturnType() == String.class) {
                 hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
-                            Object key = chain.getArgs().length > 1 ? chain.getArgs()[1] : null;
+                            Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                             String activePackage = currentPackage;
                             UnifiedHookConfigParser.Target active = targets.get(activePackage);
                             if ("enabled_notification_listeners".equals(key)
