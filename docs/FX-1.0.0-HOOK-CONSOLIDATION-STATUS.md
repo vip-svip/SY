@@ -129,3 +129,17 @@ The interceptor zero-fills supported `AudioRecord.read()` byte[], short[], float
 
 GitHub Actions run `41052177773` (commit `b608ed9678d8b94dd4f8a8431391c55692b45d88`) passed all regression checks, JUnit tests, API82+API101 single-APK compilation, APK signature verification and metadata/DEX checks. Validation artifact `FXHook-API82-API101-single-apk-validation` ID `12974079489`, SHA-256 `51ae857a080e98eb55437efa9da38dd6010e09c345ee50f864fb25d7b2926cae`. This is a debug-signed validation artifact only, not the final release APK or KernelSU ZIP, and does not establish runtime loading on either framework or real-device microphone behavior.
 
+## API101 privacy migration checkpoint — 2026-10-30
+
+GitHub Actions run [41057506685](https://github.com/vip-svip/SY/actions/runs/41057506685), commit `b746c44af0450d5f3e9cbb73f5a727059de594ff`, completed successfully. It passed exact-source restoration, API82/API101 single-APK wiring checks, host regression scripts, JUnit tests, APK assembly, APK signature/DEX/metadata verification and artifact upload.
+
+New opt-in API101 migrations in this validated build include:
+- `mic_hw_hide`: input-device/hardware enumeration privacy. It does not prove microphone capture is disabled.
+- `audio_fp_block`: bounded low-amplitude perturbation on supported `AudioRecord.read` buffer overloads; it is not a guarantee of defeating audio fingerprinting and does not cover MediaRecorder, AAudio/Oboe or native capture.
+- `clipboard_isolate`: process-local, memory-only clipboard reads/writes for a selected single-package process. It does not isolate multi-process applications or clipboard change listeners; `clipboard_read_block` takes precedence.
+- Notification-listener/notification-permission visibility, UsageStats and accessibility-service visibility controls, each opt-in and guarded by single-package/protected-package fail-open policy.
+- Biometric hardware enumeration privacy flags for fingerprint/face capability surfaces.
+
+Regression output confirms these suites passed in run 41057506685: microphone hardware, audio fingerprint, clipboard isolation, notification/usage/accessibility, and biometric hardware. The unified API82/API101 debug APK artifact is ID `12977491990`, archive SHA-256 `4fd04b79c390c6a2b39eb35f21acebba60fc0d138cf96705c1d726bceefb3f32`. The API101 source snapshot artifact is ID `12977601764`, archive SHA-256 `ba87b1ebd7fe11f81f2938485fc48e2f466d546d736f46a13a369daddbb410f4`.
+
+These are CI and static/host-test results only. They do not verify runtime injection on API82/API101 LSPosed devices, behavior on the OnePlus 12, or compatibility with arbitrary third-party applications. The artifact is still a debug-signed validation APK; no release key is available, and the final KernelSU ZIP has not been rebuilt.
