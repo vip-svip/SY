@@ -145,6 +145,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsCameraIdPrivacyFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.camera", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.camera");
+        assertTrue(t.cameraIdHide);
+        assertTrue(text.contains("camera_id_hide=1"));
+    }
+
+    @Test
     public void serializerRoundTripsAllSixSensorFlags() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.sensors", new UnifiedHookConfigParser.Target(
