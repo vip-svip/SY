@@ -13,6 +13,7 @@ grep -q 'AudioRecordSilencePolicy.zero' "$P/AdVisibilityHook.java"
 grep -q 'zeroesOnlyReturnedByteRangeAndHonorsOffset' "$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/AudioRecordSilencePolicyTest.java"
 grep -q 'zeroesDirectByteBufferAtOriginalPosition' "$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/AudioRecordSilencePolicyTest.java"
 grep -q 'clampsArrayOffsetAndReadCountToBufferBounds' "$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/AudioRecordSilencePolicyTest.java"
-! grep -q 'startRecording' "$P/AdVisibilityHook.java"
+grep -q 'installMicrophoneAccessBlockHooks' "$P/AdVisibilityHook.java"
+! sed -n '/private void installAudioRecordSilenceHooks/,/private boolean isMicrophoneSilenceAuthorized/p' "$P/AdVisibilityHook.java" | grep -q 'startRecording'
 ! grep -q 'noise' "$P/AudioRecordSilencePolicy.java"
 echo 'PASS: AudioRecord silence API-101 regression'
