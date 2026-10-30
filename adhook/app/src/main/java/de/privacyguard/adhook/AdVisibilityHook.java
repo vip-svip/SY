@@ -3,6 +3,9 @@ package de.privacyguard.adhook;
 import android.app.Activity;
 import android.app.Dialog;
 import android.app.Instrumentation;
+import android.app.Application;
+import android.content.pm.ApplicationInfo;
+import dalvik.system.DexFile;
 import android.content.ContentResolver;
 import android.provider.Settings;
 import android.content.res.Resources;
@@ -20,6 +23,12 @@ import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -52,6 +61,17 @@ import io.github.libxposed.api.XposedModuleInterface;
 public final class AdVisibilityHook extends XposedModule {
     private static final String TAG = "FXAdHook";
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
+    private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
+    private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
+    private static final int MAX_REWARDED_AD_EVIDENCE = 96;
+    private static final String[] MEMBER_STATE_FIELD_MARKERS = {
+            "vip", "premium", "member", "entitle", "subscription", "purchase",
+            "license", "expire", "active", "paid", "tier", "level", "valid", "benefit"
+    };
+    private static final String[] REWARDED_FLOW_MARKERS = {
+            "领取金币", "看视频领", "看广告领", "激励视频", "广告奖励",
+            "rewarded", "watch video", "watch ad", "claim reward", "earn coins"
+    };
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
     private static final String[] AD_CLASS_MARKERS = {
@@ -108,6 +128,13 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
     private volatile boolean dynamicChildObserversInstalled;
+    private volatile boolean dynamicMemberDiscoveryInstalled;
+    private final Set<String> memberCandidateClasses = ConcurrentHashMap.newKeySet();
+    private final Set<String> memberHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<String> rewardedEvidenceSeen = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger memberClassesInspected = new AtomicInteger();
+    private final AtomicInteger memberMethodsHooked = new AtomicInteger();
+    private final AtomicInteger rewardedEvidenceCount = new AtomicInteger();
     private final Set<String> popupObserverMethods = ConcurrentHashMap.newKeySet();
     private final Set<String> dynamicChildObserverMethods = ConcurrentHashMap.newKeySet();
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
@@ -164,7 +191,10 @@ public final class AdVisibilityHook extends XposedModule {
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
-        if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        if (adsForPackage && target.memberDiag) {
+            installReadOnlyBillingDiagnostics(param.getClassLoader());
+            installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
+        }
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
@@ -612,6 +642,7 @@ public final class AdVisibilityHook extends XposedModule {
                     try {
                         View root = initialRoot.getRootView();
                         if (root == null) root = initialRoot;
+                        inspectMemberViewTree(root, pkg);
                         scanTree(root, root, 0, new int[]{0}, target, pkg);
                     } catch (Throwable t) {
                         logFx(Log.WARN, "bounded view scan failed: " + t.getClass().getSimpleName());
@@ -702,6 +733,228 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable ignored) { return ""; }
     }
 
+
+    /**
+     * Bounded, opt-in discovery of membership-state candidates. This is strictly
+     * observational: getter return values, purchase state and entitlements are
+     * never changed. Scanning is capped by APK count, class count, time and hook count.
+     */
+    private void installDynamicMemberClassDiscovery(final ClassLoader loader, final String pkg) {
+        if (dynamicMemberDiscoveryInstalled || loader == null) return;
+        dynamicMemberDiscoveryInstalled = true;
+        int loaderHooks = 0;
+        try {
+            Method loadClass = ClassLoader.class.getDeclaredMethod("loadClass", String.class);
+            hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                if (result instanceof Class<?>) inspectDynamicallyLoadedMemberClass((Class<?>) result);
+                return result;
+            });
+            loaderHooks++;
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "member classloader observer unavailable=" + t.getClass().getSimpleName());
+        }
+        logFx(Log.INFO, "dynamic member class discovery installed; loaderHooks=" + loaderHooks
+                + "; member runtime discovery installed");
+        startBoundedMemberDexScan(loader, pkg);
+    }
+
+    private void startBoundedMemberDexScan(final ClassLoader loader, final String pkg) {
+        Thread worker = new Thread(() -> {
+            int apkFilesScanned = 0;
+            int classesScanned = 0;
+            long deadline = System.currentTimeMillis() + 6000L;
+            List<String> apkPaths = new ArrayList<>();
+            try {
+                Class<?> activityThread = Class.forName("android.app.ActivityThread");
+                Method currentApplication = activityThread.getDeclaredMethod("currentApplication");
+                currentApplication.setAccessible(true);
+                Object appObject = currentApplication.invoke(null);
+                if (!(appObject instanceof Application)) {
+                    logFx(Log.WARN, "member DEX candidate scan skipped: application unavailable");
+                    return;
+                }
+                ApplicationInfo info = ((Application) appObject).getApplicationInfo();
+                if (info.sourceDir != null) apkPaths.add(info.sourceDir);
+                String[] splitSourceDirs = info.splitSourceDirs;
+                if (splitSourceDirs != null) {
+                    for (String split : splitSourceDirs) if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                }
+            } catch (Throwable t) {
+                logFx(Log.WARN, "member DEX candidate scan cannot enumerate APK paths=" + t.getClass().getSimpleName());
+                return;
+            }
+            for (String apkPath : apkPaths) {
+                if (apkFilesScanned >= 16 || memberClassesInspected.get() >= MAX_DYNAMIC_MEMBER_CLASSES
+                        || System.currentTimeMillis() > deadline) break;
+                DexFile dex = null;
+                try {
+                    dex = new DexFile(apkPath);
+                    apkFilesScanned++;
+                    Enumeration<String> entries = dex.entries();
+                    while (entries.hasMoreElements() && classesScanned < 24000
+                            && memberClassesInspected.get() < MAX_DYNAMIC_MEMBER_CLASSES
+                            && System.currentTimeMillis() <= deadline) {
+                        String name = entries.nextElement();
+                        classesScanned++;
+                        if (!isMemberClassNameCandidate(name)) continue;
+                        try {
+                            Class<?> candidate = Class.forName(name, false, loader);
+                            inspectDynamicallyLoadedMemberClass(candidate);
+                        } catch (Throwable ignored) { /* optional split/obfuscated classes may not resolve */ }
+                    }
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "member DEX path unavailable=" + t.getClass().getSimpleName());
+                } finally {
+                    if (dex != null) try { dex.close(); } catch (Throwable ignored) {}
+                }
+            }
+            logFx(Log.INFO, "member DEX candidate scan finished; apkFilesScanned=" + apkFilesScanned
+                    + " classesScanned=" + classesScanned + " memberClassesInspected=" + memberClassesInspected.get()
+                    + " memberMethodsHooked=" + memberMethodsHooked.get());
+        }, "FX-member-dex-scan");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private boolean isMemberClassNameCandidate(String name) {
+        String n = lower(name);
+        return n.contains("member") || n.contains("vip") || n.contains("premium")
+                || n.contains("entitle") || n.contains("subscription") || n.contains("purchase")
+                || n.contains("billing") || n.contains("license") || n.contains("benefit")
+                || n.contains("privilege") || n.contains("order");
+    }
+
+    private void inspectDynamicallyLoadedMemberClass(Class<?> candidate) {
+        if (candidate == null || !isMemberClassNameCandidate(candidate.getName())) return;
+        observeLoadedMemberClass(candidate);
+    }
+
+    private void observeLoadedMemberClass(Class<?> candidate) {
+        if (candidate == null || memberClassesInspected.get() >= MAX_DYNAMIC_MEMBER_CLASSES) return;
+        String name = candidate.getName();
+        if (!memberCandidateClasses.add(name)) return;
+        int count = memberClassesInspected.incrementAndGet();
+        if (count > MAX_DYNAMIC_MEMBER_CLASSES) return;
+        if (!hasMemberStateField(candidate)) return;
+        logFx(Log.INFO, "member discovery candidate=" + shortName(name)
+                + " member-field-candidate=" + hasMemberStateField(candidate)
+                + " member-interface-candidate=" + candidate.isInterface()
+                + " obfuscated-status-candidate=" + !isMemberClassNameCandidate(name));
+        installReadOnlyMemberCandidateHook(candidate);
+    }
+
+    private boolean hasMemberStateField(Class<?> candidate) {
+        try {
+            Field[] fields = candidate.getDeclaredFields();
+            int limit = Math.min(fields.length, 128);
+            for (int i = 0; i < limit; i++) {
+                Field field = fields[i];
+                String fieldName = lower(field.getName());
+                String typeName = lower(field.getType().getName());
+                if (hasAny(fieldName, MEMBER_STATE_FIELD_MARKERS)
+                        || hasMemberStateType(field.getType())) return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private boolean hasMemberStateType(Class<?> type) {
+        if (type == null) return false;
+        String name = lower(type.getName());
+        return hasAny(name, MEMBER_STATE_FIELD_MARKERS)
+                || type.isEnum() && hasAny(name, new String[]{"state", "status", "purchase", "member"});
+    }
+
+    private void installReadOnlyMemberCandidateHook(Class<?> candidate) {
+        int installed = 0;
+        try {
+            for (Method method : candidate.getDeclaredMethods()) {
+                if (installed >= MAX_AUTO_MEMBER_METHOD_HOOKS
+                        || memberMethodsHooked.get() >= 128
+                        || Modifier.isStatic(method.getModifiers())
+                        || method.isSynthetic() || method.isBridge()
+                        || method.getParameterTypes().length != 0) continue;
+                String methodName = lower(method.getName());
+                Class<?> resultType = method.getReturnType();
+                boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
+                boolean stateName = hasAny(methodName, MEMBER_STATE_FIELD_MARKERS);
+                boolean stateType = hasMemberStateType(resultType)
+                        || resultType == boolean.class || resultType == Boolean.class
+                        || Number.class.isAssignableFrom(resultType) || resultType.isEnum();
+                if (!getter || (!stateName && !stateType)) continue;
+                String key = method.toGenericString();
+                if (!memberHookedMethods.add(key)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        // Record invocation only. Never log or alter returned membership data.
+                        logFx(Log.DEBUG, "member state observation class=" + shortName(candidate.getName())
+                                + " method=" + method.getName() + " mode=read-only");
+                        return result;
+                    });
+                    installed++;
+                    memberMethodsHooked.incrementAndGet();
+                } catch (Throwable ignored) { memberHookedMethods.remove(key); }
+            }
+        } catch (Throwable ignored) {}
+        logFx(Log.INFO, "auto member candidate hook installed=" + installed
+                + " class=" + shortName(candidate.getName()) + " mode=read-only");
+    }
+
+    private boolean containsRewardedUiSignal(String text) {
+        return text != null && hasAny(lower(text), REWARDED_FLOW_MARKERS);
+    }
+
+    private boolean isRewardedFlowEvidence(TextView textView) {
+        if (textView == null) return false;
+        try {
+            String text = String.valueOf(textView.getText());
+            String description = String.valueOf(textView.getContentDescription());
+            String resource = resourceName(textView);
+            return containsRewardedUiSignal(text) || containsRewardedUiSignal(description)
+                    || containsRewardedUiSignal(resource);
+        } catch (Throwable ignored) { return false; }
+    }
+
+    private void recordRewardedAdEvidence(View view, String reason) {
+        if (view == null || rewardedEvidenceCount.get() >= MAX_REWARDED_AD_EVIDENCE) return;
+        String pkg = "";
+        String evidence = "";
+        try {
+            pkg = view.getContext().getPackageName();
+            TextView tv = view instanceof TextView ? (TextView) view : null;
+            if (tv != null) evidence = String.valueOf(tv.getText()) + " " + String.valueOf(tv.getContentDescription());
+            evidence += " " + resourceName(view);
+        } catch (Throwable ignored) {}
+        String key = pkg + ":" + lower(evidence);
+        if (!rewardedEvidenceSeen.add(key)) return;
+        if (rewardedEvidenceCount.incrementAndGet() > MAX_REWARDED_AD_EVIDENCE) return;
+        logFx(Log.INFO, "rewarded-ad lifecycle candidate=" + pkg + " reason=" + reason
+                + " action=observe-only; reward callback/server validation unchanged");
+    }
+
+    private void inspectMemberViewTree(View root, String pkg) {
+        if (root == null) return;
+        int[] count = new int[]{0};
+        inspectMemberViewTreeBounded(root, pkg, 0, count);
+    }
+
+    private void inspectMemberViewTreeBounded(View view, String pkg, int depth, int[] count) {
+        if (view == null || depth > 10 || count[0]++ >= 400) return;
+        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) {
+            recordRewardedAdEvidence(view, "view-tree-evidence");
+        }
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        int n;
+        try { n = Math.min(group.getChildCount(), 200); } catch (Throwable ignored) { return; }
+        for (int i = 0; i < n && count[0] < 400; i++) {
+            try { inspectMemberViewTreeBounded(group.getChildAt(i), pkg, depth + 1, count); }
+            catch (Throwable ignored) {}
+        }
+    }
+
     private void installReadOnlyBillingDiagnostics(ClassLoader loader) {
         int installed = 0;
         // Hook concrete value getters which apps actually call. Hooking abstract
@@ -711,7 +964,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
                 "getPurchaseState", "billing purchaseState")) installed++;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "read-only concrete billing value diagnostics installed=" + installed + "/2");
+                "read-only concrete billing value diagnostics installed=" + installed + "/4; read-only billing diagnostics installed=" + installed);
     }
 
     /**
