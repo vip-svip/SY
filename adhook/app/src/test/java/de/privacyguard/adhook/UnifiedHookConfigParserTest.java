@@ -37,12 +37,27 @@ public class UnifiedHookConfigParserTest {
         assertTrue(enabled.targets.get("com.example.owned").developerHooksEnabled);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void rejectsDuplicateCustomRuleTarget() {
-        UnifiedHookConfigParser.parse(
+    @Test
+    public void higherPriorityRuleWinsForDuplicateMethod() {
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
-                "com.example.owned,dev_rule_1=a|com.example.owned.AuthRepo#isVip()Z|true|1," +
+                "com.example.owned,dev_hook_enabled=1,dev_rule_1=a|com.example.owned.AuthRepo#isVip()Z|true|1," +
                 "dev_rule_2=b|com.example.owned.AuthRepo#isVip()Z|false|2\n");
+        java.util.List<DeveloperHookRule> effective =
+                DeveloperHookRule.selectEffective(parsed.targets.get("com.example.owned").developerRules);
+        assertEquals(1, effective.size());
+        assertEquals("b", effective.get(0).id);
+        assertEquals(DeveloperHookRule.Action.RETURN_FALSE, effective.get(0).action);
+    }
+
+    @Test
+    public void disabledHigherPriorityRuleDoesNotShadowEnabledRule() {
+        java.util.List<DeveloperHookRule> rules = new java.util.ArrayList<>();
+        rules.add(DeveloperHookRule.parse("off|com.example.owned.AuthRepo#isVip()Z|OFF|100", "com.example.owned"));
+        rules.add(DeveloperHookRule.parse("active|com.example.owned.AuthRepo#isVip()Z|RETURN_TRUE|10", "com.example.owned"));
+        java.util.List<DeveloperHookRule> effective = DeveloperHookRule.selectEffective(rules);
+        assertEquals(1, effective.size());
+        assertEquals("active", effective.get(0).id);
     }
 
     @Test(expected = IllegalArgumentException.class)
