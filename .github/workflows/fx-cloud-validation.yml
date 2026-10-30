@@ -6,6 +6,8 @@ on:
     paths:
       - "adhook/**"
       - "scripts/tests/**"
+      - "scripts/install_adhook_app.sh"
+      - "scripts/remove_adhook_app.sh"
       - "tools/fx-api101-source/**"
       - ".github/workflows/fx-cloud-validation.yml"
 
@@ -73,6 +75,7 @@ jobs:
           bash scripts/tests/v1.0.0-rewarded-ad-flow-preservation-regression.sh
           bash scripts/tests/v1.0.0-radio-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-camera-id-privacy-api101-regression.sh
+          bash scripts/tests/adhook-app-installer-regression.sh
           bash scripts/tests/v1.0.0-microphone-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
