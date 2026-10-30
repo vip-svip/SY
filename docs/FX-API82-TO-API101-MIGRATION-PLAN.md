@@ -38,6 +38,18 @@ The recovered legacy source must be imported unchanged as an audit baseline befo
 | User data/OS surfaces | clipboard, notifications, usage stats, accessibility, IME, MediaStore, EXIF | Validate each Android/OEM API and permission boundary |
 | Advertising identity | Advertising ID handling | Separate from Android ID; explicit opt-in and scope |
 
+## Completed migration slice (2026-10-30)
+
+- Added API-101 opt-in, per-target read-time EXIF redaction for framework and AndroidX `ExifInterface` getters.
+- Redacts GPS tags, Make/Model, and DateTime tags; unrelated metadata remains unchanged.
+- This is read-time API redaction only. It does not rewrite image files and does not cover every third-party EXIF parser.
+- Added pure-Java policy tests, parser tests for independent `exif_strip=1` target selection, legacy-config fail-closed tests, and serializer round-trip coverage.
+- GitHub Actions run `41025299195` passed on commit `526ff000217d2d6809406874dd9dcdd982910275`: parser/deployment regression tests, debug APK build, APK signature verification, and libxposed metadata checks.
+- Built APK SHA-256: `7266bf40550a974cabd473d9041cbe52dda692b9e5cabce177203ab5c43579fd`.
+- Artifact: `FXAdHook-apk` (ID `12963555891`), expires 2027-01-28. This is a debug API-101 APK artifact, not the final unified Hook APK.
+
+Important integration blocker: the current FX package's root-side Remote Files publisher and the UI control for `exif_strip` are not yet wired to this schema. The feature compiles and parser/serializer tests pass, but cannot be treated as active in an installed FX module until that end-to-end publisher/UI path is connected. The legacy API-82 APK remains separate.
+
 ## Mandatory invariants
 
 1. One final APK must own the single LSPosed module identity, entrypoint, scope, and config reader.
