@@ -78,11 +78,12 @@ grep -q 'private synchronized void installAdViewHooks()' "$HOOK_SRC" || fail "gl
 OBS_LINE=$(grep -n 'installAdViewHooks();' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
 GUARD_LINE=$(grep -n 'if (!hooksInstalledFor.add(pkg)) return;' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
 [ -n "$OBS_LINE" ] && [ -n "$GUARD_LINE" ] && [ "$OBS_LINE" -lt "$GUARD_LINE" ] || fail "per-package guard prevents retrying global observers"
-grep -q 'privacyIdentifierHooksInstalledFor.contains(pkg)' "$HOOK_SRC" || fail "privacy identifier retry state missing"
+grep -q 'private volatile boolean privacyIdentifierHookInstalled;' "$HOOK_SRC" || fail "process-scoped privacy registration state missing"
 PRIVACY_LINE=$(grep -n 'installPrivacyIdentifierHooks(pkg)' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
 [ -n "$PRIVACY_LINE" ] && [ "$PRIVACY_LINE" -lt "$GUARD_LINE" ] || fail "privacy hook failure cannot retry before package guard"
 grep -q 'private synchronized boolean installPrivacyIdentifierHooks(final String pkg)' "$HOOK_SRC" || fail "privacy hook installer must serialize registration"
-grep -q 'privacyIdentifierHooksInstalledFor.add(pkg)' "$HOOK_SRC" || fail "privacy hook success is not recorded atomically"
+grep -q 'if (privacyIdentifierHookInstalled) return true;' "$HOOK_SRC" || fail "privacy hook duplicate registration guard missing"
+grep -q 'privacyIdentifierHookInstalled = true;' "$HOOK_SRC" || fail "privacy hook success is not recorded"
 for flag in activityObserverInstalled dialogObserverInstalled popupObserversInstalled dynamicChildObserversInstalled; do
   grep -q "private volatile boolean $flag;" "$HOOK_SRC" || fail "missing independent observer state: $flag"
 done
