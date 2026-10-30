@@ -1379,7 +1379,7 @@ public final class AdVisibilityHook extends XposedModule {
                 + " obfuscated-shape-candidate=" + obfuscatedShapeCandidate
                 + " member-interface-candidate=" + candidate.isInterface()
                 + " obfuscated-status-candidate=" + !namedCandidate);
-        installReadOnlyMemberCandidateHook(candidate);
+        installReadOnlyMemberCandidateHook(candidate, namedCandidate, obfuscatedShapeCandidate);
     }
 
     /**
@@ -1433,7 +1433,8 @@ public final class AdVisibilityHook extends XposedModule {
                 || type.isEnum() && hasAny(name, new String[]{"state", "status", "purchase", "member"});
     }
 
-    private void installReadOnlyMemberCandidateHook(Class<?> candidate) {
+    private void installReadOnlyMemberCandidateHook(Class<?> candidate, boolean namedCandidate,
+                                                    boolean obfuscatedShapeCandidate) {
         int installed = 0;
         try {
             for (Method method : candidate.getDeclaredMethods()) {
@@ -1441,18 +1442,13 @@ public final class AdVisibilityHook extends XposedModule {
                         || memberMethodsHooked.get() >= 128
                         || Modifier.isStatic(method.getModifiers())
                         || method.isSynthetic() || method.isBridge()) continue;
-                String methodName = lower(method.getName());
                 MemberCandidateClassifier.Candidate classification =
                         MemberCandidateClassifier.inspect(method);
-                boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
-                boolean suspendLike = classification.kind == MemberCandidateClassifier.Kind.ASYNC_FLOW
-                        && method.getParameterTypes().length == 1;
-                if (method.getParameterTypes().length != 0 && !suspendLike) continue;
-                // Getter-like methods may expose Boolean, numeric, String, Enum, or
-                // object/bean state. Kotlin suspend signatures are observed separately.
-                // No candidate method is invoked by the discovery path itself.
-                if ((!getter && !suspendLike)
-                        || classification.kind == MemberCandidateClassifier.Kind.UNKNOWN) continue;
+                if (!MemberCandidateClassifier.shouldObserveMethod(
+                        method, namedCandidate, obfuscatedShapeCandidate)) continue;
+                // Keep automatic observation narrow: generic named-class getters
+                // may expose scalar state; obfuscated holders require state-shape
+                // evidence and primitive/enum return types. Never invoke discovery methods.
                 String key = method.toGenericString();
                 if (!memberHookedMethods.add(key)) continue;
                 try {

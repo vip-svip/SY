@@ -93,6 +93,36 @@ public final class MemberCandidateClassifier {
     }
 
     /**
+     * Decide whether a discovered method is narrow enough to observe. Named
+     * membership classes may expose generic names such as isActive(), while
+     * obfuscated state holders need primitive/enum shape evidence. Arbitrary
+     * String/Object getters are never auto-hooked solely because their class
+     * happened to contain a membership-related field.
+     */
+    public static boolean shouldObserveMethod(Method method, boolean namedClassCandidate,
+                                              boolean obfuscatedShapeCandidate) {
+        if (method == null || Modifier.isStatic(method.getModifiers())
+                || method.isSynthetic() || method.isBridge()) return false;
+        Candidate candidate = inspect(method);
+        String name = method.getName().toLowerCase(Locale.ROOT);
+        boolean getter = name.startsWith("get") || name.startsWith("is");
+        boolean noArgs = method.getParameterTypes().length == 0;
+        boolean suspendLike = candidate.kind == Kind.ASYNC_FLOW
+                && method.getParameterTypes().length == 1;
+        if (suspendLike) return candidate.score >= 2;
+        if (!noArgs) return false;
+        if (candidate.score >= 2 && (getter || candidate.kind == Kind.ASYNC_FLOW)) return true;
+        if (!(namedClassCandidate || obfuscatedShapeCandidate)) return false;
+        if (obfuscatedShapeCandidate && !getter) {
+            return candidate.kind == Kind.BOOLEAN || candidate.kind == Kind.INTEGER
+                    || candidate.kind == Kind.LONG || candidate.kind == Kind.ENUM;
+        }
+        if (!getter) return false;
+        return candidate.kind == Kind.BOOLEAN || candidate.kind == Kind.INTEGER
+                || candidate.kind == Kind.LONG || candidate.kind == Kind.ENUM;
+    }
+
+    /**
      * Classifies only the runtime result's Java type. Never serializes or logs the
      * returned value, object fields, strings, identifiers, tokens, or timestamps.
      */

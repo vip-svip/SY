@@ -115,6 +115,36 @@ public class MemberCandidateClassifierTest {
                 MemberCandidateClassifier.kindOfRuntimeValue(null));
     }
 
+    static class NoisyMembershipClass {
+        String getName() { return "private profile name"; }
+        boolean isActive() { return false; }
+        Object getContext() { return null; }
+    }
+
+    static class ObfuscatedMethods {
+        boolean a() { return false; }
+        long b() { return 0L; }
+        String c() { return "not auto-observed"; }
+    }
+
+    @Test public void autoObservationFiltersUnrelatedGetters() throws Exception {
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("getName"), true, false));
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("getContext"), true, false));
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("isActive"), true, false));
+    }
+
+    @Test public void obfuscatedShapeAllowsOnlyScalarStateMethods() throws Exception {
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("a"), false, true));
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("b"), false, true));
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("c"), false, true));
+    }
+
     private MemberCandidateClassifier.Candidate inspect(String name) throws Exception {
         Method method = Sample.class.getDeclaredMethod(name);
         return MemberCandidateClassifier.inspect(method);
