@@ -132,7 +132,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
-    private volatile boolean microphoneSilenceHooksInstalled;
+    private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -227,14 +227,15 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
     private void installAudioRecordSilenceHooks(String packageName) {
-        if (microphoneSilenceHooksInstalled) return;
-        synchronized (this) {
-            if (microphoneSilenceHooksInstalled) return;
-            try {
-                for (Method method : AudioRecord.class.getDeclaredMethods()) {
-                    if (!"read".equals(method.getName()) || method.getReturnType() != int.class
-                            || method.getParameterTypes().length == 0
-                            || !AudioRecordSilencePolicy.supports(method.getParameterTypes()[0])) continue;
+        synchronized (microphoneSilenceHookedMethods) {
+            int installedNow = 0;
+            int failedNow = 0;
+            for (Method method : AudioRecord.class.getDeclaredMethods()) {
+                if (!"read".equals(method.getName()) || method.getReturnType() != int.class
+                        || method.getParameterTypes().length == 0
+                        || !AudioRecordSilencePolicy.supports(method.getParameterTypes()[0])
+                        || microphoneSilenceHookedMethods.contains(method)) continue;
+                try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         if (!isMicrophoneSilenceAuthorized()) return chain.proceed();
                         Object[] args = chain.getArgs().toArray();
@@ -248,11 +249,19 @@ public final class AdVisibilityHook extends XposedModule {
                         }
                         return result;
                     });
+                    microphoneSilenceHookedMethods.add(method);
+                    installedNow++;
+                } catch (Throwable t) {
+                    failedNow++;
+                    logFx(Log.WARN, "AudioRecord overload hook failed; this overload remains unchanged: "
+                            + method.toGenericString() + " (" + t + ")");
                 }
-                microphoneSilenceHooksInstalled = true;
-                logFx(Log.INFO, "AudioRecord read silence hooks installed for " + packageName);
-            } catch (Throwable t) {
-                logFx(Log.WARN, "AudioRecord silence hook registration failed; capture remains unchanged (" + t + ")");
+            }
+            if (installedNow > 0 || failedNow > 0) {
+                logFx(failedNow == 0 ? Log.INFO : Log.WARN,
+                        "AudioRecord read hooks: newlyInstalled=" + installedNow
+                                + " failed=" + failedNow + " total=" + microphoneSilenceHookedMethods.size()
+                                + " package=" + packageName);
             }
         }
     }
