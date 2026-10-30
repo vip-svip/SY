@@ -19,13 +19,13 @@ The Iter5 `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` contain
 | `buildSpoof`, `kernelVersionHide`, `sysPropsHide` | Not migrated | Preserve as legacy-only until API 101 equivalents and regression tests exist |
 | `secureSettingsSpoof`, `serialSpoof`, `telephonySpoof` | Not migrated; Android ID transform is narrower | Do not claim IMEI/SIM/serial coverage |
 | `btWifiMacSpoof`, `batterySpoof`, `screenSpoof`, `storageSpoof` | Not migrated | High compatibility risk; migrate individually with fail-open behavior |
-| `sysSvcHide`, `clipboardGuard` | Not migrated | Validate API return types and avoid breaking normal app functionality |
+| `sysSvcHide`, `clipboardGuard` | Clipboard read blocking and process-local `clipboard_isolate` are partially migrated to API101; legacy fake-text mode is not migrated. `sysSvcHide` remains unmigrated. | Clipboard isolation is in-memory per target process; multi-process synchronization and change-listener notifications are not covered. |
 | `appListHide`, `pmQueryHide`, `procListHide` | Not migrated | High false-positive / app-breakage risk; do not enable by default |
 | `mediastoreHide`, `netIfacesHide`, `netStatsHide`, `vpnHide` | Not migrated | Must not interfere with VPN coexistence or network diagnostics |
 | `imeHide` | Not migrated | Verify keyboard and input method compatibility |
 | `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide`, `sensorHide` | Not migrated | Require explicit per-feature opt-in and API-specific tests |
-| `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | Not migrated | Potentially breaks camera, calls, audio and biometric authentication |
-| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide`, `exifStrip` | Not migrated | Separate privacy semantics from app functionality; test each independently |
+| `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | `micBlock` and `audioFpBlock` have opt-in API101 AudioRecord buffer handling; `cameraNull` and biometric hardware hiding remain unmigrated. | Microphone silence does not cover MediaRecorder/AAudio/Oboe/native capture; audio-fingerprint mitigation perturbs samples and is not a universal defense. |
+| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide`, `exifStrip` | API101 has opt-in active-notification/permission-query, usage-statistics and accessibility enumeration filtering plus EXIF read-time redaction. | Does not revoke system permissions, disable services or rewrite EXIF files; continue per-API compatibility tests. |
 | `rootHide`, `fsHooks` and filesystem attribute/VFS helpers | Not migrated | High stability risk; keep disabled until tested on target Android/OEM builds |
 | `adIdUnify` | Not migrated | Distinct from Android ID; do not imply Advertising ID coverage |
 
