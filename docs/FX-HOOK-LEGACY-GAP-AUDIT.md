@@ -59,9 +59,9 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 
 ## Latest API-101 build provenance
 
-- Source/workflow commit: `1d8de5ed4d5aaab3db3e4047f8ba9ab2d4a722aa`
-- GitHub Actions run: [41060413338](https://github.com/vip-svip/SY/actions/runs/41060413338) — success
-- APK SHA-256: `5985f74fa2819a9a64a1d53a8808e70bdf9f7b7dedec5d9831906c9de521126c`
+- Source/workflow commit: `55c356f061643401a62042d9809806c38c5f5537`
+- GitHub Actions run: [41060759194](https://github.com/vip-svip/SY/actions/runs/41060759194) — success
+- APK SHA-256: `195735e1754fd236b0feb0d2f8877b8eab2e7310360cdb3fa1ab476c36cc8374`
 - CI verified: Java/Gradle compile, unit tests, APK signature, modern LSPosed metadata/resources, and bounded member/rewarded-flow DEX markers.
 - The artifact is an API-101 Hook APK build artifact, not yet merged with the legacy API-82 Hook and not yet inserted into the complete KernelSU ZIP.
 - No physical OnePlus 12 LSPosed injection or runtime behavior test has been performed.
