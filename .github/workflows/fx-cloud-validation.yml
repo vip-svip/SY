@@ -65,6 +65,8 @@ jobs:
           echo "6dd32af956e427f8f0b3f012f7e2631fef7860e2a7de230328d583864d99ad28  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_mediastore_privacy.py
           echo "ebaec0c3089990a3c2994518abda42cd4f57bf5c5e6f6957e67c0ec4d63d5e1a  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          python3 tools/fx-api101-source/patch_microphone_hardware_privacy.py
+          sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           mkdir -p adhook/app/src/main/java/de/privacyguard/hook
           cat tools/fx-api82-source/MainHook.gz.b64.part1 tools/fx-api82-source/MainHook.gz.b64.part2 tools/fx-api82-source/MainHook.gz.b64.part3 tools/fx-api82-source/MainHook.gz.b64.part3b tools/fx-api82-source/MainHook.gz.b64.part4 tools/fx-api82-source/MainHook.gz.b64.part5 tools/fx-api82-source/MainHook.gz.b64.part6 tools/fx-api82-source/MainHook.gz.b64.part6b tools/fx-api82-source/MainHook.gz.b64.part7 tools/fx-api82-source/MainHook.gz.b64.part8 | base64 -d | gzip -dc > adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           echo "77cec8b8e28b3673b4c8badc93aa1e1a49dff2f289779d4ca72b97b1f0dcc562  adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | sha256sum -c -
@@ -99,6 +101,7 @@ jobs:
           bash scripts/tests/v1.0.0-passive-location-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-region-compatibility-diagnostic-api101-regression.sh
           bash scripts/tests/v1.0.0-mediastore-privacy-api101-regression.sh
+          bash scripts/tests/v1.0.0-microphone-hardware-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
         run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
