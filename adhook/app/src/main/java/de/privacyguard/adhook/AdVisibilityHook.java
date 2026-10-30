@@ -438,6 +438,13 @@ public final class AdVisibilityHook extends XposedModule {
         String id = resourceName(view);
         String evidence = cls + " " + id;
         if (hasAny(evidence, PROTECTED_AD_CONTROLS)) return false;
+        if (view instanceof TextView) {
+            TextView textView = (TextView) view;
+            if (isProtectedAdControlText(String.valueOf(textView.getText()))
+                    || isProtectedAdControlText(String.valueOf(textView.getContentDescription()))) {
+                return false;
+            }
+        }
         boolean strong = hasAny(evidence, STRONG_AD_MARKERS);
         boolean sdkNamespace = hasAny(cls, AD_CLASS_MARKERS);
         // A SDK namespace alone is not proof that every custom View is an ad:
@@ -480,8 +487,18 @@ public final class AdVisibilityHook extends XposedModule {
             String all = lower(String.valueOf(content)) + " " + lower(String.valueOf(desc));
             return all.equals("广告") || all.contains("广告位") || all.contains("赞助") ||
                     all.contains("sponsored") || all.contains("advertisement") ||
-                    all.equals("ad choices") || all.contains("跳过广告");
+                    all.equals("ad choices");
         } catch (Throwable ignored) { return false; }
+    }
+
+    static boolean isProtectedAdControlText(String value) {
+        String text = lower(value).trim();
+        if (text.isEmpty()) return false;
+        return text.equals("skip") || text.equals("skip ad") || text.equals("close")
+                || text.equals("close ad") || text.equals("ad choices")
+                || text.contains("countdown") || text.contains("跳过")
+                || text.contains("关闭") || text.contains("倒计时")
+                || text.matches(".*\\d+\\s*秒后.*");
     }
 
     private static String resourceName(View view) {
