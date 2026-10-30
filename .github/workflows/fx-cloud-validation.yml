@@ -152,6 +152,24 @@ jobs:
           path: adhook/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+      - name: Package complete unified Hook Java sources
+        shell: bash
+        run: |
+          mkdir -p /tmp/fx-hook-source-snapshot
+          cp -a adhook/app/src/main/java/de/privacyguard/adhook /tmp/fx-hook-source-snapshot/
+          mkdir -p /tmp/fx-hook-source-snapshot/de/privacyguard/hook
+          cp adhook/app/src/main/java/de/privacyguard/hook/MainHook.java /tmp/fx-hook-source-snapshot/de/privacyguard/hook/
+          cp -a adhook/app/src/test/java/de/privacyguard/adhook /tmp/fx-hook-source-snapshot/tests
+          cd /tmp
+          zip -qr FXHook-complete-java-source.zip fx-hook-source-snapshot
+
+      - name: Upload complete unified Hook source tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXHook-API82-API101-complete-java-source
+          path: /tmp/FXHook-complete-java-source.zip
+          if-no-files-found: error
+
       - name: Upload exact compiled API 101 source
         uses: actions/upload-artifact@v4
         with:
