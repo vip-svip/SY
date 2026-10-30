@@ -2,6 +2,8 @@
 
 ## Current verified state
 
+Latest unified Hook validation: GitHub Actions run `41056196261`, commit `244fbef0138310d211acd867775e1a849162ff7b`, completed successfully. It passed exact API82/API101 source restoration, host regressions, JUnit unit tests, debug APK assembly, signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977450642`, archive SHA-256 `4367fe733ccd34867da8aeea1eec5c65b70cf2ed282c45ddb8baff21a55cdbc6`. This remains a debug-signed validation artifact, not the production-signed APK or final KernelSU ZIP.
+
 The isolated branch fx-v1.0.0-cloud-validation builds the API-101 Hook APK. The latest run completed all CI steps successfully: unit tests, debug APK assembly, APK signature verification, modern LSPosed metadata checks, and artifact upload.
 
 The API-101 source restoration pipeline applies bounded, hash-checked patches before compilation. Verified privacy additions in this pipeline are:
@@ -9,6 +11,10 @@ The API-101 source restoration pipeline applies bounded, hash-checked patches be
 - Android ID privacy: app-scoped transformation; shared-package processes fail open.
 - Sensor enumeration and sampling-rate controls: opt-in and single-package guarded.
 - Clipboard read protection: reads only; writes are untouched; shared-package processes fail open.
+- Clipboard isolation: opt-in, process-local in-memory clipboard for one selected package; read blocking takes precedence. Multi-process synchronization and clipboard change-listener notifications are not implemented.
+- Microphone hardware metadata hiding: opt-in AudioManager input-device and AudioRecord metadata filtering; unknown APIs/devices fail open.
+- Audio fingerprint mitigation: opt-in low-amplitude perturbation of AudioRecord byte/short/float/ByteBuffer read buffers; `mic_block` takes precedence. This changes captured audio samples and is not a guarantee against every audio-fingerprinting technique.
+- Notification, usage-statistics and accessibility surface privacy: opt-in enumeration/query filtering with single-package fail-open policy; does not remove underlying system permissions or disable those system services.
 - EXIF read-time metadata redaction.
 - Wi-Fi scan-result redaction: opt-in, returns an empty result list only for a single-package process.
 - Cell-location/cell-info redaction: opt-in, nullable/list-compatible return values, single-package guarded.
