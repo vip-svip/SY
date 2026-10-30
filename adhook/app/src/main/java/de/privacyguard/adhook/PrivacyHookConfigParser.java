@@ -1,9 +1,10 @@
 package de.privacyguard.adhook;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,10 +18,10 @@ import java.util.Set;
  * configuration. This class deliberately does not install hooks.
  */
 public final class PrivacyHookConfigParser {
-    private static final Set<String> NEVER_HOOK = Set.of(
+    private static final Set<String> NEVER_HOOK = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook",
-            "de.privacyguard.adhook", "org.lsposed.manager");
-    private static final Set<String> RISKY = Set.of(
+            "de.privacyguard.adhook", "org.lsposed.manager")));
+    private static final Set<String> RISKY = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "block_process_list", "block_pm_query", "block_mounts", "hide_mounts",
             "block_netstats", "block_net_ifaces", "block_cell_info", "block_mediastore",
             "usagestats_off", "k_task", "app_list", "hide_su", "hide_magisk", "hide_ksu",
@@ -28,10 +29,10 @@ public final class PrivacyHookConfigParser {
             "fs_attrs", "fs_hide", "fs_rootlist", "fs_isolate", "fs_vfs",
             "block_notif_listen", "hide_notif_perm", "block_ime_logging", "a11y_hide",
             "syssvc_hide", "clipboard", "clipboard_isolate", "ad_id_unify",
-            "block_wifi_scan", "vpn_hide", "block_kernel_version");
-    private static final Set<String> STANDARD = Set.of(
+            "block_wifi_scan", "vpn_hide", "block_kernel_version")));
+    private static final Set<String> STANDARD = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "hide_su", "hide_magisk", "hide_ksu", "hide_sysfs_nodes",
-            "hide_kernel_debug", "block_rootcheck_libs", "ad_id_unify");
+            "hide_kernel_debug", "block_rootcheck_libs", "ad_id_unify")));
 
     private PrivacyHookConfigParser() {}
 
@@ -53,8 +54,8 @@ public final class PrivacyHookConfigParser {
         }
 
         public boolean enabled(String key) {
-            if ("lsposed_enabled".equals(key)
-                    && !"1".equals(switches.get("lsposed_enabled"))) return false;
+            // The master switch gates every feature, including profile-derived risky keys.
+            if (!"1".equals(switches.get("lsposed_enabled"))) return false;
             if (RISKY.contains(key) && !"custom".equals(profile)) {
                 if ("compat".equals(profile)) return false;
                 if ("standard".equals(profile)) return STANDARD.contains(key);
