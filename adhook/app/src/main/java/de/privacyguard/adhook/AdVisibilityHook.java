@@ -50,7 +50,7 @@ import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface;
 
 /**
- * FXAdHook (modern libxposed API).
+ * FX Hook (unified modern libxposed runtime).
  *
  * The target app runs as an ordinary application UID, not root. It MUST NOT read
  * /data/adb or /data/local/tmp directly. The root-side FX generator publishes a
@@ -61,7 +61,7 @@ import io.github.libxposed.api.XposedModuleInterface;
  * Billing diagnostics are read-only; purchase results and entitlements are never changed.
  */
 public final class AdVisibilityHook extends XposedModule {
-    private static final String TAG = "FXAdHook";
+    private static final String TAG = "FX Hook";
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
     private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
