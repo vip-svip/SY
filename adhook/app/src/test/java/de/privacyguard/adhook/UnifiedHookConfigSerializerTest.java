@@ -145,6 +145,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsMicrophoneBlockFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.audio", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.audio");
+        assertTrue(t.micBlock);
+        assertTrue(text.contains("mic_block=1"));
+    }
+
+    @Test
     public void serializerRoundTripsCameraIdPrivacyFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.camera", new UnifiedHookConfigParser.Target(
