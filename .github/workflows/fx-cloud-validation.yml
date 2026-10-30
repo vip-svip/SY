@@ -67,7 +67,7 @@ jobs:
           echo "ebaec0c3089990a3c2994518abda42cd4f57bf5c5e6f6957e67c0ec4d63d5e1a  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_microphone_hardware_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
-          echo "1521cbdc4fece16381bd40441178f78976e563f5824bf915663f475af02d4dec  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          echo "654d39cea7bb3c1c19bebf1dbd56808e395a66de7edc161d7d12d7c8dcb3fdbf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_audio_fingerprint_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           mkdir -p adhook/app/src/main/java/de/privacyguard/hook
