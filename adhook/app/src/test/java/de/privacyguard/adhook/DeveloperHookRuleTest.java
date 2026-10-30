@@ -97,12 +97,15 @@ public class DeveloperHookRuleTest {
         assertEquals(DeveloperHookRule.Action.DISABLED, disabled.action);
     }
 
-    @Test public void highestPriorityDisabledRuleMasksLowerPriorityRule() {
+    @Test public void disabledRuleDoesNotShadowLowerPriorityActiveRule() {
         DeveloperHookRule low = DeveloperHookRule.parse(
                 "observe|com.example.vpn.Trace#isEnabled()Z|OBSERVE|1", "com.example.vpn");
         DeveloperHookRule off = DeveloperHookRule.parse(
                 "off|com.example.vpn.Trace#isEnabled()Z|DISABLED|10", "com.example.vpn");
-        assertTrue(DeveloperHookRule.selectEffective(java.util.Arrays.asList(low, off)).isEmpty());
+        java.util.List<DeveloperHookRule> selected =
+                DeveloperHookRule.selectEffective(java.util.Arrays.asList(low, off));
+        assertEquals(1, selected.size());
+        assertEquals("observe", selected.get(0).id);
     }
 
     @Test public void lowerPriorityRuleDoesNotOverrideHigherPriorityRule() {
