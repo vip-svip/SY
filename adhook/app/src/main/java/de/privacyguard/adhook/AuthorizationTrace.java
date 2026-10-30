@@ -1,6 +1,5 @@
 package de.privacyguard.adhook;
 
-import android.os.SystemClock;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,6 +11,8 @@ public final class AuthorizationTrace {
         TOKEN_REFRESH_RESULT, LOGOUT, ENTITLEMENT_REQUEST, ENTITLEMENT_RESULT,
         BILLING_RESULT, UPDATE_CHECK, UPDATE_RESULT }
     public enum Outcome { STARTED, SUCCESS, REJECTED, EXPIRED, REVOKED, PENDING, ERROR, SKIPPED, UNKNOWN }
+
+    public interface Clock { long elapsedRealtimeMs(); }
 
     public static final class Event {
         public final long elapsedRealtimeMs;
@@ -30,12 +31,19 @@ public final class AuthorizationTrace {
 
     private static final int DEFAULT_CAPACITY=256;
     private final int capacity;
+    private final Clock clock;
     private final ArrayDeque<Event> events=new ArrayDeque<>();
 
-    public AuthorizationTrace() { this(DEFAULT_CAPACITY); }
-    public AuthorizationTrace(int capacity) {
+    public AuthorizationTrace() { this(DEFAULT_CAPACITY, new Clock() {
+        @Override public long elapsedRealtimeMs() { return System.nanoTime()/1000000L; }
+    }); }
+    public AuthorizationTrace(int capacity) { this(capacity, new Clock() {
+        @Override public long elapsedRealtimeMs() { return System.nanoTime()/1000000L; }
+    }); }
+    public AuthorizationTrace(int capacity, Clock clock) {
         if (capacity<1 || capacity>4096) throw new IllegalArgumentException("capacity out of range");
-        this.capacity=capacity;
+        if (clock==null) throw new IllegalArgumentException("clock required");
+        this.capacity=capacity; this.clock=clock;
     }
 
     /** Never pass passwords, tokens, cookies, raw response bodies, account IDs or full URLs. */
@@ -44,7 +52,7 @@ public final class AuthorizationTrace {
         if (stage==null || outcome==null) throw new IllegalArgumentException("stage/outcome required");
         if (httpStatus<0 || httpStatus>599) throw new IllegalArgumentException("invalid HTTP status");
         if (durationMs < -1) throw new IllegalArgumentException("invalid duration");
-        Event event=new Event(SystemClock.elapsedRealtime(),stage,outcome,httpStatus,durationMs,
+        Event event=new Event(clock.elapsedRealtimeMs(),stage,outcome,httpStatus,durationMs,
                 safeLabel(source),safeLabel(detailCode));
         if (events.size()==capacity) events.removeFirst();
         events.addLast(event);
