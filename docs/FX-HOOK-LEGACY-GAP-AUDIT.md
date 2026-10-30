@@ -41,8 +41,8 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 
 ## Remaining gaps and safety constraints
 
-- Dynamic member-class discovery and bounded member DEX candidate scanning are not implemented in the current API-101 source.
-- Rewarded-ad UI/lifecycle evidence is incomplete. Do not fabricate reward callbacks or alter server validation.
+- API-101 now includes opt-in, bounded member-class discovery: it caps APK files, scanned class entries, candidate classes, elapsed scan time and automatic getter hooks. It observes only selected candidate methods and never changes returned values. GitHub Actions compiled the APK and verified the discovery markers in DEX.
+- API-101 now recognizes the requested Chinese rewarded-flow UI evidence, preserves matching rewarded-flow views from ad hiding, and records bounded observe-only lifecycle candidates. It does not fabricate reward callbacks or alter server validation.
 - Membership/Billing handling remains read-only. Never modify purchase state, forge VIP entitlements, or bypass anti-fraud controls.
 - The packages remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`. There is no verified single Hook APK.
 - Do not enable destructive legacy transformations until individually ported, scoped, tested, and equipped with fail-open behavior.
