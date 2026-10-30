@@ -42,6 +42,7 @@ install_one() {
   if command -v chcon >/dev/null 2>&1; then chcon u:object_r:shell_data_file:s0 "$_stage" 2>/dev/null || :; fi
   _attempt=1; _installed=0
   while [ "$_attempt" -le 3 ]; do
+    if [ -f "$LOG" ]; then _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0); else _log_lines=0; fi
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
       # Only claim package ownership when it did not exist before FX installed it.
       # Never let module removal uninstall an app package that predated FX.
@@ -56,6 +57,11 @@ install_one() {
       rm -f "$_marker_tmp" 2>/dev/null
       log_msg "WARN: package installed but state marker could not be persisted: $_pkg"
       _installed=1; break
+    fi
+    if tail -n "+$((_log_lines + 1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
+      log_msg "ERROR: signing certificate differs for $_pkg; existing package and app data are preserved; no uninstall attempted"
+      rm -f "$_stage" 2>/dev/null
+      return 1
     fi
     log_msg "WARN: PackageManager install attempt $_attempt/3 failed for $_pkg"
     _attempt=$((_attempt+1))
