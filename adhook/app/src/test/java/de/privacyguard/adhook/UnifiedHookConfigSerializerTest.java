@@ -195,7 +195,7 @@ public class UnifiedHookConfigSerializerTest {
         targets.put("com.example.media", new UnifiedHookConfigParser.Target(
                 false, false, false, false, true, false, false,
                 false, false, false, false, false, false, false,
-                false, false, false, false, false, false, false, false, false, true));
+                false, false, false, false, false, false, false, false, true));
         String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
         assertTrue(text.contains("media_store_query_block=1"));
         assertTrue(UnifiedHookConfigParser.parse(text).targets.get("com.example.media").mediaStoreQueryBlock);
