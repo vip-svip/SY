@@ -1,5 +1,7 @@
 # FX Hook migration next steps
 
+> **Status correction — 2026-10-30:** This file's original status section is historical and is superseded by the latest branch state. The complete API82 `MainHook.java` source is now restored into the unified API101 Android project; a dual-entry one-APK debug build compiled successfully in GitHub Actions run `41052177773`. The single APK contains the legacy and modern entry descriptors. The installer now accepts only `optional/FXHook.apk`; it does not install two Hook APKs. The build is still a prototype: framework loading/arbitration, release signing, complete feature parity, root-side publisher/UI integration and OnePlus 12 verification remain open. See `docs/FX-1.0.0-HOOK-CONSOLIDATION-STATUS.md` for the live checkpoint. The final KernelSU ZIP has not been rebuilt.
+>
 ## Verified source availability
 
 The historical project notes refer to an Iter5 archive, but that archive is not present in the current `vip-svip/SY` branch tree or the Library search results available during the 2026-10-30 continuation. The only legacy source currently located in the repository is the small `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` implementation on the older `fx-v1.0.0-privacyguardhook-build` branch; it is not the complete legacy Hook implementation.
