@@ -105,7 +105,7 @@ API-101 now parses and serializes `block_ime_logging`. For the selected app it r
 
 The policy requires the privacy master switch and a single-package process; system, FX Hook, LSPosed Manager and unknown targets fail open.
 
-GitHub Actions run `41058055264` (commit `a2dc22c51b4ca1026e4a70170e19761683116a05`) passed the input-method policy/parser/serializer tests, pinned source hash, all prior privacy regressions, JUnit tests, single-APK build and APK verification. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977817041`, archive SHA-256 `d5e601b893bfce6b93f7c6b951938051f5fefab296c84dc4683c9e0996610033`. This is still a debug-signed validation artifact, not the final FX KernelSU ZIP or a OnePlus 12 runtime test.
+GitHub Actions run `41058264335` (commit `caf1e6b1861a34ed1fea79fdb70752814f59fb9c`) passed the pinned input-method source hash, parser/serializer and policy tests, all prior privacy regressions, JUnit tests, single-APK build and APK verification. Artifact `FXHook-API82-API101-single-apk-validation` ID `12976843889`, archive SHA-256 `0c6cc339027584916391461008141c0d621d930587aa1ba30f632d3d1fdafcfa`. This is still a debug-signed validation artifact, not the final FX KernelSU ZIP or a OnePlus 12 runtime test.
 
 ## Deferred high-disruption legacy flags
 
