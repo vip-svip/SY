@@ -170,6 +170,15 @@ public class UnifiedHookConfigParserTest {
         assertFalse(target.cellInfoHide);
     }
 
+    @Test
+    public void parsesCameraIdPrivacyFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.camera,camera_id_hide=1\n").targets.get("com.example.camera");
+        assertNotNull(target);
+        assertTrue(target.cameraIdHide);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInvalidWifiScanFlag() {
         UnifiedHookConfigParser.parse("schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
