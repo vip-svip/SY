@@ -212,6 +212,19 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsClipboardIsolationFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.clip,clipboard_isolate=1\n").targets.get("com.example.clip");
+        targets.put("com.example.clip", source);
+        String serialized = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(serialized).targets.get("com.example.clip");
+        assertTrue(parsed.clipboardIsolate);
+        assertTrue(serialized.contains("clipboard_isolate=1"));
+    }
+
+    @Test
     public void serializerRoundTripsAudioFingerprintFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
