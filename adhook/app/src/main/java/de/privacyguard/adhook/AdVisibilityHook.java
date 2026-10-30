@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.media.AudioRecord;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraManager;
+import android.location.LocationManager;
 import android.app.Dialog;
 import android.app.Instrumentation;
 import android.app.Application;
@@ -136,6 +137,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -204,7 +206,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target.microphoneSilence;
         final boolean cameraAccessBlockForPackage = privacyEnabled && target.cameraAccessBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage) return;
+        final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -219,16 +222,55 @@ public final class AdVisibilityHook extends XposedModule {
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
         if (cameraAccessBlockForPackage) installCameraAccessBlockHooks(pkg);
+        if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Explicitly deny location reads/updates for the selected app. This replaces
+     * legacy fake-coordinate/location spoofing with a permission-style denial.
+     * Shared processes and unknown targets fail open.
+     */
+    private void installLocationAccessBlockHooks(String packageName) {
+        synchronized (locationAccessHookedMethods) {
+            int installed = 0;
+            Set<String> blockedNames = new HashSet<>(Arrays.asList(
+                    "getLastKnownLocation", "getCurrentLocation",
+                    "requestLocationUpdates", "requestSingleUpdate"));
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                if (!blockedNames.contains(method.getName()) || locationAccessHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        if (isLocationAccessBlockAuthorized()) {
+                            throw new SecurityException("Location access disabled by FX Hook privacy setting");
+                        }
+                        return chain.proceed();
+                    });
+                    locationAccessHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "location API hook failed; method remains unchanged: " + method.toGenericString());
+                }
+            }
+            logFx(installed > 0 ? Log.INFO : Log.WARN,
+                    "location access denial hooks installed=" + installed + " package=" + packageName);
+        }
+    }
+
+    private boolean isLocationAccessBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        String onlyPackage = processPackages.iterator().next();
+        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
+        return selected != null && selected.locationAccessBlock;
     }
 
     /**
