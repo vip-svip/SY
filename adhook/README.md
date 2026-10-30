@@ -55,6 +55,10 @@ The bundled Hook APKs are stored under `optional/`, not `system/priv-app/`, and 
 
 A per-target `camera_access_block=1` option is available under the global privacy master. It intercepts legacy `Camera.open()` and Camera2 `CameraManager.openCamera()` calls and propagates a `SecurityException` to the requesting app. This is an explicit access denial, not a fake "camera hardware absent" response. The option is disabled by default; shared-package processes and unknown targets fail open. It does not alter system camera permission state and does not guarantee coverage of vendor-private camera APIs.
 
+## Explicit location access denial
+
+A per-target `location_access_block=1` option is available under the global privacy master. It intercepts `LocationManager.getLastKnownLocation()`, `getCurrentLocation()`, `requestLocationUpdates()`, and `requestSingleUpdate()`, then propagates a `SecurityException` to the requesting app. This replaces fake-coordinate and location-spoofing behavior with an explicit access denial. It is disabled by default; shared-package processes and unknown targets fail open. It does not change Android's actual runtime permission grant and does not guarantee coverage of vendor-private location APIs.
+
 ## EXIF privacy migration slice
 
 The API-101 module supports an opt-in `exif_strip=1` feature independently per target, under the global privacy master switch. It redacts GPS, Make/Model, and DateTime values returned by framework/AndroidX ExifInterface getters only; it does not rewrite files or intercept every third-party EXIF parser. The matching source snapshot is published alongside the APK in GitHub Actions.
