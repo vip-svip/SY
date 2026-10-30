@@ -78,7 +78,7 @@ public class UnifiedHookConfigParserTest {
         assertEquals(3, target.developerRules.size());
         assertEquals("vip", target.developerRules.get(0).id);
         assertEquals(100, target.developerRules.get(0).priority);
-        assertEquals("com.example.vpn.auth.Session#isLoggedIn()Z", target.developerRules.get(1).descriptor);
+        assertEquals("Lcom/example/vpn/auth/Session;->isLoggedIn()Z", target.developerRules.get(1).descriptor);
         assertFalse(target.developerRules.get(2).replacement);
     }
 
