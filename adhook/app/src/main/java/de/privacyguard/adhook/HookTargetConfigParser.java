@@ -48,6 +48,24 @@ public final class HookTargetConfigParser {
             this.adsEnabled = adsEnabled;
             this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
         }
+
+        /** Ad filtering is gated by its own master switch. */
+        public boolean isAdFilteringEnabledFor(String packageName) {
+            Target target = targets.get(packageName);
+            return adsEnabled && target != null
+                    && (target.splash || target.feed || target.overlay);
+        }
+
+        /** Read-only membership diagnostics are deliberately independent of ad filtering. */
+        public boolean isMemberDiagnosticsEnabledFor(String packageName) {
+            Target target = targets.get(packageName);
+            return target != null && target.memberDiag;
+        }
+
+        public boolean isAnyFeatureEnabledFor(String packageName) {
+            return isAdFilteringEnabledFor(packageName)
+                    || isMemberDiagnosticsEnabledFor(packageName);
+        }
     }
 
     public static Result parse(String text) {
