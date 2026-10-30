@@ -60,6 +60,7 @@ install_one() {
     fi
     if tail -n "+$((_log_lines + 1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
       log_msg "ERROR: signing certificate differs for $_pkg; existing package and app data are preserved; no uninstall attempted"
+      log_msg "ACTION REQUIRED: back up the old Hook app data, uninstall the previous FXAdHook package once, then rerun FX module installation; its old private signing key is unavailable"
       rm -f "$_stage" 2>/dev/null
       return 1
     fi
