@@ -72,6 +72,12 @@ jobs:
           grep -q 'directCoordinateAccessorsAreRedacted' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
           grep -q 'installClipboardReadBlockHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'clipboard_read_block' "$PARSER_SRC"
+          grep -q 'clipboard_isolate_enabled' "$PARSER_SRC"
+          grep -q 'clipboard_isolate' "$PARSER_SRC"
+          grep -q 'installClipboardIsolationHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+          grep -q 'clipboard_isolate_enabled' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'parsesClipboardIsolationAsIndependentPrivacyFeature' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
+          grep -q 'serializerRoundTripsClipboardIsolationMasterAndTarget' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
           grep -q 'ClipboardPrivacyPolicy.shouldBlockRead' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'sharedPackageProcessFailsOpen' adhook/app/src/test/java/de/privacyguard/adhook/ClipboardPrivacyPolicyTest.java
           grep -q 'remote config rejected; no hooks enabled' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
