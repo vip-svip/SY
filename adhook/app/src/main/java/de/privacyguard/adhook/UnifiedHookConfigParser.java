@@ -30,15 +30,26 @@ public final class UnifiedHookConfigParser {
         public final boolean clipboardReadBlock;
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
         public final boolean sensorRateLimit;
+        public final boolean wifiScanHide;
+        public final boolean cellInfoHide;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false);
+                    false, false, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
                boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, false, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -50,6 +61,8 @@ public final class UnifiedHookConfigParser {
             this.sensorLight = sensorLight; this.sensorMagnet = sensorMagnet;
             this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
             this.sensorRateLimit = sensorRateLimit;
+            this.wifiScanHide = wifiScanHide;
+            this.cellInfoHide = cellInfoHide;
         }
 
         public boolean enabled() {
@@ -149,6 +162,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
+            boolean wifiScanHide=false, cellInfoHide=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -172,10 +186,12 @@ public final class UnifiedHookConfigParser {
                     case "sensor_pressure": sensorPressure = on; break;
                     case "sensor_prox": sensorProx = on; break;
                     case "sensor_rate_limit": sensorRateLimit = on; break;
+                    case "wifi_scan_hide": wifiScanHide = on; break;
+                    case "cell_info_hide": cellInfoHide = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
