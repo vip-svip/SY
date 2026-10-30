@@ -689,6 +689,11 @@ public final class AdVisibilityHook extends XposedModule {
         // A SDK namespace alone is not proof that every custom View is an ad:
         // SDK packages may also contain controls, placeholders and telemetry views.
         boolean sdkAdView = sdkNamespace && hasAny(cls, STRONG_AD_MARKERS);
+        if ((strong || sdkNamespace) && view instanceof ViewGroup
+                && containsRewardedEvidenceInSubtree(view, 0, new int[]{0})) {
+            recordRewardedAdEvidence(view, "container-preserve-reward-flow");
+            return false;
+        }
         if (!strong && !sdkAdView) {
             if (view instanceof TextView && hasAdLabel((TextView) view)) {
                 ParentEvidence parent = findStrongAdParent(view);
@@ -697,6 +702,21 @@ public final class AdVisibilityHook extends XposedModule {
             return false;
         }
         return categoryMatches(evidence, target, sdkAdView);
+    }
+
+    private boolean containsRewardedEvidenceInSubtree(View view, int depth, int[] count) {
+        if (view == null || depth > 8 || count[0]++ >= 240) return false;
+        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) return true;
+        if (!(view instanceof ViewGroup)) return false;
+        ViewGroup group = (ViewGroup) view;
+        int n;
+        try { n = Math.min(group.getChildCount(), 80); } catch (Throwable ignored) { return false; }
+        for (int i = 0; i < n && count[0] < 240; i++) {
+            try {
+                if (containsRewardedEvidenceInSubtree(group.getChildAt(i), depth + 1, count)) return true;
+            } catch (Throwable ignored) {}
+        }
+        return false;
     }
 
     private ParentEvidence findStrongAdParent(View view) {
