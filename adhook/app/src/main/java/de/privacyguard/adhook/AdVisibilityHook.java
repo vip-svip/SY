@@ -20,6 +20,7 @@ import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
@@ -110,6 +112,26 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean dynamicChildObserversInstalled;
     private final Set<String> popupObserverMethods = ConcurrentHashMap.newKeySet();
     private final Set<String> dynamicChildObserverMethods = ConcurrentHashMap.newKeySet();
+    private final Set<String> inspectedMemberClasses = ConcurrentHashMap.newKeySet();
+    private final Set<String> hookedMemberMethods = ConcurrentHashMap.newKeySet();
+    private volatile boolean dynamicMemberDiscoveryInstalled;
+    private static final int MAX_DYNAMIC_MEMBER_CLASSES = 128;
+    private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 256;
+    private static final int MAX_REWARDED_AD_EVIDENCE = 32;
+    private final AtomicInteger rewardedAdEvidenceCount = new AtomicInteger();
+    private final Set<String> rewardedAdEvidenceSeen = ConcurrentHashMap.newKeySet();
+    private static final String[] REWARDED_FLOW_MARKERS = {
+            "rewarded", "reward_video", "rewarded_video", "watch_ad", "watch video",
+            "领取金币", "看视频领", "看广告领", "激励视频", "广告奖励", "观看视频获得", "看视频得"
+    };
+    private static final String[] MEMBER_CLASS_MARKERS = {
+            "member", "vip", "premium", "subscription", "entitlement", "privilege", "benefit", "purchase"
+    };
+    private static final String[] MEMBER_METHOD_MARKERS = {
+            "isvip", "ispremium", "ismember", "issubscribed", "hasentitlement",
+            "getviplevel", "getmemberlevel", "getsubscriptionstate", "getpurchasestate",
+            "isautorenewing", "getmembershipstatus", "haspremium"
+    };
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private boolean adsEnabled;
@@ -164,7 +186,10 @@ public final class AdVisibilityHook extends XposedModule {
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
-        if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
+        if (adsForPackage && target.memberDiag) {
+            installReadOnlyBillingDiagnostics(param.getClassLoader());
+            installDynamicMemberClassDiscovery();
+        }
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
@@ -639,6 +664,7 @@ public final class AdVisibilityHook extends XposedModule {
         ViewGroup group = (ViewGroup) view;
         int n;
         try { n = group.getChildCount(); } catch (Throwable t) { return; }
+        if (view instanceof TextView) recordRewardedAdEvidence((TextView) view, pkg);
         for (int i = 0; i < n && count[0] < 1800; i++) {
             View child;
             try { child = group.getChildAt(i); } catch (Throwable t) { continue; }
@@ -703,6 +729,101 @@ public final class AdVisibilityHook extends XposedModule {
             Resources r = view.getResources();
             return r == null ? "" : lower(r.getResourceEntryName(id));
         } catch (Throwable ignored) { return ""; }
+    }
+
+    /** Record visible rewarded-ad UI evidence only; never invokes reward callbacks or
+     * modifies SDK completion, server validation, balances, or entitlement state. */
+    private boolean isRewardedFlowEvidence(String value) {
+        return value != null && hasAny(lower(value), REWARDED_FLOW_MARKERS);
+    }
+
+    private void recordRewardedAdEvidence(TextView view, String pkg) {
+        try {
+            String evidence = (String.valueOf(view.getText()) + " " +
+                    String.valueOf(view.getContentDescription())).trim();
+            if (!isRewardedFlowEvidence(evidence)) return;
+            String key = pkg + "|" + evidence;
+            if (!rewardedAdEvidenceSeen.add(key)) return;
+            int count = rewardedAdEvidenceCount.incrementAndGet();
+            if (count > MAX_REWARDED_AD_EVIDENCE) {
+                rewardedAdEvidenceSeen.remove(key);
+                return;
+            }
+            logFx(Log.INFO, "rewarded-ad lifecycle candidate=" + shortName(view.getClass().getName()) +
+                    " evidence=" + count + " action=observe-only; reward callback/server validation unchanged");
+        } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Observe class names as the selected app loads classes. This is bounded,
+     * class-name filtered and read-only; it is not a full DEX scan.
+     */
+    private void installDynamicMemberClassDiscovery() {
+        if (dynamicMemberDiscoveryInstalled) return;
+        synchronized (this) {
+            if (dynamicMemberDiscoveryInstalled) return;
+            int installed = 0;
+            try {
+                installClassLoadObserver(ClassLoader.class.getDeclaredMethod("loadClass", String.class));
+                installed++;
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "single-argument class-load observer unavailable=" + t.getClass().getSimpleName());
+            }
+            try {
+                installClassLoadObserver(ClassLoader.class.getDeclaredMethod("loadClass", String.class, boolean.class));
+                installed++;
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "resolve class-load observer unavailable=" + t.getClass().getSimpleName());
+            }
+            dynamicMemberDiscoveryInstalled = installed > 0;
+            logFx(dynamicMemberDiscoveryInstalled ? Log.INFO : Log.WARN,
+                    "dynamic member class discovery installed=" + installed + "/2; mode=bounded-loadClass-overloads");
+        }
+    }
+
+    private void installClassLoadObserver(Method loadClass) {
+        hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    if (result instanceof Class<?>) inspectDynamicallyLoadedMemberClass((Class<?>) result);
+                    return result;
+                });
+    }
+
+    private void inspectDynamicallyLoadedMemberClass(Class<?> candidate) {
+        if (candidate == null || inspectedMemberClasses.size() >= MAX_DYNAMIC_MEMBER_CLASSES) return;
+        String name = candidate.getName();
+        String normalized = lower(name);
+        if (normalized.startsWith("java.") || normalized.startsWith("android.") ||
+                normalized.startsWith("de.privacyguard.adhook.")) return;
+        if (!hasAny(normalized, MEMBER_CLASS_MARKERS) || !inspectedMemberClasses.add(name)) return;
+        int hooked = 0;
+        try {
+            for (Method method : candidate.getDeclaredMethods()) {
+                if (hookedMemberMethods.size() >= MAX_AUTO_MEMBER_METHOD_HOOKS) break;
+                String methodName = lower(method.getName());
+                if (!hasAny(methodName, MEMBER_METHOD_MARKERS)) continue;
+                if (method.getParameterTypes().length != 0 || method.getReturnType() == Void.TYPE ||
+                        Modifier.isAbstract(method.getModifiers()) || Modifier.isNative(method.getModifiers())) continue;
+                String key = candidate.getName() + "#" + method.getName();
+                if (!hookedMemberMethods.add(key)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object value = chain.proceed();
+                        if (value instanceof Boolean || value instanceof Number) {
+                            logFx(Log.INFO, "member state observation class=" + shortName(candidate.getName()) +
+                                    " method=" + method.getName() + " value=" + value + " mode=read-only");
+                        }
+                        return value;
+                    });
+                    hooked++;
+                } catch (Throwable hookFailure) {
+                    hookedMemberMethods.remove(key);
+                }
+            }
+        } catch (Throwable ignored) { }
+        logFx(Log.DEBUG, "member discovery candidate=" + shortName(name) +
+                " memberMethodsHooked=" + hooked + " mode=read-only");
     }
 
     private void installReadOnlyBillingDiagnostics(ClassLoader loader) {
