@@ -57,3 +57,8 @@ The API-101 module supports an opt-in `exif_strip=1` feature independently per t
 
 
 Clipboard read protection is a separate opt-in per-target privacy feature (`clipboard_read_block=1`). It blocks `getPrimaryClip`, `hasPrimaryClip`, and legacy `getText` reads while leaving clipboard writes untouched. To avoid cross-package side effects, it fails open in processes where more than one package is loaded.
+
+
+### Direct EXIF location accessors
+
+The EXIF migration also intercepts `getLatLong(float[])` and returns `false` without writing coordinates, and intercepts `getAltitude(double)` to return the caller-supplied fallback. This closes common direct-access paths in the Android framework and AndroidX ExifInterface. It remains read-time API redaction only; it does not rewrite image bytes or cover arbitrary metadata parsers.
