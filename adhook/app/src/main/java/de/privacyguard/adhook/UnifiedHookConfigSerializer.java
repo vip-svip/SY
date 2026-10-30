@@ -41,6 +41,8 @@ public final class UnifiedHookConfigSerializer {
                     .append(",sensor_pressure=").append(target.sensorPressure ? '1' : '0')
                     .append(",sensor_prox=").append(target.sensorProx ? '1' : '0')
                     .append(",sensor_rate_limit=").append(target.sensorRateLimit ? '1' : '0')
+                    .append(",wifi_scan_hide=").append(target.wifiScanHide ? '1' : '0')
+                    .append(",cell_info_hide=").append(target.cellInfoHide ? '1' : '0')
                     .append('\n');
         }
 
