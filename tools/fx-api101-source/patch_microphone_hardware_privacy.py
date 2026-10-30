@@ -20,14 +20,22 @@ once("    private boolean microphoneHooksInstalled;\n",
 
 once(
     "        final boolean micBlockForPackage = privacyEnabled && target.micBlock;\n"
+    "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
+    "        final boolean regionDiagForPackage = target.regionDiag;\n"
+    "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
     "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
     "                && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
-    "                && !micBlockForPackage) return;\n",
+    "                && !micBlockForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
+    "                && !mediaStoreForPackage) return;\n",
     "        final boolean micBlockForPackage = privacyEnabled && target.micBlock;\n"
     "        final boolean micHwHideForPackage = privacyEnabled && target.micHwHide;\n"
+    "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
+    "        final boolean regionDiagForPackage = target.regionDiag;\n"
+    "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
     "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
     "                && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
-    "                && !micBlockForPackage && !micHwHideForPackage) return;\n")
+    "                && !micBlockForPackage && !micHwHideForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
+    "                && !mediaStoreForPackage) return;\n")
 
 once("        if (micBlockForPackage) installMicrophoneReadBlockHooks(pkg);\n",
      "        if (micBlockForPackage) installMicrophoneReadBlockHooks(pkg);\n"
