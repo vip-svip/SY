@@ -33,7 +33,7 @@ public final class DeveloperHookRule {
         if (fields.length != 4) return null;
         String id = fields[0].trim();
         if (!id.matches("[A-Za-z][A-Za-z0-9_-]{0,31}")) return null;
-        String descriptor = normalizeDescriptor(fields[1].trim());
+        String descriptor = normalizeDescriptor(fields[1].trim(), packageName);
         if (descriptor == null || !isInPackage(descriptor, packageName)) return null;
         String actionText = fields[2].trim().toUpperCase(java.util.Locale.ROOT);
         final Action action;
@@ -63,9 +63,13 @@ public final class DeveloperHookRule {
         return Collections.unmodifiableList(selected);
     }
 
-    static String normalizeDescriptor(String value) {
+    static String normalizeDescriptor(String value, String packageName) {
         if (value == null || value.length() > 512) return null;
         String d = value;
+        if (!d.startsWith("L") && d.contains("(") && d.contains(")")) {
+            String sourceSignature = DeveloperExecutableDescriptor.fromJavaSignature(d, packageName);
+            if (sourceSignature != null) return sourceSignature;
+        }
         if (d.startsWith("L") && d.contains(";->")) {
             if (!d.matches("L[A-Za-z_$][A-Za-z0-9_$]*(/[A-Za-z_$][A-Za-z0-9_$]*)*;->[A-Za-z_$<>][A-Za-z0-9_$<>]*\\(.*\\).+")) return null;
             return d;
