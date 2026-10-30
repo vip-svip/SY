@@ -68,3 +68,11 @@
 - 单 APK 双入口保留为待验证原型，不直接认定可用。必须检查 API101 框架是否同时把同包识别为现代模块与 legacy 模块，是否触发双重入口；还必须确认 API93–100 能否忽略现代资源并正常加载 legacy 入口。
 - 在框架源码/真实框架测试给出确定结论前，不将两个入口合并到生产 APK。若同包双识别导致重复加载，优先寻找框架侧单入口选择机制；不能靠运行时猜测框架版本或吞异常掩盖双重注册。
 - 下一项代码工作：把 API82 的 `pkg` 字段依赖列出逐个迁移为 final package-scoped context；对无法准确归属调用方的进程级 Hook 先 fail-open。随后添加多包模拟回归测试。
+
+
+## API82 shared-UID fail-open patch (local source; cloud build pending)
+
+- Local working-tree `lsposed/app/.../MainHook.java` now checks `lpp.appInfo.sharedUserId` at the very start of `handleLoadPackage`. If a shared UID is declared, it logs `shared UID process: legacy hooks disabled` and returns before loading configuration or installing any Hook.
+- This is deliberately conservative: packages declaring a shared UID lose API82 Hook features rather than risk process-global package attribution leaking one target's policy into another. Normal single-UID apps continue through the existing path.
+- Local regression `scripts/tests/v1.0.0-api82-shared-uid-fail-open-regression.sh` passed. MainHook SHA-256: `af70deb28288105c6698deba134123d565552e90d1fb7317c02ea85b96a7c412`; regression SHA-256: `8791e0eb0b0464237485b8594c0881e4784985ad39dce50e3316e8e3bd66dc0c`.
+- This change is not yet compiled against the legacy API82 Gradle project and is not yet part of the API101 GitHub artifact. Treat it as a locally patched source plus static regression only, not as a verified legacy APK.
