@@ -169,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           APK=adhook/app/build/outputs/apk/debug/app-debug.apk
-          DEXSTR=$(while IFS= read -r dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?[.]dex$' ))
+          DEXSTR="$(for dex in $(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?[.]dex
           for token in "startBoundedMemberDexScan" "splitSourceDirs" "apkFilesScanned" "inspectDynamicallyLoadedMemberClass" "MAX_AUTO_MEMBER_METHOD_HOOKS" "MAX_DYNAMIC_MEMBER_CLASSES" "MEMBER_STATE_FIELD_MARKERS" "hasMemberStateField" "hasMemberStateType" "observeLoadedMemberClass" "installReadOnlyMemberCandidateHook" "member DEX candidate scan finished" "billing purchaseAcknowledged" "billing purchaseAutoRenewing" "billing clientReady" "recordRewardedAdEvidence" "preserve-reward-flow" "action=observe-only;"; do
             if [[ "$DEXSTR" != *"$token"* ]]; then echo "::error::Compiled DEX missing expected marker: $token"; exit 1; fi
           done
@@ -183,16 +183,7 @@ jobs:
           name: FX-Hook-apk
           path: adhook/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-      - name: Upload matching Hook source snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: FX-Hook-source
-          path: |
-            adhook/
-            scripts/install_adhook_app.sh
-            scripts/remove_adhook_app.sh
-          if-no-files-found: error
-))
+); do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)"
           for token in "startBoundedMemberDexScan" "splitSourceDirs" "apkFilesScanned" "inspectDynamicallyLoadedMemberClass" "MAX_AUTO_MEMBER_METHOD_HOOKS" "MAX_DYNAMIC_MEMBER_CLASSES" "MEMBER_STATE_FIELD_MARKERS" "hasMemberStateField" "hasMemberStateType" "observeLoadedMemberClass" "installReadOnlyMemberCandidateHook" "member DEX candidate scan finished" "billing purchaseAcknowledged" "billing purchaseAutoRenewing" "billing clientReady" "recordRewardedAdEvidence" "preserve-reward-flow" "action=observe-only;"; do
             if [[ "$DEXSTR" != *"$token"* ]]; then echo "::error::Compiled DEX missing expected marker: $token"; exit 1; fi
           done
@@ -205,13 +196,4 @@ jobs:
         with:
           name: FX-Hook-apk
           path: adhook/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-      - name: Upload matching Hook source snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: FX-Hook-source
-          path: |
-            adhook/
-            scripts/install_adhook_app.sh
-            scripts/remove_adhook_app.sh
           if-no-files-found: error
