@@ -113,7 +113,7 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean privacyEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
-    private String currentPackage = "";
+    private volatile String currentPackage = "";
 
     private static final class ParentEvidence {
         final String value;
