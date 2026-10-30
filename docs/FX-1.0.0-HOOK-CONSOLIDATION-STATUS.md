@@ -99,6 +99,14 @@ The policy requires the privacy master switch, one package in the process, and a
 
 GitHub Actions run `41057506685` (commit `b746c44af0450d5f3e9cbb73f5a727059de594ff`) passed the biometric policy/parser/serializer tests, pinned source hash, all existing regressions, JUnit tests, single-APK compilation, signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977491990`, archive SHA-256 `4fd04b79c390c6a2b39eb35f21acebba60fc0d138cf96705c1d726bceefb3f32`. It remains a debug-signed validation APK; actual biometric behavior on OnePlus 12 and LSPosed injection are unverified.
 
+## Input-method enumeration privacy migration checkpoint (2026-10-30)
+
+API-101 now parses and serializes `block_ime_logging`. For the selected app it returns empty lists from `InputMethodManager.getEnabledInputMethodList()`, `getInputMethodList()` and `getEnabledInputMethodSubtypeList()`. It does not disable the keyboard, change the system's selected IME, or alter actual input-method settings. It can still break apps that enumerate keyboards or subtypes, so it remains opt-in.
+
+The policy requires the privacy master switch and a single-package process; system, FX Hook, LSPosed Manager and unknown targets fail open.
+
+GitHub Actions run `41058055264` (commit `a2dc22c51b4ca1026e4a70170e19761683116a05`) passed the input-method policy/parser/serializer tests, pinned source hash, all prior privacy regressions, JUnit tests, single-APK build and APK verification. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977817041`, archive SHA-256 `d5e601b893bfce6b93f7c6b951938051f5fefab296c84dc4683c9e0996610033`. This is still a debug-signed validation artifact, not the final FX KernelSU ZIP or a OnePlus 12 runtime test.
+
 ## APK signing continuity blocker
 
 The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
