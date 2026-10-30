@@ -124,5 +124,8 @@ once("    private boolean shouldHideActiveNotifications() {\n",
      method + "    private boolean shouldHideActiveNotifications() {\n")
 
 path.write_text(source)
+expected = "77c2649822e9634de975b99b7f77a52c933c1884afdb399c153d226a6f6f4aad"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"biometric privacy source hash mismatch: {actual}")
 print("API101 biometric hardware privacy patch: PASS", actual)
