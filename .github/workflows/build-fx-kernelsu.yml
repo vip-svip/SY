@@ -90,6 +90,11 @@ jobs:
               rm -f "$manifest"
               continue
             fi
+            if awk 'NF >= 2 && $2 == "optional/PrivacyGuardHook.apk" { found=1 } END { exit !found }' "$manifest" && [[ ! -e "$dir/optional/PrivacyGuardHook.apk" ]]; then
+              echo "::notice file=$manifest::Removing obsolete checksum manifest that references the absent legacy APK path."
+              rm -f "$manifest"
+              continue
+            fi
             if ! awk 'NF >= 2 && $1 ~ /^[[:xdigit:]]{64}$/ { ok=1 } END { exit !ok }' "$manifest"; then
               [[ -s "$dir/$target" ]] || { echo "::error file=$manifest::Malformed checksum manifest and target file is absent"; exit 1; }
               echo "::warning file=$manifest::Non-standard checksum manifest; normalizing against its adjacent packaged file."
