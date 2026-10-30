@@ -72,6 +72,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",mic_silence=").append(target.microphoneSilence ? '1' : '0')
                     .append(",camera_access_block=").append(target.cameraAccessBlock ? '1' : '0')
                     .append(",location_access_block=").append(target.locationAccessBlock ? '1' : '0')
+                    .append(",mic_access_block=").append(target.microphoneAccessBlock ? '1' : '0')
                     .append('\n');
         }
 
