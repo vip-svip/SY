@@ -123,6 +123,11 @@ jobs:
           grep -q 'notification_permission_hide' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
           grep -q 'mic_silence' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'installAudioRecordSilenceHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'installCameraAccessBlockHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'camera_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          grep -q 'camera_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'parsesExplicitCameraAccessDenialPerTarget' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
+          grep -q 'serializerRoundTripsExplicitCameraAccessDenial' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
           grep -q 'AudioRecordSilencePolicy.zero' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'installNotificationPermissionPrivacyHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'areNotificationsEnabled' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
