@@ -9,6 +9,7 @@ checks = {
     "bounded dynamic class count": "MAX_DYNAMIC_MEMBER_CLASSES = 128",
     "bounded hooked method count": "MAX_AUTO_MEMBER_METHOD_HOOKS = 256",
     "class-load observer": "installClassLoadObserver",
+    "shared-process fail-open": "processPackages.size() == 1 && result instanceof Class<?>",
     "member-name allowlist": "MEMBER_METHOD_MARKERS",
     "read-only member observation": 'mode=read-only',
     "reward flow evidence cap": "MAX_REWARDED_AD_EVIDENCE = 32",
