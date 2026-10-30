@@ -28,6 +28,7 @@ public final class UnifiedHookConfigParser {
         public final boolean privacy;
         public final boolean exifStrip;
         public final boolean clipboardReadBlock;
+        public boolean clipboardIsolate;
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
         public final boolean sensorRateLimit;
         public final boolean wifiScanHide;
@@ -149,6 +150,20 @@ public final class UnifiedHookConfigParser {
                boolean micBlock, boolean disablePassiveLocation, boolean regionDiag, boolean blockMediaStore,
                boolean micHwHide, boolean audioFpBlock, boolean blockNotifListen, boolean hideNotifPerm,
                boolean usageStatsOff, boolean a11yHide) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock,
+                    disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock,
+                    blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
+               boolean micBlock, boolean disablePassiveLocation, boolean regionDiag, boolean blockMediaStore,
+               boolean micHwHide, boolean audioFpBlock, boolean blockNotifListen, boolean hideNotifPerm,
+               boolean usageStatsOff, boolean a11yHide, boolean clipboardIsolate) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -156,6 +171,7 @@ public final class UnifiedHookConfigParser {
             this.privacy = privacy;
             this.exifStrip = exifStrip;
             this.clipboardReadBlock = clipboardReadBlock;
+            this.clipboardIsolate = clipboardIsolate;
             this.sensorAccel = sensorAccel; this.sensorGyro = sensorGyro;
             this.sensorLight = sensorLight; this.sensorMagnet = sensorMagnet;
             this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
@@ -289,6 +305,7 @@ public final class UnifiedHookConfigParser {
                     case "privacy": targetPrivacy = on; break;
                     case "exif_strip": exifStrip = on; break;
                     case "clipboard_read_block": clipboardReadBlock = on; break;
+                    case "clipboard_isolate": clipboardIsolate = on; break;
                     case "sensor_accel": sensorAccel = on; break;
                     case "sensor_gyro": sensorGyro = on; break;
                     case "sensor_light": sensorLight = on; break;
@@ -312,7 +329,7 @@ public final class UnifiedHookConfigParser {
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock, blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock, blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide, clipboardIsolate));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
