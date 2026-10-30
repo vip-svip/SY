@@ -26,11 +26,11 @@ public class HookTargetConfigParserTest {
     @Test
     public void skipAndCloseControlLabelsAreProtected() {
         assertTrue(AdControlClassifier.isProtectedText("跳过广告"));
-        assertTrue(AdVisibilityHook.isProtectedAdControlText("关闭广告"));
-        assertTrue(AdVisibilityHook.isProtectedAdControlText("Skip Ad"));
-        assertTrue(AdVisibilityHook.isProtectedAdControlText("3秒后跳过"));
-        assertFalse(AdVisibilityHook.isProtectedAdControlText("广告位"));
-        assertFalse(AdVisibilityHook.isProtectedAdControlText("Sponsored"));
+        assertTrue(AdControlClassifier.isProtectedText("关闭广告"));
+        assertTrue(AdControlClassifier.isProtectedText("Skip Ad"));
+        assertTrue(AdControlClassifier.isProtectedText("3秒后跳过"));
+        assertFalse(AdControlClassifier.isProtectedText("广告位"));
+        assertFalse(AdControlClassifier.isProtectedText("Sponsored"));
     }
 
     @Test
