@@ -30,7 +30,9 @@ public final class MemberClassProfile {
     public static Result inspect(Class<?> type) {
         if (type == null) throw new IllegalArgumentException("type required");
         String name=type.getName();
-        int score=MemberCandidateClassifier.nameScore(name);
+        int separator=Math.max(name.lastIndexOf("."),name.lastIndexOf("$"));
+        String simpleName=separator>=0?name.substring(separator+1):name;
+        int score=MemberCandidateClassifier.nameScore(simpleName);
         boolean named=score>=2;
         List<MemberCandidateClassifier.Candidate> fields=new ArrayList<>();
         List<MemberCandidateClassifier.Candidate> methods=new ArrayList<>();

@@ -17,6 +17,7 @@ public class MemberClassProfileTest {
     @Test public void rejectsOrdinaryProfileShape() {
         MemberClassProfile.Result r=MemberClassProfile.inspect(OrdinaryProfile.class);
         assertFalse(r.namedCandidate); assertFalse(r.obfuscatedStateShape); assertFalse(r.isCandidate());
+        assertEquals(0, MemberCandidateClassifier.nameScore("OrdinaryProfile"));
     }
     @Test public void detectsObfuscatedStateShapeFromDeclarationsOnly() {
         MemberClassProfile.Result r=MemberClassProfile.inspect(a.class);
