@@ -50,6 +50,15 @@ The recovered legacy source must be imported unchanged as an audit baseline befo
 
 Important integration blocker: the current FX package's root-side Remote Files publisher and the UI control for `exif_strip` are not yet wired to this schema. The feature compiles and parser/serializer tests pass, but cannot be treated as active in an installed FX module until that end-to-end publisher/UI path is connected. The legacy API-82 APK remains separate.
 
+## Second migration slice: clipboard read protection (2026-10-30)
+
+- Added independent per-target `clipboard_read_block=1` under the privacy master switch.
+- API-101 intercepts `ClipboardManager.getPrimaryClip()`, `hasPrimaryClip()`, and legacy `getText()`; reads return `null` / `false`, writes are untouched.
+- A pure policy gate permits blocking only when exactly one package is known in the process. Shared-package processes, protected packages, unselected targets, and privacy-master-off cases fail open.
+- Added parser, serializer, and policy tests. GitHub Actions run `41027166801` passed the unit tests, APK build, signature verification, and API-101 resource checks.
+- Root FX publisher/UI integration was applied to the recovered KernelSU ZIP: the per-app checkbox persists through `hook_targets`, the publisher includes the new schema field, and status accounting includes clipboard-only targets.
+- Physical OnePlus 12 / LSPosed validation is still pending. This does not implement the old `clipboard_isolate` per-app clipboard store or the legacy fake-text mode.
+
 ## Mandatory invariants
 
 1. One final APK must own the single LSPosed module identity, entrypoint, scope, and config reader.
