@@ -12,6 +12,9 @@ import android.app.Application;
 import android.content.pm.ApplicationInfo;
 import dalvik.system.DexFile;
 import android.content.ContentResolver;
+import android.database.Cursor;
+import android.database.MatrixCursor;
+import android.net.Uri;
 import android.provider.Settings;
 import android.content.res.Resources;
 import android.os.Build;
@@ -140,6 +143,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -210,7 +214,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean cameraAccessBlockForPackage = privacyEnabled && target.cameraAccessBlock;
         final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target.microphoneAccessBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage) return;
+        final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target.mediaStoreQueryBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -227,16 +232,54 @@ public final class AdVisibilityHook extends XposedModule {
         if (cameraAccessBlockForPackage) installCameraAccessBlockHooks(pkg);
         if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
         if (microphoneAccessBlockForPackage) installMicrophoneAccessBlockHooks(pkg);
+        if (mediaStoreQueryBlockForPackage) installMediaStoreQueryBlockHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Opt-in MediaStore query privacy. It returns an empty cursor only for
+     * content://media queries made by the selected single-package process.
+     * It does not alter file access, writes, downloads, or other content providers.
+     */
+    private synchronized boolean installMediaStoreQueryBlockHooks(final String packageName) {
+        if (!mediaStoreQueryHookedMethods.isEmpty()) return true;
+        int installed = 0;
+        for (Method method : ContentResolver.class.getDeclaredMethods()) {
+            if (!"query".equals(method.getName()) || method.getReturnType() != Cursor.class) continue;
+            Class<?>[] params = method.getParameterTypes();
+            if (params.length == 0 || !Uri.class.isAssignableFrom(params[0])) continue;
+            try {
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    if (processPackages.size() != 1 || !privacyEnabled) return chain.proceed();
+                    String activePackage = currentPackage;
+                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                    if (active == null || !active.mediaStoreQueryBlock) return chain.proceed();
+                    Object first = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                    if (!(first instanceof Uri) || !"media".equals(((Uri) first).getAuthority())) {
+                        return chain.proceed();
+                    }
+                    Object projection = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                    String[] columns = projection instanceof String[] ? (String[]) projection : new String[0];
+                    return new MatrixCursor(columns);
+                });
+                mediaStoreQueryHookedMethods.add(method);
+                installed++;
+            } catch (Throwable t) {
+                logFx(Log.WARN, "MediaStore query hook failed open: " + method.toGenericString());
+            }
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "MediaStore query privacy hooks installed=" + installed + " package=" + packageName);
+        return installed > 0;
     }
 
     /**
