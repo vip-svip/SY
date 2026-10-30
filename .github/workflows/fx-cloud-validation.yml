@@ -77,6 +77,7 @@ jobs:
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           python3 tools/fx-api101-source/patch_biometric_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          echo "77c2649822e9634de975b99b7f77a52c933c1884afdb399c153d226a6f6f4aad  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           echo "5121fcc4ec803390c691154cdacbd3c4d1443bf26db45fa05a5fe5f6a2e64dcf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_biometric_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
