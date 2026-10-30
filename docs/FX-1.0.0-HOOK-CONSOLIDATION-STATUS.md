@@ -173,3 +173,15 @@ The latest successful GitHub Actions run is [41058540824](https://github.com/vip
 - Patched API82 `MainHook.java` SHA-256: `89318e226aaedaca2b9a5917791426c815ada47b29d4b16f3dd6e25774235017`.
 
 This snapshot includes input-method enumeration privacy in addition to the previous opt-in privacy migrations. The complete source artifact was downloaded and synchronized into the recovered local FX working tree. This is still a debug-signed validation build; framework runtime discovery/injection, config publication on device, release signing, and OnePlus 12 testing remain unverified. The final KernelSU ZIP has not been rebuilt.
+
+## Advertising ID privacy migration checkpoint — 2026-10-30
+
+GitHub Actions run [41060719905](https://github.com/vip-svip/SY/actions/runs/41060719905), commit `556869114cf89012e2069bf758b95a08fb563ca5`, passed source restoration, API82/API101 wiring checks, host regressions, JUnit tests, APK assembly, signature/DEX/metadata verification and artifact upload.
+
+- Debug APK artifact: `12979845912`, archive SHA-256 `5da97613d0c8c70940f54c8ad94a6a659ac5c021c8d268d89f249baeda7fdd31`.
+- Complete Java source artifact: `12978916825`, archive SHA-256 `4173933d2cb1b5a275017eb8476a943ea835c086aeb6e4ed849af909dd9533be`.
+- Compiled API101 source SHA-256: `c97f6272fcbf667fd8c3b419f607204e44dbe1b5ea034cf0ab87468745129b42`.
+
+API101 now supports opt-in app-scoped Advertising ID replacement for recognized GMS `AdvertisingIdClient.Info.getId()` and selected Huawei OAID String getters. The replacement is a deterministic package-scoped UUID and requires privacy master enablement, explicit target selection, a single-package process, and non-protected package. Unknown SDKs and shared processes fail open. This is identifier privacy only; purchase, reward, account and server entitlement state remain untouched.
+
+This remains a debug-signed validation APK. It does not prove API82/API101 runtime injection on a device, nor OnePlus 12 behavior. The final KernelSU ZIP has not been rebuilt.
