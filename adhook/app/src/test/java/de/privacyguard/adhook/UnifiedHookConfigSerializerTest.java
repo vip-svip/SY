@@ -145,6 +145,19 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsMediaStoreBlockFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.gallery", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.gallery");
+        assertTrue(t.blockMediaStore);
+        assertTrue(text.contains("block_mediastore=1"));
+    }
+
+    @Test
     public void serializerRoundTripsRegionDiagnosticFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.region", new UnifiedHookConfigParser.Target(
