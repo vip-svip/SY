@@ -128,6 +128,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
+    private volatile boolean notificationPermissionHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
