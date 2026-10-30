@@ -197,8 +197,8 @@ public class UnifiedHookConfigSerializerTest {
     public void serializerRoundTripsMicrophoneHardwareHideFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
-                "com.example.audio,mic_hw_hide=1\\n").targets.get("com.example.audio");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.audio,mic_hw_hide=1\n").targets.get("com.example.audio");
         targets.put("com.example.audio", source);
         String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
         UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(text).targets.get("com.example.audio");
