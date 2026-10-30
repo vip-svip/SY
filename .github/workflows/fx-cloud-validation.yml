@@ -89,6 +89,7 @@ jobs:
           bash scripts/tests/v1.0.0-radio-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-camera-id-privacy-api101-regression.sh
           bash scripts/tests/adhook-app-installer-regression.sh
+          bash scripts/tests/v1.0.0-api82-api101-single-apk-regression.sh
           bash scripts/tests/v1.0.0-microphone-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-passive-location-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-region-compatibility-diagnostic-api101-regression.sh
