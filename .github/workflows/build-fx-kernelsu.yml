@@ -57,13 +57,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          (cd fx-module && zip -qr ../dist/FX-v1.0.0-Iter5.zip .)
-          unzip -tq dist/FX-v1.0.0-Iter5.zip
-          sha256sum dist/FX-v1.0.0-Iter5.zip | tee dist/SHA256SUMS
+          (cd fx-module && zip -qr ../dist/FX-v1.0.0.zip .)
+          unzip -tq dist/FX-v1.0.0.zip
+          sha256sum dist/FX-v1.0.0.zip | tee dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: FX-v1.0.0-Iter5
+          name: FX-v1.0.0-KernelSU
           path: |
-            dist/FX-v1.0.0-Iter5.zip
+            dist/FX-v1.0.0.zip
             dist/SHA256SUMS
           if-no-files-found: error
