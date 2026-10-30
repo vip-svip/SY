@@ -69,6 +69,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",wifi_scan_block=").append(target.wifiScanBlock ? '1' : '0')
                     .append(",notification_listen_block=").append(target.notificationListenBlock ? '1' : '0')
                     .append(",notification_permission_hide=").append(target.notificationPermissionHide ? '1' : '0')
+                    .append(",mic_silence=").append(target.microphoneSilence ? '1' : '0')
                     .append('\n');
         }
 
