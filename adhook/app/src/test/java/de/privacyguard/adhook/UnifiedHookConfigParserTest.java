@@ -209,8 +209,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesMicrophoneHardwareHideFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
-                "com.example.audio,mic_hw_hide=1\\n").targets.get("com.example.audio");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.audio,mic_hw_hide=1\n").targets.get("com.example.audio");
         assertNotNull(target);
         assertTrue(target.micHwHide);
     }
