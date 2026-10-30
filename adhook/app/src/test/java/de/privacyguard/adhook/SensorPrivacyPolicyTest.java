@@ -20,6 +20,22 @@ public class SensorPrivacyPolicyTest {
         assertFalse(SensorPrivacyPolicy.shouldHide(true,1,"org.lsposed.manager",t,1));
         assertFalse(SensorPrivacyPolicy.shouldHide(true,1,"com.example.app",null,1));
     }
+    @Test public void samplingPeriodIsClampedToAtMostTenHertz() {
+        assertEquals(100000, SensorPrivacyPolicy.clampSamplingPeriodUs(0));
+        assertEquals(100000, SensorPrivacyPolicy.clampSamplingPeriodUs(16666));
+        assertEquals(100000, SensorPrivacyPolicy.clampSamplingPeriodUs(99999));
+        assertEquals(100000, SensorPrivacyPolicy.clampSamplingPeriodUs(100000));
+        assertEquals(200000, SensorPrivacyPolicy.clampSamplingPeriodUs(200000));
+    }
+
+    @Test public void rateLimitRequiresMasterAndSingleSelectedPackage() {
+        UnifiedHookConfigParser.Target t = new UnifiedHookConfigParser.Target(false,false,false,false,false,false,false,false,false,false,false,false,false,true);
+        assertTrue(SensorPrivacyPolicy.shouldClampRate(true,1,"com.example.app",t));
+        assertFalse(SensorPrivacyPolicy.shouldClampRate(false,1,"com.example.app",t));
+        assertFalse(SensorPrivacyPolicy.shouldClampRate(true,2,"com.example.app",t));
+        assertFalse(SensorPrivacyPolicy.shouldClampRate(true,1,"android",t));
+    }
+
     @Test public void selectedPackageAndSensorAreRequired() {
         UnifiedHookConfigParser.Target t=target(false,true,false,false,false,false);
         assertTrue(SensorPrivacyPolicy.shouldHide(true,1,"com.example.app",t,4));

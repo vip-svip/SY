@@ -15,6 +15,18 @@ public final class SensorPrivacyPolicy {
             default: return false;
         }
     }
+    public static boolean shouldClampRate(boolean privacyMaster, int processPackageCount,
+                                          String packageName, UnifiedHookConfigParser.Target target) {
+        return privacyMaster && processPackageCount == 1 && packageName != null
+                && !packageName.isEmpty() && !isProtected(packageName)
+                && target != null && target.sensorRateLimit;
+    }
+
+    /** Legacy behavior: clamp requested periods below 100 ms to 100 ms (at most 10 Hz). */
+    public static int clampSamplingPeriodUs(int requestedPeriodUs) {
+        return requestedPeriodUs < 100000 ? 100000 : requestedPeriodUs;
+    }
+
     public static boolean shouldHide(boolean privacyMaster, int processPackageCount,
                                      String packageName, UnifiedHookConfigParser.Target target, int type) {
         return privacyMaster && processPackageCount == 1 && packageName != null

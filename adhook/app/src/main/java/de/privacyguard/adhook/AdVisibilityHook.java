@@ -152,7 +152,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean exifForPackage = privacyEnabled && target.exifStrip;
         final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
         final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro
-                || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx);
+                || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
+                || target.sensorRateLimit);
         if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
@@ -296,6 +297,31 @@ public final class AdVisibilityHook extends XposedModule {
             for (final Method method : type.getDeclaredMethods()) {
                 final String name = method.getName();
                 Class<?>[] parameters = method.getParameterTypes();
+                if ("registerListener".equals(name) && parameters.length >= 3
+                        && "android.hardware.Sensor".equals(parameters[1].getName())
+                        && parameters[2] == int.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    if (!SensorPrivacyPolicy.shouldClampRate(privacyEnabled, processPackages.size(),
+                                            activePackage, active)) return chain.proceed();
+                                    java.util.List<Object> args = new java.util.ArrayList<>(chain.getArgs());
+                                    Object period = args.size() > 2 ? args.get(2) : null;
+                                    if (!(period instanceof Integer)) return chain.proceed();
+                                    int originalPeriod = ((Integer) period).intValue();
+                                    int clamped = SensorPrivacyPolicy.clampSamplingPeriodUs(originalPeriod);
+                                    if (clamped == originalPeriod) return chain.proceed();
+                                    args.set(2, Integer.valueOf(clamped));
+                                    return chain.proceed(args.toArray());
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "sensor rate hook unavailable: " + method.toGenericString());
+                    }
+                    continue;
+                }
                 if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name))
                         || parameters.length < 1 || parameters[0] != int.class) continue;
                 try {

@@ -168,10 +168,10 @@ public class UnifiedHookConfigParserTest {
     public void parsesSixSensorPrivacyFlagsIndependently() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
-                "com.example.sensors,sensor_accel=1,sensor_gyro=0,sensor_light=1,sensor_magnet=0,sensor_pressure=1,sensor_prox=0\n");
+                "com.example.sensors,sensor_accel=1,sensor_gyro=0,sensor_light=1,sensor_magnet=0,sensor_pressure=1,sensor_prox=0,sensor_rate_limit=1\n");
         UnifiedHookConfigParser.Target t = result.targets.get("com.example.sensors");
         assertTrue(t.sensorAccel); assertFalse(t.sensorGyro); assertTrue(t.sensorLight);
-        assertFalse(t.sensorMagnet); assertTrue(t.sensorPressure); assertFalse(t.sensorProx);
+        assertFalse(t.sensorMagnet); assertTrue(t.sensorPressure); assertFalse(t.sensorProx); assertTrue(t.sensorRateLimit);
         assertTrue(result.isSensorHiddenFor("com.example.sensors", 1));
         assertFalse(result.isSensorHiddenFor("com.example.sensors", 4));
     }

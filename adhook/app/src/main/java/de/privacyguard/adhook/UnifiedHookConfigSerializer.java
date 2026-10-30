@@ -40,6 +40,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",sensor_magnet=").append(target.sensorMagnet ? '1' : '0')
                     .append(",sensor_pressure=").append(target.sensorPressure ? '1' : '0')
                     .append(",sensor_prox=").append(target.sensorProx ? '1' : '0')
+                    .append(",sensor_rate_limit=").append(target.sensorRateLimit ? '1' : '0')
                     .append('\n');
         }
 
