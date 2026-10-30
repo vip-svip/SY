@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
  * and backward-compatible legacy ad-only payloads. Legacy payloads never enable privacy.
  */
 public final class UnifiedHookConfigParser {
+    public static final int MAX_DEVELOPER_RULES_PER_TARGET = 64;
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook",
             "org.lsposed.manager")));
@@ -280,7 +281,7 @@ public final class UnifiedHookConfigParser {
                     continue;
                 }
                 if (key.matches("dev_rule_[0-9]{1,2}")) {
-                    if (developerRulesCount(developerRules) >= 16) throw new IllegalArgumentException("too many developer rules");
+                    if (developerRulesCount(developerRules) >= MAX_DEVELOPER_RULES_PER_TARGET) throw new IllegalArgumentException("too many developer rules");
                     DeveloperHookRule rule = DeveloperHookRule.parse(value, pkg);
                     if (rule == null) throw new IllegalArgumentException("invalid developer rule");
                     if (!developerRuleIds.add(rule.id))
