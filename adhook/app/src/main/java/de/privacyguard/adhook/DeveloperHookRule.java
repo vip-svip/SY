@@ -52,13 +52,16 @@ public final class DeveloperHookRule {
     /** Highest-priority active rule wins for each exact method descriptor. */
     public static List<DeveloperHookRule> selectEffective(List<DeveloperHookRule> rules) {
         if (rules == null || rules.isEmpty()) return Collections.emptyList();
-        List<DeveloperHookRule> ordered = new ArrayList<>(rules);
+        List<DeveloperHookRule> ordered = new ArrayList<>();
+        for (DeveloperHookRule rule : rules) if (rule != null) ordered.add(rule);
+        // Stable sort preserves config order for equal-priority rules.
         ordered.sort((left, right) -> Integer.compare(right.priority, left.priority));
         Set<String> claimed = new HashSet<>();
         List<DeveloperHookRule> selected = new ArrayList<>();
         for (DeveloperHookRule rule : ordered) {
-            if (rule == null || rule.action == Action.DISABLED) continue;
-            if (claimed.add(rule.descriptor)) selected.add(rule);
+            // A highest-priority DISABLED entry masks lower-priority rules for this descriptor.
+            if (!claimed.add(rule.descriptor)) continue;
+            if (rule.action != Action.DISABLED) selected.add(rule);
         }
         return Collections.unmodifiableList(selected);
     }
