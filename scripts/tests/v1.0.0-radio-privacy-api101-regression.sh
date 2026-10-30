@@ -16,4 +16,5 @@ grep -q 'case "cell_info_hide"' "$PARSER" || fail 'cell-info config parser missi
 grep -q 'wifi_scan_hide' "$SER" || fail 'Wi-Fi serializer missing'
 grep -q 'cell_info_hide' "$SER" || fail 'cell-info serializer missing'
 grep -q 'processPackageCount == 1' "$POLICY" || fail 'shared-process fail-open policy missing'
+grep -q 'protectedPackage(packageName)' "$POLICY" || fail 'system/Hook package exclusion missing'
 echo 'FX API101 Wi-Fi scan/cell-info privacy regression: PASS'
