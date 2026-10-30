@@ -3,6 +3,7 @@ package de.privacyguard.adhook;
 /**
  * A bounded, package-scoped Debug fixture rule for a developer-owned application.
  * Supported descriptor syntaxes normalize to an exact no-argument boolean getter.
+ * The parser caps each package at 16 rules and constrains actions to local boolean fixtures.
  */
 public final class DeveloperHookRule {
     public final String id;
