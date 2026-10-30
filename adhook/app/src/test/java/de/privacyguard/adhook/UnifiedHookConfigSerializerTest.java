@@ -190,6 +190,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsExplicitMicrophoneAccessDenial() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.audio", new UnifiedHookConfigParser.Target(
+                false, false, false, false, true, false, false,
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        assertTrue(text.contains("mic_access_block=1"));
+        assertTrue(UnifiedHookConfigParser.parse(text).targets.get("com.example.audio").microphoneAccessBlock);
+    }
+
+    @Test
     public void serializerRoundTripsExplicitLocationAccessDenial() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.location", new UnifiedHookConfigParser.Target(
