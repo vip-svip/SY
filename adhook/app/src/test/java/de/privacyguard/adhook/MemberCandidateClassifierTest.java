@@ -29,6 +29,46 @@ public class MemberCandidateClassifierTest {
         assertFalse(candidate.isWorthInspecting());
     }
 
+
+    enum MembershipState { FREE, VIP }
+
+    static class ObfuscatedStateHolder {
+        boolean a;
+        long b;
+        boolean a() { return a; }
+        long b() { return b; }
+    }
+
+    static class IncompleteStateHolder {
+        boolean a;
+        boolean a() { return a; }
+    }
+
+    static class ContinuationMarker {}
+
+    @Test public void classifiesEnumAndKotlinSuspendLikeSignatures() throws Exception {
+        Method enumGetter = SampleWithEnum.class.getDeclaredMethod("getState");
+        assertEquals(MemberCandidateClassifier.Kind.ENUM,
+                MemberCandidateClassifier.inspect(enumGetter).kind);
+        Method suspendLike = SampleWithSuspend.class.getDeclaredMethod(
+                "loadState", ContinuationMarker.class);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                MemberCandidateClassifier.inspect(suspendLike).kind);
+    }
+
+    static class SampleWithEnum {
+        MembershipState getState() { return MembershipState.FREE; }
+    }
+
+    static class SampleWithSuspend {
+        Object loadState(ContinuationMarker continuation) { return null; }
+    }
+
+    @Test public void detectsConservativeObfuscatedFieldAndMethodShapes() {
+        assertTrue(MemberCandidateClassifier.hasObfuscatedStateShape(ObfuscatedStateHolder.class));
+        assertFalse(MemberCandidateClassifier.hasObfuscatedStateShape(IncompleteStateHolder.class));
+    }
+
     private MemberCandidateClassifier.Candidate inspect(String name) throws Exception {
         Method method = Sample.class.getDeclaredMethod(name);
         return MemberCandidateClassifier.inspect(method);

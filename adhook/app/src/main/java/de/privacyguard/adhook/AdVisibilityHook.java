@@ -1388,42 +1388,7 @@ public final class AdVisibilityHook extends XposedModule {
      * unknown obfuscated methods are not automatically hooked or invoked.
      */
     private boolean hasObfuscatedMemberStateShape(Class<?> candidate) {
-        boolean hasStateFlag = false;
-        boolean hasDescriptor = false;
-        try {
-            Field[] fields = candidate.getDeclaredFields();
-            int limit = Math.min(fields.length, 128);
-            for (int i = 0; i < limit; i++) {
-                MemberCandidateClassifier.Kind kind =
-                        MemberCandidateClassifier.kindOf(fields[i].getType());
-                hasStateFlag |= kind == MemberCandidateClassifier.Kind.BOOLEAN
-                        || kind == MemberCandidateClassifier.Kind.ENUM;
-                hasDescriptor |= kind == MemberCandidateClassifier.Kind.INTEGER
-                        || kind == MemberCandidateClassifier.Kind.LONG
-                        || kind == MemberCandidateClassifier.Kind.STRING;
-            }
-            if (hasStateFlag && hasDescriptor) return true;
-        } catch (Throwable ignored) {}
-        hasStateFlag = false;
-        hasDescriptor = false;
-        try {
-            Method[] methods = candidate.getDeclaredMethods();
-            int limit = Math.min(methods.length, 128);
-            for (int i = 0; i < limit; i++) {
-                Method method = methods[i];
-                if (method.getParameterTypes().length != 0
-                        || Modifier.isStatic(method.getModifiers())
-                        || method.isSynthetic() || method.isBridge()) continue;
-                MemberCandidateClassifier.Kind kind =
-                        MemberCandidateClassifier.kindOf(method.getReturnType());
-                hasStateFlag |= kind == MemberCandidateClassifier.Kind.BOOLEAN
-                        || kind == MemberCandidateClassifier.Kind.ENUM;
-                hasDescriptor |= kind == MemberCandidateClassifier.Kind.INTEGER
-                        || kind == MemberCandidateClassifier.Kind.LONG
-                        || kind == MemberCandidateClassifier.Kind.STRING;
-            }
-        } catch (Throwable ignored) {}
-        return hasStateFlag && hasDescriptor;
+        return MemberCandidateClassifier.hasObfuscatedStateShape(candidate);
     }
 
     /** Inspect method metadata only; never invoke candidate methods during discovery. */

@@ -88,6 +88,42 @@ public final class MemberCandidateClassifier {
         return Kind.UNKNOWN;
     }
 
+    /**
+     * Conservative signature-shape heuristic for obfuscated state holders.
+     * It inspects declarations only and never invokes methods or reads field values.
+     */
+    public static boolean hasObfuscatedStateShape(Class<?> candidate) {
+        if (candidate == null) return false;
+        boolean hasStateFlag = false;
+        boolean hasDescriptor = false;
+        try {
+            Field[] fields = candidate.getDeclaredFields();
+            int limit = Math.min(fields.length, 128);
+            for (int i = 0; i < limit; i++) {
+                Kind kind = kindOf(fields[i].getType());
+                hasStateFlag |= kind == Kind.BOOLEAN || kind == Kind.ENUM;
+                hasDescriptor |= kind == Kind.INTEGER || kind == Kind.LONG || kind == Kind.STRING;
+            }
+            if (hasStateFlag && hasDescriptor) return true;
+        } catch (Throwable ignored) {}
+        hasStateFlag = false;
+        hasDescriptor = false;
+        try {
+            Method[] methods = candidate.getDeclaredMethods();
+            int limit = Math.min(methods.length, 128);
+            for (int i = 0; i < limit; i++) {
+                Method method = methods[i];
+                if (method.getParameterTypes().length != 0
+                        || Modifier.isStatic(method.getModifiers())
+                        || method.isSynthetic() || method.isBridge()) continue;
+                Kind kind = kindOf(method.getReturnType());
+                hasStateFlag |= kind == Kind.BOOLEAN || kind == Kind.ENUM;
+                hasDescriptor |= kind == Kind.INTEGER || kind == Kind.LONG || kind == Kind.STRING;
+            }
+        } catch (Throwable ignored) {}
+        return hasStateFlag && hasDescriptor;
+    }
+
     private static Candidate unknown(String reason) {
         return new Candidate(Kind.UNKNOWN, 0, reason);
     }
