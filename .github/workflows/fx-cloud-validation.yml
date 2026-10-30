@@ -8,6 +8,7 @@ on:
       - "scripts/tests/**"
       - "scripts/install_adhook_app.sh"
       - "scripts/remove_adhook_app.sh"
+      - "fx-module/scripts/**"
       - "tools/fx-api101-source/**"
       - ".github/workflows/fx-cloud-validation.yml"
 
