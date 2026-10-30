@@ -52,6 +52,15 @@ Remaining proof requirements:
 
 The legacy entry has a reflective API-101 runtime check and a fail-open UID-to-package identity check. CI proves source restoration, Java compilation, unit tests, APK signing and descriptor presence only; it does not prove framework discovery, runtime arbitration, or real-device behavior. Do not call the Hook production-merged until the framework matrix and signing continuity pass.
 
+## APK signing continuity blocker
+
+The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
+
+- Existing bundled `optional/FXAdHook.apk` certificate SHA-256: `813D183D0EB10810E449AEFFEF5E5C938EED102E9CA66B24AD68F9EA4751080C`.
+- New dual-entry debug validation APK certificate SHA-256: `2491272DA7C16DEA9A53C194C490ED92737CD73DDA3F9A50CFB4B9CC905D88FB`.
+
+Therefore, the debug validation APK must not be pushed as an in-place update to an installed `de.privacyguard.adhook` package. A production build needs a stable release keystore, and the first migration from the old signing identity requires a controlled uninstall/reinstall (or a deliberately changed applicationId). The installer must continue to fail safely on signature mismatch and must not silently uninstall user apps. The API82+API101 validation artifact is not the final deployable APK.
+
 ## Region and entitlement boundaries
 
 The Hook can diagnose app locale/time-zone configuration, explain region-related failures, and expose official app-side region settings where supported. It must not claim to remove server-side country restrictions without a VPN, falsify network location, or override account eligibility.
