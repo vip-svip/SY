@@ -124,6 +124,7 @@ jobs:
           grep -q 'mic_silence' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'installAudioRecordSilenceHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'installCameraAccessBlockHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'ExceptionMode.PASSTHROUGH' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'camera_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'camera_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
           grep -q 'parsesExplicitCameraAccessDenialPerTarget' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
