@@ -38,6 +38,10 @@ case "$1" in
       *fxadhook*) pkg=de.privacyguard.adhook ;;
       *) if grep -q 'fake legacy apk payload' "$apk"; then pkg=de.privacyguard.hook; else pkg=de.privacyguard.adhook; fi ;;
     esac
+    if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ] && [ "$pkg" = de.privacyguard.adhook ]; then
+      echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2
+      exit 1
+    fi
     grep -Fxv "$pkg" "$STATE/installed" > "$STATE/installed.tmp" 2>/dev/null || :
     mv "$STATE/installed.tmp" "$STATE/installed"
     echo "$pkg" >> "$STATE/installed"; echo "$pkg" >> "$STATE/install-calls"
@@ -67,6 +71,15 @@ printf 'updated fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
 sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "APK update failed"
 [ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 3 ] || fail "updated APK was not reinstalled exactly once"
+# A signature mismatch must preserve the installed app and its data.
+printf 'different-key fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
+sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
+export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch should be reported as install failure"; fi
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing Hook package was removed after signature mismatch"
+[ ! -s "$TMP/pm/uninstall-calls" ] || fail "installer attempted to uninstall after signature mismatch"
+grep -q 'signing certificate differs' "$TMP/state/install.log" || fail "signature mismatch was not diagnosed in the install log"
+unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "tracked package cleanup failed"
 [ ! -s "$TMP/pm/installed" ] || fail "FX-managed apps were not removed on uninstall"
 [ ! -e "$TMP/state/adhook-apk-privacyguardhook.sha256" ] || fail "legacy marker survived uninstall"
