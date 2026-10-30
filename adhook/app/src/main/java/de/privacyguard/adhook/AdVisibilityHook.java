@@ -125,6 +125,8 @@ public final class AdVisibilityHook extends XposedModule {
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
     private volatile boolean clipboardReadHooksInstalled;
+    private volatile boolean clipboardIsolationHooksInstalled;
+    private static volatile Object processClipboardShadow;
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
@@ -150,6 +152,7 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean wifiScanEnabled;
     private boolean notificationListenEnabled;
     private boolean notificationPermissionHideEnabled;
+    private boolean clipboardIsolationEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private volatile String currentPackage = "";
@@ -187,13 +190,14 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         final boolean exifForPackage = privacyEnabled && target.exifStrip;
         final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
+        final boolean clipboardIsolateForPackage = privacyEnabled && clipboardIsolationEnabled && target.clipboardIsolate;
         final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
         final boolean notificationListenForPackage = notificationListenEnabled && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target.notificationPermissionHide;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage) return;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -201,6 +205,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
+        if (clipboardIsolateForPackage) installClipboardIsolationHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
@@ -211,7 +216,7 @@ public final class AdVisibilityHook extends XposedModule {
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -227,6 +232,7 @@ public final class AdVisibilityHook extends XposedModule {
         wifiScanEnabled = false;
         notificationListenEnabled = false;
         notificationPermissionHideEnabled = false;
+        clipboardIsolationEnabled = false;
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
              ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
             byte[] chunk = new byte[4096];
@@ -254,6 +260,7 @@ public final class AdVisibilityHook extends XposedModule {
             wifiScanEnabled = parsed.wifiScanEnabled;
             notificationListenEnabled = parsed.notificationListenEnabled;
             notificationPermissionHideEnabled = parsed.notificationPermissionHideEnabled;
+            clipboardIsolationEnabled = parsed.clipboardIsolationEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
@@ -443,6 +450,42 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in clipboard read protection installed=" + installed + " for " + pkg);
         return clipboardReadHooksInstalled;
+    }
+
+    /**
+     * Process-local clipboard shadowing migrated from API-82. This is NOT OS-wide isolation.
+     * Only single-package processes are hooked; shared processes fail open.
+     */
+    private synchronized boolean installClipboardIsolationHooks(final String pkg) {
+        if (clipboardIsolationHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.content.ClipboardManager", false, null);
+            try {
+                Method set = type.getDeclaredMethod("setPrimaryClip", Class.forName("android.content.ClipData", false, null));
+                hook(set).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    Object clip = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                    Object result = chain.proceed();
+                    if (processPackages.size() <= 1 && clip != null) processClipboardShadow = clip;
+                    return result;
+                });
+                installed++;
+            } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate write hook unavailable"); }
+            for (String name : new String[]{"getPrimaryClip", "hasPrimaryClip"}) {
+                try {
+                    Method read = type.getDeclaredMethod(name);
+                    final boolean bool = "hasPrimaryClip".equals(name);
+                    hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        if (processPackages.size() > 1) return chain.proceed();
+                        return bool ? Boolean.valueOf(processClipboardShadow != null) : processClipboardShadow;
+                    });
+                    installed++;
+                } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate read hook unavailable: " + name); }
+            }
+        } catch (Throwable t) { logFx(Log.WARN, "clipboard isolate manager unavailable"); return false; }
+        clipboardIsolationHooksInstalled = installed == 3;
+        logFx(clipboardIsolationHooksInstalled ? Log.INFO : Log.WARN, "process-local clipboard isolation hooks=" + installed + " for " + pkg);
+        return clipboardIsolationHooksInstalled;
     }
 
     /**
