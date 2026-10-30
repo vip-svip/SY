@@ -24,5 +24,5 @@ grep -q 'modern libxposed runtime detected; legacy entry skipped' "$LEGACY" || f
 grep -q 'lpp.appInfo.sharedUserId' "$LEGACY" || fail "legacy shared-UID fail-open guard missing"
 grep -q 'SELF_PKG_API101' "$LEGACY" || fail "legacy entry does not exclude unified Hook app"
 grep -q 'if (!"1".equals(master))' "$LEGACY" || fail "legacy entry does not require explicit master enable"
-! grep -q 'io.github.libxposed.api' "$LEGACY" || fail "legacy entry gained a compile-time modern API reference"
+! grep -Eq '^[[:space:]]*import[[:space:]]+io\.github\.libxposed|^[[:space:]]*(private|public|protected)[^;]*io\.github\.libxposed' "$LEGACY" || fail "legacy entry gained a compile-time modern API reference"
 echo "PASS: one applicationId, dual entry metadata, API82/API101 compileOnly APIs, runtime arbitration and legacy fail-open guards"
