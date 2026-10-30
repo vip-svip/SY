@@ -1,5 +1,11 @@
 package de.privacyguard.adhook;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * A bounded, package-scoped Debug fixture rule for a developer-owned application.
  * Supported descriptor syntaxes normalize to an exact no-argument boolean getter.
@@ -41,6 +47,20 @@ public final class DeveloperHookRule {
         catch (NumberFormatException e) { return null; }
         if (priority < -1000 || priority > 1000) return null;
         return new DeveloperHookRule(id, descriptor, action, priority);
+    }
+
+    /** Highest-priority active rule wins for each exact method descriptor. */
+    public static List<DeveloperHookRule> selectEffective(List<DeveloperHookRule> rules) {
+        if (rules == null || rules.isEmpty()) return Collections.emptyList();
+        List<DeveloperHookRule> ordered = new ArrayList<>(rules);
+        ordered.sort((left, right) -> Integer.compare(right.priority, left.priority));
+        Set<String> claimed = new HashSet<>();
+        List<DeveloperHookRule> selected = new ArrayList<>();
+        for (DeveloperHookRule rule : ordered) {
+            if (rule == null || rule.action == Action.DISABLED) continue;
+            if (claimed.add(rule.descriptor)) selected.add(rule);
+        }
+        return Collections.unmodifiableList(selected);
     }
 
     static String normalizeDescriptor(String value) {
