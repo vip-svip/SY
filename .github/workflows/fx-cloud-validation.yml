@@ -71,6 +71,8 @@ jobs:
           python3 tools/fx-api101-source/patch_audio_fingerprint_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           echo "fb46869ec48b21592927d39b0ae06143bb53b6c3578f7a15b1eda06d60cfd45f  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          python3 tools/fx-api101-source/patch_clipboard_isolation.py
+          sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           python3 tools/fx-api101-source/patch_notification_privacy.py
           sha256sum adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           mkdir -p adhook/app/src/main/java/de/privacyguard/hook
@@ -109,6 +111,7 @@ jobs:
           bash scripts/tests/v1.0.0-mediastore-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-microphone-hardware-privacy-api101-regression.sh
           bash scripts/tests/v1.0.0-audio-fingerprint-privacy-api101-regression.sh
+          bash scripts/tests/v1.0.0-clipboard-isolation-api101-regression.sh
           bash scripts/tests/v1.0.0-notification-system-surface-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
