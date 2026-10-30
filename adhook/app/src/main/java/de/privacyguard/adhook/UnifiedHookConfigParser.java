@@ -47,6 +47,7 @@ public final class UnifiedHookConfigParser {
         public final boolean disablePassiveLocation;
         public final boolean regionDiag;
         public final boolean blockMediaStore;
+        public boolean adIdUnify;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
@@ -325,7 +326,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false; boolean clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
-            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false, blockMediaStore=false, micHwHide=false, audioFpBlock=false, blockNotifListen=false, hideNotifPerm=false, usageStatsOff=false, a11yHide=false, hideFingerprintHw=false, hideFaceHw=false, blockImeLogging=false;
+            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false, blockMediaStore=false, micHwHide=false, audioFpBlock=false, blockNotifListen=false, hideNotifPerm=false, usageStatsOff=false, a11yHide=false, hideFingerprintHw=false, hideFaceHw=false, blockImeLogging=false, adIdUnify=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -363,13 +364,16 @@ public final class UnifiedHookConfigParser {
                     case "hide_fingerprint_hw": hideFingerprintHw = on; break;
                     case "hide_face_hw": hideFaceHw = on; break;
                     case "block_ime_logging": blockImeLogging = on; break;
+                    case "ad_id_unify": adIdUnify = on; break;
                     case "disable_passive_loc": disablePassiveLocation = on; break;
                     case "region_diag": regionDiag = on; break;
                     case "block_mediastore": blockMediaStore = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock, blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide, clipboardIsolate, hideFingerprintHw, hideFaceHw, blockImeLogging));
+            Target target = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock, blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide, clipboardIsolate, hideFingerprintHw, hideFaceHw, blockImeLogging);
+            target.adIdUnify = adIdUnify;
+            targets.put(pkg, target);
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
