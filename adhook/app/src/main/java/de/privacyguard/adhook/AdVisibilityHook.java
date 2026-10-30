@@ -145,16 +145,18 @@ public final class AdVisibilityHook extends XposedModule {
         if (target == null) return;
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean privacyForPackage = privacyEnabled && target.privacy;
-        if (!adsForPackage && !privacyForPackage) return;
+        final boolean exifForPackage = privacyEnabled && target.exifStrip;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
+        if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) installReadOnlyBillingDiagnostics(param.getClassLoader());
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -208,6 +210,51 @@ public final class AdVisibilityHook extends XposedModule {
      * It is opt-in per package and only intercepts Settings.Secure.ANDROID_ID.
      * All other secure settings and all other identifier APIs remain untouched.
      */
+    /**
+     * Opt-in read-time EXIF redaction. This does not rewrite image files or mutate
+     * exports; it only redacts selected metadata returned by ExifInterface getters.
+     */
+    private void installExifStripHooks(ClassLoader loader, String pkg) {
+        int installed = 0;
+        for (String className : new String[]{
+                "android.media.ExifInterface",
+                "androidx.exifinterface.media.ExifInterface"}) {
+            try {
+                Class<?> type = Class.forName(className, false, loader);
+                Method attribute = type.getMethod("getAttribute", String.class);
+                hook(attribute).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object key = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                            Object original = chain.proceed();
+                            return key instanceof String && ExifPrivacyPolicy.shouldRedactTag((String) key)
+                                    ? null : original;
+                        });
+                installed++;
+                try {
+                    Method attributeDouble = type.getMethod("getAttributeDouble", String.class, double.class);
+                    hook(attributeDouble).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object key = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                                Object fallback = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                                Object original = chain.proceed();
+                                if (key instanceof String && ((String) key).startsWith("GPS")
+                                        && fallback instanceof Number) {
+                                    return ((Number) fallback).doubleValue();
+                                }
+                                return original;
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "EXIF double getter unavailable for " + className);
+                }
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "EXIF API unavailable for " + className);
+            }
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "read-time EXIF privacy redaction installed=" + installed + " for " + pkg);
+    }
+
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
         if (privacyIdentifierHookInstalled) return true;
         try {

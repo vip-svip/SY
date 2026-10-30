@@ -12,7 +12,7 @@ Effects require both gates: the app is listed in the FX-generated target config 
 
 ## Privacy-hook migration status
 
-The unified API 101 entry now contains an initial opt-in Android ID isolation hook. When the unified config has both `privacy_enabled=1` and a target row with `privacy=1`, calls to `Settings.Secure.getString(..., ANDROID_ID)` receive a stable app-specific 16-hex identifier. Other secure settings are passed through unchanged. This is a narrow first migration slice, not parity with the legacy PrivacyGuard hook set.
+The unified API 101 entry contains opt-in Android ID isolation and a first read-time EXIF redaction migration slice. When the unified config has both `privacy_enabled=1` and a target row with `privacy=1`, calls to `Settings.Secure.getString(..., ANDROID_ID)` receive a stable app-specific 16-hex identifier. Other secure settings are passed through unchanged. EXIF redaction is independently selected per target with `exif_strip=1` under the privacy master switch. It redacts GPS, device Make/Model, and DateTime values returned by framework/AndroidX ExifInterface getters; it does not rewrite image files or intercept every third-party metadata parser. These are narrow migration slices, not parity with the legacy PrivacyGuard hook set.
 
 Important: the current FX root-side publisher still emits the legacy ad-only format. The parser deliberately forces privacy off for that format, so this privacy hook will remain inactive until the root-side generator and UI are migrated to publish the versioned unified schema. Do not enable it by manually changing unrelated legacy switches. This work has not been verified on a physical device.
 
@@ -22,7 +22,7 @@ schema_version=1
 ads_enabled=1
 privacy_enabled=0
 [list:targets]
-com.example.app,ads_splash=1,ads_feed=0,ads_overlay=1,member_diag=0,privacy=0
+com.example.app,ads_splash=1,ads_feed=0,ads_overlay=1,member_diag=0,privacy=0,exif_strip=0
 ```
 
 ## Built-in heuristic rules
