@@ -26,6 +26,24 @@ public class UnifiedHookConfigParserTest {
     }
 
 
+
+    @Test
+    public void parsesClipboardIsolationAsIndependentPrivacyFeature() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\nclipboard_isolate_enabled=1\n" +
+                "[list:targets]\ncom.example.app,clipboard_isolate=1\n");
+        assertTrue(result.clipboardIsolationEnabled);
+        assertTrue(result.isClipboardIsolatedFor("com.example.app"));
+        assertFalse(result.isClipboardReadBlockedFor("com.example.app"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsConflictingClipboardIsolationAndReadBlock() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.app,clipboard_isolate=1,clipboard_read_block=1\n");
+    }
+
     @Test
     public void legacyAdConfigRemainsCompatibleAndDoesNotEnablePrivacy() {
         String legacy = "hook_ads_enabled=1\n" +
