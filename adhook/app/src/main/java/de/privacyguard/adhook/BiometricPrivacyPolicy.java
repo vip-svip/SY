@@ -25,7 +25,9 @@ public final class BiometricPrivacyPolicy {
 
     public static boolean shouldReportNoBiometricHardware(boolean privacyEnabled, int processPackageCount,
                                                           String packageName, UnifiedHookConfigParser.Target target) {
+        // BiometricManager is modality-agnostic. Report "no hardware" only when
+        // both fingerprint and face are hidden; otherwise preserve other modalities.
         return shouldHideFingerprint(privacyEnabled, processPackageCount, packageName, target)
-                || shouldHideFace(privacyEnabled, processPackageCount, packageName, target);
+                && shouldHideFace(privacyEnabled, processPackageCount, packageName, target);
     }
 }
