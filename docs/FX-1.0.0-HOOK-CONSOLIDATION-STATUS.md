@@ -20,7 +20,7 @@ These are CI/build and static regression results. They are not proof of behavior
 
 ## Installer migration
 
-The module-side installer now prefers optional/FXHook.apk and installs only applicationId de.privacyguard.adhook when that unified artifact is present. It does not install both historical APKs in that path. The old two-APK path remains only as an explicitly logged transitional fallback while the merged APK artifact is not yet bundled. The remover tracks the unified package marker as well. Host regression coverage verifies the one-package path and the transitional fallback. This installer change does not mean FXHook.apk has already been built or included in the current KernelSU archive.
+The module-side installer now accepts only optional/FXHook.apk and installs only applicationId de.privacyguard.adhook. If the unified artifact is absent, installation fails closed; there is no two-APK fallback. The remover tracks the unified package and retains narrowly scoped cleanup for a previously FX-owned legacy API82 package from older installations; this is uninstall cleanup only, never a second install path. Host regression coverage verifies one-package installation and verifies that split APKs are refused. This installer change does not mean FXHook.apk has already been built or included in the current KernelSU archive.
 
 ## API-82 and API-101 consolidation
 
