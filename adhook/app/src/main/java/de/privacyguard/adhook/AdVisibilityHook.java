@@ -675,6 +675,10 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
     private boolean shouldHide(View view, UnifiedHookConfigParser.Target target) {
+        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) {
+            recordRewardedAdEvidence(view, "preserve-reward-flow");
+            return false; // preserve-reward-flow: keep rewarded video UI and callback path unchanged
+        }
         String cls = lower(view.getClass().getName());
         String id = resourceName(view);
         String evidence = cls + " " + id;
@@ -966,6 +970,12 @@ public final class AdVisibilityHook extends XposedModule {
                 "getResponseCode", "billing responseCode")) installed++;
         if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
                 "getPurchaseState", "billing purchaseState")) installed++;
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
+                "isAcknowledged", "billing purchaseAcknowledged")) installed++;
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
+                "isAutoRenewing", "billing purchaseAutoRenewing")) installed++;
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingClient",
+                "isReady", "billing clientReady")) installed++;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "read-only concrete billing value diagnostics installed=" + installed + "/4; read-only billing diagnostics installed=" + installed);
     }
