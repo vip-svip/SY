@@ -212,8 +212,14 @@ public final class AdVisibilityHook extends XposedModule {
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerHideUpdateMethod, false, "hide-update");
             for (DeveloperHookRule rule : DeveloperHookRule.selectEffective(target.developerRules)) {
-                installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
-                        rule.descriptor, rule.action, rule.id + "@" + rule.priority);
+                String ruleLabel = rule.id + "@" + rule.priority;
+                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
+                    installDeveloperObservationHook(param.getClassLoader(), pkg, true, rule.descriptor, ruleLabel);
+                } else {
+                    // Value replacement remains limited to the existing explicit zero-arg boolean Debug fixture.
+                    installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
+                            rule.descriptor, rule.action, ruleLabel);
+                }
             }
         }
         final boolean adsForPackage = adsEnabled && target.enabled();
@@ -263,6 +269,60 @@ public final class AdVisibilityHook extends XposedModule {
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Read-only method observer for explicitly opted-in debuggable packages.
+     * Logs signature, argument types, result type, duration and exception class only;
+     * argument values, tokens, credentials and returned data are never serialized.
+     */
+    private void installDeveloperObservationHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, String label) {
+        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild,
+                targetDeveloperOptIn(packageName), packageName, packageName)) return;
+        DeveloperExecutableDescriptor parsed;
+        try {
+            parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)) return;
+            java.lang.reflect.Executable executable = parsed.resolve(loader);
+            if (!(executable instanceof Method)) return;
+            Method method = (Method) executable;
+            if (developerTestHookedMethods.contains(method)) return;
+            final java.util.concurrent.atomic.AtomicLong hitCounter = new java.util.concurrent.atomic.AtomicLong();
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        long started = System.nanoTime();
+                        long hits = hitCounter.incrementAndGet();
+                        StringBuilder argTypes = new StringBuilder();
+                        for (Object arg : chain.getArgs()) {
+                            if (argTypes.length() > 0) argTypes.append(',');
+                            argTypes.append(arg == null ? "null" : arg.getClass().getName());
+                        }
+                        try {
+                            Object result = chain.proceed();
+                            long elapsedMicros = (System.nanoTime() - started) / 1000L;
+                            if (hits <= 20L || hits % 100L == 0L) {
+                                logFx(Log.INFO, "dev-observe rule=" + label + " package=" + packageName
+                                        + " method=" + method.getName() + " args=[" + argTypes
+                                        + "] resultType=" + (result == null ? "null" : result.getClass().getName())
+                                        + " durationUs=" + elapsedMicros + " hit=" + hits);
+                            }
+                            return result;
+                        } catch (Throwable failure) {
+                            long elapsedMicros = (System.nanoTime() - started) / 1000L;
+                            logFx(Log.WARN, "dev-observe exception rule=" + label + " package="
+                                    + packageName + " method=" + method.getName() + " exception="
+                                    + failure.getClass().getName() + " durationUs=" + elapsedMicros);
+                            throw failure;
+                        }
+                    });
+            developerTestHookedMethods.add(method);
+            logFx(Log.INFO, "developer observer installed=" + label + " package=" + packageName
+                    + " descriptor=" + descriptor);
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "developer observer failed open=" + label + " package=" + packageName
+                    + " reason=" + failure.getClass().getSimpleName());
+        }
     }
 
     /**
