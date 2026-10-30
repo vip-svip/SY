@@ -65,7 +65,7 @@ helper = """    /** Bounded descendant scan prevents a generic ad container from
 """
 replace_once("    private ParentEvidence findStrongAdParent(View view) {\n", helper + "    private ParentEvidence findStrongAdParent(View view) {\n")
 path.write_text(source)
-expected = "45ece5042197c8e7418e120a76b54250413b922a5f01412d1a17ceb9ed3c1fe5"
+expected = "b3fa4c33d1efebad7681cf7afc7433073c036e41ea71f6d97ff0ad0aa8b92b86"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
 if actual != expected:
     raise SystemExit(f"rewarded-flow patch hash mismatch: {actual}")
