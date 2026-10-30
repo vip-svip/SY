@@ -49,6 +49,8 @@ jobs:
           echo "658b49b63159e7071ca3e22e158435b5833e5c1d82fe64543c2ac88266f0a02f  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_rewarded_flow.py
           echo "b3fa4c33d1efebad7681cf7afc7433073c036e41ea71f6d97ff0ad0aa8b92b86  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          python3 tools/fx-api101-source/patch_radio_privacy.py
+          echo "0d8d93d911d89e9a084f6160511cfc2dac40915652091fc9ac36ffeec3625c48  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
       - name: Validate API 101 project wiring
         shell: bash
         run: |
@@ -65,6 +67,7 @@ jobs:
           bash scripts/tests/v1.0.0-member-observation-bounded-regression.sh
           bash scripts/tests/v1.0.0-global-hook-shared-process-fail-open-regression.sh
           bash scripts/tests/v1.0.0-rewarded-ad-flow-preservation-regression.sh
+          bash scripts/tests/v1.0.0-radio-privacy-api101-regression.sh
 
       - name: Run unit tests and assemble APK
         run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
