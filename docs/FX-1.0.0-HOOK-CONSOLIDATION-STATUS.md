@@ -84,6 +84,20 @@ The parallel clipboard-isolation migration is also staged in the same API-101 so
 
 GitHub Actions run `41056196261` (commit `244fbef0138310d211acd867775e1a849162ff7b`) passed exact-source hash checks for the full API101 patch chain, clipboard isolation and notification/system-surface regressions, JUnit tests, single-APK compilation, APK signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977450642`, archive SHA-256 `4367fe733ccd34867da8aeea1eec5c65b70cf2ed282c45ddb8baff21a55cdbc6`. The debug APK is a validation artifact only; no real LSPosed injection or OnePlus 12 behavior is proven. The final KernelSU ZIP has not been rebuilt.
 
+## Biometric hardware privacy migration checkpoint (2026-10-30)
+
+API-101 now has independent per-target `hide_fingerprint_hw` and `hide_face_hw` flags.
+
+- Fingerprint hiding returns false from framework `FingerprintManager.isHardwareDetected()` and `hasEnrolledFingerprints()`, plus the matching AndroidX compatibility methods when that library is present.
+- Face hiding returns false from `FaceManager.isHardwareDetected()` and `hasEnrolledFaces()` when those methods exist on the device.
+- When either biometric-hardware flag is enabled, `BiometricManager.canAuthenticate()` reports `BIOMETRIC_ERROR_NO_HARDWARE` (12), matching the legacy API82 behavior.
+- The flags are independent for their respective manager APIs; the combined `BiometricManager` result reports no biometric hardware if either selected flag is active. This can break biometric login flows and is deliberately opt-in.
+- This is app-facing API concealment only. It does not remove biometric hardware, change Android Keystore state, or cover every OEM/vendor biometric API.
+
+The policy requires the privacy master switch, one package in the process, and a selected target. Protected and shared-package processes fail open.
+
+GitHub Actions run `41056937119` (commit `aa11b8f0ff3a82588dc00e8628f31216dc734462`) passed the biometric policy/parser/serializer tests, source patch, all existing regressions, JUnit tests, single-APK compilation, signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12976603986`, archive SHA-256 `61bddb635cf95a047f03d4e32d497c407063f010d834c08e4e87cecc0c3eba76`. It remains a debug-signed validation APK; actual biometric behavior on OnePlus 12 and LSPosed injection are unverified.
+
 ## APK signing continuity blocker
 
 The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
