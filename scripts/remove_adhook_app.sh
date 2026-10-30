@@ -10,7 +10,7 @@ log_msg() {
 [ -d "$STATE_DIR" ] || exit 0
 command -v pm >/dev/null 2>&1 || exit 0
 _result=0
-for _pair in 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxadhook'; do
+for _pair in 'de.privacyguard.adhook fxhook' 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxadhook'; do
   set -- $_pair
   _pkg=$1; _slug=$2
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"
