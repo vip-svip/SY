@@ -228,7 +228,7 @@ public final class AdVisibilityHook extends XposedModule {
             currentConfig = null;
             adsEnabled = false;
             logFx(Log.WARN, "remote config rejected; no hooks enabled ("
-                    t.getClass().getSimpleName() + ")");
+                    + t.getClass().getSimpleName() + ")");
             return false;
         }
     }
