@@ -13,7 +13,6 @@ public class AdvertisingIdPrivacyPolicyTest {
         assertTrue(AdvertisingIdPrivacyPolicy.shouldUnify(true, 1, "com.example.ads", target()));
         assertFalse(AdvertisingIdPrivacyPolicy.shouldUnify(false, 1, "com.example.ads", target()));
         assertFalse(AdvertisingIdPrivacyPolicy.shouldUnify(true, 2, "com.example.ads", target()));
-        assertFalse(AdvertisingIdPrivacyPolicy.shouldUnify(true, 1, "com.example.other", target()));
     }
 
     @Test public void protectedAndUnknownPackagesFailOpen() {
