@@ -40,7 +40,6 @@ once(
     "                && !mediaStoreForPackage) return;\n",
     "        final boolean micHwHideForPackage = privacyEnabled && target.micHwHide;\n"
     "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
-    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
     "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
     "        final boolean regionDiagForPackage = target.regionDiag;\n"
     "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
