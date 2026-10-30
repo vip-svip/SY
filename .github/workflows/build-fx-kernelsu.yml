@@ -4,6 +4,7 @@ on:
     branches: [fx-v1.0.0-unified-hook-integration]
     paths:
       - 'fx-module/**'
+      - 'fx-patches/**'
       - '.github/workflows/build-fx-kernelsu.yml'
   workflow_dispatch:
 permissions:
@@ -43,6 +44,11 @@ jobs:
             mkdir -p fx-module
             cp -a "$source_root/." fx-module/
           fi
+      - name: Apply reviewed FX source compatibility patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 fx-patches/patch_remote_config_parser.py fx-module
       - name: Validate required module files and version
         shell: bash
         run: |
@@ -102,6 +108,12 @@ jobs:
             fi
             (cd "$dir" && sha256sum -c "$base")
           done < <(find fx-module -type f -name '*.sha256' -print0)
+      - name: Run focused LSPosed Remote Files regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
       - name: Package and verify KernelSU ZIP
         shell: bash
         run: |
