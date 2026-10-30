@@ -97,6 +97,33 @@ public class DeveloperHookRuleTest {
         assertEquals(DeveloperHookRule.Action.DISABLED, disabled.action);
     }
 
+    @Test public void highestPriorityDisabledRuleMasksLowerPriorityRule() {
+        DeveloperHookRule low = DeveloperHookRule.parse(
+                "observe|com.example.vpn.Trace#isEnabled()Z|OBSERVE|1", "com.example.vpn");
+        DeveloperHookRule off = DeveloperHookRule.parse(
+                "off|com.example.vpn.Trace#isEnabled()Z|DISABLED|10", "com.example.vpn");
+        assertTrue(DeveloperHookRule.selectEffective(java.util.Arrays.asList(low, off)).isEmpty());
+    }
+
+    @Test public void lowerPriorityRuleDoesNotOverrideHigherPriorityRule() {
+        DeveloperHookRule low = DeveloperHookRule.parse(
+                "low|com.example.vpn.Trace#isEnabled()Z|OBSERVE|1", "com.example.vpn");
+        DeveloperHookRule high = DeveloperHookRule.parse(
+                "high|com.example.vpn.Trace#isEnabled()Z|OBSERVE|10", "com.example.vpn");
+        java.util.List<DeveloperHookRule> selected =
+                DeveloperHookRule.selectEffective(java.util.Arrays.asList(low, high));
+        assertEquals(1, selected.size());
+        assertEquals("high", selected.get(0).id);
+    }
+
+    @Test public void acceptsDottedJavaSourceSignature() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace.dispatch(String,int[])Object|OBSERVE|5",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;", rule.descriptor);
+    }
+
     @Test public void rejectsOutOfPackageAndUnsupportedSignature() {
         assertNull(DeveloperHookRule.parse("x|com.other.App#isVip()Z|true|1", "com.example.vpn"));
         assertNull(DeveloperHookRule.parse("x|com.example.vpn.App#isVip(Ljava/lang/String;)Z|true|1", "com.example.vpn"));
