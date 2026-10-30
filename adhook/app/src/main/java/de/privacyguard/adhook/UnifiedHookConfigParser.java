@@ -267,7 +267,6 @@ public final class UnifiedHookConfigParser {
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
             Set<String> developerRuleIds = new HashSet<>();
-            Set<String> developerRuleDescriptors = new HashSet<>();
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -284,8 +283,8 @@ public final class UnifiedHookConfigParser {
                     if (developerRulesCount(developerRules) >= 16) throw new IllegalArgumentException("too many developer rules");
                     DeveloperHookRule rule = DeveloperHookRule.parse(value, pkg);
                     if (rule == null) throw new IllegalArgumentException("invalid developer rule");
-                    if (!developerRuleIds.add(rule.id) || !developerRuleDescriptors.add(rule.descriptor))
-                        throw new IllegalArgumentException("duplicate developer rule id or method");
+                    if (!developerRuleIds.add(rule.id))
+                        throw new IllegalArgumentException("duplicate developer rule id");
                     developerRules.add(rule);
                     continue;
                 }
