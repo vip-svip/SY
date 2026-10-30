@@ -14,5 +14,6 @@ grep -q 'MicrophoneHardwarePrivacyPolicy.shouldHideInputDevices' "$SRC" || fail 
 grep -q 'case "mic_hw_hide"' "$PARSER" || fail 'mic_hw_hide parser flag missing'
 grep -q 'mic_hw_hide' "$SER" || fail 'mic_hw_hide serializer flag missing'
 grep -q 'processPackageCount != 1' "$POLICY" || fail 'shared-process fail-open missing'
-grep -q 'protectedPackage' "$POLICY" && grep -q 'org.lsposed.manager' "$POLICY" || fail 'protected package exclusions missing'
+grep -q 'org.lsposed.manager' "$POLICY" || fail 'LSPosed protected-package exclusion missing'
+grep -q 'de.privacyguard.adhook' "$POLICY" || fail 'Hook self-protection missing'
 echo 'FX API101 microphone hardware privacy regression: PASS'
