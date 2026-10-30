@@ -108,6 +108,11 @@ jobs:
             fi
             (cd "$dir" && sha256sum -c "$base")
           done < <(find fx-module -type f -name '*.sha256' -print0)
+      - name: Set up Java 17 for Hook parser regression
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
         run: |
