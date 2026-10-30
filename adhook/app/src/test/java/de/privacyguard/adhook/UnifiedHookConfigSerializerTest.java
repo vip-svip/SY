@@ -145,6 +145,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsRegionDiagnosticFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.region", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, false, targets);
+        UnifiedHookConfigParser.Target t = UnifiedHookConfigParser.parse(text).targets.get("com.example.region");
+        assertTrue(t.regionDiag);
+        assertTrue(text.contains("region_diag=1"));
+    }
+
+    @Test
     public void serializerRoundTripsPassiveLocationPrivacyFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.location", new UnifiedHookConfigParser.Target(
