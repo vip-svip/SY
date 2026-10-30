@@ -182,5 +182,8 @@ once("    /** Apply bounded low-amplitude noise to selected app capture buffers 
      method + "    /** Apply bounded low-amplitude noise to selected app capture buffers after a successful read. */\n")
 
 path.write_text(source)
+expected = "5121fcc4ec803390c691154cdacbd3c4d1443bf26db45fa05a5fe5f6a2e64dcf"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"notification privacy source hash mismatch: {actual}")
 print("API101 notification/system-surface privacy patch: PASS", actual)
