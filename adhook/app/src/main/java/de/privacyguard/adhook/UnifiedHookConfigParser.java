@@ -33,10 +33,11 @@ public final class UnifiedHookConfigParser {
         public final boolean wifiScanHide;
         public final boolean cellInfoHide;
         public final boolean cameraIdHide;
+        public final boolean micBlock;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false, false, false, false);
+                    false, false, false, false, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -74,6 +75,7 @@ public final class UnifiedHookConfigParser {
             this.wifiScanHide = wifiScanHide;
             this.cellInfoHide = cellInfoHide;
             this.cameraIdHide = cameraIdHide;
+            this.micBlock = micBlock;
         }
 
         public boolean enabled() {
@@ -173,7 +175,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
-            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false;
+            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -200,10 +202,11 @@ public final class UnifiedHookConfigParser {
                     case "wifi_scan_hide": wifiScanHide = on; break;
                     case "cell_info_hide": cellInfoHide = on; break;
                     case "camera_id_hide": cameraIdHide = on; break;
+                    case "mic_block": micBlock = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
