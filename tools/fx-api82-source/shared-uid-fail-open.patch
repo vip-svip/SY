@@ -1,17 +1,64 @@
 --- a/lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
 +++ b/lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
-@@ -171,6 +171,14 @@
+@@ -55,6 +55,7 @@
+     private static final Random RNG = new Random();
+     /** 本模块自身包名（绝不对自己 Hook，否则 WebUI/状态接口会被自己的过滤逻辑搞坏） */
+     private static final String SELF_PKG = "de.privacyguard.hook";
++    private static final String SELF_PKG_API101 = "de.privacyguard.adhook";
+ 
+     private final Map<String, String> sw = new HashMap<>();
+     private final Map<String, List<String>> sec = new HashMap<>();
+@@ -64,6 +65,21 @@
+     /** [conf:lsposed_scope] 白名单（空=不额外限制，仍由 LSPosed 作用域决定；默认空） */
+     private final List<String> scopeAllow = new ArrayList<>();
+ 
++    /** Runtime-only compatibility gate; no compile-time dependency on libxposed. */
++    private static boolean isModernLibXposedRuntimeAvailable() {
++        ClassLoader own = MainHook.class.getClassLoader();
++        try {
++            Class.forName("io.github.libxposed.api.XposedModule", false, own);
++            return true;
++        } catch (Throwable ignored) {}
++        try {
++            Class.forName("io.github.libxposed.api.XposedModule", false,
++                    ClassLoader.getSystemClassLoader());
++            return true;
++        } catch (Throwable ignored) {}
++        return false;
++    }
++
+     /* ================= 破坏性 Hook 分级（PART B） =================
+@@ -112,9 +128,9 @@
+     /** 明确的系统进程/框架黑名单：system_server(android)、本模块自身、
+      *  LSPosed 管理器进程永不 Hook（Hook 框架自身会让"模块启用/作用域"状态错乱）。 */
+     private static final Set<String> NEVER_HOOK = new HashSet<>(Arrays.asList(
+-            "android", SELF_PKG, "system", "org.lsposed.manager"));
++            "android", SELF_PKG, SELF_PKG_API101, "system", "org.lsposed.manager"));
+@@ -171,9 +187,23 @@
      @SuppressLint("DefaultLocale")
      @Override
      public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpp) throws Throwable {
++        // If the modern libxposed runtime is present, the API-101 entry owns this
++        // process. This legacy entry becomes a no-op to prevent duplicate Hook chains.
++        if (isModernLibXposedRuntimeAvailable()) {
++            log("modern libxposed runtime detected; legacy entry skipped");
++            return;
++        }
          pkg = lpp.packageName;
-+        // A legacy process-global hook cannot reliably attribute calls when the
-+        // target declares a shared UID. Fail open for that package rather than
-+        // letting a later package callback overwrite the instance-wide pkg field.
++        // A process-global legacy Hook cannot reliably attribute calls for packages
++        // that declare a shared UID. Fail open rather than allowing package callbacks
++        // to overwrite the instance-wide pkg identity and leak one app's policy.
 +        if (lpp.appInfo != null && lpp.appInfo.sharedUserId != null
 +                && !lpp.appInfo.sharedUserId.isEmpty()) {
 +            log("shared UID process: legacy hooks disabled for " + pkg);
 +            return;
 +        }
-         // 自身包名绝不 Hook（否则 WebUI 的 bridge/状态接口会被自己的过滤逻辑裁掉）
-         if (SELF_PKG.equals(pkg)) return;
+         // 自身包名绝不 Hook（否则 WebUI 的 bridge/状态查询会被自己的过滤逻辑裁掉）
+-        if (SELF_PKG.equals(pkg)) return;
++        if (SELF_PKG.equals(pkg) || SELF_PKG_API101.equals(pkg)) return;
+@@ -1007,7 +1037,7 @@
+     private void vpnHide(XC_LoadPackage.LoadPackageParam lpp) {
+         if (!on("vpn_hide")) return;
+         // 本模块自身与 root 管理器不 hook（保持 WebUI 状态显示可用）
+-        if ("de.privacyguard.hook".equals(pkg)) return;
++        if ("de.privacyguard.hook".equals(pkg) || "de.privacyguard.adhook".equals(pkg)) return;
