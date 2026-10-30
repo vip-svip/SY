@@ -52,6 +52,8 @@ public final class UnifiedHookConfigSerializer {
                     .append(",hide_notif_perm=").append(target.hideNotifPerm ? '1' : '0')
                     .append(",usagestats_off=").append(target.usageStatsOff ? '1' : '0')
                     .append(",a11y_hide=").append(target.a11yHide ? '1' : '0')
+                    .append(",hide_fingerprint_hw=").append(target.hideFingerprintHw ? '1' : '0')
+                    .append(",hide_face_hw=").append(target.hideFaceHw ? '1' : '0')
                     .append(",disable_passive_loc=").append(target.disablePassiveLocation ? '1' : '0')
                     .append(",region_diag=").append(target.regionDiag ? '1' : '0')
                     .append(",block_mediastore=").append(target.blockMediaStore ? '1' : '0')
