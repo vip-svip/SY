@@ -33,7 +33,7 @@ The isolated validation branch now stages the exact API-82 `MainHook.java` sourc
 - Both framework APIs as `compileOnly` dependencies, so framework classes are not packaged into the APK.
 - A reflective API-101 runtime check in the legacy entry to avoid duplicate hook registration, plus a legacy shared-UID fail-open guard.
 
-The dual-entry static regression and exact source restoration have passed in GitHub Actions run `41050374798`. The Android build is still running at this checkpoint. Even after APK compilation, framework discovery/loading on API 82 and API 101 runtimes remains unverified. The final KernelSU ZIP is not rebuilt.
+The dual-entry static regression and exact source restoration passed in GitHub Actions. Run `41050652834` also passed unit tests and compiled/assembled the APK, but its post-build verifier failed because it searched only `classes.dex` instead of checking all DEX files; no validation artifact was uploaded from that run. The verifier has been corrected to scan every DEX file, and a rerun is pending. Framework discovery/loading on API 82 and API 101 runtimes remains unverified. The final KernelSU ZIP is not rebuilt.
 
 The local FX root-side generator was inspected: it derives the legacy `xposed.conf` and modern LSPosed Remote Files payload from the same `settings.conf`. Legacy target-app hooks still read the legacy mirror; modern hooks read Remote Files. This is a dual-publication bridge, not proof of identical feature semantics. The root-side generator itself is outside this API-only validation branch and must be carried into the final module integration.
 
