@@ -45,3 +45,28 @@ The Iter5 `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` contain
 3. Migrate low-risk, deterministic features first; add API-level and package-scope tests before enabling any feature.
 4. Test APK installation/update/removal and Remote Files access on a real LSPosed device.
 5. Only then integrate a validated APK into the complete FX ZIP. Do not replace the preserved Iter5 archive with an unverified candidate.
+
+
+## 2026-10-30 continuation: source-level verification
+
+The current API 101 source was inspected directly at commit
+`c91e576f0cef2088174fe16161bc8f559d3cc578`. This refines the older summary above:
+
+- Implemented in source: package-scoped ad View observers; splash/feed/overlay marker matching; read-only BillingClient response/purchase-state diagnostics; package-scoped Android ID transformation; EXIF tag redaction; clipboard-read blocking policy; sensor sampling-rate clamp and sensor-list hiding policy.
+- These are source-level implementations, not proof that every target app is compatible or that LSPosed injected successfully on a device.
+- Rewarded-ad class-name markers exist, but a complete rewarded-ad lifecycle observer and reward-callback verification are not implemented. The module must never fabricate a reward, forge a callback, alter purchase state, or bypass server-side entitlement checks.
+- No general dynamic member-class discovery implementation was verified. Do not mark that requirement complete.
+- The membership path is diagnostic only. It must remain read-only.
+- The two package identities remain separate: manifest/applicationId is `de.privacyguard.adhook`; legacy module package is `de.privacyguard.hook`. One APK has not been produced.
+- The complete historical Iter5 source archive is still absent from the repository branch. The old branch's small MainHook is not a valid substitute.
+
+## Immediate blockers and safe migration order
+
+1. Recover the complete historical Iter5 source archive before porting the missing feature inventory. Do not infer implementations from names in old configuration files.
+2. Keep one explicit owner per target-process hook. Until the APK merge is built and tested, avoid enabling overlapping legacy and modern implementations in the same process.
+3. Prioritize opt-in privacy protections with bounded, deterministic behavior (EXIF metadata redaction, clipboard read policy, sensor minimization), each with independent tests and a fail-open compatibility path.
+4. Keep app-list, process-list, telephony, location, camera/microphone, filesystem and system-property transformations disabled until each has API-level and OEM-specific tests. These can break core app/device behavior and must not be silently migrated.
+5. For ads, support detection, classification, user-controlled visibility and documented opt-out behavior. Rewarded-ad rewards and membership entitlements remain controlled by the app/service; do not synthesize successful rewards or VIP status.
+6. Consolidate package identity, LSPosed metadata, entrypoint, target scope and Remote Files transport only after the complete source inventory is available and CI can build the single APK.
+7. Run CI and host regression tests; report physical OnePlus 12 injection and behavior separately.
+
