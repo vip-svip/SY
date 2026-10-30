@@ -32,6 +32,28 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesMultipleDeveloperRulesAndOrdersByPriorityAtRuntime() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.vpn,dev_rule_1=vip|com.example.vpn.auth.AuthState#isVip()Z|true|100," +
+                "dev_rule_2=login|Lcom/example/vpn/auth/Session;->isLoggedIn()Z|RETURN_TRUE|50," +
+                "dev_rule_3=update|com.example.vpn.update.Policy.shouldShowUpdate()Z|false|10\\n");
+        UnifiedHookConfigParser.Target target = result.targets.get("com.example.vpn");
+        assertEquals(3, target.developerRules.size());
+        assertEquals("vip", target.developerRules.get(0).id);
+        assertEquals(100, target.developerRules.get(0).priority);
+        assertEquals("com.example.vpn.auth.Session#isLoggedIn()Z", target.developerRules.get(1).descriptor);
+        assertFalse(target.developerRules.get(2).replacement);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDeveloperRuleOutsideConfiguredVpnPackage() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.vpn,dev_rule_1=vip|com.other.Auth#isVip()Z|true|100\\n");
+    }
+
+    @Test
     public void parsesIndependentMasterSwitchesAndPerPackageFeatures() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(VALID);
         assertTrue(result.adsEnabled);
