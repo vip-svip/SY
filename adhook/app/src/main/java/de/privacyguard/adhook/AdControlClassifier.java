@@ -13,6 +13,6 @@ public final class AdControlClassifier {
                 || text.equals("close ad") || text.equals("ad choices")
                 || text.contains("countdown") || text.contains("跳过")
                 || text.contains("关闭") || text.contains("倒计时")
-                || text.matches(".*\\\\d+\\\\s*秒后.*");
+                || text.matches(".*\\d+\\s*秒后.*");
     }
 }
