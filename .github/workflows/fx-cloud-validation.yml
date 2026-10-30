@@ -1,0 +1,74 @@
+name: FX 1.0.0 cloud compile validation (API101 baseline)
+
+on:
+  push:
+    branches: [fx-v1.0.0-cloud-validation]
+    paths:
+      - "adhook/**"
+      - ".github/workflows/fx-cloud-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Validate API 101 project wiring
+        shell: bash
+        run: |
+          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          PARSER_SRC=adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          test -s "$JAVA_SRC"
+          test -s "$PARSER_SRC"
+          grep -q 'UnifiedHookConfigParser.parse' "$JAVA_SRC"
+          grep -q 'io.github.libxposed:api:101.0.1' adhook/app/build.gradle
+          grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
+          test -s adhook/app/src/main/resources/META-INF/xposed/java_init.list
+          test -s adhook/app/src/main/resources/META-INF/xposed/scope.list
+
+      - name: Run unit tests and assemble APK
+        run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          APK=adhook/app/build/outputs/apk/debug/app-debug.apk
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -s "$APK"
+          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$APK"
+          unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
+          unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
+
+      - name: Upload validation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXAdHook-API101-baseline-validation
+          path: adhook/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
