@@ -7,6 +7,9 @@ REMOVER="$ROOT/scripts/remove_adhook_app.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$INSTALLER" ] || fail "installer helper missing"
 [ -s "$REMOVER" ] || fail "remover helper missing"
+PACKAGED_INSTALLER="$ROOT/fx-module/scripts/install_adhook_app.sh"
+[ -s "$PACKAGED_INSTALLER" ] || fail "packaged installer helper missing"
+cmp -s "$INSTALLER" "$PACKAGED_INSTALLER" || fail "packaged installer drifted from tested installer"
 TMP="${TMPDIR:-/tmp}/fx-adhook-installer-test-$$"
 mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
