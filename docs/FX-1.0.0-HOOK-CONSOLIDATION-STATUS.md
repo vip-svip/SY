@@ -70,7 +70,7 @@ For rewarded ads, the Hook can identify and preserve the real rewarded-ad flow a
 ## Remaining integration work
 
 - Consolidate API-82 and API-101 into one APK only after runtime and config-bridge validation.
-- Reconcile all legacy feature switches against actual modern implementations; port only semantically equivalent, tested behavior.
+- Reconcile all legacy feature switches against actual modern implementations; port only semantically equivalent, tested behavior. In particular, legacy `audio_fp_block` still has no API101 target-level equivalent; the API101 microphone silence hook is separate and must not be counted as audio-fingerprint parity.
 - Connect the Hook's single target/config registry to the FX UI and root-side config publisher.
 - Validate the complete KernelSU ZIP and module lifecycle separately from the Hook APK.
 - Perform real-device verification on the OnePlus 12; CI cannot substitute for it.
