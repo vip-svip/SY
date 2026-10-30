@@ -8,8 +8,8 @@ import java.util.Set;
 
 /**
  * A bounded, package-scoped Debug fixture rule for a developer-owned application.
- * Supported descriptor syntaxes normalize to an exact no-argument boolean getter.
- * The parser caps each package at 16 rules and constrains actions to local boolean fixtures.
+ * Exact JVM descriptors support method observation with overloads and typed parameters.
+ * Legacy owner#method()Z descriptors remain accepted for boolean Debug fixtures.
  */
 public final class DeveloperHookRule {
     public enum Action { RETURN_TRUE, RETURN_FALSE, OBSERVE, DISABLED }
@@ -67,8 +67,8 @@ public final class DeveloperHookRule {
         if (value == null || value.length() > 512) return null;
         String d = value;
         if (d.startsWith("L") && d.contains(";->")) {
-            int arrow = d.indexOf(";->");
-            d = d.substring(1, arrow).replace('/', '.') + "#" + d.substring(arrow + 3);
+            if (!d.matches("L[A-Za-z_$][A-Za-z0-9_$]*(/[A-Za-z_$][A-Za-z0-9_$]*)*;->[A-Za-z_$<>][A-Za-z0-9_$<>]*\\(.*\\).+")) return null;
+            return d;
         } else if (!d.contains("#")) {
             int paren = d.indexOf('(');
             int dot = paren < 0 ? -1 : d.lastIndexOf('.', paren);
@@ -79,7 +79,11 @@ public final class DeveloperHookRule {
     }
 
     private static boolean isInPackage(String descriptor, String packageName) {
+        if (descriptor.startsWith("L") && descriptor.contains(";->")) {
+            return DeveloperExecutableDescriptor.parse(descriptor, packageName) != null;
+        }
         int split = descriptor.indexOf('#');
+        if (split <= 0) return false;
         String owner = descriptor.substring(0, split);
         return owner.startsWith(packageName + ".")
                 && !owner.startsWith("java.") && !owner.startsWith("android.");
