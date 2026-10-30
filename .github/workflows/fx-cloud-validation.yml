@@ -10,6 +10,7 @@ on:
       - "scripts/remove_adhook_app.sh"
       - "fx-module/scripts/**"
       - "tools/fx-api101-source/**"
+      - "tools/fx-api82-source/MainHook.gz.b64.part*"
       - ".github/workflows/fx-cloud-validation.yml"
 
 permissions:
@@ -62,6 +63,8 @@ jobs:
           echo "130da4f15b96def49dfb8e5f83170f38d6aa3b847e6afc284b8d894ab4d892cf  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
           python3 tools/fx-api101-source/patch_region_diagnostics.py
           echo "6dd32af956e427f8f0b3f012f7e2631fef7860e2a7de230328d583864d99ad28  adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" | sha256sum -c -
+          cat tools/fx-api82-source/MainHook.gz.b64.part{1..8} | base64 -d | gzip -dc > adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+          echo "77cec8b8e28b3673b4c8badc93aa1e1a49dff2f289779d4ca72b97b1f0dcc562  adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | sha256sum -c -
       - name: Validate API 101 project wiring
         shell: bash
         run: |
@@ -71,6 +74,11 @@ jobs:
           test -s "$PARSER_SRC"
           grep -q 'UnifiedHookConfigParser.parse' "$JAVA_SRC"
           grep -q 'io.github.libxposed:api:101.0.1' adhook/app/build.gradle
+          grep -q 'de.robv.android.xposed:api:82' adhook/app/build.gradle
+          grep -q 'xposedmodule' adhook/app/src/main/AndroidManifest.xml
+          grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
+          grep -q 'isModernLibXposedRuntimeAvailable' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+          grep -q 'SELF_PKG_API101' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           grep -q 'minApiVersion=101' adhook/app/src/main/resources/META-INF/xposed/module.prop
           test -s adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
@@ -97,6 +105,9 @@ jobs:
           "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$APK"
           unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
           unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
+          unzip -l "$APK" | grep -q 'assets/xposed_init'
+          unzip -l "$APK" | grep -q 'de/privacyguard/hook/MainHook'
+          aapt dump xmltree "$APK" AndroidManifest.xml | grep -q 'xposedmodule'
 
       - name: Upload validation APK
         uses: actions/upload-artifact@v4
