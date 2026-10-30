@@ -45,3 +45,26 @@
 - API82 的 `MainHook` 仍在 `handleLoadPackage` 中按包回调安装一批进程级 Hook；共享进程中多个包的回调归属可能不明确。该风险尚未修复，不能将 API82 直接并入生产 APK。
 - API101 本地精确源码快照已在 Actions run `41043234124` 编译、单元测试、签名和元数据检查全部通过；APK 仍是 API101 验证产物。
 - 目前未完成旧框架 API 93–100 与现代 API 101+ 的实际框架加载测试。双入口文件同时存在仅证明 APK 可打包，不证明两类框架都会正确识别或只加载一条入口。
+
+
+## 2026-10-30 追加：旧入口共享进程风险与框架识别依据
+
+### API82 旧入口代码审计
+
+- `MainHook` 在 `handleLoadPackage` 中把包名写入实例字段 `pkg`，而不是每个回调使用不可变的局部目标上下文。
+- 当前文件中，设备标识伪装、包查询过滤、广告 ID 等 Hook 回调会读取 `pkg`。如果框架在同一进程为多个包复用同一模块实例，后一次回调可能覆盖前一次包名，产生跨包策略串用。
+- 旧入口没有可靠的进程内包身份注册表，也没有“共享 UID/多包进程 fail-open”的统一门禁。不能假定 API82 进程中永远只有一个 package。
+- API101 端的传感器、剪贴板、Android ID 和动态 ClassLoader 观察已加入多包进程 fail-open 条件；API82 端尚未完成等价迁移。
+
+### 框架官方接口差异
+
+- LSPosed 现代模块文档明确区分旧 `assets/xposed_init` 与现代 `META-INF/xposed/java_init.list`，并要求现代入口继承 `XposedModule`，使用新的 interceptor chain API。参考：https://github.com/LSPosed/LSPosed/wiki/Develop-Xposed-Modules-Using-Modern-Xposed-API。
+- libxposed API 101 明确不再注入 Zygote，模块只在作用域进程内加载。参考：https://libxposed.github.io/api/io/github/libxposed/api/XposedInterface.html。
+- 现实项目已有“现代标准包 + 旧框架 Legacy 包”的分发做法，例如 DPIS 的模块版本说明；这说明分开构建是可行且常见的兼容路线，但不能据此断言双元数据单 APK 不可能。参考：https://modules.lsposed.org/module/io.github.kwensiu.dpis/。
+
+### 当前决策
+
+- 仍以用户要求的“一个 Hook 应用”为目标：统一 UI、配置 schema、applicationId 和发布版本。
+- 单 APK 双入口保留为待验证原型，不直接认定可用。必须检查 API101 框架是否同时把同包识别为现代模块与 legacy 模块，是否触发双重入口；还必须确认 API93–100 能否忽略现代资源并正常加载 legacy 入口。
+- 在框架源码/真实框架测试给出确定结论前，不将两个入口合并到生产 APK。若同包双识别导致重复加载，优先寻找框架侧单入口选择机制；不能靠运行时猜测框架版本或吞异常掩盖双重注册。
+- 下一项代码工作：把 API82 的 `pkg` 字段依赖列出逐个迁移为 final package-scoped context；对无法准确归属调用方的进程级 Hook 先 fail-open。随后添加多包模拟回归测试。
