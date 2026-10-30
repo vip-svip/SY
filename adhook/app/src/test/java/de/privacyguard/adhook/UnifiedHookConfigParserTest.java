@@ -129,8 +129,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesOptInExifPrivacyFeatureIndependently() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n" +
-                "[list:targets]\\ncom.example.app,privacy=0,exif_strip=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n" +
+                "[list:targets]\ncom.example.app,privacy=0,exif_strip=1\n");
         assertTrue(result.isExifStripEnabledFor("com.example.app"));
         assertFalse(result.isPrivacyEnabledFor("com.example.app"));
     }
@@ -138,7 +138,7 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void legacyConfigNeverEnablesExifRedaction() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.app,splash=1\\n");
+                "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
         assertFalse(result.isExifStripEnabledFor("com.example.app"));
     }
 
