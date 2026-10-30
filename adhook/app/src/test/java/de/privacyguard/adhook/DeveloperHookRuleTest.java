@@ -19,7 +19,24 @@ public class DeveloperHookRuleTest {
                 "login|Lcom/example/vpn/auth/Session;->isLoggedIn()Z|true|50",
                 "com.example.vpn");
         assertNotNull(rule);
-        assertEquals("com.example.vpn.auth.Session#isLoggedIn()Z", rule.descriptor);
+        assertEquals("Lcom/example/vpn/auth/Session;->isLoggedIn()Z", rule.descriptor);
+    }
+
+    @Test public void acceptsTypedJvmMethodForReadOnlyObservation() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;|OBSERVE|20",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals(DeveloperHookRule.Action.OBSERVE, rule.action);
+        assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;", rule.descriptor);
+    }
+
+    @Test public void acceptsConstructorDescriptorForMetadataResolution() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "construct|Lcom/example/vpn/Trace;-><init>(I)V|OBSERVE|1",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals(DeveloperHookRule.Action.OBSERVE, rule.action);
     }
 
     @Test public void acceptsDottedSyntaxAndFalseAction() {
