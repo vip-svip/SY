@@ -90,6 +90,16 @@ method = """    /** Hide input-device enumeration for the selected app only; no 
         }
 
         try {
+            Method getMicrophones = managerType.getDeclaredMethod("getMicrophones");
+            hook(getMicrophones).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> shouldHideMicrophoneHardware()
+                            ? java.util.Collections.emptyList() : chain.proceed());
+            installed++;
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "AudioManager.getMicrophones metadata hook unavailable");
+        }
+
+        try {
             Class<?> recordType = Class.forName("android.media.AudioRecord", false, null);
             for (Method method : recordType.getDeclaredMethods()) {
                 if (method.getParameterTypes().length != 0) continue;
