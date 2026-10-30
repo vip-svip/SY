@@ -207,6 +207,19 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesNotificationUsageAndAccessibilityFlagsIndependently() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.systemsurface,block_notif_listen=1,hide_notif_perm=0,usagestats_off=1,a11y_hide=0\n")
+                .targets.get("com.example.systemsurface");
+        assertNotNull(target);
+        assertTrue(target.blockNotifListen);
+        assertFalse(target.hideNotifPerm);
+        assertTrue(target.usageStatsOff);
+        assertFalse(target.a11yHide);
+    }
+
+    @Test
     public void parsesAudioFingerprintPrivacyFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
