@@ -42,7 +42,7 @@ The isolated validation branch now stages the exact API-82 `MainHook.java` sourc
 
 The dual-entry static regression, exact API82 source restoration, unit tests, APK compilation, signature verification and metadata/DEX checks most recently passed in GitHub Actions run `41052177773` (commit `b608ed9678d8b94dd4f8a8431391c55692b45d88`). This run also passed the microphone privacy regression and its JUnit tests. Artifact `FXHook-API82-API101-single-apk-validation` (artifact ID `12974079489`, archive SHA-256 `51ae857a080e98eb55437efa9da38dd6010e09c34550ee50f864fb25d7b2926cae`) contains one `app-debug.apk`. Earlier run `41050895875` produced an inspected APK with both entry descriptors and both Hook classes in the same APK. This remains a debug-signed build validation, not a release-signed update package. Framework discovery/loading on API 82 and API 101 runtimes remains unverified. The final KernelSU ZIP is not rebuilt.
 
-The local FX root-side generator was inspected: it derives the legacy `xposed.conf` and modern LSPosed Remote Files payload from the same `settings.conf`. Legacy target-app hooks still read the legacy mirror; modern hooks read Remote Files. This is a dual-publication bridge, not proof of identical feature semantics. The root-side generator itself is outside this API-only validation branch and must be carried into the final module integration.
+The local FX root-side generator was inspected: it derives the legacy `xposed.conf` and modern LSPosed Remote Files payload from the same `settings.conf`. Legacy target-app hooks still read the legacy mirror; modern hooks read Remote Files. This is a dual-publication bridge, not proof of identical feature semantics. The root-side generator and UI were audited in the extracted working FX tree; their per-app API101 flags, Remote Files serialization and multi-user rollback pass host regressions. The full root source tree is not yet checked into this isolated validation branch. Exact source hashes and test results are in `docs/FX-1.0.0-ROOT-HOOK-CONFIG-STATUS.md`.
 
 ## API-82 and API-101 consolidation
 
@@ -115,7 +115,7 @@ Location spoofing flags (`mock_location`, `perapp_mock`, `gnss_spoof`, `gps_accu
 
 ## Root publisher/UI integration blocker
 
-The API101 schema now contains the flags listed in the migration checkpoints, but this validation branch has not yet proven that the full FX KernelSU UI and root-side publisher generate the same fields for both legacy `xposed.conf` and API101 LSPosed Remote Files. Until that bridge is integrated and tested against the full module tree, these are Hook-side capabilities, not guaranteed end-to-end toggles in the installed FX module.
+The extracted working FX tree now has matching per-app UI fields and a root-side Remote Files publisher for the API101 schema; host regression tests pass. However, these root files are not yet part of this isolated GitHub branch or a rebuilt KernelSU ZIP. Treat the bridge as source-audited, not yet proven in an installed end-to-end module.
 
 ## APK signing continuity blocker
 
