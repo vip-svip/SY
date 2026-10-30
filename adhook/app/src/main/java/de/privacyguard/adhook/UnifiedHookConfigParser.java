@@ -36,6 +36,10 @@ public final class UnifiedHookConfigParser {
         public final boolean micBlock;
         public final boolean micHwHide;
         public final boolean audioFpBlock;
+        public final boolean blockNotifListen;
+        public final boolean hideNotifPerm;
+        public final boolean usageStatsOff;
+        public final boolean a11yHide;
         public final boolean disablePassiveLocation;
         public final boolean regionDiag;
         public final boolean blockMediaStore;
@@ -131,6 +135,20 @@ public final class UnifiedHookConfigParser {
                boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
                boolean micBlock, boolean disablePassiveLocation, boolean regionDiag, boolean blockMediaStore,
                boolean micHwHide, boolean audioFpBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock,
+                    disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock,
+                    false, false, false, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
+               boolean micBlock, boolean disablePassiveLocation, boolean regionDiag, boolean blockMediaStore,
+               boolean micHwHide, boolean audioFpBlock, boolean blockNotifListen, boolean hideNotifPerm,
+               boolean usageStatsOff, boolean a11yHide) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -151,6 +169,10 @@ public final class UnifiedHookConfigParser {
             this.blockMediaStore = blockMediaStore;
             this.micHwHide = micHwHide;
             this.audioFpBlock = audioFpBlock;
+            this.blockNotifListen = blockNotifListen;
+            this.hideNotifPerm = hideNotifPerm;
+            this.usageStatsOff = usageStatsOff;
+            this.a11yHide = a11yHide;
         }
 
         public boolean enabled() {
@@ -250,7 +272,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
-            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false, blockMediaStore=false, micHwHide=false, audioFpBlock=false;
+            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false, blockMediaStore=false, micHwHide=false, audioFpBlock=false, blockNotifListen=false, hideNotifPerm=false, usageStatsOff=false, a11yHide=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -280,13 +302,17 @@ public final class UnifiedHookConfigParser {
                     case "mic_block": micBlock = on; break;
                     case "mic_hw_hide": micHwHide = on; break;
                     case "audio_fp_block": audioFpBlock = on; break;
+                    case "block_notif_listen": blockNotifListen = on; break;
+                    case "hide_notif_perm": hideNotifPerm = on; break;
+                    case "usagestats_off": usageStatsOff = on; break;
+                    case "a11y_hide": a11yHide = on; break;
                     case "disable_passive_loc": disablePassiveLocation = on; break;
                     case "region_diag": regionDiag = on; break;
                     case "block_mediastore": blockMediaStore = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation, regionDiag, blockMediaStore, micHwHide, audioFpBlock, blockNotifListen, hideNotifPerm, usageStatsOff, a11yHide));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
