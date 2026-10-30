@@ -255,6 +255,19 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsAdvertisingIdUnifyFlag() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.ads,ad_id_unify=1\n").targets.get("com.example.ads");
+        targets.put("com.example.ads", source);
+        String serialized = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(serialized).targets.get("com.example.ads");
+        assertTrue(parsed.adIdUnify);
+        assertTrue(serialized.contains("ad_id_unify=1"));
+    }
+
+    @Test
     public void serializerRoundTripsClipboardIsolationFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
