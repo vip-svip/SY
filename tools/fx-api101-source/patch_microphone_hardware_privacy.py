@@ -133,7 +133,7 @@ once("    /** Silence selected AudioRecord read buffers; MediaRecorder/native ca
      method + "    /** Silence selected AudioRecord read buffers; MediaRecorder/native capture are not covered. */\n")
 
 path.write_text(source)
-expected = "1521cbdc4fece16381bd40441178f78976e563f5824bf915663f475af02d4dec"
+expected = "654d39cea7bb3c1c19bebf1dbd56808e395a66de7edc161d7d12d7c8dcb3fdbf"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
 if actual != expected:
     raise SystemExit(f"microphone hardware privacy source hash mismatch: {actual}")
