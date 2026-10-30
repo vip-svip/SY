@@ -109,4 +109,4 @@ Legacy `cameraNull()` and `cam_hw_hide` need separate review. Returning null or 
 - Process-scoped authorization fails open when more than one package is observed in the process. Hook registration failure also leaves capture unchanged.
 - No `startRecording()` interception, microphone hardware hiding, synthetic-noise injection, MediaRecorder/camera audio interception, or native capture coverage is claimed.
 - UI label explicitly states this is not equivalent to disabling Android's microphone permission.
-- Parser/serializer round-trip and buffer-boundary tests added. Host smoke checks passed; Android API-level and device runtime verification remain pending.
+- Parser/serializer round-trip and buffer-boundary tests added. GitHub Actions run `41085666969` passed Android debug compilation, unit tests, the dedicated AudioRecord regression, APK signature verification, and libxposed metadata checks. Built APK SHA-256: `b23b259e0f0f08a0c9b3ceb46b11cdf451a280e1f40e8a2128078448fbcbca01`. OnePlus 12 / LSPosed runtime verification remains pending.
