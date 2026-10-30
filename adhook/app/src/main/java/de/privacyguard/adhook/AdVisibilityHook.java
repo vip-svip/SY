@@ -146,6 +146,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -298,13 +299,12 @@ public final class AdVisibilityHook extends XposedModule {
                         + ";->" + jvmDescriptor.substring(split + 1, jvmDescriptor.length() - 3) + "()Z";
             }
             parsed = DeveloperExecutableDescriptor.parse(jvmDescriptor, packageName);
-            if (parsed == null || "<init>".equals(parsed.name)) return;
+            if (parsed == null) return;
             java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (!(executable instanceof Method)) return;
-            Method method = (Method) executable;
-            if (developerTestHookedMethods.contains(method)) return;
+            if (executable == null || developerObservedExecutables.contains(executable)) return;
+            final String executableName = "<init>".equals(parsed.name) ? "<init>" : parsed.name;
             final java.util.concurrent.atomic.AtomicLong hitCounter = new java.util.concurrent.atomic.AtomicLong();
-            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         long started = System.nanoTime();
                         long hits = hitCounter.incrementAndGet();
@@ -318,20 +318,21 @@ public final class AdVisibilityHook extends XposedModule {
                             long elapsedMicros = (System.nanoTime() - started) / 1000L;
                             if (hits <= 20L || hits % 100L == 0L) {
                                 logFx(Log.INFO, "dev-observe rule=" + label + " package=" + packageName
-                                        + " method=" + method.getName() + " args=[" + argTypes
+                                        + " executable=" + executableName + " args=[" + argTypes
                                         + "] resultType=" + (result == null ? "null" : result.getClass().getName())
+                                        + " instanceType=" + (chain.getThisObject() == null ? "null" : chain.getThisObject().getClass().getName())
                                         + " durationUs=" + elapsedMicros + " hit=" + hits);
                             }
                             return result;
                         } catch (Throwable failure) {
                             long elapsedMicros = (System.nanoTime() - started) / 1000L;
                             logFx(Log.WARN, "dev-observe exception rule=" + label + " package="
-                                    + packageName + " method=" + method.getName() + " exception="
+                                    + packageName + " executable=" + executableName + " exception="
                                     + failure.getClass().getName() + " durationUs=" + elapsedMicros);
                             throw failure;
                         }
                     });
-            developerTestHookedMethods.add(method);
+            developerObservedExecutables.add(executable);
             logFx(Log.INFO, "developer observer installed=" + label + " package=" + packageName
                     + " descriptor=" + descriptor);
         } catch (Throwable failure) {
