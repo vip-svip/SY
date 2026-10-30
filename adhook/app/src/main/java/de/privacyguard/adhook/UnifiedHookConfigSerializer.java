@@ -73,7 +73,8 @@ public final class UnifiedHookConfigSerializer {
                     .append(",camera_access_block=").append(target.cameraAccessBlock ? '1' : '0')
                     .append(",location_access_block=").append(target.locationAccessBlock ? '1' : '0')
                     .append(",mic_access_block=").append(target.microphoneAccessBlock ? '1' : '0')
-                    .append(",media_store_query_block=").append(target.mediaStoreQueryBlock ? '1' : '0');
+                    .append(",media_store_query_block=").append(target.mediaStoreQueryBlock ? '1' : '0')
+                    .append(",dev_hook_enabled=").append(target.developerHooksEnabled ? '1' : '0');
             int ruleIndex = 1;
             for (DeveloperHookRule rule : target.developerRules) {
                 if (rule == null || ruleIndex > 16) throw new IllegalArgumentException("invalid developer rule list");
