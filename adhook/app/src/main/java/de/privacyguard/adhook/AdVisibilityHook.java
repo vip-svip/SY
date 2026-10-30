@@ -1460,8 +1460,12 @@ public final class AdVisibilityHook extends XposedModule {
                         Object result = chain.proceed();
                         // Record invocation only. Never log or alter returned membership data.
                         if (memberStateObservationCount.incrementAndGet() <= MAX_MEMBER_STATE_OBSERVATIONS) {
+                            MemberCandidateClassifier.Kind runtimeKind =
+                                    MemberCandidateClassifier.kindOfRuntimeValue(result);
                             logFx(Log.DEBUG, "member state observation class=" + shortName(candidate.getName())
-                                    + " method=" + method.getName() + " mode=read-only");
+                                    + " method=" + method.getName()
+                                    + " result-kind=" + runtimeKind.name()
+                                    + " mode=read-only");
                         }
                         return result;
                     });

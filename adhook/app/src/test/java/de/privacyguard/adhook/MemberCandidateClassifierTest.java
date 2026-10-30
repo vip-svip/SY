@@ -104,6 +104,17 @@ public class MemberCandidateClassifierTest {
                 MemberCandidateClassifier.inspect(SampleField.class.getDeclaredField("expiresAt")).kind);
     }
 
+    @Test public void runtimeObservationClassifiesOnlyValueType() {
+        assertEquals(MemberCandidateClassifier.Kind.BOOLEAN,
+                MemberCandidateClassifier.kindOfRuntimeValue(Boolean.TRUE));
+        assertEquals(MemberCandidateClassifier.Kind.LONG,
+                MemberCandidateClassifier.kindOfRuntimeValue(Long.valueOf(123456L)));
+        assertEquals(MemberCandidateClassifier.Kind.STRING,
+                MemberCandidateClassifier.kindOfRuntimeValue("secret-token-must-not-be-logged"));
+        assertEquals(MemberCandidateClassifier.Kind.UNKNOWN,
+                MemberCandidateClassifier.kindOfRuntimeValue(null));
+    }
+
     private MemberCandidateClassifier.Candidate inspect(String name) throws Exception {
         Method method = Sample.class.getDeclaredMethod(name);
         return MemberCandidateClassifier.inspect(method);

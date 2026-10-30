@@ -93,6 +93,14 @@ public final class MemberCandidateClassifier {
     }
 
     /**
+     * Classifies only the runtime result's Java type. Never serializes or logs the
+     * returned value, object fields, strings, identifiers, tokens, or timestamps.
+     */
+    public static Kind kindOfRuntimeValue(Object value) {
+        return value == null ? Kind.UNKNOWN : kindOf(value.getClass());
+    }
+
+    /**
      * Conservative signature-shape heuristic for obfuscated state holders.
      * It inspects declarations only and never invokes methods or reads field values.
      */
