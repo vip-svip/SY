@@ -55,3 +55,13 @@ These are source-level facts, not proof of LSPosed injection or behavior on a ph
 4. Port the remaining legacy features individually and maintain an explicit parity matrix.
 5. Consolidate package identity, LSPosed metadata, entrypoint, scope, and Remote Files only after CI builds and verifies one APK.
 6. Verify host regressions and APK signature in CI; separately verify OnePlus 12 injection and behavior.
+
+
+## Latest API-101 build provenance
+
+- Source/workflow commit: `8d69b579fa921ddce1f482619f47298888715b1b`
+- GitHub Actions run: [41059922912](https://github.com/vip-svip/SY/actions/runs/41059922912) — success
+- APK SHA-256: `cbab80fe056f8417939d2889093331c64d6f4c9638e38fb60f36d67aac118817`
+- CI verified: Java/Gradle compile, unit tests, APK signature, modern LSPosed metadata/resources, and bounded member/rewarded-flow DEX markers.
+- The artifact is an API-101 Hook APK build artifact, not yet merged with the legacy API-82 Hook and not yet inserted into the complete KernelSU ZIP.
+- No physical OnePlus 12 LSPosed injection or runtime behavior test has been performed.
