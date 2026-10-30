@@ -124,6 +124,24 @@ public class DeveloperHookRuleTest {
         assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;", rule.descriptor);
     }
 
+    @Test public void rejectsReplacementForParameterizedMethod() {
+        assertNull(DeveloperHookRule.parse(
+                "unsafe|Lcom/example/vpn/Trace;->dispatch(I)Z|RETURN_TRUE|1",
+                "com.example.vpn"));
+    }
+
+    @Test public void rejectsReplacementForConstructor() {
+        assertNull(DeveloperHookRule.parse(
+                "unsafe|Lcom/example/vpn/Trace;-><init>()V|RETURN_FALSE|1",
+                "com.example.vpn"));
+    }
+
+    @Test public void keepsParameterizedObservationAvailable() {
+        assertNotNull(DeveloperHookRule.parse(
+                "trace|Lcom/example/vpn/Trace;->dispatch(I)Z|OBSERVE|1",
+                "com.example.vpn"));
+    }
+
     @Test public void rejectsOutOfPackageAndUnsupportedSignature() {
         assertNull(DeveloperHookRule.parse("x|com.other.App#isVip()Z|true|1", "com.example.vpn"));
         assertNull(DeveloperHookRule.parse("x|com.example.vpn.App#isVip(Ljava/lang/String;)Z|true|1", "com.example.vpn"));
