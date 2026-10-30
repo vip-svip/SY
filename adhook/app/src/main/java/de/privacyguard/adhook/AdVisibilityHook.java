@@ -205,7 +205,8 @@ public final class AdVisibilityHook extends XposedModule {
         if (target == null) return;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         final boolean developerTestForPackage = debuggableTarget && (target.developerVipMethod != null
-                || target.developerLoginMethod != null || target.developerHideUpdateMethod != null);
+                || target.developerLoginMethod != null || target.developerHideUpdateMethod != null
+                || !target.developerRules.isEmpty());
         if (developerTestForPackage) {
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerVipMethod, true, "vip");
             installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
