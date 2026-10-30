@@ -169,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           APK=adhook/app/build/outputs/apk/debug/app-debug.apk
-          DEXSTR=$(while IFS= read -r dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\\.dex
+          DEXSTR=$(while IFS= read -r dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?[.]dex$' ))
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           for token in "领取金币" "看视频领" "看广告领" "激励视频" "广告奖励"; do
             grep -Fq "$token" "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" || { echo "::error::Source missing rewarded UI evidence marker: $token"; exit 1; }
