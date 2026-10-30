@@ -69,6 +69,41 @@ public class MemberCandidateClassifierTest {
         assertFalse(MemberCandidateClassifier.hasObfuscatedStateShape(IncompleteStateHolder.class));
     }
 
+
+    static class FakeLiveData {}
+    static class FakeCompletionStage {}
+    static class FakeDeferred {}
+    static class SampleAsync {
+        FakeLiveData getLiveData() { return null; }
+        FakeCompletionStage getCompletionStage() { return null; }
+        FakeDeferred getDeferred() { return null; }
+    }
+
+    @Test public void recognizesCommonAsyncContainerSignatures() throws Exception {
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getLiveData").kind);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getCompletionStage").kind);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getDeferred").kind);
+    }
+
+    private MemberCandidateClassifier.Candidate inspectAsync(String name) throws Exception {
+        return MemberCandidateClassifier.inspect(SampleAsync.class.getDeclaredMethod(name));
+    }
+
+    static class SampleField {
+        boolean vip;
+        long expiresAt;
+    }
+
+    @Test public void classifiesFieldMetadataWithoutReadingFieldValues() throws Exception {
+        assertEquals(MemberCandidateClassifier.Kind.BOOLEAN,
+                MemberCandidateClassifier.inspect(SampleField.class.getDeclaredField("vip")).kind);
+        assertEquals(MemberCandidateClassifier.Kind.LONG,
+                MemberCandidateClassifier.inspect(SampleField.class.getDeclaredField("expiresAt")).kind);
+    }
+
     private MemberCandidateClassifier.Candidate inspect(String name) throws Exception {
         Method method = Sample.class.getDeclaredMethod(name);
         return MemberCandidateClassifier.inspect(method);

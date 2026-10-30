@@ -81,7 +81,11 @@ public final class MemberCandidateClassifier {
         String name = type.getName().toLowerCase(Locale.ROOT);
         if (name.contains("kotlinx.coroutines.flow")
                 || name.contains("livedata") || name.contains("observable")
-                || name.contains("publisher") || name.contains("flowable")) {
+                || name.contains("publisher") || name.contains("flowable")
+                || name.contains("completablefuture") || name.contains("completionstage")
+                || name.contains("deferred") || name.contains("rxjava")
+                || name.contains("reactor.core.publisher")
+                || name.contains("listenablefuture")) {
             return Kind.ASYNC_FLOW;
         }
         if (!type.isPrimitive() && !type.isArray() && type != Void.class) return Kind.OBJECT;
