@@ -108,3 +108,11 @@ The current API101 opt-in migration set now also includes:
 All corresponding host regression scripts passed in run 41057506685. Audio capture paths outside supported `AudioRecord.read` overloads remain uncovered. Clipboard change listeners and multi-process apps remain uncovered. Hardware enumeration privacy does not disable the underlying biometric hardware.
 
 This checkpoint remains a debug-signed validation APK, not a release-signed installable production module. API82/API101 framework discovery and runtime arbitration, config equivalence between legacy xposed.conf and API101 Remote Files, release-signature migration, remaining legacy flag parity, complete module integration and OnePlus 12 verification remain open. The final KernelSU ZIP has not been rebuilt.
+
+## Complete source snapshot — 2026-10-30 (run 41058540824)
+
+Run [41058540824](https://github.com/vip-svip/SY/actions/runs/41058540824), commit `c95ebf8f315cdacabee9e76d6f75c48c098ada45`, passed the full API82/API101 single-APK Debug validation pipeline. Complete source artifact `12978585976` (archive SHA-256 `ba31268eb0a238792b4e9f85ed33987e09da1e7e79f437a78cb290192442bb9e`) contains the unified API82 entry, API101 runtime, parser/serializer, policy classes and JUnit tests. The matching Debug APK artifact is `12978570987` (archive SHA-256 `f60e340aabcce39b78f286fa8525538c0112b17d87b6fd27bffb32b3179ebf65`).
+
+This snapshot adds API101 input-method enumeration privacy (`block_ime_logging`) to the existing opt-in migrations. It hides selected InputMethodManager enabled/list/subtype enumeration APIs only; it does not inspect or block typed text or key events. It may affect keyboard selection. All shared-process and protected-package safeguards remain fail-open.
+
+The complete source snapshot was synchronized into the recovered local FX tree. This does not complete 73-flag parity. API82/API101 runtime framework discovery/arbitration, config equivalence and permissions on real LSPosed devices, release-key continuity, remaining legacy migrations, full KernelSU packaging and OnePlus 12 verification remain open.
