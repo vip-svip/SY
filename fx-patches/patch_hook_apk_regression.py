@@ -14,5 +14,11 @@ if old in src:
     src = src.replace(old, new, 1)
 elif new not in src:
     raise SystemExit("DEX scan line does not match known regression-test versions")
+old_marker = '"auto member candidate hook installed="'
+new_marker = '"auto member candidate hooks installed="'
+if old_marker in src:
+    src = src.replace(old_marker, new_marker, 1)
+elif new_marker not in src:
+    raise SystemExit("member candidate log marker does not match known source versions")
 test.write_text(src, encoding="utf-8")
 print("Updated FXAdHook regression to scan all DEX files.")
