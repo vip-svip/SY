@@ -23,14 +23,16 @@ once("    private boolean audioFingerprintHooksInstalled;\n",
 
 once(
     "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
     "        final boolean passiveLocationForPackage = privacyEnabled && target.disablePassiveLocation;\n"
     "        final boolean regionDiagForPackage = target.regionDiag;\n"
     "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
     "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
-    "                && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
+    "                && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
     "                && !micBlockForPackage && !micHwHideForPackage && !audioFpForPackage && !passiveLocationForPackage && !regionDiagForPackage\n"
     "                && !mediaStoreForPackage) return;\n",
     "        final boolean audioFpForPackage = privacyEnabled && target.audioFpBlock;\n"
+    "        final boolean clipboardIsolateForPackage = privacyEnabled && target.clipboardIsolate && !target.clipboardReadBlock;\n"
     "        final boolean blockNotifListenForPackage = privacyEnabled && target.blockNotifListen;\n"
     "        final boolean hideNotifPermForPackage = privacyEnabled && target.hideNotifPerm;\n"
     "        final boolean usageStatsForPackage = privacyEnabled && target.usageStatsOff;\n"
@@ -39,7 +41,7 @@ once(
     "        final boolean regionDiagForPackage = target.regionDiag;\n"
     "        final boolean mediaStoreForPackage = privacyEnabled && target.blockMediaStore;\n"
     "        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage\n"
-    "                && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
+    "                && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !cellInfoForPackage && !cameraIdForPackage\n"
     "                && !micBlockForPackage && !micHwHideForPackage && !audioFpForPackage\n"
     "                && !blockNotifListenForPackage && !hideNotifPermForPackage && !usageStatsForPackage && !accessibilityForPackage\n"
     "                && !passiveLocationForPackage && !regionDiagForPackage && !mediaStoreForPackage) return;\n")
