@@ -38,3 +38,10 @@
 ## 当前结论
 
 采用“单 APK、双入口、共享配置协议”的方案继续做原型验证；在旧框架与新框架加载矩阵验证通过前，不宣称已合并，也不替换现有 Hook APK 或 FX KernelSU ZIP。
+
+## 新增审计结果
+
+- API82 入口已在本地工作树预备统一 appId：`SELF_PKG=de.privacyguard.adhook`，同时继续排除旧包名 `de.privacyguard.hook`，防止升级后旧 Hook 将统一 Hook 自身纳入作用域。
+- API82 的 `MainHook` 仍在 `handleLoadPackage` 中按包回调安装一批进程级 Hook；共享进程中多个包的回调归属可能不明确。该风险尚未修复，不能将 API82 直接并入生产 APK。
+- API101 本地精确源码快照已在 Actions run `41043234124` 编译、单元测试、签名和元数据检查全部通过；APK 仍是 API101 验证产物。
+- 目前未完成旧框架 API 93–100 与现代 API 101+ 的实际框架加载测试。双入口文件同时存在仅证明 APK 可打包，不证明两类框架都会正确识别或只加载一条入口。
