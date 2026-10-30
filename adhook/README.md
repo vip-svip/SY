@@ -14,7 +14,7 @@ Effects require both gates: the app is listed in the FX-generated target config 
 
 The unified API 101 entry contains opt-in Android ID isolation and a first read-time EXIF redaction migration slice. When the unified config has both `privacy_enabled=1` and a target row with `privacy=1`, calls to `Settings.Secure.getString(..., ANDROID_ID)` receive a stable app-specific 16-hex identifier. Other secure settings are passed through unchanged. EXIF redaction is independently selected per target with `exif_strip=1` under the privacy master switch. It redacts GPS, device Make/Model, and DateTime values returned by framework/AndroidX ExifInterface getters; it does not rewrite image files or intercept every third-party metadata parser. These are narrow migration slices, not parity with the legacy PrivacyGuard hook set.
 
-Important: the current FX root-side publisher still emits the legacy ad-only format. The parser deliberately forces privacy off for that format, so this privacy hook will remain inactive until the root-side generator and UI are migrated to publish the versioned unified schema. Do not enable it by manually changing unrelated legacy switches. This work has not been verified on a physical device.
+Integration status (2026-10-30): the current FX-v1.0.0 KernelSU archive contains `scripts/gen_xposed_conf.sh`, which translates the root-side `hook_targets` list and independent master switches into the versioned API-101 Remote Files schema (`schema_version=1`). It publishes to `de.privacyguard.adhook/files/fx-hook-targets.conf` and records publication status. The publisher and APK parser must be kept in lockstep; verify the script shipped in the exact ZIP being installed rather than relying on this source-branch README alone. The legacy API-82 `de.privacyguard.hook` APK is still installed separately. This does not mean the two Hook runtimes have been merged. Physical OnePlus 12 / LSPosed behavior remains unverified.
 
 Unified config shape:
 ```text
@@ -41,7 +41,7 @@ member_diag is read-only. If Google Play Billing is present, it hooks the concre
 The CI runs JVM regression tests for valid metadata-bearing rows, disabled targets, missing master switch, malformed rows, duplicate target/option entries, protected framework packages, invalid package names, and unsupported sections. The build must pass these tests before producing the APK. These are host-side parser tests, not a real-device LSPosed injection test.
 
 ## Config
-The main FX module publishes list:hook_targets rows in this form; the root-side generator mirrors only `hook_ads_enabled` and this list into LSPosed Remote Files:
+The FX KernelSU archive's root-side generator converts `hook_targets` rows into the versioned Remote Files schema. The old API-82 bridge continues to receive the legacy `xposed.conf`; the API-101 runtime reads only its package-specific Remote Files payload. The two package identities remain distinct until feature migration and package/scope migration are complete:
 com.example.app,splash=1,feed=1,overlay=0,member_diag=1|LSPosed应用Hook|1
 
 Top-level hook_ads_enabled=1 is required. `lsposed_enabled` controls the older PrivacyGuard hooks, not this separately-scoped ad module. API 101 Remote Files support is required; older legacy-only Xposed hosts won't run this modern module. The module's LSPosed scope is intentionally opt-in: choose each target both here and in LSPosed Manager.
