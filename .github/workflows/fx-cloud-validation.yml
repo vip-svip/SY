@@ -54,6 +54,7 @@ jobs:
           test -s adhook/app/src/main/resources/META-INF/xposed/java_init.list
           test -f adhook/app/src/main/resources/META-INF/xposed/scope.list
           bash scripts/tests/v1.0.0-android-id-shared-process-fail-open-regression.sh
+          bash scripts/tests/v1.0.0-member-observation-bounded-regression.sh
 
       - name: Run unit tests and assemble APK
         run: gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
