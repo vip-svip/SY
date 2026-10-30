@@ -145,6 +145,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -202,6 +203,14 @@ public final class AdVisibilityHook extends XposedModule {
         if (!configLoaded) return;
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null) return;
+        final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        final boolean developerTestForPackage = debuggableTarget && (target.developerVipMethod != null
+                || target.developerLoginMethod != null || target.developerHideUpdateMethod != null);
+        if (developerTestForPackage) {
+            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerVipMethod, true, "vip");
+            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
+            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerHideUpdateMethod, false, "hide-update");
+        }
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean memberDiagForPackage = target.memberDiag;
         final boolean privacyForPackage = privacyEnabled && target.privacy;
@@ -219,7 +228,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target.mediaStoreQueryBlock;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !developerTestForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -249,6 +258,29 @@ public final class AdVisibilityHook extends XposedModule {
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Debug-only local UI test fixtures for an explicitly configured developer-owned package.
+     * The exact package must be debuggable; descriptors are exact zero-arg boolean methods.
+     * These fixtures are never enabled in release builds and are not an authorization credential.
+     */
+    private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, boolean replacement, String label) {
+        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild, true, packageName, packageName)) return;
+        Method method = DeveloperOwnedBooleanHook.resolve(loader, packageName, packageName,
+                debuggableBuild, true, descriptor);
+        if (method == null || developerTestHookedMethods.contains(method)) return;
+        try {
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> replacement);
+            developerTestHookedMethods.add(method);
+            logFx(Log.INFO, "developer Debug UI fixture installed=" + label
+                    + " package=" + packageName + " method=" + method.getName());
+        } catch (Throwable t) {
+            logFx(Log.WARN, "developer Debug UI fixture failed open=" + label
+                    + " package=" + packageName + " method=" + method.getName());
+        }
     }
 
     /**
