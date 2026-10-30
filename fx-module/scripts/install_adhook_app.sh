@@ -73,17 +73,11 @@ install_one() {
   fi
   log_msg "ERROR: unable to install $_pkg; core FX installation continues, see $LOG"; return 1
 }
-# Prefer the unified single-APK build. It carries both legacy API-82 and modern API-101 entries.
-# Never install the two historical APKs alongside the unified build.
-if [ -s "$MODDIR/optional/FXHook.apk" ]; then
-  install_one de.privacyguard.adhook fxhook "$MODDIR/optional/FXHook.apk"
-  exit $?
+# FX has exactly one Hook application. Do not fall back to historical split APKs.
+# A missing unified artifact is a packaging error, not permission to install two apps.
+if [ ! -s "$MODDIR/optional/FXHook.apk" ]; then
+  log_msg "ERROR: required unified Hook APK missing: $MODDIR/optional/FXHook.apk"
+  exit 1
 fi
-
-# Transitional compatibility only: archives without the unified artifact retain the
-# previous install path until the merged APK has been built and packaged.
-log_msg "WARN: unified FXHook.apk missing; using legacy two-APK compatibility path"
-_result=0
-install_one de.privacyguard.hook privacyguardhook "$MODDIR/optional/PrivacyGuardHook.apk" || _result=1
-install_one de.privacyguard.adhook fxadhook "$MODDIR/optional/FXAdHook.apk" || _result=1
-exit "$_result"
+install_one de.privacyguard.adhook fxhook "$MODDIR/optional/FXHook.apk"
+exit $?
