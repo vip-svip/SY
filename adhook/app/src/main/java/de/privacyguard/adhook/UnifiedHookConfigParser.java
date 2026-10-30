@@ -36,7 +36,7 @@ public final class UnifiedHookConfigParser {
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false, false, false);
+                    false, false, false, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
