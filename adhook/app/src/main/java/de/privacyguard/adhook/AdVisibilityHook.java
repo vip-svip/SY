@@ -747,7 +747,10 @@ public final class AdVisibilityHook extends XposedModule {
             Method loadClass = ClassLoader.class.getDeclaredMethod("loadClass", String.class);
             hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                 Object result = chain.proceed();
-                if (result instanceof Class<?>) inspectDynamicallyLoadedMemberClass((Class<?>) result);
+                if (result instanceof Class<?>) {
+                    Class<?> candidate = (Class<?>) result;
+                    inspectDynamicallyLoadedMemberClass(candidate);
+                }
                 return result;
             });
             loaderHooks++;
