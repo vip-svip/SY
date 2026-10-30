@@ -524,6 +524,28 @@ public final class AdVisibilityHook extends XposedModule {
                 logFx(Log.DEBUG, "notification API unavailable: " + className);
             }
         }
+        // Legacy API-82 also masked Settings.Secure listener enumeration.
+        // Preserve that behavior only for explicitly selected target packages.
+        try {
+            Class<?> secure = Class.forName("android.provider.Settings$Secure", false, null);
+            Method getString = secure.getDeclaredMethod("getString",
+                    Class.forName("android.content.ContentResolver", false, null), String.class);
+            if (getString.getReturnType() == String.class) {
+                hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object key = chain.getArgs().length > 1 ? chain.getArgs()[1] : null;
+                            String activePackage = currentPackage;
+                            UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                            if ("enabled_notification_listeners".equals(key)
+                                    && NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
+                                    processPackages.size(), activePackage, active)) return "";
+                            return chain.proceed();
+                        });
+                installed++;
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "notification listener setting query hook unavailable");
+        }
         notificationListenHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in active-notification read hooks installed=" + installed + " for " + pkg);
