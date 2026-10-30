@@ -11,6 +11,6 @@ public class RegionCompatibilityPolicyTest {
         assertTrue(RegionCompatibilityPolicy.shouldObserveRegion(1, "com.example.region", target));
         assertFalse(RegionCompatibilityPolicy.shouldObserveRegion(2, "com.example.region", target));
         assertFalse(RegionCompatibilityPolicy.shouldObserveRegion(1, "android", target));
-        assertFalse(RegionCompatibilityPolicy.shouldObserveRegion(1, "com.example.other", target));
+        assertFalse(RegionCompatibilityPolicy.shouldObserveRegion(1, "com.example.other", null));
     }
 }
