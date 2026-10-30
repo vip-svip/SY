@@ -62,3 +62,8 @@ Clipboard read protection is a separate opt-in per-target privacy feature (`clip
 ### Direct EXIF location accessors
 
 The EXIF migration also intercepts `getLatLong(float[])` and returns `false` without writing coordinates, and intercepts `getAltitude(double)` to return the caller-supplied fallback. This closes common direct-access paths in the Android framework and AndroidX ExifInterface. It remains read-time API redaction only; it does not rewrite image bytes or cover arbitrary metadata parsers.
+
+
+### Clipboard isolation (API-101, 2026-10-30)
+
+`clipboard_isolate` is a distinct per-target privacy feature, gated by both `privacy_enabled=1` and `clipboard_isolate_enabled=1`. It shadows successful `setPrimaryClip(ClipData)` writes within the current process and returns that process-local shadow for `getPrimaryClip()` / `hasPrimaryClip()`. Shared-package processes fail open. It conflicts with `clipboard_read_block`; the parser rejects a target enabling both. This is process-local shadowing, not OS-wide cross-app clipboard isolation. CI build and device validation status are tracked separately.
