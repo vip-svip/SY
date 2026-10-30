@@ -1,46 +1,35 @@
-# FXHook single-APK merge audit — FX 1.0.0
+"# FX Hook 单 APK 合并结果 — FX 1.0.0
 
-Date: 2026-10-30
+状态：源码与安装包迁移已实现；CI/打包回归待本次工作流完成；OnePlus 12 真机升级验证仍待执行。
 
-## Current facts
+## 统一架构
 
-| Item | Legacy API-82 | Modern API-101 |
-|---|---|---|
-| applicationId | `de.privacyguard.hook` | `de.privacyguard.adhook` |
-| Hook API | `de.robv.android.xposed:api:82` | `io.github.libxposed:api:101.0.1` |
-| Entry | `MainHook` via `assets/xposed_init` | `AdVisibilityHook` via `META-INF/xposed/java_init.list` |
-| minSdk | 27 | 28 |
-| Config | legacy `xposed.conf` | LSPosed Remote Files `fx-hook-targets.conf` |
+- 唯一安装包：optional/FXAdHook.apk
+- 唯一 applicationId：de.privacyguard.adhook
+- 唯一 API-101 运行时：libxposed
+- 唯一入口：de.privacyguard.adhook.AdVisibilityHook
+- 唯一配置通道：LSPosed Remote Files fx-hook-targets.conf
+- API-82 PrivacyGuardHook.apk 不再打入新的 FX ZIP，也不再由安装器安装。
 
-The installer currently installs two packages. API-101 is the future unified runtime, but it does not yet implement the complete legacy feature set.
+## 旧模块迁移边界
 
-## Why direct APK merging is unsafe
+旧 MainHook 的实际功能是从 PackageManager 查询结果中隐藏一组 VPN/系统应用。它没有可迁移的普通隐私策略或独立配置功能。该应用隐匿逻辑不移植到统一运行时；不伪称旧模块的应用隐藏功能仍然存在。
 
-1. API-82's `XposedBridge` / `IXposedHookLoadPackage` entrypoint is not a libxposed API-101 entrypoint.
-2. API-101 uses `XposedModule`, `onModuleLoaded` / `onPackageReady`, and Remote Files; API-82 uses `handleLoadPackage` and a legacy file config.
-3. Changing both application IDs to the same value does not merge the runtime; it creates PackageManager update conflicts. Same-package upgrade also requires compatible signing identity and data migration.
-4. API-101 minSdk 28 while API-82 minSdk 27. The unified runtime must explicitly decide whether API 27 support is dropped.
-5. Scope, config schema, and initialization timing differ. Unmigrated features could silently stop working.
+新安装器先安装并确认 API-101 APK 成功，再根据旧版 FX 所有权标记清理 API-82 包。若缺少 .fx-owned 所有权标记，则保留该包，避免卸载用户原有应用。签名不兼容时不强制卸载，也不清除应用数据。
 
-## Migration policy
+## 已迁移并保留的 API-101 功能
 
-Candidate features must be transparent, opt-in, independently gated, fail-open, and tested per target app. Examples include explicit camera/microphone access blocking, supported EXIF read-time redaction, sensor limits, notification-status query privacy, and process-local clipboard shadowing.
+广告视图观察/过滤、按目标应用配置的隐私策略、剪贴板进程隔离、EXIF 脱敏、传感器/麦克风/相机/位置访问策略、Wi-Fi 扫描和通知相关隐私策略，以及只读会员/计费诊断仍由统一 API-101 模块提供。购买结果、会员权益和服务端授权状态不会被伪造或改写。
 
-Do not port stealth/evasion or identity-forgery features as-is: root/kernel/module concealment, VPN visibility hiding, app/PackageManager/process-list hiding, IMEI/SIM/serial/MAC spoofing, fake location/GNSS, or permission/accessibility/usage-state deception. If privacy controls are needed, implement transparent permission controls rather than falsifying security signals.
+## 验收状态
 
-## Merge route
+- [x] 单 APK / 单 applicationId / 单 libxposed API-101 入口。
+- [x] 新 ZIP 不再包含 API-82 APK。
+- [x] 安装器只安装一个 APK。
+- [x] 仅清理有 FX 所有权标记的旧 API-82 安装。
+- [x] 卸载时保留所有权不明或用户预先安装的应用。
+- [x] 固定版本 1.0.0。
+- [ ] 本次 GitHub Actions 完成单 APK 构建和回归测试。
+- [ ] OnePlus 12 + KernelSU + LSPosed 真机安装、scope、升级、卸载与回滚验证。
 
-1. Keep API-101 as the sole future entrypoint and port only approved features to libxposed interceptors.
-2. Migrate supported legacy settings to versioned Remote Files; preserve unknown keys and provide rollback.
-3. UI must distinguish migrated, legacy-only, and unsupported options.
-4. Define package upgrade strategy: verify signing identity, back up both private configs, install unified APK, migrate config, verify LSPosed scope, then clean up old package. On any failure retain old APK and data.
-5. Only after parity and upgrade tests should applicationId and installer be unified.
-6. Test minSdk, signing, module metadata, scope, uninstall cleanup, and rollback.
-
-## Remaining acceptance
-
-- Most API-82 features are not migrated.
-- Two APKs and two application IDs remain.
-- Signing-compatible upgrade and rollback rehearsal is not complete.
-- No OnePlus 12 + KernelSU + LSPosed device verification has been completed.
-- Final acceptance requires one APK, one applicationId, one libxposed API-101 entrypoint, automated migration/upgrade/rollback tests, and physical-device validation.
+签名不兼容时不卸载用户现有包，不删除用户数据。未完成真机验证前，不宣称设备端整合已验证。
