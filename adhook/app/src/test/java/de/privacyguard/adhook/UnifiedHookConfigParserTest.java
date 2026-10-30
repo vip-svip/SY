@@ -267,6 +267,22 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesExplicitMediaStoreQueryBlockPerTarget() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
+                "com.example.media,media_store_query_block=1\\n");
+        assertTrue(result.targets.get("com.example.media").mediaStoreQueryBlock);
+        assertTrue(result.privacyEnabled);
+    }
+
+    @Test
+    public void legacyConfigNeverEnablesMediaStoreQueryBlock() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.app,splash=1\\n");
+        assertFalse(result.targets.get("com.example.app").mediaStoreQueryBlock);
+    }
+
+    @Test
     public void parsesExplicitMicrophoneAccessDenialPerTarget() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
