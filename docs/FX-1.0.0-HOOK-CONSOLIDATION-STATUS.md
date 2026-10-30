@@ -96,7 +96,7 @@ API-101 now has independent per-target `hide_fingerprint_hw` and `hide_face_hw` 
 
 The policy requires the privacy master switch, one package in the process, and a selected target. Protected and shared-package processes fail open.
 
-GitHub Actions run `41056937119` (commit `aa11b8f0ff3a82588dc00e8628f31216dc734462`) passed the biometric policy/parser/serializer tests, source patch, all existing regressions, JUnit tests, single-APK compilation, signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12976603986`, archive SHA-256 `61bddb635cf95a047f03d4e32d497c407063f010d834c08e4e87cecc0c3eba76`. It remains a debug-signed validation APK; actual biometric behavior on OnePlus 12 and LSPosed injection are unverified.
+GitHub Actions run `41057506685` (commit `b746c44af0450d5f3e9cbb73f5a727059de594ff`) passed the biometric policy/parser/serializer tests, pinned source hash, all existing regressions, JUnit tests, single-APK compilation, signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977491990`, archive SHA-256 `4fd04b79c390c6a2b39eb35f21acebba60fc0d138cf96705c1d726bceefb3f32`. It remains a debug-signed validation APK; actual biometric behavior on OnePlus 12 and LSPosed injection are unverified.
 
 ## APK signing continuity blocker
 
