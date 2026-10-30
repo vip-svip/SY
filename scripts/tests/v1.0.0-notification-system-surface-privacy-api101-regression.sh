@@ -23,6 +23,6 @@ grep -q 'block_notif_listen' "$SER" || fail 'notification history serializer fla
 grep -q 'hide_notif_perm' "$SER" || fail 'notification permission serializer flag missing'
 grep -q 'usagestats_off' "$SER" || fail 'usage stats serializer flag missing'
 grep -q 'a11y_hide' "$SER" || fail 'accessibility serializer flag missing'
-grep -q 'processPackageCount != 1' "$NP" || fail 'notification shared-process fail-open missing'
-grep -q 'processPackageCount != 1' "$SP" || fail 'system surface shared-process fail-open missing'
+grep -q 'processPackageCount == 1' "$NP" || fail 'notification shared-process fail-open missing'
+grep -q 'processPackageCount == 1' "$SP" || fail 'system surface shared-process fail-open missing'
 echo 'FX API101 notification/usage/accessibility privacy regression: PASS'
