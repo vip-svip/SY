@@ -20,7 +20,7 @@ The complete Java source is therefore available in the FX package even though it
 - Modern entry: `de.privacyguard.adhook.AdVisibilityHook`, libxposed API 101 (`XposedModule`, Remote Files).
 - Installer regression currently expects two package installs: `de.privacyguard.hook` and `de.privacyguard.adhook`.
 - Modern config parser supports the versioned unified schema. The recovered FX KernelSU ZIP includes `scripts/gen_xposed_conf.sh`, which publishes `schema_version=1` through LSPosed Remote Files, with independent ad/privacy/Wi-Fi/notification masters and per-target feature fields. The legacy API-82 bridge still consumes its old `xposed.conf`; the two config paths remain separate.
-- Modern runtime source currently includes ad-view observation, read-only Billing/member diagnostics, a narrow Android ID transform, EXIF getter redaction, clipboard read protection, selected sensor enumeration/rate controls, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking exists in the API-101 parser/runtime source but is NOT wired end-to-end: the recovered FX publisher and target editor do not yet emit `notification_permission_hide_enabled` or per-target `notification_permission_hide`. Do not count it as active migration. These are source/host-test slices, not complete API-82 parity or physical-device proof.
+- Modern runtime source currently includes ad-view observation, read-only Billing/member diagnostics, a narrow Android ID transform, EXIF getter redaction, clipboard read protection, selected sensor enumeration/rate controls, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking is wired end-to-end in the recovered FX ZIP: publisher emits the global `notification_permission_hide_enabled` master and per-target `notification_permission_hide`; parser/runtime gate the selected target. It masks only the target app's status query and does not change OS permission state. It remains pending physical-device verification. These are source/host-test slices, not complete API-82 parity or physical-device proof.
 - Existing API-101 workflow validates/builds the modern AdHook module; it does not prove that the legacy API-82 implementation has been ported.
 
 ## Migration inventory and ordering
@@ -80,3 +80,23 @@ Integration status update (2026-10-30): the recovered FX ZIP's root-side publish
 6. Run the GitHub Actions build and host regressions; report physical-device validation separately.
 
 No unified APK or complete migration is claimed by this document.
+
+
+## 2026-10-30 feature triage — camera and microphone
+
+The complete API-82 source remains preserved in the current KernelSU ZIP at `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` (96,340 bytes). It is the authoritative baseline; do not substitute the reduced API-82 branch copy.
+
+### Microphone
+
+Legacy `micBlock()` hooks `AudioRecord.read()` and either zeroes returned PCM samples, adds synthetic noise, or returns an error from `startRecording()`. Only the explicit silence/error modes are candidates for a transparent user-controlled privacy feature. The synthetic-noise path (`mic_block= noise`) and `audio_fp_block` perturbation are not to be migrated: they alter sensor data to mislead downstream consumers and are not equivalent to revoking microphone permission. Even a zero-buffer hook would cover only AudioRecord paths, not every capture API (MediaRecorder, camera audio, native paths), so UI must state the limited coverage and must not imply OS-wide microphone denial.
+
+### Camera
+
+Legacy `cameraNull()` and `cam_hw_hide` need separate review. Returning null or falsifying hardware availability can break camera clients and misrepresent device capabilities. Do not port the old implementation as-is. A replacement must be an explicit per-target camera-use privacy control with clear failure behavior and verified Camera1/Camera2/CameraX coverage; otherwise mark unsupported and direct users to Android's actual camera permission controls.
+
+### Next port order
+
+1. Port only a bounded, opt-in AudioRecord silence control after confirming method overloads and buffer semantics on API 28–35; keep MediaRecorder/native capture explicitly out of scope.
+2. Add parser, serializer, publisher, UI, and policy unit tests before enabling the feature.
+3. Add a target-process instrumentation test proving that unrelated targets and shared-package processes pass through unchanged.
+4. Do not change Android permission state or claim full microphone/camera denial.
