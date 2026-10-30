@@ -1,5 +1,13 @@
 # FX 1.0.0 Hook migration — verified source and execution plan
 
+> **Current checkpoint — 2026-10-30 (supersedes stale status statements below):** The branch now restores the full 97,918-byte legacy `MainHook.java` source into the single API-101 app project and compiles a dual-entry, one-`applicationId` debug APK. The APK contains both legacy `assets/xposed_init` and modern `META-INF/xposed` descriptors. GitHub Actions run `41052177773` (commit `b608ed9678d8b94dd4f8a8431391c55692b45d88`) passed source restoration, API82/API101 wiring regressions, JUnit tests, APK assembly, signature verification, DEX and metadata checks. Artifact `FXHook-API82-API101-single-apk-validation` ID `12974079489`, archive SHA-256 `51ae857a080e98eb55437efa9da38dd6010e09c34550ee50f864fb25d7b2926cae`. The artifact is debug-signed; production signing continuity and real framework injection on both runtimes remain unverified. The final KernelSU ZIP has not been rebuilt.
+>
+> API101 migration now includes opt-in AudioRecord `mic_block` silence for byte[], short[], float[] and ByteBuffer read paths, with shared-process/protected-package fail-open behavior. It does not cover MediaRecorder, AAudio/Oboe or native capture. The feature passed the above CI build and tests; OnePlus 12 behavior remains unverified. `audio_fp_block` and `mic_hw_hide` remain unmigrated.
+>
+> The installer is now single-APK-only: it accepts `optional/FXHook.apk` and fails closed if absent. It no longer installs the old split `PrivacyGuardHook.apk` + `FXAdHook.apk` pair. The prior text below describing two active installs or missing API82 source is historical and superseded by this checkpoint.
+>
+> **Still incomplete:** runtime discovery/arbitration on API82-capable and API101+ LSPosed, shared config equivalence, release-key continuity, full 73-flag migration, complete KernelSU source integration and OnePlus 12 verification. Do not call this a production-complete Hook or final FX ZIP.
+>
 Status: source recovered; API migration and APK consolidation are NOT complete.
 
 ## Verified source of truth (2026-10-30)
