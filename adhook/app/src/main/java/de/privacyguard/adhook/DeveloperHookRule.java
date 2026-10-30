@@ -42,6 +42,16 @@ public final class DeveloperHookRule {
         else if ("OBSERVE".equals(actionText) || "OBSERVE_ONLY".equals(actionText)) action = Action.OBSERVE;
         else if ("OFF".equals(actionText) || "DISABLED".equals(actionText)) action = Action.DISABLED;
         else return null;
+        if (action == Action.RETURN_TRUE || action == Action.RETURN_FALSE) {
+            // Replacement is only a local Debug UI fixture for a zero-argument primitive boolean predicate.
+            if (descriptor.startsWith("L")) {
+                DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+                if (parsed == null || !parsed.parameterDescriptors.isEmpty()
+                        || !"Z".equals(parsed.returnDescriptor) || "<init>".equals(parsed.name)) return null;
+            } else if (!descriptor.matches("[A-Za-z_$][A-Za-z0-9_$.]*#[A-Za-z_$][A-Za-z0-9_$]*\\(\\)Z")) {
+                return null;
+            }
+        }
         final int priority;
         try { priority = Integer.parseInt(fields[3].trim()); }
         catch (NumberFormatException e) { return null; }
