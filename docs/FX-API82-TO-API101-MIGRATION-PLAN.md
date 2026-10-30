@@ -100,3 +100,13 @@ Legacy `cameraNull()` and `cam_hw_hide` need separate review. Returning null or 
 2. Add parser, serializer, publisher, UI, and policy unit tests before enabling the feature.
 3. Add a target-process instrumentation test proving that unrelated targets and shared-package processes pass through unchanged.
 4. Do not change Android permission state or claim full microphone/camera denial.
+
+
+## 2026-10-30 third migration slice — AudioRecord read-buffer silence
+
+- Added opt-in per-target `mic_silence=1` under the existing privacy master.
+- API-101 hooks supported `AudioRecord.read` overloads for byte[], short[], float[], and ByteBuffer buffers. It calls the original read exactly once and zeroes only the successfully returned region.
+- Process-scoped authorization fails open when more than one package is observed in the process. Hook registration failure also leaves capture unchanged.
+- No `startRecording()` interception, microphone hardware hiding, synthetic-noise injection, MediaRecorder/camera audio interception, or native capture coverage is claimed.
+- UI label explicitly states this is not equivalent to disabling Android's microphone permission.
+- Parser/serializer round-trip and buffer-boundary tests added. Host smoke checks passed; Android API-level and device runtime verification remain pending.
