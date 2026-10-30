@@ -62,7 +62,7 @@ public class UnifiedHookConfigSerializerTest {
     public void privacyOnlyTargetDoesNotEnableAdsButCanEnablePrivacy() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.privacyonly",
-                new UnifiedHookConfigParser.Target(false, false, false, false, true, false));
+                new UnifiedHookConfigParser.Target(false, false, false, false, true, false, false));
 
         String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(text);
