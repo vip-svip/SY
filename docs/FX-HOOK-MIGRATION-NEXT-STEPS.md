@@ -1,31 +1,36 @@
 # FX Hook migration next steps
 
-## Verified source availability
+## Verified legacy source availability (2026-10-30)
 
-The historical project notes refer to an Iter5 archive, but that archive is not present in the current `vip-svip/SY` branch tree or the Library search results available during the 2026-10-30 continuation. The only legacy source currently located in the repository is the small `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java` implementation on the older `fx-v1.0.0-privacyguardhook-build` branch; it is not the complete legacy Hook implementation.
+The complete legacy source needed for migration is present in the user's current Library archive `FX-v1.0.0-KernelSU.zip`, extracted in the active working copy at:
 
-Do not state that the full legacy source is available until the archive itself is recovered and inspected. The Library contains a SHA-256 sidecar for `FX-v1.0.0-KernelSU.zip`, but a digest alone cannot reconstruct the ZIP.
+`lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java`
+
+Verified size: 2,073 lines / 96,340 bytes. This is the full historical API-82 entrypoint in the supplied FX ZIP, not the much smaller 8 KB `MainHook.java` found on the old GitHub branch. The Iter5 archive itself is not separately present in the Library listing; do not conflate the two.
+
+The source declares `IXposedHookLoadPackage`, `XC_MethodHook`, `XposedBridge`, and `XposedHelpers`, and reads `/data/local/tmp/privacyguard/xposed.conf`. It cannot be copied unchanged into the API-101 module: the callback API differs and target-app processes must use LSPosed Remote Files rather than assuming root-side config paths are readable.
 
 ## Migration requirements
 
-The migration must preserve feature switches and package scope while porting API 82 callbacks to libxposed API 101. The APIs are not source-compatible. Do not claim a unified APK until CI builds it and device injection is verified.
+Preserve the full legacy feature inventory and per-feature switches while porting API-82 callbacks to libxposed API 101. Do not silently drop legacy features or claim the two APKs are unified until CI builds a single APK and device injection is verified.
 
-Configuration must be read through LSPosed Remote Files, parsed transactionally, and support independent ad and privacy switches. Invalid or missing configuration must disable hooks safely.
+Configuration must be read through LSPosed Remote Files, parsed transactionally, and support independent ad and privacy switches. Invalid, missing, oversized, malformed, or unsupported configuration must install no hooks.
 
 ## Current verified state
 
-- The modern `AdVisibilityHook` runtime calls `UnifiedHookConfigParser.parse(content)`.
-- Legacy ad-only configuration remains backward compatible and must not silently enable privacy hooks.
-- Android ID privacy transformation is package-scoped and the process-level interceptor registration is guarded against duplicate registration.
-- Billing-related behavior remains read-only diagnostics; do not alter purchase state or forge entitlement results.
-- The two APK packages are still separate; the current installer installs `de.privacyguard.hook` and `de.privacyguard.adhook` independently.
-- The KernelSU module source tree is incomplete. The package workflow must continue to fail closed rather than produce a partial ZIP.
+- The modern `AdVisibilityHook` runtime uses `UnifiedHookConfigParser.parse(content)` and LSPosed Remote Files.
+- The legacy entrypoint is 2,073 lines / 96,340 bytes in the current FX ZIP; it is available for source migration.
+- The modern API-101 runtime contains package-scoped ad View observers, read-only Billing diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, and sensor privacy policy. Source presence is not proof of device behavior.
+- Rewarded-ad Chinese UI evidence, dynamic member-class discovery, and a bounded member DEX candidate scan are not yet implemented in the API-101 source.
+- Billing and membership handling must remain read-only. Never synthesize rewarded-ad callbacks, purchases, or server-side entitlements.
+- The two APK package identities remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`.
+- The KernelSU module package workflow must fail closed if required module source files are missing; never emit a partial ZIP.
 
 ## Remaining migration sequence
 
-1. Recover and inspect the actual Iter5 archive or complete legacy source tree.
-2. Build a feature-by-feature API 82 to API 101 migration matrix, preserving explicit per-app scope and opt-in switches.
-3. Port only supported privacy-protection behaviors; retain read-only diagnostics for billing and do not bypass server-side entitlements, anti-fraud, or anti-cheat controls.
-4. Consolidate the two APKs only after the package identity, LSPosed metadata, module entrypoint, scope, config transport, and migration tests are unified.
-5. Restore the missing KernelSU module sources from the original implementation; do not replace them with placeholder scripts or UI.
-6. Require CI, APK signature/resource checks, host-side regression tests, and separate OnePlus 12 device verification before calling the deliverable complete.
+1. Create a method-by-method inventory from the supplied 2,073-line legacy source and map each switch to its existing UI/config key.
+2. Port deterministic, low-risk privacy protections first, with independent opt-in switches, package-scope checks, API guards, and fail-open compatibility behavior.
+3. Keep destructive or high-breakage transforms (package/process hiding, telephony, location, camera/microphone, filesystem and system-property manipulation) disabled until each has dedicated API/OEM regression tests.
+4. Port the ad runtime and read-only membership diagnostics without changing ad reward callbacks, purchase state, or server-side validation.
+5. Consolidate package identity, LSPosed metadata, entrypoint, target scope and Remote Files transport only after every retained feature has an explicit migration status and the single APK builds in CI.
+6. Require host regression tests, APK signature/resource checks, and separate OnePlus 12 LSPosed injection/behavior verification before calling the deliverable complete.
