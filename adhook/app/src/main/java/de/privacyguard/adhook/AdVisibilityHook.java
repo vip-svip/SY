@@ -23,6 +23,7 @@ import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -126,6 +127,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean clipboardReadHooksInstalled;
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
+    private volatile boolean notificationListenHooksInstalled;
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
     private volatile boolean popupObserversInstalled;
@@ -145,6 +147,7 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean adsEnabled;
     private boolean privacyEnabled;
     private boolean wifiScanEnabled;
+    private boolean notificationListenEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private volatile String currentPackage = "";
@@ -186,7 +189,8 @@ public final class AdVisibilityHook extends XposedModule {
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage) return;
+        final boolean notificationListenForPackage = notificationListenEnabled && target.notificationListenBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -196,13 +200,14 @@ public final class AdVisibilityHook extends XposedModule {
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
+        if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -216,6 +221,7 @@ public final class AdVisibilityHook extends XposedModule {
         adsEnabled = false;
         privacyEnabled = false;
         wifiScanEnabled = false;
+        notificationListenEnabled = false;
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
              ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
             byte[] chunk = new byte[4096];
@@ -241,6 +247,7 @@ public final class AdVisibilityHook extends XposedModule {
             adsEnabled = parsed.adsEnabled;
             privacyEnabled = parsed.privacyEnabled;
             wifiScanEnabled = parsed.wifiScanEnabled;
+            notificationListenEnabled = parsed.notificationListenEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
@@ -475,6 +482,52 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in Wi-Fi scan privacy hooks installed=" + installed + " for " + pkg);
         return wifiScanHooksInstalled;
+    }
+
+    /**
+     * Opt-in per-app suppression of active-notification reads. Only the two
+     * read APIs returning StatusBarNotification[] are intercepted. Posting,
+     * notification shade rendering, listener registration and system services
+     * are untouched. Shared-package processes fail open.
+     */
+    private synchronized boolean installNotificationListenPrivacyHooks(final String pkg) {
+        if (notificationListenHooksInstalled) return true;
+        int installed = 0;
+        for (String className : new String[]{
+                "android.app.NotificationManager",
+                "android.service.notification.NotificationListenerService"}) {
+            try {
+                Class<?> type = Class.forName(className, false, null);
+                for (final Method method : type.getDeclaredMethods()) {
+                    if (!"getActiveNotifications".equals(method.getName())
+                            || method.getParameterTypes().length != 0
+                            || !method.getReturnType().isArray()) continue;
+                    final Class<?> component = method.getReturnType().getComponentType();
+                    if (component == null || !"android.service.notification.StatusBarNotification".equals(component.getName())) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    if (NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
+                                            processPackages.size(), activePackage, active)) {
+                                        return Array.newInstance(component, 0);
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "notification read hook unavailable: " + className);
+                    }
+                }
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "notification API unavailable: " + className);
+            }
+        }
+        notificationListenHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "opt-in active-notification read hooks installed=" + installed + " for " + pkg);
+        return notificationListenHooksInstalled;
     }
 
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
