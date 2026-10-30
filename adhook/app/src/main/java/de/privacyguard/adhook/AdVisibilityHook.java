@@ -71,6 +71,7 @@ public final class AdVisibilityHook extends XposedModule {
     private static final String TAG = "FX Hook";
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
+    private static final int MAX_MEMBER_METADATA_PROBES = 512;
     private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
     private static final int MAX_REWARDED_AD_EVIDENCE = 96;
     private static final int MAX_MEMBER_STATE_OBSERVATIONS = 64;
@@ -150,9 +151,11 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean dynamicChildObserversInstalled;
     private volatile boolean dynamicMemberDiscoveryInstalled;
     private final Set<String> memberCandidateClasses = ConcurrentHashMap.newKeySet();
+    private final Set<String> memberMetadataInspectedClasses = ConcurrentHashMap.newKeySet();
     private final Set<String> memberHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<String> rewardedEvidenceSeen = ConcurrentHashMap.newKeySet();
     private final AtomicInteger memberClassesInspected = new AtomicInteger();
+    private final AtomicInteger memberMetadataProbes = new AtomicInteger();
     private final AtomicInteger memberMethodsHooked = new AtomicInteger();
     private final AtomicInteger rewardedEvidenceCount = new AtomicInteger();
     private final AtomicInteger memberStateObservationCount = new AtomicInteger();
@@ -1235,8 +1238,15 @@ public final class AdVisibilityHook extends XposedModule {
      * observational: getter return values, purchase state and entitlements are
      * never changed. Scanning is capped by APK count, class count, time and hook count.
      */
+    private volatile ClassLoader targetMemberClassLoader;
+
     private void installDynamicMemberClassDiscovery(final ClassLoader loader, final String pkg) {
-        if (dynamicMemberDiscoveryInstalled || loader == null) return;
+        if (loader == null) return;
+        targetMemberClassLoader = loader;
+        if (dynamicMemberDiscoveryInstalled) {
+            startBoundedMemberDexScan(loader, pkg);
+            return;
+        }
         dynamicMemberDiscoveryInstalled = true;
         int loaderHooks = 0;
         try {
@@ -1300,7 +1310,11 @@ public final class AdVisibilityHook extends XposedModule {
                             && System.currentTimeMillis() <= deadline) {
                         String name = entries.nextElement();
                         classesScanned++;
-                        if (!isMemberClassNameCandidate(name)) continue;
+                        boolean namedCandidate = isMemberClassNameCandidate(name);
+                        // Sample metadata across the DEX rather than examining only
+                        // classes whose names already reveal "vip/member/premium".
+                        if (!namedCandidate && (classesScanned % 43 != 0
+                                || memberMetadataProbes.get() >= MAX_MEMBER_METADATA_PROBES)) continue;
                         try {
                             Class<?> candidate = Class.forName(name, false, loader);
                             inspectDynamicallyLoadedMemberClass(candidate);
@@ -1329,25 +1343,87 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
     private void inspectDynamicallyLoadedMemberClass(Class<?> candidate) {
-        if (candidate == null || !isMemberClassNameCandidate(candidate.getName())) return;
-        observeLoadedMemberClass(candidate);
+        if (candidate == null || !belongsToTargetClassLoader(candidate, targetMemberClassLoader)) return;
+        String name = candidate.getName();
+        boolean namedCandidate = isMemberClassNameCandidate(name);
+        if (!namedCandidate) {
+            if (memberMetadataProbes.incrementAndGet() > MAX_MEMBER_METADATA_PROBES) return;
+        }
+        if (!memberMetadataInspectedClasses.add(name)) return;
+        observeLoadedMemberClass(candidate, namedCandidate);
     }
 
-    private void observeLoadedMemberClass(Class<?> candidate) {
+    private boolean belongsToTargetClassLoader(Class<?> candidate, ClassLoader targetLoader) {
+        if (candidate == null || targetLoader == null) return false;
+        ClassLoader current = candidate.getClassLoader();
+        while (current != null) {
+            if (current == targetLoader) return true;
+            current = current.getParent();
+        }
+        return false;
+    }
+
+    private void observeLoadedMemberClass(Class<?> candidate, boolean namedCandidate) {
         if (candidate == null || memberClassesInspected.get() >= MAX_DYNAMIC_MEMBER_CLASSES) return;
         String name = candidate.getName();
+        boolean fieldCandidate = hasMemberStateField(candidate);
+        boolean methodCandidate = hasMemberStateMethod(candidate);
+        boolean obfuscatedShapeCandidate = !namedCandidate && hasObfuscatedMemberStateShape(candidate);
+        if (!fieldCandidate && !methodCandidate && !obfuscatedShapeCandidate) return;
         if (!memberCandidateClasses.add(name)) return;
         int count = memberClassesInspected.incrementAndGet();
         if (count > MAX_DYNAMIC_MEMBER_CLASSES) return;
-        boolean fieldCandidate = hasMemberStateField(candidate);
-        boolean methodCandidate = hasMemberStateMethod(candidate);
-        if (!fieldCandidate && !methodCandidate) return;
         logFx(Log.INFO, "member discovery candidate=" + shortName(name)
                 + " member-field-candidate=" + fieldCandidate
                 + " member-method-candidate=" + methodCandidate
+                + " obfuscated-shape-candidate=" + obfuscatedShapeCandidate
                 + " member-interface-candidate=" + candidate.isInterface()
-                + " obfuscated-status-candidate=" + !isMemberClassNameCandidate(name));
+                + " obfuscated-status-candidate=" + !namedCandidate);
         installReadOnlyMemberCandidateHook(candidate);
+    }
+
+    /**
+     * Conservative shape heuristic for obfuscated DTOs: require both a Boolean/Enum
+     * state-like value and a numeric/String descriptor. This only marks a candidate;
+     * unknown obfuscated methods are not automatically hooked or invoked.
+     */
+    private boolean hasObfuscatedMemberStateShape(Class<?> candidate) {
+        boolean hasStateFlag = false;
+        boolean hasDescriptor = false;
+        try {
+            Field[] fields = candidate.getDeclaredFields();
+            int limit = Math.min(fields.length, 128);
+            for (int i = 0; i < limit; i++) {
+                MemberCandidateClassifier.Kind kind =
+                        MemberCandidateClassifier.kindOf(fields[i].getType());
+                hasStateFlag |= kind == MemberCandidateClassifier.Kind.BOOLEAN
+                        || kind == MemberCandidateClassifier.Kind.ENUM;
+                hasDescriptor |= kind == MemberCandidateClassifier.Kind.INTEGER
+                        || kind == MemberCandidateClassifier.Kind.LONG
+                        || kind == MemberCandidateClassifier.Kind.STRING;
+            }
+            if (hasStateFlag && hasDescriptor) return true;
+        } catch (Throwable ignored) {}
+        hasStateFlag = false;
+        hasDescriptor = false;
+        try {
+            Method[] methods = candidate.getDeclaredMethods();
+            int limit = Math.min(methods.length, 128);
+            for (int i = 0; i < limit; i++) {
+                Method method = methods[i];
+                if (method.getParameterTypes().length != 0
+                        || Modifier.isStatic(method.getModifiers())
+                        || method.isSynthetic() || method.isBridge()) continue;
+                MemberCandidateClassifier.Kind kind =
+                        MemberCandidateClassifier.kindOf(method.getReturnType());
+                hasStateFlag |= kind == MemberCandidateClassifier.Kind.BOOLEAN
+                        || kind == MemberCandidateClassifier.Kind.ENUM;
+                hasDescriptor |= kind == MemberCandidateClassifier.Kind.INTEGER
+                        || kind == MemberCandidateClassifier.Kind.LONG
+                        || kind == MemberCandidateClassifier.Kind.STRING;
+            }
+        } catch (Throwable ignored) {}
+        return hasStateFlag && hasDescriptor;
     }
 
     /** Inspect method metadata only; never invoke candidate methods during discovery. */
@@ -1399,14 +1475,14 @@ public final class AdVisibilityHook extends XposedModule {
                 if (installed >= MAX_AUTO_MEMBER_METHOD_HOOKS
                         || memberMethodsHooked.get() >= 128
                         || Modifier.isStatic(method.getModifiers())
-                        || method.isSynthetic() || method.isBridge()
-                        || method.getParameterTypes().length != 0) continue;
+                        || method.isSynthetic() || method.isBridge()) continue;
                 String methodName = lower(method.getName());
                 MemberCandidateClassifier.Candidate classification =
                         MemberCandidateClassifier.inspect(method);
                 boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
                 boolean suspendLike = classification.kind == MemberCandidateClassifier.Kind.ASYNC_FLOW
                         && method.getParameterTypes().length == 1;
+                if (method.getParameterTypes().length != 0 && !suspendLike) continue;
                 // Getter-like methods may expose Boolean, numeric, String, Enum, or
                 // object/bean state. Kotlin suspend signatures are observed separately.
                 // No candidate method is invoked by the discovery path itself.
