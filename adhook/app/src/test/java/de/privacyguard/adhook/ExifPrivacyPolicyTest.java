@@ -23,6 +23,11 @@ public class ExifPrivacyPolicyTest {
         assertFalse(ExifPrivacyPolicy.shouldRedactTag("FNumber"));
         assertFalse(ExifPrivacyPolicy.shouldRedactTag("ExposureTime"));
     }
+    @Test public void directCoordinateAccessorsAreRedacted() {
+        assertTrue(ExifPrivacyPolicy.shouldRedactDirectLocation());
+        assertEquals(17.5d, ExifPrivacyPolicy.altitudeFallback(17.5d), 0.0d);
+        assertEquals(0.0d, ExifPrivacyPolicy.altitudeFallback(0.0d), 0.0d);
+    }
     @Test public void nullAndEmptyTagsAreSafe() {
         assertFalse(ExifPrivacyPolicy.shouldRedactTag(null));
         assertFalse(ExifPrivacyPolicy.shouldRedactTag(""));

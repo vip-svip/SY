@@ -65,6 +65,9 @@ jobs:
           grep -q 'parsesOptInExifPrivacyFeatureIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
           grep -q 'serializerRoundTripsExifRedactionIndependently' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
           grep -q 'redactsGpsCoordinatesAndGpsMetadata' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
+          grep -q 'getLatLong' "$JAVA_SRC"
+          grep -q 'getAltitude' "$JAVA_SRC"
+          grep -q 'directCoordinateAccessorsAreRedacted' adhook/app/src/test/java/de/privacyguard/adhook/ExifPrivacyPolicyTest.java
           grep -q 'installClipboardReadBlockHooks' "$JAVA_SRC"
           grep -q 'clipboard_read_block' "$PARSER_SRC"
           grep -q 'ClipboardPrivacyPolicy.shouldBlockRead' "$JAVA_SRC"

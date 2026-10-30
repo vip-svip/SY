@@ -252,6 +252,25 @@ public final class AdVisibilityHook extends XposedModule {
                 } catch (Throwable t) {
                     logFx(Log.DEBUG, "EXIF double getter unavailable for " + className);
                 }
+                try {
+                    Method latLong = type.getMethod("getLatLong", float[].class);
+                    hook(latLong).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> Boolean.FALSE);
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "EXIF getLatLong unavailable for " + className);
+                }
+                try {
+                    Method altitude = type.getMethod("getAltitude", double.class);
+                    hook(altitude).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object fallback = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                                return fallback instanceof Number ? ((Number) fallback).doubleValue() : 0.0d;
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "EXIF getAltitude unavailable for " + className);
+                }
             } catch (Throwable t) {
                 logFx(Log.DEBUG, "EXIF API unavailable for " + className);
             }
