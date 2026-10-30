@@ -79,6 +79,10 @@ OBS_LINE=$(grep -n 'installAdViewHooks();' "$HOOK_SRC" | head -n 1 | cut -d: -f1
 GUARD_LINE=$(grep -n 'if (!hooksInstalledFor.add(pkg)) return;' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
 [ -n "$OBS_LINE" ] && [ -n "$GUARD_LINE" ] && [ "$OBS_LINE" -lt "$GUARD_LINE" ] || fail "per-package guard prevents retrying global observers"
 grep -q 'private volatile boolean privacyIdentifierHookInstalled;' "$HOOK_SRC" || fail "process-scoped privacy registration state missing"
+grep -q 'UnifiedHookConfigParser.parse(content)' "$HOOK_SRC" || fail "runtime is not wired to the unified config parser"
+grep -q 'configLoaded = loadConfig()' "$HOOK_SRC" || fail "remote config load is not connected to module startup"
+grep -q 'if (!remoteFilesAvailable)' "$HOOK_SRC" || fail "missing Remote Files capability must fail closed"
+! grep -q 'intentionally independent from the current ad-only parser' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" || fail "stale parser migration comment remains"
 PRIVACY_LINE=$(grep -n 'installPrivacyIdentifierHooks(pkg)' "$HOOK_SRC" | head -n 1 | cut -d: -f1)
 [ -n "$PRIVACY_LINE" ] && [ "$PRIVACY_LINE" -lt "$GUARD_LINE" ] || fail "privacy hook failure cannot retry before package guard"
 grep -q 'private synchronized boolean installPrivacyIdentifierHooks(final String pkg)' "$HOOK_SRC" || fail "privacy hook installer must serialize registration"
