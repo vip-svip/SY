@@ -162,3 +162,14 @@ New opt-in API101 migrations in this validated build include:
 Regression output confirms these suites passed in run 41057506685: microphone hardware, audio fingerprint, clipboard isolation, notification/usage/accessibility, and biometric hardware. The unified API82/API101 debug APK artifact is ID `12977491990`, archive SHA-256 `4fd04b79c390c6a2b39eb35f21acebba60fc0d138cf96705c1d726bceefb3f32`. The API101 source snapshot artifact is ID `12977601764`, archive SHA-256 `ba87b1ebd7fe11f81f2938485fc48e2f466d546d736f46a13a369daddbb410f4`.
 
 These are CI and static/host-test results only. They do not verify runtime injection on API82/API101 LSPosed devices, behavior on the OnePlus 12, or compatibility with arbitrary third-party applications. The artifact is still a debug-signed validation APK; no release key is available, and the final KernelSU ZIP has not been rebuilt.
+
+## Complete source export checkpoint — 2026-10-30
+
+The latest successful GitHub Actions run is [41058540824](https://github.com/vip-svip/SY/actions/runs/41058540824), commit `c95ebf8f315cdacabee9e76d6f75c48c098ada45`. It passed exact source restoration, API82/API101 single-APK wiring, host regressions, JUnit tests, APK assembly, signature/DEX/metadata verification, and artifact uploads.
+
+- Unified debug APK artifact: `12978570987`, archive SHA-256 `f60e340aabcce39b78f286fa8525538c0112b17d87b6fd27bffb32b3179ebf65`.
+- Complete Java source artifact: `12978585976`, archive SHA-256 `ba31268eb0a238792b4e9f85ed33987e09da1e7e79f437a78cb290192442bb9e`.
+- Compiled API101 `AdVisibilityHook.java` SHA-256: `abe61fe86118a3f0586dde534a7a638b596c61ba9cf7530479c8c79416f87bb4`.
+- Patched API82 `MainHook.java` SHA-256: `89318e226aaedaca2b9a5917791426c815ada47b29d4b16f3dd6e25774235017`.
+
+This snapshot includes input-method enumeration privacy in addition to the previous opt-in privacy migrations. The complete source artifact was downloaded and synchronized into the recovered local FX working tree. This is still a debug-signed validation build; framework runtime discovery/injection, config publication on device, release signing, and OnePlus 12 testing remain unverified. The final KernelSU ZIP has not been rebuilt.
