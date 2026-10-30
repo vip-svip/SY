@@ -15,3 +15,12 @@ API-82 `clipboardGuard()` implements `clipboard_isolate` by retaining the curren
 
 ## Verification boundaries
 Parser/serializer host round-trip checks and package shell/JS regressions are separate from Android APK build verification. This implementation is not system-wide isolation. Real-device behavior and Android API-level compatibility require testing on the target device. The two APKs are still separate; this does not complete the unified-app migration.
+
+
+## CI result
+
+- GitHub Actions run: https://github.com/vip-svip/SY/actions/runs/41080488374
+- Source commit used for the build: `b6ad480bca8a2489aa4060ab8bf7ec8f9baf8930`
+- Result: parser/serializer unit tests, Android debug APK build, APK signature verification, Xposed metadata checks, and DEX marker checks all passed.
+- APK SHA-256: `778b07f84b924629969a849c4ef2b8ce68df3bed277e638190f583b2e79d9991`
+- This verifies CI build output, not LSPosed injection or behavior on a physical OnePlus 12.
