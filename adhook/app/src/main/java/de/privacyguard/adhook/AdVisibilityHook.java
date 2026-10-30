@@ -1436,42 +1436,53 @@ public final class AdVisibilityHook extends XposedModule {
     private void installReadOnlyMemberCandidateHook(Class<?> candidate, boolean namedCandidate,
                                                     boolean obfuscatedShapeCandidate) {
         int installed = 0;
-        try {
-            for (Method method : candidate.getDeclaredMethods()) {
-                if (installed >= MAX_AUTO_MEMBER_METHOD_HOOKS
-                        || memberMethodsHooked.get() >= 128
-                        || Modifier.isStatic(method.getModifiers())
-                        || method.isSynthetic() || method.isBridge()) continue;
-                MemberCandidateClassifier.Candidate classification =
-                        MemberCandidateClassifier.inspect(method);
-                if (!MemberCandidateClassifier.shouldObserveMethod(
-                        method, namedCandidate, obfuscatedShapeCandidate)) continue;
-                // Keep automatic observation narrow: generic named-class getters
-                // may expose scalar state; obfuscated holders require state-shape
-                // evidence and primitive/enum return types. Never invoke discovery methods.
-                String key = method.toGenericString();
-                if (!memberHookedMethods.add(key)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        Object result = chain.proceed();
-                        // Record invocation only. Never log or alter returned membership data.
-                        if (memberStateObservationCount.incrementAndGet() <= MAX_MEMBER_STATE_OBSERVATIONS) {
-                            MemberCandidateClassifier.Kind runtimeKind =
-                                    MemberCandidateClassifier.kindOfRuntimeValue(result);
-                            logFx(Log.DEBUG, "member state observation class=" + shortName(candidate.getName())
-                                    + " method=" + method.getName()
-                                    + " result-kind=" + runtimeKind.name()
-                                    + " mode=read-only");
-                        }
-                        return result;
-                    });
-                    installed++;
-                    memberMethodsHooked.incrementAndGet();
-                } catch (Throwable ignored) { memberHookedMethods.remove(key); }
+        int hierarchyDepth = 0;
+        // Membership state is frequently inherited from a shared account/base model.
+        // Walk only app-owned classes in this target loader; never hook framework
+        // ancestors or unrelated parent-loader methods.
+        for (Class<?> owner = candidate; owner != null && hierarchyDepth < 5
+                && installed < MAX_AUTO_MEMBER_METHOD_HOOKS
+                && memberMethodsHooked.get() < 128; owner = owner.getSuperclass(), hierarchyDepth++) {
+            if (!belongsToTargetClassLoader(owner, targetMemberClassLoader)) break;
+            try {
+                Method[] methods = owner.getDeclaredMethods();
+                int limit = Math.min(methods.length, 128);
+                for (int i = 0; i < limit && installed < MAX_AUTO_MEMBER_METHOD_HOOKS
+                        && memberMethodsHooked.get() < 128; i++) {
+                    Method method = methods[i];
+                    if (Modifier.isStatic(method.getModifiers())
+                            || method.isSynthetic() || method.isBridge()) continue;
+                    if (!MemberCandidateClassifier.shouldObserveMethod(
+                            method, namedCandidate, obfuscatedShapeCandidate)) continue;
+                    String key = method.toGenericString();
+                    if (!memberHookedMethods.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (memberStateObservationCount.incrementAndGet() <= MAX_MEMBER_STATE_OBSERVATIONS) {
+                                MemberCandidateClassifier.Kind runtimeKind =
+                                        MemberCandidateClassifier.kindOfRuntimeValue(result);
+                                logFx(Log.DEBUG, "member state observation owner=" + shortName(method.getDeclaringClass().getName())
+                                        + " method=" + method.getName()
+                                        + " result-kind=" + runtimeKind.name()
+                                        + " mode=read-only");
+                            }
+                            return result;
+                        });
+                        installed++;
+                        memberMethodsHooked.incrementAndGet();
+                    } catch (Throwable ignored) {
+                        memberHookedMethods.remove(key);
+                    }
+                }
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "member hierarchy metadata unavailable owner="
+                        + shortName(owner.getName()) + " reason=" + t.getClass().getSimpleName());
             }
-        } catch (Throwable ignored) {}
-        logFx(Log.INFO, "auto member candidate hook installed=" + installed
-                + " class=" + shortName(candidate.getName()) + " mode=read-only");
+        }
+        logFx(Log.INFO, "auto member candidate hooks installed=" + installed
+                + " class=" + shortName(candidate.getName())
+                + " hierarchyDepth=" + hierarchyDepth + " mode=read-only");
     }
 
     private boolean containsRewardedUiSignal(String text) {
