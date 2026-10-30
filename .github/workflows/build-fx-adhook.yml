@@ -126,6 +126,12 @@ jobs:
           grep -q 'installCameraAccessBlockHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'ExceptionMode.PASSTHROUGH' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'installLocationAccessBlockHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'installMicrophoneAccessBlockHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'MediaRecorder.class.getDeclaredMethods' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'mic_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          grep -q 'mic_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'parsesExplicitMicrophoneAccessDenialPerTarget' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
+          grep -q 'serializerRoundTripsExplicitMicrophoneAccessDenial' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java
           grep -q 'location_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'location_access_block' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
           grep -q 'parsesExplicitLocationAccessDenialPerTarget' adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java
