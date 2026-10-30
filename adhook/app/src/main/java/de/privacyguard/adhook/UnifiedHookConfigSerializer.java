@@ -43,6 +43,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",sensor_rate_limit=").append(target.sensorRateLimit ? '1' : '0')
                     .append(",wifi_scan_hide=").append(target.wifiScanHide ? '1' : '0')
                     .append(",cell_info_hide=").append(target.cellInfoHide ? '1' : '0')
+                    .append(",camera_id_hide=").append(target.cameraIdHide ? '1' : '0')
                     .append('\n');
         }
 
