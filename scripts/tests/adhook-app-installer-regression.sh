@@ -35,7 +35,7 @@ case "$1" in
     [ -s "$apk" ] || exit 3
     case "$(basename "$apk")" in
       *privacyguardhook*) pkg=de.privacyguard.hook ;;
-      *fxadhook*) pkg=de.privacyguard.adhook ;;
+      *fxadhook*|*fxhook*) pkg=de.privacyguard.adhook ;;
       *) if grep -q 'fake legacy apk payload' "$apk"; then pkg=de.privacyguard.hook; else pkg=de.privacyguard.adhook; fi ;;
     esac
     if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ] && [ "$pkg" = de.privacyguard.adhook ]; then
@@ -130,4 +130,19 @@ sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with a pre-existing packa
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup with a pre-existing package failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing package was incorrectly uninstalled"
 grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "new FX-owned package was not removed"
-echo "PASS: Hook APKs install as ordinary apps, idempotently update, and clean up without network mutations"
+# Unified build path must install exactly one APK/applicationId.
+rm -rf "$TMP/unified" "$TMP/unified-state" "$TMP/unified-tmp" "$TMP/unified-pm"
+mkdir -p "$TMP/unified/optional" "$TMP/unified-state" "$TMP/unified-tmp" "$TMP/unified-pm"
+printf 'unified API82+API101 apk payload\n' > "$TMP/unified/optional/FXHook.apk"
+sha256sum "$TMP/unified/optional/FXHook.apk" > "$TMP/unified/optional/FXHook.apk.sha256"
+export FX_ADHOOK_FAKE_PM_STATE="$TMP/unified-pm"
+export FX_ADHOOK_STATE_DIR="$TMP/unified-state"
+export FX_ADHOOK_TMP_DIR="$TMP/unified-tmp"
+export FX_ADHOOK_LOG="$TMP/unified-state/install.log"
+sh "$INSTALLER" "$TMP/unified" >/dev/null || fail "unified APK install failed"
+[ "$(wc -l < "$TMP/unified-pm/install-calls" | tr -d ' ')" = 1 ] || fail "unified build installed more than one package"
+grep -Fxq de.privacyguard.adhook "$TMP/unified-pm/installed" || fail "unified package id not installed"
+[ ! -e "$TMP/unified-state/adhook-apk-privacyguardhook.sha256" ] || fail "unified path unexpectedly installed legacy package"
+sh "$REMOVER" "$TMP/unified" "$TMP/unified-state" || fail "unified package cleanup failed"
+[ ! -s "$TMP/unified-pm/installed" ] || fail "unified FX-owned package was not removed"
+echo "PASS: unified Hook APK installs as one package; compatibility fallback remains upgrade-safe"
