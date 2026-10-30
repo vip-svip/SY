@@ -107,6 +107,16 @@ The policy requires the privacy master switch and a single-package process; syst
 
 GitHub Actions run `41058055264` (commit `a2dc22c51b4ca1026e4a70170e19761683116a05`) passed the input-method policy/parser/serializer tests, pinned source hash, all prior privacy regressions, JUnit tests, single-APK build and APK verification. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977817041`, archive SHA-256 `d5e601b893bfce6b93f7c6b951938051f5fefab296c84dc4683c9e0996610033`. This is still a debug-signed validation artifact, not the final FX KernelSU ZIP or a OnePlus 12 runtime test.
 
+## Deferred high-disruption legacy flags
+
+The following legacy flags are deliberately not being bulk-copied into API-101 yet: `block_pm_query`, `app_list`, `block_process_list`, `block_mounts`, `hide_mounts`, `block_netstats`, `block_net_ifaces`, `fs_*`, and root/kernel/SELinux visibility flags. The legacy source itself marks many of these as destructive because empty package/process/network/mount results can crash or disable ordinary app features. Each needs an explicit per-app safety tier, return-type-correct filtering, fail-open handling and targeted regression tests before migration.
+
+Location spoofing flags (`mock_location`, `perapp_mock`, `gnss_spoof`, `gps_accuracy`) also remain separate work: the current API101 passive-location suppression is not equivalent to location spoofing. Do not count similarly named switches as feature parity.
+
+## Root publisher/UI integration blocker
+
+The API101 schema now contains the flags listed in the migration checkpoints, but this validation branch has not yet proven that the full FX KernelSU UI and root-side publisher generate the same fields for both legacy `xposed.conf` and API101 LSPosed Remote Files. Until that bridge is integrated and tested against the full module tree, these are Hook-side capabilities, not guaranteed end-to-end toggles in the installed FX module.
+
 ## APK signing continuity blocker
 
 The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
