@@ -189,4 +189,16 @@ public class UnifiedHookConfigSerializerTest {
         assertTrue(UnifiedHookConfigParser.parse(text).isNotificationPermissionHiddenFor("com.example.notify"));
     }
 
+    @Test
+    public void serializerRoundTripsMicrophoneSilenceOptIn() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.audio", new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, false,
+                false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(text).targets.get("com.example.audio");
+        assertTrue(parsed.microphoneSilence);
+        assertTrue(text.contains("mic_silence=1"));
+    }
 }
