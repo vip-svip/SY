@@ -190,6 +190,18 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsExplicitLocationAccessDenial() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        targets.put("com.example.location", new UnifiedHookConfigParser.Target(
+                false, false, false, false, true, false, false,
+                false, false, false, false, false, false, false,
+                false, false, false, false, false, false, true));
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        assertTrue(text.contains("location_access_block=1"));
+        assertTrue(UnifiedHookConfigParser.parse(text).targets.get("com.example.location").locationAccessBlock);
+    }
+
+    @Test
     public void serializerRoundTripsExplicitCameraAccessDenial() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.camera", new UnifiedHookConfigParser.Target(
