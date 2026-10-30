@@ -194,6 +194,21 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsBiometricHardwareFlags() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.bio,hide_fingerprint_hw=1,hide_face_hw=0\n").targets.get("com.example.bio");
+        targets.put("com.example.bio", source);
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(text).targets.get("com.example.bio");
+        assertTrue(parsed.hideFingerprintHw);
+        assertFalse(parsed.hideFaceHw);
+        assertTrue(text.contains("hide_fingerprint_hw=1"));
+        assertTrue(text.contains("hide_face_hw=0"));
+    }
+
+    @Test
     public void serializerRoundTripsNotificationUsageAndAccessibilityFlags() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
