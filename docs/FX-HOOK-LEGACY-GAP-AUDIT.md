@@ -24,7 +24,7 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 | `locationMock`, `gnssSpoof`, `passiveLocHide`, `wifiScanHide` | Wi-Fi scan partially migrated; location/GNSS not migrated | Wi-Fi scan uses independent global and per-target gates; location/GNSS transformations remain disabled and are not ported |
 | `sensorHide` | Partially migrated | Sensor enumeration hiding and sampling-rate policy exist; not full parity |
 | `cameraNull`, `micBlock`, `audioFpBlock`, `bioHide` | Not migrated | Can break camera, calls, audio and authentication |
-| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Active-notification read suppression partially migrated; permission-query masking is source-only/dormant; usage/accessibility not migrated | `notification_listen_enabled` + target `notification_listen_block` are published end-to-end. `notification_permission_hide_enabled` + target `notification_permission_hide` exist in API-101 parser/runtime but are absent from the current FX target editor and root publisher, so that hook cannot be activated through FX UI yet. No OS permission is revoked or changed |
+| `notifHide`, `notifPermHide`, `usageHide`, `a11yHide` | Active-notification read suppression partially migrated; permission-query masking is now package-working-copy wired end-to-end; usage/accessibility not migrated | `notification_listen_enabled` + target `notification_listen_block` are published end-to-end. `notification_permission_hide_enabled` + target `notification_permission_hide` are now emitted by the updated FX package working copy; the Hook-only GitHub branch does not contain the root module UI/publisher files, so the wiring is tracked in the package ZIP and must be included in the next root-source sync. No OS permission is revoked or changed |
 | `exifStrip` | Partially migrated | Read-time EXIF redaction exists; verify GPS getter coverage on device |
 | `rootHide`, `fsHooks` and filesystem/VFS helpers | Not migrated | High stability risk; keep disabled pending device tests |
 | `adIdUnify` | Not migrated | Advertising ID is distinct from Android ID |
@@ -33,7 +33,7 @@ The legacy entrypoint imports `IXposedHookLoadPackage`, `XC_MethodHook`, `Xposed
 
 - Package-scoped ad View observers and ad marker matching.
 - Read-only Billing diagnostics for concrete response/purchase-state getters.
-- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, sensor enumeration/rate policies, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking is parser/runtime source only; publisher/UI wiring is missing.
+- Opt-in Android ID transformation, EXIF getter redaction, clipboard-read policy, sensor enumeration/rate policies, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking is now wired in the current FX 1.0.0 working ZIP: existing `hide_notif_perm` master -> API-101 Remote Files global bit, plus per-target editor key `notification_permission_hide_block` -> `notification_permission_hide`; apply publication gate and status JSON are included. This change is verified in the package working copy with host integration tests, not yet mirrored into this Hook-only GitHub branch or verified on a physical device.
 - Remote Files configuration is bounded, UTF-8 validated, parsed transactionally, and fails closed when unavailable/invalid.
 - UI target selection and LSPosed Manager scope both gate target-process effects.
 
