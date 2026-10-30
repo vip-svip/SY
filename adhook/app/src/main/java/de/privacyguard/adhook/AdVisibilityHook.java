@@ -64,6 +64,7 @@ public final class AdVisibilityHook extends XposedModule {
     private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
     private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
     private static final int MAX_REWARDED_AD_EVIDENCE = 96;
+    private static final int MAX_MEMBER_STATE_OBSERVATIONS = 64;
     private static final String[] MEMBER_STATE_FIELD_MARKERS = {
             "vip", "premium", "member", "entitle", "subscription", "purchase",
             "license", "expire", "active", "paid", "tier", "level", "valid", "benefit"
@@ -135,6 +136,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final AtomicInteger memberClassesInspected = new AtomicInteger();
     private final AtomicInteger memberMethodsHooked = new AtomicInteger();
     private final AtomicInteger rewardedEvidenceCount = new AtomicInteger();
+    private final AtomicInteger memberStateObservationCount = new AtomicInteger();
     private final Set<String> popupObserverMethods = ConcurrentHashMap.newKeySet();
     private final Set<String> dynamicChildObserverMethods = ConcurrentHashMap.newKeySet();
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
@@ -782,6 +784,10 @@ public final class AdVisibilityHook extends XposedModule {
                     return;
                 }
                 ApplicationInfo info = ((Application) appObject).getApplicationInfo();
+                if (info.packageName != null && !pkg.equals(info.packageName)) {
+                    logFx(Log.WARN, "member DEX scan package mismatch; refusing cross-package scan");
+                    return;
+                }
                 if (info.sourceDir != null) apkPaths.add(info.sourceDir);
                 String[] splitSourceDirs = info.splitSourceDirs;
                 if (splitSourceDirs != null) {
@@ -896,8 +902,10 @@ public final class AdVisibilityHook extends XposedModule {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
                         // Record invocation only. Never log or alter returned membership data.
-                        logFx(Log.DEBUG, "member state observation class=" + shortName(candidate.getName())
-                                + " method=" + method.getName() + " mode=read-only");
+                        if (memberStateObservationCount.incrementAndGet() <= MAX_MEMBER_STATE_OBSERVATIONS) {
+                            logFx(Log.DEBUG, "member state observation class=" + shortName(candidate.getName())
+                                    + " method=" + method.getName() + " mode=read-only");
+                        }
                         return result;
                     });
                     installed++;
@@ -930,9 +938,8 @@ public final class AdVisibilityHook extends XposedModule {
         String evidence = "";
         try {
             pkg = view.getContext().getPackageName();
-            TextView tv = view instanceof TextView ? (TextView) view : null;
-            if (tv != null) evidence = String.valueOf(tv.getText()) + " " + String.valueOf(tv.getContentDescription());
-            evidence += " " + resourceName(view);
+            // Do not retain or log raw UI text; dedupe only on package, view class and resource id.
+            evidence = shortName(view.getClass().getName()) + " " + resourceName(view);
         } catch (Throwable ignored) {}
         String key = pkg + ":" + lower(evidence);
         if (!rewardedEvidenceSeen.add(key)) return;
