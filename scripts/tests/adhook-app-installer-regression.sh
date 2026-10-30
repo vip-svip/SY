@@ -13,12 +13,8 @@ cmp -s "$INSTALLER" "$PACKAGED_INSTALLER" || fail "packaged installer drifted fr
 TMP="${TMPDIR:-/tmp}/fx-adhook-installer-test-$$"
 mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-printf 'fake legacy apk payload\n' > "$TMP/mod/optional/PrivacyGuardHook.apk"
-printf 'fake modern apk payload\n' > "$TMP/mod/optional/FXAdHook.apk"
-for _name in PrivacyGuardHook FXAdHook; do
-  _p="$TMP/mod/optional/$_name.apk"
-  sha256sum "$_p" > "$_p.sha256"
-done
+printf 'unified Hook APK payload\n' > "$TMP/mod/optional/FXHook.apk"
+sha256sum "$TMP/mod/optional/FXHook.apk" > "$TMP/mod/optional/FXHook.apk.sha256"
 cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
@@ -34,9 +30,8 @@ case "$1" in
     apk=$3
     [ -s "$apk" ] || exit 3
     case "$(basename "$apk")" in
-      *privacyguardhook*) pkg=de.privacyguard.hook ;;
-      *fxadhook*|*fxhook*) pkg=de.privacyguard.adhook ;;
-      *) if grep -q 'fake legacy apk payload' "$apk"; then pkg=de.privacyguard.hook; else pkg=de.privacyguard.adhook; fi ;;
+      *fxhook*) pkg=de.privacyguard.adhook ;;
+      *) exit 8 ;;
     esac
     if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ] && [ "$pkg" = de.privacyguard.adhook ]; then
       echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2
@@ -62,18 +57,19 @@ export FX_ADHOOK_STATE_DIR="$TMP/state"
 export FX_ADHOOK_TMP_DIR="$TMP/tmp"
 export FX_ADHOOK_LOG="$TMP/state/install.log"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first install attempt failed"
-grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "legacy Hook not installed as a regular app"
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "FXAdHook not installed as a regular app"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "expected two package installs"
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "unified Hook not installed as a regular app"
+[ ! -e "$TMP/pm/installed" ] && fail "PackageManager fixture lost installed package state"
+[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "expected exactly one package install"
+! grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "legacy second Hook package was installed"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install retry failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "unchanged packages were reinstalled"
-printf 'updated fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
-sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
+[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "unchanged unified APK was reinstalled"
+printf 'updated fake APK payload\n' >> "$TMP/mod/optional/FXHook.apk"
+sha256sum "$TMP/mod/optional/FXHook.apk" > "$TMP/mod/optional/FXHook.apk.sha256"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "APK update failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 3 ] || fail "updated APK was not reinstalled exactly once"
+[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "updated unified APK was not reinstalled exactly once"
 # A signature mismatch must preserve the installed app and its data.
-printf 'different-key fake APK payload\n' >> "$TMP/mod/optional/FXAdHook.apk"
-sha256sum "$TMP/mod/optional/FXAdHook.apk" > "$TMP/mod/optional/FXAdHook.apk.sha256"
+printf 'different-key fake APK payload\n' >> "$TMP/mod/optional/FXHook.apk"
+sha256sum "$TMP/mod/optional/FXHook.apk" > "$TMP/mod/optional/FXHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch should be reported as install failure"; fi
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing Hook package was removed after signature mismatch"
@@ -82,8 +78,7 @@ grep -q 'signing certificate differs' "$TMP/state/install.log" || fail "signatur
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "tracked package cleanup failed"
 [ ! -s "$TMP/pm/installed" ] || fail "FX-managed apps were not removed on uninstall"
-[ ! -e "$TMP/state/adhook-apk-privacyguardhook.sha256" ] || fail "legacy marker survived uninstall"
-[ ! -e "$TMP/state/adhook-apk-fxadhook.sha256" ] || fail "modern marker survived uninstall"
+[ ! -e "$TMP/state/adhook-apk-fxhook.sha256" ] || fail "unified Hook marker survived uninstall"
 if grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' "$INSTALLER" "$REMOVER"; then
   fail "APK installer unexpectedly contains networking mutations"
 fi
@@ -126,23 +121,19 @@ export FX_ADHOOK_TMP_DIR="$TMP/tmp"
 export FX_ADHOOK_LOG="$TMP/state/install.log"
 printf '%s\n' de.privacyguard.adhook > "$TMP/pm/installed"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with a pre-existing package failed"
-[ ! -e "$TMP/state/adhook-apk-fxadhook.fx-owned" ] || fail "pre-existing package was incorrectly marked FX-owned"
+[ ! -e "$TMP/state/adhook-apk-fxhook.fx-owned" ] || fail "pre-existing package was incorrectly marked FX-owned"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup with a pre-existing package failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing package was incorrectly uninstalled"
-grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "new FX-owned package was not removed"
-# Unified build path must install exactly one APK/applicationId.
-rm -rf "$TMP/unified" "$TMP/unified-state" "$TMP/unified-tmp" "$TMP/unified-pm"
-mkdir -p "$TMP/unified/optional" "$TMP/unified-state" "$TMP/unified-tmp" "$TMP/unified-pm"
-printf 'unified API82+API101 apk payload\n' > "$TMP/unified/optional/FXHook.apk"
-sha256sum "$TMP/unified/optional/FXHook.apk" > "$TMP/unified/optional/FXHook.apk.sha256"
-export FX_ADHOOK_FAKE_PM_STATE="$TMP/unified-pm"
-export FX_ADHOOK_STATE_DIR="$TMP/unified-state"
-export FX_ADHOOK_TMP_DIR="$TMP/unified-tmp"
-export FX_ADHOOK_LOG="$TMP/unified-state/install.log"
-sh "$INSTALLER" "$TMP/unified" >/dev/null || fail "unified APK install failed"
-[ "$(wc -l < "$TMP/unified-pm/install-calls" | tr -d ' ')" = 1 ] || fail "unified build installed more than one package"
-grep -Fxq de.privacyguard.adhook "$TMP/unified-pm/installed" || fail "unified package id not installed"
-[ ! -e "$TMP/unified-state/adhook-apk-privacyguardhook.sha256" ] || fail "unified path unexpectedly installed legacy package"
-sh "$REMOVER" "$TMP/unified" "$TMP/unified-state" || fail "unified package cleanup failed"
-[ ! -s "$TMP/unified-pm/installed" ] || fail "unified FX-owned package was not removed"
-echo "PASS: unified Hook APK installs as one package; compatibility fallback remains upgrade-safe"
+! grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "legacy split Hook package was touched"
+# Missing unified artifact must fail closed; never install the historical split APKs.
+rm -rf "$TMP/missing" "$TMP/missing-state" "$TMP/missing-pm"
+mkdir -p "$TMP/missing/optional" "$TMP/missing-state" "$TMP/missing-pm"
+printf 'old API82 payload\n' > "$TMP/missing/optional/PrivacyGuardHook.apk"
+printf 'old API101 payload\n' > "$TMP/missing/optional/FXAdHook.apk"
+export FX_ADHOOK_FAKE_PM_STATE="$TMP/missing-pm"
+export FX_ADHOOK_STATE_DIR="$TMP/missing-state"
+export FX_ADHOOK_TMP_DIR="$TMP/tmp"
+export FX_ADHOOK_LOG="$TMP/missing-state/install.log"
+if sh "$INSTALLER" "$TMP/missing" >/dev/null 2>&1; then fail "missing unified APK should fail"; fi
+[ ! -s "$TMP/missing-pm/install-calls" ] || fail "legacy split APK fallback was used"
+echo "PASS: installer accepts exactly one unified Hook APK and refuses split-APK fallback"
