@@ -52,6 +52,17 @@ Remaining proof requirements:
 
 The legacy entry has a reflective API-101 runtime check and a fail-open UID-to-package identity check. CI proves source restoration, Java compilation, unit tests, APK signing and descriptor presence only; it does not prove framework discovery, runtime arbitration, or real-device behavior. Do not call the Hook production-merged until the framework matrix and signing continuity pass.
 
+## Microphone hardware and audio fingerprint migration checkpoint (2026-10-30)
+
+API-101 now parses and serializes independent per-target `mic_hw_hide` and `audio_fp_block` flags.
+
+- `mic_hw_hide`: filters source/input devices from `AudioManager.getDevices(GET_DEVICES_INPUTS)`, returns an empty list for `AudioManager.getMicrophones()` and `AudioRecord.getActiveMicrophones()`, and returns null for `AudioRecord.getRoutedDevice()`. Output devices are retained. This does not hide `PackageManager.FEATURE_MICROPHONE`, every vendor-specific API, native service state, or every hardware fingerprint.
+- `audio_fp_block`: applies bounded low-amplitude sample perturbation after successful `AudioRecord.read()` calls for byte[], short[], float[] and ByteBuffer overloads. It is enabled only for one selected package and only while the privacy master switch is on. If `mic_block` is also enabled, microphone silence takes precedence and the perturbation hook is not installed.
+- The legacy `mic_block` mode variants (`error` / `noise`) are not fully represented by the current API-101 bit-only schema; API-101 currently implements the explicit silence behavior. `MediaRecorder`, AAudio/Oboe and native capture remain outside these API-101 hooks.
+- Audio sample perturbation can degrade recording quality. It is a privacy signal transformation, not a guarantee that audio-derived identification is defeated.
+
+GitHub Actions run `41054381942` (commit `d4463acaa595d77753c7b903850d66da611b18d3`) passed the exact-source hash checks, all host regressions, JUnit tests, API82+API101 single-APK compilation, APK signature verification, DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12975833069`, archive SHA-256 `0de3831b3f916eb5539cdc24c4616c746f7a51b30945b4dde46e4710076b3a8f`. This remains a debug-signed validation artifact; framework loading and actual audio behavior on OnePlus 12 are not verified. The final KernelSU ZIP has not been rebuilt.
+
 ## APK signing continuity blocker
 
 The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
@@ -70,7 +81,7 @@ For rewarded ads, the Hook can identify and preserve the real rewarded-ad flow a
 ## Remaining integration work
 
 - Consolidate API-82 and API-101 into one APK only after runtime and config-bridge validation.
-- Reconcile all legacy feature switches against actual modern implementations; port only semantically equivalent, tested behavior. In particular, legacy `audio_fp_block` still has no API101 target-level equivalent; the API101 microphone silence hook is separate and must not be counted as audio-fingerprint parity.
+- Reconcile remaining legacy feature switches against actual modern implementations; `mic_hw_hide` and `audio_fp_block` now have API101 target-level implementations with the explicit coverage limits recorded above. Many other legacy flags remain unmigrated.
 - Connect the Hook's single target/config registry to the FX UI and root-side config publisher.
 - Validate the complete KernelSU ZIP and module lifecycle separately from the Hook APK.
 - Perform real-device verification on the OnePlus 12; CI cannot substitute for it.
