@@ -39,19 +39,18 @@ The local FX root-side generator was inspected: it derives the legacy `xposed.co
 
 ## API-82 and API-101 consolidation
 
-The two implementations are not yet consolidated into one installable APK. The current validation APK is API-101 only.
+A one-APK dual-entry prototype now compiles and passes CI packaging checks. It uses one applicationId (`de.privacyguard.adhook`) and contains both `assets/xposed_init` and `META-INF/xposed` entry descriptors. The validation APK is a debug-signed prototype, not yet a release-ready or device-verified Hook.
 
-A valid one-APK consolidation needs all of the following to be proven together:
+Remaining proof requirements:
 
-1. One applicationId and one user-facing Hook app/configuration surface.
-2. The legacy API-82 entry point and its assets/xposed_init metadata.
-3. The modern API-101 entry point and META-INF/xposed metadata.
-4. A runtime arbitration mechanism that prevents both entry points installing duplicate hooks in the same process.
-5. A configuration bridge: legacy code currently reads /data/local/tmp/privacyguard/xposed.conf, while API-101 reads LSPosed Remote Files. Both must consume the same normalized per-app settings without relying on app-UID access to root-only paths.
-6. One shared feature registry and explicit migration status for every legacy feature. A legacy switch is not considered migrated merely because a similarly named modern flag exists.
-7. A build and metadata test on both a legacy API-82-capable framework and an API-101-capable LSPosed runtime.
+1. Verify that legacy API-82-capable LSPosed/Xposed discovers and loads only the `assets/xposed_init` entry.
+2. Verify that API-101+ LSPosed discovers and loads only the `META-INF/xposed` entry; confirm the reflective arbitration guard prevents duplicate hook registration if both loaders expose both entries.
+3. Verify legacy `xposed.conf` and modern Remote Files receive equivalent target settings from the same root-side FX configuration source. They are separate transport formats, not one shared runtime file.
+4. Build a single shared feature registry and reconcile every legacy feature switch. A similarly named modern flag is not proof of semantic parity.
+5. Validate update/signature continuity using a stable release signing key before replacing the currently installed API101 package.
+6. Validate activation, scope, enable/disable, update and uninstall on both framework families.
 
-The legacy source currently has a runtime check for the modern API class and a shared-UID fail-open guard, but that alone does not prove dual-entry loading or configuration compatibility. Do not label the Hook merged until the above checks pass.
+The legacy entry has a reflective API-101 runtime check and a fail-open UID-to-package identity check. CI proves source restoration, Java compilation, unit tests, APK signing and descriptor presence only; it does not prove framework discovery, runtime arbitration, or real-device behavior. Do not call the Hook production-merged until the framework matrix and signing continuity pass.
 
 ## Region and entitlement boundaries
 
