@@ -47,6 +47,7 @@ import io.github.libxposed.api.XposedModuleInterface;
 public final class AdVisibilityHook extends XposedModule {
     private static final String TAG = "FXAdHook";
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
+    private static final String PRIVACY_CONFIG_NAME = "fx-privacy-hook.conf";
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
     private static final String[] AD_CLASS_MARKERS = {
@@ -155,6 +156,8 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean adsEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
+    private PrivacyHookConfigParser.Result privacyConfig;
+    private boolean privacyConfigLoaded;
     private String currentPackage = "";
 
     private static final class ParentEvidence {
@@ -170,11 +173,16 @@ public final class AdVisibilityHook extends XposedModule {
             return;
         }
         configLoaded = loadConfig();
+        privacyConfigLoaded = loadPrivacyConfig();
         logFx(configLoaded
                 ? Log.INFO : Log.WARN,
                 configLoaded
                         ? "remote target config loaded; selected targets=" + targets.size()
-                        : "remote target config unavailable/invalid; no-op");
+                        : "remote target config unavailable/invalid; ad hook no-op");
+        logFx(privacyConfigLoaded ? Log.INFO : Log.WARN,
+                privacyConfigLoaded
+                        ? "legacy privacy config parsed; migration hooks are not yet activated"
+                        : "privacy remote config unavailable/invalid; privacy hooks remain disabled");
     }
 
     @Override
@@ -192,6 +200,39 @@ public final class AdVisibilityHook extends XposedModule {
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Read legacy privacy settings independently from ad-target settings.
+     * Missing/malformed privacy data cannot disable ad filtering or activate
+     * a partial privacy configuration. This does not install legacy hooks;
+     * those behaviors still require migration to libxposed interceptors.
+     */
+    private boolean loadPrivacyConfig() {
+        privacyConfig = null;
+        if (!remoteFilesAvailable) return false;
+        try (InputStreamReader isr = new InputStreamReader(
+                    new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(PRIVACY_CONFIG_NAME)),
+                    StandardCharsets.UTF_8);
+             BufferedReader reader = new BufferedReader(isr)) {
+            StringBuilder content = new StringBuilder();
+            String line;
+            int lines = 0;
+            while ((line = reader.readLine()) != null) {
+                if (++lines > 10000) {
+                    logFx(Log.WARN, "privacy remote config exceeds 10000 lines; rejecting");
+                    return false;
+                }
+                content.append(line).append('\n');
+            }
+            privacyConfig = PrivacyHookConfigParser.parse(content.toString());
+            return true;
+        } catch (Throwable t) {
+            privacyConfig = null;
+            logFx(Log.WARN, "privacy remote config rejected; no privacy hooks enabled (" +
+                    t.getClass().getSimpleName() + ")");
+            return false;
+        }
     }
 
     private boolean loadConfig() {
