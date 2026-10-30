@@ -22,6 +22,21 @@ These are CI/build and static regression results. They are not proof of behavior
 
 The module-side installer now accepts only optional/FXHook.apk and installs only applicationId de.privacyguard.adhook. If the unified artifact is absent, installation fails closed; there is no two-APK fallback. The remover tracks the unified package and retains narrowly scoped cleanup for a previously FX-owned legacy API82 package from older installations; this is uninstall cleanup only, never a second install path. Host regression coverage verifies one-package installation and verifies that split APKs are refused. This installer change does not mean FXHook.apk has already been built or included in the current KernelSU archive.
 
+## Current dual-entry prototype (2026-10-30)
+
+The isolated validation branch now stages the exact API-82 `MainHook.java` source snapshot (SHA-256 `77cec8b8e28b3673b4c8badc93aa1e1a49dff2f289779d4ca72b97b1f0dcc562`) alongside the API-101 source. The single Android application project has:
+
+- One `applicationId`: `de.privacyguard.adhook`.
+- Legacy `assets/xposed_init` pointing to `de.privacyguard.hook.MainHook`.
+- Modern `META-INF/xposed/java_init.list` pointing to `de.privacyguard.adhook.AdVisibilityHook`.
+- Legacy Xposed Manifest metadata and modern libxposed module metadata.
+- Both framework APIs as `compileOnly` dependencies, so framework classes are not packaged into the APK.
+- A reflective API-101 runtime check in the legacy entry to avoid duplicate hook registration, plus a legacy shared-UID fail-open guard.
+
+The dual-entry static regression and exact source restoration have passed in GitHub Actions run `41050374798`. The Android build is still running at this checkpoint. Even after APK compilation, framework discovery/loading on API 82 and API 101 runtimes remains unverified. The final KernelSU ZIP is not rebuilt.
+
+The local FX root-side generator was inspected: it derives the legacy `xposed.conf` and modern LSPosed Remote Files payload from the same `settings.conf`. Legacy target-app hooks still read the legacy mirror; modern hooks read Remote Files. This is a dual-publication bridge, not proof of identical feature semantics. The root-side generator itself is outside this API-only validation branch and must be carried into the final module integration.
+
 ## API-82 and API-101 consolidation
 
 The two implementations are not yet consolidated into one installable APK. The current validation APK is API-101 only.
