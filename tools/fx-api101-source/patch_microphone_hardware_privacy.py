@@ -90,7 +90,7 @@ method = """    /** Hide input-device enumeration for the selected app only; no 
         }
 
         try {
-            Method getMicrophones = managerType.getDeclaredMethod("getMicrophones");
+            Method getMicrophones = Class.forName("android.media.AudioManager", false, null).getDeclaredMethod("getMicrophones");
             hook(getMicrophones).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> shouldHideMicrophoneHardware()
                             ? java.util.Collections.emptyList() : chain.proceed());
@@ -133,5 +133,8 @@ once("    /** Silence selected AudioRecord read buffers; MediaRecorder/native ca
      method + "    /** Silence selected AudioRecord read buffers; MediaRecorder/native capture are not covered. */\n")
 
 path.write_text(source)
+expected = "1521cbdc4fece16381bd40441178f78976e563f5824bf915663f475af02d4dec"
 actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"microphone hardware privacy source hash mismatch: {actual}")
 print("API101 microphone hardware privacy patch: PASS", actual)
