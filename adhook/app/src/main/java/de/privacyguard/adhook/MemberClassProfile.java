@@ -50,8 +50,9 @@ public final class MemberClassProfile {
             for(int i=0;i<declared.length && i<128;i++) {
                 Method m=declared[i];
                 if(!MemberCandidateClassifier.shouldObserveMethod(m,named,false)) continue;
-                methods.add(MemberCandidateClassifier.inspect(m));
-                score+=Math.min(MemberCandidateClassifier.inspect(m).score,3);
+                MemberCandidateClassifier.Candidate c=MemberCandidateClassifier.inspect(m);
+                methods.add(c);
+                score+=Math.min(c.score,3);
             }
         } catch(Throwable ignored) {}
         boolean obfuscated=!named && MemberCandidateClassifier.hasObfuscatedStateShape(type);
@@ -62,20 +63,8 @@ public final class MemberClassProfile {
     public static String summarize(Result result) {
         if(result==null) return "member_profile=none";
         String name=result.className;
-        int dot=Math.max(name.lastIndexOf('.'),name.lastIndexOf('
-        if(dot>=0) name=name.substring(dot+1);
-        StringBuilder safe=new StringBuilder(64);
-        for(int i=0;i<name.length() && safe.length()<64;i++) {
-            char ch=name.charAt(i);
-            safe.append(Character.isLetterOrDigit(ch)||ch=='_'||ch=='$'?ch:'_');
-        }
-        return "class="+safe+";score="+result.score+";named="+result.namedCandidate
-                +";obfuscatedShape="+result.obfuscatedStateShape
-                +";fields="+result.fields.size()+";methods="+result.methods.size();
-    }
-}
-));
-        if(dot>=0) name=name.substring(dot+1);
+        int separator=Math.max(name.lastIndexOf('.'),name.lastIndexOf('$'));
+        if(separator>=0) name=name.substring(separator+1);
         StringBuilder safe=new StringBuilder(64);
         for(int i=0;i<name.length() && safe.length()<64;i++) {
             char ch=name.charAt(i);
