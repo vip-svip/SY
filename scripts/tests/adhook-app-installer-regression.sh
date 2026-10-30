@@ -74,6 +74,7 @@ if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch sho
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing Hook package was removed after signature mismatch"
 [ ! -s "$TMP/pm/uninstall-calls" ] || fail "installer attempted to uninstall after signature mismatch"
 grep -q 'signing certificate differs' "$TMP/state/install.log" || fail "signature mismatch was not diagnosed in the install log"
+grep -q 'ACTION REQUIRED: back up the old Hook app data' "$TMP/state/install.log" || fail "one-time signing migration instruction missing"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "tracked package cleanup failed"
 [ ! -s "$TMP/pm/installed" ] || fail "FX-managed apps were not removed on uninstall"
