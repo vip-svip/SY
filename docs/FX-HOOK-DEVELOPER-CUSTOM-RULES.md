@@ -4,7 +4,7 @@ The custom rule engine is for an explicitly selected developer-owned application
 
 ## Rule syntax
 
-A target row can contain up to 16 rules. Each rule is a comma-delimited config field whose value uses pipe separators:
+A target row can contain up to 64 rules. Each rule is a comma-delimited config field whose value uses pipe separators:
 
 ```ini
 schema_version=1
