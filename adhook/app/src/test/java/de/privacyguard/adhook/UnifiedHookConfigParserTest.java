@@ -11,6 +11,36 @@ public class UnifiedHookConfigParserTest {
             "[list:targets]\n" +
             "com.example.app,ads_splash=1,ads_feed=0,ads_overlay=1,member_diag=0,privacy=1\n";
 
+
+    @Test
+    public void acceptsSixtyFourCustomRulesPerTarget() {
+        StringBuilder config = new StringBuilder(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.owned,dev_hook_enabled=1");
+        for (int i = 1; i <= UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET; i++) {
+            config.append(",dev_rule_").append(i).append("=r").append(i)
+                    .append("|com.example.owned.AuthRepo#isVip()Z|OBSERVE|").append(i);
+        }
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config.toString());
+        assertEquals(64, parsed.targets.get("com.example.owned").developerRules.size());
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        UnifiedHookConfigParser.Result roundTrip = UnifiedHookConfigParser.parse(serialized);
+        assertEquals(64, roundTrip.targets.get("com.example.owned").developerRules.size());
+        assertTrue(serialized.contains("dev_rule_64=r64|"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsSixtyFiveCustomRulesPerTarget() {
+        StringBuilder config = new StringBuilder(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.owned,dev_hook_enabled=1");
+        for (int i = 1; i <= 65; i++) {
+            config.append(",dev_rule_").append(i).append("=r").append(i)
+                    .append("|com.example.owned.AuthRepo#isVip()Z|OBSERVE|").append(i);
+        }
+        UnifiedHookConfigParser.parse(config.toString());
+    }
+
     @Test
     public void parsesExactDeveloperDebugBooleanHookDescriptors() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
