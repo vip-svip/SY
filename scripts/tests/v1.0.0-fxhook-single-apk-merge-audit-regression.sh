@@ -1,14 +1,15 @@
 #!/bin/sh
+# Guard against falsely claiming single-APK parity before all legacy switches migrate.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-[ -s "$ROOT/docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md" ] || fail "single APK merge audit missing"
-grep -q "唯一 API-101" "$ROOT/docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md" || fail "single API-101 architecture not documented"
-grep -q "de.privacyguard.adhook" "$ROOT/adhook/app/build.gradle" || fail "unified package identity missing"
-grep -q "io.github.libxposed:api:101.0.1" "$ROOT/adhook/app/build.gradle" || fail "modern API dependency missing"
-grep -q "de.privacyguard.adhook.AdVisibilityHook" "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "single runtime entrypoint missing"
-grep -q "de.privacyguard.adhook" "$ROOT/scripts/install_adhook_app.sh" || fail "unified APK install missing"
-! grep -q "install_one de.privacyguard.hook" "$ROOT/scripts/install_adhook_app.sh" || fail "retired API-82 package is still installed"
-grep -q "remove_legacy_if_fx_owned" "$ROOT/scripts/install_adhook_app.sh" || fail "ownership-safe legacy migration missing"
-grep -q "签名不兼容时不卸载" "$ROOT/docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md" || fail "upgrade safety acceptance missing"
-echo "PASS: one API-101 package, one entrypoint, ownership-safe API-82 migration"
+grep -q "未完成，当前保留双 APK" "$ROOT/docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md" || fail "incomplete migration status missing"
+grep -q "75 个旧版配置开关" "$ROOT/docs/FXHOOK-SINGLE-APK-MERGE-AUDIT.md" || fail "legacy switch count not documented"
+grep -q "de.privacyguard.hook" "$ROOT/scripts/install_adhook_app.sh" || fail "legacy package install path missing"
+grep -q "de.privacyguard.adhook" "$ROOT/scripts/install_adhook_app.sh" || fail "modern package install path missing"
+grep -q "optional/PrivacyGuardHook.apk" "$ROOT/scripts/install_adhook_app.sh" || fail "legacy APK install path missing"
+grep -q "optional/FXAdHook.apk" "$ROOT/scripts/install_adhook_app.sh" || fail "modern APK install path missing"
+grep -q "de.privacyguard.hook.MainHook" "$ROOT/lsposed/app/src/main/assets/xposed_init" || fail "legacy runtime source entrypoint missing"
+grep -q "de.privacyguard.adhook.AdVisibilityHook" "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "modern runtime entrypoint missing"
+[ "$(grep -c '^| `' "$ROOT/docs/FXHOOK-MIGRATION-MATRIX.md")" -eq 75 ] || fail "75-switch migration matrix changed unexpectedly"
+echo "PASS: legacy and modern Hook packages remain installed until 75-switch migration is complete"
