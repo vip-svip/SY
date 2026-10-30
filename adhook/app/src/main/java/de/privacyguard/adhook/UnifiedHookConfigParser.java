@@ -34,10 +34,11 @@ public final class UnifiedHookConfigParser {
         public final boolean cellInfoHide;
         public final boolean cameraIdHide;
         public final boolean micBlock;
+        public final boolean disablePassiveLocation;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false, false, false, false, false);
+                    false, false, false, false, false, false, false, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -45,7 +46,7 @@ public final class UnifiedHookConfigParser {
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
                     sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, false, false, false);
+                    sensorRateLimit, false, false, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -54,7 +55,7 @@ public final class UnifiedHookConfigParser {
                boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
                     sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, wifiScanHide, cellInfoHide, false);
+                    sensorRateLimit, wifiScanHide, cellInfoHide, false, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -63,7 +64,7 @@ public final class UnifiedHookConfigParser {
                boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
                     sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, false);
+                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, false, false);
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
@@ -71,6 +72,16 @@ public final class UnifiedHookConfigParser {
                boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
                boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
                boolean micBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
+                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
+                    sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
+               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
+               boolean sensorRateLimit, boolean wifiScanHide, boolean cellInfoHide, boolean cameraIdHide,
+               boolean micBlock, boolean disablePassiveLocation) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -86,6 +97,7 @@ public final class UnifiedHookConfigParser {
             this.cellInfoHide = cellInfoHide;
             this.cameraIdHide = cameraIdHide;
             this.micBlock = micBlock;
+            this.disablePassiveLocation = disablePassiveLocation;
         }
 
         public boolean enabled() {
@@ -185,7 +197,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
-            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false;
+            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -213,10 +225,11 @@ public final class UnifiedHookConfigParser {
                     case "cell_info_hide": cellInfoHide = on; break;
                     case "camera_id_hide": cameraIdHide = on; break;
                     case "mic_block": micBlock = on; break;
+                    case "disable_passive_loc": disablePassiveLocation = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock));
+            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanHide, cellInfoHide, cameraIdHide, micBlock, disablePassiveLocation));
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
