@@ -291,7 +291,9 @@ for test_path in (
         test = test.replace(old_checks, '''[ ! -e "$ROOT/optional/PrivacyGuardHook.apk" ] || fail "retired API-82 APK must not be packaged"
 [ ! -e "$ROOT/optional/PrivacyGuardHook.apk.sha256" ] || fail "retired API-82 checksum must not be packaged"
 ''')
-        test = test.replace("DEXSTR=$(for dex in classes.dex classes2.dex classes3.dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)", "DEXSTR=$(for dex in $(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?[.]dex "PASS: single FX Hook APK archive, entrypoint, features, checksum, and ordinary-app deployment")
+        old_dex = """DEXSTR=$(for dex in classes.dex classes2.dex classes3.dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)"""
+        new_dex = """DEXSTR=$(for dex in $(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?[.]dex$'); do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)"""
+        test = test.replace(old_dex, new_dex)
         test_path.write_text(test, encoding="utf-8")
 
 # Replace the historical dual-APK audit assertions with executable single-APK acceptance.
