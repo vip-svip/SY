@@ -279,8 +279,16 @@ public final class AdVisibilityHook extends XposedModule {
                 debuggableBuild, true, descriptor);
         if (method == null || developerTestHookedMethods.contains(method)) return;
         try {
+            final java.util.concurrent.atomic.AtomicLong hitCounter = new java.util.concurrent.atomic.AtomicLong();
             hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> replacement);
+                    .intercept(chain -> {
+                        long hits = hitCounter.incrementAndGet();
+                        if (hits == 1L || hits % 100L == 0L) {
+                            logFx(Log.INFO, "developer Debug fixture hit=" + label
+                                    + " package=" + packageName + " count=" + hits);
+                        }
+                        return replacement;
+                    });
             developerTestHookedMethods.add(method);
             logFx(Log.INFO, "developer Debug UI fixture installed=" + label
                     + " package=" + packageName + " method=" + method.getName());
