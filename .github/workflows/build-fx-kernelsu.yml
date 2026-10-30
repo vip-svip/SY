@@ -49,6 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 fx-patches/patch_remote_config_parser.py fx-module
+          python3 fx-patches/patch_unified_hook_single_apk.py fx-module
       - name: Validate required module files and version
         shell: bash
         run: |
