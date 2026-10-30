@@ -200,6 +200,7 @@ public final class AdVisibilityHook extends XposedModule {
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null) return;
         final boolean adsForPackage = adsEnabled && target.enabled();
+        final boolean memberDiagForPackage = target.memberDiag;
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         final boolean exifForPackage = privacyEnabled && target.exifStrip;
         final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
@@ -215,7 +216,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target.mediaStoreQueryBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -233,11 +234,13 @@ public final class AdVisibilityHook extends XposedModule {
         if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
         if (microphoneAccessBlockForPackage) installMicrophoneAccessBlockHooks(pkg);
         if (mediaStoreQueryBlockForPackage) installMediaStoreQueryBlockHooks(pkg);
-        if (!hooksInstalledFor.add(pkg)) return;
-        if (adsForPackage && target.memberDiag) {
+        // Member diagnostics are independent of ads/privacy and must run before
+        // the unrelated per-package one-shot guard.
+        if (memberDiagForPackage) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
+        if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +

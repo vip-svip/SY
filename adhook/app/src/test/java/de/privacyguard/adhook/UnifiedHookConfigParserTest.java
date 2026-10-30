@@ -66,6 +66,24 @@ public class UnifiedHookConfigParserTest {
                 "com.example.app,make_vip=1\n");
     }
 
+
+    @Test
+    public void memberDiagnosticsRemainEnabledWhenAdsMasterSwitchIsOff() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n" +
+                "[list:targets]\\ncom.example.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=1\\n");
+        assertFalse(result.isAdsEnabledFor("com.example.app"));
+        assertTrue(result.isMemberDiagnosticsEnabledFor("com.example.app"));
+    }
+
+    @Test
+    public void memberDiagnosticsAreDisabledWhenNotExplicitlyConfigured() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=1\\nprivacy_enabled=0\\n" +
+                "[list:targets]\\ncom.example.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=0\\n");
+        assertFalse(result.isMemberDiagnosticsEnabledFor("com.example.app"));
+    }
+
     @Test
     public void privacyOnlyTargetWorksWhenAdsMasterSwitchIsOff() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(

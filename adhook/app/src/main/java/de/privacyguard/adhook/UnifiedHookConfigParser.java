@@ -112,8 +112,9 @@ public final class UnifiedHookConfigParser {
             this.mediaStoreQueryBlock = mediaStoreQueryBlock;
         }
 
+        /** Ad-filtering scope only; member diagnostics has its own independent switch. */
         public boolean enabled() {
-            return splash || feed || overlay || memberDiag;
+            return splash || feed || overlay;
         }
     }
 
@@ -139,6 +140,12 @@ public final class UnifiedHookConfigParser {
         public boolean isAdsEnabledFor(String packageName) {
             Target target = targets.get(packageName);
             return adsEnabled && target != null && target.enabled();
+        }
+
+        /** Member diagnostics are independent from the global ad-filtering switch. */
+        public boolean isMemberDiagnosticsEnabledFor(String packageName) {
+            Target target = targets.get(packageName);
+            return target != null && target.memberDiag;
         }
 
         public boolean isPrivacyEnabledFor(String packageName) {
