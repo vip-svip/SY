@@ -92,3 +92,19 @@ Important integration blocker: the current FX package's root-side Remote Files p
 6. Run the GitHub Actions build and host regressions; report physical-device validation separately.
 
 No unified APK or complete migration is claimed by this document.
+
+## Latest validated checkpoint — 2026-10-30 (run 41057506685)
+
+The one-APK API82/API101 debug validation build now passes GitHub Actions run [41057506685](https://github.com/vip-svip/SY/actions/runs/41057506685), commit `b746c44af0450d5f3e9cbb73f5a727059de594ff`. The run passed source restoration, wiring/static regressions, JUnit tests, APK assembly, signature/DEX/metadata checks and artifact upload.
+
+The current API101 opt-in migration set now also includes:
+- microphone hardware enumeration privacy (`mic_hw_hide`);
+- bounded `AudioRecord.read` sample perturbation (`audio_fp_block`), not a full anti-fingerprinting guarantee;
+- process-local memory-only clipboard isolation (`clipboard_isolate`), single-package only; read-block takes precedence;
+- notification-listener and notification-permission visibility controls;
+- UsageStats and accessibility-service visibility controls;
+- fingerprint/face hardware enumeration privacy.
+
+All corresponding host regression scripts passed in run 41057506685. Audio capture paths outside supported `AudioRecord.read` overloads remain uncovered. Clipboard change listeners and multi-process apps remain uncovered. Hardware enumeration privacy does not disable the underlying biometric hardware.
+
+This checkpoint remains a debug-signed validation APK, not a release-signed installable production module. API82/API101 framework discovery and runtime arbitration, config equivalence between legacy xposed.conf and API101 Remote Files, release-signature migration, remaining legacy flag parity, complete module integration and OnePlus 12 verification remain open. The final KernelSU ZIP has not been rebuilt.
