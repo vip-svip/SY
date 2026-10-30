@@ -39,6 +39,9 @@ public final class UnifiedHookConfigParser {
         public final boolean locationAccessBlock;
         public final boolean microphoneAccessBlock;
         public final boolean mediaStoreQueryBlock;
+        public String developerVipMethod;
+        public String developerLoginMethod;
+        public String developerHideUpdateMethod;
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
             this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
@@ -256,13 +259,22 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false;
+            String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
                 if (eq < 1) throw new IllegalArgumentException("malformed feature");
                 String key = parts[i].substring(0, eq).trim();
                 String value = parts[i].substring(eq + 1).trim();
-                if (!seen.add(key) || !bit(value)) throw new IllegalArgumentException("duplicate or invalid feature");
+                if (!seen.add(key)) throw new IllegalArgumentException("duplicate feature");
+                if ("dev_test_vip_method".equals(key) || "dev_test_login_method".equals(key) || "dev_test_hide_update_method".equals(key)) {
+                    if (!validDeveloperBooleanMethodSpec(value, pkg)) throw new IllegalArgumentException("invalid developer test method descriptor");
+                    if ("dev_test_vip_method".equals(key)) developerVipMethod=value;
+                    else if ("dev_test_login_method".equals(key)) developerLoginMethod=value;
+                    else developerHideUpdateMethod=value;
+                    continue;
+                }
+                if (!bit(value)) throw new IllegalArgumentException("invalid feature value");
                 boolean on = "1".equals(value);
                 switch (key) {
                     case "ads_splash": splash = on; break;
@@ -292,7 +304,11 @@ public final class UnifiedHookConfigParser {
                 }
             }
             if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
-            targets.put(pkg, new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock));
+            Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock);
+            parsedTarget.developerVipMethod = developerVipMethod;
+            parsedTarget.developerLoginMethod = developerLoginMethod;
+            parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
+            targets.put(pkg, parsedTarget);
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
@@ -365,6 +381,14 @@ public final class UnifiedHookConfigParser {
         }
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
         return new Result(ads, false, false, false, false, false, targets);
+    }
+
+    private static boolean validDeveloperBooleanMethodSpec(String value, String packageName) {
+        if (value == null || value.length() > 512) return false;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("^([A-Za-z_$][A-Za-z0-9_$.]*)#([A-Za-z_$][A-Za-z0-9_$]*)\\(\\)Z$").matcher(value);
+        if (!matcher.matches()) return false;
+        String owner = matcher.group(1);
+        return owner.startsWith(packageName + ".") && !owner.startsWith("java.") && !owner.startsWith("android.");
     }
 
     private static boolean bit(String value) {
