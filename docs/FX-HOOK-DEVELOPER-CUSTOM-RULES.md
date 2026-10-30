@@ -17,14 +17,14 @@ com.example.vpn,dev_hook_enabled=1,dev_rule_1=vip|com.example.vpn.auth.AuthState
 Field order is `id|method-descriptor|action|priority`. `dev_hook_enabled=1` is mandatory; without it all custom rules remain inert even for a debuggable package.
 
 Supported method descriptor forms:
-- Java reflection form: `com.example.vpn.auth.AuthState#isVip()Z`
-- JVM arrow form: `Lcom/example/vpn/auth/AuthState;->isVip()Z`
-- Dotted form: `com.example.vpn.auth.AuthState.isVip()Z`
+- Exact JVM form: `Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;`
+- Exact constructor form: `Lcom/example/vpn/Trace;-><init>(I)V`
+- Legacy Java form: `com.example.vpn.auth.AuthState#isVip()Z` (zero-argument boolean only)
+- Dotted legacy form: `com.example.vpn.auth.AuthState.isVip()Z`
 
-All forms normalize to an exact declared zero-argument primitive-boolean method. Fuzzy matching, overload guessing, parameters, object returns, and non-boolean methods are rejected.
+JVM descriptors resolve the exact declared executable, including overload parameters, arrays, object types and return type. `OBSERVE` / `OBSERVE_ONLY` supports methods and constructors. The observer calls the original executable and records only argument type names, result type, instance type, exception class, duration and a bounded hit count; it never serializes argument values, tokens, credentials or returned objects. Constructor observations report the constructed instance type after successful construction.
 
-Actions: `true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`, `OBSERVE` / `OBSERVE_ONLY` (call the original method and record hits), and `OFF` / `DISABLED` (do not install that rule). Priority is an integer from -1000 through 1000; higher priority is installed first. Duplicate rule IDs are rejected. If multiple active rules target the same exact method, the highest-priority rule wins; equal priorities preserve config order. A disabled higher-priority rule does not shadow a lower-priority active rule. The rule count is capped at 16 per package. Rule changes take effect when the target process is restarted; this build does not dynamically detach a live hook when its remote config changes.
-
+Value-replacement actions (`true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`) remain restricted to exact zero-argument primitive-boolean methods in the existing Debug fixture path. They are not a general-purpose result mutator and cannot be used to alter network authorization, billing responses, purchase tokens or server entitlements. Non-boolean methods, parameterized methods and constructors are observation-only.
 ## Preset use cases
 
 - `vip`: make a local VIP presentation predicate return true in a Debug build.
