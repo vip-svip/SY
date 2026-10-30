@@ -15,15 +15,20 @@ public final class UnifiedHookConfigSerializer {
 
     public static String serialize(boolean adsEnabled, boolean privacyEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, false, false, targets);
+        return serialize(adsEnabled, privacyEnabled, false, false, false, targets);
     }
 
     public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, false, targets);
+        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, false, false, targets);
     }
 
     public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled,
+                                   Map<String, UnifiedHookConfigParser.Target> targets) {
+        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, notificationListenEnabled, false, targets);
+    }
+
+    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
         if (targets == null) throw new IllegalArgumentException("targets is null");
         Map<String, UnifiedHookConfigParser.Target> sorted = new TreeMap<>(targets);
@@ -33,6 +38,7 @@ public final class UnifiedHookConfigSerializer {
                 .append("privacy_enabled=").append(privacyEnabled ? '1' : '0').append('\n')
                 .append("wifi_scan_enabled=").append(wifiScanEnabled ? '1' : '0').append('\n')
                 .append("notification_listen_enabled=").append(notificationListenEnabled ? '1' : '0').append('\n')
+                .append("notification_permission_hide_enabled=").append(notificationPermissionHideEnabled ? '1' : '0').append('\n')
                 .append("[list:targets]\n");
         for (Map.Entry<String, UnifiedHookConfigParser.Target> entry : sorted.entrySet()) {
             String pkg = entry.getKey();
@@ -55,6 +61,7 @@ public final class UnifiedHookConfigSerializer {
                     .append(",sensor_rate_limit=").append(target.sensorRateLimit ? '1' : '0')
                     .append(",wifi_scan_block=").append(target.wifiScanBlock ? '1' : '0')
                     .append(",notification_listen_block=").append(target.notificationListenBlock ? '1' : '0')
+                    .append(",notification_permission_hide=").append(target.notificationPermissionHide ? '1' : '0')
                     .append('\n');
         }
 
@@ -63,7 +70,7 @@ public final class UnifiedHookConfigSerializer {
         // names and malformed state must never be emitted as a seemingly valid file.
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(serialized);
         if (parsed.adsEnabled != adsEnabled || parsed.privacyEnabled != privacyEnabled
-                || parsed.wifiScanEnabled != wifiScanEnabled || parsed.notificationListenEnabled != notificationListenEnabled || parsed.targets.size() != sorted.size()) {
+                || parsed.wifiScanEnabled != wifiScanEnabled || parsed.notificationListenEnabled != notificationListenEnabled || parsed.notificationPermissionHideEnabled != notificationPermissionHideEnabled || parsed.targets.size() != sorted.size()) {
             throw new IllegalArgumentException("config failed validation");
         }
         return serialized;
