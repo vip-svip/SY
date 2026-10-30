@@ -19,8 +19,8 @@ The complete Java source is therefore available in the FX package even though it
 - Legacy entry: `de.privacyguard.hook.MainHook`, API 82 (`IXposedHookLoadPackage`, `XC_MethodHook`, `XposedHelpers`).
 - Modern entry: `de.privacyguard.adhook.AdVisibilityHook`, libxposed API 101 (`XposedModule`, Remote Files).
 - Installer regression currently expects two package installs: `de.privacyguard.hook` and `de.privacyguard.adhook`.
-- Modern config parser supports a versioned unified schema, but the root-side publisher still emits the legacy ad-only format; privacy therefore remains disabled for that legacy payload.
-- Modern runtime currently has ad-view observation, read-only membership diagnostics, and a narrow opt-in Android ID transform. This is not legacy feature parity.
+- Modern config parser supports the versioned unified schema. The recovered FX KernelSU ZIP includes `scripts/gen_xposed_conf.sh`, which publishes `schema_version=1` through LSPosed Remote Files, with independent ad/privacy/Wi-Fi/notification masters and per-target feature fields. The legacy API-82 bridge still consumes its old `xposed.conf`; the two config paths remain separate.
+- Modern runtime source currently includes ad-view observation, read-only Billing/member diagnostics, a narrow Android ID transform, EXIF getter redaction, clipboard read protection, selected sensor enumeration/rate controls, Wi-Fi scan suppression, active-notification read suppression, and app-visible notification permission-query masking. These are source/host-test migration slices, not complete API-82 parity or physical-device proof.
 - Existing API-101 workflow validates/builds the modern AdHook module; it does not prove that the legacy API-82 implementation has been ported.
 
 ## Migration inventory and ordering
@@ -48,7 +48,7 @@ The recovered legacy source must be imported unchanged as an audit baseline befo
 - Built APK SHA-256: `7266bf40550a974cabd473d9041cbe52dda692b9e5cabce177203ab5c43579fd`.
 - Artifact: `FXAdHook-apk` (ID `12963555891`), expires 2027-01-28. This is a debug API-101 APK artifact, not the final unified Hook APK.
 
-Important integration blocker: the current FX package's root-side Remote Files publisher and the UI control for `exif_strip` are not yet wired to this schema. The feature compiles and parser/serializer tests pass, but cannot be treated as active in an installed FX module until that end-to-end publisher/UI path is connected. The legacy API-82 APK remains separate.
+Integration status update (2026-10-30): the recovered FX ZIP's root-side publisher emits the versioned Remote Files schema and includes the `exif_strip` target field. The API-101 parser and serializer cover this field. The legacy API-82 APK remains separate, and OnePlus 12 / LSPosed runtime behavior remains unverified.
 
 ## Second migration slice: clipboard read protection (2026-10-30)
 
@@ -74,9 +74,9 @@ Important integration blocker: the current FX package's root-side Remote Files p
 
 1. Import the 96,340-byte source from the recovered FX ZIP into a clearly marked migration-baseline directory in this branch.
 2. Enumerate all legacy hook registrations and API-82 helper calls; map each to a libxposed API-101 implementation or mark it unsupported with a reason.
-3. Build a shared versioned Remote Files schema and migrate the root-side config publisher/UI to it.
-4. Port low-risk features first; add unit and package-scope regression tests for every port.
-5. Replace the two-package installer only after the single APK has complete, tested feature coverage.
+3. Keep the versioned Remote Files schema, root-side publisher, UI keys, and parser/serializer synchronized; add an end-to-end fixture test from actual FX `hook_targets` config to the API-101 parser.
+4. Continue porting low-risk features first; add unit and package-scope regression tests for every port. Current next candidates are explicit, non-spoofing privacy controls that do not falsify device identity or interfere with networking.
+5. Replace the two-package installer only after the single APK has complete, tested feature coverage, stable package identity/upgrade strategy, and a real LSPosed injection test.
 6. Run the GitHub Actions build and host regressions; report physical-device validation separately.
 
 No unified APK or complete migration is claimed by this document.
