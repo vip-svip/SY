@@ -85,6 +85,11 @@ jobs:
             dir="$(dirname "$manifest")"
             base="$(basename "$manifest")"
             target="${base%.sha256}"
+            if [[ "$target" == "PrivacyGuardHook.apk" && ! -e "$dir/$target" ]]; then
+              echo "::notice file=$manifest::Removing obsolete checksum sidecar for the renamed legacy APK."
+              rm -f "$manifest"
+              continue
+            fi
             if ! awk 'NF >= 2 && $1 ~ /^[[:xdigit:]]{64}$/ { ok=1 } END { exit !ok }' "$manifest"; then
               [[ -s "$dir/$target" ]] || { echo "::error file=$manifest::Malformed checksum manifest and target file is absent"; exit 1; }
               echo "::warning file=$manifest::Non-standard checksum manifest; normalizing against its adjacent packaged file."
