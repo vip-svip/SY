@@ -222,7 +222,7 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false;
-            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false;
+            boolean wifiScanHide=false, cellInfoHide=false, cameraIdHide=false, micBlock=false, disablePassiveLocation=false, regionDiag=false, blockMediaStore=false;
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
