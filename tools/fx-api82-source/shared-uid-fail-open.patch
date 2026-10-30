@@ -1,0 +1,18 @@
+*** Begin Patch
+*** Update File: lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
+@@
+     @SuppressLint("DefaultLocale")
+     @Override
+     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpp) throws Throwable {
+         pkg = lpp.packageName;
++        // A legacy process-global hook cannot reliably attribute calls when the
++        // target declares a shared UID. Fail open rather than letting a later
++        // package callback overwrite the instance-wide pkg field.
++        if (lpp.appInfo != null && lpp.appInfo.sharedUserId != null
++                && !lpp.appInfo.sharedUserId.isEmpty()) {
++            log("shared UID process: legacy hooks disabled for " + pkg);
++            return;
++        }
+         // 自身包名绝不 Hook（否则 WebUI 的 bridge/状态查询会被自己的过滤逻辑裁掉）
+         if (SELF_PKG.equals(pkg)) return;
+*** End Patch
