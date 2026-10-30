@@ -117,9 +117,13 @@ jobs:
         run: |
           JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           sh scripts/tests/adhook-app-installer-regression.sh
+          sh scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh .
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'notification_permission_hide_enabled' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
           grep -q 'notification_permission_hide' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'mic_silence' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          grep -q 'installAudioRecordSilenceHooks' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          grep -q 'AudioRecordSilencePolicy.zero' adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           grep -q 'installNotificationPermissionPrivacyHooks' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'areNotificationsEnabled' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           grep -q 'NotificationPrivacyPolicy.shouldHidePermission' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
