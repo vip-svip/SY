@@ -2,6 +2,7 @@ package de.privacyguard.adhook;
 
 import android.app.Activity;
 import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraManager;
 import android.location.LocationManager;
@@ -137,6 +138,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
@@ -207,7 +209,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneSilenceForPackage = privacyEnabled && target.microphoneSilence;
         final boolean cameraAccessBlockForPackage = privacyEnabled && target.cameraAccessBlock;
         final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage) return;
+        final boolean microphoneAccessBlockForPackage = privacyEnabled && target.microphoneAccessBlock;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -223,13 +226,14 @@ public final class AdVisibilityHook extends XposedModule {
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
         if (cameraAccessBlockForPackage) installCameraAccessBlockHooks(pkg);
         if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
+        if (microphoneAccessBlockForPackage) installMicrophoneAccessBlockHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -326,6 +330,59 @@ public final class AdVisibilityHook extends XposedModule {
         String onlyPackage = processPackages.iterator().next();
         UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
         return selected != null && selected.cameraAccessBlock;
+    }
+
+    /**
+     * Explicit per-app microphone recording denial. This blocks capture start
+     * rather than fabricating audio samples or spoofing microphone hardware state.
+     * Existing microphoneSilence remains a separate post-read buffer policy.
+     */
+    private void installMicrophoneAccessBlockHooks(String packageName) {
+        synchronized (microphoneAccessHookedMethods) {
+            int installed = 0;
+            for (Method method : AudioRecord.class.getDeclaredMethods()) {
+                if (!"startRecording".equals(method.getName())
+                        || method.getReturnType() != void.class
+                        || microphoneAccessHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        if (isMicrophoneAccessBlockAuthorized()) {
+                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
+                        }
+                        return chain.proceed();
+                    });
+                    microphoneAccessHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "AudioRecord start hook failed; method remains unchanged: " + method.toGenericString());
+                }
+            }
+            for (Method method : MediaRecorder.class.getDeclaredMethods()) {
+                if (!"start".equals(method.getName()) || method.getParameterTypes().length != 0
+                        || microphoneAccessHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        if (isMicrophoneAccessBlockAuthorized()) {
+                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
+                        }
+                        return chain.proceed();
+                    });
+                    microphoneAccessHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "MediaRecorder start hook failed; method remains unchanged: " + method.toGenericString());
+                }
+            }
+            logFx(installed > 0 ? Log.INFO : Log.WARN,
+                    "microphone start denial hooks installed=" + installed + " package=" + packageName);
+        }
+    }
+
+    private boolean isMicrophoneAccessBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        String onlyPackage = processPackages.iterator().next();
+        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
+        return selected != null && selected.microphoneAccessBlock;
     }
 
     private void installAudioRecordSilenceHooks(String packageName) {
