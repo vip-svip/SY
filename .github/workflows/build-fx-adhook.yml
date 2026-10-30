@@ -112,6 +112,14 @@ jobs:
         run: |
           sh scripts/tests/adhook-app-installer-regression.sh
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          grep -q 'notification_permission_hide_enabled' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
+          grep -q 'notification_permission_hide' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java
+          grep -q 'installNotificationPermissionPrivacyHooks' "$JAVA_SRC"
+          grep -q 'areNotificationsEnabled' "$JAVA_SRC"
+          grep -q 'NotificationPrivacyPolicy.shouldHidePermission' "$JAVA_SRC"
+          grep -q 'shouldHidePermission' adhook/app/src/main/java/de/privacyguard/adhook/NotificationPrivacyPolicy.java
+          grep -q 'hidesOnlyExplicitNotificationPermissionQueryTarget' adhook/app/src/test/java/de/privacyguard/adhook/NotificationPrivacyPolicyTest.java
+          grep -q 'notificationPermissionQueryFailsOpenWhenMasterOffSharedOrProtected' adhook/app/src/test/java/de/privacyguard/adhook/NotificationPrivacyPolicyTest.java
           gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK is signed and has modern Xposed resources
         shell: bash
