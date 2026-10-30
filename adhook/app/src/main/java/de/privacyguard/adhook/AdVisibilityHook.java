@@ -149,6 +149,7 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean privacyEnabled;
     private boolean wifiScanEnabled;
     private boolean notificationListenEnabled;
+    private boolean notificationPermissionHideEnabled;
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
     private volatile String currentPackage = "";
@@ -191,7 +192,8 @@ public final class AdVisibilityHook extends XposedModule {
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
         final boolean notificationListenForPackage = notificationListenEnabled && target.notificationListenBlock;
-        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage) return;
+        final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target.notificationPermissionHide;
+        if (!adsForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
@@ -202,13 +204,14 @@ public final class AdVisibilityHook extends XposedModule {
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
+        if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (!hooksInstalledFor.add(pkg)) return;
         if (adsForPackage && target.memberDiag) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage +
                 " splash=" + target.splash + " feed=" + target.feed +
                 " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
@@ -223,6 +226,7 @@ public final class AdVisibilityHook extends XposedModule {
         privacyEnabled = false;
         wifiScanEnabled = false;
         notificationListenEnabled = false;
+        notificationPermissionHideEnabled = false;
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
              ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
             byte[] chunk = new byte[4096];
@@ -249,6 +253,7 @@ public final class AdVisibilityHook extends XposedModule {
             privacyEnabled = parsed.privacyEnabled;
             wifiScanEnabled = parsed.wifiScanEnabled;
             notificationListenEnabled = parsed.notificationListenEnabled;
+            notificationPermissionHideEnabled = parsed.notificationPermissionHideEnabled;
             targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
@@ -551,6 +556,45 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in active-notification read hooks installed=" + installed + " for " + pkg);
         return notificationListenHooksInstalled;
+    }
+
+
+    /**
+     * Per-app masking of NotificationManager.areNotificationsEnabled().
+     * It changes only the target app's query result; actual grants, listener
+     * registration, posting, and notification display are not modified.
+     */
+    private synchronized boolean installNotificationPermissionPrivacyHooks(final String pkg) {
+        if (notificationPermissionHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.app.NotificationManager", false, null);
+            for (final Method method : type.getDeclaredMethods()) {
+                if (!"areNotificationsEnabled".equals(method.getName())
+                        || method.getParameterTypes().length != 0
+                        || method.getReturnType() != boolean.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (NotificationPrivacyPolicy.shouldHidePermission(notificationPermissionHideEnabled,
+                                        processPackages.size(), activePackage, active)) return Boolean.FALSE;
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "notification permission query hook unavailable");
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "NotificationManager permission query unavailable");
+            return false;
+        }
+        notificationPermissionHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "opt-in notification permission query hooks installed=" + installed + " for " + pkg);
+        return notificationPermissionHooksInstalled;
     }
 
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
