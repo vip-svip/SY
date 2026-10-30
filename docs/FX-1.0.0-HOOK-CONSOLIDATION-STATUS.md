@@ -63,6 +63,21 @@ API-101 now parses and serializes independent per-target `mic_hw_hide` and `audi
 
 GitHub Actions run `41054381942` (commit `d4463acaa595d77753c7b903850d66da611b18d3`) passed the exact-source hash checks, all host regressions, JUnit tests, API82+API101 single-APK compilation, APK signature verification, DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12975833069`, archive SHA-256 `0de3831b3f916eb5539cdc24c4616c746f7a51b30945b4dde46e4710076b3a8f`. This remains a debug-signed validation artifact; framework loading and actual audio behavior on OnePlus 12 are not verified. The final KernelSU ZIP has not been rebuilt.
 
+## Notification, usage, accessibility and clipboard migration checkpoint (2026-10-30)
+
+API-101 now parses and serializes four additional independent per-target flags:
+
+- `block_notif_listen`: hides active-notification query results from `NotificationManager` and `NotificationListenerService`, using return-type-compatible empty arrays/lists.
+- `hide_notif_perm`: reports `NotificationManager.areNotificationsEnabled()` as false for the selected target. It does not revoke the actual Android permission.
+- `usagestats_off`: returns an empty list from `UsageStatsManager.queryUsageStats()`; this does not cover every usage-statistics API.
+- `a11y_hide`: returns empty lists from `AccessibilityManager.getEnabledAccessibilityServiceList()` and `getInstalledAccessibilityServiceList()`. This may break accessibility-dependent app features and must remain explicitly opt-in.
+
+These hooks require the privacy master switch, exactly one package in the process, and a selected per-app flag. System, FX Hook, LSPosed Manager, unknown and shared-package processes fail open.
+
+The parallel clipboard-isolation migration is also staged in the same API-101 source pipeline: it keeps reads/writes in a process-local in-memory clipboard and does not modify the Android system clipboard. It does not cover multi-process apps or clipboard-change listeners. `clipboard_read_block` takes precedence over isolation.
+
+GitHub Actions run `41055938919` (commit `7178bc1d13bb013a3431ee4b6a91e9d8fe056fa4`) passed source restoration, exact prior patch hashes, clipboard and notification/system-surface regressions, JUnit tests, single-APK compilation, APK signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977210569`, archive SHA-256 `9dc912522d05e4a1e8e4ccd2316dd35e4c0c143f6d2d0d2b33869c5ebb367428`. The debug APK is a validation artifact only; no real LSPosed injection or OnePlus 12 behavior is proven. The final KernelSU ZIP has not been rebuilt.
+
 ## APK signing continuity blocker
 
 The currently bundled legacy API101 APK and the new dual-entry validation APK do not share a signing certificate:
