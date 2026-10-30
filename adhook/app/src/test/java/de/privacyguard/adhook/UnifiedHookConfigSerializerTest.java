@@ -194,6 +194,24 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsNotificationUsageAndAccessibilityFlags() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.systemsurface,block_notif_listen=1,hide_notif_perm=0,usagestats_off=1,a11y_hide=0\n")
+                .targets.get("com.example.systemsurface");
+        targets.put("com.example.systemsurface", source);
+        String text = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed = UnifiedHookConfigParser.parse(text).targets.get("com.example.systemsurface");
+        assertTrue(parsed.blockNotifListen);
+        assertFalse(parsed.hideNotifPerm);
+        assertTrue(parsed.usageStatsOff);
+        assertFalse(parsed.a11yHide);
+        assertTrue(text.contains("block_notif_listen=1"));
+        assertTrue(text.contains("usagestats_off=1"));
+    }
+
+    @Test
     public void serializerRoundTripsAudioFingerprintFlag() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target source = UnifiedHookConfigParser.parse(
