@@ -44,6 +44,7 @@ public final class UnifiedHookConfigParser {
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
+        public boolean developerHooksEnabled;
         public final List<DeveloperHookRule> developerRules = new ArrayList<>();
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
@@ -263,6 +264,7 @@ public final class UnifiedHookConfigParser {
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
+            boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
@@ -271,6 +273,11 @@ public final class UnifiedHookConfigParser {
                 String key = parts[i].substring(0, eq).trim();
                 String value = parts[i].substring(eq + 1).trim();
                 if (!seen.add(key)) throw new IllegalArgumentException("duplicate feature");
+                if ("dev_hook_enabled".equals(key)) {
+                    if (!bit(value)) throw new IllegalArgumentException("invalid developer hook opt-in");
+                    developerHooksEnabled = "1".equals(value);
+                    continue;
+                }
                 if (key.matches("dev_rule_[0-9]{1,2}")) {
                     if (developerRulesCount(developerRules) >= 16) throw new IllegalArgumentException("too many developer rules");
                     DeveloperHookRule rule = DeveloperHookRule.parse(value, pkg);
@@ -319,6 +326,7 @@ public final class UnifiedHookConfigParser {
             parsedTarget.developerVipMethod = developerVipMethod;
             parsedTarget.developerLoginMethod = developerLoginMethod;
             parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
+            parsedTarget.developerHooksEnabled = developerHooksEnabled;
             parsedTarget.developerRules.addAll(developerRules);
             targets.put(pkg, parsedTarget);
         }
