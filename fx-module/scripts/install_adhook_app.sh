@@ -1,5 +1,6 @@
 #!/system/bin/sh
-# Install the one unified libxposed API-101 FX Hook package.
+# Install bundled LSPosed Hook APKs as ordinary /data/app packages.
+# This avoids requiring a KernelSU metamodule merely to expose Hook APKs under /system/priv-app.
 set -u
 MODDIR=${1:-}
 if [ -z "$MODDIR" ]; then
@@ -16,88 +17,48 @@ log_msg() {
   printf '%s\n' "$*"
 }
 package_present() { pm path "$1" 2>/dev/null | grep -q '^package:'; }
-remove_legacy_if_fx_owned() {
-  _pkg=de.privacyguard.hook
-  _marker="$STATE_DIR/adhook-apk-privacyguardhook.sha256"
-  _owned="$STATE_DIR/adhook-apk-privacyguardhook.fx-owned"
-  [ -s "$_marker" ] || return 0
-  if [ ! -s "$_owned" ]; then
-    log_msg "legacy package ownership is unproven; preserving it: $_pkg"
-    rm -f "$_marker" 2>/dev/null
-    return 0
+install_one() {
+  _pkg=$1; _slug=$2; _apk=$3
+  _marker="$STATE_DIR/adhook-apk-$_slug.sha256"
+  if [ ! -s "$_apk" ]; then log_msg "WARN: bundled APK missing: $_apk"; return 1; fi
+  if ! command -v pm >/dev/null 2>&1; then log_msg "WARN: pm command unavailable; cannot install $_pkg yet"; return 1; fi
+  _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
+  if [ -z "$_actual" ]; then log_msg "WARN: cannot compute APK digest for $_pkg"; return 1; fi
+  if [ -s "$_apk.sha256" ]; then
+    _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256" 2>/dev/null)
+    if [ -n "$_expected" ] && [ "$_actual" != "$_expected" ]; then log_msg "WARN: APK checksum mismatch for $_pkg; refusing install"; return 1; fi
   fi
-  if package_present "$_pkg"; then
-    if pm uninstall "$_pkg" >> "$LOG" 2>&1; then
-      log_msg "removed retired FX-owned API-82 package after API-101 install: $_pkg"
-    else
-      log_msg "WARN: could not remove retired FX-owned API-82 package: $_pkg"
-      return 1
+  _prior=$(cat "$_marker" 2>/dev/null)
+  if package_present "$_pkg" && [ "$_prior" = "$_actual" ]; then log_msg "already installed and unchanged: $_pkg"; return 0; fi
+  _stage="$TMP_DIR/.fx-adhook-${_slug}-$$.apk"
+  rm -f "$_stage" 2>/dev/null
+  if ! cp "$_apk" "$_stage" 2>/dev/null; then log_msg "WARN: cannot stage APK for PackageManager: $_pkg"; return 1; fi
+  chmod 0644 "$_stage" 2>/dev/null || :
+  chown shell:shell "$_stage" 2>/dev/null || :
+  if command -v restorecon >/dev/null 2>&1; then restorecon "$_stage" 2>/dev/null || :; fi
+  if command -v chcon >/dev/null 2>&1; then chcon u:object_r:shell_data_file:s0 "$_stage" 2>/dev/null || :; fi
+  _attempt=1; _installed=0
+  while [ "$_attempt" -le 3 ]; do
+    if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
+      _marker_tmp="$_marker.tmp.$$"
+      (umask 077; printf '%s\n' "$_actual" > "$_marker_tmp") &&
+        chmod 0600 "$_marker_tmp" 2>/dev/null && mv -f "$_marker_tmp" "$_marker" 2>/dev/null
+      if [ -s "$_marker" ] && [ "$(cat "$_marker" 2>/dev/null)" = "$_actual" ]; then _installed=1; break; fi
+      rm -f "$_marker_tmp" 2>/dev/null
+      log_msg "WARN: package installed but state marker could not be persisted: $_pkg"
+      _installed=1; break
     fi
+    log_msg "WARN: PackageManager install attempt $_attempt/3 failed for $_pkg"
+    _attempt=$((_attempt+1))
+    [ "$_attempt" -le 3 ] && sleep 2
+  done
+  rm -f "$_stage" 2>/dev/null
+  if [ "$_installed" = 1 ]; then
+    log_msg "installed as ordinary app; LSPosed activation requires its module/scope and a reboot: $_pkg"; return 0
   fi
-  rm -f "$_marker" "$_owned" 2>/dev/null
-  return 0
+  log_msg "ERROR: unable to install $_pkg; core FX installation continues, see $LOG"; return 1
 }
-APK="$MODDIR/optional/FXAdHook.apk"
-PKG=de.privacyguard.adhook
-SLUG=fxadhook
-MARKER="$STATE_DIR/adhook-apk-$SLUG.sha256"
-OWNED="$STATE_DIR/adhook-apk-$SLUG.fx-owned"
-if [ ! -s "$APK" ]; then log_msg "ERROR: unified FX Hook APK missing: $APK"; exit 1; fi
-if ! command -v pm >/dev/null 2>&1; then log_msg "WARN: pm command unavailable; cannot install $PKG"; exit 1; fi
-ACTUAL=$(sha256sum "$APK" 2>/dev/null | awk 'NR==1 {print $1}')
-if [ -z "$ACTUAL" ]; then log_msg "ERROR: cannot compute APK digest"; exit 1; fi
-if [ -s "$APK.sha256" ]; then
-  EXPECTED=$(awk 'NR==1 {print $1}' "$APK.sha256" 2>/dev/null)
-  if [ -n "$EXPECTED" ] && [ "$ACTUAL" != "$EXPECTED" ]; then
-    log_msg "ERROR: unified APK checksum mismatch; refusing install"; exit 1
-  fi
-fi
-PRIOR=$(cat "$MARKER" 2>/dev/null)
-WAS_PRESENT=0
-package_present "$PKG" && WAS_PRESENT=1
-if [ "$WAS_PRESENT" = 1 ] && [ "$PRIOR" = "$ACTUAL" ]; then
-  log_msg "unified FX Hook already installed and unchanged"
-  remove_legacy_if_fx_owned || exit 1
-  exit 0
-fi
-STAGE="$TMP_DIR/.fx-unified-hook-$$.apk"
-rm -f "$STAGE" 2>/dev/null
-if ! cp "$APK" "$STAGE" 2>/dev/null; then log_msg "ERROR: cannot stage unified APK"; exit 1; fi
-chmod 0644 "$STAGE" 2>/dev/null || :
-chown shell:shell "$STAGE" 2>/dev/null || :
-command -v restorecon >/dev/null 2>&1 && restorecon "$STAGE" 2>/dev/null || :
-command -v chcon >/dev/null 2>&1 && chcon u:object_r:shell_data_file:s0 "$STAGE" 2>/dev/null || :
-ATTEMPT=1
-INSTALLED=0
-while [ "$ATTEMPT" -le 3 ]; do
-  if [ -f "$LOG" ]; then LOG_LINES=$(wc -l < "$LOG" 2>/dev/null || echo 0); else LOG_LINES=0; fi
-  if pm install -r "$STAGE" >> "$LOG" 2>&1 && package_present "$PKG"; then
-    if [ "$WAS_PRESENT" = 0 ]; then
-      OWNED_TMP="$OWNED.tmp.$$"
-      (umask 077; printf 'fx-managed-v1\n' > "$OWNED_TMP") &&
-        chmod 0600 "$OWNED_TMP" 2>/dev/null && mv -f "$OWNED_TMP" "$OWNED" 2>/dev/null ||
-        log_msg "WARN: ownership marker could not be persisted for $PKG"
-    fi
-    MARKER_TMP="$MARKER.tmp.$$"
-    (umask 077; printf '%s\n' "$ACTUAL" > "$MARKER_TMP") &&
-      chmod 0600 "$MARKER_TMP" 2>/dev/null && mv -f "$MARKER_TMP" "$MARKER" 2>/dev/null
-    INSTALLED=1
-    break
-  fi
-  if tail -n "+$((LOG_LINES + 1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
-    log_msg "ERROR: unified APK signing certificate differs; existing package and data preserved"
-    rm -f "$STAGE" 2>/dev/null
-    exit 1
-  fi
-  log_msg "WARN: PackageManager install attempt $ATTEMPT/3 failed for $PKG"
-  ATTEMPT=$((ATTEMPT + 1))
-  [ "$ATTEMPT" -le 3 ] && sleep 2
-done
-rm -f "$STAGE" 2>/dev/null
-[ "$INSTALLED" = 1 ] || { log_msg "ERROR: unable to install unified FX Hook"; exit 1; }
-if [ ! -s "$MARKER" ] || [ "$(cat "$MARKER" 2>/dev/null)" != "$ACTUAL" ]; then
-  log_msg "WARN: installed unified APK but checksum state marker could not be persisted"
-fi
-remove_legacy_if_fx_owned || exit 1
-log_msg "unified FX Hook installed; enable its single LSPosed module/scope and reboot"
-exit 0
+_result=0
+install_one de.privacyguard.hook privacyguardhook "$MODDIR/optional/PrivacyGuardHook.apk" || _result=1
+install_one de.privacyguard.adhook fxadhook "$MODDIR/optional/FXAdHook.apk" || _result=1
+exit "$_result"
