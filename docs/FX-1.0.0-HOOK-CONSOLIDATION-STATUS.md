@@ -82,7 +82,7 @@ These hooks require the privacy master switch, exactly one package in the proces
 
 The parallel clipboard-isolation migration is also staged in the same API-101 source pipeline: it keeps reads/writes in a process-local in-memory clipboard and does not modify the Android system clipboard. It does not cover multi-process apps or clipboard-change listeners. `clipboard_read_block` takes precedence over isolation.
 
-GitHub Actions run `41055938919` (commit `7178bc1d13bb013a3431ee4b6a91e9d8fe056fa4`) passed source restoration, exact prior patch hashes, clipboard and notification/system-surface regressions, JUnit tests, single-APK compilation, APK signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977210569`, archive SHA-256 `9dc912522d05e4a1e8e4ccd2316dd35e4c0c143f6d2d0d2b33869c5ebb367428`. The debug APK is a validation artifact only; no real LSPosed injection or OnePlus 12 behavior is proven. The final KernelSU ZIP has not been rebuilt.
+GitHub Actions run `41056196261` (commit `244fbef0138310d211acd867775e1a849162ff7b`) passed exact-source hash checks for the full API101 patch chain, clipboard isolation and notification/system-surface regressions, JUnit tests, single-APK compilation, APK signature/DEX/metadata checks and artifact upload. Artifact `FXHook-API82-API101-single-apk-validation` ID `12977450642`, archive SHA-256 `4367fe733ccd34867da8aeea1eec5c65b70cf2ed282c45ddb8baff21a55cdbc6`. The debug APK is a validation artifact only; no real LSPosed injection or OnePlus 12 behavior is proven. The final KernelSU ZIP has not been rebuilt.
 
 ## APK signing continuity blocker
 
