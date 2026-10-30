@@ -171,6 +171,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesRegionDiagnosticFlag() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.region,region_diag=1\n").targets.get("com.example.region");
+        assertNotNull(target);
+        assertTrue(target.regionDiag);
+    }
+
+    @Test
     public void parsesPassiveLocationPrivacyFlag() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
