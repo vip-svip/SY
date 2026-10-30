@@ -53,3 +53,10 @@ A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **73 dist
 | Metadata/advertising ID | `exif_strip`, `ad_id_unify` | EXIF read-time redaction is partially migrated; Advertising ID unification is not |
 
 Do not treat a parsed or serialized switch as an implemented hook. A switch becomes migrated only when its runtime behavior, package scope, independent opt-in, API guards, fail-open path, unit/host regression and device validation are all accounted for.
+
+
+## KernelSU packaging blocker confirmed
+
+The GitHub branch's `fx-module/` subtree currently contains only 7 tracked paths. The package workflow requires, among others, `customize.sh`, `post-fs-data.sh`, `uninstall.sh`, `fx-module/scripts/apply.sh`, `default.conf`, `util.sh`, `certmgr.sh`, and `webroot/index.html`; these required files are not present under that subtree. The workflow correctly fails closed and must not emit a partial KernelSU ZIP.
+
+The current Library FX ZIP has the full module source at its archive root (including the root entrypoints, `scripts/`, and `webroot/`), not under `fx-module/`. Restoring the full module tree into the GitHub build layout is a separate required step before a complete GitHub KernelSU package can be produced. The successful API-101 Hook APK artifact is not yet embedded in that ZIP.
