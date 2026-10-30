@@ -12,6 +12,26 @@ public class UnifiedHookConfigParserTest {
             "com.example.app,ads_splash=1,ads_feed=0,ads_overlay=1,member_diag=0,privacy=1\n";
 
     @Test
+    public void parsesExactDeveloperDebugBooleanHookDescriptors() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.owned,dev_test_vip_method=com.example.owned.AuthRepo#isVip()Z," +
+                "dev_test_login_method=com.example.owned.SessionRepo#isLoggedIn()Z," +
+                "dev_test_hide_update_method=com.example.owned.UpdatePolicy#shouldShowUpdate()Z\\n");
+        UnifiedHookConfigParser.Target target = result.targets.get("com.example.owned");
+        assertEquals("com.example.owned.AuthRepo#isVip()Z", target.developerVipMethod);
+        assertEquals("com.example.owned.SessionRepo#isLoggedIn()Z", target.developerLoginMethod);
+        assertEquals("com.example.owned.UpdatePolicy#shouldShowUpdate()Z", target.developerHideUpdateMethod);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDeveloperHookOutsideConfiguredPackage() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.example.owned,dev_test_vip_method=com.other.app.AuthRepo#isVip()Z\\n");
+    }
+
+    @Test
     public void parsesIndependentMasterSwitchesAndPerPackageFeatures() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(VALID);
         assertTrue(result.adsEnabled);
