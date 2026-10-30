@@ -16,6 +16,17 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsClipboardIsolationMasterAndTarget() {
+        UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\nclipboard_isolate_enabled=1\n" +
+                "[list:targets]\ncom.example.app,clipboard_isolate=1\n");
+        String encoded = UnifiedHookConfigSerializer.serialize(false, true, false, false, false, true, input.targets);
+        UnifiedHookConfigParser.Result output = UnifiedHookConfigParser.parse(encoded);
+        assertTrue(output.clipboardIsolationEnabled);
+        assertTrue(output.isClipboardIsolatedFor("com.example.app"));
+    }
+
+    @Test
     public void roundTripsAllIndependentMasterSwitchCombinations() {
         boolean[][] combinations = {
                 {true, false}, {false, true}, {false, false}, {true, true}
