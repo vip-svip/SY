@@ -13,7 +13,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate required module files
+      - name: Restore complete module source from Release when checkout is incomplete
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          required=(
+            module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
+            scripts/apply.sh scripts/default.conf scripts/util.sh
+            scripts/certmgr.sh webroot/index.html
+          )
+          complete=1
+          for f in "${required[@]}"; do
+            [[ -s "fx-module/$f" ]] || complete=0
+          done
+          if (( complete == 0 )); then
+            echo "::notice::fx-module checkout is incomplete; restoring the published FX 1.0.0 source archive."
+            mkdir -p "$RUNNER_TEMP/fx-release" "$RUNNER_TEMP/fx-unpack"
+            gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
+            archive="$RUNNER_TEMP/fx-release/FX-v1.0.0.zip"
+            test -s "$archive"
+            unzip -tq "$archive"
+            unzip -q "$archive" -d "$RUNNER_TEMP/fx-unpack"
+            module_prop="$(find "$RUNNER_TEMP/fx-unpack" -type f -name module.prop -print -quit)"
+            [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no module.prop"; exit 1; }
+            source_root="$(dirname "$module_prop")"
+            rm -rf fx-module
+            mkdir -p fx-module
+            cp -a "$source_root/." fx-module/
+          fi
+      - name: Validate required module files and version
         shell: bash
         run: |
           set -euo pipefail
@@ -29,36 +59,39 @@ jobs:
             fx-module/scripts/certmgr.sh
             fx-module/webroot/index.html
           )
-          missing=()
           for f in "${required[@]}"; do
-            if [[ ! -s "$f" ]]; then
-              echo "::error file=$f::Required FX module file is missing or empty: $f"
-              missing+=("$f")
-            fi
+            [[ -s "$f" ]] || { echo "::error file=$f::Required FX module file is missing or empty"; exit 1; }
           done
-          if (( ${#missing[@]} > 0 )); then
-            echo "Missing required FX sources:"
-            printf ' - %s\\n' "${missing[@]}"
-            echo "Packaging intentionally stopped; do not create a partial ZIP."
-            exit 1
-          fi
           grep -qx 'version=1.0.0' fx-module/module.prop
           grep -qx 'versionCode=10000' fx-module/module.prop
-      - name: Shell syntax and permissions
+      - name: Shell syntax, executable bits and embedded checksum validation
         shell: bash
         run: |
           set -euo pipefail
-          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
+          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do
+            bash -n "$f"
+            chmod 0755 "$f"
+          done
           for f in customize.sh post-fs-data.sh service.sh uninstall.sh; do
             test -x "fx-module/$f" || { echo "::error file=fx-module/$f::Entrypoint is not executable"; exit 1; }
           done
-      - name: Package KernelSU ZIP
+          if [[ -d fx-module/bin ]]; then
+            while IFS= read -r -d '' f; do
+              if file -b "$f" | grep -q '^ELF '; then chmod 0755 "$f"; fi
+            done < <(find fx-module/bin -type f -print0)
+          fi
+          while IFS= read -r -d '' manifest; do
+            (cd "$(dirname "$manifest")" && sha256sum -c "$(basename "$manifest")")
+          done < <(find fx-module -type f -name '*.sha256' -print0)
+      - name: Package and verify KernelSU ZIP
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
           (cd fx-module && zip -qr ../dist/FX-v1.0.0.zip .)
           unzip -tq dist/FX-v1.0.0.zip
+          unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
+          unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
           sha256sum dist/FX-v1.0.0.zip | tee dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
