@@ -14,6 +14,20 @@ if old in src:
     src = src.replace(old, new, 1)
 elif new not in src:
     raise SystemExit("DEX scan line does not match known regression-test versions")
+
+# Avoid SIGPIPE noise from repeatedly piping a large DEX string into grep -q.
+if 'DEXSTR_FILE=$(mktemp)' not in src:
+    src = src.replace(
+        new,
+        new + '\\nDEXSTR_FILE=$(mktemp)\\nprintf \'%s\\\\n\' "$DEXSTR" > "$DEXSTR_FILE"\\ntrap \'rm -f "$DEXSTR_FILE"\' EXIT',
+        1,
+    )
+old_grep = '    printf \'%s\' "$DEXSTR" | grep -q "$token" || fail "compiled hook marker missing: $token"'
+new_grep = '    grep -Fq "$token" "$DEXSTR_FILE" || fail "compiled hook marker missing: $token"'
+if old_grep in src:
+    src = src.replace(old_grep, new_grep, 1)
+elif new_grep not in src:
+    raise SystemExit("DEX marker scan does not match known regression-test versions")
 old_marker = '"auto member candidate hook installed="'
 new_marker = '"auto member candidate hooks installed="'
 if old_marker in src:
