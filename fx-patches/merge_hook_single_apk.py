@@ -85,7 +85,7 @@ helper = """    private static final Set<String> API101_OWNED_LEGACY_KEYS = new 
             "sensor_pressure", "sensor_prox", "sensor_rate_limit",
             "block_wifi_scan", "block_notif_listen", "hide_notif_perm",
             "mic_block", "audio_fp_block", "cam_null", "disable_passive_loc",
-            "block_mediastore"));
+            "block_mediastore", "ad_id_unify"));
 
     private void loadApi101Managed() {
         api101Managed.clear();
