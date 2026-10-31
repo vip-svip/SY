@@ -206,8 +206,8 @@ public final class MainActivity extends Activity {
         if (webView == null) return;
         String id = JSONObject.quote(pageId);
         String script = "(function(){var id=" + id + ";var target=document.getElementById(id);"
-                + "if(!target)return false;var selectors='[data-page=\\\"'+id+'\\\"],[data-target=\\\"#'+id+'\\\"],[href=\\\"#'+id+'\\\"],[onclick]';"
-                + "var nav=Array.from(document.querySelectorAll(selectors)).find(function(e){return e!==target&&(e.getAttribute('data-page')===id||e.getAttribute('data-target')==='#'+id||e.getAttribute('href')==='#'+id||(e.getAttribute('onclick')||'').indexOf(id)>=0);});"
+                + "if(!target)return false;"
+                + "var nav=Array.from(document.querySelectorAll('[data-page],[data-target],[href],[onclick]')).find(function(e){return e!==target&&(e.getAttribute('data-page')===id||e.getAttribute('data-target')==='#'+id||e.getAttribute('href')==='#'+id||(e.getAttribute('onclick')||'').indexOf(id)>=0);});"
                 + "if(nav){nav.click();return true;}"
                 + "if(typeof window.switchPage==='function'){window.switchPage(id);return true;}"
                 + "if(typeof window.showPage==='function'){window.showPage(id);return true;}"
