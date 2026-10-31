@@ -174,7 +174,7 @@ jobs:
           grep -q 'com.heytap.msp.mobad.api' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           ! grep -q '/data/local/tmp/privacyguard/xposed.conf' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
           ! grep -Eq 'setResult[(]|setPurchaseState|purchaseToken.*=' "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
-          ! test -f adhook/app/src/main/assets/xposed_init
+          grep -qx 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
           test -s scripts/install_adhook_app.sh
           test -s scripts/remove_adhook_app.sh
           grep -q 'pm install -r' scripts/install_adhook_app.sh
@@ -230,7 +230,7 @@ jobs:
           sha256sum "$APK"
           unzip -l "$APK" | grep -q 'META-INF/xposed/java_init.list'
           unzip -l "$APK" | grep -q 'META-INF/xposed/module.prop'
-          unzip -p "$APK" assets/xposed_init 2>/dev/null && exit 1 || true
+          unzip -p "$APK" assets/xposed_init | grep -qx 'de.privacyguard.hook.MainHook'
       - name: Verify bounded member and rewarded-flow diagnostics in compiled DEX
         shell: bash
         run: |
