@@ -55,6 +55,8 @@ grep -Fq 'section("KernelSU / Root")' "$ACTIVITY" || fail "Hook authorization hu
 grep -Fq 'checkRoot(rootState, false);' "$ACTIVITY" || fail "Hook authorization hub must query actual Root UID and FX module state"
 grep -Fq 'refreshRoot.setOnClickListener(v -> checkRoot(rootState, false))' "$ACTIVITY" || fail "Root refresh button must re-run the Root status check"
 [ -s "$LEGACY_HOOK" ] || fail "copied full legacy Hook entrypoint missing"
+! grep -Eqi 'AdVisibility|AdView|ad_view|ads_splash|ads_feed|ads_overlay|installAdView' "$LEGACY_HOOK" || fail "legacy API-82 entrypoint must not install duplicate visual Ad hooks"
+grep -Fq 'installAdViewHooks' "$HOOK" || fail "modern API-101 entrypoint must own visual Ad interception"
 grep -Fq 'API101_MANAGED_PATH' "$LEGACY_HOOK" || fail "legacy Hook does not read the API-101 ownership map"
 grep -Fq 'loadApi101Managed();' "$LEGACY_HOOK" || fail "legacy Hook does not load per-package duplicate-suppression flags"
 grep -Fq 'private boolean loadConf() {' "$LEGACY_HOOK" || fail "legacy config loader declaration missing"
