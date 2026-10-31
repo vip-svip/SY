@@ -249,10 +249,7 @@ jobs:
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
         env:
-          FX_ANDROID_KEYSTORE_BASE64: ${{ secrets.FX_ADHOOK_KEYSTORE_BASE64 }}
-          FX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FX_ADHOOK_KEYSTORE_PASSWORD }}
-          FX_ANDROID_KEY_ALIAS: ${{ secrets.FX_ADHOOK_KEY_ALIAS }}
-          FX_ANDROID_KEY_PASSWORD: ${{ secrets.FX_ADHOOK_KEY_PASSWORD }}
+          SY_BUILD_TOKEN: ${{ secrets.SY_BUILD_TOKEN }}
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
@@ -260,33 +257,71 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           APKSIGNER="$SDK_ROOT/build-tools/34.0.0/apksigner"
 
-          # Prefer a genuine non-debuggable Release variant when the owner has
-          # configured a persistent keystore. Debug remains an explicitly
-          # labelled fallback for CI validation only.
-          SIGNING_MODE="debug-signed"
-          BUILD_VARIANT="debug"
-          if [[ -n "$FX_ANDROID_KEYSTORE_BASE64$FX_ANDROID_KEYSTORE_PASSWORD$FX_ANDROID_KEY_ALIAS$FX_ANDROID_KEY_PASSWORD" ]]; then
-            for name in FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD; do
-              [[ -n "${!name}" ]] || { echo "::error::Incomplete FX Android release-signing secrets: $name is missing."; exit 1; }
-            done
-            export FX_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/fx-release-signing.p12"
-            printf '%s' "$FX_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$FX_ANDROID_KEYSTORE_PATH"
-            test -s "$FX_ANDROID_KEYSTORE_PATH"
-            cleanup_keystore() { rm -f "$FX_ANDROID_KEYSTORE_PATH"; }
-            trap cleanup_keystore EXIT
-            gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleRelease
-            BUILT_APK=adhook/app/build/outputs/apk/release/app-release.apk
-            SIGNING_MODE="release-signed"
-            BUILD_VARIANT="release"
+          # SY_BUILD_TOKEN is the single existing GitHub fine-grained PAT.
+          # Use it to protect a one-time generated PKCS12 signing identity in
+          # the public repository. Only AES-256 encrypted bytes are committed.
+          : "${SY_BUILD_TOKEN:?SY_BUILD_TOKEN is required to restore the persistent FX signing identity}"
+          export FX_ANDROID_KEYSTORE_PASSWORD="$SY_BUILD_TOKEN"
+          export FX_ANDROID_KEY_PASSWORD="$SY_BUILD_TOKEN"
+          export FX_ANDROID_KEY_ALIAS="fx-release"
+          export FX_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/fx-release-signing.p12"
+          VAULT_FILE=".github/signing/fx-release.p12.enc"
+          VAULT_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE?ref=$GITHUB_REF_NAME"
+          VAULT_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-response.json" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $SY_BUILD_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" "$VAULT_URL")"
+
+          if [[ "$VAULT_HTTP" == "200" ]]; then
+            jq -r '.content' "$RUNNER_TEMP/fx-vault-response.json" | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/fx-release-signing.p12.enc"
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$RUNNER_TEMP/fx-release-signing.p12.enc" \
+              -out "$FX_ANDROID_KEYSTORE_PATH" -pass env:FX_ANDROID_KEYSTORE_PASSWORD
+          elif [[ "$VAULT_HTTP" == "404" ]]; then
+            echo "::notice::No FX signing vault exists yet; creating the persistent release identity once."
+            keytool -genkeypair -noprompt -alias "$FX_ANDROID_KEY_ALIAS" -keyalg RSA -keysize 3072 \
+              -sigalg SHA256withRSA -validity 10000 -dname "CN=FX Android Release, OU=FX, O=FX, C=US" \
+              -storetype PKCS12 -keystore "$FX_ANDROID_KEYSTORE_PATH" \
+              -storepass:env FX_ANDROID_KEYSTORE_PASSWORD -keypass:env FX_ANDROID_KEY_PASSWORD
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -in "$FX_ANDROID_KEYSTORE_PATH" \
+              -out "$RUNNER_TEMP/fx-release-signing.p12.enc" -pass env:FX_ANDROID_KEYSTORE_PASSWORD
+            python3 - "$RUNNER_TEMP/fx-release-signing.p12.enc" "$RUNNER_TEMP/fx-vault-payload.json" "$GITHUB_REF_NAME" <<'PY'
+          import base64, json, pathlib, sys
+          encrypted = pathlib.Path(sys.argv[1]).read_bytes()
+          payload = {
+              "message": "chore(fx): bootstrap encrypted APK signing vault [skip ci]",
+              "branch": sys.argv[3],
+              "content": base64.b64encode(encrypted).decode("ascii"),
+          }
+          pathlib.Path(sys.argv[2]).write_text(json.dumps(payload), encoding="utf-8")
+          PY
+            VAULT_WRITE_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-write-response.json" --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer $SY_BUILD_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --header "Content-Type: application/json" \
+              --data-binary "@$RUNNER_TEMP/fx-vault-payload.json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE")"
+            [[ "$VAULT_WRITE_HTTP" == "201" || "$VAULT_WRITE_HTTP" == "200" ]] || {
+              echo "::error::Could not persist the encrypted FX signing vault (HTTP $VAULT_WRITE_HTTP). Check SY_BUILD_TOKEN Contents: Read and write access."
+              cat "$RUNNER_TEMP/fx-vault-write-response.json" | jq -r '.message // "GitHub API write failed"' || true
+              exit 1
+            }
           else
-            gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
-            BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
+            echo "::error::Could not read the FX signing vault (HTTP $VAULT_HTTP). Check that SY_BUILD_TOKEN can access $GITHUB_REPOSITORY."
+            jq -r '.message // "GitHub API read failed"' "$RUNNER_TEMP/fx-vault-response.json" || true
+            exit 1
           fi
+
+          test -s "$FX_ANDROID_KEYSTORE_PATH"
+          keytool -list -keystore "$FX_ANDROID_KEYSTORE_PATH" -storetype PKCS12 \
+            -storepass:env FX_ANDROID_KEYSTORE_PASSWORD -alias "$FX_ANDROID_KEY_ALIAS" >/dev/null
+          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleRelease
+          BUILT_APK=adhook/app/build/outputs/apk/release/app-release.apk
           test -s "$BUILT_APK"
           "$APKSIGNER" verify --verbose "$BUILT_APK"
-          unset FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD FX_ANDROID_KEYSTORE_PATH
-          echo "Hook APK signing mode: $SIGNING_MODE" >> "$GITHUB_STEP_SUMMARY"
           "$APKSIGNER" verify --print-certs "$BUILT_APK" | grep 'Signer #1 certificate SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
+          echo "Hook APK signing mode: release-signed (persistent PKCS12 vault)" >> "$GITHUB_STEP_SUMMARY"
 
           mkdir -p fx-module/optional
           cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
@@ -295,9 +330,9 @@ jobs:
           test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
           {
-            echo "Build variant: $BUILD_VARIANT"
-            echo "Signing mode: $SIGNING_MODE"
-            echo "Build/signing mode: $SIGNING_MODE"
+            echo "Build variant: release"
+            echo "Signing mode: release-signed"
+            echo "Build/signing mode: release-signed"
             echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
             echo "versionCode: 10000"
             echo "Deployment: one ordinary application package installed by PackageManager"
@@ -309,9 +344,6 @@ jobs:
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh scripts/tests/fx-hook-native-ui-regression.sh "$BUILT_APK"
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
-          # Run the remaining artifact-dependent checks now that the APK and
-          # ARM64 QuickJS binary have been built and staged. The single-APK and
-          # APK-content checks above already cover two of the six no-compile skips.
           for test_script in \
             fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
             fx-module/scripts/tests/v1.0.0-quickjs-runtime-regression.sh \
