@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harden uninstall fallback when the local DNS watchdog helper is missing."""
+"""Harden local DNS watchdog shutdown during FX uninstall."""
 from pathlib import Path
 import sys
 
@@ -7,8 +7,8 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 uninstall = root / "uninstall.sh"
 if not uninstall.is_file():
     raise SystemExit("FX uninstall.sh is missing")
-
 source = uninstall.read_text(encoding="utf-8")
+
 old = '''elif [ -s "$PG/localdns-watchdog.pid" ]; then
   _wd_pid=$(cat "$PG/localdns-watchdog.pid" 2>/dev/null)
   case "$_wd_pid" in ''|*[!0-9]*|0|1) ;; *)
@@ -45,14 +45,15 @@ new = '''elif [ -s "$PG/localdns-watchdog.pid" ]; then
               done
               if kill -0 "$_wd_pid" 2>/dev/null; then
                 PG_KEEP_DATA=1
-                _mitm_warn "local DNS watchdog PID $_wd_pid did not exit; preserving $PG and refusing to race firewall cleanup"
+                _mitm_warn "local DNS watchdog PID $_wd_pid did not exit; aborting uninstall before firewall cleanup and preserving $PG"
+                exit 1
               fi
               ;;
-            *) PG_KEEP_DATA=1; _mitm_warn "local DNS watchdog PID $_wd_pid changed identity during shutdown; preserving $PG and refusing to race firewall cleanup" ;;
+            *) PG_KEEP_DATA=1; _mitm_warn "local DNS watchdog PID $_wd_pid changed identity during shutdown; aborting uninstall before firewall cleanup and preserving $PG"; exit 1 ;;
           esac
         fi
         ;;
-      *) PG_KEEP_DATA=1; _mitm_warn "local DNS watchdog PID record exists but process identity cannot be confirmed; preserving $PG for safe retry" ;;
+      *) PG_KEEP_DATA=1; _mitm_warn "local DNS watchdog PID record exists but process identity cannot be confirmed; aborting uninstall before firewall cleanup and preserving $PG"; exit 1 ;;
     esac
     ;;
   esac
@@ -61,31 +62,26 @@ fi
 if source.count(old) == 0:
     if new in source:
         print("Local DNS watchdog uninstall fallback already hardened.")
-        raise SystemExit(0)
-    raise SystemExit("local DNS watchdog fallback anchor changed; refusing unsafe patch")
-if source.count(old) != 1:
-    raise SystemExit("local DNS watchdog fallback is ambiguous")
-source = source.replace(old, new, 1)
-# If the watchdog cannot be positively stopped, do not proceed to firewall teardown:
-# its recovery loop may still re-install FX-owned redirect rules.
-source = source.replace(
-    'PG_KEEP_DATA=1\\n    _mitm_warn "could not confirm stopping local DNS watchdog before firewall cleanup; preserving $PG and continuing best-effort cleanup"',
-    'PG_KEEP_DATA=1\\n    PG_DNS_WATCHDOG_STOP_FAILED=1\\n    _mitm_warn "could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup and preserving $PG"'
-)
-for phrase in (
-    'local DNS watchdog PID $_wd_pid did not exit; preserving $PG and refusing to race firewall cleanup',
-    'local DNS watchdog PID $_wd_pid changed identity during shutdown; preserving $PG and refusing to race firewall cleanup',
-    'local DNS watchdog PID record exists but process identity cannot be confirmed; preserving $PG for safe retry',
-):
-    old_warning = '_mitm_warn "' + phrase + '"'
-    new_warning = 'PG_DNS_WATCHDOG_STOP_FAILED=1; ' + old_warning
-    source = source.replace('PG_KEEP_DATA=1; ' + old_warning, 'PG_KEEP_DATA=1; ' + new_warning)
-gate = 'fi\\n\\n# ============================================================\\n# A1. 防火墙链'
-if source.count(gate) != 1:
-    raise SystemExit("uninstall DNS-stop gate anchor changed; refusing to continue")
-source = source.replace(gate, 'fi\\n\\nif [ "\\${PG_DNS_WATCHDOG_STOP_FAILED:-0}" = 1 ]; then\\n  exit 1\\nfi\\n\\n# ============================================================\\n# A1. 防火墙链', 1)
+    else:
+        raise SystemExit("local DNS watchdog fallback anchor changed; refusing unsafe patch")
+else:
+    if source.count(old) != 1:
+        raise SystemExit("local DNS watchdog fallback is ambiguous")
+    source = source.replace(old, new, 1)
+
+# The normal helper path must also stop uninstall if it cannot confirm shutdown.
+old_warning = 'could not confirm stopping local DNS watchdog before firewall cleanup; preserving $PG and continuing best-effort cleanup'
+new_warning = 'could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup and preserving $PG'
+if old_warning in source:
+    source = source.replace(old_warning, new_warning, 1)
+    line = '_mitm_warn "' + new_warning + '"'
+    if line in source:
+        source = source.replace(line, line + '; exit 1', 1)
+elif new_warning in source:
+    # Idempotent when the helper failure path was already updated.
+    line = '_mitm_warn "' + new_warning + '"'
+    if line in source and line + '; exit 1' not in source:
+        source = source.replace(line, line + '; exit 1', 1)
+
 uninstall.write_text(source, encoding="utf-8")
-print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
-print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
-print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
-print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")
+print("Hardened local DNS watchdog shutdown; uninstall now fails closed before firewall teardown.")
