@@ -607,7 +607,7 @@ public final class MainActivity extends Activity {
             List<String> rows = new ArrayList<>();
             List<String> legacyManagedRows = new ArrayList<>();
             final String[][] legacyDuplicateKeys = {
-                {"privacy","spoof_android_id"}, {"exif_strip","exif_strip"},
+                {"exif_strip","exif_strip"},
                 {"clipboard_read_block","clipboard"}, {"clipboard_isolate","clipboard_isolate"},
                 {"sensor_accel","sensor_accel"}, {"sensor_gyro","sensor_gyro"},
                 {"sensor_light","sensor_light"}, {"sensor_magnet","sensor_magnet"},
