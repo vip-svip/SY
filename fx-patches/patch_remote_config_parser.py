@@ -21,27 +21,47 @@ new_condition = '''# Developer-defined method hooks are not implemented by the c
 old_emit = '''          printf ",dev_hook_enabled=%s", dev_enabled
           if (dev_rules != "") printf "%s", dev_rules
 '''
-if src.count(old_condition) != 1 or src.count(old_emit) != 1:
+if src.count(old_condition) == 1 and src.count(old_emit) == 1:
+    src = src.replace(old_condition, new_condition, 1).replace(old_emit, "", 1)
+    generator.write_text(src, encoding="utf-8")
+elif (
+    "if (key == \"dev_hook_enabled\" || key ~ /^dev_rule_[0-9]+$/) continue" in src
+    and old_condition not in src
+    and old_emit not in src
+):
+    # Some published FX 1.0.0 archives already carry the equivalent guard:
+    # unsupported developer fields are ignored while parsing and never emitted.
+    # Accept that reviewed, already-compatible source instead of failing a
+    # repeated migration/build on a stale patch anchor.
+    print("Remote Files generator already ignores unsupported developer-hook fields.")
+else:
     raise SystemExit("generator source no longer matches the reviewed patch context; refusing to patch")
-src = src.replace(old_condition, new_condition, 1).replace(old_emit, "", 1)
-generator.write_text(src, encoding="utf-8")
 
 if regression.is_file():
     test = regression.read_text(encoding="utf-8")
-    needle = "done\n# Member diagnostics alone must publish even with the ad-filtering master off.\n"
-    addition = r'''done
+    assertion = "unsupported developer-hook fields leaked into the runtime schema"
+    if assertion not in test:
+        needle = "done\n# Member diagnostics alone must publish even with the ad-filtering master off.\n"
+        addition = r'''done
 # Verify unsupported legacy developer-hook fields do not leak into API-101 schema.
 OUT="$TMP/lspd/modules/0/de.privacyguard.adhook/files/fx-hook-targets.conf"
 if grep -Eq '(^|,)dev_hook_enabled=|(^|,)dev_rule_[0-9]+=' "$OUT"; then
   fail "unsupported developer-hook fields leaked into the runtime schema"
 fi
-grep -q '^schema_version=1$' "$OUT" || fail "Remote Files schema version missing"
-grep -q '^ads_enabled=1$' "$OUT" || fail "automatic Ad master missing"
-grep -q '^\[list:targets\]$' "$OUT" || fail "Remote Files target section missing"
+grep -q '^schema_version=1
+print("Applied Remote Files parser compatibility repair and regression assertion.")
+ "$OUT" || fail "Remote Files schema version missing"
+grep -q '^ads_enabled=1
+print("Applied Remote Files parser compatibility repair and regression assertion.")
+ "$OUT" || fail "automatic Ad master missing"
+grep -q '^\\[list:targets\\]
+print("Applied Remote Files parser compatibility repair and regression assertion.")
+ "$OUT" || fail "Remote Files target section missing"
 # Member diagnostics alone must publish even with the ad-filtering master off.
 '''
-    if test.count(needle) != 1:
-        raise SystemExit("regression test no longer matches the reviewed insertion point; refusing to patch")
-    regression.write_text(test.replace(needle, addition, 1), encoding="utf-8")
+        if test.count(needle) != 1:
+            raise SystemExit("regression test no longer matches the reviewed insertion point; refusing to patch")
+        test = test.replace(needle, addition, 1)
+        regression.write_text(test, encoding="utf-8")
 
 print("Applied Remote Files parser compatibility repair and regression assertion.")
