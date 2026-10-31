@@ -50,7 +50,7 @@ grep -Fq 'if [ "$_stop_rc" -eq 0 ] && [ -e "$PG/singbox.pid" ]; then' "$APPLY"
 TMP=$(mktemp -d /tmp/fx-vpn-core-stop-guard.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 awk '
-  /      stop\\)/ {active=1; next}
+  /      stop[)]/ {active=1; next}
   active && /        ;;/ {exit}
   active {print}
 ' "$APPLY" > "$TMP/stop-body.sh"
