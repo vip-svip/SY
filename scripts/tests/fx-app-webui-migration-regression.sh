@@ -138,6 +138,8 @@ grep -Fq 'FX_MODULE=disabled' "$ACTIVITY" || fail "Root status must distinguish 
 grep -Fq 'FX_MODULE=remove-pending' "$ACTIVITY" || fail "Root status must detect pending module removal"
 grep -Fq 'KSU_TOOL=present' "$ACTIVITY" || fail "KSU executable presence must be reported without claiming daemon health"
 grep -q 'ACTION_ACCESSIBILITY_SETTINGS' "$ACTIVITY" || fail "Android accessibility settings entry missing"
+grep -Fq 'service_connected' "$ACTIVITY" || fail "accessibility status must distinguish system enablement from actual service connection"
+grep -Fq 'FX 服务已连接' "$ACTIVITY" || fail "accessibility connected state is not reported"
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
 grep -q 'BIND_ACCESSIBILITY_SERVICE' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility bind permission missing"
 grep -q 'fx_accessibility_service' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service metadata missing"
