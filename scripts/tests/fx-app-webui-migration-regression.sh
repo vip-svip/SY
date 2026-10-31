@@ -64,6 +64,9 @@ sed -n '/private boolean loadConf() {/,/^    }/p' "$LEGACY_HOOK" | grep -Fq 'loa
 grep -Fq 'api101Managed.contains(pkg + "|" + k)' "$LEGACY_HOOK" || fail "legacy Hook does not suppress migrated duplicate features"
 grep -Fq 'DISABLED_EVASION_KEYS.contains(k)' "$LEGACY_HOOK" || fail "legacy evasion denylist was lost during merge"
 grep -Fq 'legacyDuplicateKeys' "$ACTIVITY" || fail "native Hook publisher does not map migrated API-101 features to legacy duplicate keys"
+for feature in exif_strip mic_silence notification_listen_block notification_permission_hide sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit; do
+  grep -Fq "\"$feature\"" "$ACTIVITY" || fail "native per-app Hook UI is missing supported feature: $feature"
+done
 grep -Fq '{"mic_silence","mic_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress the legacy mic_block read hook"
 grep -Fq '{"mic_silence","audio_fp_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress legacy audio perturbation"
 for legacy_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit block_wifi_scan block_notif_listen hide_notif_perm mic_block audio_fp_block cam_null disable_passive_loc block_mediastore; do
