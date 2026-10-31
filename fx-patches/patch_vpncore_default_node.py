@@ -10,7 +10,7 @@ target = root / "scripts" / "vpncore.sh"
 if not target.is_file():
     raise SystemExit(f"missing VPN core source: {target}")
 source = target.read_text(encoding="utf-8")
-pattern = re.compile(r"(?ms)^vpncore_default_tag\(\) \{.*?^\}")
+pattern = re.compile(r"(?ms)^vpncore_default_tag\\(\\) \\{.*?^\\}")
 replacement = """vpncore_default_tag() {
   _sel=$(pg_get vpn_node 2>/dev/null)
   _i=0
@@ -39,8 +39,15 @@ if not match:
     raise SystemExit("cannot locate vpncore_default_tag() safely")
 if "_first_valid_tag" in match.group(0):
     print("VPN default-node fallback patch already applied")
-    raise SystemExit(0)
-source = source[:match.start()] + replacement + source[match.end():]
-target.write_text(source, encoding="utf-8")
-print("Patched VPN default-node fallback to first parseable outbound")
-subprocess.run([sys.executable, str(Path(__file__).with_name("patch_vpncore_standalone_lock.py")), str(root)], check=True)
+else:
+    source = source[:match.start()] + replacement + source[match.end():]
+    target.write_text(source, encoding="utf-8")
+    print("Patched VPN default-node fallback to first parseable outbound")
+
+# Always run the lifecycle-lock patch, even when the default-node patch is
+# already present. Previously the early exit above silently skipped this
+# second patch on release archives that already contained the node fix.
+subprocess.run(
+    [sys.executable, str(Path(__file__).with_name("patch_vpncore_standalone_lock.py")), str(root)],
+    check=True,
+)
