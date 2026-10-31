@@ -27,7 +27,7 @@ public final class RootAccess {
 
     public static Result execute(String command, long timeoutMs, int outputLimit) {
         if (command == null || command.length() == 0 || command.length() > 131072) {
-            return new Result(2, "Root 命令为空或超过 64 KiB 限制", false);
+            return new Result(2, "Root 命令为空或超过 128 KiB 限制", false);
         }
         Process process = null;
         StringBuilder output = new StringBuilder();
