@@ -13,6 +13,29 @@ public final class PrivacyIdentifier {
      * original ID. If a cryptographic digest cannot be created, preserve the original
      * value instead of silently substituting a weaker, collision-prone hash.
      */
+    /**
+     * Deterministic RFC-4122-shaped advertising identifier shared by Google/Huawei
+     * String-returning APIs inside one selected app. It is package-scoped, not device-wide.
+     * A missing package or digest provider fails open (null means keep the platform value).
+     */
+    public static String forAdvertisingId(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return null;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(("FX-AD-ID-v1:" + packageName).getBytes(StandardCharsets.UTF_8));
+            byte[] uuid = java.util.Arrays.copyOf(digest, 16);
+            uuid[6] = (byte) ((uuid[6] & 0x0f) | 0x50);
+            uuid[8] = (byte) ((uuid[8] & 0x3f) | 0x80);
+            StringBuilder hex = new StringBuilder(32);
+            for (byte value : uuid) hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+            return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-"
+                    + hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-"
+                    + hex.substring(20, 32);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     public static String forPackage(String packageName, String originalAndroidId) {
         if (originalAndroidId == null || originalAndroidId.isEmpty()) return originalAndroidId;
         // Fail open if package scoping is unavailable; never emit one shared synthetic ID.
