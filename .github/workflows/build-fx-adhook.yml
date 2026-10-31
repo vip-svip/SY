@@ -57,6 +57,7 @@ jobs:
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
+          python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
@@ -90,6 +91,7 @@ jobs:
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-reality-yaml-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-transport-yaml-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh
           sh scripts/tests/adhook-app-installer-regression.sh
           python3 scripts/tests/fx-native-hook-overlay-patcher-regression.py
           for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh fx-module/scripts/tests/v1.0.0-ad-*-regression.sh fx-module/scripts/tests/v1.0.0-adult-content-domain-list-regression.sh fx-module/scripts/tests/v1.0.0-adult-site-ad-*-regression.sh; do
