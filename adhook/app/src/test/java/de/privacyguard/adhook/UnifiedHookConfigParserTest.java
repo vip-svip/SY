@@ -129,6 +129,19 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesAdvertisingIdUnificationOnlyForExplicitlySelectedTargets() {
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
+                "com.example.ads,ad_id_unify=1\\n");
+        assertTrue(parsed.targets.get("com.example.ads").adIdUnify);
+        assertFalse(parsed.targets.get("com.example.other") != null
+                && parsed.targets.get("com.example.other").adIdUnify);
+        UnifiedHookConfigParser.Result legacy = UnifiedHookConfigParser.parse(
+                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.ads,splash=1\\n");
+        assertFalse(legacy.targets.get("com.example.ads").adIdUnify);
+    }
+
+    @Test
     public void parsesIndependentMasterSwitchesAndPerPackageFeatures() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(VALID);
         assertTrue(result.adsEnabled);
