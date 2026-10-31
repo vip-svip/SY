@@ -332,8 +332,8 @@ public final class MainActivity extends Activity {
         section("LSPosed");
         TextView ls = new TextView(this);
         ls.setText(isLsposedManagerInstalled()
-                ? "已检测到 LSPosed Manager。仍需在 Manager 中启用 FX 模块并选择目标应用作用域。"
-                : "未检测到 LSPosed Manager。请先安装并启用兼容的 LSPosed 框架。");
+                ? "已检测到 LSPosed Manager。注意：这只证明管理器已安装；框架是否运行、FX 模块是否启用、目标应用作用域及进程注入状态均无法由 FX 独立可靠读取，当前均标记为“未知”，请在 Manager 中逐项确认。"
+                : "未检测到 LSPosed Manager。框架运行状态、FX 模块启用状态、目标应用作用域及进程注入状态均为未知；请先安装并配置兼容的 LSPosed 框架。");
         ls.setPadding(dp(18), dp(12), dp(18), dp(12));
         content.addView(ls);
         Button manager = new Button(this);
