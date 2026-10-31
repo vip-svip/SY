@@ -83,7 +83,9 @@ public final class MainActivity extends Activity {
         toolbar.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
         rootStatus = new TextView(this);
         rootStatus.setText("Root 检查中");
-        rootStatus.setTextSize(11);
+        rootStatus.setTextSize(10);
+        rootStatus.setMaxLines(2);
+        rootStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
         rootStatus.setTextColor(0xffd8e0e8);
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
@@ -411,7 +413,7 @@ public final class MainActivity extends Activity {
             RootAccess.Result result = RootAccess.execute("id -u; test -s /data/adb/modules/privacyguard/module.prop && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop && echo FX_MODULE=present || echo FX_MODULE=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
             runOnUiThread(() -> {
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
-                    state.setText("已获得 Root（UID 0）\\n" + result.output.trim());
+                    state.setText("Root UID 0 · FX " + (result.output.contains("FX_MODULE=present") ? "模块正常" : "模块缺失") + " · KSU " + (result.output.contains("KSU_DAEMON=present") ? "服务正常" : "服务未检测到"));
                 } else if (result.denied) {
                     state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX 应用。");
                 } else {
