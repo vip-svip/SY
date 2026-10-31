@@ -176,6 +176,9 @@ jobs:
           "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$BUILT_APK"
           mkdir -p fx-module/optional
           cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
+          BUILT_APK_SHA="$(sha256sum "$BUILT_APK" | awk '{print $1}')"
+          EMBEDDED_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
           cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'INFO'
           Build variant: debug-signed APK
@@ -229,8 +232,16 @@ jobs:
           unzip -tq dist/FX-v1.0.0.zip
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
           (cd dist && sha256sum FX-v1.0.0.zip > SHA256SUMS)
           (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: FX-v1.0.0-KernelSU
