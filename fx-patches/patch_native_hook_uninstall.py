@@ -82,6 +82,30 @@ if customize_block not in customize_text:
     customize_text = customize_text.replace(customize_anchor, customize_block + customize_anchor, 1)
 customize.write_text(customize_text, encoding="utf-8")
 
+installer = root / "scripts/install_adhook_app.sh"
+if not installer.is_file():
+    raise SystemExit("FX unified Hook installer is missing")
+installer_text = installer.read_text(encoding="utf-8")
+log_anchor = 'mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :\\n'
+log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null\\n'
+if log_init.strip() not in installer_text:
+    if installer_text.count(log_anchor) != 1:
+        raise SystemExit("Hook installer log initialization anchor changed")
+    installer_text = installer_text.replace(log_anchor, log_anchor + log_init, 1)
+installer.write_text(installer_text, encoding="utf-8")
+
+installer_test = root / "scripts/tests/adhook-app-installer-regression.sh"
+if not installer_test.is_file():
+    raise SystemExit("unified Hook installer regression is missing")
+installer_test_text = installer_test.read_text(encoding="utf-8")
+test_anchor = 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"\\n'
+test_addition = test_anchor + '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"\\n'
+if 'installer did not create its log before counting prior lines' not in installer_test_text:
+    if installer_test_text.count(test_anchor) != 1:
+        raise SystemExit("Hook installer regression log assertion anchor changed")
+    installer_test_text = installer_test_text.replace(test_anchor, test_addition, 1)
+installer_test.write_text(installer_test_text, encoding="utf-8")
+
 service_text = service.read_text(encoding="utf-8")
 service_block = '''# Protect subscription URLs and other private configuration on every boot.
 if [ -f "$PG/settings.conf" ]; then
