@@ -43,6 +43,7 @@ sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "safe cleanup of pre-existing pack
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing user package was removed"
 # Keep cleanup compatible with the first unified build's historical marker.
 rm -f "$TMP/pm/installed"
+echo de.privacyguard.adhook > "$TMP/pm/installed"
 printf 'legacy-digest\\n' > "$TMP/state/adhook-apk-fxunified.sha256"
 printf 'fx-managed-v1\\n' > "$TMP/state/adhook-apk-fxunified.fx-owned"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "legacy unified marker cleanup failed"
