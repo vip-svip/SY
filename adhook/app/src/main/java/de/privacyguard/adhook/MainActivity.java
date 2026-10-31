@@ -3,6 +3,17 @@ package de.privacyguard.adhook;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.net.Uri;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewClientCompat;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
@@ -26,45 +37,105 @@ public final class MainActivity extends Activity {
     private final List<ApplicationInfo> filtered = new ArrayList<>();
     private String selectedPackage;
     private String selectedLabel;
+    private WebView webView;
+    private TextView rootStatus;
+    private boolean hookUiVisible;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         showDashboard();
     }
 
-    private void showDashboard() {
-        selectedPackage = null;
-        base("FX 控制中心");
-        TextView intro = new TextView(this);
-        intro.setText("统一管理界面 · KernelSU 提供底层服务 · APP 负责控制与状态展示");
-        intro.setTextColor(0xff65717d);
-        intro.setPadding(dp(18), dp(2), dp(18), dp(12));
-        content.addView(intro);
-        section("Root 权限");
-        TextView rootState = new TextView(this);
-        rootState.setText("正在检查 KernelSU Root 授权…");
-        rootState.setPadding(dp(18), dp(12), dp(18), dp(12));
-        rootState.setBackgroundColor(0xffffffff);
-        content.addView(rootState);
-        Button rootButton = new Button(this);
-        rootButton.setText("申请 / 重新检查 Root 权限");
-        rootButton.setOnClickListener(v -> checkRoot(rootState, true));
-        content.addView(rootButton, new LinearLayout.LayoutParams(-1, -2));
-        checkRoot(rootState, false);
+    private void showDashboard() { showWebDashboard(); }
 
-        section("功能中心");
-        dashboardItem("Hook 应用管理", "应用列表、广告过滤、隐私控制、自定义只读 Hook", this::showAppList);
-        dashboardItem("规则与 Hosts", "规则订阅、规则库、系统 Hosts 编辑", () -> showMigrationNotice("规则与 Hosts"));
-        dashboardItem("网络与 VPN", "DNS、VPN、代理、路由与运行状态", () -> showMigrationNotice("网络与 VPN"));
-        dashboardItem("证书管理", "MITM CA、HTTPS CA、安装状态与回滚", () -> showMigrationNotice("证书管理"));
-        dashboardItem("日志与诊断", "模块日志、服务状态、故障诊断", () -> showMigrationNotice("日志与诊断"));
-        section("架构状态");
-        TextView status = new TextView(this);
-        status.setText("当前阶段：原生 APP 主界面与 Root 授权入口已接入；其他模块功能正在逐项迁移。未迁移的功能不会显示为已完成。");
-        status.setTextColor(0xff687582);
-        status.setPadding(dp(18), dp(10), dp(18), dp(18));
-        content.addView(status);
+    private void showWebDashboard() {
+        hookUiVisible = false;
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff4f6f8);
+
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(14), dp(6), dp(10), dp(6));
+        toolbar.setBackgroundColor(0xff101820);
+        TextView brand = new TextView(this);
+        brand.setText("FX");
+        brand.setTextSize(20);
+        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        brand.setTextColor(0xffffffff);
+        toolbar.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
+        rootStatus = new TextView(this);
+        rootStatus.setText("Root 检查中");
+        rootStatus.setTextSize(11);
+        rootStatus.setTextColor(0xffd8e0e8);
+        rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
+        rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
+        toolbar.addView(rootStatus);
+        Button hook = new Button(this);
+        hook.setText("Hook");
+        hook.setTextSize(12);
+        hook.setOnClickListener(v -> showAppList());
+        toolbar.addView(hook, new LinearLayout.LayoutParams(-2, dp(42)));
+        root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
+
+        webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setSupportMultipleWindows(false);
+        settings.setSafeBrowsingEnabled(true);
+
+        WebViewAssetLoader.AssetsPathHandler fallback =
+                new WebViewAssetLoader.AssetsPathHandler(getAssets());
+        WebViewAssetLoader.PathHandler handler = assetPath -> {
+            if ("webroot/index.html".equals(assetPath)) {
+                try (InputStream in = getAssets().open(assetPath);
+                     ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                    String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
+                    String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'\">"
+                        + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};})();</script>";
+                    int head = html.toLowerCase().indexOf("<head");
+                    int close = head >= 0 ? html.indexOf(">", head) : -1;
+                    if (close >= 0) html = html.substring(0, close + 1) + shim + html.substring(close + 1);
+                    return new WebResourceResponse("text/html", "UTF-8",
+                            new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                } catch (Exception e) {
+                    return new WebResourceResponse("text/plain", "UTF-8",
+                            new ByteArrayInputStream(("FX UI asset error: " + e).getBytes(StandardCharsets.UTF_8)));
+                }
+            }
+            return fallback.handle(assetPath);
+        };
+        WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", handler).build();
+        webView.addJavascriptInterface(new RootBridge(this, webView), "FXRoot");
+        webView.setWebViewClient(new WebViewClientCompat() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return loader.shouldInterceptRequest(request.getUrl());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                return !"https".equals(uri.getScheme())
+                        || !"appassets.androidplatform.net".equals(uri.getHost());
+            }
+        });
+        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+        checkRoot(rootStatus, false);
+        webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
     }
+
+    public void showAppListFromBridge() { showAppList(); }
 
     private void dashboardItem(String name, String detail, Runnable action) {
         LinearLayout row = new LinearLayout(this);
@@ -132,7 +203,7 @@ public final class MainActivity extends Activity {
     private LinearLayout content;
     private void showAppList() {
         selectedPackage = null; base("选择应用");
-        Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showDashboard()); content.addView(home);
+        Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
