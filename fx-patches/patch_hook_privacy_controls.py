@@ -82,4 +82,12 @@ once(regression,
 let src = regression.read_text(encoding="utf-8")
 src = src.replace(",mic_silence=0$", ",mic_silence=0,camera_access_block=0,location_access_block=0,mic_access_block=0,media_store_query_block=0$")
 regression.write_text(src, encoding="utf-8")
+once(regression,
+'''    if (!result.adsEnabled || result.targets.size() != 8 || !result.isMemberDiagnosticsEnabledFor("com.example.app") || !result.targets.get("com.privacy.app").privacy) {''',
+'''    UnifiedHookConfigParser.Target sensitive = result.targets.get("com.sensitive.app");
+    if (!result.adsEnabled || result.targets.size() != 9 || !result.isMemberDiagnosticsEnabledFor("com.example.app")
+        || !result.targets.get("com.privacy.app").privacy || sensitive == null
+        || !sensitive.cameraAccessBlock || !sensitive.locationAccessBlock
+        || !sensitive.microphoneAccessBlock || !sensitive.mediaStoreQueryBlock) {''')
+
 print("FX API-101 privacy controls wired through UI and Remote Files publisher")
