@@ -249,10 +249,10 @@ jobs:
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
         env:
-          FX_ANDROID_KEYSTORE_BASE64: ${{ secrets.FX_ANDROID_KEYSTORE_BASE64 }}
-          FX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FX_ANDROID_KEYSTORE_PASSWORD }}
-          FX_ANDROID_KEY_ALIAS: ${{ secrets.FX_ANDROID_KEY_ALIAS }}
-          FX_ANDROID_KEY_PASSWORD: ${{ secrets.FX_ANDROID_KEY_PASSWORD }}
+          FX_ANDROID_KEYSTORE_BASE64: ${{ secrets.FX_ADHOOK_KEYSTORE_BASE64 }}
+          FX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FX_ADHOOK_KEYSTORE_PASSWORD }}
+          FX_ANDROID_KEY_ALIAS: ${{ secrets.FX_ADHOOK_KEY_ALIAS }}
+          FX_ANDROID_KEY_PASSWORD: ${{ secrets.FX_ADHOOK_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
