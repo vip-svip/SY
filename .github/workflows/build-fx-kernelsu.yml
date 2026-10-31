@@ -159,6 +159,7 @@ jobs:
           sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
           sh scripts/tests/adhook-app-installer-regression.sh
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
+          sh scripts/tests/fx-hook-native-ui-regression.sh "$BUILT_APK"
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
       - name: Run complete FX host regression suite
         shell: bash
