@@ -114,6 +114,7 @@ grep -Fq 'rule.action == DeveloperHookRule.Action.OBSERVE' "$HOOK" || fail "cust
 grep -Fq 'installDeveloperObservationHook(param.getClassLoader(), pkg' "$HOOK" || fail "custom Hook observation rules are parsed but never installed"
 grep -Fq 'target.developerHooksEnabled && debuggableTarget' "$HOOK" || fail "custom Hook must require explicit per-app opt-in and a debuggable target build"
 grep -Fq 'developerObserveForPackage = true;' "$HOOK" || fail "custom Hook observation opt-in is never enabled for a valid target"
+grep -Fq 'DeveloperHookRule.selectEffective(target.developerRules)' "$HOOK" || fail "custom Hook runtime must honor configured rule priority and disabled-rule semantics"
 grep -Fq "scanAddedViewTree(added, target, pkg);" "$HOOK" || fail "dynamic inserted Ad containers must be recursively scanned"
 grep -Fq "scanTree(child, added, 1, visited, target, pkg);" "$HOOK" || fail "nested Ad descendants are not inspected after dynamic insertion"
 grep -Fq "lastAddedViewScan" "$HOOK" || fail "duplicate addView callbacks must be deduplicated"
