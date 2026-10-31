@@ -22,17 +22,11 @@ install_one(){
   if [ "$_was_present" = 1 ] && [ "$_prior" = "$_actual" ]; then log_msg "unified Hook already installed and unchanged"; return 0; fi
   _stage="$TMP_DIR/.fx-unified-hook-$$.apk"; rm -f "$_stage" 2>/dev/null
   cp "$_apk" "$_stage" 2>/dev/null || { log_msg "ERROR: cannot stage unified APK"; return 1; }
-  # Persist ownership before PackageManager can install the APK. This closes
-  # the crash window where pm install succeeds but power loss prevents the
-  # ownership marker from being written, leaving an orphan after module removal.
+  # Never mark a package as FX-owned before PackageManager confirms installation.
+  # Otherwise a failed first install can leave a stale marker that later removes
+  # an unrelated user-installed package with the same applicationId.
   if [ "$_was_present" = 0 ]; then
-    if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$$") ||
-       ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
-       ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null; then
-      rm -f "$_owned.tmp.$$" "$_stage" 2>/dev/null
-      log_msg "ERROR: cannot persist Hook ownership marker; refusing APK installation"
-      return 1
-    fi
+    rm -f "$_marker" "$_owned" "$_marker.tmp.$" "$_owned.tmp.$" 2>/dev/null
   fi
   chmod 0644 "$_stage" 2>/dev/null || :; chown shell:shell "$_stage" 2>/dev/null || :
   command -v restorecon >/dev/null 2>&1 && restorecon "$_stage" 2>/dev/null || :
@@ -40,8 +34,25 @@ install_one(){
   while [ "$_attempt" -le 3 ]; do
     _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
-      (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$$") && chmod 0600 "$_marker.tmp.$$" 2>/dev/null && mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null
-      [ "$(cat "$_marker" 2>/dev/null)" = "$_actual" ] && _installed=1
+      if ! (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$") ||
+         ! chmod 0600 "$_marker.tmp.$" 2>/dev/null ||
+         ! mv -f "$_marker.tmp.$" "$_marker" 2>/dev/null ||
+         [ "$(cat "$_marker" 2>/dev/null)" != "$_actual" ]; then
+        rm -f "$_marker.tmp.$" "$_stage" 2>/dev/null
+        log_msg "ERROR: APK installed but its digest ownership record could not be committed"
+        return 1
+      fi
+      if [ "$_was_present" = 0 ]; then
+        if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$") ||
+           ! chmod 0600 "$_owned.tmp.$" 2>/dev/null ||
+           ! mv -f "$_owned.tmp.$" "$_owned" 2>/dev/null ||
+           [ "$(cat "$_owned" 2>/dev/null)" != "fx-managed-v1" ]; then
+          rm -f "$_owned.tmp.$" "$_marker" "$_stage" 2>/dev/null
+          log_msg "ERROR: APK installed but FX ownership record could not be committed; leaving package untouched"
+          return 1
+        fi
+      fi
+      _installed=1
       break
     fi
     if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then log_msg "ERROR: signing certificate mismatch for $_pkg; preserving existing package and data"; rm -f "$_stage"; return 1; fi
