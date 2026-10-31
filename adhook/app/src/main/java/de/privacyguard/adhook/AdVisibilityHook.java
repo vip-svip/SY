@@ -127,6 +127,11 @@ public final class AdVisibilityHook extends XposedModule {
             "full_screen_ad", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
 
+    // Ad category selection is automatic for every eligible app.
+    // Privacy and read-only diagnostics remain explicitly scoped per package.
+    private static final UnifiedHookConfigParser.Target AUTO_AD_TARGET =
+            new UnifiedHookConfigParser.Target(true, true, true, false, false, false, false);
+
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
     private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
@@ -203,31 +208,32 @@ public final class AdVisibilityHook extends XposedModule {
         if (NEVER.contains(pkg)) return;
         if (!configLoaded) return;
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
-        if (target == null) return;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         // Production Hook never overrides VIP, login, or update decisions.
         final boolean developerTestForPackage = false;
-        final boolean adsForPackage = adsEnabled && target.enabled();
-        final boolean memberDiagForPackage = target.memberDiag;
-        final boolean privacyForPackage = privacyEnabled && target.privacy;
-        final boolean exifForPackage = privacyEnabled && target.exifStrip;
-        final boolean clipboardBlockForPackage = privacyEnabled && target.clipboardReadBlock;
-        final boolean clipboardIsolateForPackage = privacyEnabled && clipboardIsolationEnabled && target.clipboardIsolate;
-        final boolean sensorForPackage = privacyEnabled && (target.sensorAccel || target.sensorGyro
+        // Ad detection is automatic for every non-protected app; the target map
+        // remains exclusively for opt-in privacy and read-only diagnostics.
+        final boolean adsForPackage = adsEnabled;
+        final boolean memberDiagForPackage = target != null && target.memberDiag;
+        final boolean privacyForPackage = privacyEnabled && target != null && target.privacy;
+        final boolean exifForPackage = privacyEnabled && target != null && target.exifStrip;
+        final boolean clipboardBlockForPackage = privacyEnabled && target != null && target.clipboardReadBlock;
+        final boolean clipboardIsolateForPackage = privacyEnabled && clipboardIsolationEnabled && target != null && target.clipboardIsolate;
+        final boolean sensorForPackage = privacyEnabled && target != null && (target.sensorAccel || target.sensorGyro
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
                 || target.sensorRateLimit);
-        final boolean wifiScanForPackage = wifiScanEnabled && target.wifiScanBlock;
-        final boolean notificationListenForPackage = notificationListenEnabled && target.notificationListenBlock;
-        final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target.notificationPermissionHide;
-        final boolean microphoneSilenceForPackage = privacyEnabled && target.microphoneSilence;
-        final boolean cameraAccessBlockForPackage = privacyEnabled && target.cameraAccessBlock;
-        final boolean locationAccessBlockForPackage = privacyEnabled && target.locationAccessBlock;
-        final boolean microphoneAccessBlockForPackage = privacyEnabled && target.microphoneAccessBlock;
-        final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target.mediaStoreQueryBlock;
+        final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
+        final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
+        final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
+        final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
+        final boolean cameraAccessBlockForPackage = privacyEnabled && target != null && target.cameraAccessBlock;
+        final boolean locationAccessBlockForPackage = privacyEnabled && target != null && target.locationAccessBlock;
+        final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
+        final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !developerTestForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
-        if (adsForPackage && (target.splash || target.feed || target.overlay)) installAdViewHooks();
+        if (adsForPackage) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
@@ -251,8 +257,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
-                " splash=" + target.splash + " feed=" + target.feed +
-                " overlay=" + target.overlay + " memberDiagReadOnly=" + target.memberDiag +
+                " adDetection=automatic(splash/feed/overlay)" + " memberDiagReadOnly=" + target.memberDiag +
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
@@ -1128,9 +1133,8 @@ public final class AdVisibilityHook extends XposedModule {
     }
 
     private UnifiedHookConfigParser.Target adTargetFor(String pkg) {
-        if (pkg == null || !adsEnabled || NEVER.contains(pkg)) return null;
-        UnifiedHookConfigParser.Target target = targets.get(pkg);
-        return target != null && target.enabled() && (target.splash || target.feed || target.overlay) ? target : null;
+        if (pkg == null || pkg.isEmpty() || !adsEnabled || NEVER.contains(pkg)) return null;
+        return AUTO_AD_TARGET;
     }
 
     /**
