@@ -93,7 +93,7 @@ manifest = modern / "AndroidManifest.xml"
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
 # incorrect once the launcher activity contains a self-closing child element.
-app_match = re.search(r"<application\\b[^>]*>.*?</application>", m, re.S)
+app_match = re.search(r"<application\b[^>]*>.*?</application>", m, re.S)
 if not app_match:
     raise SystemExit("modern manifest application element missing or unbalanced")
 # Preserve the APK's native launcher UI while adding the LSPosed metadata.
