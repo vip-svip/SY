@@ -220,6 +220,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "::group::Inspect installer entrypoint around any syntax failure"
+          nl -ba fx-module/customize.sh | sed -n '45,85p'
+          echo "::endgroup::"
           find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do
             bash -n "$f"
             chmod 0755 "$f"
