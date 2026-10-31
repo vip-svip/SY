@@ -76,6 +76,7 @@ grep -Fq 'actual=$(sha256sum' "$ACTIVITY" || fail "Remote Files final hash must 
 grep -Fq 'actual_managed=$(sha256sum' "$ACTIVITY" || fail "legacy ownership map final hash must be recomputed"
 grep -Fq 'managedHash' "$ACTIVITY" || fail "legacy ownership map expected hash is missing"
 grep -Fq 'configBytes.length>65536' "$ACTIVITY" || fail "Hook Remote Files config must enforce the parser byte limit"
+grep -Fq 'rows.size()>990' "$ACTIVITY" || fail "native Hook overlay must respect the generator line-count limit"
 grep -Fq 'managedBytes.length>65536' "$ACTIVITY" || fail "legacy ownership map must be bounded"
 grep -Fq 'command.length()>131072' "$ACTIVITY" || fail "Root publisher must enforce the command bridge limit"
 grep -Fq 'sync;' "$ACTIVITY" || fail "Remote Files publish must flush before and after atomic rename"
