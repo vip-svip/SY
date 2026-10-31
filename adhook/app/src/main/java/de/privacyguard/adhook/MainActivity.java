@@ -128,8 +128,11 @@ public final class MainActivity extends Activity {
         note.setTextColor(0xff697681); note.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(note);
         section("自定义 Hook");
         TextView custom=new TextView(this);
-        custom.setText("自定义 Hook 规则编辑器将在配置发布链路接通后启用。此处不会伪造第三方会员或登录状态。");
-        custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(16)); content.addView(custom);
+        custom.setText("自定义规则仅支持观察目标应用自身的方法调用，不修改返回值、登录状态或会员资格。");
+        custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
+        Button addRule=new Button(this); addRule.setText("添加只读观察规则");
+        addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
+        renderCustomRules();
         Button save=new Button(this); save.setText("保存并同步到 LSPosed");
         save.setOnClickListener(v -> {
             getPreferences(0).edit().putBoolean(key("draft_saved"),true).apply();
@@ -140,6 +143,55 @@ public final class MainActivity extends Activity {
         content.addView(back,new LinearLayout.LayoutParams(-1,-2));
     }
  
+
+    private void showCustomRuleDialog() {
+        LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20),dp(8),dp(20),0);
+        EditText id=new EditText(this); id.setSingleLine(true); id.setHint("规则 ID，例如 observe1");
+        EditText descriptor=new EditText(this); descriptor.setSingleLine(true);
+        descriptor.setHint("类名#方法()Z 或 L类路径;->方法()返回类型");
+        form.addView(id); form.addView(descriptor);
+        new AlertDialog.Builder(this).setTitle("新增只读 Hook 规则").setView(form)
+            .setNegativeButton("取消",null).setPositiveButton("保存",(d,w)->{
+                String ruleId=id.getText().toString().trim();
+                String method=descriptor.getText().toString().trim();
+                DeveloperHookRule rule=DeveloperHookRule.parse(ruleId+"|"+method+"|OBSERVE|0",selectedPackage);
+                if(rule==null) {
+                    new AlertDialog.Builder(this).setMessage("规则无效：方法必须属于当前应用包名下的类，且描述符格式正确。")
+                        .setPositiveButton("知道了",null).show(); return;
+                }
+                int slot=1;
+                while(slot<=64 && getPreferences(0).contains(selectedPackage+":dev_rule_"+slot)) slot++;
+                if(slot>64) {
+                    new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。").setPositiveButton("知道了",null).show(); return;
+                }
+                getPreferences(0).edit().putString(selectedPackage+":dev_rule_"+slot,
+                    rule.id+"|"+rule.descriptor+"|OBSERVE|0").putBoolean(selectedPackage+":dev_hook_enabled",true).apply();
+                showTarget(findApp(selectedPackage));
+            }).show();
+    }
+
+    private ApplicationInfo findApp(String pkg) {
+        for(ApplicationInfo ai:apps) if(ai.packageName.equals(pkg)) return ai;
+        return null;
+    }
+
+    private void renderCustomRules() {
+        for(int i=1;i<=64;i++) {
+            String value=getPreferences(0).getString(selectedPackage+":dev_rule_"+i,null);
+            if(value==null) continue;
+            TextView item=new TextView(this); item.setText(value); item.setTextSize(12);
+            item.setTextColor(0xff596775); item.setPadding(dp(18),dp(6),dp(18),dp(6));
+            content.addView(item);
+            Button remove=new Button(this); remove.setText("删除 "+value.substring(0,value.indexOf('|')));
+            final int slot=i; remove.setOnClickListener(v->{
+                getPreferences(0).edit().remove(selectedPackage+":dev_rule_"+slot).apply();
+                ApplicationInfo ai=findApp(selectedPackage); if(ai!=null) showTarget(ai);
+            });
+            content.addView(remove);
+        }
+    }
+
     private boolean enabled(String pkg, String feature) {
         return getPreferences(0).getBoolean(pkg + ":" + feature, false);
     }
@@ -171,6 +223,15 @@ public final class MainActivity extends Activity {
                         if(k.equals("notification_listen_block")) anyNotif=true;
                         if(k.equals("notification_permission_hide")) anyNotifPerm=true;
                         if(k.equals("clipboard_isolate")) anyClipboardIso=true;
+                    }
+                }
+                boolean customEnabled=false;
+                for(int n=1;n<=64;n++) {
+                    String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
+                    if(rule!=null) {
+                        if(!customEnabled) { row.append(",dev_hook_enabled=1"); customEnabled=true; }
+                        row.append(",dev_rule_").append(n).append('=').append(rule);
+                        has=true;
                     }
                 }
                 if(has) rows.add(row.toString());
