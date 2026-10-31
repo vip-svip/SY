@@ -44,12 +44,11 @@ elif "Privacy controls are executed by the verbatim legacy MainHook" not in a:
     raise SystemExit("modern module-loaded config anchor missing")
 adhook.write_text(a, encoding="utf-8")
 
-# Mirror the merged Android project into the module source archive as well, so the
-# shipped source tree and repository build tree describe the same single APK.
-module_adhook = fx / "adhook"
-if module_adhook.exists():
-    shutil.rmtree(module_adhook)
-shutil.copytree(repo / "adhook", module_adhook)
+# Keep a source copy inside the module archive without importing CI integration
+# templates (some are awk fragments intentionally not executable as shell scripts).
+module_main = fx / "adhook/app/src/main/java/de/privacyguard/hook/MainHook.java"
+module_main.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(target, module_main)
 
 (modern / "assets").mkdir(parents=True, exist_ok=True)
 (modern / "res/values").mkdir(parents=True, exist_ok=True)
@@ -86,7 +85,6 @@ app = """<application
     </application>"""
 m = m[:start] + app + m[end:]
 manifest.write_text(m, encoding="utf-8")
-shutil.copytree(repo / "adhook", fx / "adhook", dirs_exist_ok=True)
 
 # The final module payload must contain only the unified APK, never the old split APKs.
 for obsolete in (
