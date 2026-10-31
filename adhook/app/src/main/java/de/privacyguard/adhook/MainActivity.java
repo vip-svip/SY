@@ -77,11 +77,6 @@ public final class MainActivity extends Activity {
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
         toolbar.addView(rootStatus);
-        Button hook = new Button(this);
-        hook.setText("Hook");
-        hook.setTextSize(12);
-        hook.setOnClickListener(v -> showAppList());
-        toolbar.addView(hook, new LinearLayout.LayoutParams(-2, dp(42)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
         webView = new WebView(this);
@@ -175,9 +170,118 @@ public final class MainActivity extends Activity {
             }
         });
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
         setContentView(root);
         checkRoot(rootStatus, false);
         webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+    }
+
+    private LinearLayout buildBottomNavigation() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER);
+        bar.setBackgroundColor(0xffffffff);
+        String[] labels = {"VPN", "广告", "Hosts", "隐私", "脚本", "Hook"};
+        String[] pages = {"pageVpn", "pageAd", "pageHosts", "pagePrivacy", "pageScript", null};
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            TextView item = new TextView(this);
+            item.setText(labels[i]);
+            item.setTextSize(12);
+            item.setGravity(Gravity.CENTER);
+            item.setTypeface(Typeface.DEFAULT, i == 5 ? Typeface.BOLD : Typeface.NORMAL);
+            item.setTextColor(i == 5 ? 0xff1769aa : 0xff526170);
+            item.setPadding(dp(2), dp(8), dp(2), dp(8));
+            item.setOnClickListener(v -> {
+                if (index == 5) showHookHub();
+                else navigateWebPage(pages[index]);
+            });
+            bar.addView(item, new LinearLayout.LayoutParams(0, -1, 1));
+        }
+        return bar;
+    }
+
+    private void navigateWebPage(String pageId) {
+        if (webView == null) return;
+        String id = JSONObject.quote(pageId);
+        String script = "(function(){var id=" + id + ";var target=document.getElementById(id);"
+                + "if(!target)return false;var p=target;while(p&&p!==document.body){"
+                + "if(p.matches&&p.matches('[data-page],[role=tab],button,a,.tab,.nav-item')){p.click();return true;}p=p.parentElement;}"
+                + "['switchPage','showPage','navigateToPage'].some(function(n){if(typeof window[n]==='function'){window[n](id);return true;}return false;});"
+                + "return true;})()";
+        webView.evaluateJavascript(script, null);
+    }
+
+    private void showHookHub() {
+        hookUiVisible = true;
+        base("Hook 与系统授权");
+        TextView intro = new TextView(this);
+        intro.setText("统一管理应用级 Hook、LSPosed 作用域和无障碍服务。Root、LSPosed、无障碍是三种独立授权，必须分别确认状态。");
+        intro.setPadding(dp(18), dp(8), dp(18), dp(16));
+        intro.setTextColor(0xff536170);
+        content.addView(intro);
+        section("LSPosed");
+        TextView ls = new TextView(this);
+        ls.setText(isLsposedManagerInstalled()
+                ? "已检测到 LSPosed Manager。仍需在 Manager 中启用 FX 模块并选择目标应用作用域。"
+                : "未检测到 LSPosed Manager。请先安装并启用兼容的 LSPosed 框架。");
+        ls.setPadding(dp(18), dp(12), dp(18), dp(12));
+        content.addView(ls);
+        Button manager = new Button(this);
+        manager.setText("打开 LSPosed Manager");
+        manager.setOnClickListener(v -> openLsposedManager());
+        content.addView(manager);
+        Button targets = new Button(this);
+        targets.setText("应用 Hook 配置");
+        targets.setOnClickListener(v -> showAppList());
+        content.addView(targets);
+        section("Android 无障碍");
+        TextView accessibility = new TextView(this);
+        accessibility.setText(isAccessibilityEnabled()
+                ? "无障碍服务：已启用"
+                : "无障碍服务：未启用（需由用户在系统设置中手动开启）");
+        accessibility.setPadding(dp(18), dp(12), dp(18), dp(12));
+        content.addView(accessibility);
+        Button settings = new Button(this);
+        settings.setText("打开无障碍设置");
+        settings.setOnClickListener(v -> {
+            try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+            catch (Exception e) { Toast.makeText(this, "无法打开系统无障碍设置", Toast.LENGTH_LONG).show(); }
+        });
+        content.addView(settings);
+        Button status = new Button(this);
+        status.setText("刷新授权状态");
+        status.setOnClickListener(v -> showHookHub());
+        content.addView(status);
+        Button back = new Button(this);
+        back.setText("返回 FX 控制中心");
+        back.setOnClickListener(v -> showWebDashboard());
+        content.addView(back);
+    }
+
+    private boolean isLsposedManagerInstalled() {
+        try {
+            getPackageManager().getPackageInfo("org.lsposed.manager", 0);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void openLsposedManager() {
+        try {
+            Intent launch = getPackageManager().getLaunchIntentForPackage("org.lsposed.manager");
+            if (launch != null) startActivity(launch);
+            else Toast.makeText(this, "未找到 LSPosed Manager，请确认已安装", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "打开 LSPosed Manager 失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private boolean isAccessibilityEnabled() {
+        String enabled = android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return enabled != null && enabled.contains(getPackageName() + "/.FxAccessibilityService");
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
