@@ -2,6 +2,26 @@
 
 This tracked matrix clarifies that the unified APK has two runtime entrypoints but is not equivalent to full API-101 feature parity.
 
+## API-101 wired feature status (CI/source verified; device behavior pending)
+
+| Feature | UI/config/runtime wiring | Scope and limitation |
+|---|---|---|
+| Built-in ad recognition | Automatic classifier and package-scoped View observers | Eligible LSPosed target processes; does not require per-app ad switches or Remote Files. |
+| Member/Billing diagnostics | Native per-app opt-in and bounded read-only runtime probes | Diagnostic only; never alters rewards, purchases, login or server entitlements. |
+| Android ID / EXIF | Per-app config and modern runtime hooks | Narrow API-level transforms; not equivalent to all legacy device-identity or metadata spoofing switches. |
+| Clipboard read block | Per-app opt-in and selected read API interception | Not OS clipboard permission revocation. |
+| Clipboard isolation | Separate master/per-target config and process-local shadow hooks | Single-package process only; not OS-wide or cross-app isolation; mutually exclusive with clipboard read block. |
+| Sensors | Per-app sensor selection and rate policy | Selected sensor enumeration/rate APIs; not full hardware or native sensor-path coverage. |
+| Wi-Fi scan | Global master plus per-app target gate | Intercepts selected WifiManager scan APIs only; association, DNS, VPN and sockets remain untouched. |
+| Notification listener reads | Global master plus per-app target gate | Selected listener registration/read APIs; does not change OS permission state or notification posting/display. |
+| Notification permission query | Native target editor, publisher master/per-target fields, parser, runtime and status reporting | Masks selected app-visible permission-status queries only; does not grant/revoke Android permissions. |
+| Microphone silence / access denial | Per-app config and AudioRecord/MediaRecorder runtime hooks | Silence affects supported AudioRecord.read overloads; access denial affects supported recording-start APIs. Native capture paths remain unverified. |
+| Camera access denial | Per-app config and Camera/Camera2 open-request hooks | Explicitly denies supported open requests; does not spoof absent hardware or synthesize fake frames. |
+| Location access denial | Per-app config and supported LocationManager read/update hooks | Not a system-wide passive-location provider shutdown or GNSS spoof. |
+| MediaStore query block | Per-app config and ContentResolver query hook | Returns an empty cursor for selected content://media queries; does not block file access or writes. |
+
+The unified APK contains both the legacy Xposed entrypoint and modern libxposed API-101 entrypoint under one applicationId. This packaging result is not full migration of the 75 historical switches. Every row above is CI/source verified; OnePlus 12 + KernelSU + LSPosed runtime verification remains outstanding.
+
 ## Capture privacy status
 
 | Legacy capability | API-101 status |
