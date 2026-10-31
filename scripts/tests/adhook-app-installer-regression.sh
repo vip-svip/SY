@@ -31,7 +31,14 @@ if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch not
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing package removed after signature mismatch"
 [ ! -s "$TMP/pm/uninstall-calls" ] || fail "installer attempted destructive uninstall"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
-rm -rf "$TMP/state"; mkdir -p "$TMP/state"; : > "$TMP/pm/install-calls"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "pre-existing package update failed"
-[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "pre-existing package incorrectly claimed"
-echo "PASS: exactly one unified APK installed, idempotent update, signature safety, ownership preservation"
+# A package first installed by FX must be removed on module uninstall.
+sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "FX-owned package cleanup failed"
+if grep -Fxq de.privacyguard.adhook "$TMP/pm/installed"; then fail "FX-owned package survived cleanup"; fi
+# A pre-existing app may have a digest record, but without the ownership marker
+# the remover must leave the user's package installed.
+echo de.privacyguard.adhook >> "$TMP/pm/installed"
+printf 'digest-only\\n' > "$TMP/state/adhook-apk-fxunifiedhook.sha256"
+rm -f "$TMP/state/adhook-apk-fxunifiedhook.fx-owned"
+sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "safe cleanup of pre-existing package failed"
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing user package was removed"
+echo "PASS: unified APK install/update, signature safety, FX-owned cleanup, and pre-existing package preservation"
