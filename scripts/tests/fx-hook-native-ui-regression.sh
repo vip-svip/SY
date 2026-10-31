@@ -52,6 +52,7 @@ grep -q "destroyForcibly()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adho
 grep -Fq 'RootAccess.execute(command, 60000L, 1024 * 1024)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "large Hook config publication has an unsafe short timeout"
 grep -q 'fx-hook-targets.conf' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Remote Files target config path missing"
 grep -q 'DeveloperHookRule.parse(ruleId+"|"+method+"|OBSERVE|0"' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "read-only custom rule validation missing"
+grep -q 'mutation actions are not supported' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" || fail "unsupported custom Hook mutation actions are not explicitly reported"
 grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher MAIN action missing"
 grep -q 'android.intent.category.LAUNCHER' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher category missing"
 grep -q 'QUERY_ALL_PACKAGES' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "installed-app visibility permission missing"
