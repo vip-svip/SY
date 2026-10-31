@@ -7,7 +7,7 @@ log_msg(){ _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) remove_adhook_app: $*"; p
 [ -d "$STATE_DIR" ] || exit 0
 command -v pm >/dev/null 2>&1 || exit 0
 _result=0
-for _pair in 'de.privacyguard.adhook fxunifiedhook' 'de.privacyguard.adhook fxadhook' 'de.privacyguard.hook privacyguardhook'; do
+for _pair in 'de.privacyguard.adhook fxunifiedhook' 'de.privacyguard.adhook fxunified' 'de.privacyguard.adhook fxadhook' 'de.privacyguard.hook privacyguardhook'; do
   set -- $_pair; _pkg=$1; _slug=$2
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
   [ -s "$_marker" ] || continue
