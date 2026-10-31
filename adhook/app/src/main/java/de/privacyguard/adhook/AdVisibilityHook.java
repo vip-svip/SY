@@ -211,7 +211,6 @@ public final class AdVisibilityHook extends XposedModule {
         // Ad recognition is built in and does not depend on Remote Files.
         // Remote Files is needed only for optional per-app privacy/diagnostic policy.
         adsEnabled = true;
-        installVisibilityMutationObserver();
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
         if (remoteFilesAvailable) {
             configLoaded = loadConfig();
@@ -1300,6 +1299,9 @@ public final class AdVisibilityHook extends XposedModule {
 
     private void hideAdView(final View view, final String pkg, final String failureLabel) {
         if (view == null || view.getVisibility() == View.GONE) return;
+        // Install only after a real Ad view is found; avoid intercepting every
+        // setVisibility call in apps that never contain a matched Ad view.
+        installVisibilityMutationObserver();
         try {
             synchronized (hiddenAdViews) {
                 if (!hiddenAdViews.containsKey(view)) {
