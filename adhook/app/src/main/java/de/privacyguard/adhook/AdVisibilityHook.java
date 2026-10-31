@@ -219,8 +219,18 @@ public final class AdVisibilityHook extends XposedModule {
         // All optional per-app policy flags below remain false unless a valid config loaded.
         final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        // Production Hook never overrides VIP, login, or update decisions.
-        final boolean developerTestForPackage = false;
+        // Custom Hook is observation-only, explicitly enabled per app, and
+        // restricted to debuggable target builds. Production authorization,
+        // VIP, login and update decisions are never modified.
+        boolean developerTestForPackage = false;
+        if (target != null && target.developerHooksEnabled && debuggableTarget) {
+            for (DeveloperHookRule rule : target.developerRules) {
+                if (rule != null && rule.action == DeveloperHookRule.Action.OBSERVE) {
+                    developerTestForPackage = true;
+                    break;
+                }
+            }
+        }
         // Ad detection is automatic for every non-protected app; the target map
         // remains exclusively for opt-in privacy and read-only diagnostics.
         final boolean adsForPackage = adsEnabled;
@@ -263,6 +273,13 @@ public final class AdVisibilityHook extends XposedModule {
         if (memberDiagForPackage) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
+        }
+        if (developerTestForPackage && target != null) {
+            for (DeveloperHookRule rule : target.developerRules) {
+                if (rule == null || rule.action != DeveloperHookRule.Action.OBSERVE) continue;
+                installDeveloperObservationHook(param.getClassLoader(), pkg,
+                        debuggableTarget, rule.descriptor, rule.id);
+            }
         }
         if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
