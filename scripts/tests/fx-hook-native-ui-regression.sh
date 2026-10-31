@@ -13,6 +13,7 @@ grep -q 'outState.putInt("fx_selected_bottom_tab", selectedBottomTab);' "$ROOT/a
 grep -q 'outState.putString("fx_hook_screen"' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook screen kind is not saved across Activity recreation"
 grep -q 'pendingRestorePackage = state.getString("fx_selected_package")' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "selected Hook target package is not saved for restoration"
 grep -q 'if (restoreHookScreen)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook screen is not restored after Activity recreation"
+grep -q 'pendingRestorePackage = null;' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale restored Hook target is not cleared when leaving its screen"
 grep -q 'pendingWebPage = webPageForBottomTab(lastWebTabIndex);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "restored dashboard tab is not replayed after WebView reload"
 grep -q 'webView.destroy();' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Activity destruction does not release the WebView"
 grep -q 'fileChooserCallback.onReceiveValue(null);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "pending document picker callback is not cancelled"
