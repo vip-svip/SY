@@ -127,7 +127,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/fx-regression-logs"
           for test_script in "${tests[@]}"; do
             test_name="$(basename "$test_script")"
-            # These five checks require build-stage outputs (signed APK/QJS ELF).
+            # These six checks require build-stage outputs (signed APK/QJS ELF).
             # Their source-level contracts are checked by this no-compile workflow;
             # the final packaging workflow runs them after producing the artifacts.
             case "$test_name" in
