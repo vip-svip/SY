@@ -72,6 +72,8 @@ public final class MainActivity extends Activity {
     private String pendingRestorePackage;
     private ValueCallback<Uri[]> fileChooserCallback;
     private volatile Thread hookPublisherThread;
+    private volatile Thread hookStatusThread;
+    private int hookStatusGeneration;
     private volatile Thread appLoaderThread;
     private int appLoadGeneration;
     private boolean appsLoaded;
@@ -130,6 +132,7 @@ public final class MainActivity extends Activity {
     private void showDashboard() { showWebDashboard(); }
 
     private void showWebDashboard() {
+        cancelHookStatusRefresh();
         // A restored target is only valid while the app-list restoration is still active.
         pendingRestorePackage = null;
         hookUiVisible = false;
@@ -392,6 +395,16 @@ public final class MainActivity extends Activity {
                     + "\n此记录只证明文件写入与哈希校验成功，不证明 LSPosed 作用域、热加载或目标进程注入状态。");
         }
         content.addView(publishStatus);
+        section("LSPosed Remote Files 实时状态");
+        TextView remoteStatus = new TextView(this);
+        remoteStatus.setText("正在读取设备端 Remote Files 状态…");
+        remoteStatus.setPadding(dp(18), dp(10), dp(18), dp(12));
+        content.addView(remoteStatus);
+        Button refreshRemote = new Button(this);
+        refreshRemote.setText("刷新 Remote Files 状态");
+        refreshRemote.setOnClickListener(v -> refreshHookRemoteStatus(remoteStatus));
+        content.addView(refreshRemote);
+        refreshHookRemoteStatus(remoteStatus);
         section("KernelSU / Root");
         TextView rootState = new TextView(this);
         rootState.setText("正在检查 Root 授权与 FX 模块状态…");
@@ -452,6 +465,65 @@ public final class MainActivity extends Activity {
         content.addView(back);
     }
 
+    private void refreshHookRemoteStatus(TextView target) {
+        Thread previous = hookStatusThread;
+        if (previous != null) previous.interrupt();
+        final int generation = ++hookStatusGeneration;
+        target.setText("正在读取设备端 Remote Files 状态…");
+        Thread worker = new Thread(() -> {
+            RootAccess.Result result = RootAccess.execute(
+                    "sh /data/adb/modules/privacyguard/scripts/status.sh json",
+                    30000L, 64 * 1024);
+            String display;
+            if (result.exitCode != 0) {
+                String detail = result.output == null ? "" : result.output.trim();
+                if (detail.length() > 500) detail = detail.substring(0, 500) + "…";
+                display = "Remote Files 状态读取失败（退出码 " + result.exitCode + "）。"
+                        + (detail.isEmpty() ? "" : "\\n" + detail);
+            } else {
+                try {
+                    JSONObject status = new JSONObject(result.output.trim());
+                    String remote = status.optString("hook_remote_status", "unknown");
+                    String remoteLabel;
+                    if ("ok".equals(remote)) remoteLabel = "最近一次发布成功";
+                    else if ("failed".equals(remote)) remoteLabel = "最近一次发布失败";
+                    else if ("framework_missing".equals(remote)) remoteLabel = "未检测到 LSPosed 框架";
+                    else remoteLabel = "未知 / 尚无状态文件";
+                    display = "Remote Files：" + remoteLabel
+                            + "（目标数 " + status.optInt("hook_remote_targets", 0) + "）"
+                            + "\\n通知权限提示：主开关 " + status.optString("hook_notification_permission_hide_enabled", "未知")
+                            + "，目标数 " + status.optInt("hook_notification_permission_hide_targets", 0)
+                            + "\\n剪贴板隔离：主开关 " + status.optString("hook_clipboard_isolate_enabled", "未知")
+                            + "，目标数 " + status.optInt("hook_clipboard_isolate_targets", 0)
+                            + "\\n会员只读诊断：主开关 " + status.optString("hook_member_diag_enabled", "未知")
+                            + "，目标数 " + status.optInt("hook_member_diag_targets", 0)
+                            + "\\n隐私 Hook：主开关 " + status.optString("hook_privacy_enabled", "未知")
+                            + "，目标数 " + status.optInt("hook_privacy_targets", 0)
+                            + "\\n此状态仅反映设备端配置/状态文件；不证明 LSPosed 作用域或目标进程已注入。";
+                } catch (Exception malformed) {
+                    display = "Remote Files 状态返回格式无效，无法确认发布状态。";
+                }
+            }
+            final String message = display;
+            if (hookStatusThread == Thread.currentThread()) hookStatusThread = null;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || generation != hookStatusGeneration
+                        || !hookUiVisible || !hookHubVisible) return;
+                target.setText(message);
+            });
+        }, "fx-hook-remote-status");
+        worker.setDaemon(true);
+        hookStatusThread = worker;
+        worker.start();
+    }
+
+    private void cancelHookStatusRefresh() {
+        hookStatusGeneration++;
+        Thread worker = hookStatusThread;
+        hookStatusThread = null;
+        if (worker != null) worker.interrupt();
+    }
+
     private boolean isLsposedManagerInstalled() {
         try {
             getPackageManager().getPackageInfo("org.lsposed.manager", 0);
@@ -479,6 +551,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        cancelHookStatusRefresh();
         Thread publisher = hookPublisherThread;
         hookPublisherThread = null;
         if (publisher != null) publisher.interrupt();
@@ -594,6 +667,7 @@ public final class MainActivity extends Activity {
     }
     private LinearLayout content;
     private void showAppList() {
+        cancelHookStatusRefresh();
         pauseAndDetachWebView();
         hookUiVisible = true;
         hookTargetVisible = false;
