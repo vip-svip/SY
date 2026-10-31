@@ -55,11 +55,19 @@ jobs:
           # builds accidentally feed the 532-byte retirement page back as source.
           if [[ ! -s fx-module/webroot/index.html || "$(wc -c < fx-module/webroot/index.html)" -le 500000 ]]; then
             hook_apk="fx-module/optional/FXUnifiedHook.apk"
-            [[ -s "$hook_apk" ]] || { echo "::error::Full WebUI source is missing and no embedded FX Hook APK is available to restore it."; exit 1; }
+            # The published KernelSU ZIP intentionally omits the standalone APK
+            # from its optional payload. Restore it from its separate Release asset.
+            if [[ ! -s "$hook_apk" ]]; then
+              mkdir -p "$RUNNER_TEMP/fx-release" "$(dirname "$hook_apk")"
+              gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk' --dir "$RUNNER_TEMP/fx-release"
+              test -s "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"
+              unzip -tq "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"
+              install -m 0644 "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk" "$hook_apk"
+            fi
             unzip -p "$hook_apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-restored-webroot.html"
-            [[ "$(wc -c < "$RUNNER_TEMP/fx-restored-webroot.html")" -gt 500000 ]] || { echo "::error::Embedded FX Hook APK does not contain the complete WebUI."; exit 1; }
+            [[ "$(wc -c < "$RUNNER_TEMP/fx-restored-webroot.html")" -gt 500000 ]] || { echo "::error::Published FX Hook APK does not contain the complete WebUI."; exit 1; }
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
-            echo "::notice::Restored the complete WebUI source from the embedded FX Hook APK."
+            echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
