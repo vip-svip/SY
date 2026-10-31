@@ -144,22 +144,24 @@ packaged_remover.parent.mkdir(parents=True, exist_ok=True)
 packaged_remover.write_text(canonical_remover.read_text(encoding="utf-8"), encoding="utf-8")
 packaged_remover.chmod(0o755)
 kernel_uninstall = root / "uninstall.sh"
-kernel_uninstall.write_text("""#!/system/bin/sh
-# KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
+kernel_source = kernel_uninstall.read_text(encoding="utf-8")
+hook_cleanup = '''# Remove only the unified Hook APK explicitly installed and owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=/data/adb/privacyguard
 REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
 if [ -f "$REMOVER" ]; then
-  sh "$REMOVER" "$MODDIR" "$STATE_DIR"
-  _rc=$?
-  if [ "$_rc" -ne 0 ]; then
+  sh "$REMOVER" "$MODDIR" "$STATE_DIR" || {
     echo "FX uninstall: one or more FX-owned Hook packages could not be removed; see $STATE_DIR/adhook-install.log" >&2
-  fi
-  exit "$_rc"
+    PG_CLEANUP_INCOMPLETE=1
+  }
 fi
-echo "FX uninstall: Hook remover missing; leaving installed packages untouched" >&2
-exit 0
-""", encoding="utf-8")
+'''
+hook_anchor = "PG_CLEANUP_INCOMPLETE=0\\n"
+if hook_cleanup not in kernel_source:
+    if kernel_source.count(hook_anchor) != 1:
+        raise SystemExit("KernelSU uninstall Hook cleanup insertion anchor changed")
+    kernel_source = kernel_source.replace(hook_anchor, hook_anchor + hook_cleanup, 1)
+kernel_uninstall.write_text(kernel_source, encoding="utf-8")
 kernel_uninstall.chmod(0o755)
 
-print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and restored KernelSU Hook uninstall entrypoint.")
+print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and preserved full KernelSU uninstall flow and integrated ownership-safe Hook cleanup.")
