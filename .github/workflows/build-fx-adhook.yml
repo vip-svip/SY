@@ -49,24 +49,10 @@ jobs:
           rm -rf fx-module
           mkdir -p fx-module
           cp -a "$source_root/." fx-module/
-          echo "RESTORED_MODULE_SOURCE=$source_root"
-          find fx-module/scripts -maxdepth 2 -type f | sort | head -n 100 || true
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
-          echo "=== HOSTS EDITOR IMPLEMENTATION ==="
-          grep -n -B6 -A18 -E 'hostsOpenEditor|/system/etc/hosts|hostsLocalSave|hostsSaveLocal' fx-module/webroot/index.html | head -n 180 || true
-          echo "=== HOSTS JAVASCRIPT REFERENCES ==="
-          grep -n -E 'hostsLocal|hostsEditor|hostsPage|hostsOpen|system/hosts|/hosts|hosts_file|hosts-file' fx-module/webroot/index.html | tail -n 120 || true
-          echo "=== PAGED HOSTS FILE EDITOR BACKEND ==="
-          sed -n '6800,6975p' fx-module/webroot/index.html
-          echo "=== FILE EDITOR ROOT BACKEND ==="
-          sed -n '1,420p' fx-module/scripts/fileedit.sh
-          echo "=== APPLY HOSTS MERGE AND MOUNT ==="
-          grep -n -B8 -A24 -E 'local/hosts|hosts.local|/system/etc/hosts|hosts\.tmp|hosts\.bak' fx-module/scripts/apply.sh | head -n 220 || true
-          echo "=== ALL MODULE HOSTS SCRIPT REFERENCES ==="
-          grep -RniE 'hosts|local/hosts|hosts\.local|system/etc/hosts' fx-module/scripts --include='*.sh' | head -n 260 || true
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
