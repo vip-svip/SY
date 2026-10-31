@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
           python3 scripts/tests/fx-native-hook-overlay-patcher-regression.py
-          for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh; do
+          for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh fx-module/scripts/tests/v1.0.0-ad-*-regression.sh fx-module/scripts/tests/v1.0.0-adult-content-domain-list-regression.sh fx-module/scripts/tests/v1.0.0-adult-site-ad-*-regression.sh; do
             [ -f "$test" ] || continue
             echo "RUN MODULE REGRESSION: $test"
             sh "$test"
