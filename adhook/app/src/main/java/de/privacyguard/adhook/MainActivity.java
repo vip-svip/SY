@@ -326,9 +326,13 @@ public final class MainActivity extends Activity {
         content.addView(targets);
         section("Android 无障碍");
         TextView accessibility = new TextView(this);
-        accessibility.setText(isAccessibilityEnabled()
-                ? "无障碍服务：已启用"
-                : "无障碍服务：未启用（需由用户在系统设置中手动开启）");
+        boolean accessibilityEnabled = isAccessibilityEnabled();
+        boolean accessibilityConnected = getSharedPreferences("fx_accessibility", MODE_PRIVATE)
+                .getBoolean("service_connected", false);
+        accessibility.setText(!accessibilityEnabled
+                ? "无障碍服务：未启用（需由用户在系统设置中手动开启）"
+                : accessibilityConnected ? "无障碍服务：系统已启用，FX 服务已连接"
+                : "无障碍服务：系统已启用，等待 FX 服务连接");
         accessibility.setPadding(dp(18), dp(12), dp(18), dp(12));
         content.addView(accessibility);
         Button settings = new Button(this);
