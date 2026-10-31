@@ -1,13 +1,17 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-INSTALLER="$ROOT/scripts/install_adhook_app.sh"; REMOVER="$ROOT/scripts/remove_adhook_app.sh"
+MODULE="$ROOT"
+if [ -s "$ROOT/fx-module/scripts/install_adhook_app.sh" ]; then MODULE="$ROOT/fx-module"; fi
+INSTALLER="$MODULE/scripts/install_adhook_app.sh"; REMOVER="$MODULE/scripts/remove_adhook_app.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$INSTALLER" ] && [ -s "$REMOVER" ] || fail "installer/remover missing"
-cmp -s "$INSTALLER" "$ROOT/fx-module/scripts/install_adhook_app.sh" || fail "packaged installer drift"
-cmp -s "$REMOVER" "$ROOT/fx-module/scripts/remove_adhook_app.sh" || fail "packaged remover drift"
-[ -s "$ROOT/fx-module/uninstall.sh" ] || fail "KernelSU uninstall hook missing"
-grep -Fq 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"' "$ROOT/fx-module/uninstall.sh" || fail "KernelSU uninstall hook does not invoke ownership-safe remover"
+if [ "$MODULE" != "$ROOT" ]; then
+  cmp -s "$ROOT/scripts/install_adhook_app.sh" "$INSTALLER" || fail "packaged installer drift"
+  cmp -s "$ROOT/scripts/remove_adhook_app.sh" "$REMOVER" || fail "packaged remover drift"
+fi
+[ -s "$MODULE/uninstall.sh" ] || fail "KernelSU uninstall hook missing"
+grep -Fq 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"' "$MODULE/uninstall.sh" || fail "KernelSU uninstall hook does not invoke ownership-safe remover"
 TMP="${TMPDIR:-/tmp}/fx-unified-installer-$$"; mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 printf 'unified apk payload\n' > "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
