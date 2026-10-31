@@ -297,6 +297,7 @@ jobs:
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-vpn-off-requires-core-stop-success-regression.sh
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           APKSIGNER="$SDK_ROOT/build-tools/34.0.0/apksigner"
 
