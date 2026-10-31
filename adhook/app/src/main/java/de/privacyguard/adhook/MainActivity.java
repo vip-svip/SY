@@ -249,7 +249,9 @@ public final class MainActivity extends Activity {
             }
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
-                if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
+                ValueCallback<Uri[]> previous = fileChooserCallback;
+                fileChooserCallback = null;
+                if (previous != null) previous.onReceiveValue(null);
                 fileChooserCallback = callback;
                 try {
                     Intent intent = params.createIntent();
@@ -587,10 +589,9 @@ public final class MainActivity extends Activity {
 
         // Complete pending WebView callbacks before tearing down the view. Otherwise
         // a cancelled document picker can retain the old Activity across recreation.
-        if (fileChooserCallback != null) {
-            fileChooserCallback.onReceiveValue(null);
-            fileChooserCallback = null;
-        }
+        ValueCallback<Uri[]> pendingFileChooser = fileChooserCallback;
+        fileChooserCallback = null;
+        if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (rootBridge != null) {
             rootBridge.close();
             rootBridge = null;
@@ -630,9 +631,16 @@ public final class MainActivity extends Activity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_FILE_PICKER && fileChooserCallback != null) {
-            Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
-            fileChooserCallback.onReceiveValue(results);
+            ValueCallback<Uri[]> pending = fileChooserCallback;
             fileChooserCallback = null;
+            Uri[] results = null;
+            try {
+                results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            } catch (RuntimeException malformedResult) {
+                // Always complete the accepted WebView callback, even if the picker
+                // returns a malformed result or the provider disappears.
+            }
+            pending.onReceiveValue(results);
         }
     }
 
