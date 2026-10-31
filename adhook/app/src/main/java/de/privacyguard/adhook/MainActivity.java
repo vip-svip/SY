@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
         new Thread(() -> {
             RootAccess.Result result = RootAccess.execute("id -u; if [ -s /data/adb/modules/privacyguard/module.prop ] && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop; then if [ -e /data/adb/modules/privacyguard/disable ]; then echo FX_MODULE=disabled; elif [ -e /data/adb/modules/privacyguard/remove ]; then echo FX_MODULE=remove-pending; else echo FX_MODULE=enabled; fi; else echo FX_MODULE=missing; fi; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_TOOL=present || echo KSU_TOOL=not-found");
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
                     String moduleState = result.output.contains("FX_MODULE=enabled") ? "模块启用标记存在"
                             : result.output.contains("FX_MODULE=disabled") ? "模块已禁用"
@@ -648,7 +649,13 @@ public final class MainActivity extends Activity {
                 }
                 getPreferences(0).edit().putString(selectedPackage+":dev_rule_"+slot,
                     rule.id+"|"+rule.descriptor+"|OBSERVE|0").putBoolean(selectedPackage+":dev_hook_enabled",true).apply();
-                showTarget(findApp(selectedPackage));
+                ApplicationInfo currentTarget = findApp(selectedPackage);
+                if (currentTarget == null) {
+                    new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
+                            .setPositiveButton("知道了", null).show();
+                    return;
+                }
+                showTarget(currentTarget);
             }).show();
     }
 
