@@ -17,7 +17,7 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
          '  else if (k == "username" || k == "user") username = v'),
         ('_yreality _yws_host _yservice; do',
          '_yreality _yws_host _yservice _yusername; do'),
-        ('      socks5)\n        echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"',
+        ('      socks5)\n        echo "socks5://\${_yh}:\${_yp}#\${_yn}"',
          '      socks5)\n'
          '        if [ -n "$_yusername" ] || [ -n "$_ypw" ]; then\n'
          '          # Do not silently turn an authenticated SOCKS profile into anonymous access.\n'
