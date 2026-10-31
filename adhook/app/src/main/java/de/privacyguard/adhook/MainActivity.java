@@ -545,10 +545,10 @@ public final class MainActivity extends Activity {
                     // Show the bounded raw status rather than falsely reporting that
                     // the device-side command failed.
                     String raw = result.output == null ? "" : result.output.trim();
-                    if (raw.length() > 4000) raw = raw.substring(0, 4000) + "\\n…（内容已截断）";
+                    if (raw.length() > 4000) raw = raw.substring(0, 4000) + "\n…（内容已截断）";
                     display = raw.isEmpty()
                             ? "设备端状态脚本没有返回可显示的状态。"
-                            : "设备端状态输出（原始格式）：\\n" + raw;
+                            : "设备端状态输出（原始格式）：\n" + raw;
                 }
             }
             final String message = display;
