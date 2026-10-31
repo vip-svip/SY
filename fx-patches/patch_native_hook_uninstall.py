@@ -146,22 +146,31 @@ packaged_remover.chmod(0o755)
 kernel_uninstall = root / "uninstall.sh"
 kernel_source = kernel_uninstall.read_text(encoding="utf-8")
 hook_cleanup = '''# Remove only the unified Hook APK explicitly installed and owned by FX.
-MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
-STATE_DIR=/data/adb/privacyguard
+STATE_DIR="$PG"
 REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
 if [ -f "$REMOVER" ]; then
-  sh "$REMOVER" "$MODDIR" "$STATE_DIR" || {
-    echo "FX uninstall: one or more FX-owned Hook packages could not be removed; see $STATE_DIR/adhook-install.log" >&2
+  if ! sh "$REMOVER" "$MODDIR" "$STATE_DIR"; then
+    _mitm_warn "one or more FX-managed Hook app packages could not be removed; see $STATE_DIR/adhook-install.log"
     PG_CLEANUP_INCOMPLETE=1
-  }
+  fi
 fi
 '''
-hook_anchor = "PG_CLEANUP_INCOMPLETE=0\n"
-if hook_cleanup not in kernel_source:
-    if kernel_source.count(hook_anchor) != 1:
-        raise SystemExit("KernelSU uninstall Hook cleanup insertion anchor changed")
-    kernel_source = kernel_source.replace(hook_anchor, hook_anchor + hook_cleanup, 1)
+# Replace the existing late cleanup block instead of adding a second early pass.
+# This preserves uninstall ordering and keeps package removal idempotent.
+legacy_cleanup = '''# Remove only Hook APK packages managed by FX. This is package-manager cleanup only;
+# it does not alter routing, DNS or firewall state. Failures are logged separately.
+if [ -f "$MODDIR/scripts/remove_adhook_app.sh" ]; then
+  if ! sh "$MODDIR/scripts/remove_adhook_app.sh" "$MODDIR" "$PG"; then
+    _mitm_warn "one or more FX-managed Hook app packages could not be removed; see $PG/adhook-install.log"
+  fi
+fi
+'''
+if kernel_source.count(hook_cleanup) == 0:
+    if kernel_source.count(legacy_cleanup) != 1:
+        raise SystemExit("existing late Hook cleanup block changed; refusing duplicate or misplaced cleanup")
+    kernel_source = kernel_source.replace(legacy_cleanup, hook_cleanup, 1)
+
 kernel_uninstall.write_text(kernel_source, encoding="utf-8")
 kernel_uninstall.chmod(0o755)
 
-print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and preserved full KernelSU uninstall flow and integrated ownership-safe Hook cleanup.")
+print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and preserved full KernelSU uninstall flow and integrated a single late ownership-safe Hook cleanup.")
