@@ -12,6 +12,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: fx-v1.0.0-final-package
+  cancel-in-progress: true
 jobs:
   package:
     if: ${{ github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
