@@ -126,7 +126,7 @@ awk '
   /  vpn-core[)]/ {in_vpn=1}
   in_vpn && /      status[)]/ {in_status=1}
   in_status && /^        ;;$/ {in_status=0; status_done=1}
-  status_done && /^      \\*[)]/ {active=1; next}
+  status_done && /^      [*][)]/ {active=1; next}
   active && /^        ;;$/ {exit}
   active {print}
 ' "$APPLY" > "$TMP/start-body.sh"
