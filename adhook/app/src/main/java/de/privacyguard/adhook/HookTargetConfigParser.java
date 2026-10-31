@@ -139,6 +139,6 @@ public final class HookTargetConfigParser {
     }
 
     private static boolean validPackage(String pkg) {
-        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
+        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
     }
 }
