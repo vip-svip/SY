@@ -208,10 +208,15 @@ public final class MainActivity extends Activity {
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
         setContentView(root);
-        checkRoot(rootStatus, false);
         if (!webViewLoaded) {
-            webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
-            webViewLoaded = true;
+            checkRoot(rootStatus, false, () -> {
+                if (!webViewLoaded) {
+                    webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+                    webViewLoaded = true;
+                }
+            });
+        } else {
+            checkRoot(rootStatus, false);
         }
     }
 
@@ -397,17 +402,22 @@ public final class MainActivity extends Activity {
     public void showAppListFromBridge() { showAppList(); }
 
     private void checkRoot(TextView state, boolean request) {
+        checkRoot(state, request, null);
+    }
+
+    private void checkRoot(TextView state, boolean request, Runnable afterCheck) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
         new Thread(() -> {
             RootAccess.Result result = RootAccess.execute("id -u; test -s /data/adb/modules/privacyguard/module.prop && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop && echo FX_MODULE=present || echo FX_MODULE=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
             runOnUiThread(() -> {
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
-                    state.setText("已获得 Root（UID 0）\n" + result.output.trim());
+                    state.setText("已获得 Root（UID 0）\\n" + result.output.trim());
                 } else if (result.denied) {
                     state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX 应用。");
                 } else {
-                    state.setText("Root 不可用或请求失败：\n" + result.output);
+                    state.setText("Root 不可用或请求失败：\\n" + result.output);
                 }
+                if (afterCheck != null) afterCheck.run();
             });
         }, "fx-root-check").start();
     }
