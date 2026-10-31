@@ -38,7 +38,7 @@ public final class RootBridge {
             return;
         }
         new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute(command, 120000L, 1024 * 1024);
+            RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
             deliver(callbackName, result.exitCode, result.output, "");
         }, "fx-web-root").start();
     }
