@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Route standalone VPN lifecycle commands through apply.sh's atomic lock."""
 from pathlib import Path
+import subprocess
 import sys
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
@@ -53,4 +54,5 @@ grep -Fq 'exec sh "$_apply" vpn-core "$1"' "$SOURCE"
 echo "PASS: standalone VPN ensure/stop use the shared apply lock"
 ''', encoding="utf-8")
 test.chmod(0o755)
-print("Patched standalone VPN lifecycle commands to use apply.sh lock and added regression.")
+subprocess.run(["sh", str(test)], check=True)
+print("Patched standalone VPN lifecycle commands to use apply.sh lock; regression passed.")
