@@ -668,11 +668,13 @@ public final class MainActivity extends Activity {
                .append("[list:targets]\n");
             for(String row:rows) cfg.append(row).append('\n');
             byte[] configBytes=cfg.toString().getBytes("UTF-8");
+            if(configBytes.length>65536) throw new IllegalStateException("Hook 配置超过 64 KiB 上限，请减少目标或自定义规则数量。");
             String expectedHash=sha256Hex(configBytes);
             String encoded=android.util.Base64.encodeToString(configBytes,android.util.Base64.NO_WRAP);
             StringBuilder managedConfig=new StringBuilder();
             for(String row:legacyManagedRows) managedConfig.append(row).append('\n');
             byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
+            if(managedBytes.length>65536) throw new IllegalStateException("Hook 兼容映射超过 64 KiB 上限。");
             String managedHash=sha256Hex(managedBytes);
             String managedEncoded=android.util.Base64.encodeToString(managedBytes,android.util.Base64.NO_WRAP);
             int androidUser=android.os.Process.myUid()/100000;
@@ -708,6 +710,7 @@ public final class MainActivity extends Activity {
                     +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
                     +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
                     +"printf 'SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_managed\"";
+            if(command.length()>131072) throw new IllegalStateException("Root 发布命令超过 128 KiB 上限，请减少目标或自定义规则数量。");
             new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
