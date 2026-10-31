@@ -524,6 +524,14 @@ public final class MainActivity extends Activity {
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
+        boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        TextView targetBuildState = new TextView(this);
+        targetBuildState.setText(targetDebuggable
+                ? "目标应用：可调试版本（自定义只读 Hook 可执行）"
+                : "目标应用：非调试版本（自定义只读 Hook 暂不执行）");
+        targetBuildState.setTextColor(0xff697681);
+        targetBuildState.setPadding(dp(18),0,dp(18),dp(12));
+        content.addView(targetBuildState);
         section("广告识别");
         TextView adNote=new TextView(this);
         adNote.setText("广告类型由内置识别引擎自动判断，无需按应用配置启动页、信息流或弹窗开关。");
