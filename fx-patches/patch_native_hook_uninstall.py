@@ -143,6 +143,26 @@ if not canonical_remover.is_file():
 packaged_remover.parent.mkdir(parents=True, exist_ok=True)
 packaged_remover.write_text(canonical_remover.read_text(encoding="utf-8"), encoding="utf-8")
 packaged_remover.chmod(0o755)
+
+# Keep the package's installer and its regression fixture synchronized with
+# the reviewed repository source. The restored release archive may contain an
+# older copy, so patching only the remover leaves a stale destructive test path.
+canonical_installer = repo_root / "scripts" / "install_adhook_app.sh"
+packaged_installer = root / "scripts" / "install_adhook_app.sh"
+if not canonical_installer.is_file():
+    raise SystemExit("canonical unified Hook installer is missing")
+packaged_installer.parent.mkdir(parents=True, exist_ok=True)
+packaged_installer.write_text(canonical_installer.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_installer.chmod(0o755)
+
+canonical_installer_test = repo_root / "scripts" / "tests" / "adhook-app-installer-regression.sh"
+packaged_installer_test = root / "scripts" / "tests" / "adhook-app-installer-regression.sh"
+if not canonical_installer_test.is_file():
+    raise SystemExit("canonical unified Hook installer regression is missing")
+packaged_installer_test.parent.mkdir(parents=True, exist_ok=True)
+packaged_installer_test.write_text(canonical_installer_test.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_installer_test.chmod(0o755)
+
 kernel_uninstall = root / "uninstall.sh"
 kernel_source = kernel_uninstall.read_text(encoding="utf-8")
 hook_cleanup = '''# Remove only the unified Hook APK explicitly installed and owned by FX.
