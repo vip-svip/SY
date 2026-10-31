@@ -100,7 +100,7 @@ if not app_match:
 if 'android.permission.QUERY_ALL_PACKAGES' not in m:
     m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\\n    <application', 1)
 app = """<application
-        android:label="FX Hook"
+        android:label="FX"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
