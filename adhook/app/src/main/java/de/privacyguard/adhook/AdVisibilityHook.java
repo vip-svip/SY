@@ -235,8 +235,12 @@ public final class AdVisibilityHook extends XposedModule {
         // VIP, login and update decisions are never modified.
         boolean developerObserveForPackage = false;
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            for (DeveloperHookRule rule : target.developerRules) {
-                if (rule != null && rule.action == DeveloperHookRule.Action.OBSERVE) {
+            // Resolve duplicate descriptors by priority before deciding which
+            // observation hooks may be installed. Disabled entries never shadow active rules.
+            List<DeveloperHookRule> effectiveRules =
+                    DeveloperHookRule.selectEffective(target.developerRules);
+            for (DeveloperHookRule rule : effectiveRules) {
+                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
                     developerObserveForPackage = true;
                     break;
                 }
