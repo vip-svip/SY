@@ -116,9 +116,21 @@ proxies:
       path: /trojan
       headers:
         Host: ws.example.com
+  - name: VMess WebSocket
+    type: vmess
+    server: vmess.example.com
+    port: 443
+    uuid: 123e4567-e89b-12d3-a456-426614174003
+    network: ws
+    tls: true
+    servername: sni.vmess.example.com
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: cdn.vmess.example.com
 YAML
 vpn_yaml_to_uri "$T/transport.yaml" > "$T/out"
-[ "$(wc -l < "$T/out" | tr -d ' ')" = 3 ] || { cat "$T/out"; exit 1; }
+[ "$(wc -l < "$T/out" | tr -d ' ')" = 4 ] || { cat "$T/out"; exit 1; }
 grep -Fq 'type=ws' "$T/out"
 grep -Fq 'path=/gateway' "$T/out"
 grep -Fq 'host=cdn.example.com' "$T/out"
@@ -137,7 +149,17 @@ for uri,expected in [(uris[0],('ws','/gateway','cdn.example.com')),(uris[1],('gr
         assert obj['transport']['headers']['Host']==expected[2],obj
     else:
         assert obj['transport']['service_name']==expected[1],obj
+vmess_uri=uris[3].split('://',1)[1]
+import base64
+raw=base64.b64decode(vmess_uri + '=' * ((4-len(vmess_uri)%4)%4))
+vmess=json.loads(raw)
+assert vmess['host']=='cdn.vmess.example.com',vmess
+assert vmess['sni']=='sni.vmess.example.com',vmess
+out=subprocess.check_output(['sh','-c','. "$MODDIR/scripts/vpncore.sh"; singbox_node_outbound "$1" vmess-tag','sh',uris[3]],env=os.environ,text=True)
+obj=json.loads(out)
+assert obj['tls']['server_name']=='sni.vmess.example.com',obj
+assert obj['transport']['headers']['Host']=='cdn.vmess.example.com',obj
 PY
-echo 'PASS: Clash WS Host headers and gRPC service names survive import and sing-box generation'
+echo 'PASS: Clash WS Host headers, gRPC service names, and VMess SNI survive import and sing-box generation'
 ''', encoding="utf-8")
 test.chmod(0o755)
