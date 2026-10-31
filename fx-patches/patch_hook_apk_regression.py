@@ -24,8 +24,8 @@ printf '%s\\n' "$DEXSTR" > "$DEXSTR_FILE"
 trap 'rm -f "$DEXSTR_FILE"' EXIT""",
         1,
     )
-old_grep = '    printf \'%s\' "$DEXSTR" | grep -q "$token" || fail "compiled hook marker missing: $token"'
-new_grep = '    grep -Fq "$token" "$DEXSTR_FILE" || fail "compiled hook marker missing: $token"'
+old_grep = 'printf \'%s\' "$DEXSTR" | grep -q "$token" || fail "compiled hook marker missing: $token"'
+new_grep = 'grep -Fq "$token" "$DEXSTR_FILE" || fail "compiled hook marker missing: $token"'
 if old_grep in src:
     src = src.replace(old_grep, new_grep, 1)
 elif new_grep not in src:
