@@ -54,6 +54,8 @@ jobs:
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+          echo "=== LEGACY MEMBER DIAGNOSTIC OWNERSHIP ==="
+          grep -n -B4 -A12 -E 'member_diag|memberDiag|installMember|billing|purchase' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java | head -n 140 || true
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
           test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
