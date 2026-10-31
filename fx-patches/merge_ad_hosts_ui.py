@@ -56,7 +56,7 @@ class PageLocator(HTMLParser):
         del self.stack[match_index:]
         target = next((item[1] for item in reversed(closing) if item[1]), None)
         if target and self.pages[target]["end"] is None:
-            start = self.offset()
+            start = self.source_offset()
             close = re.match(r"</\s*" + re.escape(tag) + r"\s*>", self.text[start:], re.I)
             if close:
                 self.pages[target]["end"] = start
