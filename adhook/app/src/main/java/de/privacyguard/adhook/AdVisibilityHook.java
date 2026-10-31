@@ -187,17 +187,25 @@ public final class AdVisibilityHook extends XposedModule {
 
     @Override
     public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
+        // Ad recognition is built in and does not depend on Remote Files.
+        // Remote Files is needed only for optional per-app privacy/diagnostic policy.
+        adsEnabled = true;
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
-        if (!remoteFilesAvailable) {
-            logFx(Log.WARN, "Remote Files capability unavailable; feature disabled safely");
-            return;
+        if (remoteFilesAvailable) {
+            configLoaded = loadConfig();
+        } else {
+            configLoaded = false;
+            targets.clear();
+            privacyEnabled = false;
+            logFx(Log.WARN, "Remote Files capability unavailable; optional per-app policies remain disabled");
         }
-        configLoaded = loadConfig();
+        // A missing/invalid optional config must never disable automatic Ad detection.
+        adsEnabled = true;
         logFx(configLoaded
                 ? Log.INFO : Log.WARN,
                 configLoaded
-                        ? "remote target config loaded; selected targets=" + targets.size()
-                        : "remote target config unavailable/invalid; no-op");
+                        ? "automatic Ad detection enabled; remote per-app policies loaded=" + targets.size()
+                        : "automatic Ad detection enabled; optional remote per-app policies unavailable");
     }
 
     @Override
@@ -206,8 +214,9 @@ public final class AdVisibilityHook extends XposedModule {
         currentPackage = pkg;
         processPackages.add(pkg);
         if (NEVER.contains(pkg)) return;
-        if (!configLoaded) return;
-        final UnifiedHookConfigParser.Target target = targets.get(pkg);
+        // Continue with automatic Ad recognition even when Remote Files are absent.
+        // All optional per-app policy flags below remain false unless a valid config loaded.
+        final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         // Production Hook never overrides VIP, login, or update decisions.
         final boolean developerTestForPackage = false;
