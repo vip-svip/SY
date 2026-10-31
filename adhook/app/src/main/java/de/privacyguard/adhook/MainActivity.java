@@ -663,7 +663,7 @@ public final class MainActivity extends Activity {
                 appLabels.putAll(loadedLabels);
                 appIcons.clear();
                 appsLoaded = loadFailure == null;
-                while (content.getChildCount() > 4) content.removeViewAt(4);
+                while (content.getChildCount() > 5) content.removeViewAt(5);
                 if (loadFailure != null) {
                     TextView error = new TextView(this);
                     error.setText("读取应用列表失败：" + loadFailure + "\n请检查应用列表权限后重试。");
