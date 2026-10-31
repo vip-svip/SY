@@ -35,6 +35,34 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
     s = s.replace("# FX_CLASH_TRANSPORT_FIELDS_V1", "# FX_CLASH_TRANSPORT_FIELDS_V1\n# FX_CLASH_SOCKS_AUTH_V1", 1)
     p.write_text(s, encoding="utf-8")
 
+core = root / "scripts/vpncore.sh"
+s = core.read_text(encoding="utf-8")
+if "FX_URI_PERCENT_DECODER_POSIX_V1" not in s:
+    old = '''urldec() { printf '%b' "$(echo "$1" | sed 's/%/\\\\x/g')"; }'''
+    new = """# FX_URI_PERCENT_DECODER_POSIX_V1
+urldec() {
+  # POSIX-shell portable percent decoding; dash does not consistently decode \\xHH via printf %b.
+  printf '%s' "$1" | awk '
+    BEGIN { hex = "0123456789ABCDEF" }
+    {
+      s = $0
+      while (match(s, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+        printf "%s", substr(s, 1, RSTART - 1)
+        pair = toupper(substr(s, RSTART + 1, 2))
+        hi = index(hex, substr(pair, 1, 1)) - 1
+        lo = index(hex, substr(pair, 2, 1)) - 1
+        printf "%c", hi * 16 + lo
+        s = substr(s, RSTART + 3)
+      }
+      printf "%s", s
+    }
+  '
+}"""
+    if old not in s:
+        raise SystemExit("missing POSIX URI decoder patch anchor")
+    s = s.replace(old, new, 1)
+    core.write_text(s, encoding="utf-8")
+
 test = root / "scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh"
 test.write_text(r'''#!/system/bin/sh
 set -eu
@@ -67,6 +95,7 @@ vpn_yaml_to_uri "$T/socks.yaml" > "$T/out"
 grep -Fq 'socks5://test%3Auser:p%40ss%2Fw%3Frd@socks-auth.example.com:1080' "$T/out"
 grep -Fq 'socks5://socks-open.example.com:1080' "$T/out"
 . "$ROOT/scripts/vpncore.sh"
+[ "$(urldec 'a%3Ab%40c%2Fd%3Fe%20f%25') " = "a:b@c/d?e f% " ] || { echo 'FAIL: POSIX URI percent decoder'; exit 1; }
 python3 - "$T/out" <<'PY'
 import json,sys,subprocess,os
 uris=open(sys.argv[1]).read().splitlines()
