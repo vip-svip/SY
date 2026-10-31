@@ -663,6 +663,17 @@ public final class AdVisibilityHook extends XposedModule {
         notificationListenEnabled = false;
         notificationPermissionHideEnabled = false;
         clipboardIsolationEnabled = false;
+        try {
+            // LSPosed's openRemoteFile may create a missing file; check first.
+            if (!Arrays.asList(listRemoteFiles()).contains(CONFIG_NAME)) {
+                logFx(Log.WARN, "Remote Files config is missing: " + CONFIG_NAME);
+                return false;
+            }
+        } catch (Throwable listingFailure) {
+            logFx(Log.WARN, "Remote Files listing failed; optional per-app policies remain disabled (" +
+                    listingFailure.getClass().getSimpleName() + ")");
+            return false;
+        }
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
              ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
             byte[] chunk = new byte[4096];
