@@ -199,8 +199,9 @@ jobs:
           "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$apk"
           badging="$("$SDK_ROOT/build-tools/34.0.0/aapt" dump badging "$apk")"
           grep -Fq "package: name='de.privacyguard.adhook' versionCode='10000' versionName='1.0.0'" <<<"$badging"
-          unzip -p "$apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
-          unzip -p "$apk" assets/webroot/index.html | grep -q 'id="pageHosts"'
+          unzip -p "$apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-apk-webroot.html"
+          grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-apk-webroot.html"
+          grep -q 'id="pageHosts"' "$RUNNER_TEMP/fx-apk-webroot.html"
           sh scripts/tests/fx-hook-native-ui-regression.sh "$apk"
           sha256sum "$apk"
       - name: Upload verified FX Hook APK
