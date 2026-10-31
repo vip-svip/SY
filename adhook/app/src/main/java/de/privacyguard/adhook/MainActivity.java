@@ -340,15 +340,18 @@ public final class MainActivity extends Activity {
             String remote=moduleDir+"/fx-hook-targets.conf";
             String temp=remote+".tmp";
             String command="mkdir -p "+moduleDir+" && echo "+encoded+" | base64 -d > "+temp+" && chmod 600 "+temp+" && mv "+temp+" "+remote;
-            Process proc=Runtime.getRuntime().exec(new String[]{"su","-c",command});
-            int code=proc.waitFor();
-            if(code==0) {
-                new AlertDialog.Builder(this).setMessage("配置已写入 LSPosed Remote Files。请确认 LSPosed Manager 已将 FX Hook 作用域包含目标应用，并强制停止后重新打开目标应用。")
-                    .setPositiveButton("知道了",null).show();
-            } else {
-                new AlertDialog.Builder(this).setMessage("root 发布失败（退出码 "+code+"）。请确认已授予 FX Hook root 权限、FX Hook 已安装为 LSPosed 模块，然后重试。配置仍保存在本机草稿。")
-                    .setPositiveButton("知道了",null).show();
-            }
+            new Thread(() -> {
+                RootAccess.Result result = RootAccess.execute(command);
+                runOnUiThread(() -> {
+                    if(result.exitCode==0) {
+                        new AlertDialog.Builder(this).setMessage("配置已写入 LSPosed Remote Files。请确认 LSPosed Manager 已将 FX Hook 作用域包含目标应用，并强制停止后重新打开目标应用。")
+                            .setPositiveButton("知道了",null).show();
+                    } else {
+                        new AlertDialog.Builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
+                            .setPositiveButton("知道了",null).show();
+                    }
+                });
+            }, "fx-config-publisher").start();
         } catch(Exception e) {
             new AlertDialog.Builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
                 .setPositiveButton("知道了",null).show();
