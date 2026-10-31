@@ -43,7 +43,7 @@ grep -q 'FX_FULL_APP_MIGRATION_COMPLETE' "$ROOT/.github/workflows/build-fx-kerne
 grep -q 'merge_hook_single_apk.py' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow must build both Hook entrypoints in one APK"
 grep -q 'FX-Hook-apk' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "the exact embedded APK must be uploaded separately"
 grep -q 'ZIP_APK_SHA' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU ZIP embedded APK checksum verification missing"
-grep -q 'Stage released FX 1.0.0 WebUI for static validation' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "non-compiling APP migration validation workflow missing"
+grep -q 'Restore module sources, merge Hook entrypoints, and stage WebUI (no compile)' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "non-compiling APP migration validation workflow missing"
 ! grep -Eq 'assembleDebug|testDebugUnitTest' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "duplicate APK compilation must be removed"
 grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU APK WebUI staging missing"
 grep -q 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "parallel module WebUI retirement missing"
