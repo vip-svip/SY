@@ -11,7 +11,7 @@ grep -q "showDashboard()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook
 grep -q "申请 / 重新检查 Root 权限" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "root authorization action missing"
 grep -q "new ProcessBuilder(\"su\", \"-c\", command)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java" || fail "KernelSU su bridge missing"
 grep -q "waitFor(20, TimeUnit.SECONDS)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java" || fail "root command timeout missing"
-grep -q 'Runtime.getRuntime().exec(new String\[\]{"su","-c",command})' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "root config publisher missing"
+grep -q 'RootAccess.execute(command)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "root config publisher missing"
 grep -q 'fx-hook-targets.conf' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Remote Files target config path missing"
 grep -q 'DeveloperHookRule.parse(ruleId+"|"+method+"|OBSERVE|0"' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "read-only custom rule validation missing"
 grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher MAIN action missing"
