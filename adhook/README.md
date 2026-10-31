@@ -1,5 +1,9 @@
 # FX Hook (LSPosed)
 
+## Standalone APK interface
+The unified APK also declares a native Android launcher Activity. It lists installed applications, supports searching by label/package name, and opens a per-target screen for ad filtering, privacy controls, and read-only membership diagnostics. Per-target switches are currently stored as app-private local drafts. They are **not yet published** to LSPosed Remote Files by this UI, so changing a switch does not activate a runtime hook. The APK build workflow verifies the launcher entry with Android's APK metadata tools.
+
+
 This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP status and never modifies billing results or purchase tokens.
 
 ## Activation contract
