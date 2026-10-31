@@ -248,6 +248,11 @@ jobs:
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
+        env:
+          FX_ANDROID_KEYSTORE_BASE64: ${{ secrets.FX_ANDROID_KEYSTORE_BASE64 }}
+          FX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FX_ANDROID_KEYSTORE_PASSWORD }}
+          FX_ANDROID_KEY_ALIAS: ${{ secrets.FX_ANDROID_KEY_ALIAS }}
+          FX_ANDROID_KEY_PASSWORD: ${{ secrets.FX_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
@@ -263,10 +268,6 @@ jobs:
           # release key: the owner must supply the same private keystore secrets
           # for every update. A partial secret set is a hard error, not a silent
           # fallback to a different signing identity.
-          export FX_ANDROID_KEYSTORE_BASE64="${{ secrets.FX_ANDROID_KEYSTORE_BASE64 }}"
-          export FX_ANDROID_KEYSTORE_PASSWORD="${{ secrets.FX_ANDROID_KEYSTORE_PASSWORD }}"
-          export FX_ANDROID_KEY_ALIAS="${{ secrets.FX_ANDROID_KEY_ALIAS }}"
-          export FX_ANDROID_KEY_PASSWORD="${{ secrets.FX_ANDROID_KEY_PASSWORD }}"
           SIGNING_MODE="debug-signed"
           if [[ -n "$FX_ANDROID_KEYSTORE_BASE64$FX_ANDROID_KEYSTORE_PASSWORD$FX_ANDROID_KEY_ALIAS$FX_ANDROID_KEY_PASSWORD" ]]; then
             for name in FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD; do
