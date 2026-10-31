@@ -83,5 +83,4 @@ grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard pr
         kept.append(line)
     scope = "\n".join(kept).rstrip() + "\n\n" + new_ui_block
     scope_test.write_text(scope, encoding="utf-8")
-    scope_test.write_text(scope, encoding="utf-8")
 print("Updated unified Hook APK and native-only target-scope regression assertions.")
