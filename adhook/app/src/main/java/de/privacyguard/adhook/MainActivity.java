@@ -279,7 +279,7 @@ public final class MainActivity extends Activity {
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
-            case "pageAd": tab = "hosts"; break;
+            case "pageAd": tab = "ad"; break;
             case "pagePrivacy": tab = "privacy"; break;
             case "pageScript": tab = "script"; break;
             case "pageMore": tab = "more"; break;
