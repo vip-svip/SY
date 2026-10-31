@@ -40,7 +40,7 @@ grep -Fq 'chmod 600 "$PG/boot.log"' "$SERVICE" || fail "boot.log is not restrict
 ! grep -Eq 'pg_log.*\$_fx_url' "$ROOT/fx-module/scripts/util.sh" || fail "FX rule source URL leaks into logs"
 ! grep -Eq 'pg_log.*\$_hf_url|pg_log.*\$_cu' "$ROOT/fx-module/scripts/apply.sh" || fail "Hosts/Web filter source URL leaks into logs"
 ! grep -Eq 'pg_log.*\$url' "$ROOT/fx-module/scripts/jsruntime/sync-subs.sh" || fail "JS subscription URL leaks into logs"
-! grep -Eq 'pg_log.*\\$_url' "$ROOT/fx-module/scripts/vpncore.sh" || fail "VPN core release URL leaks into logs"
+! grep -Eq 'pg_log.*\$_url' "$ROOT/fx-module/scripts/vpncore.sh" || fail "VPN core release URL leaks into logs"
 warn_def_line=$(grep -n '^_mitm_warn()' "$UNINSTALL" | head -n1 | cut -d: -f1)
 warn_call_line=$(grep -n '_mitm_warn "scheduler PID' "$UNINSTALL" | head -n1 | cut -d: -f1)
 [ -n "$warn_def_line" ] && [ -n "$warn_call_line" ] && [ "$warn_def_line" -lt "$warn_call_line" ] || fail "uninstall warning helper is called before its definition"
