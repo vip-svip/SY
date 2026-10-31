@@ -63,6 +63,7 @@ public final class MainActivity extends Activity {
     private boolean webViewLoaded;
     private boolean webUiReady;
     private String pendingWebPage;
+    private String pendingRestorePackage;
     private ValueCallback<Uri[]> fileChooserCallback;
     private volatile Thread hookPublisherThread;
     private volatile Thread appLoaderThread;
@@ -72,17 +73,38 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        boolean restoreHookScreen = false;
+        String restoreHookKind = "";
         if (state != null) {
             lastWebTabIndex = Math.max(0, Math.min(5,
                     state.getInt("fx_last_web_tab", 0)));
-            selectedBottomTab = lastWebTabIndex;
+            selectedBottomTab = Math.max(0, Math.min(5,
+                    state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+            restoreHookScreen = selectedBottomTab == 4;
+            restoreHookKind = state.getString("fx_hook_screen", "list");
+            if ("target".equals(restoreHookKind)) {
+                pendingRestorePackage = state.getString("fx_selected_package");
+            }
         }
-        showDashboard();
+        if (restoreHookScreen) {
+            if ("hub".equals(restoreHookKind)) showHookHub();
+            else showAppList();
+        } else {
+            showDashboard();
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
+        outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
+        if (hookUiVisible) {
+            outState.putString("fx_hook_screen",
+                    hookHubVisible ? "hub" : hookTargetVisible ? "target" : "list");
+            if (hookTargetVisible && selectedPackage != null) {
+                outState.putString("fx_selected_package", selectedPackage);
+            }
+        }
         super.onSaveInstanceState(outState);
     }
 
@@ -636,6 +658,14 @@ public final class MainActivity extends Activity {
                     content.addView(retry);
                 } else {
                     renderApps(search == null ? "" : search.getText().toString());
+                    if (pendingRestorePackage != null) {
+                        String restorePackage = pendingRestorePackage;
+                        pendingRestorePackage = null;
+                        ApplicationInfo target = findApp(restorePackage);
+                        if (target != null) showTarget(target);
+                        else Toast.makeText(MainActivity.this,
+                                "上次配置的应用已卸载，已返回应用列表。", Toast.LENGTH_LONG).show();
+                    }
                 }
             });
         }, "fx-app-index");
