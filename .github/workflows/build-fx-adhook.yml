@@ -112,3 +112,18 @@ jobs:
           assert "saveBase64" in bridge and "MediaStore.Downloads" in bridge
           print("PASS: manifest XML and APP/Root bridge source invariants")
           PY
+      - name: Preserve restored module source for focused audit
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-v1.0.0-module-source-audit
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            fx-module/module.prop
+            fx-module/customize.sh
+            fx-module/post-fs-data.sh
+            fx-module/service.sh
+            fx-module/uninstall.sh
+            fx-module/scripts/
+            fx-module/webroot/index.html
