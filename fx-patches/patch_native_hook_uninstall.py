@@ -20,7 +20,7 @@ helper = '''_mitm_warn() {
 if source.count(helper) != 1:
     raise SystemExit("uninstall warning helper does not match the reviewed source")
 source = source.replace(helper, "", 1)
-shebang_end = source.find("\\n")
+shebang_end = source.find("\n")
 if not source.startswith("#!") or shebang_end < 0:
     raise SystemExit("uninstall shebang is missing; refusing to move warning helper")
 source = source[:shebang_end + 1] + helper + source[shebang_end + 1:]
