@@ -1,4 +1,4 @@
-name: Validate FX APP UI migration (no compile)
+name: Validate FX APP migration and build Hook APK
 
 on:
   push:
@@ -175,6 +175,42 @@ jobs:
           echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
           echo "pass=$pass skipped=$skipped fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
           [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
+      - name: Set up Java 17 for FX Hook APK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle for FX Hook APK
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Set up Android SDK for FX Hook APK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - name: Compile and verify the unified FX Hook APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+          apk="adhook/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$apk"
+          badging="$("$SDK_ROOT/build-tools/34.0.0/aapt" dump badging "$apk")"
+          grep -Fq "package: name='de.privacyguard.adhook' versionCode='10000' versionName='1.0.0'" <<<"$badging"
+          unzip -p "$apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
+          unzip -p "$apk" assets/webroot/index.html | grep -q 'id="pageHosts"'
+          sh scripts/tests/fx-hook-native-ui-regression.sh "$apk"
+          sha256sum "$apk"
+      - name: Upload verified FX Hook APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXUnifiedHook-debug-APK
+          path: adhook/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload FX host regression logs
         if: always()
         uses: actions/upload-artifact@v4
