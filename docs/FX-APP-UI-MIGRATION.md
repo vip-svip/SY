@@ -27,7 +27,7 @@ FX also declares an optional Android AccessibilityService. The user must explici
 
 ## Native APP navigation and Hook authorization hub
 
-- The APP shell owns six bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. Ads and Hosts are combined in one tab; Settings is the sixth tab. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
+- The APP shell owns six bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. The Ad tab contains the merged Ad/Rules/Hosts content; Settings is the sixth tab. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
 - The Ad tab opens the combined Ads/Rules page, where the local system Hosts editor is embedded. The sixth Settings tab opens the advanced Settings page; there is no separate top-toolbar Settings button.
 - The Hook tab opens a native authorization hub with LSPosed Manager detection/launch, per-app Hook settings and Android accessibility status.
 - Root, LSPosed module activation/scope, and Android accessibility are independent states. The APP does not infer one from another.
