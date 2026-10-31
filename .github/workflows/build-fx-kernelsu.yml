@@ -63,6 +63,7 @@ jobs:
           python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
+          python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
       - name: Build and embed QuickJS-NG v0.17.0 for Android ARM64
         uses: android-actions/setup-android@v3
