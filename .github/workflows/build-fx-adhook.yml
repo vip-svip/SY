@@ -54,6 +54,7 @@ jobs:
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
+          python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
           test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
           python3 - <<'PY'
           import re
