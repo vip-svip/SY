@@ -6,8 +6,9 @@ import sys
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 generator = root / "scripts/gen_xposed_conf.sh"
 regression = root / "scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh"
+mic_regression = root / "scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh"
 ui = root / "webroot/index.html"
-for path in (generator, regression, ui):
+for path in (generator, regression, mic_regression, ui):
     if not path.is_file():
         raise SystemExit("missing required FX source: " + str(path))
 
@@ -89,5 +90,11 @@ once(regression,
         || !result.targets.get("com.privacy.app").privacy || sensitive == null
         || !sensitive.cameraAccessBlock || !sensitive.locationAccessBlock
         || !sensitive.microphoneAccessBlock || !sensitive.mediaStoreQueryBlock) {''')
+
+# Keep AudioRecord post-read silence distinct from the separate explicit
+# microphone-access denial feature, which legitimately hooks startRecording.
+once(mic_regression,
+'''if grep -q 'startRecording' "$HOOK"; then echo 'unexpected startRecording interception' >&2; exit 1; fi''',
+'''if sed -n '/private void installAudioRecordSilenceHooks/,/private boolean isMicrophoneSilenceAuthorized/p' "$HOOK" | grep -q 'startRecording'; then echo 'unexpected startRecording interception in silence hook' >&2; exit 1; fi''')
 
 print("FX API-101 privacy controls wired through UI and Remote Files publisher")
