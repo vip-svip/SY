@@ -2,10 +2,12 @@ package de.privacyguard.adhook;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
-/** Executes narrowly scoped commands through KernelSU's su interface. */
+/** KernelSU su broker used by the trusted, locally packaged FX UI. */
 public final class RootAccess {
+    private static final int DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
     private RootAccess() {}
 
     public static final class Result {
@@ -20,28 +22,52 @@ public final class RootAccess {
     }
 
     public static Result execute(String command) {
+        return execute(command, 20000L, DEFAULT_OUTPUT_LIMIT);
+    }
+
+    public static Result execute(String command, long timeoutMs, int outputLimit) {
+        if (command == null || command.length() == 0 || command.length() > 65536) {
+            return new Result(2, "Root 命令为空或超过 64 KiB 限制", false);
+        }
         Process process = null;
         StringBuilder output = new StringBuilder();
+        final int limit = Math.max(1024, Math.min(outputLimit, DEFAULT_OUTPUT_LIMIT));
         try {
             process = new ProcessBuilder("su", "-c", command)
                     .redirectErrorStream(true).start();
-            boolean finished = process.waitFor(20, TimeUnit.SECONDS);
+            final Process running = process;
+            Thread drain = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(running.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        synchronized (output) {
+                            if (output.length() < limit) {
+                                int remaining = limit - output.length();
+                                output.append(line, 0, Math.min(line.length(), remaining));
+                                if (output.length() < limit) output.append('\n');
+                            }
+                        }
+                    }
+                } catch (Exception ignored) { }
+            }, "fx-root-output");
+            drain.setDaemon(true);
+            drain.start();
+
+            boolean finished = process.waitFor(Math.max(1000L, timeoutMs), TimeUnit.MILLISECONDS);
             if (!finished) {
-                process.destroyForcibly();
-                return new Result(124, "Root 命令超时", false);
+                process.destroy();
+                if (!process.waitFor(500, TimeUnit.MILLISECONDS)) process.destroyForcibly();
+                drain.join(1500L);
+                return new Result(124, "Root 命令超时（" + timeoutMs + " ms）", false);
             }
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (output.length() < 8192) output.append(line).append('\n');
-                }
-            }
+            drain.join(2000L);
             int code = process.exitValue();
-            String text = output.toString();
-            boolean denied = code != 0 && (text.toLowerCase().contains("denied")
-                    || text.toLowerCase().contains("拒绝")
-                    || text.toLowerCase().contains("permission"));
+            String text;
+            synchronized (output) { text = output.toString(); }
+            String lower = text.toLowerCase();
+            boolean denied = code != 0 && (lower.contains("denied")
+                    || lower.contains("拒绝") || lower.contains("permission"));
             return new Result(code, text, denied);
         } catch (Exception e) {
             if (process != null) process.destroyForcibly();
