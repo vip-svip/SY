@@ -26,7 +26,42 @@ permissions:
   contents: read
 
 jobs:
+  validate-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Stage released FX 1.0.0 WebUI for static validation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fx-release" adhook/app/src/main/assets/webroot
+          gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
+          unzip -p "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip" webroot/index.html > adhook/app/src/main/assets/webroot/index.html
+      - name: Run static migration checks only (no compile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-app-webui-migration-regression.sh
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse("adhook/app/src/main/AndroidManifest.xml")
+          source = open("adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java", encoding="utf-8").read()
+          bridge = open("adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java", encoding="utf-8").read()
+          root = open("adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java", encoding="utf-8").read()
+          assert "new WebViewClientCompat()" in source
+          assert "shouldOverrideUrlLoading" in source and "appassets.androidplatform.net" in source
+          assert "setAllowFileAccess(false)" in source and "FXRoot.exec" in source
+          assert "CALLBACK" in bridge and "JSONObject.quote" in bridge
+          assert "new ProcessBuilder(\"su\", \"-c\", command)" in root
+          assert "process.waitFor" in root
+          assert "saveBase64" in bridge and "MediaStore.Downloads" in bridge
+          print("PASS: manifest XML and APP/Root bridge source invariants")
+          PY
   build:
+    needs: validate-migration
     if: ${{ vars.FX_FULL_APP_MIGRATION_COMPLETE == 'true' }}
     runs-on: ubuntu-latest
     steps:
