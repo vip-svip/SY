@@ -27,7 +27,7 @@ util_path = files["scripts/util.sh"]
 util = util_path.read_text(encoding="utf-8")
 util = replace_once(
     util,
-    'pg_log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$PG/apply.log"; }',
+    """pg_log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$PG/apply.log"; }""",
     '''pg_log() {
   (umask 077; echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$PG/apply.log") || return 1
   chmod 600 "$PG/apply.log" 2>/dev/null || :
