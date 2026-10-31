@@ -5,6 +5,7 @@ This tracked matrix clarifies that the unified APK has two runtime entrypoints b
 ## Capture privacy status
 
 | Legacy capability | API-101 status |
+| MediaStore listing block (`block_mediastore`) | `media_store_query_block` returns an empty cursor only for `content://media` queries from a selected single-package process; it does not block file access or writes. |
 |---|---|
 | Camera disabled / cameraNull | `camera_access_block` explicitly denies Camera/Camera2 open requests. It does not return fake camera frames or spoof hardware absence. |
 | passive location hiding | `location_access_block` explicitly denies supported LocationManager read/update APIs. It is not a system-wide passive-location provider shutdown. |
