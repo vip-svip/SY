@@ -45,7 +45,7 @@ start_old = '''      *)
         # 启动失败时把核心日志最后一行回传给WebUI（写 fd3=原始 stdout）。
 '''
 start_new = '''      *)
-        if [ "$(pg_get vpn_mode direct)" = "direct" ]; then
+        if [ "$2" = "start" ] && [ "$(pg_get vpn_mode direct)" = "direct" ]; then
           pg_fail vpn-core "当前为直连模式，无需启动独立核心；切换全局/规则并选择节点后，VPN 主开关会自动启动核心"
           pg_summary "vpn-core"
           exit 1
@@ -138,8 +138,8 @@ if OUT=$(sh -c '
   pg_fail(){ echo "FAIL:$2"; }
   pg_summary(){ :; }
   vpn_core_ensure(){ echo START_MUST_NOT_RUN; return 0; }
-  . "$2"
-' sh "$TMP/direct" "$TMP/start-case.sh" 2>&1); then
+  . "$3"
+' sh "$TMP/direct" start "$TMP/start-case.sh" 2>&1); then
   echo 'FAIL: direct mode falsely reported a successful core start' >&2; exit 1
 fi
 echo "$OUT" | grep -Fq '当前为直连模式，无需启动独立核心'
