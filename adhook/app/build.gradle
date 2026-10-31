@@ -1,6 +1,9 @@
 plugins {
     id 'com.android.application'
 }
+
+def fxReleaseKeystorePath = System.getenv("FX_ANDROID_KEYSTORE_PATH")
+def fxReleaseSigningConfigured = fxReleaseKeystorePath != null && !fxReleaseKeystorePath.isEmpty()
 android {
     namespace 'de.privacyguard.adhook'
     compileSdk 34
@@ -11,8 +14,23 @@ android {
         versionCode 10000
         versionName '1.0.0'
     }
+    signingConfigs {
+        fxRelease {
+            if (fxReleaseSigningConfigured) {
+                storeFile file(fxReleaseKeystorePath)
+                storePassword System.getenv("FX_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("FX_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("FX_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
-        release { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (fxReleaseSigningConfigured) {
+                signingConfig signingConfigs.fxRelease
+            }
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
