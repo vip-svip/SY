@@ -38,6 +38,28 @@ elif new not in source:
     raise SystemExit("vpn-core stop branch changed; refusing unsafe patch")
 apply.write_text(source, encoding="utf-8")
 
+# A direct-mode ensure is intentionally a successful no-op in vpncore.sh.
+# The manual Start core button must not turn that no-op into a false success;
+# only an active proxy mode may start the managed core.
+start_old = '''      *)
+        # 启动失败时把核心日志最后一行回传给WebUI（写 fd3=原始 stdout）。
+'''
+start_new = '''      *)
+        if [ "$(pg_get vpn_mode direct)" = "direct" ]; then
+          pg_fail vpn-core "当前为直连模式，无需启动独立核心；切换全局/规则并选择节点后，VPN 主开关会自动启动核心"
+          pg_summary "vpn-core"
+          exit 1
+        fi
+        # 启动失败时把核心日志最后一行回传给WebUI（写 fd3=原始 stdout）。
+'''
+if start_old in source:
+    if source.count(start_old) != 1:
+        raise SystemExit("vpn-core start branch is ambiguous")
+    source = source.replace(start_old, start_new, 1)
+elif start_new not in source:
+    raise SystemExit("vpn-core start branch changed; refusing false-success patch")
+apply.write_text(source, encoding="utf-8")
+
 test = root / "scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh"
 test.parent.mkdir(parents=True, exist_ok=True)
 test.write_text(r'''#!/system/bin/sh
