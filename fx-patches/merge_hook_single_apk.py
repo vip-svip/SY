@@ -113,6 +113,18 @@ app = """<application
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".FxAccessibilityService"
+            android:label="FX 可选辅助服务"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/fx_accessibility_service" />
+        </service>
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
