@@ -248,8 +248,9 @@ public final class MainActivity extends Activity {
                 } else {
                     selectedBottomTab = index;
                     lastWebTabIndex = index;
+                    int pageIndex = index > 4 ? index - 1 : index;
                     String page = new String[]{"pageVpn", "pageAd", "pagePrivacy",
-                            "pageScript", "pageMore"}[index];
+                            "pageScript", "pageMore"}[pageIndex];
                     if (hookUiVisible) showWebDashboard();
                     else for (int j = 0; j < bar.getChildCount(); j++) {
                         styleBottomItem((TextView) bar.getChildAt(j), j);
@@ -293,6 +294,7 @@ public final class MainActivity extends Activity {
     private void showHookHub() {
         pauseAndDetachWebView();
         hookUiVisible = true;
+        selectedBottomTab = 4;
         hookTargetVisible = false;
         hookHubVisible = true;
         base("Hook 与系统授权");
@@ -444,8 +446,9 @@ public final class MainActivity extends Activity {
         pauseAndDetachWebView();
         hookUiVisible = true;
         hookTargetVisible = false;
+        hookHubVisible = false;
         selectedPackage = null; selectedBottomTab = 4; base("选择应用");
-        Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
+        Button home = new Button(this); home.setText("返回 Hook 授权页"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
