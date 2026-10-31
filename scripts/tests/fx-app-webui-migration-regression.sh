@@ -39,7 +39,7 @@ grep -Fq '.append("ads_enabled=1\n")' "$ACTIVITY" || fail "published Hook config
 grep -Fq 'cp -p' "$ACTIVITY" || fail "Remote Files publishing must retain a rollback backup"
 grep -Fq 'sha256sum' "$ACTIVITY" || fail "Remote Files publishing must verify the written config hash"
 grep -Fq 'actual_tmp' "$ACTIVITY" || fail "Remote Files temp file hash must be checked before publish"
-grep -Fq 'test \\"$actual\\" = ' "$ACTIVITY" || fail "Remote Files final hash must match the generated config"
+grep -Fq 'test \"$actual\" = ' "$ACTIVITY" || fail "Remote Files final hash must match the generated config"
 grep -Fq 'sync &&' "$ACTIVITY" || fail "Remote Files publish must flush before and after atomic rename"
 grep -Fq "adDetection=automatic(splash/feed/overlay)" "$HOOK" || fail "automatic Ad classifier is not reported by runtime"
 grep -q 'WebViewAssetLoader' "$ACTIVITY" || fail "secure app asset loader missing"
