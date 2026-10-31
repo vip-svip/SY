@@ -6,8 +6,9 @@ import sys
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 uninstall = root / "uninstall.sh"
 customize = root / "customize.sh"
-if not uninstall.is_file() or not customize.is_file():
-    raise SystemExit("FX uninstall.sh or customize.sh is missing")
+service = root / "service.sh"
+if not uninstall.is_file() or not customize.is_file() or not service.is_file():
+    raise SystemExit("FX uninstall.sh, customize.sh, or service.sh is missing")
 
 source = uninstall.read_text(encoding="utf-8")
 helper = '''_mitm_warn() {
