@@ -232,6 +232,9 @@ jobs:
           unzip -tq dist/FX-v1.0.0.zip
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
+          unzip -p dist/FX-v1.0.0.zip webroot/index.html | grep -q 'FX 管理界面已迁移到 APP'
+          unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
           ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
           BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
           test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
