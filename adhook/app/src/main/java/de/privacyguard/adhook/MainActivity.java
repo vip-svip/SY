@@ -479,7 +479,7 @@ public final class MainActivity extends Activity {
                 String detail = result.output == null ? "" : result.output.trim();
                 if (detail.length() > 500) detail = detail.substring(0, 500) + "…";
                 display = "Remote Files 状态读取失败（退出码 " + result.exitCode + "）。"
-                        + (detail.isEmpty() ? "" : "\\n" + detail);
+                        + (detail.isEmpty() ? "" : "\n" + detail);
             } else {
                 try {
                     JSONObject status = new JSONObject(result.output.trim());
@@ -491,15 +491,15 @@ public final class MainActivity extends Activity {
                     else remoteLabel = "未知 / 尚无状态文件";
                     display = "Remote Files：" + remoteLabel
                             + "（目标数 " + status.optInt("hook_remote_targets", 0) + "）"
-                            + "\\n通知权限提示：主开关 " + status.optString("hook_notification_permission_hide_enabled", "未知")
+                            + "\n通知权限提示：主开关 " + status.optString("hook_notification_permission_hide_enabled", "未知")
                             + "，目标数 " + status.optInt("hook_notification_permission_hide_targets", 0)
-                            + "\\n剪贴板隔离：主开关 " + status.optString("hook_clipboard_isolate_enabled", "未知")
+                            + "\n剪贴板隔离：主开关 " + status.optString("hook_clipboard_isolate_enabled", "未知")
                             + "，目标数 " + status.optInt("hook_clipboard_isolate_targets", 0)
-                            + "\\n会员只读诊断：主开关 " + status.optString("hook_member_diag_enabled", "未知")
+                            + "\n会员只读诊断：主开关 " + status.optString("hook_member_diag_enabled", "未知")
                             + "，目标数 " + status.optInt("hook_member_diag_targets", 0)
-                            + "\\n隐私 Hook：主开关 " + status.optString("hook_privacy_enabled", "未知")
+                            + "\n隐私 Hook：主开关 " + status.optString("hook_privacy_enabled", "未知")
                             + "，目标数 " + status.optInt("hook_privacy_targets", 0)
-                            + "\\n此状态仅反映设备端配置/状态文件；不证明 LSPosed 作用域或目标进程已注入。";
+                            + "\n此状态仅反映设备端配置/状态文件；不证明 LSPosed 作用域或目标进程已注入。";
                 } catch (Exception malformed) {
                     display = "Remote Files 状态返回格式无效，无法确认发布状态。";
                 }
