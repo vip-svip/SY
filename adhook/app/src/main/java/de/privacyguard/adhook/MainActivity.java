@@ -90,11 +90,6 @@ public final class MainActivity extends Activity {
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
         toolbar.addView(rootStatus);
-        Button settingsButton = new Button(this);
-        settingsButton.setText("设置");
-        settingsButton.setTextSize(12);
-        settingsButton.setOnClickListener(v -> navigateWebPage("pageMore"));
-        toolbar.addView(settingsButton, new LinearLayout.LayoutParams(-2, dp(42)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
         if (webView == null) {
@@ -235,7 +230,7 @@ public final class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER);
         bar.setBackgroundColor(0xffffffff);
-        String[] labels = {"VPN", "广告", "Hosts", "隐私", "脚本", "Hook"};
+        String[] labels = {"VPN", "广告 + Hosts", "隐私", "脚本", "Hook", "设置"};
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
             TextView item = new TextView(this);
@@ -245,14 +240,14 @@ public final class MainActivity extends Activity {
             item.setPadding(dp(2), dp(8), dp(2), dp(8));
             styleBottomItem(item, index);
             item.setOnClickListener(v -> {
-                if (index == 5) {
-                    selectedBottomTab = 5;
+                if (index == 4) {
+                    selectedBottomTab = 4;
                     showHookHub();
                 } else {
                     selectedBottomTab = index;
                     lastWebTabIndex = index;
-                    String page = new String[]{"pageVpn", "pageAd", "pageHosts",
-                            "pagePrivacy", "pageScript"}[index];
+                    String page = new String[]{"pageVpn", "pageAd", "pagePrivacy",
+                            "pageScript", "pageMore"}[index];
                     if (hookUiVisible) showWebDashboard();
                     else for (int j = 0; j < bar.getChildCount(); j++) {
                         styleBottomItem((TextView) bar.getChildAt(j), j);
@@ -278,7 +273,6 @@ public final class MainActivity extends Activity {
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
             case "pageAd": tab = "ad"; break;
-            case "pageHosts": tab = "ad"; break; // Hosts editor is embedded in the Ad/Rules page.
             case "pagePrivacy": tab = "privacy"; break;
             case "pageScript": tab = "script"; break;
             case "pageMore": tab = "more"; break;
@@ -446,7 +440,7 @@ public final class MainActivity extends Activity {
         pauseAndDetachWebView();
         hookUiVisible = true;
         hookTargetVisible = false;
-        selectedPackage = null; base("选择应用");
+        selectedPackage = null; selectedBottomTab = 4; base("选择应用");
         Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
