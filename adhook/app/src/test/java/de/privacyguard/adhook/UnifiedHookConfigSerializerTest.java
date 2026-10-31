@@ -101,6 +101,16 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsAdvertisingIdUnification() {
+        UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
+                "com.example.ads,ad_id_unify=1\\n");
+        String encoded = UnifiedHookConfigSerializer.serialize(false, true, input.targets);
+        assertTrue(encoded.contains("ad_id_unify=1"));
+        assertTrue(UnifiedHookConfigParser.parse(encoded).targets.get("com.example.ads").adIdUnify);
+    }
+
+    @Test
     public void serializerRoundTripsExifRedactionIndependently() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         targets.put("com.example.exif", new UnifiedHookConfigParser.Target(
