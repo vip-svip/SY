@@ -13,19 +13,19 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
         ('%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\n", typ, name, host, port, id, pw, sni, net, path, tls, cipher, flow, fp, pbk, sid, alpn, reality, ws_host, service',
          '%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\n", typ, name, host, port, id, pw, sni, net, path, tls, cipher, flow, fp, pbk, sid, alpn, reality, ws_host, service, username'),
         ('else if (k == "service-name" || k == "service_name" || k == "grpc-service-name" || k == "grpc_service_name") service = v',
-         'else if (k == "service-name" || k == "service_name" || k == "grpc-service-name" || k == "grpc_service_name") service = v\\n'
+         'else if (k == "service-name" || k == "service_name" || k == "grpc-service-name" || k == "grpc_service_name") service = v\n'
          '  else if (k == "username" || k == "user") username = v'),
         ('_yreality _yws_host _yservice; do',
          '_yreality _yws_host _yservice _yusername; do'),
-        ('      socks5)\\n        echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"',
-         '      socks5)\\n'
-         '        if [ -n "$_yusername" ] || [ -n "$_ypw" ]; then\\n'
-         '          # Do not silently turn an authenticated SOCKS profile into anonymous access.\\n'
-         '          [ -n "$_yusername" ] && [ -n "$_ypw" ] || continue\\n'
-         '          _ysocks_user=$(printf \\'%s\\' "$_yusername" | sed \\'s/%/%25/g; s/@/%40/g; s/:/%3A/g; s/#/%23/g; s/ /%20/g; s/\\\\&/%26/g; s/+/%2B/g; s/=/\\\\%3D/g; s/;/%3B/g\\')\\n'
-         '          echo "socks5://\${_ysocks_user}:\${_ypw_uri}@\${_yh}:\${_yp}#\${_yn_uri}"\\n'
-         '        else\\n'
-         '          echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"\\n'
+        ('      socks5)\n        echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"',
+         '      socks5)\n'
+         '        if [ -n "$_yusername" ] || [ -n "$_ypw" ]; then\n'
+         '          # Do not silently turn an authenticated SOCKS profile into anonymous access.\n'
+         '          [ -n "$_yusername" ] && [ -n "$_ypw" ] || continue\n'
+         '          _ysocks_user=$(printf \\'%s\\' "$_yusername" | sed \\'s/%/%25/g; s/@/%40/g; s/:/%3A/g; s/#/%23/g; s/ /%20/g; s/&/%26/g; s/+/%2B/g; s/=/\\\\%3D/g; s/;/%3B/g\\')\n'
+         '          echo "socks5://\${_ysocks_user}:\${_ypw_uri}@\${_yh}:\${_yp}#\${_yn_uri}"\n'
+         '        else\n'
+         '          echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"\n'
          '        fi'),
     ]
     for old, new in changes:
