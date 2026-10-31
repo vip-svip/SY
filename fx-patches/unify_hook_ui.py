@@ -21,7 +21,7 @@ def div_block(source: str, marker: str):
     if start < 0:
         raise SystemExit(f"Hook UI block missing: {marker}")
     depth = 0
-    for match in re.finditer(r"<div\\b[^>]*>|</div>", source[start:]):
+    for match in re.finditer(r"<div\b[^>]*>|</div>", source[start:]):
         token = match.group(0)
         if token.startswith("</div"):
             depth -= 1
