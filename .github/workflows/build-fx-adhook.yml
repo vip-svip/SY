@@ -60,12 +60,16 @@ jobs:
           from pathlib import Path
           html = Path("adhook/app/src/main/assets/webroot/index.html").read_text(encoding="utf-8")
           for page_id in ("pageAd", "pageHosts"):
-              m = re.search(r'<[^>]+id=["\\']' + page_id + r'["\\'][^>]*>(.*?)(?=<[^>]+id=["\\']page[A-Z]|\\Z)', html, re.I | re.S)
-              if not m:
+              start = html.find('id="' + page_id + '"')
+              if start < 0:
+                  start = html.find("id='" + page_id + "'")
+              if start < 0:
                   print(f"::error::Cannot locate {page_id} in staged WebUI")
                   raise SystemExit(1)
-              fragment = m.group(0)
-              ids = re.findall(r'\\bid=["\\']([^"\\']+)', fragment)
+              next_page = re.search(r'<[^>]+id=["\\']page[A-Z]', html[start + 1:])
+              end = start + 1 + next_page.start() if next_page else len(html)
+              fragment = html[start:end]
+              ids = re.findall(r"""id=["']([^"']+)["']""", fragment)
               controls = re.findall(r'<(?:input|select|button)\\b[^>]*>', fragment, re.I)
               print(f"UI_STRUCTURE {page_id}: ids={ids[:100]} controls={controls[:100]}")
           PY
