@@ -273,4 +273,9 @@ suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/work
 retire_line=$(grep -n 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 [ -n "$suite_line" ] && [ -n "$retire_line" ] && [ "$suite_line" -lt "$retire_line" ] || fail "module WebUI must be retired only after original UI regression suite"
 grep -q 'android:label="FX"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge does not preserve FX application label"
+grep -Fq 'String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};' "$ACTIVITY" || fail "native bottom navigation must expose exactly six tabs in the agreed order"
+grep -Fq 'case "pageAd": tab = "hosts"; break;' "$ACTIVITY" || fail "Ad tab must open the merged Hosts content"
+grep -Fq 'case "pageMore": tab = "more"; break;' "$ACTIVITY" || fail "sixth Settings tab must open the settings page"
+grep -Fq 'if (index == 4) {' "$ACTIVITY" || fail "Hook tab must route to the native Hook app list"
+grep -Fq 'selectedBottomTab = 4;' "$ACTIVITY" || fail "Hook tab selection state must remain stable across native screens"
 echo "PASS: one FX APK owns the complete UI, Root bridge, native Hook entry, and exact KernelSU ZIP payload"
