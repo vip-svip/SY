@@ -212,6 +212,11 @@ grep -Fq 'su 启动的独立子进程不保证全部退出' "$ROOT_ACCESS" || fa
 grep -Fq 'closeOutputQuietly(process);' "$ROOT_ACCESS" || fail "RootAccess must close inherited output pipes on timeout and exceptional cleanup"
 grep -Fq 'if (drain.isAlive()) {' "$ROOT_ACCESS" || fail "RootAccess must close a stuck output drainer after allowing buffered output to drain"
 grep -Fq 'joinQuietly(drain, 2000L);' "$ROOT_ACCESS" || fail "RootAccess must preserve buffered output before closing the stream"
+grep -Fq 'char[] chunk = new char[4096];' "$ROOT_ACCESS" || fail "RootAccess output must be drained in fixed-size chunks"
+grep -Fq 'reader.read(chunk, 0, chunk.length)' "$ROOT_ACCESS" || fail "RootAccess must avoid unbounded readLine allocation"
+! grep -Fq 'reader.readLine()' "$ROOT_ACCESS" || fail "RootAccess output cap must apply before line allocation"
+grep -Fq 'excess text is discarded, not buffered' "$ROOT_ACCESS" || fail "RootAccess must continue draining after its output cap without buffering excess data"
+
 
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
 grep -Fq 'onUnbind(Intent intent)' "$APP/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility connection marker must clear on service unbind"
