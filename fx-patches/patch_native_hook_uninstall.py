@@ -55,9 +55,11 @@ for line in lines:
     else:
         normalized.append(line)
 ui = "\n".join(normalized) + ("\n" if ui.endswith("\n") else "")
-if re.search(r"FX\\s*WebUI.*Hook|Hook.*目标应用.*管理界面|FXAdHook\\s*APK|FX\\s*Ad\\s*Hook|PrivacyGuardHook", "\n".join(
-    line for line in ui.splitlines() if line.lstrip().startswith("ui_print")
-), re.IGNORECASE):
+if any(
+    re.search(pattern, line, re.IGNORECASE)
+    for line in ui.splitlines() if line.lstrip().startswith("ui_print")
+    for pattern in stale_patterns
+):
     raise SystemExit("installer still advertises the retired WebUI/split Hook entry")
 customize.write_text(ui, encoding="utf-8")
 print("Moved uninstall warning helper before first use and updated installer guidance to native FX Hook UI.")
