@@ -120,7 +120,7 @@ jobs:
                   else:
                       raise SystemExit(f"Unexpected unified-diff line {j+1}: {body!r}")
                   j += 1
-              out.append(f"@@ -{m.group(2)},{old_count} +{m.group(5)},{new_count}{m.group(7)}\\n")
+              out.append(f"@@ -{m.group(2)},{old_count} +{m.group(5)},{new_count}{m.group(7)}\n")
               out.extend(lines[i+1:j])
               i = j
           path.write_text("".join(out), encoding="utf-8")
