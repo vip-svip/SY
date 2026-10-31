@@ -235,6 +235,9 @@ grep -Fq 'generation != appLoadGeneration' "$NATIVE_UI" || fail 'stale native ap
 grep -Fq 'while (content.getChildCount() > 5) content.removeViewAt(5)' "$NATIVE_UI" || fail 'native Hook list rerender does not preserve fixed controls'
 grep -Fq '加载更多应用' "$NATIVE_UI" || fail 'native Hook app list pagination missing'
 grep -Fq 'return size() > 80' "$NATIVE_UI" || fail 'native Hook icon cache is not bounded'
+grep -Fq 'private void loadMissingAppIconsAsync()' "$NATIVE_UI" || fail 'native Hook icons are not decoded asynchronously'
+if sed -n '/private void appendAppRows/,/private void loadMissingAppIconsAsync/p' "$NATIVE_UI" | grep -q 'getApplicationIcon'; then fail 'native Hook app rows decode icons on the UI thread'; fi
+grep -Fq 'appIconLoadGeneration' "$NATIVE_UI" || fail 'stale native icon results are not generation-guarded'
 grep -Fq 'new Thread(() -> {' "$NATIVE_UI" || fail 'native Hook app index is not loaded asynchronously' '''),
 ])
 print("Retired duplicate WebUI LSPosed manager and migrated legacy regressions to native Hook UI.")
