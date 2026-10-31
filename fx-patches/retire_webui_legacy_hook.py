@@ -23,7 +23,7 @@ def remove_div_by_id(source: str, element_id: str) -> str:
     if not matches:
         # Release WebUI may already have retired this legacy entry. Treat the
         # absent element as the desired state, but reject a same-ID non-div.
-        if re.search(r"""\\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
+        if re.search(r"""\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
             raise SystemExit(f"legacy id {element_id} exists on an unexpected element")
         return source
     if len(matches) != 1:
@@ -52,7 +52,7 @@ def remove_script_by_id(source: str, element_id: str) -> str:
     result, count = pattern.subn("", source)
     if count == 0:
         # Already retired in a previously published APK/WebUI.
-        if re.search(r"""\\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
+        if re.search(r"""\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
             raise SystemExit(f"legacy id {element_id} exists outside a script element")
         return source
     if count != 1:
