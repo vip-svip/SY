@@ -12,6 +12,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 grep -q "FX: merged pageAd into pageHosts" "$HTML" || fail "legacy Ad content was not merged into the Hosts page"
 grep -q "mitmTrafficEnable" "$HTML" || fail "merged Ad certificate/MITM controls are missing"
 grep -q 'data-tab="hosts"' "$HTML" || fail "merged page must be reachable from the Hosts tab"
+! grep -Fq 'while(rulesPage.firstChild)adPage.appendChild(rulesPage.firstChild)' "$HTML" || fail "runtime still reverses the Ad-to-Hosts migration"
+! grep -Fq 'rulesPage.remove()' "$HTML" || fail "runtime still deletes the canonical Hosts page"
 ! grep -q 'data-tab="ad"' "$HTML" || fail "obsolete Ad navigation tab remains visible"
 grep -q "pageHosts.*classList.toggle('on',t==='hosts')" "$HTML" || fail "Hosts tab does not activate the canonical Hosts page"
 grep -Fq 'rulesPage.insertBefore(overview,rulesPage.firstChild)' "$HTML" || fail "rule overview was moved into the obsolete Ad page"
