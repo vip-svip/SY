@@ -61,6 +61,33 @@ jobs:
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+      - name: Build and embed QuickJS-NG v0.17.0 for Android ARM64
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Compile QuickJS-NG with Android NDK r26b
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "ndk;26.1.10909125"
+          git clone --depth 1 --branch v0.17.0 https://github.com/quickjs-ng/quickjs.git "$RUNNER_TEMP/quickjs-ng"
+          test -f "$RUNNER_TEMP/quickjs-ng/CMakeLists.txt"
+          cmake -S "$RUNNER_TEMP/quickjs-ng" -B "$RUNNER_TEMP/quickjs-build-arm64" -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_SDK_ROOT/ndk/26.1.10909125/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/quickjs-install"
+          cmake --build "$RUNNER_TEMP/quickjs-build-arm64" --parallel
+          cmake --install "$RUNNER_TEMP/quickjs-build-arm64"
+          qjs_bin="$(find "$RUNNER_TEMP/quickjs-build-arm64" "$RUNNER_TEMP/quickjs-install" -type f -name qjs -perm -111 -print -quit)"
+          test -n "$qjs_bin"
+          mkdir -p fx-module/bin/arm64
+          install -m 0755 "$qjs_bin" fx-module/bin/arm64/qjs
+          (cd fx-module/bin/arm64 && sha256sum qjs > qjs.sha256)
+          file fx-module/bin/arm64/qjs
+          readelf -h fx-module/bin/arm64/qjs | grep -E 'Machine:.*AArch64'
+          test -x fx-module/bin/arm64/qjs
       - name: Stage complete FX WebUI inside the APK
         shell: bash
         run: |
