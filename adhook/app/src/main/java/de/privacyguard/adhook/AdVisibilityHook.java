@@ -257,7 +257,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
-                " adDetection=automatic(splash/feed/overlay)" + " memberDiagReadOnly=" + target.memberDiag +
+                " adDetection=automatic(splash/feed/overlay)" + " memberDiagReadOnly=" + memberDiagForPackage +
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
@@ -1140,7 +1140,7 @@ public final class AdVisibilityHook extends XposedModule {
     /**
      * Ad SDKs often insert feed/native ad views after Activity.onResume and after
      * the first four delayed scans. Observe child insertion only inside processes
-     * already explicitly scoped to a selected app, then check the inserted view itself with the same conservative markers. Child
+     * in eligible app processes and check the inserted view with conservative markers. Child
      * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
