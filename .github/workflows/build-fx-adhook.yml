@@ -53,6 +53,20 @@ jobs:
           test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
+      - name: Stage complete FX WebUI inside the APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fx-release" adhook/app/src/main/assets/webroot
+          gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
+          unzip -p "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip" webroot/index.html > adhook/app/src/main/assets/webroot/index.html
+          test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          for page in pageVpn pageAd pageHosts pagePrivacy pageScript pageMore; do
+            grep -q "id=\"$page\"" adhook/app/src/main/assets/webroot/index.html
+          done
+          sha256sum adhook/app/src/main/assets/webroot/index.html
       - name: Validate modern API, secure config transport, and read-only diagnostics
         shell: bash
         run: |
@@ -116,7 +130,7 @@ jobs:
           ! grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' scripts/install_adhook_app.sh scripts/remove_adhook_app.sh
       - name: Run parser and deployment regression tests, then build APK
         run: |
-          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          sh scripts/tests/fx-app-webui-migration-regression.sh\n          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           sh scripts/tests/adhook-app-installer-regression.sh
           sh scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh .
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
