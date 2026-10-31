@@ -160,6 +160,13 @@ public final class MainActivity extends Activity {
                     new AlertDialog.Builder(this).setMessage("规则无效：方法必须属于当前应用包名下的类，且描述符格式正确。")
                         .setPositiveButton("知道了",null).show(); return;
                 }
+                for(int n=1;n<=64;n++) {
+                    String existing=getPreferences(0).getString(selectedPackage+":dev_rule_"+n,null);
+                    if(existing!=null && existing.startsWith(rule.id+"|")) {
+                        new AlertDialog.Builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
+                            .setPositiveButton("知道了",null).show(); return;
+                    }
+                }
                 int slot=1;
                 while(slot<=64 && getPreferences(0).contains(selectedPackage+":dev_rule_"+slot)) slot++;
                 if(slot>64) {
