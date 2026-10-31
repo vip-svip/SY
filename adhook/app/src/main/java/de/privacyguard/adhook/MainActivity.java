@@ -206,10 +206,13 @@ public final class MainActivity extends Activity {
         if (webView == null) return;
         String id = JSONObject.quote(pageId);
         String script = "(function(){var id=" + id + ";var target=document.getElementById(id);"
-                + "if(!target)return false;var p=target;while(p&&p!==document.body){"
-                + "if(p.matches&&p.matches('[data-page],[role=tab],button,a,.tab,.nav-item')){p.click();return true;}p=p.parentElement;}"
-                + "['switchPage','showPage','navigateToPage'].some(function(n){if(typeof window[n]==='function'){window[n](id);return true;}return false;});"
-                + "return true;})()";
+                + "if(!target)return false;var selectors='[data-page=\\\"'+id+'\\\"],[data-target=\\\"#'+id+'\\\"],[href=\\\"#'+id+'\\\"],[onclick]';"
+                + "var nav=Array.from(document.querySelectorAll(selectors)).find(function(e){return e!==target&&(e.getAttribute('data-page')===id||e.getAttribute('data-target')==='#'+id||e.getAttribute('href')==='#'+id||(e.getAttribute('onclick')||'').indexOf(id)>=0);});"
+                + "if(nav){nav.click();return true;}"
+                + "if(typeof window.switchPage==='function'){window.switchPage(id);return true;}"
+                + "if(typeof window.showPage==='function'){window.showPage(id);return true;}"
+                + "if(typeof window.navigateToPage==='function'){window.navigateToPage(id);return true;}"
+                + "target.scrollIntoView({behavior:'smooth',block:'start'});return true;})()";
         webView.evaluateJavascript(script, null);
     }
 
@@ -282,7 +285,8 @@ public final class MainActivity extends Activity {
     private boolean isAccessibilityEnabled() {
         String enabled = android.provider.Settings.Secure.getString(
                 getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        return enabled != null && enabled.contains(getPackageName() + "/.FxAccessibilityService");
+        return enabled != null && (enabled.contains(getPackageName() + "/.FxAccessibilityService")
+                || enabled.contains(getPackageName() + "/" + getPackageName() + ".FxAccessibilityService"));
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -332,6 +336,7 @@ public final class MainActivity extends Activity {
         content.addView(title("FX", 25));
         TextView h = title(heading, 18); h.setPadding(dp(18), dp(2), dp(18), dp(12)); content.addView(h);
         scroll.addView(content); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
         setContentView(root); this.content = content;
     }
     private LinearLayout content;
