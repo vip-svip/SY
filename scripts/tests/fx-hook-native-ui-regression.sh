@@ -32,6 +32,6 @@ MODERN_INIT="$(unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null || tru
 MODULE_PROP="$(unzip -p "$APK" META-INF/xposed/module.prop 2>/dev/null || true)"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'minApiVersion=101' || fail "modern libxposed minimum API metadata missing"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'targetApiVersion=101' || fail "modern libxposed target API metadata missing"
-unzip -p "$APK" classes.dex | strings | grep -Fq 'de/privacyguard/hook/MainHook' || fail "legacy MainHook class is not compiled into APK DEX"
-unzip -p "$APK" classes.dex | strings | grep -Fq 'de/privacyguard/adhook/AdVisibilityHook' || fail "modern AdVisibilityHook class is not compiled into APK DEX"
+unzip -p "$APK" classes.dex | strings | grep -F 'de/privacyguard/hook/MainHook' >/dev/null || fail "legacy MainHook class is not compiled into APK DEX"
+unzip -p "$APK" classes.dex | strings | grep -F 'de/privacyguard/adhook/AdVisibilityHook' >/dev/null || fail "modern AdVisibilityHook class is not compiled into APK DEX"
 echo "PASS: FX Hook APK contains native launcher plus both legacy Xposed and modern libxposed entrypoints"
