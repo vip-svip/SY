@@ -32,7 +32,7 @@ MODERN_INIT="$(unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null || tru
 MODULE_PROP="$(unzip -p "$APK" META-INF/xposed/module.prop 2>/dev/null || true)"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'minApiVersion=101' || fail "modern libxposed minimum API metadata missing"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'targetApiVersion=101' || fail "modern libxposed target API metadata missing"
-DEX_TMP="${TMPDIR:-/tmp}/fx-hook-apk-dex-$"
+DEX_TMP="$(mktemp -d "${TMPDIR:-/tmp}/fx-hook-apk-dex.XXXXXX")" || fail "cannot create temporary APK DEX directory"
 mkdir -p "$DEX_TMP"
 trap 'rm -rf "$DEX_TMP"' EXIT HUP INT TERM
 unzip -q "$APK" 'classes*.dex' -d "$DEX_TMP" || fail "APK DEX payload could not be extracted"
