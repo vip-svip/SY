@@ -765,10 +765,24 @@ public final class MainActivity extends Activity {
     private String key(String feature) { return selectedPackage + ":" + feature; }
     private boolean get(String feature) { return getPreferences(0).getBoolean(key(feature), false); }
     private void showTarget(ApplicationInfo ai) {
+        try {
+            // The package may have been uninstalled after the background app index was built.
+            ai = getPackageManager().getApplicationInfo(ai.packageName, 0);
+        } catch (PackageManager.NameNotFoundException removed) {
+            Toast.makeText(this, "该应用已卸载，正在刷新应用列表。", Toast.LENGTH_LONG).show();
+            showAppList();
+            return;
+        }
         hookUiVisible = true;
         hookTargetVisible = true;
         hookHubVisible = false;
-        selectedPackage=ai.packageName; selectedLabel=getPackageManager().getApplicationLabel(ai).toString();
+        selectedPackage = ai.packageName;
+        try {
+            CharSequence label = getPackageManager().getApplicationLabel(ai);
+            selectedLabel = label == null ? ai.packageName : label.toString();
+        } catch (RuntimeException unavailable) {
+            selectedLabel = ai.packageName;
+        }
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
