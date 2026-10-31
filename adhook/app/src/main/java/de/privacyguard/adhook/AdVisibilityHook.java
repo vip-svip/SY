@@ -222,11 +222,11 @@ public final class AdVisibilityHook extends XposedModule {
         // Custom Hook is observation-only, explicitly enabled per app, and
         // restricted to debuggable target builds. Production authorization,
         // VIP, login and update decisions are never modified.
-        boolean developerTestForPackage = false;
+        boolean developerObserveForPackage = false;
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
             for (DeveloperHookRule rule : target.developerRules) {
                 if (rule != null && rule.action == DeveloperHookRule.Action.OBSERVE) {
-                    developerTestForPackage = true;
+                    developerObserveForPackage = true;
                     break;
                 }
             }
@@ -250,7 +250,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean locationAccessBlockForPackage = privacyEnabled && target != null && target.locationAccessBlock;
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !developerTestForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -274,7 +274,7 @@ public final class AdVisibilityHook extends XposedModule {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
-        if (developerTestForPackage && target != null) {
+        if (developerObserveForPackage && target != null) {
             for (DeveloperHookRule rule : target.developerRules) {
                 if (rule == null || rule.action != DeveloperHookRule.Action.OBSERVE) continue;
                 installDeveloperObservationHook(param.getClassLoader(), pkg,
