@@ -42,6 +42,7 @@ public final class UnifiedHookConfigParser {
         public final boolean locationAccessBlock;
         public final boolean microphoneAccessBlock;
         public final boolean mediaStoreQueryBlock;
+        public final boolean adIdUnify;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -98,6 +99,10 @@ public final class UnifiedHookConfigParser {
         }
 
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock, boolean mediaStoreQueryBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, false);
+        }
+
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock, boolean mediaStoreQueryBlock, boolean adIdUnify) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
@@ -118,6 +123,7 @@ public final class UnifiedHookConfigParser {
             this.locationAccessBlock = locationAccessBlock;
             this.microphoneAccessBlock = microphoneAccessBlock;
             this.mediaStoreQueryBlock = mediaStoreQueryBlock;
+            this.adIdUnify = adIdUnify;
         }
 
         /** Ad-filtering scope only; member diagnostics has its own independent switch. */
@@ -322,11 +328,12 @@ public final class UnifiedHookConfigParser {
                     case "location_access_block": locationAccessBlock = on; break;
                     case "mic_access_block": microphoneAccessBlock = on; break;
                     case "media_store_query_block": mediaStoreQueryBlock = on; break;
+                    case "ad_id_unify": adIdUnify = on; break;
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
             if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
-            Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock);
+            Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, adIdUnify);
             parsedTarget.developerVipMethod = developerVipMethod;
             parsedTarget.developerLoginMethod = developerLoginMethod;
             parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
