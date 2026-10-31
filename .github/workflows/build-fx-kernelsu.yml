@@ -69,6 +69,21 @@ jobs:
             grep -q "id=\"$page\"" adhook/app/src/main/assets/webroot/index.html
           done
           sha256sum adhook/app/src/main/assets/webroot/index.html
+      - name: Retire the old module WebUI entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > fx-module/webroot/index.html <<'HTML'
+          <!doctype html>
+          <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>FX 管理入口已迁移</title>
+          <body style="font:16px system-ui,sans-serif;padding:28px;max-width:560px;margin:auto;line-height:1.6">
+          <h2>FX 管理界面已迁移到 APP</h2>
+          <p>请打开已安装的 <b>FX</b> 应用管理规则、Hosts、DNS、VPN、证书、Hook 和诊断。</p>
+          <p>KernelSU 模块继续提供 Root 后台服务；本页面不再提供第二套管理界面。</p>
+          </body></html>
+          HTML
+          test -s fx-module/webroot/index.html
       - name: Validate required module files and version
         shell: bash
         run: |
