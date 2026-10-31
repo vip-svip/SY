@@ -234,12 +234,11 @@ public final class AdVisibilityHook extends XposedModule {
         // restricted to debuggable target builds. Production authorization,
         // VIP, login and update decisions are never modified.
         boolean developerObserveForPackage = false;
+        List<DeveloperHookRule> effectiveDeveloperRules = Collections.emptyList();
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            // Resolve duplicate descriptors by priority before deciding which
-            // observation hooks may be installed. Disabled entries never shadow active rules.
-            List<DeveloperHookRule> effectiveRules =
-                    DeveloperHookRule.selectEffective(target.developerRules);
-            for (DeveloperHookRule rule : effectiveRules) {
+            // Resolve once so the package gate and installed hooks use identical priority decisions.
+            effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
+            for (DeveloperHookRule rule : effectiveDeveloperRules) {
                 if (rule.action == DeveloperHookRule.Action.OBSERVE) {
                     developerObserveForPackage = true;
                     break;
@@ -292,7 +291,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (developerObserveForPackage && target != null) {
             // Resolve duplicate descriptors by priority before touching the
             // target class loader. A disabled rule never shadows an active one.
-            for (DeveloperHookRule rule : DeveloperHookRule.selectEffective(target.developerRules)) {
+            for (DeveloperHookRule rule : effectiveDeveloperRules) {
                 if (rule.action != DeveloperHookRule.Action.OBSERVE) continue;
                 installDeveloperObservationHook(param.getClassLoader(), pkg,
                         debuggableTarget, rule.descriptor, rule.id);
