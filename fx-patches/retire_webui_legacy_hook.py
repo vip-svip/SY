@@ -4,8 +4,8 @@ from pathlib import Path
 import re
 import sys
 
-if len(sys.argv) != 2:
-    raise SystemExit("usage: retire_webui_legacy_hook.py <webroot-index.html>")
+if len(sys.argv) not in (2, 3):
+    raise SystemExit("usage: retire_webui_legacy_hook.py <webroot-index.html> [module-root]")
 
 target = Path(sys.argv[1])
 if not target.is_file():
@@ -91,7 +91,7 @@ if 'id="pageScript"' not in html or 'id="pageMore"' not in html:
 target.write_text(html, encoding="utf-8")
 
 # Migrate regression coverage from the retired WebUI controller to the native APK.
-module_root = target.parent.parent
+module_root = Path(sys.argv[2]) if len(sys.argv) == 3 else target.parent.parent
 repo_root = Path(__file__).resolve().parent.parent
 native_ui = repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 if not native_ui.is_file():
