@@ -16,7 +16,7 @@ grep -q 'if (restoreHookScreen)' "$ROOT/adhook/app/src/main/java/de/privacyguard
 grep -q 'pendingRestorePackage = null;' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale restored Hook target is not cleared when leaving its screen"
 grep -q 'pendingWebPage = webPageForBottomTab(lastWebTabIndex);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "restored dashboard tab is not replayed after WebView reload"
 grep -q 'webView.destroy();' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Activity destruction does not release the WebView"
-grep -q 'fileChooserCallback.onReceiveValue(null);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "pending document picker callback is not cancelled"
+grep -q 'if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "pending document picker callback is not cancelled during Activity teardown"
 grep -q 'if (pending != null) pending.onReceiveValue(null);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "file picker launch failure leaves WebView callback unresolved"
 grep -Fq 'ValueCallback<Uri[]> pending = fileChooserCallback;' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "file picker result does not detach callback before delivery"
 grep -q 'catch (RuntimeException malformedResult)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "malformed file picker result can strand WebView callback"
