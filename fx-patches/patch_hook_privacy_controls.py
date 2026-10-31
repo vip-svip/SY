@@ -19,6 +19,30 @@ def once(path, old, new):
         raise SystemExit(f"{path}: expected exactly one source anchor, got {count}: {old[:90]!r}")
     path.write_text(source.replace(old, new), encoding="utf-8")
 
+# The published 1.0.0 archive may already contain the complete migration.
+# Treat that state as success; do not replay exact-text edits against a newer
+# generator/UI and fail merely because their old anchors have disappeared.
+gen_text = generator.read_text(encoding="utf-8")
+ui_text = ui.read_text(encoding="utf-8")
+reg_text = regression.read_text(encoding="utf-8")
+mic_text = mic_regression.read_text(encoding="utf-8")
+already_complete = (
+    'else if (key == "camera_access_block") camera_access=val' in gen_text
+    and 'camera_access_block=%s' in gen_text
+    and 'media_store_query_block=%s' in gen_text
+    and all(name in ui_text for name in (
+        "camera_access_block", "location_access_block",
+        "mic_access_block", "media_store_query_block"
+    ))
+    and "camera_access_block=1" in reg_text
+    and "media_store_query_block=1" in reg_text
+    and "unsupported developer-hook fields leaked into the runtime schema" in reg_text
+    and "sed -n '/private void installAudioRecordSilenceHooks/,/private boolean isMicrophoneSilenceAuthorized/p'" in mic_text
+)
+if already_complete:
+    print("FX API-101 privacy controls are already fully wired; skipping obsolete exact-text migrations.")
+    raise SystemExit(0)
+
 # Root-side Remote Files publisher: do not discard fields already supported by
 # the API-101 parser/runtime/serializer.
 once(generator,
