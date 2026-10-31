@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   package:
-    if: ${{ vars.FX_FULL_APP_MIGRATION_COMPLETE == 'true' }}
+    if: ${{ github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
