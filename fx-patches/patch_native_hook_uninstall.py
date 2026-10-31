@@ -20,13 +20,13 @@ helper = '''_mitm_warn() {
 if source.count(helper) != 1:
     raise SystemExit("uninstall warning helper does not match the reviewed source")
 source = source.replace(helper, "", 1)
-anchor = "PG_CLEANUP_INCOMPLETE=0\n"
-if source.count(anchor) != 1:
-    raise SystemExit("uninstall initialization anchor changed; refusing to move helper")
-source = source.replace(anchor, anchor + helper, 1)
-first_call = source.find('_mitm_warn "scheduler PID')
+first_call = source.find('_mitm_warn "')
+if first_call < 0:
+    raise SystemExit("uninstall warning callsite is missing; refusing to move helper")
+source = source[:first_call] + helper + source[first_call:]
+scheduler_call = source.find('_mitm_warn "scheduler PID')
 definition = source.find("_mitm_warn() {")
-if first_call < 0 or definition < 0 or definition > first_call:
+if scheduler_call < 0 or definition < 0 or definition > scheduler_call:
     raise SystemExit("uninstall warning helper is not defined before the scheduler cleanup path")
 uninstall.write_text(source, encoding="utf-8")
 
