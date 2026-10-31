@@ -99,10 +99,13 @@ public final class MainActivity extends Activity {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
         if (hookUiVisible) {
-            outState.putString("fx_hook_screen",
-                    hookHubVisible ? "hub" : hookTargetVisible ? "target" : "list");
-            if (hookTargetVisible && selectedPackage != null) {
-                outState.putString("fx_selected_package", selectedPackage);
+            boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
+            String hookScreen = hookHubVisible ? "hub" : restoringTarget ? "target" : "list";
+            outState.putString("fx_hook_screen", hookScreen);
+            String targetPackage = pendingRestorePackage != null
+                    ? pendingRestorePackage : selectedPackage;
+            if ("target".equals(hookScreen) && targetPackage != null) {
+                outState.putString("fx_selected_package", targetPackage);
             }
         }
         super.onSaveInstanceState(outState);
