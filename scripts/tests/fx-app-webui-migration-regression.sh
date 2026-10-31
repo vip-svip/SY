@@ -27,6 +27,10 @@ grep -Fq 'patch_native_hook_uninstall.py fx-module' "$ROOT/.github/workflows/bui
 grep -Fq 'patch_native_hook_uninstall.py fx-module' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow does not patch uninstall helper ordering"
 UNINSTALL="$ROOT/fx-module/uninstall.sh"
 CUSTOMIZE="$ROOT/fx-module/customize.sh"
+SERVICE="$ROOT/fx-module/service.sh"
+grep -Fq 'chmod 600 /data/adb/privacyguard/settings.conf' "$CUSTOMIZE" || fail "first-install settings.conf is not protected from other app UIDs"
+grep -Fq 'chmod 600 "$PG/settings.conf"' "$SERVICE" || fail "existing settings.conf permissions are not re-hardened on every boot"
+grep -Fq 'chown 0:0 "$PG/settings.conf"' "$SERVICE" || fail "settings.conf ownership is not restored to root on boot"
 warn_def_line=$(grep -n '^_mitm_warn()' "$UNINSTALL" | head -n1 | cut -d: -f1)
 warn_call_line=$(grep -n '_mitm_warn "scheduler PID' "$UNINSTALL" | head -n1 | cut -d: -f1)
 [ -n "$warn_def_line" ] && [ -n "$warn_call_line" ] && [ "$warn_def_line" -lt "$warn_call_line" ] || fail "uninstall warning helper is called before its definition"
