@@ -87,7 +87,14 @@ jobs:
           for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh fx-module/scripts/tests/v1.0.0-ad-*-regression.sh fx-module/scripts/tests/v1.0.0-adult-content-domain-list-regression.sh fx-module/scripts/tests/v1.0.0-adult-site-ad-*-regression.sh; do
             [ -f "$test" ] || continue
             echo "RUN MODULE REGRESSION: $test"
-            sh "$test"
+            if [[ "$test" == *"hosts-cache-concurrency-regression.sh" ]]; then
+              echo "=== HOSTS CACHE REGRESSION SOURCE ==="
+              nl -ba "$test"
+              echo "=== HOSTS CACHE REGRESSION TRACE ==="
+              sh -x "$test"
+            else
+              sh "$test"
+            fi
           done
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
