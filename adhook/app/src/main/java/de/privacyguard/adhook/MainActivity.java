@@ -56,6 +56,7 @@ public final class MainActivity extends Activity {
     private boolean webUiReady;
     private String pendingWebPage;
     private ValueCallback<Uri[]> fileChooserCallback;
+    private volatile Thread hookPublisherThread;
     private static final int REQUEST_FILE_PICKER = 4101;
 
     @Override public void onCreate(Bundle state) {
@@ -403,6 +404,9 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        Thread publisher = hookPublisherThread;
+        hookPublisherThread = null;
+        if (publisher != null) publisher.interrupt();
         if (rootBridge != null) {
             rootBridge.close();
             rootBridge = null;
@@ -801,9 +805,15 @@ public final class MainActivity extends Activity {
                     +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
                     +"printf 'SHA256=%s\\nAPI101_OVERLAY_SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_native\" \"$actual_managed\"";
             if(command.length()>131072) throw new IllegalStateException("Root 发布命令超过 128 KiB 上限，请减少目标或自定义规则数量。");
-            new Thread(() -> {
+            if (hookPublisherThread != null && hookPublisherThread.isAlive()) {
+                Toast.makeText(this, "Hook 配置正在发布，请等待当前操作完成。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            Thread publisher = new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (hookPublisherThread == Thread.currentThread()) hookPublisherThread = null;
                     if(result.exitCode==0) {
                         getSharedPreferences("fx_hook_publish", MODE_PRIVATE).edit()
                                 .putString("sha256", expectedHash)
@@ -817,7 +827,9 @@ public final class MainActivity extends Activity {
                             .setPositiveButton("知道了",null).show();
                     }
                 });
-            }, "fx-config-publisher").start();
+            }, "fx-config-publisher");
+            hookPublisherThread = publisher;
+            publisher.start();
         } catch(Exception e) {
             new AlertDialog.Builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
                 .setPositiveButton("知道了",null).show();
