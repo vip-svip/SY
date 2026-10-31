@@ -1293,7 +1293,7 @@ public final class AdVisibilityHook extends XposedModule {
             visibilityMutationObserverInstalled = true;
             logFx(Log.INFO, "ad visibility mutation observer installed");
         } catch (Throwable failure) {
-            logFx(Log.WARN, "ad visibility mutation observer unavailable; preserving conservative restore behavior");
+            logFx(Log.WARN, "ad visibility mutation observer unavailable; automatic View hiding disabled for safety");
         }
     }
 
@@ -1302,6 +1302,11 @@ public final class AdVisibilityHook extends XposedModule {
         // Install only after a real Ad view is found; avoid intercepting every
         // setVisibility call in apps that never contain a matched Ad view.
         installVisibilityMutationObserver();
+        if (!visibilityMutationObserverInstalled) {
+            // Without ownership tracking, hiding could overwrite a later app-owned
+            // visibility change. Fail open rather than risk a stale recycled View.
+            return;
+        }
         try {
             synchronized (hiddenAdViews) {
                 if (!hiddenAdViews.containsKey(view)) {
