@@ -97,7 +97,8 @@ text2 = text2.replace(helper_anchor, helper + helper_anchor, 1)
 
 on_anchor = '    private boolean on(String k) {'
 on_replacement = on_anchor + """
-        if (api101Managed.contains(pkg + "|" + k)) return false;"""
+        if (api101Managed.contains(pkg + "|" + k)) return false;
+        if (DISABLED_EVASION_KEYS.contains(k)) return false;"""
 if on_anchor not in text2:
     raise SystemExit("legacy on() feature gate anchor missing")
 text2 = text2.replace(on_anchor, on_replacement, 1)
