@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create one dual-entry LSPosed APK by copying the complete legacy MainHook verbatim."""
 from pathlib import Path
-import shutil, sys
+import re, shutil, sys
 
 fx = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 repo = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
@@ -91,16 +91,14 @@ gradle.write_text(g, encoding="utf-8")
 
 manifest = modern / "AndroidManifest.xml"
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
-start = m.find("<application")
-if start < 0:
-    raise SystemExit("modern manifest application tag missing")
-end = m.find("/>", start)
-if end < 0:
-    raise SystemExit("modern manifest self-closing application tag missing")
-end += 2
+# Replace the complete application element. Cutting at the first "/>" is
+# incorrect once the launcher activity contains a self-closing child element.
+app_match = re.search(r"<application\\b[^>]*>.*?</application>", m, re.S)
+if not app_match:
+    raise SystemExit("modern manifest application element missing or unbalanced")
 # Preserve the APK's native launcher UI while adding the LSPosed metadata.
 if 'android.permission.QUERY_ALL_PACKAGES' not in m:
-    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\n    <application', 1)
+    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\\n    <application', 1)
 app = """<application
         android:label="FX Hook"
         android:allowBackup="false"
@@ -120,7 +118,7 @@ app = """<application
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
     </application>"""
-m = m[:start] + app + m[end:]
+m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
 
 # The final module payload must contain only the unified APK, never the old split APKs.
