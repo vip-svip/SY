@@ -77,6 +77,14 @@ proxies:
         enabled: true
         fingerprint: chrome
     alpn: [h2, http/1.1]
+  - name: Nested TLS without Reality
+    type: vless
+    server: tls.example.com
+    port: 443
+    uuid: 123e4567-e89b-12d3-a456-426614174002
+    tls:
+      enabled: true
+      server_name: tls.example.com
   - name: Missing Reality Key
     type: vless
     server: invalid.example.com
@@ -89,8 +97,9 @@ proxies:
         short_id: missing-key
 YAML
 vpn_yaml_to_uri "$T/reality.yaml" > "$T/out"
-[ "$(wc -l < "$T/out" | tr -d ' ')" = 1 ] || { cat "$T/out"; echo 'FAIL: expected only valid Reality node'; exit 1; }
+[ "$(wc -l < "$T/out" | tr -d ' ')" = 2 ] || { cat "$T/out"; echo 'FAIL: expected valid Reality and nested TLS nodes'; exit 1; }
 grep -Fq 'security=reality' "$T/out"
+grep -Fq 'security=tls' "$T/out"
 grep -Fq 'sni=www.example.com' "$T/out"
 grep -Fq 'pbk=publicKeyValue' "$T/out"
 grep -Fq 'sid=abcd1234' "$T/out"
