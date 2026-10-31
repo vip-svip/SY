@@ -4,7 +4,7 @@ import sys
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 apply = root / "scripts/apply.sh"
 s = apply.read_text(encoding="utf-8")
-old = """    awk '
+old = """    if awk '
       { sub(/\\r$/, "") }
 """
 new = """    awk '
