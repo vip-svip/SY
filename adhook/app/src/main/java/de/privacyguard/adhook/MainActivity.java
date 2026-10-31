@@ -648,7 +648,9 @@ public final class MainActivity extends Activity {
                .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\n')
                .append("[list:targets]\n");
             for(String row:rows) cfg.append(row).append('\n');
-            String encoded=android.util.Base64.encodeToString(cfg.toString().getBytes("UTF-8"),android.util.Base64.NO_WRAP);
+            byte[] configBytes=cfg.toString().getBytes("UTF-8");
+            String expectedHash=sha256Hex(configBytes);
+            String encoded=android.util.Base64.encodeToString(configBytes,android.util.Base64.NO_WRAP);
             int androidUser=android.os.Process.myUid()/100000;
             String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
             String remote=moduleDir+"/fx-hook-targets.conf";
@@ -657,9 +659,13 @@ public final class MainActivity extends Activity {
                     +" && printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'"
                     +" && chmod 600 '"+temp+"' && chown 0:0 '"+temp+"'"
                     +" && test -s '"+temp+"'"
-                    +" && ( [ ! -e '"+remote+"' ] || cp -p '"+remote+"' '"+remote+".bak' )"
-                    +" && mv -f '"+temp+"' '"+remote+"'"
-                    +" && chmod 600 '"+remote+"' && sha256sum '"+remote+"'";
+                    +" && actual_tmp=$(sha256sum '"+temp+"' | cut -d ' ' -f1)"
+                    +" && test \"$actual_tmp\" = '"+expectedHash+"'"
+                    +" && sync && ( [ ! -e '"+remote+"' ] || cp -p '"+remote+"' '"+remote+".bak' )"
+                    +" && mv -f '"+temp+"' '"+remote+"' && sync"
+                    +" && actual=$(sha256sum '"+remote+"' | cut -d ' ' -f1)"
+                    +" && test \"$actual\" = '"+expectedHash+"'"
+                    +" && printf 'SHA256=%s\\n' \"$actual\"";
             new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
@@ -676,6 +682,18 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
                 .setPositiveButton("知道了",null).show();
         }
+    }
+
+    private static String sha256Hex(byte[] data) throws Exception {
+        byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(data);
+        char[] hex="0123456789abcdef".toCharArray();
+        char[] out=new char[digest.length*2];
+        for(int i=0;i<digest.length;i++) {
+            int value=digest[i]&0xff;
+            out[i*2]=hex[value>>>4];
+            out[i*2+1]=hex[value&0x0f];
+        }
+        return new String(out);
     }
 
     private void section(String s) {
