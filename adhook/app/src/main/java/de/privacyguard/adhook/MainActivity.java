@@ -238,10 +238,14 @@ public final class MainActivity extends Activity {
                     startActivityForResult(intent, REQUEST_FILE_PICKER);
                     return true;
                 } catch (Exception e) {
+                    // WebView requires every accepted file-chooser callback to be completed,
+                    // including the failure path; otherwise the page can remain stuck waiting.
+                    ValueCallback<Uri[]> pending = fileChooserCallback;
                     fileChooserCallback = null;
+                    if (pending != null) pending.onReceiveValue(null);
                     Toast.makeText(MainActivity.this, "无法打开文件选择器：" + e.getMessage(),
                             Toast.LENGTH_LONG).show();
-                    return false;
+                    return true;
                 }
             }
         });
