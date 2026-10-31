@@ -90,9 +90,6 @@ jobs:
           set -euo pipefail
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
-          echo "::group::Inspect restored privacy config generator for compatibility migration"
-          sed -n "265,355p" fx-module/scripts/gen_xposed_conf.sh
-          echo "::endgroup::"
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/patch_native_hook_uninstall.py fx-module
