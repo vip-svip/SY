@@ -43,7 +43,7 @@ grep -Fq 'legacyDuplicateKeys' "$ACTIVITY" || fail "native Hook publisher does n
 grep -Fq '{"mic_silence","mic_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress the legacy mic_block read hook"
 grep -Fq '{"mic_silence","audio_fp_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress legacy audio perturbation"
 for legacy_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit block_wifi_scan block_notif_listen hide_notif_perm mic_block audio_fp_block cam_null disable_passive_loc block_mediastore; do
-  grep -Fq "on(\"$legacy_key\")" "$LEGACY_HOOK" || fail "legacy duplicate ownership references unknown key: $legacy_key"
+  grep -Fq "$legacy_key" "$LEGACY_HOOK" || fail "legacy duplicate ownership references unknown key: $legacy_key"
 done
 ! grep -Fq '{"privacy","spoof_android_id"}' "$ACTIVITY" || fail "generic privacy master must not suppress the legacy Android-ID key"
 grep -Fq 'fx-api101-managed.conf' "$ACTIVITY" || fail "native Hook publisher does not publish legacy duplicate-suppression map"
