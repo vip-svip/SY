@@ -12,7 +12,7 @@ if "FX_CLASH_TRANSPORT_FIELDS_V1" not in s:
     changes = [
         ('alpn = ""; reality = "" }',
          'alpn = ""; reality = ""; ws_host = ""; service = "" }'),
-        ('%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\n", typ, name, host, port, id, pw, sni, net, path, tls, cipher, flow, fp, pbk, sid, alpn, reality, ws_host, service',
+        ('%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\n", typ, name, host, port, id, pw, sni, net, path, tls, cipher, flow, fp, pbk, sid, alpn, reality',
          '%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\037%s\\n", typ, name, host, port, id, pw, sni, net, path, tls, cipher, flow, fp, pbk, sid, alpn, reality, ws_host, service'),
         ('else if (k == "alpn") { gsub(/[\\[\\]\\\" ]/, "", v); alpn = v }',
          'else if (k == "alpn") { gsub(/[\\[\\]\\\" ]/, "", v); alpn = v }\n'
