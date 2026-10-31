@@ -22,7 +22,7 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
          '        if [ -n "$_yusername" ] || [ -n "$_ypw" ]; then\n'
          '          # Do not silently turn an authenticated SOCKS profile into anonymous access.\n'
          '          [ -n "$_yusername" ] && [ -n "$_ypw" ] || continue\n'
-         '          _ysocks_user=$(printf \\'%s\\' "$_yusername" | sed \\'s/%/%25/g; s/@/%40/g; s/:/%3A/g; s/#/%23/g; s/ /%20/g; s/&/%26/g; s/+/%2B/g; s/=/\\\\%3D/g; s/;/%3B/g\\')\n'
+         '          _ysocks_user=$(printf "%s" "$_yusername" | sed "s/%/%25/g; s/@/%40/g; s/:/%3A/g; s/#/%23/g; s/ /%20/g; s/&/%26/g; s/+/%2B/g; s/=/\\%3D/g; s/;/%3B/g")\n'
          '          echo "socks5://\${_ysocks_user}:\${_ypw_uri}@\${_yh}:\${_yp}#\${_yn_uri}"\n'
          '        else\n'
          '          echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"\n'
