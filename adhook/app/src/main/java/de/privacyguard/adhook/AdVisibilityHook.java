@@ -297,13 +297,19 @@ public final class AdVisibilityHook extends XposedModule {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
-        if (developerObserveForPackage && target != null) {
-            // Resolve duplicate descriptors by priority before touching the
-            // target class loader. A disabled rule never shadows an active one.
+        if (target != null && target.developerHooksEnabled && debuggableTarget) {
+            // Only read-only observation is currently supported by the native
+            // runtime. The parser retains legacy replacement actions so old
+            // configs can be read, but never silently imply those actions ran.
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (rule.action != DeveloperHookRule.Action.OBSERVE) continue;
-                installDeveloperObservationHook(param.getClassLoader(), pkg,
-                        debuggableTarget, rule.descriptor, rule.id);
+                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
+                    installDeveloperObservationHook(param.getClassLoader(), pkg,
+                            debuggableTarget, rule.descriptor, rule.id);
+                } else if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
+                        || rule.action == DeveloperHookRule.Action.RETURN_FALSE) {
+                    logFx(Log.WARN, "developer rule blocked: mutation actions are not supported; "
+                            + "no method behavior changed (rule=" + rule.id + ", package=" + pkg + ")");
+                }
             }
         }
         if (!hooksInstalledFor.add(pkg)) return;
