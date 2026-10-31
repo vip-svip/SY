@@ -36,6 +36,10 @@ grep -Fq 'while (content.getChildCount() > 5) content.removeViewAt(5);' "$ROOT/a
 [ "$(grep -Fc 'while (content.getChildCount() > 5) content.removeViewAt(5);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java")" -eq 2 ] || fail "async app-loader cleanup and list rerender must both preserve fixed header/search/hint views"
 grep -q "appLabels.get(ai.packageName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app labels are not cached for search"
 grep -q "appIcons.get(ai.packageName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icons are not cached between search renders"
+grep -Fq 'private void loadMissingAppIconsAsync()' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icons are not loaded asynchronously"
+grep -Fq 'getApplicationIcon(ai)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "background icon loader does not use PackageManager"
+if sed -n '/private void appendAppRows/,/private void loadMissingAppIconsAsync/p' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" | grep -q 'getApplicationIcon'; then fail "Hook app row rendering decodes icons on the UI thread"; fi
+grep -Fq 'appIconLoadGeneration' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale app icon results are not generation-guarded"
 grep -q "return size() > 80;" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icon cache is not memory-bounded"
 grep -q "Locale.ROOT" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "case-insensitive app search is locale-dependent"
 grep -q "sym_def_app_icon" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "removed-package icon fallback missing"
