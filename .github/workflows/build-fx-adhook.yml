@@ -84,6 +84,8 @@ jobs:
           python3 fx-patches/patch_native_hook_status.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/patch_native_hook_uninstall.py fx-module
+          python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-external-state-regression.sh
           python3 fx-patches/patch_private_runtime_logs.py fx-module
           python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
