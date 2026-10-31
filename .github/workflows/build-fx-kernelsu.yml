@@ -269,18 +269,16 @@ jobs:
           export FX_ANDROID_KEY_ALIAS="fx-release"
           export FX_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/fx-release-signing.p12"
           VAULT_FILE=".github/signing/fx-release.p12.enc"
-          VAULT_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE?ref=$GITHUB_REF_NAME"
-          VAULT_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-response.json" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $GH_API_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" "$VAULT_URL")"
-
-          if [[ "$VAULT_HTTP" == "200" ]]; then
-            jq -r '.content' "$RUNNER_TEMP/fx-vault-response.json" | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/fx-release-signing.p12.enc"
+          if [[ -s "$VAULT_FILE" ]]; then
+            # Restore the exact encrypted signing identity from this checked-out commit.
+            cp "$VAULT_FILE" "$RUNNER_TEMP/fx-release-signing.p12.enc"
             openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$RUNNER_TEMP/fx-release-signing.p12.enc" \
               -out "$FX_ANDROID_KEYSTORE_PATH" -pass env:FX_ANDROID_KEYSTORE_PASSWORD
-          elif [[ "$VAULT_HTTP" == "404" ]]; then
-            echo "::notice::No FX signing vault exists yet; creating the persistent release identity once."
+          elif [[ -e "$VAULT_FILE" ]]; then
+            echo "::error::FX signing vault exists but is empty; refusing to generate a replacement signing identity."
+            exit 1
+          else
+            echo "::notice::No FX signing vault exists in the checked-out commit; creating the persistent release identity once."
             keytool -genkeypair -noprompt -alias "$FX_ANDROID_KEY_ALIAS" -keyalg RSA -keysize 3072 \
               -sigalg SHA256withRSA -validity 10000 -dname "CN=FX Android Release, OU=FX, O=FX, C=US" \
               -storetype PKCS12 -keystore "$FX_ANDROID_KEYSTORE_PATH" \
@@ -310,10 +308,6 @@ jobs:
               cat "$RUNNER_TEMP/fx-vault-write-response.json" | jq -r '.message // "GitHub API write failed"' || true
               exit 1
             }
-          else
-            echo "::error::Could not read the FX signing vault (HTTP $VAULT_HTTP). Check the workflow GITHUB_TOKEN contents: write permission."
-            jq -r '.message // "GitHub API read failed"' "$RUNNER_TEMP/fx-vault-response.json" || true
-            exit 1
           fi
 
           test -s "$FX_ANDROID_KEYSTORE_PATH"
