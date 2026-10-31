@@ -50,49 +50,54 @@ grep -Fq 'if [ "$_stop_rc" -eq 0 ] && [ -e "$PG/singbox.pid" ]; then' "$APPLY"
 TMP=$(mktemp -d /tmp/fx-vpn-core-stop-guard.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 awk '
-  /      stop\)/ {active=1}
-  active {print}
+  /      stop\\)/ {active=1; next}
   active && /        ;;/ {exit}
-' "$APPLY" > "$TMP/stop-branch.sh"
-[ -s "$TMP/stop-branch.sh" ]
+  active {print}
+' "$APPLY" > "$TMP/stop-body.sh"
+[ -s "$TMP/stop-body.sh" ]
+{ echo 'case x in x)'; cat "$TMP/stop-body.sh"; echo ';; esac'; } > "$TMP/stop-case.sh"
 
 # Proxy/global/rule/TUN modes: reject before invoking stop.
 for mode in global rule tun; do
   mkdir -p "$TMP/$mode"; : > "$TMP/$mode/singbox.pid"
-  OUT=$(sh -c '
-    PG="$1"; export PG; mode="$2"; stopped=0; PG_ERRS=0
+  if OUT=$(sh -c '
+    PG="$1"; export PG; mode="$2"; PG_ERRS=0
     pg_get(){ [ "$1" = vpn_mode ] && { echo "$mode"; return; }; echo "$2"; }
     pg_fail(){ PG_ERRS=$((PG_ERRS+1)); echo "FAIL:$2"; }
     pg_summary(){ :; }
-    vpncore_stop(){ stopped=1; return 0; }
-    exit(){ if [ "$1" = 1 ]; then [ "$stopped" -eq 0 ] && [ "$PG_ERRS" -eq 1 ] && [ -e "$PG/singbox.pid" ]; fi; }
+    vpncore_stop(){ echo STOP_MUST_NOT_RUN; return 0; }
     . "$3"
-  ' sh "$TMP/$mode" "$mode" "$TMP/stop-branch.sh" 2>&1)
+  ' sh "$TMP/$mode" "$mode" "$TMP/stop-case.sh" 2>&1); then
+    echo "FAIL: $mode mode unexpectedly allowed core stop" >&2; exit 1
+  fi
   echo "$OUT" | grep -Fq '拒绝单独停止核心'
+  ! echo "$OUT" | grep -Fq 'STOP_MUST_NOT_RUN'
 done
 
 # Direct mode: stop is allowed, but success requires removal of the PID marker.
 mkdir -p "$TMP/direct"; : > "$TMP/direct/singbox.pid"
 sh -c '
-  PG="$1"; export PG; PG_ERRS=0
+  PG="$1"; export PG
   pg_get(){ echo direct; }
-  pg_fail(){ PG_ERRS=$((PG_ERRS+1)); }
+  pg_fail(){ echo "unexpected failure: $2" >&2; return 1; }
   pg_summary(){ :; }
   vpncore_stop(){ rm -f "$PG/singbox.pid"; return 0; }
   . "$2"
-' sh "$TMP/direct" "$TMP/stop-branch.sh"
+' sh "$TMP/direct" "$TMP/stop-case.sh"
 [ ! -e "$TMP/direct/singbox.pid" ]
 
-# A lying success return with a retained PID marker is converted to failure.
+# A success return with a retained PID marker must be converted to failure.
 mkdir -p "$TMP/stale"; : > "$TMP/stale/singbox.pid"
-OUT=$(sh -c '
-  PG="$1"; export PG; PG_ERRS=0
+if OUT=$(sh -c '
+  PG="$1"; export PG
   pg_get(){ echo direct; }
-  pg_fail(){ PG_ERRS=$((PG_ERRS+1)); echo "FAIL:$2"; }
+  pg_fail(){ echo "FAIL:$2"; }
   pg_summary(){ :; }
   vpncore_stop(){ return 0; }
   . "$2"
-' sh "$TMP/stale" "$TMP/stop-branch.sh" 2>&1 || true)
+' sh "$TMP/stale" "$TMP/stop-case.sh" 2>&1); then
+  echo 'FAIL: stale PID marker was accepted as stopped' >&2; exit 1
+fi
 echo "$OUT" | grep -Fq 'PID 记录仍存在'
 echo 'FX manual VPN-core stop guard regression: PASS'
 ''', encoding="utf-8")
