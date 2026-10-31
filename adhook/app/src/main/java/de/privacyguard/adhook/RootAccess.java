@@ -57,9 +57,17 @@ public final class RootAccess {
             boolean finished = process.waitFor(Math.max(1000L, timeoutMs), TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroy();
-                if (!process.waitFor(500, TimeUnit.MILLISECONDS)) process.destroyForcibly();
+                if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    // Reap the su client before returning; otherwise repeated
+                    // timeouts can leave zombie/native process handles behind.
+                    process.waitFor(1500, TimeUnit.MILLISECONDS);
+                }
                 drain.join(1500L);
-                return new Result(124, "Root 命令超时（" + timeoutMs + " ms）", false);
+                return new Result(124,
+                        "Root 命令超时（" + timeoutMs + " ms）。已请求终止并回收 su 进程；"
+                                + "su 启动的独立子进程不保证全部退出。",
+                        false);
             }
             drain.join(2000L);
             int code = process.exitValue();
