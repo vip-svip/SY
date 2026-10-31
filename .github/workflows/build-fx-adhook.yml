@@ -181,7 +181,8 @@ jobs:
           ! grep -Eqi 'iptables|ip6tables|dns_hijack|vpn_mode|setprop net\.' scripts/install_adhook_app.sh scripts/remove_adhook_app.sh
       - name: Run parser and deployment regression tests, then build APK
         run: |
-          sh scripts/tests/fx-app-webui-migration-regression.sh\n          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
+          sh scripts/tests/fx-app-webui-migration-regression.sh
+          JAVA_SRC=adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java
           sh scripts/tests/adhook-app-installer-regression.sh
           sh scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh .
           grep -q 'exif_strip' adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java
