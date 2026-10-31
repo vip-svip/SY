@@ -86,6 +86,7 @@ app = """<application
     </application>"""
 m = m[:start] + app + m[end:]
 manifest.write_text(m, encoding="utf-8")
+shutil.copytree(repo / "adhook", fx / "adhook", dirs_exist_ok=True)
 
 # The final module payload must contain only the unified APK, never the old split APKs.
 for obsolete in (
