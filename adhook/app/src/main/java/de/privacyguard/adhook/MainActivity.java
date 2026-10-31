@@ -327,8 +327,10 @@ public final class MainActivity extends Activity {
         section("Android 无障碍");
         TextView accessibility = new TextView(this);
         boolean accessibilityEnabled = isAccessibilityEnabled();
-        boolean accessibilityConnected = getSharedPreferences("fx_accessibility", MODE_PRIVATE)
-                .getBoolean("service_connected", false);
+        android.content.SharedPreferences accessibilityPrefs =
+                getSharedPreferences("fx_accessibility", MODE_PRIVATE);
+        boolean accessibilityConnected = accessibilityPrefs.getBoolean("service_connected", false)
+                && accessibilityPrefs.getInt("service_pid", -1) == android.os.Process.myPid();
         accessibility.setText(!accessibilityEnabled
                 ? "无障碍服务：未启用（需由用户在系统设置中手动开启）"
                 : accessibilityConnected ? "无障碍服务：系统已启用，FX 服务已连接"
