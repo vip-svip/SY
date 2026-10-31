@@ -80,6 +80,16 @@ app = """<application
 m = m[:start] + app + m[end:]
 manifest.write_text(m, encoding="utf-8")
 
+# The final module payload must contain only the unified APK, never the old split APKs.
+for obsolete in (
+    fx / "optional/PrivacyGuardHook.apk",
+    fx / "optional/PrivacyGuardHook.apk.sha256",
+    fx / "optional/FXAdHook.apk",
+    fx / "optional/FXAdHook.apk.sha256",
+    fx / "optional/FXAdHook-BUILD-INFO.txt",
+):
+    obsolete.unlink(missing_ok=True)
+
 # Install one package. Retire the old FX-managed legacy package only after the unified
 # package is installed; never uninstall a pre-existing app without our ownership marker.
 installer = fx / "scripts/install_adhook_app.sh"
