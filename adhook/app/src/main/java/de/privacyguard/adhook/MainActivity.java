@@ -61,7 +61,28 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) {
+            lastWebTabIndex = Math.max(0, Math.min(5,
+                    state.getInt("fx_last_web_tab", 0)));
+            selectedBottomTab = lastWebTabIndex;
+            pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+        }
         showDashboard();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putInt("fx_last_web_tab", lastWebTabIndex);
+        super.onSaveInstanceState(outState);
+    }
+
+    private String webPageForBottomTab(int index) {
+        switch (index) {
+            case 1: return "pageAd";
+            case 2: return "pagePrivacy";
+            case 3: return "pageScript";
+            case 5: return "pageMore";
+            default: return "pageVpn";
+        }
     }
 
     private void showDashboard() { showWebDashboard(); }
