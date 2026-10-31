@@ -7,8 +7,9 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 generator = root / "scripts/gen_xposed_conf.sh"
 regression = root / "scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh"
 mic_regression = root / "scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh"
-ui = root / "webroot/index.html"
-for path in (generator, regression, mic_regression, ui):
+# Per-app Hook controls are native APK UI, not the module WebUI.
+native_ui = Path(__file__).resolve().parent.parent / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+for path in (generator, regression, mic_regression, native_ui):
     if not path.is_file():
         raise SystemExit("missing required FX source: " + str(path))
 
@@ -26,16 +27,22 @@ def once(path, old, new, *, allow_missing=True):
 # Treat that state as success; do not replay exact-text edits against a newer
 # generator/UI and fail merely because their old anchors have disappeared.
 gen_text = generator.read_text(encoding="utf-8")
-ui_text = ui.read_text(encoding="utf-8")
+native_ui_text = native_ui.read_text(encoding="utf-8")
 reg_text = regression.read_text(encoding="utf-8")
 mic_text = mic_regression.read_text(encoding="utf-8")
 already_complete = (
     'else if (key == "camera_access_block") camera_access=val' in gen_text
     and 'camera_access_block=%s' in gen_text
     and 'media_store_query_block=%s' in gen_text
-    and all(name in ui_text for name in (
+    and all(name in native_ui_text for name in (
         "camera_access_block", "location_access_block",
         "mic_access_block", "media_store_query_block"
+    ))
+    and all(marker in native_ui_text for marker in (
+        'toggle("限制摄像头访问", "camera_access_block"',
+        'toggle("限制位置访问", "location_access_block"',
+        'toggle("阻止录音启动（会影响录音功能）", "mic_access_block"',
+        'toggle("清理媒体查询元数据", "media_store_query_block"'
     ))
     and "camera_access_block=1" in reg_text
     and "media_store_query_block=1" in reg_text
@@ -69,31 +76,8 @@ once(generator,
 '''(!(splash+feed+overlay+member+privacy+exif+clipboard+clipboard_isolate+sensor_accel+sensor_gyro+sensor_light+sensor_magnet+sensor_pressure+sensor_prox+sensor_rate_limit+wifi_scan+notification_listen+notification_permission_hide+mic_silence+camera_access+location_access+mic_access+media_store_query) && rules == "")) next
           printf "%s,ads_splash=%s,ads_feed=%s,ads_overlay=%s,member_diag=%s,privacy=%s,exif_strip=%s,clipboard_read_block=%s,clipboard_isolate=%s,sensor_accel=%s,sensor_gyro=%s,sensor_light=%s,sensor_magnet=%s,sensor_pressure=%s,sensor_prox=%s,sensor_rate_limit=%s,wifi_scan_block=%s,notification_listen_block=%s,notification_permission_hide=%s,mic_silence=%s,camera_access_block=%s,location_access_block=%s,mic_access_block=%s,media_store_query_block=%s", pkg,splash,feed,overlay,member,privacy,exif,clipboard,clipboard_isolate,sensor_accel,sensor_gyro,sensor_light,sensor_magnet,sensor_pressure,sensor_prox,sensor_rate_limit,wifi_scan,notification_listen,notification_permission_hide,mic_silence,camera_access,location_access,mic_access,media_store_query''', allow_missing=True)
 
-# FX UI model/import/editor/validation/save path.
-once(ui,
-'''notification_permission_hide_block:false,mic_silence:false,rules:''',
-'''notification_permission_hide_block:false,mic_silence:false,camera_access_block:false,location_access_block:false,mic_access_block:false,media_store_query_block:false,rules:''')
-once(ui,
-'''notification_permission_hide_block','mic_silence'].indexOf(k)>=0''',
-'''notification_permission_hide_block','mic_silence','camera_access_block','location_access_block','mic_access_block','media_store_query_block'].indexOf(k)>=0''')
-once(ui,
-'''['mic_silence','AudioRecord 录音静音（仅已覆盖的 API；不等同系统麦克风权限关闭）']];''',
-'''['mic_silence','AudioRecord 录音静音（仅已覆盖的 API；不等同系统麦克风权限关闭）'],['camera_access_block','阻止摄像头访问（Camera/Camera2）'],['location_access_block','阻止位置读取与更新（LocationManager）'],['mic_access_block','阻止麦克风录音启动（AudioRecord/MediaRecorder）'],['media_store_query_block','阻止读取 MediaStore 媒体列表']];''')
-once(ui,
-'''&&!item.notification_permission_hide_block&&!item.mic_silence){item.splash=true''',
-'''&&!item.notification_permission_hide_block&&!item.mic_silence&&!item.camera_access_block&&!item.location_access_block&&!item.mic_access_block&&!item.media_store_query_block){item.splash=true''')
-once(ui,
-'''notification_permission_hide_block:false,mic_silence:false,selected:false''',
-'''notification_permission_hide_block:false,mic_silence:false,camera_access_block:false,location_access_block:false,mic_access_block:false,media_store_query_block:false,selected:false''')
-once(ui,
-'''notification_permission_hide_block','mic_silence'].every(function(k''',
-'''notification_permission_hide_block','mic_silence','camera_access_block','location_access_block','mic_access_block','media_store_query_block'].every(function(k''')
-once(ui,
-'''&&!t.notification_permission_hide_block&&!t.mic_silence)throw new Error''',
-'''&&!t.notification_permission_hide_block&&!t.mic_silence&&!t.camera_access_block&&!t.location_access_block&&!t.mic_access_block&&!t.media_store_query_block)throw new Error''')
-once(ui,
-'''',mic_silence='+(t.mic_silence?1:0)+(String(t.rules||'').trim()?''',
-'''',mic_silence='+(t.mic_silence?1:0)+',camera_access_block='+(t.camera_access_block?1:0)+',location_access_block='+(t.location_access_block?1:0)+',mic_access_block='+(t.mic_access_block?1:0)+',media_store_query_block='+(t.media_store_query_block?1:0)+(String(t.rules||'').trim()?''')
+# App-scoped controls are rendered and persisted by the native Hook APK UI.
+# Do not inject them into the unrelated module WebUI.
 
 # Exercise the full UI -> settings -> Remote Files -> API-101 parser chain.
 once(regression,
@@ -131,7 +115,7 @@ once(mic_regression,
 # Fail with a precise postcondition if an evolved source did not already provide
 # the API-101 controls; missing legacy anchors alone are not evidence of success.
 gen_final = generator.read_text(encoding="utf-8")
-ui_final = ui.read_text(encoding="utf-8")
+native_ui_final = native_ui.read_text(encoding="utf-8")
 reg_final = regression.read_text(encoding="utf-8")
 required_generator = (
     "camera_access_block", "location_access_block",
@@ -139,7 +123,17 @@ required_generator = (
 )
 required_ui = required_generator
 missing = [name for name in required_generator if name not in gen_final]
-missing += [name for name in required_ui if name not in ui_final]
+missing += [name for name in required_ui if name not in native_ui_final]
+for label, feature in (
+    ("限制摄像头访问", "camera_access_block"),
+    ("限制位置访问", "location_access_block"),
+    ("阻止录音启动（会影响录音功能）", "mic_access_block"),
+    ("清理媒体查询元数据", "media_store_query_block"),
+):
+    if 'toggle("' + label + '", "' + feature + '"' not in native_ui_final:
+        missing.append(feature + " native UI toggle")
+    if '"' + feature + '"' not in native_ui_final:
+        missing.append(feature + " native config serializer")
 if missing:
     raise SystemExit("API-101 privacy migration incomplete; missing fields: " + ", ".join(sorted(set(missing))))
 if "com.sensitive.app" not in reg_final or "media_store_query_block=1" not in reg_final:
