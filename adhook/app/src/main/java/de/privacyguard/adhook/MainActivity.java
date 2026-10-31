@@ -113,7 +113,7 @@ public final class MainActivity extends Activity {
         settings.setSafeBrowsingEnabled(true);
 
         WebViewAssetLoader.AssetsPathHandler fallback =
-                new WebViewAssetLoader.AssetsPathHandler(getAssets());
+                new WebViewAssetLoader.AssetsPathHandler(MainActivity.this);
         WebViewAssetLoader.PathHandler handler = assetPath -> {
             if ("webroot/index.html".equals(assetPath)) {
                 try (InputStream in = getAssets().open(assetPath);
