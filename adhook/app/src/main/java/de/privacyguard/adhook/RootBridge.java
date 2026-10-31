@@ -17,11 +17,24 @@ import java.io.FileOutputStream;
 import org.json.JSONObject;
 
 import java.util.regex.Pattern;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Narrow callback bridge for the bundled FX WebUI; never exposes a Java object model. */
 public final class RootBridge {
     private static final Pattern CALLBACK = Pattern.compile(
             "(?:__pgExecCb_[0-9]+_[0-9]+|__pgProbeCb_[0-9]+_[0-9]+|__fxPromise_[0-9]+)");
+    // Bound concurrent root shells: a burst of WebUI callbacks must not create
+    // an unbounded number of privileged processes/threads.
+    private static final ThreadPoolExecutor ROOT_EXECUTOR = new ThreadPoolExecutor(
+            2, 2, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(8), runnable -> {
+                Thread thread = new Thread(runnable, "fx-web-root");
+                thread.setDaemon(true);
+                return thread;
+            }, new ThreadPoolExecutor.AbortPolicy());
+
     private final Activity activity;
     private final WebView webView;
 
@@ -37,10 +50,14 @@ public final class RootBridge {
             deliver(callbackName, 2, "Root 命令为空或超过 128 KiB 限制", "");
             return;
         }
-        new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
-            deliver(callbackName, result.exitCode, result.output, "");
-        }, "fx-web-root").start();
+        try {
+            ROOT_EXECUTOR.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
+                deliver(callbackName, result.exitCode, result.output, "");
+            });
+        } catch (RejectedExecutionException busy) {
+            deliver(callbackName, 125, "Root 命令队列已满，请等待当前操作完成后重试", "");
+        }
     }
 
     @JavascriptInterface
