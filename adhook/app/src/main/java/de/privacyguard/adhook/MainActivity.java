@@ -505,10 +505,10 @@ public final class MainActivity extends Activity {
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
-        section("广告 Hook");
-        toggle("启动页广告", "ads_splash", false);
-        toggle("信息流广告", "ads_feed", false);
-        toggle("弹窗 / 插屏广告", "ads_overlay", false);
+        section("广告识别");
+        TextView adNote=new TextView(this);
+        adNote.setText("广告类型由内置识别引擎自动判断，无需按应用配置启动页、信息流或弹窗开关。");
+        adNote.setTextColor(0xff697681); adNote.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(adNote);
         section("隐私 Hook");
         toggle("隐私保护总开关", "privacy", false);
         toggle("阻止剪贴板读取", "clipboard_read_block", false);
@@ -603,11 +603,11 @@ public final class MainActivity extends Activity {
     private void publishConfig() {
         try {
             StringBuilder cfg = new StringBuilder();
-            boolean anyAds=false, anyPrivacy=false, anyWifi=false, anyNotif=false, anyNotifPerm=false, anyClipboardIso=false;
+            boolean anyPrivacy=false, anyWifi=false, anyNotif=false, anyNotifPerm=false, anyClipboardIso=false;
             List<String> rows = new ArrayList<>();
             for (ApplicationInfo ai : apps) {
                 String p=ai.packageName;
-                String[] keys={"ads_splash","ads_feed","ads_overlay","member_diag","privacy","exif_strip",
+                String[] keys={"member_diag","privacy","exif_strip",
                     "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
                     "notification_permission_hide","mic_silence","camera_access_block","location_access_block",
                     "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
@@ -618,7 +618,6 @@ public final class MainActivity extends Activity {
                     boolean on=enabled(p,k);
                     if(on) {
                         row.append(',').append(k).append('=').append('1'); has=true;
-                        if(k.startsWith("ads_")) anyAds=true;
                         if(k.equals("privacy")||k.equals("exif_strip")||k.equals("clipboard_read_block")||
                            k.equals("clipboard_isolate")||k.equals("mic_silence")||k.equals("camera_access_block")||
                            k.equals("location_access_block")||k.equals("mic_access_block")||
@@ -641,7 +640,7 @@ public final class MainActivity extends Activity {
                 if(has) rows.add(row.toString());
             }
             cfg.append("schema_version=1\n")
-               .append("ads_enabled=").append(anyAds?'1':'0').append('\n')
+               .append("ads_enabled=1\n")
                .append("privacy_enabled=").append(anyPrivacy?'1':'0').append('\n')
                .append("wifi_scan_enabled=").append(anyWifi?'1':'0').append('\n')
                .append("notification_listen_enabled=").append(anyNotif?'1':'0').append('\n')
