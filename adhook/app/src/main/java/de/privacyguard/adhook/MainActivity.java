@@ -1013,6 +1013,7 @@ public final class MainActivity extends Activity {
         adNote.setTextColor(0xff697681); adNote.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(adNote);
         section("隐私 Hook");
         toggle("隐私保护总开关", "privacy", false);
+        toggle("统一广告标识（应用内）", "ad_id_unify", false);
         toggle("阻止剪贴板读取", "clipboard_read_block", false);
         toggle("隔离剪贴板", "clipboard_isolate", false);
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
@@ -1137,6 +1138,7 @@ public final class MainActivity extends Activity {
                 {"sensor_rate_limit","sensor_rate_limit"}, {"wifi_scan_block","block_wifi_scan"},
                 {"notification_listen_block","block_notif_listen"},
                 {"notification_permission_hide","hide_notif_perm"},
+                {"ad_id_unify","ad_id_unify"},
                 {"mic_access_block","mic_block"},
                 {"mic_silence","mic_block"}, {"mic_silence","audio_fp_block"},
                 {"camera_access_block","cam_null"},
@@ -1147,7 +1149,7 @@ public final class MainActivity extends Activity {
                 String p=ai.packageName;
                 String[] keys={"member_diag","privacy","exif_strip",
                     "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
-                    "notification_permission_hide","mic_silence","camera_access_block","location_access_block",
+                    "notification_permission_hide","ad_id_unify","mic_silence","camera_access_block","location_access_block",
                     "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
                     "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
                 StringBuilder row=new StringBuilder(p);
@@ -1159,7 +1161,7 @@ public final class MainActivity extends Activity {
                         if(k.equals("privacy")||k.equals("exif_strip")||k.equals("clipboard_read_block")||
                            k.equals("clipboard_isolate")||k.equals("mic_silence")||k.equals("camera_access_block")||
                            k.equals("location_access_block")||k.equals("mic_access_block")||
-                           k.equals("media_store_query_block")||k.startsWith("sensor_")) anyPrivacy=true;
+                           k.equals("media_store_query_block")||k.equals("ad_id_unify")||k.startsWith("sensor_")) anyPrivacy=true;
                         if(k.equals("wifi_scan_block")) anyWifi=true;
                         if(k.equals("notification_listen_block")) anyNotif=true;
                         if(k.equals("notification_permission_hide")) anyNotifPerm=true;
