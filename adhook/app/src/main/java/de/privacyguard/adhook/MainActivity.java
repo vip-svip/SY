@@ -687,8 +687,9 @@ public final class MainActivity extends Activity {
     }
     private void renderApps(String query) {
         if (!appsLoaded) return;
-        // Keep the fixed header/search/hint; replace only the dynamic result rows.
-        while (content.getChildCount() > 4) content.removeViewAt(4);
+        // Keep the fixed header, search field, and hint (children 0..4).
+        // Replace only the loading indicator and previously rendered result rows.
+        while (content.getChildCount() > 5) content.removeViewAt(5);
         filtered.clear();
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         for (ApplicationInfo ai : apps) {
