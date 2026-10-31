@@ -9,6 +9,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebChromeClient;
 import android.webkit.ValueCallback;
+import android.webkit.JsResult;
+import android.webkit.JsPromptResult;
 import android.webkit.WebView;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewClientCompat;
@@ -88,7 +90,7 @@ public final class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(false);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
+        settings.setAllowContentAccess(true); // only user-selected content:// URIs are exposed by the native picker
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -123,7 +125,7 @@ public final class MainActivity extends Activity {
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", handler).build();
         webView.addJavascriptInterface(new RootBridge(this, webView), "FXRoot");
-        webView.setWebChromeClient(new WebChromeClient() {
+        webView.setWebChromeClient(new WebChromeClient() {\n            @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {\n                new AlertDialog.Builder(MainActivity.this).setMessage(message)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }\n            @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {\n                new AlertDialog.Builder(MainActivity.this).setMessage(message)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())\n                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }\n            @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {\n                EditText input = new EditText(MainActivity.this); input.setText(defaultValue);\n                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm(input.getText().toString()))\n                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
                 if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
@@ -165,7 +167,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    public void showAppListFromBridge() { showAppList(); }
+    @Override public void onBackPressed() {\n        if (hookUiVisible) { showWebDashboard(); return; }\n        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }\n        super.onBackPressed();\n    }\n\n    public void showAppListFromBridge() { showAppList(); }
 
     private void dashboardItem(String name, String detail, Runnable action) {
         LinearLayout row = new LinearLayout(this);
