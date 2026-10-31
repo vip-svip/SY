@@ -65,10 +65,13 @@ public final class RootAccess {
                                 + "su 启动的独立子进程不保证全部退出。",
                         false);
             }
-            // A detached child may inherit su's stdout pipe and keep the reader blocked
-            // after the su process has exited. Close our read end before joining the drainer.
-            closeOutputQuietly(process);
-            joinQuietly(drain, 1500L);
+            // First allow the drainer to consume buffered output. A detached child may
+            // inherit su's stdout pipe and keep it blocked after su exits; close only then.
+            joinQuietly(drain, 2000L);
+            if (drain.isAlive()) {
+                closeOutputQuietly(process);
+                joinQuietly(drain, 1500L);
+            }
             int code = process.exitValue();
             String text;
             synchronized (output) { text = output.toString(); }
