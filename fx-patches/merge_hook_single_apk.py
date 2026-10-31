@@ -156,7 +156,6 @@ for helper in ("install_adhook_app.sh", "remove_adhook_app.sh"):
     if not reviewed.is_file() or reviewed.stat().st_size < 500:
         raise SystemExit(f"reviewed repository helper missing or unexpectedly small: {reviewed}")
     shutil.copy2(reviewed, fx / "scripts" / helper)
-    shutil.copy2(reviewed, repo_scripts / helper)
 
 # The packaged remover must recognize the same ownership markers written by
 # the packaged installer. Guard this invariant before creating the artifact.
