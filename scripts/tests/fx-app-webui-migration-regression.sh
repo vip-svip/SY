@@ -109,6 +109,9 @@ grep -Fq "adsEnabled = true;" "$HOOK" || fail "legacy Ad master switch still con
 ! grep -Fq "if (!remoteFilesAvailable) {" "$HOOK" || fail "automatic Ad detection must not stop when LSPosed Remote Files capability is unavailable"
 grep -Fq "automatic Ad detection enabled; optional remote per-app policies unavailable" "$HOOK" || fail "Ad detection must remain active when optional Remote Files are unavailable"
 grep -Fq "return AUTO_AD_TARGET;" "$HOOK" || fail "Ad runtime still requires an explicit target list"
+for protected_pkg in com.android.systemui com.android.settings com.android.permissioncontroller com.google.android.permissioncontroller com.android.phone com.android.server.telecom com.android.networkstack com.android.bluetooth com.android.nfc com.google.android.gms com.android.vending; do
+  grep -Fq "\"$protected_pkg\"" "$HOOK" || fail "automatic Ad hooks must protect Android core process: $protected_pkg"
+done
 grep -Fq 'return enabled > 0;' "$HOOK" || fail "automatic Ad classifier must match generic strong markers when all categories are enabled"
 grep -Fq 'rule.action == DeveloperHookRule.Action.OBSERVE' "$HOOK" || fail "custom Hook rules must be restricted to read-only observation"
 grep -Fq 'installDeveloperObservationHook(param.getClassLoader(), pkg' "$HOOK" || fail "custom Hook observation rules are parsed but never installed"
