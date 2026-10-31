@@ -37,6 +37,8 @@ grep -Fq "automatic Ad detection enabled; optional remote per-app policies unava
 grep -Fq "return AUTO_AD_TARGET;" "$HOOK" || fail "Ad runtime still requires an explicit target list"
 grep -Fq "scanAddedViewTree(added, target, pkg);" "$HOOK" || fail "dynamic inserted Ad containers must be recursively scanned"
 grep -Fq "scanTree(child, added, 1, visited, target, pkg);" "$HOOK" || fail "nested Ad descendants are not inspected after dynamic insertion"
+grep -Fq "lastAddedViewScan" "$HOOK" || fail "duplicate addView callbacks must be deduplicated"
+grep -Fq "now - prior < 300L" "$HOOK" || fail "dynamic Ad scan deduplication window is missing"
 ! grep -Eq 'toggle\("(启动页广告|信息流广告|弹窗 / 插屏广告)"' "$ACTIVITY" || fail "legacy per-app Ad switches must be removed from Hook UI"
 grep -Fq '.append("ads_enabled=1\n")' "$ACTIVITY" || fail "published Hook config must not disable built-in Ad recognition"
 grep -Fq 'cp -p' "$ACTIVITY" || fail "Remote Files publishing must retain a rollback backup"
