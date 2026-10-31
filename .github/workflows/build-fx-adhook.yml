@@ -84,6 +84,11 @@ jobs:
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
           python3 scripts/tests/fx-native-hook-overlay-patcher-regression.py
+          for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh; do
+            [ -f "$test" ] || continue
+            echo "RUN MODULE REGRESSION: $test"
+            sh "$test"
+          done
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
           ET.parse("adhook/app/src/main/AndroidManifest.xml")
