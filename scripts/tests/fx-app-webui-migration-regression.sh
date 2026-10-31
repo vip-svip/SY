@@ -312,6 +312,13 @@ grep -q 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-
 grep -q 'FX 管理界面已迁移到 APP' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "module WebUI migration notice missing"
 grep -q 'assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "complete WebUI missing from packaged APK assertion"
 grep -q 'FXUnifiedHook.zip-entry.apk' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final ZIP APK payload inspection missing"
+grep -q 'Build and embed QuickJS-NG v0.17.0 for Android ARM64' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package workflow must build and embed QuickJS-NG"
+grep -q 'ndk;26.1.10909125' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "QuickJS build must pin Android NDK r26b"
+grep -q 'quickjs-ng/quickjs.git' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "QuickJS build must use the upstream QuickJS-NG repository"
+grep -Fq 'install -m 0755 "$qjs_bin" fx-module/bin/arm64/qjs' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must install ARM64 qjs with executable permissions"
+grep -Fq 'sha256sum qjs > qjs.sha256' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must generate the QJS integrity sidecar"
+grep -Fq 'readelf -h fx-module/bin/arm64/qjs' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must verify the QJS ARM64 ELF architecture"
+grep -Fq 'v1.0.0-quickjs-runtime-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "no-compile regression lane must explicitly classify QJS binary tests"
 suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 retire_line=$(grep -n 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 [ -n "$suite_line" ] && [ -n "$retire_line" ] && [ "$suite_line" -lt "$retire_line" ] || fail "module WebUI must be retired only after original UI regression suite"
