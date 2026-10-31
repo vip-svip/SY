@@ -14,7 +14,7 @@ start = '''    {
 '''
 end = '''    } > "$_gxc_tmp" 2>/dev/null || { rm -f "$_gxc_tmp"; _GXC_ALL_OK=0; continue; }'''
 if source.count(start) != 1 or source.count(end) != 1:
-    if "fx-native-hook-targets-\$_gxc_uid.conf" in source:
+    if "fx-native-hook-targets-$_gxc_uid.conf" in source:
         print("Native Hook config overlay already applied.")
         raise SystemExit(0)
     raise SystemExit("Remote Files generation block changed; refusing unsafe overlay patch")
