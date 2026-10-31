@@ -31,7 +31,7 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     @Override public void onDestroy() {
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
-                .edit().putBoolean("service_connected", false).apply();
+                .edit().putBoolean("service_connected", false).remove("service_pid").apply();
         super.onDestroy();
     }
 }
