@@ -95,6 +95,7 @@ jobs:
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/patch_native_hook_uninstall.py fx-module
           python3 fx-patches/patch_localdns_uninstall_shutdown.py fx-module
+          python3 fx-patches/patch_local_hosts_ipv4_validation.py fx-module
           python3 fx-patches/patch_private_runtime_logs.py fx-module
           python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
