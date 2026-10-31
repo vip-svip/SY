@@ -19,7 +19,7 @@ The complete existing 1.0.0 WebUI is staged into `adhook/app/src/main/assets/web
 
 ## Bottom navigation and system authorization
 
-The native APP shell has six persistent bottom tabs: VPN, Ads + Hosts, Privacy, Scripts, Hook and Settings. Ads and the local system Hosts editor share the existing combined Ads/Rules page; they are deliberately one tab, not separate entries. Settings opens the bundled advanced Settings page. Hook opens the native Hook and authorization hub. The same six-tab bar remains visible while navigating the Hook hub and per-app Hook screens.
+The native APP shell has six persistent bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. Ad page also contains the local system Hosts editor; they are deliberately one tab, not separate entries. Settings opens the bundled advanced Settings page. Hook opens the native Hook and authorization hub. The same six-tab bar remains visible while navigating the Hook hub and per-app Hook screens.
 
 The Hook hub separately reports whether LSPosed Manager is installed and provides a launch shortcut. The user must still enable FX in LSPosed and select target-package scope in the Manager; the APP cannot silently grant LSPosed scope. The unified APK merge step preserves the modern and legacy Xposed entrypoints and injects the LSPosed module metadata/scope resource.
 
@@ -27,8 +27,8 @@ FX also declares an optional Android AccessibilityService. The user must explici
 
 ## Native APP navigation and Hook authorization hub
 
-- The APP shell owns six bottom tabs: VPN, Ads + Hosts, Privacy, Scripts, Hook and Settings. Ads and Hosts are combined in one tab; Settings is the sixth tab. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
-- The Ads + Hosts tab opens the combined Ads/Rules page, where the local system Hosts editor is embedded. The sixth Settings tab opens the advanced Settings page; there is no separate top-toolbar Settings button.
+- The APP shell owns six bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. Ads and Hosts are combined in one tab; Settings is the sixth tab. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
+- The Ad tab opens the combined Ads/Rules page, where the local system Hosts editor is embedded. The sixth Settings tab opens the advanced Settings page; there is no separate top-toolbar Settings button.
 - The Hook tab opens a native authorization hub with LSPosed Manager detection/launch, per-app Hook settings and Android accessibility status.
 - Root, LSPosed module activation/scope, and Android accessibility are independent states. The APP does not infer one from another.
 - The optional accessibility service reports only whether it is connected. It declares `canRetrieveWindowContent=false`, does not inspect event payloads, text, passwords or other-app UI, and cannot perform gestures.
@@ -49,7 +49,7 @@ The KernelSU packaging workflow first copies the complete WebUI into APK assets,
 
 ## Build gate
 
-The KernelSU workflow is the only compile/package workflow. It builds the unified APK once, copies that exact byte-for-byte APK into `optional/FXUnifiedHook.apk`, verifies the APK hash both before and after ZIP packaging, and uploads the same APK as a separate `FX-Hook-apk` artifact. It requires the repository variable `FX_FULL_APP_MIGRATION_COMPLETE=true`. Keep this variable unset until the six-tab routing (VPN, Ads + Hosts, Privacy, Scripts, Hook, Settings), Hook authorization hub, complete WebUI bridge and packaging checks have all passed. The `build-fx-adhook.yml` workflow is static validation only and does not compile. Only then set the variable to enable the single final build.
+The KernelSU workflow is the only compile/package workflow. It builds the unified APK once, copies that exact byte-for-byte APK into `optional/FXUnifiedHook.apk`, verifies the APK hash both before and after ZIP packaging, and uploads the same APK as a separate `FX-Hook-apk` artifact. It requires the repository variable `FX_FULL_APP_MIGRATION_COMPLETE=true`. Keep this variable unset until the six-tab routing (VPN, Ad, Privacy, Scripts, Hook, Settings), Hook authorization hub, complete WebUI bridge and packaging checks have all passed. The `build-fx-adhook.yml` workflow is static validation only and does not compile. Only then set the variable to enable the single final build.
 
 ## Verification boundary
 
