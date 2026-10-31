@@ -7,7 +7,7 @@ s = apply.read_text(encoding="utf-8")
 old = """    if awk '
       { sub(/\\r$/, "") }
 """
-new = """    awk '
+new = """    if awk '
       function valid_ipv4(ip, parts, n, i) {
         n = split(ip, parts, ".")
         if (n != 4) return 0
@@ -33,6 +33,7 @@ test = root / "scripts/tests/v1.0.0-local-hosts-ipv4-validation-regression.sh"
 test_text = r'''#!/system/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+sh -n "$ROOT/scripts/apply.sh"
 T=$(mktemp -d /tmp/fx-local-host-ipv4.XXXXXX)
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 python3 - "$ROOT/scripts/apply.sh" "$T/local-hosts.awk" <<'PY'
