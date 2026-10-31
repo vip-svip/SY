@@ -32,7 +32,7 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
         if old not in s:
             raise SystemExit("missing SOCKS5 YAML patch anchor: " + old[:100])
         s = s.replace(old, new, 1)
-    s = s.replace("# FX_CLASH_TRANSPORT_FIELDS_V1", "# FX_CLASH_TRANSPORT_FIELDS_V1\\n# FX_CLASH_SOCKS_AUTH_V1", 1)
+    s = s.replace("# FX_CLASH_TRANSPORT_FIELDS_V1", "# FX_CLASH_TRANSPORT_FIELDS_V1\n# FX_CLASH_SOCKS_AUTH_V1", 1)
     p.write_text(s, encoding="utf-8")
 
 test = root / "scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh"
