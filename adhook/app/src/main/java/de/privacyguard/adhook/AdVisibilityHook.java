@@ -71,6 +71,9 @@ public final class AdVisibilityHook extends XposedModule {
     private static final String TAG = "FX Hook";
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
+    // addView can fire repeatedly during scrolling; cap each dynamic subtree walk.
+    private static final int MAX_DYNAMIC_AD_SCAN_NODES = 400;
+    private static final int MAX_DYNAMIC_AD_SCAN_DEPTH = 12;
     private static final int MAX_MEMBER_METADATA_PROBES = 512;
     private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
     private static final int MAX_REWARDED_AD_EVIDENCE = 96;
@@ -1271,13 +1274,39 @@ public final class AdVisibilityHook extends XposedModule {
         if (!(added instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) added;
         int childCount;
-        try { childCount = Math.min(group.getChildCount(), 1800); }
+        try { childCount = Math.min(group.getChildCount(), MAX_DYNAMIC_AD_SCAN_NODES); }
         catch (Throwable t) { return; }
         int[] visited = new int[]{0};
-        for (int i = 0; i < childCount && visited[0] < 1800; i++) {
+        for (int i = 0; i < childCount && visited[0] < MAX_DYNAMIC_AD_SCAN_NODES; i++) {
             try {
                 View child = group.getChildAt(i);
-                if (child != null) scanTree(child, added, 1, visited, target, pkg);
+                if (child != null) scanDynamicTree(child, added, 1, visited, target, pkg);
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    private void scanDynamicTree(View view, View root, int depth, int[] count,
+                                 UnifiedHookConfigParser.Target target, String pkg) {
+        if (view == null || depth > MAX_DYNAMIC_AD_SCAN_DEPTH
+                || count[0]++ >= MAX_DYNAMIC_AD_SCAN_NODES) return;
+        if (view != root && shouldHide(view, target)) {
+            try {
+                if (view.getVisibility() != View.GONE) {
+                    view.setVisibility(View.GONE);
+                    logFx(Log.INFO, "hidden dynamically added ad view in " + pkg
+                            + " class=" + shortName(view.getClass().getName()));
+                }
+                return;
+            } catch (Throwable ignored) { }
+        }
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        int childCount;
+        try { childCount = Math.min(group.getChildCount(), MAX_DYNAMIC_AD_SCAN_NODES); }
+        catch (Throwable ignored) { return; }
+        for (int i = 0; i < childCount && count[0] < MAX_DYNAMIC_AD_SCAN_NODES; i++) {
+            try {
+                scanDynamicTree(group.getChildAt(i), root, depth + 1, count, target, pkg);
             } catch (Throwable ignored) { }
         }
     }
