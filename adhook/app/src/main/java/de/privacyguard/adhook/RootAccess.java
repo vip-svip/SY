@@ -30,13 +30,14 @@ public final class RootAccess {
             return new Result(2, "Root 命令为空或超过 128 KiB 限制", false);
         }
         Process process = null;
+        Thread drain = null;
         StringBuilder output = new StringBuilder();
         final int limit = Math.max(1024, Math.min(outputLimit, DEFAULT_OUTPUT_LIMIT));
         try {
             process = new ProcessBuilder("su", "-c", command)
                     .redirectErrorStream(true).start();
             final Process running = process;
-            Thread drain = new Thread(() -> {
+            drain = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(running.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
@@ -56,14 +57,8 @@ public final class RootAccess {
 
             boolean finished = process.waitFor(Math.max(1000L, timeoutMs), TimeUnit.MILLISECONDS);
             if (!finished) {
-                process.destroy();
-                if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
-                    process.destroyForcibly();
-                    // Reap the su client before returning; otherwise repeated
-                    // timeouts can leave zombie/native process handles behind.
-                    process.waitFor(1500, TimeUnit.MILLISECONDS);
-                }
-                drain.join(1500L);
+                terminateAndReap(process);
+                joinQuietly(drain, 1500L);
                 return new Result(124,
                         "Root 命令超时（" + timeoutMs + " ms）。已请求终止并回收 su 进程；"
                                 + "su 启动的独立子进程不保证全部退出。",
@@ -77,9 +72,46 @@ public final class RootAccess {
             boolean denied = code != 0 && (lower.contains("denied")
                     || lower.contains("拒绝") || lower.contains("permission"));
             return new Result(code, text, denied);
+        } catch (InterruptedException e) {
+            terminateAndReap(process);
+            joinQuietly(drain, 1500L);
+            Thread.currentThread().interrupt();
+            return new Result(130, "Root 命令等待被中断；已请求终止并回收 su 客户端。", false);
         } catch (Exception e) {
-            if (process != null) process.destroyForcibly();
+            terminateAndReap(process);
+            joinQuietly(drain, 1500L);
             return new Result(127, e.getClass().getSimpleName() + ": " + e.getMessage(), false);
+        }
+    }
+
+    /** Best-effort cleanup of the su client; this does not claim to kill detached descendants. */
+    private static void terminateAndReap(Process process) {
+        if (process == null) return;
+        try {
+            if (process.isAlive()) process.destroy();
+            if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(1500, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException interrupted) {
+            process.destroyForcibly();
+            try {
+                process.waitFor(1500, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException again) {
+                Thread.currentThread().interrupt();
+            }
+            Thread.currentThread().interrupt();
+        } catch (Exception ignored) {
+            process.destroyForcibly();
+        }
+    }
+
+    private static void joinQuietly(Thread thread, long timeoutMs) {
+        if (thread == null || thread == Thread.currentThread()) return;
+        try {
+            thread.join(timeoutMs);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 }
