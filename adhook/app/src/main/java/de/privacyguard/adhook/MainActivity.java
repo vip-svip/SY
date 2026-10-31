@@ -239,7 +239,8 @@ public final class MainActivity extends Activity {
             final int index = i;
             TextView item = new TextView(this);
             item.setText(labels[i]);
-            item.setTextSize(14);
+            item.setTextSize(15);
+            item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             item.setGravity(Gravity.CENTER);
             item.setPadding(dp(2), dp(8), dp(2), dp(8));
             styleBottomItem(item, index);
@@ -268,7 +269,7 @@ public final class MainActivity extends Activity {
     private void styleBottomItem(TextView item, int index) {
         boolean selected = index == selectedBottomTab;
         item.setTextColor(selected ? 0xff1769aa : 0xff526170);
-        item.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     }
 
     private void navigateWebPage(String pageId) {
