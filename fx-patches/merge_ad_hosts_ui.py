@@ -86,4 +86,36 @@ edits = [
 for start, end, replacement in sorted(edits, reverse=True):
     html = html[:start] + replacement + html[end:]
 source.write_text(html, encoding="utf-8")
-print("Merged legacy Ad content into pageHosts; retained stable element IDs")
+# Keep Hosts as the canonical page after the merge. The legacy runtime script
+# used to move pageHosts back into pageAd and delete pageHosts, undoing this
+# migration and leaving the second tab mislabeled "Ad".
+nav_pattern = re.compile(r'(<button\b[^>]*class="nav-item[^"]*"[^>]*data-tab=")ad("[^>]*>.*?</svg>)Ad(</button>)', re.S | re.I)
+html, nav_count = nav_pattern.subn(r'\1hosts\2Hosts\3', html, count=1)
+if nav_count != 1:
+    raise SystemExit("cannot safely retarget the legacy Ad tab to Hosts")
+html = html.replace(
+    "var adPage=document.getElementById('pageAd'),rulesPage=document.getElementById('pageHosts');\n"
+    "  if(adPage&&rulesPage){while(rulesPage.firstChild)adPage.appendChild(rulesPage.firstChild);rulesPage.remove();}\n"
+    "  if(!adPage)return;",
+    "var adPage=document.getElementById('pageAd'),rulesPage=document.getElementById('pageHosts');\n"
+    "  if(!rulesPage)return;\n"
+    "  /* pageHosts is canonical; pageAd remains an empty compatibility anchor only. */"
+)
+html = html.replace(
+    "var titles={zh:{vpn:'VPN',ad:'广告规则',privacy:'隐私',script:'脚本',more:'设置'},en:{vpn:'VPN',ad:'Ad & Rules',privacy:'Privacy',script:'Scripts',more:'Settings'}};",
+    "var titles={zh:{vpn:'VPN',hosts:'Hosts',privacy:'隐私',script:'脚本',more:'设置'},en:{vpn:'VPN',hosts:'Hosts',privacy:'Privacy',script:'Scripts',more:'Settings'}};"
+)
+html = html.replace(
+    "document.getElementById('pageAd').classList.toggle('on',t==='ad');",
+    "document.getElementById('pageHosts').classList.toggle('on',t==='hosts');"
+)
+html = html.replace(
+    "var tabNames={zh:{ad:'广告规则',privacy:'隐私',script:'脚本',more:'设置'},en:{ad:'Ad & Rules',privacy:'Privacy',script:'Scripts',more:'Settings'}};",
+    "var tabNames={zh:{hosts:'Hosts',privacy:'隐私',script:'脚本',more:'设置'},en:{hosts:'Hosts',privacy:'Privacy',script:'Scripts',more:'Settings'}};"
+)
+if 'document.getElementById(\'pageAd\').classList.toggle(\'on\',t===\'ad\')' in html:
+    raise SystemExit("legacy Ad tab handler remains active")
+if 'data-tab="ad"' in html:
+    raise SystemExit("legacy Ad navigation target remains")
+source.write_text(html, encoding="utf-8")
+print("Merged legacy Ad content into pageHosts; Hosts navigation is canonical")
