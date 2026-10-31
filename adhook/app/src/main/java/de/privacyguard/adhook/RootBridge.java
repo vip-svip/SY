@@ -37,14 +37,18 @@ public final class RootBridge {
 
     private final Activity activity;
     private final WebView webView;
+    private volatile boolean closed;
 
     public RootBridge(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
     }
 
+    public void close() { closed = true; }
+
     @JavascriptInterface
     public void exec(String command, String callbackName) {
+        if (closed) return;
         if (callbackName == null || !CALLBACK.matcher(callbackName).matches()) return;
         if (command == null || command.length() == 0 || command.length() > 131072) {
             deliver(callbackName, 2, "Root 命令为空或超过 128 KiB 限制", "");
@@ -67,6 +71,10 @@ public final class RootBridge {
                 throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
             }
             byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
+            if (bytes.length > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
+            }
+            if (closed) throw new IllegalStateException("页面已关闭，取消导出");
             String safeName = filename == null ? "FX-export.txt"
                     : filename.replaceAll("[^A-Za-z0-9._-]", "_");
             if (safeName.length() == 0) safeName = "FX-export.txt";
@@ -113,12 +121,19 @@ public final class RootBridge {
     }
 
     private void deliver(String callbackName, int code, String stdout, String stderr) {
+        if (closed || activity.isFinishing()
+                || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
         String callback = JSONObject.quote(callbackName);
         String out = JSONObject.quote(stdout == null ? "" : stdout);
         String err = JSONObject.quote(stderr == null ? "" : stderr);
         String script = "(function(){var n=" + callback
                 + ";var f=window[n];if(typeof f==='function'){try{f("
                 + code + "," + out + "," + err + ")}finally{try{delete window[n]}catch(e){}}}})();";
-        webView.post(() -> webView.evaluateJavascript(script, null));
+        webView.post(() -> {
+            if (!closed && !activity.isFinishing()
+                    && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
+                webView.evaluateJavascript(script, null);
+            }
+        });
     }
 }
