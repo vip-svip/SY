@@ -86,8 +86,8 @@ installer = root / "scripts/install_adhook_app.sh"
 if not installer.is_file():
     raise SystemExit("FX unified Hook installer is missing")
 installer_text = installer.read_text(encoding="utf-8")
-log_anchor = 'mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :\\n'
-log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null\\n'
+log_anchor = 'mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :\n'
+log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null\n'
 if log_init.strip() not in installer_text:
     if installer_text.count(log_anchor) != 1:
         raise SystemExit("Hook installer log initialization anchor changed")
@@ -98,8 +98,8 @@ installer_test = root / "scripts/tests/adhook-app-installer-regression.sh"
 if not installer_test.is_file():
     raise SystemExit("unified Hook installer regression is missing")
 installer_test_text = installer_test.read_text(encoding="utf-8")
-test_anchor = 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"\\n'
-test_addition = test_anchor + '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"\\n'
+test_anchor = 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"\n'
+test_addition = test_anchor + '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"\n'
 if 'installer did not create its log before counting prior lines' not in installer_test_text:
     if installer_test_text.count(test_anchor) != 1:
         raise SystemExit("Hook installer regression log assertion anchor changed")
