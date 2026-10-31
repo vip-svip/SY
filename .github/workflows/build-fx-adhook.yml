@@ -27,6 +27,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ vars.FX_FULL_APP_MIGRATION_COMPLETE == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
