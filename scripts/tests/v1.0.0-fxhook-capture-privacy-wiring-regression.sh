@@ -7,7 +7,7 @@ RUNTIME="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.
 UI="$ROOT/webroot/index.html"
 TESTS="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for key in mic_silence camera_access_block location_access_block mic_access_block; do
+for key in mic_silence camera_access_block location_access_block mic_access_block media_store_query_block; do
   grep -Fq "case \"$key\"" "$PARSER" || fail "parser missing $key"
   grep -Fq ",$key=" "$SERIALIZER" || fail "serializer missing $key"
   grep -Fq "'$key'" "$UI" || fail "target editor missing $key"
@@ -16,6 +16,8 @@ grep -Fq 'installAudioRecordSilenceHooks(pkg)' "$RUNTIME" || fail "AudioRecord s
 grep -Fq 'installCameraAccessBlockHooks(pkg)' "$RUNTIME" || fail "camera access denial runtime not wired"
 grep -Fq 'installLocationAccessBlockHooks(pkg)' "$RUNTIME" || fail "location access denial runtime not wired"
 grep -Fq 'installMicrophoneAccessBlockHooks(pkg)' "$RUNTIME" || fail "microphone start denial runtime not wired"
+grep -Fq 'installMediaStoreQueryBlockHooks(pkg)' "$RUNTIME" || fail "MediaStore query privacy runtime not wired"
+grep -Fq '"media".equals(((Uri) first).getAuthority())' "$RUNTIME" || fail "MediaStore authority scope guard missing"
 grep -Fq 'processPackages.size() != 1' "$RUNTIME" || fail "shared-process fail-open guard missing"
 grep -Fq 'ExceptionMode.PASSTHROUGH' "$RUNTIME" || fail "explicit access denial must use passthrough exception mode"
 grep -Fq 'AudioRecordSilencePolicy.zero(args' "$RUNTIME" || fail "silence policy not called after successful read"
