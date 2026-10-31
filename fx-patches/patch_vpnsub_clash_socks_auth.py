@@ -17,15 +17,15 @@ if "FX_CLASH_SOCKS_AUTH_V1" not in s:
          '  else if (k == "username" || k == "user") username = v'),
         ('_yreality _yws_host _yservice; do',
          '_yreality _yws_host _yservice _yusername; do'),
-        ('      socks5)\n        echo "socks5://\${_yh}:\${_yp}#\${_yn}"',
+        ('      socks5)\n        echo "socks5://${_yh}:${_yp}#${_yn}"',
          '      socks5)\n'
          '        if [ -n "$_yusername" ] || [ -n "$_ypw" ]; then\n'
          '          # Do not silently turn an authenticated SOCKS profile into anonymous access.\n'
          '          [ -n "$_yusername" ] && [ -n "$_ypw" ] || continue\n'
          '          _ysocks_user=$(printf "%s" "$_yusername" | sed "s/%/%25/g; s/@/%40/g; s/:/%3A/g; s/#/%23/g; s/ /%20/g; s/&/%26/g; s/+/%2B/g; s/=/\\%3D/g; s/;/%3B/g")\n'
-         '          echo "socks5://\${_ysocks_user}:\${_ypw_uri}@\${_yh}:\${_yp}#\${_yn_uri}"\n'
+         '          echo "socks5://${_ysocks_user}:${_ypw_uri}@${_yh}:${_yp}#${_yn_uri}"\n'
          '        else\n'
-         '          echo "socks5://\${_yh}:\${_yp}#\${_yn_uri}"\n'
+         '          echo "socks5://${_yh}:${_yp}#${_yn_uri}"\n'
          '        fi'),
     ]
     for old, new in changes:
@@ -39,7 +39,7 @@ test = root / "scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh"
 test.write_text(r'''#!/system/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-T=$(mktemp -d "\${TMPDIR:-/tmp}/fx-clash-socks.XXXXXX")
+T=$(mktemp -d "${TMPDIR:-/tmp}/fx-clash-socks.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 MODDIR="$ROOT" PG="$T/state"; export MODDIR PG
 mkdir -p "$PG/cache"
