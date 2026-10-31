@@ -685,32 +685,46 @@ public final class MainActivity extends Activity {
             String legacyDir="/data/local/tmp/privacyguard";
             String managedFile=legacyDir+"/fx-api101-managed.conf";
             String managedTemp=managedFile+".tmp";
-            String command="set -e; umask 077; mkdir -p '"+moduleDir+"' '"+legacyDir+"'; "
+            String pgDir="/data/adb/privacyguard";
+            String nativeOverlay=pgDir+"/fx-native-hook-targets-"+androidUser+".conf";
+            String nativeOverlayTemp=nativeOverlay+".tmp";
+            String command="set -e; umask 077; mkdir -p '"+moduleDir+"' '"+legacyDir+"' '"+pgDir+"'; "
                     +"printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'; "
+                    +"printf '%s' '"+encoded+"' | base64 -d > '"+nativeOverlayTemp+"'; "
                     +"printf '%s' '"+managedEncoded+"' | base64 -d > '"+managedTemp+"'; "
-                    +"test -s '"+temp+"'; "
+                    +"test -s '"+temp+"' && test -s '"+nativeOverlayTemp+"'; "
                     +"actual_tmp=$(sha256sum '"+temp+"' | cut -d ' ' -f1); "
+                    +"actual_native_tmp=$(sha256sum '"+nativeOverlayTemp+"' | cut -d ' ' -f1); "
                     +"actual_managed_tmp=$(sha256sum '"+managedTemp+"' | cut -d ' ' -f1); "
-                    +"test \"$actual_tmp\" = '"+expectedHash+"' && test \"$actual_managed_tmp\" = '"+managedHash+"'; "
-                    +"chmod 0644 '"+temp+"' '"+managedTemp+"'; chown 0:0 '"+temp+"' '"+managedTemp+"'; "
-                    +"chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+temp+"'; "
+                    +"test \"$actual_tmp\" = '"+expectedHash+"' && test \"$actual_native_tmp\" = '"+expectedHash+"' && test \"$actual_managed_tmp\" = '"+managedHash+"'; "
+                    +"chmod 0644 '"+temp+"' '"+managedTemp+"'; chmod 0600 '"+nativeOverlayTemp+"'; "
+                    +"chown 0:0 '"+temp+"' '"+managedTemp+"' '"+nativeOverlayTemp+"'; "
+                    +"chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+temp+"' '"+pgDir+"' '"+nativeOverlayTemp+"'; "
                     +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedTemp+"'; sync; "
                     +"if [ -e '"+remote+"' ]; then cp -p '"+remote+"' '"+remote+".bak'; else rm -f '"+remote+".bak'; fi; "
                     +"if [ -e '"+managedFile+"' ]; then cp -p '"+managedFile+"' '"+managedFile+".bak'; else rm -f '"+managedFile+".bak'; fi; "
+                    +"if [ -e '"+nativeOverlay+"' ]; then cp -p '"+nativeOverlay+"' '"+nativeOverlay+".bak'; else rm -f '"+nativeOverlay+".bak'; fi; "
                     +"mv -f '"+managedTemp+"' '"+managedFile+"'; "
-                    +"if ! mv -f '"+temp+"' '"+remote+"'; then "
+                    +"if ! mv -f '"+nativeOverlayTemp+"' '"+nativeOverlay+"'; then "
                     +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
-                    +"if ! chmod 0644 '"+remote+"' '"+managedFile+"' || ! chown 0:0 '"+remote+"' '"+managedFile+"' || "
-                    +"! chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+remote+"' || "
+                    +"if ! mv -f '"+temp+"' '"+remote+"'; then "
+                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
+                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
+                    +"if ! chmod 0644 '"+remote+"' '"+managedFile+"' || ! chmod 0600 '"+nativeOverlay+"' || "
+                    +"! chown 0:0 '"+remote+"' '"+managedFile+"' '"+nativeOverlay+"' || "
+                    +"! chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+remote+"' '"+pgDir+"' '"+nativeOverlay+"' || "
                     +"! chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedFile+"'; then "
                     +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
+                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
                     +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; sync; "
                     +"actual=$(sha256sum '"+remote+"' | cut -d ' ' -f1); "
+                    +"actual_native=$(sha256sum '"+nativeOverlay+"' | cut -d ' ' -f1); "
                     +"actual_managed=$(sha256sum '"+managedFile+"' | cut -d ' ' -f1); "
-                    +"if [ \"$actual\" != '"+expectedHash+"' ] || [ \"$actual_managed\" != '"+managedHash+"' ]; then "
+                    +"if [ \"$actual\" != '"+expectedHash+"' ] || [ \"$actual_native\" != '"+expectedHash+"' ] || [ \"$actual_managed\" != '"+managedHash+"' ]; then "
                     +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
+                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
                     +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
-                    +"printf 'SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_managed\"";
+                    +"printf 'SHA256=%s\\nAPI101_OVERLAY_SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_native\" \"$actual_managed\"";
             if(command.length()>131072) throw new IllegalStateException("Root 发布命令超过 128 KiB 上限，请减少目标或自定义规则数量。");
             new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
