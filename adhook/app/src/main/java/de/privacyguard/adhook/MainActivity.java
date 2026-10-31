@@ -234,6 +234,7 @@ public final class MainActivity extends Activity {
     }
     private LinearLayout content;
     private void showAppList() {
+        hookUiVisible = true;
         selectedPackage = null; base("选择应用");
         Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
