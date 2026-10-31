@@ -45,4 +45,6 @@ grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-
 grep -q 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "parallel module WebUI retirement missing"
 grep -q 'FX 管理界面已迁移到 APP' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "module WebUI migration notice missing"
 grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "standalone APK WebUI staging missing"
+grep -q 'merge_hook_single_apk.py' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "standalone APK does not merge both Hook entrypoints"
+grep -q 'android:label="FX"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge does not preserve FX application label"
 echo "PASS: complete FX WebUI is packaged in the app with KernelSU bridge, file import/export, and native Hook entry"
