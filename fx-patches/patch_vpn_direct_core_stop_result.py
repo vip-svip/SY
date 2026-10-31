@@ -45,7 +45,8 @@ grep -Fq 'preserving PID file' "$CORE"
 TMP=$(mktemp -d /tmp/fx-vpn-off-stop.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 awk '
-  /if command -v vpncore_stop/ { copy=1 }
+  /直连模式不需要本地代理核心/ { armed=1 }
+  armed && /if command -v vpncore_stop/ { copy=1 }
   copy { print }
   copy && /^  fi$/ { exit }
 ' "$APPLY" > "$TMP/guard.sh"
