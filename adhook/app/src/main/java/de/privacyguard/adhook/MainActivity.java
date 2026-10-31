@@ -653,12 +653,18 @@ public final class MainActivity extends Activity {
             String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
             String remote=moduleDir+"/fx-hook-targets.conf";
             String temp=remote+".tmp";
-            String command="mkdir -p "+moduleDir+" && echo "+encoded+" | base64 -d > "+temp+" && chmod 600 "+temp+" && mv "+temp+" "+remote;
+            String command="umask 077 && mkdir -p "+moduleDir
+                    +" && printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'"
+                    +" && chmod 600 '"+temp+"' && chown 0:0 '"+temp+"'"
+                    +" && test -s '"+temp+"'"
+                    +" && ( [ ! -e '"+remote+"' ] || cp -p '"+remote+"' '"+remote+".bak' )"
+                    +" && mv -f '"+temp+"' '"+remote+"'"
+                    +" && chmod 600 '"+remote+"' && sha256sum '"+remote+"'";
             new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
                     if(result.exitCode==0) {
-                        new AlertDialog.Builder(this).setMessage("配置已写入 LSPosed Remote Files。请确认 LSPosed Manager 已将 FX Hook 作用域包含目标应用，并强制停止后重新打开目标应用。")
+                        new AlertDialog.Builder(this).setMessage("配置已原子写入 LSPosed Remote Files，并已输出 SHA-256 校验值：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
                             .setPositiveButton("知道了",null).show();
                     } else {
                         new AlertDialog.Builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
