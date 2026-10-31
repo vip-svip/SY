@@ -187,6 +187,9 @@ public final class AdVisibilityHook extends XposedModule {
     private final WeakHashMap<View, Long> lastAddedViewScan = new WeakHashMap<>();
     // Restore the exact pre-hook visibility when an ad view is reused or detached.
     private final WeakHashMap<View, Integer> hiddenAdViews = new WeakHashMap<>();
+    private final WeakHashMap<View, Boolean> externallyChangedAdViews = new WeakHashMap<>();
+    private final ThreadLocal<Boolean> fxVisibilityMutation = ThreadLocal.withInitial(() -> false);
+    private volatile boolean visibilityMutationObserverInstalled;
     private final WeakHashMap<View, View.OnAttachStateChangeListener> hiddenAdViewListeners = new WeakHashMap<>();
     private boolean adsEnabled;
     private boolean privacyEnabled;
@@ -208,6 +211,7 @@ public final class AdVisibilityHook extends XposedModule {
         // Ad recognition is built in and does not depend on Remote Files.
         // Remote Files is needed only for optional per-app privacy/diagnostic policy.
         adsEnabled = true;
+        installVisibilityMutationObserver();
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
         if (remoteFilesAvailable) {
             configLoaded = loadConfig();
@@ -1271,6 +1275,29 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable ignored) {}
     }
 
+    private synchronized void installVisibilityMutationObserver() {
+        if (visibilityMutationObserverInstalled) return;
+        try {
+            Method setter = View.class.getDeclaredMethod("setVisibility", int.class);
+            hook(setter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object receiver = chain.getThisObject();
+                if (receiver instanceof View && !fxVisibilityMutation.get()) {
+                    View changed = (View) receiver;
+                    synchronized (hiddenAdViews) {
+                        if (hiddenAdViews.containsKey(changed)) {
+                            externallyChangedAdViews.put(changed, Boolean.TRUE);
+                        }
+                    }
+                }
+                return chain.proceed();
+            });
+            visibilityMutationObserverInstalled = true;
+            logFx(Log.INFO, "ad visibility mutation observer installed");
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "ad visibility mutation observer unavailable; preserving conservative restore behavior");
+        }
+    }
+
     private void hideAdView(final View view, final String pkg, final String failureLabel) {
         if (view == null || view.getVisibility() == View.GONE) return;
         try {
@@ -1288,7 +1315,9 @@ public final class AdVisibilityHook extends XposedModule {
                 }
             }
             if (view.getVisibility() != View.GONE) {
-                view.setVisibility(View.GONE);
+                fxVisibilityMutation.set(true);
+                try { view.setVisibility(View.GONE); }
+                finally { fxVisibilityMutation.set(false); }
                 logFx(Log.INFO, "hidden ad view in " + pkg
                         + " class=" + shortName(view.getClass().getName()));
             }
@@ -1308,9 +1337,15 @@ public final class AdVisibilityHook extends XposedModule {
         }
         try {
             if (listener != null) view.removeOnAttachStateChangeListener(listener);
-            // Do not overwrite a visibility change made by the target app after FX hid it.
-            if (original != null && view.getVisibility() == View.GONE) {
-                view.setVisibility(original);
+            boolean changedByTarget;
+            synchronized (hiddenAdViews) {
+                changedByTarget = externallyChangedAdViews.remove(view) != null;
+            }
+            // Restore only when no target-app setVisibility call occurred after FX hid it.
+            if (original != null && !changedByTarget && view.getVisibility() == View.GONE) {
+                fxVisibilityMutation.set(true);
+                try { view.setVisibility(original); }
+                finally { fxVisibilityMutation.set(false); }
             }
         } catch (Throwable t) {
             logFx(Log.DEBUG, "ad view visibility restore failed: " + t.getClass().getSimpleName());
