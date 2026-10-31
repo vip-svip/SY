@@ -462,5 +462,12 @@ public class UnifiedHookConfigParserTest {
                 "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
         assertFalse(result.targets.get("com.example.app").microphoneSilence);
     }
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsPackageSegmentsBeginningWithDigits() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
+                "com.123example.app,splash=1\\n");
+    }
+
 }
 
