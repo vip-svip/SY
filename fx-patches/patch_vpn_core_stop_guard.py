@@ -121,6 +121,29 @@ if OUT=$(sh -c '
   echo 'FAIL: stale PID marker was accepted as stopped' >&2; exit 1
 fi
 echo "$OUT" | grep -Fq 'PID 记录仍存在'
+grep -Fq '当前为直连模式，无需启动独立核心' "$APPLY"
+awk '
+  /  vpn-core[)]/ {in_vpn=1}
+  in_vpn && /      status[)]/ {in_status=1}
+  in_status && /^        ;;$/ {in_status=0; status_done=1}
+  status_done && /^      \\*[)]/ {active=1; next}
+  active && /^        ;;$/ {exit}
+  active {print}
+' "$APPLY" > "$TMP/start-body.sh"
+[ -s "$TMP/start-body.sh" ]
+{ echo 'case x in x)'; cat "$TMP/start-body.sh"; echo ';; esac'; } > "$TMP/start-case.sh"
+if OUT=$(sh -c '
+  PG="$1"; export PG
+  pg_get(){ echo direct; }
+  pg_fail(){ echo "FAIL:$2"; }
+  pg_summary(){ :; }
+  vpn_core_ensure(){ echo START_MUST_NOT_RUN; return 0; }
+  . "$2"
+' sh "$TMP/direct" "$TMP/start-case.sh" 2>&1); then
+  echo 'FAIL: direct mode falsely reported a successful core start' >&2; exit 1
+fi
+echo "$OUT" | grep -Fq '当前为直连模式，无需启动独立核心'
+! echo "$OUT" | grep -Fq 'START_MUST_NOT_RUN'
 echo 'FX manual VPN-core stop guard regression: PASS'
 ''', encoding="utf-8")
 test.chmod(0o755)
