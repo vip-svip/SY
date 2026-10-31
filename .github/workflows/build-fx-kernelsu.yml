@@ -59,6 +59,7 @@ jobs:
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
+          python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
       - name: Stage complete FX WebUI inside the APK
         shell: bash
