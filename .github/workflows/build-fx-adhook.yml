@@ -49,6 +49,8 @@ jobs:
           rm -rf fx-module
           mkdir -p fx-module
           cp -a "$source_root/." fx-module/
+          echo "RESTORED_MODULE_SOURCE=$source_root"
+          find fx-module/scripts -maxdepth 2 -type f | sort | head -n 100 || true
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
