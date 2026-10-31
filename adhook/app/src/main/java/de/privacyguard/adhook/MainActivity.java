@@ -249,7 +249,8 @@ public final class MainActivity extends Activity {
             int androidUser=android.os.Process.myUid()/100000;
             String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
             String remote=moduleDir+"/fx-hook-targets.conf";
-            String command="mkdir -p "+moduleDir+" && echo "+encoded+" | base64 -d > "+remote+" && chmod 600 "+remote;
+            String temp=remote+".tmp";
+            String command="mkdir -p "+moduleDir+" && echo "+encoded+" | base64 -d > "+temp+" && chmod 600 "+temp+" && mv "+temp+" "+remote;
             Process proc=Runtime.getRuntime().exec(new String[]{"su","-c",command});
             int code=proc.waitFor();
             if(code==0) {
