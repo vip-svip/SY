@@ -110,6 +110,10 @@ s = remover.read_text(encoding="utf-8")
 s = s.replace("for _pair in 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxadhook'; do",
               "for _pair in 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxunified'; do")
 remover.write_text(s, encoding="utf-8")
+# Keep the repository-level test harness byte-identical to the packaged installer helpers.
+(repo / "scripts").mkdir(parents=True, exist_ok=True)
+shutil.copy2(installer, repo / "scripts/install_adhook_app.sh")
+shutil.copy2(remover, repo / "scripts/remove_adhook_app.sh")
 
 # Rewrite focused regressions to assert one APK and both preserved entrypoints.
 (fx / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh").write_text("""#!/bin/sh
@@ -201,7 +205,7 @@ INSTALLER="$ROOT/fx-module/scripts/install_adhook_app.sh"
 REMOVER="$ROOT/fx-module/scripts/remove_adhook_app.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$INSTALLER" ] && [ -s "$REMOVER" ] || fail "unified installer/remover missing"
-cmp -s "$INSTALLER" "$ROOT/fx-module/scripts/install_adhook_app.sh" || fail "installer drift"
+cmp -s "$INSTALLER" "$ROOT/fx-module/scripts/install_adhook_app.sh" || fail "packaged installer drift"
 TMP="${TMPDIR:-/tmp}/fx-unified-installer-test-$"
 mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
