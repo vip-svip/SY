@@ -55,6 +55,8 @@ jobs:
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           echo "=== HOSTS EDITOR IMPLEMENTATION ==="
           grep -n -B6 -A18 -E 'hostsOpenEditor|/system/etc/hosts|hostsLocalSave|hostsSaveLocal' fx-module/webroot/index.html | head -n 180 || true
+          echo "=== HOSTS JAVASCRIPT REFERENCES ==="
+          grep -n -E 'hostsLocal|hostsEditor|hostsPage|hostsOpen|system/hosts|/hosts|hosts_file|hosts-file' fx-module/webroot/index.html | tail -n 120 || true
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
