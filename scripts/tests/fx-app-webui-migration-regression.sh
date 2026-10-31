@@ -157,6 +157,8 @@ grep -Fq 'FX_MODULE=remove-pending' "$ACTIVITY" || fail "Root status must detect
 grep -Fq 'KSU_TOOL=present' "$ACTIVITY" || fail "KSU executable presence must be reported without claiming daemon health"
 grep -q 'ACTION_ACCESSIBILITY_SETTINGS' "$ACTIVITY" || fail "Android accessibility settings entry missing"
 grep -Fq 'service_connected' "$ACTIVITY" || fail "accessibility status must distinguish system enablement from actual service connection"
+grep -Fq 'service_pid' "$ACTIVITY" || fail "accessibility connected state must reject stale service process markers"
+grep -Fq 'putInt("service_pid", android.os.Process.myPid())' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility service must publish its process identity"
 grep -Fq 'FX 服务已连接' "$ACTIVITY" || fail "accessibility connected state is not reported"
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
 grep -Fq 'onUnbind(Intent intent)' "$APP/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility connection marker must clear on service unbind"
