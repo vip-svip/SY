@@ -368,4 +368,7 @@ grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-adhook.y
 grep -Fq 'gh release upload 1.0.0' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "verified FX 1.0.0 assets must be published to the stable GitHub Release"
 grep -Fq 'dist/FXUnifiedHook.apk' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "GitHub Release must include the standalone unified Hook APK"
 grep -Fq 'sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release checksum manifest must cover both delivered binaries"
+artifact_step_line=$(grep -n 'name: FX-v1.0.0-KernelSU' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
+release_step_line=$(grep -n 'name: Publish verified FX 1.0.0 release assets' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
+[ -n "$artifact_step_line" ] && [ -n "$release_step_line" ] && [ "$artifact_step_line" -lt "$release_step_line" ] || fail "workflow artifacts must upload before GitHub Release publishing can fail"
 echo "PASS: one FX APK owns the complete UI, Root bridge, native Hook entry, and exact KernelSU ZIP payload"
