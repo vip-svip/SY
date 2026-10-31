@@ -10,7 +10,7 @@ target = root / "scripts" / "vpncore.sh"
 if not target.is_file():
     raise SystemExit(f"missing VPN core source: {target}")
 source = target.read_text(encoding="utf-8")
-pattern = re.compile(r"(?ms)^vpncore_default_tag\\(\\) \\{.*?^\\}")
+pattern = re.compile(r"(?ms)^vpncore_default_tag\(\) \{.*?^\}")
 replacement = """vpncore_default_tag() {
   _sel=$(pg_get vpn_node 2>/dev/null)
   _i=0
