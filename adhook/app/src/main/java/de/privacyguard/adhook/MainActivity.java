@@ -7,6 +7,8 @@ import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
+import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewClientCompat;
@@ -40,6 +42,8 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private TextView rootStatus;
     private boolean hookUiVisible;
+    private ValueCallback<Uri[]> fileChooserCallback;
+    private static final int REQUEST_FILE_PICKER = 4101;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -103,7 +107,7 @@ public final class MainActivity extends Activity {
                     while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
                     String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
                     String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'\">"
-                        + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};})();</script>";
+                        + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};window.showSaveFilePicker=async function(opts){var name=(opts&&opts.suggestedName)||'FX-export.txt';return {createWritable:async function(){var value='';return {write:async function(v){value=v;},close:async function(){var blob=value instanceof Blob?value:new Blob([value],{type:'text/plain;charset=utf-8'});var reader=new FileReader();reader.onloadend=function(){var data=String(reader.result||'').split(',').pop();FXRoot.saveBase64(name,data,blob.type||'text/plain');};reader.readAsDataURL(blob);}};}};};})();</script>";
                     int head = html.toLowerCase().indexOf("<head");
                     int close = head >= 0 ? html.indexOf(">", head) : -1;
                     if (close >= 0) html = html.substring(0, close + 1) + shim + html.substring(close + 1);
@@ -119,6 +123,23 @@ public final class MainActivity extends Activity {
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", handler).build();
         webView.addJavascriptInterface(new RootBridge(this, webView), "FXRoot");
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
+                fileChooserCallback = callback;
+                try {
+                    Intent intent = params.createIntent();
+                    startActivityForResult(intent, REQUEST_FILE_PICKER);
+                    return true;
+                } catch (Exception e) {
+                    fileChooserCallback = null;
+                    Toast.makeText(MainActivity.this, "无法打开文件选择器：" + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    return false;
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClientCompat() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return loader.shouldInterceptRequest(request.getUrl());
@@ -133,6 +154,15 @@ public final class MainActivity extends Activity {
         setContentView(root);
         checkRoot(rootStatus, false);
         webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_FILE_PICKER && fileChooserCallback != null) {
+            Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            fileChooserCallback.onReceiveValue(results);
+            fileChooserCallback = null;
+        }
     }
 
     public void showAppListFromBridge() { showAppList(); }
