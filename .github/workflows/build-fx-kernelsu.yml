@@ -57,6 +57,18 @@ jobs:
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+      - name: Stage complete FX WebUI inside the APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s fx-module/webroot/index.html
+          mkdir -p adhook/app/src/main/assets/webroot
+          cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
+          test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          for page in pageVpn pageAd pageHosts pagePrivacy pageScript pageMore; do
+            grep -q "id=\"$page\"" adhook/app/src/main/assets/webroot/index.html
+          done
+          sha256sum adhook/app/src/main/assets/webroot/index.html
       - name: Validate required module files and version
         shell: bash
         run: |
@@ -141,7 +153,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+          sh scripts/tests/fx-app-webui-migration-regression.sh\n          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
           BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
           test -s "$BUILT_APK"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
