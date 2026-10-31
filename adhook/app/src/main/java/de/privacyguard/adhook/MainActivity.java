@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,7 +49,12 @@ public final class MainActivity extends Activity {
     private final List<ApplicationInfo> filtered = new ArrayList<>();
     // Cache labels/icons once; search must not repeatedly query PackageManager.
     private final Map<String, String> appLabels = new HashMap<>();
-    private final Map<String, Drawable> appIcons = new HashMap<>();
+    // Keep the icon cache bounded: users may page through hundreds of installed apps.
+    private final Map<String, Drawable> appIcons = new LinkedHashMap<String, Drawable>(80, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Drawable> eldest) {
+            return size() > 80;
+        }
+    };
     private static final int MAX_APP_ROWS_PER_PAGE = 40;
     private String selectedPackage;
     private String selectedLabel;
