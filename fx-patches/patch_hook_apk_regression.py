@@ -19,7 +19,9 @@ elif new not in src:
 if 'DEXSTR_FILE=$(mktemp)' not in src:
     src = src.replace(
         new,
-        new + "\nDEXSTR_FILE=$(mktemp)\nprintf '%s\\n' \"$DEXSTR\" > \"$DEXSTR_FILE\"\ntrap 'rm -f \"$DEXSTR_FILE\"' EXIT",
+        new + """\nDEXSTR_FILE=$(mktemp)
+printf '%s\\n' "$DEXSTR" > "$DEXSTR_FILE"
+trap 'rm -f "$DEXSTR_FILE"' EXIT""",
         1,
     )
 old_grep = '    printf \'%s\' "$DEXSTR" | grep -q "$token" || fail "compiled hook marker missing: $token"'
