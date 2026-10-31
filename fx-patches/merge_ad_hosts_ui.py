@@ -102,6 +102,10 @@ html = html.replace(
     "  /* pageHosts is canonical; pageAd remains an empty compatibility anchor only. */"
 )
 html = html.replace(
+    "if(overview)adPage.insertBefore(overview,adPage.firstChild);",
+    "if(overview)rulesPage.insertBefore(overview,rulesPage.firstChild);"
+)
+html = html.replace(
     "var titles={zh:{vpn:'VPN',ad:'广告规则',privacy:'隐私',script:'脚本',more:'设置'},en:{vpn:'VPN',ad:'Ad & Rules',privacy:'Privacy',script:'Scripts',more:'Settings'}};",
     "var titles={zh:{vpn:'VPN',hosts:'Hosts',privacy:'隐私',script:'脚本',more:'设置'},en:{vpn:'VPN',hosts:'Hosts',privacy:'Privacy',script:'Scripts',more:'Settings'}};"
 )
