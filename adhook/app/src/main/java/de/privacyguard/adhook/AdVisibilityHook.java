@@ -84,7 +84,18 @@ public final class AdVisibilityHook extends XposedModule {
             "rewarded", "watch video", "watch ad", "claim reward", "earn coins"
     };
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
+            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager",
+            // Never install automatic View interception into Android's core UI,
+            // permission, telephony, package, storage, network or input services.
+            "com.android.systemui", "com.android.settings", "com.android.providers.settings",
+            "com.android.providers.media", "com.android.providers.downloads",
+            "com.android.providers.downloads.ui", "com.android.documentsui",
+            "com.android.permissioncontroller", "com.google.android.permissioncontroller",
+            "com.android.packageinstaller", "com.android.shell", "com.android.phone",
+            "com.android.server.telecom", "com.android.networkstack",
+            "com.android.networkstack.tethering", "com.android.bluetooth", "com.android.nfc",
+            "com.android.inputmethod.latin", "com.google.android.inputmethod.latin",
+            "com.google.android.gms", "com.google.android.gsf", "com.android.vending")));
     private static final String[] AD_CLASS_MARKERS = {
             "com.google.android.gms.ads", "com.bytedance.sdk.openadsdk", "com.pangle",
             "com.qq.e.ads", "com.kwad.sdk", "com.baidu.mobads",
