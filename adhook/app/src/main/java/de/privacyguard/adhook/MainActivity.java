@@ -349,7 +349,8 @@ public final class MainActivity extends Activity {
         boolean accessibilityEnabled = isAccessibilityEnabled();
         android.content.SharedPreferences accessibilityPrefs =
                 getSharedPreferences("fx_accessibility", MODE_PRIVATE);
-        boolean accessibilityConnected = accessibilityPrefs.getBoolean("service_connected", false)
+        boolean accessibilityConnected = FxAccessibilityService.isConnected()
+                && accessibilityPrefs.getBoolean("service_connected", false)
                 && accessibilityPrefs.getInt("service_pid", -1) == android.os.Process.myPid();
         accessibility.setText(!accessibilityEnabled
                 ? "无障碍服务：未启用（需由用户在系统设置中手动开启）"
