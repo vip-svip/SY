@@ -26,7 +26,7 @@ install_one(){
   # Otherwise a failed first install can leave a stale marker that later removes
   # an unrelated user-installed package with the same applicationId.
   if [ "$_was_present" = 0 ]; then
-    rm -f "$_marker" "$_owned" "$_marker.tmp.$" "$_owned.tmp.$" 2>/dev/null
+    rm -f "$_marker" "$_owned" "$_marker.tmp.$$" "$_owned.tmp.$$" 2>/dev/null
   fi
   chmod 0644 "$_stage" 2>/dev/null || :; chown shell:shell "$_stage" 2>/dev/null || :
   command -v restorecon >/dev/null 2>&1 && restorecon "$_stage" 2>/dev/null || :
@@ -34,20 +34,20 @@ install_one(){
   while [ "$_attempt" -le 3 ]; do
     _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
-      if ! (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$") ||
-         ! chmod 0600 "$_marker.tmp.$" 2>/dev/null ||
-         ! mv -f "$_marker.tmp.$" "$_marker" 2>/dev/null ||
+      if ! (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$$") ||
+         ! chmod 0600 "$_marker.tmp.$$" 2>/dev/null ||
+         ! mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null ||
          [ "$(cat "$_marker" 2>/dev/null)" != "$_actual" ]; then
-        rm -f "$_marker.tmp.$" "$_stage" 2>/dev/null
+        rm -f "$_marker.tmp.$$" "$_stage" 2>/dev/null
         log_msg "ERROR: APK installed but its digest ownership record could not be committed"
         return 1
       fi
       if [ "$_was_present" = 0 ]; then
-        if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$") ||
-           ! chmod 0600 "$_owned.tmp.$" 2>/dev/null ||
-           ! mv -f "$_owned.tmp.$" "$_owned" 2>/dev/null ||
+        if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$$") ||
+           ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
+           ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null ||
            [ "$(cat "$_owned" 2>/dev/null)" != "fx-managed-v1" ]; then
-          rm -f "$_owned.tmp.$" "$_marker" "$_stage" 2>/dev/null
+          rm -f "$_owned.tmp.$$" "$_marker" "$_stage" 2>/dev/null
           log_msg "ERROR: APK installed but FX ownership record could not be committed; leaving package untouched"
           return 1
         fi
