@@ -39,6 +39,7 @@ grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.
 grep -q 'android.intent.category.LAUNCHER' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher category missing"
 grep -q 'QUERY_ALL_PACKAGES' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "installed-app visibility permission missing"
 grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "Hook forms do not resize around the on-screen keyboard"
+grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "unified APK manifest generator drops keyboard resize behavior"
 grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
 [ -s "$APK" ] || fail "built Hook APK missing"
