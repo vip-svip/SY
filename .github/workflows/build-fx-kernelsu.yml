@@ -157,6 +157,7 @@ jobs:
           Deployment: ordinary application installed by PackageManager
           INFO
           sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh
           sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
           sh scripts/tests/adhook-app-installer-regression.sh
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
