@@ -231,12 +231,12 @@ public final class MainActivity extends Activity {
     private void checkRoot(TextView state, boolean request) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
         new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute("id -u; test -d /data/adb/modules && echo FX_MODULES_DIR=present || echo FX_MODULES_DIR=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
+            RootAccess.Result result = RootAccess.execute("id -u; test -s /data/adb/modules/privacyguard/module.prop && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop && echo FX_MODULE=present || echo FX_MODULE=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
             runOnUiThread(() -> {
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
                     state.setText("已获得 Root（UID 0）\n" + result.output.trim());
                 } else if (result.denied) {
-                    state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX Hook。");
+                    state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX 应用。");
                 } else {
                     state.setText("Root 不可用或请求失败：\n" + result.output);
                 }
