@@ -60,13 +60,23 @@ text2 = text2.replace(scope_anchor, scope_replacement, 1)
 
 # Load ownership before parsing the optional legacy config. The legacy config
 # may be absent on a clean install; duplicate suppression must still be active.
-load_anchor = '            r.close();\n            // 档位解析：profile'
+# Load ownership at the start of the config-loading method, before any early
+# return for a missing or unreadable legacy xposed.conf. Locate the nearest
+# enclosing Java method from the stable post-read anchor rather than assuming
+# the legacy method's historical name or return type.
+load_anchor = '            r.close();\n            loadApi101Managed();\n            // 档位解析：profile'
 if load_anchor in text2:
     text2 = text2.replace(load_anchor, '            r.close();\n            // 档位解析：profile', 1)
-load_method = re.search(r'(?m)^([ \t]*(?:private|public|protected)\s+(?:static\s+)?(?:synchronized\s+)?(?:boolean|void)\s+loadConf\s*\([^)]*\)\s*\{)', text2)
-if not load_method:
-    raise SystemExit("legacy loadConf method declaration missing")
-load_injection = load_method.group(1) + "\n        loadApi101Managed();"
+close_anchor = '            r.close();\n            // 档位解析：profile'
+close_pos = text2.find(close_anchor)
+if close_pos < 0:
+    raise SystemExit("legacy config parse completion anchor missing")
+method_pattern = re.compile(r'(?m)^[ \t]*(?:(?:public|private|protected|static|final|synchronized)\s+)*[A-Za-z_$][A-Za-z0-9_$<>\[\].?, ]*\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\([^;{}]*\)\s*\{')
+methods = list(method_pattern.finditer(text2, 0, close_pos))
+if not methods:
+    raise SystemExit("legacy config-loading method declaration missing")
+load_method = methods[-1]
+load_injection = load_method.group(0) + "\n        loadApi101Managed();"
 if "loadApi101Managed();" not in text2[load_method.end():load_method.end()+100]:
     text2 = text2[:load_method.start()] + load_injection + text2[load_method.end():]
 
