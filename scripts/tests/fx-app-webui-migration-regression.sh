@@ -358,6 +358,10 @@ grep -Fq 'signingConfig signingConfigs.fxRelease' "$ROOT/adhook/app/build.gradle
 grep -Fq 'SY_BUILD_TOKEN: ${{ secrets.SY_BUILD_TOKEN }}' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must use the existing single protected GitHub token"
 grep -Fq '.github/signing/fx-release.p12.enc' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must restore the persistent encrypted signing vault"
 grep -Fq 'aes-256-cbc' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "persistent signing vault must be encrypted at rest"
+grep -Fq 'if [[ -s "$VAULT_FILE" ]]; then' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release signing must restore the encrypted vault from the checked-out commit"
+grep -Fq 'cp "$VAULT_FILE" "$RUNNER_TEMP/fx-release-signing.p12.enc"' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release signing must stage the checked-out encrypted vault before decrypting"
+grep -Fq 'FX signing vault exists but is empty; refusing to generate a replacement signing identity.' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "an empty existing signing vault must fail closed rather than rotate the APK signer"
+! grep -Fq 'VAULT_URL=' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "persistent signer restore must not treat a Contents API read failure as a missing vault"
 grep -Fq ':app:assembleRelease' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "configured signing must build the non-debuggable Release variant"
 grep -Fq 'BUILD_VARIANT="release"' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release build metadata must identify the Release variant"
 grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-adhook.yml" && fail "standalone debug audit workflow must not handle release signing secrets" || :
