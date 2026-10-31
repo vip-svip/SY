@@ -241,8 +241,13 @@ if [ "$_result" = 0 ] && package_present de.privacyguard.hook; then
 fi'''
 if old in s:
     s = s.replace(old, new)
-elif 'install_one de.privacyguard.adhook fxunified' not in s:
-    raise SystemExit("installer dual-APK install anchors missing")
+elif (
+    'install_one de.privacyguard.adhook fxunified' not in s
+    and not ('_slug=fxunifiedhook' in s and 'optional/FXUnifiedHook.apk' in s)
+):
+    raise SystemExit("installer source is neither the known split-APK form nor the reviewed unified-APK form")
+else:
+    print("FX installer already targets the single unified Hook APK.")
 installer.write_text(s, encoding="utf-8")
 
 # The package workflow restores the published module archive before applying
