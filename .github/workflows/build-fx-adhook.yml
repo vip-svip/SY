@@ -204,6 +204,14 @@ jobs:
           grep -q 'id="pageHosts"' "$RUNNER_TEMP/fx-apk-webroot.html"
           mkdir -p fx-module/optional
           cp "$apk" fx-module/optional/FXUnifiedHook.apk
+          sha256sum fx-module/optional/FXUnifiedHook.apk > fx-module/optional/FXUnifiedHook.apk.sha256
+          cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'BUILD_INFO'
+          Build variant: debug-signed APK
+          Build/signing mode: debug-signed
+          Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
+          versionCode: 10000
+          ordinary application deployment
+          BUILD_INFO
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh
