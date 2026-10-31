@@ -86,24 +86,35 @@ installer = root / "scripts/install_adhook_app.sh"
 if not installer.is_file():
     raise SystemExit("FX unified Hook installer is missing")
 installer_text = installer.read_text(encoding="utf-8")
-log_anchor = 'mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :\n'
-log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null\n'
-if log_init.strip() not in installer_text:
-    if installer_text.count(log_anchor) != 1:
+log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null'
+if log_init not in installer_text:
+    lines = installer_text.splitlines(keepends=True)
+    candidates = [
+        i for i, line in enumerate(lines)
+        if line.lstrip().startswith("mkdir -p ")
+        and '"$STATE_DIR"' in line and '"$TMP_DIR"' in line
+    ]
+    if len(candidates) != 1:
         raise SystemExit("Hook installer log initialization anchor changed")
-    installer_text = installer_text.replace(log_anchor, log_anchor + log_init, 1)
+    lines.insert(candidates[0] + 1, log_init + "\n")
+    installer_text = "".join(lines)
 installer.write_text(installer_text, encoding="utf-8")
 
 installer_test = root / "scripts/tests/adhook-app-installer-regression.sh"
 if not installer_test.is_file():
     raise SystemExit("unified Hook installer regression is missing")
 installer_test_text = installer_test.read_text(encoding="utf-8")
-test_anchor = 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"\n'
-test_addition = test_anchor + '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"\n'
-if 'installer did not create its log before counting prior lines' not in installer_test_text:
-    if installer_test_text.count(test_anchor) != 1:
+assertion = '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"'
+if assertion not in installer_test_text:
+    lines = installer_test_text.splitlines(keepends=True)
+    candidates = [
+        i for i, line in enumerate(lines)
+        if 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"' in line
+    ]
+    if len(candidates) != 1:
         raise SystemExit("Hook installer regression log assertion anchor changed")
-    installer_test_text = installer_test_text.replace(test_anchor, test_addition, 1)
+    lines.insert(candidates[0] + 1, assertion + "\n")
+    installer_test_text = "".join(lines)
 installer_test.write_text(installer_test_text, encoding="utf-8")
 
 service_text = service.read_text(encoding="utf-8")
