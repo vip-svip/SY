@@ -7,6 +7,7 @@ STATE_DIR=${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
 TMP_DIR=${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
 LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
 mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :
+: >> "$LOG" 2>/dev/null || LOG=/dev/null
 log_msg(){ _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) install_adhook_app: $*"; printf '%s\n' "$_msg" >> "$LOG" 2>/dev/null || :; printf '%s\n' "$*"; }
 package_present(){ pm path "$1" 2>/dev/null | grep -q '^package:'; }
 install_one(){
