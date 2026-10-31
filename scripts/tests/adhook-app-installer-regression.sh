@@ -15,9 +15,9 @@ cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
 case "$1" in
- path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && echo "package:/data/app/$2/base.apk" || exit 1;;
- install) [ "$2" = -r ] || exit 2; grep -q 'unified apk payload' "$3" || exit 3; if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
- uninstall) sed "/^$2$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed";;
+ path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1;;
+ install) [ "$2" = -r ] || exit 2; grep -q 'unified apk payload' "$3" || exit 3; if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
+ uninstall) sed "/^$2$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$2.apk";;
  *) exit 9;;
 esac
 PM
@@ -46,12 +46,14 @@ if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "fresh signature-mismat
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "failed first install left an FX ownership marker"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 echo de.privacyguard.adhook > "$TMP/pm/installed"
+printf 'user-installed replacement APK\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup after failed install was not safe"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "failed install's stale marker caused user app removal"
 rm -f "$TMP/pm/installed"
 # A pre-existing app may have a digest record, but without the ownership marker
 # the remover must leave the user's package installed.
 echo de.privacyguard.adhook >> "$TMP/pm/installed"
+printf 'pre-existing user APK\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 printf 'digest-only\\n' > "$TMP/state/adhook-apk-fxunifiedhook.sha256"
 rm -f "$TMP/state/adhook-apk-fxunifiedhook.fx-owned"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "safe cleanup of pre-existing package failed"
@@ -59,7 +61,8 @@ grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "pre-existing user 
 # Keep cleanup compatible with the first unified build's historical marker.
 rm -f "$TMP/pm/installed"
 echo de.privacyguard.adhook > "$TMP/pm/installed"
-printf 'legacy-digest\\n' > "$TMP/state/adhook-apk-fxunified.sha256"
+printf 'legacy unified apk\n' > "$TMP/pm/de.privacyguard.adhook.apk"
+sha256sum "$TMP/pm/de.privacyguard.adhook.apk" > "$TMP/state/adhook-apk-fxunified.sha256"
 printf 'fx-managed-v1\\n' > "$TMP/state/adhook-apk-fxunified.fx-owned"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "legacy unified marker cleanup failed"
 [ ! -s "$TMP/pm/installed" ] || fail "legacy FX-owned package was not removed"
@@ -71,6 +74,7 @@ sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "absent package cleanup failed"
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.sha256" ] || fail "stale digest marker retained"
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "stale ownership marker retained"
 echo de.privacyguard.adhook > "$TMP/pm/installed"
+printf 'user reinstalled replacement APK\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup after manual reinstall failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "manual reinstall was removed by stale ownership"
 echo "PASS: unified APK, signature safety, ownership-safe uninstall, and stale-marker cleanup"
