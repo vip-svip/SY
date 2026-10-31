@@ -112,7 +112,7 @@ html = html.replace(
 )
 html = html.replace(
     "var tabNames={zh:{ad:'广告规则',privacy:'隐私',script:'脚本',more:'设置'},en:{ad:'Ad & Rules',privacy:'Privacy',script:'Scripts',more:'Settings'}};",
-    "var tabNames={zh:{hosts:'Hosts',privacy:'隐私',script:'脚本',more:'设置'},en:{hosts:'Hosts',privacy:'Privacy',script:'Scripts',more:'Settings'}};"
+    "var tabNames={zh:{ad:'广告',privacy:'隐私',script:'脚本',more:'设置'},en:{ad:'Ad',privacy:'Privacy',script:'Scripts',more:'Settings'}};"
 )
 if 'document.getElementById(\'pageAd\').classList.toggle(\'on\',t===\'ad\')' in html:
     raise SystemExit("legacy Ad tab handler remains active")
