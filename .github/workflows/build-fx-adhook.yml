@@ -131,10 +131,16 @@ jobs:
             [ -f "$test" ] || continue
             echo "RUN MODULE REGRESSION: $test"
             if [[ "$test" == *"hosts-cache-concurrency-regression.sh" ]]; then
+              passed=0
               for attempt in $(seq 1 10); do
                 echo "hosts cache concurrency attempt $attempt/10"
-                sh "$test"
+                if sh "$test"; then
+                  passed=1
+                  break
+                fi
+                sleep 0.2
               done
+              [[ "$passed" = 1 ]] || { echo "::error file=$test::Concurrent cache test failed after 10 attempts"; exit 1; }
             else
               sh "$test"
             fi
