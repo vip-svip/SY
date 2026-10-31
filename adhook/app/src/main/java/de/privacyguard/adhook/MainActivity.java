@@ -362,6 +362,22 @@ public final class MainActivity extends Activity {
                 || enabled.contains(getPackageName() + "/" + getPackageName() + ".FxAccessibilityService"));
     }
 
+    @Override protected void onPause() {
+        if (webView != null) {
+            webView.onPause();
+            webView.pauseTimers();
+        }
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (webView != null && !hookUiVisible) {
+            webView.onResume();
+            webView.resumeTimers();
+        }
+    }
+
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_FILE_PICKER && fileChooserCallback != null) {
