@@ -124,7 +124,7 @@ public final class MainActivity extends Activity {
         root.setBackgroundColor(0xfff4f6f8);
         ScrollView scroll = new ScrollView(this);
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
-        content.addView(title("FX Hook", 25));
+        content.addView(title("FX", 25));
         TextView h = title(heading, 18); h.setPadding(dp(18), dp(2), dp(18), dp(12)); content.addView(h);
         scroll.addView(content); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root); this.content = content;
