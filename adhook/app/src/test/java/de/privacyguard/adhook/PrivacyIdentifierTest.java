@@ -5,6 +5,16 @@ import static org.junit.Assert.*;
 
 public class PrivacyIdentifierTest {
     @Test
+    public void advertisingIdentifierIsStablePackageScopedAndUuidShaped() {
+        String first = PrivacyIdentifier.forAdvertisingId("com.example.app");
+        assertEquals(first, PrivacyIdentifier.forAdvertisingId("com.example.app"));
+        assertNotEquals(first, PrivacyIdentifier.forAdvertisingId("com.example.other"));
+        assertTrue(first.matches("[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+        assertNull(PrivacyIdentifier.forAdvertisingId(null));
+        assertNull(PrivacyIdentifier.forAdvertisingId(""));
+    }
+
+    @Test
     public void identifierIsStableForTheSamePackageAndDevice() {
         assertEquals(PrivacyIdentifier.forPackage("com.example.app", "device-id-1"),
                 PrivacyIdentifier.forPackage("com.example.app", "device-id-1"));
