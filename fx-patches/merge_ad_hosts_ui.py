@@ -22,12 +22,12 @@ class PageLocator(HTMLParser):
         self.stack = []
         self.pages = {}
 
-    def offset(self):
+    def source_offset(self):
         line, col = self.getpos()
         return self.lines[line - 1] + col
 
     def handle_starttag(self, tag, attrs):
-        start = self.offset()
+        start = self.source_offset()
         raw = self.get_starttag_text()
         attr = dict(attrs)
         page_id = attr.get("id") if attr.get("id") in ("pageAd", "pageHosts") else None
