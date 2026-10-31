@@ -506,7 +506,7 @@ public final class MainActivity extends Activity {
                 String detail = result.output == null ? "" : result.output.trim();
                 if (detail.length() > 500) detail = detail.substring(0, 500) + "…";
                 display = "Remote Files 状态读取失败（退出码 " + result.exitCode + "）。"
-                        + (detail.isEmpty() ? "" : "\\n" + detail);
+                        + (detail.isEmpty() ? "" : "\n" + detail);
             } else {
                 try {
                     JSONObject status = new JSONObject(result.output.trim());
@@ -519,26 +519,26 @@ public final class MainActivity extends Activity {
                     if (!"1".equals(status.optString("hook_native_config_found", "0"))) {
                         display = "Remote Files：" + remoteLabel
                                 + "（目标数 " + status.optInt("hook_remote_targets", 0) + "）"
-                                + "\\n未找到原生 FX Hook 配置文件；请先保存并发布配置。"
-                                + "\\n此状态不证明 LSPosed 作用域或目标进程已注入。";
+                                + "\n未找到原生 FX Hook 配置文件；请先保存并发布配置。"
+                                + "\n此状态不证明 LSPosed 作用域或目标进程已注入。";
                     } else {
                         display = "Remote Files：" + remoteLabel
                                 + "（目标数 " + status.optInt("hook_remote_targets", 0) + "）"
                                 + " · 原生配置用户数 " + status.optInt("hook_native_config_users", 0)
                                 + " · 原生目标数 " + status.optInt("hook_native_targets", 0)
-                                + "\\n通知权限提示：主开关 " + status.optString("hook_native_notification_permission_hide_enabled", "未知")
+                                + "\n通知权限提示：主开关 " + status.optString("hook_native_notification_permission_hide_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_notification_permission_hide_targets", 0)
-                                + "\\n通知监听阻止：主开关 " + status.optString("hook_native_notification_listen_enabled", "未知")
+                                + "\n通知监听阻止：主开关 " + status.optString("hook_native_notification_listen_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_notification_listen_targets", 0)
-                                + "\\n剪贴板隔离：主开关 " + status.optString("hook_native_clipboard_isolate_enabled", "未知")
+                                + "\n剪贴板隔离：主开关 " + status.optString("hook_native_clipboard_isolate_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_clipboard_isolate_targets", 0)
-                                + "\\n会员只读诊断：启用 " + status.optString("hook_native_member_diag_enabled", "未知")
+                                + "\n会员只读诊断：启用 " + status.optString("hook_native_member_diag_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_member_diag_targets", 0)
-                                + "\\n隐私 Hook：主开关 " + status.optString("hook_native_privacy_enabled", "未知")
+                                + "\n隐私 Hook：主开关 " + status.optString("hook_native_privacy_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_privacy_targets", 0)
-                                + "\\nWi-Fi 扫描限制：主开关 " + status.optString("hook_native_wifi_scan_enabled", "未知")
+                                + "\nWi-Fi 扫描限制：主开关 " + status.optString("hook_native_wifi_scan_enabled", "未知")
                                 + "，目标数 " + status.optInt("hook_native_wifi_scan_targets", 0)
-                                + "\\n此状态仅反映设备端原生配置和发布状态；不证明 LSPosed 作用域或目标进程已注入。";
+                                + "\n此状态仅反映设备端原生配置和发布状态；不证明 LSPosed 作用域或目标进程已注入。";
                     }
                 } catch (Exception malformed) {
                     display = "Remote Files 状态返回格式无效，无法确认发布状态。";
