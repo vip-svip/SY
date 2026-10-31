@@ -206,6 +206,8 @@ grep -Fq 'command.length()>131072' "$ACTIVITY" || fail "Root publisher must enfo
 grep -Fq 'sync;' "$ACTIVITY" || fail "Remote Files publish must flush before and after atomic rename"
 grep -Fq "adDetection=automatic(splash/feed/overlay)" "$HOOK" || fail "automatic Ad classifier is not reported by runtime"
 grep -q 'WebViewAssetLoader' "$ACTIVITY" || fail "secure app asset loader missing"
+grep -Fq 'new WebViewAssetLoader.AssetsPathHandler(MainActivity.this)' "$ACTIVITY" || fail "WebView asset fallback must receive an Android Context"
+! grep -Fq 'new WebViewAssetLoader.AssetsPathHandler(getAssets())' "$ACTIVITY" || fail "AssetManager is not a supported AssetsPathHandler constructor argument"
 grep -q 'appassets.androidplatform.net/assets/webroot/index.html' "$ACTIVITY" || fail "WebUI is not loaded from app-owned assets"
 grep -q 'setAllowFileAccess(false)' "$ACTIVITY" || fail "WebView file access must remain disabled"
 grep -q 'setAllowUniversalAccessFromFileURLs(false)' "$ACTIVITY" || fail "universal file URL access must remain disabled"
