@@ -20,9 +20,15 @@ def remove_div_by_id(source: str, element_id: str) -> str:
         re.IGNORECASE,
     )
     matches = list(pattern.finditer(source))
+    if not matches:
+        # Release WebUI may already have retired this legacy entry. Treat the
+        # absent element as the desired state, but reject a same-ID non-div.
+        if re.search(r"""\\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
+            raise SystemExit(f"legacy id {element_id} exists on an unexpected element")
+        return source
     if len(matches) != 1:
         raise SystemExit(
-            f"expected exactly one <div id={element_id}>, found {len(matches)}"
+            f"expected at most one <div id={element_id}>, found {len(matches)}"
         )
     start = matches[0].start()
     depth = 0
@@ -44,9 +50,14 @@ def remove_script_by_id(source: str, element_id: str) -> str:
         re.IGNORECASE | re.DOTALL,
     )
     result, count = pattern.subn("", source)
+    if count == 0:
+        # Already retired in a previously published APK/WebUI.
+        if re.search(r"""\\bid=["']""" + re.escape(element_id) + r"""["']""", source, re.I):
+            raise SystemExit(f"legacy id {element_id} exists outside a script element")
+        return source
     if count != 1:
         raise SystemExit(
-            f"expected exactly one <script id={element_id}>, found {count}"
+            f"expected at most one <script id={element_id}>, found {count}"
         )
     return result
 
