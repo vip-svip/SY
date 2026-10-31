@@ -164,7 +164,9 @@ public final class MainActivity extends Activity {
                         row.append(',').append(k).append('=').append('1'); has=true;
                         if(k.startsWith("ads_")) anyAds=true;
                         if(k.equals("privacy")||k.equals("exif_strip")||k.equals("clipboard_read_block")||
-                           k.equals("clipboard_isolate")||k.startsWith("sensor_")) anyPrivacy=true;
+                           k.equals("clipboard_isolate")||k.equals("mic_silence")||k.equals("camera_access_block")||
+                           k.equals("location_access_block")||k.equals("mic_access_block")||
+                           k.equals("media_store_query_block")||k.startsWith("sensor_")) anyPrivacy=true;
                         if(k.equals("wifi_scan_block")) anyWifi=true;
                         if(k.equals("notification_listen_block")) anyNotif=true;
                         if(k.equals("notification_permission_hide")) anyNotifPerm=true;
@@ -183,8 +185,10 @@ public final class MainActivity extends Activity {
                .append("[list:targets]\n");
             for(String row:rows) cfg.append(row).append('\n');
             String encoded=android.util.Base64.encodeToString(cfg.toString().getBytes("UTF-8"),android.util.Base64.NO_WRAP);
-            String remote="/data/adb/lspd/modules/0/de.privacyguard.adhook/files/fx-hook-targets.conf";
-            String command="mkdir -p /data/adb/lspd/modules/0/de.privacyguard.adhook/files && echo "+encoded+" | base64 -d > "+remote+" && chmod 600 "+remote;
+            int androidUser=android.os.Process.myUid()/100000;
+            String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
+            String remote=moduleDir+"/fx-hook-targets.conf";
+            String command="mkdir -p "+moduleDir+" && echo "+encoded+" | base64 -d > "+remote+" && chmod 600 "+remote;
             Process proc=Runtime.getRuntime().exec(new String[]{"su","-c",command});
             int code=proc.waitFor();
             if(code==0) {
