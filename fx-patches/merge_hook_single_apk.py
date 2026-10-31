@@ -145,15 +145,29 @@ elif 'install_one de.privacyguard.adhook fxunified' not in s:
     raise SystemExit("installer dual-APK install anchors missing")
 installer.write_text(s, encoding="utf-8")
 
-remover = fx / "scripts/remove_adhook_app.sh"
-s = remover.read_text(encoding="utf-8")
-s = s.replace("for _pair in 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxadhook'; do",
-              "for _pair in 'de.privacyguard.hook privacyguardhook' 'de.privacyguard.adhook fxunified'; do")
-remover.write_text(s, encoding="utf-8")
-# Keep the repository-level test harness byte-identical to the packaged installer helpers.
-(repo / "scripts").mkdir(parents=True, exist_ok=True)
-shutil.copy2(installer, repo / "scripts/install_adhook_app.sh")
-shutil.copy2(remover, repo / "scripts/remove_adhook_app.sh")
+# The package workflow restores the published module archive before applying
+# this merge. Always overlay the reviewed repository installers after source
+# restoration; otherwise the ZIP silently ships the archive's older installer
+# and remover even though repository-level tests exercise the newer scripts.
+repo_scripts = repo / "scripts"
+repo_scripts.mkdir(parents=True, exist_ok=True)
+for helper in ("install_adhook_app.sh", "remove_adhook_app.sh"):
+    reviewed = repo_scripts / helper
+    if not reviewed.is_file() or reviewed.stat().st_size < 500:
+        raise SystemExit(f"reviewed repository helper missing or unexpectedly small: {reviewed}")
+    shutil.copy2(reviewed, fx / "scripts" / helper)
+    shutil.copy2(reviewed, repo_scripts / helper)
+
+# The packaged remover must recognize the same ownership markers written by
+# the packaged installer. Guard this invariant before creating the artifact.
+installer_text = (fx / "scripts/install_adhook_app.sh").read_text(encoding="utf-8")
+remover_text = (fx / "scripts/remove_adhook_app.sh").read_text(encoding="utf-8")
+if "adhook-apk-fxunifiedhook.fx-owned" not in installer_text:
+    raise SystemExit("unified installer ownership marker missing")
+if "fxunifiedhook" not in remover_text:
+    raise SystemExit("unified remover ownership marker missing")
+if "optional/FXUnifiedHook.apk" not in installer_text:
+    raise SystemExit("unified APK install path missing")
 
 # Rewrite focused regressions to assert one APK and both preserved entrypoints.
 (fx / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh").write_text("""#!/bin/sh
