@@ -83,6 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
+          python3 scripts/tests/fx-native-hook-overlay-patcher-regression.py
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
           ET.parse("adhook/app/src/main/AndroidManifest.xml")
