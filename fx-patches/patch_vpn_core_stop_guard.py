@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Prevent manual sing-box shutdown while FX proxy routing is configured."""
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
+apply = root / "scripts/apply.sh"
+if not apply.is_file():
+    raise SystemExit("FX apply.sh is missing")
+source = apply.read_text(encoding="utf-8")
+old = '''      stop) vpncore_stop; pg_summary "vpn-core-stop" ;;
+'''
+new = '''      stop)
+        # The standalone UI stop button must never kill sing-box while FX
+        # proxy interception is configured: REDIRECT rules would then target
+        # a dead local listener and strand traffic. Normal VPN-off apply uses
+        # the internal vpncore_stop path only after direct-mode cleanup.
+        if [ "$(pg_get vpn_mode direct)" != "direct" ]; then
+          pg_fail vpn-core "拒绝单独停止核心：FX 代理模式仍启用；请先关闭 VPN（切换直连），由统一应用流程清理流量规则并停止核心"
+          pg_summary "vpn-core-stop"
+          exit 1
+        fi
+        vpncore_stop
+        _stop_rc=$?
+        if [ "$_stop_rc" -eq 0 ] && [ -e "$PG/singbox.pid" ]; then
+          pg_fail vpn-core "核心停止命令返回成功但 PID 记录仍存在；不能确认核心已停止"
+          _stop_rc=1
+        fi
+        pg_summary "vpn-core-stop"
+        exit "$_stop_rc"
+        ;;
+'''
+if old in source:
+    if source.count(old) != 1:
+        raise SystemExit("vpn-core stop branch is ambiguous")
+    source = source.replace(old, new, 1)
+elif new not in source:
+    raise SystemExit("vpn-core stop branch changed; refusing unsafe patch")
+apply.write_text(source, encoding="utf-8")
+
+test = root / "scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh"
+test.parent.mkdir(parents=True, exist_ok=True)
+test.write_text(r'''#!/system/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+APPLY="$ROOT/scripts/apply.sh"
+grep -Fq '拒绝单独停止核心：FX 代理模式仍启用' "$APPLY"
+grep -Fq 'if [ "$(pg_get vpn_mode direct)" != "direct" ]; then' "$APPLY"
+grep -Fq 'if [ "$_stop_rc" -eq 0 ] && [ -e "$PG/singbox.pid" ]; then' "$APPLY"
+TMP=$(mktemp -d /tmp/fx-vpn-core-stop-guard.XXXXXX)
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+awk '
+  /      stop\)/ {active=1}
+  active {print}
+  active && /        ;;/ {exit}
+' "$APPLY" > "$TMP/stop-branch.sh"
+[ -s "$TMP/stop-branch.sh" ]
+
+# Proxy/global/rule/TUN modes: reject before invoking stop.
+for mode in global rule tun; do
+  mkdir -p "$TMP/$mode"; : > "$TMP/$mode/singbox.pid"
+  OUT=$(sh -c '
+    PG="$1"; export PG; mode="$2"; stopped=0; PG_ERRS=0
+    pg_get(){ [ "$1" = vpn_mode ] && { echo "$mode"; return; }; echo "$2"; }
+    pg_fail(){ PG_ERRS=$((PG_ERRS+1)); echo "FAIL:$2"; }
+    pg_summary(){ :; }
+    vpncore_stop(){ stopped=1; return 0; }
+    exit(){ if [ "$1" = 1 ]; then [ "$stopped" -eq 0 ] && [ "$PG_ERRS" -eq 1 ] && [ -e "$PG/singbox.pid" ]; fi; }
+    . "$3"
+  ' sh "$TMP/$mode" "$mode" "$TMP/stop-branch.sh" 2>&1)
+  echo "$OUT" | grep -Fq '拒绝单独停止核心'
+done
+
+# Direct mode: stop is allowed, but success requires removal of the PID marker.
+mkdir -p "$TMP/direct"; : > "$TMP/direct/singbox.pid"
+sh -c '
+  PG="$1"; export PG; PG_ERRS=0
+  pg_get(){ echo direct; }
+  pg_fail(){ PG_ERRS=$((PG_ERRS+1)); }
+  pg_summary(){ :; }
+  vpncore_stop(){ rm -f "$PG/singbox.pid"; return 0; }
+  . "$2"
+' sh "$TMP/direct" "$TMP/stop-branch.sh"
+[ ! -e "$TMP/direct/singbox.pid" ]
+
+# A lying success return with a retained PID marker is converted to failure.
+mkdir -p "$TMP/stale"; : > "$TMP/stale/singbox.pid"
+OUT=$(sh -c '
+  PG="$1"; export PG; PG_ERRS=0
+  pg_get(){ echo direct; }
+  pg_fail(){ PG_ERRS=$((PG_ERRS+1)); echo "FAIL:$2"; }
+  pg_summary(){ :; }
+  vpncore_stop(){ return 0; }
+  . "$2"
+' sh "$TMP/stale" "$TMP/stop-branch.sh" 2>&1 || true)
+echo "$OUT" | grep -Fq 'PID 记录仍存在'
+echo 'FX manual VPN-core stop guard regression: PASS'
+''', encoding="utf-8")
+test.chmod(0o755)
+print("Guarded standalone VPN-core stop against active proxy modes and stale PID ownership.")
