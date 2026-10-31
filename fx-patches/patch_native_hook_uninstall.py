@@ -156,7 +156,7 @@ if [ -f "$REMOVER" ]; then
   }
 fi
 '''
-hook_anchor = "PG_CLEANUP_INCOMPLETE=0\\n"
+hook_anchor = "PG_CLEANUP_INCOMPLETE=0\n"
 if hook_cleanup not in kernel_source:
     if kernel_source.count(hook_anchor) != 1:
         raise SystemExit("KernelSU uninstall Hook cleanup insertion anchor changed")
