@@ -262,7 +262,7 @@ grep -Fq 'item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);' "$ACTIVITY" || fai
 [ "$(grep -Fc "dp(72)" "$ACTIVITY")" -ge 2 ] || fail "six-tab navigation must retain the taller 72dp bar on WebUI and native Hook screens"
 grep -q 'fx-native-nav-hide' "$ACTIVITY" || fail "duplicate WebUI bottom navigation must be hidden"
 grep -q '"pageScript", "pageMore"' "$ACTIVITY" || fail "sixth Settings tab must route to advanced Settings"
-grep -q 'case "pageAd": tab = "hosts"; break;' "$ACTIVITY" || fail "Ad tab must open the merged Hosts/rules page"
+grep -q 'case "pageAd": tab = "ad"; break;' "$ACTIVITY" || fail "Ad tab must activate the embedded Ad compatibility route for merged Hosts/rules"
 ! grep -Fq "getElementById('cardHostsLocal')" "$ACTIVITY" || fail "Ad tab must show the merged page from its top, not hide rules above Hosts"
 grep -Fq 'if (index == 4)' "$ACTIVITY" || fail "sixth navigation slot for Hook is missing"
 grep -Fq '保存并发布 Hook 配置' "$ACTIVITY" || fail "Hook UI must describe publishing without claiming LSPosed scope synchronization"
