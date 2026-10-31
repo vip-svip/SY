@@ -43,26 +43,21 @@ stale_patterns = (
 )
 lines = ui.splitlines()
 normalized = []
-guidance_inserted = False
+guidance = 'ui_print "    Hook 应用列表与按应用配置位于 FX Hook 原生 App 的 Hook 标签页。"'
 for line in lines:
     if line.lstrip().startswith("ui_print") and any(
         re.search(pattern, line, re.IGNORECASE) for pattern in stale_patterns
     ):
-        if not guidance_inserted:
-            normalized.append('ui_print "    Hook 应用列表与按应用配置位于 FX Hook 原生 App 的 Hook 标签页。"')
-            guidance_inserted = True
-        continue
-    normalized.append(line)
-ui = "\n".join(normalized) + ("\n" if ui.endswith("\n") else "")
-if not guidance_inserted and "FX Hook 原生 App 的 Hook 标签页" not in ui:
-    # Add the guidance after the APK install status when present, otherwise at EOF.
-    guidance = 'ui_print "    Hook 应用列表与按应用配置位于 FX Hook 原生 App 的 Hook 标签页。"'
-    status = 'ui_print "  [✓] FX Hook APK 安装/检查完成（这不是 LSPosed 框架本身）"'
-    if status in ui:
-        ui = ui.replace(status, status + "\n" + guidance, 1)
+        # Replace each stale output line in place. Removing one can leave an
+        # otherwise empty if/then block and make customize.sh unparseable.
+        indent = line[:len(line) - len(line.lstrip())]
+        normalized.append(indent + guidance)
     else:
-        ui = ui.rstrip() + "\n" + guidance + "\n"
-if re.search(r"FX\s*WebUI.*Hook|Hook.*目标应用.*管理界面|FXAdHook\s*APK|FX\s*Ad\s*Hook|PrivacyGuardHook", ui, re.IGNORECASE):
+        normalized.append(line)
+ui = "\n".join(normalized) + ("\n" if ui.endswith("\n") else "")
+if re.search(r"FX\\s*WebUI.*Hook|Hook.*目标应用.*管理界面|FXAdHook\\s*APK|FX\\s*Ad\\s*Hook|PrivacyGuardHook", "\n".join(
+    line for line in ui.splitlines() if line.lstrip().startswith("ui_print")
+), re.IGNORECASE):
     raise SystemExit("installer still advertises the retired WebUI/split Hook entry")
 customize.write_text(ui, encoding="utf-8")
 print("Moved uninstall warning helper before first use and updated installer guidance to native FX Hook UI.")
