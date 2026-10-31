@@ -9,14 +9,15 @@ if not generator.is_file():
     raise SystemExit("FX Remote Files generator not found")
 
 source = generator.read_text(encoding="utf-8")
+if "fx-native-hook-targets-$_gxc_uid.conf" in source:
+    print("Native Hook config overlay already applied.")
+    raise SystemExit(0)
+
 start = '''    {
       # Modern unified Hook schema. Keep xposed.conf in its legacy format for
 '''
 end = '''    } > "$_gxc_tmp" 2>/dev/null || { rm -f "$_gxc_tmp"; _GXC_ALL_OK=0; continue; }'''
 if source.count(start) != 1 or source.count(end) != 1:
-    if "fx-native-hook-targets-$_gxc_uid.conf" in source:
-        print("Native Hook config overlay already applied.")
-        raise SystemExit(0)
     raise SystemExit("Remote Files generation block changed; refusing unsafe overlay patch")
 
 prefix = '''    _GXC_NATIVE_CONFIG="$PG/fx-native-hook-targets-$_gxc_uid.conf"
