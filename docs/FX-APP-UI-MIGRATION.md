@@ -42,6 +42,8 @@ FX also declares an optional Android AccessibilityService. The user must explici
 - File imports use Android's system document picker. Exports use MediaStore Downloads on Android 10+ and the app-specific Downloads folder on Android 9.
 - Root is not granted by a manifest permission. KernelSU must authorize the FX app; the UI reports the actual UID 0 result and does not simulate authorization.
 - The native Hook page enumerates installed apps and stores per-target drafts independently. Publishing writes the versioned LSPosed Remote Files config; successful file writing alone does not claim that LSPosed scope or target-process injection is active.
+- Root status separately checks actual UID 0, the FX module's version/disable/remove marker, and whether the KSU command-line tool exists. Tool presence is not reported as proof that the daemon is healthy; module files are not reported as proof of LSPosed injection.
+- Custom Hook rules are observe-only in the native UI and only run for explicitly opted-in debuggable target apps. They record method identity, argument types, elapsed time and exception type, never argument or return values, and never replace VIP/login/update decisions.
 
 ## Single-entry packaging
 
