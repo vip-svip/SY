@@ -256,19 +256,49 @@ jobs:
           BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
           test -s "$BUILT_APK"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$BUILT_APK"
+          APKSIGNER="$SDK_ROOT/build-tools/34.0.0/apksigner"
+          "$APKSIGNER" verify "$BUILT_APK"
+
+          # Optional stable release signing. Never generate or commit a throwaway
+          # release key: the owner must supply the same private keystore secrets
+          # for every update. A partial secret set is a hard error, not a silent
+          # fallback to a different signing identity.
+          export FX_ANDROID_KEYSTORE_BASE64="${{ secrets.FX_ANDROID_KEYSTORE_BASE64 }}"
+          export FX_ANDROID_KEYSTORE_PASSWORD="${{ secrets.FX_ANDROID_KEYSTORE_PASSWORD }}"
+          export FX_ANDROID_KEY_ALIAS="${{ secrets.FX_ANDROID_KEY_ALIAS }}"
+          export FX_ANDROID_KEY_PASSWORD="${{ secrets.FX_ANDROID_KEY_PASSWORD }}"
+          SIGNING_MODE="debug-signed"
+          if [[ -n "$FX_ANDROID_KEYSTORE_BASE64$FX_ANDROID_KEYSTORE_PASSWORD$FX_ANDROID_KEY_ALIAS$FX_ANDROID_KEY_PASSWORD" ]]; then
+            for name in FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD; do
+              [[ -n "${!name}" ]] || { echo "::error::Incomplete FX Android release-signing secrets: $name is missing."; exit 1; }
+            done
+            keystore="$RUNNER_TEMP/fx-release-signing.p12"
+            trap 'rm -f "$keystore"' EXIT
+            printf '%s' "$FX_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            test -s "$keystore"
+            "$APKSIGNER" sign --ks "$keystore" --ks-key-alias "$FX_ANDROID_KEY_ALIAS" \
+              --ks-pass env:FX_ANDROID_KEYSTORE_PASSWORD \
+              --key-pass env:FX_ANDROID_KEY_PASSWORD "$BUILT_APK"
+            "$APKSIGNER" verify --verbose "$BUILT_APK"
+            SIGNING_MODE="release-signed"
+            unset FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD
+          fi
+          echo "Hook APK signing mode: $SIGNING_MODE" >> "$GITHUB_STEP_SUMMARY"
+          "$APKSIGNER" verify --print-certs "$BUILT_APK" | grep 'Signer #1 certificate SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
+
           mkdir -p fx-module/optional
           cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
           BUILT_APK_SHA="$(sha256sum "$BUILT_APK" | awk '{print $1}')"
           EMBEDDED_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
           test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
-          cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'INFO'
-          Build variant: debug-signed APK
-          Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
-          versionCode: 10000
-          Deployment: one ordinary application package installed by PackageManager
-          INFO
+          {
+            echo "Build variant: debug-compiled APK"
+            echo "Signing mode: $SIGNING_MODE"
+            echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
+            echo "versionCode: 10000"
+            echo "Deployment: one ordinary application package installed by PackageManager"
+          } > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt
           sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh
           sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
