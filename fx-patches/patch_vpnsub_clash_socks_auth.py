@@ -95,7 +95,7 @@ vpn_yaml_to_uri "$T/socks.yaml" > "$T/out"
 grep -Fq 'socks5://test%3Auser:p%40ss%2Fw%3Frd@socks-auth.example.com:1080' "$T/out"
 grep -Fq 'socks5://socks-open.example.com:1080' "$T/out"
 . "$ROOT/scripts/vpncore.sh"
-[ "$(urldec 'a%3Ab%40c%2Fd%3Fe%20f%25') " = "a:b@c/d?e f% " ] || { echo 'FAIL: POSIX URI percent decoder'; exit 1; }
+[ "$(urldec 'a%3Ab%40c%2Fd%3Fe%20f%25')" = "a:b@c/d?e f%" ] || { echo 'FAIL: POSIX URI percent decoder'; exit 1; }
 python3 - "$T/out" <<'PY'
 import json,sys,subprocess,os
 uris=open(sys.argv[1]).read().splitlines()
