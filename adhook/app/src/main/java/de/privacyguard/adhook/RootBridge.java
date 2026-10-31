@@ -207,8 +207,16 @@ public final class RootBridge {
 
     @JavascriptInterface
     public void openHookManager() {
+        if (closed || activity.isFinishing()
+                || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
         activity.runOnUiThread(() -> {
-            if (activity instanceof MainActivity) ((MainActivity) activity).showAppListFromBridge();
+            // A bridge call may already be queued when Activity teardown begins.
+            // Re-check lifecycle state on the UI thread before touching its views.
+            if (!closed && !activity.isFinishing()
+                    && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())
+                    && activity instanceof MainActivity) {
+                ((MainActivity) activity).showAppListFromBridge();
+            }
         });
     }
 
