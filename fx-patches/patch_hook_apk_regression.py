@@ -88,5 +88,11 @@ grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard pr
             continue
         kept.append(line)
     scope = "\n".join(kept).rstrip() + "\n\n" + new_ui_block
+    old_ui_path = 'UI="$ROOT/webroot/index.html"'
+    new_ui_path = 'UI="$ROOT/../adhook/app/src/main/assets/webroot/index.html"'
+    if old_ui_path in scope:
+        scope = scope.replace(old_ui_path, new_ui_path, 1)
+    elif new_ui_path not in scope:
+        raise SystemExit("target-scope regression does not inspect the staged native APK WebUI")
     scope_test.write_text(scope, encoding="utf-8")
 print("Updated unified Hook APK and native-only target-scope regression assertions.")
