@@ -284,7 +284,7 @@ public final class MainActivity extends Activity {
         String tabLiteral = JSONObject.quote(tab);
         String script = "(function(){var b=document.querySelector('.nav-item[data-tab='+"
                 + tabLiteral + "+']');if(!b)return false;b.click();"
-                + (pageId.equals("pageHosts")
+                + (pageId.equals("pageAd")
                     ? "setTimeout(function(){var e=document.getElementById('cardHostsLocal');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});},100);"
                     : "")
                 + "return true;})()";
