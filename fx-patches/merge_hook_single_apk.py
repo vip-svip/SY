@@ -58,11 +58,17 @@ if scope_anchor not in text2:
     raise SystemExit("legacy scope field anchor missing")
 text2 = text2.replace(scope_anchor, scope_replacement, 1)
 
+# Load ownership before parsing the optional legacy config. The legacy config
+# may be absent on a clean install; duplicate suppression must still be active.
 load_anchor = '            r.close();\n            // 档位解析：profile'
-load_replacement = '            r.close();\n            loadApi101Managed();\n            // 档位解析：profile'
-if load_anchor not in text2:
-    raise SystemExit("legacy loadConf completion anchor missing")
-text2 = text2.replace(load_anchor, load_replacement, 1)
+if load_anchor in text2:
+    text2 = text2.replace(load_anchor, '            r.close();\n            // 档位解析：profile', 1)
+load_method = re.search(r'(?m)^([ \t]*(?:private|public|protected)\s+(?:synchronized\s+)?void\s+loadConf\s*\([^)]*\)\s*\{)', text2)
+if not load_method:
+    raise SystemExit("legacy loadConf method declaration missing")
+load_injection = load_method.group(1) + "\n        loadApi101Managed();"
+if "loadApi101Managed();" not in text2[load_method.end():load_method.end()+100]:
+    text2 = text2[:load_method.start()] + load_injection + text2[load_method.end():]
 
 helper_anchor = '    private static final Set<String> DISABLED_EVASION_KEYS'
 helper = """    private void loadApi101Managed() {
