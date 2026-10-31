@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fx_accessibility_description">FX 可选辅助服务。仅报告服务连接状态，不读取屏幕文本、不点击、不执行手势。</string>
+</resources>
