@@ -668,6 +668,7 @@ public final class MainActivity extends Activity {
                .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\n')
                .append("[list:targets]\n");
             for(String row:rows) cfg.append(row).append('\n');
+            if(rows.size()>990) throw new IllegalStateException("目标应用配置超过 990 条上限，请缩小 Hook 作用范围。");
             byte[] configBytes=cfg.toString().getBytes("UTF-8");
             if(configBytes.length>65536) throw new IllegalStateException("Hook 配置超过 64 KiB 上限，请减少目标或自定义规则数量。");
             String expectedHash=sha256Hex(configBytes);
