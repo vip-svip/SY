@@ -67,16 +67,22 @@ grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard pr
 """
     # Remove only obsolete WebUI-specific assertions from the archived release
     # test. Preserve backend/status checks, then add authoritative native UI checks.
-    obsolete_ui_tokens = (
+    obsolete_ui_ids = (
         'id="cardFxAdHook"', "id='cardFxAdHook'",
-        "fxHookAppList", "fxHookManage", "if(!loaded)",
-        "member_diag", "会员选项仅做只读", "不伪造 VIP 状态",
+        "fxHookAppList", "fxHookManage",
         "id='fxHookSync'", 'id="fxHookSync"',
+    )
+    obsolete_ui_features = (
+        "if(!loaded)", "member_diag", "exif_strip",
+        "clipboard_read_block", "会员选项仅做只读", "不伪造 VIP 状态",
     )
     kept = []
     for line in scope.splitlines():
-        if any(token in line for token in obsolete_ui_tokens):
-            # Keep the explicit negative WebUI assertions from the new block below.
+        if any(token in line for token in obsolete_ui_ids):
+            continue
+        # Remove UI-only assertions, but retain backend generator/status checks
+        # for the same feature keys (for example member_diag in $GEN).
+        if '"$UI"' in line and any(token in line for token in obsolete_ui_features):
             continue
         if "Hook" in line and "WebUI" in line and line.lstrip().startswith("#"):
             continue
