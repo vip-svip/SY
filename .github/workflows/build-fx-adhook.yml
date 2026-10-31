@@ -54,10 +54,6 @@ jobs:
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
-          echo "=== LEGACY HOOK OWNERSHIP GATE ==="
-          grep -n -A8 'private boolean on(String k)' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
-          echo "=== LEGACY CONFIG KEY REFERENCES ==="
-          grep -oE 'on\("[a-z0-9_]+"\)' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java | sort -u || true
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
           test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
