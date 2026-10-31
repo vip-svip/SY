@@ -96,7 +96,7 @@ repo_root = Path(__file__).resolve().parent.parent
 native_ui = repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 if not native_ui.is_file():
     raise SystemExit("native FX Hook UI source missing: " + str(native_ui))
-tests = repo_root / "scripts/tests"
+tests = module_root / "scripts/tests"
 
 def migrate_test(name, replacements):
     path = tests / name
