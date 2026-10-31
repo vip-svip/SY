@@ -15,7 +15,7 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Restore complete module source from Release when checkout is incomplete
@@ -160,6 +160,36 @@ jobs:
           sh scripts/tests/adhook-app-installer-regression.sh
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
+      - name: Run complete FX host regression suite
+        shell: bash
+        run: |
+          set -uo pipefail
+          mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
+          test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
+          pass=0
+          fail=0
+          timed_out=0
+          mkdir -p "$RUNNER_TEMP/fx-regression-logs"
+          for test_script in "${tests[@]}"; do
+            log="$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").log"
+            if timeout 35s sh "$test_script" >"$log" 2>&1; then
+              pass=$((pass + 1))
+            else
+              rc=$?
+              if [[ "$rc" -eq 124 ]]; then
+                timed_out=$((timed_out + 1))
+                echo "::error file=$test_script::Regression timed out after 35 seconds"
+              else
+                fail=$((fail + 1))
+                echo "::error file=$test_script::Regression failed with exit code $rc"
+              fi
+              tail -n 30 "$log" || true
+            fi
+          done
+          echo "FX regression summary: total=${#tests[@]} pass=$pass fail=$fail timeout=$timed_out"
+          echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
+          echo "pass=$pass fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
       - name: Package and verify KernelSU ZIP
         shell: bash
         run: |
