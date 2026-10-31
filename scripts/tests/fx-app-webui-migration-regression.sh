@@ -84,6 +84,8 @@ grep -Fq 'OBSERVE|0' "$ACTIVITY" || fail "native custom Hook UI must create obse
 ! grep -Fq 'RETURN_FALSE' "$ACTIVITY" || fail "native custom Hook UI must not expose return-value replacement"
 grep -Fq 'MemberTestGate.isEnabled' "$HOOK" || fail "debug-only developer test fixtures must remain behind explicit debug/opt-in gate"
 grep -Fq '仅对可调试版本目标应用生效' "$ACTIVITY" || fail "native Hook UI must explain the debuggable target requirement"
+grep -Fq '目标应用：可调试版本' "$ACTIVITY" || fail "selected target UI must report when custom Hook can execute"
+grep -Fq '目标应用：非调试版本' "$ACTIVITY" || fail "selected target UI must report when custom Hook is inactive"
 grep -Fq 'fx-api101-managed.conf' "$ACTIVITY" || fail "native Hook publisher does not publish legacy duplicate-suppression map"
 grep -Fq 'fx-native-hook-targets-' "$ACTIVITY" || fail "native Hook config must persist across module apply/boot"
 grep -Fq 'nativeOverlayTemp' "$ACTIVITY" || fail "native Hook overlay must be staged before atomic publish"
