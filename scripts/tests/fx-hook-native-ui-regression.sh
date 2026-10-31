@@ -42,16 +42,21 @@ grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/
 grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
 [ -s "$APK" ] || fail "built Hook APK missing"
-# The native Ad tab must activate the merged Hosts container through the embedded WebUI's real "ad" key.
-EMBEDDED_UI="$(unzip -p "$APK" assets/webroot/index.html 2>/dev/null || true)"
-printf '%s\\n' "$EMBEDDED_UI" | grep -Fq 'data-tab="ad"' || fail "embedded WebUI Ad compatibility tab missing"
-printf '%s\\n' "$EMBEDDED_UI" | grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" || fail "embedded Ad tab no longer activates merged Hosts content"
-printf '%s\\n' "$EMBEDDED_UI" | grep -Fq 'id="pageHosts"' || fail "embedded merged Hosts page missing"
+CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/fx-hook-apk-check.XXXXXX")" || fail "cannot create temporary APK check directory"
+trap 'rm -rf "$CHECK_TMP"' EXIT HUP INT TERM
+# Inspect extracted files directly. Piping large command substitutions into grep -q
+# closes the pipe early and causes noisy printf EPIPE errors under dash.
+WEBUI_FILE="$CHECK_TMP/webroot.html"
+unzip -p "$APK" assets/webroot/index.html > "$WEBUI_FILE" || fail "embedded WebUI cannot be extracted"
+grep -Fq 'data-tab="ad"' "$WEBUI_FILE" || fail "embedded WebUI Ad compatibility tab missing"
+grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" "$WEBUI_FILE" || fail "embedded Ad tab no longer activates merged Hosts content"
+grep -Fq 'id="pageHosts"' "$WEBUI_FILE" || fail "embedded merged Hosts page missing"
 [ -x "$AAPT" ] || fail "Android aapt missing"
-BADGING=$("$AAPT" dump badging "$APK")
-printf '%s\n' "$BADGING" | grep -q "^package: name='de.privacyguard.adhook'" || fail "unexpected package id"
-printf '%s\n' "$BADGING" | grep -q "^launchable-activity:" || fail "APK has no launcher activity"
-printf '%s\n' "$BADGING" | grep -q "uses-permission: name='android.permission.QUERY_ALL_PACKAGES'" || fail "APK package visibility permission absent"
+BADGING_FILE="$CHECK_TMP/badging.txt"
+"$AAPT" dump badging "$APK" > "$BADGING_FILE"
+grep -q "^package: name='de.privacyguard.adhook'" "$BADGING_FILE" || fail "unexpected package id"
+grep -q "^launchable-activity:" "$BADGING_FILE" || fail "APK has no launcher activity"
+grep -q "uses-permission: name='android.permission.QUERY_ALL_PACKAGES'" "$BADGING_FILE" || fail "APK package visibility permission absent"
 # Verify the actual APK, not just source-tree declarations, contains both LSPosed entrypoints.
 LEGACY_INIT="$(unzip -p "$APK" assets/xposed_init 2>/dev/null || true)"
 [ "$LEGACY_INIT" = "de.privacyguard.hook.MainHook" ] || fail "legacy Xposed API entrypoint missing from APK"
@@ -60,9 +65,8 @@ MODERN_INIT="$(unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null || tru
 MODULE_PROP="$(unzip -p "$APK" META-INF/xposed/module.prop 2>/dev/null || true)"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'minApiVersion=101' || fail "modern libxposed minimum API metadata missing"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'targetApiVersion=101' || fail "modern libxposed target API metadata missing"
-DEX_TMP="$(mktemp -d "${TMPDIR:-/tmp}/fx-hook-apk-dex.XXXXXX")" || fail "cannot create temporary APK DEX directory"
+DEX_TMP="$CHECK_TMP/dex"
 mkdir -p "$DEX_TMP"
-trap 'rm -rf "$DEX_TMP"' EXIT HUP INT TERM
 unzip -q "$APK" 'classes*.dex' -d "$DEX_TMP" || fail "APK DEX payload could not be extracted"
 for required_class in 'de/privacyguard/hook/MainHook' 'de/privacyguard/adhook/AdVisibilityHook'; do
   class_found=0
