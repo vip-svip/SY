@@ -65,6 +65,8 @@ for legacy_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyr
   grep -Fq "$legacy_key" "$LEGACY_HOOK" || fail "legacy duplicate ownership references unknown key: $legacy_key"
 done
 ! grep -Fq '{"privacy","spoof_android_id"}' "$ACTIVITY" || fail "generic privacy master must not suppress the legacy Android-ID key"
+! grep -Eq 'member_diag|memberDiag|installMember|billing|purchase' "$LEGACY_HOOK" || fail "read-only member diagnostics must not be duplicated by the legacy Hook entrypoint"
+grep -Fq 'installDynamicMemberClassDiscovery' "$HOOK" || fail "read-only member diagnostics must remain owned by the API-101 Hook runtime"
 grep -Fq 'fx-api101-managed.conf' "$ACTIVITY" || fail "native Hook publisher does not publish legacy duplicate-suppression map"
 grep -Fq 'fx-native-hook-targets-' "$ACTIVITY" || fail "native Hook config must persist across module apply/boot"
 grep -Fq 'nativeOverlayTemp' "$ACTIVITY" || fail "native Hook overlay must be staged before atomic publish"
