@@ -119,6 +119,21 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(outState);
     }
 
+    private static boolean isTrustedAssetUrl(Uri uri) {
+        return uri != null
+                && "https".equalsIgnoreCase(uri.getScheme())
+                && "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())
+                && uri.getPort() == -1
+                && uri.getUserInfo() == null
+                && uri.getPath() != null
+                && uri.getPath().startsWith("/assets/");
+    }
+
+    private static boolean isTrustedDocumentUrl(Uri uri) {
+        return isTrustedAssetUrl(uri)
+                && "/assets/webroot/index.html".equals(uri.getPath());
+    }
+
     private String webPageForBottomTab(int index) {
         switch (index) {
             case 1: return "pageAd";
@@ -190,7 +205,7 @@ public final class MainActivity extends Activity {
                     int n;
                     while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
                     String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
-                    String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'\">"
+                    String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'\">"
                         + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};window.showSaveFilePicker=async function(opts){var name=(opts&&opts.suggestedName)||'FX-export.txt';return {createWritable:async function(){var value='';return {write:async function(v){value=v;},close:async function(){var blob=value instanceof Blob?value:new Blob([value],{type:'text/plain;charset=utf-8'});var reader=new FileReader();reader.onloadend=function(){var data=String(reader.result||'').split(',').pop();FXRoot.saveBase64(name,data,blob.type||'text/plain');};reader.readAsDataURL(blob);}};}};};})();</script>";
                     int headEnd = html.toLowerCase().lastIndexOf("</head>");
                     if (headEnd >= 0) html = html.substring(0, headEnd)
@@ -254,16 +269,26 @@ public final class MainActivity extends Activity {
         });
         webView.setWebViewClient(new WebViewClientCompat() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return loader.shouldInterceptRequest(request.getUrl());
+                Uri uri = request.getUrl();
+                String scheme = uri.getScheme();
+                if ("data".equalsIgnoreCase(scheme) || "blob".equalsIgnoreCase(scheme)) return null;
+                if (!isTrustedAssetUrl(uri)) {
+                    return new WebResourceResponse("text/plain", "UTF-8",
+                            new ByteArrayInputStream(new byte[0]));
+                }
+                return loader.shouldInterceptRequest(uri);
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                return !"https".equals(uri.getScheme())
-                        || !"appassets.androidplatform.net".equals(uri.getHost());
+                // addJavascriptInterface is visible to every frame. Refuse iframe and
+                // off-origin document navigations so only the packaged UI can reach RootBridge.
+                return !request.isForMainFrame() || !isTrustedDocumentUrl(request.getUrl());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return !isTrustedDocumentUrl(Uri.parse(url));
             }
             @Override public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                if ("appassets.androidplatform.net".equals(Uri.parse(url).getHost())) {
+                if (isTrustedDocumentUrl(Uri.parse(url))) {
                     webUiReady = true;
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
