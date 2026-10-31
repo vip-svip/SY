@@ -42,7 +42,7 @@ apply.write_text(source, encoding="utf-8")
 # The manual Start core button must not turn that no-op into a false success;
 # only an active proxy mode may start the managed core.
 start_old = '''      *)
-        # 启动失败时把核心日志最后一行回传给WebUI（写 fd3=原始 stdout）。
+        # 启动失败时把核心日志最后一行回传给 WebUI（写 fd3=原始 stdout）。
 '''
 start_new = '''      *)
         if [ "$2" = "start" ] && [ "$(pg_get vpn_mode direct)" = "direct" ]; then
@@ -50,7 +50,7 @@ start_new = '''      *)
           pg_summary "vpn-core"
           exit 1
         fi
-        # 启动失败时把核心日志最后一行回传给WebUI（写 fd3=原始 stdout）。
+        # 启动失败时把核心日志最后一行回传给 WebUI（写 fd3=原始 stdout）。
 '''
 if start_old in source:
     if source.count(start_old) != 1:
