@@ -14,6 +14,7 @@ grep -q "mitmTrafficEnable" "$HTML" || fail "merged Ad certificate/MITM controls
 grep -q 'data-tab="hosts"' "$HTML" || fail "merged page must be reachable from the Hosts tab"
 ! grep -q 'data-tab="ad"' "$HTML" || fail "obsolete Ad navigation tab remains visible"
 grep -q "pageHosts.*classList.toggle('on',t==='hosts')" "$HTML" || fail "Hosts tab does not activate the canonical Hosts page"
+grep -Fq 'rulesPage.insertBefore(overview,rulesPage.firstChild)' "$HTML" || fail "rule overview was moved into the obsolete Ad page"
 ! grep -q "pageAd.*classList.toggle('on',t==='ad')" "$HTML" || fail "legacy Ad page is still activated as a separate tab"
 grep -q "hostsOpenEditor" "$HTML" || fail "local system Hosts editor is missing from the merged page"
 [ -s "$FILEEDIT" ] || fail "privileged paged file editor backend missing"
