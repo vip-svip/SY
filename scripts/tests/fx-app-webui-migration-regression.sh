@@ -111,7 +111,7 @@ grep -Fq 'return enabled > 0;' "$HOOK" || fail "automatic Ad classifier must mat
 grep -Fq 'rule.action == DeveloperHookRule.Action.OBSERVE' "$HOOK" || fail "custom Hook rules must be restricted to read-only observation"
 grep -Fq 'installDeveloperObservationHook(param.getClassLoader(), pkg' "$HOOK" || fail "custom Hook observation rules are parsed but never installed"
 grep -Fq 'target.developerHooksEnabled && debuggableTarget' "$HOOK" || fail "custom Hook must require explicit per-app opt-in and a debuggable target build"
-! grep -Fq 'final boolean developerTestForPackage = false;' "$HOOK" || fail "custom Hook execution must not remain hard-disabled"
+! grep -Fq 'final boolean developerObserveForPackage = false;' "$HOOK" || fail "custom Hook execution must not remain hard-disabled"
 grep -Fq "scanAddedViewTree(added, target, pkg);" "$HOOK" || fail "dynamic inserted Ad containers must be recursively scanned"
 grep -Fq "scanTree(child, added, 1, visited, target, pkg);" "$HOOK" || fail "nested Ad descendants are not inspected after dynamic insertion"
 grep -Fq "lastAddedViewScan" "$HOOK" || fail "duplicate addView callbacks must be deduplicated"
