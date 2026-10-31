@@ -413,8 +413,21 @@ jobs:
           ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
           BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
           test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
-          (cd dist && sha256sum FX-v1.0.0.zip > SHA256SUMS)
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
           (cd dist && sha256sum -c SHA256SUMS)
+      - name: Publish verified FX 1.0.0 release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload 1.0.0 \
+            dist/FX-v1.0.0.zip \
+            dist/FXUnifiedHook.apk \
+            dist/SHA256SUMS \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         with:
           name: FX-Hook-apk
@@ -425,5 +438,6 @@ jobs:
           name: FX-v1.0.0-KernelSU
           path: |
             dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
             dist/SHA256SUMS
           if-no-files-found: error
