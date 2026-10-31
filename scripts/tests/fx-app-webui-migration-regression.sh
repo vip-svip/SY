@@ -65,7 +65,7 @@ grep -Fq 'actual_tmp' "$ACTIVITY" || fail "Remote Files temp file hash must be c
 grep -Fq 'actual=$(sha256sum' "$ACTIVITY" || fail "Remote Files final hash must be recomputed"
 grep -Fq 'actual_managed=$(sha256sum' "$ACTIVITY" || fail "legacy ownership map final hash must be recomputed"
 grep -Fq 'managedHash' "$ACTIVITY" || fail "legacy ownership map expected hash is missing"
-grep -Fq 'sync &&' "$ACTIVITY" || fail "Remote Files publish must flush before and after atomic rename"
+grep -Fq 'sync;' "$ACTIVITY" || fail "Remote Files publish must flush before and after atomic rename"
 grep -Fq "adDetection=automatic(splash/feed/overlay)" "$HOOK" || fail "automatic Ad classifier is not reported by runtime"
 grep -q 'WebViewAssetLoader' "$ACTIVITY" || fail "secure app asset loader missing"
 grep -q 'appassets.androidplatform.net/assets/webroot/index.html' "$ACTIVITY" || fail "WebUI is not loaded from app-owned assets"
