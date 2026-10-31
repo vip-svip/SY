@@ -1201,19 +1201,43 @@ public final class AdVisibilityHook extends XposedModule {
             handler.postDelayed(() -> {
                 try {
                     if (added.getParent() == null) return;
-                    if (shouldHide(added, target)) {
-                        if (added.getVisibility() != View.GONE) {
-                            added.setVisibility(View.GONE);
-                            logFx(Log.INFO, "hidden dynamically added ad view in " + pkg +
-                                    " class=" + shortName(added.getClass().getName()));
-                        }
-                        return;
-                    }
+                    // Inspect the inserted root itself, then recursively inspect its
+                    // descendants. SDKs commonly add a neutral container whose nested
+                    // child is the actual ad view; checking only the root misses it.
+                    scanAddedViewTree(added, target, pkg);
                 } catch (Throwable t) {
                     logFx(Log.DEBUG, "dynamic ad subtree scan failed: " + t.getClass().getSimpleName());
                 }
             }, 80L);
         } catch (Throwable ignored) {}
+    }
+
+    private void scanAddedViewTree(View added, UnifiedHookConfigParser.Target target, String pkg) {
+        if (added == null) return;
+        if (shouldHide(added, target)) {
+            try {
+                if (added.getVisibility() != View.GONE) {
+                    added.setVisibility(View.GONE);
+                    logFx(Log.INFO, "hidden dynamically added ad view in " + pkg +
+                            " class=" + shortName(added.getClass().getName()));
+                }
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "dynamic ad root hide failed: " + t.getClass().getSimpleName());
+            }
+            return;
+        }
+        if (!(added instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) added;
+        int childCount;
+        try { childCount = Math.min(group.getChildCount(), 1800); }
+        catch (Throwable t) { return; }
+        int[] visited = new int[]{0};
+        for (int i = 0; i < childCount && visited[0] < 1800; i++) {
+            try {
+                View child = group.getChildAt(i);
+                if (child != null) scanTree(child, added, 1, visited, target, pkg);
+            } catch (Throwable ignored) { }
+        }
     }
 
     private void scheduleScans(final Activity activity, final UnifiedHookConfigParser.Target target) {
