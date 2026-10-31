@@ -499,7 +499,7 @@ public final class MainActivity extends Activity {
         target.setText("正在读取设备端 Remote Files 状态…");
         Thread worker = new Thread(() -> {
             RootAccess.Result result = RootAccess.execute(
-                    "sh /data/adb/modules/privacyguard/scripts/status.sh",
+                    "sh /data/adb/modules/privacyguard/scripts/status.sh json",
                     30000L, 64 * 1024);
             String display;
             if (result.exitCode != 0) {
