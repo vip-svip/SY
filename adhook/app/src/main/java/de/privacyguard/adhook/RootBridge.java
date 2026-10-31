@@ -17,6 +17,9 @@ import java.io.FileOutputStream;
 import org.json.JSONObject;
 
 import java.util.regex.Pattern;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -38,13 +41,37 @@ public final class RootBridge {
     private final Activity activity;
     private final WebView webView;
     private volatile boolean closed;
+    private final Object taskLock = new Object();
+    private final Set<FutureTask<Void>> activeRootTasks = ConcurrentHashMap.newKeySet();
+
+    private final class TrackedRootTask extends FutureTask<Void> {
+        TrackedRootTask(String command, String callbackName) {
+            super(() -> {
+                if (closed || Thread.currentThread().isInterrupted()) return null;
+                RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
+                deliver(callbackName, result.exitCode, result.output, "");
+                return null;
+            });
+        }
+
+        @Override protected void done() {
+            activeRootTasks.remove(this);
+        }
+    }
 
     public RootBridge(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
     }
 
-    public void close() { closed = true; }
+    public void close() {
+        synchronized (taskLock) {
+            if (closed) return;
+            closed = true;
+            for (FutureTask<Void> task : activeRootTasks) task.cancel(true);
+            activeRootTasks.clear();
+        }
+    }
 
     @JavascriptInterface
     public void exec(String command, String callbackName) {
@@ -54,15 +81,15 @@ public final class RootBridge {
             deliver(callbackName, 2, "Root 命令为空或超过 128 KiB 限制", "");
             return;
         }
+        TrackedRootTask task = new TrackedRootTask(command, callbackName);
         try {
-            ROOT_EXECUTOR.execute(() -> {
-                // Commands waiting in the bounded queue must not run after the
-                // Activity has closed this bridge.
+            synchronized (taskLock) {
                 if (closed) return;
-                RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
-                deliver(callbackName, result.exitCode, result.output, "");
-            });
+                activeRootTasks.add(task);
+                ROOT_EXECUTOR.execute(task);
+            }
         } catch (RejectedExecutionException busy) {
+            activeRootTasks.remove(task);
             deliver(callbackName, 125, "Root 命令队列已满，请等待当前操作完成后重试", "");
         }
     }
