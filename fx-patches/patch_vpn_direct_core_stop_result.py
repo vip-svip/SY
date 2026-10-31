@@ -38,6 +38,7 @@ test = root / "scripts/tests/v1.0.0-vpn-off-requires-core-stop-success-regressio
 test.write_text(r'''#!/system/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+H="${1:-$ROOT/webroot/index.html}"
 APPLY="$ROOT/scripts/apply.sh"
 CORE="$ROOT/scripts/vpncore.sh"
 grep -Fq 'if ! vpncore_stop; then' "$APPLY"
