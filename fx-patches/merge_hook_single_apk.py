@@ -296,6 +296,29 @@ if not canonical_installer_test.is_file():
     raise SystemExit("canonical unified Hook installer regression is missing")
 installer_test.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy2(canonical_installer_test, installer_test)
+
+# The native Hook editor publishes ad_id_unify in the API-101 overlay. Keep
+# module status counts aware of the new per-target privacy feature.
+status_script = fx / "scripts/status.sh"
+if not status_script.is_file():
+    raise SystemExit("module status.sh is missing")
+status_text = status_script.read_text(encoding="utf-8")
+old_privacy_pattern = "privacy=1|exif_strip=1"
+new_privacy_pattern = "privacy=1|ad_id_unify=1|exif_strip=1"
+if old_privacy_pattern in status_text:
+    if status_text.count(old_privacy_pattern) != 2:
+        raise SystemExit("unexpected status.sh privacy target patterns")
+    status_text = status_text.replace(old_privacy_pattern, new_privacy_pattern)
+elif status_text.count(new_privacy_pattern) != 2:
+    raise SystemExit("status.sh ad_id_unify privacy accounting is missing or ambiguous")
+status_script.write_text(status_text, encoding="utf-8")
+
+canonical_adid_test = repo / "scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh"
+packaged_adid_test = fx / "scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh"
+if not canonical_adid_test.is_file():
+    raise SystemExit("canonical advertising ID regression is missing")
+packaged_adid_test.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(canonical_adid_test, packaged_adid_test)
 # Replace old APK test path/metadata assertions while retaining its feature-marker checks.
 adtest = fx / "scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh"
 s = adtest.read_text(encoding="utf-8")
