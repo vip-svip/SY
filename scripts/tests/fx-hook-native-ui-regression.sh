@@ -51,6 +51,13 @@ grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
 grep -q "if (closed || activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "RootBridge does not reject navigation after Activity teardown"
 grep -q "if (!closed && !activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "queued RootBridge navigation does not recheck Activity lifecycle"
+grep -q 'private static boolean isTrustedDocumentUrl(Uri uri)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "WebView main document origin is not allowlisted"
+grep -q 'return !request.isForMainFrame() || !isTrustedDocumentUrl(request.getUrl());' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "untrusted iframe can reach the JavaScript root bridge"
+grep -q 'if (!isTrustedAssetUrl(uri))' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "off-origin WebView subresources are not blocked"
+grep -q "form-action 'none'" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "WebView CSP permits unintended form submissions"
+grep -q 'private void refreshHookRemoteStatus(TextView target)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub lacks live Remote Files status"
+grep -q 'hook_notification_permission_hide_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits notification permission-query status"
+grep -q 'cancelHookStatusRefresh()' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status worker is not cancelled on screen teardown"
 [ -s "$APK" ] || fail "built Hook APK missing"
 CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/fx-hook-apk-check.XXXXXX")" || fail "cannot create temporary APK check directory"
 trap 'rm -rf "$CHECK_TMP"' EXIT HUP INT TERM
