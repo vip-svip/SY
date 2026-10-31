@@ -232,7 +232,7 @@ public final class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER);
         bar.setBackgroundColor(0xffffffff);
-        String[] labels = {"VPN", "广告 + Hosts", "隐私", "脚本", "Hook", "设置"};
+        String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
             TextView item = new TextView(this);
