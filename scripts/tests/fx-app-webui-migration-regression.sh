@@ -22,6 +22,17 @@ grep -q "hostsOpenEditor" "$HTML" || fail "local system Hosts editor is missing 
 [ -s "$FILEEDIT" ] || fail "privileged paged file editor backend missing"
 [ -s "$APPLY" ] || fail "hosts apply pipeline missing"
 [ -s "$UTIL" ] || fail "hosts transaction/mount utility missing"
+[ -s "$ROOT/fx-patches/patch_native_hook_uninstall.py" ] || fail "uninstall safety patch is missing"
+grep -Fq 'patch_native_hook_uninstall.py fx-module' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "Hook APK workflow does not patch uninstall helper ordering"
+grep -Fq 'patch_native_hook_uninstall.py fx-module' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow does not patch uninstall helper ordering"
+UNINSTALL="$ROOT/fx-module/uninstall.sh"
+CUSTOMIZE="$ROOT/fx-module/customize.sh"
+warn_def_line=$(grep -n '^_mitm_warn()' "$UNINSTALL" | head -n1 | cut -d: -f1)
+warn_call_line=$(grep -n '_mitm_warn "scheduler PID' "$UNINSTALL" | head -n1 | cut -d: -f1)
+[ -n "$warn_def_line" ] && [ -n "$warn_call_line" ] && [ "$warn_def_line" -lt "$warn_call_line" ] || fail "uninstall warning helper is called before its definition"
+grep -Fq 'FX Hook 原生 App 的 Hook 标签页' "$CUSTOMIZE" || fail "installer still directs users to the retired WebUI Hook manager"
+! grep -Fq 'FX WebUI「Hook 目标应用」' "$CUSTOMIZE" || fail "installer still advertises the retired WebUI Hook entry"
+! grep -Fq 'FXAdHook APK' "$CUSTOMIZE" || fail "installer still advertises the retired split Hook APK"
 KERNELSU_WORKFLOW="$ROOT/.github/workflows/build-fx-kernelsu.yml"
 grep -Fq "gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk'" "$KERNELSU_WORKFLOW" || fail "KernelSU workflow does not restore the standalone Hook APK release asset"
 HOOK_WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
