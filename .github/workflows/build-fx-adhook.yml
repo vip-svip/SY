@@ -192,7 +192,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook :app:testDebugUnitTest :app:assembleDebug
           apk="adhook/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
