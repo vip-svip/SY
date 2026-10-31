@@ -49,7 +49,7 @@ The CI runs JVM regression tests for valid metadata-bearing rows, disabled targe
 The FX KernelSU archive's root-side generator converts `hook_targets` rows into the versioned Remote Files schema. The old API-82 bridge continues to receive the legacy `xposed.conf`; the API-101 runtime reads only its package-specific Remote Files payload. The two package identities remain distinct until feature migration and package/scope migration are complete:
 com.example.app,splash=1,feed=1,overlay=0,member_diag=1|LSPosed应用Hook|1
 
-Within the API-101 payload, `ads_enabled` and `privacy_enabled` are independent masters; legacy `hook_ads_enabled` is translated by the root-side generator and is not itself the Remote Files schema key. API 101 Remote Files support is required; older legacy-only Xposed hosts won't run this modern module. The module's LSPosed scope is intentionally opt-in: choose each target both in FX and in LSPosed Manager.
+Within the API-101 payload, `ads_enabled` and `privacy_enabled` are independent schema fields; built-in Ad recognition no longer depends on the legacy `hook_ads_enabled` value or a per-app Ad row. Optional privacy policies still use `privacy_enabled` plus per-target flags. API 101 Remote Files support is required for those optional policies; older legacy-only Xposed hosts won't run this modern entrypoint. LSPosed scope remains intentionally opt-in and is selected in LSPosed Manager; FX does not claim to read back module-enabled or per-package scope state.
 
 
 ## Installer boundary
