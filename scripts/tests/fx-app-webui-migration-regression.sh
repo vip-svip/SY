@@ -3,6 +3,9 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 APP="$ROOT/adhook/app/src/main"
 HTML="$APP/assets/webroot/index.html"
+FILEEDIT="$ROOT/fx-module/scripts/fileedit.sh"
+APPLY="$ROOT/fx-module/scripts/apply.sh"
+UTIL="$ROOT/fx-module/scripts/util.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 
 [ -s "$HTML" ] || fail "complete FX WebUI was not staged into APK assets"
@@ -42,9 +45,6 @@ HOOK="$APP/java/de/privacyguard/adhook/AdVisibilityHook.java"
 PARSER="$APP/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
 PARSER_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java"
 ROOT_ACCESS="$APP/java/de/privacyguard/adhook/RootAccess.java"
-FILEEDIT="$ROOT/fx-module/scripts/fileedit.sh"
-APPLY="$ROOT/fx-module/scripts/apply.sh"
-UTIL="$ROOT/fx-module/scripts/util.sh"
 GENERATOR="$ROOT/fx-module/scripts/gen_xposed_conf.sh"
 LEGACY_HOOK="$APP/java/de/privacyguard/hook/MainHook.java"
 MERGE_HOOK="$ROOT/fx-patches/merge_hook_single_apk.py"
