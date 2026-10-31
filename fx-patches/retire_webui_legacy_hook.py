@@ -158,6 +158,41 @@ grep -q 'hook_native_wifi_scan_enabled' "$UI" || fail "native status UI omits Wi
      '''grep -q 'Root 发布失败' "$UI"'''),
     ('''grep -q '仍需在管理器确认模块启用和相同 App 作用域' "$UI"''',
      '''grep -q '目标应用加入作用域' "$UI"'''),
+    ('''grep -q '"hook_remote_status":"%s"' "$STATUS" || fail "remote status missing from JSON"''',
+     '''grep -q '"hook_remote_status":"%s"' "$STATUS" || fail "remote status missing from JSON"
+grep -q '"hook_native_config_found":"%s"' "$STATUS" || fail "native overlay presence missing from JSON"
+grep -q '"hook_native_privacy_enabled":"%s"' "$STATUS" || fail "native privacy status missing from JSON"
+grep -q '"hook_native_wifi_scan_enabled":"%s"' "$STATUS" || fail "native Wi-Fi status missing from JSON"
+grep -q '"hook_native_notification_listen_enabled":"%s"' "$STATUS" || fail "native notification status missing from JSON"
+grep -q '"hook_native_notification_permission_hide_enabled":"%s"' "$STATUS" || fail "native notification permission status missing from JSON"
+grep -q '"hook_native_clipboard_isolate_enabled":"%s"' "$STATUS" || fail "native clipboard status missing from JSON"
+grep -q '"hook_native_member_diag_enabled":"%s"' "$STATUS" || fail "native member diagnostics status missing from JSON"'''),
+    ('''echo "PASS: remote publication status, notification permission-query and clipboard-isolation master/target status, and target scope caveat are surfaced truthfully"''',
+     '''echo "PASS: remote publication status, notification permission-query and clipboard-isolation master/target status, and target scope caveat are surfaced truthfully"
+cat > "$TMP/pg/fx-native-hook-targets-0.conf" <<'NATIVE'
+schema_version=1
+ads_enabled=1
+privacy_enabled=1
+wifi_scan_enabled=1
+notification_listen_enabled=1
+notification_permission_hide_enabled=1
+clipboard_isolate_enabled=1
+[list:targets]
+com.native.app,privacy=1,wifi_scan_block=1,notification_listen_block=1,notification_permission_hide=1,clipboard_isolate=1,member_diag=1
+NATIVE
+OUT=$(PG="$TMP/pg" PG_XPOSED_DIR="$TMP/xposed" sh "$STATUS" json 2>/dev/null) || fail "native overlay status JSON execution failed"
+printf '%s' "$OUT" | grep -q '"hook_native_config_found":"1"' || fail "native overlay not detected"
+printf '%s' "$OUT" | grep -q '"hook_native_config_users":1' || fail "native overlay user count incorrect"
+printf '%s' "$OUT" | grep -q '"hook_native_privacy_enabled":"1"' || fail "native privacy master not read"
+printf '%s' "$OUT" | grep -q '"hook_native_wifi_scan_enabled":"1"' || fail "native Wi-Fi master not read"
+printf '%s' "$OUT" | grep -q '"hook_native_notification_listen_enabled":"1"' || fail "native notification master not read"
+printf '%s' "$OUT" | grep -q '"hook_native_notification_permission_hide_enabled":"1"' || fail "native notification permission master not read"
+printf '%s' "$OUT" | grep -q '"hook_native_clipboard_isolate_enabled":"1"' || fail "native clipboard master not read"
+printf '%s' "$OUT" | grep -q '"hook_native_member_diag_enabled":"1"' || fail "native member diagnostics not derived from targets"
+printf '%s' "$OUT" | grep -q '"hook_native_targets":1' || fail "native target count incorrect"
+printf '%s' "$OUT" | grep -q '"hook_native_notification_permission_hide_targets":1' || fail "native notification permission target count incorrect"
+printf '%s' "$OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(x.hook_native_config_found!=="1"||x.hook_native_targets!==1||x.hook_native_member_diag_enabled!=="1"||x.hook_native_privacy_targets!==1)process.exit(2)})' || fail "native overlay JSON is inconsistent"
+echo "PASS: native Hook status is derived from the unified APK overlay, not legacy settings.conf"'''),
 ])
 migrate_test("v1.0.0-lsposed-sensor-config-regression.sh", [
     ('UI="$ROOT/webroot/index.html"', native_path),
