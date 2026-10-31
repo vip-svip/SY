@@ -202,6 +202,11 @@ jobs:
           unzip -p "$apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-apk-webroot.html"
           grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-apk-webroot.html"
           grep -q 'id="pageHosts"' "$RUNNER_TEMP/fx-apk-webroot.html"
+          mkdir -p fx-module/optional
+          cp "$apk" fx-module/optional/FXUnifiedHook.apk
+          sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh
           sh scripts/tests/fx-hook-native-ui-regression.sh "$apk"
           sha256sum "$apk"
       - name: Upload verified FX Hook APK
