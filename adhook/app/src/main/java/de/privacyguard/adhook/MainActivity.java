@@ -65,6 +65,9 @@ public final class MainActivity extends Activity {
     private String pendingWebPage;
     private ValueCallback<Uri[]> fileChooserCallback;
     private volatile Thread hookPublisherThread;
+    private volatile Thread appLoaderThread;
+    private int appLoadGeneration;
+    private boolean appsLoaded;
     private static final int REQUEST_FILE_PICKER = 4101;
 
     @Override public void onCreate(Bundle state) {
@@ -440,6 +443,10 @@ public final class MainActivity extends Activity {
         Thread publisher = hookPublisherThread;
         hookPublisherThread = null;
         if (publisher != null) publisher.interrupt();
+        Thread appLoader = appLoaderThread;
+        appLoaderThread = null;
+        appLoadGeneration++;
+        if (appLoader != null) appLoader.interrupt();
 
         // Complete pending WebView callbacks before tearing down the view. Otherwise
         // a cancelled document picker can retain the old Activity across recreation.
@@ -559,37 +566,84 @@ public final class MainActivity extends Activity {
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
         TextView hint = new TextView(this); hint.setText("点击应用进入独立 Hook 配置"); hint.setTextColor(0xff66727e);
         hint.setPadding(dp(18), dp(8), dp(18), dp(8)); content.addView(hint);
-        loadApps(); renderApps("");
+        TextView loading = new TextView(this);
+        loading.setText("正在后台读取已安装应用…");
+        loading.setPadding(dp(18), dp(20), dp(18), dp(20));
+        content.addView(loading);
+        appsLoaded = false;
         search.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s,int st,int c,int a) {}
-            public void onTextChanged(CharSequence s,int st,int before,int count) { renderApps(s.toString()); }
+            public void onTextChanged(CharSequence s,int st,int before,int count) {
+                if (appsLoaded) renderApps(s.toString());
+            }
             public void afterTextChanged(Editable e) {}
         });
+        loadAppsAsync();
     }
-    private void loadApps() {
-        apps.clear();
-        appLabels.clear();
-        appIcons.clear();
-        PackageManager pm = getPackageManager();
-        for (ApplicationInfo ai : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
-            if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && ai.packageName.startsWith("com.android.")) continue;
-            if (ai.packageName.equals(getPackageName()) || ai.packageName.equals("android")) continue;
-            apps.add(ai);
+    private void loadAppsAsync() {
+        Thread previous = appLoaderThread;
+        if (previous != null) previous.interrupt();
+        final int generation = ++appLoadGeneration;
+        Thread loader = new Thread(() -> {
+            List<ApplicationInfo> loadedApps = new ArrayList<>();
+            Map<String, String> loadedLabels = new HashMap<>();
+            String failure = null;
             try {
-                CharSequence label = pm.getApplicationLabel(ai);
-                appLabels.put(ai.packageName, label == null ? ai.packageName : label.toString());
-            } catch (RuntimeException unavailable) {
-                // The package may be removed while the PackageManager snapshot is being read.
-                appLabels.put(ai.packageName, ai.packageName);
+                PackageManager pm = getPackageManager();
+                for (ApplicationInfo ai : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                            && ai.packageName.startsWith("com.android.")) continue;
+                    if (ai.packageName.equals(getPackageName()) || ai.packageName.equals("android")) continue;
+                    loadedApps.add(ai);
+                    try {
+                        CharSequence label = pm.getApplicationLabel(ai);
+                        loadedLabels.put(ai.packageName, label == null ? ai.packageName : label.toString());
+                    } catch (RuntimeException unavailable) {
+                        // A package may disappear while the PackageManager snapshot is being read.
+                        loadedLabels.put(ai.packageName, ai.packageName);
+                    }
+                }
+                Collections.sort(loadedApps, new Comparator<ApplicationInfo>() {
+                    public int compare(ApplicationInfo a, ApplicationInfo b) {
+                        return loadedLabels.get(a.packageName)
+                                .compareToIgnoreCase(loadedLabels.get(b.packageName));
+                    }
+                });
+            } catch (RuntimeException error) {
+                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
             }
-        }
-        Collections.sort(apps, new Comparator<ApplicationInfo>() {
-            public int compare(ApplicationInfo a, ApplicationInfo b) {
-                return appLabels.get(a.packageName).compareToIgnoreCase(appLabels.get(b.packageName));
-            }
-        });
+            final String loadFailure = failure;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || generation != appLoadGeneration
+                        || !hookUiVisible || hookHubVisible || hookTargetVisible) return;
+                appLoaderThread = null;
+                apps.clear();
+                apps.addAll(loadedApps);
+                appLabels.clear();
+                appLabels.putAll(loadedLabels);
+                appIcons.clear();
+                appsLoaded = loadFailure == null;
+                while (content.getChildCount() > 4) content.removeViewAt(4);
+                if (loadFailure != null) {
+                    TextView error = new TextView(this);
+                    error.setText("读取应用列表失败：" + loadFailure + "\n请检查应用列表权限后重试。");
+                    error.setPadding(dp(18), dp(20), dp(18), dp(20));
+                    content.addView(error);
+                    Button retry = new Button(this);
+                    retry.setText("重新读取应用列表");
+                    retry.setOnClickListener(v -> loadAppsAsync());
+                    content.addView(retry);
+                } else {
+                    renderApps(search == null ? "" : search.getText().toString());
+                }
+            });
+        }, "fx-app-index");
+        appLoaderThread = loader;
+        loader.start();
     }
     private void renderApps(String query) {
+        if (!appsLoaded) return;
         // Keep the fixed header/search/hint; replace only the dynamic result rows.
         while (content.getChildCount() > 4) content.removeViewAt(4);
         filtered.clear();
