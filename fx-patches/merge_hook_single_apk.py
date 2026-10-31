@@ -44,6 +44,13 @@ elif "Privacy controls are executed by the verbatim legacy MainHook" not in a:
     raise SystemExit("modern module-loaded config anchor missing")
 adhook.write_text(a, encoding="utf-8")
 
+# Mirror the merged Android project into the module source archive as well, so the
+# shipped source tree and repository build tree describe the same single APK.
+module_adhook = fx / "adhook"
+if module_adhook.exists():
+    shutil.rmtree(module_adhook)
+shutil.copytree(repo / "adhook", module_adhook)
+
 (modern / "assets").mkdir(parents=True, exist_ok=True)
 (modern / "res/values").mkdir(parents=True, exist_ok=True)
 shutil.copy2(legacy / "assets/xposed_init", modern / "assets/xposed_init")
