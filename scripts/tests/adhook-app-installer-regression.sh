@@ -36,7 +36,13 @@ grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing package r
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 # A package first installed by FX must be removed on module uninstall.
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "FX-owned package cleanup failed"
-if grep -Fxq de.privacyguard.adhook "$TMP/pm/installed"; then fail "FX-owned package survived cleanup"; fi
+if grep -Fxq de.privacyguard.adhook "$TMP/pm/installed"; then
+  echo "--- installer/remover log ---" >&2; cat "$TMP/state/install.log" >&2 || :
+  echo "--- expected/installed digest ---" >&2; cat "$TMP/state/adhook-apk-fxunifiedhook.sha256" >&2 || :
+  sha256sum "$TMP/pm/de.privacyguard.adhook.apk" >&2 || :
+  echo "--- fake package paths ---" >&2; ls -l "$TMP/pm" >&2 || :
+  fail "FX-owned package survived cleanup"
+fi
 # A failed first install must never leave ownership markers that can later
 # delete an app installed independently by the user.
 rm -f "$TMP/pm/installed" "$TMP/state/adhook-apk-fxunifiedhook.sha256" "$TMP/state/adhook-apk-fxunifiedhook.fx-owned"
