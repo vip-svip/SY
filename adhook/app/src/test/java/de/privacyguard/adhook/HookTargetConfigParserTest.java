@@ -78,4 +78,11 @@ public class HookTargetConfigParserTest {
                 "hook_ads_enabled=1\n[list:hook_targets]\n" +
                 "not-a-package,splash=1\n");
     }
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsPackageSegmentsBeginningWithDigits() {
+        HookTargetConfigParser.parse(
+                "hook_ads_enabled=1\\n[list:hook_targets]\\n" +
+                "com.123example.app,splash=1\\n");
+    }
+
 }
