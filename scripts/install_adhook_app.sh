@@ -22,13 +22,24 @@ install_one(){
   if [ "$_was_present" = 1 ] && [ "$_prior" = "$_actual" ]; then log_msg "unified Hook already installed and unchanged"; return 0; fi
   _stage="$TMP_DIR/.fx-unified-hook-$$.apk"; rm -f "$_stage" 2>/dev/null
   cp "$_apk" "$_stage" 2>/dev/null || { log_msg "ERROR: cannot stage unified APK"; return 1; }
+  # Persist ownership before PackageManager can install the APK. This closes
+  # the crash window where pm install succeeds but power loss prevents the
+  # ownership marker from being written, leaving an orphan after module removal.
+  if [ "$_was_present" = 0 ]; then
+    if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$$") ||
+       ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
+       ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null; then
+      rm -f "$_owned.tmp.$$" "$_stage" 2>/dev/null
+      log_msg "ERROR: cannot persist Hook ownership marker; refusing APK installation"
+      return 1
+    fi
+  fi
   chmod 0644 "$_stage" 2>/dev/null || :; chown shell:shell "$_stage" 2>/dev/null || :
   command -v restorecon >/dev/null 2>&1 && restorecon "$_stage" 2>/dev/null || :
   _attempt=1; _installed=0
   while [ "$_attempt" -le 3 ]; do
     _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
-      if [ "$_was_present" = 0 ]; then (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$$") && chmod 0600 "$_owned.tmp.$$" 2>/dev/null && mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null || log_msg "WARN: ownership marker not persisted"; fi
       (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$$") && chmod 0600 "$_marker.tmp.$$" 2>/dev/null && mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null
       [ "$(cat "$_marker" 2>/dev/null)" = "$_actual" ] && _installed=1
       break
