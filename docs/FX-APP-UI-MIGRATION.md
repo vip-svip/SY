@@ -19,7 +19,7 @@ The complete existing 1.0.0 WebUI is staged into `adhook/app/src/main/assets/web
 
 ## Bottom navigation and system authorization
 
-The native APP shell has six persistent bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. The Ad tab keeps the short label `Ad`, but opens the unified Hosts/Rules content and scrolls directly to the local system Hosts editor card (`cardHostsLocal`). The former Ad controls/rules content belongs to this merged page; removed category master switches are not restored. Rule type recognition and dispatch are handled by the built-in engine. Settings opens the bundled advanced Settings page. Hook opens the native Hook and authorization hub. The same six-tab bar remains visible while navigating the Hook hub and per-app Hook screens.
+The native APP shell has six persistent bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. The Ad tab keeps the short label `Ad`, but opens the merged Hosts/Rules page (`pageHosts`), where ad filtering rules and the local system Hosts editor coexist in one screen. The former Ad controls/rules content belongs to this merged page; removed category master switches are not restored. Rule type recognition and dispatch are handled by the built-in engine. Settings opens the bundled advanced Settings page. Hook opens the native Hook and authorization hub. The same six-tab bar remains visible while navigating the Hook hub and per-app Hook screens.
 
 The Hook hub separately reports whether LSPosed Manager is installed and provides a launch shortcut. The user must still enable FX in LSPosed and select target-package scope in the Manager; the APP cannot silently grant LSPosed scope. The unified APK merge step preserves the modern and legacy Xposed entrypoints and injects the LSPosed module metadata/scope resource.
 
@@ -28,7 +28,7 @@ FX also declares an optional Android AccessibilityService. The user must explici
 ## Native APP navigation and Hook authorization hub
 
 - The APP shell owns six bottom tabs: VPN, Ad, Privacy, Scripts, Hook and Settings. The Ad tab contains the merged Ad/Rules/Hosts content; Settings is the sixth tab. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
-- The Ad tab is a label only: it opens the merged Hosts/Rules content and scrolls to the local Hosts editor card. Do not recreate the removed Ad category master switches; built-in rule recognition selects the handling path. The sixth Settings tab opens the advanced Settings page; there is no separate top-toolbar Settings button.
+- The Ad tab is a label only: it opens the merged Hosts/Rules page from the top so the rule list remains visible alongside the local Hosts editor. Do not recreate the removed Ad category master switches; built-in rule recognition selects the handling path. The sixth Settings tab opens the advanced Settings page; there is no separate top-toolbar Settings button.
 - The Hook tab opens a native authorization hub with LSPosed Manager detection/launch, per-app Hook settings and Android accessibility status.
 - Root, LSPosed module activation/scope, and Android accessibility are independent states. The APP does not infer one from another.
 - The optional accessibility service reports only whether it is connected. It declares `canRetrieveWindowContent=false`, does not inspect event payloads, text, passwords or other-app UI, and cannot perform gestures.
