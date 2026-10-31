@@ -671,7 +671,7 @@ public final class MainActivity extends Activity {
             String expectedHash=sha256Hex(configBytes);
             String encoded=android.util.Base64.encodeToString(configBytes,android.util.Base64.NO_WRAP);
             StringBuilder managedConfig=new StringBuilder();
-            for(String row:legacyManagedRows) managedConfig.append(row).append('\\n');
+            for(String row:legacyManagedRows) managedConfig.append(row).append('\n');
             byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
             String managedHash=sha256Hex(managedBytes);
             String managedEncoded=android.util.Base64.encodeToString(managedBytes,android.util.Base64.NO_WRAP);
