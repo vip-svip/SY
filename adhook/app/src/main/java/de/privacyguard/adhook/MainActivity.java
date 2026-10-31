@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -35,6 +36,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends Activity {
@@ -42,6 +46,10 @@ public final class MainActivity extends Activity {
     private EditText search;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final List<ApplicationInfo> filtered = new ArrayList<>();
+    // Cache labels/icons once; search must not repeatedly query PackageManager.
+    private final Map<String, String> appLabels = new HashMap<>();
+    private final Map<String, Drawable> appIcons = new HashMap<>();
+    private static final int MAX_APP_ROWS_PER_PAGE = 40;
     private String selectedPackage;
     private String selectedLabel;
     private WebView webView;
@@ -560,41 +568,108 @@ public final class MainActivity extends Activity {
     }
     private void loadApps() {
         apps.clear();
+        appLabels.clear();
+        appIcons.clear();
         PackageManager pm = getPackageManager();
         for (ApplicationInfo ai : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
             if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && ai.packageName.startsWith("com.android.")) continue;
             if (ai.packageName.equals(getPackageName()) || ai.packageName.equals("android")) continue;
             apps.add(ai);
+            try {
+                CharSequence label = pm.getApplicationLabel(ai);
+                appLabels.put(ai.packageName, label == null ? ai.packageName : label.toString());
+            } catch (RuntimeException unavailable) {
+                // The package may be removed while the PackageManager snapshot is being read.
+                appLabels.put(ai.packageName, ai.packageName);
+            }
         }
         Collections.sort(apps, new Comparator<ApplicationInfo>() {
             public int compare(ApplicationInfo a, ApplicationInfo b) {
-                return pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString());
+                return appLabels.get(a.packageName).compareToIgnoreCase(appLabels.get(b.packageName));
             }
         });
     }
     private void renderApps(String query) {
+        // Keep the fixed header/search/hint; replace only the dynamic result rows.
         while (content.getChildCount() > 4) content.removeViewAt(4);
-        filtered.clear(); String q=query.toLowerCase();
-        for (ApplicationInfo ai: apps) {
-            String label=getPackageManager().getApplicationLabel(ai).toString();
-            if (label.toLowerCase().contains(q) || ai.packageName.toLowerCase().contains(q)) filtered.add(ai);
+        filtered.clear();
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        for (ApplicationInfo ai : apps) {
+            String label = appLabels.get(ai.packageName);
+            if (label == null) label = ai.packageName;
+            if (label.toLowerCase(Locale.ROOT).contains(q)
+                    || ai.packageName.toLowerCase(Locale.ROOT).contains(q)) filtered.add(ai);
         }
-        for (ApplicationInfo ai: filtered) {
-            LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(16),dp(10),dp(16),dp(10)); row.setBackgroundColor(0xffffffff);
-            ImageView icon=new ImageView(this); icon.setImageDrawable(getPackageManager().getApplicationIcon(ai));
-            row.addView(icon,new LinearLayout.LayoutParams(dp(42),dp(42)));
-            LinearLayout labels=new LinearLayout(this); labels.setOrientation(LinearLayout.VERTICAL);
-            labels.setPadding(dp(12),0,0,0);
-            TextView name=new TextView(this); name.setText(getPackageManager().getApplicationLabel(ai)); name.setTextSize(16); name.setTextColor(0xff17212b);
-            TextView pkg=new TextView(this); pkg.setText(ai.packageName); pkg.setTextSize(11); pkg.setTextColor(0xff75808a);
-            labels.addView(name); labels.addView(pkg);
-            row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
-            TextView arrow=new TextView(this); arrow.setText("›"); arrow.setTextSize(28); arrow.setTextColor(0xff637080); row.addView(arrow);
-            row.setOnClickListener(v -> showTarget(ai)); content.addView(row,new LinearLayout.LayoutParams(-1,-2));
-            View divider=new View(this); divider.setBackgroundColor(0xffe8ebee); content.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
+        if (filtered.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("没有匹配的应用");
+            empty.setPadding(dp(18), dp(20), dp(18), dp(20));
+            content.addView(empty);
+            return;
         }
-        if(filtered.isEmpty()){TextView empty=new TextView(this);empty.setText("没有匹配的应用");empty.setPadding(dp(18),dp(20),dp(18),dp(20));content.addView(empty);}
+        appendAppRows(0, Math.min(MAX_APP_ROWS_PER_PAGE, filtered.size()));
+    }
+
+    private void appendAppRows(int start, int end) {
+        PackageManager pm = getPackageManager();
+        for (int i = start; i < end; i++) {
+            ApplicationInfo ai = filtered.get(i);
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(16), dp(10), dp(16), dp(10));
+            row.setBackgroundColor(0xffffffff);
+            ImageView icon = new ImageView(this);
+            Drawable drawable = appIcons.get(ai.packageName);
+            if (drawable == null) {
+                try {
+                    drawable = pm.getApplicationIcon(ai);
+                } catch (RuntimeException unavailable) {
+                    drawable = getDrawable(android.R.drawable.sym_def_app_icon);
+                }
+                if (drawable != null) appIcons.put(ai.packageName, drawable);
+            }
+            if (drawable != null) icon.setImageDrawable(drawable);
+            row.addView(icon, new LinearLayout.LayoutParams(dp(42), dp(42)));
+            LinearLayout labels = new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            labels.setPadding(dp(12), 0, 0, 0);
+            TextView name = new TextView(this);
+            name.setText(appLabels.containsKey(ai.packageName)
+                    ? appLabels.get(ai.packageName) : ai.packageName);
+            name.setTextSize(16);
+            name.setTextColor(0xff17212b);
+            TextView pkg = new TextView(this);
+            pkg.setText(ai.packageName);
+            pkg.setTextSize(11);
+            pkg.setTextColor(0xff75808a);
+            labels.addView(name);
+            labels.addView(pkg);
+            row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView arrow = new TextView(this);
+            arrow.setText("›");
+            arrow.setTextSize(28);
+            arrow.setTextColor(0xff637080);
+            row.addView(arrow);
+            row.setOnClickListener(v -> showTarget(ai));
+            content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            View divider = new View(this);
+            divider.setBackgroundColor(0xffe8ebee);
+            content.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+        }
+        if (end < filtered.size()) {
+            Button more = new Button(this);
+            more.setText("加载更多应用（" + (filtered.size() - end) + "）");
+            more.setOnClickListener(v -> {
+                int nextEnd = Math.min(end + MAX_APP_ROWS_PER_PAGE, filtered.size());
+                int oldCount = content.getChildCount();
+                // Remove the previous pagination control before appending the next page.
+                if (oldCount > 4 && content.getChildAt(oldCount - 1) == more) {
+                    content.removeViewAt(oldCount - 1);
+                }
+                appendAppRows(end, nextEnd);
+            });
+            content.addView(more, new LinearLayout.LayoutParams(-1, -2));
+        }
     }
     private String key(String feature) { return selectedPackage + ":" + feature; }
     private boolean get(String feature) { return getPreferences(0).getBoolean(key(feature), false); }
