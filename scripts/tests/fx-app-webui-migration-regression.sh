@@ -24,6 +24,8 @@ grep -q "hostsOpenEditor" "$HTML" || fail "local system Hosts editor is missing 
 [ -s "$UTIL" ] || fail "hosts transaction/mount utility missing"
 KERNELSU_WORKFLOW="$ROOT/.github/workflows/build-fx-kernelsu.yml"
 grep -Fq "gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk'" "$KERNELSU_WORKFLOW" || fail "KernelSU workflow does not restore the standalone Hook APK release asset"
+HOOK_WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
+grep -Fq "gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk'" "$HOOK_WORKFLOW" || fail "Hook APK workflow does not restore the standalone Hook APK release asset"
 grep -Fq 'unzip -p "$hook_apk" assets/webroot/index.html' "$KERNELSU_WORKFLOW" || fail "KernelSU workflow cannot recover canonical WebUI from the Hook APK"
 grep -Fq 'base="$PG/local/hosts"; ov=""; name="hosts"' "$FILEEDIT" || fail "editable local hosts must be a separate extensionless source"
 grep -Fq 'base="/system/etc/hosts"; ov=""; name="hosts"' "$FILEEDIT" || fail "live system hosts view must read the actual Android hosts path"
