@@ -27,13 +27,13 @@ if "FX_CLASH_TRANSPORT_FIELDS_V1" not in s:
         ('      trojan)\n        echo "trojan://${_ypw_uri}@${_yh}:${_yp}?sni=${_ysni_uri}#${_yn_uri}"',
          '      trojan)\n        _yt_extra=\n        _yt_transport=\n'
          '        case "$_ynet" in\n'
-         '          ws|grpc) _yt_transport="&type=$_ynet&path=\${_ypath_uri:-/}" ;;\n'
+         '          ws|grpc) _yt_transport="&type=$_ynet&path=${_ypath_uri:-/}" ;;\n'
          '          ""|tcp) [ -n "$_ypath" ] && _yt_transport="&path=$_ypath_uri" ;;\n'
          '          *) _yt_transport="&type=$_ynet" ;;\n'
          '        esac\n'
          '        [ -n "$_yws_host" ] && _yt_extra="&host=$(printf \'%s\' "$_yws_host" | sed \'s/%/%25/g; s/&/%26/g; s/#/%23/g\')"\n'
          '        [ -n "$_yservice" ] && _yt_extra="$_yt_extra&serviceName=$(printf \'%s\' "$_yservice" | sed \'s/%/%25/g; s/&/%26/g; s/#/%23/g\')"\n'
-         '        echo "trojan://\${_ypw_uri}@\${_yh}:\${_yp}?\sni=\${_ysni_uri}\${_yt_transport}\${_yt_extra}#\${_yn_uri}"'),
+         '        echo "trojan://${_ypw_uri}@${_yh}:${_yp}?sni=${_ysni_uri}${_yt_transport}${_yt_extra}#${_yn_uri}"'),
     ]
     for old, new in changes:
         if old not in s:
