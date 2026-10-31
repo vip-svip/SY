@@ -297,6 +297,7 @@ jobs:
           {
             echo "Build variant: $BUILD_VARIANT"
             echo "Signing mode: $SIGNING_MODE"
+            echo "Build/signing mode: $SIGNING_MODE"
             echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
             echo "versionCode: 10000"
             echo "Deployment: one ordinary application package installed by PackageManager"
