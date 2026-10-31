@@ -160,7 +160,7 @@ public final class MainActivity extends Activity {
         });
     }
     private void renderApps(String query) {
-        while (content.getChildCount() > 3) content.removeViewAt(3);
+        while (content.getChildCount() > 4) content.removeViewAt(4);
         filtered.clear(); String q=query.toLowerCase();
         for (ApplicationInfo ai: apps) {
             String label=getPackageManager().getApplicationLabel(ai).toString();
