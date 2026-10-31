@@ -470,15 +470,3 @@ jobs:
             dist/FXUnifiedHook.apk
             dist/SHA256SUMS
           if-no-files-found: error
-      - name: Publish verified FX 1.0.0 release assets
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh release upload 1.0.0 \
-            dist/FX-v1.0.0.zip \
-            dist/FXUnifiedHook.apk \
-            dist/SHA256SUMS \
-            --clobber \
-            --repo "$GITHUB_REPOSITORY"
