@@ -69,7 +69,7 @@ legacy_test = root / "scripts/tests/v1.0.0-local-hosts-file-source-regression.sh
 if legacy_test.is_file():
     legacy = legacy_test.read_text(encoding="utf-8")
     old_ui = 'python3 - "$ROOT/webroot/index.html" <<\'PY\''
-    new_ui = 'UI_FILE="$ROOT/../../adhook/app/src/main/assets/webroot/index.html"\n[ -f "$UI_FILE" ] || UI_FILE="$ROOT/webroot/index.html"\npython3 - "$UI_FILE" <<\'PY\''
+    new_ui = 'UI_FILE="$ROOT/../adhook/app/src/main/assets/webroot/index.html"\n[ -f "$UI_FILE" ] || UI_FILE="$ROOT/webroot/index.html"\npython3 - "$UI_FILE" <<\'PY\''
     if old_ui in legacy:
         legacy = legacy.replace(old_ui, new_ui, 1)
         legacy_test.write_text(legacy, encoding="utf-8")
