@@ -109,6 +109,10 @@ def migrate_test(name, replacements):
         if new in source:
             continue
         count = source.count(old)
+        if count == 0 and 'UI="$ROOT/webroot/index.html"' not in source and '"$UI"' not in source:
+            # Backend-only regression (for example AudioRecord policy) has no
+            # WebUI assertions to migrate; preserve its focused coverage.
+            continue
         if count != 1:
             raise SystemExit(str(path) + ": expected one legacy assertion, found " + str(count) + ": " + old[:100])
         source = source.replace(old, new, 1)
@@ -162,7 +166,7 @@ migrate_test("v1.0.0-lsposed-sensor-config-regression.sh", [
 ])
 migrate_test("v1.0.0-lsposed-ui-single-apply-pipeline-regression.sh", [
     ('UI="$ROOT/webroot/index.html"', native_path),
-    ('''SCRIPT=$(sed -n '/<script id="fx-lsposed-ad-hook-controller">/,/<\/script>/p' "$UI")
+    (r'''SCRIPT=$(sed -n '/<script id="fx-lsposed-ad-hook-controller">/,/<\/script>/p' "$UI")
 [ -n "$SCRIPT" ] || fail "LSPosed controller script missing"
 printf '%s' "$SCRIPT" | grep -q "window.applyRun(null,{label:'同步 LSPosed 应用 Hook 配置'})" || fail "target save must use unified apply pipeline"
 printf '%s' "$SCRIPT" | grep -q "window.applyRun(null,{label:'应用 LSPosed Hook 主开关'})" || fail "master switch must use unified apply pipeline"
