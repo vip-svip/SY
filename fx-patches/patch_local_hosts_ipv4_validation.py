@@ -39,7 +39,7 @@ python3 - "$ROOT/scripts/apply.sh" "$T/local-hosts.awk" <<'PY'
 from pathlib import Path
 import re, sys
 source = Path(sys.argv[1]).read_text()
-m = re.search(r"""    awk '\\n(.*?)\\n      }' "\\$PG/local/hosts" """, source, re.S)
+m = re.search(r"""    if awk '\n(.*?)\n      }' "\\$PG/local/hosts" """, source, re.S)
 if not m:
     raise SystemExit("FAIL: could not extract local-hosts parser")
 Path(sys.argv[2]).write_text("\\n".join(line[6:] if line.startswith("      ") else line for line in m.group(1).splitlines()) + "\\n}\n")
