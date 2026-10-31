@@ -35,6 +35,8 @@ grep -Fq "adsEnabled = true;" "$HOOK" || fail "legacy Ad master switch still con
 ! grep -Fq "if (!remoteFilesAvailable) {" "$HOOK" || fail "automatic Ad detection must not stop when LSPosed Remote Files capability is unavailable"
 grep -Fq "automatic Ad detection enabled; optional remote per-app policies unavailable" "$HOOK" || fail "Ad detection must remain active when optional Remote Files are unavailable"
 grep -Fq "return AUTO_AD_TARGET;" "$HOOK" || fail "Ad runtime still requires an explicit target list"
+grep -Fq "scanAddedViewTree(added, target, pkg);" "$HOOK" || fail "dynamic inserted Ad containers must be recursively scanned"
+grep -Fq "scanTree(child, added, 1, visited, target, pkg);" "$HOOK" || fail "nested Ad descendants are not inspected after dynamic insertion"
 ! grep -Eq 'toggle\("(启动页广告|信息流广告|弹窗 / 插屏广告)"' "$ACTIVITY" || fail "legacy per-app Ad switches must be removed from Hook UI"
 grep -Fq '.append("ads_enabled=1\n")' "$ACTIVITY" || fail "published Hook config must not disable built-in Ad recognition"
 grep -Fq 'cp -p' "$ACTIVITY" || fail "Remote Files publishing must retain a rollback backup"
