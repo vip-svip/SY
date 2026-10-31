@@ -41,9 +41,9 @@ s = core.read_text(encoding="utf-8")
 if "FX_CLASH_WS_HOST_TRANSPORT_V1" not in s:
     old = '_path=$(qsdec "$_q" path); _svc=$(qsdec "$_q" serviceName)'
     new = '_path=$(qsdec "$_q" path); _ws_host=$(qsdec "$_q" host); _svc=$(qsdec "$_q" serviceName)'
-    if old not in s:
-        raise SystemExit("missing VLESS/Trojan transport query anchor")
-    s = s.replace(old, new, 1)
+    if s.count(old) != 2:
+        raise SystemExit("expected two VLESS/Trojan transport query anchors; found %d" % s.count(old))
+    s = s.replace(old, new)
     old = 'ws) printf \',"transport":{"type":"ws","path":"%s"}\' "${_path:-/}" ;;\n        grpc) printf \',"transport":{"type":"grpc","service_name":"%s"}\' "${_svc:-}" ;;'
     new = 'ws)\n          if [ -n "$_ws_host" ]; then printf \',"transport":{"type":"ws","path":"%s","headers":{"Host":"%s"}}\' "${_path:-/}" "$_ws_host"; else printf \',"transport":{"type":"ws","path":"%s"}\' "${_path:-/}"; fi\n          ;;\n        grpc) printf \',"transport":{"type":"grpc","service_name":"%s"}\' "${_svc:-}" ;;'
     if old not in s:
