@@ -35,7 +35,7 @@ MERGE_HOOK="$ROOT/fx-patches/merge_hook_single_apk.py"
 [ -s "$LEGACY_HOOK" ] || fail "copied full legacy Hook entrypoint missing"
 grep -Fq 'API101_MANAGED_PATH' "$LEGACY_HOOK" || fail "legacy Hook does not read the API-101 ownership map"
 grep -Fq 'loadApi101Managed();' "$LEGACY_HOOK" || fail "legacy Hook does not load per-package duplicate-suppression flags"
-load_conf_line=$(grep -nE 'boolean[[:space:]]+loadConf[[:space:]]*\\(' "$LEGACY_HOOK" | head -n 1 | cut -d: -f1)
+load_conf_line=$(grep -nE 'boolean[[:space:]]+loadConf[[:space:]]*\(' "$LEGACY_HOOK" | head -n 1 | cut -d: -f1)
 load_map_line=$(grep -nF 'loadApi101Managed();' "$LEGACY_HOOK" | head -n 1 | cut -d: -f1)
 [ -n "$load_conf_line" ] && [ -n "$load_map_line" ] && [ "$load_map_line" -gt "$load_conf_line" ] || fail "ownership map must load at the start of legacy loadConf before early returns"
 grep -Fq 'api101Managed.contains(pkg + "|" + k)' "$LEGACY_HOOK" || fail "legacy Hook does not suppress migrated duplicate features"
