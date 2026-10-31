@@ -66,5 +66,23 @@ if source.count(old) == 0:
 if source.count(old) != 1:
     raise SystemExit("local DNS watchdog fallback is ambiguous")
 source = source.replace(old, new, 1)
+# If the watchdog cannot be positively stopped, do not proceed to firewall teardown:
+# its recovery loop may still re-install FX-owned redirect rules.
+source = source.replace(
+    'PG_KEEP_DATA=1\\n    _mitm_warn "could not confirm stopping local DNS watchdog before firewall cleanup; preserving $PG and continuing best-effort cleanup"',
+    'PG_KEEP_DATA=1\\n    PG_DNS_WATCHDOG_STOP_FAILED=1\\n    _mitm_warn "could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup and preserving $PG"'
+)
+for phrase in (
+    'local DNS watchdog PID $_wd_pid did not exit; preserving $PG and refusing to race firewall cleanup',
+    'local DNS watchdog PID $_wd_pid changed identity during shutdown; preserving $PG and refusing to race firewall cleanup',
+    'local DNS watchdog PID record exists but process identity cannot be confirmed; preserving $PG for safe retry',
+):
+    old_warning = '_mitm_warn "' + phrase + '"'
+    new_warning = 'PG_DNS_WATCHDOG_STOP_FAILED=1; ' + old_warning
+    source = source.replace('PG_KEEP_DATA=1; ' + old_warning, 'PG_KEEP_DATA=1; ' + new_warning)
+gate = 'fi\\n\\n# ============================================================\\n# A1. 防火墙链'
+if source.count(gate) != 1:
+    raise SystemExit("uninstall DNS-stop gate anchor changed; refusing to continue")
+source = source.replace(gate, 'fi\\n\\nif [ "\\${PG_DNS_WATCHDOG_STOP_FAILED:-0}" = 1 ]; then\\n  exit 1\\nfi\\n\\n# ============================================================\\n# A1. 防火墙链', 1)
 uninstall.write_text(source, encoding="utf-8")
 print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")
