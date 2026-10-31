@@ -79,7 +79,7 @@ once(regression,
 '''  grep -q '^com.clipiso.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=0,privacy=0,exif_strip=0,clipboard_read_block=0,clipboard_isolate=1,sensor_accel=0,sensor_gyro=0,sensor_light=0,sensor_magnet=0,sensor_pressure=0,sensor_prox=0,sensor_rate_limit=0,wifi_scan_block=0,notification_listen_block=0,notification_permission_hide=0,mic_silence=0,camera_access_block=0,location_access_block=0,mic_access_block=0,media_store_query_block=0$' "$OUT" || fail "clipboard isolation target missing or not translated for user $uid"
   grep -q '^com.sensitive.app,ads_splash=0,ads_feed=0,ads_overlay=0,member_diag=0,privacy=0,exif_strip=0,clipboard_read_block=0,clipboard_isolate=0,sensor_accel=0,sensor_gyro=0,sensor_light=0,sensor_magnet=0,sensor_pressure=0,sensor_prox=0,sensor_rate_limit=0,wifi_scan_block=0,notification_listen_block=0,notification_permission_hide=0,mic_silence=0,camera_access_block=1,location_access_block=1,mic_access_block=1,media_store_query_block=1$' "$OUT" || fail "camera/location/microphone/MediaStore controls missing from Remote Files"''')
 # Existing exact expectations need explicit defaults for the new fields.
-let src = regression.read_text(encoding="utf-8")
+src = regression.read_text(encoding="utf-8")
 src = src.replace(",mic_silence=0$", ",mic_silence=0,camera_access_block=0,location_access_block=0,mic_access_block=0,media_store_query_block=0$")
 regression.write_text(src, encoding="utf-8")
 once(regression,
