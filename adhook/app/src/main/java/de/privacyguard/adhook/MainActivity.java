@@ -48,6 +48,7 @@ public final class MainActivity extends Activity {
     private TextView rootStatus;
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
+    private boolean hookHubVisible;
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
     private boolean webViewLoaded;
@@ -66,6 +67,7 @@ public final class MainActivity extends Activity {
     private void showWebDashboard() {
         hookUiVisible = false;
         hookTargetVisible = false;
+        hookHubVisible = false;
         selectedBottomTab = lastWebTabIndex;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -292,6 +294,7 @@ public final class MainActivity extends Activity {
         pauseAndDetachWebView();
         hookUiVisible = true;
         hookTargetVisible = false;
+        hookHubVisible = true;
         base("Hook 与系统授权");
         TextView intro = new TextView(this);
         intro.setText("统一管理应用级 Hook、LSPosed 作用域和无障碍服务。Root、LSPosed、无障碍是三种独立授权，必须分别确认状态。");
@@ -390,7 +393,8 @@ public final class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (hookTargetVisible) { showAppList(); return; }
-        if (hookUiVisible) { showWebDashboard(); return; }
+        if (hookUiVisible && !hookHubVisible) { showHookHub(); return; }
+        if (hookHubVisible) { showWebDashboard(); return; }
         if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
         super.onBackPressed();
     }
@@ -497,6 +501,7 @@ public final class MainActivity extends Activity {
     private void showTarget(ApplicationInfo ai) {
         hookUiVisible = true;
         hookTargetVisible = true;
+        hookHubVisible = false;
         selectedPackage=ai.packageName; selectedLabel=getPackageManager().getApplicationLabel(ai).toString();
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
