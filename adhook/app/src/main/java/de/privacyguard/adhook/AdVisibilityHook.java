@@ -164,6 +164,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> advertisingIdHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
@@ -273,7 +274,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean locationAccessBlockForPackage = privacyEnabled && target != null && target.locationAccessBlock;
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !developerObserveForPackage) return;
+        final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -291,6 +293,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
         if (microphoneAccessBlockForPackage) installMicrophoneAccessBlockHooks(pkg);
         if (mediaStoreQueryBlockForPackage) installMediaStoreQueryBlockHooks(pkg);
+        if (advertisingIdUnifyForPackage) installAdvertisingIdHooks(param.getClassLoader(), pkg);
         // Member diagnostics are independent of ads/privacy and must run before
         // the unrelated per-package one-shot guard.
         if (memberDiagForPackage) {
@@ -1091,6 +1094,68 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in notification permission query hooks installed=" + installed + " for " + pkg);
         return notificationPermissionHooksInstalled;
+    }
+
+    /**
+     * Unifies String-returning Google Ads ID and Huawei OAID accessors for an
+     * explicitly selected single-package process. Shared-process and protected
+     * package conditions fail open; platform opt-out/empty IDs are preserved.
+     */
+    private synchronized boolean installAdvertisingIdHooks(ClassLoader loader, final String pkg) {
+        if (loader == null || processPackages.size() != 1 || NEVER.contains(pkg)) return false;
+        int installed = 0;
+        installed += installAdvertisingIdClassHooks(loader,
+                "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
+                new String[]{"getId"}, true);
+        installed += installAdvertisingIdClassHooks(loader,
+                "com.huawei.hms.ads.identifier.AdvertisingIdClient",
+                new String[]{"getAdvertisingId", "getOaid"}, false);
+        if (installed > 0) {
+            logFx(Log.INFO, "opt-in advertising ID unification hooks=" + installed + " for " + pkg);
+            return true;
+        }
+        logFx(Log.DEBUG, "no supported advertising ID String accessors found for " + pkg);
+        return false;
+    }
+
+    private int installAdvertisingIdClassHooks(ClassLoader loader, String className,
+                                                String[] methodNames, boolean noArgsOnly) {
+        int installed = 0;
+        try {
+            Class<?> owner = Class.forName(className, false, loader);
+            for (Method method : owner.getDeclaredMethods()) {
+                boolean named = false;
+                for (String methodName : methodNames) {
+                    if (methodName.equals(method.getName())) { named = true; break; }
+                }
+                if (!named || method.getReturnType() != String.class ||
+                        (noArgsOnly && method.getParameterTypes().length != 0) ||
+                        !advertisingIdHookedMethods.add(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object original = chain.proceed();
+                        if (!(original instanceof String)) return original;
+                        String originalId = (String) original;
+                        if (originalId.isEmpty() ||
+                                "00000000-0000-0000-0000-000000000000".equalsIgnoreCase(originalId)) return original;
+                        String activePackage = currentPackage;
+                        UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
+                        if (processPackages.size() != 1 || !privacyEnabled || activeTarget == null ||
+                                !activeTarget.adIdUnify || NEVER.contains(activePackage)) return original;
+                        String replacement = PrivacyIdentifier.forAdvertisingId(activePackage);
+                        return replacement == null ? original : replacement;
+                    });
+                    installed++;
+                } catch (Throwable hookError) {
+                    advertisingIdHookedMethods.remove(method);
+                    logFx(Log.WARN, "advertising ID hook unavailable for " + className + "#" +
+                            method.getName() + ": " + hookError.getClass().getSimpleName());
+                }
+            }
+        } catch (Throwable ignored) {
+            // Optional vendor libraries are absent on most apps; absence is normal.
+        }
+        return installed;
     }
 
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
