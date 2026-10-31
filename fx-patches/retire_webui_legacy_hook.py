@@ -105,6 +105,7 @@ def migrate_test(name, replacements):
     source = path.read_text(encoding="utf-8")
     changed = False
     for old, new in replacements:
+        old = old.rstrip()
         if new in source:
             continue
         count = source.count(old)
@@ -121,6 +122,13 @@ migrate_test("v1.0.0-lsposed-audiorecord-mic-silence-regression.sh", [
     (r'''grep -q "\['mic_silence'" "$UI"''',
      '''grep -Fq 'toggle("录音静音（保留录音流程）", "mic_silence"' "$UI"'''),
 ])
+
+# The older test omitted its fail() helper even though several assertions call it.
+notif_test = tests / "v1.0.0-lsposed-notification-listen-migration-regression.sh"
+notif_source = notif_test.read_text(encoding="utf-8")
+if "fail(){" not in notif_source:
+    notif_source = notif_source.replace("set -eu\n", "set -eu\nfail(){ echo \"FAIL: $*\" >&2; exit 1; }\n", 1)
+    notif_test.write_text(notif_source, encoding="utf-8")
 migrate_test("v1.0.0-lsposed-notification-listen-migration-regression.sh", [
     ('UI="$ROOT/webroot/index.html"', native_path),
     ('''grep -q 'notification_listen_block' "$UI"''',
