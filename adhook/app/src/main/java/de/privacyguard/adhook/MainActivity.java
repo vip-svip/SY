@@ -811,9 +811,9 @@ public final class MainActivity extends Activity {
             }
             Thread publisher = new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
+                if (hookPublisherThread == Thread.currentThread()) hookPublisherThread = null;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    if (hookPublisherThread == Thread.currentThread()) hookPublisherThread = null;
                     if(result.exitCode==0) {
                         getSharedPreferences("fx_hook_publish", MODE_PRIVATE).edit()
                                 .putString("sha256", expectedHash)
