@@ -55,6 +55,20 @@ jobs:
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("adhook/app/src/main/assets/webroot/index.html").read_text(encoding="utf-8")
+          for page_id in ("pageAd", "pageHosts"):
+              m = re.search(r'<[^>]+id=["\\']' + page_id + r'["\\'][^>]*>(.*?)(?=<[^>]+id=["\\']page[A-Z]|\\Z)', html, re.I | re.S)
+              if not m:
+                  print(f"::error::Cannot locate {page_id} in staged WebUI")
+                  raise SystemExit(1)
+              fragment = m.group(0)
+              ids = re.findall(r'\\bid=["\\']([^"\\']+)', fragment)
+              controls = re.findall(r'<(?:input|select|button)\\b[^>]*>', fragment, re.I)
+              print(f"UI_STRUCTURE {page_id}: ids={ids[:100]} controls={controls[:100]}")
+          PY
           test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
           grep -q 'android:label="FX"' adhook/app/src/main/AndroidManifest.xml
