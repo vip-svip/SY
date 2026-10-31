@@ -83,5 +83,17 @@ elif new_warning in source:
     if line in source and line + '; exit 1' not in source:
         source = source.replace(line, line + '; exit 1', 1)
 
+# Keep the uninstall regression aligned with the fail-closed contract.
+regression = root / "scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh"
+if regression.is_file():
+    test_source = regression.read_text(encoding="utf-8")
+    test_source = test_source.replace(
+        "could not confirm stopping local DNS watchdog before firewall cleanup",
+        "could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup"
+    )
+    if 'exit 1' not in test_source:
+        test_source += '\\ngrep -Fq \'aborting uninstall before firewall cleanup\' "$U"\\n'
+    regression.write_text(test_source, encoding="utf-8")
+
 uninstall.write_text(source, encoding="utf-8")
 print("Hardened local DNS watchdog shutdown; uninstall now fails closed before firewall teardown.")
