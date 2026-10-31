@@ -64,6 +64,7 @@ grep -q 'return !request.isForMainFrame() || !isTrustedDocumentUrl(request.getUr
 grep -q 'if (!isTrustedAssetUrl(uri))' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "off-origin WebView subresources are not blocked"
 grep -q "form-action 'none'" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "WebView CSP permits unintended form submissions"
 grep -q 'private void refreshHookRemoteStatus(TextView target)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub lacks live Remote Files status"
+grep -q 'scripts/status.sh json' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status reader does not request JSON"
 grep -q 'hook_native_notification_permission_hide_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits native notification permission-query status"
 grep -q 'hook_native_clipboard_isolate_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits clipboard isolation status"
 grep -q 'hook_native_member_diag_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits member diagnostics status"
