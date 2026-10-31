@@ -209,6 +209,10 @@ grep -Fq 'private static volatile boolean connected;' "$ROOT/adhook/app/src/main
 grep -Fq 'FxAccessibilityService.isConnected()' "$ACTIVITY" || fail "accessibility UI must reject stale persisted PID markers after process restart"
 grep -Fq 'process.waitFor(1500, TimeUnit.MILLISECONDS);' "$ROOT_ACCESS" || fail "timed-out su process must be reaped after force termination"
 grep -Fq 'su 启动的独立子进程不保证全部退出' "$ROOT_ACCESS" || fail "Root timeout status must not overclaim descendant cleanup"
+grep -Fq 'closeOutputQuietly(process);' "$ROOT_ACCESS" || fail "RootAccess must close inherited output pipes on timeout and exceptional cleanup"
+grep -Fq 'if (drain.isAlive()) {' "$ROOT_ACCESS" || fail "RootAccess must close a stuck output drainer after allowing buffered output to drain"
+grep -Fq 'joinQuietly(drain, 2000L);' "$ROOT_ACCESS" || fail "RootAccess must preserve buffered output before closing the stream"
+
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
 grep -Fq 'onUnbind(Intent intent)' "$APP/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility connection marker must clear on service unbind"
 grep -q 'BIND_ACCESSIBILITY_SERVICE' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility bind permission missing"
