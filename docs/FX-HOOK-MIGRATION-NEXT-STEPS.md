@@ -53,7 +53,7 @@ A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **75 dist
 | Camera/audio/biometrics | `cam_null`, `cam_hw_hide`, `mic_block`, `mic_hw_hide`, `audio_fp_block`, `hide_fingerprint_hw`, `hide_face_hw` | Not migrated |
 | Metadata/advertising ID | `exif_strip`, `ad_id_unify` | EXIF read-time redaction is partially migrated; Advertising ID unification is not |
 
-Do not treat a parsed or serialized switch as an implemented hook. A switch becomes migrated only when its runtime behavior, package scope, independent opt-in, API guards, fail-open path, unit/host regression and device validation are all accounted for.
+Do not treat a parsed or serialized switch as an implemented hook. A switch becomes migrated to API-101 only when its runtime behavior, package scope, independent opt-in, API guards, fail-open path and unit/host regression are accounted for; physical-device validation remains a separate acceptance gate. “Not migrated to API-101” does not mean absent from the unified APK: allowed legacy controls remain in the bundled legacy Xposed entrypoint. High-risk keys in `DISABLED_EVASION_KEYS` are deliberately disabled, and API-101-owned keys are suppressed in the legacy entrypoint to avoid duplicate hooks.
 
 
 ## Historical KernelSU source-layout blocker (resolved in CI, source-layout debt remains)
