@@ -83,13 +83,17 @@ once(regression,
 src = regression.read_text(encoding="utf-8")
 src = src.replace(",mic_silence=0$", ",mic_silence=0,camera_access_block=0,location_access_block=0,mic_access_block=0,media_store_query_block=0$")
 regression.write_text(src, encoding="utf-8")
-once(regression,
-'''    if (!result.adsEnabled || result.targets.size() != 8 || !result.isMemberDiagnosticsEnabledFor("com.example.app") || !result.targets.get("com.privacy.app").privacy) {''',
-'''    UnifiedHookConfigParser.Target sensitive = result.targets.get("com.sensitive.app");
+parser_old = '''    if (!result.adsEnabled || result.targets.size() != 8 || !result.isMemberDiagnosticsEnabledFor("com.example.app") || !result.targets.get("com.privacy.app").privacy) {'''
+parser_new = '''    UnifiedHookConfigParser.Target sensitive = result.targets.get("com.sensitive.app");
     if (!result.adsEnabled || result.targets.size() != 9 || !result.isMemberDiagnosticsEnabledFor("com.example.app")
         || !result.targets.get("com.privacy.app").privacy || sensitive == null
         || !sensitive.cameraAccessBlock || !sensitive.locationAccessBlock
-        || !sensitive.microphoneAccessBlock || !sensitive.mediaStoreQueryBlock) {''')
+        || !sensitive.microphoneAccessBlock || !sensitive.mediaStoreQueryBlock) {'''
+regression_text = regression.read_text(encoding="utf-8")
+if parser_old in regression_text:
+    regression.write_text(regression_text.replace(parser_old, parser_new, 1), encoding="utf-8")
+else:
+    print("Legacy parser assertion has already evolved in the release source; skipped obsolete exact rewrite.")
 
 # Keep AudioRecord post-read silence distinct from the separate explicit
 # microphone-access denial feature, which legitimately hooks startRecording.
