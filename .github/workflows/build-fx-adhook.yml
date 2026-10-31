@@ -59,8 +59,17 @@ jobs:
             # from its optional payload. Restore it from its separate Release asset.
             if [[ ! -s "$hook_apk" ]]; then
               mkdir -p "$RUNNER_TEMP/fx-release" "$(dirname "$hook_apk")"
-              gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk' --dir "$RUNNER_TEMP/fx-release"
-              test -s "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"
+              downloaded=0
+              for attempt in $(seq 1 12); do
+                if gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk' --dir "$RUNNER_TEMP/fx-release" >/dev/null 2>&1 &&
+                   test -s "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"; then
+                  downloaded=1
+                  break
+                fi
+                echo "::notice::FXUnifiedHook.apk release asset is temporarily unavailable (attempt $attempt/12); retrying in 5 seconds."
+                sleep 5
+              done
+              [[ "$downloaded" = 1 ]] || { echo "::error::Unable to restore FXUnifiedHook.apk from Release after 12 attempts."; exit 1; }
               unzip -tq "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"
               install -m 0644 "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk" "$hook_apk"
             fi
