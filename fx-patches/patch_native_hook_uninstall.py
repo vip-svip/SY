@@ -62,4 +62,38 @@ if any(
 ):
     raise SystemExit("installer still advertises the retired WebUI/split Hook entry")
 customize.write_text(ui, encoding="utf-8")
-print("Moved uninstall warning helper before first use and updated installer guidance to native FX Hook UI.")
+
+# settings.conf can contain subscription bearer URLs. The first-install copy in
+# customize.sh bypasses service.sh's "file absent" chmod branch, so explicitly
+# harden it after migration and again on every boot (including upgrades).
+customize_text = customize.read_text(encoding="utf-8")
+customize_block = '''if [ -f /data/adb/privacyguard/settings.conf ]; then
+  chown 0:0 /data/adb/privacyguard/settings.conf 2>/dev/null || true
+  if ! chmod 600 /data/adb/privacyguard/settings.conf 2>/dev/null; then
+    ui_print "  [!] 无法将 settings.conf 权限收紧为 600；请检查 /data/adb/privacyguard/settings.conf"
+  fi
+fi
+'''
+customize_anchor = 'ui_print "- 清理历史版本残留的证书覆盖层/暂存区(如有)..."'
+if customize_block not in customize_text:
+    if customize_text.count(customize_anchor) != 1:
+        raise SystemExit("customize.sh settings permission insertion anchor changed")
+    customize_text = customize_text.replace(customize_anchor, customize_block + customize_anchor, 1)
+customize.write_text(customize_text, encoding="utf-8")
+
+service_text = service.read_text(encoding="utf-8")
+service_block = '''# Protect subscription URLs and other private configuration on every boot.
+if [ -f "$PG/settings.conf" ]; then
+  chown 0:0 "$PG/settings.conf" 2>/dev/null || :
+  if ! chmod 600 "$PG/settings.conf" 2>/dev/null; then
+    echo "[$(date '+%m-%d %H:%M:%S')] WARNING: unable to restrict settings.conf permissions to 0600" >> "$PG/boot.log"
+  fi
+fi
+'''
+service_anchor = '# Restore only CA trust that the user explicitly enabled in WebUI.'
+if service_block not in service_text:
+    if service_text.count(service_anchor) != 1:
+        raise SystemExit("service.sh settings permission insertion anchor changed")
+    service_text = service_text.replace(service_anchor, service_block + service_anchor, 1)
+service.write_text(service_text, encoding="utf-8")
+print("Fixed uninstall warning order, native Hook installer guidance, and private settings.conf permissions.")
