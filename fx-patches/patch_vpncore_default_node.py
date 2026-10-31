@@ -2,6 +2,7 @@
 """Patch sing-box default-node fallback to select the first parseable node."""
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
@@ -42,3 +43,4 @@ if "_first_valid_tag" in match.group(0):
 source = source[:match.start()] + replacement + source[match.end():]
 target.write_text(source, encoding="utf-8")
 print("Patched VPN default-node fallback to first parseable outbound")
+subprocess.run([sys.executable, str(Path(__file__).with_name("patch_vpncore_standalone_lock.py")), str(root)], check=True)
