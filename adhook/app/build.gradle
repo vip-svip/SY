@@ -18,6 +18,7 @@ android {
         fxRelease {
             if (fxReleaseSigningConfigured) {
                 storeFile file(fxReleaseKeystorePath)
+                storeType "PKCS12"
                 storePassword System.getenv("FX_ANDROID_KEYSTORE_PASSWORD")
                 keyAlias System.getenv("FX_ANDROID_KEY_ALIAS")
                 keyPassword System.getenv("FX_ANDROID_KEY_PASSWORD")
