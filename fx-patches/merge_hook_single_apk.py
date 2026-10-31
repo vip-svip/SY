@@ -98,10 +98,23 @@ end = m.find("/>", start)
 if end < 0:
     raise SystemExit("modern manifest self-closing application tag missing")
 end += 2
+# Preserve the APK's native launcher UI while adding the LSPosed metadata.
+if 'android.permission.QUERY_ALL_PACKAGES' not in m:
+    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\\n    <application', 1)
 app = """<application
-        android:label="FX Unified Hook"
+        android:label="FX Hook"
         android:allowBackup="false"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="false"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
