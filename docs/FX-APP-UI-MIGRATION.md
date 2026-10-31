@@ -29,11 +29,11 @@ The complete existing 1.0.0 WebUI is staged into `adhook/app/src/main/assets/web
 
 ## Single-entry packaging
 
-The KernelSU packaging workflow first copies the complete WebUI into APK assets, then replaces the module's `webroot/index.html` with a small migration notice. The final module ZIP therefore does not expose a parallel copy of the management UI. The standalone APK workflow stages the same source WebUI from the fixed 1.0.0 release archive.
+The KernelSU packaging workflow first copies the complete WebUI into APK assets, then replaces the module's `webroot/index.html` with a small migration notice. The final module ZIP therefore does not expose a parallel copy of the management UI. The no-compile APP migration validation workflow stages the same source WebUI from the fixed 1.0.0 release archive.
 
 ## Build gate
 
-Both APK and KernelSU workflows require the repository variable `FX_FULL_APP_MIGRATION_COMPLETE=true`. The variable must remain unset until all migration checks, packaging checks and source review are complete. Workflow runs created while it is unset are expected to be skipped. No final APK or KernelSU ZIP should be published before the gate is intentionally enabled.
+The KernelSU workflow is the only compile/package workflow. It builds the unified APK once, copies that exact byte-for-byte APK into `optional/FXUnifiedHook.apk`, verifies the APK hash both before and after ZIP packaging, and uploads the same APK as a separate `FX-Hook-apk` artifact. It requires the repository variable `FX_FULL_APP_MIGRATION_COMPLETE=true`. The variable must remain unset until all migration checks, packaging checks and source review are complete. The `build-fx-adhook.yml` workflow is static validation only and does not compile. No final APK or KernelSU ZIP should be published before the gate is intentionally enabled.
 
 ## Verification boundary
 
