@@ -351,6 +351,10 @@ suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/work
 retire_line=$(grep -n 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 [ -n "$suite_line" ] && [ -n "$retire_line" ] && [ "$suite_line" -lt "$retire_line" ] || fail "module WebUI must be retired only after original UI regression suite"
 grep -q 'android:label="FX"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge does not preserve FX application label"
+[ -s "$ROOT/fx-patches/retire_webui_legacy_hook.py" ] || fail "legacy WebUI Hook retirement patch missing"
+grep -Fq 'retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "standalone Hook APK workflow does not remove the duplicate WebUI Hook manager"
+grep -Fq 'retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow does not remove the duplicate WebUI Hook manager"
+grep -Fq 'cardHook' "$ROOT/fx-patches/retire_webui_legacy_hook.py" || fail "WebUI Hook retirement must preserve the separate UID network-blocking UI"
 grep -Fq 'String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};' "$ACTIVITY" || fail "native bottom navigation must expose exactly six tabs in the agreed order"
 grep -Fq 'case "pageAd": tab = "ad"; break;' "$ACTIVITY" || fail "Ad tab must route through the embedded Ad compatibility key to the merged Hosts content"
 grep -Fq 'case "pageMore": tab = "more"; break;' "$ACTIVITY" || fail "sixth Settings tab must open the settings page"
