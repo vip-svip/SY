@@ -173,15 +173,15 @@ public final class MainActivity extends Activity {
                 }
                 if(has) rows.add(row.toString());
             }
-            cfg.append("schema_version=1\\n")
-               .append("ads_enabled=").append(anyAds?'1':'0').append('\\n')
-               .append("privacy_enabled=").append(anyPrivacy?'1':'0').append('\\n')
-               .append("wifi_scan_enabled=").append(anyWifi?'1':'0').append('\\n')
-               .append("notification_listen_enabled=").append(anyNotif?'1':'0').append('\\n')
-               .append("notification_permission_hide_enabled=").append(anyNotifPerm?'1':'0').append('\\n')
-               .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\\n')
-               .append("[list:targets]\\n");
-            for(String row:rows) cfg.append(row).append('\\n');
+            cfg.append("schema_version=1\n")
+               .append("ads_enabled=").append(anyAds?'1':'0').append('\n')
+               .append("privacy_enabled=").append(anyPrivacy?'1':'0').append('\n')
+               .append("wifi_scan_enabled=").append(anyWifi?'1':'0').append('\n')
+               .append("notification_listen_enabled=").append(anyNotif?'1':'0').append('\n')
+               .append("notification_permission_hide_enabled=").append(anyNotifPerm?'1':'0').append('\n')
+               .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\n')
+               .append("[list:targets]\n");
+            for(String row:rows) cfg.append(row).append('\n');
             String encoded=android.util.Base64.encodeToString(cfg.toString().getBytes("UTF-8"),android.util.Base64.NO_WRAP);
             String remote="/data/adb/lspd/modules/0/de.privacyguard.adhook/files/fx-hook-targets.conf";
             String command="mkdir -p /data/adb/lspd/modules/0/de.privacyguard.adhook/files && echo "+encoded+" | base64 -d > "+remote+" && chmod 600 "+remote;
