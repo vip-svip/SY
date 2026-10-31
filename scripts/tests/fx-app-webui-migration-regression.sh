@@ -6,6 +6,9 @@ HTML="$APP/assets/webroot/index.html"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 
 [ -s "$HTML" ] || fail "complete FX WebUI was not staged into APK assets"
+grep -q "FX: merged pageAd into pageHosts" "$HTML" || fail "legacy Ad content was not merged into the Hosts page"
+grep -q "mitmTrafficEnable" "$HTML" || fail "merged Ad certificate/MITM controls are missing"
+grep -q "hostsOpenEditor" "$HTML" || fail "local system Hosts editor is missing from the merged page"
 [ "$(wc -c < "$HTML" | tr -d ' ')" -gt 500000 ] || fail "FX WebUI asset is unexpectedly truncated"
 for page in pageVpn pageAd pageHosts pagePrivacy pageScript pageMore; do
   grep -q "id=\"$page\"" "$HTML" || fail "missing migrated UI page: $page"
