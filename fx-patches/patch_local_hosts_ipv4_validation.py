@@ -56,7 +56,7 @@ INPUT
 awk -f "$T/local-hosts.awk" "$T/input" > "$T/output"
 grep -Fxq '127.0.0.1 valid.example' "$T/output"
 grep -Fxq '255.255.255.255 broadcast.example' "$T/output"
-! grep -Eq 'invalid-(high|short|long|range)\\.example' "$T/output"
+! grep -Eq 'invalid-(high|short|long|range)\.example' "$T/output"
 grep -Fxq '0.0.0.0 localhost' "$T/output"
 echo 'FX local hosts IPv4 validation regression: PASS'
 '''
