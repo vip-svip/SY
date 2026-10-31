@@ -90,8 +90,13 @@ jobs:
             if [[ "$test" == *"hosts-cache-concurrency-regression.sh" ]]; then
               echo "=== HOSTS CACHE REGRESSION SOURCE ==="
               nl -ba "$test"
-              echo "=== HOSTS CACHE REGRESSION TRACE ==="
-              sh -x "$test"
+              echo "=== HOSTS CACHE FUNCTION UNDER TEST ==="
+              awk '/^hosts_fetch_cached\\(\\) \\{/ {p=1} p {print} p && /^\\}/ {exit}' fx-module/scripts/apply.sh
+              echo "=== HOSTS CACHE REGRESSION STRESS (10 RUNS) ==="
+              for attempt in $(seq 1 10); do
+                echo "hosts cache concurrency attempt $attempt/10"
+                sh -x "$test"
+              done
             else
               sh "$test"
             fi
