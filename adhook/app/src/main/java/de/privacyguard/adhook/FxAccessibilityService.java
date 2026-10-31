@@ -1,6 +1,7 @@
 package de.privacyguard.adhook;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.Intent;
 import android.view.accessibility.AccessibilityEvent;
 
 /**
@@ -14,6 +15,12 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() { }
+
+    @Override public boolean onUnbind(Intent intent) {
+        getSharedPreferences("fx_accessibility", MODE_PRIVATE)
+                .edit().putBoolean("service_connected", false).apply();
+        return super.onUnbind(intent);
+    }
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
