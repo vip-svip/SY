@@ -416,10 +416,15 @@ public final class MainActivity extends Activity {
     private void checkRoot(TextView state, boolean request, Runnable afterCheck) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
         new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute("id -u; test -s /data/adb/modules/privacyguard/module.prop && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop && echo FX_MODULE=present || echo FX_MODULE=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
+            RootAccess.Result result = RootAccess.execute("id -u; if [ -s /data/adb/modules/privacyguard/module.prop ] && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop; then if [ -e /data/adb/modules/privacyguard/disable ]; then echo FX_MODULE=disabled; elif [ -e /data/adb/modules/privacyguard/remove ]; then echo FX_MODULE=remove-pending; else echo FX_MODULE=enabled; fi; else echo FX_MODULE=missing; fi; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_TOOL=present || echo KSU_TOOL=not-found");
             runOnUiThread(() -> {
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
-                    state.setText("Root UID 0 · FX " + (result.output.contains("FX_MODULE=present") ? "模块正常" : "模块缺失") + " · KSU " + (result.output.contains("KSU_DAEMON=present") ? "服务正常" : "服务未检测到"));
+                    String moduleState = result.output.contains("FX_MODULE=enabled") ? "模块启用标记存在"
+                            : result.output.contains("FX_MODULE=disabled") ? "模块已禁用"
+                            : result.output.contains("FX_MODULE=remove-pending") ? "模块待卸载"
+                            : "模块缺失/版本不符";
+                    state.setText("Root UID 0 · FX " + moduleState + " · KSU 工具 "
+                            + (result.output.contains("KSU_TOOL=present") ? "存在" : "未检测到"));
                 } else if (result.denied) {
                     state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX 应用。");
                 } else {
