@@ -58,13 +58,17 @@ public final class RootAccess {
             boolean finished = process.waitFor(Math.max(1000L, timeoutMs), TimeUnit.MILLISECONDS);
             if (!finished) {
                 terminateAndReap(process);
+                closeOutputQuietly(process);
                 joinQuietly(drain, 1500L);
                 return new Result(124,
                         "Root 命令超时（" + timeoutMs + " ms）。已请求终止并回收 su 进程；"
                                 + "su 启动的独立子进程不保证全部退出。",
                         false);
             }
-            drain.join(2000L);
+            // A detached child may inherit su's stdout pipe and keep the reader blocked
+            // after the su process has exited. Close our read end before joining the drainer.
+            closeOutputQuietly(process);
+            joinQuietly(drain, 1500L);
             int code = process.exitValue();
             String text;
             synchronized (output) { text = output.toString(); }
@@ -74,14 +78,24 @@ public final class RootAccess {
             return new Result(code, text, denied);
         } catch (InterruptedException e) {
             terminateAndReap(process);
+            closeOutputQuietly(process);
             joinQuietly(drain, 1500L);
             Thread.currentThread().interrupt();
             return new Result(130, "Root 命令等待被中断；已请求终止并回收 su 客户端。", false);
         } catch (Exception e) {
             terminateAndReap(process);
+            closeOutputQuietly(process);
             joinQuietly(drain, 1500L);
             return new Result(127, e.getClass().getSimpleName() + ": " + e.getMessage(), false);
         }
+    }
+
+    /** Close our pipe end so descendants that inherited stdout cannot strand the drain thread. */
+    private static void closeOutputQuietly(Process process) {
+        if (process == null) return;
+        try {
+            process.getInputStream().close();
+        } catch (Exception ignored) { }
     }
 
     /** Best-effort cleanup of the su client; this does not claim to kill detached descendants. */
