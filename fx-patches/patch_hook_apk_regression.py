@@ -50,5 +50,40 @@ if scope_test.is_file():
     )
     if "optional/FXAdHook-BUILD-INFO.txt" in scope or "LSPosed API 101" in scope:
         raise SystemExit("target-scope regression still references obsolete split-APK metadata")
+    old_ui_block = """# The UI must offer actual application selection and distinguish UID blocking.
+grep -q 'id="cardFxAdHook"' "$UI" || fail "actual LSPosed UI missing"
+grep -q '应用网络阻断（UID）' "$UI" || fail "legacy Hook false label not renamed"
+grep -q 'id="fxHookManage"' "$UI" || fail "app picker missing"
+grep -q 'if(!loaded)throw new Error' "$UI" || fail "failed app-list reads must not allow empty target save"
+grep -q 'member_diag' "$UI" || fail "read-only member diagnostic UI key missing"
+grep -q 'exif_strip' "$UI" || fail "EXIF privacy option missing from UI"
+grep -q 'clipboard_read_block' "$UI" || fail "clipboard privacy option missing from UI"
+grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard privacy target missing from status accounting"
+# New ad module has its own diagnostic-only contract; legacy MainHook's unrelated setResult hooks are out of scope.
+grep -q '会员选项仅做只读' "$UI" || fail "UI must explicitly label membership feature as read-only diagnostics"
+grep -q '不伪造 VIP 状态' "$UI" || fail "UI must not advertise VIP unlock"
+"""
+    new_ui_block = """# LSPosed target management is native-only. Keep the unrelated UID network
+# blocking controls in WebUI, but reject the retired second LSPosed editor.
+APP_HOOK_UI="$ROOT/../adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+[ -s "$APP_HOOK_UI" ] || fail "native FX Hook Activity source missing"
+! grep -Fq 'id="cardFxAdHook"' "$UI" || fail "duplicate WebUI LSPosed card remains"
+! grep -Fq 'fxHookAppList' "$UI" || fail "duplicate WebUI LSPosed app picker remains"
+! grep -Fq 'fxHookManage' "$UI" || fail "duplicate WebUI LSPosed manager remains"
+grep -q '应用网络阻断（UID）' "$UI" || fail "separate UID network-blocking UI was removed"
+grep -Fq 'String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};' "$APP_HOOK_UI" || fail "native six-tab Hook navigation missing"
+grep -Fq 'section("自定义 Hook")' "$APP_HOOK_UI" || fail "native per-app custom Hook editor missing"
+grep -Fq '会员诊断仅记录应用内可观察状态' "$APP_HOOK_UI" || fail "native membership diagnostics must remain read-only"
+grep -Fq 'toggle("清理图片/视频元数据", "exif_strip"' "$APP_HOOK_UI" || fail "native EXIF privacy option missing"
+grep -Fq 'toggle("阻止剪贴板读取", "clipboard_read_block"' "$APP_HOOK_UI" || fail "native clipboard privacy option missing"
+grep -Fq 'DeveloperHookRule.parse' "$APP_HOOK_UI" || fail "native custom Hook descriptor validation missing"
+grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard privacy target missing from status accounting"
+"""
+    if old_ui_block in scope:
+        scope = scope.replace(old_ui_block, new_ui_block, 1)
+    elif new_ui_block not in scope:
+        raise SystemExit("target-scope regression still requires the retired WebUI LSPosed editor")
+    if 'id="cardFxAdHook"' in scope or 'id="fxHookManage"' in scope:
+        raise SystemExit("target-scope regression still references obsolete WebUI Hook IDs")
     scope_test.write_text(scope, encoding="utf-8")
-print("Updated unified Hook APK and target-scope regression assertions.")
+print("Updated unified Hook APK and native-only target-scope regression assertions.")
