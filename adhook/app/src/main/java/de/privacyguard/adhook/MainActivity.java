@@ -100,7 +100,7 @@ public final class MainActivity extends Activity {
     private void checkRoot(TextView state, boolean request) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
         new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute("id -u");
+            RootAccess.Result result = RootAccess.execute("id -u; test -d /data/adb/modules && echo FX_MODULES_DIR=present || echo FX_MODULES_DIR=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
             runOnUiThread(() -> {
                 if (result.exitCode == 0 && "0".equals(result.output.trim())) {
                     state.setText("已获得 Root（UID 0）\n" + result.output.trim());
