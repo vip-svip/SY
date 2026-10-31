@@ -562,6 +562,11 @@ public final class MainActivity extends Activity {
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
         boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        TextView scopeNotice = new TextView(this);
+        scopeNotice.setText("LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager 中单独设置。本页只发布 FX Hook 规则，不会自动授予或修改 LSPosed 作用域。");
+        scopeNotice.setTextColor(0xff697681);
+        scopeNotice.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(scopeNotice);
         TextView targetBuildState = new TextView(this);
         targetBuildState.setText(targetDebuggable
                 ? "目标应用：可调试版本（自定义只读 Hook 可执行）"
@@ -608,7 +613,7 @@ public final class MainActivity extends Activity {
         Button addRule=new Button(this); addRule.setText("添加只读观察规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
         renderCustomRules();
-        Button save=new Button(this); save.setText("保存并同步到 LSPosed");
+        Button save=new Button(this); save.setText("保存并发布 Hook 配置");
         save.setOnClickListener(v -> {
             getPreferences(0).edit().putBoolean(key("draft_saved"),true).apply();
             publishConfig();
