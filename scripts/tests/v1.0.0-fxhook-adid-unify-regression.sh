@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-if [ -d "$ROOT/adhook/app/src/main/java" ]; then
-  REPO_ROOT="$ROOT"; MODULE_ROOT="$ROOT/fx-module"
-else
-  REPO_ROOT=$(dirname "$ROOT"); MODULE_ROOT="$ROOT"
-fi
+# Resolve repository root from Git rather than guessing based on a nested
+# ad-hoc source directory. The same test runs from repo/scripts and
+# fx-module/scripts after the migration archive is restored.
+REPO_ROOT=$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)
+[ -n "$REPO_ROOT" ] || { echo "FAIL: cannot resolve FX repository root" >&2; exit 1; }
+MODULE_ROOT="$REPO_ROOT/fx-module"
 ACTIVITY="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 PARSER="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
 SERIALIZER="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java"
