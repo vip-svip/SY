@@ -41,8 +41,7 @@ CORE="$ROOT/scripts/vpncore.sh"
 grep -Fq 'if ! vpncore_stop; then' "$APPLY"
 grep -Fq '托管 sing-box 核心停止失败' "$APPLY"
 grep -Fq 'vpncore_stop 不可用且 PID 记录仍存在' "$APPLY"
-grep -Fq 'preserving PID file' "$CORE" || grep -Fq 'preserving PID file' "$ROOT/scripts/vpncore.sh"
-# Execute the exact direct-mode stop guard with a failing owned-core stop stub.
+grep -Fq 'preserving PID file' "$CORE"
 TMP=$(mktemp -d /tmp/fx-vpn-off-stop.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 awk '
@@ -51,16 +50,14 @@ awk '
   copy && /^  fi$/ { exit }
 ' "$APPLY" > "$TMP/guard.sh"
 [ -s "$TMP/guard.sh" ]
-set +e
 OUT=$(sh -c '
   PG="$1"; export PG
-  pg_fail(){ echo "FAIL:$2"; return 0; }
+  PG_ERRS=0
+  pg_fail(){ PG_ERRS=$((PG_ERRS+1)); echo "FAIL:$2"; }
   vpncore_stop(){ echo "STOP_CALLED"; return 1; }
   . "$2"
+  [ "$PG_ERRS" -eq 1 ]
 ' sh "$TMP" "$TMP/guard.sh" 2>&1)
-RC=$?
-set -e
-[ "$RC" -ne 0 ] || { echo "FAIL: direct-mode guard did not propagate stop failure" >&2; exit 1; }
 echo "$OUT" | grep -Fq 'STOP_CALLED'
 echo "$OUT" | grep -Fq '托管 sing-box 核心停止失败'
 echo 'FX VPN-off requires successful core shutdown: PASS'
