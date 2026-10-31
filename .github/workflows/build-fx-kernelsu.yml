@@ -416,18 +416,6 @@ jobs:
           cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
           (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
           (cd dist && sha256sum -c SHA256SUMS)
-      - name: Publish verified FX 1.0.0 release assets
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh release upload 1.0.0 \
-            dist/FX-v1.0.0.zip \
-            dist/FXUnifiedHook.apk \
-            dist/SHA256SUMS \
-            --clobber \
-            --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         with:
           name: FX-Hook-apk
@@ -441,3 +429,15 @@ jobs:
             dist/FXUnifiedHook.apk
             dist/SHA256SUMS
           if-no-files-found: error
+      - name: Publish verified FX 1.0.0 release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload 1.0.0 \
+            dist/FX-v1.0.0.zip \
+            dist/FXUnifiedHook.apk \
+            dist/SHA256SUMS \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"
