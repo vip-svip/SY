@@ -65,27 +65,23 @@ grep -Fq 'toggle("阻止剪贴板读取", "clipboard_read_block"' "$APP_HOOK_UI"
 grep -Fq 'DeveloperHookRule.parse' "$APP_HOOK_UI" || fail "native custom Hook descriptor validation missing"
 grep -q 'clipboard_read_block=1' "$ROOT/scripts/status.sh" || fail "clipboard privacy target missing from status accounting"
 """
-    # Replace the old positive WebUI-manager assertions regardless of whitespace
-    # or wording drift in archived release ZIP test revisions.
-    if "id=\\"cardFxAdHook\\"" in scope:
-        lines = scope.splitlines()
-        first = next((i for i, line in enumerate(lines)
-                      if "id=\\"cardFxAdHook\\"" in line
-                      or "id='cardFxAdHook'" in line), -1)
-        last = next((i for i in range(first, len(lines))
-                     if "不伪造 VIP 状态" in lines[i]), -1) if first >= 0 else -1
-        if first < 0 or last < 0:
-            raise SystemExit("cannot safely locate obsolete WebUI Hook assertions in target-scope test")
-        block_start = first
-        while block_start > 0 and lines[block_start - 1].lstrip().startswith("#"):
-            block_start -= 1
-        lines[block_start:last + 1] = new_ui_block.splitlines()
-        scope = "\\n".join(lines) + "\\n"
-    elif "native FX Hook Activity source missing" not in scope:
-        raise SystemExit("target-scope regression has neither legacy nor native-only UI assertions")
-    # Ensure obsolete positive requirements are gone. Negative assertions above
-    # intentionally mention the old IDs and must remain.
-    if 'grep -q \'id="cardFxAdHook"\' "$UI"' in scope or 'grep -q \'id="fxHookManage"\' "$UI"' in scope:
-        raise SystemExit("target-scope regression still requires the retired WebUI LSPosed editor")
+    # Remove only obsolete WebUI-specific assertions from the archived release
+    # test. Preserve backend/status checks, then add authoritative native UI checks.
+    obsolete_ui_tokens = (
+        'id="cardFxAdHook"', "id='cardFxAdHook'",
+        "fxHookAppList", "fxHookManage", "if(!loaded)",
+        "member_diag", "会员选项仅做只读", "不伪造 VIP 状态",
+        "id='fxHookSync'", 'id="fxHookSync"',
+    )
+    kept = []
+    for line in scope.splitlines():
+        if any(token in line for token in obsolete_ui_tokens):
+            # Keep the explicit negative WebUI assertions from the new block below.
+            continue
+        if "Hook" in line and "WebUI" in line and line.lstrip().startswith("#"):
+            continue
+        kept.append(line)
+    scope = "\n".join(kept).rstrip() + "\n\n" + new_ui_block
+    scope_test.write_text(scope, encoding="utf-8")
     scope_test.write_text(scope, encoding="utf-8")
 print("Updated unified Hook APK and native-only target-scope regression assertions.")
