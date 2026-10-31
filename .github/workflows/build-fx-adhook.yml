@@ -46,6 +46,7 @@ jobs:
           module_prop="$(find "$RUNNER_TEMP/fx-unpack" -type f -name module.prop -print -quit)"
           test -n "$module_prop"
           source_root="$(dirname "$module_prop")"
+          rm -rf fx-module
           mkdir -p fx-module
           cp -a "$source_root/." fx-module/
           python3 fx-patches/patch_remote_config_parser.py fx-module
