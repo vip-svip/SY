@@ -1,6 +1,5 @@
 package de.privacyguard.adhook;
 
-import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -38,17 +37,21 @@ public final class RootAccess {
                     .redirectErrorStream(true).start();
             final Process running = process;
             drain = new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(running.getInputStream(), StandardCharsets.UTF_8))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
+                // Read fixed-size chunks instead of readLine(): a single unbroken
+                // output line must not allocate an unbounded String before the cap.
+                try (InputStreamReader reader = new InputStreamReader(
+                        running.getInputStream(), StandardCharsets.UTF_8)) {
+                    char[] chunk = new char[4096];
+                    int count;
+                    while ((count = reader.read(chunk, 0, chunk.length)) != -1) {
                         synchronized (output) {
                             if (output.length() < limit) {
                                 int remaining = limit - output.length();
-                                output.append(line, 0, Math.min(line.length(), remaining));
-                                if (output.length() < limit) output.append('\n');
+                                output.append(chunk, 0, Math.min(count, remaining));
                             }
                         }
+                        // Continue draining after reaching the cap so su cannot block
+                        // on a full pipe; excess text is discarded, not buffered.
                     }
                 } catch (Exception ignored) { }
             }, "fx-root-output");
