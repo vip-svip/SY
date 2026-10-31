@@ -153,6 +153,7 @@ jobs:
               else
                 fail=$((fail + 1))
                 echo "::error file=$test_script::Regression failed with exit code $rc"
+                echo "FAILED_TEST: $test_name exit=$rc log=$log"
               fi
               tail -n 30 "$log" || true
             fi
@@ -161,6 +162,14 @@ jobs:
           echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
           echo "pass=$pass skipped=$skipped fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
           [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
+      - name: Upload FX host regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-v1.0.0-host-regression-logs
+          path: ${{ runner.temp }}/fx-regression-logs/
+          if-no-files-found: warn
+          retention-days: 3
       - name: Preserve restored module source for focused audit
         if: success()
         uses: actions/upload-artifact@v4
