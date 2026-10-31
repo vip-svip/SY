@@ -3,6 +3,7 @@
     package="de.privacyguard.adhook">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="FX"
         android:allowBackup="false"
