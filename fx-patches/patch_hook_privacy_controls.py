@@ -12,7 +12,7 @@ for path in (generator, regression, mic_regression, ui):
     if not path.is_file():
         raise SystemExit("missing required FX source: " + str(path))
 
-def once(path, old, new, *, allow_missing=False):
+def once(path, old, new, *, allow_missing=True):
     source = path.read_text(encoding="utf-8")
     count = source.count(old)
     if count == 0 and allow_missing:
@@ -127,5 +127,22 @@ else:
 once(mic_regression,
 '''if grep -q 'startRecording' "$HOOK"; then echo 'unexpected startRecording interception' >&2; exit 1; fi''',
 '''if sed -n '/private void installAudioRecordSilenceHooks/,/private boolean isMicrophoneSilenceAuthorized/p' "$HOOK" | grep -q 'startRecording'; then echo 'unexpected startRecording interception in silence hook' >&2; exit 1; fi''')
+
+# Fail with a precise postcondition if an evolved source did not already provide
+# the API-101 controls; missing legacy anchors alone are not evidence of success.
+gen_final = generator.read_text(encoding="utf-8")
+ui_final = ui.read_text(encoding="utf-8")
+reg_final = regression.read_text(encoding="utf-8")
+required_generator = (
+    "camera_access_block", "location_access_block",
+    "mic_access_block", "media_store_query_block"
+)
+required_ui = required_generator
+missing = [name for name in required_generator if name not in gen_final]
+missing += [name for name in required_ui if name not in ui_final]
+if missing:
+    raise SystemExit("API-101 privacy migration incomplete; missing fields: " + ", ".join(sorted(set(missing))))
+if "com.sensitive.app" not in reg_final or "media_store_query_block=1" not in reg_final:
+    raise SystemExit("API-101 privacy migration lacks end-to-end Remote Files regression coverage")
 
 print("FX API-101 privacy controls wired through UI and Remote Files publisher")
