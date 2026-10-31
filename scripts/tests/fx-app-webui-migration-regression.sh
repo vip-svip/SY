@@ -200,7 +200,7 @@ grep -Eq "chmod 0755 .*legacyDir" "$ACTIVITY" || fail "API-101 ownership map par
 grep -Eq "! chmod 0755 .*legacyDir" "$ACTIVITY" || fail "API-101 ownership map directory permissions must be verified before publish succeeds"
 grep -Fq 'API101_MANAGED_PATH = "/data/local/tmp/privacyguard/fx-api101-managed.conf"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "legacy Hook ownership map path must match the native publisher"
 grep -Fq 'if (isFinishing() || isDestroyed()) return;' "$ACTIVITY" || fail "publisher callback must not show dialogs after Activity destruction"
-grep -Fq 'runOnUiThread(() -> {' "$ACTIVITY" || fail "Root status callback must return to the main thread"
+[ "$(grep -Fc 'if (isFinishing() || isDestroyed()) return;' "$ACTIVITY")" -ge 2 ] || fail "Root and Hook publisher UI callbacks must both ignore destroyed Activity instances"
 grep -Fq 'ApplicationInfo currentTarget = findApp(selectedPackage);' "$ACTIVITY" || fail "custom Hook rule editor must revalidate target package before rebuilding its screen"
 grep -Fq '目标应用已卸载或不再可用' "$ACTIVITY" || fail "removed target app must produce a safe UI message instead of a null dereference"
 grep -Fq 'catch (RejectedExecutionException busy)' "$BRIDGE" || fail "RootBridge must handle bounded-queue rejection"
