@@ -54,7 +54,7 @@ g = gradle.read_text(encoding="utf-8")
 g = g.replace("minSdk 28", "minSdk 27")
 if "de.robv.android.xposed:api:82" not in g:
     g = g.replace("compileOnly 'io.github.libxposed:api:101.0.1'",
-                  "compileOnly 'io.github.libxposed:api:101.0.1'\\n    compileOnly 'de.robv.android.xposed:api:82'")
+                  "compileOnly 'io.github.libxposed:api:101.0.1'\n    compileOnly 'de.robv.android.xposed:api:82'")
 if "de.robv.android.xposed:api:82" not in g:
     raise SystemExit("could not add legacy Xposed compileOnly dependency")
 gradle.write_text(g, encoding="utf-8")
