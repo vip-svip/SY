@@ -355,7 +355,9 @@ grep -Fq 'selectedBottomTab = 4;' "$ACTIVITY" || fail "Hook tab selection state 
 grep -Fq 'FX_ANDROID_KEYSTORE_PATH' "$ROOT/adhook/app/build.gradle" || fail "Gradle release signing must consume the protected keystore path"
 grep -Fq 'storeType "PKCS12"' "$ROOT/adhook/app/build.gradle" || fail "release keystore format must be explicit"
 grep -Fq 'signingConfig signingConfigs.fxRelease' "$ROOT/adhook/app/build.gradle" || fail "release build must use the configured persistent signer"
-grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must accept the protected release keystore"
+grep -Fq 'SY_BUILD_TOKEN: ${{ secrets.SY_BUILD_TOKEN }}' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must use the existing single protected GitHub token"
+grep -Fq '.github/signing/fx-release.p12.enc' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must restore the persistent encrypted signing vault"
+grep -Fq 'aes-256-cbc' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "persistent signing vault must be encrypted at rest"
 grep -Fq ':app:assembleRelease' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "configured signing must build the non-debuggable Release variant"
 grep -Fq 'BUILD_VARIANT="release"' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release build metadata must identify the Release variant"
 grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-adhook.yml" && fail "standalone debug audit workflow must not handle release signing secrets" || :
