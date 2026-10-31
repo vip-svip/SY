@@ -12,28 +12,29 @@ The source declares `IXposedHookLoadPackage`, `XC_MethodHook`, `XposedBridge`, a
 
 ## Migration requirements
 
-Preserve the full legacy feature inventory and per-feature switches while porting API-82 callbacks to libxposed API 101. Do not silently drop legacy features or claim the two APKs are unified until CI builds a single APK and device injection is verified.
+Preserve the full legacy feature inventory and per-feature switches while porting API-82 callbacks to libxposed API 101. The single-APK dual-entry packaging is now built and verified in CI; this does not mean all 75 legacy switches have been migrated or that device injection is verified.
 
 Configuration must be read through LSPosed Remote Files, parsed transactionally, and support independent ad and privacy switches. Invalid, missing, oversized, malformed, or unsupported configuration must install no hooks.
 
-## Current verified state
+## Current verified state (2026-11-01)
 
-- The modern `AdVisibilityHook` runtime uses `UnifiedHookConfigParser.parse(content)` and LSPosed Remote Files.
-- The legacy entrypoint is 2,073 lines / 96,340 bytes in the current FX ZIP; it is available for source migration.
-- The modern API-101 runtime contains package-scoped ad View observers, read-only Billing/member diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, sensor enumeration/rate policy, Wi-Fi scan suppression, and active-notification read suppression. Notification permission-query masking exists in parser/runtime source but is not wired through the FX publisher/target editor, so it is dormant. Source presence and host tests are not proof of device behavior.
-- API-101 now includes Chinese rewarded-flow UI evidence, bounded member DEX candidate scanning, dynamic class-load observation, and capped read-only candidate getter hooks. GitHub Actions verified compilation, signing, Xposed resources and the expected DEX markers; no OnePlus 12 runtime verification has been performed.
-- Billing and membership handling must remain read-only. Never synthesize rewarded-ad callbacks, purchases, or server-side entitlements.
-- The two APK package identities remain separate: `de.privacyguard.hook` and `de.privacyguard.adhook`.
-- The KernelSU module package workflow must fail closed if required module source files are missing; never emit a partial ZIP.
+- The modern `AdVisibilityHook` runtime uses `UnifiedHookConfigParser.parse(content)` and LSPosed Remote Files. Missing, malformed or unsupported configuration remains fail-closed.
+- The legacy API-82 `MainHook.java` source (2,073 lines / 96,340 bytes) is copied into the same APK and retained as a legacy Xposed entrypoint. The APK has one applicationId, `de.privacyguard.adhook`, with the legacy entrypoint and modern libxposed API-101 `AdVisibilityHook` entrypoint. The old standalone legacy APK is not packaged as a second app.
+- API-101 currently wires package-scoped automatic ad View recognition, read-only Billing/member diagnostics, Android ID transformation, EXIF redaction, clipboard-read policy, process-local clipboard isolation, sensor enumeration/rate policy, Wi-Fi scan suppression, notification-listener read suppression, notification permission-query masking, microphone silence, explicit microphone/camera/location access denial, and MediaStore query suppression. These are narrower behaviors than several legacy spoofing/hiding switches; they must not be labeled full API-82 parity.
+- `notification_permission_hide` and `clipboard_isolate` are no longer dormant: the native target editor, publisher master/per-target fields, parser/serializer, runtime gates, status reporting and regression coverage are wired. Clipboard isolation is process-local shadow state, not OS-wide cross-app isolation. Notification permission masking changes only selected app-visible permission-query results; it does not revoke or grant Android permissions.
+- API-101 also includes Chinese rewarded-flow UI evidence, bounded member DEX candidate scanning, dynamic class-load observation, and capped read-only candidate getter hooks. Billing and membership handling remain read-only: never synthesize rewarded-ad callbacks, purchases, or server-side entitlements.
+- The six-tab FX APP shell and native Hook hub are integrated into one APK. The existing complex management dashboard is bundled locally in an app-owned WebView; the per-app Hook manager is native Android UI. This is a single app entrypoint, not a complete rewrite of every dashboard widget as native views.
+- The KernelSU package workflow restores the complete module source, builds and embeds the unified APK, and fails closed if required module files are missing. CI run `41250822004` passed APK v2 signature verification, the complete 302-test package regression suite, ZIP checksums and the embedded/external APK digest comparison. A separate source-migration run also passed 301 host regressions and the Hook APK build.
+- No OnePlus 12 + KernelSU + LSPosed physical-device injection or behavior verification has been performed. Host tests and CI APK compilation do not prove OEM runtime behavior.
 
 ## Remaining migration sequence
 
-1. Create a method-by-method inventory from the supplied 2,073-line legacy source and map each switch to its existing UI/config key.
+1. Complete the method-by-method audit of all 75 legacy switches against the recovered `MainHook.java`, native UI, config publisher, modern runtime and legacy duplicate-suppression map.
 2. Continue porting deterministic, low-risk privacy protections with independent opt-in switches, package-scope checks, API guards, and fail-open compatibility behavior. The bounded membership observer is diagnostic-only and must not change entitlement state.
-3. Keep destructive or high-breakage transforms (package/process hiding, telephony, location, camera/microphone, filesystem and system-property manipulation) disabled until each has dedicated API/OEM regression tests.
-4. Port the ad runtime and read-only membership diagnostics without changing ad reward callbacks, purchase state, or server-side validation.
-5. Consolidate package identity, LSPosed metadata, entrypoint, target scope and Remote Files transport only after every retained feature has an explicit migration status and the single APK builds in CI.
-6. Require host regression tests, APK signature/resource checks, and separate OnePlus 12 LSPosed injection/behavior verification before calling the deliverable complete.
+3. Keep destructive or high-breakage transforms (package/process hiding, telephony, GNSS/location spoofing, hardware identity spoofing, filesystem and system-property manipulation) disabled until each has dedicated API/OEM regression tests.
+4. Expand host tests for each retained API-101 behavior and verify that its legacy duplicate is suppressed only for the same package/feature. Do not treat parser/serializer presence as runtime parity.
+5. The single-APK identity, both Xposed entrypoints, native Hook manager, Remote Files transport and KernelSU APK embedding are already built in CI; remaining work is feature parity, not another APK merge.
+6. Require OnePlus 12 + KernelSU + LSPosed injection, per-feature behavior, reboot/upgrade/uninstall and rollback verification before calling the deliverable device-complete.
 
 
 ## Legacy runtime switch inventory
@@ -46,7 +47,7 @@ A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **75 dist
 | Radio/device state | `spoof_bt_mac`, `spoof_wifi_mac`, `spoof_battery`, `spoof_screen`, `spoof_storage` | Not migrated |
 | Kernel/root/filesystem | `block_kernel_version`, `hide_kernel_debug`, `block_logcat`, `hide_su`, `hide_magisk`, `hide_ksu`, `block_rootcheck_libs`, `block_mounts`, `hide_mounts`, `hide_sysfs_nodes`, `fs_hide`, `fs_isolate`, `fs_rootlist`, `fs_attrs`, `fs_vfs` | Not migrated; keep disabled pending API/OEM tests |
 | System/app visibility | `syssvc_hide`, `app_list`, `block_pm_query`, `block_process_list`, `k_task`, `block_mediastore`, `block_net_ifaces`, `block_netstats`, `vpn_hide` | Not migrated; high compatibility risk |
-| Clipboard/input/notifications | `clipboard`, `clipboard_isolate`, `block_ime_logging`, `block_notif_listen`, `hide_notif_perm`, `usagestats_off`, `a11y_hide` | Clipboard read policy and active-notification read suppression are partially migrated under independent modern gates. Permission-query masking is parser/runtime source only and not exposed by the FX target editor/publisher. Clipboard isolation, IME, usage and accessibility remain unported |
+| Clipboard/input/notifications | `clipboard`, `clipboard_isolate`, `block_ime_logging`, `block_notif_listen`, `hide_notif_perm`, `usagestats_off`, `a11y_hide` | Clipboard read policy and process-local clipboard isolation are wired with separate master/per-target gates; notification-listener read suppression and permission-query masking are also wired. These are limited API-level behaviors, not OS-wide isolation or permission changes. IME, usage and accessibility data protections remain unported |
 | Location/Wi-Fi | `mock_location`, `perapp_mock`, `gps`, `gps_accuracy`, `gnss_spoof`, `disable_passive_loc`, `block_wifi_scan` | Wi-Fi scan partially migrated; all location/GNSS switches not migrated |
 | Sensors | `sensor_accel`, `sensor_gyro`, `sensor_light`, `sensor_magnet`, `sensor_pressure`, `sensor_prox`, `sensor_rate_limit` | Partially migrated with modern sensor selection/rate-limit policies; not full API-82 parity |
 | Camera/audio/biometrics | `cam_null`, `cam_hw_hide`, `mic_block`, `mic_hw_hide`, `audio_fp_block`, `hide_fingerprint_hw`, `hide_face_hw` | Not migrated |
@@ -55,11 +56,11 @@ A direct scan of the recovered 2,073-line API-82 `MainHook.java` found **75 dist
 Do not treat a parsed or serialized switch as an implemented hook. A switch becomes migrated only when its runtime behavior, package scope, independent opt-in, API guards, fail-open path, unit/host regression and device validation are all accounted for.
 
 
-## KernelSU packaging blocker confirmed
+## Historical KernelSU source-layout blocker (resolved in CI, source-layout debt remains)
 
-The GitHub branch's `fx-module/` subtree currently contains only 7 tracked paths. The package workflow requires, among others, `customize.sh`, `post-fs-data.sh`, `uninstall.sh`, `fx-module/scripts/apply.sh`, `default.conf`, `util.sh`, `certmgr.sh`, and `webroot/index.html`; these required files are not present under that subtree. The workflow correctly fails closed and must not emit a partial KernelSU ZIP.
+The GitHub branch's `fx-module/` subtree is still intentionally incomplete as a tracked source tree. The package workflow now restores the full module source from the published FX archive before applying reviewed patches, building QuickJS-NG and embedding the unified Hook APK. It validates required entrypoints and fails closed rather than emitting a partial ZIP.
 
-The current Library FX ZIP has the full module source at its archive root (including the root entrypoints, `scripts/`, and `webroot/`), not under `fx-module/`. Restoring the full module tree into the GitHub build layout is a separate required step before a complete GitHub KernelSU package can be produced. The latest working archive at `/mnt/data/fxwork/FX-v1.0.0-KernelSU.zip` now embeds the CI-built API-101 APK with its matching SHA-256 sidecar and build provenance. The original Library ZIP remains untouched. The working archive still contains both Hook APKs because the legacy API-82 feature set has not yet been fully migrated into one package.
+This makes the current CI package build successful, but the build still depends on the published source archive as the source of truth for much of the module. Long-term maintainability would improve by tracking the complete module tree in GitHub rather than relying on release-archive restoration. The 2026-11-01 CI package contains one `optional/FXUnifiedHook.apk` with both Hook entrypoints; it does not ship separate `PrivacyGuardHook.apk` and `FXAdHook.apk` packages. The 75-switch API-101 feature-parity audit remains open.
 
 
 ## 2026-10-30 continuation — Wi-Fi scan and notification migration
@@ -74,7 +75,7 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 
 - The FX KernelSU ZIP root-side publisher `scripts/gen_xposed_conf.sh` emits the versioned API-101 Remote Files schema; the old API-82 `xposed.conf` consumer remains separate.
 - API-101 parses/serializes `notification_listen_enabled` + per-target `notification_listen_block`, and the FX publisher emits those fields.
-- API-101 also contains permission-query masking parser/runtime code, but the FX publisher and UI target editor do not emit `notification_permission_hide_enabled` or `notification_permission_hide`; it is dormant and not a completed migration.
+- At the time of this 2026-10-30 note, permission-query masking was parser/runtime-only and dormant. It was subsequently wired through the native target editor, publisher, status reporting and regression suite; see the current verified state above.
 - Active-notification read suppression is limited to selected read APIs; OS permission state and notification posting/display are not changed.
 - Policy tests verify shared-package/protected-package/master-off fail-open behavior. CI run `41074509939` passed unit tests, APK assembly, signature verification, Xposed resource checks, and DEX marker checks.
 - APK SHA-256: `3a113bcecedd203f7aab32f1b84803a85cd11282b4ec47d4ddbec1b819bf8822`. Standalone API-101 debug artifact only; not merged with API-82. No physical OnePlus 12 verification.
@@ -95,7 +96,7 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 - Audited legacy API-82 `clipboardGuard()`: `clipboard_isolate` caches the process's own successful `setPrimaryClip()` value and shadows `getPrimaryClip()` / `hasPrimaryClip()` reads. It is process-local shadow state, not OS-level cross-app isolation.
 - API-101 `clipboard_read_block` is not equivalent and must not be used as a substitute.
 - Added detailed migration acceptance criteria to `docs/FXHOOK-MIGRATION-MATRIX.md` and `docs/FXHOOK-CLIPBOARD-ISOLATION-AUDIT.md` in the FX 1.0.0 working ZIP.
-- API-101 clipboard-isolation runtime/config/UI implementation remains pending; no device verification.
+- At the time of this audit, API-101 clipboard-isolation wiring was pending. It was subsequently implemented with process-local shadow state and separate master/per-target controls; no device verification.
 
 
 ## 2026-10-30 — clipboard isolation migration completed in CI/package
@@ -104,4 +105,4 @@ The current Library FX ZIP has the full module source at its archive root (inclu
 - Root FX package working copy wires editor, publisher, apply publication gate, and status JSON/UI.
 - CI run `41080488374` passed unit tests, Android debug APK build, signing/metadata checks, and DEX markers; APK SHA-256 `778b07f84b924629969a849c4ef2b8ce68df3bed277e638190f583b2e79d9991`.
 - Shared processes fail open; `clipboard_isolate` and `clipboard_read_block` are mutually exclusive. This is not OS-wide cross-app isolation.
-- Remaining acceptance: OnePlus 12 physical-device LSPosed test; merge API-82 and API-101 into one APK/application; continue remaining legacy Hook migration.
+- At the time of this 2026-10-30 entry, APK consolidation was still pending. It was subsequently completed in CI as one dual-entry APK; remaining acceptance is OnePlus 12 physical-device LSPosed testing and the remaining legacy Hook migration.
