@@ -558,7 +558,7 @@ public final class MainActivity extends Activity {
         note.setTextColor(0xff697681); note.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(note);
         section("自定义 Hook");
         TextView custom=new TextView(this);
-        custom.setText("自定义规则仅支持观察目标应用自身的方法调用，不修改返回值、登录状态或会员资格。");
+        custom.setText("仅对可调试版本目标应用生效。自定义规则只记录方法调用、参数类型、耗时和异常类型；不记录参数/返回值，也不修改返回值、登录状态或会员资格。");
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
         Button addRule=new Button(this); addRule.setText("添加只读观察规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
