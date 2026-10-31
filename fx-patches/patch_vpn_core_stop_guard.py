@@ -147,4 +147,27 @@ echo "$OUT" | grep -Fq '当前为直连模式，无需启动独立核心'
 echo 'FX manual VPN-core stop guard regression: PASS'
 ''', encoding="utf-8")
 test.chmod(0o755)
+# The published module retires its old WebUI entrypoint after tests; these
+# two VPN UI regressions must be able to inspect the canonical UI extracted
+# from the APK in the final package-validation stage.
+for test_name, old_assignment, new_assignment in (
+    (
+        "v1.0.0-vpn-toggle-ui-regression.sh",
+        'H="$ROOT/webroot/index.html"',
+        'H="${1:-$ROOT/webroot/index.html}"',
+    ),
+    (
+        "v1.0.0-vpn-direct-no-node-regression.sh",
+        'UI="$ROOT/webroot/index.html"',
+        'UI="${1:-$ROOT/webroot/index.html}"',
+    ),
+):
+    ui_test = root / "scripts/tests" / test_name
+    if not ui_test.is_file():
+        raise SystemExit("missing VPN UI regression: " + str(ui_test))
+    ui_source = ui_test.read_text(encoding="utf-8")
+    if old_assignment in ui_source:
+        ui_test.write_text(ui_source.replace(old_assignment, new_assignment, 1), encoding="utf-8")
+    elif new_assignment not in ui_source:
+        raise SystemExit("VPN UI test path anchor changed: " + test_name)
 print("Guarded standalone VPN-core stop against active proxy modes and stale PID ownership.")
