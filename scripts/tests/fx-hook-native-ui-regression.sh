@@ -48,6 +48,8 @@ grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/
 grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "unified APK manifest generator drops keyboard resize behavior"
 grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
+grep -q "if (closed || activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "RootBridge does not reject navigation after Activity teardown"
+grep -q "if (!closed && !activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "queued RootBridge navigation does not recheck Activity lifecycle"
 [ -s "$APK" ] || fail "built Hook APK missing"
 CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/fx-hook-apk-check.XXXXXX")" || fail "cannot create temporary APK check directory"
 trap 'rm -rf "$CHECK_TMP"' EXIT HUP INT TERM
