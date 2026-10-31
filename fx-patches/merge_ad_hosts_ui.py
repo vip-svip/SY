@@ -17,7 +17,7 @@ class PageLocator(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.text = text
         self.lines = [0]
-        for match in re.finditer("\\n", text):
+        for match in re.finditer("\n", text):
             self.lines.append(match.end())
         self.stack = []
         self.pages = {}
@@ -57,7 +57,7 @@ class PageLocator(HTMLParser):
         target = next((item[1] for item in reversed(closing) if item[1]), None)
         if target and self.pages[target]["end"] is None:
             start = self.offset()
-            close = re.match(r"</\\s*" + re.escape(tag) + r"\\s*>", self.text[start:], re.I)
+            close = re.match(r"</\s*" + re.escape(tag) + r"\s*>", self.text[start:], re.I)
             if close:
                 self.pages[target]["end"] = start
                 self.pages[target]["close_end"] = start + close.end()
@@ -80,8 +80,8 @@ host_content = html[hosts["content_start"]:hosts["end"]]
 if "mitmTrafficEnable" in host_content or "rootCertCard" in host_content:
     raise SystemExit("Ad cards already appear in Hosts page without merge marker")
 edits = [
-    (hosts["end"], hosts["end"], "\\n" + marker + "\\n" + ad_content),
-    (ad["content_start"], ad["end"], "\\n<!-- FX: legacy Ad content moved to Hosts page -->\\n"),
+    (hosts["end"], hosts["end"], "\n" + marker + "\n" + ad_content),
+    (ad["content_start"], ad["end"], "\n<!-- FX: legacy Ad content moved to Hosts page -->\n"),
 ]
 for start, end, replacement in sorted(edits, reverse=True):
     html = html[:start] + replacement + html[end:]
