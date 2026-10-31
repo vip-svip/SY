@@ -20,10 +20,10 @@ helper = '''_mitm_warn() {
 if source.count(helper) != 1:
     raise SystemExit("uninstall warning helper does not match the reviewed source")
 source = source.replace(helper, "", 1)
-first_call = source.find('_mitm_warn "')
-if first_call < 0:
-    raise SystemExit("uninstall warning callsite is missing; refusing to move helper")
-source = source[:first_call] + helper + source[first_call:]
+shebang_end = source.find("\\n")
+if not source.startswith("#!") or shebang_end < 0:
+    raise SystemExit("uninstall shebang is missing; refusing to move warning helper")
+source = source[:shebang_end + 1] + helper + source[shebang_end + 1:]
 scheduler_call = source.find('_mitm_warn "scheduler PID')
 definition = source.find("_mitm_warn() {")
 if scheduler_call < 0 or definition < 0 or definition > scheduler_call:
