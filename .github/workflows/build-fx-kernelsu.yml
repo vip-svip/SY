@@ -168,7 +168,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh scripts/tests/fx-app-webui-migration-regression.sh\n          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+          sh scripts/tests/fx-app-webui-migration-regression.sh
+          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
           BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
           test -s "$BUILT_APK"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
