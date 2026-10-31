@@ -40,6 +40,8 @@ prefix = '''    _GXC_NATIVE_CONFIG="$PG/fx-native-hook-targets-$_gxc_uid.conf"
         _GXC_ALL_OK=0
         continue
       fi
+      _GXC_REMOTE_ENABLED=$(awk '/^\\[/{exit} /^ads_enabled=/{sub(/^ads_enabled=/, ""); print; exit}' "$_gxc_tmp" | tr -d ' \\r')
+      _GXC_REMOTE_TARGETS=$(awk '/^\\[list:targets\\]$/ {inlist=1; next} /^\\[/ {if (inlist) exit} inlist && NF {n++} END {print n+0}' "$_gxc_tmp" | tr -d ' ')
     else
 '''
 source = source.replace(start, prefix + start, 1)
