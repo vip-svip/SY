@@ -97,6 +97,8 @@ jobs:
           python3 fx-patches/patch_localdns_uninstall_shutdown.py fx-module
           python3 fx-patches/patch_local_hosts_ipv4_validation.py fx-module
           python3 fx-patches/patch_vpn_direct_core_stop_result.py fx-module
+          python3 fx-patches/patch_vpn_core_stop_guard.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh
           python3 fx-patches/patch_private_runtime_logs.py fx-module
           python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
