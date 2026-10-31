@@ -205,24 +205,8 @@ public final class AdVisibilityHook extends XposedModule {
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null) return;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        final boolean developerTestForPackage = debuggableTarget && target.developerHooksEnabled
-                && (target.developerVipMethod != null || target.developerLoginMethod != null
-                || target.developerHideUpdateMethod != null || !target.developerRules.isEmpty());
-        if (developerTestForPackage) {
-            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerVipMethod, true, "vip");
-            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerLoginMethod, true, "login");
-            installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true, target.developerHideUpdateMethod, false, "hide-update");
-            for (DeveloperHookRule rule : DeveloperHookRule.selectEffective(target.developerRules)) {
-                String ruleLabel = rule.id + "@" + rule.priority;
-                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
-                    installDeveloperObservationHook(param.getClassLoader(), pkg, true, rule.descriptor, ruleLabel);
-                } else {
-                    // Value replacement remains limited to the existing explicit zero-arg boolean Debug fixture.
-                    installDeveloperBooleanTestHook(param.getClassLoader(), pkg, true,
-                            legacyBooleanDescriptor(rule.descriptor, pkg), rule.action, ruleLabel);
-                }
-            }
-        }
+        // Production Hook never overrides VIP, login, or update decisions.
+        final boolean developerTestForPackage = false;
         final boolean adsForPackage = adsEnabled && target.enabled();
         final boolean memberDiagForPackage = target.memberDiag;
         final boolean privacyForPackage = privacyEnabled && target.privacy;
