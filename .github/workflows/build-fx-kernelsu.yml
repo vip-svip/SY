@@ -55,6 +55,7 @@ jobs:
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
+          python3 fx-patches/merge_hook_single_apk.py fx-module .
       - name: Validate required module files and version
         shell: bash
         run: |
@@ -145,16 +146,13 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$BUILT_APK"
           mkdir -p fx-module/optional
-          cp "$BUILT_APK" fx-module/optional/FXAdHook.apk
-          (cd fx-module/optional && sha256sum FXAdHook.apk > FXAdHook.apk.sha256)
-          if [[ -s fx-module/optional/PrivacyGuardHook.apk ]]; then
-            (cd fx-module/optional && sha256sum PrivacyGuardHook.apk > PrivacyGuardHook.apk.sha256)
-          fi
-          cat > fx-module/optional/FXAdHook-BUILD-INFO.txt <<'INFO'
+          cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
+          (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
+          cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'INFO'
           Build variant: debug-signed APK
-          Modern LSPosed API 101
+          Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
           versionCode: 10000
-          Deployment: ordinary application installed by PackageManager
+          Deployment: one ordinary application package installed by PackageManager
           INFO
           sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh
