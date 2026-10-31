@@ -1,14 +1,18 @@
 # FX Hook (LSPosed)
 
-## Standalone APK interface
-The unified APK also declares a native Android launcher Activity. It lists installed applications, supports searching by label/package name, and opens a per-target screen for ad filtering, privacy controls, and read-only membership diagnostics. Per-target switches are stored in app-private preferences. The Save & Sync action requests root through `su`, serializes the selected target rows using schema v1, and writes `fx-hook-targets.conf` into the current Android user's LSPosed module Remote Files directory. The action reports failure if root is denied. Runtime activation still requires LSPosed Manager scope to include the same target package and a target-process restart. The APK's custom-rule editor currently emits package-scoped `OBSERVE` rules only; it does not expose return-value replacement actions. The APK build workflow verifies the launcher entry with Android's APK metadata tools.
+## FX APP unified interface
+The FX APK is the single management entrypoint. Its native Android shell embeds the complete 1.0.0 management UI in an app-owned WebView and connects it to the KernelSU backend through an asynchronous `su` bridge. The original VPN, DNS, rules, subscriptions, Hosts, certificate/MITM, privacy, script, Hook, advanced settings, diagnostics, logs, crash and import/export screens are bundled into the APK; the KernelSU module remains the privileged service/backend. The module WebUI is replaced with a migration notice in the final package to avoid two competing management interfaces.
+
+The Hook application manager remains a native Android screen: it lists installed apps, supports searching by label/package name, and opens per-target ad/privacy/read-only billing diagnostic settings. Per-target switches are stored in app-private preferences. Save & Sync writes `fx-hook-targets.conf` into the current Android user's LSPosed Remote Files directory. Runtime activation still requires LSPosed Manager scope to include the same target package and a target-process restart. The custom-rule editor emits package-scoped `OBSERVE` rules only; it does not expose return-value replacement actions.
+
+The complete legacy management page is currently hosted inside the APP WebView for feature parity; this is a single-APP migration, not a claim that every control has already been rewritten as a native Android widget. Root is granted only by KernelSU authorization and is checked at runtime; it is not conferred by a manifest permission.
 
 
 This is a separate opt-in LSPosed module shipped with FX. It does not fake VIP status and never modifies billing results or purchase tokens.
 
 ## Activation contract
-1. In FX WebUI, enable the master switch and select one or more installed apps with ad categories.
-2. The FX installer places both Hook APKs as ordinary Android apps under `/data/app` via PackageManager. This does not require a metamodule for the Hook APKs. Reboot after installing/upgrading FX so LSPosed scans the module; if install-time PackageManager installation fails, the boot service retries and logs to `/data/adb/privacyguard/adhook-install.log`.
+1. In FX APP, enable the master switch and select one or more installed apps with ad categories.
+2. The FX installer places the unified Hook APK as an ordinary Android app under `/data/app` via PackageManager. This does not require a metamodule for the Hook APKs. Reboot after installing/upgrading FX so LSPosed scans the module; if install-time PackageManager installation fails, the boot service retries and logs to `/data/adb/privacyguard/adhook-install.log`.
 3. In LSPosed Manager, enable FX Ad Hook and include the exact same apps in its scope.
 4. Force-stop and reopen the target app after changing configuration.
 
@@ -18,7 +22,7 @@ Effects require both gates: the app is listed in the FX-generated target config 
 
 The unified API 101 entry contains opt-in Android ID isolation and a first read-time EXIF redaction migration slice. When the unified config has both `privacy_enabled=1` and a target row with `privacy=1`, calls to `Settings.Secure.getString(..., ANDROID_ID)` receive a stable app-specific 16-hex identifier. Other secure settings are passed through unchanged. EXIF redaction is independently selected per target with `exif_strip=1` under the privacy master switch. It redacts GPS, device Make/Model, and DateTime values returned by framework/AndroidX ExifInterface getters; it does not rewrite image files or intercept every third-party metadata parser. These are narrow migration slices, not parity with the legacy PrivacyGuard hook set.
 
-Integration status (2026-10-30): the current FX-v1.0.0 KernelSU archive contains `scripts/gen_xposed_conf.sh`, which translates the root-side `hook_targets` list and independent master switches into the versioned API-101 Remote Files schema (`schema_version=1`). It publishes to `de.privacyguard.adhook/files/fx-hook-targets.conf` and records publication status. The publisher and APK parser must be kept in lockstep; verify the script shipped in the exact ZIP being installed rather than relying on this source-branch README alone. The legacy API-82 `de.privacyguard.hook` APK is still installed separately. This does not mean the two Hook runtimes have been merged. Physical OnePlus 12 / LSPosed behavior remains unverified.
+Integration status (2026-10-30): the current FX-v1.0.0 KernelSU archive contains `scripts/gen_xposed_conf.sh`, which translates the root-side `hook_targets` list and independent master switches into the versioned API-101 Remote Files schema (`schema_version=1`). It publishes to `de.privacyguard.adhook/files/fx-hook-targets.conf` and records publication status. The publisher and APK parser must be kept in lockstep; verify the script shipped in the exact ZIP being installed rather than relying on this source-branch README alone. The unified APK carries the legacy API-82 and modern API-101 Hook entrypoints in one installed package. This does not imply identical behavior across every LSPosed host; validate each entrypoint and scope independently. Physical OnePlus 12 / LSPosed behavior remains unverified.
 
 Unified config shape:
 ```text
@@ -52,7 +56,7 @@ Within the API-101 payload, `ads_enabled` and `privacy_enabled` are independent 
 
 
 ## Installer boundary
-The bundled Hook APKs are stored under `optional/`, not `system/priv-app/`, and `scripts/install_adhook_app.sh` stages them under `/data/local/tmp` then installs them as ordinary apps. It checks the APK SHA-256, skips unchanged installs, retries a few times, and never edits DNS/VPN/firewall settings. The same helper is exercised by a host-side PackageManager stub test. Note that FX's separate `/system/etc/hosts` overlay still requires a compatible KernelSU metamodule for that hosts feature; this change only removes that requirement from Hook APK deployment.
+The bundled unified Hook APK is stored under `optional/`, not `system/priv-app/`, and `scripts/install_adhook_app.sh` stages them under `/data/local/tmp` then installs them as ordinary apps. It checks the APK SHA-256, skips unchanged installs, retries a few times, and never edits DNS/VPN/firewall settings. The same helper is exercised by a host-side PackageManager stub test. Note that FX's separate `/system/etc/hosts` overlay still requires a compatible KernelSU metamodule for that hosts feature; this change only removes that requirement from Hook APK deployment.
 
 
 ## Explicit camera access denial
