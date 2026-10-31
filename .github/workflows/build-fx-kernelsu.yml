@@ -60,6 +60,7 @@ jobs:
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
+          python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
       - name: Build and embed QuickJS-NG v0.17.0 for Android ARM64
         uses: android-actions/setup-android@v3
@@ -199,6 +200,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
+          sh scripts/tests/vpncore-default-node-fallback-regression.sh
           gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
           BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
           test -s "$BUILT_APK"
