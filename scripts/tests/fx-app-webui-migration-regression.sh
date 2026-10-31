@@ -135,6 +135,8 @@ grep -Fq 'scanDynamicTree(child, added, 1, visited, target, pkg)' "$HOOK" || fai
 grep -Fq 'count[0]++ >= MAX_DYNAMIC_AD_SCAN_NODES' "$HOOK" || fail "dynamic scanner must stop at its node budget"
 grep -Fq 'hiddenAdViews' "$HOOK" || fail "hidden Ad views must retain their original visibility for restoration"
 grep -Fq 'installVisibilityMutationObserver' "$HOOK" || fail "Ad visibility changes must be observed before restoring hidden views"
+grep -Fq 'if (!visibilityMutationObserverInstalled)' "$HOOK" || fail "automatic Ad View hiding must fail open when visibility ownership cannot be tracked"
+grep -Fq 'automatic View hiding disabled for safety' "$HOOK" || fail "observer failure must be reported as a safe degradation"
 grep -Fq 'externallyChangedAdViews.put(changed, Boolean.TRUE)' "$HOOK" || fail "target-app visibility mutations must be distinguished from FX mutations"
 grep -Fq 'fxVisibilityMutation.set(true)' "$HOOK" || fail "FX-owned visibility writes must be excluded from external mutation tracking"
 grep -Fq '!changedByTarget && view.getVisibility() == View.GONE' "$HOOK" || fail "restore must not overwrite target-app visibility changes"
