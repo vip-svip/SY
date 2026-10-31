@@ -499,7 +499,7 @@ public final class MainActivity extends Activity {
         target.setText("正在读取设备端 Remote Files 状态…");
         Thread worker = new Thread(() -> {
             RootAccess.Result result = RootAccess.execute(
-                    "sh /data/adb/modules/privacyguard/scripts/status.sh json",
+                    "sh /data/adb/modules/privacyguard/scripts/status.sh",
                     30000L, 64 * 1024);
             String display;
             if (result.exitCode != 0) {
@@ -541,7 +541,14 @@ public final class MainActivity extends Activity {
                                 + "\n此状态仅反映设备端原生配置和发布状态；不证明 LSPosed 作用域或目标进程已注入。";
                     }
                 } catch (Exception malformed) {
-                    display = "Remote Files 状态返回格式无效，无法确认发布状态。";
+                    // Older module revisions print key/value text instead of JSON.
+                    // Show the bounded raw status rather than falsely reporting that
+                    // the device-side command failed.
+                    String raw = result.output == null ? "" : result.output.trim();
+                    if (raw.length() > 4000) raw = raw.substring(0, 4000) + "\\n…（内容已截断）";
+                    display = raw.isEmpty()
+                            ? "设备端状态脚本没有返回可显示的状态。"
+                            : "设备端状态输出（原始格式）：\\n" + raw;
                 }
             }
             final String message = display;
