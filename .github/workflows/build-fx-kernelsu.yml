@@ -169,7 +169,8 @@ jobs:
           unzip -tq dist/FX-v1.0.0.zip
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
-          sha256sum dist/FX-v1.0.0.zip | tee dist/SHA256SUMS
+          (cd dist && sha256sum FX-v1.0.0.zip > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: FX-v1.0.0-KernelSU
