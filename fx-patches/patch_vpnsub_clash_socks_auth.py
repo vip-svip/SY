@@ -64,6 +64,7 @@ urldec() {
     core.write_text(s, encoding="utf-8")
 
 test = root / "scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh"
+test.parent.mkdir(parents=True, exist_ok=True)
 test.write_text(r'''#!/system/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
