@@ -40,6 +40,7 @@ grep -q 'fx-native-nav-hide' "$ACTIVITY" || fail "duplicate WebUI bottom navigat
 grep -q 'case "pageHosts": tab = "ad"' "$ACTIVITY" || fail "Hosts tab must route to the embedded Hosts editor"
 grep -q 'navigateWebPage("pageMore")' "$ACTIVITY" || fail "advanced Settings entry missing"
 grep -q 'showHookHub()' "$ACTIVITY" || fail "Hook tab does not open the Hook permission hub"
+grep -q 'hookTargetVisible' "$ACTIVITY" || fail "Android back navigation must return from target config to app list"
 grep -q 'org.lsposed.manager' "$ACTIVITY" || fail "LSPosed Manager detection/launch missing"
 grep -q 'ACTION_ACCESSIBILITY_SETTINGS' "$ACTIVITY" || fail "Android accessibility settings entry missing"
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
