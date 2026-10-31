@@ -132,4 +132,34 @@ if service_block not in service_text:
         raise SystemExit("service.sh settings permission insertion anchor changed")
     service_text = service_text.replace(service_anchor, service_block + service_anchor, 1)
 service.write_text(service_text, encoding="utf-8")
-print("Fixed uninstall warning order, native Hook installer guidance, and private settings.conf permissions.")
+# Recreate the KernelSU uninstall entrypoint after restoring an older published ZIP.
+# The workflow may replace fx-module wholesale when the checkout lacks legacy files;
+# keep the ownership-safe Hook remover sourced from the reviewed repository script.
+repo_root = Path(__file__).resolve().parent.parent
+canonical_remover = repo_root / "scripts" / "remove_adhook_app.sh"
+packaged_remover = root / "scripts" / "remove_adhook_app.sh"
+if not canonical_remover.is_file():
+    raise SystemExit("canonical ownership-safe Hook remover is missing")
+packaged_remover.parent.mkdir(parents=True, exist_ok=True)
+packaged_remover.write_text(canonical_remover.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_remover.chmod(0o755)
+kernel_uninstall = root / "uninstall.sh"
+kernel_uninstall.write_text("""#!/system/bin/sh
+# KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
+MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
+STATE_DIR=/data/adb/privacyguard
+REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
+if [ -f "$REMOVER" ]; then
+  sh "$REMOVER" "$MODDIR" "$STATE_DIR"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    echo "FX uninstall: one or more FX-owned Hook packages could not be removed; see $STATE_DIR/adhook-install.log" >&2
+  fi
+  exit "$_rc"
+fi
+echo "FX uninstall: Hook remover missing; leaving installed packages untouched" >&2
+exit 0
+""", encoding="utf-8")
+kernel_uninstall.chmod(0o755)
+
+print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and restored KernelSU Hook uninstall entrypoint.")
