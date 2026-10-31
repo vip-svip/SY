@@ -319,6 +319,7 @@ grep -q 'Restore module sources, merge Hook entrypoints, and stage WebUI (no com
 grep -q 'name: Validate FX APP migration and build Hook APK' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "migration workflow must clearly identify its APK build stage"
 grep -q 'Compile and verify the unified FX Hook APK' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "Hook APK must compile only after the migration regression suite"
 grep -q 'Upload verified FX Hook APK' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "verified Hook APK artifact upload missing"
+grep -qx 'android.useAndroidX=true' "$ROOT/adhook/gradle.properties" || fail "Hook APK Gradle build must enable AndroidX for AndroidX WebKit"
 grep -q 'v1.0.0-fxhook-single-apk-merge-audit-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "compiled APK merge audit regression must run"
 grep -q 'v1.0.0-lsposed-ad-hook-apk-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "compiled APK LSPosed entrypoint regression must run"
 grep -q 'v1.0.0-lsposed-ad-hook-target-scope-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "compiled APK target-scope regression must run"
