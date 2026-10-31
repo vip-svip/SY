@@ -25,6 +25,14 @@ The Hook hub separately reports whether LSPosed Manager is installed and provide
 
 FX also declares an optional Android AccessibilityService. The user must explicitly enable it in Android Accessibility settings. The current service only tracks connection state: it does not retrieve window content, read screen text, click controls, or perform gestures. Accessibility authorization is separate from Root and LSPosed authorization.
 
+## Native APP navigation and Hook authorization hub
+
+- The APP shell owns six bottom tabs: VPN, Ads, Hosts, Privacy, Scripts and Hook. The legacy in-page bottom bar is hidden inside the WebView so only one navigation bar is visible.
+- The Hosts tab routes to the local system Hosts editor embedded in the combined Rules/Ads page; the Settings page remains reachable from the native top toolbar.
+- The Hook tab opens a native authorization hub with LSPosed Manager detection/launch, per-app Hook settings and Android accessibility status.
+- Root, LSPosed module activation/scope, and Android accessibility are independent states. The APP does not infer one from another.
+- The optional accessibility service reports only whether it is connected. It declares `canRetrieveWindowContent=false`, does not inspect event payloads, text, passwords or other-app UI, and cannot perform gestures.
+
 ## APP bridge
 
 - The bundled page is served from `https://appassets.androidplatform.net/assets/webroot/index.html` via AndroidX WebViewAssetLoader. No remote page is loaded.
