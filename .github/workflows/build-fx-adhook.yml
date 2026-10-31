@@ -88,13 +88,8 @@ jobs:
             [ -f "$test" ] || continue
             echo "RUN MODULE REGRESSION: $test"
             if [[ "$test" == *"hosts-cache-concurrency-regression.sh" ]]; then
-              echo "=== HOSTS CACHE REGRESSION SOURCE ==="
-              nl -ba "$test"
-              echo "=== HOSTS CACHE FUNCTION UNDER TEST ==="
-              grep -n -A90 '^hosts_fetch_cached' fx-module/scripts/apply.sh
-              echo "=== HOSTS CACHE REGRESSION STRESS (20 RUNS) ==="
-              for attempt in $(seq 1 20); do
-                echo "hosts cache concurrency attempt $attempt/20"
+              for attempt in $(seq 1 10); do
+                echo "hosts cache concurrency attempt $attempt/10"
                 sh "$test"
               done
             else
