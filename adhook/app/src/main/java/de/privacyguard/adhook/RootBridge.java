@@ -33,7 +33,7 @@ public final class RootBridge {
     @JavascriptInterface
     public void exec(String command, String callbackName) {
         if (callbackName == null || !CALLBACK.matcher(callbackName).matches()) return;
-        if (command == null || command.length() == 0 || command.length() > 65536) {
+        if (command == null || command.length() == 0 || command.length() > 131072) {
             deliver(callbackName, 2, "Root 命令为空或超过 64 KiB 限制", "");
             return;
         }
