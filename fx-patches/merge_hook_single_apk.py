@@ -25,6 +25,25 @@ if text2 == text:
 target.write_text(text2, encoding="utf-8")
 target.chmod(0o644)
 
+# The copied legacy MainHook owns privacy controls; the modern entry retains ads
+# and read-only billing diagnostics, preventing duplicate privacy hooks in one process.
+adhook = modern / "java/de/privacyguard/adhook/AdVisibilityHook.java"
+a = adhook.read_text(encoding="utf-8")
+anchor = "        configLoaded = loadConfig();"
+replacement = """        configLoaded = loadConfig();
+        // Privacy controls are executed by the verbatim legacy MainHook in this same APK.
+        // Keep the modern entry responsible for ad filtering and read-only billing diagnostics.
+        privacyEnabled = false;
+        wifiScanEnabled = false;
+        notificationListenEnabled = false;
+        notificationPermissionHideEnabled = false;
+        clipboardIsolationEnabled = false;"""
+if anchor in a:
+    a = a.replace(anchor, replacement, 1)
+elif "Privacy controls are executed by the verbatim legacy MainHook" not in a:
+    raise SystemExit("modern module-loaded config anchor missing")
+adhook.write_text(a, encoding="utf-8")
+
 (modern / "assets").mkdir(parents=True, exist_ok=True)
 (modern / "res/values").mkdir(parents=True, exist_ok=True)
 shutil.copy2(legacy / "assets/xposed_init", modern / "assets/xposed_init")
