@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** Native launcher and per-target settings UI for the standalone FX Hook APK. */
+/** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends Activity {
     private LinearLayout root;
     private EditText search;
@@ -196,37 +196,6 @@ public final class MainActivity extends Activity {
     }
 
     public void showAppListFromBridge() { showAppList(); }
-
-    private void dashboardItem(String name, String detail, Runnable action) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(18), dp(12), dp(18), dp(12));
-        row.setBackgroundColor(0xffffffff);
-        TextView title = new TextView(this);
-        title.setText(name);
-        title.setTextSize(16);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(0xff17212b);
-        TextView sub = new TextView(this);
-        sub.setText(detail);
-        sub.setTextSize(12);
-        sub.setTextColor(0xff697681);
-        row.addView(title);
-        row.addView(sub);
-        row.setOnClickListener(v -> action.run());
-        content.addView(row, new LinearLayout.LayoutParams(-1, -2));
-        View divider = new View(this);
-        divider.setBackgroundColor(0xffe8ebee);
-        content.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
-    }
-
-    private void showMigrationNotice(String feature) {
-        new AlertDialog.Builder(this)
-            .setTitle(feature)
-            .setMessage("该功能正在从模块 WebUI 迁移到 FX 原生 APP。当前版本尚未完成此功能的原生控制界面与底层接口，不会伪装成已可用。")
-            .setPositiveButton("返回", null)
-            .show();
-    }
 
     private void checkRoot(TextView state, boolean request) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
