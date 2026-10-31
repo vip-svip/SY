@@ -275,8 +275,10 @@ public final class AdVisibilityHook extends XposedModule {
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         if (developerObserveForPackage && target != null) {
-            for (DeveloperHookRule rule : target.developerRules) {
-                if (rule == null || rule.action != DeveloperHookRule.Action.OBSERVE) continue;
+            // Resolve duplicate descriptors by priority before touching the
+            // target class loader. A disabled rule never shadows an active one.
+            for (DeveloperHookRule rule : DeveloperHookRule.selectEffective(target.developerRules)) {
+                if (rule.action != DeveloperHookRule.Action.OBSERVE) continue;
                 installDeveloperObservationHook(param.getClassLoader(), pkg,
                         debuggableTarget, rule.descriptor, rule.id);
             }
