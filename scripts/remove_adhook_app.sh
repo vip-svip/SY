@@ -16,7 +16,26 @@ for _pair in 'de.privacyguard.adhook fxunifiedhook' 'de.privacyguard.adhook fxun
   if [ -z "$_paths" ]; then rm -f "$_marker" "$_owned"; continue; fi
   case "$_paths" in
     *:/system/*|*:/product/*|*:/vendor/*) log_msg "system-overlay package will disappear with module unmount: $_pkg"; rm -f "$_marker" "$_owned";;
-    *) if pm uninstall "$_pkg" >> "$LOG" 2>&1; then log_msg "removed FX-managed Hook package: $_pkg"; rm -f "$_marker" "$_owned"; else log_msg "WARN: could not remove FX-managed package: $_pkg"; _result=1; fi;;
+    *)
+      # The ownership marker alone is not enough: the user may have removed
+      # the FX-installed app and later installed another app with the same ID.
+      # Verify the installed base.apk still matches the exact FX APK digest.
+      _installed_apk=$(printf '%s\n' "$_paths" | awk 'NR==1 {sub(/^package:/, ""); print; exit}')
+      _expected=$(awk 'NR==1 {print $1}' "$_marker" 2>/dev/null)
+      _actual=$(sha256sum "$_installed_apk" 2>/dev/null | awk 'NR==1 {print $1}')
+      if [ -z "$_expected" ] || [ -z "$_actual" ] || [ "$_actual" != "$_expected" ]; then
+        log_msg "leaving package untouched: installed APK digest does not match FX ownership record: $_pkg"
+        rm -f "$_marker" "$_owned"
+        continue
+      fi
+      if pm uninstall "$_pkg" >> "$LOG" 2>&1; then
+        log_msg "removed FX-managed Hook package: $_pkg"
+        rm -f "$_marker" "$_owned"
+      else
+        log_msg "WARN: could not remove FX-managed package: $_pkg"
+        _result=1
+      fi
+      ;;
   esac
 done
 exit "$_result"
