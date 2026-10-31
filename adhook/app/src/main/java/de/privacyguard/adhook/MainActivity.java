@@ -124,6 +124,8 @@ public final class MainActivity extends Activity {
     private void showDashboard() { showWebDashboard(); }
 
     private void showWebDashboard() {
+        // A restored target is only valid while the app-list restoration is still active.
+        pendingRestorePackage = null;
         hookUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
@@ -349,6 +351,8 @@ public final class MainActivity extends Activity {
     }
 
     private void showHookHub() {
+        // Do not resurrect a stale target if the user leaves the restored app list.
+        pendingRestorePackage = null;
         pauseAndDetachWebView();
         hookUiVisible = true;
         selectedBottomTab = 4;
