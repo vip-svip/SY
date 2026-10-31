@@ -58,7 +58,7 @@ grep -q 'PG_WRITE_SLICE=87376' "$HTML" || fail "settings.conf chunk writer contr
 grep -q '110000L' "$BRIDGE" || fail "root command timeout must finish before the WebUI callback timeout"
 grep -q "androidx.webkit:webkit:1.12.1" "$ROOT/adhook/app/build.gradle" || fail "WebViewAssetLoader dependency missing"
 grep -q 'android.permission.INTERNET' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "network permission missing"
-grep -q 'FX_FULL_APP_MIGRATION_COMPLETE' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU compile gate missing"
+grep -q "github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration'" "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package workflow must be scoped to the unified migration branch"
 grep -q 'merge_hook_single_apk.py' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow must build both Hook entrypoints in one APK"
 grep -q 'FX-Hook-apk' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "the exact embedded APK must be uploaded separately"
 grep -q 'ZIP_APK_SHA' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU ZIP embedded APK checksum verification missing"
