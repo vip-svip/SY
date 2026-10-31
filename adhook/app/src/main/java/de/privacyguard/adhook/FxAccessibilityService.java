@@ -18,14 +18,15 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     @Override public boolean onUnbind(Intent intent) {
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
-                .edit().putBoolean("service_connected", false).apply();
+                .edit().putBoolean("service_connected", false).remove("service_pid").apply();
         return super.onUnbind(intent);
     }
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
-                .edit().putBoolean("service_connected", true).apply();
+                .edit().putBoolean("service_connected", true)
+                .putInt("service_pid", android.os.Process.myPid()).apply();
     }
 
     @Override public void onDestroy() {
