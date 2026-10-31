@@ -120,6 +120,15 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void acceptsEmptyTargetsForAutomaticAdOnlyConfiguration() {
+        UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=1\\nprivacy_enabled=0\\n[list:targets]\\n");
+        assertTrue(result.adsEnabled);
+        assertFalse(result.privacyEnabled);
+        assertTrue(result.targets.isEmpty());
+    }
+
+    @Test
     public void parsesIndependentMasterSwitchesAndPerPackageFeatures() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(VALID);
         assertTrue(result.adsEnabled);
