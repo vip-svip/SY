@@ -636,7 +636,10 @@ public final class AdVisibilityHook extends XposedModule {
                 return false;
             }
             UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content);
-            adsEnabled = parsed.adsEnabled;
+            // The legacy Ad master/category switches were removed from the UI.
+            // A valid published FX config now enables the built-in classifier; the
+            // parsed legacy bit is retained only for schema compatibility.
+            adsEnabled = true;
             privacyEnabled = parsed.privacyEnabled;
             wifiScanEnabled = parsed.wifiScanEnabled;
             notificationListenEnabled = parsed.notificationListenEnabled;
