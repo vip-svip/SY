@@ -52,6 +52,8 @@ grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/
 grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "unified APK manifest generator drops keyboard resize behavior"
 grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
+grep -q '公共 Download/FX/' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "Android 10+ public export location is not reported accurately"
+grep -q '应用专属下载目录' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "pre-Android 10 app-specific export location is not disclosed"
 grep -q "if (closed || activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "RootBridge does not reject navigation after Activity teardown"
 grep -q "if (!closed && !activity.isFinishing()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "queued RootBridge navigation does not recheck Activity lifecycle"
 grep -q 'private static boolean isTrustedDocumentUrl(Uri uri)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "WebView main document origin is not allowlisted"
