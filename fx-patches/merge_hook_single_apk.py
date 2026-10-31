@@ -22,6 +22,30 @@ text2 = text.replace('private static final String SELF_PKG = "de.privacyguard.ho
                      'private static final String SELF_PKG = "de.privacyguard.adhook";')
 if text2 == text:
     raise SystemExit("MainHook SELF_PKG identity anchor missing")
+# Keep the complete implementation, but fail closed for root-evasion, VPN-state
+# concealment, location spoofing, and hardware/telephony identity forgery controls.
+guard_anchor = "    private boolean on(String k) {"
+guard = """    private static final Set<String> DISABLED_EVASION_KEYS = new HashSet<>(Arrays.asList(
+            "hide_su", "hide_magisk", "hide_ksu", "block_rootcheck_libs",
+            "hide_sysfs_nodes", "hide_kernel_debug", "fs_attrs", "fs_hide", "fs_rootlist",
+            "fs_isolate", "fs_vfs", "block_process_list", "block_pm_query", "block_mounts",
+            "hide_mounts", "block_netstats", "block_net_ifaces", "block_cell_info",
+            "usagestats_off", "k_task", "app_list", "vpn_hide", "syssvc_hide",
+            "block_kernel_version", "patch_spoof", "gnss_spoof", "mock_location",
+            "perapp_mock", "gps", "spoof_imei", "spoof_sim", "telephony", "spoof_serial",
+            "spoof_hardware", "spoof_baseband", "spoof_brand", "spoof_manufacturer",
+            "spoof_model", "spoof_fingerprint", "spoof_bt_mac", "spoof_wifi_mac",
+            "spoof_version", "spoof_storage", "spoof_screen", "spoof_battery",
+            "cam_hw_hide", "hide_face_hw", "hide_fingerprint_hw", "mic_hw_hide"));
+
+"""
+if guard_anchor in text2 and "DISABLED_EVASION_KEYS" not in text2:
+    text2 = text2.replace(guard_anchor, guard + guard_anchor, 1)
+on_anchor = "    private boolean on(String k) {"
+on_replacement = on_anchor + """
+        if (DISABLED_EVASION_KEYS.contains(k)) return false;"""
+if on_replacement not in text2:
+    text2 = text2.replace(on_anchor, on_replacement, 1)
 target.write_text(text2, encoding="utf-8")
 target.chmod(0o644)
 
