@@ -45,6 +45,8 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private TextView rootStatus;
     private boolean hookUiVisible;
+    private int selectedBottomTab = 0;
+    private int lastWebTabIndex = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
     private static final int REQUEST_FILE_PICKER = 4101;
 
@@ -57,6 +59,7 @@ public final class MainActivity extends Activity {
 
     private void showWebDashboard() {
         hookUiVisible = false;
+        selectedBottomTab = lastWebTabIndex;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff4f6f8);
@@ -78,6 +81,11 @@ public final class MainActivity extends Activity {
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
         toolbar.addView(rootStatus);
+        Button settingsButton = new Button(this);
+        settingsButton.setText("设置");
+        settingsButton.setTextSize(12);
+        settingsButton.setOnClickListener(v -> navigateWebPage("pageMore"));
+        toolbar.addView(settingsButton, new LinearLayout.LayoutParams(-2, dp(42)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
         webView = new WebView(this);
@@ -106,9 +114,10 @@ public final class MainActivity extends Activity {
                     String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
                     String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'\">"
                         + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};window.showSaveFilePicker=async function(opts){var name=(opts&&opts.suggestedName)||'FX-export.txt';return {createWritable:async function(){var value='';return {write:async function(v){value=v;},close:async function(){var blob=value instanceof Blob?value:new Blob([value],{type:'text/plain;charset=utf-8'});var reader=new FileReader();reader.onloadend=function(){var data=String(reader.result||'').split(',').pop();FXRoot.saveBase64(name,data,blob.type||'text/plain');};reader.readAsDataURL(blob);}};}};};})();</script>";
-                    int head = html.toLowerCase().indexOf("<head");
-                    int close = head >= 0 ? html.indexOf(">", head) : -1;
-                    if (close >= 0) html = html.substring(0, close + 1) + shim + html.substring(close + 1);
+                    int headEnd = html.toLowerCase().lastIndexOf("</head>");
+                    if (headEnd >= 0) html = html.substring(0, headEnd)
+                            + "<style id='fx-native-nav-hide'>#screen>.navbar{display:none!important}</style>"
+                            + shim + html.substring(headEnd);
                     return new WebResourceResponse("text/html", "UTF-8",
                             new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
                 } catch (Exception e) {
@@ -183,36 +192,59 @@ public final class MainActivity extends Activity {
         bar.setGravity(Gravity.CENTER);
         bar.setBackgroundColor(0xffffffff);
         String[] labels = {"VPN", "广告", "Hosts", "隐私", "脚本", "Hook"};
-        String[] pages = {"pageVpn", "pageAd", "pageHosts", "pagePrivacy", "pageScript", null};
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
             TextView item = new TextView(this);
             item.setText(labels[i]);
             item.setTextSize(12);
             item.setGravity(Gravity.CENTER);
-            item.setTypeface(Typeface.DEFAULT, i == 5 ? Typeface.BOLD : Typeface.NORMAL);
-            item.setTextColor(i == 5 ? 0xff1769aa : 0xff526170);
             item.setPadding(dp(2), dp(8), dp(2), dp(8));
+            styleBottomItem(item, index);
             item.setOnClickListener(v -> {
-                if (index == 5) showHookHub();
-                else navigateWebPage(pages[index]);
+                if (index == 5) {
+                    selectedBottomTab = 5;
+                    showHookHub();
+                } else {
+                    selectedBottomTab = index;
+                    lastWebTabIndex = index;
+                    for (int j = 0; j < bar.getChildCount(); j++) {
+                        styleBottomItem((TextView) bar.getChildAt(j), j);
+                    }
+                    String page = new String[]{"pageVpn", "pageAd", "pageHosts",
+                            "pagePrivacy", "pageScript"}[index];
+                    navigateWebPage(page);
+                }
             });
             bar.addView(item, new LinearLayout.LayoutParams(0, -1, 1));
         }
         return bar;
     }
 
+    private void styleBottomItem(TextView item, int index) {
+        boolean selected = index == selectedBottomTab;
+        item.setTextColor(selected ? 0xff1769aa : 0xff526170);
+        item.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+    }
+
     private void navigateWebPage(String pageId) {
         if (webView == null) return;
-        String id = JSONObject.quote(pageId);
-        String script = "(function(){var id=" + id + ";var target=document.getElementById(id);"
-                + "if(!target)return false;"
-                + "var nav=Array.from(document.querySelectorAll('[data-page],[data-target],[href],[onclick]')).find(function(e){return e!==target&&(e.getAttribute('data-page')===id||e.getAttribute('data-target')==='#'+id||e.getAttribute('href')==='#'+id||(e.getAttribute('onclick')||'').indexOf(id)>=0);});"
-                + "if(nav){nav.click();return true;}"
-                + "if(typeof window.switchPage==='function'){window.switchPage(id);return true;}"
-                + "if(typeof window.showPage==='function'){window.showPage(id);return true;}"
-                + "if(typeof window.navigateToPage==='function'){window.navigateToPage(id);return true;}"
-                + "target.scrollIntoView({behavior:'smooth',block:'start'});return true;})()";
+        String tab;
+        switch (pageId) {
+            case "pageVpn": tab = "vpn"; break;
+            case "pageAd": tab = "ad"; break;
+            case "pageHosts": tab = "ad"; break; // Hosts editor is embedded in the Ad/Rules page.
+            case "pagePrivacy": tab = "privacy"; break;
+            case "pageScript": tab = "script"; break;
+            case "pageMore": tab = "more"; break;
+            default: return;
+        }
+        String tabLiteral = JSONObject.quote(tab);
+        String script = "(function(){var b=document.querySelector('.nav-item[data-tab='+"
+                + tabLiteral + "+']');if(!b)return false;b.click();"
+                + (pageId.equals("pageHosts")
+                    ? "setTimeout(function(){var e=document.getElementById('cardHostsLocal');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});},100);"
+                    : "")
+                + "return true;})()";
         webView.evaluateJavascript(script, null);
     }
 
