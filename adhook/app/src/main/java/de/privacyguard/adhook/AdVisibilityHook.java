@@ -185,6 +185,9 @@ public final class AdVisibilityHook extends XposedModule {
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastAddedViewScan = new WeakHashMap<>();
+    // Restore the exact pre-hook visibility when an ad view is reused or detached.
+    private final WeakHashMap<View, Integer> hiddenAdViews = new WeakHashMap<>();
+    private final WeakHashMap<View, View.OnAttachStateChangeListener> hiddenAdViewListeners = new WeakHashMap<>();
     private boolean adsEnabled;
     private boolean privacyEnabled;
     private boolean wifiScanEnabled;
@@ -1257,19 +1260,59 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable ignored) {}
     }
 
+    private void hideAdView(final View view, final String pkg, final String failureLabel) {
+        if (view == null || view.getVisibility() == View.GONE) return;
+        try {
+            synchronized (hiddenAdViews) {
+                if (!hiddenAdViews.containsKey(view)) {
+                    hiddenAdViews.put(view, view.getVisibility());
+                    View.OnAttachStateChangeListener listener = new View.OnAttachStateChangeListener() {
+                        @Override public void onViewAttachedToWindow(View attached) { }
+                        @Override public void onViewDetachedFromWindow(View detached) {
+                            restoreHiddenAdView(detached);
+                        }
+                    };
+                    hiddenAdViewListeners.put(view, listener);
+                    view.addOnAttachStateChangeListener(listener);
+                }
+            }
+            if (view.getVisibility() != View.GONE) {
+                view.setVisibility(View.GONE);
+                logFx(Log.INFO, "hidden ad view in " + pkg
+                        + " class=" + shortName(view.getClass().getName()));
+            }
+        } catch (Throwable t) {
+            restoreHiddenAdView(view);
+            logFx(Log.DEBUG, failureLabel + ": " + t.getClass().getSimpleName());
+        }
+    }
+
+    private void restoreHiddenAdView(View view) {
+        if (view == null) return;
+        Integer original;
+        View.OnAttachStateChangeListener listener;
+        synchronized (hiddenAdViews) {
+            original = hiddenAdViews.remove(view);
+            listener = hiddenAdViewListeners.remove(view);
+        }
+        try {
+            if (listener != null) view.removeOnAttachStateChangeListener(listener);
+            // Do not overwrite a visibility change made by the target app after FX hid it.
+            if (original != null && view.getVisibility() == View.GONE) {
+                view.setVisibility(original);
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "ad view visibility restore failed: " + t.getClass().getSimpleName());
+        }
+    }
+
     private void scanAddedViewTree(View added, UnifiedHookConfigParser.Target target, String pkg) {
         if (added == null) return;
         if (shouldHide(added, target)) {
-            try {
-                if (added.getVisibility() != View.GONE) {
-                    added.setVisibility(View.GONE);
-                    logFx(Log.INFO, "hidden dynamically added ad view in " + pkg +
-                            " class=" + shortName(added.getClass().getName()));
-                }
-            } catch (Throwable t) {
-                logFx(Log.DEBUG, "dynamic ad root hide failed: " + t.getClass().getSimpleName());
-            }
+            hideAdView(added, pkg, "dynamic ad root hide failed");
             return;
+        } else {
+            restoreHiddenAdView(added);
         }
         if (!(added instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) added;
@@ -1290,14 +1333,10 @@ public final class AdVisibilityHook extends XposedModule {
         if (view == null || depth > MAX_DYNAMIC_AD_SCAN_DEPTH
                 || count[0]++ >= MAX_DYNAMIC_AD_SCAN_NODES) return;
         if (view != root && shouldHide(view, target)) {
-            try {
-                if (view.getVisibility() != View.GONE) {
-                    view.setVisibility(View.GONE);
-                    logFx(Log.INFO, "hidden dynamically added ad view in " + pkg
-                            + " class=" + shortName(view.getClass().getName()));
-                }
-                return;
-            } catch (Throwable ignored) { }
+            hideAdView(view, pkg, "dynamic ad child hide failed");
+            return;
+        } else if (view != root) {
+            restoreHiddenAdView(view);
         }
         if (!(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
@@ -1358,13 +1397,10 @@ public final class AdVisibilityHook extends XposedModule {
     private void scanTree(View view, View root, int depth, int[] count, UnifiedHookConfigParser.Target target, String pkg) {
         if (view == null || depth > 20 || count[0]++ >= 1800) return;
         if (view != root && shouldHide(view, target)) {
-            try {
-                if (view.getVisibility() != View.GONE) {
-                    view.setVisibility(View.GONE);
-                    logFx(Log.INFO, "hidden ad view in " + pkg + " class=" + shortName(view.getClass().getName()));
-                }
-                return;
-            } catch (Throwable ignored) {}
+            hideAdView(view, pkg, "ad view hide failed");
+            return;
+        } else if (view != root) {
+            restoreHiddenAdView(view);
         }
         if (!(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
