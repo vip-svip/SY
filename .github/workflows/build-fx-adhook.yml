@@ -112,6 +112,36 @@ jobs:
           assert "saveBase64" in bridge and "MediaStore.Downloads" in bridge
           print("PASS: manifest XML and APP/Root bridge source invariants")
           PY
+      - name: Run complete FX host regression suite (no compile)
+        shell: bash
+        run: |
+          set -uo pipefail
+          mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
+          test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
+          pass=0
+          fail=0
+          timed_out=0
+          mkdir -p "$RUNNER_TEMP/fx-regression-logs"
+          for test_script in "${tests[@]}"; do
+            log="$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").log"
+            if timeout 35s sh "$test_script" >"$log" 2>&1; then
+              pass=$((pass + 1))
+            else
+              rc=$?
+              if [[ "$rc" -eq 124 ]]; then
+                timed_out=$((timed_out + 1))
+                echo "::error file=$test_script::Regression timed out after 35 seconds"
+              else
+                fail=$((fail + 1))
+                echo "::error file=$test_script::Regression failed with exit code $rc"
+              fi
+              tail -n 30 "$log" || true
+            fi
+          done
+          echo "FX regression summary: total=${#tests[@]} pass=$pass fail=$fail timeout=$timed_out"
+          echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
+          echo "pass=$pass fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
       - name: Preserve restored module source for focused audit
         if: success()
         uses: actions/upload-artifact@v4
