@@ -1375,7 +1375,10 @@ public final class AdVisibilityHook extends XposedModule {
         if (hasAny(e, FEED_MARKERS)) return target.feed;
         if (sdkView) return target.feed;
         int enabled = (target.splash ? 1 : 0) + (target.feed ? 1 : 0) + (target.overlay ? 1 : 0);
-        return enabled == 1;
+        // With automatic recognition all three categories are enabled. Strong
+        // generic Ad markers (for example AdBannerView) must still match even
+        // when the class/resource name has no category-specific token.
+        return enabled > 0;
     }
 
     private static boolean hasAdLabel(TextView text) {
