@@ -27,6 +27,7 @@ grep -q "appLoader.interrupt()" "$ROOT/adhook/app/src/main/java/de/privacyguard/
 grep -q "appendAppRows(0, Math.min(MAX_APP_ROWS_PER_PAGE, filtered.size()))" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list eagerly renders all installed apps"
 grep -q "appLabels.get(ai.packageName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app labels are not cached for search"
 grep -q "appIcons.get(ai.packageName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icons are not cached between search renders"
+grep -q "return size() > 80;" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icon cache is not memory-bounded"
 grep -q "Locale.ROOT" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "case-insensitive app search is locale-dependent"
 grep -q "sym_def_app_icon" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "removed-package icon fallback missing"
 grep -q "getApplicationInfo(ai.packageName, 0)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale app rows are not revalidated before opening Hook settings"
