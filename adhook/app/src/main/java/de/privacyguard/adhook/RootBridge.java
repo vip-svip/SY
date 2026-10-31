@@ -56,6 +56,9 @@ public final class RootBridge {
         }
         try {
             ROOT_EXECUTOR.execute(() -> {
+                // Commands waiting in the bounded queue must not run after the
+                // Activity has closed this bridge.
+                if (closed) return;
                 RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
                 deliver(callbackName, result.exitCode, result.output, "");
             });
@@ -66,6 +69,9 @@ public final class RootBridge {
 
     @JavascriptInterface
     public void saveBase64(String filename, String encoded, String mimeType) {
+        if (closed || activity.isFinishing()
+                || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
+        Uri createdUri = null;
         try {
             if (encoded == null || encoded.length() > 14 * 1024 * 1024) {
                 throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
@@ -74,7 +80,8 @@ public final class RootBridge {
             if (bytes.length > 10 * 1024 * 1024) {
                 throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
             }
-            if (closed) throw new IllegalStateException("页面已关闭，取消导出");
+            if (closed || activity.isFinishing()
+                    || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
             String safeName = filename == null ? "FX-export.txt"
                     : filename.replaceAll("[^A-Za-z0-9._-]", "_");
             if (safeName.length() == 0) safeName = "FX-export.txt";
@@ -88,28 +95,58 @@ public final class RootBridge {
                 values.put(MediaStore.MediaColumns.RELATIVE_PATH,
                         Environment.DIRECTORY_DOWNLOADS + "/FX");
                 values.put(MediaStore.MediaColumns.IS_PENDING, 1);
-                Uri uri = activity.getContentResolver().insert(
+                createdUri = activity.getContentResolver().insert(
                         MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-                if (uri == null) throw new IllegalStateException("无法创建下载文件");
-                try (java.io.OutputStream stream = activity.getContentResolver().openOutputStream(uri)) {
+                if (createdUri == null) throw new IllegalStateException("无法创建下载文件");
+                try (java.io.OutputStream stream = activity.getContentResolver().openOutputStream(createdUri)) {
                     if (stream == null) throw new IllegalStateException("无法打开下载文件");
                     stream.write(bytes);
+                    stream.flush();
+                }
+                if (closed || activity.isFinishing()
+                        || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                    activity.getContentResolver().delete(createdUri, null, null);
+                    return;
                 }
                 ContentValues ready = new ContentValues();
                 ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
-                activity.getContentResolver().update(uri, ready, null, null);
+                if (activity.getContentResolver().update(createdUri, ready, null, null) <= 0) {
+                    throw new IllegalStateException("无法完成下载文件发布");
+                }
             } else {
-                File dir = new File(activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "FX");
+                File external = activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (external == null) throw new IllegalStateException("外部下载目录不可用");
+                File dir = new File(external, "FX");
                 if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("无法创建导出目录");
                 try (FileOutputStream stream = new FileOutputStream(new File(dir, safeName))) {
                     stream.write(bytes);
+                    stream.flush();
                 }
             }
-            activity.runOnUiThread(() -> Toast.makeText(activity,
-                    "已导出到 Download/FX/" + outputName, Toast.LENGTH_LONG).show());
+            if (closed || activity.isFinishing()
+                    || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
+            activity.runOnUiThread(() -> {
+                if (!closed && !activity.isFinishing()
+                        && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
+                    Toast.makeText(activity,
+                            "已导出到 Download/FX/" + outputName, Toast.LENGTH_LONG).show();
+                }
+            });
         } catch (Exception e) {
-            activity.runOnUiThread(() -> Toast.makeText(activity,
-                    "导出失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+            if (createdUri != null) {
+                try { activity.getContentResolver().delete(createdUri, null, null); }
+                catch (Exception ignored) { }
+            }
+            if (!closed && !activity.isFinishing()
+                    && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
+                final String message = e.getMessage();
+                activity.runOnUiThread(() -> {
+                    if (!closed && !activity.isFinishing()
+                            && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
+                        Toast.makeText(activity, "导出失败：" + message, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
         }
     }
 
