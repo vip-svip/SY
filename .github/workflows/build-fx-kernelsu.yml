@@ -18,6 +18,8 @@ concurrency:
 jobs:
   package:
     if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -250,6 +252,7 @@ jobs:
         shell: bash
         env:
           SY_BUILD_TOKEN: ${{ secrets.SY_BUILD_TOKEN }}
+          GH_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
@@ -268,7 +271,7 @@ jobs:
           VAULT_FILE=".github/signing/fx-release.p12.enc"
           VAULT_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE?ref=$GITHUB_REF_NAME"
           VAULT_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-response.json" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $SY_BUILD_TOKEN" \
+            --header "Authorization: Bearer $GH_API_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" "$VAULT_URL")"
 
@@ -296,19 +299,19 @@ jobs:
           PY
             VAULT_WRITE_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-write-response.json" --write-out '%{http_code}' \
               --request PUT \
-              --header "Authorization: Bearer $SY_BUILD_TOKEN" \
+              --header "Authorization: Bearer $GH_API_TOKEN" \
               --header "Accept: application/vnd.github+json" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
               --header "Content-Type: application/json" \
               --data-binary "@$RUNNER_TEMP/fx-vault-payload.json" \
               "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE")"
             [[ "$VAULT_WRITE_HTTP" == "201" || "$VAULT_WRITE_HTTP" == "200" ]] || {
-              echo "::error::Could not persist the encrypted FX signing vault (HTTP $VAULT_WRITE_HTTP). Check SY_BUILD_TOKEN Contents: Read and write access."
+              echo "::error::Could not persist the encrypted FX signing vault (HTTP $VAULT_WRITE_HTTP). Check the workflow GITHUB_TOKEN contents: write permission."
               cat "$RUNNER_TEMP/fx-vault-write-response.json" | jq -r '.message // "GitHub API write failed"' || true
               exit 1
             }
           else
-            echo "::error::Could not read the FX signing vault (HTTP $VAULT_HTTP). Check that SY_BUILD_TOKEN can access $GITHUB_REPOSITORY."
+            echo "::error::Could not read the FX signing vault (HTTP $VAULT_HTTP). Check the workflow GITHUB_TOKEN contents: write permission."
             jq -r '.message // "GitHub API read failed"' "$RUNNER_TEMP/fx-vault-response.json" || true
             exit 1
           fi
