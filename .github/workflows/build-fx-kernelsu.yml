@@ -321,7 +321,9 @@ jobs:
           test -s "$BUILT_APK"
           "$APKSIGNER" verify --verbose "$BUILT_APK"
           "$APKSIGNER" verify --print-certs "$BUILT_APK" | grep 'Signer #1 certificate SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
-          echo "Hook APK signing mode: release-signed (persistent PKCS12 vault)" >> "$GITHUB_STEP_SUMMARY"
+          SIGNING_MODE="release-signed"
+          BUILD_VARIANT="release"
+          echo "Hook APK signing mode: $SIGNING_MODE (persistent PKCS12 vault)" >> "$GITHUB_STEP_SUMMARY"
 
           mkdir -p fx-module/optional
           cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
@@ -330,9 +332,9 @@ jobs:
           test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
           {
-            echo "Build variant: release"
-            echo "Signing mode: release-signed"
-            echo "Build/signing mode: release-signed"
+            echo "Build variant: $BUILD_VARIANT"
+            echo "Signing mode: $SIGNING_MODE"
+            echo "Build/signing mode: $SIGNING_MODE"
             echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
             echo "versionCode: 10000"
             echo "Deployment: one ordinary application package installed by PackageManager"
