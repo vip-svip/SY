@@ -66,11 +66,11 @@ jobs:
               if start < 0:
                   print(f"::error::Cannot locate {page_id} in staged WebUI")
                   raise SystemExit(1)
-              next_page = re.search(r'<[^>]+id=["\\']page[A-Z]', html[start + 1:])
+              next_page = re.search(r"""<[^>]+id=["']page[A-Z]""", html[start + 1:])
               end = start + 1 + next_page.start() if next_page else len(html)
               fragment = html[start:end]
               ids = re.findall(r"""id=["']([^"']+)["']""", fragment)
-              controls = re.findall(r'<(?:input|select|button)\\b[^>]*>', fragment, re.I)
+              controls = re.findall(r'<(?:input|select|button)\b[^>]*>', fragment, re.I)
               print(f"UI_STRUCTURE {page_id}: ids={ids[:100]} controls={controls[:100]}")
           PY
           test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
