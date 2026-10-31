@@ -1255,7 +1255,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             Thread publisher = new Thread(() -> {
-                RootAccess.Result result = RootAccess.execute(command);
+                RootAccess.Result result = RootAccess.execute(command, 60000L, 1024 * 1024);
                 if (hookPublisherThread == Thread.currentThread()) hookPublisherThread = null;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
