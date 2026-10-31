@@ -41,4 +41,8 @@ grep -q "androidx.webkit:webkit:1.12.1" "$ROOT/adhook/app/build.gradle" || fail 
 grep -q 'android.permission.INTERNET' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "network permission missing"
 grep -q 'FX_FULL_APP_MIGRATION_COMPLETE' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "APK build gate missing"
 grep -q 'FX_FULL_APP_MIGRATION_COMPLETE' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU build gate missing"
+grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU APK WebUI staging missing"
+grep -q 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "parallel module WebUI retirement missing"
+grep -q 'FX 管理界面已迁移到 APP' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "module WebUI migration notice missing"
+grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "standalone APK WebUI staging missing"
 echo "PASS: complete FX WebUI is packaged in the app with KernelSU bridge, file import/export, and native Hook entry"
