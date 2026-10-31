@@ -17,6 +17,14 @@ The complete existing 1.0.0 WebUI is staged into `adhook/app/src/main/assets/web
 - Advanced panels: Root/module state, deep network protection, network stack privacy, permission/API controls, sensors, location, device identity, audio/camera, file/storage, notifications/clipboard, kernel and miscellaneous settings.
 - Existing custom editors, import dialogs, confirmation dialogs, local persistence and status cards are retained in the bundled UI.
 
+## Bottom navigation and system authorization
+
+The native APP shell has six persistent bottom tabs: VPN, Ads, Hosts, Privacy, Scripts and Hook. The first five route into the corresponding bundled WebUI sections; Hook opens the native Hook and authorization hub. The same six-tab bar remains visible while navigating the Hook hub and per-app Hook screens.
+
+The Hook hub separately reports whether LSPosed Manager is installed and provides a launch shortcut. The user must still enable FX in LSPosed and select target-package scope in the Manager; the APP cannot silently grant LSPosed scope. The unified APK merge step preserves the modern and legacy Xposed entrypoints and injects the LSPosed module metadata/scope resource.
+
+FX also declares an optional Android AccessibilityService. The user must explicitly enable it in Android Accessibility settings. The current service only tracks connection state: it does not retrieve window content, read screen text, click controls, or perform gestures. Accessibility authorization is separate from Root and LSPosed authorization.
+
 ## APP bridge
 
 - The bundled page is served from `https://appassets.androidplatform.net/assets/webroot/index.html` via AndroidX WebViewAssetLoader. No remote page is loaded.
