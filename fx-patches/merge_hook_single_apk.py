@@ -44,30 +44,77 @@ if guard_anchor in text2 and "DISABLED_EVASION_KEYS" not in text2:
 on_anchor = "    private boolean on(String k) {"
 on_replacement = on_anchor + """
         if (DISABLED_EVASION_KEYS.contains(k)) return false;"""
+# Load the per-package API-101 feature ownership map so legacy API-82 hooks
+# do not install a second interceptor for features now executed by AdVisibilityHook.
+managed_field_anchor = '    private static final String CONF_PATH = "/data/local/tmp/privacyguard/xposed.conf";'
+managed_field = managed_field_anchor + '\n    private static final String API101_MANAGED_PATH = "/data/local/tmp/privacyguard/fx-api101-managed.conf";'
+if managed_field_anchor not in text2:
+    raise SystemExit("legacy config path anchor missing")
+text2 = text2.replace(managed_field_anchor, managed_field, 1)
+
+scope_anchor = '    private final List<String> scopeAllow = new ArrayList<>();'
+scope_replacement = scope_anchor + '\n    private final Set<String> api101Managed = new HashSet<>();'
+if scope_anchor not in text2:
+    raise SystemExit("legacy scope field anchor missing")
+text2 = text2.replace(scope_anchor, scope_replacement, 1)
+
+load_anchor = '            r.close();\n            // 档位解析：profile'
+load_replacement = '            r.close();\n            loadApi101Managed();\n            // 档位解析：profile'
+if load_anchor not in text2:
+    raise SystemExit("legacy loadConf completion anchor missing")
+text2 = text2.replace(load_anchor, load_replacement, 1)
+
+helper_anchor = '    private static final Set<String> DISABLED_EVASION_KEYS'
+helper = """    private void loadApi101Managed() {
+        api101Managed.clear();
+        File managed = new File(API101_MANAGED_PATH);
+        if (!managed.canRead()) return;
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(managed));
+            try {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.trim().split(",", -1);
+                    if (parts.length < 2 || !parts[0].matches("[A-Za-z][A-Za-z0-9_]*(\\\\.[A-Za-z0-9_]+)+")) continue;
+                    for (int i = 1; i < parts.length; i++) {
+                        String key = parts[i].trim();
+                        if (key.matches("[a-z0-9_]{1,64}")) api101Managed.add(parts[0] + "|" + key);
+                    }
+                }
+            } finally {
+                try { reader.close(); } catch (IOException ignored) {}
+            }
+        } catch (IOException e) {
+            api101Managed.clear();
+            log("API-101 ownership map unavailable; legacy hooks remain enabled for " + pkg);
+        }
+    }
+
+"""
+if helper_anchor not in text2:
+    raise SystemExit("legacy disabled-key set insertion anchor missing")
+text2 = text2.replace(helper_anchor, helper + helper_anchor, 1)
+
+on_anchor = '    private boolean on(String k) {'
+on_replacement = on_anchor + """
+        if (api101Managed.contains(pkg + "|" + k)) return false;"""
+if on_anchor not in text2:
+    raise SystemExit("legacy on() feature gate anchor missing")
+text2 = text2.replace(on_anchor, on_replacement, 1)
+
 if on_replacement not in text2:
     text2 = text2.replace(on_anchor, on_replacement, 1)
 target.write_text(text2, encoding="utf-8")
 target.chmod(0o644)
 
-# The copied legacy MainHook owns privacy controls; the modern entry retains ads
-# and read-only billing diagnostics, preventing duplicate privacy hooks in one process.
+# The API-101 runtime owns the per-app privacy features published by the native
+# Hook UI. The legacy API-82 entrypoint remains for unmigrated global controls;
+# its overlapping keys are masked per package by the ownership file published
+# alongside fx-hook-targets.conf (see the MainHook patch below).
 adhook = modern / "java/de/privacyguard/adhook/AdVisibilityHook.java"
 a = adhook.read_text(encoding="utf-8")
-anchor = "        configLoaded = loadConfig();"
-replacement = """        configLoaded = loadConfig();
-        // Privacy controls are executed by the verbatim legacy MainHook in this same APK.
-        // Keep the modern entry responsible for ad filtering and read-only billing diagnostics.
-        privacyEnabled = false;
-        wifiScanEnabled = false;
-        notificationListenEnabled = false;
-        notificationPermissionHideEnabled = false;
-        clipboardIsolationEnabled = false;"""
-if anchor in a:
-    a = a.replace(anchor, replacement, 1)
-elif "Privacy controls are executed by the verbatim legacy MainHook" not in a:
+if "configLoaded = loadConfig();" not in a:
     raise SystemExit("modern module-loaded config anchor missing")
-adhook.write_text(a, encoding="utf-8")
-
 # Keep a source copy inside the module archive without importing CI integration
 # templates (some are awk fragments intentionally not executable as shell scripts).
 module_main = fx / "adhook/app/src/main/java/de/privacyguard/hook/MainHook.java"
