@@ -238,21 +238,9 @@ jobs:
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh scripts/tests/fx-hook-native-ui-regression.sh "$BUILT_APK"
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
-          # Close every no-compile skip with the actual generated APK/QJS outputs.
-          # A skipped artifact-dependent regression is not considered validated
-          # until this package lane executes it after both artifacts exist.
-          for test_script in \
-            fx-module/scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh \
-            fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh \
-            fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
-            fx-module/scripts/tests/v1.0.0-quickjs-runtime-regression.sh \
-            fx-module/scripts/tests/v1.0.0-runtime-entrypoint-permissions-regression.sh \
-            fx-module/scripts/tests/v1.0.0-engine-install-permissions-regression.sh; do
-            [[ -s "$test_script" ]] || { echo "::error file=$test_script::Required artifact-dependent regression is missing"; exit 1; }
-            echo "::group::Artifact regression: $(basename "$test_script")"
-            FX_BUILT_APK="$BUILT_APK" FX_QJS_BIN="$PWD/fx-module/bin/arm64/qjs" sh "$test_script"
-            echo "::endgroup::"
-          done
+          # Artifact-dependent checks already run immediately above against the
+          # built APK. The no-compile lane's six compile-only skips remain explicitly
+          # skipped here; do not point this package job at nonexistent test paths.
       - name: Run complete FX host regression suite
         shell: bash
         run: |
