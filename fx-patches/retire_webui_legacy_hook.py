@@ -143,15 +143,17 @@ migrate_test("v1.0.0-lsposed-notification-listen-migration-regression.sh", [
 migrate_test("v1.0.0-lsposed-remote-status-ui-regression.sh", [
     ('UI="$ROOT/webroot/index.html"', native_path),
     ('''grep -q 'notification_permission_hide_enabled' "$UI"''',
-     '''grep -q 'hook_notification_permission_hide_enabled' "$UI"'''),
+     '''grep -q 'hook_native_notification_permission_hide_enabled' "$UI"'''),
     ('''grep -q 'clipboardIsolateEnabled' "$UI"''',
-     '''grep -q 'hook_clipboard_isolate_enabled' "$UI"'''),
+     '''grep -q 'hook_native_clipboard_isolate_enabled' "$UI"'''),
     ('''grep -q 'memberDiagEnabled' "$UI"''',
-     '''grep -q 'hook_member_diag_enabled' "$UI"'''),
+     '''grep -q 'hook_native_member_diag_enabled' "$UI"'''),
     ('''grep -q '独立于广告总开关' "$UI" || fail "UI does not explain independent member diagnostics scope"''',
      '''grep -q '会员诊断仅记录应用内可观察状态' "$UI" || fail "UI does not explain read-only member diagnostics"'''),
     ('''grep -q 'function refreshRemoteStatus()' "$UI"''',
-     '''grep -q 'private void refreshHookRemoteStatus(TextView target)' "$UI"'''),
+     '''grep -q 'private void refreshHookRemoteStatus(TextView target)' "$UI"
+grep -q 'hook_native_config_found' "$UI" || fail "native status UI does not distinguish missing overlay config"
+grep -q 'hook_native_wifi_scan_enabled' "$UI" || fail "native status UI omits Wi-Fi overlay status"'''),
     ('''grep -q '配置发布失败' "$UI"''',
      '''grep -q 'Root 发布失败' "$UI"'''),
     ('''grep -q '仍需在管理器确认模块启用和相同 App 作用域' "$UI"''',
