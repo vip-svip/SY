@@ -32,7 +32,7 @@ guard = """    private static final Set<String> DISABLED_EVASION_KEYS = new Hash
             "hide_mounts", "block_netstats", "block_net_ifaces", "block_cell_info",
             "usagestats_off", "k_task", "app_list", "vpn_hide", "syssvc_hide",
             "block_kernel_version", "patch_spoof", "gnss_spoof", "mock_location",
-            "perapp_mock", "gps", "spoof_imei", "spoof_sim", "telephony", "spoof_serial",
+            "perapp_mock", "gps", "gps_accuracy", "spoof_android_id", "spoof_imei", "spoof_sim", "telephony", "spoof_serial",
             "spoof_hardware", "spoof_baseband", "spoof_brand", "spoof_manufacturer",
             "spoof_model", "spoof_fingerprint", "spoof_bt_mac", "spoof_wifi_mac",
             "spoof_version", "spoof_storage", "spoof_screen", "spoof_battery",
@@ -316,6 +316,8 @@ grep -q 'install_one de.privacyguard.adhook fxunified' "$M/scripts/install_adhoo
 grep -q 'de.privacyguard.hook.MainHook' "$ROOT/adhook/app/src/main/assets/xposed_init" || fail "legacy entrypoint missing"
 grep -q 'de.privacyguard.adhook.AdVisibilityHook' "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "modern entrypoint missing"
 grep -q 'DISABLED_EVASION_KEYS.contains(k)' "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" || fail "unsafe evasion/identity toggles are not fail-closed"
+grep -q '"gps_accuracy"' "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" || fail "GPS accuracy spoof control is not fail-closed"
+grep -q '"spoof_android_id"' "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" || fail "Android ID spoof control is not fail-closed"
 echo "PASS: legacy MainHook and modern ad Hook are packaged through one APK"
 """)
 
