@@ -55,6 +55,10 @@ public final class MainActivity extends Activity {
             return size() > 80;
         }
     };
+    // Visible rows use placeholders while PackageManager decodes icons off the UI thread.
+    private final Map<String, ImageView> appIconViews = new HashMap<>();
+    private volatile Thread appIconLoaderThread;
+    private int appIconLoadGeneration;
     private static final int MAX_APP_ROWS_PER_PAGE = 40;
     private String selectedPackage;
     private String selectedLabel;
@@ -148,6 +152,7 @@ public final class MainActivity extends Activity {
 
     private void showWebDashboard() {
         cancelHookStatusRefresh();
+        cancelAppIconLoad();
         // A restored target is only valid while the app-list restoration is still active.
         pendingRestorePackage = null;
         hookUiVisible = false;
@@ -391,6 +396,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showHookHub() {
+        cancelAppIconLoad();
         // Do not resurrect a stale target if the user leaves the restored app list.
         pendingRestorePackage = null;
         pauseAndDetachWebView();
@@ -599,6 +605,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         cancelHookStatusRefresh();
+        cancelAppIconLoad();
         Thread publisher = hookPublisherThread;
         hookPublisherThread = null;
         if (publisher != null) publisher.interrupt();
@@ -730,6 +737,7 @@ public final class MainActivity extends Activity {
     private LinearLayout content;
     private void showAppList() {
         cancelHookStatusRefresh();
+        cancelAppIconLoad();
         pauseAndDetachWebView();
         hookUiVisible = true;
         hookTargetVisible = false;
@@ -827,6 +835,7 @@ public final class MainActivity extends Activity {
     }
     private void renderApps(String query) {
         if (!appsLoaded) return;
+        cancelAppIconLoad();
         // Keep the fixed header, search field, and hint (children 0..4).
         // Replace only the loading indicator and previously rendered result rows.
         while (content.getChildCount() > 5) content.removeViewAt(5);
@@ -849,7 +858,6 @@ public final class MainActivity extends Activity {
     }
 
     private void appendAppRows(int start, int end) {
-        PackageManager pm = getPackageManager();
         for (int i = start; i < end; i++) {
             ApplicationInfo ai = filtered.get(i);
             LinearLayout row = new LinearLayout(this);
@@ -858,15 +866,14 @@ public final class MainActivity extends Activity {
             row.setBackgroundColor(0xffffffff);
             ImageView icon = new ImageView(this);
             Drawable drawable = appIcons.get(ai.packageName);
-            if (drawable == null) {
-                try {
-                    drawable = pm.getApplicationIcon(ai);
-                } catch (RuntimeException unavailable) {
-                    drawable = getDrawable(android.R.drawable.sym_def_app_icon);
-                }
-                if (drawable != null) appIcons.put(ai.packageName, drawable);
+            if (drawable != null) {
+                icon.setImageDrawable(drawable);
+                icon.setTag(Boolean.TRUE);
+            } else {
+                icon.setImageResource(android.R.drawable.sym_def_app_icon);
+                icon.setTag(Boolean.FALSE);
             }
-            if (drawable != null) icon.setImageDrawable(drawable);
+            appIconViews.put(ai.packageName, icon);
             row.addView(icon, new LinearLayout.LayoutParams(dp(42), dp(42)));
             LinearLayout labels = new LinearLayout(this);
             labels.setOrientation(LinearLayout.VERTICAL);
@@ -908,10 +915,64 @@ public final class MainActivity extends Activity {
             });
             content.addView(more, new LinearLayout.LayoutParams(-1, -2));
         }
+        loadMissingAppIconsAsync();
     }
+
+    private void loadMissingAppIconsAsync() {
+        List<ApplicationInfo> missing = new ArrayList<>();
+        for (ApplicationInfo ai : apps) {
+            ImageView view = appIconViews.get(ai.packageName);
+            if (view != null && !Boolean.TRUE.equals(view.getTag())
+                    && !appIcons.containsKey(ai.packageName)) missing.add(ai);
+        }
+        if (missing.isEmpty()) return;
+        Thread previous = appIconLoaderThread;
+        if (previous != null) previous.interrupt();
+        final int generation = ++appIconLoadGeneration;
+        Thread worker = new Thread(() -> {
+            Map<String, Drawable> loaded = new LinkedHashMap<>();
+            PackageManager pm = getPackageManager();
+            for (ApplicationInfo ai : missing) {
+                if (Thread.currentThread().isInterrupted()) return;
+                try {
+                    Drawable drawable = pm.getApplicationIcon(ai);
+                    if (drawable != null) loaded.put(ai.packageName, drawable);
+                } catch (RuntimeException unavailable) {
+                    // The package may be removed while icons are being decoded.
+                }
+            }
+            if (Thread.currentThread().isInterrupted()) return;
+            if (appIconLoaderThread == Thread.currentThread()) appIconLoaderThread = null;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || generation != appIconLoadGeneration
+                        || !hookUiVisible || hookTargetVisible || hookHubVisible) return;
+                for (Map.Entry<String, Drawable> entry : loaded.entrySet()) {
+                    appIcons.put(entry.getKey(), entry.getValue());
+                    ImageView target = appIconViews.get(entry.getKey());
+                    if (target != null && target.getParent() != null) {
+                        target.setImageDrawable(entry.getValue());
+                        target.setTag(Boolean.TRUE);
+                    }
+                }
+            });
+        }, "fx-app-icons");
+        worker.setDaemon(true);
+        appIconLoaderThread = worker;
+        worker.start();
+    }
+
+    private void cancelAppIconLoad() {
+        appIconLoadGeneration++;
+        Thread worker = appIconLoaderThread;
+        appIconLoaderThread = null;
+        if (worker != null) worker.interrupt();
+        appIconViews.clear();
+    }
+
     private String key(String feature) { return selectedPackage + ":" + feature; }
     private boolean get(String feature) { return getPreferences(0).getBoolean(key(feature), false); }
     private void showTarget(ApplicationInfo ai) {
+        cancelAppIconLoad();
         try {
             // The package may have been uninstalled after the background app index was built.
             ai = getPackageManager().getApplicationInfo(ai.packageName, 0);
