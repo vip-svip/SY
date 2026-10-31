@@ -330,6 +330,10 @@ public final class MainActivity extends Activity {
         refreshRoot.setText("刷新 Root 状态");
         refreshRoot.setOnClickListener(v -> checkRoot(rootState, false));
         content.addView(refreshRoot);
+        Button requestRoot = new Button(this);
+        requestRoot.setText("申请 / 重新检查 Root 权限");
+        requestRoot.setOnClickListener(v -> checkRoot(rootState, true));
+        content.addView(requestRoot);
         checkRoot(rootState, false);
         section("LSPosed");
         TextView ls = new TextView(this);
