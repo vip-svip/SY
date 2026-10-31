@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private TextView rootStatus;
     private boolean hookUiVisible;
+    private boolean hookTargetVisible;
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
     private boolean webViewLoaded;
@@ -64,6 +65,7 @@ public final class MainActivity extends Activity {
 
     private void showWebDashboard() {
         hookUiVisible = false;
+        hookTargetVisible = false;
         selectedBottomTab = lastWebTabIndex;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -288,6 +290,7 @@ public final class MainActivity extends Activity {
     private void showHookHub() {
         pauseAndDetachWebView();
         hookUiVisible = true;
+        hookTargetVisible = false;
         base("Hook 与系统授权");
         TextView intro = new TextView(this);
         intro.setText("统一管理应用级 Hook、LSPosed 作用域和无障碍服务。Root、LSPosed、无障碍是三种独立授权，必须分别确认状态。");
@@ -369,6 +372,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
+        if (hookTargetVisible) { showAppList(); return; }
         if (hookUiVisible) { showWebDashboard(); return; }
         if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
         super.onBackPressed();
@@ -413,6 +417,7 @@ public final class MainActivity extends Activity {
     private void showAppList() {
         pauseAndDetachWebView();
         hookUiVisible = true;
+        hookTargetVisible = false;
         selectedPackage = null; base("选择应用");
         Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
@@ -468,6 +473,8 @@ public final class MainActivity extends Activity {
     private String key(String feature) { return selectedPackage + ":" + feature; }
     private boolean get(String feature) { return getPreferences(0).getBoolean(key(feature), false); }
     private void showTarget(ApplicationInfo ai) {
+        hookUiVisible = true;
+        hookTargetVisible = true;
         selectedPackage=ai.packageName; selectedLabel=getPackageManager().getApplicationLabel(ai).toString();
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
