@@ -54,10 +54,6 @@ jobs:
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
-          echo "=== LEGACY AUDIO/CAMERA/LOCATION HOOKS ==="
-          sed -n '1590,1755p' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
-          echo "=== LEGACY FEATURE KEY DEFINITIONS ==="
-          grep -nE 'audio_fp_block|mic_block|cam_null|disable_passive_loc|block_mediastore|block_wifi_scan|block_notif_listen|hide_notif_perm|clipboard|sensor_accel|sensor_gyro|sensor_light|sensor_magnet|sensor_pressure|sensor_prox|sensor_rate_limit|exif_strip|spoof_android_id' adhook/app/src/main/java/de/privacyguard/hook/MainHook.java | head -n 100 || true
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
           test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
