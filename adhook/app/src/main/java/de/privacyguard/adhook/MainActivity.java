@@ -26,6 +26,8 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.*;
 import org.json.JSONObject;
 
@@ -47,6 +49,9 @@ public final class MainActivity extends Activity {
     private boolean hookUiVisible;
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
+    private boolean webViewLoaded;
+    private boolean webUiReady;
+    private String pendingWebPage;
     private ValueCallback<Uri[]> fileChooserCallback;
     private static final int REQUEST_FILE_PICKER = 4101;
 
@@ -88,6 +93,8 @@ public final class MainActivity extends Activity {
         toolbar.addView(settingsButton, new LinearLayout.LayoutParams(-2, dp(42)));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
+        if (webView == null) {
+        webUiReady = false;
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -178,12 +185,40 @@ public final class MainActivity extends Activity {
                 return !"https".equals(uri.getScheme())
                         || !"appassets.androidplatform.net".equals(uri.getHost());
             }
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if ("appassets.androidplatform.net".equals(Uri.parse(url).getHost())) {
+                    webUiReady = true;
+                    if (pendingWebPage != null) {
+                        String pending = pendingWebPage;
+                        pendingWebPage = null;
+                        navigateWebPage(pending);
+                    }
+                }
+            }
         });
+        } else {
+            ViewParent parent = webView.getParent();
+            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
+            webView.onResume();
+            webView.resumeTimers();
+        }
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
         setContentView(root);
         checkRoot(rootStatus, false);
-        webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+        if (!webViewLoaded) {
+            webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+            webViewLoaded = true;
+        }
+    }
+
+    private void pauseAndDetachWebView() {
+        if (webView == null) return;
+        webView.onPause();
+        webView.pauseTimers();
+        ViewParent parent = webView.getParent();
+        if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
     }
 
     private LinearLayout buildBottomNavigation() {
@@ -207,11 +242,12 @@ public final class MainActivity extends Activity {
                 } else {
                     selectedBottomTab = index;
                     lastWebTabIndex = index;
-                    for (int j = 0; j < bar.getChildCount(); j++) {
-                        styleBottomItem((TextView) bar.getChildAt(j), j);
-                    }
                     String page = new String[]{"pageVpn", "pageAd", "pageHosts",
                             "pagePrivacy", "pageScript"}[index];
+                    if (hookUiVisible) showWebDashboard();
+                    else for (int j = 0; j < bar.getChildCount(); j++) {
+                        styleBottomItem((TextView) bar.getChildAt(j), j);
+                    }
                     navigateWebPage(page);
                 }
             });
@@ -228,6 +264,7 @@ public final class MainActivity extends Activity {
 
     private void navigateWebPage(String pageId) {
         if (webView == null) return;
+        if (!webUiReady) { pendingWebPage = pageId; return; }
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
@@ -249,6 +286,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showHookHub() {
+        pauseAndDetachWebView();
         hookUiVisible = true;
         base("Hook 与系统授权");
         TextView intro = new TextView(this);
@@ -373,6 +411,7 @@ public final class MainActivity extends Activity {
     }
     private LinearLayout content;
     private void showAppList() {
+        pauseAndDetachWebView();
         hookUiVisible = true;
         selectedPackage = null; base("选择应用");
         Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showWebDashboard()); content.addView(home);
