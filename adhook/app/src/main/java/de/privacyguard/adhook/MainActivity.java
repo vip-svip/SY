@@ -299,6 +299,16 @@ public final class MainActivity extends Activity {
         intro.setPadding(dp(18), dp(8), dp(18), dp(16));
         intro.setTextColor(0xff536170);
         content.addView(intro);
+        section("KernelSU / Root");
+        TextView rootState = new TextView(this);
+        rootState.setText("正在检查 Root 授权与 FX 模块状态…");
+        rootState.setPadding(dp(18), dp(12), dp(18), dp(12));
+        content.addView(rootState);
+        Button refreshRoot = new Button(this);
+        refreshRoot.setText("刷新 Root 状态");
+        refreshRoot.setOnClickListener(v -> checkRoot(rootState, false));
+        content.addView(refreshRoot);
+        checkRoot(rootState, false);
         section("LSPosed");
         TextView ls = new TextView(this);
         ls.setText(isLsposedManagerInstalled()
@@ -329,7 +339,7 @@ public final class MainActivity extends Activity {
         });
         content.addView(settings);
         Button status = new Button(this);
-        status.setText("刷新授权状态");
+        status.setText("刷新无障碍 / LSPosed 检测");
         status.setOnClickListener(v -> showHookHub());
         content.addView(status);
         Button back = new Button(this);
