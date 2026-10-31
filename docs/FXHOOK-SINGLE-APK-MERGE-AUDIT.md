@@ -1,44 +1,37 @@
-# FX Hook 合并审计 — FX 1.0.0
+# FXHook 单 APK 双入口合并审计 — FX 1.0.0
 
-**状态：未完成，当前保留双 APK 兼容。**
+审计日期：2026-10-31（基于 GitHub Actions Run #73 产物）
 
-## 当前实际状态
+## 当前已实现结构
 
-- 旧版：API-82，包名 `de.privacyguard.hook`，入口 `MainHook`，约 96 KB Java 源码，包含 75 个旧版配置开关。
-- 新版：libxposed API 101，包名 `de.privacyguard.adhook`，入口 `AdVisibilityHook`，使用 LSPosed Remote Files。
-- KernelSU ZIP 当前必须继续携带并安装两个 APK，直到旧版开关逐项迁移或明确废弃。
-- 不得为了得到“一个 APK”的表象而删除旧 APK、静默丢失配置或声称功能等价。
+| 项目 | 当前状态 |
+|---|---|
+| 安装包 | `optional/FXUnifiedHook.apk`，单一 APK |
+| applicationId | `de.privacyguard.adhook` |
+| 现代入口 | `de.privacyguard.adhook.AdVisibilityHook`，libxposed API 101 |
+| 现代入口发现 | `META-INF/xposed/java_init.list` |
+| 兼容入口 | `de.privacyguard.hook.MainHook`，legacy Xposed 入口 |
+| 兼容入口发现 | `assets/xposed_init` |
+| 安装方式 | PackageManager 安装一个普通应用包；LSPosed 中配置目标作用域 |
+| CI 构建 | GitHub Actions Run #73 完成 Gradle APK 重建和 KernelSU ZIP 打包，状态 success |
 
-## 已迁移到 API-101 的功能
+完整旧版 `MainHook.java` 保留在 `lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java`，CI 打包流程将兼容入口纳入统一 APK。当前统一的是安装包和双运行时入口，不等于 75 个历史开关已全部迁移为 API-101 原生实现。
 
-- 广告 View 观察与过滤。
-- Android ID 隐私变换（不是 IMEI、SIM、MAC 等硬件身份伪造）。
-- EXIF 读取脱敏：覆盖受支持的 Android/AndroidX 读取路径，不改写图片文件。
-- 传感器类型枚举隐藏与采样率限制。
-- Wi-Fi 扫描访问策略。
-- 通知监听读取及通知权限状态查询隐私策略。
-- 剪贴板读取阻止和进程本地 shadow 隔离（不是系统级跨应用隔离）。
-- 相机、麦克风、位置及 MediaStore 相关策略按 API-101 当前实现和配置范围启用。
+## 迁移状态与安全边界
 
-上述功能的源码、配置发布链路和自动化测试已部分覆盖；仍需真机验证。不能把“源码已接入”说成所有 ROM/所有 App 均已生效。
+- 迁移基线记录 75 个旧版开关；当前已在现代配置/策略路径中覆盖 7 项传感器开关、Wi-Fi 扫描、通知监听读取、通知权限查询遮蔽和进程内剪贴板隔离。
+- 其余旧版功能仍需按迁移矩阵逐项验收，不能因双入口同包就标记为 API-101 功能完全等价。
+- 广告/会员相关诊断保持只读；不伪造 VIP、登录、购买、奖励或服务端授权结果。
+- 未知包名、未知状态和不支持的 Hook 场景应保持 fail-open；高风险伪装和生产授权覆盖保持关闭。
 
-## 尚未迁移的旧版功能
+## 仍需完成的验证
 
-旧版 75 个开关中，仍有大量项目在迁移矩阵中标记为“待迁移与验证”，包括部分设备信息模拟、定位模拟、root/KernelSU 痕迹隐藏、挂载/文件系统隐藏、应用/进程枚举隐藏、VPN 可见性隐藏、网卡/流量统计伪装等。
+1. 对 75 项逐项核对 UI、配置发布、运行时 Hook 和回滚语义；区分 API-82 兼容入口与 API-101 原生迁移。
+2. 验证单包升级、旧包所有权标记、签名一致性、回滚和卸载行为。
+3. 在 OnePlus 12 + KernelSU + LSPosed 真机验证 APK 安装、两个入口注入、目标作用域、配置 Remote Files、实际功能和卸载回滚。
 
-其中 root/VPN/应用列表隐匿、硬件身份伪造、服务端授权或奖励伪造等行为不原样移植。对可接受的隐私保护功能，必须改为透明、逐应用、默认关闭、失败放行的策略，并逐项测试。
+## 当前验收边界
 
-## 为什么暂时不能删掉 API-82 APK
-
-旧版 75 个开关并未全部进入 API-101 运行时。直接删除旧 APK 会导致旧版独有功能停止工作；即使 UI 仍显示开关，也会形成“看似可用、实际无效”的配置。因此当前保留双 APK 是功能保全措施，不是已经完成合并。
-
-## 真正完成单 APK 的验收门槛
-
-1. 75 个旧版开关逐项标记为 API-101 已迁移、明确废弃或不迁移；不能留有不明状态。
-2. 每个迁移项完成 Remote Files schema、发布器、运行时 Hook 和回归测试。
-3. 唯一 API-101 applicationId/入口；不在新 APK 中混用旧版 XposedBridge API。
-4. 旧配置迁移、升级、回滚和签名兼容策略通过测试。
-5. 旧 APK 仅在 API-101 功能等价且升级成功后清理；任何失败都保留旧包和配置。
-6. OnePlus 12 + KernelSU + LSPosed 完成安装、scope、目标应用运行、升级、卸载和回滚真机验证。
-
-**当前结论：FX Hook 尚未完成单 APK 合并。当前正确交付是保留双 APK，继续迁移可安全实现的旧版功能；不把安装管理统一冒充源码/运行时合并。**
+- 已验证：CI Gradle 构建、APK 归档和 SHA-256、KernelSU ZIP 归档、聚焦回归测试。
+- 未验证：OnePlus 12 真机注入与实际运行行为。
+- 不宣称：75 项 API-101 全量迁移完成，或所有目标应用均兼容。
