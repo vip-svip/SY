@@ -3,6 +3,16 @@ package de.privacyguard.adhook;
 import android.app.Activity;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.widget.Toast;
+import android.util.Base64;
+
+import java.io.File;
+import java.io.FileOutputStream;
 
 import org.json.JSONObject;
 
@@ -31,6 +41,50 @@ public final class RootBridge {
             RootAccess.Result result = RootAccess.execute(command, 120000L, 1024 * 1024);
             deliver(callbackName, result.exitCode, result.output, "");
         }, "fx-web-root").start();
+    }
+
+    @JavascriptInterface
+    public void saveBase64(String filename, String encoded, String mimeType) {
+        try {
+            if (encoded == null || encoded.length() > 14 * 1024 * 1024) {
+                throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
+            }
+            byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
+            String safeName = filename == null ? "FX-export.txt"
+                    : filename.replaceAll("[^A-Za-z0-9._-]", "_");
+            if (safeName.length() == 0) safeName = "FX-export.txt";
+            String type = mimeType == null || mimeType.length() == 0
+                    ? "application/octet-stream" : mimeType;
+            if (Build.VERSION.SDK_INT >= 29) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, safeName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, type);
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                        Environment.DIRECTORY_DOWNLOADS + "/FX");
+                values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                Uri uri = activity.getContentResolver().insert(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) throw new IllegalStateException("无法创建下载文件");
+                try (java.io.OutputStream stream = activity.getContentResolver().openOutputStream(uri)) {
+                    if (stream == null) throw new IllegalStateException("无法打开下载文件");
+                    stream.write(bytes);
+                }
+                ContentValues ready = new ContentValues();
+                ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                activity.getContentResolver().update(uri, ready, null, null);
+            } else {
+                File dir = new File(activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "FX");
+                if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("无法创建导出目录");
+                try (FileOutputStream stream = new FileOutputStream(new File(dir, safeName))) {
+                    stream.write(bytes);
+                }
+            }
+            activity.runOnUiThread(() -> Toast.makeText(activity,
+                    "已导出到 Download/FX/" + safeName, Toast.LENGTH_LONG).show());
+        } catch (Exception e) {
+            activity.runOnUiThread(() -> Toast.makeText(activity,
+                    "导出失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
     }
 
     @JavascriptInterface
