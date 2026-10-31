@@ -56,6 +56,7 @@ jobs:
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+          python3 fx-patches/unify_hook_ui.py fx-module
       - name: Validate required module files and version
         shell: bash
         run: |
