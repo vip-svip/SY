@@ -21,6 +21,11 @@ grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.
 grep -q 'android.intent.category.LAUNCHER' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher category missing"
 grep -q 'QUERY_ALL_PACKAGES' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "installed-app visibility permission missing"
 [ -s "$APK" ] || fail "built Hook APK missing"
+# The native Ad tab must activate the merged Hosts container through the embedded WebUI's real "ad" key.
+EMBEDDED_UI="$(unzip -p "$APK" assets/webroot/index.html 2>/dev/null || true)"
+printf '%s\\n' "$EMBEDDED_UI" | grep -Fq 'data-tab="ad"' || fail "embedded WebUI Ad compatibility tab missing"
+printf '%s\\n' "$EMBEDDED_UI" | grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" || fail "embedded Ad tab no longer activates merged Hosts content"
+printf '%s\\n' "$EMBEDDED_UI" | grep -Fq 'id="pageHosts"' || fail "embedded merged Hosts page missing"
 [ -x "$AAPT" ] || fail "Android aapt missing"
 BADGING=$("$AAPT" dump badging "$APK")
 printf '%s\n' "$BADGING" | grep -q "^package: name='de.privacyguard.adhook'" || fail "unexpected package id"
