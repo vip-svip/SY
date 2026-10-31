@@ -125,7 +125,29 @@ public final class MainActivity extends Activity {
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", handler).build();
         webView.addJavascriptInterface(new RootBridge(this, webView), "FXRoot");
-        webView.setWebChromeClient(new WebChromeClient() {\n            @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {\n                new AlertDialog.Builder(MainActivity.this).setMessage(message)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }\n            @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {\n                new AlertDialog.Builder(MainActivity.this).setMessage(message)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())\n                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }\n            @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {\n                EditText input = new EditText(MainActivity.this); input.setText(defaultValue);\n                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)\n                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm(input.getText().toString()))\n                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())\n                        .setOnCancelListener(d -> result.cancel()).show();\n                return true;\n            }
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
+            @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
+                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
+            @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+                EditText input = new EditText(MainActivity.this);
+                input.setText(defaultValue);
+                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm(input.getText().toString()))
+                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
                 if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
@@ -167,7 +189,13 @@ public final class MainActivity extends Activity {
         }
     }
 
-    @Override public void onBackPressed() {\n        if (hookUiVisible) { showWebDashboard(); return; }\n        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }\n        super.onBackPressed();\n    }\n\n    public void showAppListFromBridge() { showAppList(); }
+    @Override public void onBackPressed() {
+        if (hookUiVisible) { showWebDashboard(); return; }
+        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
+        super.onBackPressed();
+    }
+
+    public void showAppListFromBridge() { showAppList(); }
 
     private void dashboardItem(String name, String detail, Runnable action) {
         LinearLayout row = new LinearLayout(this);
