@@ -229,6 +229,11 @@ unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null | grep -qx 'de.privac
 [ -s "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" ] || fail "copied MainHook source missing"
 [ "$(wc -c < "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | tr -d ' ')" -ge 90000 ] || fail "copied MainHook source truncated"''')
 s = s.replace('grep -Eq \'Modern LSPosed API 101|modern libxposed / LSPosed API 101\' \'$INFO\'', 'grep -Fq \'Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101\' \'$INFO\'')
+s = "\\n".join(
+    'grep -Fq \'Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101\' "$INFO"' 
+    if "grep -E" in line and "API 101" in line else line
+    for line in s.splitlines()
+) + "\\n"
 s = s.replace('[ -s "$ROOT/optional/PrivacyGuardHook.apk" ] || fail "legacy Hook APK missing from optional app payload"\n[ -s "$ROOT/optional/PrivacyGuardHook.apk.sha256" ] || fail "legacy Hook APK checksum missing"\n[ "$(sha256sum "$ROOT/optional/PrivacyGuardHook.apk" | awk \'{print $1}\')" = "$(awk \'NR==1 {print $1}\' "$ROOT/optional/PrivacyGuardHook.apk.sha256")" ] || fail "legacy Hook APK checksum mismatch"',
 '''unzip -p "$APK" AndroidManifest.xml >/dev/null 2>&1 || fail "unified APK manifest missing"
 [ ! -e "$ROOT/optional/PrivacyGuardHook.apk" ] || fail "split legacy APK should not be packaged"''')
