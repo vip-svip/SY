@@ -207,7 +207,7 @@ public final class MainActivity extends Activity {
             webView.resumeTimers();
         }
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
+        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(72)));
         setContentView(root);
         if (!webViewLoaded) {
             checkRoot(rootStatus, false, () -> {
@@ -239,7 +239,7 @@ public final class MainActivity extends Activity {
             final int index = i;
             TextView item = new TextView(this);
             item.setText(labels[i]);
-            item.setTextSize(12);
+            item.setTextSize(14);
             item.setGravity(Gravity.CENTER);
             item.setPadding(dp(2), dp(8), dp(2), dp(8));
             styleBottomItem(item, index);
@@ -484,7 +484,7 @@ public final class MainActivity extends Activity {
         content.addView(title("FX", 25));
         TextView h = title(heading, 18); h.setPadding(dp(18), dp(2), dp(18), dp(12)); content.addView(h);
         scroll.addView(content); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(64)));
+        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(72)));
         setContentView(root); this.content = content;
     }
     private LinearLayout content;
