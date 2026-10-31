@@ -86,4 +86,6 @@ if source.count(gate) != 1:
 source = source.replace(gate, 'fi\\n\\nif [ "\\${PG_DNS_WATCHDOG_STOP_FAILED:-0}" = 1 ]; then\\n  exit 1\\nfi\\n\\n# ============================================================\\n# A1. 防火墙链', 1)
 uninstall.write_text(source, encoding="utf-8")
 print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
+print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
+print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")uninstall.write_text(source, encoding="utf-8")
 print("Hardened missing-helper DNS watchdog shutdown and cleanup gating.")
