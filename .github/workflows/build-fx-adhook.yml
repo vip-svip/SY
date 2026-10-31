@@ -33,15 +33,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Stage released FX 1.0.0 WebUI for static validation
+      - name: Restore module sources, merge Hook entrypoints, and stage WebUI (no compile)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/fx-release" adhook/app/src/main/assets/webroot
+          mkdir -p "$RUNNER_TEMP/fx-release" "$RUNNER_TEMP/fx-unpack" adhook/app/src/main/assets/webroot
           gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
-          unzip -p "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip" webroot/index.html > adhook/app/src/main/assets/webroot/index.html
+          unzip -tq "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip"
+          unzip -q "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip" -d "$RUNNER_TEMP/fx-unpack"
+          module_prop="$(find "$RUNNER_TEMP/fx-unpack" -type f -name module.prop -print -quit)"
+          test -n "$module_prop"
+          source_root="$(dirname "$module_prop")"
+          mkdir -p fx-module
+          cp -a "$source_root/." fx-module/
+          python3 fx-patches/patch_remote_config_parser.py fx-module
+          python3 fx-patches/patch_hook_apk_regression.py fx-module
+          python3 fx-patches/patch_hook_privacy_controls.py fx-module
+          python3 fx-patches/merge_hook_single_apk.py fx-module .
+          cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
+          test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+          grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
+          grep -q 'android:label="FX"' adhook/app/src/main/AndroidManifest.xml
       - name: Run static migration checks only (no compile)
         shell: bash
         run: |
