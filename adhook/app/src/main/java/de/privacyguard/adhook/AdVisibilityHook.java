@@ -170,6 +170,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<String> dynamicChildObserverMethods = ConcurrentHashMap.newKeySet();
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
+    private final WeakHashMap<View, Long> lastAddedViewScan = new WeakHashMap<>();
     private boolean adsEnabled;
     private boolean privacyEnabled;
     private boolean wifiScanEnabled;
@@ -1194,6 +1195,14 @@ public final class AdVisibilityHook extends XposedModule {
 
     private void scheduleAddedViewCheck(final View added, final UnifiedHookConfigParser.Target target, final String pkg) {
         if (added == null) return;
+        // addView overloads can delegate to one another; avoid queuing the same
+        // inserted view several times for one logical attachment.
+        long now = System.currentTimeMillis();
+        synchronized (lastAddedViewScan) {
+            Long prior = lastAddedViewScan.get(added);
+            if (prior != null && now - prior < 300L) return;
+            lastAddedViewScan.put(added, now);
+        }
         final Handler handler;
         try { handler = new Handler(Looper.getMainLooper()); }
         catch (Throwable t) { return; }
