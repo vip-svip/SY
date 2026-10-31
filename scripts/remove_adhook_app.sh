@@ -11,7 +11,7 @@ for _pair in 'de.privacyguard.adhook fxunifiedhook' 'de.privacyguard.adhook fxun
   set -- $_pair; _pkg=$1; _slug=$2
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
   [ -s "$_marker" ] || continue
-  if [ ! -s "$_owned" ]; then log_msg "leaving pre-existing or ownership-unknown package untouched: $_pkg"; rm -f "$_marker"; continue; fi
+  if [ ! -s "$_owned" ]; then log_msg "leaving pre-existing or ownership-unknown package untouched: $_pkg"; rm -f "$_marker" "$_owned"; continue; fi
   _paths=$(pm path "$_pkg" 2>/dev/null)
   if [ -z "$_paths" ]; then rm -f "$_marker" "$_owned"; continue; fi
   case "$_paths" in
