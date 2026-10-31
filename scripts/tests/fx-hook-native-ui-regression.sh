@@ -34,6 +34,9 @@ grep -q 'DeveloperHookRule.parse(ruleId+"|"+method+"|OBSERVE|0"' "$ROOT/adhook/a
 grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher MAIN action missing"
 grep -q 'android.intent.category.LAUNCHER' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher category missing"
 grep -q 'QUERY_ALL_PACKAGES' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "installed-app visibility permission missing"
+grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "Hook forms do not resize around the on-screen keyboard"
+grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
+grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
 [ -s "$APK" ] || fail "built Hook APK missing"
 # The native Ad tab must activate the merged Hosts container through the embedded WebUI's real "ad" key.
 EMBEDDED_UI="$(unzip -p "$APK" assets/webroot/index.html 2>/dev/null || true)"
