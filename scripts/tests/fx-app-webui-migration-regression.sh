@@ -141,6 +141,7 @@ grep -q 'ACTION_ACCESSIBILITY_SETTINGS' "$ACTIVITY" || fail "Android accessibili
 grep -Fq 'service_connected' "$ACTIVITY" || fail "accessibility status must distinguish system enablement from actual service connection"
 grep -Fq 'FX 服务已连接' "$ACTIVITY" || fail "accessibility connected state is not reported"
 grep -q 'FxAccessibilityService' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service missing from source manifest"
+grep -Fq 'onUnbind(Intent intent)' "$APP/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility connection marker must clear on service unbind"
 grep -q 'BIND_ACCESSIBILITY_SERVICE' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility bind permission missing"
 grep -q 'fx_accessibility_service' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service metadata missing"
 grep -q 'canRetrieveWindowContent="false"' "$ROOT/adhook/app/src/main/res/xml/fx_accessibility_service.xml" || fail "accessibility service must not inspect screen content"
