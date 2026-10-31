@@ -54,6 +54,18 @@ jobs:
             mkdir -p fx-module
             cp -a "$source_root/." fx-module/
           fi
+          # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
+          # Recover the canonical full UI from the already packaged Hook APK before
+          # running compatibility patches or rebuilding; otherwise release-to-release
+          # builds accidentally feed the 532-byte retirement page back as source.
+          if [[ ! -s fx-module/webroot/index.html || "$(wc -c < fx-module/webroot/index.html)" -le 500000 ]]; then
+            hook_apk="fx-module/optional/FXUnifiedHook.apk"
+            [[ -s "$hook_apk" ]] || { echo "::error::Full WebUI source is missing and no embedded FX Hook APK is available to restore it."; exit 1; }
+            unzip -p "$hook_apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-restored-webroot.html"
+            [[ "$(wc -c < "$RUNNER_TEMP/fx-restored-webroot.html")" -gt 500000 ]] || { echo "::error::Embedded FX Hook APK does not contain the complete WebUI."; exit 1; }
+            install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
+            echo "::notice::Restored the complete WebUI source from the embedded FX Hook APK."
+          fi
       - name: Apply reviewed FX source compatibility patches
         shell: bash
         run: |
