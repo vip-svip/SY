@@ -32,6 +32,19 @@ MODERN_INIT="$(unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null || tru
 MODULE_PROP="$(unzip -p "$APK" META-INF/xposed/module.prop 2>/dev/null || true)"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'minApiVersion=101' || fail "modern libxposed minimum API metadata missing"
 printf '%s\n' "$MODULE_PROP" | grep -qx 'targetApiVersion=101' || fail "modern libxposed target API metadata missing"
-unzip -p "$APK" classes.dex | strings | grep -F 'de/privacyguard/hook/MainHook' >/dev/null || fail "legacy MainHook class is not compiled into APK DEX"
-unzip -p "$APK" classes.dex | strings | grep -F 'de/privacyguard/adhook/AdVisibilityHook' >/dev/null || fail "modern AdVisibilityHook class is not compiled into APK DEX"
+DEX_TMP="${TMPDIR:-/tmp}/fx-hook-apk-dex-$"
+mkdir -p "$DEX_TMP"
+trap 'rm -rf "$DEX_TMP"' EXIT HUP INT TERM
+unzip -q "$APK" 'classes*.dex' -d "$DEX_TMP" || fail "APK DEX payload could not be extracted"
+for required_class in 'de/privacyguard/hook/MainHook' 'de/privacyguard/adhook/AdVisibilityHook'; do
+  class_found=0
+  for dex_file in "$DEX_TMP"/classes*.dex; do
+    [ -f "$dex_file" ] || continue
+    if strings "$dex_file" | grep -F "$required_class" >/dev/null; then
+      class_found=1
+      break
+    fi
+  done
+  [ "$class_found" -eq 1 ] || fail "required LSPosed class missing from APK DEX: $required_class"
+done
 echo "PASS: FX Hook APK contains native launcher plus both legacy Xposed and modern libxposed entrypoints"
