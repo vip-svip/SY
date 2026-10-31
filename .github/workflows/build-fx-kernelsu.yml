@@ -257,33 +257,34 @@ jobs:
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
-          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
-          BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
-          test -s "$BUILT_APK"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           APKSIGNER="$SDK_ROOT/build-tools/34.0.0/apksigner"
-          "$APKSIGNER" verify "$BUILT_APK"
 
-          # Optional stable release signing. Never generate or commit a throwaway
-          # release key: the owner must supply the same private keystore secrets
-          # for every update. A partial secret set is a hard error, not a silent
-          # fallback to a different signing identity.
+          # Prefer a genuine non-debuggable Release variant when the owner has
+          # configured a persistent keystore. Debug remains an explicitly
+          # labelled fallback for CI validation only.
           SIGNING_MODE="debug-signed"
+          BUILD_VARIANT="debug"
           if [[ -n "$FX_ANDROID_KEYSTORE_BASE64$FX_ANDROID_KEYSTORE_PASSWORD$FX_ANDROID_KEY_ALIAS$FX_ANDROID_KEY_PASSWORD" ]]; then
             for name in FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD; do
               [[ -n "${!name}" ]] || { echo "::error::Incomplete FX Android release-signing secrets: $name is missing."; exit 1; }
             done
-            keystore="$RUNNER_TEMP/fx-release-signing.p12"
-            trap 'rm -f "$keystore"' EXIT
-            printf '%s' "$FX_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
-            test -s "$keystore"
-            "$APKSIGNER" sign --ks "$keystore" --ks-key-alias "$FX_ANDROID_KEY_ALIAS" \
-              --ks-pass env:FX_ANDROID_KEYSTORE_PASSWORD \
-              --key-pass env:FX_ANDROID_KEY_PASSWORD "$BUILT_APK"
-            "$APKSIGNER" verify --verbose "$BUILT_APK"
+            export FX_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/fx-release-signing.p12"
+            printf '%s' "$FX_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$FX_ANDROID_KEYSTORE_PATH"
+            test -s "$FX_ANDROID_KEYSTORE_PATH"
+            cleanup_keystore() { rm -f "$FX_ANDROID_KEYSTORE_PATH"; }
+            trap cleanup_keystore EXIT
+            gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleRelease
+            BUILT_APK=adhook/app/build/outputs/apk/release/app-release.apk
             SIGNING_MODE="release-signed"
-            unset FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD
+            BUILD_VARIANT="release"
+          else
+            gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleDebug
+            BUILT_APK=adhook/app/build/outputs/apk/debug/app-debug.apk
           fi
+          test -s "$BUILT_APK"
+          "$APKSIGNER" verify --verbose "$BUILT_APK"
+          unset FX_ANDROID_KEYSTORE_BASE64 FX_ANDROID_KEYSTORE_PASSWORD FX_ANDROID_KEY_ALIAS FX_ANDROID_KEY_PASSWORD FX_ANDROID_KEYSTORE_PATH
           echo "Hook APK signing mode: $SIGNING_MODE" >> "$GITHUB_STEP_SUMMARY"
           "$APKSIGNER" verify --print-certs "$BUILT_APK" | grep 'Signer #1 certificate SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
 
@@ -294,7 +295,7 @@ jobs:
           test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
           {
-            echo "Build variant: debug-compiled APK"
+            echo "Build variant: $BUILD_VARIANT"
             echo "Signing mode: $SIGNING_MODE"
             echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
             echo "versionCode: 10000"
