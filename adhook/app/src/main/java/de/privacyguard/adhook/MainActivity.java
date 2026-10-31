@@ -251,7 +251,7 @@ public final class MainActivity extends Activity {
                     FileChooserParams params) {
                 ValueCallback<Uri[]> previous = fileChooserCallback;
                 fileChooserCallback = null;
-                if (previous != null) previous.onReceiveValue(null);
+                deliverFileChooserResult(previous, null);
                 fileChooserCallback = callback;
                 try {
                     Intent intent = params.createIntent();
@@ -262,7 +262,7 @@ public final class MainActivity extends Activity {
                     // including the failure path; otherwise the page can remain stuck waiting.
                     ValueCallback<Uri[]> pending = fileChooserCallback;
                     fileChooserCallback = null;
-                    if (pending != null) pending.onReceiveValue(null);
+                    deliverFileChooserResult(pending, null);
                     Toast.makeText(MainActivity.this, "无法打开文件选择器：" + e.getMessage(),
                             Toast.LENGTH_LONG).show();
                     return true;
@@ -611,7 +611,7 @@ public final class MainActivity extends Activity {
         // a cancelled document picker can retain the old Activity across recreation.
         ValueCallback<Uri[]> pendingFileChooser = fileChooserCallback;
         fileChooserCallback = null;
-        if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
+        deliverFileChooserResult(pendingFileChooser, null);
         if (rootBridge != null) {
             rootBridge.close();
             rootBridge = null;
@@ -648,6 +648,15 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private static void deliverFileChooserResult(ValueCallback<Uri[]> callback, Uri[] result) {
+        if (callback == null) return;
+        try {
+            callback.onReceiveValue(result);
+        } catch (RuntimeException ignored) {
+            // A stale WebView callback must never abort Activity cleanup or navigation.
+        }
+    }
+
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_FILE_PICKER && fileChooserCallback != null) {
@@ -660,7 +669,7 @@ public final class MainActivity extends Activity {
                 // Always complete the accepted WebView callback, even if the picker
                 // returns a malformed result or the provider disappears.
             }
-            pending.onReceiveValue(results);
+            deliverFileChooserResult(pending, results);
         }
     }
 
