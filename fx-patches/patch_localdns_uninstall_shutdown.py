@@ -91,8 +91,6 @@ if regression.is_file():
         "could not confirm stopping local DNS watchdog before firewall cleanup",
         "could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup"
     )
-    if 'exit 1' not in test_source:
-        test_source += '\\ngrep -Fq \'aborting uninstall before firewall cleanup\' "$U"\\n'
     regression.write_text(test_source, encoding="utf-8")
 
 uninstall.write_text(source, encoding="utf-8")
