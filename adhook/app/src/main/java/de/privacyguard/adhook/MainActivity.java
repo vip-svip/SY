@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
     private String selectedPackage;
     private String selectedLabel;
     private WebView webView;
+    private RootBridge rootBridge;
     private TextView rootStatus;
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
@@ -137,7 +138,8 @@ public final class MainActivity extends Activity {
         };
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", handler).build();
-        webView.addJavascriptInterface(new RootBridge(this, webView), "FXRoot");
+        rootBridge = new RootBridge(this, webView);
+        webView.addJavascriptInterface(rootBridge, "FXRoot");
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
                 new AlertDialog.Builder(MainActivity.this).setMessage(message)
@@ -396,6 +398,14 @@ public final class MainActivity extends Activity {
                 getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         return enabled != null && (enabled.contains(getPackageName() + "/.FxAccessibilityService")
                 || enabled.contains(getPackageName() + "/" + getPackageName() + ".FxAccessibilityService"));
+    }
+
+    @Override protected void onDestroy() {
+        if (rootBridge != null) {
+            rootBridge.close();
+            rootBridge = null;
+        }
+        super.onDestroy();
     }
 
     @Override protected void onPause() {
