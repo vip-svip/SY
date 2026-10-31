@@ -39,6 +39,8 @@ grep -Fq 'String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"}'
 grep -q 'fx-native-nav-hide' "$ACTIVITY" || fail "duplicate WebUI bottom navigation must be hidden"
 grep -q '"pageScript", "pageMore"' "$ACTIVITY" || fail "sixth Settings tab must route to advanced Settings"
 grep -q 'case "pageAd": tab = "ad"; break;' "$ACTIVITY" || fail "Ad tab must open the combined Ad/Hosts page"
+grep -Fq 'pageId.equals("pageAd")' "$ACTIVITY" || fail "Ad tab must scroll to the merged Hosts content card"
+grep -Fq "getElementById('cardHostsLocal')" "$ACTIVITY" || fail "Ad tab must focus the local Hosts editor card"
 grep -q 'showHookHub()' "$ACTIVITY" || fail "Hook tab does not open the Hook permission hub"
 grep -q 'hookTargetVisible' "$ACTIVITY" || fail "Android back navigation must return from target config to app list"
 grep -q 'org.lsposed.manager' "$ACTIVITY" || fail "LSPosed Manager detection/launch missing"
