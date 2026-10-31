@@ -67,6 +67,10 @@ grep -Fq 'legacyDuplicateKeys' "$ACTIVITY" || fail "native Hook publisher does n
 for feature in exif_strip mic_silence notification_listen_block notification_permission_hide sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit; do
   grep -Fq "\"$feature\"" "$ACTIVITY" || fail "native per-app Hook UI is missing supported feature: $feature"
 done
+keys_block=$(sed -n '/String\[\] keys=/,/};/p' "$ACTIVITY")
+for feature in privacy exif_strip clipboard_read_block clipboard_isolate wifi_scan_block notification_listen_block notification_permission_hide mic_silence camera_access_block location_access_block mic_access_block media_store_query_block sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit member_diag; do
+  printf '%s' "$keys_block" | grep -Fq "\"$feature\"" || fail "native publisher does not serialize Hook feature: $feature"
+done
 grep -Fq '{"mic_silence","mic_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress the legacy mic_block read hook"
 grep -Fq '{"mic_silence","audio_fp_block"}' "$ACTIVITY" || fail "API-101 microphone silence must suppress legacy audio perturbation"
 for legacy_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit block_wifi_scan block_notif_listen hide_notif_perm mic_block audio_fp_block cam_null disable_passive_loc block_mediastore; do
