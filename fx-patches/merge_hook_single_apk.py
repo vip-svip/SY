@@ -256,66 +256,7 @@ s = s.replace('FXAdHook APK archive', 'FX unified Hook APK archive')
 adtest.write_text(s, encoding="utf-8")
 
 # Repository-level CI tests execute outside fx-module, so update those guards too.
-root_installer_test = repo / "scripts/tests/adhook-app-installer-regression.sh"
-root_installer_test.write_text("""#!/bin/sh
-set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-INSTALLER="$ROOT/fx-module/scripts/install_adhook_app.sh"
-REMOVER="$ROOT/fx-module/scripts/remove_adhook_app.sh"
-fail(){ echo "FAIL: $*" >&2; exit 1; }
-[ -s "$INSTALLER" ] && [ -s "$REMOVER" ] || fail "unified installer/remover missing"
-cmp -s "$INSTALLER" "$ROOT/fx-module/scripts/install_adhook_app.sh" || fail "packaged installer drift"
-TMP="${TMPDIR:-/tmp}/fx-unified-installer-test-$"
-mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
-trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-printf 'unified apk payload\\n' > "$TMP/mod/optional/FXUnifiedHook.apk"
-sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
-cat > "$TMP/bin/pm" <<'PM'
-#!/bin/sh
-set -eu
-S=$FX_ADHOOK_FAKE_PM_STATE; mkdir -p "$S"
-case "$1" in
- path) grep -Fxq "$2" "$S/installed" 2>/dev/null && echo "package:/data/app/$2/base.apk" || exit 1 ;;
- install)
-  [ "$2" = "-r" ]; [ -s "$3" ]; pkg=de.privacyguard.adhook
-  if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi
-  grep -Fxv "$pkg" "$S/installed" > "$S/installed.tmp" 2>/dev/null || :
-  mv "$S/installed.tmp" "$S/installed"; echo "$pkg" >> "$S/installed"; echo "$pkg" >> "$S/install-calls" ;;
- uninstall)
-  grep -Fxv "$2" "$S/installed" > "$S/installed.tmp" 2>/dev/null || :
-  mv "$S/installed.tmp" "$S/installed"; echo "$2" >> "$S/uninstall-calls" ;;
- *) exit 9 ;;
-esac
-PM
-chmod 0755 "$TMP/bin/pm"
-export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install failed"
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "unified package missing"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "expected exactly one install"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "unchanged package reinstalled"
-printf 'update\\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"
-sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
-sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "update failed"
-[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 2 ] || fail "update not reinstalled"
-printf 'signature mismatch\\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"
-sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
-export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
-if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch accepted"; fi
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing package removed on mismatch"
-[ ! -s "$TMP/pm/uninstall-calls" ] || fail "installer uninstalled on mismatch"
-unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
-sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup failed"
-[ ! -s "$TMP/pm/installed" ] || fail "FX-owned unified package remains"
-HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
-MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java"
-[ -s "$HOOK" ] && [ "$(wc -c < "$MAIN" | tr -d ' ')" -ge 90000 ] || fail "full copied MainHook missing"
-grep -q 'de.privacyguard.hook.MainHook' "$ROOT/adhook/app/src/main/assets/xposed_init" || fail "legacy entry declaration missing"
-grep -q 'de.privacyguard.adhook.AdVisibilityHook' "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "modern entry declaration missing"
-echo "PASS: single unified Hook APK installation, update, signature safety, and dual entrypoints"
-""")
-
-root_merge_test = repo / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh"
+# Keep the repository-level installer regression intact; it covers ownership-safe removal and stale markers.\nroot_merge_test = repo / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh"
 root_merge_test.write_text("""#!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -324,7 +265,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$M/optional/FXUnifiedHook.apk" ] || fail "unified APK missing"
 [ ! -e "$M/optional/PrivacyGuardHook.apk" ] || fail "legacy split APK still packaged"
 [ ! -e "$M/optional/FXAdHook.apk" ] || fail "modern split APK still packaged"
-grep -q 'install_one de.privacyguard.adhook fxunified' "$M/scripts/install_adhook_app.sh" || fail "single package installer missing"
+grep -q '_slug=fxunifiedhook' "$M/scripts/install_adhook_app.sh" || fail "single package installer missing"
+grep -q 'optional/FXUnifiedHook.apk' "$M/scripts/install_adhook_app.sh" || fail "unified APK install path missing"
 [ -s "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" ] || fail "copied MainHook missing"
 [ "$(wc -c < "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | tr -d ' ')" -ge 90000 ] || fail "MainHook was truncated"
 grep -q 'de.privacyguard.hook.MainHook' "$ROOT/adhook/app/src/main/assets/xposed_init" || fail "legacy entrypoint missing"
