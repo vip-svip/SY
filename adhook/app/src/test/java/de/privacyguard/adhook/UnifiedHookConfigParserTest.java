@@ -131,13 +131,13 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesAdvertisingIdUnificationOnlyForExplicitlySelectedTargets() {
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=1\\n[list:targets]\\n" +
-                "com.example.ads,ad_id_unify=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n" +
+                "com.example.ads,ad_id_unify=1\n");
         assertTrue(parsed.targets.get("com.example.ads").adIdUnify);
         assertFalse(parsed.targets.get("com.example.other") != null
                 && parsed.targets.get("com.example.other").adIdUnify);
         UnifiedHookConfigParser.Result legacy = UnifiedHookConfigParser.parse(
-                "hook_ads_enabled=1\\n[list:hook_targets]\\ncom.example.ads,splash=1\\n");
+                "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.ads,splash=1\n");
         assertFalse(legacy.targets.get("com.example.ads").adIdUnify);
     }
 
@@ -478,8 +478,8 @@ public class UnifiedHookConfigParserTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsPackageSegmentsBeginningWithDigits() {
         UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n" +
-                "com.123example.app,splash=1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.123example.app,splash=1\n");
     }
 
 }
