@@ -318,6 +318,10 @@ grep -q 'quickjs-ng/quickjs.git' "$ROOT/.github/workflows/build-fx-kernelsu.yml"
 grep -Fq 'install -m 0755 "$qjs_bin" fx-module/bin/arm64/qjs' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must install ARM64 qjs with executable permissions"
 grep -Fq 'sha256sum qjs > qjs.sha256' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must generate the QJS integrity sidecar"
 grep -Fq 'readelf -h fx-module/bin/arm64/qjs' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must verify the QJS ARM64 ELF architecture"
+grep -Fq 'quickjs-import-sandbox-v0.17.0.patch' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must apply FX QuickJS import hardening"
+grep -Fq 'JS_SetModuleImportSandbox(rt, true)' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must verify the QuickJS sandbox toggle was patched"
+grep -Fq 'qjs.BUILD-INFO.txt' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package must include hardened QuickJS build metadata"
+grep -Fq 'before module-cache lookup' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "QuickJS build metadata must attest pre-cache import blocking"
 grep -Fq 'v1.0.0-quickjs-runtime-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "no-compile regression lane must explicitly classify QJS binary tests"
 suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 retire_line=$(grep -n 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
