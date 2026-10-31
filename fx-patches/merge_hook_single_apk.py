@@ -71,11 +71,9 @@ close_anchor = '            r.close();\n            // 档位解析：profile'
 close_pos = text2.find(close_anchor)
 if close_pos < 0:
     raise SystemExit("legacy config parse completion anchor missing")
-method_pattern = re.compile(r'(?m)^[ \t]*(?:(?:public|private|protected|static|final|synchronized)\s+)*[A-Za-z_$][A-Za-z0-9_$<>\[\].?, ]*\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\([^;{}]*\)\s*\{')
-methods = list(method_pattern.finditer(text2, 0, close_pos))
-if not methods:
-    raise SystemExit("legacy config-loading method declaration missing")
-load_method = methods[-1]
+load_method = re.search(r'(?m)^([ \t]*(?:private|public|protected)\s+(?:static\s+)?(?:synchronized\s+)?(?:boolean|void)\s+loadConf\s*\([^)]*\)(?:\s*throws\s+[^{]+)?\s*\{)', text2)
+if not load_method:
+    raise SystemExit("legacy loadConf method declaration missing (including optional throws clause)")
 load_injection = load_method.group(0) + "\n        loadApi101Managed();"
 if "loadApi101Managed();" not in text2[load_method.end():load_method.end()+100]:
     text2 = text2[:load_method.start()] + load_injection + text2[load_method.end():]
