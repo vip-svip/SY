@@ -53,6 +53,7 @@ public final class RootBridge {
             String safeName = filename == null ? "FX-export.txt"
                     : filename.replaceAll("[^A-Za-z0-9._-]", "_");
             if (safeName.length() == 0) safeName = "FX-export.txt";
+            final String outputName = safeName;
             String type = mimeType == null || mimeType.length() == 0
                     ? "application/octet-stream" : mimeType;
             if (Build.VERSION.SDK_INT >= 29) {
@@ -80,7 +81,7 @@ public final class RootBridge {
                 }
             }
             activity.runOnUiThread(() -> Toast.makeText(activity,
-                    "已导出到 Download/FX/" + safeName, Toast.LENGTH_LONG).show());
+                    "已导出到 Download/FX/" + outputName, Toast.LENGTH_LONG).show());
         } catch (Exception e) {
             activity.runOnUiThread(() -> Toast.makeText(activity,
                     "导出失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
