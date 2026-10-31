@@ -310,6 +310,7 @@ grep -q 'install_one de.privacyguard.adhook fxunified' "$M/scripts/install_adhoo
 [ "$(wc -c < "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" | tr -d ' ')" -ge 90000 ] || fail "MainHook was truncated"
 grep -q 'de.privacyguard.hook.MainHook' "$ROOT/adhook/app/src/main/assets/xposed_init" || fail "legacy entrypoint missing"
 grep -q 'de.privacyguard.adhook.AdVisibilityHook' "$ROOT/adhook/app/src/main/resources/META-INF/xposed/java_init.list" || fail "modern entrypoint missing"
+grep -q 'DISABLED_EVASION_KEYS.contains(k)' "$ROOT/adhook/app/src/main/java/de/privacyguard/hook/MainHook.java" || fail "unsafe evasion/identity toggles are not fail-closed"
 echo "PASS: legacy MainHook and modern ad Hook are packaged through one APK"
 """)
 
