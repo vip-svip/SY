@@ -56,7 +56,17 @@ unzip -p "$APK" assets/webroot/index.html > "$WEBUI_FILE" || fail "embedded WebU
 grep -Fq 'data-tab="ad"' "$WEBUI_FILE" || fail "embedded WebUI Ad compatibility tab missing"
 grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" "$WEBUI_FILE" || fail "embedded Ad tab no longer activates merged Hosts content"
 grep -Fq 'id="pageHosts"' "$WEBUI_FILE" || fail "embedded merged Hosts page missing"
-! grep -Fq 'id="cardFxAdHook"' "$WEBUI_FILE" || fail "duplicate WebUI LSPosed manager card remains in APK"
+asset_entry_count=$(unzip -Z1 "$APK" | grep -xc 'assets/webroot/index.html' || true)
+[ "$asset_entry_count" -eq 1 ] || fail "APK contains $asset_entry_count copies of assets/webroot/index.html"
+if grep -Fq 'id="cardFxAdHook"' "$WEBUI_FILE"; then
+  echo "DEBUG: legacy Hook card remains in extracted APK WebUI:"
+  grep -n -C 2 'id="cardFxAdHook"' "$WEBUI_FILE" | head -30
+  if ! cmp -s "$ROOT/adhook/app/src/main/assets/webroot/index.html" "$WEBUI_FILE"; then
+    echo "DEBUG: APK WebUI differs from the staged source asset:"
+    sha256sum "$ROOT/adhook/app/src/main/assets/webroot/index.html" "$WEBUI_FILE"
+  fi
+  fail "duplicate WebUI LSPosed manager card remains in APK"
+fi
 ! grep -Fq 'id="fxHookDialog"' "$WEBUI_FILE" || fail "legacy WebUI Hook target dialog remains in APK"
 ! grep -Fq 'id="fx-lsposed-ad-hook-controller"' "$WEBUI_FILE" || fail "legacy WebUI Hook controller remains in APK"
 ! grep -Fq 'id="fxHookManage"' "$WEBUI_FILE" || fail "legacy WebUI Hook entry button remains in APK"
