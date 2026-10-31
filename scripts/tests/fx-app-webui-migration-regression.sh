@@ -76,6 +76,39 @@ grep -Fq '{"mic_silence","audio_fp_block"}' "$ACTIVITY" || fail "API-101 microph
 for legacy_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit block_wifi_scan block_notif_listen hide_notif_perm mic_block audio_fp_block cam_null disable_passive_loc block_mediastore; do
   grep -Fq "$legacy_key" "$LEGACY_HOOK" || fail "legacy duplicate ownership references unknown key: $legacy_key"
 done
+# Keep the native publisher's per-feature ownership mapping in lockstep with
+# the legacy fail-closed set injected by merge_hook_single_apk.py.
+for mapping in \
+  '{"exif_strip","exif_strip"}' \
+  '{"clipboard_read_block","clipboard"}' \
+  '{"clipboard_isolate","clipboard_isolate"}' \
+  '{"sensor_accel","sensor_accel"}' \
+  '{"sensor_gyro","sensor_gyro"}' \
+  '{"sensor_light","sensor_light"}' \
+  '{"sensor_magnet","sensor_magnet"}' \
+  '{"sensor_pressure","sensor_pressure"}' \
+  '{"sensor_prox","sensor_prox"}' \
+  '{"sensor_rate_limit","sensor_rate_limit"}' \
+  '{"wifi_scan_block","block_wifi_scan"}' \
+  '{"notification_listen_block","block_notif_listen"}' \
+  '{"notification_permission_hide","hide_notif_perm"}' \
+  '{"mic_access_block","mic_block"}' \
+  '{"mic_silence","mic_block"}' \
+  '{"mic_silence","audio_fp_block"}' \
+  '{"camera_access_block","cam_null"}' \
+  '{"location_access_block","disable_passive_loc"}' \
+  '{"media_store_query_block","block_mediastore"}'; do
+  grep -Fq "$mapping" "$ACTIVITY" || fail "native publisher/legacy ownership mapping drifted: $mapping"
+done
+for owned_key in exif_strip clipboard clipboard_isolate sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit block_wifi_scan block_notif_listen hide_notif_perm mic_block audio_fp_block cam_null disable_passive_loc block_mediastore; do
+  grep -Fq "\"$owned_key\"" "$MERGE_HOOK" || fail "fail-closed legacy ownership set is missing: $owned_key"
+done
+grep -Fq 'if (!api101OwnershipAvailable && API101_OWNED_LEGACY_KEYS.contains(k)) return false;' "$MERGE_HOOK" || fail "unreadable ownership map must disable migrated legacy overlap hooks"
+grep -Fq '.append("privacy_enabled=").append(anyPrivacy?' "$ACTIVITY" || fail "privacy feature master flag is not serialized"
+grep -Fq '.append("wifi_scan_enabled=").append(anyWifi?' "$ACTIVITY" || fail "Wi-Fi scan feature master flag is not serialized"
+grep -Fq '.append("notification_listen_enabled=").append(anyNotif?' "$ACTIVITY" || fail "notification listener feature master flag is not serialized"
+grep -Fq '.append("notification_permission_hide_enabled=").append(anyNotifPerm?' "$ACTIVITY" || fail "notification permission feature master flag is not serialized"
+grep -Fq '.append("clipboard_isolate_enabled=").append(anyClipboardIso?' "$ACTIVITY" || fail "clipboard isolation master flag is not serialized"
 ! grep -Fq '{"privacy","spoof_android_id"}' "$ACTIVITY" || fail "generic privacy master must not suppress the legacy Android-ID key"
 ! grep -Eq 'member_diag|memberDiag|installMember|billing|purchase' "$LEGACY_HOOK" || fail "read-only member diagnostics must not be duplicated by the legacy Hook entrypoint"
 grep -Fq 'installDynamicMemberClassDiscovery' "$HOOK" || fail "read-only member diagnostics must remain owned by the API-101 Hook runtime"
