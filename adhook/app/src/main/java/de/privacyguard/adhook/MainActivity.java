@@ -102,7 +102,7 @@ public final class MainActivity extends Activity {
         new Thread(() -> {
             RootAccess.Result result = RootAccess.execute("id -u; test -d /data/adb/modules && echo FX_MODULES_DIR=present || echo FX_MODULES_DIR=missing; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_DAEMON=present || echo KSU_DAEMON=not-found");
             runOnUiThread(() -> {
-                if (result.exitCode == 0 && "0".equals(result.output.trim())) {
+                if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
                     state.setText("已获得 Root（UID 0）\n" + result.output.trim());
                 } else if (result.denied) {
                     state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX Hook。");
