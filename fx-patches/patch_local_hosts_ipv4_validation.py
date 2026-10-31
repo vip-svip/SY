@@ -62,4 +62,18 @@ echo 'FX local hosts IPv4 validation regression: PASS'
 '''
 test.write_text(test_text, encoding="utf-8")
 test.chmod(0o755)
+
+# The Hook UI was moved into the native APK; this legacy regression must inspect
+# the canonical app asset during the build, not the retired module WebUI stub.
+legacy_test = root / "scripts/tests/v1.0.0-local-hosts-file-source-regression.sh"
+if legacy_test.is_file():
+    legacy = legacy_test.read_text(encoding="utf-8")
+    old_ui = 'python3 - "$ROOT/webroot/index.html" <<\'PY\''
+    new_ui = 'UI_FILE="$ROOT/../../adhook/app/src/main/assets/webroot/index.html"\n[ -f "$UI_FILE" ] || UI_FILE="$ROOT/webroot/index.html"\npython3 - "$UI_FILE" <<\'PY\''
+    if old_ui in legacy:
+        legacy = legacy.replace(old_ui, new_ui, 1)
+        legacy_test.write_text(legacy, encoding="utf-8")
+    elif new_ui not in legacy:
+        raise SystemExit("legacy local-hosts UI regression target changed; refusing to leave stale WebUI assertion")
+
 print("Added strict IPv4 validation and runtime regression.")
