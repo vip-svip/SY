@@ -275,7 +275,7 @@ public final class MainActivity extends Activity {
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
-            case "pageAd": tab = "ad"; break;
+            case "pageAd": tab = "hosts"; break;
             case "pagePrivacy": tab = "privacy"; break;
             case "pageScript": tab = "script"; break;
             case "pageMore": tab = "more"; break;
@@ -283,11 +283,7 @@ public final class MainActivity extends Activity {
         }
         String tabLiteral = JSONObject.quote(tab);
         String script = "(function(){var b=document.querySelector('.nav-item[data-tab='+"
-                + tabLiteral + "+']');if(!b)return false;b.click();"
-                + (pageId.equals("pageAd")
-                    ? "setTimeout(function(){var e=document.getElementById('cardHostsLocal');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});},100);"
-                    : "")
-                + "return true;})()";
+                + tabLiteral + "+']');if(!b)return false;b.click();return true;})()";
         webView.evaluateJavascript(script, null);
     }
 
