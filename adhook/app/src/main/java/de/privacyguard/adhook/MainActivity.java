@@ -29,7 +29,88 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        showAppList();
+        showDashboard();
+    }
+
+    private void showDashboard() {
+        selectedPackage = null;
+        base("FX 控制中心");
+        TextView intro = new TextView(this);
+        intro.setText("统一管理界面 · KernelSU 提供底层服务 · APP 负责控制与状态展示");
+        intro.setTextColor(0xff65717d);
+        intro.setPadding(dp(18), dp(2), dp(18), dp(12));
+        content.addView(intro);
+        section("Root 权限");
+        TextView rootState = new TextView(this);
+        rootState.setText("正在检查 KernelSU Root 授权…");
+        rootState.setPadding(dp(18), dp(12), dp(18), dp(12));
+        rootState.setBackgroundColor(0xffffffff);
+        content.addView(rootState);
+        Button rootButton = new Button(this);
+        rootButton.setText("申请 / 重新检查 Root 权限");
+        rootButton.setOnClickListener(v -> checkRoot(rootState, true));
+        content.addView(rootButton, new LinearLayout.LayoutParams(-1, -2));
+        checkRoot(rootState, false);
+
+        section("功能中心");
+        dashboardItem("Hook 应用管理", "应用列表、广告过滤、隐私控制、自定义只读 Hook", this::showAppList);
+        dashboardItem("规则与 Hosts", "规则订阅、规则库、系统 Hosts 编辑", () -> showMigrationNotice("规则与 Hosts"));
+        dashboardItem("网络与 VPN", "DNS、VPN、代理、路由与运行状态", () -> showMigrationNotice("网络与 VPN"));
+        dashboardItem("证书管理", "MITM CA、HTTPS CA、安装状态与回滚", () -> showMigrationNotice("证书管理"));
+        dashboardItem("日志与诊断", "模块日志、服务状态、故障诊断", () -> showMigrationNotice("日志与诊断"));
+        section("架构状态");
+        TextView status = new TextView(this);
+        status.setText("当前阶段：原生 APP 主界面与 Root 授权入口已接入；其他模块功能正在逐项迁移。未迁移的功能不会显示为已完成。");
+        status.setTextColor(0xff687582);
+        status.setPadding(dp(18), dp(10), dp(18), dp(18));
+        content.addView(status);
+    }
+
+    private void dashboardItem(String name, String detail, Runnable action) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(18), dp(12), dp(18), dp(12));
+        row.setBackgroundColor(0xffffffff);
+        TextView title = new TextView(this);
+        title.setText(name);
+        title.setTextSize(16);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(0xff17212b);
+        TextView sub = new TextView(this);
+        sub.setText(detail);
+        sub.setTextSize(12);
+        sub.setTextColor(0xff697681);
+        row.addView(title);
+        row.addView(sub);
+        row.setOnClickListener(v -> action.run());
+        content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        View divider = new View(this);
+        divider.setBackgroundColor(0xffe8ebee);
+        content.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+    }
+
+    private void showMigrationNotice(String feature) {
+        new AlertDialog.Builder(this)
+            .setTitle(feature)
+            .setMessage("该功能正在从模块 WebUI 迁移到 FX 原生 APP。当前版本尚未完成此功能的原生控制界面与底层接口，不会伪装成已可用。")
+            .setPositiveButton("返回", null)
+            .show();
+    }
+
+    private void checkRoot(TextView state, boolean request) {
+        state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
+        new Thread(() -> {
+            RootAccess.Result result = RootAccess.execute("id -u");
+            runOnUiThread(() -> {
+                if (result.exitCode == 0 && "0".equals(result.output.trim())) {
+                    state.setText("已获得 Root（UID 0）\n" + result.output.trim());
+                } else if (result.denied) {
+                    state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX Hook。");
+                } else {
+                    state.setText("Root 不可用或请求失败：\n" + result.output);
+                }
+            });
+        }, "fx-root-check").start();
     }
 
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
@@ -51,6 +132,7 @@ public final class MainActivity extends Activity {
     private LinearLayout content;
     private void showAppList() {
         selectedPackage = null; base("选择应用");
+        Button home = new Button(this); home.setText("返回 FX 控制中心"); home.setOnClickListener(v -> showDashboard()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
