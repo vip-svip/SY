@@ -161,8 +161,8 @@ for helper in ("install_adhook_app.sh", "remove_adhook_app.sh"):
 # the packaged installer. Guard this invariant before creating the artifact.
 installer_text = (fx / "scripts/install_adhook_app.sh").read_text(encoding="utf-8")
 remover_text = (fx / "scripts/remove_adhook_app.sh").read_text(encoding="utf-8")
-if "adhook-apk-fxunifiedhook.fx-owned" not in installer_text:
-    raise SystemExit("unified installer ownership marker missing")
+if "_slug=fxunifiedhook" not in installer_text or "$_owned" not in installer_text:
+    raise SystemExit("unified installer ownership marker construction missing")
 if "fxunifiedhook" not in remover_text:
     raise SystemExit("unified remover ownership marker missing")
 if "optional/FXUnifiedHook.apk" not in installer_text:
