@@ -533,7 +533,7 @@ public final class MainActivity extends Activity {
         toggle("阻止剪贴板读取", "clipboard_read_block", false);
         toggle("隔离剪贴板", "clipboard_isolate", false);
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
-        toggle("限制麦克风访问", "mic_access_block", false);
+        toggle("阻止录音启动（会影响录音功能）", "mic_access_block", false);
         toggle("限制摄像头访问", "camera_access_block", false);
         toggle("限制位置访问", "location_access_block", false);
         toggle("清理媒体查询元数据", "media_store_query_block", false);
