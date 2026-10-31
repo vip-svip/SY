@@ -63,7 +63,7 @@ text2 = text2.replace(scope_anchor, scope_replacement, 1)
 load_anchor = '            r.close();\n            // 档位解析：profile'
 if load_anchor in text2:
     text2 = text2.replace(load_anchor, '            r.close();\n            // 档位解析：profile', 1)
-load_method = re.search(r'(?m)^([ \t]*(?:private|public|protected)\s+(?:synchronized\s+)?void\s+loadConf\s*\([^)]*\)\s*\{)', text2)
+load_method = re.search(r'(?m)^([ \t]*(?:private|public|protected)\s+(?:static\s+)?(?:synchronized\s+)?(?:boolean|void)\s+loadConf\s*\([^)]*\)\s*\{)', text2)
 if not load_method:
     raise SystemExit("legacy loadConf method declaration missing")
 load_injection = load_method.group(1) + "\n        loadApi101Managed();"
