@@ -38,7 +38,6 @@ test = root / "scripts/tests/v1.0.0-vpn-off-requires-core-stop-success-regressio
 test.write_text(r'''#!/system/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-H="${1:-$ROOT/webroot/index.html}"
 APPLY="$ROOT/scripts/apply.sh"
 CORE="$ROOT/scripts/vpncore.sh"
 grep -Fq 'if ! vpncore_stop; then' "$APPLY"
@@ -96,4 +95,17 @@ echo "$OUT" | grep -Fq 'vpncore_stop 不可用且 PID 记录仍存在'
 echo 'FX VPN-off requires confirmed core shutdown: PASS'
 ''', encoding="utf-8")
 test.chmod(0o755)
+
+# Let the no-node mode-switch regression target the real UI extracted from the
+# final native Hook APK, while preserving its pre-package WebUI default.
+mode_test = root / "scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh"
+if mode_test.is_file():
+    mode_source = mode_test.read_text(encoding="utf-8")
+    old_ui = 'H="$ROOT/webroot/index.html"'
+    new_ui = 'H="${1:-$ROOT/webroot/index.html}"'
+    if old_ui in mode_source:
+        mode_test.write_text(mode_source.replace(old_ui, new_ui, 1), encoding="utf-8")
+    elif new_ui not in mode_source:
+        raise SystemExit("VPN mode-switch regression UI path changed; refusing stale target")
+
 print("VPN-off now requires both successful stop and removal of the managed PID marker; expanded regression added.")
