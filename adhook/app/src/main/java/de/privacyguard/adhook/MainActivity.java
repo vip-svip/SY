@@ -615,7 +615,8 @@ public final class MainActivity extends Activity {
                 {"sensor_rate_limit","sensor_rate_limit"}, {"wifi_scan_block","block_wifi_scan"},
                 {"notification_listen_block","block_notif_listen"},
                 {"notification_permission_hide","hide_notif_perm"},
-                {"mic_access_block","mic_block"}, {"mic_silence","audio_fp_block"},
+                {"mic_access_block","mic_block"},
+                {"mic_silence","mic_block"}, {"mic_silence","audio_fp_block"},
                 {"camera_access_block","cam_null"},
                 {"location_access_block","disable_passive_loc"},
                 {"media_store_query_block","block_mediastore"}
