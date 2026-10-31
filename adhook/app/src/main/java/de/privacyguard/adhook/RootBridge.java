@@ -13,6 +13,7 @@ import android.util.Base64;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 
 import org.json.JSONObject;
 
@@ -99,6 +100,7 @@ public final class RootBridge {
         if (closed || activity.isFinishing()
                 || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
         Uri createdUri = null;
+        File createdFile = null;
         try {
             if (encoded == null || encoded.length() > 14 * 1024 * 1024) {
                 throw new IllegalArgumentException("导出内容超过 10 MiB 限制");
@@ -111,8 +113,10 @@ public final class RootBridge {
                     || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
             String safeName = filename == null ? "FX-export.txt"
                     : filename.replaceAll("[^A-Za-z0-9._-]", "_");
-            if (safeName.length() == 0) safeName = "FX-export.txt";
-            final String outputName = safeName;
+            if (safeName.length() == 0 || ".".equals(safeName) || "..".equals(safeName)) {
+                safeName = "FX-export.txt";
+            }
+            String outputName = safeName;
             String type = mimeType == null || mimeType.length() == 0
                     ? "application/octet-stream" : mimeType;
             if (Build.VERSION.SDK_INT >= 29) {
@@ -145,24 +149,34 @@ public final class RootBridge {
                 if (external == null) throw new IllegalStateException("外部下载目录不可用");
                 File dir = new File(external, "FX");
                 if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("无法创建导出目录");
-                try (FileOutputStream stream = new FileOutputStream(new File(dir, safeName))) {
+                // Never truncate an earlier export when the user exports the same
+                // filename again on Android versions without scoped MediaStore writes.
+                createdFile = createUniqueFile(dir, safeName);
+                outputName = createdFile.getName();
+                try (FileOutputStream stream = new FileOutputStream(createdFile)) {
                     stream.write(bytes);
                     stream.flush();
                 }
             }
             if (closed || activity.isFinishing()
                     || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
+            final String toastName = outputName;
             activity.runOnUiThread(() -> {
                 if (!closed && !activity.isFinishing()
                         && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
                     Toast.makeText(activity,
-                            "已导出到 Download/FX/" + outputName, Toast.LENGTH_LONG).show();
+                            "已导出到 Download/FX/" + toastName, Toast.LENGTH_LONG).show();
                 }
             });
         } catch (Exception e) {
             if (createdUri != null) {
                 try { activity.getContentResolver().delete(createdUri, null, null); }
                 catch (Exception ignored) { }
+            }
+            if (createdFile != null && createdFile.exists()) {
+                // Remove an incomplete export after a failed write.
+                //noinspection ResultOfMethodCallIgnored
+                createdFile.delete();
             }
             if (!closed && !activity.isFinishing()
                     && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
@@ -175,6 +189,20 @@ public final class RootBridge {
                 });
             }
         }
+    }
+
+    private static File createUniqueFile(File directory, String requestedName) throws IOException {
+        int dot = requestedName.lastIndexOf('.');
+        String stem = dot > 0 ? requestedName.substring(0, dot) : requestedName;
+        String extension = dot > 0 ? requestedName.substring(dot) : "";
+        for (int suffix = 0; suffix < 1000; suffix++) {
+            String candidate = suffix == 0 ? requestedName
+                    : stem + " (" + suffix + ")" + extension;
+            File output = new File(directory, candidate);
+            if (output.createNewFile()) return output;
+            if (!output.exists()) throw new IOException("无法创建导出文件：" + candidate);
+        }
+        throw new IOException("同名导出文件过多，无法安全创建新文件");
     }
 
     @JavascriptInterface
