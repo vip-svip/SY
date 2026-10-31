@@ -161,11 +161,13 @@ public final class RootBridge {
             if (closed || activity.isFinishing()
                     || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
             final String toastName = outputName;
+            final String exportLocation = Build.VERSION.SDK_INT >= 29
+                    ? "公共 Download/FX/" : "FX 应用专属下载目录（Android/data）/Download/FX/";
             activity.runOnUiThread(() -> {
                 if (!closed && !activity.isFinishing()
                         && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed())) {
                     Toast.makeText(activity,
-                            "已导出到 Download/FX/" + toastName, Toast.LENGTH_LONG).show();
+                            "已导出到 " + exportLocation + toastName, Toast.LENGTH_LONG).show();
                 }
             });
         } catch (Exception e) {
