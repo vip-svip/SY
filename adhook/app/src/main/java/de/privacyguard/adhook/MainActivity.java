@@ -272,7 +272,8 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("知道了",null).show();
         }
     }
-\n    private void section(String s) {
+
+    private void section(String s) {
         TextView t=title(s,16); t.setBackgroundColor(0xffe9eef3); content.addView(t,new LinearLayout.LayoutParams(-1,-2));
     }
     private void toggle(String label,String feature,boolean def) {
