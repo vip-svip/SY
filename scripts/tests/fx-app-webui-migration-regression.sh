@@ -47,9 +47,13 @@ done
 for panel in vpnPanel rootPanel advPanel netPanel permPanel sensorPanel locationPanel devicePanel mediaPanel filePanel notifyPanel kernelPanel miscPanel crashPanel stylePanel langPanel; do
   grep -q "id=\"$panel\"" "$HTML" || fail "missing migrated settings panel: $panel"
 done
-for marker in fxHookAppList fxHookSync builtinCerts mitmTrafficEnable hostsOpenEditor vpnSubUpdateAll; do
+for marker in builtinCerts mitmTrafficEnable hostsOpenEditor vpnSubUpdateAll; do
   grep -q "$marker" "$HTML" || fail "missing migrated feature marker: $marker"
 done
+! grep -Fq 'fxHookAppList' "$HTML" || fail "legacy WebUI LSPosed app list remains after native Hook migration"
+! grep -Fq 'fxHookSync' "$HTML" || fail "legacy WebUI LSPosed sync control remains after native Hook migration"
+! grep -Fq 'fxHookDialog' "$HTML" || fail "legacy WebUI LSPosed dialog remains after native Hook migration"
+grep -Fq 'id="cardHook"' "$HTML" || fail "separate UID network-blocking Hook feature must remain"
 
 ACTIVITY="$APP/java/de/privacyguard/adhook/MainActivity.java"
 BRIDGE="$APP/java/de/privacyguard/adhook/RootBridge.java"
