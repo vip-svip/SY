@@ -37,6 +37,24 @@ if "FX_CLASH_TRANSPORT_FIELDS_V1" not in s:
     s = s.replace("# FX_CLASH_REALITY_FIELDS_V1", "# FX_CLASH_REALITY_FIELDS_V1\n# FX_CLASH_TRANSPORT_FIELDS_V1", 1)
     sub.write_text(s, encoding="utf-8")
 
+if "FX_CLASH_VMESS_WS_SNI_V1" not in s:
+    old = '''        _jsni=$(vpn_json_escape "$_ysni")
+        _jtls=
+        case "$_ytls" in true|yes|1|tls) _jtls=tls ;; esac
+        _yj=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","scy":"%s","net":"%s","path":"%s","host":"%s","tls":"%s"}' \\
+          "$_jps" "$_jhost" "$_jport" "$_jid" "$_jscy" "$_jnet" "$_jpath" "$_jsni" "$_jtls")'''
+    new = '''        _jsni=$(vpn_json_escape "$_ysni_raw")
+        _jws_host=$(vpn_json_escape "${_yws_host:-$_ysni_raw}")
+        _jtls=
+        case "$_ytls" in true|yes|1|tls) _jtls=tls ;; esac
+        _yj=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","scy":"%s","net":"%s","path":"%s","host":"%s","sni":"%s","tls":"%s"}' \\
+          "$_jps" "$_jhost" "$_jport" "$_jid" "$_jscy" "$_jnet" "$_jpath" "$_jws_host" "$_jsni" "$_jtls")'''
+    if old not in s:
+        raise SystemExit("missing VMess WS/SNI JSON patch anchor")
+    s = s.replace(old, new, 1)
+    s = s.replace("# FX_CLASH_TRANSPORT_FIELDS_V1", "# FX_CLASH_TRANSPORT_FIELDS_V1\n# FX_CLASH_VMESS_WS_SNI_V1", 1)
+    sub.write_text(s, encoding="utf-8")
+
 s = core.read_text(encoding="utf-8")
 if "FX_CLASH_WS_HOST_TRANSPORT_V1" not in s:
     old = '_path=$(qsdec "$_q" path); _svc=$(qsdec "$_q" serviceName)'
