@@ -299,6 +299,24 @@ public final class MainActivity extends Activity {
         intro.setPadding(dp(18), dp(8), dp(18), dp(16));
         intro.setTextColor(0xff536170);
         content.addView(intro);
+        section("最近一次配置发布");
+        android.content.SharedPreferences publishState =
+                getSharedPreferences("fx_hook_publish", MODE_PRIVATE);
+        String lastHash = publishState.getString("sha256", "");
+        long lastPublishedAt = publishState.getLong("published_at", 0L);
+        TextView publishStatus = new TextView(this);
+        publishStatus.setPadding(dp(18), dp(10), dp(18), dp(12));
+        if (lastHash.isEmpty() || lastPublishedAt <= 0L) {
+            publishStatus.setText("尚无成功发布记录。保存配置后，这里会显示设备端写入校验结果；该记录不代表 LSPosed 已启用或目标进程已注入。");
+        } else {
+            java.text.DateFormat dateFormat = java.text.DateFormat.getDateTimeInstance(
+                    java.text.DateFormat.MEDIUM, java.text.DateFormat.MEDIUM);
+            publishStatus.setText("设备端写入成功（" + dateFormat.format(new java.util.Date(lastPublishedAt))
+                    + "）\nSHA-256：" + lastHash
+                    + "\nRemote Files：" + publishState.getString("remote_path", "未知")
+                    + "\n此记录只证明文件写入与哈希校验成功，不证明 LSPosed 作用域、热加载或目标进程注入状态。");
+        }
+        content.addView(publishStatus);
         section("KernelSU / Root");
         TextView rootState = new TextView(this);
         rootState.setText("正在检查 Root 授权与 FX 模块状态…");
@@ -775,6 +793,11 @@ public final class MainActivity extends Activity {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
                     if(result.exitCode==0) {
+                        getSharedPreferences("fx_hook_publish", MODE_PRIVATE).edit()
+                                .putString("sha256", expectedHash)
+                                .putString("remote_path", remote)
+                                .putLong("published_at", System.currentTimeMillis())
+                                .apply();
                         new AlertDialog.Builder(this).setMessage("配置已原子写入 LSPosed Remote Files，并已输出 SHA-256 校验值：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
                             .setPositiveButton("知道了",null).show();
                     } else {
