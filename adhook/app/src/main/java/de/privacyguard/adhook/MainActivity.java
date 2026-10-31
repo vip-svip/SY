@@ -130,17 +130,76 @@ public final class MainActivity extends Activity {
         TextView custom=new TextView(this);
         custom.setText("自定义 Hook 规则编辑器将在配置发布链路接通后启用。此处不会伪造第三方会员或登录状态。");
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(16)); content.addView(custom);
-        Button save=new Button(this); save.setText("保存本机配置草稿");
+        Button save=new Button(this); save.setText("保存并同步到 LSPosed");
         save.setOnClickListener(v -> {
             getPreferences(0).edit().putBoolean(key("draft_saved"),true).apply();
-            new AlertDialog.Builder(this).setMessage("已保存到 FX Hook 本机草稿。当前版本尚未连接 FX root 发布器，配置不会自动生效。")
-                .setPositiveButton("知道了",null).show();
+            publishConfig();
         });
         content.addView(save,new LinearLayout.LayoutParams(-1,-2));
         Button back=new Button(this); back.setText("返回应用列表"); back.setOnClickListener(v->showAppList());
         content.addView(back,new LinearLayout.LayoutParams(-1,-2));
     }
-    private void section(String s) {
+ 
+    private boolean enabled(String pkg, String feature) {
+        return getPreferences(0).getBoolean(pkg + ":" + feature, false);
+    }
+
+    private void publishConfig() {
+        try {
+            StringBuilder cfg = new StringBuilder();
+            boolean anyAds=false, anyPrivacy=false, anyWifi=false, anyNotif=false, anyNotifPerm=false, anyClipboardIso=false;
+            List<String> rows = new ArrayList<>();
+            for (ApplicationInfo ai : apps) {
+                String p=ai.packageName;
+                String[] keys={"ads_splash","ads_feed","ads_overlay","member_diag","privacy","exif_strip",
+                    "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
+                    "notification_permission_hide","mic_silence","camera_access_block","location_access_block",
+                    "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
+                    "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
+                StringBuilder row=new StringBuilder(p);
+                boolean has=false;
+                for(String k:keys) {
+                    boolean on=enabled(p,k);
+                    if(on) {
+                        row.append(',').append(k).append('=').append('1'); has=true;
+                        if(k.startsWith("ads_")) anyAds=true;
+                        if(k.equals("privacy")||k.equals("exif_strip")||k.equals("clipboard_read_block")||
+                           k.equals("clipboard_isolate")||k.startsWith("sensor_")) anyPrivacy=true;
+                        if(k.equals("wifi_scan_block")) anyWifi=true;
+                        if(k.equals("notification_listen_block")) anyNotif=true;
+                        if(k.equals("notification_permission_hide")) anyNotifPerm=true;
+                        if(k.equals("clipboard_isolate")) anyClipboardIso=true;
+                    }
+                }
+                if(has) rows.add(row.toString());
+            }
+            cfg.append("schema_version=1\\n")
+               .append("ads_enabled=").append(anyAds?'1':'0').append('\\n')
+               .append("privacy_enabled=").append(anyPrivacy?'1':'0').append('\\n')
+               .append("wifi_scan_enabled=").append(anyWifi?'1':'0').append('\\n')
+               .append("notification_listen_enabled=").append(anyNotif?'1':'0').append('\\n')
+               .append("notification_permission_hide_enabled=").append(anyNotifPerm?'1':'0').append('\\n')
+               .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\\n')
+               .append("[list:targets]\\n");
+            for(String row:rows) cfg.append(row).append('\\n');
+            String encoded=android.util.Base64.encodeToString(cfg.toString().getBytes("UTF-8"),android.util.Base64.NO_WRAP);
+            String remote="/data/adb/lspd/modules/0/de.privacyguard.adhook/files/fx-hook-targets.conf";
+            String command="mkdir -p /data/adb/lspd/modules/0/de.privacyguard.adhook/files && echo "+encoded+" | base64 -d > "+remote+" && chmod 600 "+remote;
+            Process proc=Runtime.getRuntime().exec(new String[]{"su","-c",command});
+            int code=proc.waitFor();
+            if(code==0) {
+                new AlertDialog.Builder(this).setMessage("配置已写入 LSPosed Remote Files。请确认 LSPosed Manager 已将 FX Hook 作用域包含目标应用，并强制停止后重新打开目标应用。")
+                    .setPositiveButton("知道了",null).show();
+            } else {
+                new AlertDialog.Builder(this).setMessage("root 发布失败（退出码 "+code+"）。请确认已授予 FX Hook root 权限、FX Hook 已安装为 LSPosed 模块，然后重试。配置仍保存在本机草稿。")
+                    .setPositiveButton("知道了",null).show();
+            }
+        } catch(Exception e) {
+            new AlertDialog.Builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
+                .setPositiveButton("知道了",null).show();
+        }
+    }
+\n    private void section(String s) {
         TextView t=title(s,16); t.setBackgroundColor(0xffe9eef3); content.addView(t,new LinearLayout.LayoutParams(-1,-2));
     }
     private void toggle(String label,String feature,boolean def) {
