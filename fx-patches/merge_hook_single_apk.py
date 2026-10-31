@@ -256,7 +256,8 @@ s = s.replace('FXAdHook APK archive', 'FX unified Hook APK archive')
 adtest.write_text(s, encoding="utf-8")
 
 # Repository-level CI tests execute outside fx-module, so update those guards too.
-# Keep the repository-level installer regression intact; it covers ownership-safe removal and stale markers.\nroot_merge_test = repo / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh"
+# Keep the repository-level installer regression intact; it covers ownership-safe removal and stale markers.
+root_merge_test = repo / "scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh"
 root_merge_test.write_text("""#!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
