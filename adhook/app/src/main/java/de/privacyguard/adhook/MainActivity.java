@@ -691,7 +691,7 @@ public final class MainActivity extends Activity {
                     +"test \"$actual_tmp\" = '"+expectedHash+"' && test \"$actual_managed_tmp\" = '"+managedHash+"'; "
                     +"chmod 0644 '"+temp+"' '"+managedTemp+"'; chown 0:0 '"+temp+"' '"+managedTemp+"'; "
                     +"chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+temp+"'; "
-                    +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedTemp+"'; "
+                    +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedTemp+"'; sync; "
                     +"if [ -e '"+remote+"' ]; then cp -p '"+remote+"' '"+remote+".bak'; else rm -f '"+remote+".bak'; fi; "
                     +"if [ -e '"+managedFile+"' ]; then cp -p '"+managedFile+"' '"+managedFile+".bak'; else rm -f '"+managedFile+".bak'; fi; "
                     +"mv -f '"+managedTemp+"' '"+managedFile+"'; "
