@@ -163,6 +163,17 @@ jobs:
       - name: Run complete FX host regression suite (no compile)
         shell: bash
         run: |
+          set -euo pipefail
+          # The restored Release archive may carry an older installer regression.
+          # Re-sync the reviewed canonical scripts immediately before executing the
+          # module-wide suite, and assert byte-for-byte identity to avoid stale copies.
+          install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+          install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          install -D -m 0755 scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+          cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          cmp -s scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          sh fx-module/scripts/tests/adhook-app-installer-regression.sh
           set -uo pipefail
           mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
           test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
