@@ -605,6 +605,20 @@ public final class MainActivity extends Activity {
             StringBuilder cfg = new StringBuilder();
             boolean anyPrivacy=false, anyWifi=false, anyNotif=false, anyNotifPerm=false, anyClipboardIso=false;
             List<String> rows = new ArrayList<>();
+            List<String> legacyManagedRows = new ArrayList<>();
+            final String[][] legacyDuplicateKeys = {
+                {"privacy","spoof_android_id"}, {"exif_strip","exif_strip"},
+                {"clipboard_read_block","clipboard"}, {"clipboard_isolate","clipboard_isolate"},
+                {"sensor_accel","sensor_accel"}, {"sensor_gyro","sensor_gyro"},
+                {"sensor_light","sensor_light"}, {"sensor_magnet","sensor_magnet"},
+                {"sensor_pressure","sensor_pressure"}, {"sensor_prox","sensor_prox"},
+                {"sensor_rate_limit","sensor_rate_limit"}, {"wifi_scan_block","block_wifi_scan"},
+                {"notification_listen_block","block_notif_listen"},
+                {"notification_permission_hide","hide_notif_perm"},
+                {"mic_access_block","mic_block"}, {"camera_access_block","cam_null"},
+                {"location_access_block","disable_passive_loc"},
+                {"media_store_query_block","block_mediastore"}
+            };
             for (ApplicationInfo ai : apps) {
                 String p=ai.packageName;
                 String[] keys={"member_diag","privacy","exif_strip",
@@ -628,6 +642,11 @@ public final class MainActivity extends Activity {
                         if(k.equals("clipboard_isolate")) anyClipboardIso=true;
                     }
                 }
+                StringBuilder legacyManaged = new StringBuilder(p);
+                for (String[] mapping : legacyDuplicateKeys) {
+                    if (enabled(p, mapping[0])) legacyManaged.append(',').append(mapping[1]);
+                }
+                if (legacyManaged.length() > p.length()) legacyManagedRows.add(legacyManaged.toString());
                 boolean customEnabled=false;
                 for(int n=1;n<=64;n++) {
                     String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
@@ -651,21 +670,42 @@ public final class MainActivity extends Activity {
             byte[] configBytes=cfg.toString().getBytes("UTF-8");
             String expectedHash=sha256Hex(configBytes);
             String encoded=android.util.Base64.encodeToString(configBytes,android.util.Base64.NO_WRAP);
+            StringBuilder managedConfig=new StringBuilder();
+            for(String row:legacyManagedRows) managedConfig.append(row).append('\\n');
+            byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
+            String managedHash=sha256Hex(managedBytes);
+            String managedEncoded=android.util.Base64.encodeToString(managedBytes,android.util.Base64.NO_WRAP);
             int androidUser=android.os.Process.myUid()/100000;
             String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
             String remote=moduleDir+"/fx-hook-targets.conf";
             String temp=remote+".tmp";
-            String command="umask 077 && mkdir -p "+moduleDir
-                    +" && printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'"
-                    +" && chmod 600 '"+temp+"' && chown 0:0 '"+temp+"'"
-                    +" && test -s '"+temp+"'"
-                    +" && actual_tmp=$(sha256sum '"+temp+"' | cut -d ' ' -f1)"
-                    +" && test \"$actual_tmp\" = '"+expectedHash+"'"
-                    +" && sync && ( [ ! -e '"+remote+"' ] || cp -p '"+remote+"' '"+remote+".bak' )"
-                    +" && mv -f '"+temp+"' '"+remote+"' && sync"
-                    +" && actual=$(sha256sum '"+remote+"' | cut -d ' ' -f1)"
-                    +" && test \"$actual\" = '"+expectedHash+"'"
-                    +" && printf 'SHA256=%s\\n' \"$actual\"";
+            String legacyDir="/data/local/tmp/privacyguard";
+            String managedFile=legacyDir+"/fx-api101-managed.conf";
+            String managedTemp=managedFile+".tmp";
+            String command="set -e; umask 077; mkdir -p '"+moduleDir+"' '"+legacyDir+"'; "
+                    +"printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'; "
+                    +"printf '%s' '"+managedEncoded+"' | base64 -d > '"+managedTemp+"'; "
+                    +"test -s '"+temp+"'; "
+                    +"actual_tmp=$(sha256sum '"+temp+"' | cut -d ' ' -f1); "
+                    +"actual_managed_tmp=$(sha256sum '"+managedTemp+"' | cut -d ' ' -f1); "
+                    +"test \"$actual_tmp\" = '"+expectedHash+"' && test \"$actual_managed_tmp\" = '"+managedHash+"'; "
+                    +"chmod 0644 '"+temp+"' '"+managedTemp+"'; chown 0:0 '"+temp+"' '"+managedTemp+"'; "
+                    +"chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+temp+"'; "
+                    +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedTemp+"'; "
+                    +"if [ -e '"+remote+"' ]; then cp -p '"+remote+"' '"+remote+".bak'; else rm -f '"+remote+".bak'; fi; "
+                    +"if [ -e '"+managedFile+"' ]; then cp -p '"+managedFile+"' '"+managedFile+".bak'; else rm -f '"+managedFile+".bak'; fi; "
+                    +"mv -f '"+managedTemp+"' '"+managedFile+"'; "
+                    +"if ! mv -f '"+temp+"' '"+remote+"'; then "
+                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
+                    +"chmod 0644 '"+remote+"' '"+managedFile+"'; chown 0:0 '"+remote+"' '"+managedFile+"'; "
+                    +"chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+remote+"'; "
+                    +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedFile+"'; sync; "
+                    +"actual=$(sha256sum '"+remote+"' | cut -d ' ' -f1); "
+                    +"actual_managed=$(sha256sum '"+managedFile+"' | cut -d ' ' -f1); "
+                    +"if [ \"$actual\" != '"+expectedHash+"' ] || [ \"$actual_managed\" != '"+managedHash+"' ]; then "
+                    +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
+                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
+                    +"printf 'SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_managed\"";
             new Thread(() -> {
                 RootAccess.Result result = RootAccess.execute(command);
                 runOnUiThread(() -> {
