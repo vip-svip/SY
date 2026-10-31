@@ -127,6 +127,17 @@ jobs:
           set -uo pipefail
           mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
           test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
+          # Assert all six build-artifact checks exist before counting them as
+          # intentional no-compile skips; the package workflow executes them.
+          for required in \
+            v1.0.0-fxhook-single-apk-merge-audit-regression.sh \
+            v1.0.0-lsposed-ad-hook-apk-regression.sh \
+            v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
+            v1.0.0-quickjs-runtime-regression.sh \
+            v1.0.0-runtime-entrypoint-permissions-regression.sh \
+            v1.0.0-engine-install-permissions-regression.sh; do
+            [[ -s "fx-module/scripts/tests/$required" ]] || { echo "::error file=fx-module/scripts/tests/$required::Artifact regression is missing"; exit 1; }
+          done
           pass=0
           fail=0
           skipped=0
