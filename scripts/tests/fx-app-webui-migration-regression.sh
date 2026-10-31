@@ -351,4 +351,12 @@ grep -Fq 'case "pageAd": tab = "hosts"; break;' "$ACTIVITY" || fail "Ad tab must
 grep -Fq 'case "pageMore": tab = "more"; break;' "$ACTIVITY" || fail "sixth Settings tab must open the settings page"
 grep -Fq 'if (index == 4) {' "$ACTIVITY" || fail "Hook tab must route to the native Hook app list"
 grep -Fq 'selectedBottomTab = 4;' "$ACTIVITY" || fail "Hook tab selection state must remain stable across native screens"
+# Keep the stable release-signing path covered by the same migration gate.
+grep -Fq 'FX_ANDROID_KEYSTORE_PATH' "$ROOT/adhook/app/build.gradle" || fail "Gradle release signing must consume the protected keystore path"
+grep -Fq 'storeType "PKCS12"' "$ROOT/adhook/app/build.gradle" || fail "release keystore format must be explicit"
+grep -Fq 'signingConfig signingConfigs.fxRelease' "$ROOT/adhook/app/build.gradle" || fail "release build must use the configured persistent signer"
+grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "package workflow must accept the protected release keystore"
+grep -Fq ':app:assembleRelease' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "configured signing must build the non-debuggable Release variant"
+grep -Fq 'BUILD_VARIANT="release"' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "release build metadata must identify the Release variant"
+grep -Fq 'FX_ANDROID_KEYSTORE_BASE64' "$ROOT/.github/workflows/build-fx-adhook.yml" && fail "standalone debug audit workflow must not handle release signing secrets" || :
 echo "PASS: one FX APK owns the complete UI, Root bridge, native Hook entry, and exact KernelSU ZIP payload"
