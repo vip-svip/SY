@@ -411,10 +411,30 @@ public final class MainActivity extends Activity {
         Thread publisher = hookPublisherThread;
         hookPublisherThread = null;
         if (publisher != null) publisher.interrupt();
+
+        // Complete pending WebView callbacks before tearing down the view. Otherwise
+        // a cancelled document picker can retain the old Activity across recreation.
+        if (fileChooserCallback != null) {
+            fileChooserCallback.onReceiveValue(null);
+            fileChooserCallback = null;
+        }
         if (rootBridge != null) {
             rootBridge.close();
             rootBridge = null;
         }
+        if (webView != null) {
+            webView.stopLoading();
+            ViewParent parent = webView.getParent();
+            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
+            webView.removeJavascriptInterface("FXRoot");
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
+        }
+        webViewLoaded = false;
+        webUiReady = false;
+        pendingWebPage = null;
         super.onDestroy();
     }
 
