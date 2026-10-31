@@ -53,7 +53,7 @@ if managed_field_anchor not in text2:
 text2 = text2.replace(managed_field_anchor, managed_field, 1)
 
 scope_anchor = '    private final List<String> scopeAllow = new ArrayList<>();'
-scope_replacement = scope_anchor + '\n    private final Set<String> api101Managed = new HashSet<>();'
+scope_replacement = scope_anchor + '\n    private final Set<String> api101Managed = new HashSet<>();\n    private boolean api101OwnershipAvailable;'
 if scope_anchor not in text2:
     raise SystemExit("legacy scope field anchor missing")
 text2 = text2.replace(scope_anchor, scope_replacement, 1)
@@ -79,10 +79,22 @@ if "loadApi101Managed();" not in text2[load_method.end():load_method.end()+100]:
     text2 = text2[:load_method.start()] + load_injection + text2[load_method.end():]
 
 helper_anchor = '    private static final Set<String> DISABLED_EVASION_KEYS'
-helper = """    private void loadApi101Managed() {
+helper = """    private static final Set<String> API101_OWNED_LEGACY_KEYS = new HashSet<>(Arrays.asList(
+            "exif_strip", "clipboard", "clipboard_isolate",
+            "sensor_accel", "sensor_gyro", "sensor_light", "sensor_magnet",
+            "sensor_pressure", "sensor_prox", "sensor_rate_limit",
+            "block_wifi_scan", "block_notif_listen", "hide_notif_perm",
+            "mic_block", "audio_fp_block", "cam_null", "disable_passive_loc",
+            "block_mediastore"));
+
+    private void loadApi101Managed() {
         api101Managed.clear();
+        api101OwnershipAvailable = false;
         File managed = new File(API101_MANAGED_PATH);
-        if (!managed.canRead()) return;
+        if (!managed.isFile() || !managed.canRead()) {
+            log("API-101 ownership map unreadable; overlapping legacy hooks disabled for safety");
+            return;
+        }
         try {
             BufferedReader reader = new BufferedReader(new FileReader(managed));
             try {
@@ -96,11 +108,13 @@ helper = """    private void loadApi101Managed() {
                     }
                 }
             } finally {
-                try { reader.close(); } catch (IOException ignored) {}
+                reader.close();
             }
+            api101OwnershipAvailable = true;
         } catch (IOException e) {
             api101Managed.clear();
-            log("API-101 ownership map unavailable; legacy hooks remain enabled for " + pkg);
+            api101OwnershipAvailable = false;
+            log("API-101 ownership map read failed; overlapping legacy hooks disabled for safety");
         }
     }
 
@@ -112,6 +126,7 @@ text2 = text2.replace(helper_anchor, helper + helper_anchor, 1)
 on_anchor = '    private boolean on(String k) {'
 on_replacement = on_anchor + """
         if (api101Managed.contains(pkg + "|" + k)) return false;
+        if (!api101OwnershipAvailable && API101_OWNED_LEGACY_KEYS.contains(k)) return false;
         if (DISABLED_EVASION_KEYS.contains(k)) return false;"""
 if on_anchor not in text2:
     raise SystemExit("legacy on() feature gate anchor missing")
