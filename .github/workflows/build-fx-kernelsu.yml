@@ -96,10 +96,10 @@ jobs:
           lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
           out = []
           i = 0
-          hunk = re.compile(r"^(@@ -)(\\d+)(?:,(\\d+))?( \\+)(\\d+)(?:,(\\d+))?( @@.*)$")
+          hunk = re.compile(r"^(@@ -)(\d+)(?:,(\d+))?( \+)(\d+)(?:,(\d+))?( @@.*)$")
           while i < len(lines):
               line = lines[i]
-              m = hunk.match(line.rstrip("\\n"))
+              m = hunk.match(line.rstrip("\n"))
               if not m:
                   out.append(line)
                   i += 1
@@ -115,7 +115,7 @@ jobs:
                       old_count += 1
                   elif body.startswith("+"):
                       new_count += 1
-                  elif body.startswith("\\ No newline"):
+                  elif body.startswith("\ No newline"):
                       pass
                   else:
                       raise SystemExit(f"Unexpected unified-diff line {j+1}: {body!r}")
