@@ -20,7 +20,7 @@ This tracked matrix clarifies that the unified APK has two runtime entrypoints b
 | Location access denial | Per-app config and supported LocationManager read/update hooks | Not a system-wide passive-location provider shutdown or GNSS spoof. |
 | MediaStore query block | Per-app config and ContentResolver query hook | Returns an empty cursor for selected content://media queries; does not block file access or writes. |
 
-The unified APK contains both the legacy Xposed entrypoint and modern libxposed API-101 entrypoint under one applicationId. This packaging result is not full migration of the 75 historical switches. Every row above is CI/source verified; OnePlus 12 + KernelSU + LSPosed runtime verification remains outstanding.
+The unified APK contains both the legacy Xposed entrypoint and modern libxposed API-101 entrypoint under one applicationId. This packaging result is not full migration of the 75 historical switches. The unified APK retains the legacy Xposed entrypoint for allowed legacy controls that have not yet been ported to API-101. In the inventory below, “not migrated” means “not implemented in the modern API-101 runtime”; it does not automatically mean the legacy implementation is absent. High-risk legacy controls listed in `DISABLED_EVASION_KEYS` are intentionally fail-closed, while API-101-owned features are suppressed in the legacy entrypoint to prevent duplicate hooks. Every row above is CI/source verified; OnePlus 12 + KernelSU + LSPosed runtime verification remains outstanding.
 
 ## Capture privacy status
 
