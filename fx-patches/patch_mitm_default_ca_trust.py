@@ -451,7 +451,8 @@ CERT="$ROOT/scripts/certmgr.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -f "$CUSTOM" ] && [ -f "$SERVICE" ] && [ -f "$APPLY" ] && [ -f "$UI" ] || fail 'required source is missing'
 grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default MITM CA trust missing'
-grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA opt-in state is not preserved'
+grep -Fq 'ca-trust-optin' "$SERVICE" || fail 'boot trust sync marker missing'
+grep -Fq 'ca-trust-optin' "$POST" || fail 'early boot trust sync marker missing'
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'persistent explicit CA removal marker missing'
 grep -Fq '[ -f "$PG/ca-trust-optin" ]' "$SERVICE" || fail 'post-boot CA trust sync guard missing'
