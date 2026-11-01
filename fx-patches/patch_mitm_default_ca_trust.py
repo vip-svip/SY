@@ -149,6 +149,12 @@ elif new_hint not in html:
     raise SystemExit("MITM CA UI explanatory text anchor not found")
 ui.write_text(html, encoding="utf-8")
 
+mitm_prop = root / "certs/submodules/pg_mitm_ca/module.prop"
+if mitm_prop.is_file():
+    prop_lines = mitm_prop.read_text(encoding="utf-8").splitlines()
+    prop_lines = [("description=FX 首次安装默认初始化并启用本机独立系统 CA；用户可在主应用中禁用/移除。HTTPS 流量重定向仍需显式启用。" if line.startswith("description=") else line) for line in prop_lines]
+    mitm_prop.write_text("\\n".join(prop_lines) + "\\n", encoding="utf-8")
+
 readme = root / "scripts/jsruntime/README-zh-CN.md"
 if readme.is_file():
     doc = readme.read_text(encoding="utf-8")
