@@ -73,10 +73,7 @@ elif "release 阶段先原子释放子模块" not in c:
 old_paths = "MDIR_CERTS=/data/adb/modules/privacyguard/certs\n[ -d \"$MDIR_CERTS\" ] || MDIR_CERTS=/data/mod/certs"
 new_paths = r'''_THIS_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
 _THIS_MODULE_DIR=$(CDPATH= cd -- "$_THIS_SCRIPT_DIR/.." 2>/dev/null && pwd)
-# PG_CERTS_DIR is an explicit isolated-fixture override used only by host regressions.
-if [ -n "${PG_CERTS_DIR:-}" ] && [ -d "$PG_CERTS_DIR" ]; then
-  MDIR_CERTS="$PG_CERTS_DIR"
-elif [ -f "$_THIS_MODULE_DIR/module.prop" ] && [ -f "$_THIS_MODULE_DIR/certs/ca-index" ]; then
+if [ -f "$_THIS_MODULE_DIR/module.prop" ] && [ -f "$_THIS_MODULE_DIR/certs/ca-index" ]; then
   MDIR_CERTS="$_THIS_MODULE_DIR/certs"
 elif [ -d /data/adb/modules/privacyguard/certs ]; then
   MDIR_CERTS=/data/adb/modules/privacyguard/certs
