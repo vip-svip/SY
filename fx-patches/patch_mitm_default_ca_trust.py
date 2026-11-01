@@ -253,7 +253,7 @@ if root_readme.is_file():
         if index is None:
             raise SystemExit("README current-state anchor not found: " + old[:100])
         lines[index] = new
-        doc = "\\n".join(lines) + "\\n"
+        doc = "\n".join(lines) + "\n"
     root_readme.write_text(doc, encoding="utf-8")
 
 # The no-OpenSSL sandbox now follows the real active-module path resolver.
