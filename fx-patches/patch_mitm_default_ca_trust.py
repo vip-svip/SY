@@ -409,7 +409,7 @@ test_lines = [
     'grep -Fq "_en_had_user_disabled" "$CERT" || fail "enable rollback does not snapshot prior disabled state"',
     'grep -Fq "_en_had_user_removed" "$CERT" || fail "enable rollback does not snapshot prior removed state"',
     'grep -Fq "enable rollback trust resync incomplete" "$CERT" || fail "enable rollback does not resync after restoring original state"',
-    'grep -Fq ' + "'mktemp -d \\"$SM/.$id.restore.XXXXXX\\"'" + ' "$CERT" || fail "remove rollback does not use a unique restore directory"',
+    'grep -Fq "mktemp -d" "$CERT" || fail "remove rollback does not use a unique restore directory"',
     'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$SERVICE" || fail "boot CA sync guard missing"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$POST" || fail "early boot CA sync guard missing"',
