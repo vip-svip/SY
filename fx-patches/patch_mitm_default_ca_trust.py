@@ -9,9 +9,10 @@ customize = root / "customize.sh"
 certmgr = root / "scripts/certmgr.sh"
 service = root / "service.sh"
 postfs = root / "post-fs-data.sh"
+markerlib = root / "scripts/certmarker.sh"
 ui = root / "webroot/index.html"
 
-for p in (customize, certmgr, service, postfs, ui):
+for p in (customize, certmgr, service, postfs, markerlib, ui):
     if not p.is_file():
         raise SystemExit(f"required FX source missing: {p}")
 
@@ -114,18 +115,41 @@ old = '''          else
             printf '{"ok":true,"detail":"已启用 %s — 关键系统/Conscrypt 信任视图已同步并验证；个别应用命名空间可能需重启，证书固定应用不保证可用"}\\n' "$(idx "$id" 1)"
           fi'''
 new = '''          else
-            rm -rf "$_en_prev" 2>/dev/null
+            _state_enabled=""
+            _state_disabled=""
+            _state_removed=""
             case "$id" in
               pg_mitm_ca)
-                : > "$PG/ca-mitm-user-enabled" 2>/dev/null || echo "cert: WARN unable to persist MITM enabled state" >&2
-                rm -f "$PG/ca-mitm-user-disabled" "$PG/ca-mitm-user-removed" 2>/dev/null
+                _state_enabled=ca-mitm-user-enabled
+                _state_disabled=ca-mitm-user-disabled
+                _state_removed=ca-mitm-user-removed
                 ;;
               pg_https_ca)
-                : > "$PG/ca-https-user-enabled" 2>/dev/null || echo "cert: WARN unable to persist HTTPS enabled state" >&2
-                rm -f "$PG/ca-https-user-disabled" "$PG/ca-https-user-removed" 2>/dev/null
+                _state_enabled=ca-https-user-enabled
+                _state_disabled=ca-https-user-disabled
+                _state_removed=ca-https-user-removed
                 ;;
             esac
-            printf '{"ok":true,"detail":"已启用 %s — 关键系统/Conscrypt 信任视图已同步并验证；个别应用命名空间可能需重启，证书固定应用不保证可用"}\\n' "$(idx "$id" 1)"
+            if ! ca_state_remove "$_state_disabled" "$_state_removed"; then
+              _pg_cm_rc=1
+              : > "$_en_dest/disable" 2>/dev/null || :
+              ca_sync >/dev/null 2>&1 || echo "cert: ERROR enable rollback sync incomplete" >&2
+              [ "$_en_had_optin" = 1 ] || rm -f "$PG/ca-trust-optin" 2>/dev/null
+              if [ "$_en_replaced" = 1 ]; then
+                rm -rf "$_en_dest" 2>/dev/null
+                [ -d "$_en_prev" ] && mv "$_en_prev" "$_en_dest" 2>/dev/null || :
+              fi
+              printf '{"ok":false,"detail":"无法清除旧 CA 用户状态标记；已回滚本次启用并保留原选择"}\\n'
+            else
+              # The child module's disable bit is also preserved by release().
+              # If the auxiliary enabled marker cannot be published, the active
+              # child module remains the authoritative upgrade-safe state.
+              if ! ca_state_write "$_state_enabled"; then
+                echo "cert: WARN unable to persist $_state_enabled; active child-module state remains authoritative" >&2
+              fi
+              rm -rf "$_en_prev" 2>/dev/null
+              printf '{"ok":true,"detail":"已启用 %s — 系统/Conscrypt 信任视图已同步；用户状态已持久化或由活动子模块状态保护"}\\n' "$(idx "$id" 1)"
+            fi
           fi'''
 c = once(c, old, new, "enable state persistence")
 
@@ -133,17 +157,19 @@ old = '''          else
             printf '{"ok":true,"detail":"已禁用 %s — 本模块拥有的系统/Conscrypt 信任视图已同步；个别应用缓存需重启，系统原生同指纹 CA 不会被本模块删除"}\\n' "$(idx "$id" 1)"
           fi'''
 new = '''          else
+            _state_disabled=""
+            _state_enabled=""
             case "$id" in
-              pg_mitm_ca)
-                : > "$PG/ca-mitm-user-disabled" 2>/dev/null || echo "cert: WARN unable to persist MITM disabled state" >&2
-                rm -f "$PG/ca-mitm-user-enabled" 2>/dev/null
-                ;;
-              pg_https_ca)
-                : > "$PG/ca-https-user-disabled" 2>/dev/null || echo "cert: WARN unable to persist HTTPS disabled state" >&2
-                rm -f "$PG/ca-https-user-enabled" 2>/dev/null
-                ;;
+              pg_mitm_ca) _state_disabled=ca-mitm-user-disabled; _state_enabled=ca-mitm-user-enabled ;;
+              pg_https_ca) _state_disabled=ca-https-user-disabled; _state_enabled=ca-https-user-enabled ;;
             esac
-            printf '{"ok":true,"detail":"已禁用 %s — 本模块拥有的系统/Conscrypt 信任视图已同步；个别应用缓存需重启，系统原生同指纹 CA 不会被本模块删除"}\\n' "$(idx "$id" 1)"
+            # The child disable bit is durable too; fail visibly if the preference
+            # marker cannot be committed instead of silently claiming full persistence.
+            if ! ca_state_write "$_state_disabled"; then
+              echo "cert: WARN unable to persist $_state_disabled; the child disable bit remains authoritative" >&2
+            fi
+            ca_state_remove "$_state_enabled" || echo "cert: WARN unable to clear stale enabled marker for $id" >&2
+            printf '{"ok":true,"detail":"已禁用 %s — 系统/Conscrypt 信任视图已同步；子模块 disable 状态可在升级时保留"}\\n' "$(idx "$id" 1)"
           fi'''
 c = once(c, old, new, "disable state persistence")
 
@@ -152,29 +178,107 @@ old = '''          else
             printf '{"ok":true,"detail":"已移除子模块 %s — 系统信任已即时摘除, 升级不会自动复活(重启后管理器清理残留目录)"}\\n' "$id"
           fi'''
 new = '''          else
+            _state_removed=""
+            _state_enabled=""
+            _state_disabled=""
             case "$id" in
               pg_mitm_ca)
-                : > "$PG/ca-mitm-user-removed" 2>/dev/null || echo "cert: WARN unable to persist MITM removal state" >&2
-                rm -f "$PG/ca-mitm-user-enabled" "$PG/ca-mitm-user-disabled" 2>/dev/null
+                _state_removed=ca-mitm-user-removed
+                _state_enabled=ca-mitm-user-enabled
+                _state_disabled=ca-mitm-user-disabled
                 ;;
               pg_https_ca)
-                : > "$PG/ca-https-user-removed" 2>/dev/null || echo "cert: WARN unable to persist HTTPS removal state" >&2
-                rm -f "$PG/ca-https-user-enabled" "$PG/ca-https-user-disabled" 2>/dev/null
+                _state_removed=ca-https-user-removed
+                _state_enabled=ca-https-user-enabled
+                _state_disabled=ca-https-user-disabled
                 ;;
             esac
-            rm -rf "$_rm_backup" 2>/dev/null
-            printf '{"ok":true,"detail":"已移除子模块 %s — 系统信任已即时摘除，升级不会自动复活"}\\n' "$id"
+            if ! ca_state_write "$_state_removed"; then
+              _pg_cm_rc=1
+              _rm_restore="$SM/.$id.restore.$"
+              rm -rf "$_rm_restore" "$SM/$id" 2>/dev/null
+              if cp -R "$_rm_backup" "$_rm_restore" 2>/dev/null && mv "$_rm_restore" "$SM/$id" 2>/dev/null; then
+                ca_sync >/dev/null 2>&1 || echo "cert: ERROR remove-marker rollback resync incomplete" >&2
+                rm -rf "$_rm_backup" 2>/dev/null
+              else
+                echo "cert: ERROR remove-marker rollback failed; recovery backup retained at $_rm_backup" >&2
+              fi
+              printf '{"ok":false,"detail":"无法持久保存 CA 移除选择；已尝试恢复原子模块，升级后不会静默复活"}\\n'
+            else
+              ca_state_remove "$_state_enabled" "$_state_disabled" || echo "cert: WARN stale enabled/disabled state cleanup incomplete for $id" >&2
+              rm -rf "$_rm_backup" 2>/dev/null
+              printf '{"ok":true,"detail":"已移除子模块 %s — 系统信任已摘除，用户移除选择已原子持久化"}\\n' "$id"
+            fi
           fi'''
 c = once(c, old, new, "remove state persistence")
 
 old = '''        if ca_sync; then
           printf '{"ok":true,"detail":"已移除 %d 个 CA 子模块；信任同步流程完成，仍需核实实际挂载状态"}\\n' "$N"'''
 new = '''        if ca_sync; then
-          rm -f "$PG/ca-mitm-user-enabled" "$PG/ca-mitm-user-disabled" "$PG/ca-mitm-user-removed" \\
-            "$PG/ca-https-user-enabled" "$PG/ca-https-user-disabled" "$PG/ca-https-user-removed" "$PG/ca-trust-optin" 2>/dev/null
-          printf '{"ok":true,"detail":"已移除 %d 个 CA 子模块；信任同步流程完成，仍需核实实际挂载状态"}\\n' "$N"'''
+          if ca_state_remove ca-mitm-user-enabled ca-mitm-user-disabled ca-mitm-user-removed ca-https-user-enabled ca-https-user-disabled ca-https-user-removed ca-trust-optin; then
+            printf '{"ok":true,"detail":"已移除 %d 个 CA 子模块并清理用户状态"}\\n' "$N"
+          else
+            _pg_cm_rc=1
+            printf '{"ok":false,"detail":"CA 已移除，但偏好标记清理不完整；请检查 /data/adb/privacyguard"}\\n'
+          fi'''
 c = once(c, old, new, "purge state cleanup")
 certmgr.write_text(c, encoding="utf-8")
+
+# CA user preferences are durable state, not best-effort log hints. Publish them
+# through a private same-directory temp file and an atomic rename.
+markerlib_text = markerlib.read_text(encoding="utf-8")
+if "ca_state_write()" not in markerlib_text:
+    markerlib_text += r'''
+
+# Atomically persist one of the known per-CA lifecycle preferences.
+ca_state_write() {
+  _csw_name="$1"
+  case "$_csw_name" in
+    ca-mitm-user-enabled|ca-mitm-user-disabled|ca-mitm-user-removed|ca-https-user-enabled|ca-https-user-disabled|ca-https-user-removed) ;;
+    *) echo "cert: ERROR refusing unknown CA state marker: $_csw_name" >&2; return 1 ;;
+  esac
+  [ -n "$PG" ] || return 1
+  mkdir -p "$PG" 2>/dev/null || return 1
+  _csw_tmp="$PG/.$_csw_name.tmp.$"
+  # noclobber prevents following an unexpected pre-existing temp symlink.
+  (umask 077; set -C; printf '1\n' > "$_csw_tmp") 2>/dev/null || return 1
+  chmod 600 "$_csw_tmp" 2>/dev/null || { rm -f "$_csw_tmp"; return 1; }
+  if ! mv -f "$_csw_tmp" "$PG/$_csw_name" 2>/dev/null; then
+    rm -f "$_csw_tmp" 2>/dev/null
+    return 1
+  fi
+  [ -f "$PG/$_csw_name" ] && [ "$(cat "$PG/$_csw_name" 2>/dev/null)" = 1 ]
+}
+
+# Remove only known state markers; report an incomplete cleanup to callers.
+ca_state_remove() {
+  for _csr_name in "$@"; do
+    case "$_csr_name" in
+      ca-mitm-user-enabled|ca-mitm-user-disabled|ca-mitm-user-removed|ca-https-user-enabled|ca-https-user-disabled|ca-https-user-removed|ca-trust-optin) ;;
+      *) echo "cert: ERROR refusing unknown CA state marker removal: $_csr_name" >&2; return 1 ;;
+    esac
+    rm -f "$PG/$_csr_name" 2>/dev/null || return 1
+    [ ! -e "$PG/$_csr_name" ] || return 1
+  done
+  return 0
+}
+'''
+markerlib.write_text(markerlib_text, encoding="utf-8")
+
+
+
+for rel, old_line, new_line in (
+    ("scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh", 'HTML="$ROOT/webroot/index.html"', 'HTML=${FX_UI_SOURCE:-$ROOT/webroot/index.html}'),
+    ("scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh", 'UI="$ROOT/webroot/index.html"', 'UI=${FX_UI_SOURCE:-$ROOT/webroot/index.html}'),
+):
+    p = root / rel
+    if p.is_file():
+        t = p.read_text(encoding="utf-8")
+        if old_line in t:
+            t = t.replace(old_line, new_line, 1)
+        elif new_line not in t:
+            raise SystemExit("UI regression source selector anchor missing: " + rel)
+        p.write_text(t, encoding="utf-8")
 
 # No-OpenSSL fixture: make its fake module root discoverable by the real resolver.
 collision = root / "scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh"
@@ -283,6 +387,8 @@ test_lines = [
     'grep -Fq "ca-mitm-user-enabled" "$CERT" || fail "MITM enable preference is not persisted"',
     'grep -Fq "ca-mitm-user-disabled" "$CERT" || fail "MITM disable preference is not persisted"',
     'grep -Fq "ca-mitm-user-removed" "$CERT" || fail "MITM remove preference is not persisted"',
+    'grep -Fq "ca_state_write()" "$ROOT/scripts/certmarker.sh" || fail "atomic CA state marker writer missing"',
+    'grep -Fq "ca_state_remove()" "$ROOT/scripts/certmarker.sh" || fail "safe CA state marker remover missing"',
     'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$SERVICE" || fail "boot CA sync guard missing"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$POST" || fail "early boot CA sync guard missing"',
@@ -299,5 +405,34 @@ test_lines = [
 test_text = "\n".join(test_lines) + "\n"
 (root / "scripts/tests/v1.0.0-mitm-default-ca-trust-regression.sh").write_text(test_text, encoding="utf-8")
 (root / "scripts/tests/v1.0.0-ca-mitm-lifecycle-integration-regression.sh").write_text(test_text, encoding="utf-8")
+marker_test = root / "scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+marker_test.write_text(r'''#!/system/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+LIB="$ROOT/scripts/certmarker.sh"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+PG="$TMP/state"
+mkdir -p "$PG"
+. "$LIB"
+ca_state_write ca-mitm-user-removed
+[ -f "$PG/ca-mitm-user-removed" ] || { echo 'FAIL: marker was not committed' >&2; exit 1; }
+[ "$(cat "$PG/ca-mitm-user-removed")" = 1 ] || { echo 'FAIL: marker content is invalid' >&2; exit 1; }
+mode=$(stat -c '%a' "$PG/ca-mitm-user-removed" 2>/dev/null || stat -f '%Lp' "$PG/ca-mitm-user-removed")
+[ "$mode" = 600 ] || { echo "FAIL: marker mode is $mode, expected 600" >&2; exit 1; }
+tmp="$PG/.ca-mitm-user-removed.tmp.$"
+mkdir "$tmp"
+if ca_state_write ca-mitm-user-removed; then
+  echo 'FAIL: pre-existing temp path was overwritten' >&2; exit 1
+fi
+rmdir "$tmp"
+[ "$(cat "$PG/ca-mitm-user-removed")" = 1 ] || { echo 'FAIL: failed write replaced prior marker' >&2; exit 1; }
+if ca_state_write '../outside'; then
+  echo 'FAIL: marker traversal accepted' >&2; exit 1
+fi
+ca_state_remove ca-mitm-user-removed
+[ ! -e "$PG/ca-mitm-user-removed" ] || { echo 'FAIL: marker removal did not complete' >&2; exit 1; }
+echo 'PASS: CA preference markers are atomic, private, path-restricted and failure-safe'
+''', encoding="utf-8")
 
 print("Patched MITM default trust, per-CA lifecycle state, module-relative cert path, UI/docs, and regression tests.")
