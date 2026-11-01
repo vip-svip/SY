@@ -56,7 +56,10 @@ c = certmgr.read_text(encoding="utf-8")
 old_paths = "MDIR_CERTS=/data/adb/modules/privacyguard/certs\n[ -d \"$MDIR_CERTS\" ] || MDIR_CERTS=/data/mod/certs"
 new_paths = r'''_THIS_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
 _THIS_MODULE_DIR=$(CDPATH= cd -- "$_THIS_SCRIPT_DIR/.." 2>/dev/null && pwd)
-if [ -f "$_THIS_MODULE_DIR/module.prop" ] && [ -f "$_THIS_MODULE_DIR/certs/ca-index" ]; then
+# PG_CERTS_DIR is an explicit isolated-fixture override used only by host regressions.
+if [ -n "${PG_CERTS_DIR:-}" ] && [ -d "$PG_CERTS_DIR" ]; then
+  MDIR_CERTS="$PG_CERTS_DIR"
+elif [ -f "$_THIS_MODULE_DIR/module.prop" ] && [ -f "$_THIS_MODULE_DIR/certs/ca-index" ]; then
   MDIR_CERTS="$_THIS_MODULE_DIR/certs"
 elif [ -d /data/adb/modules/privacyguard/certs ]; then
   MDIR_CERTS=/data/adb/modules/privacyguard/certs
@@ -133,6 +136,19 @@ c = c.replace('rm -f "$PG/ca-mitm-user-removed" 2>/dev/null; fi', 'rm -f "$PG/ca
 c = c.replace('chmod 600 "$PG/ca-mitm-user-removed" 2>/dev/null || :', 'chmod 600 "$PG/ca-mitm-user-removed" 2>/dev/null || :\n              rm -f "$PG/ca-mitm-user-disabled" 2>/dev/null', 1)
 
 certmgr.write_text(c, encoding="utf-8")
+
+# Keep the no-OpenSSL integration fixture isolated after MDIR_CERTS became
+# dynamically derived from this script's active module directory.
+collision_test = root / "scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh"
+if collision_test.is_file():
+    test_text = collision_test.read_text(encoding="utf-8")
+    test_text = test_text.replace('  -e "s|^MDIR_CERTS=/data/adb/modules/privacyguard/certs$|MDIR_CERTS=$MOD/certs|" \\\n', '')
+    old_run = 'out=$(PATH="$TMP/bin" /bin/sh "$MOD/scripts/certmgr.sh" builtin list'
+    new_run = 'out=$(PG_CERTS_DIR="$MOD/certs" PATH="$TMP/bin" /bin/sh "$MOD/scripts/certmgr.sh" builtin list'
+    if old_run not in test_text and new_run not in test_text:
+        raise SystemExit("no-OpenSSL certmgr fixture invocation anchor not found")
+    test_text = test_text.replace(old_run, new_run, 1)
+    collision_test.write_text(test_text, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
 ui = root / "webroot/index.html"
