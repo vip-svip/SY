@@ -101,6 +101,31 @@ elif 'persist explicit MITM CA removal preference' not in c:
 
 certmgr.write_text(c, encoding="utf-8")
 
+# Keep the app UI and documentation consistent with the new default.
+ui = root / "webroot/index.html"
+if not ui.is_file():
+    raise SystemExit("FX WebUI source missing before MITM trust-default patch")
+html = ui.read_text(encoding="utf-8")
+old_ui = "模块内置 CA（默认不启用；启用后为系统级信任。MITM 专用 CA 必须通过下方 MITM 管理完成初始化/信任；实验结束请禁用或移除）"
+new_ui = "模块内置 CA（MITM 专用 CA 首次安装默认初始化并启用系统级信任；用户主动禁用/移除后保留其选择。证书固定应用或自带信任库仍可能拒绝 MITM）"
+if old_ui in html:
+    html = html.replace(old_ui, new_ui, 1)
+elif new_ui not in html:
+    raise SystemExit("MITM CA default-off UI label anchor not found")
+old_hint = "Android 14+ 会在系统启动完成后，依据已明确启用的 CA 子模块同步 Conscrypt APEX 信任视图。安装默认关闭；CA 信任本身不会自动启用 HTTPS 流量重定向。"
+new_hint = "Android 14+ 会在系统启动完成后同步 Conscrypt APEX 信任视图，并验证 zygote/App 命名空间。首次安装默认启用 MITM 专用系统 CA；CA 信任本身不会自动启用 HTTPS 流量重定向。若系统命名空间验证失败，状态会显示未确认，不会谎报受信任。"
+if old_hint in html:
+    html = html.replace(old_hint, new_hint, 1)
+elif new_hint not in html:
+    raise SystemExit("MITM CA UI explanatory text anchor not found")
+ui.write_text(html, encoding="utf-8")
+
+readme = root / "scripts/jsruntime/README-zh-CN.md"
+if readme.is_file():
+    doc = readme.read_text(encoding="utf-8")
+    doc = doc.replace("安装默认关闭", "安装默认启用 MITM 专用系统 CA（HTTPS 流量重定向仍需手动启用）")
+    readme.write_text(doc, encoding="utf-8")
+
 tests.parent.mkdir(parents=True, exist_ok=True)
 tests.write_text(r'''#!/system/bin/sh
 # Default MITM CA trust is installed, while traffic interception remains explicit.
@@ -120,6 +145,7 @@ done
 grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default CA bootstrap missing'
 grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not preserved'
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
+grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
 grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot Android 14+ trust sync missing'
 grep -Fq 'builtin sync' "$POST" || fail 'pre-zygote trust sync missing for older Android'
