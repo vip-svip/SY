@@ -175,10 +175,17 @@ if collision_test.is_file():
     test_text = collision_test.read_text(encoding="utf-8")
     test_text = test_text.replace('  -e "s|^MDIR_CERTS=/data/adb/modules/privacyguard/certs$|MDIR_CERTS=$MOD/certs|" \\\n', '')
     import re
-    # Match the fixture setup command structurally; whitespace/order may vary
-    # between published archives while the temporary module layout is stable.
+    # Match the fixture setup command structurally; archive whitespace/order may vary.
     if 'cp "$ROOT/module.prop" "$MOD/module.prop"' not in test_text:
-        pattern = r'(?m)^(?P<mkdir>mkdir -p "\$MOD/scripts"[^\n]*)
+        pattern = r'(?m)^(?P<mkdir>mkdir -p "\$MOD/scripts".*)$'
+        test_text, count = re.subn(
+            pattern,
+            lambda m: m.group("mkdir") + "\\ncp \\"$ROOT/module.prop\\" \\"$MOD/module.prop\\"".replace("\\\\n", "\\n"),
+            test_text,
+            count=1,
+        )
+        if count != 1:
+            raise SystemExit("no-OpenSSL fixture module-root setup command not found")
     collision_test.write_text(test_text, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
