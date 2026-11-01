@@ -53,6 +53,23 @@ s = s[:start] + new_block + s[end:]
 customize.write_text(s, encoding="utf-8")
 
 c = certmgr.read_text(encoding="utf-8")
+c = c.replace("# certmgr.sh — 内置系统级 CA 管理（自签 CA，默认不信任，仅用于受控 MITM 检测实验）", "# certmgr.sh — 内置系统级 CA 管理；安装器首次安装默认信任设备本地 MITM CA，备用 HTTPS CA 默认关闭。HTTPS 流量重定向始终单独授权。", 1)
+old_release_comment = """        # 安装时被 customize.sh 调用: certs/submodules/* → /data/adb/modules/pg_*_ca
+        # 信任策略: 默认【不启用】。UI/README 一直写“默认不信任”, 且两张自签 CA 的
+        # 私钥随模块公开分发, 安装即全系统信任会让安全软件/银行类 App 把设备判为
+        # “存在自定义根证书/风险证书”, 这也是“装完模块就弹证书警告”的常见来源。
+        # 用户只要在 WebUI『根证书管理』点过“启用”, 就写 $PG/ca-trust-optin;
+        # 之后升级/重装保持启用; 其它情况一律释放为禁用状态(可一键启用)。"""
+new_release_comment = """        # 安装时被 customize.sh 调用: certs/submodules/* → /data/adb/modules/pg_*_ca
+        # release 阶段先原子释放子模块；首次安装随后由 customize.sh 生成本机
+        # MITM CA 并只启用 pg_mitm_ca。pg_https_ca 备用根仍保持默认禁用。
+        # 本机 CA 私钥不随模块分发；系统信任与 HTTPS 流量重定向是两个独立状态。
+        # ca-trust-optin 是历史全局兼容标记，升级时还需结合各子模块 disable
+        # 标记和 per-MITM 用户状态恢复选择，不能单独用它推断 MITM 应否启用。"""
+if old_release_comment in c:
+    c = c.replace(old_release_comment, new_release_comment, 1)
+elif "release 阶段先原子释放子模块" not in c:
+    raise SystemExit("certmgr release-policy comment anchor not found")
 old_paths = "MDIR_CERTS=/data/adb/modules/privacyguard/certs\n[ -d \"$MDIR_CERTS\" ] || MDIR_CERTS=/data/mod/certs"
 new_paths = r'''_THIS_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
 _THIS_MODULE_DIR=$(CDPATH= cd -- "$_THIS_SCRIPT_DIR/.." 2>/dev/null && pwd)
