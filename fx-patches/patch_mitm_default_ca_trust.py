@@ -309,7 +309,8 @@ CERT="$ROOT/scripts/certmgr.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -f "$CUSTOM" ] && [ -f "$SERVICE" ] && [ -f "$APPLY" ] && [ -f "$UI" ] || fail 'required source is missing'
 grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default MITM CA trust missing'
-grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA opt-in state is not preserved'
+grep -Fq 'ca-trust-optin' "$SERVICE" || fail 'boot trust sync marker missing'
+grep -Fq 'ca-trust-optin' "$POST" || fail 'early boot trust sync marker missing'
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'persistent explicit CA removal marker missing'
 grep -Fq '[ -f "$PG/ca-trust-optin" ]' "$SERVICE" || fail 'post-boot CA trust sync guard missing'
@@ -330,16 +331,6 @@ sh -n "$CUSTOM"; sh -n "$SERVICE"; sh -n "$APPLY"; sh -n "$ENGINE"; sh -n "$REDI
 echo 'PASS: default per-device MITM CA trust, upgrade/removal persistence, and explicit traffic UI/backend lifecycle'
 ''', encoding="utf-8")
 print("Patched customize.sh/certmgr.sh and updated CA/MITM lifecycle regressions.")
-
-        test_text, count = re.subn(
-            pattern,
-            lambda m: m.group("mkdir") + '\ncp "$ROOT/module.prop" "$MOD/module.prop"',
-            test_text,
-            count=1,
-        )
-        if count != 1:
-            raise SystemExit("no-OpenSSL fixture module-root setup command not found")
-    collision_test.write_text(test_text, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
 ui = root / "webroot/index.html"
