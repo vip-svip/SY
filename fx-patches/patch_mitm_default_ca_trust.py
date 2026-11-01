@@ -373,6 +373,13 @@ elif new_hint not in html:
 old_status_ui = "    if(state==='enabled'){badge.textContent='已启用';detail.textContent='IPv4 重定向已挂载 · 引擎 '+(listener||'状态未知')+' · IPv6 未接管。';}\n    else if(state==='disabled'){badge.textContent='已关闭';detail.textContent='未发现已启用的 IPv4 HTTPS 重定向；引擎状态：'+(listener||'未知')+'。';}\n    else {badge.textContent='状态异常/未知';detail.textContent=String((j&&j.error)||(r&&r.out)||'无法确认真实防火墙状态').slice(0,500);}"
 new_status_ui = "    if(state==='enabled'&&j.health==='ok'&&listener==='running'){badge.textContent='已启用';detail.textContent='IPv4 重定向已挂载 · 引擎监听正常 · IPv6 未接管。';}\n    else if(state==='enabled'){badge.textContent='已降级/异常';detail.textContent='警告：IPv4 重定向仍在，但 MITM 监听器未确认健康（'+(listener||'未知')+'）。流量可能被送入不可用端口；请立即关闭重定向并检查 engine.log。';}\n    else if(state==='disabled'){badge.textContent='已关闭';detail.textContent='未发现已启用的 IPv4 HTTPS 重定向；引擎状态：'+(listener||'未知')+'。';}\n    else {badge.textContent='状态异常/未知';detail.textContent=String((j&&j.error)||(r&&r.out)||'无法确认真实防火墙状态').slice(0,500);}"
 html = once(html, old_status_ui, new_status_ui, "MITM UI degraded-listener status")
+
+old_good_badge = '''else if(live){badge='<span class="cert-badge err">系统级信任已验证</span>';}'''
+new_good_badge = '''else if(live){badge='<span class="cert-badge ok">系统级信任已验证</span>';}'''
+html = once(html, old_good_badge, new_good_badge, "trusted CA success badge color")
+old_disabled_label = "lt('默认不启用（子模块已禁用）','disabled by default (submodule off)')"
+new_disabled_label = "lt('已禁用（子模块关闭）','disabled (child module off)')"
+html = once(html, old_disabled_label, new_disabled_label, "CA disabled state label")
 ui.write_text(html, encoding="utf-8")
 
 mitm_prop = root / "certs/submodules/pg_mitm_ca/module.prop"
@@ -465,6 +472,9 @@ test_lines = [
     'grep -Fq "首次安装默认初始化并启用系统级信任" "$UI" || fail "native UI still says CA is opt-in"',
     'grep -Fq "j.health===\'ok\'&&listener===\'running\'" "$UI" || fail "MITM UI treats an unhealthy listener as enabled"',
     'grep -Fq "已降级/异常" "$UI" || fail "MITM UI has no degraded redirect state"',
+    'grep -Fq \'cert-badge ok">系统级信任已验证\' "$UI" || fail "verified system CA still uses error badge styling"',
+    'grep -Fq "已禁用（子模块关闭）" "$UI" || fail "CA disabled status label is misleading"',
+    'if grep -Fq "默认不启用（子模块已禁用）" "$UI"; then fail "legacy default-off CA status label remains"; fi',
     'grep -Fq \'chmod 700 "$DIR"\' "$ENGINE" || fail "MITM private runtime directory is not restricted to root"',
     '_private_file=$(find "$ROOT" -type f \\( -iname "*.key" -o -iname "*.p12" -o -iname "*.pfx" -o -iname "*.jks" -o -iname "*.keystore" \\) -print -quit)',
     '[ -z "$_private_file" ] || fail "private key/keystore file must not be shipped in the FX package"',
