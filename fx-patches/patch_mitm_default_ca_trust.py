@@ -253,7 +253,7 @@ test_lines = [
     '  UI_TMP=$(mktemp /tmp/fx-mitm-ui.XXXXXX) || fail "cannot create temporary APK UI extraction file"',
     '  unzip -p "$ROOT/optional/FXUnifiedHook.apk" assets/webroot/index.html > "$UI_TMP" || fail "cannot extract APK embedded MITM UI"',
     '  UI="$UI_TMP"',
-    '  trap \'''[ -z "$UI_TMP" ] || rm -f "$UI_TMP"''\' EXIT HUP INT TERM',
+    '  trap "rm -f $UI_TMP" EXIT HUP INT TERM',
     'fi',
     'for f in "$CUSTOM" "$CERT" "$SERVICE" "$POST" "$REDIRECT" "$ENGINE" "$UI"; do [ -s "$f" ] || fail "missing $f"; done',
     'grep -Fq \'mitm-engine.sh" trust-ca\' "$CUSTOM" || fail "first-install MITM CA bootstrap missing"',
