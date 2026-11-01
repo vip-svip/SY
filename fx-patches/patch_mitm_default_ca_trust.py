@@ -27,11 +27,15 @@ if [ -f "$MODPATH/scripts/certmgr.sh" ]; then
   _pg_ca_state_dir=/data/adb/privacyguard
   _pg_ca_install_log="$_pg_ca_state_dir/ca-install.log"
   mkdir -p "$_pg_ca_state_dir" 2>/dev/null
+  # Capture the old per-module state before release replaces the child directory.
+  _pg_mitm_preexisting_disabled=0
+  [ -f /data/adb/modules/pg_mitm_ca/disable ] && _pg_mitm_preexisting_disabled=1
   if sh "$MODPATH/scripts/certmgr.sh" builtin release "$MODPATH/certs" >>"$_pg_ca_install_log" 2>&1; then
     if [ -f "$_pg_ca_state_dir/ca-mitm-user-removed" ] || [ -f /data/adb/modules/pg_mitm_ca/remove ]; then
       ui_print "  检测到用户曾移除 MITM CA；尊重移除选择，不自动恢复"
-    elif [ -f "$_pg_ca_state_dir/ca-mitm-user-disabled" ]; then
-      ui_print "  检测到用户曾禁用 MITM CA；尊重禁用选择，不自动恢复"
+    elif [ -f "$_pg_ca_state_dir/ca-mitm-user-disabled" ] || [ "$_pg_mitm_preexisting_disabled" = 1 ]; then
+      : > "$_pg_ca_state_dir/ca-mitm-user-disabled" 2>/dev/null || :
+      ui_print "  检测到用户曾禁用 MITM CA（含旧版状态）；尊重禁用选择，不自动恢复"
     elif sh "$MODPATH/scripts/mitm-engine.sh" trust-ca >>"$_pg_ca_install_log" 2>&1; then
       ui_print "  [✓] 已生成本机独立 MITM CA 并启用系统信任（不写入用户证书区）"
       ui_print "      HTTPS 流量重定向仍保持关闭；需配置 MITM 主机白名单后手动启用"
@@ -181,6 +185,7 @@ done
 grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default CA bootstrap missing'
 grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not preserved'
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
+grep -Fq '_pg_mitm_preexisting_disabled' "$CUSTOM" || fail 'legacy per-module MITM disable state is not migrated'
 grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
 grep -Fq 'ca-mitm-user-disabled' "$CERT" || fail 'certmgr does not persist explicit MITM CA disable'
