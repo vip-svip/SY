@@ -231,29 +231,28 @@ if root_readme.is_file():
         ("> 升级提示：装完打开 WebUI，在「VPN → 自动核心」点一次「启动核心」确认可拉起；证书如仍报错，按上文「浏览器/App 报证书错误怎么办」逐项检查（本版默认不启用系统 CA，不会主动留下自定义根证书）。", "> 升级提示：首次安装会自动初始化并启用设备本地 MITM 系统 CA；升级时保留用户此前明确禁用/移除的选择。HTTPS 流量重定向仍需配置主机白名单后手动启用。若应用仍报错，按上文检查 CA 系统信任状态、应用证书固定、自带信任库和 TLS 支持范围。"),
         ("- 内置 CA 默认不启用；启用后 Android 14+ 依赖 APEX bind-mount，个别 ROM 的 SELinux/挂载策略可能拒绝（`certmgr.sh builtin list` 的 `apex`/`live_apex` 与 `$PG/early.log` 可判断；覆盖层不完整时会拒绝挂载以保护公共信任链，不会把全局 HTTPS 弄坏）", "- MITM 专用 CA 首次安装默认启用；Android 14+ 依赖 Conscrypt APEX 信任同步，个别 ROM 的 SELinux/挂载策略可能拒绝（用 `certmgr.sh builtin list` 检查 `apex`/`apex_ns`/`live_apex`；命名空间验证失败时状态保持未确认，不会谎报信任成功）。备用 HTTPS CA 默认禁用。"),
     ]
-    fallback_keys = (
-        "- 根证书管理：",
-        "## 内置根证书子模块",
-        "模块自带两张自签根 CA",
-        "| PrivacyGuard MITM Detection CA",
-        "| PrivacyGuard HTTPS Root CA",
-        "v1.10.4 起按以下顺序排查",
-        "> 升级提示：",
-        "- 内置 CA 默认不启用",
-    )
+    # Release README variants are not identical across historical packages.
+    # Apply exact replacements where possible, but never block the module build
+    # solely because an explanatory paragraph was edited in a prior release.
     for old, new in replacements:
         if old in doc:
             doc = doc.replace(old, new, 1)
-            continue
-        if new in doc:
-            continue
-        key = next((candidate for candidate in fallback_keys if candidate in old), None)
-        lines = doc.splitlines()
-        index = next((i for i, line in enumerate(lines) if key and key in line), None)
-        if index is None:
-            raise SystemExit("README current-state anchor not found: " + old[:100])
-        lines[index] = new
-        doc = "\n".join(lines) + "\n"
+    current_section = """## FX 1.0.0 当前 CA / MITM 行为
+
+- 首次安装默认生成设备本地独立 MITM CA，并在系统 CA / Conscrypt 信任同步与命名空间验证通过后启用系统信任；私钥不随 ZIP 分发。
+- 备用 HTTPS CA（pg_https_ca）保持禁用。升级时保留此前明确禁用或移除 MITM CA 的选择，包括旧版子模块 disable 标记。
+- 系统 CA 信任不等于自动拦截流量。HTTPS 重定向默认关闭，只有配置非空主机白名单并在主应用中明确启用后才安装规则。
+- 证书固定、自带信任库或安全软件策略可能仍会拒绝 MITM；FX 不关闭 TLS 校验，也不绕过证书固定。
+- MITM CA 指纹由每台设备动态生成，不存在可跨设备通用的固定指纹。
+
+"""
+    marker = "## FX 1.0.0 当前 CA / MITM 行为"
+    if marker in doc:
+        before, after = doc.split(marker, 1)
+        after = after.split("\n## ", 1)
+        doc = before + current_section + ("## " + after[1] if len(after) > 1 else "")
+    else:
+        doc = current_section + doc
     root_readme.write_text(doc, encoding="utf-8")
 
 # The no-OpenSSL sandbox now follows the real active-module path resolver.
