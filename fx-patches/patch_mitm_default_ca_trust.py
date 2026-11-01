@@ -70,6 +70,23 @@ if old_release_comment in c:
     c = c.replace(old_release_comment, new_release_comment, 1)
 elif "release 阶段先原子释放子模块" not in c:
     raise SystemExit("certmgr release-policy comment anchor not found")
+
+old_release_state = '''          # 默认禁用；仅在用户明确 opt-in 且原子替换成功后保留启用状态。
+          DIS=1
+          [ -f "$PG/ca-trust-optin" ] && [ ! -f "$dest/disable" ] && DIS=0'''
+new_release_state = '''          # The legacy opt-in marker is global. Preserve trust only for an existing
+          # child module that was already enabled; never enable a newly added CA
+          # because another CA once received user consent.
+          DIS=1
+          if [ "$id" = "pg_mitm_ca" ] && [ -f "$PG/ca-mitm-user-disabled" ]; then
+            DIS=1
+          elif [ -f "$PG/ca-trust-optin" ] && [ -d "$dest" ] && [ ! -f "$dest/disable" ]; then
+            DIS=0
+          fi'''
+if old_release_state in c:
+    c = c.replace(old_release_state, new_release_state, 1)
+elif 'legacy opt-in marker is global. Preserve trust only for an existing' not in c:
+    raise SystemExit("certmgr release state block anchor not found")
 old_paths = "MDIR_CERTS=/data/adb/modules/privacyguard/certs\n[ -d \"$MDIR_CERTS\" ] || MDIR_CERTS=/data/mod/certs"
 new_paths = r'''_THIS_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
 _THIS_MODULE_DIR=$(CDPATH= cd -- "$_THIS_SCRIPT_DIR/.." 2>/dev/null && pwd)
@@ -251,6 +268,8 @@ grep -Fq '首次安装默认启用设备本地 MITM 系统 CA' "$ROOT/README.md"
 grep -Fq '设备本机动态生成' "$ROOT/README.md" || fail 'README still documents a static MITM CA fingerprint'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
 grep -Fq 'ca-mitm-user-disabled' "$CERT" || fail 'certmgr does not persist explicit MITM CA disable'
+grep -Fq '[ -d "$dest" ]' "$CERT" || fail 'legacy global opt-in could enable a newly released unrelated CA'
+grep -Fq 'legacy opt-in marker is global. Preserve trust only for an existing' "$CERT" || fail 'per-CA trust is not isolated during module release'
 grep -Fq '_THIS_MODULE_DIR/certs' "$CERT" || fail 'certmgr does not resolve active staging module directory'
 grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot Android 14+ trust sync missing'
 grep -Fq 'builtin sync' "$POST" || fail 'pre-zygote trust sync missing for older Android'
