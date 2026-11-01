@@ -60,6 +60,17 @@ elif 'mitm-engine.sh" trust-ca' not in s:
     raise SystemExit("customize CA bootstrap block missing")
 customize.write_text(s, encoding="utf-8")
 
+# Make lifecycle comments reflect the actual default install transaction.
+c = certmgr.read_text(encoding="utf-8")
+old_header = "# certmgr.sh — 内置系统级 CA 管理（自签 CA，默认不信任，仅用于受控 MITM 检测实验）"
+new_header = "# certmgr.sh — 内置系统级 CA 管理（首次安装默认启用设备本地 MITM CA；备用 HTTPS CA 默认关闭）"
+c = once(c, old_header, new_header, "certmgr default trust header")
+old_enable_comment = "# 用户明确启用 → 记录 opt-in 标记: 以后升级/重装保持启用；失败时恢复原标记。"
+new_enable_comment = "# CA 启用事务提交标记：首次安装由 MITM 引擎调用；后续用户操作也复用此路径。失败时恢复原标记。"
+c = once(c, old_enable_comment, new_enable_comment, "certmgr enable transaction comment")
+certmgr.write_text(c, encoding="utf-8")
+
+
 # certmgr resolves the active module using its own script location, not a stale
 # live-module path (KernelSU's install staging directory can differ on upgrades).
 c = certmgr.read_text(encoding="utf-8")
@@ -336,6 +347,10 @@ sv = service.read_text(encoding="utf-8")
 sv = once(sv, "# Android 14+: wait for Conscrypt/zygote to exist, then reconcile CA trust into\n# init + zygote and visible app mount namespaces before ordinary boot completion.\n# We never promote a CA unless the user has the explicit ca-trust-optin marker.", "# Android 14+: wait for Conscrypt/zygote to exist, then reconcile an already\n# committed CA trust transaction into init + zygote and visible app namespaces.\n# First install commits the local MITM CA by default; the marker gates sync only.", "service CA trust comments")
 service.write_text(sv, encoding="utf-8")
 
+sv = service.read_text(encoding="utf-8")
+sv = once(sv, "# Restore only CA trust that the user explicitly enabled in WebUI.\n# Android 14+ uses the Conscrypt APEX trust view, which is not restored by the\n# ordinary KernelSU /system module mount. Never enable a CA just because files\n# exist: the opt-in marker is written by an explicit builtin CA enable action.", "# Restore only CA trust transactions that were committed by certmgr.\n# First install commits the device-local pg_mitm_ca by default through the MITM\n# engine; pg_https_ca remains disabled. This marker gates boot reconciliation\n# and never enables a newly released sibling CA by itself.", "service trust policy comment")
+service.write_text(sv, encoding="utf-8")
+
 pf = postfs.read_text(encoding="utf-8")
 pf = once(pf, "# CA trust remains opt-in. For Android 13 and earlier, synchronize an explicitly\n# authorized CA overlay before zygote initializes trust managers. On Android 14+\n# Conscrypt APEX requires a live zygote namespace, so service.sh performs the\n# verified namespace-aware sync as soon as zygote is available.", "# Synchronize only CA modules whose trust transaction has committed. The first\n# install commits the device-local MITM CA by default; the HTTPS fallback CA remains\n# disabled. Android 13 and earlier sync before zygote; Android 14+ is synchronized\n# in service.sh after a live Conscrypt/zygote namespace is available.", "post-fs-data CA trust comments")
 postfs.write_text(pf, encoding="utf-8")
@@ -420,6 +435,10 @@ test_lines = [
     'grep -Fq "首次安装会在设备本机生成 MITM CA" "$CERT" || fail "certmgr policy comments are stale"',
     'grep -Fq "First install commits the local MITM CA by default" "$SERVICE" || fail "service CA sync comments are stale"',
     'grep -Fq "the HTTPS fallback CA remains" "$POST" || fail "post-fs-data CA sync comments are stale"',
+    'if grep -Fq "默认不信任，仅用于受控 MITM" "$CERT"; then fail "certmgr header still claims MITM CA is default-off"; fi',
+    'if grep -Fq "用户明确启用" "$CERT"; then fail "certmgr enable comment still describes opt-in-only behavior"; fi',
+    'if grep -Fq "explicitly enabled in WebUI" "$SERVICE"; then fail "service comment still describes opt-in-only behavior"; fi',
+    'grep -Fq "First install commits the device-local pg_mitm_ca by default" "$SERVICE" || fail "service boot policy comment missing"',
     'grep -Fq \'if [ -d "$dest" ] && [ ! -f "$dest/disable" ]; then DIS=0; fi\' "$CERT" || fail "per-child CA state is not preserved"',
     'grep -Fq "ca-mitm-user-enabled" "$CERT" || fail "MITM enable preference is not persisted"',
     'grep -Fq "ca-mitm-user-disabled" "$CERT" || fail "MITM disable preference is not persisted"',
