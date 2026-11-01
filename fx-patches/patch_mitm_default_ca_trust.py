@@ -118,6 +118,8 @@ new = '''          else
             _state_enabled=""
             _state_disabled=""
             _state_removed=""
+            _en_had_user_disabled=0
+            _en_had_user_removed=0
             case "$id" in
               pg_mitm_ca)
                 _state_enabled=ca-mitm-user-enabled
@@ -130,20 +132,34 @@ new = '''          else
                 _state_removed=ca-https-user-removed
                 ;;
             esac
+            [ -f "$PG/$_state_disabled" ] && _en_had_user_disabled=1
+            [ -f "$PG/$_state_removed" ] && _en_had_user_removed=1
             if ! ca_state_remove "$_state_disabled" "$_state_removed"; then
               _pg_cm_rc=1
-              : > "$_en_dest/disable" 2>/dev/null || :
-              ca_sync >/dev/null 2>&1 || echo "cert: ERROR enable rollback sync incomplete" >&2
-              [ "$_en_had_optin" = 1 ] || rm -f "$PG/ca-trust-optin" 2>/dev/null
+              # Restore durable preferences first, then restore the original
+              # child module, and only then reconcile system/APEX trust views.
+              [ "$_en_had_user_disabled" = 1 ] && ca_state_write "$_state_disabled" || :
+              [ "$_en_had_user_removed" = 1 ] && ca_state_write "$_state_removed" || :
               if [ "$_en_replaced" = 1 ]; then
                 rm -rf "$_en_dest" 2>/dev/null
-                [ -d "$_en_prev" ] && mv "$_en_prev" "$_en_dest" 2>/dev/null || :
+                if [ -d "$_en_prev" ]; then
+                  mv "$_en_prev" "$_en_dest" 2>/dev/null || echo "cert: ERROR enable rollback could not restore previous submodule; backup retained at $_en_prev" >&2
+                fi
+              elif [ "$_en_had_dir" = 1 ]; then
+                if [ "$_en_had_disable" = 1 ] || [ "$_en_had_user_disabled" = 1 ]; then
+                  : > "$_en_dest/disable" 2>/dev/null || echo "cert: ERROR enable rollback could not restore disable flag for $id" >&2
+                else
+                  rm -f "$_en_dest/disable" 2>/dev/null || :
+                fi
+              else
+                rm -rf "$_en_dest" 2>/dev/null
               fi
-              printf '{"ok":false,"detail":"无法清除旧 CA 用户状态标记；已回滚本次启用并保留原选择"}\\n'
+              [ "$_en_had_optin" = 1 ] || rm -f "$PG/ca-trust-optin" 2>/dev/null
+              ca_sync >/dev/null 2>&1 || echo "cert: ERROR enable rollback trust resync incomplete" >&2
+              printf '{"ok":false,"detail":"无法清除旧 CA 用户状态标记；已先恢复原状态再同步信任视图"}\\n'
             else
-              # The child module's disable bit is also preserved by release().
-              # If the auxiliary enabled marker cannot be published, the active
-              # child module remains the authoritative upgrade-safe state.
+              # The child module state is authoritative if the auxiliary marker
+              # cannot be published; release() also preserves its disable bit.
               if ! ca_state_write "$_state_enabled"; then
                 echo "cert: WARN unable to persist $_state_enabled; active child-module state remains authoritative" >&2
               fi
@@ -389,6 +405,9 @@ test_lines = [
     'grep -Fq "ca-mitm-user-removed" "$CERT" || fail "MITM remove preference is not persisted"',
     'grep -Fq "ca_state_write()" "$ROOT/scripts/certmarker.sh" || fail "atomic CA state marker writer missing"',
     'grep -Fq "ca_state_remove()" "$ROOT/scripts/certmarker.sh" || fail "safe CA state marker remover missing"',
+    'grep -Fq "_en_had_user_disabled" "$CERT" || fail "enable rollback does not snapshot prior disabled state"',
+    'grep -Fq "_en_had_user_removed" "$CERT" || fail "enable rollback does not snapshot prior removed state"',
+    'grep -Fq "enable rollback trust resync incomplete" "$CERT" || fail "enable rollback does not resync after restoring original state"',
     'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$SERVICE" || fail "boot CA sync guard missing"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$POST" || fail "early boot CA sync guard missing"',
