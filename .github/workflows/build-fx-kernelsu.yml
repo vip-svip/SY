@@ -463,7 +463,10 @@ jobs:
           unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
           unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
           unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-vpn-final-ui.html"
-          sh fx-module/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
           sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
           ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
