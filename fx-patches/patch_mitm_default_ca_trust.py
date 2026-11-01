@@ -255,10 +255,9 @@ ca_state_write() {
   esac
   [ -n "$PG" ] || return 1
   mkdir -p "$PG" 2>/dev/null || return 1
-  _csw_tmp="$PG/.$_csw_name.tmp.$"
-  # noclobber prevents following an unexpected pre-existing temp symlink.
-  (umask 077; set -C; printf '1\n' > "$_csw_tmp") 2>/dev/null || return 1
-  chmod 600 "$_csw_tmp" 2>/dev/null || { rm -f "$_csw_tmp"; return 1; }
+  _csw_tmp=$(umask 077; mktemp "$PG/.$_csw_name.tmp.XXXXXX" 2>/dev/null) || return 1
+  [ -n "$_csw_tmp" ] || return 1
+  if ! printf '1\n' > "$_csw_tmp"; then rm -f "$_csw_tmp"; return 1; fi
   if ! mv -f "$_csw_tmp" "$PG/$_csw_name" 2>/dev/null; then
     rm -f "$_csw_tmp" 2>/dev/null
     return 1
@@ -404,6 +403,7 @@ test_lines = [
     'grep -Fq "ca-mitm-user-disabled" "$CERT" || fail "MITM disable preference is not persisted"',
     'grep -Fq "ca-mitm-user-removed" "$CERT" || fail "MITM remove preference is not persisted"',
     'grep -Fq "ca_state_write()" "$ROOT/scripts/certmarker.sh" || fail "atomic CA state marker writer missing"',
+    'grep -Fq "mktemp" "$ROOT/scripts/certmarker.sh" || fail "CA marker writer has no unique temp-file creation"',
     'grep -Fq "ca_state_remove()" "$ROOT/scripts/certmarker.sh" || fail "safe CA state marker remover missing"',
     'grep -Fq "_en_had_user_disabled" "$CERT" || fail "enable rollback does not snapshot prior disabled state"',
     'grep -Fq "_en_had_user_removed" "$CERT" || fail "enable rollback does not snapshot prior removed state"',
@@ -439,19 +439,31 @@ ca_state_write ca-mitm-user-removed
 [ "$(cat "$PG/ca-mitm-user-removed")" = 1 ] || { echo 'FAIL: marker content is invalid' >&2; exit 1; }
 mode=$(stat -c '%a' "$PG/ca-mitm-user-removed" 2>/dev/null || stat -f '%Lp' "$PG/ca-mitm-user-removed")
 [ "$mode" = 600 ] || { echo "FAIL: marker mode is $mode, expected 600" >&2; exit 1; }
-tmp="$PG/.ca-mitm-user-removed.tmp.$"
-mkdir "$tmp"
-if ca_state_write ca-mitm-user-removed; then
-  echo 'FAIL: pre-existing temp path was overwritten' >&2; exit 1
-fi
-rmdir "$tmp"
-[ "$(cat "$PG/ca-mitm-user-removed")" = 1 ] || { echo 'FAIL: failed write replaced prior marker' >&2; exit 1; }
+
+# Concurrent writers must use distinct private temp files and publish complete markers.
+_pids=""
+_i=0
+while [ "$_i" -lt 12 ]; do
+  (ca_state_write ca-mitm-user-removed) &
+  _pids="$_pids $!"
+  _i=$((_i+1))
+done
+for _p in $_pids; do wait "$_p" || { echo "FAIL: concurrent marker write failed" >&2; exit 1; }; done
+[ "$(cat "$PG/ca-mitm-user-removed")" = 1 ] || { echo 'FAIL: concurrent writes corrupted marker' >&2; exit 1; }
+
+ca_state_write ca-https-user-disabled
+[ -f "$PG/ca-https-user-disabled" ] || { echo 'FAIL: second marker was not committed' >&2; exit 1; }
 if ca_state_write '../outside'; then
   echo 'FAIL: marker traversal accepted' >&2; exit 1
 fi
-ca_state_remove ca-mitm-user-removed
-[ ! -e "$PG/ca-mitm-user-removed" ] || { echo 'FAIL: marker removal did not complete' >&2; exit 1; }
-echo 'PASS: CA preference markers are atomic, private, path-restricted and failure-safe'
+if ca_state_remove '../outside'; then
+  echo 'FAIL: marker removal traversal accepted' >&2; exit 1
+fi
+ca_state_remove ca-mitm-user-removed ca-https-user-disabled
+[ ! -e "$PG/ca-mitm-user-removed" ] && [ ! -e "$PG/ca-https-user-disabled" ] || {
+  echo 'FAIL: marker removal did not complete' >&2; exit 1;
+}
+echo 'PASS: CA preference markers are atomic, private, path-restricted and concurrency-safe'
 ''', encoding="utf-8")
 
 print("Patched MITM default trust, per-CA lifecycle state, module-relative cert path, UI/docs, and regression tests.")
