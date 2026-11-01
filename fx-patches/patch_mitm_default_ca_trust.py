@@ -159,6 +159,7 @@ readme = root / "scripts/jsruntime/README-zh-CN.md"
 if readme.is_file():
     doc = readme.read_text(encoding="utf-8")
     doc = doc.replace("安装默认关闭", "安装默认启用 MITM 专用系统 CA（HTTPS 流量重定向仍需手动启用）")
+    doc = doc.replace("用户仍需明确启用 MITM、安装并信任 FX CA；", "首次安装已自动初始化并信任 MITM 专用系统 CA；用户仍需配置主机白名单并手动启用 HTTPS 流量重定向；")
     readme.write_text(doc, encoding="utf-8")
 
 tests.parent.mkdir(parents=True, exist_ok=True)
