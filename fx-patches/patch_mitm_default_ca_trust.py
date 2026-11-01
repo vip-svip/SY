@@ -369,6 +369,10 @@ if old_hint in html:
     html = html.replace(old_hint, new_hint, 1)
 elif new_hint not in html:
     raise SystemExit("MITM CA UI trust hint anchor missing")
+
+old_status_ui = "    if(state==='enabled'){badge.textContent='已启用';detail.textContent='IPv4 重定向已挂载 · 引擎 '+(listener||'状态未知')+' · IPv6 未接管。';}\n    else if(state==='disabled'){badge.textContent='已关闭';detail.textContent='未发现已启用的 IPv4 HTTPS 重定向；引擎状态：'+(listener||'未知')+'。';}\n    else {badge.textContent='状态异常/未知';detail.textContent=String((j&&j.error)||(r&&r.out)||'无法确认真实防火墙状态').slice(0,500);}"
+new_status_ui = "    if(state==='enabled'&&j.health==='ok'&&listener==='running'){badge.textContent='已启用';detail.textContent='IPv4 重定向已挂载 · 引擎监听正常 · IPv6 未接管。';}\n    else if(state==='enabled'){badge.textContent='已降级/异常';detail.textContent='警告：IPv4 重定向仍在，但 MITM 监听器未确认健康（'+(listener||'未知')+'）。流量可能被送入不可用端口；请立即关闭重定向并检查 engine.log。';}\n    else if(state==='disabled'){badge.textContent='已关闭';detail.textContent='未发现已启用的 IPv4 HTTPS 重定向；引擎状态：'+(listener||'未知')+'。';}\n    else {badge.textContent='状态异常/未知';detail.textContent=String((j&&j.error)||(r&&r.out)||'无法确认真实防火墙状态').slice(0,500);}"
+html = once(html, old_status_ui, new_status_ui, "MITM UI degraded-listener status")
 ui.write_text(html, encoding="utf-8")
 
 mitm_prop = root / "certs/submodules/pg_mitm_ca/module.prop"
@@ -459,6 +463,8 @@ test_lines = [
     'grep -Fq "MITM CA is not confirmed active in the system trust store" "$REDIRECT" || fail "trust preflight missing"',
     'grep -Fq "function pgMitmTrafficAction" "$UI" || fail "native MITM traffic controls missing"',
     'grep -Fq "首次安装默认初始化并启用系统级信任" "$UI" || fail "native UI still says CA is opt-in"',
+    'grep -Fq "j.health===\'ok\'&&listener===\'running\'" "$UI" || fail "MITM UI treats an unhealthy listener as enabled"',
+    'grep -Fq "已降级/异常" "$UI" || fail "MITM UI has no degraded redirect state"',
     'if grep -Fq "mitm-redirect.sh enable" "$CUSTOM"; then fail "installer must not auto-enable HTTPS interception"; fi',
     'if grep -Fq "mitm-redirect.sh enable" "$SERVICE"; then fail "boot must not auto-enable HTTPS interception"; fi',
     'sh -n "$CUSTOM"; sh -n "$CERT"; sh -n "$SERVICE"; sh -n "$POST"; sh -n "$REDIRECT"; sh -n "$ENGINE"',
