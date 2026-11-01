@@ -243,7 +243,8 @@ for f in "$CUSTOM" "$CERT" "$SERVICE" "$POST" "$REDIRECT" "$ENGINE" "$UI"; do
   [ -s "$f" ] || fail "missing required file: $f"
 done
 grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default CA bootstrap missing'
-grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not preserved'
+grep -Fq 'ca-trust-optin' "$SERVICE" || fail 'post-boot sync is not gated by the explicit trust marker'
+grep -Fq 'ca-trust-optin' "$POST" || fail 'pre-zygote sync is not gated by the explicit trust marker'
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq '_pg_mitm_preexisting_disabled' "$CUSTOM" || fail 'legacy per-module MITM disable state is not migrated'
 grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
