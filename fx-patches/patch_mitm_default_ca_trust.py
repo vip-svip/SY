@@ -199,6 +199,18 @@ if root_readme.is_file():
         doc = doc.replace(old, new, 1)
     root_readme.write_text(doc, encoding="utf-8")
 
+# The no-OpenSSL sandbox now follows the real active-module path resolver.
+no_openssl_test = root / "scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh"
+if no_openssl_test.is_file():
+    test_source = no_openssl_test.read_text(encoding="utf-8")
+    fixture_anchor = 'mkdir -p "$MOD/scripts" "$MOD/certs/submodules" "$SM/pg_mitm_ca/system/etc/security/cacerts" "$SC" "$PG" "$TMP/bin"\n'
+    fixture_replacement = fixture_anchor + ': > "$MOD/module.prop"\n'
+    if fixture_anchor in test_source:
+        test_source = test_source.replace(fixture_anchor, fixture_replacement, 1)
+    elif ': > "$MOD/module.prop"' not in test_source:
+        raise SystemExit("no-OpenSSL test fixture module-root anchor not found")
+    no_openssl_test.write_text(test_source, encoding="utf-8")
+
 tests.parent.mkdir(parents=True, exist_ok=True)
 tests.write_text(r'''#!/system/bin/sh
 # Default MITM CA trust is installed, while traffic interception remains explicit.
