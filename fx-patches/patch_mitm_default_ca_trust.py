@@ -180,7 +180,24 @@ if readme.is_file():
     doc = readme.read_text(encoding="utf-8")
     doc = doc.replace("安装默认关闭", "安装默认启用 MITM 专用系统 CA（HTTPS 流量重定向仍需手动启用）")
     doc = doc.replace("用户仍需明确启用 MITM、安装并信任 FX CA；", "首次安装已自动初始化并信任 MITM 专用系统 CA；用户仍需配置主机白名单并手动启用 HTTPS 流量重定向；")
-    readme.write_text(doc, encoding="utf-8")
+root_readme = root / "README.md"
+if root_readme.is_file():
+    doc = root_readme.read_text(encoding="utf-8")
+    replacements = [
+        ("- 根证书管理：内置 CA 的启用/禁用/移除（WebUI pageAd「根证书管理」；默认不启用，避免浏览器/银行类 App 报“自定义根证书/风险证书”警告）", "- 根证书管理：首次安装默认初始化并启用设备本地 MITM 系统 CA；备用 HTTPS CA 默认禁用。用户可随时禁用/移除；证书固定、自带信任库或安全软件策略仍可能拒绝 MITM。"),
+        ("## 内置根证书子模块（v1.7.0；v1.10.4 起默认不启用）", "## 内置根证书子模块（FX 1.0.0；MITM 专用系统 CA 首次安装默认启用）"),
+        ("模块自带两张自签根 CA（2049 年到期，`BasicConstraints: cA=TRUE` + `KeyUsage: keyCertSign`），安装时以**独立子模块**释放到 `/data/adb/modules/`，但**默认不启用**（不写系统信任区，避免被安全软件/银行类 App 判为“存在自定义根证书”）。需要受控 MITM 检测实验时，在 WebUI『根证书管理』点『启用』，才会经 magic-mount 进入 `/system/etc/security/cacerts`；Android 14+ 另在开机早期（`post-fs-data`）bind-mount 覆盖 `/apex/com.android.conscrypt/cacerts`（Conscrypt 实际读取处），对之后启动的应用生效。启用状态会记住，升级/重装保持。", "模块内有两个独立 CA 子模块。首次安装会为 `pg_mitm_ca` 生成设备本地私钥和 CA 证书，并在验证通过后加入 `/system/etc/security/cacerts`；Android 14+ 还会同步 Conscrypt APEX 信任视图并检查 zygote/App 命名空间。`pg_https_ca` 备用根仍默认禁用。MITM CA 的用户禁用/移除选择会在升级时保留。设备私钥不会随 ZIP 分发，也不会写入用户证书区。系统 CA 信任不会自动开启 HTTPS 流量重定向。"),
+        ("| PrivacyGuard MITM Detection CA | `pg_mitm_ca` | `3cd7fe0549eaae30` | 导入抓包工具签发叶子证书，配合模块自身的 MITM 检测做受控实验 |", "| PrivacyGuard MITM Detection CA | `pg_mitm_ca` | 设备本机动态生成 | 仅供 FX MITM 引擎签发白名单主机的叶子证书 |"),
+        ("| PrivacyGuard HTTPS Root CA | `pg_https_ca` | `1a9960b9339b31a5` | 自签 HTTPS 站点证书备用根 |", "| PrivacyGuard HTTPS Root CA | `pg_https_ca` | 模板证书指纹 | 备用 HTTPS 根，默认禁用 |"),
+        ("v1.10.4 起按以下顺序排查（本模块的系统 CA **默认不启用**）：", "按以下顺序排查（首次安装默认启用设备本地 MITM 系统 CA；但这不会自动启用 HTTPS 流量重定向）："),
+        ("> 升级提示：装完打开 WebUI，在「VPN → 自动核心」点一次「启动核心」确认可拉起；证书如仍报错，按上文「浏览器/App 报证书错误怎么办」逐项检查（本版默认不启用系统 CA，不会主动留下自定义根证书）。", "> 升级提示：首次安装会自动初始化并启用设备本地 MITM 系统 CA；升级时保留用户此前明确禁用/移除的选择。HTTPS 流量重定向仍需配置主机白名单后手动启用。若应用仍报错，按上文检查 CA 系统信任状态、应用证书固定、自带信任库和 TLS 支持范围。"),
+        ("- 内置 CA 默认不启用；启用后 Android 14+ 依赖 APEX bind-mount，个别 ROM 的 SELinux/挂载策略可能拒绝（`certmgr.sh builtin list` 的 `apex`/`live_apex` 与 `$PG/early.log` 可判断；覆盖层不完整时会拒绝挂载以保护公共信任链，不会把全局 HTTPS 弄坏）", "- MITM 专用 CA 首次安装默认启用；Android 14+ 依赖 Conscrypt APEX 信任同步，个别 ROM 的 SELinux/挂载策略可能拒绝（用 `certmgr.sh builtin list` 检查 `apex`/`apex_ns`/`live_apex`；命名空间验证失败时状态保持未确认，不会谎报信任成功）。备用 HTTPS CA 默认禁用。"),
+    ]
+    for old, new in replacements:
+        if old not in doc:
+            raise SystemExit("README current-state anchor not found: " + old[:100])
+        doc = doc.replace(old, new, 1)
+    root_readme.write_text(doc, encoding="utf-8")
 
 tests.parent.mkdir(parents=True, exist_ok=True)
 tests.write_text(r'''#!/system/bin/sh
@@ -203,6 +220,8 @@ grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not pr
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq '_pg_mitm_preexisting_disabled' "$CUSTOM" || fail 'legacy per-module MITM disable state is not migrated'
 grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
+grep -Fq '首次安装默认启用设备本地 MITM 系统 CA' "$ROOT/README.md" || fail 'README still describes default-off MITM CA'
+grep -Fq '设备本机动态生成' "$ROOT/README.md" || fail 'README still documents a static MITM CA fingerprint'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
 grep -Fq 'ca-mitm-user-disabled' "$CERT" || fail 'certmgr does not persist explicit MITM CA disable'
 grep -Fq '_THIS_MODULE_DIR/certs' "$CERT" || fail 'certmgr does not resolve active staging module directory'
