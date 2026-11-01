@@ -49,6 +49,20 @@ s = s[:start] + new_block + s[end:]
 customize.write_text(s, encoding="utf-8")
 
 c = certmgr.read_text(encoding="utf-8")
+old_paths = "MDIR_CERTS=/data/adb/modules/privacyguard/certs\n[ -d \"$MDIR_CERTS\" ] || MDIR_CERTS=/data/mod/certs"
+new_paths = r'''_THIS_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
+_THIS_MODULE_DIR=$(CDPATH= cd -- "$_THIS_SCRIPT_DIR/.." 2>/dev/null && pwd)
+if [ -f "$_THIS_MODULE_DIR/module.prop" ] && [ -f "$_THIS_MODULE_DIR/certs/ca-index" ]; then
+  MDIR_CERTS="$_THIS_MODULE_DIR/certs"
+elif [ -d /data/adb/modules/privacyguard/certs ]; then
+  MDIR_CERTS=/data/adb/modules/privacyguard/certs
+else
+  MDIR_CERTS=/data/mod/certs
+fi'''
+if old_paths in c:
+    c = c.replace(old_paths, new_paths, 1)
+elif '_THIS_MODULE_DIR/certs' not in c:
+    raise SystemExit("certmgr active-module path anchor not found")
 old = '''          id=$(basename "$tmpl")
           dest="$SM/$id"
           # 用户曾用管理器删除该子模块 → 尊重，不复活
@@ -147,6 +161,7 @@ grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not pr
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
+grep -Fq '_THIS_MODULE_DIR/certs' "$CERT" || fail 'certmgr does not resolve active staging module directory'
 grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot Android 14+ trust sync missing'
 grep -Fq 'builtin sync' "$POST" || fail 'pre-zygote trust sync missing for older Android'
 ! grep -Fq 'mitm-redirect.sh enable' "$CUSTOM" || fail 'installer must not enable traffic interception'
