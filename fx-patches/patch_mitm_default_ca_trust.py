@@ -160,11 +160,18 @@ new = '''          else
             else
               # The child module state is authoritative if the auxiliary marker
               # cannot be published; release() also preserves its disable bit.
+              _state_write_error=0
               if ! ca_state_write "$_state_enabled"; then
-                echo "cert: WARN unable to persist $_state_enabled; active child-module state remains authoritative" >&2
+                _pg_cm_rc=1
+                _state_write_error=1
+                echo "cert: ERROR unable to persist $_state_enabled; the trust marker is not durable" >&2
               fi
               rm -rf "$_en_prev" 2>/dev/null
-              printf '{"ok":true,"detail":"已启用 %s — 系统/Conscrypt 信任视图已同步；用户状态已持久化或由活动子模块状态保护"}\\n' "$(idx "$id" 1)"
+              if [ "$_state_write_error" = 1 ]; then
+                printf '{"ok":false,"detail":"当前已启用 %s，但无法保存跨升级状态；请检查 /data/adb/privacyguard 写入权限和空间"}\\n' "$(idx "$id" 1)"
+              else
+                printf '{"ok":true,"detail":"已启用 %s — 系统/Conscrypt 信任视图与跨升级用户状态均已保存"}\\n' "$(idx "$id" 1)"
+              fi
             fi
           fi'''
 c = once(c, old, new, "enable state persistence")
@@ -181,11 +188,25 @@ new = '''          else
             esac
             # The child disable bit is durable too; fail visibly if the preference
             # marker cannot be committed instead of silently claiming full persistence.
+            _state_write_error=0
+            _state_cleanup_error=0
             if ! ca_state_write "$_state_disabled"; then
-              echo "cert: WARN unable to persist $_state_disabled; the child disable bit remains authoritative" >&2
+              _pg_cm_rc=1
+              _state_write_error=1
+              echo "cert: ERROR unable to persist $_state_disabled; current child disable bit remains active" >&2
             fi
-            ca_state_remove "$_state_enabled" || echo "cert: WARN unable to clear stale enabled marker for $id" >&2
-            printf '{"ok":true,"detail":"已禁用 %s — 系统/Conscrypt 信任视图已同步；子模块 disable 状态可在升级时保留"}\\n' "$(idx "$id" 1)"
+            if ! ca_state_remove "$_state_enabled"; then
+              _pg_cm_rc=1
+              _state_cleanup_error=1
+              echo "cert: WARN unable to clear stale enabled marker for $id; disabled marker takes precedence" >&2
+            fi
+            if [ "$_state_write_error" = 1 ]; then
+              printf '{"ok":false,"detail":"当前已禁用 %s，但无法保存跨升级禁用选择；当前子模块 disable 标记仍有效"}\\n' "$(idx "$id" 1)"
+            elif [ "$_state_cleanup_error" = 1 ]; then
+              printf '{"ok":false,"detail":"当前已禁用 %s，禁用选择已保存，但旧启用标记清理不完整；禁用标记优先"}\\n' "$(idx "$id" 1)"
+            else
+              printf '{"ok":true,"detail":"已禁用 %s — 系统/Conscrypt 信任视图与跨升级禁用选择均已保存"}\\n' "$(idx "$id" 1)"
+            fi
           fi'''
 c = once(c, old, new, "disable state persistence")
 
@@ -408,6 +429,8 @@ test_lines = [
     'grep -Fq "ca_state_remove()" "$ROOT/scripts/certmarker.sh" || fail "safe CA state marker remover missing"',
     'grep -Fq "_en_had_user_disabled" "$CERT" || fail "enable rollback does not snapshot prior disabled state"',
     'grep -Fq "_en_had_user_removed" "$CERT" || fail "enable rollback does not snapshot prior removed state"',
+    'grep -Fq "无法保存跨升级状态" "$CERT" || fail "enable status does not disclose marker persistence failures"',
+    'grep -Fq "无法保存跨升级禁用选择" "$CERT" || fail "disable status does not disclose marker persistence failures"',
     'grep -Fq "enable rollback trust resync incomplete" "$CERT" || fail "enable rollback does not resync after restoring original state"',
     'grep -Fq "mktemp -d" "$CERT" || fail "remove rollback does not use a unique restore directory"',
     'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
