@@ -125,7 +125,7 @@ grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot Android 14+ trust sync mis
 grep -Fq 'builtin sync' "$POST" || fail 'pre-zygote trust sync missing for older Android'
 ! grep -Fq 'mitm-redirect.sh enable' "$CUSTOM" || fail 'installer must not enable traffic interception'
 ! grep -Fq 'mitm-redirect.sh enable' "$SERVICE" || fail 'boot must not enable traffic interception'
-grep -Fq 'MITM host allowlist is empty' "$REDIRECT" || fail 'empty allowlist is not rejected'
+grep -Fq 'MITM hostname allowlist is empty' "$REDIRECT" || fail 'empty allowlist is not rejected'
 grep -Fq 'MITM CA is not confirmed active in the system trust store' "$REDIRECT" || fail 'redirect trust preflight missing'
 grep -Fq 'function pgMitmTrafficAction' "$UI" || fail 'native APK UI traffic control missing'
 grep -Fq 'scripts/mitm-engine.sh trust-ca' "$UI" || fail 'native APK UI CA lifecycle missing'
@@ -168,7 +168,7 @@ grep -Fq "scripts/mitm-redirect.sh disable" "$UI" || fail 'cleanup-before-CA-mut
 grep -Fq 'trust-ca)' "$ENGINE" || fail 'runtime CA trust operation missing'
 grep -Fq 'sync_runtime_cert_to_child' "$ENGINE" || fail 'runtime CA child synchronization missing'
 grep -Fq 'enable)' "$REDIRECT" || fail 'explicit redirect enable operation missing'
-grep -Fq 'MITM host allowlist is empty' "$REDIRECT" || fail 'empty allowlist must fail closed'
+grep -Fq 'MITM hostname allowlist is empty' "$REDIRECT" || fail 'empty allowlist must fail closed'
 sh -n "$CUSTOM"; sh -n "$SERVICE"; sh -n "$APPLY"; sh -n "$ENGINE"; sh -n "$REDIRECT"; sh -n "$CERT"
 echo 'PASS: default per-device MITM CA trust, upgrade/removal persistence, and explicit traffic UI/backend lifecycle'
 ''', encoding="utf-8")
