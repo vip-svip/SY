@@ -180,7 +180,7 @@ if collision_test.is_file():
         pattern = r'(?m)^(?P<mkdir>mkdir -p "\$MOD/scripts".*)$'
         test_text, count = re.subn(
             pattern,
-            lambda m: m.group("mkdir") + "\n" + 'cp "$ROOT/module.prop" "$MOD/module.prop"',
+            lambda m: m.group("mkdir") + chr(10) + 'cp "$ROOT/module.prop" "$MOD/module.prop"',
             test_text,
             count=1,
         )
