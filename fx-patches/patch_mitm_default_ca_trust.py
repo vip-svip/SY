@@ -449,6 +449,44 @@ test_lines = [
 test_text = "\n".join(test_lines) + "\n"
 (root / "scripts/tests/v1.0.0-mitm-default-ca-trust-regression.sh").write_text(test_text, encoding="utf-8")
 (root / "scripts/tests/v1.0.0-ca-mitm-lifecycle-integration-regression.sh").write_text(test_text, encoding="utf-8")
+# Give each HTTP bridge call a unique request file prefix even when one script
+# issues several synchronous requests within the same millisecond.
+host = root / "scripts/jsruntime/host.js"
+if not host.is_file():
+    raise SystemExit("QuickJS host prelude missing")
+host_text = host.read_text(encoding="utf-8")
+old_http_tmp = "    const tmp=_fxStateDir+'/http-'+_fxOS.getpid()+'-'+Date.now();"
+new_http_tmp = "    const tmp=_fxStateDir+'/http-'+_fxOS.getpid()+'-'+(++_fxHttpSequence)+'-'+Date.now();"
+if old_http_tmp in host_text:
+    host_text = host_text.replace(old_http_tmp, new_http_tmp, 1)
+elif new_http_tmp not in host_text:
+    raise SystemExit("QuickJS HTTP temp-name anchor missing")
+host_anchor = "  function _fxRequest(options,cb) {"
+if "let _fxHttpSequence = 0;" not in host_text:
+    if host_anchor not in host_text:
+        raise SystemExit("QuickJS HTTP sequence insertion anchor missing")
+    host_text = host_text.replace(host_anchor, "  let _fxHttpSequence = 0;\n" + host_anchor, 1)
+host.write_text(host_text, encoding="utf-8")
+
+http_test = root / "scripts/tests/v1.0.0-js-http-bridge-unique-request-temp-regression.sh"
+http_test.write_text(r'''#!/system/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+HOST="$ROOT/scripts/jsruntime/host.js"
+BRIDGE="$ROOT/scripts/jsruntime/http.sh"
+grep -Fq 'let _fxHttpSequence = 0;' "$HOST" || {
+  echo 'FAIL: HTTP call sequence counter missing' >&2; exit 1;
+}
+grep -Fq "++_fxHttpSequence" "$HOST" || {
+  echo 'FAIL: each HTTP bridge call does not get a unique sequence number' >&2; exit 1;
+}
+grep -Fq "_fxOS.getpid()+'-'+(++_fxHttpSequence)+'-'+Date.now()" "$HOST" || {
+  echo 'FAIL: HTTP temp-file prefix is not unique per script call' >&2; exit 1;
+}
+sh -n "$BRIDGE"
+echo 'PASS: HTTP bridge temp files are unique for repeated calls in one QuickJS process'
+''', encoding="utf-8")
+
 marker_test = root / "scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
 marker_test.write_text(r'''#!/system/bin/sh
 set -eu
