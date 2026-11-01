@@ -245,9 +245,6 @@ missing = []
 for (old, new), pattern in zip(replacements, fallback_patterns):
     if new in doc:
         continue
-    if old in doc:
-        doc = doc.replace(old, new, 1)
-        continue
     updated, count = re.subn(pattern, lambda _m, value=new: value, doc, count=1)
     if count:
         doc = updated
