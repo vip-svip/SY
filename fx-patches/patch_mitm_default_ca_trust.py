@@ -157,6 +157,12 @@ collision_test = root / "scripts/tests/v1.0.0-cert-collision-no-openssl-regressi
 if collision_test.is_file():
     test_text = collision_test.read_text(encoding="utf-8")
     test_text = test_text.replace('  -e "s|^MDIR_CERTS=/data/adb/modules/privacyguard/certs$|MDIR_CERTS=$MOD/certs|" \\\n', '')
+    fixture_mkdir = 'mkdir -p "$MOD/scripts" "$MOD/certs/submodules" "$SM/pg_mitm_ca/system/etc/security/cacerts" "$SC" "$PG" "$TMP/bin"'
+    fixture_prop = fixture_mkdir + '\\ncp "$ROOT/module.prop" "$MOD/module.prop"'
+    if fixture_mkdir in test_text:
+        test_text = test_text.replace(fixture_mkdir, fixture_prop, 1)
+    elif 'cp "$ROOT/module.prop" "$MOD/module.prop"' not in test_text:
+        raise SystemExit("no-OpenSSL fixture module.prop anchor not found")
     collision_test.write_text(test_text, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
