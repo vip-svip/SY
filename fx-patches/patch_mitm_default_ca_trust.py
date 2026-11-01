@@ -211,12 +211,13 @@ new = '''          else
             esac
             if ! ca_state_write "$_state_removed"; then
               _pg_cm_rc=1
-              _rm_restore="$SM/.$id.restore.$"
-              rm -rf "$_rm_restore" "$SM/$id" 2>/dev/null
-              if cp -R "$_rm_backup" "$_rm_restore" 2>/dev/null && mv "$_rm_restore" "$SM/$id" 2>/dev/null; then
+              _rm_restore=$(mktemp -d "$SM/.$id.restore.XXXXXX" 2>/dev/null) || _rm_restore=""
+              if [ -n "$_rm_restore" ] && cp -R "$_rm_backup/." "$_rm_restore/" 2>/dev/null &&
+                 rm -rf "$SM/$id" 2>/dev/null && mv "$_rm_restore" "$SM/$id" 2>/dev/null; then
                 ca_sync >/dev/null 2>&1 || echo "cert: ERROR remove-marker rollback resync incomplete" >&2
                 rm -rf "$_rm_backup" 2>/dev/null
               else
+                [ -n "$_rm_restore" ] && rm -rf "$_rm_restore" 2>/dev/null
                 echo "cert: ERROR remove-marker rollback failed; recovery backup retained at $_rm_backup" >&2
               fi
               printf '{"ok":false,"detail":"无法持久保存 CA 移除选择；已尝试恢复原子模块，升级后不会静默复活"}\\n'
@@ -408,6 +409,7 @@ test_lines = [
     'grep -Fq "_en_had_user_disabled" "$CERT" || fail "enable rollback does not snapshot prior disabled state"',
     'grep -Fq "_en_had_user_removed" "$CERT" || fail "enable rollback does not snapshot prior removed state"',
     'grep -Fq "enable rollback trust resync incomplete" "$CERT" || fail "enable rollback does not resync after restoring original state"',
+    'grep -Fq ' + "'mktemp -d \\"$SM/.$id.restore.XXXXXX\\"'" + ' "$CERT" || fail "remove rollback does not use a unique restore directory"',
     'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$SERVICE" || fail "boot CA sync guard missing"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$POST" || fail "early boot CA sync guard missing"',
