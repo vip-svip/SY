@@ -78,7 +78,10 @@ old = '''          id=$(basename "$tmpl")
           # 用户曾用管理器删除该子模块 → 尊重，不复活'''
 new = '''          id=$(basename "$tmpl")
           dest="$SM/$id"
-          if [ "$id" = "pg_mitm_ca" ] && [ -f "$PG/ca-mitm-user-removed" ]; then SKIP=$((SKIP+1)); continue; fi
+          case "$id" in
+            pg_mitm_ca) [ -f "$PG/ca-mitm-user-removed" ] && { SKIP=$((SKIP+1)); continue; } ;;
+            pg_https_ca) [ -f "$PG/ca-https-user-removed" ] && { SKIP=$((SKIP+1)); continue; } ;;
+          esac
           # 用户曾用管理器删除该子模块 → 尊重，不复活'''
 c = once(c, old, new, "persistent MITM removal guard")
 
@@ -255,6 +258,7 @@ test_lines = [
     'grep -Fq "ca-mitm-user-enabled" "$CERT" || fail "MITM enable preference is not persisted"',
     'grep -Fq "ca-mitm-user-disabled" "$CERT" || fail "MITM disable preference is not persisted"',
     'grep -Fq "ca-mitm-user-removed" "$CERT" || fail "MITM remove preference is not persisted"',
+    'grep -Fq \'pg_https_ca) [ -f "$PG/ca-https-user-removed" ]\' "$CERT" || fail "HTTPS CA removal preference is not honored during release"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$SERVICE" || fail "boot CA sync guard missing"',
     'grep -Fq \'[ -f "$PG/ca-trust-optin" ]\' "$POST" || fail "early boot CA sync guard missing"',
     'grep -Fq "MITM hostname allowlist is empty" "$REDIRECT" || fail "empty hostname allowlist is not rejected"',
