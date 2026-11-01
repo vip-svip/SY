@@ -239,11 +239,11 @@ if root_readme.is_file():
             doc = doc.replace(old, new, 1)
     current_section = """## FX 1.0.0 当前 CA / MITM 行为
 
-- 首次安装默认生成设备本地独立 MITM CA，并在系统 CA / Conscrypt 信任同步与命名空间验证通过后启用系统信任；私钥不随 ZIP 分发。
+- 首次安装默认启用设备本地 MITM 系统 CA：先生成独立私钥和 CA 证书，再验证系统 CA / Conscrypt 信任视图与命名空间；私钥不随 ZIP 分发。
 - 备用 HTTPS CA（pg_https_ca）保持禁用。升级时保留此前明确禁用或移除 MITM CA 的选择，包括旧版子模块 disable 标记。
 - 系统 CA 信任不等于自动拦截流量。HTTPS 重定向默认关闭，只有配置非空主机白名单并在主应用中明确启用后才安装规则。
 - 证书固定、自带信任库或安全软件策略可能仍会拒绝 MITM；FX 不关闭 TLS 校验，也不绕过证书固定。
-- MITM CA 指纹由每台设备动态生成，不存在可跨设备通用的固定指纹。
+- MITM CA 指纹为设备本机动态生成，不存在可跨设备通用的固定指纹。
 
 """
     marker = "## FX 1.0.0 当前 CA / MITM 行为"
