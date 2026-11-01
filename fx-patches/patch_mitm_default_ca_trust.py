@@ -113,6 +113,21 @@ if old in c:
 elif 'persist explicit MITM CA removal preference' not in c:
     raise SystemExit("certmgr remove success anchor not found")
 
+
+# Persist explicit per-MITM-CA disable separately from the global opt-in marker.
+disable_line = next((line for line in c.splitlines() if "已禁用 %s" in line and "printf" in line), None)
+if disable_line is None:
+    raise SystemExit("certmgr explicit MITM CA disable anchor not found")
+disable_insert = """            if [ "$id" = "pg_mitm_ca" ]; then
+              : > "$PG/ca-mitm-user-disabled" 2>/dev/null || echo "cert: WARN unable to persist explicit MITM CA disable preference" >&2
+              chmod 600 "$PG/ca-mitm-user-disabled" 2>/dev/null || :
+              rm -f "$PG/ca-mitm-user-removed" 2>/dev/null
+            fi
+"""
+c = c.replace(disable_line, disable_insert + disable_line, 1)
+c = c.replace('rm -f "$PG/ca-mitm-user-removed" 2>/dev/null; fi', 'rm -f "$PG/ca-mitm-user-removed" "$PG/ca-mitm-user-disabled" 2>/dev/null; fi', 1)
+c = c.replace('chmod 600 "$PG/ca-mitm-user-removed" 2>/dev/null || :', 'chmod 600 "$PG/ca-mitm-user-removed" 2>/dev/null || :\n              rm -f "$PG/ca-mitm-user-disabled" 2>/dev/null', 1)
+
 certmgr.write_text(c, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
@@ -161,6 +176,7 @@ grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA user choices are not pr
 grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
 grep -Fq '首次安装默认初始化并启用系统级信任' "$UI" || fail 'native UI still describes MITM CA as opt-in'
 grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'certmgr does not persist explicit MITM CA removal'
+grep -Fq 'ca-mitm-user-disabled' "$CERT" || fail 'certmgr does not persist explicit MITM CA disable'
 grep -Fq '_THIS_MODULE_DIR/certs' "$CERT" || fail 'certmgr does not resolve active staging module directory'
 grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot Android 14+ trust sync missing'
 grep -Fq 'builtin sync' "$POST" || fail 'pre-zygote trust sync missing for older Android'
