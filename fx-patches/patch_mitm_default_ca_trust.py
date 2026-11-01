@@ -157,11 +157,6 @@ collision_test = root / "scripts/tests/v1.0.0-cert-collision-no-openssl-regressi
 if collision_test.is_file():
     test_text = collision_test.read_text(encoding="utf-8")
     test_text = test_text.replace('  -e "s|^MDIR_CERTS=/data/adb/modules/privacyguard/certs$|MDIR_CERTS=$MOD/certs|" \\\n', '')
-    old_run = 'out=$(PATH="$TMP/bin" /bin/sh "$MOD/scripts/certmgr.sh" builtin list'
-    new_run = 'out=$(PG_CERTS_DIR="$MOD/certs" PATH="$TMP/bin" /bin/sh "$MOD/scripts/certmgr.sh" builtin list'
-    if old_run not in test_text and new_run not in test_text:
-        raise SystemExit("no-OpenSSL certmgr fixture invocation anchor not found")
-    test_text = test_text.replace(old_run, new_run, 1)
     collision_test.write_text(test_text, encoding="utf-8")
 
 # Keep the app UI and documentation consistent with the new default.
