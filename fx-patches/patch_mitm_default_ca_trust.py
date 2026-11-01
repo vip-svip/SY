@@ -28,10 +28,10 @@ if [ -f "$MODPATH/scripts/certmgr.sh" ]; then
   _pg_ca_install_log="$_pg_ca_state_dir/ca-install.log"
   mkdir -p "$_pg_ca_state_dir" 2>/dev/null
   if sh "$MODPATH/scripts/certmgr.sh" builtin release "$MODPATH/certs" >>"$_pg_ca_install_log" 2>&1; then
-    if [ -f "$_pg_ca_state_dir/ca-trust-optin" ]; then
-      ui_print "  检测到已有 CA 管理记录；保留用户当前启用/禁用状态"
-    elif [ -f "$_pg_ca_state_dir/ca-mitm-user-removed" ] || [ -f /data/adb/modules/pg_mitm_ca/remove ]; then
+    if [ -f "$_pg_ca_state_dir/ca-mitm-user-removed" ] || [ -f /data/adb/modules/pg_mitm_ca/remove ]; then
       ui_print "  检测到用户曾移除 MITM CA；尊重移除选择，不自动恢复"
+    elif [ -f "$_pg_ca_state_dir/ca-mitm-user-disabled" ]; then
+      ui_print "  检测到用户曾禁用 MITM CA；尊重禁用选择，不自动恢复"
     elif sh "$MODPATH/scripts/mitm-engine.sh" trust-ca >>"$_pg_ca_install_log" 2>&1; then
       ui_print "  [✓] 已生成本机独立 MITM CA 并启用系统信任（不写入用户证书区）"
       ui_print "      HTTPS 流量重定向仍保持关闭；需配置 MITM 主机白名单后手动启用"
