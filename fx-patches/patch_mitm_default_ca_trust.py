@@ -278,7 +278,7 @@ test_lines = [
     'grep -Fq "_THIS_MODULE_DIR/certs" "$CERT" || fail "active module path resolution missing"',
     'grep -Fq "首次安装会在设备本机生成 MITM CA" "$CERT" || fail "certmgr policy comments are stale"',
     'grep -Fq "First install commits the local MITM CA by default" "$SERVICE" || fail "service CA sync comments are stale"',
-    'grep -Fq "first install commits the device-local MITM CA by default" "$POST" || fail "post-fs-data CA sync comments are stale"',
+    'grep -Fq "the HTTPS fallback CA remains" "$POST" || fail "post-fs-data CA sync comments are stale"',
     'grep -Fq \'if [ -d "$dest" ] && [ ! -f "$dest/disable" ]; then DIS=0; fi\' "$CERT" || fail "per-child CA state is not preserved"',
     'grep -Fq "ca-mitm-user-enabled" "$CERT" || fail "MITM enable preference is not persisted"',
     'grep -Fq "ca-mitm-user-disabled" "$CERT" || fail "MITM disable preference is not persisted"',
