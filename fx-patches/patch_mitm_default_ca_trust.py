@@ -137,4 +137,39 @@ sh -n "$REDIRECT"
 sh -n "$ENGINE"
 echo 'PASS: MITM CA defaults to per-device system trust; user removal/disable persists; HTTPS redirect remains explicit and fail-closed'
 ''', encoding="utf-8")
-print("Patched customize.sh/certmgr.sh and added default-trust regression.")
+legacy_test = root / "scripts/tests/v1.0.0-ca-mitm-lifecycle-integration-regression.sh"
+legacy_test.write_text(r'''#!/system/bin/sh
+# CA trust defaults to the per-device MITM root; traffic redirection remains explicit.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+CUSTOM="$ROOT/customize.sh"
+SERVICE="$ROOT/service.sh"
+APPLY="$ROOT/scripts/apply.sh"
+UI="$ROOT/webroot/index.html"
+ENGINE="$ROOT/scripts/mitm-engine.sh"
+REDIRECT="$ROOT/scripts/mitm-redirect.sh"
+CERT="$ROOT/scripts/certmgr.sh"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+[ -f "$CUSTOM" ] && [ -f "$SERVICE" ] && [ -f "$APPLY" ] && [ -f "$UI" ] || fail 'required source is missing'
+grep -Fq 'mitm-engine.sh" trust-ca' "$CUSTOM" || fail 'first-install default MITM CA trust missing'
+grep -Fq 'ca-trust-optin' "$CUSTOM" || fail 'existing CA opt-in state is not preserved'
+grep -Fq 'ca-mitm-user-removed' "$CUSTOM" || fail 'explicit MITM CA removal is not preserved'
+grep -Fq 'ca-mitm-user-removed' "$CERT" || fail 'persistent explicit CA removal marker missing'
+grep -Fq '[ -f "$PG/ca-trust-optin" ]' "$SERVICE" || fail 'post-boot CA trust sync guard missing'
+grep -Fq 'builtin sync' "$SERVICE" || fail 'post-boot CA trust sync missing'
+if grep -Fq 'mitm-redirect.sh enable' "$CUSTOM"; then fail 'installer must not auto-enable HTTPS traffic interception'; fi
+if grep -Fq 'mitm-redirect.sh enable' "$SERVICE"; then fail 'boot must not auto-enable HTTPS traffic interception'; fi
+for marker in 'id="mitmTrafficCard"' 'id="mitmTrafficRefresh"' 'id="mitmTrafficEnable"' 'id="mitmTrafficDisable"' 'function pgMitmTrafficAction' 'scripts/mitm-redirect.sh status'; do
+  grep -Fq "$marker" "$UI" || fail "MITM UI marker missing: $marker"
+done
+grep -Fq "scripts/mitm-engine.sh trust-ca" "$UI" || fail 'runtime CA trust integration missing'
+grep -Fq "scripts/mitm-engine.sh untrust-ca" "$UI" || fail 'MITM CA untrust integration missing'
+grep -Fq "scripts/mitm-redirect.sh disable" "$UI" || fail 'cleanup-before-CA-mutation integration missing'
+grep -Fq 'trust-ca)' "$ENGINE" || fail 'runtime CA trust operation missing'
+grep -Fq 'sync_runtime_cert_to_child' "$ENGINE" || fail 'runtime CA child synchronization missing'
+grep -Fq 'enable)' "$REDIRECT" || fail 'explicit redirect enable operation missing'
+grep -Fq 'MITM host allowlist is empty' "$REDIRECT" || fail 'empty allowlist must fail closed'
+sh -n "$CUSTOM"; sh -n "$SERVICE"; sh -n "$APPLY"; sh -n "$ENGINE"; sh -n "$REDIRECT"; sh -n "$CERT"
+echo 'PASS: default per-device MITM CA trust, upgrade/removal persistence, and explicit traffic UI/backend lifecycle'
+''', encoding="utf-8")
+print("Patched customize.sh/certmgr.sh and updated CA/MITM lifecycle regressions.")
