@@ -211,6 +211,22 @@ app = """<application
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
 
+# Align the archived APK regression with the single app's explicit FX Hook label.
+apk_regression = fx / "scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh"
+if apk_regression.is_file():
+    regression_text = apk_regression.read_text(encoding="utf-8")
+    regression_lines = regression_text.splitlines()
+    changed = False
+    for index, line in enumerate(regression_lines):
+        if "APK merge does not preserve FX application label" in line:
+            regression_lines[index] = line.replace('android:label="FX"', 'android:label="FX Hook"').replace(
+                "APK merge does not preserve FX application label",
+                "APK merge does not preserve FX Hook application label")
+            changed = True
+    if changed:
+        apk_regression.write_text("\\n".join(regression_lines) + "\\n", encoding="utf-8")
+
+
 # The final module payload must contain only the unified APK, never the old split APKs.
 for obsolete in (
     fx / "optional/PrivacyGuardHook.apk",
