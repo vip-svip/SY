@@ -12,7 +12,7 @@ python3 "$ROOT/fx-patches/patch_native_privacy_settings.py" "$MODULE" "$ASSETS"
 python3 - "$ASSETS/native-privacy-settings.json" "$MODULE/scripts/default.conf" <<'PY'
 import json, re, sys
 data=json.load(open(sys.argv[1], encoding="utf-8"))
-expected={"rootPanel","advPanel","netPanel","permPanel","sensorPanel","locationPanel","devicePanel","mediaPanel","filePanel","notifyPanel","kernelPanel","miscPanel"}
+expected={"vpnPanel","rootPanel","advPanel","netPanel","permPanel","sensorPanel","locationPanel","devicePanel","mediaPanel","filePanel","notifyPanel","kernelPanel","miscPanel"}
 panels=data.get("panels",[])
 assert data.get("schema_version")==1
 assert {p["id"] for p in panels}==expected
@@ -26,7 +26,7 @@ for line in open(sys.argv[2], encoding="utf-8"):
     if m: defaults.add(m.group(1))
 assert set(keys) <= defaults, "native privacy schema contains non-top-level or non-boolean settings"
 assert all(item["title"] and item["key"] for panel in panels for item in panel["items"])
-print("PASS: generated 12 native privacy panels with",len(keys),"top-level boolean settings")
+print("PASS: generated 13 native VPN/privacy panels with",len(keys),"top-level boolean settings")
 PY
 python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
 import pathlib, sys
