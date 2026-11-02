@@ -871,23 +871,13 @@ public final class MainActivity extends Activity {
     }
     private void applyWebUiMode() {
         if (webView == null || !webUiReady) return;
-        String css;
-        if ("classic".equals(uiMode)) {
-            css = "body{background:#f4f6f8!important;color:#17212b!important}" +
-                    ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:8px!important;box-shadow:none!important}" +
-                    "button,.btn,input,select,textarea{border-radius:6px!important}";
-        } else if ("miuix".equals(uiMode)) {
-            css = "body{background:#f3f5fa!important;color:#17212b!important}" +
-                    ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:18px!important;background:#fff!important;border:1px solid #e5eaf2!important;box-shadow:0 3px 14px rgba(35,60,95,.06)!important}" +
-                    "button,.btn,input,select,textarea{border-radius:12px!important}" +
-                    ".section-title,h2,h3{font-weight:700!important;letter-spacing:.01em}";
-        } else if ("glass".equals(uiMode)) {
-            css = "body{background:linear-gradient(145deg,#e8f2fa,#f2edf8)!important}" +
-                    ".card,.panel,.setting-card,.section,.list-item,.config-card{background:rgba(255,255,255,.64)!important;border:1px solid rgba(255,255,255,.78)!important;border-radius:22px!important;box-shadow:0 8px 28px rgba(35,55,80,.10)!important}" +
-                    "button,.btn,input,select,textarea{border-radius:14px!important}";
-        } else {
-            css = "";
-        }
+        // Only the explicit legacy mode styles the WebView. Miuix and Liquid Glass
+        // are native Compose renderers; do not imitate either with injected CSS.
+        String css = "classic".equals(uiMode)
+                ? "body{background:#f4f6f8!important;color:#17212b!important}" +
+                  ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:8px!important;box-shadow:none!important}" +
+                  "button,.btn,input,select,textarea{border-radius:6px!important}"
+                : "";
         String js = "(function(){var id='fx-interface-mode-style';var old=document.getElementById(id);if(old)old.remove();" +
                 (css.isEmpty() ? "" : "var s=document.createElement('style');s.id=id;s.textContent=" + JSONObject.quote(css) + ";document.head.appendChild(s);") + "})()";
         webView.evaluateJavascript(js, null);
