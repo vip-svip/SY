@@ -2192,7 +2192,8 @@ public final class MainActivity extends ComponentActivity {
     private void showSettings() {
         cancelHookStatusRefresh();
         cancelAppIconLoad();
-        pauseAndDetachWebView();
+        if (webView == null) showWebDashboard();
+        else pauseAndDetachWebView();
         hookUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
