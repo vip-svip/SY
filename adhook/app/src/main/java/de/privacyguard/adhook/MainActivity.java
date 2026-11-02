@@ -449,6 +449,134 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnHandler.removeCallbacks(nativeVpnPoll);
     }
 
+    /**
+     * Owns the visible content for the four operational tabs. The bundled WebView
+     * is kept off-screen solely as a compatibility bridge while feature backends
+     * are migrated; it is never mounted as page content.
+     */
+    private void renderNativePage(int index) {
+        if (nativePageContent == null) return;
+        nativePageContent.removeAllViews();
+        nativeVpnControls = null;
+        nativeVpnSwitch = null;
+        nativeVpnState = null;
+        nativeVpnNodeButton = null;
+        nativeVpnModeButtons.clear();
+
+        final String heading;
+        final String description;
+        switch (index) {
+            case 1:
+                heading = "Ad · Hosts";
+                description = "广告规则、订阅规则与本地 Hosts 合并管理。此入口不再显示独立 Ad 分类开关；规则识别由内置引擎处理。";
+                break;
+            case 2:
+                heading = "隐私保护";
+                description = "查看 FX 隐私保护后端状态。Root、LSPosed 和无障碍授权状态分别显示，不以配置文件存在冒充运行成功。";
+                break;
+            case 3:
+                heading = "脚本中心";
+                description = "查看脚本引擎与模块运行状态。脚本导入、编辑和执行入口将在对应原生控件接入后开放，不显示网页控件。";
+                break;
+            default:
+                heading = "VPN";
+                description = "原生 VPN 控制面板。直连不需要节点；全局和规则模式需要有效节点。";
+                break;
+        }
+
+        TextView brand = title("FX", 25);
+        nativePageContent.addView(brand);
+        TextView pageTitle = title(heading, 20);
+        pageTitle.setPadding(dp(18), dp(2), dp(18), dp(8));
+        nativePageContent.addView(pageTitle);
+        TextView intro = new TextView(this);
+        intro.setText(description);
+        intro.setTextSize(13);
+        intro.setTextColor(0xff66727e);
+        intro.setPadding(dp(18), dp(4), dp(18), dp(14));
+        nativePageContent.addView(intro);
+
+        if (index == 0) {
+            buildNativeVpnControls();
+            nativePageContent.addView(nativeVpnControls,
+                    new LinearLayout.LayoutParams(-1, -2));
+            syncNativeVpnControls();
+            return;
+        }
+
+        final TextView backendStatus = new TextView(this);
+        backendStatus.setText("正在读取 FX 模块状态…");
+        backendStatus.setTextSize(13);
+        backendStatus.setTextColor(0xff344451);
+        backendStatus.setPadding(dp(16), dp(14), dp(16), dp(14));
+        backendStatus.setBackground(uiPanelDrawable());
+        LinearLayout.LayoutParams statusParams =
+                new LinearLayout.LayoutParams(-1, -2);
+        statusParams.setMargins(dp(14), dp(4), dp(14), dp(8));
+        nativePageContent.addView(backendStatus, statusParams);
+
+        Button refresh = new Button(this);
+        refresh.setAllCaps(false);
+        refresh.setText("刷新模块实时状态");
+        refresh.setOnClickListener(v -> refreshNativeModuleStatus(backendStatus, index));
+        LinearLayout.LayoutParams refreshParams =
+                new LinearLayout.LayoutParams(-1, dp(48));
+        refreshParams.setMargins(dp(14), dp(4), dp(14), dp(12));
+        nativePageContent.addView(refresh, refreshParams);
+
+        TextView boundary = new TextView(this);
+        boundary.setText("状态来自设备端 status.sh。尚未迁移到原生控件的操作不会伪装成已可用；本页不加载网页内容。");
+        boundary.setTextSize(12);
+        boundary.setTextColor(0xff7b8790);
+        boundary.setPadding(dp(18), dp(8), dp(18), dp(16));
+        nativePageContent.addView(boundary);
+        refreshNativeModuleStatus(backendStatus, index);
+    }
+
+    private void refreshNativeModuleStatus(TextView target, int pageIndex) {
+        if (target == null || isFinishing() || isDestroyed()) return;
+        target.setText("正在读取设备端状态…");
+        Thread worker = new Thread(() -> {
+            RootAccess.Result result = RootAccess.execute(
+                    "MP=; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do [ -f \"$d/module.prop\" ] && { MP=\"$d\"; break; }; done; [ -n \"$MP\" ] || { echo 'FX_MODULE_NOT_FOUND'; exit 20; }; sh \"$MP/scripts/status.sh\" json",
+                    30000L, 128 * 1024);
+            String display;
+            if (result.exitCode != 0) {
+                display = "无法读取设备端模块状态（退出码 " + result.exitCode + "）。\n"
+                        + (result.output == null ? "" : result.output.trim());
+            } else {
+                try {
+                    JSONObject state = new JSONObject(result.output.trim());
+                    StringBuilder summary = new StringBuilder();
+                    summary.append("FX 模块状态读取成功\n");
+                    if (pageIndex == 1) {
+                        summary.append("Hosts / 规则：").append(state.optString("hosts_status", "状态字段未提供")).append('\n');
+                        summary.append("广告过滤：").append(state.optString("ad_status", "状态字段未提供")).append('\n');
+                    } else if (pageIndex == 2) {
+                        summary.append("隐私保护：").append(state.optString("privacy_status", "状态字段未提供")).append('\n');
+                        summary.append("Root UID：").append(android.os.Process.myUid()).append('\n');
+                    } else {
+                        summary.append("脚本引擎：").append(state.optString("script_engine_status", "状态字段未提供")).append('\n');
+                        summary.append("QuickJS：").append(state.optString("quickjs_status", "状态字段未提供")).append('\n');
+                    }
+                    summary.append("\n完整后端状态：\n").append(state.toString(2));
+                    display = summary.toString();
+                } catch (Exception malformed) {
+                    display = "设备端返回了非 JSON 状态：\n"
+                            + (result.output == null ? "" : result.output.trim());
+                }
+            }
+            if (display.length() > 12000) display = display.substring(0, 12000) + "\n…（已截断）";
+            final String message = display;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || target.getParent() == null) return;
+                target.setText(message);
+            });
+        }, "fx-native-page-status-" + pageIndex);
+        worker.setDaemon(true);
+        worker.start();
+    }
+
     /** Native VPN controls call the existing, validated WebUI transaction pipeline.
      *  The old HTML switch/mode strip is hidden to prevent duplicate controls. */
     private void buildNativeVpnControls() {
