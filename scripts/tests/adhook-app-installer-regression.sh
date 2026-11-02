@@ -54,8 +54,8 @@ printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch not reported"; fi
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "old package was not restored after signature-mismatch migration"
-grep -q 'old unified apk' "$TMP/pm/de.privacyguard.adhook.apk" || fail "rollback did not restore the old signed APK"
-grep -Fq '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" || fail "signature mismatch did not use data-preserving uninstall -k"
+grep -q 'unified apk payload' "$TMP/pm/de.privacyguard.adhook.apk" || fail "rollback did not restore the old signed APK"
+grep -Fq -- '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" || fail "signature mismatch did not use data-preserving uninstall -k"
 [ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "signature mismatch triggered unexpected legacy package removal"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 # A package first installed by FX must be removed on module uninstall.
