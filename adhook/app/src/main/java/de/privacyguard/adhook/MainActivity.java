@@ -493,6 +493,31 @@ public final class MainActivity extends ComponentActivity {
         return button;
     }
 
+    private void addNativeSettingEntry(String heading, String summary, String detail) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(10), dp(14), dp(10));
+        card.setBackground(uiPanelDrawable());
+        TextView title = new TextView(this);
+        title.setText(heading);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(0xff17212b);
+        TextView description = new TextView(this);
+        description.setText(summary);
+        description.setTextSize(12);
+        description.setTextColor(0xff718091);
+        description.setPadding(0, dp(4), 0, dp(6));
+        card.addView(title);
+        card.addView(description);
+        card.addView(nativeAction("查看说明", () -> new AlertDialog.Builder(this)
+                .setTitle(heading).setMessage(detail)
+                .setPositiveButton("关闭", null).show()));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(4), dp(12), dp(6));
+        content.addView(card, lp);
+    }
+
     private void buildNativeHostsPage() {
         content.addView(title("广告与 Hosts", 22));
         TextView intro = new TextView(this);
