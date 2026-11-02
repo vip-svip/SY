@@ -614,6 +614,12 @@ public final class MainActivity extends ComponentActivity {
         content.addView(note);
         androidx.compose.ui.platform.ComposeView designModePanel =
                 new androidx.compose.ui.platform.ComposeView(this);
+        // This ComposeView is a sibling of the main shell, not its descendant.
+        // Bind all three owners before setContent() so the settings panel can
+        // create a lifecycle-aware recomposer and resolve saved state/ViewModels.
+        androidx.lifecycle.ViewTreeLifecycleOwner.set(designModePanel, this);
+        androidx.lifecycle.ViewTreeViewModelStoreOwner.set(designModePanel, this);
+        androidx.savedstate.ViewTreeSavedStateRegistryOwner.set(designModePanel, this);
         FxDesignModePanelKt.installFxDesignModePanel(designModePanel, uiMode, selected -> {
             if (selected == null || selected.equals(uiMode)) return kotlin.Unit.INSTANCE;
             uiMode = selected;
