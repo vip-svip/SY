@@ -12,7 +12,7 @@ grep -Fq 'Promise.resolve(pgPersistNow())' "$HTML" || fail "native node selectio
 grep -Fq 'liveKnown:window.__pgVpnLiveKnown===true' "$HTML" || fail "native state snapshot omits backend-confirmed live state"
 grep -Fq "window.__pgVpnLiveKnown=!!s;window.__pgVpnLiveOn=!!(s&&(s.vpn_on===true||s.vpn_on===1))" "$HTML" || fail "WebUI live-state patch is missing from standalone/native build"
 grep -Fq 'window.__vpnFillStatus=function(status)' "$HTML" || fail "native API does not bridge the actual status.sh callback"
-grep -Fq "typeof status.vpn_on==='boolean'" "$HTML" || fail "native API does not use status.sh vpn_on"
+grep -Fq "typeof status.vpn_on!=='undefined'" "$HTML" || fail "native API does not use status.sh vpn_on"
 grep -Fq 'window.vpnStatus();' "$HTML" || fail "native API does not request a backend status refresh"
 grep -Fq '  refreshRuntimeStatus();' "$HTML" || fail "native VPN state is not primed at WebView startup"
 grep -Fq 'window.__fxNativeVpnBusy=true' "$HTML" || fail "native API lacks operation serialization"
@@ -20,8 +20,8 @@ grep -Fq 'window.__fxNativeVpnLastError' "$HTML" || fail "native API does not ex
 grep -Fq 'return Promise.resolve(pgPersistNow())' "$HTML" || fail "node rollback does not persist the previous node"
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
 grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
-grep -Fq 'sh \\"$MP/scripts/status.sh\\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
-grep -Fq 'sh \\"$MP/scripts/apply.sh\\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
+grep -Fq 'sh \"$MP/scripts/status.sh\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
+grep -Fq 'sh \"$MP/scripts/apply.sh\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
 python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
