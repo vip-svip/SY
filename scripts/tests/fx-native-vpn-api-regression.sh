@@ -26,7 +26,9 @@ grep -Fq 'old_mode=$(pg_get vpn_mode direct)' "$ACTIVITY" || fail "native VPN mo
 grep -Fq 'pg_set vpn_mode \"$old_mode\"' "$ACTIVITY" || fail "native VPN mode failure does not restore previous mode"
 grep -Fq 'old_node=$(pg_get vpn_node' "$ACTIVITY" || fail "native VPN node change does not snapshot previous node"
 grep -Fq 'pg_set vpn_node \"$old_node\"' "$ACTIVITY" || fail "native VPN node failure does not restore previous node"
-grep -Fq 'if [ -z \"$node\" ]; then pg_set vpn_mode \"$old_mode\" || :; echo '\''VPN_NO_NODE_SELECTED'\''; exit 32; fi;' "$ACTIVITY" || fail "native proxy mode must roll back, report, and fail when no node is selected"
+grep -Fq 'if [ -z \"$node\" ]; then pg_set vpn_mode \"$old_mode\" || :;' "$ACTIVITY" || fail "native proxy mode must restore the previous mode when no node is selected"
+grep -Fq 'VPN_NO_NODE_SELECTED' "$ACTIVITY" || fail "native proxy mode does not report why no-node apply was rejected"
+grep -Fq 'exit 32; fi;' "$ACTIVITY" || fail "native proxy mode does not fail closed without a selected node"
 python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
