@@ -1100,7 +1100,7 @@ public final class MainActivity extends ComponentActivity {
                     enabledSwitch.setText("启用");
                     enabledSwitch.setChecked(on);
                     enabledSwitch.setOnCheckedChangeListener((button, checked) ->
-                            setNativeScriptEnabled(index, checked, rows, status));
+                            setNativeScriptEnabled(index, checked, rows, status, enabledSwitch, on));
                     ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
                     row.setOnClickListener(v -> new AlertDialog.Builder(this)
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
@@ -1133,18 +1133,55 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status) {
+    private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status,
+                                        Switch control, boolean previous) {
         if (webView == null || !webUiReady) {
             Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
+            restoreNativeScriptSwitch(control, previous);
             return;
         }
+        control.setEnabled(false);
         String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
                 + "if(!a||!a[" + index + "])return false;a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
                 + "window.__fxNativeScriptMutationOk=null;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
-                + "window.__fxNativeScriptMutationOk=!!ok;}).catch(function(){window.__fxNativeScriptMutationOk=false;});return true;})()";
+                + "else a[" + index + "].on=" + (previous ? "true" : "false") + ";"
+                + "window.__fxNativeScriptMutationOk=!!ok;}).catch(function(){a[" + index + "].on="
+                + (previous ? "true" : "false") + ";window.__fxNativeScriptMutationOk=false;});return true;})()";
         webView.evaluateJavascript(js, value -> {
-            verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本状态已保存", "脚本状态保存失败");
-            nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
+            if (value == null || "false".equals(value)) {
+                restoreNativeScriptSwitch(control, previous);
+                Toast.makeText(this, "脚本状态修改未能启动", Toast.LENGTH_LONG).show();
+                return;
+            }
+            pollNativeScriptSwitch(control, previous, rows, status, 0);
+        });
+    }
+
+    private void restoreNativeScriptSwitch(Switch control, boolean previous) {
+        control.setOnCheckedChangeListener(null);
+        control.setChecked(previous);
+        control.setEnabled(true);
+    }
+
+    private void pollNativeScriptSwitch(Switch control, boolean previous, LinearLayout rows,
+                                        TextView status, int attempt) {
+        if (isFinishing() || isDestroyed()) return;
+        webView.evaluateJavascript("window.__fxNativeScriptMutationOk", result -> {
+            if ("true".equals(result)) {
+                control.setEnabled(true);
+                Toast.makeText(this, "脚本状态已保存", Toast.LENGTH_SHORT).show();
+                nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 800L);
+            } else if ("false".equals(result)) {
+                restoreNativeScriptSwitch(control, previous);
+                Toast.makeText(this, "脚本状态保存失败，已恢复原状态", Toast.LENGTH_LONG).show();
+                refreshNativeScriptList(rows, status);
+            } else if (attempt < 20) {
+                nativeVpnHandler.postDelayed(() ->
+                        pollNativeScriptSwitch(control, previous, rows, status, attempt + 1), 250L);
+            } else {
+                restoreNativeScriptSwitch(control, previous);
+                Toast.makeText(this, "脚本状态确认超时，请刷新列表核对", Toast.LENGTH_LONG).show();
+            }
         });
     }
 
