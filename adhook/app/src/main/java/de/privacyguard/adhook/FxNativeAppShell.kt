@@ -118,13 +118,13 @@ private fun FxNativeAppShell(
                     labels.forEachIndexed { index, label ->
                         LiquidBottomTab(
                             onClick = {
-                                // Do not wait for the backdrop spring/gesture observer:
-                                // direct taps must navigate immediately. The parent
-                                // callback ignores the later duplicate animation event.
-                                if (selected != index) {
-                                    selected = index
-                                    onTabSelected(index)
-                                }
+                                // A direct tap is an explicit navigation request even
+                                // when Compose's selected index already matches. The
+                                // rendered screen may have been rebuilt independently
+                                // (for example after returning from Settings/Hook), so
+                                // never swallow same-tab taps at this boundary.
+                                selected = index
+                                onTabSelected(index)
                             },
                             modifier = Modifier.semantics { this.selected = selected == index }
                         ) {
