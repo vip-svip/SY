@@ -402,6 +402,10 @@ public final class MainActivity extends ComponentActivity {
                             && nativeScriptStatus != null && nativeScriptRows.getParent() != null) {
                         refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
                     }
+                    if (lastWebTabIndex == 0 && nativeVpnSubRows != null
+                            && nativeVpnSubStatus != null && nativeVpnSubRows.getParent() != null) {
+                        refreshNativeVpnSubscriptions();
+                    }
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
                         pendingWebPage = null;
@@ -1706,6 +1710,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void pauseAndDetachWebView() {
         stopNativeVpnPolling();
+        nativeVpnSubOperationGeneration++;
         if (webView == null) return;
         webView.onPause();
         webView.pauseTimers();
