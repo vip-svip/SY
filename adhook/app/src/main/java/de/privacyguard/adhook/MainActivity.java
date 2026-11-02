@@ -475,7 +475,7 @@ public final class MainActivity extends ComponentActivity {
                 boolean liveKnown = state.optBoolean("liveKnown", false);
                 boolean liveOn = state.optBoolean("liveOn", false);
                 syncingNativeVpn = true;
-                nativeVpnSwitch.setChecked(configured);
+                nativeVpnSwitch.setChecked(configured && liveKnown && liveOn);
                 syncingNativeVpn = false;
                 String modeLabel = "direct".equals(mode) ? "直连" : "global".equals(mode) ? "全局" : "rule".equals(mode) ? "规则" : "tun".equals(mode) ? "TUN" : mode;
                 String live = !configured ? "直连：未接管流量"
