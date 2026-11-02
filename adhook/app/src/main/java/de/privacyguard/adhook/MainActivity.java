@@ -1100,10 +1100,14 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
+            return;
+        }
         String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
                 + "if(!a||!a[" + index + "])return false;a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
-                + "window.__fxNativeScriptMutationOk=false;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
-                + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
+                + "window.__fxNativeScriptMutationOk=null;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
+                + "window.__fxNativeScriptMutationOk=!!ok;}).catch(function(){window.__fxNativeScriptMutationOk=false;});return true;})()";
         webView.evaluateJavascript(js, value -> {
             verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本状态已保存", "脚本状态保存失败");
             nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
@@ -1111,6 +1115,10 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void deleteNativeScript(int index, LinearLayout rows, TextView status) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
+            return;
+        }
         String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
                 + "if(!a||!a[" + index + "])return false;a.splice(" + index + ",1);"
                 + "window.__fxNativeScriptMutationOk=false;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
@@ -1122,13 +1130,21 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void verifyNativeScriptMutation(String resultKey, String success, String failure) {
-        nativeVpnHandler.postDelayed(() -> {
-            if (webView == null || isFinishing() || isDestroyed()) return;
-            webView.evaluateJavascript("!!window[" + JSONObject.quote(resultKey) + "]", result -> {
-                boolean ok = "true".equals(result);
-                Toast.makeText(this, ok ? success : failure, Toast.LENGTH_LONG).show();
-            });
-        }, 700L);
+        verifyNativeScriptMutation(resultKey, success, failure, 0);
+    }
+
+    private void verifyNativeScriptMutation(String resultKey, String success, String failure, int attempt) {
+        if (webView == null || isFinishing() || isDestroyed()) return;
+        webView.evaluateJavascript("window[" + JSONObject.quote(resultKey) + "]", result -> {
+            if ("true".equals(result) || "false".equals(result)) {
+                Toast.makeText(this, "true".equals(result) ? success : failure, Toast.LENGTH_LONG).show();
+            } else if (attempt < 20) {
+                nativeVpnHandler.postDelayed(
+                        () -> verifyNativeScriptMutation(resultKey, success, failure, attempt + 1), 250L);
+            } else {
+                Toast.makeText(this, "保存状态确认超时，请刷新列表核对；不要重复提交。", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void showNativeScriptAddDialog() {
