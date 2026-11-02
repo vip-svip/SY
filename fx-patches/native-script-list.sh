@@ -13,16 +13,14 @@ UTIL="$MODDIR/scripts/util.sh"
 mkdir -p "$PG/jsruntime" || exit 1
 
 sanitize_field() { printf '%s' "$1" | tr '\r\n' '  ' | sed 's/|/｜/g'; }
-sanitize_script_value() {
-  printf '%s' "$1" | awk '{
-    if (NR > 1) printf "\\n";
-    for (i = 1; i <= length($0); i++) {
-      c = substr($0, i, 1);
-      if (c == "\\") printf "\\\\";
-      else if (c == "|") printf "｜";
-      else printf "%s", c;
-    }
-  }'
+encode_script_value() {
+  case "$1" in
+    https://*) sanitize_field "$1" ;;
+    http://*|*://*) return 1 ;;
+    *)
+      printf 'FXSRC_B64:%s' "$(printf '%s' "$1" | base64 | tr -d '\n')"
+      ;;
+  esac
 }
 decode_b64() {
   case "$1" in *[!A-Za-z0-9+/=]*) return 1 ;; esac
@@ -89,7 +87,7 @@ case "$ACTION" in
         [ "${#note}" -le 512 ] || { echo "ERROR script name exceeds 512 characters"; exit 65; }
         [ "${#value}" -le 65536 ] || { echo "ERROR script entry exceeds 64 KiB"; exit 65; }
         [ "$count" -lt 128 ] || { echo "ERROR script list limit is 128 entries"; exit 65; }
-        value=$(sanitize_script_value "$value"); note=$(sanitize_field "$note")
+        value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
         ;;
