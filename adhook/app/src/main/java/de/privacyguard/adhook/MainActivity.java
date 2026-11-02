@@ -1178,10 +1178,10 @@ public final class MainActivity extends ComponentActivity {
                     rows.addView(row, lp);
                 }
                 status.setText("脚本条目：" + count + " · 已启用：" + enabled
-                        + " · 配置来源：模块 settings.conf · QuickJS-NG 执行能力仍需接入本地源码队列");
+                        + " · 配置来源：模块 settings.conf · 本地 JS 可手动调用 QuickJS-NG 执行");
                 if (count == 0) {
                     TextView empty = new TextView(this);
-                    empty.setText("暂无脚本条目。可添加 HTTPS 订阅或导入本地 JS 源码；本地源码当前仅保存，不会执行。");
+                    empty.setText("暂无脚本条目。可添加 HTTPS 订阅或导入本地 JS 源码；启用本地源码后可手动运行。");
                     empty.setTextColor(0xff718091);
                     empty.setPadding(dp(18), dp(16), dp(18), dp(16));
                     rows.addView(empty);
