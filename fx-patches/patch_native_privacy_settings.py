@@ -59,6 +59,9 @@ found = {panel["id"] for panel in panels}
 if found != allowed_panels:
     raise SystemExit("privacy panel schema incomplete: " + ", ".join(sorted(allowed_panels - found)))
 keys = [item["key"] for panel in panels for item in panel["items"]]
+empty_panels = [panel["id"] for panel in panels if not panel["items"]]
+if empty_panels:
+    raise SystemExit("privacy panels have no native boolean controls: " + ", ".join(empty_panels))
 if len(keys) < 20:
     raise SystemExit("too few top-level boolean privacy controls; refusing partial native migration")
 if len(keys) != len(set(keys)):
