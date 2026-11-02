@@ -13,3 +13,11 @@ Backdrop 1.0.0 (Kyant Android Liquid Glass)
 - Full license: Kyant-AndroidLiquidGlass-LICENSE.txt
 
 These libraries are consumed as published dependencies. FX Hook does not copy or modify their upstream implementation source.
+
+Miuix transitive runtime dependencies
+- com.mocharealm.gaze:capsule-android:2.1.1-patch2
+  License: Apache-2.0 (covered by Miuix-LICENSE.txt / Apache-2.0 terms)
+- com.materialkolor:material-kolor-android:4.0.5
+  License: MIT
+  Full license: MaterialKolor-MIT-LICENSE.txt
+  Upstream: https://github.com/jordond/MaterialKolor
