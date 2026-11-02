@@ -95,6 +95,8 @@ grep -Fq 'private void pickNativeScriptFile()' "$JAVA"
 grep -Fq 'REQUEST_NATIVE_SCRIPT_FILE = 4102' "$JAVA"
 grep -Fq 'Intent.ACTION_OPEN_DOCUMENT' "$JAVA"
 grep -Fq 'private void addNativeScriptValue(String raw, String sourceName)' "$JAVA"
+grep -Fq 'String updatedValue = value.getText().toString();' "$JAVA"
+grep -Fq 'String value = raw == null ? "" : raw;' "$JAVA"
 
 grep -Fq 'name.toLowerCase(Locale.ROOT).endsWith(".json")' "$JAVA"
 grep -Fq 'importNativeScriptDocument(content)' "$JAVA"
