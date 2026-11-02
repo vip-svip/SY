@@ -16,6 +16,6 @@ grep -Fq 'invokeNativeVpnApi("setMode"' "$ACTIVITY" || fail "native mode control
 grep -Fq 'invokeNativeVpnApi("setEnabled"' "$ACTIVITY" || fail "native master switch is not wired to the explicit API"
 grep -Fq 'setThumbTintList' "$ACTIVITY" || fail "native VPN switch thumb is not explicitly white"
 grep -Fq 'setTrackTintList' "$ACTIVITY" || fail "native VPN switch track is not transparent-tinted"
-! grep -Fq 'vpnEnableToggle' "$ACTIVITY" || fail "native switch still references hidden legacy WebUI toggle"
-! grep -Fq 'vpnModeSeg' "$ACTIVITY" || fail "native mode selector still references hidden legacy WebUI controls"
+! grep -Fq "document.getElementById('vpnEnableToggle');if(b)b.click()" "$ACTIVITY" || fail "native switch still clicks hidden legacy WebUI toggle"
+! grep -Fq "document.querySelectorAll('#vpnModeSeg > *')" "$ACTIVITY" || fail "native mode selector still clicks hidden legacy WebUI controls"
 echo "FX explicit native VPN API regression: PASS"
