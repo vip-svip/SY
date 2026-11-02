@@ -13,6 +13,7 @@ grep -Fq 'liveKnown:window.__pgVpnLiveKnown===true' "$HTML" || fail "native stat
 grep -Fq 'window.pgFillStatus=function(status)' "$HTML" || fail "native API does not bridge authoritative status.sh results"
 grep -Fq "typeof status.vpn_on==='boolean'" "$HTML" || fail "native API does not use status.sh vpn_on"
 grep -Fq 'window.pgRefreshStatus()' "$HTML" || fail "native API does not refresh authoritative runtime status"
+grep -Fq '  refreshRuntimeStatus();' "$HTML" || fail "native VPN state is not primed at WebView startup"
 grep -Fq 'window.__fxNativeVpnBusy=true' "$HTML" || fail "native API lacks operation serialization"
 grep -Fq 'window.__fxNativeVpnLastError' "$HTML" || fail "native API does not expose operation failure"
 grep -Fq 'return Promise.resolve(pgPersistNow())' "$HTML" || fail "node rollback does not persist the previous node"
