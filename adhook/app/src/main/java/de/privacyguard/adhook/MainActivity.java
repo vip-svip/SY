@@ -1091,7 +1091,7 @@ public final class MainActivity extends ComponentActivity {
                         summary.append("广告过滤：").append(state.optString("ad_status", "状态字段未提供")).append('\n');
                     } else if (pageIndex == 2) {
                         summary.append("隐私保护：").append(state.optString("privacy_status", "状态字段未提供")).append('\n');
-                        summary.append("Root UID：").append(android.os.Process.myUid()).append('\n');
+                        summary.append("FX 应用 UID：").append(android.os.Process.myUid()).append('\n');
                     } else {
                         summary.append("脚本引擎：").append(state.optString("script_engine_status", "状态字段未提供")).append('\n');
                         summary.append("QuickJS：").append(state.optString("quickjs_status", "状态字段未提供")).append('\n');
@@ -1669,20 +1669,40 @@ public final class MainActivity extends ComponentActivity {
         });
         content.addView(designModePanel,
                 new LinearLayout.LayoutParams(-1, dp(360)));
-        section("其他设置");
-        TextView legacyHint = new TextView(this);
-        legacyHint.setText("VPN、Hosts、隐私、脚本及证书等完整管理选项仍保留在原有设置页面。");
-        legacyHint.setTextColor(0xff66727e);
-        legacyHint.setPadding(dp(18), dp(4), dp(18), dp(8));
-        content.addView(legacyHint);
-        Button fullSettings = new Button(this);
-        fullSettings.setText("打开完整设置页面");
-        fullSettings.setOnClickListener(v -> {
-            lastWebTabIndex = 5;
-            showWebDashboard();
-            navigateWebPage("pageMore");
+        section("模块与运行状态");
+        TextView runtimeStatus = new TextView(this);
+        runtimeStatus.setText("点击刷新，读取设备端 FX 模块状态。");
+        runtimeStatus.setTextColor(0xff344451);
+        runtimeStatus.setPadding(dp(16), dp(12), dp(16), dp(12));
+        runtimeStatus.setBackground(uiPanelDrawable());
+        content.addView(runtimeStatus);
+        Button refreshRuntime = new Button(this);
+        refreshRuntime.setAllCaps(false);
+        refreshRuntime.setText("刷新模块状态与诊断信息");
+        refreshRuntime.setOnClickListener(v -> refreshNativeModuleStatus(runtimeStatus, 2));
+        content.addView(refreshRuntime);
+        section("系统授权");
+        Button accessibilitySettings = new Button(this);
+        accessibilitySettings.setAllCaps(false);
+        accessibilitySettings.setText("打开 Android 无障碍设置");
+        accessibilitySettings.setOnClickListener(v -> {
+            try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+            catch (Exception e) { Toast.makeText(this, "无法打开系统无障碍设置", Toast.LENGTH_LONG).show(); }
         });
-        content.addView(fullSettings);
+        content.addView(accessibilitySettings);
+        Button appDetails = new Button(this);
+        appDetails.setAllCaps(false);
+        appDetails.setText("打开 FX Hook 应用信息");
+        appDetails.setOnClickListener(v -> {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(this, "无法打开应用信息", Toast.LENGTH_LONG).show();
+            }
+        });
+        content.addView(appDetails);
     }
 
     private void refreshHookRemoteStatus(TextView target) {
