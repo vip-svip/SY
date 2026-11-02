@@ -361,8 +361,8 @@ grep -q 'v1.0.0-fxhook-single-apk-merge-audit-regression.sh' "$ROOT/.github/work
 grep -q 'v1.0.0-lsposed-ad-hook-apk-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "compiled APK LSPosed entrypoint regression must run"
 grep -q 'v1.0.0-lsposed-ad-hook-target-scope-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "compiled APK target-scope regression must run"
 grep -q 'Stage complete FX WebUI inside the APK' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU APK WebUI staging missing"
-grep -q 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "parallel module WebUI retirement missing"
-grep -q 'FX 管理界面已迁移到 APP' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "module WebUI migration notice missing"
+grep -q 'Remove KernelSU WebUI and manual action entrypoints' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package does not remove KernelSU WebUI/action entrypoints"
+grep -Fq 'remove_kernelsu_ui_entrypoints.py fx-module' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package does not execute the KernelSU entrypoint removal"
 grep -q 'assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "complete WebUI missing from packaged APK assertion"
 grep -q 'FXUnifiedHook.zip-entry.apk' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final ZIP APK payload inspection missing"
 grep -q 'Build and embed QuickJS-NG v0.17.0 for Android ARM64' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "final package workflow must build and embed QuickJS-NG"
@@ -377,7 +377,7 @@ grep -Fq 'qjs.BUILD-INFO.txt' "$ROOT/.github/workflows/build-fx-kernelsu.yml" ||
 grep -Fq 'before module-cache lookup' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "QuickJS build metadata must attest pre-cache import blocking"
 grep -Fq 'v1.0.0-quickjs-runtime-regression.sh' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "no-compile regression lane must explicitly classify QJS binary tests"
 suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
-retire_line=$(grep -n 'Retire the old module WebUI entrypoint' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
+retire_line=$(grep -n 'Remove KernelSU WebUI and manual action entrypoints' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 [ -n "$suite_line" ] && [ -n "$retire_line" ] && [ "$suite_line" -lt "$retire_line" ] || fail "module WebUI must be retired only after original UI regression suite"
 grep -q 'android:label="FX"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge does not preserve FX application label"
 [ -s "$ROOT/fx-patches/retire_webui_legacy_hook.py" ] || fail "legacy WebUI Hook retirement patch missing"
