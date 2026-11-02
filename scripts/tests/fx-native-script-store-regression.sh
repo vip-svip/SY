@@ -50,4 +50,19 @@ before=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 if sh "$SCRIPT" toggle 99 1 >/dev/null 2>&1; then fail "invalid index unexpectedly succeeded"; fi
 after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 [ "$before" = "$after" ] || fail "invalid mutation changed settings.conf"
-echo "PASS: native script-list backend supports read/add/update/toggle/delete and preserves unrelated config"
+# Script source values retain line breaks and literal backslash-n sequences in settings.conf.
+multiline=$(printf 'line one\nline two\\n literal|pipe')
+multi64=$(printf '%s' "$multiline" | base64 | tr -d '\n')
+multi_note=$(printf '%s' 'Multiline source' | base64 | tr -d '\n')
+[ "$(sh "$SCRIPT" add "$multi64" "$multi_note" 1)" = "OK" ] || fail "multiline script add failed"
+stored=$(sh "$SCRIPT" list | sed -n '4p' | cut -d'|' -f1 | base64 -d)
+expected=$(printf 'line one\\nline two\\\\n literal｜pipe')
+[ "$stored" = "$expected" ] || fail "multiline script escaping corrupted source"
+# Both the parser and serializer must understand the script-specific escape format.
+grep -Fq 'function pgUnescapeScript(s)' "$ROOT/fx-module/webroot/index.html" || fail "WebUI parser lacks multiline script decoder"
+grep -Fq 'pgEscapeScript(e.v)' "$ROOT/fx-module/webroot/index.html" || fail "WebUI serializer does not preserve multiline script values"
+before_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}')
+python3 "$ROOT/fx-patches/patch_native_script_store.py" "$ROOT/fx-module" >/dev/null
+after_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}')
+[ "$before_patch" = "$after_patch" ] || fail "native script patcher is not idempotent"
+echo "PASS: native script-list backend supports CRUD, preserves unrelated config and round-trips multiline script values"
