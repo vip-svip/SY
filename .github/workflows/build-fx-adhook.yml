@@ -90,6 +90,8 @@ jobs:
           python3 fx-patches/patch_native_hook_config_overlay.py fx-module
           python3 fx-patches/patch_native_hook_uninstall.py fx-module
           python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
+          python3 fx-patches/patch_vpn_toggle_live_state.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-live-state-regression.sh
           python3 fx-patches/patch_native_vpn_api.py fx-module
           sh scripts/tests/fx-native-vpn-api-regression.sh fx-module/webroot/index.html
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-external-state-regression.sh
