@@ -906,18 +906,27 @@ public final class MainActivity extends ComponentActivity {
 
     private void mutateNativeManagedList(String listId, int index, String operation,
                                           String newValue, boolean enabled, String title, String newNote) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
         String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return false;"
                 + "var a=pgListArr(" + JSONObject.quote(listId) + ");if(!a||!a[" + index + "])return false;"
                 + ("toggle".equals(operation) ? "a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
                 : "delete".equals(operation) ? "a.splice(" + index + ",1);"
                 : "a[" + index + "].v=" + JSONObject.quote(newValue) + ";a[" + index + "].note="
                     + JSONObject.quote(newNote.isEmpty() ? newValue : newNote) + ";")
-                + "pgPersistNow().then(function(ok){if(ok){if(typeof pgRenderLists==='function')pgRenderLists();"
-                + "if(typeof pgQueueAutoApply==='function')pgQueueAutoApply('规则列表已更新，正在应用…',true);}"
-                + "window.__fxNativeRuleMutationOk=!!ok;});return true;})()";
+                + "window.__fxNativeRuleMutationOk=false;pgPersistNow().then(function(ok){"
+                + "window.__fxNativeRuleMutationOk=!!ok;if(ok){if(typeof pgRenderLists==='function')pgRenderLists();"
+                + "if(typeof pgQueueAutoApply==='function')pgQueueAutoApply('规则列表已更新，正在应用…',true);}});return true;})()";
         webView.evaluateJavascript(js, value -> nativeVpnHandler.postDelayed(() -> {
-            Toast.makeText(this, "列表已更新", Toast.LENGTH_SHORT).show();
-            showNativeManagedListDialog(listId, title);
+            if (webView == null || isFinishing() || isDestroyed()) return;
+            webView.evaluateJavascript("!!window.__fxNativeRuleMutationOk", saved -> {
+                boolean ok = "true".equals(saved);
+                Toast.makeText(this, ok ? "列表已保存并提交应用" : "列表保存失败，请检查模块设置与 Root 状态",
+                        Toast.LENGTH_LONG).show();
+                if (ok) showNativeManagedListDialog(listId, title);
+            });
         }, 1000L));
     }
 
