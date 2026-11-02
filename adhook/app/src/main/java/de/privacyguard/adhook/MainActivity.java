@@ -1073,8 +1073,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private String normalizeUiMode(String mode) {
-        if ("miuix".equals(mode) || "glass".equals(mode) || "web".equals(mode)
-                || "classic".equals(mode)) return mode;
+        if ("miuix".equals(mode) || "glass".equals(mode) || "classic".equals(mode)) return mode;
         return "classic";
     }
 
