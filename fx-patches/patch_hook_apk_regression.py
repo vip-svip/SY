@@ -53,14 +53,15 @@ if scope_test.is_file():
     if "optional/FXAdHook-BUILD-INFO.txt" in scope or "LSPosed API 101" in scope:
         raise SystemExit("target-scope regression still references obsolete split-APK metadata")
     new_ui_block = """# LSPosed target management is native-only. Keep unrelated UID network blocking.
-APP_HOOK_UI="$ROOT/../adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+REPO_ROOT="${GITHUB_WORKSPACE:-$(CDPATH= cd -- "$ROOT/.." && pwd)}"
+APP_HOOK_UI="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 [ -s "$APP_HOOK_UI" ] || fail "native FX Hook Activity source missing"
 ! grep -Fq 'id="cardFxAdHook"' "$UI" || fail "duplicate WebUI LSPosed card remains"
 ! grep -Fq 'fxHookAppList' "$UI" || fail "duplicate WebUI LSPosed app picker remains"
 ! grep -Fq 'fxHookManage' "$UI" || fail "duplicate WebUI LSPosed manager remains"
 grep -q '应用网络阻断（UID）' "$UI" || fail "separate UID network-blocking UI was removed"
 grep -Fq 'FxNativeAppShellKt.installFxNativeAppShell' "$APP_HOOK_UI" || fail "native Compose navigation shell is not mounted"
-NATIVE_SHELL="$ROOT/../adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
+NATIVE_SHELL="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$NATIVE_SHELL" || fail "native six-tab Hook navigation missing"
 grep -Fq '.height(72.dp)' "$NATIVE_SHELL" || fail "native six-tab Hook navigation must retain the 72dp bar"
 grep -Fq 'section("自定义 Hook")' "$APP_HOOK_UI" || fail "native per-app custom Hook editor missing"
