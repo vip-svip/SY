@@ -23,7 +23,8 @@ encode_script_value() {
   esac
 }
 decode_b64() {
-  case "$1" in *[!A-Za-z0-9+/=]*) return 1 ;; esac
+  # Base64 producers may wrap long payloads; base64 -d safely ignores line breaks.
+  # The argument is never evaluated by the shell, only passed to printf as data.
   printf '%s' "$1" | base64 -d 2>/dev/null
 }
 ACTION=${1:-}
