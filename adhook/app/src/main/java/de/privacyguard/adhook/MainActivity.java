@@ -1,6 +1,6 @@
 package de.privacyguard.adhook;
 
-import android.app.Activity;
+import androidx.activity.ComponentActivity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
@@ -44,7 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
-public final class MainActivity extends Activity {
+public final class MainActivity extends ComponentActivity {
     private LinearLayout root;
     private EditText search;
     private final List<ApplicationInfo> apps = new ArrayList<>();
