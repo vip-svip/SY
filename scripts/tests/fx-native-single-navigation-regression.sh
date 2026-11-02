@@ -92,6 +92,8 @@ grep -Fq 'REQUEST_NATIVE_SCRIPT_FILE = 4102' "$JAVA"
 grep -Fq 'Intent.ACTION_OPEN_DOCUMENT' "$JAVA"
 grep -Fq 'private void addNativeScriptValue(String raw, String sourceName)' "$JAVA"
 
+grep -Fq 'name.toLowerCase(Locale.ROOT).endsWith(".json")' "$JAVA"
+grep -Fq 'importNativeScriptDocument(content)' "$JAVA"
 grep -Fq 'addNativeScriptValue(content, name == null ? "文件导入" : name)' "$JAVA"
 grep -Fq '从文件导入脚本' "$JAVA"
 grep -Fq 'private String nativeScriptStoreCommand(String action, String... args)' "$JAVA"
