@@ -1068,9 +1068,13 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private static String decodeNativeScriptArgument(String value) {
-        String decoded = new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
+        return new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
+    }
+
+    private static String decodeNativeScriptValue(String value) {
+        String decoded = decodeNativeScriptArgument(value);
         if (decoded.startsWith("FXSRC_B64:")) {
-            decoded = new String(Base64.decode(decoded.substring("FXSRC_B64:".length()), Base64.DEFAULT),
+            return new String(Base64.decode(decoded.substring("FXSRC_B64:".length()), Base64.DEFAULT),
                     StandardCharsets.UTF_8);
         }
         return decoded;
