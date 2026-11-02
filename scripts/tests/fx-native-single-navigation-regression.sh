@@ -26,4 +26,11 @@ grep -Fq "getComputedStyle(page).display!=='none'" "$JAVA"
 GLASS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 grep -Fq 'val selectedIndexProvider: () -> Int = remember { { selected } }' "$GLASS"
 grep -Fq 'selectedTabIndex = selectedIndexProvider' "$GLASS"
-echo 'FX native single-navigation and WebUI route regression: PASS'
+
+grep -Fq 'ViewTreeLifecycleOwner.set(shell, this);' "$JAVA"
+grep -Fq 'ViewTreeViewModelStoreOwner.set(shell, this);' "$JAVA"
+grep -Fq 'ViewTreeSavedStateRegistryOwner.set(shell, this);' "$JAVA"
+grep -Fq 'ViewTreeLifecycleOwner.set(designModePanel, this);' "$JAVA"
+grep -Fq 'ViewTreeViewModelStoreOwner.set(designModePanel, this);' "$JAVA"
+grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
+echo 'FX native single-navigation, Compose lifecycle-owner and WebUI route regression: PASS'
