@@ -223,7 +223,9 @@ expected = {
 actual = {p.get("id") for p in panels}
 assert actual == expected, "APK native settings schema is incomplete: missing=" + repr(sorted(expected-actual)) + " unexpected=" + repr(sorted(actual-expected))
 assert len(panels)==13, "APK native settings schema must contain VPN plus 12 privacy panels"
-assert sum(len(p.get("items", [])) for p in panels)>=90, "APK native privacy controls are incomplete"
+keys=[item.get("key") for p in panels for item in p.get("items", [])]
+assert len(keys)==112, "APK native VPN/privacy control count is incomplete: %d" % len(keys)
+assert len(keys)==len(set(keys)), "APK native VPN/privacy settings contain duplicate keys"
 assert all(p.get("items") for p in panels), "APK contains an empty native settings panel"
 PY
 grep -Fq 'data-tab="ad"' "$WEBUI_FILE" || fail "embedded WebUI Ad compatibility tab missing"
