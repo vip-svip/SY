@@ -2673,7 +2673,7 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         control.setEnabled(false);
-        String command = "sh \\"$MP/scripts/native-privacy-settings.sh\\" set "
+        String command = "sh \"$MP/scripts/native-privacy-settings.sh\" set "
                 + key + " " + (enabled ? "1" : "0");
         runNativeModuleCommand(command, 120000L, result -> {
             if (result.exitCode == 0) {
