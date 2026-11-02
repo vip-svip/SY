@@ -99,6 +99,8 @@ jobs:
           python3 fx-patches/patch_vpn_direct_core_stop_result.py fx-module
           python3 fx-patches/patch_vpn_core_stop_guard.py fx-module
           python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
+          python3 fx-patches/patch_vpn_toggle_mobile_layout.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-mobile-layout-regression.sh
           sh fx-module/scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-external-state-regression.sh
           python3 fx-patches/patch_private_runtime_logs.py fx-module
