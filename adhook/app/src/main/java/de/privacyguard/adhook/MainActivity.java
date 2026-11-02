@@ -493,6 +493,29 @@ public final class MainActivity extends ComponentActivity {
         return button;
     }
 
+    private void addNativeActionCard(String heading, String description, String actionLabel, Runnable action) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(12), dp(16), dp(8));
+        card.setBackground(uiPanelDrawable());
+        TextView title = new TextView(this);
+        title.setText(heading);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(0xff17212b);
+        TextView detail = new TextView(this);
+        detail.setText(description);
+        detail.setTextSize(12);
+        detail.setTextColor(0xff718091);
+        detail.setPadding(0, dp(4), 0, dp(4));
+        card.addView(title);
+        card.addView(detail);
+        card.addView(nativeAction(actionLabel, action));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(dp(12), dp(4), dp(12), dp(6));
+        content.addView(card, params);
+    }
+
     private void addNativeSettingEntry(String heading, String summary, String detail) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -761,12 +784,12 @@ public final class MainActivity extends ComponentActivity {
         content.addView(actions);
         refreshNativePrivacyStatus(state);
 
-        section("保护功能");
-        addNativeCard("应用标识与追踪", "广告标识符、设备标识符与应用级跟踪拦截；按目标应用独立配置。");
-        addNativeCard("剪贴板保护", "剪贴板读取阻断与应用隔离策略。");
-        addNativeCard("传感器与硬件", "加速度计、陀螺仪、光线、磁场、麦克风与相机访问策略。");
-        addNativeCard("位置与网络", "被动位置、Wi-Fi 扫描与网络标识保护。");
-        addNativeCard("通知与媒体", "通知读取、通知权限隐藏与 EXIF 元数据隐私。");
+        section("保护功能 · 按应用配置");
+        addNativeActionCard("应用标识与追踪", "广告标识符、设备标识符与应用级跟踪拦截。进入应用列表后选择目标应用配置。", "选择应用配置", this::showAppList);
+        addNativeActionCard("剪贴板保护", "剪贴板读取阻断与应用隔离策略；目标应用可独立启用。", "配置目标应用", this::showAppList);
+        addNativeActionCard("传感器与硬件", "加速度计、陀螺仪、光线、磁场、麦克风与相机访问策略。", "配置目标应用", this::showAppList);
+        addNativeActionCard("位置与网络", "被动位置、Wi-Fi 扫描与网络标识保护。", "配置目标应用", this::showAppList);
+        addNativeActionCard("通知与媒体", "通知读取、通知权限隐藏与 EXIF 元数据隐私。", "配置目标应用", this::showAppList);
     }
 
     private void refreshNativePrivacyStatus(TextView target) {
