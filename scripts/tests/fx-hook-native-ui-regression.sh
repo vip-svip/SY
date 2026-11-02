@@ -126,6 +126,13 @@ grep -Fq 'addNativeActionCard("传感器访问与采样"' "$PRIVACY" || fail "na
 grep -Fq 'addNativeActionCard("通知监听与权限提示"' "$PRIVACY" || fail "native privacy page lacks notification privacy entry"
 grep -Fq 'addNativeActionCard("媒体查询与 EXIF"' "$PRIVACY" || fail "native privacy page lacks media/EXIF privacy entry"
 grep -Fq 'addNativeActionCard("只读会员状态诊断"' "$PRIVACY" || fail "native privacy page lacks read-only diagnostic entry"
+grep -Fq 'private void showAppList(String privacySection)' "$PRIVACY" || fail "privacy cards cannot open the per-app selector with a category context"
+grep -Fq 'private void focusPendingPrivacySection()' "$PRIVACY" || fail "privacy category does not deep-link to its native controls"
+grep -Fq 't.setTag("fx-section:" + s);' "$PRIVACY" || fail "native Hook section headers cannot be targeted for category navigation"
+grep -Fq 'nativeScroll.smoothScrollTo(0, Math.max(0, child.getTop() - dp(12)))' "$PRIVACY" || fail "privacy deep-link does not scroll to the relevant native control group"
+grep -Fq '() -> showAppList("麦克风保护")' "$PRIVACY" || fail "microphone privacy entry is not category-routed"
+grep -Fq '() -> showAppList("传感器保护")' "$PRIVACY" || fail "sensor privacy entry is not category-routed"
+grep -Fq '() -> showAppList("通知保护")' "$PRIVACY" || fail "notification privacy entry is not category-routed"
 grep -Fq 'this::showAppList' "$PRIVACY" || fail "privacy entries are not connected to per-app native configuration"
 
 [ -s "$APK" ] || fail "built Hook APK missing"
