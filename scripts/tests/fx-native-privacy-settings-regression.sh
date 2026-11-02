@@ -32,14 +32,23 @@ python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.ja
 import pathlib, sys
 source=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 start=source.find("private void showNativeSettingsGroup(String panelId, String title)")
-end=source.find("private void showNativeSettingsEditDialog", start)
-assert start >= 0 and end > start, "native privacy group method boundaries missing"
-body=source[start:end]
-for forbidden in ("webView.evaluateJavascript", "VPN_EDIT", "PGB.model.sw", "secVal(", "secSet(", "pgPersistNow("):
-    assert forbidden not in body, "native privacy category still depends on hidden WebView bridge: "+forbidden
+render=source.find("private void renderNativePrivacySettingsGroup", start)
+edit_bridge=source.find("private void loadNativePrivacyEditEntries", render)
+assert start >= 0 and render > start and edit_bridge > render, "native privacy method boundaries missing"
+native_group=source[start:render]
+native_render=source[render:edit_bridge]
+for body in (native_group, native_render):
+    for forbidden in ("webView.evaluateJavascript", "VPN_EDIT", "PGB.model.sw", "secVal(", "secSet(", "pgPersistNow("):
+        assert forbidden not in body, "native privacy toggle path still depends on hidden WebView bridge: "+forbidden
 for required in ("native-privacy-settings.json", "renderNativePrivacySettingsGroup", "setNativePrivacySetting"):
-    assert required in body, "native privacy category missing native path: "+required
-print("PASS: advanced privacy category rendering and writes no longer call the hidden WebView bridge")
+    assert required in native_group + native_render, "native privacy category missing native path: "+required
+# Non-boolean text/list/choice controls are retained as a clearly isolated
+# compatibility path rather than silently disappearing during this migration.
+legacy_end=source.find("private void setNativePrivacySetting", edit_bridge)
+legacy=source[edit_bridge:legacy_end]
+for required in ("webView.evaluateJavascript", "VPN_EDIT", "showNativeSettingsEditDialog"):
+    assert required in legacy, "advanced non-boolean edit control was dropped: "+required
+print("PASS: boolean privacy toggles use native config I/O; non-boolean editors remain available via isolated compatibility bridge")
 PY
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
