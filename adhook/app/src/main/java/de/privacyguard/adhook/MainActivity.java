@@ -2283,6 +2283,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(appDetails);
         section("DNS 与证书");
         content.addView(nativeAction("查看 DNS / MITM / CA 状态", this::showNativeMitmStatus));
+        content.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
         section("运行日志");
         content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
     }
@@ -2548,6 +2549,134 @@ public final class MainActivity extends ComponentActivity {
         } else {
             Toast.makeText(this, "设置已保存，模块正在应用", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showNativeCertificateManager() {
+        runNativeModuleCommand("sh \"$MP/scripts/certmgr.sh\" builtin list", 30000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                String output = result.output == null ? "" : result.output;
+                int begin = output.indexOf('{'), end = output.lastIndexOf('}');
+                if (begin < 0 || end <= begin) throw new IllegalStateException("证书状态没有返回有效 JSON");
+                JSONObject state = new JSONObject(output.substring(begin, end + 1));
+                if (!state.optBoolean("ok", false)) throw new IllegalStateException("证书管理器未确认状态");
+                showNativeCertificateList(state);
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle("证书状态读取失败")
+                        .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
+                                showNativeCertificateManager())
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void showNativeCertificateList(JSONObject state) {
+        org.json.JSONArray certs = state.optJSONArray("certs");
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(10), dp(6), dp(10), dp(6));
+        int count = certs == null ? 0 : certs.length();
+        for (int i = 0; i < count; i++) {
+            JSONObject cert = certs.optJSONObject(i);
+            if (cert == null) continue;
+            String id = cert.optString("id", "");
+            if (!"pg_mitm_ca".equals(id) && !"pg_https_ca".equals(id)) continue;
+            String name = cert.optString("name", id);
+            boolean released = cert.optBoolean("released", false);
+            boolean disabled = cert.optBoolean("disabled", false);
+            boolean system = cert.optBoolean("system", false);
+            boolean apex = cert.optBoolean("apex", false);
+            String apexNs = cert.optString("apex_ns", "not-applicable");
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(12), dp(10), dp(12), dp(10));
+            card.setBackground(uiPanelDrawable());
+            TextView title = new TextView(this);
+            title.setText(name + " · " + id);
+            title.setTextSize(14);
+            title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            title.setTextColor(0xff17212b);
+            TextView status = new TextView(this);
+            status.setText("子模块：" + (released ? "已释放" : "未安装")
+                    + " · 开关：" + (disabled ? "已禁用" : "未禁用")
+                    + "\n系统信任：" + (system ? "已验证存在" : "未验证")
+                    + " · APEX：" + (apex ? apexNs : "不适用"));
+            status.setTextSize(11);
+            status.setTextColor(0xff718091);
+            status.setPadding(0, dp(4), 0, dp(6));
+            card.addView(title);
+            card.addView(status);
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button enable = new Button(this);
+            enable.setAllCaps(false);
+            enable.setText("启用");
+            enable.setEnabled(!released || disabled || !system);
+            enable.setOnClickListener(v -> runNativeCertificateAction("enable", id));
+            actions.addView(enable, new LinearLayout.LayoutParams(0, dp(44), 1));
+            Button disable = new Button(this);
+            disable.setAllCaps(false);
+            disable.setText("禁用");
+            disable.setEnabled(released && !disabled);
+            disable.setOnClickListener(v -> runNativeCertificateAction("disable", id));
+            actions.addView(disable, new LinearLayout.LayoutParams(0, dp(44), 1));
+            Button remove = new Button(this);
+            remove.setAllCaps(false);
+            remove.setText("移除");
+            remove.setEnabled(released);
+            remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    .setTitle("移除系统 CA")
+                    .setMessage("将移除 " + id + " 子模块并同步解除其系统信任。此操作不会写入用户证书区。")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("确认移除", (d, w) -> runNativeCertificateAction("remove", id)).show());
+            actions.addView(remove, new LinearLayout.LayoutParams(0, dp(44), 1));
+            card.addView(actions);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(dp(2), dp(3), dp(2), dp(5));
+            list.addView(card, lp);
+        }
+        if (count == 0) {
+            TextView empty = new TextView(this);
+            empty.setText("没有发现内置 CA 条目。");
+            empty.setPadding(dp(14), dp(14), dp(14), dp(14));
+            list.addView(empty);
+        }
+        TextView summary = new TextView(this);
+        summary.setText("系统信任状态以 certmgr 的实际 /system 与 Android 14+ Conscrypt APEX 校验结果为准；“已释放”不等于“已受信任”。");
+        summary.setTextColor(0xff718091);
+        summary.setTextSize(11);
+        summary.setPadding(dp(8), dp(8), dp(8), dp(8));
+        list.addView(summary);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        new AlertDialog.Builder(this).setTitle("系统 CA 管理")
+                .setView(scroll)
+                .setNeutralButton("同步信任状态", (d, w) -> runNativeCertificateAction("sync", null))
+                .setPositiveButton("刷新", (d, w) -> showNativeCertificateManager())
+                .setNegativeButton("关闭", null).show();
+    }
+
+    private void runNativeCertificateAction(String action, String id) {
+        if (!"enable".equals(action) && !"disable".equals(action)
+                && !"remove".equals(action) && !"sync".equals(action)) return;
+        String command = "sh \"$MP/scripts/certmgr.sh\" builtin " + action
+                + (id == null ? "" : " " + shellQuote(id));
+        runNativeModuleCommand(command, 120000L, result -> {
+            String output = result.output == null ? "" : result.output.trim();
+            boolean ok = false;
+            String detail = output;
+            try {
+                int begin = output.indexOf('{'), end = output.lastIndexOf('}');
+                if (begin >= 0 && end > begin) {
+                    JSONObject response = new JSONObject(output.substring(begin, end + 1));
+                    ok = result.exitCode == 0 && response.optBoolean("ok", false);
+                    detail = response.optString("detail", output);
+                }
+            } catch (Exception ignored) { }
+            Toast.makeText(this, (ok ? "证书操作完成：" : "证书操作未确认：") + detail,
+                    Toast.LENGTH_LONG).show();
+            nativeVpnHandler.postDelayed(this::showNativeCertificateManager, 900L);
+        });
     }
 
     private void showNativeRuntimeLogs() {
