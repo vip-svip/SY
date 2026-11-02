@@ -1,25 +1,16 @@
 ## Latest continuation audit (2026-11-03, Asia/Tokyo)
 
-- Current branch HEAD: `a0f2e98d383f371de920ad9d99afb40be9044537` (`test(fx): validate VPN plus twelve native privacy panels`).
-- The preceding Hook APK run `41522107780` passed restore/staging, static migration checks and complete host regressions; Gradle compilation and APK packaging both succeeded. Its post-build archive test then failed because it incorrectly required 12 total schema panels. The generated schema correctly contains 13 panels (VPN plus 12 privacy groups).
-- Fixed the APK assertion to require the exact 13 panel IDs, non-empty panels, and at least 90 controls. The fix changes the regression test only; it does not change app code or loosen the UI migration requirements.
-- Current-HEAD Hook APK workflow `41522937277`: restore/staging and static migration checks passed; complete host regression is running; compile and APK archive verification are pending.
-- Current-HEAD KernelSU workflow `41522937442`: source restore/patching and QuickJS-NG source preparation passed; NDK r26b compilation is running; ZIP packaging and artifact upload are pending.
-- The prior KernelSU workflow on parent commit `d376c15` was cancelled by the newer build. It is not a current-HEAD package result.
-- Hosts managed-list CRUD remains WebView-backed through `pgListArr()`, `pgPersistNow()` and `pgQueueAutoApply()`. VPN text/list/choice editor remains an isolated WebView compatibility bridge. Both are still incomplete native migrations.
-- The Settings screen was inspected: it contains app-wide UI mode, module status, Android accessibility/app info and runtime logs; it does not absorb VPN, Hosts, privacy, script or Hook business controls.
-- Generated native settings metadata contains 13 panels total (VPN plus 12 privacy panels) and 112 unique boolean controls. Native privacy toggles use the module-side Root writer. No real-device verification has been performed.
+- Current branch: `fx-v1.0.0-unified-hook-integration`; current branch HEAD at documentation update: `c4e24f4a545d78ba5af929317dd933d2d891640d`.
+- Build source commit: `86a342f5c8e048f6eb4cd8176cf0904516a0cfa7` (parent of the documentation-only commit).
+- Hook APK workflow `41523045826`: **success**. Static migration checks, complete host regression, Gradle compile, APK structure checks, and artifact upload all passed.
+- KernelSU workflow `41523045838`: **success**. QuickJS-NG v0.17.0 ARM64 / NDK r26b compilation, shell/checksum validation, focused LSPosed Remote Files regressions, complete host regression, removal of legacy KernelSU WebUI entrypoints, ZIP packaging, and artifact uploads all passed.
+- Canonical paired build outputs from the KernelSU workflow: `FX-v1.0.0.zip` SHA-256 `f86efa5178abdfa354ed6b9ed5287cc9609c437a03bded95f422f3b38e53fc23`; `FXUnifiedHook.apk` SHA-256 `e443d37369a4044431e760679f62b35f95f305da7031832d2ab9c2462758ff0b`. The ZIP passed `unzip -t`; embedded APK hash matches the separately uploaded paired APK artifact.
+- An earlier Hook-only workflow artifact on the same source commit produced a different-sized APK. The KernelSU workflow's paired APK is the canonical artifact because its byte-for-byte SHA-256 matches the APK embedded in the final ZIP; do not substitute the earlier Hook-only artifact.
+- The APK schema includes 13 native settings panels (VPN plus 12 privacy panels). The 12 privacy panels use Root-backed native boolean controls. No real-device verification has been performed.
+- Known native migration gaps remain: Hosts subscription/whitelist/blacklist CRUD still uses the hidden WebView bridge (`pgListArr()`, `pgPersistNow()`, `pgQueueAutoApply()`); VPN advanced text/list/choice editor remains an isolated WebView compatibility bridge. The current successful build does not mean these two paths are natively migrated.
+- Hook UI currently has native installed-app list/search/paging and target configuration surfaces, but a complete runtime verification matrix across Root, LSPosed, and Accessibility has not been device-tested.
+- Do not mark any page/device behavior as device-verified based on CI.
 
-
-# FX 1.0.0 Full Migration Status
-
-> Baseline audit: 2026-11-03 (Asia/Tokyo)
-> Repository: `vip-svip/SY`
-> Branch: `fx-v1.0.0-unified-hook-integration`
-> Audited HEAD before this document: `637216345d68e60d9a736dce3f51f2097eae46ed`
-> Product version remains **FX 1.0.0**.
->
-> This is an evidence-based tracking file, not a completion claim. A feature is not complete merely because a page, class name, or toggle exists. Device verification is never inferred from CI.
 
 ## Source re-audit at commit eaf19e6 (2026-11-03)
 
