@@ -128,6 +128,22 @@ grep -Fq 'addNativeActionCard("传感器访问与采样"' "$PRIVACY" || fail "na
 grep -Fq 'addNativeActionCard("通知监听与权限提示"' "$PRIVACY" || fail "native privacy page lacks notification privacy entry"
 grep -Fq 'addNativeActionCard("媒体查询与 EXIF"' "$PRIVACY" || fail "native privacy page lacks media/EXIF privacy entry"
 grep -Fq 'addNativeActionCard("只读会员状态诊断"' "$PRIVACY" || fail "native privacy page lacks read-only diagnostic entry"
+# Advanced privacy categories must read the real settings.conf and save through Root/module code.
+grep -Fq 'native-privacy-settings.json' "$PRIVACY" || fail "native privacy schema asset is not loaded"
+grep -Fq 'cat /data/adb/privacyguard/settings.conf' "$PRIVACY" || fail "native privacy page does not read module settings.conf"
+grep -Fq 'native-privacy-settings.sh' "$PRIVACY" || fail "native privacy switches do not use the module-side writer"
+grep -Fq 'apply.sh" fast' "$ROOT/fx-patches/native-privacy-settings.sh" || fail "native privacy writer does not request real module apply"
+python3 - "$PRIVACY" <<'PY'
+import pathlib, sys
+s=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+start=s.index("private void showNativeSettingsGroup(")
+end=s.index("private void showNativeSettingsEditDialog(", start)
+block=s[start:end]
+assert "evaluateJavascript" not in block, "advanced privacy UI still reads/writes through WebView"
+assert "webView" not in block, "advanced privacy UI still depends on WebView lifecycle"
+assert "runNativeModuleCommand(" in block, "advanced privacy UI is not backed by Root/module commands"
+assert "settings.conf" in block, "advanced privacy UI does not read persisted module state"
+PY
 grep -Fq 'private void showAppList(String privacySection)' "$PRIVACY" || fail "privacy cards cannot open the per-app selector with a category context"
 grep -Fq 'private String activePrivacySection;' "$PRIVACY" || fail "privacy navigation context is not retained across editor screens"
 grep -Fq 'activePrivacySection = privacySection;' "$PRIVACY" || fail "privacy app picker does not retain the selected category"
