@@ -75,7 +75,7 @@ if marker in source:
     if source.count(marker) != 1:
         raise SystemExit("VPN mobile layout patch marker is duplicated")
 else:
-    source = source.replace("</head>", css + "\\n</head>", 1)
+    source = source.replace("</head>", css + "\n</head>", 1)
 html.write_text(source, encoding="utf-8")
 
 test = root / "scripts/tests/v1.0.0-vpn-toggle-mobile-layout-regression.sh"
