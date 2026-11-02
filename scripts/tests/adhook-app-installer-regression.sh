@@ -20,8 +20,8 @@ cat > "$TMP/bin/pm" <<'PM'
 set -eu
 case "$1" in
  path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1;;
- install) [ "$2" = -r ] || exit 2; grep -q 'unified apk payload' "$3" || exit 3; if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
- uninstall) echo "$2" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; sed "/^$2$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$2.apk";;
+ install) [ "$2" = -r ] || exit 2; if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ] && grep -q 'unified apk payload' "$3"; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
+ uninstall) if [ "$2" = -k ]; then _pkg=$3; echo "-k $_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; else _pkg=$2; echo "$_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; fi; sed "/^$_pkg$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$_pkg.apk";;
  *) exit 9;;
 esac
 PM
@@ -53,8 +53,10 @@ grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "unowned user Hook ap
 printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch not reported"; fi
-grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "existing package removed after signature mismatch"
-[ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "signature mismatch triggered unexpected package removal"
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "old package was not restored after signature-mismatch migration"
+grep -q 'old unified apk' "$TMP/pm/de.privacyguard.adhook.apk" || fail "rollback did not restore the old signed APK"
+grep -Fq '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" || fail "signature mismatch did not use data-preserving uninstall -k"
+[ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "signature mismatch triggered unexpected legacy package removal"
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH
 # A package first installed by FX must be removed on module uninstall.
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "FX-owned package cleanup failed"
