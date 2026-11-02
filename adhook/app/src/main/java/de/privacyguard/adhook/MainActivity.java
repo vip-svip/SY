@@ -1218,7 +1218,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void runNativeLocalScript(int index, String expectedSha256, LinearLayout rows, TextView status) {
         status.setText("正在通过 QuickJS-NG 执行本地脚本…");
-        runNativeModuleCommand("sh \\"$MP/scripts/jsruntime/local-run.sh\\" " + (index + 1)
+        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/local-run.sh\" " + (index + 1)
                         + " " + expectedSha256,
                 30000L, result -> {
                     String output = result.output == null ? "" : result.output.trim();
