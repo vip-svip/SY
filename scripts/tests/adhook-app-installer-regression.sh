@@ -21,7 +21,7 @@ set -eu
 case "$1" in
  path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1;;
  install) [ "$2" = -r ] || exit 2; grep -q 'unified apk payload' "$3" || exit 3; if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
- uninstall) sed "/^$2$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$2.apk";;
+ uninstall) echo "$2" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; sed "/^$2$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$2.apk";;
  *) exit 9;;
 esac
 PM
