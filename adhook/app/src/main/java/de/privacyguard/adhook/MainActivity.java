@@ -829,6 +829,10 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeManagedListAddDialog(String listId, String title, boolean subscription) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
         EditText value = new EditText(this);
         value.setSingleLine(false);
         value.setMinLines(subscription ? 2 : 1);
@@ -858,7 +862,11 @@ public final class MainActivity extends ComponentActivity {
                             + "return pgAddMany(" + JSONObject.quote(listId) + ",[{v:" + JSONObject.quote(v)
                             + ",note:" + JSONObject.quote(n.isEmpty() ? v : n) + ",on:true}],{});})()";
                     webView.evaluateJavascript(js, result -> {
-                        Toast.makeText(this, "已提交添加；正在刷新列表", Toast.LENGTH_SHORT).show();
+                        boolean added = false;
+                        try { added = Integer.parseInt(result == null ? "0" : result) > 0; }
+                        catch (NumberFormatException ignored) { }
+                        Toast.makeText(this, added ? "条目已添加" : "未添加：可能重复、列表不可用或存储尚未就绪",
+                                Toast.LENGTH_LONG).show();
                         nativeVpnHandler.postDelayed(() -> showNativeManagedListDialog(listId, title), 900L);
                     });
                 }).show();
