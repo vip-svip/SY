@@ -453,7 +453,7 @@ public final class MainActivity extends ComponentActivity {
             try {
                 result = RootAccess.execute(nativeModuleCommand(body), timeout, 1024 * 1024);
             } catch (RuntimeException error) {
-                result = new RootAccess.Result(1, false, error.toString());
+                result = new RootAccess.Result(1, error.toString(), false);
             }
             RootAccess.Result finalResult = result;
             runOnUiThread(() -> {
@@ -461,39 +461,6 @@ public final class MainActivity extends ComponentActivity {
                 if (callback != null) callback.onComplete(finalResult);
             });
         });
-    }
-
-    private void renderNativePage(int index) {
-        if (nativePageContent == null) return;
-        nativePageContent.removeAllViews();
-        content = nativePageContent;
-        switch (index) {
-            case 0:
-                content.addView(title("VPN 控制中心", 22));
-                TextView vpnIntro = new TextView(this);
-                vpnIntro.setText("原生 Android 控件 · 状态由模块 status.sh 和 VPN 后端读取");
-                vpnIntro.setTextColor(0xff718091);
-                vpnIntro.setPadding(dp(18), 0, dp(18), dp(10));
-                content.addView(vpnIntro);
-                buildNativeVpnControls();
-                content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
-                addNativeSettingEntry("节点与订阅", "导入订阅、选择节点、测试延迟", "使用上方节点选择器与订阅入口管理节点；直连模式不需要节点。");
-                addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；请勿将配置已保存误认为 VPN 已运行。");
-                syncNativeVpnControls();
-                break;
-            case 1:
-                buildNativeHostsPage();
-                break;
-            case 2:
-                buildNativePrivacyPage();
-                break;
-            case 3:
-                buildNativeScriptPage();
-                break;
-            default:
-                content.addView(title("FX", 22));
-                break;
-        }
     }
 
     private void addNativeCard(String heading, String description) {
@@ -994,80 +961,41 @@ public final class MainActivity extends ComponentActivity {
     private void renderNativePage(int index) {
         if (nativePageContent == null) return;
         nativePageContent.removeAllViews();
+        content = nativePageContent;
         nativeVpnControls = null;
         nativeVpnSwitch = null;
         nativeVpnState = null;
         nativeVpnNodeButton = null;
         nativeVpnModeButtons.clear();
 
-        final String heading;
-        final String description;
         switch (index) {
+            case 0:
+                content.addView(title("VPN 控制中心", 22));
+                TextView vpnIntro = new TextView(this);
+                vpnIntro.setText("原生 Android 控件 · 状态由模块 status.sh 和 VPN 后端读取");
+                vpnIntro.setTextColor(0xff718091);
+                vpnIntro.setPadding(dp(18), 0, dp(18), dp(10));
+                content.addView(vpnIntro);
+                buildNativeVpnControls();
+                content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
+                addNativeSettingEntry("节点与订阅", "导入订阅、选择节点、测试延迟", "使用上方节点选择器与订阅入口管理节点；直连模式不需要节点。");
+                addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
+                syncNativeVpnControls();
+                startNativeVpnPolling();
+                break;
             case 1:
-                heading = "Ad · Hosts";
-                description = "广告规则、订阅规则与本地 Hosts 合并管理。此入口不再显示独立 Ad 分类开关；规则识别由内置引擎处理。";
+                buildNativeHostsPage();
                 break;
             case 2:
-                heading = "隐私保护";
-                description = "查看 FX 隐私保护后端状态。Root、LSPosed 和无障碍授权状态分别显示，不以配置文件存在冒充运行成功。";
+                buildNativePrivacyPage();
                 break;
             case 3:
-                heading = "脚本中心";
-                description = "查看脚本引擎与模块运行状态。脚本导入、编辑和执行入口将在对应原生控件接入后开放，不显示网页控件。";
+                buildNativeScriptPage();
                 break;
             default:
-                heading = "VPN";
-                description = "原生 VPN 控制面板。直连不需要节点；全局和规则模式需要有效节点。";
+                content.addView(title("FX", 22));
                 break;
         }
-
-        TextView brand = title("FX", 25);
-        nativePageContent.addView(brand);
-        TextView pageTitle = title(heading, 20);
-        pageTitle.setPadding(dp(18), dp(2), dp(18), dp(8));
-        nativePageContent.addView(pageTitle);
-        TextView intro = new TextView(this);
-        intro.setText(description);
-        intro.setTextSize(13);
-        intro.setTextColor(0xff66727e);
-        intro.setPadding(dp(18), dp(4), dp(18), dp(14));
-        nativePageContent.addView(intro);
-
-        if (index == 0) {
-            buildNativeVpnControls();
-            nativePageContent.addView(nativeVpnControls,
-                    new LinearLayout.LayoutParams(-1, -2));
-            syncNativeVpnControls();
-            return;
-        }
-
-        final TextView backendStatus = new TextView(this);
-        backendStatus.setText("正在读取 FX 模块状态…");
-        backendStatus.setTextSize(13);
-        backendStatus.setTextColor(0xff344451);
-        backendStatus.setPadding(dp(16), dp(14), dp(16), dp(14));
-        backendStatus.setBackground(uiPanelDrawable());
-        LinearLayout.LayoutParams statusParams =
-                new LinearLayout.LayoutParams(-1, -2);
-        statusParams.setMargins(dp(14), dp(4), dp(14), dp(8));
-        nativePageContent.addView(backendStatus, statusParams);
-
-        Button refresh = new Button(this);
-        refresh.setAllCaps(false);
-        refresh.setText("刷新模块实时状态");
-        refresh.setOnClickListener(v -> refreshNativeModuleStatus(backendStatus, index));
-        LinearLayout.LayoutParams refreshParams =
-                new LinearLayout.LayoutParams(-1, dp(48));
-        refreshParams.setMargins(dp(14), dp(4), dp(14), dp(12));
-        nativePageContent.addView(refresh, refreshParams);
-
-        TextView boundary = new TextView(this);
-        boundary.setText("状态来自设备端 status.sh。尚未迁移到原生控件的操作不会伪装成已可用；本页不加载网页内容。");
-        boundary.setTextSize(12);
-        boundary.setTextColor(0xff7b8790);
-        boundary.setPadding(dp(18), dp(8), dp(18), dp(16));
-        nativePageContent.addView(boundary);
-        refreshNativeModuleStatus(backendStatus, index);
     }
 
     private void refreshNativeModuleStatus(TextView target, int pageIndex) {
