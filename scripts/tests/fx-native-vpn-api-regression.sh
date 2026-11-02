@@ -19,6 +19,26 @@ grep -Fq 'window.__fxNativeVpnBusy=true' "$HTML" || fail "native API lacks opera
 grep -Fq 'window.__fxNativeVpnLastError' "$HTML" || fail "native API does not expose operation failure"
 grep -Fq 'return Promise.resolve(pgPersistNow())' "$HTML" || fail "node rollback does not persist the previous node"
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
+grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
+grep -Fq 'sh \\"$MP/scripts/status.sh\\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
+grep -Fq 'sh \\"$MP/scripts/apply.sh\\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
+python3 - "$ACTIVITY" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+for name, next_name in [
+    ("private void invokeNativeVpnApi(", "private void showNativeVpnNodePicker()"),
+    ("private void syncNativeVpnControls()", "private void pauseAndDetachWebView()"),
+]:
+    start = source.find(name)
+    end = source.find(next_name, start + len(name))
+    if start < 0 or end < 0:
+        raise SystemExit("FAIL: cannot locate native VPN method " + name)
+    body = source[start:end]
+    if "webView.evaluateJavascript" in body:
+        raise SystemExit("FAIL: native VPN control operation/state still depends on WebView JavaScript: " + name)
+print("FX native VPN Root backend separation: PASS")
+PY
 grep -Fq 'private void showNativeVpnNodePicker()' "$ACTIVITY" || fail "native node picker is missing"
 grep -Fq 'invokeNativeVpnApi("setMode"' "$ACTIVITY" || fail "native mode controls are not wired to the explicit API"
 grep -Fq 'invokeNativeVpnApi("setEnabled"' "$ACTIVITY" || fail "native master switch is not wired to the explicit API"
