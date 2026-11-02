@@ -153,7 +153,7 @@ jobs:
           source = open("adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java", encoding="utf-8").read()
           bridge = open("adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java", encoding="utf-8").read()
           root = open("adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java", encoding="utf-8").read()
-          assert "new WebViewClientCompat()" in source
+          assert "new WebViewClient()" in source
           assert "shouldOverrideUrlLoading" in source and "appassets.androidplatform.net" in source
           assert "setAllowFileAccess(false)" in source and "FXRoot.exec" in source
           assert "CALLBACK" in bridge and "JSONObject.quote" in bridge
