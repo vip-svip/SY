@@ -130,19 +130,22 @@ grep -Fq 'addNativeActionCard("媒体查询与 EXIF"' "$PRIVACY" || fail "native
 grep -Fq 'addNativeActionCard("只读会员状态诊断"' "$PRIVACY" || fail "native privacy page lacks read-only diagnostic entry"
 # Advanced privacy categories must read the real settings.conf and save through Root/module code.
 grep -Fq 'native-privacy-settings.json' "$PRIVACY" || fail "native privacy schema asset is not loaded"
-grep -Fq 'settings.conf' "$PRIVACY" || fail "native privacy page does not read module settings.conf"
 grep -Fq 'native-privacy-settings.sh' "$PRIVACY" || fail "native privacy switches do not use the module-side writer"
+grep -Fq 'settings.conf' "$ROOT/fx-patches/native-privacy-settings.sh" || fail "native privacy writer does not target persisted module settings"
 grep -Fq 'apply.sh" fast' "$ROOT/fx-patches/native-privacy-settings.sh" || fail "native privacy writer does not request real module apply"
 python3 - "$PRIVACY" <<'PY'
 import pathlib, sys
 s=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 start=s.index("private void showNativeSettingsGroup(")
-end=s.index("private void showNativeSettingsEditDialog(", start)
-block=s[start:end]
-assert "evaluateJavascript" not in block, "advanced privacy UI still reads/writes through WebView"
-assert "webView" not in block, "advanced privacy UI still depends on WebView lifecycle"
-assert "runNativeModuleCommand(" in block, "advanced privacy UI is not backed by Root/module commands"
-assert "settings.conf" in block, "advanced privacy UI does not read persisted module state"
+render=s.index("private void renderNativePrivacySettingsGroup(", start)
+edit_bridge=s.index("private void loadNativePrivacyEditEntries(", render)
+native=s[start:render] + s[render:edit_bridge]
+assert "evaluateJavascript" not in native, "advanced privacy toggle UI still reads/writes through WebView"
+assert "webView" not in native, "advanced privacy toggle UI still depends on WebView lifecycle"
+assert "runNativeModuleCommand(" in native, "advanced privacy UI is not backed by Root/module commands"
+assert "native-privacy-settings.sh" in native and " list" in native, "advanced privacy UI does not read filtered module flags"
+bridge=s[edit_bridge:s.index("private void setNativePrivacySetting(", edit_bridge)]
+assert 'if (!"vpnPanel".equals(panelId)) return;' in bridge, "edit-only compatibility bridge must be limited to VPN settings"
 PY
 grep -Fq 'private void showAppList(String privacySection)' "$PRIVACY" || fail "privacy cards cannot open the per-app selector with a category context"
 grep -Fq 'private String activePrivacySection;' "$PRIVACY" || fail "privacy navigation context is not retained across editor screens"
