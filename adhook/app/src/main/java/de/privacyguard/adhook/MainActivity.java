@@ -1573,7 +1573,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。当前先迁移设置中的模式选择器，其他页面将按模块逐步迁移；Web 管理内容仍是独立 WebView。");
+        note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。六个主页面均由 Android 原生视图承载；内置 WebView 仅作为尚未替换完毕的兼容运行桥，不显示网页像素。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
@@ -1631,6 +1631,28 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         content.addView(appDetails);
+        section("DNS 与证书");
+        content.addView(nativeAction("查看 DNS / MITM / CA 状态", this::showNativeMitmStatus));
+        section("运行日志");
+        content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+    }
+
+    private void showNativeRuntimeLogs() {
+        runNativeModuleCommand("find /data/adb/privacyguard -type f -name '*.log' -print 2>/dev/null | head -n 8 | while IFS= read -r f; do [ -f \"$f\" ] || continue; echo \"===== $f =====\"; tail -n 80 \"$f\"; done", 30000L, result -> {
+            String output = result.output == null ? "" : result.output.trim();
+            if (output.isEmpty()) output = "当前没有可读取的 FX 模块日志。";
+            if (output.length() > 24000) output = output.substring(0, 24000) + "\\n…（已截断）";
+            ScrollView scroll = new ScrollView(this);
+            TextView text = new TextView(this);
+            text.setText(output);
+            text.setTextIsSelectable(true);
+            text.setTypeface(Typeface.MONOSPACE);
+            text.setTextSize(11);
+            text.setPadding(dp(14), dp(12), dp(14), dp(12));
+            scroll.addView(text);
+            new AlertDialog.Builder(this).setTitle("FX 运行日志")
+                    .setView(scroll).setPositiveButton("关闭", null).show();
+        });
     }
 
     private void refreshHookRemoteStatus(TextView target) {
