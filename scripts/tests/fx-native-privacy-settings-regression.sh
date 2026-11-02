@@ -73,12 +73,12 @@ old=$(awk -F= -v key="$key" '$1==key {print $2; exit}' "$TMP/module/scripts/defa
 [ "$old" = 0 ] && new=1 || new=0
 sh "$HELPER" list > "$TMP/list.out" || fail "native privacy flag listing failed"
 grep -qx "$key=$old" "$TMP/list.out" || fail "native privacy list omitted the current boolean value"
-if grep -q '^fx_native_test_keep=' "$TMP/list.out" || grep -q '^\\[' "$TMP/list.out"; then
+if grep -q '^fx_native_test_keep=' "$TMP/list.out" || grep -Fq '[' "$TMP/list.out"; then
   fail "native privacy list exposed non-boolean or section data"
 fi
 sh "$HELPER" set "$key" "$new" >/dev/null || fail "native setting write/apply failed"
 grep -qx "$key=$new" "$PG/settings.conf" || fail "native setting was not persisted"
-grep -qx 'fx_native_test_keep=preserved' "$PG/settings.conf" || fail "unrelated settings were not preserved"
+if grep -q '^fx_native_test_keep=' "$TMP/list.out" || grep -Fq '[' "$TMP/list.out"; then
 [ -s "$PG/apply-test.log" ] || fail "module apply command was not invoked"
 set +e
 FX_TEST_APPLY_FAIL=1 sh "$HELPER" set "$key" "$old" >"$TMP/apply-failure.out" 2>&1
