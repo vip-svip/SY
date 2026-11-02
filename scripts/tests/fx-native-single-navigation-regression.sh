@@ -24,3 +24,6 @@ grep -Fq "page.classList.add('on');page.scrollTop=0;" "$JAVA"
 grep -Fq "navItems[n].classList.toggle('on',navItems[n].getAttribute('data-tab')===navTab);" "$JAVA"
 grep -Fq "getComputedStyle(page).display!=='none'" "$JAVA"
 echo 'FX native single-navigation and WebUI route regression: PASS'
+GLASS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
+grep -Fq 'val selectedIndexProvider: () -> Int = remember { { selected } }' "$GLASS"
+grep -Fq 'selectedTabIndex = selectedIndexProvider' "$GLASS"
