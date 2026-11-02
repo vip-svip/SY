@@ -33,9 +33,10 @@ assert_lock_clean() {
 }
 source='const secret = "local-only"; $done({ok:true});'
 value64=$(printf '%s' "$source" | base64 | tr -d '\n')
+source_sha=$(printf '%s' "$source" | sha256sum | awk '{print $1}')
 note64=$(printf '%s' 'Local test' | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" add "$value64" "$note64" 1)" = "OK" ] || fail "could not add local script"
-result=$(sh "$RUN" 1) || fail "enabled local script did not execute: $result"
+result=$(sh "$RUN" 1 "$source_sha") || fail "enabled local script did not execute: $result"
 printf '%s' "$result" | grep -Fq '"done":true' || fail "runner result was not returned"
 [ "$(cat "$PG/executed.js")" = "$source" ] || fail "runner did not receive the exact local source"
 assert_lock_clean "successful local execution"
@@ -43,11 +44,13 @@ assert_lock_clean "successful local execution"
 if grep -Fq 'local-only' "$PG/jsruntime/local-run.log"; then fail "execution log leaked script source"; fi
 [ "$(sh "$SCRIPT" toggle 1 0)" = "OK" ] || fail "could not disable local script"
 assert_lock_clean "native-list toggle"
-if sh "$RUN" 1 >/dev/null 2>&1; then fail "disabled local script unexpectedly executed"; fi
+if sh "$RUN" 1 "$source_sha" >/dev/null 2>&1; then fail "disabled local script unexpectedly executed"; fi
 assert_lock_clean "disabled local execution rejection"
 url64=$(printf '%s' 'https://example.test/script.js' | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" add "$url64" "$note64" 1)" = "OK" ] || fail "could not add HTTPS subscription"
-if sh "$RUN" 2 >/dev/null 2>&1; then fail "HTTPS subscription was passed to local JS runner"; fi
-if sh "$RUN" 999 >/dev/null 2>&1; then fail "out-of-range script index unexpectedly succeeded"; fi
+url_sha=$(printf '%s' 'https://example.test/script.js' | sha256sum | awk '{print $1}')
+if sh "$RUN" 2 "$url_sha" >/dev/null 2>&1; then fail "HTTPS subscription was passed to local JS runner"; fi
+if sh "$RUN" 999 "$source_sha" >/dev/null 2>&1; then fail "out-of-range script index unexpectedly succeeded"; fi
+if sh "$RUN" 1 "$(printf '%064d' 0)" >/dev/null 2>&1; then fail "stale script hash unexpectedly executed"; fi
 assert_lock_clean "test completion"
 echo "PASS: native local JS execution requires enabled FXSRC_B64 source, preserves source bytes, rejects subscriptions, and logs metadata only"
