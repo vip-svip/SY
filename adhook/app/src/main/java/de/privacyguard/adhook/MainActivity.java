@@ -532,7 +532,7 @@ public final class MainActivity extends ComponentActivity {
                     + "new_mode=" + mode + "; "
                     + "if [ \"$new_mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast; "
                     + "else node=$(pg_get vpn_node ''); "
-                    + "if [ -z \"$node\" ]; then [ \"$new_mode\" != tun ] || { pg_set vpn_mode \"$old_mode\"; exit 32; }; exit 0; fi; "
+                    + "if [ -z \"$node\" ]; then pg_set vpn_mode \"$old_mode\" || :; exit 32; fi; "
                     + "sh \"$MP/scripts/apply.sh\"; fi; rc=$?; "
                     + "if [ \"$rc\" -ne 0 ]; then pg_set vpn_mode \"$old_mode\"; "
                     + "if [ \"$old_mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1; "
