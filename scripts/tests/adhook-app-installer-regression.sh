@@ -27,10 +27,17 @@ esac
 PM
 chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
 : > "$TMP/pm/installed"
+echo de.privacyguard.hook > "$TMP/pm/installed"
+printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "unified package absent"
+if grep -Fxq de.privacyguard.hook "$TMP/pm/installed"; then fail "obsolete standalone Hook survived unified install"; fi
+grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "obsolete standalone Hook was not retired"
 [ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "must install exactly one APK"
+echo de.privacyguard.hook >> "$TMP/pm/installed"
+printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install failed"
+if grep -Fxq de.privacyguard.hook "$TMP/pm/installed"; then fail "idempotent path left obsolete Hook installed"; fi
 [ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "unchanged package reinstalled"
 printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
