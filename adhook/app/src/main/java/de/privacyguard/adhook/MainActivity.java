@@ -442,7 +442,7 @@ public final class MainActivity extends ComponentActivity {
                 + "var page=document.getElementById(id);"
                 + "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}"
                 + "if(!page||!page.children.length)return false;"
-                + "var navTab='"" + (tab.equals("hosts") ? "ad" : tab) + "';"
+                + "var navTab='" + (tab.equals("hosts") ? "ad" : tab) + "';"
                 + "var names=id==='pageHosts'?['ad','hosts']:(id==='pageAd'?['ad']:['" + tab + "']);"
                 + "var b=null;for(var i=0;i<names.length&&!b;i++){"
                 + "b=document.querySelector('.nav-item[data-tab='+JSON.stringify(names[i])+']');}"
