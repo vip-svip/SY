@@ -1,6 +1,7 @@
 package de.privacyguard.adhook
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -106,13 +107,26 @@ private fun FxCard(content: @Composable () -> Unit) {
 
 @Composable
 private fun FxPill(text: String, active: Boolean = false, onClick: (() -> Unit)? = null) {
+    var showInfo by remember(text) { mutableStateOf(false) }
     Box(
         Modifier
             .background(if (active) Color(0xFFE2F0FF) else Color(0xFFF0F3F6), RoundedCornerShape(50))
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .clickable { if (onClick != null) onClick() else showInfo = true }
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Text(text, color = if (active) FxBlue else FxMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+    if (showInfo) {
+        Dialog(onDismissRequest = { showInfo = false }) {
+            Column(
+                Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(20.dp)).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(text, color = FxInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("原生 UI 入口已建立。此按钮目前只用于界面验收，尚未连接模块后端，不会修改设备配置。", color = FxMuted, fontSize = 13.sp)
+                FxPill("关闭", active = true) { showInfo = false }
+            }
+        }
     }
 }
 
