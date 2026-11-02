@@ -1144,7 +1144,7 @@ public final class MainActivity extends ComponentActivity {
                     name.setTextSize(14);
                     name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                     TextView source = new TextView(this);
-                    source.setText((valueText.startsWith("https://") ? "HTTPS 订阅 · " : "本地 JS 源码 · 已保存但尚未接入执行队列 · ") + valueText);
+                    source.setText((valueText.startsWith("https://") ? "HTTPS 订阅 · " : "本地 JS 源码 · 可手动运行 QuickJS-NG · ") + valueText);
                     source.setTextColor(0xff718091);
                     source.setTextSize(10);
                     source.setMaxLines(2);
@@ -1162,6 +1162,11 @@ public final class MainActivity extends ComponentActivity {
                     row.setOnClickListener(v -> new AlertDialog.Builder(this)
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
                             .setMessage(valueText).setPositiveButton("关闭", null).show());
+                    if (!valueText.startsWith("https://")) {
+                        Button run = nativeAction("运行", () -> confirmRunNativeLocalScript(index, note, rows, status));
+                        run.setEnabled(on);
+                        ops.addView(run);
+                    }
                     ops.addView(nativeAction("编辑", () -> editNativeScript(index, valueText, note, rows, status)));
                     ops.addView(nativeAction("删除", () -> new AlertDialog.Builder(this)
                             .setMessage("确定删除该脚本条目？")
@@ -1185,6 +1190,39 @@ public final class MainActivity extends ComponentActivity {
                 status.setText("脚本列表解析失败：" + error.getMessage());
             }
         });
+    }
+
+    private void confirmRunNativeLocalScript(int index, String name, LinearLayout rows, TextView status) {
+        new AlertDialog.Builder(this).setTitle("运行本地 JavaScript")
+                .setMessage("即将通过 FX QuickJS-NG 执行本地脚本"
+                        + (name == null || name.trim().isEmpty() ? "" : "「" + name + "」")
+                        + "。脚本会使用 FX 明确提供的宿主 API；只运行你信任的源码。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("运行", (dialog, which) -> runNativeLocalScript(index, rows, status))
+                .show();
+    }
+
+    private void runNativeLocalScript(int index, LinearLayout rows, TextView status) {
+        status.setText("正在通过 QuickJS-NG 执行本地脚本…");
+        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/local-run.sh\" " + (index + 1),
+                30000L, result -> {
+                    String output = result.output == null ? "" : result.output.trim();
+                    try {
+                        JSONObject response = new JSONObject(output);
+                        boolean ok = result.exitCode == 0 && response.optBoolean("ok", false);
+                        status.setText(ok ? "本地脚本执行完成 · QuickJS-NG" : "本地脚本执行失败 · " +
+                                response.optString("error", "模块未确认执行结果"));
+                        new AlertDialog.Builder(this).setTitle(ok ? "脚本执行完成" : "脚本执行失败")
+                                .setMessage(response.toString(2))
+                                .setPositiveButton("关闭", null).show();
+                    } catch (Exception error) {
+                        status.setText("脚本执行结果解析失败：" + error.getMessage());
+                        new AlertDialog.Builder(this).setTitle("脚本执行结果无效")
+                                .setMessage(output.isEmpty() ? error.getMessage() : output)
+                                .setPositiveButton("关闭", null).show();
+                    }
+                    refreshNativeScriptList(rows, status);
+                });
     }
 
     private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status,
@@ -1441,8 +1479,10 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeScriptLogs() {
-        runNativeModuleCommand("if [ -f /data/adb/privacyguard/jsruntime/scheduler.log ]; then tail -n 160 /data/adb/privacyguard/jsruntime/scheduler.log; "
-                + "else echo '暂无脚本调度日志'; fi", 30000L, result ->
+        runNativeModuleCommand("for f in /data/adb/privacyguard/jsruntime/local-run.log /data/adb/privacyguard/jsruntime/scheduler.log; do "
+                + "if [ -f \"$f\" ]; then echo \"--- $f ---\"; tail -n 160 \"$f\"; fi; done; "
+                + "test -f /data/adb/privacyguard/jsruntime/local-run.log -o -f /data/adb/privacyguard/jsruntime/scheduler.log "
+                + "|| echo '暂无脚本运行日志'", 30000L, result ->
                 new AlertDialog.Builder(this).setTitle("脚本运行日志")
                         .setMessage(result.output).setPositiveButton("关闭", null).show());
     }
