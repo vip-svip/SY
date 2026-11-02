@@ -415,7 +415,7 @@ public final class MainActivity extends ComponentActivity {
             if (syncingNativeVpn || webView == null || !webUiReady) return;
             String target = checked ? "global" : "direct";
             webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + target + "')", null);
-            webView.postDelayed(this::syncNativeVpnControls, 1300);
+            webView.postDelayed(this::syncNativeVpnControls, 4000);
         });
         head.addView(nativeVpnSwitch);
         card.addView(head);
@@ -449,7 +449,7 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 }
                 webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + mode + "')", null);
-                webView.postDelayed(this::syncNativeVpnControls, 1500);
+                webView.postDelayed(this::syncNativeVpnControls, 4000);
             });
             modes.addView(button, lp);
         }
@@ -472,11 +472,12 @@ public final class MainActivity extends ComponentActivity {
                 syncingNativeVpn = true;
                 nativeVpnSwitch.setChecked(configured);
                 syncingNativeVpn = false;
+                String modeLabel = "direct".equals(mode) ? "直连" : "global".equals(mode) ? "全局" : "rule".equals(mode) ? "规则" : "tun".equals(mode) ? "TUN" : mode;
                 String live = !configured ? "直连：未接管流量"
                         : !liveKnown ? "代理模式已保存，等待后端确认"
                         : liveOn ? "后端确认：代理正在运行" : "代理模式已选择，但后端未运行";
                 String node = state.optString("node", "");
-                nativeVpnState.setText(live + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
+                nativeVpnState.setText("模式：" + modeLabel + " · " + live + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
             } catch (Exception ignored) {
                 syncingNativeVpn = false;
                 nativeVpnState.setText("VPN 状态读取失败；未将配置状态冒充为运行状态");
