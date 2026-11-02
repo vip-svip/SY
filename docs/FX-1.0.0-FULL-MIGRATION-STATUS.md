@@ -1,13 +1,15 @@
 ## Native privacy settings migration progress (2026-11-03)
 
-- Current branch HEAD: `36a47be4ea9e71846df0a309bd6fea2c5e7cd5f1`.
-- Added `fx-patches/patch_native_privacy_settings.py`: generates the 12 native privacy category metadata panels from the restored canonical WebUI source, but only includes settings that are declared as top-level boolean flags in the module's `scripts/default.conf`. Section settings and editable values are excluded from switch generation; existing text/list/choice editors remain available through a separate compatibility bridge and are not yet native.
-- Added `fx-patches/native-privacy-settings.sh`: validates allowlisted top-level boolean keys, refuses writes during known settings transaction markers, writes through the module's existing `pg_set`, and invokes `scripts/apply.sh fast`. Its result distinguishes persisted-but-not-applied (exit 10) from a confirmed save/apply.
-- Updated the native privacy category dialog in `MainActivity.java`: reads generated metadata and the module's real `/data/adb/privacyguard/settings.conf` through the Root command path, then writes changes through the module helper. The advanced-category toggle path no longer reads or writes the hidden WebView DOM.
-- Added `scripts/tests/fx-native-privacy-settings-regression.sh` and integrated the generator/test into both Hook APK and KernelSU source-patch workflows.
-- CI evidence: earlier run `41517471775` completed successfully for source tree `b073b1d`, including host regression and APK build, but predates the later edit-control restoration. Current HEAD Hook APK run `41518343462` and KernelSU run `41518343673` are in progress; do not mark current-HEAD artifacts complete until they finish.
-- Migration status remains **partial migration**: this implementation covers only top-level boolean settings that pass the schema generator. Section-scoped settings, text/list/choice editors, non-boolean privacy operations and the rest of the six-page native migration remain unfinished. Existing WebView-backed settings code outside the migrated category-toggle path has not been removed.
-- Verification level: earlier-source CI regression and APK build passed; current-HEAD regression/build pending; no real-device verification.
+- Current branch HEAD: `f93a45fe7af94772f23fc754f05b3303ba6d2ff3`.
+- The generated asset contains **13 non-empty panels**: the VPN advanced-settings panel plus the 12 advanced privacy categories, with **112 unique top-level boolean controls** sourced from the restored canonical `webroot/index.html` and `scripts/default.conf`.
+- Native boolean controls read only allowlisted boolean values through `native-privacy-settings.sh list`; subscription URLs, script bodies and other non-boolean config values are not returned to the App.
+- Native writes validate the key against the module's top-level boolean defaults, reuse the real `pg_set()`, and invoke `apply.sh fast`. The guard checks the WebUI transaction markers and `pg_set` PID-suffixed temporary files; persisted-but-not-applied is reported separately.
+- VPN text/list/choice edit controls are retained as native Android buttons, but their editor metadata and save path still use a narrowly scoped WebView compatibility bridge for `vpnPanel` only. The 12 privacy categories do not use that edit bridge. This is **partial migration**, not a fully WebView-free app.
+- Regression coverage checks all 13 panels are present and non-empty, the 112 generated keys are unique top-level booleans, native privacy toggle methods do not call the hidden WebView bridge, VPN edit controls remain available, list output excludes non-boolean config, and writes preserve unrelated config while handling apply failure and transaction markers.
+- Local source integration test used the restored module's real `util.sh` / `pg_set()` with a stubbed `apply.sh`; it passed. This does not verify real apply behavior on a phone.
+- Current-HEAD Hook APK workflow `41520909921`: source restoration, static migration checks and complete host regression passed; APK compilation is in progress. Current-HEAD KernelSU workflow `41520910157`: source patches and QuickJS-NG ARM64 build passed; focused LSPosed/Remote Files regressions are in progress and ZIP packaging has not started.
+- A previous APK compile failed on a double-escaped Java newline character literal. Fixed in current HEAD commit `f93a45f`; the current-HEAD compile is the required retest.
+- No current-HEAD APK/KernelSU ZIP build has been confirmed yet. No real-device verification has been performed.
 
 # FX 1.0.0 Full Migration Status
 
@@ -32,13 +34,13 @@
 
 ## Native advanced privacy settings migration (2026-11-03)
 
-- Replaced the advanced-category data bridge in `MainActivity.showNativeSettingsGroup()`: the 12 privacy panels now load their labels/descriptions from a generated APK asset and read the top-level flags from `/data/adb/privacyguard/settings.conf` through the Root command path. This path does not inspect WebView DOM or call `evaluateJavascript`.
-- Added `fx-patches/patch_native_privacy_settings.py` to extract all 12 category schemas from the restored canonical module WebUI at build time. The generated asset contains 102 unique switch definitions; the original labels/descriptions are retained.
-- Added `fx-patches/native-privacy-settings.sh`; it validates the requested key/value, reuses the module's existing `scripts/util.sh` `pg_set()` atomic writer, refuses writes while the WebUI transaction markers are present, and invokes `scripts/apply.sh fast`. It distinguishes persisted-but-apply-failed (exit 10) from a failed write.
-- Wired the patcher and host regression into both APK and KernelSU build workflows. The built-APK regression checks that the generated schema is packaged.
-- Earlier CI source-patch regression passed for the 12-panel / 102-control generator and Root writer. The latest regression additionally checks that native boolean toggle methods do not call the hidden WebView bridge, while non-boolean edit controls remain available through an isolated compatibility path; that latest assertion is pending CI.
-- Earlier source revision `b073b1d` completed the Hook APK workflow successfully. That build predates the later compatibility-editor restoration and is not evidence for current HEAD. Current HEAD CI run `41518343462` is testing host regressions; run `41518343673` is testing the KernelSU package. No Android device interaction has been performed; do not mark this migration as device-verified.
-- Scope note: this migrates the advanced privacy category switches backed by top-level settings.conf flags. It does not establish that every underlying privacy policy is fully enforced on every Android version/device; those runtime behaviors remain individually partial until separately tested.
+- The generator emits 13 non-empty panels (VPN advanced settings plus 12 privacy categories) and 112 unique top-level boolean flags from the canonical restored module source.
+- `showNativeSettingsGroup()` and `renderNativePrivacySettingsGroup()` read the generated metadata and the filtered Root helper output. Boolean toggles use the module's real config writer and apply command; those two rendering methods do not access the hidden WebView DOM.
+- `loadNativePrivacyEditEntries()` is explicitly scoped to `vpnPanel`. VPN text/list/choice editors remain accessible but are not yet native in their data and persistence path.
+- The Root helper returns only top-level boolean values to the App, checks all known settings transaction/temp markers (including `settings.conf.tmp.PID` from `pg_set`), and reports save/apply outcomes separately.
+- Current CI and local-test evidence is recorded in the progress section above. The current-HEAD APK compile and KernelSU ZIP packaging are not yet verified.
+- Scope note: these controls do not establish that every Android privacy policy is enforced on every Android version/device. No real-device test has been performed.
+
 
 ## Status definitions
 
