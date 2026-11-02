@@ -140,7 +140,7 @@ public final class MainActivity extends Activity {
 
     private String webPageForBottomTab(int index) {
         switch (index) {
-            case 1: return "pageAd";
+            case 1: return "pageHosts";
             case 2: return "pagePrivacy";
             case 3: return "pageScript";
             case 5: return "pageMore";
@@ -214,7 +214,12 @@ public final class MainActivity extends Activity {
                         + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};window.showSaveFilePicker=async function(opts){var name=(opts&&opts.suggestedName)||'FX-export.txt';return {createWritable:async function(){var value='';return {write:async function(v){value=v;},close:async function(){var blob=value instanceof Blob?value:new Blob([value],{type:'text/plain;charset=utf-8'});var reader=new FileReader();reader.onloadend=function(){var data=String(reader.result||'').split(',').pop();FXRoot.saveBase64(name,data,blob.type||'text/plain');};reader.readAsDataURL(blob);}};}};};})();</script>";
                     int headEnd = html.toLowerCase().lastIndexOf("</head>");
                     if (headEnd >= 0) html = html.substring(0, headEnd)
-                            + "<style id='fx-native-nav-hide'>#screen>.navbar{display:none!important}</style>"
+                            + "<style id='fx-native-nav-hide'>"
+                            + "#screen>.navbar,#screen .navbar,#bottomNav,#bottom-nav,.bottom-nav,"
+                            + ".bottom-navbar,.bottom-tabs,.bottom-tab-bar,.tab-bar,.tabbar,"
+                            + ".nav-bottom,.navigation-bottom{display:none!important}"
+                            + "#screen{padding-bottom:0!important;margin-bottom:0!important}"
+                            + "</style>"
                             + shim + html.substring(headEnd);
                     return new WebResourceResponse("text/html", "UTF-8",
                             new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
@@ -357,7 +362,7 @@ public final class MainActivity extends Activity {
                     selectedBottomTab = index;
                     lastWebTabIndex = index;
                     int pageIndex = index > 4 ? index - 1 : index;
-                    String page = new String[]{"pageVpn", "pageAd", "pagePrivacy",
+                    String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy",
                             "pageScript", "pageMore"}[pageIndex];
                     if (hookUiVisible) showWebDashboard();
                     else for (int j = 0; j < bar.getChildCount(); j++) {
@@ -383,16 +388,32 @@ public final class MainActivity extends Activity {
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
-            case "pageAd": tab = "ad"; break;
+            case "pageHosts": tab = "hosts"; break;
+            case "pageAd": tab = "ad"; break; // compatibility with older bundled WebUI builds
             case "pagePrivacy": tab = "privacy"; break;
             case "pageScript": tab = "script"; break;
             case "pageMore": tab = "more"; break;
             default: return;
         }
         String tabLiteral = JSONObject.quote(tab);
-        String script = "(function(){var b=document.querySelector('.nav-item[data-tab='+"
-                + tabLiteral + "+']');if(!b)return false;b.click();return true;})()";
-        webView.evaluateJavascript(script, null);
+        String script = "(function(){"
+                + "var id=" + JSONObject.quote(pageId) + ";"
+                + "var page=document.getElementById(id);"
+                + "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}"
+                + "if(!page)return false;"
+                + "var names=id==='pageHosts'?['hosts','ad']:['" + tab + "'];"
+                + "var b=null;for(var i=0;i<names.length&&!b;i++){"
+                + "b=document.querySelector('.nav-item[data-tab='+JSON.stringify(names[i])+']');}"
+                + "if(b){b.click();return true;}"
+                + "return false;"
+                + "})()";
+        webView.evaluateJavascript(script, value -> {
+            if (value == null || "false".equals(value) || "null".equals(value)) {
+                Toast.makeText(MainActivity.this,
+                        "该功能页面未能加载，请检查内置 WebUI 页面资源。",
+                        Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void showHookHub() {
