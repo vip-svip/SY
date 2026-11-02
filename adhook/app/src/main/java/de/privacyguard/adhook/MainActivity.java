@@ -1334,8 +1334,15 @@ public final class MainActivity extends ComponentActivity {
             for (int i = 0; i < entries.length(); i++) {
                 JSONObject entry = entries.optJSONObject(i);
                 if (entry == null) throw new IllegalArgumentException("第 " + (i + 1) + " 项不是有效对象");
-                String value = entry.optString("value", "");
-                String name = entry.optString("name", "");
+                Object rawValue = entry.opt("value");
+                Object rawName = entry.opt("name");
+                Object rawEnabled = entry.opt("enabled");
+                if (!(rawValue instanceof String) || !(rawName instanceof String)
+                        || (entry.has("enabled") && !(rawEnabled instanceof Boolean))) {
+                    throw new IllegalArgumentException("第 " + (i + 1) + " 项字段类型错误");
+                }
+                String value = (String) rawValue;
+                String name = (String) rawName;
                 if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
                     throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效或超过 64 KiB");
                 }
