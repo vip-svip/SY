@@ -36,11 +36,13 @@ grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
 
 grep -Fq 'onTabSelected(index)' "$GLASS"
 
-# VPN tab exposes native Android controls wired to the existing validated apply pipeline.
+# VPN tab exposes native Android controls routed through the existing WebUI event handlers.
 grep -Fq 'buildNativeVpnControls();' "$JAVA"
 grep -Fq 'private void buildNativeVpnControls()' "$JAVA"
 grep -Fq 'nativeVpnSwitch.setOnCheckedChangeListener' "$JAVA"
-grep -Fq 'window.applyVpnModeSelection' "$JAVA"
+grep -Fq "document.getElementById('vpnEnableToggle');if(b)b.click()" "$JAVA"
+grep -Fq "document.querySelectorAll('#vpnModeSeg > *')" "$JAVA"
+! grep -Fq 'window.applyVpnModeSelection' "$JAVA"
 grep -Fq 'window.__pgVpnLiveOn===true' "$JAVA"
 grep -Fq 'nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE)' "$JAVA"
 grep -Fq '#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}' "$JAVA"
