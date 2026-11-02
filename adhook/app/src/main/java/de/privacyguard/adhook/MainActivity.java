@@ -82,6 +82,9 @@ public final class MainActivity extends ComponentActivity {
     private TextView nativeVpnState;
     private Button nativeVpnNodeButton;
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
+    private LinearLayout nativeVpnSubRows;
+    private TextView nativeVpnSubStatus;
+    private int nativeVpnSubOperationGeneration;
     private boolean syncingNativeVpn;
     private boolean nativeVpnOperationBusy;
     private String lastNativeVpnMode = "direct";
@@ -1080,7 +1083,7 @@ public final class MainActivity extends ComponentActivity {
                 content.addView(vpnIntro);
                 buildNativeVpnControls();
                 content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
-                addNativeSettingEntry("节点与订阅", "导入订阅、选择节点、测试延迟", "使用上方节点选择器与订阅入口管理节点；直连模式不需要节点。");
+                buildNativeVpnSubscriptionPanel();
                 addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
                 syncNativeVpnControls();
                 startNativeVpnPolling();
@@ -1226,6 +1229,252 @@ public final class MainActivity extends ComponentActivity {
         }
         card.addView(modes);
         nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void buildNativeVpnSubscriptionPanel() {
+        section("节点与订阅");
+        TextView status = new TextView(this);
+        status.setText("正在读取 VPN 订阅…");
+        status.setTextColor(0xff718091);
+        status.setPadding(dp(16), dp(6), dp(16), dp(8));
+        content.addView(status);
+        nativeVpnSubStatus = status;
+
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        content.addView(rows);
+        nativeVpnSubRows = rows;
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.addView(nativeAction("添加订阅 / 节点", this::showNativeVpnSubscriptionDialog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(nativeAction("更新全部", this::refreshAllNativeVpnSubscriptions),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(actions);
+        refreshNativeVpnSubscriptions();
+    }
+
+    private void refreshNativeVpnSubscriptions() {
+        if (nativeVpnSubRows == null || nativeVpnSubStatus == null) return;
+        if (webView == null || !webUiReady) {
+            nativeVpnSubStatus.setText("订阅配置桥正在初始化…");
+            return;
+        }
+        nativeVpnSubStatus.setText("正在读取订阅列表…");
+        String js = "(function(){if(typeof subsLoad!=='function')return JSON.stringify({ready:false});"
+                + "var a=subsLoad()||[];return JSON.stringify({ready:true,items:a.map(function(s,i){"
+                + "return {i:i,url:String(s.url||''),note:String(s.note||''),on:!!s.on};})});})()";
+        webView.evaluateJavascript(js, value -> {
+            try {
+                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("订阅列表响应格式错误");
+                JSONObject snapshot = new JSONObject((String) decoded);
+                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("订阅配置尚未就绪");
+                org.json.JSONArray items = snapshot.optJSONArray("items");
+                nativeVpnSubRows.removeAllViews();
+                int count = items == null ? 0 : items.length();
+                int enabled = 0;
+                for (int i = 0; i < count; i++) {
+                    JSONObject item = items.optJSONObject(i);
+                    if (item == null) continue;
+                    final int index = item.optInt("i", i);
+                    final String url = item.optString("url", "");
+                    final String note = item.optString("note", "");
+                    final boolean on = item.optBoolean("on", false);
+                    if (on) enabled++;
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(dp(12), dp(8), dp(12), dp(8));
+                    row.setBackground(uiPanelDrawable());
+                    TextView title = new TextView(this);
+                    title.setText(note.isEmpty() ? url : note);
+                    title.setTextSize(14);
+                    title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                    title.setTextColor(0xff17212b);
+                    TextView source = new TextView(this);
+                    source.setText(url);
+                    source.setTextSize(10);
+                    source.setTextColor(0xff718091);
+                    source.setMaxLines(2);
+                    source.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    row.addView(title);
+                    row.addView(source);
+                    LinearLayout ops = new LinearLayout(this);
+                    ops.setGravity(Gravity.CENTER_VERTICAL);
+                    Switch toggle = new Switch(this);
+                    toggle.setText("启用");
+                    toggle.setChecked(on);
+                    toggle.setOnCheckedChangeListener((button, checked) ->
+                            setNativeVpnSubscriptionEnabled(index, checked));
+                    ops.addView(toggle, new LinearLayout.LayoutParams(0, -2, 1));
+                    ops.addView(nativeAction("更新", () -> updateNativeVpnSubscription(index, url)));
+                    ops.addView(nativeAction("详情", () -> new AlertDialog.Builder(this)
+                            .setTitle(note.isEmpty() ? "VPN 订阅" : note)
+                            .setMessage(url).setPositiveButton("关闭", null).show()));
+                    ops.addView(nativeAction("删除", () -> new AlertDialog.Builder(this)
+                            .setMessage("删除该订阅？仅清理确认只属于此订阅的节点。")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("删除", (d, w) -> deleteNativeVpnSubscription(index)).show()));
+                    row.addView(ops);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                    lp.setMargins(dp(12), dp(3), dp(12), dp(4));
+                    nativeVpnSubRows.addView(row, lp);
+                }
+                nativeVpnSubStatus.setText("订阅：" + count + " · 已启用：" + enabled
+                        + " · 节点数以 VPN 后端状态为准");
+                if (count == 0) {
+                    TextView empty = new TextView(this);
+                    empty.setText("暂无订阅。可添加机场 URL 或直接导入 vmess / vless / trojan / ss / Clash 节点链接。");
+                    empty.setTextColor(0xff718091);
+                    empty.setPadding(dp(16), dp(12), dp(16), dp(12));
+                    nativeVpnSubRows.addView(empty);
+                }
+            } catch (Exception error) {
+                nativeVpnSubStatus.setText("订阅列表读取失败：" + error.getMessage());
+            }
+        });
+    }
+
+    private void showNativeVpnSubscriptionDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setHint("粘贴机场订阅 URL 或代理节点链接");
+        new AlertDialog.Builder(this).setTitle("添加 VPN 订阅 / 节点")
+                .setMessage("支持 Base64 / URI 列表 / Clash YAML 订阅，以及 vmess、vless、trojan、ss、ssr、hysteria2、tuic、anytls、socks5 节点链接。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("导入", (d, w) ->
+                        startNativeVpnSubscriptionImport(input.getText().toString().trim()))
+                .show();
+    }
+
+    private void startNativeVpnSubscriptionImport(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            Toast.makeText(this, "订阅地址或节点链接不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "VPN 订阅运行桥尚未就绪", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final int generation = ++nativeVpnSubOperationGeneration;
+        if (nativeVpnSubStatus != null) nativeVpnSubStatus.setText("正在下载 / 解析订阅并保存节点…");
+        String js = "(function(){var u=" + JSONObject.quote(raw) + ";"
+                + "window.__fxNativeVpnSubResult=null;"
+                + "var direct=/^(vmess|vless|trojan|ss|ssr|hysteria2?|tuic|anytls|socks5?):\\/\\//i.test(u);"
+                + "var task=direct?Promise.resolve(u):window.fetchSub(u);"
+                + "task.then(function(body){if(!String(body||'').trim())throw new Error('订阅内容为空');"
+                + "return window.importFromText(direct?'':u,body);})"
+                + ".then(function(ok){window.__fxNativeVpnSubResult=JSON.stringify({ok:ok===true});})"
+                + ".catch(function(e){window.__fxNativeVpnSubResult=JSON.stringify({ok:false,error:String((e&&e.message)||e)});});"
+                + "return true;})()";
+        webView.evaluateJavascript(js, value -> {
+            if (value == null || "false".equals(value)) {
+                finishNativeVpnSubscriptionImport(generation, false, "订阅导入任务未能启动");
+                return;
+            }
+            pollNativeVpnSubscriptionImport(generation, System.currentTimeMillis() + 120000L);
+        });
+    }
+
+    private void pollNativeVpnSubscriptionImport(int generation, long deadline) {
+        if (generation != nativeVpnSubOperationGeneration || isFinishing() || isDestroyed()) return;
+        if (webView == null || !webUiReady) {
+            finishNativeVpnSubscriptionImport(generation, false, "订阅运行桥已断开");
+            return;
+        }
+        webView.evaluateJavascript("(function(){var r=window.__fxNativeVpnSubResult;"
+                + "if(!r)return null;window.__fxNativeVpnSubResult=null;return r;})()", value -> {
+            if (generation != nativeVpnSubOperationGeneration || isFinishing() || isDestroyed()) return;
+            if (value == null || "null".equals(value)) {
+                if (System.currentTimeMillis() >= deadline) {
+                    finishNativeVpnSubscriptionImport(generation, false, "订阅导入超时，请查看运行日志");
+                } else {
+                    nativeVpnHandler.postDelayed(
+                            () -> pollNativeVpnSubscriptionImport(generation, deadline), 400L);
+                }
+                return;
+            }
+            try {
+                Object decoded = new org.json.JSONTokener(value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("导入结果格式错误");
+                JSONObject result = new JSONObject((String) decoded);
+                finishNativeVpnSubscriptionImport(generation, result.optBoolean("ok", false),
+                        result.optString("error", "订阅导入失败"));
+            } catch (Exception error) {
+                finishNativeVpnSubscriptionImport(generation, false, error.getMessage());
+            }
+        });
+    }
+
+    private void finishNativeVpnSubscriptionImport(int generation, boolean success, String error) {
+        if (generation != nativeVpnSubOperationGeneration || isFinishing() || isDestroyed()) return;
+        if (success) {
+            Toast.makeText(this, "VPN 订阅 / 节点导入成功", Toast.LENGTH_LONG).show();
+            refreshNativeVpnSubscriptions();
+            syncNativeVpnControls();
+        } else {
+            Toast.makeText(this, "VPN 订阅导入失败：" + error, Toast.LENGTH_LONG).show();
+            if (nativeVpnSubStatus != null) nativeVpnSubStatus.setText("导入失败：" + error);
+        }
+    }
+
+    private void setNativeVpnSubscriptionEnabled(int index, boolean enabled) {
+        if (webView == null || !webUiReady) return;
+        String js = "(function(){if(typeof subsLoad!=='function'||typeof subsSave!=='function')return false;"
+                + "var a=subsLoad();if(!a[" + index + "])return false;a[" + index + "].on="
+                + (enabled ? "true" : "false") + ";subsSave(a);pgSave();renderSubs();vpnStatus();return true;})()";
+        webView.evaluateJavascript(js, value ->
+                nativeVpnHandler.postDelayed(this::refreshNativeVpnSubscriptions, 500L));
+    }
+
+    private void deleteNativeVpnSubscription(int index) {
+        if (webView == null || !webUiReady) return;
+        String js = "(function(){if(typeof subsLoad!=='function'||typeof subsSave!=='function')return false;"
+                + "var a=subsLoad();if(!a[" + index + "])return false;var u=a[" + index + "].url;"
+                + "a.splice(" + index + ",1);subsSave(a);var n=currentNodes();"
+                + "n.forEach(function(x){if(x._sourceTracked&&Array.isArray(x._sources))x._sources=x._sources.filter(function(y){return y!==u})});"
+                + "n=n.filter(function(x){return !(x._sourceTracked&&Array.isArray(x._sources)&&x._sources.length===0)});"
+                + "saveNodes(n);pgSave();renderSubs();renderNodes();vpnStatus();return true;})()";
+        webView.evaluateJavascript(js, value -> {
+            Toast.makeText(this, "订阅已删除", Toast.LENGTH_SHORT).show();
+            nativeVpnHandler.postDelayed(this::refreshNativeVpnSubscriptions, 500L);
+            syncNativeVpnControls();
+        });
+    }
+
+    private void updateNativeVpnSubscription(int index, String url) {
+        if (webView == null || !webUiReady || url == null || url.isEmpty()) return;
+        final int generation = ++nativeVpnSubOperationGeneration;
+        if (nativeVpnSubStatus != null) nativeVpnSubStatus.setText("正在更新订阅…");
+        String js = "(function(){var u=" + JSONObject.quote(url)
+                + ";window.__fxNativeVpnSubResult=null;"
+                + "window.fetchSub(u).then(function(body){if(!String(body||'').trim())throw new Error('订阅内容为空');"
+                + "return window.importFromText(u,body);})"
+                + ".then(function(ok){window.__fxNativeVpnSubResult=JSON.stringify({ok:ok===true});})"
+                + ".catch(function(e){window.__fxNativeVpnSubResult=JSON.stringify({ok:false,error:String((e&&e.message)||e)});});"
+                + "return true;})()";
+        webView.evaluateJavascript(js, value -> {
+            if (value == null || "false".equals(value)) {
+                finishNativeVpnSubscriptionImport(generation, false, "订阅更新任务未能启动");
+                return;
+            }
+            pollNativeVpnSubscriptionImport(generation, System.currentTimeMillis() + 120000L);
+        });
+    }
+
+    private void refreshAllNativeVpnSubscriptions() {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "VPN 订阅运行桥尚未就绪", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        webView.evaluateJavascript("(function(){if(typeof applyRun!=='function')return false;"
+                + "applyRun('vpn-sub',{label:'正在更新全部 VPN 订阅…'});return true;})()", value -> {
+            Toast.makeText(this, "已请求更新全部订阅", Toast.LENGTH_LONG).show();
+            nativeVpnHandler.postDelayed(this::refreshNativeVpnSubscriptions, 2500L);
+        });
     }
 
     private static String shellQuote(String value) {
