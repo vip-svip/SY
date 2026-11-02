@@ -16,8 +16,9 @@ sanitize_field() { printf '%s' "$1" | tr '\r\n' '  ' | sed 's/|/｜/g'; }
 encode_script_value() {
   case "$1" in
     https://*) sanitize_field "$1" ;;
-    http://*|*://*) return 1 ;;
+    http://*) return 1 ;;
     *)
+      if printf '%s' "$1" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then return 1; fi
       printf 'FXSRC_B64:%s' "$(printf '%s' "$1" | base64 | tr -d '\n')"
       ;;
   esac
