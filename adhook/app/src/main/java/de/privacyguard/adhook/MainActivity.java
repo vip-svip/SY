@@ -1096,6 +1096,7 @@ public final class MainActivity extends ComponentActivity {
                 + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
                 + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
         webView.evaluateJavascript(js, value -> {
+            verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本状态已保存", "脚本状态保存失败");
             nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
         });
     }
@@ -1105,8 +1106,20 @@ public final class MainActivity extends ComponentActivity {
                 + "if(!a||!a[" + index + "])return false;a.splice(" + index + ",1);"
                 + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
                 + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
-        webView.evaluateJavascript(js, value ->
-                nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L));
+        webView.evaluateJavascript(js, value -> {
+            verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本条目已删除", "删除失败，设置未保存");
+            nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
+        });
+    }
+
+    private void verifyNativeScriptMutation(String resultKey, String success, String failure) {
+        nativeVpnHandler.postDelayed(() -> {
+            if (webView == null || isFinishing() || isDestroyed()) return;
+            webView.evaluateJavascript("!!window[" + JSONObject.quote(resultKey) + "]", result -> {
+                boolean ok = "true".equals(result);
+                Toast.makeText(this, ok ? success : failure, Toast.LENGTH_LONG).show();
+            });
+        }, 700L);
     }
 
     private void showNativeScriptAddDialog() {
@@ -1157,12 +1170,17 @@ public final class MainActivity extends ComponentActivity {
         String note = sourceName == null || sourceName.trim().isEmpty()
                 ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName;
         String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
-                + "return pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
-                + ",note:" + JSONObject.quote(note) + ",on:true}],{});})()";
+                + "var ok=pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
+                + ",note:" + JSONObject.quote(note) + ",on:true}],{});"
+                + "window.__fxNativeScriptAddOk=!!ok;return ok;})()";
         webView.evaluateJavascript(js, result -> {
             if (isFinishing() || isDestroyed()) return;
-            Toast.makeText(this, "脚本已提交；请刷新列表确认保存结果", Toast.LENGTH_SHORT).show();
-            if (nativePageContent != null && lastWebTabIndex == 3) renderNativePage(3);
+            verifyNativeScriptMutation("__fxNativeScriptAddOk", "脚本已保存", "脚本未保存：请检查内容或模块设置状态");
+            if (nativePageContent != null && lastWebTabIndex == 3) {
+                nativeVpnHandler.postDelayed(() -> {
+                    if (nativePageContent != null && lastWebTabIndex == 3) renderNativePage(3);
+                }, 1200L);
+            }
         });
     }
 
