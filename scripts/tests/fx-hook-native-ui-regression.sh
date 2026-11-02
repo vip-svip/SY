@@ -206,47 +206,15 @@ import pathlib, sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 signature = "private void showSettings()"
 start = source.index(signature)
-opening = source.index("{", start)
 depth = 0
-state = "code"
-escaped = False
-i = opening
-while i < len(source):
-    ch = source[i]
-    nxt = source[i + 1] if i + 1 < len(source) else ""
-    if state == "code":
-        if ch == '"' :
-            state = "string"
-        elif ch == "'":
-            state = "char"
-        elif ch == "/" and nxt == "/":
-            state = "line"
-            i += 1
-        elif ch == "/" and nxt == "*":
-            state = "block"
-            i += 1
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                print(source[start:i + 1], end="")
-                break
-    elif state in ("string", "char"):
-        if escaped:
-            escaped = False
-        elif ch == "\\\\":
-            escaped = True
-        elif (state == "string" and ch == '"') or (state == "char" and ch == "'"):
-            state = "code"
-    elif state == "line":
-        if ch == "\\n":
-            state = "code"
-    elif state == "block":
-        if ch == "*" and nxt == "/":
-            state = "code"
-            i += 1
-    i += 1
+for index in range(source.index("{", start), len(source)):
+    if source[index] == "{":
+        depth += 1
+    elif source[index] == "}":
+        depth -= 1
+        if depth == 0:
+            print(source[start:index + 1], end="")
+            break
 else:
     raise SystemExit("could not isolate showSettings() method")
 PY
