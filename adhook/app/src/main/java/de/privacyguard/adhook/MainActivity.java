@@ -1260,7 +1260,7 @@ public final class MainActivity extends ComponentActivity {
         EditText input = new EditText(this);
         input.setSingleLine(false);
         input.setMinLines(3);
-        input.setHint("粘贴可信 HTTPS 脚本订阅 URL（仅支持 https://）");
+        input.setHint("粘贴 HTTPS 订阅 URL 或本地 JS 源码");
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(6), dp(12), dp(4));
