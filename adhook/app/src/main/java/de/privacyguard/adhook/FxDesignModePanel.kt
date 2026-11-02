@@ -79,7 +79,7 @@ private fun FxDesignModePanel(
                 )
                 ModeCard("classic", "经典界面", "简洁原生外观，优先兼容性", currentMode, onModeSelected, backdrop, false)
                 ModeCard("miuix", "Miuix 原生界面", "使用 MiuixTheme、Card、Text 组件与系统动态配色", currentMode, onModeSelected, backdrop, false)
-                ModeCard("glass", "Liquid Glass 液态玻璃", "使用 Kyant Backdrop 实时背景采样、模糊与 Lens 折射效果", currentMode, onModeSelected, backdrop, true)
+                ModeCard("glass", "Liquid Glass 液态玻璃", "使用 Kyant Backdrop 实时背景采样；Android 12+ 启用模糊，Android 13+ 启用 Lens 折射", currentMode, onModeSelected, backdrop, true)
                 ModeCard("web", "网页原样", "Web 管理页面不注入主题样式；Hook 与设置仍使用原生界面", currentMode, onModeSelected, backdrop, false)
             }
         }
