@@ -133,11 +133,19 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (webView != null && !hookUiVisible) {
+            webView.onResume();
+            webView.resumeTimers();
+        }
         if (!hookUiVisible && !settingsUiVisible) startNativeVpnPolling();
     }
 
     @Override protected void onPause() {
         stopNativeVpnPolling();
+        if (webView != null) {
+            webView.onPause();
+            webView.pauseTimers();
+        }
         super.onPause();
     }
 
@@ -515,7 +523,7 @@ public final class MainActivity extends ComponentActivity {
         webView.evaluateJavascript("(function(){var p=window.PGB&&PGB.model&&PGB.model.sw||{};var m=String(p.vpn_mode||'direct');return JSON.stringify({mode:m,liveKnown:window.__pgVpnLiveKnown===true,liveOn:window.__pgVpnLiveOn===true,node:String(p.vpn_node||'')})})()", value -> {
             if (isFinishing() || value == null) return;
             try {
-                Object decoded = org.json.JSONTokener.stringToValue(value);
+                Object decoded = new org.json.JSONTokener(value).nextValue();
                 if (!(decoded instanceof String)) return;
                 org.json.JSONObject state = new org.json.JSONObject((String) decoded);
                 String mode = state.optString("mode", "direct");
@@ -957,21 +965,6 @@ public final class MainActivity extends ComponentActivity {
         super.onDestroy();
     }
 
-    @Override protected void onPause() {
-        if (webView != null) {
-            webView.onPause();
-            webView.pauseTimers();
-        }
-        super.onPause();
-    }
-
-    @Override protected void onResume() {
-        super.onResume();
-        if (webView != null && !hookUiVisible) {
-            webView.onResume();
-            webView.resumeTimers();
-        }
-    }
 
     private static void deliverFileChooserResult(ValueCallback<Uri[]> callback, Uri[] result) {
         if (callback == null) return;
