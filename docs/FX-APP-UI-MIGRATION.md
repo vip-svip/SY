@@ -2,7 +2,7 @@
 
 ## Goal
 
-FX APP is the only user-facing management entrypoint. The KernelSU module remains the privileged backend: boot lifecycle, DNS/Hosts, VPN/routing, filtering, certificate lifecycle, scripts, system changes, logs and rollback. The module WebUI is not shipped as a second management surface in the final ZIP.
+FX APP is the only user-facing management entrypoint. The KernelSU module remains the privileged backend: boot lifecycle, DNS/Hosts, VPN/routing, filtering, certificate lifecycle, scripts, system changes, logs and rollback. The module WebUI and KernelSU manual action entry are removed from the final ZIP. KernelSU is used only to install/authorize the module and manage its lifecycle; all daily FX operations are performed in the FX App.
 
 The complete existing 1.0.0 WebUI is staged into `adhook/app/src/main/assets/webroot/index.html` and rendered inside the FX APK through an app-owned WebView. The application shell and per-app Hook manager remain native Android UI. This is a feature-parity migration into one installed APP, not yet a rewrite of every WebUI control into a native Android widget. This distinction is intentional: it preserves the existing complex editor, pagination, subscriptions, VPN controls and diagnostics instead of replacing them with incomplete placeholders.
 
@@ -37,7 +37,7 @@ FX also declares an optional Android AccessibilityService. The user must explici
 
 - The bundled page is served from `https://appassets.androidplatform.net/assets/webroot/index.html` via AndroidX WebViewAssetLoader. No remote page is loaded.
 - A restrictive Content Security Policy blocks remote scripts, frames and network connections from the WebView. The WebView blocks navigation away from its appassets origin and disables file-scheme access.
-- The compatibility shim exposes only the KernelSU `ksu.exec` shape used by the existing UI. Root commands are run asynchronously through `su -c`; output is bounded and commands have a timeout.
+- The compatibility shim preserves the existing WebUI `ksu.exec` calling convention inside the App only. Root commands are run asynchronously through the app's native bridge and `su -c`; no KernelSU WebUI or module action entry is exposed. Output is bounded and commands have a timeout.
 - The bridge validates callback identifiers and caps command length. It also exposes the native Hook manager entrypoint and an Android Downloads export method.
 - File imports use Android's system document picker. Exports use MediaStore Downloads on Android 10+ and the app-specific Downloads folder on Android 9.
 - Root is not granted by a manifest permission. KernelSU must authorize the FX app; the UI reports the actual UID 0 result and does not simulate authorization.
@@ -47,7 +47,7 @@ FX also declares an optional Android AccessibilityService. The user must explici
 
 ## Single-entry packaging
 
-The KernelSU packaging workflow first copies the complete WebUI into APK assets, then replaces the module's `webroot/index.html` with a small migration notice. The final module ZIP therefore does not expose a parallel copy of the management UI. The no-compile APP migration validation workflow stages the same source WebUI from the fixed 1.0.0 release archive.
+The KernelSU packaging workflow copies the complete compatible WebUI into APK assets, then removes the module `webroot/` directory and `action.sh` before packaging. The final ZIP contains neither a KernelSU WebUI entry nor a manual execution button. The native App shell remains the primary interface; its bundled WebView hosts the compatibility WebUI for features not yet implemented as native screens. The no-compile APP migration validation workflow stages the same source WebUI from the fixed 1.0.0 release archive.
 
 ## Build gate
 
