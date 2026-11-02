@@ -68,4 +68,6 @@ before_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}'
 python3 "$ROOT/fx-patches/patch_native_script_store.py" "$ROOT/fx-module" >/dev/null
 after_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}')
 [ "$before_patch" = "$after_patch" ] || fail "native script patcher is not idempotent"
-echo "PASS: native script-list backend supports CRUD, preserves unrelated config and round-trips multiline script values"
+[ -x "$ROOT/fx-module/scripts/jsruntime/local-run.sh" ] || fail "native QuickJS local runner was not installed"
+cmp -s "$ROOT/fx-patches/native-script-run.sh" "$ROOT/fx-module/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
+echo "PASS: native script-list backend supports CRUD, preserves unrelated config, round-trips multiline source and installs the local runner"
