@@ -10,6 +10,7 @@ grep -Fq 'applyVpnModeSelection(mode)' "$HTML" || fail "native API does not call
 grep -Fq 'function selectNode(index)' "$HTML" || fail "native node selection API missing"
 grep -Fq 'Promise.resolve(pgPersistNow())' "$HTML" || fail "native node selection does not await config persistence"
 grep -Fq 'liveKnown:window.__pgVpnLiveKnown===true' "$HTML" || fail "native state snapshot omits backend-confirmed live state"
+grep -Fq "window.__pgVpnLiveKnown=!!s;window.__pgVpnLiveOn=!!(s&&(s.vpn_on===true||s.vpn_on===1))" "$HTML" || fail "WebUI live-state patch is missing from standalone/native build"
 grep -Fq 'window.pgFillStatus=function(status)' "$HTML" || fail "native API does not bridge authoritative status.sh results"
 grep -Fq "typeof status.vpn_on==='boolean'" "$HTML" || fail "native API does not use status.sh vpn_on"
 grep -Fq 'window.pgRefreshStatus()' "$HTML" || fail "native API does not refresh authoritative runtime status"
