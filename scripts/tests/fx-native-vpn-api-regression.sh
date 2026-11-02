@@ -68,7 +68,21 @@ grep -Fq 'private void refreshWebUiAfterNativeVpn()' "$ACTIVITY" || fail "native
 grep -Fq 'return pgLoad().then(function()' "$ACTIVITY" || fail "native VPN completion does not reload persisted settings for display"
 grep -Fq "if(typeof renderNodes==='function')renderNodes();" "$ACTIVITY" || fail "native VPN node selection does not refresh the displayed node list"
 grep -Fq 'lastWebTabIndex != 0' "$ACTIVITY" || fail "native VPN polling continues while VPN tab is hidden"
-! grep -Fq '}, 1500L);' "$ACTIVITY" || fail "native VPN controls are re-enabled by a timer before Root apply completes"
+python3 - "$ACTIVITY" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.find("private void invokeNativeVpnApi(")
+end = source.find("private void refreshWebUiAfterNativeVpn()", start)
+if start < 0 or end < 0:
+    raise SystemExit("FAIL: cannot locate native VPN operation lifecycle")
+body = source[start:end]
+if "postDelayed" in body or "1500L" in body:
+    raise SystemExit("FAIL: native VPN controls must remain disabled until Root apply completes")
+if "nativeVpnSwitch.setEnabled(false)" not in body or "syncNativeVpnControls()" not in body:
+    raise SystemExit("FAIL: native VPN controls do not follow Root operation completion")
+print("FX native VPN operation lifecycle: PASS")
+PY
 ! grep -Fq "document.getElementById('vpnEnableToggle');if(b)b.click()" "$ACTIVITY" || fail "native switch still clicks hidden legacy WebUI toggle"
 ! grep -Fq "document.querySelectorAll('#vpnModeSeg > *')" "$ACTIVITY" || fail "native mode selector still clicks hidden legacy WebUI controls"
 echo "FX explicit native VPN API regression: PASS"
