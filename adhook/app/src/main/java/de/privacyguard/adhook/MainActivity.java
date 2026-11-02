@@ -25,6 +25,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -71,6 +73,14 @@ public final class MainActivity extends ComponentActivity {
     private Switch nativeVpnSwitch;
     private TextView nativeVpnState;
     private boolean syncingNativeVpn;
+    private final Handler nativeVpnHandler = new Handler(Looper.getMainLooper());
+    private final Runnable nativeVpnPoll = new Runnable() {
+        @Override public void run() {
+            if (isFinishing() || hookUiVisible || settingsUiVisible || webView == null || !webUiReady) return;
+            syncNativeVpnControls();
+            nativeVpnHandler.postDelayed(this, 5000L);
+        }
+    };
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
     private boolean hookHubVisible;
@@ -351,6 +361,7 @@ public final class MainActivity extends ComponentActivity {
                     webUiReady = true;
                     applyWebUiMode();
                     syncNativeVpnControls();
+                    startNativeVpnPolling();
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
                         pendingWebPage = null;
@@ -380,8 +391,19 @@ public final class MainActivity extends ComponentActivity {
         } else {
             checkRoot(rootStatus, false);
         }
+        startNativeVpnPolling();
     }
 
+    private void startNativeVpnPolling() {
+        nativeVpnHandler.removeCallbacks(nativeVpnPoll);
+        if (!hookUiVisible && !settingsUiVisible && webUiReady && webView != null) {
+            nativeVpnHandler.postDelayed(nativeVpnPoll, 1000L);
+        }
+    }
+
+    private void stopNativeVpnPolling() {
+        nativeVpnHandler.removeCallbacks(nativeVpnPoll);
+    }
 
     /** Native VPN controls call the existing, validated WebUI transaction pipeline.
      *  The old HTML switch/mode strip is hidden to prevent duplicate controls. */
@@ -491,6 +513,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void pauseAndDetachWebView() {
+        stopNativeVpnPolling();
         if (webView == null) return;
         webView.onPause();
         webView.pauseTimers();
