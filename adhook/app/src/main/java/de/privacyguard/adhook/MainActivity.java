@@ -594,9 +594,26 @@ public final class MainActivity extends ComponentActivity {
                     Toast.makeText(this, "VPN 操作失败（退出码 " + result.exitCode + "）：" + result.output,
                             Toast.LENGTH_LONG).show();
                 }
+                refreshWebUiAfterNativeVpn();
                 syncNativeVpnControls();
             });
         });
+    }
+
+    private void refreshWebUiAfterNativeVpn() {
+        if (webView == null || !webUiReady || isFinishing() || isDestroyed()) return;
+        // Reload the persisted module config for display only. Native controls never
+        // invoke WebUI actions; this prevents the WebView's cached node/mode model
+        // from showing stale values after the direct RootAccess transaction.
+        webView.evaluateJavascript(
+                "(function(){if(typeof pgLoad!=='function')return false;"
+                + "return pgLoad().then(function(){"
+                + "if(typeof pgApplySwitches==='function')pgApplySwitches();"
+                + "if(typeof pgRenderLists==='function')pgRenderLists();"
+                + "if(typeof renderNodes==='function')renderNodes();"
+                + "if(typeof vpnStatus==='function')vpnStatus();"
+                + "if(typeof pgRefreshStatus==='function')return pgRefreshStatus();"
+                + "return true;});})()", null);
     }
 
     private void showNativeVpnNodePicker() {
