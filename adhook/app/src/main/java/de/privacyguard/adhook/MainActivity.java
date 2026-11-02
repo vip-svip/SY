@@ -1137,7 +1137,7 @@ public final class MainActivity extends ComponentActivity {
                                         Switch control, boolean previous) {
         if (webView == null || !webUiReady) {
             Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
-            restoreNativeScriptSwitch(control, previous);
+            restoreNativeScriptSwitch(index, control, previous, rows, status);
             return;
         }
         control.setEnabled(false);
@@ -1149,7 +1149,7 @@ public final class MainActivity extends ComponentActivity {
                 + (previous ? "true" : "false") + ";window.__fxNativeScriptMutationOk=false;});return true;})()";
         webView.evaluateJavascript(js, value -> {
             if (value == null || "false".equals(value)) {
-                restoreNativeScriptSwitch(control, previous);
+                restoreNativeScriptSwitch(index, control, previous, rows, status);
                 Toast.makeText(this, "脚本状态修改未能启动", Toast.LENGTH_LONG).show();
                 return;
             }
@@ -1157,10 +1157,13 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void restoreNativeScriptSwitch(Switch control, boolean previous) {
+    private void restoreNativeScriptSwitch(int index, Switch control, boolean previous,
+                                            LinearLayout rows, TextView status) {
         control.setOnCheckedChangeListener(null);
         control.setChecked(previous);
         control.setEnabled(true);
+        control.setOnCheckedChangeListener((button, checked) ->
+                setNativeScriptEnabled(index, checked, rows, status, control, previous));
     }
 
     private void pollNativeScriptSwitch(Switch control, boolean previous, LinearLayout rows,
@@ -1172,14 +1175,14 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "脚本状态已保存", Toast.LENGTH_SHORT).show();
                 nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 800L);
             } else if ("false".equals(result)) {
-                restoreNativeScriptSwitch(control, previous);
+                restoreNativeScriptSwitch(index, control, previous, rows, status);
                 Toast.makeText(this, "脚本状态保存失败，已恢复原状态", Toast.LENGTH_LONG).show();
                 refreshNativeScriptList(rows, status);
             } else if (attempt < 20) {
                 nativeVpnHandler.postDelayed(() ->
                         pollNativeScriptSwitch(control, previous, rows, status, attempt + 1), 250L);
             } else {
-                restoreNativeScriptSwitch(control, previous);
+                restoreNativeScriptSwitch(index, control, previous, rows, status);
                 Toast.makeText(this, "脚本状态确认超时，请刷新列表核对", Toast.LENGTH_LONG).show();
             }
         });
