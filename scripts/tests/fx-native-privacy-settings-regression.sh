@@ -46,6 +46,7 @@ for required in ("native-privacy-settings.json", "renderNativePrivacySettingsGro
 # compatibility path rather than silently disappearing during this migration.
 legacy_end=source.find("private void setNativePrivacySetting", edit_bridge)
 legacy=source[edit_bridge:legacy_end]
+assert 'if (!"vpnPanel".equals(panelId)) return;' in legacy, "edit compatibility bridge must be scoped to VPN settings only"
 for required in ("webView.evaluateJavascript", "VPN_EDIT", "showNativeSettingsEditDialog"):
     assert required in legacy, "advanced non-boolean edit control was dropped: "+required
 print("PASS: boolean privacy toggles use native config I/O; non-boolean editors remain available via isolated compatibility bridge")
