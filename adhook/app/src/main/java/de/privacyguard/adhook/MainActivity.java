@@ -2580,7 +2580,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderNativePrivacySettingsGroup(JSONObject panelSchema, String title) {
-        runNativeModuleCommand("cat /data/adb/privacyguard/settings.conf", 30000L, result -> {
+        runNativeModuleCommand("awk '/^\\[/ {exit} {print}' /data/adb/privacyguard/settings.conf", 30000L, result -> {
             try {
                 if (result.exitCode != 0) {
                     throw new IllegalStateException("无法读取模块真实配置：" + result.output);
