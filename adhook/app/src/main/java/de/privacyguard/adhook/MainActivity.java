@@ -1169,6 +1169,14 @@ public final class MainActivity extends ComponentActivity {
     private void pollNativeScriptSwitch(int index, Switch control, boolean previous, boolean enabled,
                                         LinearLayout rows, TextView status, int attempt) {
         if (isFinishing() || isDestroyed()) return;
+        // The hidden compatibility WebView can be unavailable while the Activity is
+        // still alive (reload, renderer loss, or teardown). Never poll a null/stale
+        // bridge indefinitely: restore the last committed switch state immediately.
+        if (webView == null || !webUiReady) {
+            restoreNativeScriptSwitch(index, control, previous, rows, status);
+            status.setText("脚本桥接暂不可用，开关已恢复原状态；请刷新后重试。");
+            return;
+        }
         webView.evaluateJavascript("window.__fxNativeScriptMutationOk", result -> {
             if ("true".equals(result)) {
                 control.setEnabled(true);
