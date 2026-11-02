@@ -8,6 +8,8 @@ grep -Fq 'background:rgba(255,255,255,.16)!important' "$HTML"
 grep -Fq 'background:#fff!important' "$HTML"
 grep -Fq 'top:192px!important' "$HTML"
 grep -Fq 'margin-top:-19px!important' "$HTML"
+grep -Fq 'right:194px!important' "$HTML"
+grep -Fq 'right:26px!important' "$HTML"
 grep -Fq 'right:22px!important' "$HTML"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
