@@ -77,6 +77,7 @@ public final class MainActivity extends ComponentActivity {
     private Button nativeVpnNodeButton;
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
     private boolean syncingNativeVpn;
+    private String lastNativeVpnMode = "direct";
     private final Handler nativeVpnHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService nativeVpnExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "fx-native-vpn");
@@ -570,13 +571,13 @@ public final class MainActivity extends ComponentActivity {
                 action = "mode";
             } else if ("setEnabled".equals(method)) {
                 boolean enabled = Boolean.parseBoolean(argument);
-                value = enabled ? "global" : "direct";
+                value = enabled ? ("direct".equals(lastNativeVpnMode) ? "global" : lastNativeVpnMode) : "direct";
                 action = "mode";
             } else if ("selectNode".equals(method)) {
                 Object decoded = new org.json.JSONTokener(argument).nextValue();
                 if (!(decoded instanceof String)) throw new IllegalArgumentException("节点参数无效");
                 value = (String) decoded;
-                if (!value.matches("[A-Za-z0-9._:\\[\\]-]{1,512}"))
+                if (!value.matches("[A-Za-z0-9._:-]{1,512}"))
                     throw new IllegalArgumentException("节点标识包含非法字符");
                 action = "node";
             } else {
@@ -668,6 +669,7 @@ public final class MainActivity extends ComponentActivity {
                     if (result.exitCode != 0) throw new IllegalStateException(result.output);
                     org.json.JSONObject state = new org.json.JSONObject(result.output.trim());
                     String mode = state.optString("vpn_mode", "direct");
+                    lastNativeVpnMode = mode;
                     boolean liveOn = state.optBoolean("vpn_on", false);
                     boolean operationBusy = false;
                     String modeLabel = "direct".equals(mode) ? "直连"
