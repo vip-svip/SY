@@ -53,10 +53,11 @@ if sh "$SCRIPT" toggle 99 1 >/dev/null 2>&1; then fail "invalid index unexpected
 after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 [ "$before" = "$after" ] || fail "invalid mutation changed settings.conf"
 # Script source values retain line breaks and literal backslash-n sequences in settings.conf.
-multiline=$(printf 'line one\nline two\\n literal|pipe')
-multi64=$(printf '%s' "$multiline" | base64 | tr -d '\n')
-multi_note=$(printf '%s' 'Multiline source' | base64 | tr -d '\n')
-[ "$(sh "$SCRIPT" add "$multi64" "$multi_note" 1)" = "OK" ] || fail "multiline script add failed"
+# Existing/imported settings may contain script source with escaped newlines.
+# The native editor currently accepts executable HTTPS subscriptions only; it must
+# nevertheless round-trip pre-existing multiline rows without corrupting them.
+escaped_multiline=$(printf 'line one\\nline two\\\\n literal｜pipe')
+printf '\\n[list:script]\\n%s|Multiline source|1\\n' "$escaped_multiline" >> "$PG/settings.conf"
 stored=$(sh "$SCRIPT" list | sed -n '4p' | cut -d'|' -f1 | base64 -d)
 expected=$(printf 'line one\\nline two\\\\n literal｜pipe')
 [ "$stored" = "$expected" ] || fail "multiline script escaping corrupted source"
