@@ -118,8 +118,9 @@ private fun FxNativeAppShell(
                 ) {
                     labels.forEachIndexed { index, label ->
                         LiquidBottomTab(onClick = {
+                            // The upstream LiquidBottomTabs observes selectedTabIndex
+                            // and emits onTabSelected once after its spring animation.
                             selected = index
-                            onTabSelected(index)
                         }) {
                             Text(
                                 text = label,
