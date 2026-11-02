@@ -2951,7 +2951,7 @@ public final class MainActivity extends ComponentActivity {
                 int total = 0, count;
                 while ((count = input.read(buffer)) != -1) {
                     total += count;
-                    if (total > 1024 * 1024) throw new IllegalStateException("脚本文件超过 1 MiB");
+                    if (total > 64 * 1024) throw new IllegalStateException("脚本文件超过 64 KiB");
                     output.write(buffer, 0, count);
                 }
                 String name = uri.getLastPathSegment();
