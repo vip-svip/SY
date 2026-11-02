@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebChromeClient;
@@ -298,6 +299,31 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return !isTrustedDocumentUrl(Uri.parse(url));
             }
+            @Override public void onReceivedError(WebView view, WebResourceRequest request,
+                    WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    webUiReady = false;
+                    webViewLoaded = false;
+                    pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+                    Toast.makeText(MainActivity.this,
+                            "FX 页面加载失败，点击底部任一标签可重试。",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                    WebResourceResponse response) {
+                super.onReceivedHttpError(view, request, response);
+                if (request.isForMainFrame() && response.getStatusCode() >= 400) {
+                    webUiReady = false;
+                    webViewLoaded = false;
+                    pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+                    Toast.makeText(MainActivity.this,
+                            "FX 页面资源异常（HTTP " + response.getStatusCode()
+                                    + "），点击底部任一标签可重试。",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
             @Override public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 if (isTrustedDocumentUrl(Uri.parse(url))) {
@@ -352,7 +378,13 @@ public final class MainActivity extends Activity {
             item.setTextSize(15);
             item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             item.setGravity(Gravity.CENTER);
-            item.setPadding(dp(2), dp(8), dp(2), dp(8));
+            item.setSingleLine(true);
+            item.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            item.setIncludeFontPadding(false);
+            item.setAutoSizeTextTypeUniformWithConfiguration(
+                    10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+            item.setContentDescription(labels[i]);
+            item.setPadding(dp(1), dp(8), dp(1), dp(8));
             styleBottomItem(item, index);
             item.setOnClickListener(v -> {
                 if (index == 4) {
@@ -384,7 +416,15 @@ public final class MainActivity extends Activity {
 
     private void navigateWebPage(String pageId) {
         if (webView == null) return;
-        if (!webUiReady) { pendingWebPage = pageId; return; }
+        if (!webUiReady) {
+            pendingWebPage = pageId;
+            // A failed first load must be retryable from the native tab bar.
+            if (!webViewLoaded) {
+                webViewLoaded = true;
+                webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+            }
+            return;
+        }
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
