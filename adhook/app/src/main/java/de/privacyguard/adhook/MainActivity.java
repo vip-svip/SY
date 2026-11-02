@@ -75,6 +75,8 @@ public final class MainActivity extends ComponentActivity {
     private LinearLayout nativeVpnControls;
     private ScrollView nativePageScroll;
     private LinearLayout nativePageContent;
+    private LinearLayout nativeScriptRows;
+    private TextView nativeScriptStatus;
     private TextView nativeDashboardStatus;
     private Switch nativeVpnSwitch;
     private TextView nativeVpnState;
@@ -391,6 +393,10 @@ public final class MainActivity extends ComponentActivity {
                     applyWebUiMode();
                     syncNativeVpnControls();
                     startNativeVpnPolling();
+                    if (lastWebTabIndex == 3 && nativeScriptRows != null
+                            && nativeScriptStatus != null && nativeScriptRows.getParent() != null) {
+                        refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                    }
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
                         pendingWebPage = null;
@@ -825,6 +831,8 @@ public final class MainActivity extends ComponentActivity {
         content.addView(status);
         LinearLayout rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
+        nativeScriptRows = rows;
+        nativeScriptStatus = status;
         content.addView(rows);
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
@@ -964,6 +972,14 @@ public final class MainActivity extends ComponentActivity {
         webView.evaluateJavascript("(function(){if(typeof pgSyncThirdPartyRuntime!=='function')return false;"
                 + "pgSyncThirdPartyRuntime({syncScripts:true}).then(function(r){window.__fxNativeScriptRefresh=JSON.stringify(r||{});});return true;})()", value -> {
             Toast.makeText(this, "已请求脚本订阅同步；请查看运行日志确认结果。", Toast.LENGTH_LONG).show();
+            if (nativeScriptRows != null && nativeScriptStatus != null) {
+                nativeVpnHandler.postDelayed(() -> {
+                    if (nativeScriptRows != null && nativeScriptStatus != null
+                            && nativeScriptRows.getParent() != null) {
+                        refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                    }
+                }, 1500L);
+            }
         });
     }
 
