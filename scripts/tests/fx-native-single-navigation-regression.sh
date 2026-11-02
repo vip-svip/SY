@@ -8,6 +8,7 @@ grep -Fq 'new String[]{"pageVpn", "pageHosts", "pagePrivacy",' "$JAVA"
 grep -Fq "#screen>.navbar,#screen .navbar,#bottomNav,#bottom-nav,.bottom-nav," "$JAVA"
 grep -Fq "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}" "$JAVA"
 grep -Fq "var names=id==='pageHosts'?['ad','hosts']:(id==='pageAd'?['ad']" "$JAVA"
+! grep -Fq 'if(b)b.click();' "$JAVA" || { echo "legacy WebUI click handler must not own native tab routing" >&2; exit 1; }
 grep -Fq '该功能页面未能加载，请检查内置 WebUI 页面资源。' "$JAVA"
 grep -Fq 'onReceivedError(WebView view, WebResourceRequest request,' "$JAVA"
 grep -Fq 'onReceivedHttpError(WebView view, WebResourceRequest request,' "$JAVA"
