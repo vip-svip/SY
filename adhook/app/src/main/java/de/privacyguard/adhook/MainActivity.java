@@ -1072,10 +1072,10 @@ public final class MainActivity extends ComponentActivity {
         StringBuilder decoded = new StringBuilder(value.length());
         for (int i = 0; i < value.length(); i++) {
             char current = value.charAt(i);
-            if (current == '\\\\' && i + 1 < value.length()) {
+            if (current == '\\' && i + 1 < value.length()) {
                 char next = value.charAt(i + 1);
-                if (next == '\\\\') { decoded.append('\\\\'); i++; continue; }
-                if (next == 'n') { decoded.append('\\n'); i++; continue; }
+                if (next == '\\') { decoded.append('\\'); i++; continue; }
+                if (next == 'n') { decoded.append('\n'); i++; continue; }
             }
             decoded.append(current);
         }
