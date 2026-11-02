@@ -2,6 +2,7 @@
 """Make the FX VPN master switch transparent and keep its white thumb inside the track."""
 from pathlib import Path
 import sys
+import re
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 html = root / "webroot/index.html"
@@ -67,9 +68,15 @@ css = r"""
 }
 </style>
 """
+if source.count(marker) > 1:
+    raise SystemExit("transparent switch patch marker is duplicated")
 if marker in source:
-    if source.count(marker) != 1:
-        raise SystemExit("transparent switch patch marker is duplicated")
+    # Replace the previous generated block, not just skip it: a stale v2
+    # stylesheet otherwise survives future rebuilds with the old thumb offset.
+    pattern = re.compile(r'<style id="fx-vpn-toggle-transparent-v2">.*?</style>', re.S)
+    source, count = pattern.subn(lambda _: css.strip(), source, count=1)
+    if count != 1:
+        raise SystemExit("cannot safely replace existing transparent switch stylesheet")
 else:
     if source.count("</head>") != 1:
         raise SystemExit("WebUI head closing anchor is ambiguous")
