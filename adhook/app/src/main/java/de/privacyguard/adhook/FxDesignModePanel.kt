@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.setContent
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -52,18 +51,21 @@ private fun FxDesignModePanel(
     val backdrop = rememberLayerBackdrop()
 
     MiuixTheme(controller = themeController) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .drawBehind {
-                    drawRect(
-                        Brush.linearGradient(
-                            listOf(Color(0xFFE9F2FC), Color(0xFFF2ECF8), Color(0xFFEAF5F3))
+        Box(Modifier.fillMaxWidth()) {
+            // The backdrop source is a separate sibling layer. It contains only the
+            // static gradient, never the glass cards that sample it (prevents feedback).
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        drawRect(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFE9F2FC), Color(0xFFF2ECF8), Color(0xFFEAF5F3))
+                            )
                         )
-                    )
-                }
-                .layerBackdrop(backdrop)
-        ) {
+                    }
+                    .layerBackdrop(backdrop)
+            )
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -80,9 +82,7 @@ private fun FxDesignModePanel(
                 ModeCard("glass", "Liquid Glass 液态玻璃", "使用 Kyant Backdrop 实时背景采样、模糊与 Lens 折射效果", currentMode, onModeSelected, backdrop, true)
                 ModeCard("web", "网页原样", "Web 管理页面不注入主题样式；Hook 与设置仍使用原生界面", currentMode, onModeSelected, backdrop, false)
             }
-        }
-    }
-}
+        }}
 
 @Composable
 private fun ModeCard(
