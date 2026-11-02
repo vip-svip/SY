@@ -131,6 +131,16 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (!hookUiVisible && !settingsUiVisible) startNativeVpnPolling();
+    }
+
+    @Override protected void onPause() {
+        stopNativeVpnPolling();
+        super.onPause();
+    }
+
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
