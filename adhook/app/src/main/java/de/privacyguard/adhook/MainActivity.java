@@ -89,7 +89,8 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        uiMode = getSharedPreferences("fx_ui", MODE_PRIVATE).getString("mode", "classic");
+        uiMode = normalizeUiMode(getSharedPreferences("fx_ui", MODE_PRIVATE)
+                .getString("mode", "classic"));
         boolean restoreHookScreen = false;
         boolean restoreSettingsScreen = false;
         String restoreHookKind = "";
@@ -606,7 +607,7 @@ public final class MainActivity extends Activity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("参考游龙工具的多界面模式设计，将模式选择与功能数据分离。Miuix 采用 HyperOS 风格的原生视觉规范；液态玻璃在 WebView 支持时启用背景模糊，不支持时自动降级为半透明材质。");
+        note.setText("模式与 Hook 配置、VPN 和规则数据分离，切换不会改动功能数据。Miuix 当前由 FX 原生组件与 WebView 样式适配实现，并非完整 Miuix Compose 页面；液态玻璃当前使用半透明表面、阴影及 WebView 支持时的 backdrop-filter，不等同于 AndroidLiquidGlass 实时折射引擎。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(12));
         content.addView(note);
@@ -614,8 +615,8 @@ public final class MainActivity extends Activity {
         modes.setOrientation(RadioGroup.VERTICAL);
         modes.setPadding(dp(12), dp(4), dp(12), dp(8));
         addModeOption(modes, 0, "经典界面", "FX 当前简洁原生样式，兼容性优先");
-        addModeOption(modes, 1, "Miuix 风格", "圆角卡片、分组层级和柔和配色，参考 HyperOS");
-        addModeOption(modes, 2, "液态玻璃", "半透明表面、层次阴影与可用时的背景模糊");
+        addModeOption(modes, 1, "Miuix 风格（FX 适配）", "圆角卡片、分组层级、柔和配色与更清晰的视觉层次");
+        addModeOption(modes, 2, "液态玻璃拟态", "半透明表面、层次阴影；WebView 支持时启用背景模糊");
         addModeOption(modes, 3, "网页原样", "Web 管理页面保持原设计；Hook 页面仍使用原生界面");
         int checked = "miuix".equals(uiMode) ? 1 : "glass".equals(uiMode) ? 2 : "web".equals(uiMode) ? 3 : 0;
         modes.check(checked);
@@ -829,6 +830,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (hookTargetVisible) { showAppList(); return; }
+        if (settingsUiVisible) { showDashboard(); return; }
         if (hookUiVisible && !hookHubVisible) { showHookHub(); return; }
         if (hookHubVisible) { showWebDashboard(); return; }
         if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
@@ -864,6 +866,12 @@ public final class MainActivity extends Activity {
         }, "fx-root-check").start();
     }
 
+    private String normalizeUiMode(String mode) {
+        if ("miuix".equals(mode) || "glass".equals(mode) || "web".equals(mode)
+                || "classic".equals(mode)) return mode;
+        return "classic";
+    }
+
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
     private int uiBackgroundColor() {
         if ("miuix".equals(uiMode)) return 0xfff3f5fa;
@@ -888,7 +896,11 @@ public final class MainActivity extends Activity {
     private void applyWebUiMode() {
         if (webView == null || !webUiReady) return;
         String css;
-        if ("miuix".equals(uiMode)) {
+        if ("classic".equals(uiMode)) {
+            css = "body{background:#f4f6f8!important;color:#17212b!important}" +
+                    ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:8px!important;box-shadow:none!important}" +
+                    "button,.btn,input,select,textarea{border-radius:6px!important}";
+        } else if ("miuix".equals(uiMode)) {
             css = "body{background:#f3f5fa!important;color:#17212b!important}" +
                     ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:18px!important;background:#fff!important;border:1px solid #e5eaf2!important;box-shadow:0 3px 14px rgba(35,60,95,.06)!important}" +
                     "button,.btn,input,select,textarea{border-radius:12px!important}" +
