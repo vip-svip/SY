@@ -28,6 +28,7 @@ grep -q 'case "pageAd": tab = "ad"; break;' "$ROOT/adhook/app/src/main/java/de/p
 grep -Fq 'FxNativeAppShellKt.installFxNativeAppShell' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "six-item Compose bottom navigation is not mounted"
 grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "six-item native bottom navigation contract missing"
 grep -Fq 'LiquidBottomTabs(' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "upstream Kyant LiquidBottomTabs is not used by FX glass navigation"
+grep -Fq '.padding(bottom = 72.dp)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "page content is not inset above the persistent native bottom navigation"
 grep -Fq 'tabsCount = labels.size' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "LiquidBottomTabs is not configured for all six FX destinations"
 grep -Fq 'clickable(role = Role.Tab)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "native tabs are missing accessibility tab roles"
 grep -Fq 'import androidx.compose.ui.semantics.selected' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "Compose selected semantics property import missing"
