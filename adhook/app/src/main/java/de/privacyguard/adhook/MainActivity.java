@@ -2342,7 +2342,7 @@ public final class MainActivity extends ComponentActivity {
                     if ("edit".equals(kind)) {
                         String editId = item.optString("edit", "");
                         String initial = item.optString("value", "");
-                        String preview = initial.replace('\\n', ' ').trim();
+                        String preview = initial.replace('\n', ' ').trim();
                         if (preview.length() > 44) preview = preview.substring(0, 41) + "…";
                         Button edit = nativeAction(label + (preview.isEmpty() ? "" : " · " + preview),
                                 () -> showNativeSettingsEditDialog(editId, label, description, initial));
