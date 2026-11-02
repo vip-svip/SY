@@ -1102,7 +1102,7 @@ public final class MainActivity extends ComponentActivity {
                     enabledSwitch.setOnCheckedChangeListener((button, checked) ->
                             setNativeScriptEnabled(index, checked, rows, status));
                     ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
-                    Button detail = nativeAction("详情", () -> new AlertDialog.Builder(this)
+                    row.setOnClickListener(v -> new AlertDialog.Builder(this)
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
                             .setMessage(valueText).setPositiveButton("关闭", null).show());
                     Button edit = nativeAction("编辑", () ->
@@ -1111,7 +1111,6 @@ public final class MainActivity extends ComponentActivity {
                             .setMessage("确定删除该脚本条目？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) -> deleteNativeScript(index, rows, status)).show());
-                    ops.addView(detail);
                     ops.addView(edit);
                     ops.addView(remove);
                     row.addView(ops);
