@@ -31,9 +31,14 @@ css = r"""
 }
 #vpnStatusCard #vpnEnableToggle.vpn-master-switch::after{
   box-sizing:border-box!important;
+  right:194px!important;
   background:#fff!important;
   border:1px solid rgba(0,0,0,.08)!important;
   box-shadow:0 2px 6px rgba(0,0,0,.18)!important;
+}
+#vpnStatusCard #vpnEnableToggle.vpn-master-switch.active::after,
+#vpnStatusCard #vpnEnableToggle.vpn-master-switch.suspended::after{
+  right:26px!important;
 }
 @media(max-width:520px){
   #vpnStatusCard #vpnEnableToggle.vpn-master-switch{display:block!important;min-height:252px!important;}
