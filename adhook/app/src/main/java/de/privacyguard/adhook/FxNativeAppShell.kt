@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -105,11 +107,14 @@ private fun FxNativeAppShell(
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     labels.forEachIndexed { index, label ->
-                        LiquidBottomTab(onClick = {
-                            // The upstream LiquidBottomTabs observes selectedTabIndex
-                            // and emits onTabSelected once after its spring animation.
-                            selected = index
-                        }) {
+                        LiquidBottomTab(
+                            onClick = {
+                                // The upstream LiquidBottomTabs observes selectedTabIndex
+                                // and emits onTabSelected once after its spring animation.
+                                selected = index
+                            },
+                            modifier = Modifier.semantics { this.selected = selected == index }
+                        ) {
                             Text(
                                 text = label,
                                 color = if (selected == index) Color(0xFF0088FF) else Color(0xFF526170),
@@ -144,7 +149,8 @@ private fun FxNativeAppShell(
                                 .weight(1f)
                                 .height(64.dp)
                                 .then(tabModifier)
-                                .clickable {
+                                .semantics { this.selected = active }
+                                .clickable(role = Role.Tab) {
                                     selected = index
                                     onTabSelected(index)
                                 },
