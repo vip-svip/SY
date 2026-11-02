@@ -103,7 +103,7 @@ jobs:
           import re
           from pathlib import Path
           html = Path("adhook/app/src/main/assets/webroot/index.html").read_text(encoding="utf-8")
-          for page_id in ("pageAd", "pageHosts"):
+          for page_id in ("pageHosts", "pagePrivacy", "pageScript"):
               start = html.find('id="' + page_id + '"')
               if start < 0:
                   start = html.find("id='" + page_id + "'")
@@ -114,8 +114,13 @@ jobs:
               end = start + 1 + next_page.start() if next_page else len(html)
               fragment = html[start:end]
               ids = re.findall(r"""id=["']([^"']+)["']""", fragment)
-              controls = re.findall(r'<(?:input|select|button)\b[^>]*>', fragment, re.I)
-              print(f"UI_STRUCTURE {page_id}: ids={ids[:100]} controls={controls[:100]}")
+              controls = re.findall(r'<(?:input|select|button|textarea)\b[^>]*>', fragment, re.I)
+              visible_text = re.sub(r'<[^>]*>', ' ', fragment)
+              visible_text = re.sub(r'\s+', ' ', visible_text).strip()
+              if len(visible_text) < 100 or len(controls) < 5:
+                  print(f"::error::{page_id} is structurally present but has no usable page content")
+                  raise SystemExit(1)
+              print(f"UI_STRUCTURE {page_id}: text_chars={len(visible_text)} controls={len(controls)} ids={ids[:100]}")
           PY
           test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
