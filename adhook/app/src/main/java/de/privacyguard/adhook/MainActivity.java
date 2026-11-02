@@ -36,6 +36,7 @@ import android.view.ViewParent;
 import android.widget.*;
 import android.util.Base64;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -124,6 +125,8 @@ public final class MainActivity extends ComponentActivity {
     private boolean appsLoaded;
     private static final int REQUEST_FILE_PICKER = 4101;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
+    private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
+    private String pendingNativeScriptExport;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -1044,7 +1047,8 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.addView(nativeAction("添加脚本 / 订阅", this::showNativeScriptAddDialog));
-        actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
+        actions.addView(nativeAction("从文件导入 HTTPS 订阅", this::pickNativeScriptFile));
+        actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
@@ -1256,12 +1260,12 @@ public final class MainActivity extends ComponentActivity {
         EditText input = new EditText(this);
         input.setSingleLine(false);
         input.setMinLines(3);
-        input.setHint("粘贴可信 HTTPS 脚本订阅 URL 或脚本内容");
+        input.setHint("粘贴可信 HTTPS 脚本订阅 URL（仅支持 https://）");
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(6), dp(12), dp(4));
         TextView hint = new TextView(this);
-        hint.setText("HTTPS 订阅会进入模块脚本同步器；仅受支持的 FX / userscript URL 元数据会用于 MITM 请求/响应钩子。普通脚本源码不会被伪装成 Frida。");
+        hint.setText("当前运行时仅执行 HTTPS 订阅；订阅脚本必须包含受支持的 FX 或 userscript URL 匹配元数据。普通本地 JS 源码尚未接入执行队列，不会被误报为已运行。");
         hint.setTextColor(0xff718091);
         panel.addView(hint);
         panel.addView(input);
@@ -1303,6 +1307,44 @@ public final class MainActivity extends ComponentActivity {
                 syncNativeScriptRuntime();
             } else {
                 Toast.makeText(this, "脚本未保存：" + result.output.trim(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void exportNativeScripts() {
+        runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, result -> {
+            if (result.exitCode != 0) {
+                Toast.makeText(this, "读取脚本配置失败：" + result.output.trim(), Toast.LENGTH_LONG).show();
+                return;
+            }
+            try {
+                String[] lines = result.output.split("\\r?\\n");
+                if (lines.length == 0 || !"FXSCRIPT1".equals(lines[0].trim())) {
+                    throw new IllegalStateException("脚本列表协议不匹配");
+                }
+                JSONArray entries = new JSONArray();
+                for (int i = 1; i < lines.length; i++) {
+                    if (lines[i].trim().isEmpty()) continue;
+                    String[] fields = lines[i].split("\\|", -1);
+                    if (fields.length != 3) throw new IllegalStateException("脚本条目字段错误");
+                    JSONObject entry = new JSONObject();
+                    entry.put("url", decodeNativeScriptArgument(fields[0]));
+                    entry.put("name", decodeNativeScriptArgument(fields[1]));
+                    entry.put("enabled", "1".equals(fields[2]));
+                    entries.put(entry);
+                }
+                JSONObject document = new JSONObject();
+                document.put("format", "FX-SCRIPT-LIST");
+                document.put("version", 1);
+                document.put("scripts", entries);
+                pendingNativeScriptExport = document.toString(2);
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_TITLE, "fx-scripts.json");
+                startActivityForResult(intent, REQUEST_NATIVE_SCRIPT_EXPORT);
+            } catch (Exception error) {
+                Toast.makeText(this, "导出准备失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -2941,6 +2983,20 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_NATIVE_SCRIPT_EXPORT) {
+            String payload = pendingNativeScriptExport;
+            pendingNativeScriptExport = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null || payload == null) return;
+            try (java.io.OutputStream output = getContentResolver().openOutputStream(data.getData())) {
+                if (output == null) throw new IllegalStateException("无法写入目标文件");
+                output.write(payload.getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                Toast.makeText(this, "脚本配置已导出", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                Toast.makeText(this, "导出失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         if (requestCode == REQUEST_NATIVE_SCRIPT_FILE) {
             if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
             Uri uri = data.getData();
