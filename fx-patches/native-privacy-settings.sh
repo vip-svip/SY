@@ -16,6 +16,10 @@ case "${1:-}" in
     key=${2:-}; value=${3:-}
     case "$key" in ''|*[!A-Za-z0-9_.-]*) echo "invalid setting key" >&2; exit 2 ;; esac
     case "$value" in 0|1) ;; *) echo "setting value must be 0 or 1" >&2; exit 2 ;; esac
+    if ! grep -q "^$key=" "$MP/scripts/default.conf" 2>/dev/null && ! grep -q "^$key=" "$CONF" 2>/dev/null; then
+      echo "setting key is not declared by this FX module" >&2
+      exit 2
+    fi
     # Never race an in-progress WebUI transaction or overwrite a damaged transaction.
     for marker in "$CONF.tmp" "$CONF.txn" "$CONF.bak.tmp" "$CONF.recover"; do
       [ ! -e "$marker" ] || { echo "settings.conf transaction busy; retry" >&2; exit 75; }
