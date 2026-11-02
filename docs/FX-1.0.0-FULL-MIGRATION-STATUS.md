@@ -1,15 +1,15 @@
-## Native privacy settings migration progress (2026-11-03)
+## Latest continuation audit (2026-11-03, Asia/Tokyo)
 
-- Current branch HEAD: `f93a45fe7af94772f23fc754f05b3303ba6d2ff3`.
-- The generated asset contains **13 non-empty panels**: the VPN advanced-settings panel plus the 12 advanced privacy categories, with **112 unique top-level boolean controls** sourced from the restored canonical `webroot/index.html` and `scripts/default.conf`.
-- Native boolean controls read only allowlisted boolean values through `native-privacy-settings.sh list`; subscription URLs, script bodies and other non-boolean config values are not returned to the App.
-- Native writes validate the key against the module's top-level boolean defaults, reuse the real `pg_set()`, and invoke `apply.sh fast`. The guard checks the WebUI transaction markers and `pg_set` PID-suffixed temporary files; persisted-but-not-applied is reported separately.
-- VPN text/list/choice edit controls are retained as native Android buttons, but their editor metadata and save path still use a narrowly scoped WebView compatibility bridge for `vpnPanel` only. The 12 privacy categories do not use that edit bridge. This is **partial migration**, not a fully WebView-free app.
-- Regression coverage checks all 13 panels are present and non-empty, the 112 generated keys are unique top-level booleans, native privacy toggle methods do not call the hidden WebView bridge, VPN edit controls remain available, list output excludes non-boolean config, and writes preserve unrelated config while handling apply failure and transaction markers.
-- Local source integration test used the restored module's real `util.sh` / `pg_set()` with a stubbed `apply.sh`; it passed. This does not verify real apply behavior on a phone.
-- Current-HEAD Hook APK workflow `41520909921`: source restoration, static migration checks and complete host regression passed; APK compilation is in progress. Current-HEAD KernelSU workflow `41520910157`: source patches and QuickJS-NG ARM64 build passed; focused LSPosed/Remote Files regressions are in progress and ZIP packaging has not started.
-- A previous APK compile failed on a double-escaped Java newline character literal. Fixed in current HEAD commit `f93a45f`; the current-HEAD compile is the required retest.
-- No current-HEAD APK/KernelSU ZIP build has been confirmed yet. No real-device verification has been performed.
+- Current branch: `fx-v1.0.0-unified-hook-integration`.
+- Current HEAD: `d376c15fc70b840c57a5129cc34bf63a8df7959c` (`test(fx): pinpoint native privacy bridge regression failures`).
+- This commit changes only the Hook native UI regression test: it now checks `showNativeSettingsGroup()` and `renderNativePrivacySettingsGroup()` separately and prints the offending method/context if WebView access is detected. This corrects a false-positive in the prior test, where the combined source slice also included the intentionally retained VPN compatibility editor.
+- On this HEAD, Hook APK workflow `41522107780`: restore/staging and static migration checks passed; complete host regression passed; Android APK compile/verification is running. No APK artifact has yet been confirmed.
+- On this HEAD, KernelSU workflow `41522107768`: restore/patching and QuickJS-NG source preparation passed; ARM64 NDK compilation is running. ZIP packaging has not yet started.
+- An older concurrent build on parent commit `e1e4eaec32237b47612ad51d993e1ded5b50c7a7` was cancelled; it is not evidence for the current HEAD.
+- Source audit confirms Hosts subscription/whitelist CRUD still calls `pgListArr()`, `pgPersistNow()` and `pgQueueAutoApply()` through the hidden WebView. This is a known incomplete migration, not a native backend.
+- The VPN advanced text/list/choice editor remains a deliberately isolated compatibility bridge; native boolean toggles and the 12 privacy category panels use the Root-backed module writer. The generated metadata currently contains 13 panels total (VPN plus 12 privacy panels) and 112 unique boolean controls.
+- No real-device verification has been performed. Do not label any page/device behavior as device-verified based on CI.
+
 
 # FX 1.0.0 Full Migration Status
 
