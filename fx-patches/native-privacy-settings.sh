@@ -10,6 +10,7 @@ MP=${MP:-}
 }
 [ -n "$MP" ] && [ -f "$MP/module.prop" ] || { echo "FX module not found" >&2; exit 20; }
 CONF="$PG/settings.conf"
+export MP PG CONF
 [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ] || { echo "settings.conf unavailable" >&2; exit 21; }
 case "${1:-}" in
   set)
