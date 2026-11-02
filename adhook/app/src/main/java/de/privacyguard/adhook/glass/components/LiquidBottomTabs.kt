@@ -144,8 +144,13 @@ fun LiquidBottomTabs(
             snapshotFlow { currentIndex }
                 .drop(1)
                 .collectLatest { index ->
-                    dampedDragAnimation.animateToValue(index.toFloat())
-                    onTabSelected(index)
+                    // A tap updates the caller's selected index and dispatches its
+                    // callback synchronously. Only dispatch here when the value came
+                    // from the capsule drag gesture, not from that already-handled tap.
+                    if (index != selectedTabIndex()) {
+                        dampedDragAnimation.animateToValue(index.toFloat())
+                        onTabSelected(index)
+                    }
                 }
         }
 
