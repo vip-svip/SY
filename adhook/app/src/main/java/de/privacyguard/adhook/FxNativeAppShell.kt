@@ -100,8 +100,12 @@ private fun FxNativeAppShell(
                 LiquidBottomTabs(
                     selectedTabIndex = selectedIndexProvider,
                     onTabSelected = { index ->
-                        selected = index
-                        onTabSelected(index)
+                        // Gesture-driven selection arrives here. Ignore the
+                        // duplicate callback after a direct tab click.
+                        if (index != selected) {
+                            selected = index
+                            onTabSelected(index)
+                        }
                     },
                     backdrop = backdrop,
                     tabsCount = labels.size,
@@ -114,9 +118,13 @@ private fun FxNativeAppShell(
                     labels.forEachIndexed { index, label ->
                         LiquidBottomTab(
                             onClick = {
-                                // The upstream LiquidBottomTabs observes selectedTabIndex
-                                // and emits onTabSelected once after its spring animation.
-                                selected = index
+                                // Do not wait for the backdrop spring/gesture observer:
+                                // direct taps must navigate immediately. The parent
+                                // callback ignores the later duplicate animation event.
+                                if (selected != index) {
+                                    selected = index
+                                    onTabSelected(index)
+                                }
                             },
                             modifier = Modifier.semantics { this.selected = selected == index }
                         ) {
