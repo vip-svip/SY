@@ -51,7 +51,7 @@ if sh "$SCRIPT" toggle 99 1 >/dev/null 2>&1; then fail "invalid index unexpected
 after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 [ "$before" = "$after" ] || fail "invalid mutation changed settings.conf"
 # Local JavaScript source must survive arbitrary pipes, line breaks and literal backslashes.
-multiline=$(printf 'const value = "a|b";\nconst literal = "\\n";\nreturn value + literal;')
+multiline=$(printf 'const value = "a|b";\nconst endpoint = "https://example.test";\nconst literal = "\\n";\nreturn value + literal;')
 multi64=$(printf '%s' "$multiline" | base64 | tr -d '\n')
 multi_note=$(printf '%s' 'Multiline source' | base64 | tr -d '\n')
 add_result=$(sh "$SCRIPT" add "$multi64" "$multi_note" 1 2>&1) || fail "multiline local source add failed: $add_result"
