@@ -43,36 +43,52 @@ retire_legacy_standalone(){
 }
 force_replace_signature_mismatch(){
   _pkg=$1; _new_apk=$2; _log_lines=$3
-  _old_path=$(pm path "$_pkg" 2>/dev/null | awk 'NR==1 {sub(/^package:/, ""); print; exit}')
-  [ -n "$_old_path" ] && [ -s "$_old_path" ] || {
-    log_msg "ERROR: signature conflict but installed APK backup is unavailable; preserving old installation"
+  _backup_dir="$TMP_DIR/.fx-hook-rollback-$$"
+  rm -rf "$_backup_dir" 2>/dev/null
+  mkdir -p "$_backup_dir" || {
+    log_msg "ERROR: cannot create rollback directory; preserving old installation"
     return 1
   }
-  _backup="$TMP_DIR/.fx-hook-rollback-$.apk"
-  rm -f "$_backup" 2>/dev/null
-  cp "$_old_path" "$_backup" 2>/dev/null || {
-    log_msg "ERROR: cannot back up old signed APK; preserving old installation"
+  _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
+  [ -n "$_paths" ] || {
+    log_msg "ERROR: signature conflict but installed APK paths are unavailable; preserving old installation"
+    rm -rf "$_backup_dir"
     return 1
   }
-  chmod 0600 "$_backup" 2>/dev/null || :
+  _count=0
+  printf '%s\n' "$_paths" | while IFS= read -r _path; do
+    [ -s "$_path" ] || exit 1
+    cp "$_path" "$_backup_dir/$(basename "$_path")" || exit 1
+  done || {
+    log_msg "ERROR: cannot back up all installed APK splits; preserving old installation"
+    rm -rf "$_backup_dir"
+    return 1
+  }
+  set -- "$_backup_dir"/*.apk
+  [ -s "$1" ] || {
+    log_msg "ERROR: rollback APK set is incomplete; preserving old installation"
+    rm -rf "$_backup_dir"
+    return 1
+  }
+  chmod 0600 "$@" 2>/dev/null || :
   if ! pm uninstall -k "$_pkg" >> "$LOG" 2>&1 || package_present "$_pkg"; then
     log_msg "ERROR: Android refused data-preserving uninstall; old FX Hook remains"
-    rm -f "$_backup"
+    rm -rf "$_backup_dir"
     return 1
   fi
   if pm install -r "$_new_apk" >> "$LOG" 2>&1 && package_present "$_pkg"; then
     log_msg "signature changed: replaced FX Hook with new signing identity using uninstall -k; app data retained by PackageManager"
-    rm -f "$_backup"
+    rm -rf "$_backup_dir"
     return 0
   fi
-  log_msg "ERROR: new FX Hook install failed after signature migration; restoring previous signed APK"
-  if pm install -r "$_backup" >> "$LOG" 2>&1 && package_present "$_pkg"; then
-    log_msg "ROLLBACK: previous FX Hook APK restored; retained app data remains available"
+  log_msg "ERROR: new FX Hook install failed after signature migration; restoring previous APK set"
+  if pm install-multiple -r "$@" >> "$LOG" 2>&1 && package_present "$_pkg"; then
+    log_msg "ROLLBACK: previous FX Hook APK set restored; retained app data remains available"
   else
-    log_msg "CRITICAL: automatic rollback failed; previous APK backup retained at $_backup"
+    log_msg "CRITICAL: automatic rollback failed; previous APK set retained at $_backup_dir"
     return 2
   fi
-  rm -f "$_backup"
+  rm -rf "$_backup_dir"
   return 1
 }
 install_one(){
