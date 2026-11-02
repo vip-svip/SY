@@ -8,7 +8,7 @@ def fxReleaseKeystorePath = System.getenv("FX_ANDROID_KEYSTORE_PATH")
 def fxReleaseSigningConfigured = fxReleaseKeystorePath != null && !fxReleaseKeystorePath.isEmpty()
 android {
     namespace 'de.privacyguard.adhook'
-    compileSdk 34
+    compileSdk 36
     defaultConfig {
         applicationId 'de.privacyguard.adhook'
         minSdk 28
