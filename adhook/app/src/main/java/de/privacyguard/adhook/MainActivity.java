@@ -444,9 +444,9 @@ public final class MainActivity extends ComponentActivity {
                 + "if(!page||!page.children.length)return false;"
                 + "var navTab='" + (tab.equals("hosts") ? "ad" : tab) + "';"
                 + "var names=id==='pageHosts'?['ad','hosts']:(id==='pageAd'?['ad']:['" + tab + "']);"
-                + "var b=null;for(var i=0;i<names.length&&!b;i++){"
-                + "b=document.querySelector('.nav-item[data-tab='+JSON.stringify(names[i])+']');}"
-                + "if(b)b.click();"
+                // Do not synthesize a click on the legacy WebUI navbar: its handler
+                // may switch to a retired page or run asynchronous side effects.
+                // The native tab owns navigation; update page and selected state directly.
                 + "var pages=document.querySelectorAll('#screen .page');"
                 + "for(var p=0;p<pages.length;p++)pages[p].classList.remove('on');"
                 + "page.classList.add('on');page.scrollTop=0;"
