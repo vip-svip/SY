@@ -140,7 +140,11 @@ grep -Fq 'private void focusPendingPrivacySection()' "$PRIVACY" || fail "privacy
 grep -Fq 't.setTag("fx-section:" + s);' "$PRIVACY" || fail "native Hook section headers cannot be targeted for category navigation"
 grep -Fq 'section("标识与追踪")' "$PRIVACY" || fail "per-app identifier controls are not grouped"
 grep -Fq 'section("剪贴板保护")' "$PRIVACY" || fail "per-app clipboard controls are not grouped"
-grep -Fq 'section("网络与位置")' "$PRIVACY" || fail "per-app network/location controls are not grouped"
+grep -Fq 'section("Wi-Fi 网络隐私")' "$PRIVACY" || fail "per-app Wi-Fi privacy controls are not grouped"
+grep -Fq 'section("位置隐私")' "$PRIVACY" || fail "per-app location privacy controls are not grouped"
+grep -Fq '() -> showAppList("Wi-Fi 网络隐私")' "$PRIVACY" || fail "Wi-Fi privacy card does not focus its own controls"
+grep -Fq '() -> showAppList("位置隐私")' "$PRIVACY" || fail "location privacy card does not focus its own controls"
+if grep -Fq 'section("网络与位置")' "$PRIVACY"; then fail "legacy combined Wi-Fi/location section remains"; fi
 grep -Fq 'section("设备访问")' "$PRIVACY" || fail "per-app microphone/camera controls are not grouped"
 grep -Fq 'section("媒体隐私")' "$PRIVACY" || fail "per-app media/EXIF controls are not grouped"
 python3 - "$PRIVACY" <<'PY'
@@ -155,7 +159,6 @@ assert '"camera_access_block"' in device, "camera access control is missing from
 assert '"mic_access_block"' not in device, "microphone control is duplicated in Device access"
 PY
 grep -Fq '() -> showAppList("标识与追踪")' "$PRIVACY" || fail "identifier card does not focus identifier controls"
-grep -Fq '() -> showAppList("网络与位置")' "$PRIVACY" || fail "network/location cards do not focus their controls"
 grep -Fq '() -> showAppList("媒体隐私")' "$PRIVACY" || fail "media card does not focus media controls"
 grep -Fq 'nativeScroll.smoothScrollTo(0, Math.max(0, child.getTop() - dp(12)))' "$PRIVACY" || fail "privacy deep-link does not scroll to the relevant native control group"
 grep -Fq '() -> showAppList("麦克风保护")' "$PRIVACY" || fail "microphone privacy entry is not category-routed"
