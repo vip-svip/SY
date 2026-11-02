@@ -11,6 +11,6 @@ grep -Fq 'function selectNode(index)' "$HTML" || fail "native node selection API
 grep -Fq 'Promise.resolve(pgPersistNow())' "$HTML" || fail "native node selection does not await config persistence"
 grep -Fq 'liveKnown:window.__pgVpnLiveKnown===true' "$HTML" || fail "native state snapshot omits backend-confirmed live state"
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
-! grep -Fq "document.getElementById('vpnEnableToggle');if(b)b.click()" "$ACTIVITY" || fail "native switch still clicks hidden legacy WebUI toggle"
-! grep -Fq "querySelectorAll('#vpnModeSeg > *')" "$ACTIVITY" || fail "native mode selector still clicks hidden legacy WebUI controls"
+! grep -Fq 'vpnEnableToggle' "$ACTIVITY" || fail "native switch still references hidden legacy WebUI toggle"
+! grep -Fq 'vpnModeSeg' "$ACTIVITY" || fail "native mode selector still references hidden legacy WebUI controls"
 echo "FX explicit native VPN API regression: PASS"
