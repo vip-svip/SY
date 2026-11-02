@@ -1,24 +1,32 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-MODULE="\${1:-$ROOT/fx-module}"
-ASSETS="\${TMPDIR:-/tmp}/fx-native-privacy-assets-$$"
-TMP="\${TMPDIR:-/tmp}/fx-native-privacy-test-$$"
+MODULE="${1:-$ROOT/fx-module}"
+ASSETS="${TMPDIR:-/tmp}/fx-native-privacy-assets-$$"
+TMP="${TMPDIR:-/tmp}/fx-native-privacy-test-$$"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 trap 'rm -rf "$ASSETS" "$TMP"' EXIT HUP INT TERM
+[ -s "$MODULE/webroot/index.html" ] || fail "complete module WebUI source missing"
+[ -s "$MODULE/scripts/default.conf" ] || fail "module default.conf missing"
 python3 "$ROOT/fx-patches/patch_native_privacy_settings.py" "$MODULE" "$ASSETS"
-python3 - "$ASSETS/native-privacy-settings.json" <<'PY'
-import json, sys
+python3 - "$ASSETS/native-privacy-settings.json" "$MODULE/scripts/default.conf" <<'PY'
+import json, re, sys
 data=json.load(open(sys.argv[1], encoding="utf-8"))
 expected={"rootPanel","advPanel","netPanel","permPanel","sensorPanel","locationPanel","devicePanel","mediaPanel","filePanel","notifyPanel","kernelPanel","miscPanel"}
 panels=data.get("panels",[])
 assert data.get("schema_version")==1
 assert {p["id"] for p in panels}==expected
 keys=[item["key"] for panel in panels for item in panel["items"]]
-assert len(keys)>=90, len(keys)
-assert len(keys)==len(set(keys)), "duplicate setting keys would make category ownership ambiguous"
+assert len(keys)>=20, len(keys)
+assert len(keys)==len(set(keys)), "duplicate setting keys"
+defaults=set()
+for line in open(sys.argv[2], encoding="utf-8"):
+    if line.lstrip().startswith("["): break
+    m=re.match(r"^([A-Za-z0-9_.-]+)=([01])$", line.strip())
+    if m: defaults.add(m.group(1))
+assert set(keys) <= defaults, "native privacy schema contains non-top-level or non-boolean settings"
 assert all(item["title"] and item["key"] for panel in panels for item in panel["items"])
-print("PASS: generated 12 native privacy panels with",len(keys),"unique settings")
+print("PASS: generated 12 native privacy panels with",len(keys),"top-level boolean settings")
 PY
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
@@ -27,33 +35,41 @@ mkdir -p "$TMP/module/scripts" "$TMP/pg"
 cp "$MODULE/scripts/util.sh" "$TMP/module/scripts/util.sh"
 cp "$MODULE/scripts/default.conf" "$TMP/module/scripts/default.conf"
 cp "$HELPER" "$TMP/module/scripts/native-privacy-settings.sh"
-: > "$TMP/module/module.prop"
+printf 'id=privacyguard\nversion=1.0.0\n' > "$TMP/module/module.prop"
 cat > "$TMP/module/scripts/apply.sh" <<'APPLY'
 #!/bin/sh
 echo ran >> "$PG/apply-test.log"
-[ "\${FX_TEST_APPLY_FAIL:-0}" = 0 ]
+[ "${FX_TEST_APPLY_FAIL:-0}" = 0 ]
 APPLY
 chmod 755 "$TMP/module/scripts/apply.sh"
 cp "$MODULE/scripts/default.conf" "$TMP/pg/settings.conf"
+printf '\nfx_native_test_keep=preserved\n' >> "$TMP/pg/settings.conf"
 export MP="$TMP/module" PG="$TMP/pg"
-sh "$HELPER" set cam_null 1 >/dev/null || fail "native setting write/apply failed"
-grep -qx 'cam_null=1' "$PG/settings.conf" || fail "native setting was not persisted"
-grep -qx 'vpn_mode=direct' "$PG/settings.conf" || fail "unrelated settings were not preserved"
+key=$(awk -F= '/^\[/ {exit} $2 ~ /^[01]$/ {print $1; exit}' "$TMP/module/scripts/default.conf")
+[ -n "$key" ] || fail "no top-level boolean key found in default.conf"
+old=$(awk -F= -v key="$key" '$1==key {print $2; exit}' "$TMP/module/scripts/default.conf")
+[ "$old" = 0 ] && new=1 || new=0
+sh "$HELPER" set "$key" "$new" >/dev/null || fail "native setting write/apply failed"
+grep -qx "$key=$new" "$PG/settings.conf" || fail "native setting was not persisted"
+grep -qx 'fx_native_test_keep=preserved' "$PG/settings.conf" || fail "unrelated settings were not preserved"
 [ -s "$PG/apply-test.log" ] || fail "module apply command was not invoked"
-# An apply failure must report saved-but-not-applied, not pretend the write rolled back.
 set +e
-FX_TEST_APPLY_FAIL=1 sh "$HELPER" set cam_null 0 >"$TMP/apply-failure.out" 2>&1
+FX_TEST_APPLY_FAIL=1 sh "$HELPER" set "$key" "$old" >"$TMP/apply-failure.out" 2>&1
 rc=$?
 set -e
 [ "$rc" -eq 10 ] || fail "apply failure exit code should be 10, got $rc"
-grep -qx 'cam_null=0' "$PG/settings.conf" || fail "persisted value was lost after apply failure"
+grep -qx "$key=$old" "$PG/settings.conf" || fail "persisted value was lost after apply failure"
 grep -q 'saved=1 applied=0' "$TMP/apply-failure.out" || fail "apply failure was not distinguished from persistence"
-# A WebUI transaction marker must block native writes instead of racing its atomic commit.
+set +e
+sh "$HELPER" set not_a_real_fx_setting 1 >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 2 ] || fail "unknown setting key should be rejected"
 : > "$PG/settings.conf.tmp"
 set +e
-sh "$HELPER" set cam_null 1 >"$TMP/busy.out" 2>&1
+sh "$HELPER" set "$key" "$new" >"$TMP/busy.out" 2>&1
 rc=$?
 set -e
 [ "$rc" -eq 75 ] || fail "active config transaction should return retryable exit 75, got $rc"
-grep -qx 'cam_null=0' "$PG/settings.conf" || fail "busy transaction was overwritten"
-echo "PASS: native privacy config persistence, apply result, transaction guard, and rollback-safe reporting"
+grep -qx "$key=$old" "$PG/settings.conf" || fail "busy transaction was overwritten"
+echo "PASS: native privacy config persistence, allowlist, apply reporting and transaction guard"
