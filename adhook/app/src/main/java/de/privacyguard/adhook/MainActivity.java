@@ -2549,64 +2549,79 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeSettingsGroup(String panelId, String title) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "设置数据桥尚未就绪，请返回主界面等待初始化后重试", Toast.LENGTH_LONG).show();
-            return;
+        final JSONObject panelSchema;
+        try {
+            java.util.Scanner scanner = new java.util.Scanner(
+                    getAssets().open("native-privacy-settings.json"), "UTF-8");
+            scanner.useDelimiter("\\A");
+            String json = scanner.hasNext() ? scanner.next() : "";
+            scanner.close();
+            JSONObject schema = new JSONObject(json);
+            if (schema.optInt("schema_version", 0) != 1) {
+                throw new IllegalStateException("隐私设置架构版本不受支持");
+            }
+            org.json.JSONArray panels = schema.optJSONArray("panels");
+            panelSchema = null;
+            JSONObject found = null;
+            if (panels != null) {
+                for (int i = 0; i < panels.length(); i++) {
+                    JSONObject candidate = panels.optJSONObject(i);
+                    if (candidate != null && panelId.equals(candidate.optString("id"))) {
+                        found = candidate;
+                        break;
+                    }
+                }
+            }
+            if (found == null) throw new IllegalStateException("找不到原生隐私设置分组：" + panelId);
+            // Keep the parsed panel local to this invocation; no WebView DOM is consulted.
+            renderNativePrivacySettingsGroup(found, title);
+        } catch (Exception error) {
+            new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                    .setMessage(error.getMessage()).setPositiveButton("关闭", null).show();
         }
-        String js = "(function(){var p=document.getElementById(" + JSONObject.quote(panelId) + ");"
-                + "if(!p)return JSON.stringify({ready:false});var out=[];"
-                + "p.querySelectorAll('.setrow').forEach(function(row){var sw=row.querySelector('.switch[data-key]');"
-                + "var edit=row.getAttribute('data-vpn-edit'),t=row.querySelector('.s-title'),d=row.querySelector('.s-sub');"
-                + "if(sw){var k=sw.getAttribute('data-key');out.push({kind:'switch',key:k,title:t?t.textContent.trim():k,"
-                + "description:d?d.textContent.trim():'',on:String(PGB.model.sw[k]||'0')==='1'});return;}"
-                + "if(!edit||!window.VPN_EDIT||!VPN_EDIT[edit])return;var cfg=VPN_EDIT[edit],v='';"
-                + "if(cfg.list){v=((VPN.model.lists[cfg.list]||[]).filter(function(x){return x.on!==false}).map(function(x){return x.v})||[]).join('\\n')}"
-                + "else if(cfg.keys){var defs={pick_min_ms:'80',pick_test_timeout:'5',pick_max_nodes:'60',core_ver:'1.14.3',hide_level:'1'};"
-                + "v=cfg.keys.map(function(k){return secVal(cfg.sec,k,defs[k]||'')}).join('\\n')}"
-                + "else if(cfg.key)v=secVal(cfg.sec,cfg.key,'');"
-                + "out.push({kind:'edit',edit:edit,title:cfg.t||edit,description:cfg.d||'',value:v});});"
-                + "return JSON.stringify({ready:true,items:out});})()";
-        webView.evaluateJavascript(js, value -> {
+    }
+
+    private void renderNativePrivacySettingsGroup(JSONObject panelSchema, String title) {
+        runNativeModuleCommand("cat /data/adb/privacyguard/settings.conf", 30000L, result -> {
             try {
-                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
-                if (!(decoded instanceof String)) throw new IllegalStateException("设置列表响应格式错误");
-                JSONObject snapshot = new JSONObject((String) decoded);
-                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("找不到该设置分组");
-                org.json.JSONArray items = snapshot.optJSONArray("items");
+                if (result.exitCode != 0) {
+                    throw new IllegalStateException("无法读取模块真实配置：" + result.output);
+                }
+                java.util.HashMap<String, String> values = new java.util.HashMap<>();
+                String[] lines = (result.output == null ? "" : result.output).split("\\r?\\n");
+                for (String line : lines) {
+                    if (line.startsWith("[")) break;
+                    int equals = line.indexOf('=');
+                    if (equals <= 0) continue;
+                    String key = line.substring(0, equals).trim();
+                    if (key.matches("[A-Za-z0-9_.-]{1,96}")) {
+                        values.put(key, line.substring(equals + 1).trim());
+                    }
+                }
+                org.json.JSONArray items = panelSchema.optJSONArray("items");
                 int count = items == null ? 0 : items.length();
                 LinearLayout panel = new LinearLayout(this);
                 panel.setOrientation(LinearLayout.VERTICAL);
                 panel.setPadding(dp(12), dp(6), dp(12), dp(6));
                 TextView summary = new TextView(this);
-                summary.setText("此分组包含 " + count + " 个原生设置项。变更会写入模块配置并请求应用；重启生效项会按模块提示处理。");
+                summary.setText("配置来源：/data/adb/privacyguard/settings.conf。开关由 Root 原生接口保存，并调用模块 apply.sh；应用失败会单独提示。");
                 summary.setTextColor(0xff718091);
                 summary.setPadding(dp(6), dp(4), dp(6), dp(10));
                 panel.addView(summary);
                 if (count == 0) {
                     TextView empty = new TextView(this);
-                    empty.setText("此分组暂无可原生切换的开关项。");
+                    empty.setText("此分组没有可用的设置项。");
                     empty.setPadding(dp(8), dp(12), dp(8), dp(12));
                     panel.addView(empty);
                 }
                 for (int i = 0; i < count; i++) {
                     JSONObject item = items.optJSONObject(i);
                     if (item == null) continue;
-                    String kind = item.optString("kind", "switch");
-                    String label = item.optString("title", "设置项");
-                    String description = item.optString("description", "");
-                    if ("edit".equals(kind)) {
-                        String editId = item.optString("edit", "");
-                        String initial = item.optString("value", "");
-                        String preview = initial.replace('\n', ' ').trim();
-                        if (preview.length() > 44) preview = preview.substring(0, 41) + "…";
-                        Button edit = nativeAction(label + (preview.isEmpty() ? "" : " · " + preview),
-                                () -> showNativeSettingsEditDialog(editId, label, description, initial));
-                        panel.addView(edit, new LinearLayout.LayoutParams(-1, dp(48)));
-                        continue;
-                    }
                     String key = item.optString("key", "");
                     if (!key.matches("[A-Za-z0-9_.-]{1,96}")) continue;
-                    boolean checked = item.optBoolean("on", false);
+                    String label = item.optString("title", key);
+                    String description = item.optString("description", "");
+                    boolean checked = "1".equals(values.get(key));
                     LinearLayout row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.VERTICAL);
                     row.setPadding(dp(12), dp(8), dp(12), dp(8));
@@ -2620,9 +2635,10 @@ public final class MainActivity extends ComponentActivity {
                     name.setTextColor(0xff17212b);
                     top.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
                     Switch toggle = new Switch(this);
+                    toggle.setTag(key);
                     toggle.setChecked(checked);
                     toggle.setOnCheckedChangeListener((button, enabled) ->
-                            setNativeSettingsSwitch(key, enabled, !enabled, button));
+                            setNativePrivacySetting(key, enabled, !enabled, button));
                     top.addView(toggle);
                     row.addView(top);
                     if (!description.isEmpty()) {
@@ -2638,15 +2654,53 @@ public final class MainActivity extends ComponentActivity {
                     panel.addView(row, lp);
                 }
                 ScrollView scroll = new ScrollView(this);
-        nativeScroll = scroll;
+                nativeScroll = scroll;
                 scroll.addView(panel);
                 new AlertDialog.Builder(this).setTitle(title)
                         .setView(scroll).setPositiveButton("关闭", null).show();
             } catch (Exception error) {
                 new AlertDialog.Builder(this).setTitle(title + "读取失败")
-                        .setMessage(error.getMessage()).setPositiveButton("关闭", null).show();
+                        .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
+                                showNativeSettingsGroup(panelSchema.optString("id"), title))
+                        .setNegativeButton("关闭", null).show();
             }
         });
+    }
+
+    private void setNativePrivacySetting(String key, boolean enabled, boolean previous,
+                                         android.widget.CompoundButton control) {
+        if (control == null) return;
+        if (!key.matches("[A-Za-z0-9_.-]{1,96}")) {
+            finishNativePrivacySetting(control, previous, false, "设置键无效");
+            return;
+        }
+        control.setEnabled(false);
+        String command = "sh \\"$MP/scripts/native-privacy-settings.sh\\" set "
+                + key + " " + (enabled ? "1" : "0");
+        runNativeModuleCommand(command, 120000L, result -> {
+            if (result.exitCode == 0) {
+                finishNativePrivacySetting(control, enabled, true, "已保存并请求应用");
+            } else if (result.exitCode == 10) {
+                // The config write succeeded but apply failed. Keep the persisted value visible.
+                finishNativePrivacySetting(control, enabled, true,
+                        "配置已保存，但模块应用失败；请查看模块日志");
+            } else {
+                finishNativePrivacySetting(control, previous, false,
+                        result.output == null || result.output.trim().isEmpty()
+                                ? "模块未确认保存" : result.output.trim());
+            }
+        });
+    }
+
+    private void finishNativePrivacySetting(android.widget.CompoundButton control, boolean checked,
+                                            boolean success, String message) {
+        if (control == null) return;
+        control.setEnabled(true);
+        control.setOnCheckedChangeListener(null);
+        control.setChecked(checked);
+        control.setOnCheckedChangeListener((button, enabled) ->
+                setNativePrivacySetting(String.valueOf(button.getTag()), enabled, !enabled, button));
+        Toast.makeText(this, message, success ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
     }
 
     private void showNativeSettingsEditDialog(String editId, String title, String description, String initial) {
