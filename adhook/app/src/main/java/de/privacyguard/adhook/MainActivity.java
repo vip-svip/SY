@@ -383,50 +383,28 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout buildBottomNavigation() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER);
-        bar.setBackground(uiPanelDrawable());
-        bar.setElevation(dp(8));
-        String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};
-        for (int i = 0; i < labels.length; i++) {
-            final int index = i;
-            TextView item = new TextView(this);
-            item.setText(labels[i]);
-            item.setTextSize(15);
-            item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            item.setGravity(Gravity.CENTER);
-            item.setSingleLine(true);
-            item.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            item.setIncludeFontPadding(false);
-            item.setAutoSizeTextTypeUniformWithConfiguration(
-                    10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
-            item.setContentDescription(labels[i]);
-            item.setPadding(dp(1), dp(8), dp(1), dp(8));
-            styleBottomItem(item, index);
-            item.setOnClickListener(v -> {
-                if (index == 5) {
-                    selectedBottomTab = 5;
-                    showSettings();
-                } else if (index == 4) {
-                    selectedBottomTab = 4;
-                    showAppList();
-                } else {
-                    selectedBottomTab = index;
-                    lastWebTabIndex = index;
-                    int pageIndex = index > 4 ? index - 1 : index;
-                    String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy",
-                            "pageScript", "pageMore"}[pageIndex];
-                    if (hookUiVisible || settingsUiVisible) showWebDashboard();
-                    else for (int j = 0; j < bar.getChildCount(); j++) {
-                        styleBottomItem((TextView) bar.getChildAt(j), j);
-                    }
-                    navigateWebPage(page);
-                }
-            });
-            bar.addView(item, new LinearLayout.LayoutParams(0, -1, 1));
-        }
-        return bar;
+        LinearLayout host = new LinearLayout(this);
+        host.setOrientation(LinearLayout.VERTICAL);
+        androidx.compose.ui.platform.ComposeView composeBar =
+                new androidx.compose.ui.platform.ComposeView(this);
+        FxNativeBottomBarKt.installFxNativeBottomBar(composeBar, selectedBottomTab, uiMode, index -> {
+            if (index == 5) {
+                selectedBottomTab = 5;
+                showSettings();
+            } else if (index == 4) {
+                selectedBottomTab = 4;
+                showAppList();
+            } else if (index >= 0 && index <= 3) {
+                selectedBottomTab = index;
+                lastWebTabIndex = index;
+                String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
+                if (hookUiVisible || settingsUiVisible) showWebDashboard();
+                navigateWebPage(page);
+            }
+            return kotlin.Unit.INSTANCE;
+        });
+        host.addView(composeBar, new LinearLayout.LayoutParams(-1, -1));
+        return host;
     }
 
     private void styleBottomItem(TextView item, int index) {
