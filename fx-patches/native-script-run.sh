@@ -10,8 +10,11 @@ RUNNER="$MODDIR/scripts/jsruntime/runner.sh"
 STATE="$PG/jsruntime"
 [ -x "$STORE" ] || { echo '{"ok":false,"error":"native script store missing"}'; exit 127; }
 [ -x "$RUNNER" ] || { echo '{"ok":false,"error":"QuickJS runner missing"}'; exit 127; }
-[ "$#" -eq 1 ] || { echo '{"ok":false,"error":"usage: local-run.sh INDEX"}'; exit 64; }
+[ "$#" -eq 2 ] || { echo '{"ok":false,"error":"usage: local-run.sh INDEX EXPECTED_SHA256"}'; exit 64; }
 index=$1
+expected_sha=$2
+case "$expected_sha" in ''|*[!0-9a-fA-F]*) echo '{"ok":false,"error":"invalid expected source hash"}'; exit 64 ;; esac
+[ "${#expected_sha}" -eq 64 ] || { echo '{"ok":false,"error":"invalid expected source hash length"}'; exit 64; }
 case "$index" in ''|*[!0-9]*|0) echo '{"ok":false,"error":"invalid script index"}'; exit 64 ;; esac
 [ "$index" -le 128 ] 2>/dev/null || { echo '{"ok":false,"error":"script index out of range"}'; exit 64; }
 umask 077
@@ -65,6 +68,8 @@ size=$(wc -c < "$TMP" | tr -d ' ')
 case "$size" in ''|*[!0-9]*) size=0 ;; esac
 [ "$size" -gt 0 ] && [ "$size" -le 65536 ] || { echo '{"ok":false,"error":"local JavaScript source size is invalid"}'; exit 65; }
 chmod 600 "$TMP" 2>/dev/null || :
+actual_sha=$(sha256sum "$TMP" 2>/dev/null | awk '{print $1}')
+[ "$actual_sha" = "$expected_sha" ] || { echo '{"ok":false,"error":"script list changed; refresh the Script page before running"}'; exit 75; }
 # Release the list lock before execution; the script file is now an immutable snapshot.
 released="$LOCK.release.$$"
 if mv "$LOCK" "$released" 2>/dev/null; then rm -rf "$released"; fi
