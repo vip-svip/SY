@@ -44,6 +44,7 @@ grep -Fq "document.getElementById('vpnEnableToggle');if(b)b.click()" "$JAVA"
 grep -Fq "document.querySelectorAll('#vpnModeSeg > *')" "$JAVA"
 ! grep -Fq 'window.applyVpnModeSelection' "$JAVA"
 grep -Fq 'window.__pgVpnLiveOn===true' "$JAVA"
+grep -Fq 'nativeVpnSwitch.setChecked(configured && liveKnown && liveOn);' "$JAVA"
 grep -Fq 'nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE)' "$JAVA"
 grep -Fq '#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}' "$JAVA"
 ! grep -Fq 'if (selected != index)' "$GLASS" || { echo 'direct Liquid tab taps must not be gated by selected state' >&2; exit 1; }
