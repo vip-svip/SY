@@ -1080,6 +1080,21 @@ public final class MainActivity extends ComponentActivity {
         return decoded;
     }
 
+    private static boolean isSupportedNativeScriptValue(String raw) {
+        if (raw == null) return false;
+        String value = raw.trim();
+        if (value.isEmpty()) return false;
+        if (value.regionMatches(true, 0, "https://", 0, 8)) {
+            Uri parsed = Uri.parse(value);
+            String host = parsed.getHost();
+            return host != null && !host.isEmpty() && parsed.getUserInfo() == null
+                    && !value.matches(".*\\s+.*");
+        }
+        if (value.regionMatches(true, 0, "http://", 0, 7)) return false;
+        // Other URI schemes are not fetched by the module synchronizer.
+        return !value.matches("^[A-Za-z][A-Za-z0-9+.-]*://.*");
+    }
+
     private void syncNativeScriptRuntime() {
         runNativeModuleCommand("sh \"$MP/scripts/jsruntime/sync-subs.sh\"", 60000L, result -> {
             if (result.exitCode != 0 && nativeScriptStatus != null
