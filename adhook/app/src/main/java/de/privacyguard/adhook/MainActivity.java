@@ -905,7 +905,7 @@ public final class MainActivity extends Activity {
                     ".section-title,h2,h3{font-weight:700!important;letter-spacing:.01em}";
         } else if ("glass".equals(uiMode)) {
             css = "body{background:linear-gradient(145deg,#e8f2fa,#f2edf8)!important}" +
-                    ".card,.panel,.setting-card,.section,.list-item,.config-card{background:rgba(255,255,255,.64)!important;border:1px solid rgba(255,255,255,.78)!important;border-radius:22px!important;box-shadow:0 8px 28px rgba(35,55,80,.10)!important;backdrop-filter:blur(18px) saturate(150%)!important;-webkit-backdrop-filter:blur(18px) saturate(150%)!important}" +
+                    ".card,.panel,.setting-card,.section,.list-item,.config-card{background:rgba(255,255,255,.64)!important;border:1px solid rgba(255,255,255,.78)!important;border-radius:22px!important;box-shadow:0 8px 28px rgba(35,55,80,.10)!important}" +
                     "button,.btn,input,select,textarea{border-radius:14px!important}";
         } else {
             css = "";
