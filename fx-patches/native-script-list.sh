@@ -122,7 +122,12 @@ case "$ACTION" in
     cp -p "$CONF" "$BACKUP" && cmp -s "$CONF" "$BACKUP" || { echo "ERROR unable to verify settings backup"; exit 1; }
     mv -f "$TMP" "$CONF" || { echo "ERROR unable to commit settings.conf"; exit 1; }
     chmod 600 "$CONF" 2>/dev/null || { cp -p "$BACKUP" "$CONF"; echo "ERROR unable to protect settings.conf"; exit 1; }
-    chown 0:0 "$CONF" 2>/dev/null || { cp -p "$BACKUP" "$CONF"; echo "ERROR unable to restore settings ownership"; exit 1; }
+    # The Android module invokes this as root. Host regressions may run as an
+    # unprivileged CI user; do not fail a valid atomic write merely because that
+    # user cannot chown. Root execution naturally preserves root ownership.
+    if [ "$(id -u)" = 0 ]; then
+      chown 0:0 "$CONF" 2>/dev/null || { cp -p "$BACKUP" "$CONF"; echo "ERROR unable to restore settings ownership"; exit 1; }
+    fi
     [ -f "$CONF" ] || { cp -p "$BACKUP" "$CONF"; echo "ERROR committed settings.conf missing"; exit 1; }
     echo "OK"
     ;;
