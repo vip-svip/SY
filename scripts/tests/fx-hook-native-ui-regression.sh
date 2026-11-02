@@ -196,6 +196,16 @@ trap 'rm -rf "$CHECK_TMP"' EXIT HUP INT TERM
 # closes the pipe early and causes noisy printf EPIPE errors under dash.
 WEBUI_FILE="$CHECK_TMP/webroot.html"
 unzip -p "$APK" assets/webroot/index.html > "$WEBUI_FILE" || fail "embedded WebUI cannot be extracted"
+NATIVE_PRIVACY_SCHEMA="$CHECK_TMP/native-privacy-settings.json"
+unzip -p "$APK" assets/native-privacy-settings.json > "$NATIVE_PRIVACY_SCHEMA" || fail "native privacy settings schema missing from APK"
+python3 - "$NATIVE_PRIVACY_SCHEMA" <<'PY'
+import json, sys
+data=json.load(open(sys.argv[1], encoding="utf-8"))
+panels=data.get("panels", [])
+assert data.get("schema_version")==1
+assert len(panels)==12, "APK native privacy panel schema is incomplete"
+assert sum(len(p.get("items", [])) for p in panels)>=90, "APK native privacy controls are incomplete"
+PY
 grep -Fq 'data-tab="ad"' "$WEBUI_FILE" || fail "embedded WebUI Ad compatibility tab missing"
 grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" "$WEBUI_FILE" || fail "embedded Ad tab no longer activates merged Hosts content"
 grep -Fq 'id="pageHosts"' "$WEBUI_FILE" || fail "embedded merged Hosts page missing"
