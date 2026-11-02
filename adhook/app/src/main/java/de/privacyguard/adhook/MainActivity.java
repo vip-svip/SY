@@ -1068,32 +1068,12 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private static String decodeNativeScriptArgument(String value) {
-        return new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
-    }
-
-    private static String decodeNativeScriptValue(String encoded) {
-        String value = decodeNativeScriptArgument(encoded);
-        if (value.startsWith("FXSRC_B64:")) {
-            return new String(Base64.decode(value.substring(10), Base64.DEFAULT), StandardCharsets.UTF_8);
+        String decoded = new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
+        if (decoded.startsWith("FXSRC_B64:")) {
+            decoded = new String(Base64.decode(decoded.substring("FXSRC_B64:".length()), Base64.DEFAULT),
+                    StandardCharsets.UTF_8);
         }
-        StringBuilder decoded = new StringBuilder(value.length());
-        for (int i = 0; i < value.length(); i++) {
-            char current = value.charAt(i);
-            if (current == '\\' && i + 1 < value.length()) {
-                char next = value.charAt(i + 1);
-                if (next == '\\') { decoded.append('\\'); i++; continue; }
-                if (next == 'n') { decoded.append('\n'); i++; continue; }
-            }
-            decoded.append(current);
-        }
-        return decoded.toString();
-    }
-
-    private static boolean isSupportedNativeScriptValue(String value) {
-        if (value == null || value.trim().isEmpty()) return false;
-        String normalized = value.trim();
-        if (normalized.startsWith("https://")) return true;
-        return !normalized.matches("(?i)^[a-z][a-z0-9+.-]*://.*");
+        return decoded;
     }
 
     private void syncNativeScriptRuntime() {
