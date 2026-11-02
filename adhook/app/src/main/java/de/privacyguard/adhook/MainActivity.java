@@ -3323,12 +3323,12 @@ public final class MainActivity extends ComponentActivity {
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
-        toggle("阻止录音启动（会影响录音功能）", "mic_access_block", false);
         toggle("限制摄像头访问", "camera_access_block", false);
         section("媒体隐私");
         toggle("清理媒体查询元数据", "media_store_query_block", false);
         toggle("清理图片/视频元数据", "exif_strip", false);
         section("麦克风保护");
+        toggle("阻止录音启动（会影响录音功能）", "mic_access_block", false);
         toggle("录音静音（保留录音流程）", "mic_silence", false);
         section("通知保护");
         toggle("阻止通知监听注册", "notification_listen_block", false);
