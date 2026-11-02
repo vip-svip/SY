@@ -46,6 +46,8 @@ grep -qx 'mode=direct' "$PG/settings.conf" || fail "global settings were lost"
 grep -qx 'keep_this=untouched' "$PG/settings.conf" || fail "unrelated root setting was lost"
 grep -Fqx 'keep|other|1' "$PG/settings.conf" || fail "other list section was lost"
 grep -Fqx '[conf:vpn]' "$PG/settings.conf" || fail "conf section was lost"
+nonhttps64=$(printf '%s' 'javascript:alert(1)' | base64 | tr -d '\\n')
+if sh "$SCRIPT" add "$nonhttps64" "$note64" 1 >/dev/null 2>&1; then fail "non-HTTPS script unexpectedly accepted"; fi
 before=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 if sh "$SCRIPT" toggle 99 1 >/dev/null 2>&1; then fail "invalid index unexpectedly succeeded"; fi
 after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
