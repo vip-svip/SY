@@ -1093,7 +1093,7 @@ public final class MainActivity extends ComponentActivity {
     private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status) {
         String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
                 + "if(!a||!a[" + index + "])return false;a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
-                + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
+                + "window.__fxNativeScriptMutationOk=false;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
                 + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
         webView.evaluateJavascript(js, value -> {
             verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本状态已保存", "脚本状态保存失败");
@@ -1104,7 +1104,7 @@ public final class MainActivity extends ComponentActivity {
     private void deleteNativeScript(int index, LinearLayout rows, TextView status) {
         String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
                 + "if(!a||!a[" + index + "])return false;a.splice(" + index + ",1);"
-                + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
+                + "window.__fxNativeScriptMutationOk=false;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
                 + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
         webView.evaluateJavascript(js, value -> {
             verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本条目已删除", "删除失败，设置未保存");
@@ -1170,7 +1170,7 @@ public final class MainActivity extends ComponentActivity {
         String note = sourceName == null || sourceName.trim().isEmpty()
                 ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName;
         String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
-                + "var ok=pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
+                + "window.__fxNativeScriptAddOk=false;var ok=pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
                 + ",note:" + JSONObject.quote(note) + ",on:true}],{});"
                 + "window.__fxNativeScriptAddOk=!!ok;return ok;})()";
         webView.evaluateJavascript(js, result -> {
