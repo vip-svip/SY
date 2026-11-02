@@ -79,7 +79,6 @@ fi
 if awk '!/^[A-Za-z0-9_.-]+=[01]$/ {bad=1} END {exit !bad}' "$TMP/list.out"; then
   fail "native privacy list exposed non-boolean or section data"
 fi
-fi
 sh "$HELPER" set "$key" "$new" >/dev/null || fail "native setting write/apply failed"
 grep -qx "$key=$new" "$PG/settings.conf" || fail "native setting was not persisted"
 sh "$HELPER" list > "$TMP/list-after.out" || fail "native privacy flag listing after write failed"
