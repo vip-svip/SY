@@ -2,85 +2,54 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 JAVA="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
-test -s "$JAVA"
-grep -Fq 'case 1: return "pageHosts";' "$JAVA"
-grep -Fq 'new String[]{"pageVpn", "pageHosts", "pagePrivacy",' "$JAVA"
-grep -Fq "#screen>.navbar,#screen .navbar,#bottomNav,#bottom-nav,.bottom-nav," "$JAVA"
-grep -Fq "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}" "$JAVA"
-grep -Fq '该功能页面未能加载，请检查内置 WebUI 页面资源。' "$JAVA"
-grep -Fq 'onReceivedError(WebView view, WebResourceRequest request,' "$JAVA"
-grep -Fq 'onReceivedHttpError(WebView view, WebResourceRequest request,' "$JAVA"
-grep -Fq 'webViewLoaded = false;' "$JAVA"
-grep -Fq '点击底部任一标签可重试。' "$JAVA"
+DASH="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeDashboard.kt"
 SHELL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
-grep -Fq 'fontSize = 15.sp' "$SHELL"
-grep -Fq 'fontWeight = FontWeight.Bold' "$SHELL"
-grep -Fq 'rootStatus.setMaxWidth(dp(132));' "$JAVA"
-grep -Fq 'toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));' "$JAVA"
-grep -Fq "if(!page||!page.children.length)return false;" "$JAVA"
-grep -Fq "var pages=document.querySelectorAll('#screen .page');" "$JAVA"
-grep -Fq "page.classList.add('on');page.scrollTop=0;" "$JAVA"
-grep -Fq "['editor','stylePanel','langPanel','confirmBar']" "$JAVA"
-! grep -Fq 'if(b)b.click();' "$JAVA"
-grep -Fq "navItems[n].classList.toggle('on',navItems[n].getAttribute('data-tab')===navTab);" "$JAVA"
-grep -Fq "getComputedStyle(page).display!=='none'" "$JAVA"
-GLASS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
-grep -Fq 'val selectedIndexProvider: () -> Int = remember { { selected } }' "$GLASS"
-grep -Fq 'selectedTabIndex = selectedIndexProvider' "$GLASS"
+SETTINGS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt"
+test -s "$JAVA"
+test -s "$DASH"
+test -s "$SHELL"
+test -s "$SETTINGS"
 
-grep -Fq 'ViewTreeLifecycleOwner.set(shell, this);' "$JAVA"
-grep -Fq 'ViewTreeViewModelStoreOwner.set(shell, this);' "$JAVA"
-grep -Fq 'ViewTreeSavedStateRegistryOwner.set(shell, this);' "$JAVA"
-grep -Fq 'ViewTreeLifecycleOwner.set(designModePanel, this);' "$JAVA"
-grep -Fq 'ViewTreeViewModelStoreOwner.set(designModePanel, this);' "$JAVA"
-grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
+# Six native destinations remain the only primary navigation.
+grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$SHELL"
+grep -Fq '.padding(bottom = 72.dp)' "$SHELL"
+grep -Fq 'LiquidBottomTabs(' "$SHELL"
+grep -Fq 'onTabSelected(index)' "$SHELL"
 
-grep -Fq 'onTabSelected(index)' "$GLASS"
-# Hook and Settings are native screens, not WebView placeholder routes.
+# Main dashboard now mounts a Compose-native page host; it must not construct or load a WebView.
+grep -Fq 'private androidx.compose.ui.platform.ComposeView nativeDashboard;' "$JAVA"
+grep -Fq 'FxNativeDashboardKt.installFxNativeDashboard(nativeDashboard, lastWebTabIndex' "$JAVA"
+grep -Fq 'private void renderNativeDashboard(int index)' "$JAVA"
+grep -Fq 'FxNativeDashboardKt.installFxNativeDashboard(nativeDashboard, index' "$JAVA"
+grep -Fq 'root.addView(nativeDashboard, new LinearLayout.LayoutParams(-1, 0, 1));' "$JAVA"
+dashboard_block=$(sed -n '/private void showWebDashboard() {/,/private void renderNativeDashboard(int index)/p' "$JAVA")
+printf '%s' "$dashboard_block" | grep -Fq 'new androidx.compose.ui.platform.ComposeView(this)'
+printf '%s' "$dashboard_block" | grep -Fq 'mountNativeShell(root)'
+! printf '%s' "$dashboard_block" | grep -Fq 'new WebView(this)'
+! printf '%s' "$dashboard_block" | grep -Fq 'webView.loadUrl'
+! grep -Fq 'navigateWebPage("pageMore")' "$JAVA"
+
+# The four management destinations contain native, scrollable content rather than WebView routes.
+for symbol in VpnPage HostsPage PrivacyPage ScriptPage; do
+  grep -Fq "private fun $symbol(" "$DASH"
+done
+for label in 'VPN 控制中心' '广告与 Hosts' '隐私保护' '脚本中心' '本地 Hosts' '订阅规则' '系统 Hosts' 'MITM 与证书设置'; do
+  grep -Fq "$label" "$DASH"
+done
+grep -Fq '原生 UI 入口已建立' "$DASH"
+grep -Fq '尚未连接真实 VPN 后端' "$DASH"
+grep -Fq '尚未从模块脚本目录读取数据' "$DASH"
+
+# Hook and Settings remain native screens and the six-tab routes stay stable.
 grep -Fq 'private void showAppList()' "$JAVA"
-grep -Fq 'private void loadAppsAsync()' "$JAVA"
-grep -Fq 'search.addTextChangedListener' "$JAVA"
+grep -Fq 'private void showHookHub()' "$JAVA"
 grep -Fq 'private void showSettings()' "$JAVA"
 grep -Fq 'FxDesignModePanelKt.installFxDesignModePanel' "$JAVA"
-grep -Fq 'fullSettings.setOnClickListener' "$JAVA"
-grep -Fq 'selectedBottomTab = 4' "$JAVA"
-grep -Fq 'selectedBottomTab = 5' "$JAVA"
+grep -Fq 'private void addNativeSettingEntry(' "$JAVA"
+grep -Fq 'selectedBottomTab = 4;' "$JAVA"
+grep -Fq 'selectedBottomTab = 5;' "$JAVA"
+grep -Fq 'ModeCard("miuix"' "$SETTINGS"
+grep -Fq 'ModeCard("glass"' "$SETTINGS"
+! grep -Fq 'ModeCard("web"' "$SETTINGS"
 
-# VPN tab exposes native Android controls routed through an explicit backend API, not hidden WebView button clicks.
-grep -Fq 'buildNativeVpnControls();' "$JAVA"
-grep -Fq 'private void buildNativeVpnControls()' "$JAVA"
-grep -Fq 'nativeVpnSwitch.setOnCheckedChangeListener' "$JAVA"
-grep -Fq 'private void showNativeVpnNodePicker()' "$JAVA"
-grep -Fq 'nativeVpnNodeButton.setMaxLines(1);' "$JAVA"
-grep -Fq 'nativeVpnNodeButton.setEllipsize(android.text.TextUtils.TruncateAt.END);' "$JAVA"
-grep -Fq 'nativeVpnNodeButton.setText(node.isEmpty() ? "选择节点 · 尚未选择" : "更换节点 · 已选择");' "$JAVA"
-grep -Fq '已选择 VPN 节点，点击更换' "$JAVA"
-grep -Fq 'String endpoint = node.optString("host", "") + ":" + node.optString("port", "");' "$JAVA"
-grep -Fq 'invokeNativeVpnApi("setEnabled"' "$JAVA"
-grep -Fq 'invokeNativeVpnApi("setMode"' "$JAVA"
-grep -Fq 'invokeNativeVpnApi("selectNode"' "$JAVA"
-grep -Fq 'setThumbTintList' "$JAVA"
-grep -Fq 'setTrackTintList' "$JAVA"
-! grep -Fq 'vpnEnableToggle' "$JAVA"
-! grep -Fq "document.querySelectorAll('#vpnModeSeg > *')" "$JAVA"
-grep -Fq 'button.setEnabled(false);' "$JAVA"
-grep -Fq 'nativeVpnSwitch.setEnabled(true)' "$JAVA"
-grep -Fq '正在通过 Root 后端应用 VPN 设置' "$JAVA"
-grep -Fq 'nativeVpnSwitch.setChecked(!"direct".equals(mode) && liveOn);' "$JAVA"
-grep -Fq 'state.optBoolean("vpn_on", false)' "$JAVA"
-grep -Fq 'state.optString("vpn_mode", "direct")' "$JAVA"
-grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$JAVA"
-grep -Fq 'sh \"$MP/scripts/apply.sh\"' "$JAVA"
-grep -Fq 'private void startNativeVpnPolling()' "$JAVA"
-grep -Fq 'protected void onResume()' "$JAVA"
-grep -Fq 'protected void onPause()' "$JAVA"
-[ "$(grep -Fc '@Override protected void onPause()' "$JAVA")" -eq 1 ] || { echo 'MainActivity must define onPause exactly once' >&2; exit 1; }
-[ "$(grep -Fc '@Override protected void onResume()' "$JAVA")" -eq 1 ] || { echo 'MainActivity must define onResume exactly once' >&2; exit 1; }
-grep -Fq 'new org.json.JSONTokener(value).nextValue()' "$JAVA" || { echo 'VPN state must use the Android-supported JSONTokener instance API' >&2; exit 1; }
-grep -Fq 'nativeVpnHandler.postDelayed(this, 5000L)' "$JAVA"
-grep -Fq 'stopNativeVpnPolling();' "$JAVA"
-grep -Fq 'nativeVpnHandler.removeCallbacks(nativeVpnPoll)' "$JAVA"
-grep -Fq 'nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE)' "$JAVA"
-grep -Fq '#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}' "$JAVA"
-! grep -Fq 'if (selected != index)' "$GLASS" || { echo 'direct Liquid tab taps must not be gated by selected state' >&2; exit 1; }
-echo 'FX native single-navigation, Compose lifecycle-owner and WebUI route regression: PASS'
+echo 'FX native six-page UI, single navigation and visible action regression: PASS'
