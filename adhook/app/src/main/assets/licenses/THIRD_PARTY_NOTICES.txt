@@ -1,0 +1,15 @@
+FX Hook third-party UI engine notices
+
+Miuix 0.7.2
+- Project: https://github.com/compose-miuix-ui/miuix
+- Maven: top.yukonga.miuix.kmp:miuix-android:0.7.2
+- License: Apache License 2.0
+- Full license: Miuix-LICENSE.txt
+
+Backdrop 1.0.0 (Kyant Android Liquid Glass)
+- Project: https://github.com/Kyant0/AndroidLiquidGlass
+- Maven: io.github.kyant0:backdrop:1.0.0
+- License: Apache License 2.0
+- Full license: Kyant-AndroidLiquidGlass-LICENSE.txt
+
+These libraries are consumed as published dependencies. FX Hook does not copy or modify their upstream implementation source.
