@@ -28,6 +28,19 @@ assert set(keys) <= defaults, "native privacy schema contains non-top-level or n
 assert all(item["title"] and item["key"] for panel in panels for item in panel["items"])
 print("PASS: generated 12 native privacy panels with",len(keys),"top-level boolean settings")
 PY
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
+import pathlib, sys
+source=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+start=source.find("private void showNativeSettingsGroup(String panelId, String title)")
+end=source.find("private void showNativeSettingsEditDialog", start)
+assert start >= 0 and end > start, "native privacy group method boundaries missing"
+body=source[start:end]
+for forbidden in ("webView.evaluateJavascript", "VPN_EDIT", "PGB.model.sw", "secVal(", "secSet(", "pgPersistNow("):
+    assert forbidden not in body, "native privacy category still depends on hidden WebView bridge: "+forbidden
+for required in ("native-privacy-settings.json", "renderNativePrivacySettingsGroup", "setNativePrivacySetting"):
+    assert required in body, "native privacy category missing native path: "+required
+print("PASS: advanced privacy category rendering and writes no longer call the hidden WebView bridge")
+PY
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
 sh -n "$HELPER" || fail "native privacy writer has shell syntax errors"
