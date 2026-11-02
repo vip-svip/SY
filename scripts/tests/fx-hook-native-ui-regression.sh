@@ -257,16 +257,20 @@ if printf '%s' "$settings_block" | grep -Eq 'addNativeSettingsCategory|VPN / DNS
   exit 1
 fi
 printf '%s' "$settings_block" | grep -q '界面模式'
-# The native Script page must support editing an existing entry, not only add/delete.
+# Native Script CRUD, state rollback and QuickJS execution must use module commands, not WebView mutation calls.
 grep -Fq 'editNativeScript(index, valueText, note, rows, status)' "$main_activity"
 grep -Fq 'private void editNativeScript(int index' "$main_activity"
-grep -Fq 'a[" + index + "].v=' "$main_activity"
-grep -Fq 'pgPersistNow().then(function(ok)' "$main_activity"
-# A failed script toggle must restore the visible switch instead of leaving a false enabled state.
+grep -Fq 'nativeScriptStoreCommand("update"' "$main_activity"
+grep -Fq 'nativeScriptStoreCommand("toggle", String.valueOf(index + 1)' "$main_activity"
+grep -Fq 'nativeScriptStoreCommand("delete", String.valueOf(index + 1)' "$main_activity"
+grep -Fq 'runNativeModuleCommand(command, 30000L, result ->' "$main_activity"
 grep -Fq 'restoreNativeScriptSwitch(index, control, previous, rows, status)' "$main_activity"
 grep -Fq 'setNativeScriptEnabled(index, checked, rows, status, control, previous)' "$main_activity"
-grep -Fq 'pollNativeScriptSwitch(index, control, previous, enabled, rows, status, 0)' "$main_activity"
-grep -Fq 'if (webView == null || !webUiReady)' "$main_activity" || fail "script switch polling does not recover when the hidden bridge is unavailable"
-grep -Fq '脚本桥接暂不可用，开关已恢复原状态' "$main_activity" || fail "script switch bridge-loss rollback message missing"
 grep -Fq 'setNativeScriptEnabled(index, checked, rows, status, control, enabled)' "$main_activity"
 grep -Fq '脚本状态保存失败，已恢复原状态' "$main_activity"
+grep -Fq 'if (!valueText.startsWith("https://"))' "$main_activity" || fail "HTTPS subscriptions are incorrectly exposed as local JS execution targets"
+grep -Fq 'run.setEnabled(on)' "$main_activity" || fail "disabled local scripts can be launched from the native page"
+grep -Fq 'private static String nativeScriptSha256(String value)' "$main_activity"
+grep -Fq 'nativeScriptSha256(source)' "$main_activity"
+grep -Fq 'private void runNativeLocalScript(int index, String expectedSha256' "$main_activity"
+grep -Fq 'local-run.sh' "$main_activity"
