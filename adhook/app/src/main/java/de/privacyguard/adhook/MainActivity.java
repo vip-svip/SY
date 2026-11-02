@@ -67,6 +67,10 @@ public final class MainActivity extends ComponentActivity {
     private WebView webView;
     private RootBridge rootBridge;
     private TextView rootStatus;
+    private LinearLayout nativeVpnControls;
+    private Switch nativeVpnSwitch;
+    private TextView nativeVpnState;
+    private boolean syncingNativeVpn;
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
     private boolean hookHubVisible;
@@ -197,6 +201,9 @@ public final class MainActivity extends ComponentActivity {
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
         toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
+        buildNativeVpnControls();
+        nativeVpnControls.setVisibility(lastWebTabIndex == 0 ? View.VISIBLE : View.GONE);
+        root.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
 
         if (webView == null) {
         webUiReady = false;
@@ -233,6 +240,7 @@ public final class MainActivity extends ComponentActivity {
                             + ".bottom-navbar,.bottom-tabs,.bottom-tab-bar,.tab-bar,.tabbar,"
                             + ".nav-bottom,.navigation-bottom{display:none!important}"
                             + "#screen{padding-bottom:0!important;margin-bottom:0!important}"
+                            + "#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}"
                             + "</style>"
                             + shim + html.substring(headEnd);
                     return new WebResourceResponse("text/html", "UTF-8",
@@ -342,6 +350,7 @@ public final class MainActivity extends ComponentActivity {
                 if (isTrustedDocumentUrl(Uri.parse(url))) {
                     webUiReady = true;
                     applyWebUiMode();
+                    syncNativeVpnControls();
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
                         pendingWebPage = null;
@@ -371,6 +380,108 @@ public final class MainActivity extends ComponentActivity {
         } else {
             checkRoot(rootStatus, false);
         }
+    }
+
+
+    /** Native VPN controls call the existing, validated WebUI transaction pipeline.
+     *  The old HTML switch/mode strip is hidden to prevent duplicate controls. */
+    private void buildNativeVpnControls() {
+        nativeVpnControls = new LinearLayout(this);
+        nativeVpnControls.setOrientation(LinearLayout.VERTICAL);
+        nativeVpnControls.setPadding(dp(14), dp(10), dp(14), dp(10));
+        nativeVpnControls.setBackgroundColor(0xfff4f6f8);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xffffffff);
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), 0x1f607d8b);
+        card.setBackground(bg);
+
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = new TextView(this);
+        title.setText("VPN 控制");
+        title.setTextSize(17);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(0xff17212b);
+        head.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        nativeVpnSwitch = new Switch(this);
+        nativeVpnSwitch.setText("代理总开关");
+        nativeVpnSwitch.setTextColor(0xff263238);
+        nativeVpnSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (syncingNativeVpn || webView == null || !webUiReady) return;
+            String target = checked ? "global" : "direct";
+            webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + target + "')", null);
+            webView.postDelayed(this::syncNativeVpnControls, 1300);
+        });
+        head.addView(nativeVpnSwitch);
+        card.addView(head);
+
+        nativeVpnState = new TextView(this);
+        nativeVpnState.setText("正在读取 VPN 后端状态…");
+        nativeVpnState.setTextSize(12);
+        nativeVpnState.setTextColor(0xff667784);
+        nativeVpnState.setPadding(0, dp(4), 0, dp(8));
+        card.addView(nativeVpnState);
+
+        LinearLayout modes = new LinearLayout(this);
+        modes.setGravity(Gravity.CENTER_VERTICAL);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        modes.setWeightSum(4);
+        String[] labels = {"直连", "全局", "规则", "TUN"};
+        String[] values = {"direct", "global", "rule", "tun"};
+        for (int i = 0; i < values.length; i++) {
+            final String mode = values[i];
+            Button button = new Button(this);
+            button.setAllCaps(false);
+            button.setText(labels[i]);
+            button.setTextSize(12);
+            button.setMinHeight(dp(40));
+            button.setPadding(dp(2), 0, dp(2), 0);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1);
+            lp.setMargins(dp(2), 0, dp(2), 0);
+            button.setOnClickListener(v -> {
+                if (webView == null || !webUiReady) {
+                    Toast.makeText(this, "VPN 页面尚未就绪，请稍后重试", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + mode + "')", null);
+                webView.postDelayed(this::syncNativeVpnControls, 1500);
+            });
+            modes.addView(button, lp);
+        }
+        card.addView(modes);
+        nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void syncNativeVpnControls() {
+        if (webView == null || nativeVpnSwitch == null || nativeVpnState == null || !webUiReady) return;
+        webView.evaluateJavascript("(function(){var p=window.PGB&&PGB.model&&PGB.model.sw||{};var m=String(p.vpn_mode||'direct');return JSON.stringify({mode:m,liveKnown:window.__pgVpnLiveKnown===true,liveOn:window.__pgVpnLiveOn===true,node:String(p.vpn_node||'')})})()", value -> {
+            if (isFinishing() || value == null) return;
+            try {
+                Object decoded = org.json.JSONTokener.stringToValue(value);
+                if (!(decoded instanceof String)) return;
+                org.json.JSONObject state = new org.json.JSONObject((String) decoded);
+                String mode = state.optString("mode", "direct");
+                boolean configured = !"direct".equals(mode);
+                boolean liveKnown = state.optBoolean("liveKnown", false);
+                boolean liveOn = state.optBoolean("liveOn", false);
+                syncingNativeVpn = true;
+                nativeVpnSwitch.setChecked(configured);
+                syncingNativeVpn = false;
+                String live = !configured ? "直连：未接管流量"
+                        : !liveKnown ? "代理模式已保存，等待后端确认"
+                        : liveOn ? "后端确认：代理正在运行" : "代理模式已选择，但后端未运行";
+                String node = state.optString("node", "");
+                nativeVpnState.setText(live + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
+            } catch (Exception ignored) {
+                syncingNativeVpn = false;
+                nativeVpnState.setText("VPN 状态读取失败；未将配置状态冒充为运行状态");
+            }
+        });
     }
 
     private void pauseAndDetachWebView() {
@@ -409,6 +520,8 @@ public final class MainActivity extends ComponentActivity {
         } else if (index >= 0 && index <= 3) {
             selectedBottomTab = index;
             lastWebTabIndex = index;
+            if (nativeVpnControls != null) nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+            if (index == 0) syncNativeVpnControls();
             String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
             if (hookUiVisible || settingsUiVisible) showWebDashboard();
             navigateWebPage(page);
