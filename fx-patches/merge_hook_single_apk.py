@@ -224,7 +224,7 @@ if apk_regression.is_file():
                 "APK merge does not preserve FX Hook application label")
             changed = True
     if changed:
-        apk_regression.write_text("\\n".join(regression_lines) + "\\n", encoding="utf-8")
+        apk_regression.write_text("\n".join(regression_lines) + "\n", encoding="utf-8")
 
 
 # The final module payload must contain only the unified APK, never the old split APKs.
