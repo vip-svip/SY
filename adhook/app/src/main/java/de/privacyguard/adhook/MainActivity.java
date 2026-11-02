@@ -610,29 +610,24 @@ public final class MainActivity extends Activity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("模式与 Hook 配置、VPN 和规则数据分离，切换不会改动功能数据。Miuix 当前由 FX 原生组件与 WebView 样式适配实现，并非完整 Miuix Compose 页面；液态玻璃当前使用半透明表面、阴影及 WebView 支持时的 backdrop-filter，不等同于 AndroidLiquidGlass 实时折射引擎。");
+        note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。当前先迁移设置中的模式选择器，其他页面将按模块逐步迁移；Web 管理内容仍是独立 WebView。");
         note.setTextColor(0xff66727e);
-        note.setPadding(dp(18), dp(4), dp(18), dp(12));
+        note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
-        RadioGroup modes = new RadioGroup(this);
-        modes.setOrientation(RadioGroup.VERTICAL);
-        modes.setPadding(dp(12), dp(4), dp(12), dp(8));
-        addModeOption(modes, 0, "经典界面", "FX 当前简洁原生样式，兼容性优先");
-        addModeOption(modes, 1, "Miuix 风格（FX 适配）", "圆角卡片、分组层级、柔和配色与更清晰的视觉层次");
-        addModeOption(modes, 2, "液态玻璃拟态", "半透明表面、层次阴影；WebView 支持时启用背景模糊");
-        addModeOption(modes, 3, "网页原样", "Web 管理页面保持原设计；Hook 页面仍使用原生界面");
-        int checked = "miuix".equals(uiMode) ? 1 : "glass".equals(uiMode) ? 2 : "web".equals(uiMode) ? 3 : 0;
-        modes.check(checked);
-        modes.setOnCheckedChangeListener((group, checkedId) -> {
-            String selected = checkedId == 1 ? "miuix" : checkedId == 2 ? "glass" : checkedId == 3 ? "web" : "classic";
-            if (selected.equals(uiMode)) return;
+        androidx.compose.ui.platform.ComposeView designModePanel =
+                new androidx.compose.ui.platform.ComposeView(this);
+        FxDesignModePanelKt.installFxDesignModePanel(designModePanel, uiMode, selected -> {
+            if (selected == null || selected.equals(uiMode)) return kotlin.Unit.INSTANCE;
             uiMode = selected;
-            getSharedPreferences("fx_ui", MODE_PRIVATE).edit().putString("mode", uiMode).apply();
+            getSharedPreferences("fx_ui", MODE_PRIVATE).edit()
+                    .putString("mode", uiMode).apply();
             applyWebUiMode();
             Toast.makeText(MainActivity.this, "界面模式已切换", Toast.LENGTH_SHORT).show();
             showSettings();
+            return kotlin.Unit.INSTANCE;
         });
-        content.addView(modes, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(designModePanel,
+                new LinearLayout.LayoutParams(-1, dp(360)));
         section("其他设置");
         TextView legacyHint = new TextView(this);
         legacyHint.setText("VPN、Hosts、隐私、脚本及证书等完整管理选项仍保留在原有设置页面。");
