@@ -137,7 +137,8 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = Math.max(0, Math.min(5,
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
-            restoreHookScreen = selectedBottomTab == 4;
+            restoreHookScreen = state.getBoolean("fx_hook_screen_visible", selectedBottomTab == 4);
+            activePrivacySection = state.getString("fx_privacy_section");
             restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
             if ("target".equals(restoreHookKind)) {
@@ -146,7 +147,7 @@ public final class MainActivity extends ComponentActivity {
         }
         if (restoreHookScreen) {
             if ("hub".equals(restoreHookKind)) showHookHub();
-            else showAppList();
+            else showAppList(activePrivacySection);
         } else if (restoreSettingsScreen) {
             showSettings();
         } else {
@@ -176,7 +177,9 @@ public final class MainActivity extends ComponentActivity {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
+        outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
         if (hookUiVisible) {
+            if (activePrivacySection != null) outState.putString("fx_privacy_section", activePrivacySection);
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
             String hookScreen = hookHubVisible ? "hub" : restoringTarget ? "target" : "list";
             outState.putString("fx_hook_screen", hookScreen);
