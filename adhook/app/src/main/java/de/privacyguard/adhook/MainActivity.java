@@ -2194,6 +2194,7 @@ public final class MainActivity extends ComponentActivity {
         cancelAppIconLoad();
         if (webView == null) showWebDashboard();
         else pauseAndDetachWebView();
+        stopNativeVpnPolling();
         hookUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
@@ -2301,7 +2302,7 @@ public final class MainActivity extends ComponentActivity {
                 + "if(!p)return JSON.stringify({ready:false});var out=[];"
                 + "p.querySelectorAll('.setrow').forEach(function(row){var sw=row.querySelector('.switch[data-key]');"
                 + "if(!sw)return;var t=row.querySelector('.s-title'),d=row.querySelector('.s-sub'),k=sw.getAttribute('data-key');"
-                + "out.push({key:k,title:t?t.textContent.trim():k,description:d?d.textContent.trim():'',on:sw.classList.contains('on')});});"
+                + "out.push({key:k,title:t?t.textContent.trim():k,description:d?d.textContent.trim():'',on:String(PGB.model.sw[k]||'0')==='1'});});"
                 + "return JSON.stringify({ready:true,items:out});})()";
         webView.evaluateJavascript(js, value -> {
             try {
