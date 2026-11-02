@@ -466,7 +466,9 @@ jobs:
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
           ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '^webroot/'
-          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '(^|/)action\.sh
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -q "action.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
           sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
           sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
