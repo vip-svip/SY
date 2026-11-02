@@ -13,6 +13,10 @@ CONF="$PG/settings.conf"
 export MP PG CONF
 [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ] || { echo "settings.conf unavailable" >&2; exit 21; }
 case "${1:-}" in
+  list)
+    # Return only top-level boolean flags; never expose subscriptions or script bodies to the app.
+    awk 'BEGIN{FS="="} /^\\[/ {exit} /^[A-Za-z0-9_.-]+=[01]$/ {print}' "$CONF"
+    ;;
   set)
     key=${2:-}; value=${3:-}
     case "$key" in ''|*[!A-Za-z0-9_.-]*) echo "invalid setting key" >&2; exit 2 ;; esac
