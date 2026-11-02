@@ -1163,7 +1163,7 @@ public final class MainActivity extends ComponentActivity {
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
                             .setMessage(valueText).setPositiveButton("关闭", null).show());
                     if (!valueText.startsWith("https://")) {
-                        Button run = nativeAction("运行", () -> confirmRunNativeLocalScript(index, note, rows, status));
+                        Button run = nativeAction("运行", () -> confirmRunNativeLocalScript(index, note, valueText, rows, status));
                         run.setEnabled(on);
                         ops.addView(run);
                     }
@@ -1192,19 +1192,34 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void confirmRunNativeLocalScript(int index, String name, LinearLayout rows, TextView status) {
+    private static String nativeScriptSha256(String value) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(64);
+            for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xff));
+            return hex.toString();
+        } catch (Exception error) {
+            throw new IllegalStateException("无法计算脚本校验值", error);
+        }
+    }
+
+    private void confirmRunNativeLocalScript(int index, String name, String source,
+                                             LinearLayout rows, TextView status) {
         new AlertDialog.Builder(this).setTitle("运行本地 JavaScript")
                 .setMessage("即将通过 FX QuickJS-NG 执行本地脚本"
                         + (name == null || name.trim().isEmpty() ? "" : "「" + name + "」")
                         + "。脚本会使用 FX 明确提供的宿主 API；只运行你信任的源码。")
                 .setNegativeButton("取消", null)
-                .setPositiveButton("运行", (dialog, which) -> runNativeLocalScript(index, rows, status))
+                .setPositiveButton("运行", (dialog, which) ->
+                        runNativeLocalScript(index, nativeScriptSha256(source), rows, status))
                 .show();
     }
 
-    private void runNativeLocalScript(int index, LinearLayout rows, TextView status) {
+    private void runNativeLocalScript(int index, String expectedSha256, LinearLayout rows, TextView status) {
         status.setText("正在通过 QuickJS-NG 执行本地脚本…");
-        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/local-run.sh\" " + (index + 1),
+        runNativeModuleCommand("sh \\"$MP/scripts/jsruntime/local-run.sh\\" " + (index + 1)
+                        + " " + expectedSha256,
                 30000L, result -> {
                     String output = result.output == null ? "" : result.output.trim();
                     try {
@@ -1221,7 +1236,6 @@ public final class MainActivity extends ComponentActivity {
                                 .setMessage(output.isEmpty() ? error.getMessage() : output)
                                 .setPositiveButton("关闭", null).show();
                     }
-                    refreshNativeScriptList(rows, status);
                 });
     }
 
