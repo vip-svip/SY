@@ -470,10 +470,6 @@ public final class MainActivity extends ComponentActivity {
             button.setEnabled(false);
             nativeVpnState.setText("正在请求 VPN 后端切换…");
             invokeNativeVpnApi("setEnabled", Boolean.toString(checked));
-            nativeVpnHandler.postDelayed(() -> {
-                if (nativeVpnSwitch != null) nativeVpnSwitch.setEnabled(true);
-                syncNativeVpnControls();
-            }, 1500L);
         });
         head.addView(nativeVpnSwitch);
         card.addView(head);
@@ -510,10 +506,6 @@ public final class MainActivity extends ComponentActivity {
             button.setOnClickListener(v -> {
                 button.setEnabled(false);
                 invokeNativeVpnApi("setMode", org.json.JSONObject.quote(mode));
-                nativeVpnHandler.postDelayed(() -> {
-                    button.setEnabled(true);
-                    syncNativeVpnControls();
-                }, 1500L);
             });
             nativeVpnModeButtons.add(button);
             modes.addView(button, lp);
