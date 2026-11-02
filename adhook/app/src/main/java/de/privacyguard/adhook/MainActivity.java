@@ -3023,10 +3023,15 @@ public final class MainActivity extends ComponentActivity {
     private LinearLayout content;
     private ScrollView nativeScroll;
     private String pendingPrivacySection;
+    // Preserve the originating Privacy category while navigating through the app picker
+    // and per-app editor. The pending field is only a scroll request; the active field is
+    // the navigation context and survives editor rebuilds and return navigation.
+    private String activePrivacySection;
     private void showAppList() { showAppList(null); }
 
     private void showAppList(String privacySection) {
-        if (privacySection != null) pendingPrivacySection = privacySection;
+        activePrivacySection = privacySection;
+        pendingPrivacySection = privacySection;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         pauseAndDetachWebView();
@@ -3270,7 +3275,7 @@ public final class MainActivity extends ComponentActivity {
             ai = getPackageManager().getApplicationInfo(ai.packageName, 0);
         } catch (PackageManager.NameNotFoundException removed) {
             Toast.makeText(this, "该应用已卸载，正在刷新应用列表。", Toast.LENGTH_LONG).show();
-            showAppList();
+            showAppList(activePrivacySection);
             return;
         }
         hookUiVisible = true;
@@ -3351,14 +3356,16 @@ public final class MainActivity extends ComponentActivity {
             publishConfig();
         });
         content.addView(save,new LinearLayout.LayoutParams(-1,-2));
-        Button back=new Button(this); back.setText("返回应用列表"); back.setOnClickListener(v->showAppList());
+        Button back=new Button(this);
+        back.setText(activePrivacySection == null ? "返回应用列表" : "返回隐私应用列表");
+        back.setOnClickListener(v -> showAppList(activePrivacySection));
         content.addView(back,new LinearLayout.LayoutParams(-1,-2));
         focusPendingPrivacySection();
     }
  
 
     private void focusPendingPrivacySection() {
-        final String requested = pendingPrivacySection;
+        final String requested = activePrivacySection;
         if (requested == null || nativeScroll == null) return;
         pendingPrivacySection = null;
         nativeScroll.post(() -> {
