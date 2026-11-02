@@ -16,6 +16,7 @@ expected={"vpnPanel","rootPanel","advPanel","netPanel","permPanel","sensorPanel"
 panels=data.get("panels",[])
 assert data.get("schema_version")==1
 assert {p["id"] for p in panels}==expected
+assert all(p["items"] for p in panels), "empty native settings category"
 keys=[item["key"] for panel in panels for item in panel["items"]]
 assert len(keys)>=20, len(keys)
 assert len(keys)==len(set(keys)), "duplicate setting keys"
