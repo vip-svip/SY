@@ -139,9 +139,18 @@ s=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 start=s.index("private void showNativeSettingsGroup(")
 render=s.index("private void renderNativePrivacySettingsGroup(", start)
 edit_bridge=s.index("private void loadNativePrivacyEditEntries(", render)
-native=s[start:render] + s[render:edit_bridge]
-assert "evaluateJavascript" not in native, "advanced privacy toggle UI still reads/writes through WebView"
-assert "webView" not in native, "advanced privacy toggle UI still depends on WebView lifecycle"
+native_methods = {
+    "showNativeSettingsGroup": s[start:render],
+    "renderNativePrivacySettingsGroup": s[render:edit_bridge],
+}
+for method, body in native_methods.items():
+    for token, message in (
+        ("evaluateJavascript", "advanced privacy toggle UI still reads/writes through WebView"),
+        ("webView", "advanced privacy toggle UI still depends on WebView lifecycle"),
+    ):
+        pos = body.find(token)
+        assert pos < 0, f"{message} in {method}: {body[max(0, pos-100):pos+180]!r}"
+native = "".join(native_methods.values())
 assert "runNativeModuleCommand(" in native, "advanced privacy UI is not backed by Root/module commands"
 assert "native-privacy-settings.sh" in native and " list" in native, "advanced privacy UI does not read filtered module flags"
 bridge=s[edit_bridge:s.index("private void setNativePrivacySetting(", edit_bridge)]
