@@ -1274,9 +1274,10 @@ public final class MainActivity extends ComponentActivity {
                         if (result.exitCode != 0) throw new IllegalStateException(result.output);
                         JSONObject measured = new JSONObject(result.output.trim());
                         int ms = measured.optInt("ms", -2);
-                        if (ms > 0) {
-                            button.setText("延迟 " + ms + " ms · 重新测试");
-                            Toast.makeText(this, "节点延迟：" + ms + " ms", Toast.LENGTH_SHORT).show();
+                        if (ms >= 0) {
+                            String latency = ms == 0 ? "<1 ms" : ms + " ms";
+                            button.setText("延迟 " + latency + " · 重新测试");
+                            Toast.makeText(this, "节点延迟：" + latency, Toast.LENGTH_SHORT).show();
                         } else if (ms == -1) {
                             button.setText("节点不可达 · 重新测试");
                         } else {
