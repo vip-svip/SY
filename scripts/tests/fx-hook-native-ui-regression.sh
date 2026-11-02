@@ -116,6 +116,8 @@ grep -q 'hook_native_config_found' "$ROOT/adhook/app/src/main/java/de/privacygua
 grep -q 'hook_native_wifi_scan_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status omits Wi-Fi state"
 grep -q 'cancelHookStatusRefresh()' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status worker is not cancelled on screen teardown"
 PRIVACY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+grep -Fq '先开启「隐私保护总开关」' "$PRIVACY" || fail "privacy page does not explain the per-app master switch prerequisite"
+grep -Fq '只读会员状态诊断不受该总开关控制' "$PRIVACY" || fail "privacy page does not distinguish read-only member diagnostics from privacy master gating"
 grep -Fq 'addNativeActionCard("应用内广告标识"' "$PRIVACY" || fail "native privacy page lacks app-scoped advertising identifier entry"
 grep -Fq 'addNativeActionCard("剪贴板读取与隔离"' "$PRIVACY" || fail "native privacy page lacks clipboard controls entry"
 grep -Fq 'addNativeActionCard("Wi-Fi 扫描保护"' "$PRIVACY" || fail "native privacy page lacks Wi-Fi privacy entry"
