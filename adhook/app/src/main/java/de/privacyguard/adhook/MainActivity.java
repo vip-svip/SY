@@ -2301,8 +2301,15 @@ public final class MainActivity extends ComponentActivity {
         String js = "(function(){var p=document.getElementById(" + JSONObject.quote(panelId) + ");"
                 + "if(!p)return JSON.stringify({ready:false});var out=[];"
                 + "p.querySelectorAll('.setrow').forEach(function(row){var sw=row.querySelector('.switch[data-key]');"
-                + "if(!sw)return;var t=row.querySelector('.s-title'),d=row.querySelector('.s-sub'),k=sw.getAttribute('data-key');"
-                + "out.push({key:k,title:t?t.textContent.trim():k,description:d?d.textContent.trim():'',on:String(PGB.model.sw[k]||'0')==='1'});});"
+                + "var edit=row.getAttribute('data-vpn-edit'),t=row.querySelector('.s-title'),d=row.querySelector('.s-sub');"
+                + "if(sw){var k=sw.getAttribute('data-key');out.push({kind:'switch',key:k,title:t?t.textContent.trim():k,"
+                + "description:d?d.textContent.trim():'',on:String(PGB.model.sw[k]||'0')==='1'});return;}"
+                + "if(!edit||!window.VPN_EDIT||!VPN_EDIT[edit])return;var cfg=VPN_EDIT[edit],v='';"
+                + "if(cfg.list){v=((VPN.model.lists[cfg.list]||[]).filter(function(x){return x.on!==false}).map(function(x){return x.v})||[]).join('\\n')}"
+                + "else if(cfg.keys){var defs={pick_min_ms:'80',pick_test_timeout:'5',pick_max_nodes:'60',core_ver:'1.14.3',hide_level:'1'};"
+                + "v=cfg.keys.map(function(k){return secVal(cfg.sec,k,defs[k]||'')}).join('\\n')}"
+                + "else if(cfg.key)v=secVal(cfg.sec,cfg.key,'');"
+                + "out.push({kind:'edit',edit:edit,title:cfg.t||edit,description:cfg.d||'',value:v});});"
                 + "return JSON.stringify({ready:true,items:out});})()";
         webView.evaluateJavascript(js, value -> {
             try {
@@ -2329,10 +2336,21 @@ public final class MainActivity extends ComponentActivity {
                 for (int i = 0; i < count; i++) {
                     JSONObject item = items.optJSONObject(i);
                     if (item == null) continue;
+                    String kind = item.optString("kind", "switch");
+                    String label = item.optString("title", "设置项");
+                    String description = item.optString("description", "");
+                    if ("edit".equals(kind)) {
+                        String editId = item.optString("edit", "");
+                        String initial = item.optString("value", "");
+                        String preview = initial.replace('\\n', ' ').trim();
+                        if (preview.length() > 44) preview = preview.substring(0, 41) + "…";
+                        Button edit = nativeAction(label + (preview.isEmpty() ? "" : " · " + preview),
+                                () -> showNativeSettingsEditDialog(editId, label, description, initial));
+                        panel.addView(edit, new LinearLayout.LayoutParams(-1, dp(48)));
+                        continue;
+                    }
                     String key = item.optString("key", "");
                     if (!key.matches("[A-Za-z0-9_.-]{1,96}")) continue;
-                    String label = item.optString("title", key);
-                    String description = item.optString("description", "");
                     boolean checked = item.optBoolean("on", false);
                     LinearLayout row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.VERTICAL);
@@ -2371,6 +2389,94 @@ public final class MainActivity extends ComponentActivity {
             } catch (Exception error) {
                 new AlertDialog.Builder(this).setTitle(title + "读取失败")
                         .setMessage(error.getMessage()).setPositiveButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void showNativeSettingsEditDialog(String editId, String title, String description, String initial) {
+        EditText input = new EditText(this);
+        input.setText(initial);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setHint("按提示填写；多项参数每行一项");
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(6), dp(16), dp(6));
+        TextView help = new TextView(this);
+        help.setText(description);
+        help.setTextColor(0xff718091);
+        help.setPadding(0, 0, 0, dp(8));
+        panel.addView(help);
+        panel.addView(input);
+        scroll.addView(panel);
+        new AlertDialog.Builder(this).setTitle(title).setView(scroll)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (d, w) ->
+                        saveNativeSettingsEdit(editId, input.getText().toString()))
+                .show();
+    }
+
+    private void saveNativeSettingsEdit(String editId, String value) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "设置运行桥已断开，未保存", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String resultKey = "edit-" + editId;
+        String js = "(function(){if(!window.VPN_EDIT||!VPN_EDIT[" + JSONObject.quote(editId) + "])return false;"
+                + "var cfg=VPN_EDIT[" + JSONObject.quote(editId) + "],body=" + JSONObject.quote(value) + ";"
+                + "var lines=body.split(/\\r?\\n/).map(function(x){return x.trim()}).filter(Boolean);"
+                + "try{"
+                + "if(cfg.selects){var allow={pick_min_ms:['30','50','80','120','200'],pick_test_timeout:['3','5','8','10'],pick_max_nodes:['20','40','60','100','200']};"
+                + "cfg.selects.forEach(function(def,i){var v=lines[i]||'';if(allow[def.key]&&allow[def.key].indexOf(v)<0)throw new Error('参数值不在允许范围：'+def.label);secSet(cfg.sec,def.key,v);});}"
+                + "else if(cfg.choice){var v=lines[0]||'1';if(['0','1','2'].indexOf(v)<0)throw new Error('隐藏强度只允许 0、1、2');"
+                + "secSet('vpn','hide_level',v);secSet('vpn','hide_icmp_block_all',v==='2'?'1':'0');secSet('vpn','hide_udp_block_all',v==='2'?'1':'0');"
+                + "secSet('vpn','hide_dot_block',v==='2'?'1':'0');secSet('vpn','hide_mtu_clamp',v==='2'?'1':'0');}"
+                + "else if(cfg.list){VPN.model.lists[cfg.list]=lines.map(function(x){return {v:x,note:'',on:1};});}"
+                + "else if(cfg.keys){var defs={pick_min_ms:'80',pick_test_timeout:'5',pick_max_nodes:'60',core_ver:'1.14.3'};"
+                + "cfg.keys.forEach(function(k,i){var v=lines[i]||defs[k]||'';"
+                + "if(k==='core_ver'&&!/^[0-9]+(\\.[0-9]+)+$/.test(v))throw new Error('核心版本格式无效');"
+                + "if((k==='pick_min_ms'||k==='pick_test_timeout'||k==='pick_max_nodes')&&!/^[0-9]+$/.test(v))throw new Error('测速参数必须为数字');secSet(cfg.sec,k,v);});}"
+                + "else if(cfg.key){var v=cfg.key==='local_port'?(lines[0]||''):lines.join(',');"
+                + "if(cfg.key==='local_port'&&(!/^[0-9]{1,5}$/.test(v)||Number(v)<1||Number(v)>65535))throw new Error('本地端口必须为 1–65535');"
+                + "secSet(cfg.sec,cfg.key,v);}"
+                + "else throw new Error('不支持的参数类型');"
+                + "}catch(e){return JSON.stringify({ok:false,error:String(e.message||e)});}"
+                + "if(!window.__fxNativeSettingsResults)window.__fxNativeSettingsResults={};"
+                + "window.__fxNativeSettingsResults[" + JSONObject.quote(resultKey) + "]=null;"
+                + "pgPersistNow().then(function(ok){if(ok){if(typeof vpnPanelSync==='function')vpnPanelSync();"
+                + "if(typeof pgQueueAutoApply==='function')pgQueueAutoApply('原生高级参数已保存，正在应用…',true);}"
+                + "window.__fxNativeSettingsResults[" + JSONObject.quote(resultKey) + "]=JSON.stringify({ok:!!ok});})"
+                + ".catch(function(e){window.__fxNativeSettingsResults[" + JSONObject.quote(resultKey) + "]=JSON.stringify({ok:false,error:String((e&&e.message)||e)});});return true;})()";
+        webView.evaluateJavascript(js, started -> {
+            if (started == null || "false".equals(started)) {
+                Toast.makeText(this, "参数保存任务未能启动", Toast.LENGTH_LONG).show();
+            } else pollNativeSettingsEdit(resultKey, System.currentTimeMillis() + 30000L);
+        });
+    }
+
+    private void pollNativeSettingsEdit(String resultKey, long deadline) {
+        if (isFinishing() || isDestroyed()) return;
+        String js = "(function(){var a=window.__fxNativeSettingsResults,r=a&&a["
+                + JSONObject.quote(resultKey) + "];if(!r)return null;delete a["
+                + JSONObject.quote(resultKey) + "];return r;})()";
+        webView.evaluateJavascript(js, value -> {
+            if (value == null || "null".equals(value)) {
+                if (System.currentTimeMillis() >= deadline) {
+                    Toast.makeText(this, "参数保存超时，未能确认", Toast.LENGTH_LONG).show();
+                } else nativeVpnHandler.postDelayed(
+                        () -> pollNativeSettingsEdit(resultKey, deadline), 400L);
+                return;
+            }
+            try {
+                Object decoded = new org.json.JSONTokener(value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("参数保存结果格式错误");
+                JSONObject result = new JSONObject((String) decoded);
+                Toast.makeText(this, result.optBoolean("ok", false) ? "参数已保存，模块正在应用"
+                        : "参数保存失败：" + result.optString("error", "未确认"), Toast.LENGTH_LONG).show();
+            } catch (Exception error) {
+                Toast.makeText(this, "参数保存失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
