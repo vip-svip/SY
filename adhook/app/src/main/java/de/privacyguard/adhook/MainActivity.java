@@ -384,6 +384,12 @@ public final class MainActivity extends ComponentActivity {
     private void mountNativeShell(View pageContent) {
         androidx.compose.ui.platform.ComposeView shell =
                 new androidx.compose.ui.platform.ComposeView(this);
+        // ComposeView is created and composed before setContentView attaches it.
+        // Explicitly propagate this ComponentActivity's owners so Compose can
+        // create a lifecycle-aware WindowRecomposer on all supported ROMs.
+        androidx.lifecycle.ViewTreeLifecycleOwner.set(shell, this);
+        androidx.lifecycle.ViewTreeViewModelStoreOwner.set(shell, this);
+        androidx.savedstate.ViewTreeSavedStateRegistryOwner.set(shell, this);
         FxNativeAppShellKt.installFxNativeAppShell(
                 shell, pageContent, selectedBottomTab, uiMode,
                 index -> {
