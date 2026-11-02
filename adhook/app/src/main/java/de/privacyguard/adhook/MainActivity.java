@@ -1015,6 +1015,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onDestroy() {
+        nativeVpnHandler.removeCallbacksAndMessages(null);
+        nativeVpnModeButtons.clear();
+        nativeVpnSwitch = null;
+        nativeVpnNodeButton = null;
+        nativeVpnState = null;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         Thread publisher = hookPublisherThread;
