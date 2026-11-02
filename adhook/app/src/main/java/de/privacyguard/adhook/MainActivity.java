@@ -46,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends ComponentActivity {
@@ -78,6 +79,7 @@ public final class MainActivity extends ComponentActivity {
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
     private boolean syncingNativeVpn;
     private String lastNativeVpnMode = "direct";
+    private final AtomicBoolean nativeVpnStatusQueued = new AtomicBoolean(false);
     private final Handler nativeVpnHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService nativeVpnExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "fx-native-vpn");
@@ -86,7 +88,7 @@ public final class MainActivity extends ComponentActivity {
     });
     private final Runnable nativeVpnPoll = new Runnable() {
         @Override public void run() {
-            if (isFinishing() || hookUiVisible || settingsUiVisible || webView == null || !webUiReady) return;
+            if (isFinishing() || hookUiVisible || settingsUiVisible || lastWebTabIndex != 0 || webView == null || !webUiReady) return;
             syncNativeVpnControls();
             nativeVpnHandler.postDelayed(this, 5000L);
         }
@@ -651,10 +653,15 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void syncNativeVpnControls() {
-        if (nativeVpnSwitch == null || nativeVpnState == null || isFinishing() || isDestroyed()) return;
+        if (nativeVpnSwitch == null || nativeVpnState == null || isFinishing() || isDestroyed()
+                || !nativeVpnStatusQueued.compareAndSet(false, true)) return;
         nativeVpnExecutor.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(nativeVpnRootCommand("status", ""),
-                    20000L, 1024 * 1024);
+            RootAccess.Result result;
+            try {
+                result = RootAccess.execute(nativeVpnRootCommand("status", ""), 20000L, 1024 * 1024);
+            } finally {
+                nativeVpnStatusQueued.set(false);
+            }
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || nativeVpnSwitch == null) return;
                 try {
