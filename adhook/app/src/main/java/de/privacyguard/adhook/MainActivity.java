@@ -437,17 +437,29 @@ public final class MainActivity extends ComponentActivity {
             case "pageMore": tab = "more"; break;
             default: return;
         }
-        String tabLiteral = JSONObject.quote(tab);
         String script = "(function(){"
                 + "var id=" + JSONObject.quote(pageId) + ";"
                 + "var page=document.getElementById(id);"
                 + "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}"
-                + "if(!page)return false;"
-                + "var names=id==='pageHosts'?['hosts','ad']:(id==='pageAd'?['ad']:['" + tab + "']);"
+                + "if(!page||!page.children.length)return false;"
+                + "var navTab='"" + (tab.equals("hosts") ? "ad" : tab) + "';"
+                + "var names=id==='pageHosts'?['ad','hosts']:(id==='pageAd'?['ad']:['" + tab + "']);"
                 + "var b=null;for(var i=0;i<names.length&&!b;i++){"
                 + "b=document.querySelector('.nav-item[data-tab='+JSON.stringify(names[i])+']');}"
-                + "if(b){b.click();return true;}"
-                + "return false;"
+                + "if(b)b.click();"
+                + "var pages=document.querySelectorAll('#screen .page');"
+                + "for(var p=0;p<pages.length;p++)pages[p].classList.remove('on');"
+                + "page.classList.add('on');page.scrollTop=0;"
+                + "var navItems=document.querySelectorAll('#screen .nav-item');"
+                + "for(var n=0;n<navItems.length;n++){"
+                + "navItems[n].classList.toggle('on',navItems[n].getAttribute('data-tab')===navTab);}"
+                + "window.currentTab=navTab;"
+                + "var title=document.getElementById('pageTitle');"
+                + "var lang=window.lang==='en'?'en':'zh';"
+                + "var labels={zh:{vpn:'VPN',ad:'广告',privacy:'隐私',script:'脚本'},en:{vpn:'VPN',ad:'Ad',privacy:'Privacy',script:'Scripts'}};"
+                + "if(title)title.textContent=labels[lang][navTab]||navTab;"
+                + "window.dispatchEvent(new Event('resize'));"
+                + "return page.classList.contains('on')&&getComputedStyle(page).display!=='none';"
                 + "})()";
         webView.evaluateJavascript(script, value -> {
             if (value == null || "false".equals(value) || "null".equals(value)) {
