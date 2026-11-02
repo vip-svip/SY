@@ -54,7 +54,8 @@ after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 multiline=$(printf 'const value = "a|b";\\nconst literal = "\\\\n";\\nreturn value + literal;')
 multi64=$(printf '%s' "$multiline" | base64 | tr -d '\\n')
 multi_note=$(printf '%s' 'Multiline source' | base64 | tr -d '\\n')
-[ "$(sh "$SCRIPT" add "$multi64" "$multi_note" 1)" = "OK" ] || fail "multiline local source add failed"
+add_result=$(sh "$SCRIPT" add "$multi64" "$multi_note" 1 2>&1) || fail "multiline local source add failed: $add_result"
+[ "$add_result" = "OK" ] || fail "multiline local source add returned unexpected output: $add_result"
 stored_row=$(sh "$SCRIPT" list | sed -n '4p' | cut -d'|' -f1 | base64 -d)
 case "$stored_row" in FXSRC_B64:*) stored=$(printf '%s' "${stored_row#FXSRC_B64:}" | base64 -d) ;; *) fail "local source was not stored in lossless base64 form" ;; esac
 [ "$stored" = "$multiline" ] || fail "multiline local source round-trip corrupted content"
