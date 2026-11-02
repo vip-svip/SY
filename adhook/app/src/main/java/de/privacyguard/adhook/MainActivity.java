@@ -2599,7 +2599,7 @@ public final class MainActivity extends ComponentActivity {
             TextView status = new TextView(this);
             status.setText("子模块：" + (released ? "已释放" : "未安装")
                     + " · 开关：" + (disabled ? "已禁用" : "未禁用")
-                    + "\n系统信任：" + (system ? "已验证存在" : "未验证")
+                    + "\n系统 CA 文件：" + (system ? "存在" : "未发现")
                     + " · APEX：" + (apex ? apexNs : "不适用"));
             status.setTextSize(11);
             status.setTextColor(0xff718091);
@@ -2611,7 +2611,7 @@ public final class MainActivity extends ComponentActivity {
             Button enable = new Button(this);
             enable.setAllCaps(false);
             enable.setText("启用");
-            enable.setEnabled(!released || disabled || !system);
+            enable.setEnabled(!released || disabled || !system || (apex && !"verified".equals(apexNs)));
             enable.setOnClickListener(v -> runNativeCertificateAction("enable", id));
             actions.addView(enable, new LinearLayout.LayoutParams(0, dp(44), 1));
             Button disable = new Button(this);
