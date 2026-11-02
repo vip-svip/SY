@@ -34,6 +34,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.*;
+import android.util.Base64;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -1052,30 +1053,54 @@ public final class MainActivity extends ComponentActivity {
         refreshNativeScriptList(rows, status);
     }
 
+    private String nativeScriptStoreCommand(String action, String... args) {
+        StringBuilder command = new StringBuilder("sh \"$MP/scripts/jsruntime/native-list.sh\" ").append(action);
+        for (String arg : args) command.append(' ').append(arg);
+        return command.toString();
+    }
+
+    private static String encodeNativeScriptArgument(String value) {
+        return Base64.encodeToString((value == null ? "" : value).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+    }
+
+    private static String decodeNativeScriptArgument(String value) {
+        return new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
+    }
+
+    private void syncNativeScriptRuntime() {
+        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/sync-subs.sh\"", 60000L, result -> {
+            if (result.exitCode != 0 && nativeScriptStatus != null
+                    && nativeScriptStatus.getParent() != null) {
+                nativeScriptStatus.setText(nativeScriptStatus.getText()
+                        + "\n配置已保存，但运行时订阅同步失败：" + result.output.trim());
+            }
+        });
+    }
+
     private void refreshNativeScriptList(LinearLayout rows, TextView status) {
-        if (webView == null || !webUiReady) {
-            status.setText("脚本管理引擎尚未就绪，正在等待内置模块桥接初始化…");
-            return;
-        }
-        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return JSON.stringify({ready:false});"
-                + "var a=pgListArr('scriptList')||[];return JSON.stringify({ready:true,items:a.map(function(x,i){return {i:i,v:String(x.v||''),note:String(x.note||''),on:!!x.on};})});})()";
-        webView.evaluateJavascript(js, value -> {
+        status.setText("正在从模块 settings.conf 读取脚本列表…");
+        runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, result -> {
+            if (rows.getParent() == null || status.getParent() == null) return;
+            if (result.exitCode != 0) {
+                status.setText("脚本列表读取失败：" + result.output.trim());
+                return;
+            }
             try {
-                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
-                if (!(decoded instanceof String)) throw new IllegalStateException("脚本列表响应格式错误");
-                JSONObject snapshot = new JSONObject((String) decoded);
-                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("模块设置尚未加载");
-                org.json.JSONArray items = snapshot.optJSONArray("items");
+                String[] lines = result.output.split("\\r?\\n");
+                if (lines.length == 0 || !"FXSCRIPT1".equals(lines[0].trim())) {
+                    throw new IllegalStateException("模块返回了无法识别的脚本列表格式");
+                }
                 rows.removeAllViews();
-                int count = items == null ? 0 : items.length();
+                int count = 0;
                 int enabled = 0;
-                for (int i = 0; i < count; i++) {
-                    JSONObject item = items.optJSONObject(i);
-                    if (item == null) continue;
-                    final int index = item.optInt("i", i);
-                    final String valueText = item.optString("v", "");
-                    final String note = item.optString("note", "");
-                    final boolean on = item.optBoolean("on", false);
+                for (int i = 1; i < lines.length; i++) {
+                    if (lines[i].trim().isEmpty()) continue;
+                    String[] fields = lines[i].split("\\|", -1);
+                    if (fields.length != 3) throw new IllegalStateException("脚本条目字段数量错误");
+                    final int index = count++;
+                    final String valueText = decodeNativeScriptArgument(fields[0]);
+                    final String note = decodeNativeScriptArgument(fields[1]);
+                    final boolean on = "1".equals(fields[2]);
                     if (on) enabled++;
                     LinearLayout row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.VERTICAL);
@@ -1105,56 +1130,48 @@ public final class MainActivity extends ComponentActivity {
                     row.setOnClickListener(v -> new AlertDialog.Builder(this)
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
                             .setMessage(valueText).setPositiveButton("关闭", null).show());
-                    Button edit = nativeAction("编辑", () ->
-                            editNativeScript(index, valueText, note, rows, status));
-                    Button remove = nativeAction("删除", () -> new AlertDialog.Builder(this)
+                    ops.addView(nativeAction("编辑", () -> editNativeScript(index, valueText, note, rows, status)));
+                    ops.addView(nativeAction("删除", () -> new AlertDialog.Builder(this)
                             .setMessage("确定删除该脚本条目？")
                             .setNegativeButton("取消", null)
-                            .setPositiveButton("删除", (d, w) -> deleteNativeScript(index, rows, status)).show());
-                    ops.addView(edit);
-                    ops.addView(remove);
+                            .setPositiveButton("删除", (d, w) -> deleteNativeScript(index, rows, status)).show()));
                     row.addView(ops);
                     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
                     lp.setMargins(dp(12), dp(3), dp(12), dp(4));
                     rows.addView(row, lp);
                 }
                 status.setText("脚本条目：" + count + " · 已启用：" + enabled
-                        + " · 执行引擎：QuickJS-NG（模块运行状态以日志确认）");
+                        + " · 配置来源：模块 settings.conf · 执行引擎：QuickJS-NG");
                 if (count == 0) {
                     TextView empty = new TextView(this);
-                    empty.setText("暂无脚本条目。可添加脚本 URL 或导入脚本文件。");
+                    empty.setText("暂无脚本条目。可添加可信 HTTPS 脚本订阅或导入脚本文件。");
                     empty.setTextColor(0xff718091);
                     empty.setPadding(dp(18), dp(16), dp(18), dp(16));
                     rows.addView(empty);
                 }
             } catch (Exception error) {
-                status.setText("脚本列表读取失败：" + error.getMessage());
+                status.setText("脚本列表解析失败：" + error.getMessage());
             }
         });
     }
 
     private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status,
                                         Switch control, boolean previous) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
-            restoreNativeScriptSwitch(index, control, previous, rows, status);
-            return;
-        }
         control.setEnabled(false);
-        String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
-                + "if(!a||!a[" + index + "])return false;a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
-                + "window.__fxNativeScriptMutationOk=null;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
-                + "else a[" + index + "].on=" + (previous ? "true" : "false") + ";"
-                + "window.__fxNativeScriptMutationOk=!!ok;}).catch(function(){a[" + index + "].on="
-                + (previous ? "true" : "false") + ";window.__fxNativeScriptMutationOk=false;});return true;})()";
-        webView.evaluateJavascript(js, value -> {
-            if (value == null || "false".equals(value)) {
-                restoreNativeScriptSwitch(index, control, previous, rows, status);
-                Toast.makeText(this, "脚本状态修改未能启动", Toast.LENGTH_LONG).show();
-                return;
-            }
-            pollNativeScriptSwitch(index, control, previous, enabled, rows, status, 0);
-        });
+        runNativeModuleCommand(nativeScriptStoreCommand("toggle", String.valueOf(index + 1), enabled ? "1" : "0"),
+                30000L, result -> {
+                    if (result.exitCode == 0 && result.output.contains("OK")) {
+                        control.setEnabled(true);
+                        control.setOnCheckedChangeListener((button, checked) ->
+                                setNativeScriptEnabled(index, checked, rows, status, control, enabled));
+                        Toast.makeText(this, "脚本状态已保存到模块配置", Toast.LENGTH_SHORT).show();
+                        refreshNativeScriptList(rows, status);
+                        syncNativeScriptRuntime();
+                    } else {
+                        restoreNativeScriptSwitch(index, control, previous, rows, status);
+                        status.setText("脚本状态保存失败，已恢复原状态：" + result.output.trim());
+                    }
+                });
     }
 
     private void restoreNativeScriptSwitch(int index, Switch control, boolean previous,
@@ -1166,38 +1183,6 @@ public final class MainActivity extends ComponentActivity {
                 setNativeScriptEnabled(index, checked, rows, status, control, previous));
     }
 
-    private void pollNativeScriptSwitch(int index, Switch control, boolean previous, boolean enabled,
-                                        LinearLayout rows, TextView status, int attempt) {
-        if (isFinishing() || isDestroyed()) return;
-        // The hidden compatibility WebView can be unavailable while the Activity is
-        // still alive (reload, renderer loss, or teardown). Never poll a null/stale
-        // bridge indefinitely: restore the last committed switch state immediately.
-        if (webView == null || !webUiReady) {
-            restoreNativeScriptSwitch(index, control, previous, rows, status);
-            status.setText("脚本桥接暂不可用，开关已恢复原状态；请刷新后重试。");
-            return;
-        }
-        webView.evaluateJavascript("window.__fxNativeScriptMutationOk", result -> {
-            if ("true".equals(result)) {
-                control.setEnabled(true);
-                control.setOnCheckedChangeListener((button, checked) ->
-                        setNativeScriptEnabled(index, checked, rows, status, control, enabled));
-                Toast.makeText(this, "脚本状态已保存", Toast.LENGTH_SHORT).show();
-                nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 800L);
-            } else if ("false".equals(result)) {
-                restoreNativeScriptSwitch(index, control, previous, rows, status);
-                Toast.makeText(this, "脚本状态保存失败，已恢复原状态", Toast.LENGTH_LONG).show();
-                refreshNativeScriptList(rows, status);
-            } else if (attempt < 20) {
-                nativeVpnHandler.postDelayed(() ->
-                        pollNativeScriptSwitch(index, control, previous, enabled, rows, status, attempt + 1), 250L);
-            } else {
-                restoreNativeScriptSwitch(index, control, previous, rows, status);
-                Toast.makeText(this, "脚本状态确认超时，请刷新列表核对", Toast.LENGTH_LONG).show();
-            }
-        });
-    }
-
     private void editNativeScript(int index, String oldValue, String oldNote,
                                   LinearLayout rows, TextView status) {
         EditText value = new EditText(this);
@@ -1205,7 +1190,7 @@ public final class MainActivity extends ComponentActivity {
         value.setSingleLine(false);
         value.setMinLines(4);
         value.setGravity(Gravity.TOP | Gravity.START);
-        value.setHint("脚本 URL 或完整脚本源码");
+        value.setHint("脚本 URL 或脚本源码（最多 1 MiB）");
         EditText note = new EditText(this);
         note.setText(oldNote);
         note.setSingleLine(true);
@@ -1220,70 +1205,34 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("保存", (dialog, which) -> {
                     String updatedValue = value.getText().toString().trim();
                     String updatedNote = note.getText().toString().trim();
-                    if (updatedValue.isEmpty()) {
-                        Toast.makeText(this, "脚本内容不能为空", Toast.LENGTH_SHORT).show();
+                    if (updatedValue.isEmpty() || updatedValue.length() > 1024 * 1024) {
+                        Toast.makeText(this, "脚本内容为空或超过 1 MiB", Toast.LENGTH_LONG).show();
                         return;
                     }
-                    if (updatedValue.length() > 1024 * 1024) {
-                        Toast.makeText(this, "脚本内容超过 1 MiB，已拒绝保存", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    if (webView == null || !webUiReady) {
-                        Toast.makeText(this, "脚本设置存储尚未就绪，未保存", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    String js = "(function(){if(!window.PGB||!PGB.loaded)return false;"
-                            + "var a=pgListArr('scriptList');if(!a||!a[" + index + "])return false;"
-                            + "a[" + index + "].v=" + JSONObject.quote(updatedValue) + ";"
-                            + "a[" + index + "].note=" + JSONObject.quote(updatedNote.isEmpty()
-                                    ? (updatedValue.length() > 80 ? updatedValue.substring(0, 80) : updatedValue)
-                                    : updatedNote) + ";"
-                            + "window.__fxNativeScriptMutationOk=null;"
-                            + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')"
-                            + "pgQueueScriptRuntimeSync();window.__fxNativeScriptMutationOk=!!ok;})"
-                            + ".catch(function(){window.__fxNativeScriptMutationOk=false;});return true;})()";
-                    webView.evaluateJavascript(js, started -> {
-                        if (started == null || "false".equals(started)) {
-                            Toast.makeText(this, "脚本编辑任务未能启动", Toast.LENGTH_LONG).show();
-                            return;
+                    if (updatedNote.isEmpty()) updatedNote = updatedValue.length() > 80
+                            ? updatedValue.substring(0, 80) : updatedValue;
+                    String command = nativeScriptStoreCommand("update", String.valueOf(index + 1),
+                            encodeNativeScriptArgument(updatedValue), encodeNativeScriptArgument(updatedNote));
+                    runNativeModuleCommand(command, 30000L, result -> {
+                        if (result.exitCode == 0 && result.output.contains("OK")) {
+                            Toast.makeText(this, "脚本配置已保存", Toast.LENGTH_SHORT).show();
+                            refreshNativeScriptList(rows, status);
+                            syncNativeScriptRuntime();
+                        } else {
+                            Toast.makeText(this, "脚本保存失败：" + result.output.trim(), Toast.LENGTH_LONG).show();
                         }
-                        verifyNativeScriptMutation("__fxNativeScriptMutationOk",
-                                "脚本已保存并提交运行时同步", "脚本保存失败");
-                        nativeVpnHandler.postDelayed(() ->
-                                refreshNativeScriptList(rows, status), 1200L);
                     });
                 }).show();
     }
 
     private void deleteNativeScript(int index, LinearLayout rows, TextView status) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "脚本引擎尚未就绪", Toast.LENGTH_LONG).show();
-            return;
-        }
-        String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
-                + "if(!a||!a[" + index + "])return false;a.splice(" + index + ",1);"
-                + "window.__fxNativeScriptMutationOk=false;pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
-                + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
-        webView.evaluateJavascript(js, value -> {
-            verifyNativeScriptMutation("__fxNativeScriptMutationOk", "脚本条目已删除", "删除失败，设置未保存");
-            nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
-        });
-    }
-
-    private void verifyNativeScriptMutation(String resultKey, String success, String failure) {
-        verifyNativeScriptMutation(resultKey, success, failure, 0);
-    }
-
-    private void verifyNativeScriptMutation(String resultKey, String success, String failure, int attempt) {
-        if (webView == null || isFinishing() || isDestroyed()) return;
-        webView.evaluateJavascript("window[" + JSONObject.quote(resultKey) + "]", result -> {
-            if ("true".equals(result) || "false".equals(result)) {
-                Toast.makeText(this, "true".equals(result) ? success : failure, Toast.LENGTH_LONG).show();
-            } else if (attempt < 20) {
-                nativeVpnHandler.postDelayed(
-                        () -> verifyNativeScriptMutation(resultKey, success, failure, attempt + 1), 250L);
+        runNativeModuleCommand(nativeScriptStoreCommand("delete", String.valueOf(index + 1)), 30000L, result -> {
+            if (result.exitCode == 0 && result.output.contains("OK")) {
+                Toast.makeText(this, "脚本条目已删除", Toast.LENGTH_SHORT).show();
+                refreshNativeScriptList(rows, status);
+                syncNativeScriptRuntime();
             } else {
-                Toast.makeText(this, "保存状态确认超时，请刷新列表核对；不要重复提交。", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "删除失败：" + result.output.trim(), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -1292,12 +1241,12 @@ public final class MainActivity extends ComponentActivity {
         EditText input = new EditText(this);
         input.setSingleLine(false);
         input.setMinLines(3);
-        input.setHint("粘贴脚本 URL 或完整脚本内容");
+        input.setHint("粘贴可信 HTTPS 脚本订阅 URL 或脚本内容");
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(6), dp(12), dp(4));
         TextView hint = new TextView(this);
-        hint.setText("支持脚本订阅 URL 或脚本源码。文件导入可使用下方独立入口。");
+        hint.setText("HTTPS 订阅会进入模块脚本同步器；仅受支持的 FX / userscript URL 元数据会用于 MITM 请求/响应钩子。普通脚本源码不会被伪装成 Frida。");
         hint.setTextColor(0xff718091);
         panel.addView(hint);
         panel.addView(input);
@@ -1321,51 +1270,38 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeScriptValue(String raw, String sourceName) {
         String value = raw == null ? "" : raw.trim();
-        if (value.isEmpty()) {
-            Toast.makeText(this, "脚本内容为空", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "脚本设置存储尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (value.length() > 1024 * 1024) {
-            Toast.makeText(this, "脚本文件超过 1 MiB，已拒绝导入", Toast.LENGTH_LONG).show();
+        if (value.isEmpty() || value.length() > 1024 * 1024) {
+            Toast.makeText(this, "脚本内容为空或超过 1 MiB", Toast.LENGTH_LONG).show();
             return;
         }
         String note = sourceName == null || sourceName.trim().isEmpty()
-                ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName;
-        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
-                + "window.__fxNativeScriptAddOk=false;var ok=pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
-                + ",note:" + JSONObject.quote(note) + ",on:true}],{});"
-                + "window.__fxNativeScriptAddOk=!!ok;return ok;})()";
-        webView.evaluateJavascript(js, result -> {
+                ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName.trim();
+        String command = nativeScriptStoreCommand("add", encodeNativeScriptArgument(value),
+                encodeNativeScriptArgument(note), "1");
+        runNativeModuleCommand(command, 30000L, result -> {
             if (isFinishing() || isDestroyed()) return;
-            verifyNativeScriptMutation("__fxNativeScriptAddOk", "脚本已保存", "脚本未保存：请检查内容或模块设置状态");
-            if (nativePageContent != null && lastWebTabIndex == 3) {
-                nativeVpnHandler.postDelayed(() -> {
-                    if (nativePageContent != null && lastWebTabIndex == 3) renderNativePage(3);
-                }, 1200L);
+            if (result.exitCode == 0 && result.output.contains("OK")) {
+                Toast.makeText(this, "脚本条目已保存到模块配置", Toast.LENGTH_SHORT).show();
+                if (nativeScriptRows != null && nativeScriptStatus != null) {
+                    refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                }
+                syncNativeScriptRuntime();
+            } else {
+                Toast.makeText(this, "脚本未保存：" + result.output.trim(), Toast.LENGTH_LONG).show();
             }
         });
     }
 
     private void refreshNativeScripts() {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "脚本运行桥尚未就绪", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        webView.evaluateJavascript("(function(){if(typeof pgSyncThirdPartyRuntime!=='function')return false;"
-                + "pgSyncThirdPartyRuntime({syncScripts:true}).then(function(r){window.__fxNativeScriptRefresh=JSON.stringify(r||{});});return true;})()", value -> {
-            Toast.makeText(this, "已请求脚本订阅同步；请查看运行日志确认结果。", Toast.LENGTH_LONG).show();
-            if (nativeScriptRows != null && nativeScriptStatus != null) {
-                nativeVpnHandler.postDelayed(() -> {
-                    if (nativeScriptRows != null && nativeScriptStatus != null
-                            && nativeScriptRows.getParent() != null) {
-                        refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
-                    }
-                }, 1500L);
+        if (nativeScriptStatus != null) nativeScriptStatus.setText("正在同步已启用的 HTTPS 脚本订阅…");
+        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/sync-subs.sh\"", 60000L, result -> {
+            if (result.exitCode == 0) {
+                Toast.makeText(this, "脚本订阅同步完成：" + result.output.trim(), Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "脚本配置未变；订阅同步失败：" + result.output.trim(), Toast.LENGTH_LONG).show();
             }
+            if (nativeScriptRows != null && nativeScriptStatus != null
+                    && nativeScriptRows.getParent() != null) refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
         });
     }
 
