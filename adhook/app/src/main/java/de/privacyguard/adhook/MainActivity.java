@@ -1080,6 +1080,10 @@ public final class MainActivity extends ComponentActivity {
         return decoded;
     }
 
+    private static int nativeScriptUtf8Bytes(String value) {
+        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
     private static boolean isSupportedNativeScriptValue(String raw) {
         if (raw == null) return false;
         String value = raw.trim();
@@ -1235,7 +1239,7 @@ public final class MainActivity extends ComponentActivity {
                     String trimmedValue = updatedValue.trim();
                     if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) updatedValue = trimmedValue;
                     String updatedNote = note.getText().toString().trim();
-                    if (!isSupportedNativeScriptValue(updatedValue) || updatedValue.length() > 64 * 1024) {
+                    if (!isSupportedNativeScriptValue(updatedValue) || nativeScriptUtf8Bytes(updatedValue) > 64 * 1024) {
                         Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
                         return;
                     }
@@ -1302,7 +1306,7 @@ public final class MainActivity extends ComponentActivity {
         String value = raw == null ? "" : raw;
         String trimmedValue = value.trim();
         if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) value = trimmedValue;
-        if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
+        if (!isSupportedNativeScriptValue(value) || nativeScriptUtf8Bytes(value) > 64 * 1024) {
             Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
             return;
         }
