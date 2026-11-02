@@ -247,7 +247,7 @@ for page in VpnPage HostsPage PrivacyPage ScriptPage; do
 done
 grep -Fq 'root.addView(nativeDashboard, new LinearLayout.LayoutParams(-1, 0, 1));' "$ACTIVITY" || fail "native dashboard is not the visible main content"
 ! sed -n '/private void showWebDashboard() {/,/private void renderNativeDashboard(int index)/p' "$ACTIVITY" | grep -Fq 'new WebView(this)' || fail "main dashboard still creates a visible WebView"
-grep -Fq 'onClick { if (onClick != null) onClick() else showInfo = true }' "$DASH" || fail "native action pills must provide visible click feedback"
+grep -Fq '.clickable { if (onClick != null) onClick() else showInfo = true }' "$DASH" || fail "native action pills must provide visible click feedback"
 grep -q 'openHookManager' "$BRIDGE" || fail "native Hook manager entry missing"
 grep -q 'FXRoot.exec' "$ACTIVITY" || fail "WebUI root execution shim missing"
 grep -q 'CALLBACK' "$BRIDGE" || fail "callback name validation missing"
