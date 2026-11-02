@@ -23,6 +23,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -69,6 +70,8 @@ public final class MainActivity extends Activity {
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
     private boolean hookHubVisible;
+    private boolean settingsUiVisible;
+    private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
     private boolean webViewLoaded;
@@ -86,7 +89,9 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        uiMode = getSharedPreferences("fx_ui", MODE_PRIVATE).getString("mode", "classic");
         boolean restoreHookScreen = false;
+        boolean restoreSettingsScreen = false;
         String restoreHookKind = "";
         if (state != null) {
             lastWebTabIndex = Math.max(0, Math.min(5,
@@ -95,6 +100,7 @@ public final class MainActivity extends Activity {
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
             restoreHookScreen = selectedBottomTab == 4;
+            restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
             if ("target".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
@@ -103,6 +109,8 @@ public final class MainActivity extends Activity {
         if (restoreHookScreen) {
             if ("hub".equals(restoreHookKind)) showHookHub();
             else showAppList();
+        } else if (restoreSettingsScreen) {
+            showSettings();
         } else {
             showDashboard();
         }
@@ -111,6 +119,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
+        outState.putBoolean("fx_settings_screen", settingsUiVisible);
         if (hookUiVisible) {
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
             String hookScreen = hookHubVisible ? "hub" : restoringTarget ? "target" : "list";
@@ -154,6 +163,7 @@ public final class MainActivity extends Activity {
     private void showWebDashboard() {
         cancelHookStatusRefresh();
         cancelAppIconLoad();
+        settingsUiVisible = false;
         // A restored target is only valid while the app-list restoration is still active.
         pendingRestorePackage = null;
         hookUiVisible = false;
@@ -330,6 +340,7 @@ public final class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 if (isTrustedDocumentUrl(Uri.parse(url))) {
                     webUiReady = true;
+                    applyWebUiMode();
                     if (pendingWebPage != null) {
                         String pending = pendingWebPage;
                         pendingWebPage = null;
@@ -371,7 +382,8 @@ public final class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER);
-        bar.setBackgroundColor(0xffffffff);
+        bar.setBackground(uiPanelDrawable());
+        bar.setElevation(dp(8));
         String[] labels = {"VPN", "Ad", "隐私", "脚本", "Hook", "设置"};
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
@@ -389,7 +401,10 @@ public final class MainActivity extends Activity {
             item.setPadding(dp(1), dp(8), dp(1), dp(8));
             styleBottomItem(item, index);
             item.setOnClickListener(v -> {
-                if (index == 4) {
+                if (index == 5) {
+                    selectedBottomTab = 5;
+                    showSettings();
+                } else if (index == 4) {
                     selectedBottomTab = 4;
                     showAppList();
                 } else {
@@ -398,7 +413,7 @@ public final class MainActivity extends Activity {
                     int pageIndex = index > 4 ? index - 1 : index;
                     String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy",
                             "pageScript", "pageMore"}[pageIndex];
-                    if (hookUiVisible) showWebDashboard();
+                    if (hookUiVisible || settingsUiVisible) showWebDashboard();
                     else for (int j = 0; j < bar.getChildCount(); j++) {
                         styleBottomItem((TextView) bar.getChildAt(j), j);
                     }
@@ -412,7 +427,8 @@ public final class MainActivity extends Activity {
 
     private void styleBottomItem(TextView item, int index) {
         boolean selected = index == selectedBottomTab;
-        item.setTextColor(selected ? 0xff1769aa : 0xff526170);
+        int accent = "glass".equals(uiMode) ? 0xff276b9a : "miuix".equals(uiMode) ? 0xff3478f6 : 0xff1769aa;
+        item.setTextColor(selected ? accent : 0xff526170);
         item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     }
 
@@ -464,6 +480,7 @@ public final class MainActivity extends Activity {
         pendingRestorePackage = null;
         pauseAndDetachWebView();
         hookUiVisible = true;
+        settingsUiVisible = false;
         selectedBottomTab = 4;
         hookTargetVisible = false;
         hookHubVisible = true;
@@ -559,6 +576,73 @@ public final class MainActivity extends Activity {
         back.setText("返回 FX 控制中心");
         back.setOnClickListener(v -> showWebDashboard());
         content.addView(back);
+    }
+
+    private void addModeOption(RadioGroup group, int id, String title, String detail) {
+        RadioButton option = new RadioButton(this);
+        option.setId(id);
+        option.setText(title + "\\n" + detail);
+        option.setTextSize(15);
+        option.setPadding(dp(14), dp(10), dp(14), dp(10));
+        option.setMinHeight(dp(64));
+        option.setBackground(uiPanelDrawable());
+        group.addView(option, new RadioGroup.LayoutParams(-1, -2));
+    }
+
+    private void showSettings() {
+        cancelHookStatusRefresh();
+        cancelAppIconLoad();
+        pauseAndDetachWebView();
+        hookUiVisible = false;
+        hookTargetVisible = false;
+        hookHubVisible = false;
+        settingsUiVisible = true;
+        selectedBottomTab = 5;
+        base("设置");
+        TextView intro = new TextView(this);
+        intro.setText("管理 FX Hook 的界面外观。模式会保存到本机，重新打开后继续生效；Hook 配置、VPN 和规则数据不会因切换界面而改变。");
+        intro.setTextColor(0xff66727e);
+        intro.setPadding(dp(18), dp(4), dp(18), dp(14));
+        content.addView(intro);
+        section("界面模式");
+        TextView note = new TextView(this);
+        note.setText("参考游龙工具的多界面模式设计，将模式选择与功能数据分离。Miuix 采用 HyperOS 风格的原生视觉规范；液态玻璃在 WebView 支持时启用背景模糊，不支持时自动降级为半透明材质。");
+        note.setTextColor(0xff66727e);
+        note.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(note);
+        RadioGroup modes = new RadioGroup(this);
+        modes.setOrientation(RadioGroup.VERTICAL);
+        modes.setPadding(dp(12), dp(4), dp(12), dp(8));
+        addModeOption(modes, 0, "经典界面", "FX 当前简洁原生样式，兼容性优先");
+        addModeOption(modes, 1, "Miuix 风格", "圆角卡片、分组层级和柔和配色，参考 HyperOS");
+        addModeOption(modes, 2, "液态玻璃", "半透明表面、层次阴影与可用时的背景模糊");
+        addModeOption(modes, 3, "网页原样", "Web 管理页面保持原设计；Hook 页面仍使用原生界面");
+        int checked = "miuix".equals(uiMode) ? 1 : "glass".equals(uiMode) ? 2 : "web".equals(uiMode) ? 3 : 0;
+        modes.check(checked);
+        modes.setOnCheckedChangeListener((group, checkedId) -> {
+            String selected = checkedId == 1 ? "miuix" : checkedId == 2 ? "glass" : checkedId == 3 ? "web" : "classic";
+            if (selected.equals(uiMode)) return;
+            uiMode = selected;
+            getSharedPreferences("fx_ui", MODE_PRIVATE).edit().putString("mode", uiMode).apply();
+            applyWebUiMode();
+            Toast.makeText(MainActivity.this, "界面模式已切换", Toast.LENGTH_SHORT).show();
+            showSettings();
+        });
+        content.addView(modes, new LinearLayout.LayoutParams(-1, -2));
+        section("其他设置");
+        TextView legacyHint = new TextView(this);
+        legacyHint.setText("VPN、Hosts、隐私、脚本及证书等完整管理选项仍保留在原有设置页面。");
+        legacyHint.setTextColor(0xff66727e);
+        legacyHint.setPadding(dp(18), dp(4), dp(18), dp(8));
+        content.addView(legacyHint);
+        Button fullSettings = new Button(this);
+        fullSettings.setText("打开完整设置页面");
+        fullSettings.setOnClickListener(v -> {
+            lastWebTabIndex = 5;
+            showWebDashboard();
+            navigateWebPage("pageMore");
+        });
+        content.addView(fullSettings);
     }
 
     private void refreshHookRemoteStatus(TextView target) {
@@ -781,6 +865,45 @@ public final class MainActivity extends Activity {
     }
 
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
+    private int uiBackgroundColor() {
+        if ("miuix".equals(uiMode)) return 0xfff3f5fa;
+        if ("glass".equals(uiMode)) return 0xffe8eef4;
+        return 0xfff4f6f8;
+    }
+    private int uiSurfaceColor() {
+        if ("miuix".equals(uiMode)) return 0xffeaf0fb;
+        if ("glass".equals(uiMode)) return 0xddefffff;
+        return 0xffffffff;
+    }
+    private GradientDrawable roundedDrawable(int color, int strokeColor) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp("glass".equals(uiMode) ? 24 : "miuix".equals(uiMode) ? 20 : 8));
+        if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
+        return d;
+    }
+    private android.graphics.drawable.Drawable uiPanelDrawable() {
+        return roundedDrawable(uiSurfaceColor(), "glass".equals(uiMode) ? 0x66ffffff : 0);
+    }
+    private void applyWebUiMode() {
+        if (webView == null || !webUiReady) return;
+        String css;
+        if ("miuix".equals(uiMode)) {
+            css = "body{background:#f3f5fa!important;color:#17212b!important}" +
+                    ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:18px!important;background:#fff!important;border:1px solid #e5eaf2!important;box-shadow:0 3px 14px rgba(35,60,95,.06)!important}" +
+                    "button,.btn,input,select,textarea{border-radius:12px!important}" +
+                    ".section-title,h2,h3{font-weight:700!important;letter-spacing:.01em}";
+        } else if ("glass".equals(uiMode)) {
+            css = "body{background:linear-gradient(145deg,#e8f2fa,#f2edf8)!important}" +
+                    ".card,.panel,.setting-card,.section,.list-item,.config-card{background:rgba(255,255,255,.64)!important;border:1px solid rgba(255,255,255,.78)!important;border-radius:22px!important;box-shadow:0 8px 28px rgba(35,55,80,.10)!important;backdrop-filter:blur(18px) saturate(150%)!important;-webkit-backdrop-filter:blur(18px) saturate(150%)!important}" +
+                    "button,.btn,input,select,textarea{border-radius:14px!important}";
+        } else {
+            css = "";
+        }
+        String js = "(function(){var id='fx-interface-mode-style';var old=document.getElementById(id);if(old)old.remove();" +
+                (css.isEmpty() ? "" : "var s=document.createElement('style');s.id=id;s.textContent=" + JSONObject.quote(css) + ";document.head.appendChild(s);") + "})()";
+        webView.evaluateJavascript(js, null);
+    }
     private TextView title(String value, int size) {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size);
         t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(0xff17212b);
@@ -788,7 +911,7 @@ public final class MainActivity extends Activity {
     }
     private void base(String heading) {
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xfff4f6f8);
+        root.setBackgroundColor(uiBackgroundColor());
         ScrollView scroll = new ScrollView(this);
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
         content.addView(title("FX", 25));
@@ -803,6 +926,7 @@ public final class MainActivity extends Activity {
         cancelAppIconLoad();
         pauseAndDetachWebView();
         hookUiVisible = true;
+        settingsUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
         selectedPackage = null; selectedBottomTab = 4; base("选择应用");
@@ -1045,6 +1169,7 @@ public final class MainActivity extends Activity {
             return;
         }
         hookUiVisible = true;
+        settingsUiVisible = false;
         hookTargetVisible = true;
         hookHubVisible = false;
         selectedPackage = ai.packageName;
@@ -1359,11 +1484,16 @@ public final class MainActivity extends Activity {
     }
 
     private void section(String s) {
-        TextView t=title(s,16); t.setBackgroundColor(0xffe9eef3); content.addView(t,new LinearLayout.LayoutParams(-1,-2));
+        TextView t=title(s,16);
+        t.setBackground(roundedDrawable("miuix".equals(uiMode) ? 0xffe5ecf8 : "glass".equals(uiMode) ? 0xccefffff : 0xffe9eef3,
+                "glass".equals(uiMode) ? 0x66ffffff : 0));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
+        lp.setMargins(dp(12), dp(10), dp(12), dp(4));
+        content.addView(t,lp);
     }
     private void toggle(String label,String feature,boolean def) {
         Switch sw=new Switch(this); sw.setText(label); sw.setTextSize(15); sw.setPadding(dp(18),dp(12),dp(18),dp(12));
-        sw.setBackgroundColor(0xffffffff); sw.setChecked(getPreferences(0).getBoolean(key(feature),def));
+        sw.setBackground(uiPanelDrawable()); sw.setChecked(getPreferences(0).getBoolean(key(feature),def));
         sw.setOnCheckedChangeListener((b,on)->getPreferences(0).edit().putBoolean(key(feature),on).apply());
         content.addView(sw,new LinearLayout.LayoutParams(-1,-2));
     }
