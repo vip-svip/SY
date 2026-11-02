@@ -33,4 +33,7 @@ grep -Fq 'ViewTreeSavedStateRegistryOwner.set(shell, this);' "$JAVA"
 grep -Fq 'ViewTreeLifecycleOwner.set(designModePanel, this);' "$JAVA"
 grep -Fq 'ViewTreeViewModelStoreOwner.set(designModePanel, this);' "$JAVA"
 grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
+
+grep -Fq 'onTabSelected(index)' "$GLASS"
+! grep -Fq 'if (selected != index)' "$GLASS" || grep -Fq 'onTabSelected(index)' "$GLASS"
 echo 'FX native single-navigation, Compose lifecycle-owner and WebUI route regression: PASS'
