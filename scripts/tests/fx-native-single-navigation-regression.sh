@@ -36,6 +36,15 @@ grep -Fq 'ViewTreeViewModelStoreOwner.set(designModePanel, this);' "$JAVA"
 grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
 
 grep -Fq 'onTabSelected(index)' "$GLASS"
+# Hook and Settings are native screens, not WebView placeholder routes.
+grep -Fq 'private void showAppList()' "$JAVA"
+grep -Fq 'private void loadAppsAsync()' "$JAVA"
+grep -Fq 'search.addTextChangedListener' "$JAVA"
+grep -Fq 'private void showSettings()' "$JAVA"
+grep -Fq 'FxDesignModePanelKt.installFxDesignModePanel' "$JAVA"
+grep -Fq 'fullSettings.setOnClickListener' "$JAVA"
+grep -Fq 'selectedBottomTab = 4' "$JAVA"
+grep -Fq 'selectedBottomTab = 5' "$JAVA"
 
 # VPN tab exposes native Android controls routed through an explicit backend API, not hidden WebView button clicks.
 grep -Fq 'buildNativeVpnControls();' "$JAVA"
