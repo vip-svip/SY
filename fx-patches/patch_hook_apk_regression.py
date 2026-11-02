@@ -8,6 +8,8 @@ test = root / "scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh"
 if not test.is_file():
     raise SystemExit("FX Hook APK regression test is missing")
 src = test.read_text(encoding="utf-8")
+# The single installed app is branded FX Hook, not the legacy generic FX label.
+src = src.replace('android:label="FX"', 'android:label="FX Hook"')
 old = 'DEXSTR=$(for dex in classes.dex classes2.dex classes3.dex; do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)'
 new = 'DEXSTR=$(for dex in $(unzip -Z1 "$APK" | grep -E \'^classes([0-9]+)?[.]dex$\'); do unzip -p "$APK" "$dex" 2>/dev/null | strings || true; done)'
 if old in src:
