@@ -23,6 +23,14 @@ CONF
 export PG CONF="$PG/settings.conf"
 SCRIPT="$MOD/scripts/jsruntime/native-list.sh"
 RUN="$MOD/scripts/jsruntime/local-run.sh"
+assert_lock_clean() {
+  if [ -e "$PG/jsruntime/native-script-list.lock" ]; then
+    echo "LOCK LEAK at $1:" >&2
+    ls -la "$PG/jsruntime/native-script-list.lock" >&2 || :
+    cat "$PG/jsruntime/native-script-list.lock/pid" >&2 2>/dev/null || :
+    fail "script-list lock leaked after $1"
+  fi
+}
 source='const secret = "local-only"; $done({ok:true});'
 value64=$(printf '%s' "$source" | base64 | tr -d '\n')
 note64=$(printf '%s' 'Local test' | base64 | tr -d '\n')
@@ -30,13 +38,16 @@ note64=$(printf '%s' 'Local test' | base64 | tr -d '\n')
 result=$(sh "$RUN" 1) || fail "enabled local script did not execute: $result"
 printf '%s' "$result" | grep -Fq '"done":true' || fail "runner result was not returned"
 [ "$(cat "$PG/executed.js")" = "$source" ] || fail "runner did not receive the exact local source"
+assert_lock_clean "successful local execution"
 [ -f "$PG/jsruntime/local-run.log" ] || fail "private execution log missing"
 if grep -Fq 'local-only' "$PG/jsruntime/local-run.log"; then fail "execution log leaked script source"; fi
 [ "$(sh "$SCRIPT" toggle 1 0)" = "OK" ] || fail "could not disable local script"
+assert_lock_clean "native-list toggle"
 if sh "$RUN" 1 >/dev/null 2>&1; then fail "disabled local script unexpectedly executed"; fi
+assert_lock_clean "disabled local execution rejection"
 url64=$(printf '%s' 'https://example.test/script.js' | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" add "$url64" "$note64" 1)" = "OK" ] || fail "could not add HTTPS subscription"
 if sh "$RUN" 2 >/dev/null 2>&1; then fail "HTTPS subscription was passed to local JS runner"; fi
 if sh "$RUN" 999 >/dev/null 2>&1; then fail "out-of-range script index unexpectedly succeeded"; fi
-[ ! -e "$PG/jsruntime/native-script-list.lock" ] || fail "script-list lock leaked after execution"
+assert_lock_clean "test completion"
 echo "PASS: native local JS execution requires enabled FXSRC_B64 source, preserves source bytes, rejects subscriptions, and logs metadata only"
