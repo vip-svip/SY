@@ -43,7 +43,7 @@ jobs:
           gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
           unzip -tq "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip"
           unzip -q "$RUNNER_TEMP/fx-release/FX-v1.0.0.zip" -d "$RUNNER_TEMP/fx-unpack"
-                    if [[ -s "$RUNNER_TEMP/fx-unpack/module.prop" ]]; then
+          if [[ -s "$RUNNER_TEMP/fx-unpack/module.prop" ]]; then
             source_root="$RUNNER_TEMP/fx-unpack"
           else
             # Ignore nested certificate submodule manifests; select the FX module root.
@@ -52,6 +52,7 @@ jobs:
             source_root="$(dirname "$module_prop")"
           fi
           cp -a "$source_root/." fx-module/
+
 
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
           # Recover the canonical full UI from the already packaged Hook APK before
