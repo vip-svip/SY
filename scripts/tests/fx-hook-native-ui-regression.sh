@@ -30,6 +30,7 @@ grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$ROOT/adho
 grep -Fq 'LiquidBottomTabs(' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "upstream Kyant LiquidBottomTabs is not used by FX glass navigation"
 grep -Fq 'tabsCount = labels.size' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "LiquidBottomTabs is not configured for all six FX destinations"
 grep -Fq 'clickable(role = Role.Tab)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "native tabs are missing accessibility tab roles"
+grep -Fq 'import androidx.compose.ui.semantics.selected' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "Compose selected semantics property import missing"
 grep -Fq 'this.selected = selected == index' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "liquid tab selected state is not exposed to accessibility services"
 grep -Fq 'lens(24f.dp.toPx(), 24f.dp.toPx())' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/glass/components/LiquidBottomTabs.kt" || fail "authentic liquid tab lens/refraction effect missing"
 grep -Fq 'DampedDragAnimation' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/glass/components/LiquidBottomTabs.kt" || fail "liquid tab drag spring animation missing"
