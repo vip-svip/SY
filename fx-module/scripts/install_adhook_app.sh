@@ -11,19 +11,33 @@ mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :
 log_msg(){ _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) install_adhook_app: $*"; printf '%s\n' "$_msg" >> "$LOG" 2>/dev/null || :; printf '%s\n' "$*"; }
 package_present(){ pm path "$1" 2>/dev/null | grep -q '^package:'; }
 retire_legacy_standalone(){
-  # The user-facing product is a single FX Hook app. Remove the old standalone
-  # PrivacyGuard Hook package even on idempotent installs; its hook entrypoint
-  # is already bundled inside FXUnifiedHook.apk.
-  if package_present de.privacyguard.hook; then
-    if pm uninstall de.privacyguard.hook >> "$LOG" 2>&1; then
-      rm -f "$STATE_DIR/adhook-apk-privacyguardhook.sha256" "$STATE_DIR/adhook-apk-privacyguardhook.fx-owned"
-      log_msg "removed obsolete standalone PrivacyGuard Hook; use FX Hook only"
-    else
-      log_msg "ERROR: obsolete standalone Hook is still installed; please remove de.privacyguard.hook"
-      return 1
-    fi
+  # Remove the legacy app only when FX ownership and the exact installed APK
+  # digest prove it is the old FX-managed package. Never uninstall a user app.
+  _legacy_pkg=de.privacyguard.hook
+  _legacy_marker="$STATE_DIR/adhook-apk-privacyguardhook.sha256"
+  _legacy_owned="$STATE_DIR/adhook-apk-privacyguardhook.fx-owned"
+  if ! package_present "$_legacy_pkg"; then
+    rm -f "$_legacy_marker" "$_legacy_owned"
+    return 0
+  fi
+  if [ ! -s "$_legacy_marker" ] || [ ! -s "$_legacy_owned" ]; then
+    log_msg "WARN: legacy Hook package has no FX ownership proof; preserving it. Remove it manually if it is an old FX copy."
+    return 0
+  fi
+  _legacy_path=$(pm path "$_legacy_pkg" 2>/dev/null | awk 'NR==1 {sub(/^package:/, ""); print; exit}')
+  _legacy_expected=$(awk 'NR==1 {print $1}' "$_legacy_marker" 2>/dev/null)
+  _legacy_actual=$(sha256sum "$_legacy_path" 2>/dev/null | awk 'NR==1 {print $1}')
+  if [ -z "$_legacy_path" ] || [ -z "$_legacy_expected" ] ||
+     [ -z "$_legacy_actual" ] || [ "$_legacy_actual" != "$_legacy_expected" ]; then
+    log_msg "WARN: legacy Hook digest does not prove FX ownership; preserving package"
+    return 0
+  fi
+  if pm uninstall "$_legacy_pkg" >> "$LOG" 2>&1; then
+    rm -f "$_legacy_marker" "$_legacy_owned"
+    log_msg "removed FX-managed legacy standalone Hook; FX Hook is the only FX app"
   else
-    rm -f "$STATE_DIR/adhook-apk-privacyguardhook.sha256" "$STATE_DIR/adhook-apk-privacyguardhook.fx-owned"
+    log_msg "ERROR: could not remove FX-managed legacy Hook package"
+    return 1
   fi
   return 0
 }
