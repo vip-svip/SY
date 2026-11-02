@@ -1047,7 +1047,7 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.addView(nativeAction("添加脚本 / 订阅", this::showNativeScriptAddDialog));
-        actions.addView(nativeAction("从文件导入 HTTPS 订阅", this::pickNativeScriptFile));
+        actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
         actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
@@ -1073,6 +1073,9 @@ public final class MainActivity extends ComponentActivity {
 
     private static String decodeNativeScriptValue(String encoded) {
         String value = decodeNativeScriptArgument(encoded);
+        if (value.startsWith("FXSRC_B64:")) {
+            return new String(Base64.decode(value.substring(10), Base64.DEFAULT), StandardCharsets.UTF_8);
+        }
         StringBuilder decoded = new StringBuilder(value.length());
         for (int i = 0; i < value.length(); i++) {
             char current = value.charAt(i);
@@ -1084,6 +1087,13 @@ public final class MainActivity extends ComponentActivity {
             decoded.append(current);
         }
         return decoded.toString();
+    }
+
+    private static boolean isSupportedNativeScriptValue(String value) {
+        if (value == null || value.trim().isEmpty()) return false;
+        String normalized = value.trim();
+        if (normalized.startsWith("https://")) return true;
+        return !normalized.matches("(?i)^[a-z][a-z0-9+.-]*://.*");
     }
 
     private void syncNativeScriptRuntime() {
@@ -1131,7 +1141,7 @@ public final class MainActivity extends ComponentActivity {
                     name.setTextSize(14);
                     name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                     TextView source = new TextView(this);
-                    source.setText(valueText);
+                    source.setText((valueText.startsWith("https://") ? "HTTPS 订阅 · " : "本地 JS 源码 · 已保存但尚未接入执行队列 · ") + valueText);
                     source.setTextColor(0xff718091);
                     source.setTextSize(10);
                     source.setMaxLines(2);
@@ -1141,7 +1151,7 @@ public final class MainActivity extends ComponentActivity {
                     LinearLayout ops = new LinearLayout(this);
                     ops.setGravity(Gravity.CENTER_VERTICAL);
                     Switch enabledSwitch = new Switch(this);
-                    enabledSwitch.setText("启用");
+                    enabledSwitch.setText(valueText.startsWith("https://") ? "订阅启用" : "保存状态");
                     enabledSwitch.setChecked(on);
                     enabledSwitch.setOnCheckedChangeListener((button, checked) ->
                             setNativeScriptEnabled(index, checked, rows, status, enabledSwitch, on));
@@ -1160,10 +1170,10 @@ public final class MainActivity extends ComponentActivity {
                     rows.addView(row, lp);
                 }
                 status.setText("脚本条目：" + count + " · 已启用：" + enabled
-                        + " · 配置来源：模块 settings.conf · 执行引擎：QuickJS-NG");
+                        + " · 配置来源：模块 settings.conf · QuickJS-NG 执行能力仍需接入本地源码队列");
                 if (count == 0) {
                     TextView empty = new TextView(this);
-                    empty.setText("暂无脚本条目。可添加可信 HTTPS 脚本订阅或导入脚本文件。");
+                    empty.setText("暂无脚本条目。可添加 HTTPS 订阅或导入本地 JS 源码；本地源码当前仅保存，不会执行。");
                     empty.setTextColor(0xff718091);
                     empty.setPadding(dp(18), dp(16), dp(18), dp(16));
                     rows.addView(empty);
@@ -1209,7 +1219,7 @@ public final class MainActivity extends ComponentActivity {
         value.setSingleLine(false);
         value.setMinLines(4);
         value.setGravity(Gravity.TOP | Gravity.START);
-        value.setHint("可信 HTTPS 脚本订阅 URL（最多 64 KiB）");
+        value.setHint("HTTPS 订阅 URL 或本地 JavaScript 源码（最多 64 KiB）");
         EditText note = new EditText(this);
         note.setText(oldNote);
         note.setSingleLine(true);
@@ -1224,8 +1234,8 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("保存", (dialog, which) -> {
                     String updatedValue = value.getText().toString().trim();
                     String updatedNote = note.getText().toString().trim();
-                    if (!updatedValue.startsWith("https://") || updatedValue.length() > 64 * 1024) {
-                        Toast.makeText(this, "仅接受 HTTPS 脚本订阅 URL，且长度不得超过 64 KiB", Toast.LENGTH_LONG).show();
+                    if (!isSupportedNativeScriptValue(updatedValue) || updatedValue.length() > 64 * 1024) {
+                        Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
                         return;
                     }
                     if (updatedNote.isEmpty()) updatedNote = updatedValue.length() > 80
@@ -1265,7 +1275,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(6), dp(12), dp(4));
         TextView hint = new TextView(this);
-        hint.setText("当前运行时仅执行 HTTPS 订阅；订阅脚本必须包含受支持的 FX 或 userscript URL 匹配元数据。普通本地 JS 源码尚未接入执行队列，不会被误报为已运行。");
+        hint.setText("HTTPS 订阅会由脚本同步器处理，并要求受支持的 FX / userscript URL 匹配元数据。本地 JS 源码可以保存和导出，但尚未接入 QuickJS 执行队列，不会被误报为已运行。明文 HTTP 订阅会被拒绝。");
         hint.setTextColor(0xff718091);
         panel.addView(hint);
         panel.addView(input);
@@ -1289,8 +1299,8 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeScriptValue(String raw, String sourceName) {
         String value = raw == null ? "" : raw.trim();
-        if (!value.startsWith("https://") || value.length() > 64 * 1024) {
-            Toast.makeText(this, "仅接受 HTTPS 脚本订阅 URL，且长度不得超过 64 KiB", Toast.LENGTH_LONG).show();
+        if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
+            Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
             return;
         }
         String note = sourceName == null || sourceName.trim().isEmpty()
@@ -1328,7 +1338,8 @@ public final class MainActivity extends ComponentActivity {
                     String[] fields = lines[i].split("\\|", -1);
                     if (fields.length != 3) throw new IllegalStateException("脚本条目字段错误");
                     JSONObject entry = new JSONObject();
-                    entry.put("url", decodeNativeScriptValue(fields[0]));
+                    entry.put("value", decodeNativeScriptValue(fields[0]));
+                    entry.put("kind", decodeNativeScriptValue(fields[0]).startsWith("https://") ? "https-subscription" : "local-source");
                     entry.put("name", decodeNativeScriptArgument(fields[1]));
                     entry.put("enabled", "1".equals(fields[2]));
                     entries.put(entry);
