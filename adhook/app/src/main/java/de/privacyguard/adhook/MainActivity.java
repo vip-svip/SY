@@ -413,9 +413,11 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnSwitch.setTextColor(0xff263238);
         nativeVpnSwitch.setOnCheckedChangeListener((button, checked) -> {
             if (syncingNativeVpn || webView == null || !webUiReady) return;
-            String target = checked ? "global" : "direct";
-            webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + target + "')", null);
-            webView.postDelayed(this::syncNativeVpnControls, 4000);
+            // Reuse the real WebUI master-toggle transaction; do not invent a JS API.
+            webView.evaluateJavascript("(function(){var b=document.getElementById('vpnEnableToggle');if(b)b.click();return !!b})()", value -> {
+                if (value == null || "false".equals(value)) Toast.makeText(this, "VPN 原生开关未找到后端控件", Toast.LENGTH_SHORT).show();
+                webView.postDelayed(this::syncNativeVpnControls, 4000);
+            });
         });
         head.addView(nativeVpnSwitch);
         card.addView(head);
@@ -431,8 +433,8 @@ public final class MainActivity extends ComponentActivity {
         modes.setGravity(Gravity.CENTER_VERTICAL);
         modes.setOrientation(LinearLayout.HORIZONTAL);
         modes.setWeightSum(4);
-        String[] labels = {"直连", "全局", "规则", "TUN"};
-        String[] values = {"direct", "global", "rule", "tun"};
+        String[] labels = {"直连", "全局", "规则"};
+        String[] values = {"direct", "global", "rule"};
         for (int i = 0; i < values.length; i++) {
             final String mode = values[i];
             Button button = new Button(this);
@@ -448,8 +450,11 @@ public final class MainActivity extends ComponentActivity {
                     Toast.makeText(this, "VPN 页面尚未就绪，请稍后重试", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                webView.evaluateJavascript("window.applyVpnModeSelection && window.applyVpnModeSelection('" + mode + "')", null);
-                webView.postDelayed(this::syncNativeVpnControls, 4000);
+                final int modeIndex = "direct".equals(mode) ? 0 : "global".equals(mode) ? 1 : 2;
+                webView.evaluateJavascript("(function(){var a=document.querySelectorAll('#vpnModeSeg button,#vpnModeSeg [role=button]');if(a.length<=" + modeIndex + ")return false;a[" + modeIndex + "].click();return true})()", value -> {
+                    if (value == null || "false".equals(value)) Toast.makeText(this, "未找到对应 VPN 模式控件", Toast.LENGTH_SHORT).show();
+                    webView.postDelayed(this::syncNativeVpnControls, 4000);
+                });
             });
             modes.addView(button, lp);
         }
