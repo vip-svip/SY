@@ -32,7 +32,7 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 for name, next_name in [
-    ("private void invokeNativeVpnApi(", "private void showNativeVpnNodePicker()"),
+    ("private void invokeNativeVpnApi(", "private void refreshWebUiAfterNativeVpn()"),
     ("private void syncNativeVpnControls()", "private void pauseAndDetachWebView()"),
 ]:
     start = source.find(name)
@@ -42,6 +42,13 @@ for name, next_name in [
     body = source[start:end]
     if "webView.evaluateJavascript" in body:
         raise SystemExit("FAIL: native VPN control operation/state still depends on WebView JavaScript: " + name)
+refresh_start = source.find("private void refreshWebUiAfterNativeVpn()")
+refresh_end = source.find("private void showNativeVpnNodePicker()", refresh_start)
+if refresh_start < 0 or refresh_end < 0:
+    raise SystemExit("FAIL: cannot locate display-only WebView refresh helper")
+refresh_body = source[refresh_start:refresh_end]
+if "applyVpnModeSelection" in refresh_body or "invokeNativeVpnApi(" in refresh_body:
+    raise SystemExit("FAIL: WebView display refresh helper must not execute VPN control actions")
 print("FX native VPN Root backend separation: PASS")
 PY
 grep -Fq 'private void showNativeVpnNodePicker()' "$ACTIVITY" || fail "native node picker is missing"
