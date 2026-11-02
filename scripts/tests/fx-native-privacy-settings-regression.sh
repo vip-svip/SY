@@ -97,11 +97,19 @@ sh "$HELPER" set not_a_real_fx_setting 1 >/dev/null 2>&1
 rc=$?
 set -e
 [ "$rc" -eq 2 ] || fail "unknown setting key should be rejected"
-: > "$PG/settings.conf.tmp"
+: > "$PG/settings.conf.tmp.$"
 set +e
 sh "$HELPER" set "$key" "$new" >"$TMP/busy.out" 2>&1
 rc=$?
 set -e
-[ "$rc" -eq 75 ] || fail "active config transaction should return retryable exit 75, got $rc"
+[ "$rc" -eq 75 ] || fail "active pg_set temp transaction should return retryable exit 75, got $rc"
 grep -qx "$key=$old" "$PG/settings.conf" || fail "busy transaction was overwritten"
+rm -f "$PG/settings.conf.tmp.$"
+: > "$PG/settings.conf.txn.tmp"
+set +e
+sh "$HELPER" set "$key" "$new" >"$TMP/webui-busy.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 75 ] || fail "active WebUI transaction should return retryable exit 75, got $rc"
+grep -qx "$key=$old" "$PG/settings.conf" || fail "WebUI transaction marker was overwritten"
 echo "PASS: native privacy config persistence, allowlist, apply reporting and transaction guard"
