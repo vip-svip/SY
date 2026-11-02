@@ -108,7 +108,7 @@ jobs:
           import re
           from pathlib import Path
           html = Path("adhook/app/src/main/assets/webroot/index.html").read_text(encoding="utf-8")
-          for page_id in ("pageHosts", "pagePrivacy", "pageScript"):
+          for page_id in ("pageAd", "pagePrivacy", "pageScript"):
               start = html.find('id="' + page_id + '"')
               if start < 0:
                   start = html.find("id='" + page_id + "'")
