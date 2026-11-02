@@ -27,28 +27,23 @@ api = r"""
   window.__fxNativeVpnLastResult=null;
   window.__fxNativeVpnBusy=false;
   window.__fxNativeVpnLastError='';
-  if(typeof window.pgFillStatus==='function'&&!window.__fxNativeVpnStatusWrapped){
-    var originalFillStatus=window.pgFillStatus;
-    window.pgFillStatus=function(status){
-      if(status&&typeof status.vpn_on==='boolean'){
+  /* patch_vpn_toggle_live_state.py installs __vpnFillStatus as the actual
+     status.sh JSON consumer. Wrap that callback, not the nonexistent pgFillStatus. */
+  if(typeof window.__vpnFillStatus==='function'&&!window.__fxNativeVpnStatusWrapped){
+    var originalVpnFillStatus=window.__vpnFillStatus;
+    window.__vpnFillStatus=function(status){
+      if(status&&typeof status.vpn_on!=='undefined'){
         window.__pgVpnRuntimeStatus=status;
         window.__pgVpnLiveKnown=true;
-        window.__pgVpnLiveOn=status.vpn_on===true;
+        window.__pgVpnLiveOn=status.vpn_on===true||status.vpn_on===1;
       }
-      return originalFillStatus.apply(this,arguments);
+      return originalVpnFillStatus.apply(this,arguments);
     };
     window.__fxNativeVpnStatusWrapped=true;
   }
   function refreshRuntimeStatus(){
-    if(typeof window.pgRefreshStatus==='function'){
-      return Promise.resolve(window.pgRefreshStatus()).then(function(status){
-        if(status&&typeof status.vpn_on==='boolean'){
-          window.__pgVpnRuntimeStatus=status;
-          window.__pgVpnLiveKnown=true;
-          window.__pgVpnLiveOn=status.vpn_on===true;
-        }
-        return status;
-      }).catch(function(){return null;});
+    if(typeof window.vpnStatus==='function'){
+      try{window.vpnStatus();}catch(error){}
     }
     return Promise.resolve(window.__pgVpnRuntimeStatus);
   }
