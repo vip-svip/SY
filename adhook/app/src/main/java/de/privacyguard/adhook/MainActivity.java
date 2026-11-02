@@ -3039,7 +3039,7 @@ public final class MainActivity extends ComponentActivity {
         settingsUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
-        selectedPackage = null; selectedBottomTab = 4; base("选择应用");
+        selectedPackage = null; selectedBottomTab = activePrivacySection == null ? 4 : 2; base("选择应用");
         Button home = new Button(this); home.setText("授权状态与系统设置"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
