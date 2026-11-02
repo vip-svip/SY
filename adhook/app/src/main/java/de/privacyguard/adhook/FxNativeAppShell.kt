@@ -76,17 +76,9 @@ private fun FxNativeAppShell(
                 update = {}
             )
             val barShape = RoundedCornerShape(26.dp)
-            val barModifier = if (mode == "glass") {
-                Modifier.drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { barShape },
-                    effects = {
-                        blur(18.dp.toPx())
-                        lens(18.dp.toPx(), 22.dp.toPx())
-                    },
-                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.34f)) }
-                )
-            } else if (mode == "miuix") {
+            // Glass mode is rendered exclusively by the upstream LiquidBottomTabs
+            // component below; this modifier is only for the classic and Miuix bars.
+            val barModifier = if (mode == "miuix") {
                 Modifier.background(miuixColors.surface, barShape)
             } else {
                 Modifier.background(
