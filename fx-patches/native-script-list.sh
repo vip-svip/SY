@@ -61,8 +61,8 @@ case "$ACTION" in
     ROWS="$PG/jsruntime/native-script-rows.$$"
     VALUE_FILE="$PG/jsruntime/native-script-value.$$"
     NOTE_FILE="$PG/jsruntime/native-script-note.$$"
-    TMP="$CONF.native.tmp.$"
-    BACKUP="$CONF.native.bak.$"
+    TMP="$CONF.native.tmp.$$"
+    BACKUP="$CONF.native.bak.$$"
     cleanup() {
       rm -f "$ROWS" "$VALUE_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
       owner=$(cat "$LOCK/pid" 2>/dev/null || true)
