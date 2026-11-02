@@ -69,8 +69,19 @@ def main():
     if changed:
         target.write_bytes(payload)
     target.chmod(0o755)
+    runner_source = Path(__file__).with_name("native-script-run.sh")
+    if not runner_source.is_file():
+        raise SystemExit(f"native local-script runner source missing: {runner_source}")
+    runner_target = module / "scripts/jsruntime/local-run.sh"
+    runner_payload = runner_source.read_bytes()
+    runner_changed = not runner_target.is_file() or runner_target.read_bytes() != runner_payload
+    if runner_changed:
+        runner_target.write_bytes(runner_payload)
+    runner_target.chmod(0o755)
     html_changed = patch_webroot(module / "webroot/index.html")
-    print(f"native script-list backend {'installed' if changed else 'already current'}: {target}; local JS codec patched={str(html_changed).lower()}")
+    print(f"native script-list backend {'installed' if changed else 'already current'}: {target}; "
+          f"local JS runner {'installed' if runner_changed else 'already current'}: {runner_target}; "
+          f"local JS codec patched={str(html_changed).lower()}")
 
 
 if __name__ == "__main__":
