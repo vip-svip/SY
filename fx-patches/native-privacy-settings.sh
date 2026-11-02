@@ -15,7 +15,7 @@ export MP PG CONF
 case "${1:-}" in
   list)
     # Return only top-level boolean flags; never expose subscriptions or script bodies to the app.
-    awk 'BEGIN{FS="="} /^\\[/ {exit} /^[A-Za-z0-9_.-]+=[01]$/ {print}' "$CONF"
+    awk 'BEGIN{FS="="} /^\[/ {exit} /^[A-Za-z0-9_.-]+=[01]$/ {print}' "$CONF"
     ;;
   set)
     key=${2:-}; value=${3:-}
