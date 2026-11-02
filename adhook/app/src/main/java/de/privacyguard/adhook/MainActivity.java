@@ -1231,7 +1231,9 @@ public final class MainActivity extends ComponentActivity {
         new AlertDialog.Builder(this).setTitle("编辑脚本")
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("保存", (dialog, which) -> {
-                    String updatedValue = value.getText().toString().trim();
+                    String updatedValue = value.getText().toString();
+                    String trimmedValue = updatedValue.trim();
+                    if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) updatedValue = trimmedValue;
                     String updatedNote = note.getText().toString().trim();
                     if (!isSupportedNativeScriptValue(updatedValue) || updatedValue.length() > 64 * 1024) {
                         Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
@@ -1297,7 +1299,9 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void addNativeScriptValue(String raw, String sourceName) {
-        String value = raw == null ? "" : raw.trim();
+        String value = raw == null ? "" : raw;
+        String trimmedValue = value.trim();
+        if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) value = trimmedValue;
         if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
             Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
             return;
