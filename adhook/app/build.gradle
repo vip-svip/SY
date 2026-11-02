@@ -53,6 +53,8 @@ dependencies {
     implementation 'androidx.compose.foundation:foundation'
     implementation 'top.yukonga.miuix.kmp:miuix-android:0.7.2'
     implementation 'io.github.kyant0:backdrop:1.0.0'
+    // Smooth continuous-corner primitives required by Kyant's upstream LiquidBottomTabs.
+    implementation 'io.github.kyant0:capsule:2.1.1'
     implementation 'androidx.webkit:webkit:1.12.1'
     // Modern LSPosed API enables Remote Files, avoiding SELinux-denied reads of /data/local/tmp.
     compileOnly 'io.github.libxposed:api:101.0.1'
