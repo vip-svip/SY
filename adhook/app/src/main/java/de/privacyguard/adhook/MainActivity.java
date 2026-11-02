@@ -444,11 +444,27 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnSwitch.setText("代理总开关");
         nativeVpnSwitch.setTextColor(0xff263238);
         nativeVpnSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (syncingNativeVpn || webView == null || !webUiReady) return;
-            // Reuse the real WebUI master-toggle transaction; do not invent a JS API.
+            if (syncingNativeVpn) return;
+            if (webView == null || !webUiReady) {
+                syncingNativeVpn = true;
+                button.setChecked(!checked);
+                syncingNativeVpn = false;
+                Toast.makeText(this, "VPN 页面尚未就绪，未执行切换", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // Prevent rapid duplicate taps while the existing backend transaction starts.
+            button.setEnabled(false);
+            nativeVpnState.setText("正在请求 VPN 后端切换…");
             webView.evaluateJavascript("(function(){var b=document.getElementById('vpnEnableToggle');if(b)b.click();return !!b})()", value -> {
-                if (value == null || "false".equals(value)) Toast.makeText(this, "VPN 原生开关未找到后端控件", Toast.LENGTH_SHORT).show();
-                webView.postDelayed(this::syncNativeVpnControls, 4000);
+                if (isFinishing()) return;
+                if (value == null || "false".equals(value)) {
+                    Toast.makeText(this, "VPN 原生开关未找到后端控件", Toast.LENGTH_SHORT).show();
+                }
+                nativeVpnHandler.postDelayed(() -> {
+                    if (nativeVpnSwitch != null) nativeVpnSwitch.setEnabled(true);
+                    syncNativeVpnControls();
+                }, 1200L);
+                nativeVpnHandler.postDelayed(this::syncNativeVpnControls, 4000L);
             });
         });
         head.addView(nativeVpnSwitch);
