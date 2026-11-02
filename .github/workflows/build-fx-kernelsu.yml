@@ -285,7 +285,7 @@ jobs:
       - name: Set up Gradle to rebuild modern FX Hook APK
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.13'
       - name: Install Android SDK packages for FX Hook APK
         shell: bash
         run: |
@@ -297,7 +297,7 @@ jobs:
           fi
           test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;34.0.0"
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36" "build-tools;34.0.0" "build-tools;36.0.0"
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
         env:
