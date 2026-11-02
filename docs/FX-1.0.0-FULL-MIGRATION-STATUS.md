@@ -1,14 +1,14 @@
 ## Latest continuation audit (2026-11-03, Asia/Tokyo)
 
-- Current branch: `fx-v1.0.0-unified-hook-integration`.
-- Current HEAD: `d376c15fc70b840c57a5129cc34bf63a8df7959c` (`test(fx): pinpoint native privacy bridge regression failures`).
-- This commit changes only the Hook native UI regression test: it now checks `showNativeSettingsGroup()` and `renderNativePrivacySettingsGroup()` separately and prints the offending method/context if WebView access is detected. This corrects a false-positive in the prior test, where the combined source slice also included the intentionally retained VPN compatibility editor.
-- On this HEAD, Hook APK workflow `41522107780`: restore/staging and static migration checks passed; complete host regression passed; Android APK compile/verification is running. No APK artifact has yet been confirmed.
-- On this HEAD, KernelSU workflow `41522107768`: restore/patching and QuickJS-NG source preparation passed; ARM64 NDK compilation is running. ZIP packaging has not yet started.
-- An older concurrent build on parent commit `e1e4eaec32237b47612ad51d993e1ded5b50c7a7` was cancelled; it is not evidence for the current HEAD.
-- Source audit confirms Hosts subscription/whitelist CRUD still calls `pgListArr()`, `pgPersistNow()` and `pgQueueAutoApply()` through the hidden WebView. This is a known incomplete migration, not a native backend.
-- The VPN advanced text/list/choice editor remains a deliberately isolated compatibility bridge; native boolean toggles and the 12 privacy category panels use the Root-backed module writer. The generated metadata currently contains 13 panels total (VPN plus 12 privacy panels) and 112 unique boolean controls.
-- No real-device verification has been performed. Do not label any page/device behavior as device-verified based on CI.
+- Current branch HEAD: `a0f2e98d383f371de920ad9d99afb40be9044537` (`test(fx): validate VPN plus twelve native privacy panels`).
+- The preceding Hook APK run `41522107780` passed restore/staging, static migration checks and complete host regressions; Gradle compilation and APK packaging both succeeded. Its post-build archive test then failed because it incorrectly required 12 total schema panels. The generated schema correctly contains 13 panels (VPN plus 12 privacy groups).
+- Fixed the APK assertion to require the exact 13 panel IDs, non-empty panels, and at least 90 controls. The fix changes the regression test only; it does not change app code or loosen the UI migration requirements.
+- Current-HEAD Hook APK workflow `41522937277`: restore/staging and static migration checks passed; complete host regression is running; compile and APK archive verification are pending.
+- Current-HEAD KernelSU workflow `41522937442`: source restore/patching and QuickJS-NG source preparation passed; NDK r26b compilation is running; ZIP packaging and artifact upload are pending.
+- The prior KernelSU workflow on parent commit `d376c15` was cancelled by the newer build. It is not a current-HEAD package result.
+- Hosts managed-list CRUD remains WebView-backed through `pgListArr()`, `pgPersistNow()` and `pgQueueAutoApply()`. VPN text/list/choice editor remains an isolated WebView compatibility bridge. Both are still incomplete native migrations.
+- The Settings screen was inspected: it contains app-wide UI mode, module status, Android accessibility/app info and runtime logs; it does not absorb VPN, Hosts, privacy, script or Hook business controls.
+- Generated native settings metadata contains 13 panels total (VPN plus 12 privacy panels) and 112 unique boolean controls. Native privacy toggles use the module-side Root writer. No real-device verification has been performed.
 
 
 # FX 1.0.0 Full Migration Status
