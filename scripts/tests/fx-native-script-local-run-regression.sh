@@ -39,6 +39,7 @@ note64=$(printf '%s' 'Local test' | base64 | tr -d '\n')
 result=$(sh "$RUN" 1 "$source_sha") || fail "enabled local script did not execute: $result"
 printf '%s' "$result" | grep -Fq '"done":true' || fail "runner result was not returned"
 [ "$(cat "$PG/executed.js")" = "$source" ] || fail "runner did not receive the exact local source"
+if sh "$RUN" 1 "$(printf '%064d' 0)" >/dev/null 2>&1; then fail "stale script hash unexpectedly executed"; fi
 assert_lock_clean "successful local execution"
 [ -f "$PG/jsruntime/local-run.log" ] || fail "private execution log missing"
 if grep -Fq 'local-only' "$PG/jsruntime/local-run.log"; then fail "execution log leaked script source"; fi
@@ -51,6 +52,5 @@ url64=$(printf '%s' 'https://example.test/script.js' | base64 | tr -d '\n')
 url_sha=$(printf '%s' 'https://example.test/script.js' | sha256sum | awk '{print $1}')
 if sh "$RUN" 2 "$url_sha" >/dev/null 2>&1; then fail "HTTPS subscription was passed to local JS runner"; fi
 if sh "$RUN" 999 "$source_sha" >/dev/null 2>&1; then fail "out-of-range script index unexpectedly succeeded"; fi
-if sh "$RUN" 1 "$(printf '%064d' 0)" >/dev/null 2>&1; then fail "stale script hash unexpectedly executed"; fi
 assert_lock_clean "test completion"
 echo "PASS: native local JS execution requires enabled FXSRC_B64 source, preserves source bytes, rejects subscriptions, and logs metadata only"
