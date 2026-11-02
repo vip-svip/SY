@@ -83,6 +83,7 @@ public final class MainActivity extends ComponentActivity {
     private Button nativeVpnNodeButton;
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
     private boolean syncingNativeVpn;
+    private boolean nativeVpnOperationBusy;
     private String lastNativeVpnMode = "direct";
     private final AtomicBoolean nativeVpnStatusQueued = new AtomicBoolean(false);
     private final Handler nativeVpnHandler = new Handler(Looper.getMainLooper());
@@ -1255,14 +1256,29 @@ public final class MainActivity extends ComponentActivity {
             Toast.makeText(this, "VPN 操作参数错误：" + invalid.getMessage(), Toast.LENGTH_SHORT).show();
             return;
         }
+        if (nativeVpnOperationBusy) return;
+        nativeVpnOperationBusy = true;
         if (nativeVpnSwitch != null) nativeVpnSwitch.setEnabled(false);
         if (nativeVpnNodeButton != null) nativeVpnNodeButton.setEnabled(false);
         for (Button button : nativeVpnModeButtons) button.setEnabled(false);
-        nativeVpnState.setText("正在通过 Root 后端应用 VPN 设置…");
+        if (nativeVpnState != null) nativeVpnState.setText("正在通过 Root 后端应用 VPN 设置…");
         nativeVpnExecutor.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(nativeVpnRootCommand(action, value),
-                    120000L, 1024 * 1024);
+            final RootAccess.Result result;
+            try {
+                result = RootAccess.execute(nativeVpnRootCommand(action, value),
+                        120000L, 1024 * 1024);
+            } catch (RuntimeException failure) {
+                runOnUiThread(() -> {
+                    nativeVpnOperationBusy = false;
+                    if (isFinishing() || isDestroyed()) return;
+                    Toast.makeText(this, "VPN 操作异常：" + failure.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    syncNativeVpnControls();
+                });
+                return;
+            }
             runOnUiThread(() -> {
+                nativeVpnOperationBusy = false;
                 if (isFinishing() || isDestroyed()) return;
                 if (result.exitCode != 0) {
                     Toast.makeText(this, "VPN 操作失败（退出码 " + result.exitCode + "）：" + result.output,
@@ -1346,7 +1362,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void syncNativeVpnControls() {
         if (nativeVpnSwitch == null || nativeVpnState == null || isFinishing() || isDestroyed()
-                || !nativeVpnStatusQueued.compareAndSet(false, true)) return;
+                || nativeVpnOperationBusy || !nativeVpnStatusQueued.compareAndSet(false, true)) return;
         nativeVpnExecutor.execute(() -> {
             RootAccess.Result result;
             try {
@@ -1362,7 +1378,6 @@ public final class MainActivity extends ComponentActivity {
                     String mode = state.optString("vpn_mode", "direct");
                     lastNativeVpnMode = mode;
                     boolean liveOn = state.optBoolean("vpn_on", false);
-                    boolean operationBusy = false;
                     String modeLabel = "direct".equals(mode) ? "直连"
                             : "global".equals(mode) ? "全局"
                             : "rule".equals(mode) ? "规则"
