@@ -27,7 +27,7 @@ grep -Fq 'pg_set vpn_mode \"$old_mode\"' "$ACTIVITY" || fail "native VPN mode fa
 grep -Fq 'old_node=$(pg_get vpn_node' "$ACTIVITY" || fail "native VPN node change does not snapshot previous node"
 grep -Fq 'pg_set vpn_node \"$old_node\"' "$ACTIVITY" || fail "native VPN node failure does not restore previous node"
 grep -Fq "pg_get vpn_node '__FX_NO_NODE__'" "$ACTIVITY" || fail "native node lookup must not use pg_get's empty-value fallback"
-grep -Fq "&& node=''; if [ -z" "$ACTIVITY" || fail "native node lookup must normalize the missing-node sentinel"
+grep -Fq "&& node='';" "$ACTIVITY" || fail "native node lookup must normalize the missing-node sentinel"
 grep -Fq 'if [ -z \"$node\" ]; then pg_set vpn_mode \"$old_mode\" || :;' "$ACTIVITY" || fail "native proxy mode must restore the previous mode when no node is selected"
 grep -Fq 'VPN_NO_NODE_SELECTED' "$ACTIVITY" || fail "native proxy mode does not report why no-node apply was rejected"
 grep -Fq 'exit 32; fi;' "$ACTIVITY" || fail "native proxy mode does not fail closed without a selected node"
