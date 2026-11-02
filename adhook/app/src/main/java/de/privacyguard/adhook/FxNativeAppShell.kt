@@ -4,6 +4,7 @@ import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +31,8 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import de.privacyguard.adhook.glass.components.LiquidBottomTab
+import de.privacyguard.adhook.glass.components.LiquidBottomTabs
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -96,54 +99,80 @@ private fun FxNativeAppShell(
                 )
             }
 
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(72.dp)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .then(barModifier)
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                labels.forEachIndexed { index, label ->
-                    val active = selected == index
-                    val tabShape = RoundedCornerShape(20.dp)
-                    val tabModifier = if (active && mode == "glass") {
-                        Modifier.drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { tabShape },
-                            effects = { lens(7.dp.toPx(), 9.dp.toPx()) },
-                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.50f)) }
-                        )
-                    } else if (active && mode == "miuix") {
-                        Modifier.background(miuixColors.primaryContainer, tabShape)
-                    } else if (active) {
-                        Modifier.background(Color(0x223478F6), tabShape)
-                    } else Modifier
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(64.dp)
-                            .then(tabModifier)
-                            .clickable {
-                                selected = index
-                                onTabSelected(index)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            color = when {
-                                mode == "miuix" && active -> miuixColors.onPrimaryContainer
-                                mode == "miuix" -> miuixColors.onSurfaceContainerVariant
-                                active -> Color(0xFF1769AA)
-                                else -> Color(0xFF526170)
-                            },
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+            if (mode == "glass") {
+                // Upstream Kyant LiquidBottomTabs supports arbitrary tab counts;
+                // FX keeps all six destinations and gains the original drag/lens animation.
+                LiquidBottomTabs(
+                    selectedTabIndex = { selected },
+                    onTabSelected = { index ->
+                        selected = index
+                        onTabSelected(index)
+                    },
+                    backdrop = backdrop,
+                    tabsCount = labels.size,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    labels.forEachIndexed { index, label ->
+                        LiquidBottomTab(onClick = {
+                            selected = index
+                            onTabSelected(index)
+                        }) {
+                            Text(
+                                text = label,
+                                color = if (selected == index) Color(0xFF0088FF) else Color(0xFF526170),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .then(barModifier)
+                        .padding(horizontal = 4.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    labels.forEachIndexed { index, label ->
+                        val active = selected == index
+                        val tabShape = RoundedCornerShape(20.dp)
+                        val tabModifier = if (active && mode == "miuix") {
+                            Modifier.background(miuixColors.primaryContainer, tabShape)
+                        } else if (active) {
+                            Modifier.background(Color(0x223478F6), tabShape)
+                        } else Modifier
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .then(tabModifier)
+                                .clickable {
+                                    selected = index
+                                    onTabSelected(index)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = when {
+                                    mode == "miuix" && active -> miuixColors.onPrimaryContainer
+                                    mode == "miuix" -> miuixColors.onSurfaceContainerVariant
+                                    active -> Color(0xFF1769AA)
+                                    else -> Color(0xFF526170)
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
