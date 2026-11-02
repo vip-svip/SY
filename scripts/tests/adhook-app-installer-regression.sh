@@ -29,6 +29,8 @@ chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$T
 : > "$TMP/pm/installed"
 echo de.privacyguard.hook > "$TMP/pm/installed"
 printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
+sha256sum "$TMP/pm/de.privacyguard.hook.apk" > "$TMP/state/adhook-apk-privacyguardhook.sha256"
+printf 'fx-managed-v1\n' > "$TMP/state/adhook-apk-privacyguardhook.fx-owned"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "unified package absent"
 if grep -Fxq de.privacyguard.hook "$TMP/pm/installed"; then fail "obsolete standalone Hook survived unified install"; fi
@@ -36,9 +38,18 @@ grep -Fxq de.privacyguard.hook "$TMP/pm/uninstall-calls" || fail "obsolete stand
 [ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "must install exactly one APK"
 echo de.privacyguard.hook >> "$TMP/pm/installed"
 printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
+sha256sum "$TMP/pm/de.privacyguard.hook.apk" > "$TMP/state/adhook-apk-privacyguardhook.sha256"
+printf 'fx-managed-v1\n' > "$TMP/state/adhook-apk-privacyguardhook.fx-owned"
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "idempotent install failed"
 if grep -Fxq de.privacyguard.hook "$TMP/pm/installed"; then fail "idempotent path left obsolete Hook installed"; fi
 [ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "unchanged package reinstalled"
+# A legacy package without FX ownership proof is a user app and must be preserved.
+echo de.privacyguard.hook > "$TMP/pm/installed"
+printf 'unowned user Hook APK\n' > "$TMP/pm/de.privacyguard.hook.apk"
+rm -f "$TMP/state/adhook-apk-privacyguardhook.sha256" "$TMP/state/adhook-apk-privacyguardhook.fx-owned"
+sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with unowned legacy app failed"
+grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "unowned user Hook app was removed"
+[ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "unowned legacy package was uninstalled"
 printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch not reported"; fi
