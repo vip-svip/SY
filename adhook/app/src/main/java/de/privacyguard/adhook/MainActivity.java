@@ -951,7 +951,7 @@ public final class MainActivity extends ComponentActivity {
     private void buildNativePrivacyPage() {
         content.addView(title("隐私保护", 22));
         TextView intro = new TextView(this);
-        intro.setText("按应用管理广告识别、剪贴板、传感器、麦克风、通知、Wi-Fi 扫描与 EXIF 隐私。此页展示设备端真实状态；具体应用规则在 Hook 页面配置。");
+        intro.setText("按应用管理广告标识、剪贴板、Wi-Fi 扫描、位置、麦克风、摄像头、通知、传感器与媒体隐私。设备标识等系统级防护单独列在下方；具体应用规则在 Hook 页面配置。");
         intro.setTextColor(0xff718091);
         intro.setPadding(dp(18), 0, dp(18), dp(10));
         content.addView(intro);
@@ -970,9 +970,9 @@ public final class MainActivity extends ComponentActivity {
         refreshNativePrivacyStatus(state);
 
         section("保护功能 · 按应用配置");
-        addNativeActionCard("广告标识与设备追踪", "统一应用内广告标识，检查设备标识符与应用级追踪拦截配置。", "选择应用配置", () -> showAppList("标识与追踪"));
+        addNativeActionCard("应用内广告标识", "为选定应用统一 Google / Huawei 广告标识；不修改 Android ID 或系统广告设置。", "选择应用配置", () -> showAppList("标识与追踪"));
         addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", () -> showAppList("剪贴板保护"));
-        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", () -> showAppList("Wi-Fi 网络隐私"));
+        addNativeActionCard("Wi-Fi 扫描保护", "按应用限制 Wi-Fi 扫描 API；不拦截网络连接、DNS、VPN 或套接字流量。", "配置 Wi-Fi 隐私", () -> showAppList("Wi-Fi 网络隐私"));
         addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", () -> showAppList("位置隐私"));
         addNativeActionCard("麦克风保护", "分别配置录音启动阻断与录音静音策略；启用前请确认对录音功能的影响。", "配置麦克风保护", () -> showAppList("麦克风保护"));
         addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", () -> showAppList("设备访问"));
