@@ -52,6 +52,9 @@ grep -Fq 'nativeVpnSwitch.setChecked(configured && liveKnown && liveOn);' "$JAVA
 grep -Fq 'private void startNativeVpnPolling()' "$JAVA"
 grep -Fq 'protected void onResume()' "$JAVA"
 grep -Fq 'protected void onPause()' "$JAVA"
+[ "$(grep -Fc '@Override protected void onPause()' "$JAVA")" -eq 1 ] || { echo 'MainActivity must define onPause exactly once' >&2; exit 1; }
+[ "$(grep -Fc '@Override protected void onResume()' "$JAVA")" -eq 1 ] || { echo 'MainActivity must define onResume exactly once' >&2; exit 1; }
+grep -Fq 'new org.json.JSONTokener(value).nextValue()' "$JAVA" || { echo 'VPN state must use the Android-supported JSONTokener instance API' >&2; exit 1; }
 grep -Fq 'nativeVpnHandler.postDelayed(this, 5000L)' "$JAVA"
 grep -Fq 'stopNativeVpnPolling();' "$JAVA"
 grep -Fq 'nativeVpnHandler.removeCallbacks(nativeVpnPoll)' "$JAVA"
