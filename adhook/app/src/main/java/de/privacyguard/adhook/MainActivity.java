@@ -579,12 +579,17 @@ public final class MainActivity extends ComponentActivity {
         refreshHostsStatus(hostsStatus);
 
         section("订阅与过滤规则");
-        addNativeCard("广告过滤订阅", "查看已导入的规则源与启用状态；订阅源和本地 Hosts 独立保存。");
         LinearLayout ruleActions = new LinearLayout(this);
         ruleActions.setOrientation(LinearLayout.VERTICAL);
+        ruleActions.addView(nativeAction("管理广告过滤订阅 / 规则源", () ->
+                showNativeManagedListDialog("ruleList", "广告过滤订阅")));
+        ruleActions.addView(nativeAction("添加广告过滤订阅", () ->
+                showNativeManagedListAddDialog("ruleList", "添加广告过滤订阅", true)));
+        ruleActions.addView(nativeAction("管理域名白名单", () ->
+                showNativeManagedListDialog("domainList", "域名白名单")));
+        ruleActions.addView(nativeAction("管理自定义黑名单", () ->
+                showNativeManagedListDialog("blockList", "自定义黑名单")));
         ruleActions.addView(nativeAction("查看 FX 内置规则", () -> showNativeListDialog("fx", "FX 内置规则")));
-        ruleActions.addView(nativeAction("查看白名单", () -> showNativeListDialog("domain", "域名白名单")));
-        ruleActions.addView(nativeAction("查看黑名单", () -> showNativeListDialog("block", "自定义黑名单")));
         ruleActions.addView(nativeAction("查看 Hosts 本地条目", () -> showNativeListDialog("hosts_local", "本地 Hosts 条目")));
         ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
         content.addView(ruleActions);
@@ -762,6 +767,150 @@ public final class MainActivity extends ComponentActivity {
                         .setMessage(error.getMessage()).setPositiveButton("知道了", null).show();
             }
         });
+    }
+
+    private void showNativeManagedListDialog(String listId, String title) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return JSON.stringify({ready:false});"
+                + "var a=pgListArr(" + JSONObject.quote(listId) + ")||[];"
+                + "return JSON.stringify({ready:true,items:a.map(function(x,i){return {i:i,v:String(x.v||''),note:String(x.note||''),on:x.on!==false};})});})()";
+        webView.evaluateJavascript(js, value -> {
+            try {
+                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("规则列表响应格式错误");
+                JSONObject snapshot = new JSONObject((String) decoded);
+                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("模块设置尚未加载");
+                org.json.JSONArray items = snapshot.optJSONArray("items");
+                int count = items == null ? 0 : items.length();
+                String[] labels = new String[count];
+                for (int i = 0; i < count; i++) {
+                    JSONObject item = items.optJSONObject(i);
+                    String note = item == null ? "" : item.optString("note", "");
+                    String source = item == null ? "" : item.optString("v", "");
+                    boolean enabled = item != null && item.optBoolean("on", true);
+                    labels[i] = (enabled ? "● " : "○ ") + (note.isEmpty() ? source : note)
+                            + (source.isEmpty() || source.equals(note) ? "" : "\\n" + source);
+                }
+                new AlertDialog.Builder(this).setTitle(title)
+                        .setItems(labels, (d, which) -> {
+                            JSONObject item = items.optJSONObject(which);
+                            if (item != null) showNativeManagedListItemActions(listId, title,
+                                    item.optInt("i", which), item.optString("v", ""),
+                                    item.optString("note", ""), item.optBoolean("on", true));
+                        })
+                        .setPositiveButton("添加", (d, w) ->
+                                showNativeManagedListAddDialog(listId, title, "ruleList".equals(listId)))
+                        .setNegativeButton("关闭", null).show();
+                if (count == 0) Toast.makeText(this, "当前列表为空，可点击“添加”创建条目", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                        .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
+                                showNativeManagedListDialog(listId, title))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void showNativeManagedListItemActions(String listId, String title, int index,
+                                                   String value, String note, boolean enabled) {
+        String[] actions = {enabled ? "停用" : "启用", "编辑", "删除"};
+        new AlertDialog.Builder(this).setTitle(note.isEmpty() ? title : note)
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) mutateNativeManagedList(listId, index, "toggle", "", !enabled, title);
+                    else if (which == 1) showNativeManagedListEditDialog(listId, title, index, value, note);
+                    else new AlertDialog.Builder(this).setMessage("确定删除此条目？")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("删除", (d, w) ->
+                                    mutateNativeManagedList(listId, index, "delete", "", false, title)).show();
+                }).show();
+    }
+
+    private void showNativeManagedListAddDialog(String listId, String title, boolean subscription) {
+        EditText value = new EditText(this);
+        value.setSingleLine(false);
+        value.setMinLines(subscription ? 2 : 1);
+        value.setHint(subscription ? "粘贴规则订阅 URL（https://…）" : "输入域名或规则内容");
+        EditText note = new EditText(this);
+        note.setSingleLine(true);
+        note.setHint("名称（可选）");
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(6), dp(16), dp(4));
+        panel.addView(value);
+        panel.addView(note);
+        new AlertDialog.Builder(this).setTitle(title)
+                .setView(panel).setNegativeButton("取消", null)
+                .setPositiveButton("添加", (d, w) -> {
+                    String v = value.getText().toString().trim();
+                    if (v.isEmpty()) {
+                        Toast.makeText(this, "内容不能为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (subscription && !v.matches("(?i)^https?://.+")) {
+                        Toast.makeText(this, "订阅地址必须以 http:// 或 https:// 开头", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    String n = note.getText().toString().trim();
+                    String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
+                            + "return pgAddMany(" + JSONObject.quote(listId) + ",[{v:" + JSONObject.quote(v)
+                            + ",note:" + JSONObject.quote(n.isEmpty() ? v : n) + ",on:true}],{});})()";
+                    webView.evaluateJavascript(js, result -> {
+                        Toast.makeText(this, "已提交添加；正在刷新列表", Toast.LENGTH_SHORT).show();
+                        nativeVpnHandler.postDelayed(() -> showNativeManagedListDialog(listId, title), 900L);
+                    });
+                }).show();
+    }
+
+    private void showNativeManagedListEditDialog(String listId, String title, int index,
+                                                  String oldValue, String oldNote) {
+        EditText value = new EditText(this);
+        value.setText(oldValue);
+        value.setSingleLine(false);
+        value.setMinLines(2);
+        EditText note = new EditText(this);
+        note.setText(oldNote);
+        note.setHint("名称");
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(6), dp(16), dp(4));
+        panel.addView(value);
+        panel.addView(note);
+        new AlertDialog.Builder(this).setTitle("编辑条目")
+                .setView(panel).setNegativeButton("取消", null)
+                .setPositiveButton("保存", (d, w) -> {
+                    String v = value.getText().toString().trim();
+                    if (v.isEmpty()) {
+                        Toast.makeText(this, "内容不能为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    mutateNativeManagedList(listId, index, "edit", v, true, title,
+                            note.getText().toString().trim());
+                }).show();
+    }
+
+    private void mutateNativeManagedList(String listId, int index, String operation,
+                                          String newValue, boolean enabled, String title) {
+        mutateNativeManagedList(listId, index, operation, newValue, enabled, title, "");
+    }
+
+    private void mutateNativeManagedList(String listId, int index, String operation,
+                                          String newValue, boolean enabled, String title, String newNote) {
+        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return false;"
+                + "var a=pgListArr(" + JSONObject.quote(listId) + ");if(!a||!a[" + index + "])return false;"
+                + ("toggle".equals(operation) ? "a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
+                : "delete".equals(operation) ? "a.splice(" + index + ",1);"
+                : "a[" + index + "].v=" + JSONObject.quote(newValue) + ";a[" + index + "].note="
+                    + JSONObject.quote(newNote.isEmpty() ? newValue : newNote) + ";")
+                + "pgPersistNow().then(function(ok){if(ok){if(typeof pgRenderLists==='function')pgRenderLists();"
+                + "if(typeof pgQueueAutoApply==='function')pgQueueAutoApply('规则列表已更新，正在应用…',true);}"
+                + "window.__fxNativeRuleMutationOk=!!ok;});return true;})()";
+        webView.evaluateJavascript(js, value -> nativeVpnHandler.postDelayed(() -> {
+            Toast.makeText(this, "列表已更新", Toast.LENGTH_SHORT).show();
+            showNativeManagedListDialog(listId, title);
+        }, 1000L));
     }
 
     private void showNativeListDialog(String listName, String title) {
