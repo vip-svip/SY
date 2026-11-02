@@ -143,7 +143,12 @@ grep -Fq 'section("剪贴板保护")' "$PRIVACY" || fail "per-app clipboard cont
 grep -Fq 'section("Wi-Fi 网络隐私")' "$PRIVACY" || fail "per-app Wi-Fi privacy controls are not grouped"
 grep -Fq 'section("位置隐私")' "$PRIVACY" || fail "per-app location privacy controls are not grouped"
 grep -Fq '() -> showAppList("Wi-Fi 网络隐私")' "$PRIVACY" || fail "Wi-Fi privacy card does not focus its own controls"
-grep -Fq '() -> showAppList("位置隐私")' "$PRIVACY" || fail "location privacy card does not focus its own controls"
+grep -Fq '() -> showAppList("位置隐私")' "$PRIVACY"
+
+grep -Fq 'addNativeActionCard("应用内广告标识"' "$PRIVACY" || fail "advertising identifier card does not match the implemented app-scoped control"
+grep -Fq '不修改 Android ID 或系统广告设置' "$PRIVACY" || fail "advertising identifier card overclaims Android ID coverage"
+grep -Fq 'addNativeActionCard("Wi-Fi 扫描保护"' "$PRIVACY" || fail "Wi-Fi card title overclaims network identifier coverage"
+grep -Fq '不拦截网络连接、DNS、VPN 或套接字流量' "$PRIVACY" || fail "Wi-Fi card omits the actual API scope limitation" || fail "location privacy card does not focus its own controls"
 if grep -Fq 'section("网络与位置")' "$PRIVACY"; then fail "legacy combined Wi-Fi/location section remains"; fi
 grep -Fq 'section("设备访问")' "$PRIVACY" || fail "per-app microphone/camera controls are not grouped"
 grep -Fq 'section("媒体隐私")' "$PRIVACY" || fail "per-app media/EXIF controls are not grouped"
