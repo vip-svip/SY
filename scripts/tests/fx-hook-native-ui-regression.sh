@@ -197,3 +197,16 @@ for required_class in 'de/privacyguard/hook/MainHook' 'de/privacyguard/adhook/Ad
   [ "$class_found" -eq 1 ] || fail "required LSPosed class missing from APK DEX: $required_class"
 done
 echo "PASS: FX Hook APK contains native launcher plus both legacy Xposed and modern libxposed entrypoints"
+# Business controls must remain on their owning primary tabs, never be buried in Settings.
+main_activity="adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+privacy_block="$(sed -n '/private void buildNativePrivacyPage()/,/private void refreshNativePrivacyStatus/p' "$main_activity")"
+vpn_block="$(sed -n '/private void renderNativePage(/,/private void refreshNativeModuleStatus/p' "$main_activity")"
+settings_block="$(sed -n '/private void showSettings()/,/private void addNativeSettingsCategory/p' "$main_activity")"
+printf '%s' "$privacy_block" | grep -q 'addNativeSettingsCategory("传感器", "sensorPanel")'
+printf '%s' "$privacy_block" | grep -q 'addNativeSettingsCategory("通知与剪贴板", "notifyPanel")'
+printf '%s' "$vpn_block" | grep -q 'addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel")'
+if printf '%s' "$settings_block" | grep -Eq 'addNativeSettingsCategory|VPN / DNS|传感器|通知与剪贴板|Root / 模块隐藏'; then
+  echo "FAIL: feature settings leaked into the Settings destination" >&2
+  exit 1
+fi
+printf '%s' "$settings_block" | grep -q '界面模式'
