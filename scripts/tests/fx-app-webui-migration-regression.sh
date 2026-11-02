@@ -294,7 +294,7 @@ grep -Fq 'FxNativeAppShellKt.installFxNativeAppShell' "$ACTIVITY" || fail "Compo
 grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "six bottom navigation tabs (merged Ads/Hosts plus Settings) missing"
 grep -Fq 'fontSize = 15.sp' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "six-tab navigation labels must use enlarged 15sp text"
 grep -Fq 'fontWeight = FontWeight.Bold' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "six-tab navigation labels must be bold"
-[ "$(grep -Fc "dp(72)" "$ACTIVITY")" -ge 2 ] || fail "six-tab navigation must retain the taller 72dp bar on WebUI and native Hook screens"
+grep -Fq '.height(72.dp)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "unified app shell must retain the taller 72dp navigation bar"
 grep -q 'fx-native-nav-hide' "$ACTIVITY" || fail "duplicate WebUI bottom navigation must be hidden"
 grep -Fq 'if (index == 5) {' "$ACTIVITY" || fail "sixth Settings tab must route to native Settings"
 grep -Fq 'private void showSettings()' "$ACTIVITY" || fail "native Settings screen is missing"
