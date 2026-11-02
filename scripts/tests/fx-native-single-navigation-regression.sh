@@ -4,7 +4,6 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 JAVA="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 test -s "$JAVA"
 grep -Fq 'case 1: return "pageHosts";' "$JAVA"
-grep -Fq 'new String[]{"pageVpn", "pageHosts", "pagePrivacy",' "$JAVA"
 grep -Fq "#screen>.navbar,#screen .navbar,#bottomNav,#bottom-nav,.bottom-nav," "$JAVA"
 grep -Fq "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}" "$JAVA"
 grep -Fq '该功能页面未能加载，请检查内置 WebUI 页面资源。' "$JAVA"
@@ -46,6 +45,20 @@ grep -Fq 'fullSettings.setOnClickListener' "$JAVA"
 grep -Fq 'selectedBottomTab = 4' "$JAVA"
 grep -Fq 'selectedBottomTab = 5' "$JAVA"
 
+# All four operational tabs render native page content; WebView is hidden as a
+# compatibility bridge and cannot be exposed as page pixels or accessibility nodes.
+grep -Fq 'private void renderNativePage(int index)' "$JAVA"
+grep -Fq 'nativePageContent.removeAllViews();' "$JAVA"
+grep -Fq 'nativePageContent.addView(nativeVpnControls' "$JAVA"
+grep -Fq 'heading = "Ad · Hosts";' "$JAVA"
+grep -Fq 'heading = "隐私保护";' "$JAVA"
+grep -Fq 'heading = "脚本中心";' "$JAVA"
+grep -Fq 'refreshNativeModuleStatus(backendStatus, index);' "$JAVA"
+grep -Fq 'webView.setVisibility(View.INVISIBLE);' "$JAVA"
+grep -Fq 'View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS' "$JAVA"
+grep -Fq 'else renderNativePage(index);' "$JAVA"
+! grep -Fq 'fullSettings.setOnClickListener' "$JAVA" || { echo 'Settings must not fall back to the WebUI' >&2; exit 1; }
+
 # VPN tab exposes native Android controls routed through an explicit backend API, not hidden WebView button clicks.
 grep -Fq 'buildNativeVpnControls();' "$JAVA"
 grep -Fq 'private void buildNativeVpnControls()' "$JAVA"
@@ -80,7 +93,6 @@ grep -Fq 'new org.json.JSONTokener(value).nextValue()' "$JAVA" || { echo 'VPN st
 grep -Fq 'nativeVpnHandler.postDelayed(this, 5000L)' "$JAVA"
 grep -Fq 'stopNativeVpnPolling();' "$JAVA"
 grep -Fq 'nativeVpnHandler.removeCallbacks(nativeVpnPoll)' "$JAVA"
-grep -Fq 'nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE)' "$JAVA"
 grep -Fq '#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}' "$JAVA"
 ! grep -Fq 'if (selected != index)' "$GLASS" || { echo 'direct Liquid tab taps must not be gated by selected state' >&2; exit 1; }
 echo 'FX native single-navigation, Compose lifecycle-owner and WebUI route regression: PASS'
