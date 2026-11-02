@@ -466,7 +466,111 @@ jobs:
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
           ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '^webroot/'
-          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '(^|/)action\\.sh          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '(^|/)action\.sh
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
           sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
           sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
