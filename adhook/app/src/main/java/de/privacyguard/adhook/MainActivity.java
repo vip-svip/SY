@@ -2481,7 +2481,7 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void setNativeSettingsSwitch(String key, boolean enabled, boolean previous, Switch control) {
+    private void setNativeSettingsSwitch(String key, boolean enabled, boolean previous, android.widget.CompoundButton control) {
         if (webView == null || !webUiReady) {
             Toast.makeText(this, "设置运行桥已断开，未确认保存", Toast.LENGTH_LONG).show();
             control.setOnCheckedChangeListener(null);
@@ -2510,7 +2510,7 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void pollNativeSettingsSwitch(String key, Switch control, boolean previous, long deadline) {
+    private void pollNativeSettingsSwitch(String key, android.widget.CompoundButton control, boolean previous, long deadline) {
         if (isFinishing() || isDestroyed()) return;
         String js = "(function(){var a=window.__fxNativeSettingsResults,r=a&&a[" + JSONObject.quote(key) + "];"
                 + "if(!r)return null;delete a[" + JSONObject.quote(key) + "];return r;})()";
@@ -2535,7 +2535,7 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
-    private void finishNativeSettingsSwitch(String key, Switch control, boolean previous,
+    private void finishNativeSettingsSwitch(String key, android.widget.CompoundButton control, boolean previous,
                                             boolean success, String error) {
         if (control == null) return;
         control.setEnabled(true);
