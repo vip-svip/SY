@@ -61,7 +61,12 @@ private fun FxNativeAppShell(
     LaunchedEffect(selectedIndex) { selected = selectedIndex.coerceIn(0, 5) }
 
     MiuixTheme(controller = controller) {
-        Box(Modifier.background(Color(0xFFF4F6F8))) {
+        val miuixColors = MiuixTheme.colorScheme
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(if (mode == "miuix") miuixColors.background else Color(0xFFF4F6F8))
+        ) {
             // Record the real page beneath the translucent navigation surface.
             // Unlike a gradient placeholder, this samples the actual AndroidView content.
             AndroidView(
@@ -82,6 +87,8 @@ private fun FxNativeAppShell(
                     },
                     onDrawSurface = { drawRect(Color.White.copy(alpha = 0.34f)) }
                 )
+            } else if (mode == "miuix") {
+                Modifier.background(miuixColors.surface, barShape)
             } else {
                 Modifier.background(
                     if (mode == "classic") Color(0xFFF7F8FA) else Color.White.copy(alpha = 0.94f),
@@ -110,6 +117,8 @@ private fun FxNativeAppShell(
                             effects = { lens(7.dp.toPx(), 9.dp.toPx()) },
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.50f)) }
                         )
+                    } else if (active && mode == "miuix") {
+                        Modifier.background(miuixColors.primaryContainer, tabShape)
                     } else if (active) {
                         Modifier.background(Color(0x223478F6), tabShape)
                     } else Modifier
@@ -126,7 +135,12 @@ private fun FxNativeAppShell(
                     ) {
                         Text(
                             text = label,
-                            color = if (active) Color(0xFF1769AA) else Color(0xFF526170),
+                            color = when {
+                                mode == "miuix" && active -> miuixColors.onPrimaryContainer
+                                mode == "miuix" -> miuixColors.onSurfaceContainerVariant
+                                active -> Color(0xFF1769AA)
+                                else -> Color(0xFF526170)
+                            },
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
