@@ -967,16 +967,16 @@ public final class MainActivity extends ComponentActivity {
         refreshNativePrivacyStatus(state);
 
         section("保护功能 · 按应用配置");
-        addNativeActionCard("广告标识与设备追踪", "统一应用内广告标识，检查设备标识符与应用级追踪拦截配置。", "选择应用配置", this::showAppList);
-        addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", this::showAppList);
-        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", this::showAppList);
-        addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", this::showAppList);
-        addNativeActionCard("麦克风保护", "分别配置录音启动阻断与录音静音策略；启用前请确认对录音功能的影响。", "配置麦克风保护", this::showAppList);
-        addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", this::showAppList);
-        addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", this::showAppList);
-        addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", this::showAppList);
-        addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", this::showAppList);
-        addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", this::showAppList);
+        addNativeActionCard("广告标识与设备追踪", "统一应用内广告标识，检查设备标识符与应用级追踪拦截配置。", "选择应用配置", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("麦克风保护", "分别配置录音启动阻断与录音静音策略；启用前请确认对录音功能的影响。", "配置麦克风保护", () -> showAppList("麦克风保护"));
+        addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", () -> showAppList("传感器保护"));
+        addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", () -> showAppList("通知保护"));
+        addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", () -> showAppList("隐私 Hook"));
+        addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", () -> showAppList("会员诊断"));
     }
 
     private void refreshNativePrivacyStatus(TextView target) {
@@ -2390,6 +2390,7 @@ public final class MainActivity extends ComponentActivity {
                     panel.addView(row, lp);
                 }
                 ScrollView scroll = new ScrollView(this);
+        nativeScroll = scroll;
                 scroll.addView(panel);
                 new AlertDialog.Builder(this).setTitle(title)
                         .setView(scroll).setPositiveButton("关闭", null).show();
@@ -3015,7 +3016,12 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private LinearLayout content;
-    private void showAppList() {
+    private ScrollView nativeScroll;
+    private String pendingPrivacySection;
+    private void showAppList() { showAppList(null); }
+
+    private void showAppList(String privacySection) {
+        if (privacySection != null) pendingPrivacySection = privacySection;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         pauseAndDetachWebView();
@@ -3337,8 +3343,26 @@ public final class MainActivity extends ComponentActivity {
         content.addView(save,new LinearLayout.LayoutParams(-1,-2));
         Button back=new Button(this); back.setText("返回应用列表"); back.setOnClickListener(v->showAppList());
         content.addView(back,new LinearLayout.LayoutParams(-1,-2));
+        focusPendingPrivacySection();
     }
  
+
+    private void focusPendingPrivacySection() {
+        final String requested = pendingPrivacySection;
+        if (requested == null || nativeScroll == null) return;
+        pendingPrivacySection = null;
+        nativeScroll.post(() -> {
+            if (isFinishing() || isDestroyed() || !hookTargetVisible) return;
+            for (int i = 0; i < content.getChildCount(); i++) {
+                View child = content.getChildAt(i);
+                Object tag = child.getTag();
+                if (tag instanceof String && ("fx-section:" + requested).equals(tag)) {
+                    nativeScroll.smoothScrollTo(0, Math.max(0, child.getTop() - dp(12)));
+                    return;
+                }
+            }
+        });
+    }
 
     private void showCustomRuleDialog() {
         LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
@@ -3583,6 +3607,7 @@ public final class MainActivity extends ComponentActivity {
                 "glass".equals(uiMode) ? 0x66ffffff : 0));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12), dp(10), dp(12), dp(4));
+        t.setTag("fx-section:" + s);
         content.addView(t,lp);
     }
     private void toggle(String label,String feature,boolean def) {
