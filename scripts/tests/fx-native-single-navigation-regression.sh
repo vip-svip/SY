@@ -35,5 +35,5 @@ grep -Fq 'ViewTreeViewModelStoreOwner.set(designModePanel, this);' "$JAVA"
 grep -Fq 'ViewTreeSavedStateRegistryOwner.set(designModePanel, this);' "$JAVA"
 
 grep -Fq 'onTabSelected(index)' "$GLASS"
-! grep -Fq 'if (selected != index)' "$GLASS" || grep -Fq 'onTabSelected(index)' "$GLASS"
+! grep -Fq 'if (selected != index)' "$GLASS" || { echo 'direct Liquid tab taps must not be gated by selected state' >&2; exit 1; }
 echo 'FX native single-navigation, Compose lifecycle-owner and WebUI route regression: PASS'
