@@ -357,8 +357,7 @@ public final class MainActivity extends Activity {
             webView.resumeTimers();
         }
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(72)));
-        setContentView(root);
+        mountNativeShell(root);
         // The WebView is detached while native Hook/Settings screens are visible.
         // Re-apply the persisted mode only after it has been resumed and reattached.
         if (webUiReady) applyWebUiMode();
@@ -382,29 +381,32 @@ public final class MainActivity extends Activity {
         if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
     }
 
-    private LinearLayout buildBottomNavigation() {
-        LinearLayout host = new LinearLayout(this);
-        host.setOrientation(LinearLayout.VERTICAL);
-        androidx.compose.ui.platform.ComposeView composeBar =
+    private void mountNativeShell(View pageContent) {
+        androidx.compose.ui.platform.ComposeView shell =
                 new androidx.compose.ui.platform.ComposeView(this);
-        FxNativeBottomBarKt.installFxNativeBottomBar(composeBar, selectedBottomTab, uiMode, index -> {
-            if (index == 5) {
-                selectedBottomTab = 5;
-                showSettings();
-            } else if (index == 4) {
-                selectedBottomTab = 4;
-                showAppList();
-            } else if (index >= 0 && index <= 3) {
-                selectedBottomTab = index;
-                lastWebTabIndex = index;
-                String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
-                if (hookUiVisible || settingsUiVisible) showWebDashboard();
-                navigateWebPage(page);
-            }
-            return kotlin.Unit.INSTANCE;
-        });
-        host.addView(composeBar, new LinearLayout.LayoutParams(-1, -1));
-        return host;
+        FxNativeAppShellKt.installFxNativeAppShell(
+                shell, pageContent, selectedBottomTab, uiMode,
+                index -> {
+                    handleNativeTabSelection(index);
+                    return kotlin.Unit.INSTANCE;
+                });
+        setContentView(shell);
+    }
+
+    private void handleNativeTabSelection(int index) {
+        if (index == 5) {
+            selectedBottomTab = 5;
+            showSettings();
+        } else if (index == 4) {
+            selectedBottomTab = 4;
+            showAppList();
+        } else if (index >= 0 && index <= 3) {
+            selectedBottomTab = index;
+            lastWebTabIndex = index;
+            String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
+            if (hookUiVisible || settingsUiVisible) showWebDashboard();
+            navigateWebPage(page);
+        }
     }
 
     private void styleBottomItem(TextView item, int index) {
@@ -888,15 +890,22 @@ public final class MainActivity extends Activity {
         t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
     }
     private void base(String heading) {
-        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(uiBackgroundColor());
         ScrollView scroll = new ScrollView(this);
-        LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0, 0, 0, dp(76));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
         content.addView(title("FX", 25));
-        TextView h = title(heading, 18); h.setPadding(dp(18), dp(2), dp(18), dp(12)); content.addView(h);
-        scroll.addView(content); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(72)));
-        setContentView(root); this.content = content;
+        TextView h = title(heading, 18);
+        h.setPadding(dp(18), dp(2), dp(18), dp(12));
+        content.addView(h);
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
+        this.content = content;
+        mountNativeShell(root);
     }
     private LinearLayout content;
     private void showAppList() {
