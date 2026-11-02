@@ -26,4 +26,7 @@ grep -Fq "getComputedStyle(page).display!=='none'" "$JAVA"
 GLASS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 grep -Fq 'val selectedIndexProvider: () -> Int = remember { { selected } }' "$GLASS"
 grep -Fq 'selectedTabIndex = selectedIndexProvider' "$GLASS"
+grep -Fq 'selected = index' "$GLASS"
+grep -Fq 'onTabSelected(index)' "$GLASS" || grep -Fq 'onTabSelected(index)' "$GLASS"
+grep -Fq 'if (index != selectedTabIndex())' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/glass/components/LiquidBottomTabs.kt"
 echo 'FX native single-navigation and WebUI route regression: PASS'
