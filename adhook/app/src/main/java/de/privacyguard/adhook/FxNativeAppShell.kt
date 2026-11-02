@@ -79,6 +79,9 @@ private fun FxNativeAppShell(
                 factory = { pageContent },
                 modifier = Modifier
                     .fillMaxSize()
+                    // Keep the real page content above the persistent 72dp native tab bar.
+                    // The bar remains an overlay so Liquid Glass can sample the page backdrop.
+                    .padding(bottom = 72.dp)
                     .layerBackdrop(backdrop),
                 update = {}
             )
