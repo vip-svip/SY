@@ -153,7 +153,7 @@ Existing regression tests include: `fx-app-webui-migration-regression.sh`, `fx-h
 
 ## Immediate next work (continue in order)
 
-1. Continue the native UI audit. Script list/CRUD/import/export and manual local QuickJS execution now use module command backends. Advanced privacy categories and rule-list mutations still use the hidden WebView compatibility bridge and remain the next UI/backend migration targets.
+1. Continue the native UI audit. Script list/CRUD/import/export and manual local QuickJS execution now use module command backends. Advanced privacy boolean categories now read/write allowlisted top-level flags through `scripts/native-privacy-settings.sh`; the native schema generates 13 panels / 112 boolean controls. Non-boolean text/list/choice editors remain on a deliberately isolated WebView compatibility bridge and are not yet fully native. Hosts/rule-list mutations still use the WebView compatibility bridge.
 2. Audit each of the six destinations against the source module's real functions and keep each control on its correct page. Do not move feature controls into Settings.
 3. Add native repository/service interfaces and persistent state only where the existing module backend cannot be used safely; retain existing proven backend behavior.
 4. For every UI migration, add interaction/state/error regression tests and preserve existing functions.
@@ -163,9 +163,9 @@ Existing regression tests include: `fx-app-webui-migration-regression.sh`, `fx-h
 
 | Deliverable | Evidence required | Current state |
 |---|---|---|
-| Hook APK | Successful build + artifact inspection + SHA-256 | Latest CI build passed at HEAD `6372163`; artifact contents/checksum still require per-feature audit |
-| KernelSU ZIP | Successful build + ZIP contents/permissions + embedded APK checksum | Latest CI package passed at HEAD `6372163`; real device installation not established |
-| Automated regression | Relevant test names and CI job result | Latest migration validation job passed; full coverage of migration matrix is incomplete |
+| Hook APK | Successful build + artifact inspection + SHA-256 | Earlier build passed at older HEAD `6372163`; current HEAD build is pending after test correction. Artifact contents/checksum still require per-feature audit |
+| KernelSU ZIP | Successful build + ZIP contents/permissions + embedded APK checksum | Earlier package passed at older HEAD `6372163`; current HEAD package is pending. Real device installation not established |
+| Automated regression | Relevant test names and CI job result | Earlier source-patch checks passed, but latest Hook APK validation failed in `fx-native-privacy-settings-regression.sh` because a duplicated `if` lacked its closing `fi`; corrected in commit `462960e`. Current rerun required; full coverage of migration matrix is incomplete |
 | Real device | Device model/Android version, steps, logs, traffic assertions | Not yet recorded |
 | Final report | Completed/partial/unmigrated matrix, known defects, checksums | Not complete |
 
