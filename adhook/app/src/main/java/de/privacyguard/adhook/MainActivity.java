@@ -3075,7 +3075,11 @@ public final class MainActivity extends ComponentActivity {
                 }
                 String name = uri.getLastPathSegment();
                 String content = new String(output.toByteArray(), StandardCharsets.UTF_8);
-                if (name != null && name.toLowerCase(Locale.ROOT).endsWith(".json")) {
+                boolean isScriptJson = false;
+                try {
+                    isScriptJson = "FX-SCRIPT-LIST".equals(new JSONObject(content).optString("format"));
+                } catch (Exception ignored) { }
+                if ((name != null && name.toLowerCase(Locale.ROOT).endsWith(".json")) || isScriptJson) {
                     importNativeScriptDocument(content);
                 } else {
                     addNativeScriptValue(content, name == null ? "文件导入" : name);
