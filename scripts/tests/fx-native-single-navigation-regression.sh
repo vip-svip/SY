@@ -33,7 +33,7 @@ printf '%s' "$dashboard_block" | grep -Fq 'mountNativeShell(root)'
 for symbol in VpnPage HostsPage PrivacyPage ScriptPage; do
   grep -Fq "private fun $symbol(" "$DASH"
 done
-for label in 'VPN 控制中心' '广告与 Hosts' '隐私保护' '脚本中心' '本地 Hosts' '订阅规则' '系统 Hosts' 'MITM 与证书设置'; do
+for label in 'VPN 控制中心' '广告与 Hosts' '隐私保护' '脚本中心' '本地 Hosts' '订阅规则' '系统 Hosts' '脚本与 MITM'; do
   grep -Fq "$label" "$DASH"
 done
 grep -Fq '原生 UI 入口已建立' "$DASH"
