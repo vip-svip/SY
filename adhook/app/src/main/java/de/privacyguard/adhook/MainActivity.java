@@ -451,7 +451,7 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 }
                 final int modeIndex = "direct".equals(mode) ? 0 : "global".equals(mode) ? 1 : 2;
-                webView.evaluateJavascript("(function(){var a=document.querySelectorAll('#vpnModeSeg button,#vpnModeSeg [role=button]');if(a.length<=" + modeIndex + ")return false;a[" + modeIndex + "].click();return true})()", value -> {
+                webView.evaluateJavascript("(function(){var a=document.querySelectorAll('#vpnModeSeg > *');if(a.length<=" + modeIndex + ")return false;a[" + modeIndex + "].click();return true})()", value -> {
                     if (value == null || "false".equals(value)) Toast.makeText(this, "未找到对应 VPN 模式控件", Toast.LENGTH_SHORT).show();
                     webView.postDelayed(this::syncNativeVpnControls, 4000);
                 });
