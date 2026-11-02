@@ -2549,7 +2549,6 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeSettingsGroup(String panelId, String title) {
-        final JSONObject panelSchema;
         try {
             java.util.Scanner scanner = new java.util.Scanner(
                     getAssets().open("native-privacy-settings.json"), "UTF-8");
@@ -2561,7 +2560,6 @@ public final class MainActivity extends ComponentActivity {
                 throw new IllegalStateException("隐私设置架构版本不受支持");
             }
             org.json.JSONArray panels = schema.optJSONArray("panels");
-            panelSchema = null;
             JSONObject found = null;
             if (panels != null) {
                 for (int i = 0; i < panels.length(); i++) {
