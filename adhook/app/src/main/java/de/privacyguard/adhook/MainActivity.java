@@ -544,7 +544,7 @@ public final class MainActivity extends ComponentActivity {
         if ("node".equals(action)) {
             String key = shellQuote(value);
             return module + util
-                    + "old_node=$(pg_get vpn_node ''); mode=$(pg_get vpn_mode direct); "
+                    + "old_node=$(pg_get vpn_node '__FX_NO_NODE__'); [ \"$old_node\" = '__FX_NO_NODE__' ] && old_node=''; mode=$(pg_get vpn_mode direct); "
                     + "pg_set vpn_node " + key + " || exit 31; "
                     + "if [ \"$mode\" = direct ]; then exit 0; fi; "
                     + "sh \"$MP/scripts/apply.sh\"; rc=$?; "
