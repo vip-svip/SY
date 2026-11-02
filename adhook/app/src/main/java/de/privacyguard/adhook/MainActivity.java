@@ -1153,7 +1153,7 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "脚本状态修改未能启动", Toast.LENGTH_LONG).show();
                 return;
             }
-            pollNativeScriptSwitch(control, previous, rows, status, 0);
+            pollNativeScriptSwitch(index, control, previous, enabled, rows, status, 0);
         });
     }
 
@@ -1166,12 +1166,14 @@ public final class MainActivity extends ComponentActivity {
                 setNativeScriptEnabled(index, checked, rows, status, control, previous));
     }
 
-    private void pollNativeScriptSwitch(Switch control, boolean previous, LinearLayout rows,
-                                        TextView status, int attempt) {
+    private void pollNativeScriptSwitch(int index, Switch control, boolean previous, boolean enabled,
+                                        LinearLayout rows, TextView status, int attempt) {
         if (isFinishing() || isDestroyed()) return;
         webView.evaluateJavascript("window.__fxNativeScriptMutationOk", result -> {
             if ("true".equals(result)) {
                 control.setEnabled(true);
+                control.setOnCheckedChangeListener((button, checked) ->
+                        setNativeScriptEnabled(index, checked, rows, status, control, enabled));
                 Toast.makeText(this, "脚本状态已保存", Toast.LENGTH_SHORT).show();
                 nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 800L);
             } else if ("false".equals(result)) {
@@ -1180,7 +1182,7 @@ public final class MainActivity extends ComponentActivity {
                 refreshNativeScriptList(rows, status);
             } else if (attempt < 20) {
                 nativeVpnHandler.postDelayed(() ->
-                        pollNativeScriptSwitch(control, previous, rows, status, attempt + 1), 250L);
+                        pollNativeScriptSwitch(index, control, previous, enabled, rows, status, attempt + 1), 250L);
             } else {
                 restoreNativeScriptSwitch(index, control, previous, rows, status);
                 Toast.makeText(this, "脚本状态确认超时，请刷新列表核对", Toast.LENGTH_LONG).show();
