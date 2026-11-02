@@ -86,7 +86,6 @@ case "$ACTION" in
         enabled=$3
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
         [ -n "$value" ] || { echo "ERROR script value is empty"; exit 64; }
-        case "$value" in https://*) ;; *) echo "ERROR only HTTPS subscription URLs are executable by this runtime"; exit 65 ;; esac
         [ "${#note}" -le 512 ] || { echo "ERROR script name exceeds 512 characters"; exit 65; }
         [ "${#value}" -le 65536 ] || { echo "ERROR script entry exceeds 64 KiB"; exit 65; }
         [ "$count" -lt 128 ] || { echo "ERROR script list limit is 128 entries"; exit 65; }
@@ -100,7 +99,6 @@ case "$ACTION" in
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
         [ -n "$value" ] && [ "${#value}" -le 65536 ] && [ "${#note}" -le 512 ] || { echo "ERROR invalid script value or name"; exit 65; }
-        case "$value" in https://*) ;; *) echo "ERROR only HTTPS subscription URLs are executable by this runtime"; exit 65 ;; esac
         value=$(sanitize_script_value "$value"); note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
