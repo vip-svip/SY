@@ -401,7 +401,7 @@ public final class MainActivity extends Activity {
                 + "var page=document.getElementById(id);"
                 + "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}"
                 + "if(!page)return false;"
-                + "var names=id==='pageHosts'?['hosts','ad']:['" + tab + "'];"
+                + "var names=id==='pageHosts'?['hosts','ad']:(id==='pageAd'?['ad']:['" + tab + "']);"
                 + "var b=null;for(var i=0;i<names.length&&!b;i++){"
                 + "b=document.querySelector('.nav-item[data-tab='+JSON.stringify(names[i])+']');}"
                 + "if(b){b.click();return true;}"
