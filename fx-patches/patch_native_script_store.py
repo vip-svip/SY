@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the native Script page settings.conf backend and preserve multiline script values."""
+"""Install the native Script page settings.conf backend and preserve local JS source."""
 from pathlib import Path
 import sys
 
@@ -8,16 +8,16 @@ def patch_webroot(path: Path) -> bool:
     if not path.is_file():
         raise SystemExit(f"canonical FX WebUI asset missing: {path}")
     source = path.read_text(encoding="utf-8")
-    if "function pgUnescapeScript(s)" in source:
-        if "pgEscapeScript(e.v)" not in source:
-            raise SystemExit("partial native script multiline patch detected")
+    if "function pgDecodeScriptValue(s)" in source:
+        if "FXSRC_B64:'+pgB64(e.v)" not in source:
+            raise SystemExit("partial native script-source codec patch detected")
         return False
     parse_anchor = r"var v=(p[0]||'').replace(/\\n/g,'\n');"
-    parse_replacement = r"var v=cur==='script'?pgUnescapeScript(p[0]||''):(p[0]||'').replace(/\\n/g,'\n');"
+    parse_replacement = r"var v=cur==='script'?pgDecodeScriptValue(p[0]||''):(p[0]||'').replace(/\\n/g,'\n');"
     if parse_anchor not in source:
         raise SystemExit("settings.conf script parser anchor missing")
     serialize_anchor = "out.push(pgSan(e.v)+'|'+pgSan(e.note)+'|'+(e.on?1:0))"
-    serialize_replacement = "(n==='script'?pgEscapeScript(e.v):pgSan(e.v))+'|'+pgSan(e.note)+'|'+(e.on?1:0)"
+    serialize_replacement = "out.push((n==='script'?(String(e.v||'').indexOf('https://')===0?pgEscapeScript(e.v):'FXSRC_B64:'+pgB64(e.v)):pgSan(e.v))+'|'+pgSan(e.note)+'|'+(e.on?1:0))"
     if serialize_anchor not in source:
         raise SystemExit("settings.conf list serializer anchor missing")
     helper = r'''function pgUnescapeScript(s){
@@ -32,6 +32,14 @@ def patch_webroot(path: Path) -> bool:
     out+=c;
   }
   return out;
+}
+function pgDecodeScriptValue(s){
+  s=String(s==null?'':s);
+  if(s.indexOf('FXSRC_B64:')===0){
+    try{return decodeURIComponent(escape(atob(s.substring(10))))}
+    catch(e){throw new Error('本地脚本配置损坏：Base64 解码失败')}
+  }
+  return pgUnescapeScript(s);
 }
 function pgEscapeScript(s){
   return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/\r\n?|\n/g,'\\n').replace(/\|/g,'｜');
@@ -62,7 +70,7 @@ def main():
         target.write_bytes(payload)
     target.chmod(0o755)
     html_changed = patch_webroot(module / "webroot/index.html")
-    print(f"native script-list backend {'installed' if changed else 'already current'}: {target}; multiline script config patched={str(html_changed).lower()}")
+    print(f"native script-list backend {'installed' if changed else 'already current'}: {target}; local JS codec patched={str(html_changed).lower()}")
 
 
 if __name__ == "__main__":
