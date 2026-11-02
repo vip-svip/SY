@@ -359,6 +359,9 @@ public final class MainActivity extends Activity {
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(buildBottomNavigation(), new LinearLayout.LayoutParams(-1, dp(72)));
         setContentView(root);
+        // The WebView is detached while native Hook/Settings screens are visible.
+        // Re-apply the persisted mode only after it has been resumed and reattached.
+        if (webUiReady) applyWebUiMode();
         if (!webViewLoaded) {
             checkRoot(rootStatus, false, () -> {
                 if (!webViewLoaded) {
