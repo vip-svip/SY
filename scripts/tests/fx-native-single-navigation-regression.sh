@@ -77,6 +77,7 @@ grep -Fq 'private void refreshNativeScriptList(LinearLayout rows, TextView statu
 grep -Fq 'decoded.startsWith("FXSRC_B64:")' "$JAVA"
 grep -Fq '本地 JS 源码 · 可手动运行 QuickJS-NG' "$JAVA"
 grep -Fq 'private void runNativeLocalScript(int index' "$JAVA"
+grep -Fq '启用条目后，可在脚本列表中点击「运行」手动调用 FX QuickJS-NG' "$JAVA" || { echo 'local JS add dialog still describes the runner as unimplemented' >&2; exit 1; }
 grep -Fq 'local-run.sh' "$JAVA"
 grep -Fq 'private void exportNativeScripts()' "$JAVA"
 grep -Fq 'private void importNativeScriptDocument(String payload)' "$JAVA"
