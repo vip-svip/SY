@@ -138,6 +138,7 @@ api = r"""
     return true;
   }
   window.FXNativeVpn={snapshot:state,setEnabled:setEnabled,setMode:setMode,selectNode:selectNode};
+  refreshRuntimeStatus();
 })();
 </script>
 """
