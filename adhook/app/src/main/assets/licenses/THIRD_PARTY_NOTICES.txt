@@ -12,7 +12,7 @@ Backdrop 1.0.0 (Kyant Android Liquid Glass)
 - License: Apache License 2.0
 - Full license: Kyant-AndroidLiquidGlass-LICENSE.txt
 
-These libraries are consumed as published dependencies. FX Hook does not copy or modify their upstream implementation source.
+Backdrop and Miuix are consumed as published dependencies. FX vendors the upstream Kyant LiquidBottomTabs catalog component and its gesture/highlight helpers, relocated to the FX package and modified to support FX's six destinations. Each relocated source file carries an upstream attribution and modification notice.
 
 Miuix transitive runtime dependencies
 - com.mocharealm.gaze:capsule-android:2.1.1-patch2
@@ -21,3 +21,10 @@ Miuix transitive runtime dependencies
   License: MIT
   Full license: MaterialKolor-MIT-LICENSE.txt
   Upstream: https://github.com/jordond/MaterialKolor
+
+Kyant Capsule 2.1.1
+- Project: https://github.com/Kyant0/Capsule
+- Maven: io.github.kyant0:capsule:2.1.1
+- License: Apache License 2.0
+- Full license: Capsule-LICENSE.txt
+- Used for ContinuousCapsule geometry in the upstream LiquidBottomTabs component.
