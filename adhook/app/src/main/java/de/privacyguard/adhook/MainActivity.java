@@ -1318,7 +1318,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(6), dp(12), dp(4));
         TextView hint = new TextView(this);
-        hint.setText("HTTPS 订阅会由脚本同步器处理，并要求受支持的 FX / userscript URL 匹配元数据。本地 JS 源码可以保存和导出，但尚未接入 QuickJS 执行队列，不会被误报为已运行。明文 HTTP 订阅会被拒绝。");
+        hint.setText("HTTPS 订阅会由脚本同步器处理，并要求受支持的 FX / userscript URL 匹配元数据。本地 JS 源码保存后不会自动执行；启用条目后，可在脚本列表中点击「运行」手动调用 FX QuickJS-NG。运行前会再次确认，执行结果与错误会显示在页面中。明文 HTTP 订阅会被拒绝。");
         hint.setTextColor(0xff718091);
         panel.addView(hint);
         panel.addView(input);
