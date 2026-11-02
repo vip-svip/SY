@@ -485,7 +485,10 @@ public final class MainActivity extends ComponentActivity {
 
         nativeVpnNodeButton = new Button(this);
         nativeVpnNodeButton.setAllCaps(false);
-        nativeVpnNodeButton.setText("选择节点 · 读取中");
+        nativeVpnNodeButton.setText("选择节点 · 尚未选择");
+        nativeVpnNodeButton.setTextSize(13);
+        nativeVpnNodeButton.setMaxLines(1);
+        nativeVpnNodeButton.setEllipsize(android.text.TextUtils.TruncateAt.END);
         nativeVpnNodeButton.setOnClickListener(v -> showNativeVpnNodePicker());
         card.addView(nativeVpnNodeButton, new LinearLayout.LayoutParams(-1, dp(44)));
 
@@ -640,9 +643,10 @@ public final class MainActivity extends ComponentActivity {
                 for (int i = 0; i < nodes.length(); i++) {
                     org.json.JSONObject node = nodes.optJSONObject(i);
                     if (node == null || !node.optBoolean("enabled", false)) continue;
-                    String label = node.optString("name", "节点") + " · "
-                            + node.optString("proto", "") + " · "
-                            + node.optString("host", "") + ":" + node.optString("port", "");
+                    String nodeName = node.optString("name", "").trim();
+                    String endpoint = node.optString("host", "") + ":" + node.optString("port", "");
+                    String label = nodeName.isEmpty() ? endpoint : nodeName + " · " + endpoint;
+                    if (label.length() > 80) label = label.substring(0, 77) + "…";
                     labels.add(label);
                     indices.add(node.optInt("index", i));
                     if (node.optBoolean("selected", false)) selected = labels.size() - 1;
@@ -704,7 +708,10 @@ public final class MainActivity extends ComponentActivity {
                     nativeVpnSwitch.setEnabled(true);
                     if (nativeVpnNodeButton != null) {
                         nativeVpnNodeButton.setEnabled(true);
-                        nativeVpnNodeButton.setText(node.isEmpty() ? "选择节点 · 尚未选择" : "节点：" + node);
+                        nativeVpnNodeButton.setText(node.isEmpty() ? "选择节点 · 尚未选择" : "更换节点 · 已选择");
+                        nativeVpnNodeButton.setContentDescription(node.isEmpty()
+                                ? "尚未选择 VPN 节点，点击选择"
+                                : "已选择 VPN 节点，点击更换");
                     }
                     String[] modes = {"direct", "global", "rule"};
                     for (int i = 0; i < nativeVpnModeButtons.size() && i < modes.length; i++) {
