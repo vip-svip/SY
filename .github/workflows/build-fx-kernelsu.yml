@@ -48,14 +48,15 @@ jobs:
             unzip -tq "$archive"
             unzip -q "$archive" -d "$RUNNER_TEMP/fx-unpack"
             if [[ -s "$RUNNER_TEMP/fx-unpack/module.prop" ]]; then
-  source_root="$RUNNER_TEMP/fx-unpack"
-else
-  # Ignore nested certificate submodule manifests; select the FX module root.
-  module_prop="$(find "$RUNNER_TEMP/fx-unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
-  [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no FX module.prop"; exit 1; }
-  source_root="$(dirname "$module_prop")"
-fi
-cp -a "$source_root/." fx-module/
+              source_root="$RUNNER_TEMP/fx-unpack"
+            else
+              # Ignore nested certificate submodule manifests; select the FX module root.
+              module_prop="$(find "$RUNNER_TEMP/fx-unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+              [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no FX module.prop"; exit 1; }
+              source_root="$(dirname "$module_prop")"
+            fi
+            cp -a "$source_root/." fx-module/
+
           fi
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
           # Recover the canonical full UI from the already packaged Hook APK before
