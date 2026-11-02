@@ -44,6 +44,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends ComponentActivity {
@@ -76,6 +78,11 @@ public final class MainActivity extends ComponentActivity {
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
     private boolean syncingNativeVpn;
     private final Handler nativeVpnHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService nativeVpnExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "fx-native-vpn");
+        thread.setDaemon(true);
+        return thread;
+    });
     private final Runnable nativeVpnPoll = new Runnable() {
         @Override public void run() {
             if (isFinishing() || hookUiVisible || settingsUiVisible || webView == null || !webUiReady) return;
@@ -514,20 +521,86 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
     }
 
+    private static String shellQuote(String value) {
+        return "'" + String.valueOf(value).replace("'", "'\\''") + "'";
+    }
+
+    private String nativeVpnRootCommand(String action, String value) {
+        String module = "MP=; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do [ -f \"$d/module.prop\" ] && { MP=\"$d\"; break; }; done; [ -n \"$MP\" ] || exit 20; ";
+        String util = ". \"$MP/scripts/util.sh\" || exit 21; ";
+        if ("status".equals(action)) return module + "sh \"$MP/scripts/status.sh\"";
+        if ("mode".equals(action)) {
+            String mode = shellQuote(value);
+            return module + util
+                    + "old_mode=$(pg_get vpn_mode direct); "
+                    + "pg_set vpn_mode " + mode + " || exit 31; "
+                    + "new_mode=" + mode + "; "
+                    + "if [ \"$new_mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast; "
+                    + "else node=$(pg_get vpn_node ''); "
+                    + "if [ -z \"$node\" ]; then [ \"$new_mode\" != tun ] || { pg_set vpn_mode \"$old_mode\"; exit 32; }; exit 0; fi; "
+                    + "sh \"$MP/scripts/apply.sh\"; fi; rc=$?; "
+                    + "if [ \"$rc\" -ne 0 ]; then pg_set vpn_mode \"$old_mode\"; "
+                    + "if [ \"$old_mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1; "
+                    + "else sh \"$MP/scripts/apply.sh\" >/dev/null 2>&1; fi; fi; exit \"$rc\"";
+        }
+        if ("node".equals(action)) {
+            String key = shellQuote(value);
+            return module + util
+                    + "old_node=$(pg_get vpn_node ''); mode=$(pg_get vpn_mode direct); "
+                    + "pg_set vpn_node " + key + " || exit 31; "
+                    + "if [ \"$mode\" = direct ]; then exit 0; fi; "
+                    + "sh \"$MP/scripts/apply.sh\"; rc=$?; "
+                    + "if [ \"$rc\" -ne 0 ]; then pg_set vpn_node \"$old_node\"; "
+                    + "if [ \"$mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1; "
+                    + "else sh \"$MP/scripts/apply.sh\" >/dev/null 2>&1; fi; fi; exit \"$rc\"";
+        }
+        return "exit 22";
+    }
+
     private void invokeNativeVpnApi(String method, String argument) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "VPN 后端尚未就绪，未执行切换", Toast.LENGTH_SHORT).show();
+        final String action;
+        final String value;
+        try {
+            if ("setMode".equals(method)) {
+                Object decoded = new org.json.JSONTokener(argument).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalArgumentException("模式参数无效");
+                value = (String) decoded;
+                if (!java.util.Arrays.asList("direct", "global", "rule", "tun").contains(value))
+                    throw new IllegalArgumentException("不支持的 VPN 模式");
+                action = "mode";
+            } else if ("setEnabled".equals(method)) {
+                boolean enabled = Boolean.parseBoolean(argument);
+                value = enabled ? "global" : "direct";
+                action = "mode";
+            } else if ("selectNode".equals(method)) {
+                Object decoded = new org.json.JSONTokener(argument).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalArgumentException("节点参数无效");
+                value = (String) decoded;
+                if (!value.matches("[A-Za-z0-9._:\\[\\]-]{1,512}"))
+                    throw new IllegalArgumentException("节点标识包含非法字符");
+                action = "node";
+            } else {
+                throw new IllegalArgumentException("未知 VPN 操作");
+            }
+        } catch (Exception invalid) {
+            Toast.makeText(this, "VPN 操作参数错误：" + invalid.getMessage(), Toast.LENGTH_SHORT).show();
             return;
         }
-        String script = "(function(){var api=window.FXNativeVpn;if(!api||typeof api."
-                + method + "!=='function')return false;return api." + method + "(" + argument + ")})()";
-        webView.evaluateJavascript(script, value -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (value == null || "false".equals(value) || "null".equals(value)) {
-                Toast.makeText(this, "原生 VPN 操作未被后端接受", Toast.LENGTH_SHORT).show();
-            }
-            nativeVpnHandler.postDelayed(this::syncNativeVpnControls, 800L);
-            nativeVpnHandler.postDelayed(this::syncNativeVpnControls, 3500L);
+        if (nativeVpnSwitch != null) nativeVpnSwitch.setEnabled(false);
+        if (nativeVpnNodeButton != null) nativeVpnNodeButton.setEnabled(false);
+        for (Button button : nativeVpnModeButtons) button.setEnabled(false);
+        nativeVpnState.setText("正在通过 Root 后端应用 VPN 设置…");
+        nativeVpnExecutor.execute(() -> {
+            RootAccess.Result result = RootAccess.execute(nativeVpnRootCommand(action, value),
+                    120000L, 1024 * 1024);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (result.exitCode != 0) {
+                    Toast.makeText(this, "VPN 操作失败（退出码 " + result.exitCode + "）：" + result.output,
+                            Toast.LENGTH_LONG).show();
+                }
+                syncNativeVpnControls();
+            });
         });
     }
 
@@ -573,7 +646,9 @@ public final class MainActivity extends ComponentActivity {
                                 (dialog, which) -> chosen[0] = which)
                         .setPositiveButton("应用", (dialog, which) -> {
                             int nodeIndex = indices.get(chosen[0]);
-                            invokeNativeVpnApi("selectNode", Integer.toString(nodeIndex));
+                            org.json.JSONObject selectedNode = nodes.optJSONObject(nodeIndex);
+                            if (selectedNode != null) invokeNativeVpnApi("selectNode",
+                                    org.json.JSONObject.quote(selectedNode.optString("key", "")));
                         })
                         .setNegativeButton("取消", null).show();
             } catch (Exception e) {
@@ -583,59 +658,52 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void syncNativeVpnControls() {
-        if (webView == null || nativeVpnSwitch == null || nativeVpnState == null || !webUiReady) return;
-        webView.evaluateJavascript("(function(){return window.FXNativeVpn?window.FXNativeVpn.snapshot():'{}'})()", value -> {
-            if (isFinishing() || isDestroyed() || value == null) return;
-            try {
-                Object decoded = new org.json.JSONTokener(value).nextValue();
-                if (!(decoded instanceof String)) throw new IllegalStateException("state snapshot missing");
-                org.json.JSONObject state = new org.json.JSONObject((String) decoded);
-                String mode = state.optString("mode", "direct");
-                boolean configured = !"direct".equals(mode);
-                boolean liveKnown = state.optBoolean("liveKnown", false);
-                boolean liveOn = state.optBoolean("liveOn", false);
-                boolean operationBusy = state.optBoolean("busy", false);
-                String operationError = state.optString("lastError", "");
-                syncingNativeVpn = true;
-                nativeVpnSwitch.setChecked(configured && liveKnown && liveOn);
-                syncingNativeVpn = false;
-                String modeLabel = "direct".equals(mode) ? "直连" : "global".equals(mode) ? "全局" : "rule".equals(mode) ? "规则" : "tun".equals(mode) ? "TUN" : mode;
-                String live = !configured ? "直连：未接管流量"
-                        : !liveKnown ? "代理模式已保存，等待后端确认"
-                        : liveOn ? "后端确认：代理正在运行" : "代理模式已选择，但后端未运行";
-                String node = state.optString("node", "");
-                nativeVpnState.setText("模式：" + modeLabel + " · " + live
-                        + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置")
-                        + (operationBusy ? " · 正在应用…" : "")
-                        + (operationError.isEmpty() ? "" : " · 失败：" + operationError));
-                nativeVpnSwitch.setEnabled(!operationBusy);
-                if (nativeVpnNodeButton != null) {
-                    nativeVpnNodeButton.setEnabled(!operationBusy);
-                    String nodeName = "尚未选择节点";
-                    org.json.JSONArray nodes = state.optJSONArray("nodes");
-                    if (nodes != null) for (int i = 0; i < nodes.length(); i++) {
-                        org.json.JSONObject n = nodes.optJSONObject(i);
-                        if (n != null && n.optBoolean("selected", false)) {
-                            nodeName = n.optString("name", "已选择节点");
-                            break;
-                        }
+        if (nativeVpnSwitch == null || nativeVpnState == null || isFinishing() || isDestroyed()) return;
+        nativeVpnExecutor.execute(() -> {
+            RootAccess.Result result = RootAccess.execute(nativeVpnRootCommand("status", ""),
+                    20000L, 1024 * 1024);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || nativeVpnSwitch == null) return;
+                try {
+                    if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                    org.json.JSONObject state = new org.json.JSONObject(result.output.trim());
+                    String mode = state.optString("vpn_mode", "direct");
+                    boolean liveOn = state.optBoolean("vpn_on", false);
+                    boolean operationBusy = false;
+                    String modeLabel = "direct".equals(mode) ? "直连"
+                            : "global".equals(mode) ? "全局"
+                            : "rule".equals(mode) ? "规则"
+                            : "tun".equals(mode) ? "TUN" : mode;
+                    syncingNativeVpn = true;
+                    nativeVpnSwitch.setChecked(!"direct".equals(mode) && liveOn);
+                    syncingNativeVpn = false;
+                    String live = "direct".equals(mode) ? "直连：未接管流量"
+                            : liveOn ? "status.sh 确认：代理正在运行"
+                            : "已保存代理模式，但后端尚未确认运行";
+                    String node = state.optString("vpn_node", "");
+                    nativeVpnState.setText("模式：" + modeLabel + " · " + live
+                            + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
+                    nativeVpnSwitch.setEnabled(true);
+                    if (nativeVpnNodeButton != null) {
+                        nativeVpnNodeButton.setEnabled(true);
+                        nativeVpnNodeButton.setText(node.isEmpty() ? "选择节点 · 尚未选择" : "节点：" + node);
                     }
-                    nativeVpnNodeButton.setText("节点：" + nodeName);
+                    String[] modes = {"direct", "global", "rule"};
+                    for (int i = 0; i < nativeVpnModeButtons.size() && i < modes.length; i++) {
+                        boolean active = modes[i].equals(mode);
+                        Button button = nativeVpnModeButtons.get(i);
+                        button.setEnabled(true);
+                        button.setSelected(active);
+                        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                                active ? 0xffdcecff : 0xffeef2f5));
+                        button.setTextColor(active ? 0xff155a9c : 0xff37474f);
+                    }
+                } catch (Exception error) {
+                    syncingNativeVpn = false;
+                    nativeVpnSwitch.setEnabled(false);
+                    nativeVpnState.setText("VPN 状态读取失败；Root 后端未返回有效 status.sh 状态");
                 }
-                String[] modes = {"direct", "global", "rule"};
-                for (int i = 0; i < nativeVpnModeButtons.size() && i < modes.length; i++) {
-                    boolean active = modes[i].equals(mode);
-                    Button b = nativeVpnModeButtons.get(i);
-                    b.setEnabled(!operationBusy);
-                    b.setSelected(active);
-                    b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                            active ? 0xffdcecff : 0xffeef2f5));
-                    b.setTextColor(active ? 0xff155a9c : 0xff37474f);
-                }
-            } catch (Exception ignored) {
-                syncingNativeVpn = false;
-                nativeVpnState.setText("VPN 状态读取失败；未将配置状态冒充为运行状态");
-            }
+            });
         });
     }
 
@@ -1023,6 +1091,7 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onDestroy() {
         nativeVpnHandler.removeCallbacksAndMessages(null);
+        nativeVpnExecutor.shutdownNow();
         nativeVpnModeButtons.clear();
         nativeVpnSwitch = null;
         nativeVpnNodeButton = null;
