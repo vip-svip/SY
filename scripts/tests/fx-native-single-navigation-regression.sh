@@ -47,6 +47,10 @@ grep -Fq 'webView.setVisibility(View.INVISIBLE);' "$JAVA"
 grep -Fq 'View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS' "$JAVA"
 grep -Fq 'else renderNativePage(index);' "$JAVA"
 ! grep -Fq 'fullSettings.setOnClickListener' "$JAVA" || { echo 'Settings must not fall back to the WebUI' >&2; exit 1; }
+grep -Fq '六个主页面均由 Android 原生视图承载' "$JAVA"
+grep -Fq '查看 DNS / MITM / CA 状态' "$JAVA"
+grep -Fq '查看最近 FX 模块日志' "$JAVA"
+grep -Fq 'private void showNativeRuntimeLogs()' "$JAVA"
 
 # VPN tab exposes native Android controls routed through an explicit backend API, not hidden WebView button clicks.
 grep -Fq 'buildNativeVpnControls();' "$JAVA"
