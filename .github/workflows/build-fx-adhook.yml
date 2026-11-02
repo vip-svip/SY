@@ -85,6 +85,7 @@ jobs:
           fi
           python3 fx-patches/patch_native_script_store.py fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
+          sh scripts/tests/fx-native-script-local-run-regression.sh
           python3 fx-patches/patch_remote_config_parser.py fx-module
           python3 fx-patches/patch_hook_apk_regression.py fx-module
           python3 fx-patches/patch_hook_privacy_controls.py fx-module
