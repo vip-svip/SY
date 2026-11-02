@@ -117,7 +117,7 @@ jobs:
           PY
           test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
           grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
-          grep -q 'android:label="FX"' adhook/app/src/main/AndroidManifest.xml
+          grep -q 'android:label="FX Hook"' adhook/app/src/main/AndroidManifest.xml
       - name: Run static migration checks only (no compile)
         shell: bash
         run: |
