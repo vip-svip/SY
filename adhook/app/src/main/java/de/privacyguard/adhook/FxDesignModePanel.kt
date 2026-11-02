@@ -82,7 +82,9 @@ private fun FxDesignModePanel(
                 ModeCard("glass", "Liquid Glass 液态玻璃", "使用 Kyant Backdrop 实时背景采样、模糊与 Lens 折射效果", currentMode, onModeSelected, backdrop, true)
                 ModeCard("web", "网页原样", "Web 管理页面不注入主题样式；Hook 与设置仍使用原生界面", currentMode, onModeSelected, backdrop, false)
             }
-        }}
+        }
+    }
+}
 
 @Composable
 private fun ModeCard(
