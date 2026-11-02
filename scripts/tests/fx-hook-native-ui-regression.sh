@@ -129,6 +129,7 @@ grep -Fq 'addNativeActionCard("只读会员状态诊断"' "$PRIVACY" || fail "na
 grep -Fq 'private void showAppList(String privacySection)' "$PRIVACY" || fail "privacy cards cannot open the per-app selector with a category context"
 grep -Fq 'private String activePrivacySection;' "$PRIVACY" || fail "privacy navigation context is not retained across editor screens"
 grep -Fq 'activePrivacySection = privacySection;' "$PRIVACY" || fail "privacy app picker does not retain the selected category"
+grep -Fq 'selectedBottomTab = activePrivacySection == null ? 4 : 2;' "$PRIVACY" || fail "privacy-origin configuration must keep the Privacy tab selected"
 grep -Fq 'final String requested = activePrivacySection;' "$PRIVACY" || fail "per-app editor rebuilds do not restore the active privacy section"
 grep -Fq 'showAppList(activePrivacySection)' "$PRIVACY" || fail "return navigation loses the originating privacy category"
 grep -Fq 'private void focusPendingPrivacySection()' "$PRIVACY" || fail "privacy category does not deep-link to its native controls"
