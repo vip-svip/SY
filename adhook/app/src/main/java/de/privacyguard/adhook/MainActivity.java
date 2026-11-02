@@ -1067,6 +1067,21 @@ public final class MainActivity extends ComponentActivity {
         return new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
     }
 
+    private static String decodeNativeScriptValue(String encoded) {
+        String value = decodeNativeScriptArgument(encoded);
+        StringBuilder decoded = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (current == '\\\\' && i + 1 < value.length()) {
+                char next = value.charAt(i + 1);
+                if (next == '\\\\') { decoded.append('\\\\'); i++; continue; }
+                if (next == 'n') { decoded.append('\\n'); i++; continue; }
+            }
+            decoded.append(current);
+        }
+        return decoded.toString();
+    }
+
     private void syncNativeScriptRuntime() {
         runNativeModuleCommand("sh \"$MP/scripts/jsruntime/sync-subs.sh\"", 60000L, result -> {
             if (result.exitCode != 0 && nativeScriptStatus != null
@@ -1098,7 +1113,7 @@ public final class MainActivity extends ComponentActivity {
                     String[] fields = lines[i].split("\\|", -1);
                     if (fields.length != 3) throw new IllegalStateException("脚本条目字段数量错误");
                     final int index = count++;
-                    final String valueText = decodeNativeScriptArgument(fields[0]);
+                    final String valueText = decodeNativeScriptValue(fields[0]);
                     final String note = decodeNativeScriptArgument(fields[1]);
                     final boolean on = "1".equals(fields[2]);
                     if (on) enabled++;
