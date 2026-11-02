@@ -1190,7 +1190,7 @@ public final class MainActivity extends ComponentActivity {
         value.setSingleLine(false);
         value.setMinLines(4);
         value.setGravity(Gravity.TOP | Gravity.START);
-        value.setHint("脚本 URL 或脚本源码（最多 1 MiB）");
+        value.setHint("脚本 URL 或脚本源码（最多 64 KiB）");
         EditText note = new EditText(this);
         note.setText(oldNote);
         note.setSingleLine(true);
@@ -1205,8 +1205,8 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("保存", (dialog, which) -> {
                     String updatedValue = value.getText().toString().trim();
                     String updatedNote = note.getText().toString().trim();
-                    if (updatedValue.isEmpty() || updatedValue.length() > 1024 * 1024) {
-                        Toast.makeText(this, "脚本内容为空或超过 1 MiB", Toast.LENGTH_LONG).show();
+                    if (updatedValue.isEmpty() || updatedValue.length() > 64 * 1024) {
+                        Toast.makeText(this, "脚本内容为空或超过 64 KiB", Toast.LENGTH_LONG).show();
                         return;
                     }
                     if (updatedNote.isEmpty()) updatedNote = updatedValue.length() > 80
@@ -1270,8 +1270,8 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeScriptValue(String raw, String sourceName) {
         String value = raw == null ? "" : raw.trim();
-        if (value.isEmpty() || value.length() > 1024 * 1024) {
-            Toast.makeText(this, "脚本内容为空或超过 1 MiB", Toast.LENGTH_LONG).show();
+        if (value.isEmpty() || value.length() > 64 * 1024) {
+            Toast.makeText(this, "脚本内容为空或超过 64 KiB", Toast.LENGTH_LONG).show();
             return;
         }
         String note = sourceName == null || sourceName.trim().isEmpty()
