@@ -2183,6 +2183,7 @@ public final class MainActivity extends ComponentActivity {
         settingsUiVisible = true;
         selectedBottomTab = 5;
         base("设置");
+        attachHiddenWebViewBridge();
         TextView intro = new TextView(this);
         intro.setText("管理 FX Hook 的界面外观。模式会保存到本机，重新打开后继续生效；Hook 配置、VPN 和规则数据不会因切换界面而改变。");
         intro.setTextColor(0xff66727e);
@@ -2214,6 +2215,20 @@ public final class MainActivity extends ComponentActivity {
         });
         content.addView(designModePanel,
                 new LinearLayout.LayoutParams(-1, dp(360)));
+        section("高级功能设置");
+        addNativeSettingsCategory("VPN / DNS / 分流", "vpnPanel");
+        addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
+        addNativeSettingsCategory("高级网络防护", "advPanel");
+        addNativeSettingsCategory("网络隐私", "netPanel");
+        addNativeSettingsCategory("权限与 API", "permPanel");
+        addNativeSettingsCategory("传感器", "sensorPanel");
+        addNativeSettingsCategory("位置隐私", "locationPanel");
+        addNativeSettingsCategory("设备标识", "devicePanel");
+        addNativeSettingsCategory("音频 / 相机 / 媒体", "mediaPanel");
+        addNativeSettingsCategory("文件与存储", "filePanel");
+        addNativeSettingsCategory("通知与剪贴板", "notifyPanel");
+        addNativeSettingsCategory("内核防护", "kernelPanel");
+        addNativeSettingsCategory("其他系统隐私", "miscPanel");
         section("模块与运行状态");
         TextView runtimeStatus = new TextView(this);
         runtimeStatus.setText("点击刷新，读取设备端 FX 模块状态。");
@@ -2252,6 +2267,163 @@ public final class MainActivity extends ComponentActivity {
         content.addView(nativeAction("查看 DNS / MITM / CA 状态", this::showNativeMitmStatus));
         section("运行日志");
         content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+    }
+
+    private void addNativeSettingsCategory(String label, String panelId) {
+        Button button = nativeAction(label + "  ›", () -> showNativeSettingsGroup(panelId, label));
+        button.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        content.addView(button, new LinearLayout.LayoutParams(-1, dp(48)));
+    }
+
+    private void showNativeSettingsGroup(String panelId, String title) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "设置数据桥尚未就绪，请返回主界面等待初始化后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String js = "(function(){var p=document.getElementById(" + JSONObject.quote(panelId) + ");"
+                + "if(!p)return JSON.stringify({ready:false});var out=[];"
+                + "p.querySelectorAll('.setrow').forEach(function(row){var sw=row.querySelector('.switch[data-key]');"
+                + "if(!sw)return;var t=row.querySelector('.s-title'),d=row.querySelector('.s-sub'),k=sw.getAttribute('data-key');"
+                + "out.push({key:k,title:t?t.textContent.trim():k,description:d?d.textContent.trim():'',on:sw.classList.contains('on')});});"
+                + "return JSON.stringify({ready:true,items:out});})()";
+        webView.evaluateJavascript(js, value -> {
+            try {
+                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("设置列表响应格式错误");
+                JSONObject snapshot = new JSONObject((String) decoded);
+                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("找不到该设置分组");
+                org.json.JSONArray items = snapshot.optJSONArray("items");
+                int count = items == null ? 0 : items.length();
+                LinearLayout panel = new LinearLayout(this);
+                panel.setOrientation(LinearLayout.VERTICAL);
+                panel.setPadding(dp(12), dp(6), dp(12), dp(6));
+                TextView summary = new TextView(this);
+                summary.setText("此分组包含 " + count + " 个可切换项。变更会写入模块配置并请求应用；重启生效项会按模块提示处理。");
+                summary.setTextColor(0xff718091);
+                summary.setPadding(dp(6), dp(4), dp(6), dp(10));
+                panel.addView(summary);
+                if (count == 0) {
+                    TextView empty = new TextView(this);
+                    empty.setText("此分组暂无可原生切换的开关项。");
+                    empty.setPadding(dp(8), dp(12), dp(8), dp(12));
+                    panel.addView(empty);
+                }
+                for (int i = 0; i < count; i++) {
+                    JSONObject item = items.optJSONObject(i);
+                    if (item == null) continue;
+                    String key = item.optString("key", "");
+                    if (!key.matches("[A-Za-z0-9_.-]{1,96}")) continue;
+                    String label = item.optString("title", key);
+                    String description = item.optString("description", "");
+                    boolean checked = item.optBoolean("on", false);
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(dp(12), dp(8), dp(12), dp(8));
+                    row.setBackground(uiPanelDrawable());
+                    LinearLayout top = new LinearLayout(this);
+                    top.setGravity(Gravity.CENTER_VERTICAL);
+                    TextView name = new TextView(this);
+                    name.setText(label);
+                    name.setTextSize(14);
+                    name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                    name.setTextColor(0xff17212b);
+                    top.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+                    Switch toggle = new Switch(this);
+                    toggle.setChecked(checked);
+                    toggle.setOnCheckedChangeListener((button, enabled) ->
+                            setNativeSettingsSwitch(key, enabled, !enabled, button));
+                    top.addView(toggle);
+                    row.addView(top);
+                    if (!description.isEmpty()) {
+                        TextView detail = new TextView(this);
+                        detail.setText(description);
+                        detail.setTextSize(11);
+                        detail.setTextColor(0xff718091);
+                        detail.setPadding(0, dp(3), 0, 0);
+                        row.addView(detail);
+                    }
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                    lp.setMargins(dp(2), dp(3), dp(2), dp(3));
+                    panel.addView(row, lp);
+                }
+                ScrollView scroll = new ScrollView(this);
+                scroll.addView(panel);
+                new AlertDialog.Builder(this).setTitle(title)
+                        .setView(scroll).setPositiveButton("关闭", null).show();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                        .setMessage(error.getMessage()).setPositiveButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void setNativeSettingsSwitch(String key, boolean enabled, boolean previous, Switch control) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "设置运行桥已断开，未确认保存", Toast.LENGTH_LONG).show();
+            control.setOnCheckedChangeListener(null);
+            control.setChecked(previous);
+            control.setOnCheckedChangeListener((button, checked) ->
+                    setNativeSettingsSwitch(key, checked, !checked, button));
+            return;
+        }
+        control.setEnabled(false);
+        String js = "(function(){if(!window.PGB||!PGB.loaded||!PGB.model||!PGB.model.sw)return false;"
+                + "var k=" + JSONObject.quote(key) + ",old=PGB.model.sw[k];"
+                + "if(!window.__fxNativeSettingsResults)window.__fxNativeSettingsResults={};"
+                + "window.__fxNativeSettingsResults[k]=null;PGB.model.sw[k]=" + (enabled ? "'1'" : "'0'") + ";"
+                + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueAutoApply==='function')"
+                + "pgQueueAutoApply('原生设置已更改，正在应用…',true);"
+                + "else PGB.model.sw[k]=old;"
+                + "window.__fxNativeSettingsResults[k]=JSON.stringify({ok:!!ok});})"
+                + ".catch(function(e){PGB.model.sw[k]=old;window.__fxNativeSettingsResults[k]=JSON.stringify({ok:false,error:String((e&&e.message)||e)});});"
+                + "return true;})()";
+        webView.evaluateJavascript(js, value -> {
+            if (value == null || "false".equals(value)) {
+                finishNativeSettingsSwitch(key, control, previous, false, "设置写入任务未能启动");
+            } else {
+                pollNativeSettingsSwitch(key, control, previous, System.currentTimeMillis() + 30000L);
+            }
+        });
+    }
+
+    private void pollNativeSettingsSwitch(String key, Switch control, boolean previous, long deadline) {
+        if (isFinishing() || isDestroyed()) return;
+        String js = "(function(){var a=window.__fxNativeSettingsResults,r=a&&a[" + JSONObject.quote(key) + "];"
+                + "if(!r)return null;delete a[" + JSONObject.quote(key) + "];return r;})()";
+        webView.evaluateJavascript(js, value -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (value == null || "null".equals(value)) {
+                if (System.currentTimeMillis() >= deadline) {
+                    finishNativeSettingsSwitch(key, control, previous, false, "保存结果超时，未能确认");
+                } else nativeVpnHandler.postDelayed(
+                        () -> pollNativeSettingsSwitch(key, control, previous, deadline), 400L);
+                return;
+            }
+            try {
+                Object decoded = new org.json.JSONTokener(value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("设置保存结果格式错误");
+                JSONObject result = new JSONObject((String) decoded);
+                finishNativeSettingsSwitch(key, control, previous, result.optBoolean("ok", false),
+                        result.optString("error", "模块未确认保存"));
+            } catch (Exception error) {
+                finishNativeSettingsSwitch(key, control, previous, false, error.getMessage());
+            }
+        });
+    }
+
+    private void finishNativeSettingsSwitch(String key, Switch control, boolean previous,
+                                            boolean success, String error) {
+        if (control == null) return;
+        control.setEnabled(true);
+        if (!success) {
+            control.setOnCheckedChangeListener(null);
+            control.setChecked(previous);
+            control.setOnCheckedChangeListener((button, checked) ->
+                    setNativeSettingsSwitch(key, checked, !checked, button));
+            Toast.makeText(this, "设置未保存：" + error, Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(this, "设置已保存，模块正在应用", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void showNativeRuntimeLogs() {
@@ -2567,6 +2739,18 @@ public final class MainActivity extends ComponentActivity {
         this.content = content;
         mountNativeShell(root);
     }
+
+    private void attachHiddenWebViewBridge() {
+        if (webView == null || root == null) return;
+        ViewParent parent = webView.getParent();
+        if (parent instanceof ViewGroup && parent != root) ((ViewGroup) parent).removeView(webView);
+        webView.setVisibility(View.INVISIBLE);
+        webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        webView.onResume();
+        webView.resumeTimers();
+        if (webView.getParent() == null) root.addView(webView, new LinearLayout.LayoutParams(1, 1));
+    }
+
     private LinearLayout content;
     private void showAppList() {
         cancelHookStatusRefresh();
