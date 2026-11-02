@@ -25,7 +25,7 @@ for line in default_text.splitlines():
         boolean_keys.add(match.group(1))
 
 allowed_panels = {
-    "rootPanel", "advPanel", "netPanel", "permPanel", "sensorPanel",
+    "vpnPanel", "rootPanel", "advPanel", "netPanel", "permPanel", "sensorPanel",
     "locationPanel", "devicePanel", "mediaPanel", "filePanel",
     "notifyPanel", "kernelPanel", "miscPanel"
 }
