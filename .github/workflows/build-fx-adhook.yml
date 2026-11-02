@@ -239,7 +239,7 @@ jobs:
       - name: Set up Android SDK for FX Hook APK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-36 build-tools;34.0.0
+          packages: platform-tools platforms;android-36 build-tools;34.0.0 build-tools;36.0.0
       - name: Compile and verify the unified FX Hook APK
         shell: bash
         run: |
