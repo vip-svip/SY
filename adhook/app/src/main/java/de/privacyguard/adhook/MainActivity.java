@@ -972,8 +972,8 @@ public final class MainActivity extends ComponentActivity {
         section("保护功能 · 按应用配置");
         addNativeActionCard("广告标识与设备追踪", "统一应用内广告标识，检查设备标识符与应用级追踪拦截配置。", "选择应用配置", () -> showAppList("标识与追踪"));
         addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", () -> showAppList("剪贴板保护"));
-        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", () -> showAppList("网络与位置"));
-        addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", () -> showAppList("网络与位置"));
+        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", () -> showAppList("Wi-Fi 网络隐私"));
+        addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", () -> showAppList("位置隐私"));
         addNativeActionCard("麦克风保护", "分别配置录音启动阻断与录音静音策略；启用前请确认对录音功能的影响。", "配置麦克风保护", () -> showAppList("麦克风保护"));
         addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", () -> showAppList("设备访问"));
         addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", () -> showAppList("传感器保护"));
@@ -3319,8 +3319,9 @@ public final class MainActivity extends ComponentActivity {
         section("剪贴板保护");
         toggle("阻止剪贴板读取", "clipboard_read_block", false);
         toggle("隔离剪贴板", "clipboard_isolate", false);
-        section("网络与位置");
+        section("Wi-Fi 网络隐私");
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
+        section("位置隐私");
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
         toggle("限制摄像头访问", "camera_access_block", false);
