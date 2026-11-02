@@ -143,6 +143,17 @@ grep -Fq 'section("剪贴板保护")' "$PRIVACY" || fail "per-app clipboard cont
 grep -Fq 'section("网络与位置")' "$PRIVACY" || fail "per-app network/location controls are not grouped"
 grep -Fq 'section("设备访问")' "$PRIVACY" || fail "per-app microphone/camera controls are not grouped"
 grep -Fq 'section("媒体隐私")' "$PRIVACY" || fail "per-app media/EXIF controls are not grouped"
+python3 - "$PRIVACY" <<'PY'
+import pathlib, sys
+s = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+mic = s.index('section("麦克风保护")')
+mic_block = s[mic:s.index('section("通知保护")', mic)]
+assert '"mic_access_block"' in mic_block, "microphone startup blocking is outside the microphone section"
+assert '"mic_silence"' in mic_block, "microphone silence control is outside the microphone section"
+device = s[s.index('section("设备访问")'):s.index('section("媒体隐私")')]
+assert '"camera_access_block"' in device, "camera access control is missing from Device access"
+assert '"mic_access_block"' not in device, "microphone control is duplicated in Device access"
+PY
 grep -Fq '() -> showAppList("标识与追踪")' "$PRIVACY" || fail "identifier card does not focus identifier controls"
 grep -Fq '() -> showAppList("网络与位置")' "$PRIVACY" || fail "network/location cards do not focus their controls"
 grep -Fq '() -> showAppList("媒体隐私")' "$PRIVACY" || fail "media card does not focus media controls"
