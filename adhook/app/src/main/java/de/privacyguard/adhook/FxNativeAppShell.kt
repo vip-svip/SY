@@ -60,6 +60,10 @@ private fun FxNativeAppShell(
     val controller = remember { ThemeController(ColorSchemeMode.System) }
     val backdrop = rememberLayerBackdrop()
     var selected by remember { mutableIntStateOf(selectedIndex.coerceIn(0, 5)) }
+    // Keep this provider stable across recompositions. LiquidBottomTabs keys its
+    // gesture/callback effects by this function; an inline lambda resets them on
+    // every selected-index change and can swallow tab navigation callbacks.
+    val selectedIndexProvider: () -> Int = remember { { selected } }
     LaunchedEffect(selectedIndex) { selected = selectedIndex.coerceIn(0, 5) }
 
     MiuixTheme(controller = controller) {
@@ -94,7 +98,7 @@ private fun FxNativeAppShell(
                 // Upstream Kyant LiquidBottomTabs supports arbitrary tab counts;
                 // FX keeps all six destinations and gains the original drag/lens animation.
                 LiquidBottomTabs(
-                    selectedTabIndex = { selected },
+                    selectedTabIndex = selectedIndexProvider,
                     onTabSelected = { index ->
                         selected = index
                         onTabSelected(index)
