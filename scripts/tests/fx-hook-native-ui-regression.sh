@@ -257,3 +257,8 @@ if printf '%s' "$settings_block" | grep -Eq 'addNativeSettingsCategory|VPN / DNS
   exit 1
 fi
 printf '%s' "$settings_block" | grep -q '界面模式'
+# The native Script page must support editing an existing entry, not only add/delete.
+grep -Fq 'editNativeScript(index, valueText, note, rows, status)' "$main_activity"
+grep -Fq 'private void editNativeScript(int index' "$main_activity"
+grep -Fq 'a[" + index + "].v=' "$main_activity"
+grep -Fq 'pgPersistNow().then(function(ok)' "$main_activity"
