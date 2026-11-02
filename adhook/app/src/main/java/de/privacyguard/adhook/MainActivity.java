@@ -2226,9 +2226,10 @@ public final class MainActivity extends ComponentActivity {
         settingsUiVisible = true;
         selectedBottomTab = 5;
         base("设置");
-        attachHiddenWebViewBridge();
+        // Settings is app-wide only: never attach the hidden WebView compatibility bridge here.
+        // Feature controls belong to VPN, Ad/Hosts, Privacy, Scripts, and Hook destinations.
         TextView intro = new TextView(this);
-        intro.setText("管理 FX Hook 的界面外观。模式会保存到本机，重新打开后继续生效；Hook 配置、VPN 和规则数据不会因切换界面而改变。");
+        intro.setText("全局设置：界面模式、应用授权与运行诊断。VPN、Hosts、隐私保护、脚本和 Hook 的功能配置均在各自主页面管理。");
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(18), dp(4), dp(18), dp(14));
         content.addView(intro);
