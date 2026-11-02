@@ -114,9 +114,10 @@ private fun FxNativeAppShell(
                     labels.forEachIndexed { index, label ->
                         LiquidBottomTab(
                             onClick = {
-                                // The upstream LiquidBottomTabs observes selectedTabIndex
-                                // and emits onTabSelected once after its spring animation.
+                                // A tap must navigate immediately. Do not make navigation
+                                // depend on the drag animation's snapshotFlow callback.
                                 selected = index
+                                onTabSelected(index)
                             },
                             modifier = Modifier.semantics { this.selected = selected == index }
                         ) {
