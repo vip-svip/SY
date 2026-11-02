@@ -1305,6 +1305,59 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private void importNativeScriptDocument(String payload) {
+        try {
+            JSONObject document = new JSONObject(payload);
+            if (!"FX-SCRIPT-LIST".equals(document.optString("format"))
+                    || document.optInt("version", -1) != 1) {
+                throw new IllegalArgumentException("不支持的脚本配置格式或版本");
+            }
+            JSONArray entries = document.optJSONArray("scripts");
+            if (entries == null || entries.length() == 0 || entries.length() > 128) {
+                throw new IllegalArgumentException("脚本条目数量必须为 1–128");
+            }
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject entry = entries.optJSONObject(i);
+                if (entry == null) throw new IllegalArgumentException("第 " + (i + 1) + " 项不是有效对象");
+                String value = entry.optString("value", "");
+                String name = entry.optString("name", "");
+                if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
+                    throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效或超过 64 KiB");
+                }
+                if (name.length() > 512) throw new IllegalArgumentException("第 " + (i + 1) + " 项名称超过 512 字符");
+            }
+            importNativeScriptEntry(entries, 0, 0, 0);
+        } catch (Exception error) {
+            Toast.makeText(this, "脚本配置导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importNativeScriptEntry(JSONArray entries, int index, int imported, int failed) {
+        if (index >= entries.length()) {
+            Toast.makeText(this, "脚本配置导入结束：成功 " + imported + " 项，失败 " + failed + " 项",
+                    Toast.LENGTH_LONG).show();
+            if (nativeScriptRows != null && nativeScriptStatus != null) {
+                refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+            }
+            syncNativeScriptRuntime();
+            return;
+        }
+        JSONObject entry = entries.optJSONObject(index);
+        if (entry == null) {
+            importNativeScriptEntry(entries, index + 1, imported, failed + 1);
+            return;
+        }
+        String value = entry.optString("value", "");
+        String name = entry.optString("name", "");
+        String enabled = entry.optBoolean("enabled", true) ? "1" : "0";
+        String command = nativeScriptStoreCommand("add", encodeNativeScriptArgument(value),
+                encodeNativeScriptArgument(name), enabled);
+        runNativeModuleCommand(command, 30000L, result -> {
+            boolean ok = result.exitCode == 0 && result.output.contains("OK");
+            importNativeScriptEntry(entries, index + 1, imported + (ok ? 1 : 0), failed + (ok ? 0 : 1));
+        });
+    }
+
     private void exportNativeScripts() {
         runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, result -> {
             if (result.exitCode != 0) {
@@ -3006,8 +3059,13 @@ public final class MainActivity extends ComponentActivity {
                     output.write(buffer, 0, count);
                 }
                 String name = uri.getLastPathSegment();
-                addNativeScriptValue(new String(output.toByteArray(), StandardCharsets.UTF_8),
-                        name == null ? "文件导入" : name);
+                String content = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                if ((name != null && name.toLowerCase(Locale.ROOT).endsWith(".json"))
+                        || content.trim().startsWith("{\\\"format\\\":\\\"FX-SCRIPT-LIST\\\"")) {
+                    importNativeScriptDocument(content);
+                } else {
+                    addNativeScriptValue(content, name == null ? "文件导入" : name);
+                }
             } catch (Exception error) {
                 Toast.makeText(this, "脚本导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
