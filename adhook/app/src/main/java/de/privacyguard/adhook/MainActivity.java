@@ -2323,7 +2323,7 @@ public final class MainActivity extends ComponentActivity {
                 panel.setOrientation(LinearLayout.VERTICAL);
                 panel.setPadding(dp(12), dp(6), dp(12), dp(6));
                 TextView summary = new TextView(this);
-                summary.setText("此分组包含 " + count + " 个可切换项。变更会写入模块配置并请求应用；重启生效项会按模块提示处理。");
+                summary.setText("此分组包含 " + count + " 个原生设置项。变更会写入模块配置并请求应用；重启生效项会按模块提示处理。");
                 summary.setTextColor(0xff718091);
                 summary.setPadding(dp(6), dp(4), dp(6), dp(10));
                 panel.addView(summary);
