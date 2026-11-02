@@ -1,7 +1,7 @@
 name: FX 1.0.0 KernelSU package
 on:
   push:
-    branches: [fx-v1.0.0-unified-hook-integration]
+    branches: [fx-v1.0.0-unified-hook-integration, fx-v1.0.0-ui-interaction-repair]
     paths:
       - 'fx-module/**'
       - 'adhook/**'
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   package:
-    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' || github.ref == 'refs/heads/fx-v1.0.0-ui-interaction-repair') }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
