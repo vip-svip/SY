@@ -31,15 +31,24 @@ css = r"""
 }
 #vpnStatusCard #vpnEnableToggle.vpn-master-switch::after{
   box-sizing:border-box!important;
-  left:22px!important;
+  position:relative!important;
+  grid-column:2!important;
+  grid-row:2!important;
+  justify-self:start!important;
+  align-self:center!important;
+  left:auto!important;
   right:auto!important;
+  top:auto!important;
+  margin:0 0 0 6px!important;
+  z-index:1!important;
   background:#fff!important;
   border:1px solid rgba(0,0,0,.08)!important;
   box-shadow:0 2px 6px rgba(0,0,0,.18)!important;
 }
 #vpnStatusCard #vpnEnableToggle.vpn-master-switch.active::after,
 #vpnStatusCard #vpnEnableToggle.vpn-master-switch.suspended::after{
-  right:22px!important;
+  justify-self:end!important;
+  margin:0 6px 0 0!important;
 }
 @media(max-width:520px){
   #vpnStatusCard #vpnEnableToggle.vpn-master-switch{display:block!important;min-height:252px!important;}
@@ -49,7 +58,7 @@ css = r"""
   }
   #vpnStatusCard #vpnEnableToggle.vpn-master-switch::after{
     position:absolute!important;left:22px!important;right:auto!important;top:192px!important;
-    width:38px!important;height:38px!important;margin-top:-19px!important;
+    width:38px!important;height:38px!important;margin:-19px 0 0 0!important;
   }
   #vpnStatusCard #vpnEnableToggle.vpn-master-switch.active::after,
   #vpnStatusCard #vpnEnableToggle.vpn-master-switch.suspended::after{
