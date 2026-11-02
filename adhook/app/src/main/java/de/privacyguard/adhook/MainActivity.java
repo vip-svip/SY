@@ -967,11 +967,16 @@ public final class MainActivity extends ComponentActivity {
         refreshNativePrivacyStatus(state);
 
         section("保护功能 · 按应用配置");
-        addNativeActionCard("应用标识与追踪", "广告标识符、设备标识符与应用级跟踪拦截。进入应用列表后选择目标应用配置。", "选择应用配置", this::showAppList);
-        addNativeActionCard("剪贴板保护", "剪贴板读取阻断与应用隔离策略；目标应用可独立启用。", "配置目标应用", this::showAppList);
-        addNativeActionCard("传感器与硬件", "加速度计、陀螺仪、光线、磁场、麦克风与相机访问策略。", "配置目标应用", this::showAppList);
-        addNativeActionCard("位置与网络", "被动位置、Wi-Fi 扫描与网络标识保护。", "配置目标应用", this::showAppList);
-        addNativeActionCard("通知与媒体", "通知读取、通知权限隐藏与 EXIF 元数据隐私。", "配置目标应用", this::showAppList);
+        addNativeActionCard("广告标识与设备追踪", "统一应用内广告标识，检查设备标识符与应用级追踪拦截配置。", "选择应用配置", this::showAppList);
+        addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", this::showAppList);
+        addNativeActionCard("Wi-Fi 扫描与网络标识", "管理 Wi-Fi 扫描限制及相关网络标识隐私策略。", "配置网络隐私", this::showAppList);
+        addNativeActionCard("位置访问保护", "按应用限制位置访问；不会伪造定位或更改系统定位权限。", "配置位置保护", this::showAppList);
+        addNativeActionCard("麦克风保护", "分别配置录音启动阻断与录音静音策略；启用前请确认对录音功能的影响。", "配置麦克风保护", this::showAppList);
+        addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", this::showAppList);
+        addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", this::showAppList);
+        addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", this::showAppList);
+        addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", this::showAppList);
+        addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", this::showAppList);
     }
 
     private void refreshNativePrivacyStatus(TextView target) {
