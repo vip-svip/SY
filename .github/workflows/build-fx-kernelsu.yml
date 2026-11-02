@@ -429,21 +429,13 @@ jobs:
           echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
           echo "pass=$pass fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
           [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
-      - name: Retire the old module WebUI entrypoint
+      - name: Remove KernelSU WebUI and manual action entrypoints
         shell: bash
         run: |
           set -euo pipefail
-          cat > fx-module/webroot/index.html <<'HTML'
-          <!doctype html>
-          <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>FX 管理入口已迁移</title>
-          <body style="font:16px system-ui,sans-serif;padding:28px;max-width:560px;margin:auto;line-height:1.6">
-          <h2>FX 管理界面已迁移到 APP</h2>
-          <p>请打开已安装的 <b>FX</b> 应用管理规则、Hosts、DNS、VPN、证书、Hook 和诊断。</p>
-          <p>KernelSU 模块继续提供 Root 后台服务；本页面不再提供第二套管理界面。</p>
-          </body></html>
-          HTML
-          test -s fx-module/webroot/index.html
+          python3 fx-patches/remove_kernelsu_ui_entrypoints.py fx-module
+          test ! -e fx-module/webroot
+          test ! -e fx-module/action.sh
       - name: Package and verify KernelSU ZIP
         shell: bash
         run: |
@@ -459,7 +451,36 @@ jobs:
           echo "PASS: post-package MITM CA lifecycle, APK-embedded UI, and no-OpenSSL certificate-manager smoke tests" >> "$GITHUB_STEP_SUMMARY"
           unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
           unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
-          unzip -p dist/FX-v1.0.0.zip webroot/index.html | grep -q 'FX 管理界面已迁移到 APP'
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '^webroot/'
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '(^|/)action\\.sh          unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
+          unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
           unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
           unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html | grep -q 'id="pageVpn"'
           unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-vpn-final-ui.html"
