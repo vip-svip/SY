@@ -47,7 +47,13 @@ jobs:
             test -s "$archive"
             unzip -tq "$archive"
             unzip -q "$archive" -d "$RUNNER_TEMP/fx-unpack"
-            module_prop="$(find "$RUNNER_TEMP/fx-unpack" -type f -name module.prop -print -quit)"
+            if [[ -s "$RUNNER_TEMP/fx-unpack/module.prop" ]]; then
+  source_root="$RUNNER_TEMP/fx-unpack"
+else
+  # Ignore nested certificate submodule manifests; select the FX module root.
+  module_prop="$(find "$RUNNER_TEMP/fx-unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+  [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no FX module.prop"; exit 1; }
+  fi
             [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no module.prop"; exit 1; }
             source_root="$(dirname "$module_prop")"
             rm -rf fx-module
