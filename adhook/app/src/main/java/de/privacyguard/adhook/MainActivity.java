@@ -3055,13 +3055,12 @@ public final class MainActivity extends ComponentActivity {
                 int total = 0, count;
                 while ((count = input.read(buffer)) != -1) {
                     total += count;
-                    if (total > 64 * 1024) throw new IllegalStateException("脚本文件超过 64 KiB");
+                    if (total > 1024 * 1024) throw new IllegalStateException("脚本文件超过 1 MiB");
                     output.write(buffer, 0, count);
                 }
                 String name = uri.getLastPathSegment();
                 String content = new String(output.toByteArray(), StandardCharsets.UTF_8);
-                if ((name != null && name.toLowerCase(Locale.ROOT).endsWith(".json"))
-                        || content.trim().startsWith("{\\\"format\\\":\\\"FX-SCRIPT-LIST\\\"")) {
+                if (name != null && name.toLowerCase(Locale.ROOT).endsWith(".json")) {
                     importNativeScriptDocument(content);
                 } else {
                     addNativeScriptValue(content, name == null ? "文件导入" : name);
