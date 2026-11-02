@@ -16,4 +16,6 @@ grep -Fq '点击底部任一标签可重试。' "$JAVA"
 grep -Fq 'setAutoSizeTextTypeUniformWithConfiguration(' "$JAVA"
 grep -Fq 'item.setSingleLine(true);' "$JAVA"
 grep -Fq 'item.setIncludeFontPadding(false);' "$JAVA"
+grep -Fq 'rootStatus.setMaxWidth(dp(132));' "$JAVA"
+grep -Fq 'toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));' "$JAVA"
 echo 'FX native single-navigation and WebUI route regression: PASS'
