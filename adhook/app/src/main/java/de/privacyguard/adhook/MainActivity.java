@@ -531,7 +531,7 @@ public final class MainActivity extends ComponentActivity {
                     + "pg_set vpn_mode " + mode + " || exit 31; "
                     + "new_mode=" + mode + "; "
                     + "if [ \"$new_mode\" = direct ]; then sh \"$MP/scripts/apply.sh\" fast; "
-                    + "else node=$(pg_get vpn_node ''); "
+                    + "else node=$(pg_get vpn_node '__FX_NO_NODE__'); [ \"$node\" = '__FX_NO_NODE__' ] && node=''; "
                     + "if [ -z \"$node\" ]; then pg_set vpn_mode \"$old_mode\" || :; echo 'VPN_NO_NODE_SELECTED'; exit 32; fi; "
                     + "sh \"$MP/scripts/apply.sh\"; fi; rc=$?; "
                     + "if [ \"$rc\" -ne 0 ]; then pg_set vpn_mode \"$old_mode\"; "
