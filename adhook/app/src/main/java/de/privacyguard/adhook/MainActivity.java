@@ -73,6 +73,9 @@ public final class MainActivity extends ComponentActivity {
     private RootBridge rootBridge;
     private TextView rootStatus;
     private LinearLayout nativeVpnControls;
+    private ScrollView nativePageScroll;
+    private LinearLayout nativePageContent;
+    private TextView nativeDashboardStatus;
     private Switch nativeVpnSwitch;
     private TextView nativeVpnState;
     private Button nativeVpnNodeButton;
@@ -241,10 +244,6 @@ public final class MainActivity extends ComponentActivity {
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
         toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
-        buildNativeVpnControls();
-        nativeVpnControls.setVisibility(lastWebTabIndex == 0 ? View.VISIBLE : View.GONE);
-        root.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
-
         if (webView == null) {
         webUiReady = false;
         webView = new WebView(this);
@@ -406,10 +405,25 @@ public final class MainActivity extends ComponentActivity {
             webView.onResume();
             webView.resumeTimers();
         }
-        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        // The bundled WebView is retained as a hidden compatibility/runtime bridge only.
+        // All visible management pages below are native Android views; no WebView pixels
+        // are exposed to the user or accessibility tree.
+        webView.setVisibility(View.INVISIBLE);
+        webView.setAlpha(0f);
+        webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        root.addView(webView, new LinearLayout.LayoutParams(1, 1));
+
+        nativePageScroll = new ScrollView(this);
+        nativePageScroll.setFillViewport(true);
+        nativePageScroll.setClipToPadding(false);
+        nativePageScroll.setPadding(0, 0, 0, dp(84));
+        nativePageContent = new LinearLayout(this);
+        nativePageContent.setOrientation(LinearLayout.VERTICAL);
+        nativePageContent.setPadding(0, dp(8), 0, dp(12));
+        nativePageScroll.addView(nativePageContent, new ScrollView.LayoutParams(-1, -2));
+        root.addView(nativePageScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         mountNativeShell(root);
-        // The WebView is detached while native Hook/Settings screens are visible.
-        // Re-apply the persisted mode only after it has been resumed and reattached.
+        renderNativePage(lastWebTabIndex);
         if (webUiReady) applyWebUiMode();
         if (!webViewLoaded) {
             checkRoot(rootStatus, false, () -> {
@@ -769,11 +783,8 @@ public final class MainActivity extends ComponentActivity {
         } else if (index >= 0 && index <= 3) {
             selectedBottomTab = index;
             lastWebTabIndex = index;
-            if (nativeVpnControls != null) nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
-            if (index == 0) syncNativeVpnControls();
-            String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
-            if (hookUiVisible || settingsUiVisible) showWebDashboard();
-            navigateWebPage(page);
+            if (hookUiVisible || settingsUiVisible || nativePageContent == null) showWebDashboard();
+            else renderNativePage(index);
         }
     }
 
