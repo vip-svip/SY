@@ -2671,6 +2671,7 @@ public final class MainActivity extends ComponentActivity {
     // schema is being migrated. The controls are native Android buttons, but
     // their metadata/value/save path remains a compatibility bridge for now.
     private void loadNativePrivacyEditEntries(String panelId, LinearLayout panel) {
+        if (!"vpnPanel".equals(panelId)) return;
         if (webView == null || !webUiReady) {
             TextView unavailable = new TextView(this);
             unavailable.setText("文本、列表和组合参数暂时需要配置兼容桥；本分组的布尔开关仍可独立使用。");
