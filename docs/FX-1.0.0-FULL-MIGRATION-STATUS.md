@@ -8,15 +8,16 @@
 >
 > This is an evidence-based tracking file, not a completion claim. A feature is not complete merely because a page, class name, or toggle exists. Device verification is never inferred from CI.
 
-## Re-audit at current branch HEAD (2026-11-03)
+## Source re-audit at commit eaf19e6 (2026-11-03)
 
-- Current branch HEAD: `eaf19e6986f88ea8ac1050944b382fd0837f3d64`.
+- Audited source commit: `eaf19e6986f88ea8ac1050944b382fd0837f3d64`.
+- Audit record committed on the same branch as `364ff4d19d42607d20000fc4a71758fce8922b1e`; this documentation-only commit does not alter the audited application source.
 - The previous successful Hook APK and KernelSU runs are both for `b1b852308dfae9a910032df179b4a217e4529b37`, not the current HEAD. The current HEAD has no matching run in the branch's latest Actions listing; do not treat the older artifacts as builds of this HEAD.
 - Current HEAD CI status lookup returned no combined status entries. This is absence of reported status, not a pass.
 - The native Compose shell is not yet a fully native app: its business-page body still uses a bundled WebView for VPN, Hosts/Ad, Privacy and Script routes. The Hook manager and Settings surfaces are native.
 - Privacy advanced-category panels are native Android dialogs/controls, but their data source and persistence are not native: `showNativeSettingsGroup()` reads WebUI DOM rows, `PGB.model.sw`, `VPN_EDIT` and `secVal()`; `saveNativeSettingsEdit()` writes through WebUI `VPN_EDIT`, `secSet()` and `pgPersistNow()`. These are compatibility-bridge UI, not completed native migration.
 - Hosts/managed-list mutations also remain WebView-backed: `mutateNativeManagedList()` calls `pgListArr()`, `pgPersistNow()` and `pgQueueAutoApply()`. Do not mark Hosts CRUD as native until its data repository and apply path no longer depend on the hidden WebView.
-- This re-audit is source inspection only. No code was changed, no test was run, and no real-device verification was performed during this audit.
+- This re-audit is source inspection only. The audit-record commit changed documentation only; no application code was changed, no test was run, and no real-device verification was performed during this batch.
 
 ## Status definitions
 
