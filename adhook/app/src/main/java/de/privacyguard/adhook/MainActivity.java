@@ -118,6 +118,7 @@ public final class MainActivity extends ComponentActivity {
     private int appLoadGeneration;
     private boolean appsLoaded;
     private static final int REQUEST_FILE_PICKER = 4101;
+    private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -838,6 +839,7 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.addView(nativeAction("添加脚本 / 订阅", this::showNativeScriptAddDialog));
+        actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
@@ -946,23 +948,58 @@ public final class MainActivity extends ComponentActivity {
     private void showNativeScriptAddDialog() {
         EditText input = new EditText(this);
         input.setSingleLine(false);
-        input.setMinLines(2);
-        input.setHint("粘贴脚本 URL 或脚本内容");
-        new AlertDialog.Builder(this).setTitle("添加脚本")
-                .setView(input)
+        input.setMinLines(3);
+        input.setHint("粘贴脚本 URL 或完整脚本内容");
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(12), dp(6), dp(12), dp(4));
+        TextView hint = new TextView(this);
+        hint.setText("支持脚本订阅 URL 或脚本源码。文件导入可使用下方独立入口。");
+        hint.setTextColor(0xff718091);
+        panel.addView(hint);
+        panel.addView(input);
+        new AlertDialog.Builder(this).setTitle("添加脚本 / 订阅")
+                .setView(panel)
                 .setNegativeButton("取消", null)
-                .setPositiveButton("添加", (d, w) -> {
-                    String value = input.getText().toString().trim();
-                    if (value.isEmpty()) return;
-                    String note = value.length() > 80 ? value.substring(0, 80) : value;
-                    String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return 0;"
-                            + "return pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
-                            + ",note:" + JSONObject.quote(note) + ",on:true}],{});})()";
-                    webView.evaluateJavascript(js, result -> {
-                        Toast.makeText(this, "脚本条目已提交到模块设置", Toast.LENGTH_SHORT).show();
-                        if (nativePageContent != null) renderNativePage(3);
-                    });
-                }).show();
+                .setPositiveButton("添加", (d, w) -> addNativeScriptValue(input.getText().toString(), "手动添加"))
+                .show();
+    }
+
+    private void pickNativeScriptFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        try {
+            startActivityForResult(intent, REQUEST_NATIVE_SCRIPT_FILE);
+        } catch (Exception error) {
+            Toast.makeText(this, "无法打开系统文件选择器：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void addNativeScriptValue(String raw, String sourceName) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) {
+            Toast.makeText(this, "脚本内容为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "脚本设置存储尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (value.length() > 1024 * 1024) {
+            Toast.makeText(this, "脚本文件超过 1 MiB，已拒绝导入", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String note = sourceName == null || sourceName.trim().isEmpty()
+                ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName;
+        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
+                + "return pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
+                + ",note:" + JSONObject.quote(note) + ",on:true}],{});})()";
+        webView.evaluateJavascript(js, result -> {
+            if (isFinishing() || isDestroyed()) return;
+            Toast.makeText(this, "脚本已提交；请刷新列表确认保存结果", Toast.LENGTH_SHORT).show();
+            if (nativePageContent != null && lastWebTabIndex == 3) renderNativePage(3);
+        });
     }
 
     private void refreshNativeScripts() {
@@ -1893,6 +1930,27 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_NATIVE_SCRIPT_FILE) {
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+            Uri uri = data.getData();
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("无法读取所选文件");
+                byte[] buffer = new byte[8192];
+                int total = 0, count;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 1024 * 1024) throw new IllegalStateException("脚本文件超过 1 MiB");
+                    output.write(buffer, 0, count);
+                }
+                String name = uri.getLastPathSegment();
+                addNativeScriptValue(new String(output.toByteArray(), StandardCharsets.UTF_8),
+                        name == null ? "文件导入" : name);
+            } catch (Exception error) {
+                Toast.makeText(this, "脚本导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         if (requestCode == REQUEST_FILE_PICKER && fileChooserCallback != null) {
             ValueCallback<Uri[]> pending = fileChooserCallback;
             fileChooserCallback = null;
