@@ -41,6 +41,40 @@ retire_legacy_standalone(){
   fi
   return 0
 }
+force_replace_signature_mismatch(){
+  _pkg=$1; _new_apk=$2; _log_lines=$3
+  _old_path=$(pm path "$_pkg" 2>/dev/null | awk 'NR==1 {sub(/^package:/, ""); print; exit}')
+  [ -n "$_old_path" ] && [ -s "$_old_path" ] || {
+    log_msg "ERROR: signature conflict but installed APK backup is unavailable; preserving old installation"
+    return 1
+  }
+  _backup="$TMP_DIR/.fx-hook-rollback-$.apk"
+  rm -f "$_backup" 2>/dev/null
+  cp "$_old_path" "$_backup" 2>/dev/null || {
+    log_msg "ERROR: cannot back up old signed APK; preserving old installation"
+    return 1
+  }
+  chmod 0600 "$_backup" 2>/dev/null || :
+  if ! pm uninstall -k "$_pkg" >> "$LOG" 2>&1 || package_present "$_pkg"; then
+    log_msg "ERROR: Android refused data-preserving uninstall; old FX Hook remains"
+    rm -f "$_backup"
+    return 1
+  fi
+  if pm install -r "$_new_apk" >> "$LOG" 2>&1 && package_present "$_pkg"; then
+    log_msg "signature changed: replaced FX Hook with new signing identity using uninstall -k; app data retained by PackageManager"
+    rm -f "$_backup"
+    return 0
+  fi
+  log_msg "ERROR: new FX Hook install failed after signature migration; restoring previous signed APK"
+  if pm install -r "$_backup" >> "$LOG" 2>&1 && package_present "$_pkg"; then
+    log_msg "ROLLBACK: previous FX Hook APK restored; retained app data remains available"
+  else
+    log_msg "CRITICAL: automatic rollback failed; previous APK backup retained at $_backup"
+    return 2
+  fi
+  rm -f "$_backup"
+  return 1
+}
 install_one(){
   _pkg=de.privacyguard.adhook; _slug=fxunifiedhook; _apk="$MODDIR/optional/FXUnifiedHook.apk"
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
@@ -90,7 +124,18 @@ install_one(){
       _installed=1
       break
     fi
-    if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then log_msg "ERROR: signing certificate mismatch for $_pkg; preserving existing package and data"; rm -f "$_stage"; return 1; fi
+    if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
+      log_msg "WARN: Android rejected in-place update because the APK signing certificate changed; attempting data-preserving migration"
+      if force_replace_signature_mismatch "$_pkg" "$_stage" "$_log_lines"; then
+        _installed=1
+        break
+      else
+        _migration_rc=$?
+        [ "$_migration_rc" -eq 2 ] && log_msg "CRITICAL: rollback APK is retained; inspect $LOG before retrying"
+        rm -f "$_stage"
+        return 1
+      fi
+    fi
     log_msg "WARN: PackageManager attempt $_attempt/3 failed"; _attempt=$((_attempt+1)); [ "$_attempt" -le 3 ] && sleep 2
   done
   rm -f "$_stage" 2>/dev/null
