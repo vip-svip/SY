@@ -17,7 +17,7 @@ case "${1:-}" in
     key=${2:-}; value=${3:-}
     case "$key" in ''|*[!A-Za-z0-9_.-]*) echo "invalid setting key" >&2; exit 2 ;; esac
     case "$value" in 0|1) ;; *) echo "setting value must be 0 or 1" >&2; exit 2 ;; esac
-    if ! awk -v key="$key" 'BEGIN{FS="="} /^\\[/ {exit} $1==key && $2 ~ /^[01]$/ {ok=1} END{exit !ok}' "$MP/scripts/default.conf" 2>/dev/null; then
+    if ! awk -v key="$key" 'BEGIN{FS="="} /^\[/ {exit} $1==key && $2 ~ /^[01]$/ {ok=1} END{exit !ok}' "$MP/scripts/default.conf" 2>/dev/null; then
       echo "setting key is not a declared top-level boolean flag" >&2
       exit 2
     fi
