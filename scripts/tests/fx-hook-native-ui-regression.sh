@@ -69,6 +69,18 @@ grep -q 'return !request.isForMainFrame() || !isTrustedDocumentUrl(request.getUr
 grep -q 'if (!isTrustedAssetUrl(uri))' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "off-origin WebView subresources are not blocked"
 grep -q "form-action 'none'" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "WebView CSP permits unintended form submissions"
 grep -q 'private void refreshHookRemoteStatus(TextView target)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub lacks live Remote Files status"
+# Interface modes: persisted, validated, reversible, and accurately described.
+ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+grep -Fq 'getSharedPreferences("fx_ui", MODE_PRIVATE)' "$ACTIVITY" || fail "interface mode is not persisted locally"
+grep -Fq 'normalizeUiMode(getSharedPreferences("fx_ui", MODE_PRIVATE)' "$ACTIVITY" || fail "unknown persisted interface modes are not normalized"
+grep -Fq 'private String normalizeUiMode(String mode)' "$ACTIVITY" || fail "interface mode validation helper missing"
+grep -Fq 'if (settingsUiVisible) { showDashboard(); return; }' "$ACTIVITY" || fail "Back from native Settings does not return to the dashboard"
+grep -Fq 'private void applyWebUiMode()' "$ACTIVITY" || fail "WebView interface mode renderer missing"
+grep -Fq 'backdrop-filter:blur(18px)' "$ACTIVITY" || fail "glass-style WebView fallback renderer missing"
+grep -Fq 'if ("classic".equals(uiMode))' "$ACTIVITY" || fail "classic and raw-WebUI modes are not visually distinguished"
+grep -Fq '并非完整 Miuix Compose 页面' "$ACTIVITY" || fail "Miuix compatibility mode overstates native library integration"
+grep -Fq '不等同于 AndroidLiquidGlass 实时折射引擎' "$ACTIVITY" || fail "glass mode overstates native refraction support"
+
 grep -q 'scripts/status.sh json' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status reader does not request JSON"
 grep -q 'hook_native_notification_permission_hide_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits native notification permission-query status"
 grep -q 'hook_native_clipboard_isolate_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits clipboard isolation status"
