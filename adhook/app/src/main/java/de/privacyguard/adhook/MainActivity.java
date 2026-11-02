@@ -969,6 +969,12 @@ public final class MainActivity extends ComponentActivity {
         content.addView(actions);
         refreshNativePrivacyStatus(state);
 
+        TextView privacyMasterHint = new TextView(this);
+        privacyMasterHint.setText("使用方式：进入目标应用后，先开启「隐私保护总开关」，再开启对应分类的具体策略；只读会员状态诊断不受该总开关控制。关闭总开关会停用该应用的隐私 Hook。");
+        privacyMasterHint.setTextColor(0xff697681);
+        privacyMasterHint.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(privacyMasterHint);
+
         section("保护功能 · 按应用配置");
         addNativeActionCard("应用内广告标识", "为选定应用统一 Google / Huawei 广告标识；不修改 Android ID 或系统广告设置。", "选择应用配置", () -> showAppList("标识与追踪"));
         addNativeActionCard("剪贴板读取与隔离", "分别配置剪贴板读取阻断和剪贴板隔离；两项策略可按应用独立设置。", "配置剪贴板保护", () -> showAppList("剪贴板保护"));
