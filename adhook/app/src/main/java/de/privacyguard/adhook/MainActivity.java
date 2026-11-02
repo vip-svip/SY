@@ -2580,7 +2580,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderNativePrivacySettingsGroup(JSONObject panelSchema, String title) {
-        runNativeModuleCommand("awk '/^\\[/ {exit} {print}' /data/adb/privacyguard/settings.conf", 30000L, result -> {
+        runNativeModuleCommand("sh \"$MP/scripts/native-privacy-settings.sh\" list", 30000L, result -> {
             try {
                 if (result.exitCode != 0) {
                     throw new IllegalStateException("无法读取模块真实配置：" + result.output);
@@ -2602,7 +2602,7 @@ public final class MainActivity extends ComponentActivity {
                 panel.setOrientation(LinearLayout.VERTICAL);
                 panel.setPadding(dp(12), dp(6), dp(12), dp(6));
                 TextView summary = new TextView(this);
-                summary.setText("配置来源：/data/adb/privacyguard/settings.conf。开关由 Root 原生接口保存，并调用模块 apply.sh；应用失败会单独提示。");
+                summary.setText("配置来源：模块 Root 原生接口（仅返回布尔隐私开关，不向 App 暴露订阅与脚本内容）。开关保存后调用模块 apply.sh；应用失败会单独提示。");
                 summary.setTextColor(0xff718091);
                 summary.setPadding(dp(6), dp(4), dp(6), dp(10));
                 panel.addView(summary);
