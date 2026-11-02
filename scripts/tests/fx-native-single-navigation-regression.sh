@@ -106,7 +106,7 @@ grep -Fq 'private void saveNativeSettingsEdit(String editId, String value)' "$JA
 grep -Fq 'private void pollNativeSettingsEdit(String resultKey, long deadline)' "$JAVA"
 grep -Fq 'data-vpn-edit' "$JAVA"
 grep -Fq 'VPN_EDIT' "$JAVA"
-grep -Fq 'private void setNativeSettingsSwitch(String key, boolean enabled, boolean previous, Switch control)' "$JAVA"
+grep -Fq 'private void setNativeSettingsSwitch(String key, boolean enabled, boolean previous, android.widget.CompoundButton control)' "$JAVA"
 grep -Fq 'pgPersistNow().then(function(ok)' "$JAVA"
 grep -Fq "pgQueueAutoApply('原生设置已更改，正在应用…',true)" "$JAVA"
 grep -Fq 'addNativeSettingsCategory("VPN / DNS / 分流", "vpnPanel")' "$JAVA"
