@@ -40,8 +40,8 @@ ERR="$STATE/local/err-$$.log"
 cleanup() {
   rm -f "$TMP" "$LIST" "$OUT" "$ERR"
   owner=$(cat "$LOCK/pid" 2>/dev/null || true)
-  if [ "$owner" = "$" ]; then
-    released="$LOCK.release.$"
+  if [ "$owner" = "$$" ]; then
+    released="$LOCK.release.$$"
     if mv "$LOCK" "$released" 2>/dev/null; then rm -rf "$released"; fi
   fi
 }
@@ -66,7 +66,7 @@ case "$size" in ''|*[!0-9]*) size=0 ;; esac
 [ "$size" -gt 0 ] && [ "$size" -le 65536 ] || { echo '{"ok":false,"error":"local JavaScript source size is invalid"}'; exit 65; }
 chmod 600 "$TMP" 2>/dev/null || :
 # Release the list lock before execution; the script file is now an immutable snapshot.
-released="$LOCK.release.$"
+released="$LOCK.release.$$"
 if mv "$LOCK" "$released" 2>/dev/null; then rm -rf "$released"; fi
 trap 'rm -f "$TMP" "$LIST" "$OUT" "$ERR"' EXIT HUP INT TERM
 if command -v timeout >/dev/null 2>&1; then
