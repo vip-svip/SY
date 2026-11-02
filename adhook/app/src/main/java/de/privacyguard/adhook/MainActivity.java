@@ -438,6 +438,543 @@ public final class MainActivity extends ComponentActivity {
         startNativeVpnPolling();
     }
 
+
+    private interface NativeCommandCallback { void onComplete(RootAccess.Result result); }
+
+    private String nativeModuleCommand(String body) {
+        return "MP=; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
+                + "[ -f \"$d/module.prop\" ] && { MP=\"$d\"; break; }; done; "
+                + "[ -n \"$MP\" ] || exit 20; " + body;
+    }
+
+    private void runNativeModuleCommand(String body, long timeout, NativeCommandCallback callback) {
+        nativeVpnExecutor.execute(() -> {
+            RootAccess.Result result;
+            try {
+                result = RootAccess.execute(nativeModuleCommand(body), timeout, 1024 * 1024);
+            } catch (RuntimeException error) {
+                result = new RootAccess.Result(1, false, error.toString());
+            }
+            RootAccess.Result finalResult = result;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (callback != null) callback.onComplete(finalResult);
+            });
+        });
+    }
+
+    private void renderNativePage(int index) {
+        if (nativePageContent == null) return;
+        nativePageContent.removeAllViews();
+        content = nativePageContent;
+        switch (index) {
+            case 0:
+                content.addView(title("VPN 控制中心", 22));
+                TextView vpnIntro = new TextView(this);
+                vpnIntro.setText("原生 Android 控件 · 状态由模块 status.sh 和 VPN 后端读取");
+                vpnIntro.setTextColor(0xff718091);
+                vpnIntro.setPadding(dp(18), 0, dp(18), dp(10));
+                content.addView(vpnIntro);
+                buildNativeVpnControls();
+                content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
+                addNativeSettingEntry("节点与订阅", "导入订阅、选择节点、测试延迟", "使用上方节点选择器与订阅入口管理节点；直连模式不需要节点。");
+                addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；请勿将配置已保存误认为 VPN 已运行。");
+                syncNativeVpnControls();
+                break;
+            case 1:
+                buildNativeHostsPage();
+                break;
+            case 2:
+                buildNativePrivacyPage();
+                break;
+            case 3:
+                buildNativeScriptPage();
+                break;
+            default:
+                content.addView(title("FX", 22));
+                break;
+        }
+    }
+
+    private void addNativeCard(String heading, String description) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        card.setBackground(uiPanelDrawable());
+        TextView h = new TextView(this);
+        h.setText(heading);
+        h.setTextSize(16);
+        h.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        h.setTextColor(0xff17212b);
+        TextView d = new TextView(this);
+        d.setText(description);
+        d.setTextSize(12);
+        d.setTextColor(0xff718091);
+        d.setPadding(0, dp(5), 0, 0);
+        card.addView(h);
+        card.addView(d);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(4), dp(12), dp(6));
+        content.addView(card, lp);
+    }
+
+    private Button nativeAction(String label, Runnable action) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setOnClickListener(v -> { if (action != null) action.run(); });
+        return button;
+    }
+
+    private void buildNativeHostsPage() {
+        content.addView(title("广告与 Hosts", 22));
+        TextView intro = new TextView(this);
+        intro.setText("统一管理本地 Hosts、订阅过滤规则与系统实际生效的 hosts。三类数据分开显示，不把订阅缓存当成本地文件。");
+        intro.setTextColor(0xff718091);
+        intro.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(intro);
+        section("本地 Android Hosts");
+        TextView hostsStatus = new TextView(this);
+        hostsStatus.setText("正在读取本地 hosts 文件状态…");
+        hostsStatus.setTextColor(0xff536170);
+        hostsStatus.setPadding(dp(18), dp(6), dp(18), dp(8));
+        content.addView(hostsStatus);
+        LinearLayout hostActions = new LinearLayout(this);
+        hostActions.setOrientation(LinearLayout.VERTICAL);
+        hostActions.addView(nativeAction("打开本地 Hosts 分页编辑器", () -> showHostsEditor("hosts", 1)));
+        hostActions.addView(nativeAction("导出到外部编辑器", this::exportHostsForExternal));
+        hostActions.addView(nativeAction("从外部编辑器同步", this::importHostsFromExternal));
+        hostActions.addView(nativeAction("查看系统实际生效 Hosts", () -> showHostsEditor("system-hosts", 1)));
+        content.addView(hostActions);
+        refreshHostsStatus(hostsStatus);
+
+        section("订阅与过滤规则");
+        addNativeCard("广告过滤订阅", "查看已导入的规则源与启用状态；订阅源和本地 Hosts 独立保存。");
+        LinearLayout ruleActions = new LinearLayout(this);
+        ruleActions.setOrientation(LinearLayout.VERTICAL);
+        ruleActions.addView(nativeAction("查看 FX 内置规则", () -> showNativeListDialog("fx", "FX 内置规则")));
+        ruleActions.addView(nativeAction("查看白名单", () -> showNativeListDialog("domain", "域名白名单")));
+        ruleActions.addView(nativeAction("查看黑名单", () -> showNativeListDialog("block", "自定义黑名单")));
+        ruleActions.addView(nativeAction("查看 Hosts 本地条目", () -> showNativeListDialog("hosts_local", "本地 Hosts 条目")));
+        ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
+        content.addView(ruleActions);
+    }
+
+    private void refreshHostsStatus(TextView target) {
+        runNativeModuleCommand("sh \"$MP/scripts/fileedit.sh\" stat hosts", 30000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                JSONObject json = new JSONObject(result.output.trim());
+                if (!json.optBoolean("ok", false)) throw new IllegalStateException(json.optString("err", "读取失败"));
+                target.setText("本地文件：/data/adb/privacyguard/local/hosts\n"
+                        + "行数：" + json.optInt("lines", 0) + " · 大小：" + json.optLong("size", 0)
+                        + " bytes · 数据源：本地手动维护");
+            } catch (Exception error) {
+                target.setText("本地 Hosts 状态读取失败：" + error.getMessage());
+            }
+        });
+    }
+
+    private void showHostsEditor(String spec, int page) {
+        if (page < 1) page = 1;
+        final int requestedPage = page;
+        runNativeModuleCommand("sh \"$MP/scripts/fileedit.sh\" page " + shellQuote(spec)
+                + " " + requestedPage + " 200 65536", 45000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                JSONObject json = new JSONObject(result.output.trim());
+                if (!json.optBoolean("ok", false)) throw new IllegalStateException(json.optString("err", "分页读取失败"));
+                byte[] bytes = android.util.Base64.decode(json.optString("b64", ""), android.util.Base64.DEFAULT);
+                String text = new String(bytes, StandardCharsets.UTF_8);
+                boolean readOnly = "system-hosts".equals(spec);
+                int start = json.optInt("start", requestedPage);
+                int lines = json.optInt("lines", 0);
+                int total = json.optInt("total", 0);
+
+                LinearLayout panel = new LinearLayout(this);
+                panel.setOrientation(LinearLayout.VERTICAL);
+                panel.setPadding(dp(12), dp(6), dp(12), dp(4));
+                TextView info = new TextView(this);
+                info.setText((readOnly ? "只读视图 · /system/etc/hosts" : "本地源 · /data/adb/privacyguard/local/hosts")
+                        + "\n第 " + start + "–" + Math.max(start, start + lines - 1) + " 行 / 共 " + total + " 行");
+                info.setTextColor(0xff718091);
+                panel.addView(info);
+                EditText editor = new EditText(this);
+                editor.setText(text);
+                editor.setTextSize(12);
+                editor.setTypeface(Typeface.MONOSPACE);
+                editor.setGravity(Gravity.TOP | Gravity.START);
+                editor.setSingleLine(false);
+                editor.setMinLines(12);
+                editor.setMaxLines(18);
+                editor.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                        | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                editor.setEnabled(!readOnly);
+                ScrollView editorScroll = new ScrollView(this);
+                editorScroll.addView(editor, new ScrollView.LayoutParams(-1, -2));
+                panel.addView(editorScroll, new LinearLayout.LayoutParams(-1, dp(340)));
+                LinearLayout nav = new LinearLayout(this);
+                nav.setOrientation(LinearLayout.HORIZONTAL);
+                Button previous = nativeAction("上一页", () -> {
+                    if (editor.getText().toString().equals(text)) showHostsEditor(spec, Math.max(1, start - 200));
+                    else new AlertDialog.Builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("放弃", (d, w) -> showHostsEditor(spec, Math.max(1, start - 200))).show();
+                });
+                previous.setEnabled(start > 1);
+                Button next = nativeAction("下一页", () -> {
+                    if (editor.getText().toString().equals(text)) showHostsEditor(spec, start + 200);
+                    else new AlertDialog.Builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("放弃", (d, w) -> showHostsEditor(spec, start + 200)).show();
+                });
+                next.setEnabled(start + lines <= total);
+                nav.addView(previous, new LinearLayout.LayoutParams(0, -2, 1));
+                nav.addView(next, new LinearLayout.LayoutParams(0, -2, 1));
+                panel.addView(nav);
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setTitle(readOnly ? "系统 Hosts（只读）" : "本地 Hosts 编辑器")
+                        .setView(panel)
+                        .setNegativeButton("关闭", null)
+                        .create();
+                if (!readOnly) {
+                    dialog.setButton(AlertDialog.BUTTON_POSITIVE, "保存并应用", (d, w) -> {});
+                }
+                dialog.setOnShowListener(d -> {
+                    if (!readOnly) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                        writeHostsPage(spec, start, lines, editor.getText().toString(), dialog);
+                    });
+                });
+                dialog.show();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle("Hosts 读取失败")
+                        .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) -> showHostsEditor(spec, requestedPage))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void writeHostsPage(String spec, int start, int originalLines, String text, AlertDialog dialog) {
+        String encoded = android.util.Base64.encodeToString(text.getBytes(StandardCharsets.UTF_8),
+                android.util.Base64.NO_WRAP);
+        String command = "tmp=$(mktemp /data/local/tmp/fx-hosts.XXXXXXXX) || exit 41; "
+                + "trap 'rm -f \"$tmp\"' EXIT; "
+                + "printf '%s' " + shellQuote(encoded) + " | base64 -d > \"$tmp\" || exit 42; "
+                + "sh \"$MP/scripts/fileedit.sh\" replacepage " + shellQuote(spec) + " "
+                + start + " " + originalLines + " \"$tmp\"";
+        runNativeModuleCommand(command, 60000L, result -> {
+            try {
+                JSONObject json = new JSONObject(result.output.trim());
+                if (result.exitCode != 0 || !json.optBoolean("ok", false))
+                    throw new IllegalStateException(json.optString("err", result.output));
+                dialog.dismiss();
+                Toast.makeText(this, "本地 Hosts 已保存，正在应用…", Toast.LENGTH_SHORT).show();
+                applyNativeHosts();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle("保存失败")
+                        .setMessage("原文件未确认更新：" + error.getMessage())
+                        .setPositiveButton("知道了", null).show();
+            }
+        });
+    }
+
+    private void applyNativeHosts() {
+        runNativeModuleCommand("sh \"$MP/scripts/apply.sh\"", 120000L, result -> {
+            if (result.exitCode == 0) {
+                Toast.makeText(this, "Hosts / 过滤规则应用完成", Toast.LENGTH_LONG).show();
+            } else {
+                new AlertDialog.Builder(this).setTitle("应用失败")
+                        .setMessage(result.output).setPositiveButton("知道了", null).show();
+            }
+        });
+    }
+
+    private void exportHostsForExternal() {
+        runNativeModuleCommand("sh \"$MP/scripts/fileedit.sh\" export hosts", 30000L, result -> {
+            try {
+                JSONObject json = new JSONObject(result.output.trim());
+                if (result.exitCode != 0 || !json.optBoolean("ok", false))
+                    throw new IllegalStateException(json.optString("err", result.output));
+                getSharedPreferences("fx_hosts_external", MODE_PRIVATE).edit()
+                        .putString("path", json.optString("path", ""))
+                        .putString("hash", json.optString("baseHash", "")).apply();
+                new AlertDialog.Builder(this).setTitle("已导出 Hosts")
+                        .setMessage("文件已复制到：\n" + json.optString("path")
+                                + "\n请使用外部编辑器修改后，返回 FX 点击“从外部编辑器同步”。")
+                        .setPositiveButton("知道了", null).show();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setMessage("导出失败：" + error.getMessage())
+                        .setPositiveButton("知道了", null).show();
+            }
+        });
+    }
+
+    private void importHostsFromExternal() {
+        android.content.SharedPreferences state = getSharedPreferences("fx_hosts_external", MODE_PRIVATE);
+        String path = state.getString("path", "");
+        String hash = state.getString("hash", "");
+        if (path.isEmpty() || hash.isEmpty()) {
+            Toast.makeText(this, "请先导出本地 Hosts，再用外部编辑器修改副本。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        runNativeModuleCommand("sh \"$MP/scripts/fileedit.sh\" import-external hosts "
+                + shellQuote(path) + " " + shellQuote(hash), 60000L, result -> {
+            try {
+                JSONObject json = new JSONObject(result.output.trim());
+                if (result.exitCode != 0 || !json.optBoolean("ok", false))
+                    throw new IllegalStateException(json.optString("err", result.output));
+                state.edit().remove("path").remove("hash").apply();
+                Toast.makeText(this, "外部 Hosts 已同步，正在应用…", Toast.LENGTH_LONG).show();
+                applyNativeHosts();
+            } catch (Exception error) {
+                new AlertDialog.Builder(this).setTitle("同步失败")
+                        .setMessage(error.getMessage()).setPositiveButton("知道了", null).show();
+            }
+        });
+    }
+
+    private void showNativeListDialog(String listName, String title) {
+        runNativeModuleCommand(". \"$MP/scripts/util.sh\"; pg_list " + shellQuote(listName),
+                30000L, result -> {
+            if (result.exitCode != 0) {
+                Toast.makeText(this, "读取列表失败：" + result.output, Toast.LENGTH_LONG).show();
+                return;
+            }
+            String value = result.output == null || result.output.trim().isEmpty()
+                    ? "当前列表为空。" : result.output.trim();
+            new AlertDialog.Builder(this).setTitle(title).setMessage(value)
+                    .setPositiveButton("关闭", null).show();
+        });
+    }
+
+    private void buildNativePrivacyPage() {
+        content.addView(title("隐私保护", 22));
+        TextView intro = new TextView(this);
+        intro.setText("按应用管理广告识别、剪贴板、传感器、麦克风、通知、Wi-Fi 扫描与 EXIF 隐私。此页展示设备端真实状态；具体应用规则在 Hook 页面配置。");
+        intro.setTextColor(0xff718091);
+        intro.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(intro);
+        section("设备授权与 Hook 状态");
+        TextView state = new TextView(this);
+        state.setText("正在读取 Root、LSPosed 与 Remote Files 状态…");
+        state.setTextColor(0xff536170);
+        state.setPadding(dp(18), dp(8), dp(18), dp(10));
+        content.addView(state);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.VERTICAL);
+        actions.addView(nativeAction("打开应用级 Hook 配置", this::showAppList));
+        actions.addView(nativeAction("打开 Root / LSPosed 授权中心", this::showHookHub));
+        actions.addView(nativeAction("刷新隐私状态", () -> refreshNativePrivacyStatus(state)));
+        content.addView(actions);
+        refreshNativePrivacyStatus(state);
+
+        section("保护功能");
+        addNativeCard("应用标识与追踪", "广告标识符、设备标识符与应用级跟踪拦截；按目标应用独立配置。");
+        addNativeCard("剪贴板保护", "剪贴板读取阻断与应用隔离策略。");
+        addNativeCard("传感器与硬件", "加速度计、陀螺仪、光线、磁场、麦克风与相机访问策略。");
+        addNativeCard("位置与网络", "被动位置、Wi-Fi 扫描与网络标识保护。");
+        addNativeCard("通知与媒体", "通知读取、通知权限隐藏与 EXIF 元数据隐私。");
+    }
+
+    private void refreshNativePrivacyStatus(TextView target) {
+        runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                JSONObject json = new JSONObject(result.output.trim());
+                target.setText("Root：" + (json.optBoolean("root", false) ? "已授权" : "未授权")
+                        + " · LSPosed：" + json.optString("lsposed_status", json.optString("lsposed", "unknown"))
+                        + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
+                        + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
+                        + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
+                        + " · Wi-Fi 扫描目标：" + json.optInt("hook_native_wifi_scan_targets", 0)
+                        + " · 通知目标：" + json.optInt("hook_native_notification_listen_targets", 0));
+            } catch (Exception error) {
+                target.setText("隐私状态读取失败：" + error.getMessage());
+            }
+        });
+    }
+
+    private void buildNativeScriptPage() {
+        content.addView(title("脚本中心", 22));
+        TextView intro = new TextView(this);
+        intro.setText("管理脚本订阅、启停、导入与运行记录。列表和开关直接读写模块设置；运行状态以同步结果和引擎日志为准。");
+        intro.setTextColor(0xff718091);
+        intro.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(intro);
+        section("脚本管理");
+        TextView status = new TextView(this);
+        status.setText("正在读取脚本列表…");
+        status.setTextColor(0xff536170);
+        status.setPadding(dp(18), dp(6), dp(18), dp(8));
+        content.addView(status);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        content.addView(rows);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.VERTICAL);
+        actions.addView(nativeAction("添加脚本 / 订阅", this::showNativeScriptAddDialog));
+        actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
+        actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
+        actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
+        content.addView(actions);
+        refreshNativeScriptList(rows, status);
+    }
+
+    private void refreshNativeScriptList(LinearLayout rows, TextView status) {
+        if (webView == null || !webUiReady) {
+            status.setText("脚本管理引擎尚未就绪，正在等待内置模块桥接初始化…");
+            return;
+        }
+        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return JSON.stringify({ready:false});"
+                + "var a=pgListArr('scriptList')||[];return JSON.stringify({ready:true,items:a.map(function(x,i){return {i:i,v:String(x.v||''),note:String(x.note||''),on:!!x.on};})});})()";
+        webView.evaluateJavascript(js, value -> {
+            try {
+                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("脚本列表响应格式错误");
+                JSONObject snapshot = new JSONObject((String) decoded);
+                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("模块设置尚未加载");
+                org.json.JSONArray items = snapshot.optJSONArray("items");
+                rows.removeAllViews();
+                int count = items == null ? 0 : items.length();
+                int enabled = 0;
+                for (int i = 0; i < count; i++) {
+                    JSONObject item = items.optJSONObject(i);
+                    if (item == null) continue;
+                    final int index = item.optInt("i", i);
+                    final String valueText = item.optString("v", "");
+                    final String note = item.optString("note", "");
+                    final boolean on = item.optBoolean("on", false);
+                    if (on) enabled++;
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(dp(14), dp(10), dp(14), dp(8));
+                    row.setBackground(uiPanelDrawable());
+                    TextView name = new TextView(this);
+                    name.setText(note.isEmpty() ? valueText : note);
+                    name.setTextColor(0xff17212b);
+                    name.setTextSize(14);
+                    name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                    TextView source = new TextView(this);
+                    source.setText(valueText);
+                    source.setTextColor(0xff718091);
+                    source.setTextSize(10);
+                    source.setMaxLines(2);
+                    source.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    row.addView(name);
+                    row.addView(source);
+                    LinearLayout ops = new LinearLayout(this);
+                    ops.setGravity(Gravity.CENTER_VERTICAL);
+                    Switch enabledSwitch = new Switch(this);
+                    enabledSwitch.setText("启用");
+                    enabledSwitch.setChecked(on);
+                    enabledSwitch.setOnCheckedChangeListener((button, checked) ->
+                            setNativeScriptEnabled(index, checked, rows, status));
+                    ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
+                    Button detail = nativeAction("详情", () -> new AlertDialog.Builder(this)
+                            .setTitle(note.isEmpty() ? "脚本详情" : note)
+                            .setMessage(valueText).setPositiveButton("关闭", null).show());
+                    Button remove = nativeAction("删除", () -> new AlertDialog.Builder(this)
+                            .setMessage("确定删除该脚本条目？")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("删除", (d, w) -> deleteNativeScript(index, rows, status)).show());
+                    ops.addView(detail);
+                    ops.addView(remove);
+                    row.addView(ops);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                    lp.setMargins(dp(12), dp(3), dp(12), dp(4));
+                    rows.addView(row, lp);
+                }
+                status.setText("脚本条目：" + count + " · 已启用：" + enabled
+                        + " · 执行引擎：QuickJS-NG（模块运行状态以日志确认）");
+                if (count == 0) {
+                    TextView empty = new TextView(this);
+                    empty.setText("暂无脚本条目。可添加脚本 URL 或导入脚本文件。");
+                    empty.setTextColor(0xff718091);
+                    empty.setPadding(dp(18), dp(16), dp(18), dp(16));
+                    rows.addView(empty);
+                }
+            } catch (Exception error) {
+                status.setText("脚本列表读取失败：" + error.getMessage());
+            }
+        });
+    }
+
+    private void setNativeScriptEnabled(int index, boolean enabled, LinearLayout rows, TextView status) {
+        String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
+                + "if(!a||!a[" + index + "])return false;a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
+                + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
+                + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
+        webView.evaluateJavascript(js, value -> {
+            nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L);
+        });
+    }
+
+    private void deleteNativeScript(int index, LinearLayout rows, TextView status) {
+        String js = "(function(){if(!window.PGB||!PGB.loaded)return false;var a=pgListArr('scriptList');"
+                + "if(!a||!a[" + index + "])return false;a.splice(" + index + ",1);"
+                + "pgPersistNow().then(function(ok){if(ok&&typeof pgQueueScriptRuntimeSync==='function')pgQueueScriptRuntimeSync();"
+                + "window.__fxNativeScriptMutationOk=!!ok;});return true;})()";
+        webView.evaluateJavascript(js, value ->
+                nativeVpnHandler.postDelayed(() -> refreshNativeScriptList(rows, status), 1200L));
+    }
+
+    private void showNativeScriptAddDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setHint("粘贴脚本 URL 或脚本内容");
+        new AlertDialog.Builder(this).setTitle("添加脚本")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("添加", (d, w) -> {
+                    String value = input.getText().toString().trim();
+                    if (value.isEmpty()) return;
+                    String note = value.length() > 80 ? value.substring(0, 80) : value;
+                    String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return 0;"
+                            + "return pgAddMany('scriptList',[{v:" + JSONObject.quote(value)
+                            + ",note:" + JSONObject.quote(note) + ",on:true}],{});})()";
+                    webView.evaluateJavascript(js, result -> {
+                        Toast.makeText(this, "脚本条目已提交到模块设置", Toast.LENGTH_SHORT).show();
+                        if (nativePageContent != null) renderNativePage(3);
+                    });
+                }).show();
+    }
+
+    private void refreshNativeScripts() {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "脚本运行桥尚未就绪", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        webView.evaluateJavascript("(function(){if(typeof pgSyncThirdPartyRuntime!=='function')return false;"
+                + "pgSyncThirdPartyRuntime({syncScripts:true}).then(function(r){window.__fxNativeScriptRefresh=JSON.stringify(r||{});});return true;})()", value -> {
+            Toast.makeText(this, "已请求脚本订阅同步；请查看运行日志确认结果。", Toast.LENGTH_LONG).show();
+        });
+    }
+
+    private void showNativeScriptLogs() {
+        runNativeModuleCommand("if [ -f /data/adb/privacyguard/jsruntime/scheduler.log ]; then tail -n 160 /data/adb/privacyguard/jsruntime/scheduler.log; "
+                + "else echo '暂无脚本调度日志'; fi", 30000L, result ->
+                new AlertDialog.Builder(this).setTitle("脚本运行日志")
+                        .setMessage(result.output).setPositiveButton("关闭", null).show());
+    }
+
+    private void showNativeMitmStatus() {
+        runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
+            try {
+                JSONObject json = new JSONObject(result.output.trim());
+                new AlertDialog.Builder(this).setTitle("MITM / 证书状态")
+                        .setMessage("模块版本：" + json.optString("version", "unknown")
+                                + "\nDNS 转发：" + json.optString("dns_forward_status", "unknown")
+                                + "\nLSPosed：" + json.optString("lsposed_status", "unknown")
+                                + "\n说明：此状态接口不代表 CA 已被系统信任，也不代表 HTTPS 流量已成功解密。")
+                        .setPositiveButton("关闭", null).show();
+            } catch (Exception error) {
+                Toast.makeText(this, "状态读取失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
     private void startNativeVpnPolling() {
         nativeVpnHandler.removeCallbacks(nativeVpnPoll);
         if (!hookUiVisible && !settingsUiVisible && webUiReady && webView != null) {
