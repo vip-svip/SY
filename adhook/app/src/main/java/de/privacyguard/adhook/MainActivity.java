@@ -1207,6 +1207,9 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnNodeButton.setEllipsize(android.text.TextUtils.TruncateAt.END);
         nativeVpnNodeButton.setOnClickListener(v -> showNativeVpnNodePicker());
         card.addView(nativeVpnNodeButton, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button latencyTest = nativeAction("测试当前节点延迟", null);
+        latencyTest.setOnClickListener(v -> testNativeVpnSelectedNodeLatency(latencyTest));
+        card.addView(latencyTest, new LinearLayout.LayoutParams(-1, dp(42)));
 
         LinearLayout modes = new LinearLayout(this);
         modes.setGravity(Gravity.CENTER_VERTICAL);
@@ -1233,6 +1236,65 @@ public final class MainActivity extends ComponentActivity {
         }
         card.addView(modes);
         nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void testNativeVpnSelectedNodeLatency(Button button) {
+        if (webView == null || !webUiReady) {
+            Toast.makeText(this, "VPN 节点列表尚未就绪", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        button.setEnabled(false);
+        button.setText("读取当前节点…");
+        webView.evaluateJavascript("(function(){return window.FXNativeVpn?window.FXNativeVpn.snapshot():'{}'})()", value -> {
+            if (isFinishing() || isDestroyed()) return;
+            try {
+                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
+                if (!(decoded instanceof String)) throw new IllegalStateException("节点状态格式错误");
+                JSONObject snapshot = new JSONObject((String) decoded);
+                org.json.JSONArray nodes = snapshot.optJSONArray("nodes");
+                JSONObject selected = null;
+                if (nodes != null) for (int i = 0; i < nodes.length(); i++) {
+                    JSONObject node = nodes.optJSONObject(i);
+                    if (node != null && node.optBoolean("selected", false)) { selected = node; break; }
+                }
+                if (selected == null) throw new IllegalStateException("请先选择一个代理节点；直连模式无需测速");
+                String proto = selected.optString("proto", "");
+                String host = selected.optString("host", "");
+                String port = selected.optString("port", "");
+                if (proto.isEmpty() || host.isEmpty() || !port.matches("[0-9]{1,5}")
+                        || Integer.parseInt(port) < 1 || Integer.parseInt(port) > 65535) {
+                    throw new IllegalStateException("当前节点缺少有效的协议、主机或端口信息");
+                }
+                button.setText("正在测试 " + host + ":" + port + "…");
+                runNativeModuleCommand("sh \"$MP/scripts/vpntest.sh\" "
+                        + shellQuote(proto) + " " + shellQuote(host) + " " + port,
+                        15000L, result -> {
+                    button.setEnabled(true);
+                    try {
+                        if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                        JSONObject measured = new JSONObject(result.output.trim());
+                        int ms = measured.optInt("ms", -2);
+                        if (ms > 0) {
+                            button.setText("延迟 " + ms + " ms · 重新测试");
+                            Toast.makeText(this, "节点延迟：" + ms + " ms", Toast.LENGTH_SHORT).show();
+                        } else if (ms == -1) {
+                            button.setText("节点不可达 · 重新测试");
+                        } else {
+                            button.setText("测速不可用 · 重新测试");
+                            Toast.makeText(this, measured.optString("detail", "设备缺少 curl / nc 测速工具"),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    } catch (Exception error) {
+                        button.setText("测速失败 · 重新测试");
+                        Toast.makeText(this, "节点测速失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception error) {
+                button.setEnabled(true);
+                button.setText("测试当前节点延迟");
+                Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void buildNativeVpnSubscriptionPanel() {
