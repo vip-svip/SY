@@ -1328,7 +1328,7 @@ public final class MainActivity extends ComponentActivity {
                     String[] fields = lines[i].split("\\|", -1);
                     if (fields.length != 3) throw new IllegalStateException("脚本条目字段错误");
                     JSONObject entry = new JSONObject();
-                    entry.put("url", decodeNativeScriptArgument(fields[0]));
+                    entry.put("url", decodeNativeScriptValue(fields[0]));
                     entry.put("name", decodeNativeScriptArgument(fields[1]));
                     entry.put("enabled", "1".equals(fields[2]));
                     entries.put(entry);
