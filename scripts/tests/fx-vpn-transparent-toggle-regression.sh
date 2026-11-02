@@ -11,6 +11,6 @@ grep -Fq 'margin-top:-19px!important' "$HTML"
 grep -Fq 'right:22px!important' "$HTML"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
-sed -n '/<style id="fx-vpn-toggle-transparent-v2">/,/<\\/style>/p' "$HTML" > "$TMP"
+awk '/<style id="fx-vpn-toggle-transparent-v2">/{inside=1} inside{print} inside&&/<\\/style>/{exit}' "$HTML" > "$TMP"
 ! grep -Eq 'background:#d98743|background:linear-gradient\\(135deg,#f8e9ef' "$TMP"
 echo 'FX transparent VPN switch geometry regression: PASS'
