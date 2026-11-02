@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 def fxReleaseKeystorePath = System.getenv("FX_ANDROID_KEYSTORE_PATH")
@@ -33,12 +35,21 @@ android {
             }
         }
     }
+    buildFeatures {
+        compose true
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
 dependencies {
+    implementation platform('androidx.compose:compose-bom:2025.10.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'top.yukonga.miuix.kmp:miuix-android:0.7.2'
+    implementation 'io.github.kyant0:backdrop:1.0.0'
     implementation 'androidx.webkit:webkit:1.12.1'
     // Modern LSPosed API enables Remote Files, avoiding SELinux-denied reads of /data/local/tmp.
     compileOnly 'io.github.libxposed:api:101.0.1'
