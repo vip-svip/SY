@@ -27,7 +27,7 @@ grep -Fq 'catch (RuntimeException ignored)' "$ROOT/adhook/app/src/main/java/de/p
 grep -q 'case "pageAd": tab = "ad"; break;' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Ad tab does not route to merged Hosts page"
 grep -Fq 'FxNativeAppShellKt.installFxNativeAppShell' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "six-item Compose bottom navigation is not mounted"
 grep -Fq 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "six-item native bottom navigation contract missing"
-grep -Fq 'lens(7.dp.toPx(), 9.dp.toPx())' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeBottomBar.kt" || fail "liquid bottom tab lens effect missing"
+grep -Fq 'lens(18.dp.toPx(), 22.dp.toPx())' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" || fail "liquid navigation shell lens effect missing"
 grep -q "MAX_APP_ROWS_PER_PAGE = 40" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list is not paginated"
 grep -q 'new Thread(() -> {' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "installed app indexing is not moved off the UI thread"
 grep -q '"fx-app-index"' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "background app-index worker missing"
