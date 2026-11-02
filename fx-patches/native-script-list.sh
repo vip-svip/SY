@@ -60,9 +60,9 @@ case "$ACTION" in
       tries=$((tries+1)); sleep 0.1
     done
     printf '%s\n' "$$" > "$LOCK/pid"
-    ROWS="$PG/jsruntime/native-script-rows.$"
-    VALUE_FILE="$PG/jsruntime/native-script-value.$"
-    NOTE_FILE="$PG/jsruntime/native-script-note.$"
+    ROWS="$PG/jsruntime/native-script-rows.$$"
+    VALUE_FILE="$PG/jsruntime/native-script-value.$$"
+    NOTE_FILE="$PG/jsruntime/native-script-note.$$"
     TMP="$CONF.native.tmp.$"
     BACKUP="$CONF.native.bak.$"
     cleanup() {
