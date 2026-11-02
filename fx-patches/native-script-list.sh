@@ -36,7 +36,6 @@ case "$ACTION" in
     pg_list script | while IFS='|' read -r value note enabled rest; do
       case "$value" in ''|\#*) continue ;; esac
       case "$enabled" in 1) enabled=1 ;; *) enabled=0 ;; esac
-      case "$value" in FXSRC_B64:*) value=$(printf '%s' "\${value#FXSRC_B64:}" | base64 -d 2>/dev/null) || { echo "ERROR stored script payload is corrupt" >&2; continue; } ;; esac
       value64=$(printf '%s' "$value" | base64 | tr -d '\n')
       note64=$(printf '%s' "$note" | base64 | tr -d '\n')
       printf '%s|%s|%s\n' "$value64" "$note64" "$enabled"
