@@ -53,7 +53,7 @@ after=$(sha256sum "$PG/settings.conf" | awk '{print $1}')
 # Local JavaScript source must survive arbitrary pipes, line breaks and literal backslashes.
 multiline=$(printf 'const value = "a|b";\\nconst literal = "\\\\n";\\nreturn value + literal;')
 multi64=$(printf '%s' "$multiline" | base64 | tr -d '\\n')
-multi_note=$(printf '%s' 'Multiline source' | base64 | tr -d '\\n')
+printf '\n[list:script]\n%s|Multiline source|1\n' "$escaped_multiline" >> "$PG/settings.conf"
 add_result=$(sh "$SCRIPT" add "$multi64" "$multi_note" 1 2>&1) || fail "multiline local source add failed: $add_result"
 [ "$add_result" = "OK" ] || fail "multiline local source add returned unexpected output: $add_result"
 stored_row=$(sh "$SCRIPT" list | sed -n '4p' | cut -d'|' -f1 | base64 -d)
