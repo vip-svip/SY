@@ -89,7 +89,9 @@ grep -Fq 'lens(18.dp.toPx(), 22.dp.toPx())' "$DESIGN_PANEL" || fail "Backdrop le
 grep -Fq '.layerBackdrop(backdrop)' "$DESIGN_PANEL" || fail "Backdrop source layer missing"
 grep -Fq 'never the glass cards that sample it' "$DESIGN_PANEL" || fail "Backdrop sampling layer is not isolated from sampled cards"
 if grep -Fq 'backdrop-filter:' "$ACTIVITY"; then fail "WebView CSS still claims to implement the native glass blur"; fi
-grep -Fq 'if ("classic".equals(uiMode))' "$ACTIVITY" || fail "classic and raw-WebUI modes are not visually distinguished"
+grep -Fq '"classic".equals(uiMode)' "$ACTIVITY" || fail "classic WebView mode must remain distinct while native Miuix/Glass are not CSS-emulated"
+grep -Fq 'Miuix and Liquid Glass' "$ACTIVITY" || fail "native renderer boundary is not documented"
+grep -Fq ': ""' "$ACTIVITY" || fail "Miuix/Glass must not be faked through injected WebView CSS"
 grep -q 'scripts/status.sh json' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook status reader does not request JSON"
 grep -q 'hook_native_notification_permission_hide_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits native notification permission-query status"
 grep -q 'hook_native_clipboard_isolate_enabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "native Hook hub omits clipboard isolation status"
