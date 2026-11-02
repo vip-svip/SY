@@ -22,6 +22,11 @@ grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN 
 grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
 grep -Fq 'sh \"$MP/scripts/status.sh\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
 grep -Fq 'sh \"$MP/scripts/apply.sh\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
+grep -Fq 'old_mode=$(pg_get vpn_mode direct)' "$ACTIVITY" || fail "native VPN mode change does not snapshot previous mode"
+grep -Fq 'pg_set vpn_mode \"$old_mode\"' "$ACTIVITY" || fail "native VPN mode failure does not restore previous mode"
+grep -Fq 'old_node=$(pg_get vpn_node' "$ACTIVITY" || fail "native VPN node change does not snapshot previous node"
+grep -Fq 'pg_set vpn_node \"$old_node\"' "$ACTIVITY" || fail "native VPN node failure does not restore previous node"
+grep -Fq 'new_mode\" != tun' "$ACTIVITY" || fail "native TUN mode is not guarded when no node is selected"
 python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
