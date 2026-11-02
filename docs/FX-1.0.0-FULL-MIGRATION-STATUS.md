@@ -1,3 +1,14 @@
+## Native privacy settings migration progress (2026-11-03)
+
+- Current branch source revision: `73adacc20ae5442c5edba70d50867913df079162` (same source tree as CI revision `b073b1dc9ee3d0361fcbd30ee5e20e692094b98f`).
+- Added `fx-patches/patch_native_privacy_settings.py`: generates the 12 native privacy category metadata panels from the restored canonical WebUI source, but only includes settings that are declared as top-level boolean flags in the module's `scripts/default.conf`. Section settings and editable values are intentionally excluded from switch generation.
+- Added `fx-patches/native-privacy-settings.sh`: validates allowlisted top-level boolean keys, refuses writes during known settings transaction markers, writes through the module's existing `pg_set`, and invokes `scripts/apply.sh fast`. Its result distinguishes persisted-but-not-applied (exit 10) from a confirmed save/apply.
+- Updated the native privacy category dialog in `MainActivity.java`: reads generated metadata and the module's real `/data/adb/privacyguard/settings.conf` through the Root command path, then writes changes through the module helper. The advanced-category toggle path no longer reads or writes the hidden WebView DOM.
+- Added `scripts/tests/fx-native-privacy-settings-regression.sh` and integrated the generator/test into both Hook APK and KernelSU source-patch workflows.
+- CI evidence at the time of this entry: KernelSU run `41517471761` passed the complete source compatibility patch step (including the new privacy regression) and QuickJS build step; package build was still running. Hook APK run `41517471775` passed source restoration/Hook merge and static migration checks; complete host regression and APK compilation were still running. Do not mark either full artifact build complete until the workflows finish successfully.
+- Migration status remains **partial migration**: this implementation covers only top-level boolean settings that pass the schema generator. Section-scoped settings, text/list/choice editors, non-boolean privacy operations and the rest of the six-page native migration remain unfinished. Existing WebView-backed settings code outside the migrated category-toggle path has not been removed.
+- Verification level: regression exercised in CI source-patch step on the same source tree; Java/Kotlin compilation and complete artifact build pending at this entry; no real-device verification.
+
 # FX 1.0.0 Full Migration Status
 
 > Baseline audit: 2026-11-03 (Asia/Tokyo)
