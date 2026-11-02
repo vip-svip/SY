@@ -581,7 +581,7 @@ public final class MainActivity extends Activity {
     private void addModeOption(RadioGroup group, int id, String title, String detail) {
         RadioButton option = new RadioButton(this);
         option.setId(id);
-        option.setText(title + "\\n" + detail);
+        option.setText(title + "\n" + detail);
         option.setTextSize(15);
         option.setPadding(dp(14), dp(10), dp(14), dp(10));
         option.setMinHeight(dp(64));
@@ -906,7 +906,7 @@ public final class MainActivity extends Activity {
     }
     private TextView title(String value, int size) {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size);
-        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(0xff17212b);
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor("glass".equals(uiMode) ? 0xff24394c : "miuix".equals(uiMode) ? 0xff202b3c : 0xff17212b);
         t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
     }
     private void base(String heading) {
