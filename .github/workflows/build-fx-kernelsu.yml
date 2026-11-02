@@ -101,6 +101,8 @@ jobs:
           python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
           python3 fx-patches/patch_vpn_toggle_mobile_layout.py fx-module
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-mobile-layout-regression.sh
+          python3 fx-patches/patch_vpn_toggle_transparent.py fx-module
+          sh scripts/tests/fx-vpn-transparent-toggle-regression.sh fx-module/webroot/index.html
           python3 fx-patches/patch_vpn_toggle_live_state.py fx-module
           sh fx-module/scripts/tests/v1.0.0-vpn-toggle-live-state-regression.sh
           sh fx-module/scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh
