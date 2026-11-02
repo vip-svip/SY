@@ -37,7 +37,7 @@ grep -Fq "var externalUid=String(window.__pgExternalVpnOwnerUid||'').replace(/[^
 grep -Fq "var suspended=configured&&(externalUnknown||(externalDetected&&(mode==='tun'||!compat||!externalUid)));" "$HTML"
 ! grep -Fq "configured=mode!=='direct',suspended=false" "$HTML"
 grep -Fq "b.classList.toggle('suspended',suspended)" "$HTML"
-grep -Fq "b.setAttribute('aria-pressed',(configured&&!suspended)?'true':'false')" "$HTML"
+grep -Fq "b.setAttribute('aria-pressed',(configured&&liveKnown&&liveOn&&!suspended)?'true':'false')" "$HTML"
 echo 'FX VPN master switch external-tunnel state regression: PASS'
 ''', encoding="utf-8")
 test.chmod(0o755)
