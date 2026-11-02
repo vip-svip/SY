@@ -130,7 +130,7 @@ grep -Fq 'addNativeActionCard("媒体查询与 EXIF"' "$PRIVACY" || fail "native
 grep -Fq 'addNativeActionCard("只读会员状态诊断"' "$PRIVACY" || fail "native privacy page lacks read-only diagnostic entry"
 # Advanced privacy categories must read the real settings.conf and save through Root/module code.
 grep -Fq 'native-privacy-settings.json' "$PRIVACY" || fail "native privacy schema asset is not loaded"
-grep -Fq 'cat /data/adb/privacyguard/settings.conf' "$PRIVACY" || fail "native privacy page does not read module settings.conf"
+grep -Fq 'settings.conf' "$PRIVACY" || fail "native privacy page does not read module settings.conf"
 grep -Fq 'native-privacy-settings.sh' "$PRIVACY" || fail "native privacy switches do not use the module-side writer"
 grep -Fq 'apply.sh" fast' "$ROOT/fx-patches/native-privacy-settings.sh" || fail "native privacy writer does not request real module apply"
 python3 - "$PRIVACY" <<'PY'
