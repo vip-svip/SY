@@ -26,7 +26,7 @@ case "${1:-}" in
       exit 2
     fi
     # Never race an in-progress WebUI transaction or overwrite a damaged transaction.
-    for marker in "$CONF.tmp" "$CONF.txn" "$CONF.bak.tmp" "$CONF.recover"; do
+    for marker in "$CONF.tmp" "$CONF.tmp."* "$CONF.txn" "$CONF.txn.tmp" "$CONF.bak" "$CONF.bak.tmp" "$CONF.recover" "$CONF.tmp3"; do
       [ ! -e "$marker" ] || { echo "settings.conf transaction busy; retry" >&2; exit 75; }
     done
     . "$MP/scripts/util.sh"
