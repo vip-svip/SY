@@ -215,8 +215,16 @@ import json, sys
 data=json.load(open(sys.argv[1], encoding="utf-8"))
 panels=data.get("panels", [])
 assert data.get("schema_version")==1
-assert len(panels)==12, "APK native privacy panel schema is incomplete"
+expected = {
+    "vpnPanel", "rootPanel", "advPanel", "netPanel", "permPanel", "sensorPanel",
+    "locationPanel", "devicePanel", "mediaPanel", "filePanel", "notifyPanel",
+    "kernelPanel", "miscPanel",
+}
+actual = {p.get("id") for p in panels}
+assert actual == expected, "APK native settings schema is incomplete: missing=" + repr(sorted(expected-actual)) + " unexpected=" + repr(sorted(actual-expected))
+assert len(panels)==13, "APK native settings schema must contain VPN plus 12 privacy panels"
 assert sum(len(p.get("items", [])) for p in panels)>=90, "APK native privacy controls are incomplete"
+assert all(p.get("items") for p in panels), "APK contains an empty native settings panel"
 PY
 grep -Fq 'data-tab="ad"' "$WEBUI_FILE" || fail "embedded WebUI Ad compatibility tab missing"
 grep -Fq "document.getElementById('pageHosts').classList.toggle('on',t==='ad')" "$WEBUI_FILE" || fail "embedded Ad tab no longer activates merged Hosts content"
