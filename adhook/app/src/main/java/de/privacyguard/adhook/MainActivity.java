@@ -181,8 +181,10 @@ public final class MainActivity extends Activity {
         rootStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
         rootStatus.setTextColor(0xffd8e0e8);
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
+        rootStatus.setMaxWidth(dp(132));
+        rootStatus.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
-        toolbar.addView(rootStatus);
+        toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
         if (webView == null) {
