@@ -85,6 +85,7 @@ public final class MainActivity extends ComponentActivity {
     private LinearLayout nativeVpnSubRows;
     private TextView nativeVpnSubStatus;
     private int nativeVpnSubOperationGeneration;
+    private AlertDialog nativeCertificateDialog;
     private boolean syncingNativeVpn;
     private boolean nativeVpnOperationBusy;
     private String lastNativeVpnMode = "direct";
@@ -2649,14 +2650,18 @@ public final class MainActivity extends ComponentActivity {
         list.addView(summary);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
-        new AlertDialog.Builder(this).setTitle("系统 CA 管理")
+        nativeCertificateDialog = new AlertDialog.Builder(this).setTitle("系统 CA 管理")
                 .setView(scroll)
                 .setNeutralButton("同步信任状态", (d, w) -> runNativeCertificateAction("sync", null))
                 .setPositiveButton("刷新", (d, w) -> showNativeCertificateManager())
-                .setNegativeButton("关闭", null).show();
+                .setNegativeButton("关闭", null).create();
+        nativeCertificateDialog.show();
     }
 
     private void runNativeCertificateAction(String action, String id) {
+        if (nativeCertificateDialog != null && nativeCertificateDialog.isShowing()) {
+            nativeCertificateDialog.dismiss();
+        }
         if (!"enable".equals(action) && !"disable".equals(action)
                 && !"remove".equals(action) && !"sync".equals(action)) return;
         String command = "sh \"$MP/scripts/certmgr.sh\" builtin " + action
