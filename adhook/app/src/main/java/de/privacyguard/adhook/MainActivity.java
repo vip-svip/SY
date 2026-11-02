@@ -594,6 +594,8 @@ public final class MainActivity extends ComponentActivity {
                 boolean configured = !"direct".equals(mode);
                 boolean liveKnown = state.optBoolean("liveKnown", false);
                 boolean liveOn = state.optBoolean("liveOn", false);
+                boolean operationBusy = state.optBoolean("busy", false);
+                String operationError = state.optString("lastError", "");
                 syncingNativeVpn = true;
                 nativeVpnSwitch.setChecked(configured && liveKnown && liveOn);
                 syncingNativeVpn = false;
@@ -603,8 +605,12 @@ public final class MainActivity extends ComponentActivity {
                         : liveOn ? "后端确认：代理正在运行" : "代理模式已选择，但后端未运行";
                 String node = state.optString("node", "");
                 nativeVpnState.setText("模式：" + modeLabel + " · " + live
-                        + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
+                        + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置")
+                        + (operationBusy ? " · 正在应用…" : "")
+                        + (operationError.isEmpty() ? "" : " · 失败：" + operationError));
+                nativeVpnSwitch.setEnabled(!operationBusy);
                 if (nativeVpnNodeButton != null) {
+                    nativeVpnNodeButton.setEnabled(!operationBusy);
                     String nodeName = "尚未选择节点";
                     org.json.JSONArray nodes = state.optJSONArray("nodes");
                     if (nodes != null) for (int i = 0; i < nodes.length(); i++) {
@@ -620,6 +626,7 @@ public final class MainActivity extends ComponentActivity {
                 for (int i = 0; i < nativeVpnModeButtons.size() && i < modes.length; i++) {
                     boolean active = modes[i].equals(mode);
                     Button b = nativeVpnModeButtons.get(i);
+                    b.setEnabled(!operationBusy);
                     b.setSelected(active);
                     b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
                             active ? 0xffdcecff : 0xffeef2f5));
