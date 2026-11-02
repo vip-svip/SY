@@ -977,6 +977,22 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", () -> showAppList("通知保护"));
         addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", () -> showAppList("媒体隐私"));
         addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", () -> showAppList("会员诊断"));
+
+        // These are privacy/security policies, not application preferences.
+        // Keep their native controls on the Privacy destination where users expect them.
+        section("高级隐私与系统防护");
+        addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
+        addNativeSettingsCategory("高级网络防护", "advPanel");
+        addNativeSettingsCategory("网络隐私", "netPanel");
+        addNativeSettingsCategory("权限与 API", "permPanel");
+        addNativeSettingsCategory("传感器", "sensorPanel");
+        addNativeSettingsCategory("位置隐私", "locationPanel");
+        addNativeSettingsCategory("设备标识", "devicePanel");
+        addNativeSettingsCategory("音频 / 相机 / 媒体", "mediaPanel");
+        addNativeSettingsCategory("文件与存储", "filePanel");
+        addNativeSettingsCategory("通知与剪贴板", "notifyPanel");
+        addNativeSettingsCategory("内核防护", "kernelPanel");
+        addNativeSettingsCategory("其他系统隐私", "miscPanel");
     }
 
     private void refreshNativePrivacyStatus(TextView target) {
@@ -1022,6 +1038,7 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
+        actions.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
         content.addView(actions);
         refreshNativeScriptList(rows, status);
     }
@@ -1293,6 +1310,8 @@ public final class MainActivity extends ComponentActivity {
                 content.addView(vpnIntro);
                 buildNativeVpnControls();
                 content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
+                section("VPN / DNS / 分流策略");
+                addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel");
                 buildNativeVpnSubscriptionPanel();
                 addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
                 syncNativeVpnControls();
@@ -2239,20 +2258,8 @@ public final class MainActivity extends ComponentActivity {
         });
         content.addView(designModePanel,
                 new LinearLayout.LayoutParams(-1, dp(360)));
-        section("高级功能设置");
-        addNativeSettingsCategory("VPN / DNS / 分流", "vpnPanel");
-        addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
-        addNativeSettingsCategory("高级网络防护", "advPanel");
-        addNativeSettingsCategory("网络隐私", "netPanel");
-        addNativeSettingsCategory("权限与 API", "permPanel");
-        addNativeSettingsCategory("传感器", "sensorPanel");
-        addNativeSettingsCategory("位置隐私", "locationPanel");
-        addNativeSettingsCategory("设备标识", "devicePanel");
-        addNativeSettingsCategory("音频 / 相机 / 媒体", "mediaPanel");
-        addNativeSettingsCategory("文件与存储", "filePanel");
-        addNativeSettingsCategory("通知与剪贴板", "notifyPanel");
-        addNativeSettingsCategory("内核防护", "kernelPanel");
-        addNativeSettingsCategory("其他系统隐私", "miscPanel");
+        // Settings is reserved for app-wide preferences and diagnostics.
+        // Operational VPN/privacy controls live on their matching primary tabs.
         section("模块与运行状态");
         TextView runtimeStatus = new TextView(this);
         runtimeStatus.setText("点击刷新，读取设备端 FX 模块状态。");
@@ -2287,9 +2294,6 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         content.addView(appDetails);
-        section("DNS 与证书");
-        content.addView(nativeAction("查看 DNS / MITM / CA 状态", this::showNativeMitmStatus));
-        content.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
         section("运行日志");
         content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
     }
