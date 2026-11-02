@@ -70,7 +70,6 @@ public final class MainActivity extends ComponentActivity {
     private String selectedPackage;
     private String selectedLabel;
     private WebView webView;
-    private androidx.compose.ui.platform.ComposeView nativeDashboard;
     private RootBridge rootBridge;
     private TextView rootStatus;
     private LinearLayout nativeVpnControls;
@@ -209,8 +208,8 @@ public final class MainActivity extends ComponentActivity {
     private void showWebDashboard() {
         cancelHookStatusRefresh();
         cancelAppIconLoad();
-        stopNativeVpnPolling();
         settingsUiVisible = false;
+        // A restored target is only valid while the app-list restoration is still active.
         pendingRestorePackage = null;
         hookUiVisible = false;
         hookTargetVisible = false;
@@ -218,50 +217,211 @@ public final class MainActivity extends ComponentActivity {
         selectedBottomTab = lastWebTabIndex;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(uiBackgroundColor());
+        root.setBackgroundColor(0xfff4f6f8);
 
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(16), dp(10), dp(14), dp(10));
-        toolbar.setBackground(roundedDrawable(uiSurfaceColor(), "glass".equals(uiMode) ? 0x66ffffff : 0));
+        toolbar.setPadding(dp(14), dp(6), dp(10), dp(6));
+        toolbar.setBackgroundColor(0xff101820);
         TextView brand = new TextView(this);
         brand.setText("FX");
-        brand.setTextSize(21);
+        brand.setTextSize(20);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        brand.setTextColor(0xff17212b);
+        brand.setTextColor(0xffffffff);
         toolbar.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
         rootStatus = new TextView(this);
-        rootStatus.setText("设备状态检查中");
-        rootStatus.setTextSize(11);
+        rootStatus.setText("Root 检查中");
+        rootStatus.setTextSize(10);
         rootStatus.setMaxLines(2);
         rootStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        rootStatus.setTextColor(0xff667784);
+        rootStatus.setTextColor(0xffd8e0e8);
         rootStatus.setPadding(dp(8), dp(8), dp(8), dp(8));
-        rootStatus.setMaxWidth(dp(156));
+        rootStatus.setMaxWidth(dp(132));
         rootStatus.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         rootStatus.setOnClickListener(v -> checkRoot(rootStatus, true));
-        toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(156), -2));
-        LinearLayout.LayoutParams toolbarLp = new LinearLayout.LayoutParams(-1, -2);
-        toolbarLp.setMargins(dp(12), dp(8), dp(12), dp(4));
-        root.addView(toolbar, toolbarLp);
+        toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));
+        root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
+        buildNativeVpnControls();
+        nativeVpnControls.setVisibility(lastWebTabIndex == 0 ? View.VISIBLE : View.GONE);
+        root.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
 
-        nativeDashboard = new androidx.compose.ui.platform.ComposeView(this);
-        androidx.lifecycle.ViewTreeLifecycleOwner.set(nativeDashboard, this);
-        androidx.lifecycle.ViewTreeViewModelStoreOwner.set(nativeDashboard, this);
-        androidx.savedstate.ViewTreeSavedStateRegistryOwner.set(nativeDashboard, this);
-        FxNativeDashboardKt.installFxNativeDashboard(nativeDashboard, lastWebTabIndex,
-                uiMode, () -> { showAppList(); return kotlin.Unit.INSTANCE; },
-                () -> { showSettings(); return kotlin.Unit.INSTANCE; });
-        root.addView(nativeDashboard, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (webView == null) {
+        webUiReady = false;
+        webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(true); // only user-selected content:// URIs are exposed by the native picker
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setSupportMultipleWindows(false);
+        settings.setSafeBrowsingEnabled(true);
+
+        WebViewAssetLoader.AssetsPathHandler fallback =
+                new WebViewAssetLoader.AssetsPathHandler(MainActivity.this);
+        WebViewAssetLoader.PathHandler handler = assetPath -> {
+            if ("webroot/index.html".equals(assetPath)) {
+                try (InputStream in = getAssets().open(assetPath);
+                     ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                    String html = new String(out.toByteArray(), StandardCharsets.UTF_8);
+                    String shim = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'\">"
+                        + "<script>(function(){var seq=0;window.ksu={exec:function(cmd,opts,cb){if(typeof cb==='string'){FXRoot.exec(String(cmd),cb);return null;}return new Promise(function(resolve){var n='__fxPromise_'+(++seq);window[n]=function(errno,stdout,stderr){resolve({errno:errno,stdout:stdout,stderr:stderr});};FXRoot.exec(String(cmd),n);});},fullScreen:function(){},enableEdgeToEdge:function(){}};window.KernelSU=window.ksu;window.FXNative={openHookManager:function(){FXRoot.openHookManager();}};window.showSaveFilePicker=async function(opts){var name=(opts&&opts.suggestedName)||'FX-export.txt';return {createWritable:async function(){var value='';return {write:async function(v){value=v;},close:async function(){var blob=value instanceof Blob?value:new Blob([value],{type:'text/plain;charset=utf-8'});var reader=new FileReader();reader.onloadend=function(){var data=String(reader.result||'').split(',').pop();FXRoot.saveBase64(name,data,blob.type||'text/plain');};reader.readAsDataURL(blob);}};}};};})();</script>";
+                    int headEnd = html.toLowerCase().lastIndexOf("</head>");
+                    if (headEnd >= 0) html = html.substring(0, headEnd)
+                            + "<style id='fx-native-nav-hide'>"
+                            + "#screen>.navbar,#screen .navbar,#bottomNav,#bottom-nav,.bottom-nav,"
+                            + ".bottom-navbar,.bottom-tabs,.bottom-tab-bar,.tab-bar,.tabbar,"
+                            + ".nav-bottom,.navigation-bottom{display:none!important}"
+                            + "#screen{padding-bottom:0!important;margin-bottom:0!important}"
+                            + "#vpnStatusCard .vpn-toggle-wrap,#vpnModeSeg{display:none!important}"
+                            + "</style>"
+                            + shim + html.substring(headEnd);
+                    return new WebResourceResponse("text/html", "UTF-8",
+                            new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                } catch (Exception e) {
+                    return new WebResourceResponse("text/plain", "UTF-8",
+                            new ByteArrayInputStream(("FX UI asset error: " + e).getBytes(StandardCharsets.UTF_8)));
+                }
+            }
+            return fallback.handle(assetPath);
+        };
+        WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", handler).build();
+        rootBridge = new RootBridge(this, webView);
+        webView.addJavascriptInterface(rootBridge, "FXRoot");
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
+            @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
+                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
+            @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+                EditText input = new EditText(MainActivity.this);
+                input.setText(defaultValue);
+                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)
+                        .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm(input.getText().toString()))
+                        .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel()).show();
+                return true;
+            }
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                ValueCallback<Uri[]> previous = fileChooserCallback;
+                fileChooserCallback = null;
+                deliverFileChooserResult(previous, null);
+                fileChooserCallback = callback;
+                try {
+                    Intent intent = params.createIntent();
+                    startActivityForResult(intent, REQUEST_FILE_PICKER);
+                    return true;
+                } catch (Exception e) {
+                    // WebView requires every accepted file-chooser callback to be completed,
+                    // including the failure path; otherwise the page can remain stuck waiting.
+                    ValueCallback<Uri[]> pending = fileChooserCallback;
+                    fileChooserCallback = null;
+                    deliverFileChooserResult(pending, null);
+                    Toast.makeText(MainActivity.this, "无法打开文件选择器：" + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                    return true;
+                }
+            }
+        });
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                String scheme = uri.getScheme();
+                if ("data".equalsIgnoreCase(scheme) || "blob".equalsIgnoreCase(scheme)) return null;
+                if (!isTrustedAssetUrl(uri)) {
+                    return new WebResourceResponse("text/plain", "UTF-8",
+                            new ByteArrayInputStream(new byte[0]));
+                }
+                return loader.shouldInterceptRequest(uri);
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                // addJavascriptInterface is visible to every frame. Refuse iframe and
+                // off-origin document navigations so only the packaged UI can reach RootBridge.
+                return !request.isForMainFrame() || !isTrustedDocumentUrl(request.getUrl());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return !isTrustedDocumentUrl(Uri.parse(url));
+            }
+            @Override public void onReceivedError(WebView view, WebResourceRequest request,
+                    WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    webUiReady = false;
+                    webViewLoaded = false;
+                    pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+                    Toast.makeText(MainActivity.this,
+                            "FX 页面加载失败，点击底部任一标签可重试。",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                    WebResourceResponse response) {
+                super.onReceivedHttpError(view, request, response);
+                if (request.isForMainFrame() && response.getStatusCode() >= 400) {
+                    webUiReady = false;
+                    webViewLoaded = false;
+                    pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+                    Toast.makeText(MainActivity.this,
+                            "FX 页面资源异常（HTTP " + response.getStatusCode()
+                                    + "），点击底部任一标签可重试。",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (isTrustedDocumentUrl(Uri.parse(url))) {
+                    webUiReady = true;
+                    applyWebUiMode();
+                    syncNativeVpnControls();
+                    startNativeVpnPolling();
+                    if (pendingWebPage != null) {
+                        String pending = pendingWebPage;
+                        pendingWebPage = null;
+                        navigateWebPage(pending);
+                    }
+                }
+            }
+        });
+        } else {
+            ViewParent parent = webView.getParent();
+            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
+            webView.onResume();
+            webView.resumeTimers();
+        }
+        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         mountNativeShell(root);
-        checkRoot(rootStatus, false);
-    }
-
-    private void renderNativeDashboard(int index) {
-        if (nativeDashboard == null) return;
-        FxNativeDashboardKt.installFxNativeDashboard(nativeDashboard, index,
-                uiMode, () -> { showAppList(); return kotlin.Unit.INSTANCE; },
-                () -> { showSettings(); return kotlin.Unit.INSTANCE; });
+        // The WebView is detached while native Hook/Settings screens are visible.
+        // Re-apply the persisted mode only after it has been resumed and reattached.
+        if (webUiReady) applyWebUiMode();
+        if (!webViewLoaded) {
+            checkRoot(rootStatus, false, () -> {
+                if (!webViewLoaded) {
+                    webView.loadUrl("https://appassets.androidplatform.net/assets/webroot/index.html");
+                    webViewLoaded = true;
+                }
+            });
+        } else {
+            checkRoot(rootStatus, false);
+        }
+        startNativeVpnPolling();
     }
 
     private void startNativeVpnPolling() {
@@ -602,8 +762,11 @@ public final class MainActivity extends ComponentActivity {
         } else if (index >= 0 && index <= 3) {
             selectedBottomTab = index;
             lastWebTabIndex = index;
-            if (hookUiVisible || settingsUiVisible || nativeDashboard == null) showWebDashboard();
-            else renderNativeDashboard(index);
+            if (nativeVpnControls != null) nativeVpnControls.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+            if (index == 0) syncNativeVpnControls();
+            String page = new String[]{"pageVpn", "pageHosts", "pagePrivacy", "pageScript"}[index];
+            if (hookUiVisible || settingsUiVisible) showWebDashboard();
+            navigateWebPage(page);
         }
     }
 
@@ -799,7 +962,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("六个主导航正在统一迁移为原生界面。经典、Miuix 与 Liquid Glass 模式只影响已完成原生化的页面；未接入的模块状态会明确显示待迁移，不会伪装成已生效。");
+        note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。当前先迁移设置中的模式选择器，其他页面将按模块逐步迁移；Web 管理内容仍是独立 WebView。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
@@ -824,41 +987,19 @@ public final class MainActivity extends ComponentActivity {
         content.addView(designModePanel,
                 new LinearLayout.LayoutParams(-1, dp(360)));
         section("其他设置");
-        section("模块与服务");
-        addNativeSettingEntry("VPN 与网络", "连接模式、节点、DNS 与网络诊断", "网络设置入口已原生化；后端功能按验收后续接入。");
-        addNativeSettingEntry("Hosts 与过滤", "本地 Hosts、订阅规则、白名单与回滚", "请从底部 Ad 页面进入统一管理。");
-        addNativeSettingEntry("隐私与权限", "应用级保护、LSPosed 与无障碍授权", "请从底部隐私或 Hook 页面进入。");
-        addNativeSettingEntry("脚本与 MITM", "脚本管理、运行日志、证书状态", "脚本 UI 已迁移，运行后端将在 UI 验收后接入。");
-        section("模块状态");
-        TextView moduleState = new TextView(this);
-        moduleState.setText("FX 1.0.0 · KernelSU 模块状态由设备端检查结果提供。此页面不再跳转到网页管理界面。");
-        moduleState.setTextColor(0xff66727e);
-        moduleState.setPadding(dp(18), dp(8), dp(18), dp(12));
-        content.addView(moduleState);
-    }
-
-    private void addNativeSettingEntry(String title, String summary, String detail) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(16), dp(13), dp(16), dp(13));
-        row.setBackground(uiPanelDrawable());
-        TextView heading = new TextView(this);
-        heading.setText(title);
-        heading.setTextSize(15);
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setTextColor(0xff17212b);
-        TextView caption = new TextView(this);
-        caption.setText(summary);
-        caption.setTextSize(12);
-        caption.setTextColor(0xff718091);
-        row.addView(heading);
-        row.addView(caption);
-        row.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle(title).setMessage(detail)
-                .setPositiveButton("知道了", null).show());
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.setMargins(dp(12), dp(4), dp(12), dp(4));
-        content.addView(row, lp);
+        TextView legacyHint = new TextView(this);
+        legacyHint.setText("VPN、Hosts、隐私、脚本及证书等完整管理选项仍保留在原有设置页面。");
+        legacyHint.setTextColor(0xff66727e);
+        legacyHint.setPadding(dp(18), dp(4), dp(18), dp(8));
+        content.addView(legacyHint);
+        Button fullSettings = new Button(this);
+        fullSettings.setText("打开完整设置页面");
+        fullSettings.setOnClickListener(v -> {
+            lastWebTabIndex = 5;
+            showWebDashboard();
+            navigateWebPage("pageMore");
+        });
+        content.addView(fullSettings);
     }
 
     private void refreshHookRemoteStatus(TextView target) {
@@ -1073,7 +1214,8 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private String normalizeUiMode(String mode) {
-        if ("miuix".equals(mode) || "glass".equals(mode) || "classic".equals(mode)) return mode;
+        if ("miuix".equals(mode) || "glass".equals(mode) || "web".equals(mode)
+                || "classic".equals(mode)) return mode;
         return "classic";
     }
 
