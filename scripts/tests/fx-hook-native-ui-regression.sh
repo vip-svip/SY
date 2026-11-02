@@ -265,5 +265,6 @@ grep -Fq 'pgPersistNow().then(function(ok)' "$main_activity"
 # A failed script toggle must restore the visible switch instead of leaving a false enabled state.
 grep -Fq 'restoreNativeScriptSwitch(index, control, previous, rows, status)' "$main_activity"
 grep -Fq 'setNativeScriptEnabled(index, checked, rows, status, control, previous)' "$main_activity"
-grep -Fq 'pollNativeScriptSwitch(control, previous, rows, status, 0)' "$main_activity"
+grep -Fq 'pollNativeScriptSwitch(index, control, previous, enabled, rows, status, 0)' "$main_activity"
+grep -Fq 'setNativeScriptEnabled(index, checked, rows, status, control, enabled)' "$main_activity"
 grep -Fq '脚本状态保存失败，已恢复原状态' "$main_activity"
