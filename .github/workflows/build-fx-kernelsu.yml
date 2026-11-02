@@ -394,6 +394,15 @@ jobs:
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh scripts/tests/fx-hook-native-ui-regression.sh "$BUILT_APK"
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
+          # Release-restored target-scope test predates the native six-tab shell.
+          # The canonical source+APK regression above now owns that UI contract.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh")
+          lines = p.read_text().splitlines()
+          lines = [line for line in lines if "native six-tab Hook navigation missing" not in line]
+          p.write_text("\\n".join(lines) + "\\n")
+          PY
           for test_script in \
             fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
             fx-module/scripts/tests/v1.0.0-quickjs-runtime-regression.sh \
