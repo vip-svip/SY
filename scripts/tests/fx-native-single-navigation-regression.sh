@@ -19,3 +19,8 @@ grep -Fq 'fontWeight = FontWeight.Bold' "$SHELL"
 grep -Fq 'rootStatus.setMaxWidth(dp(132));' "$JAVA"
 grep -Fq 'toolbar.addView(rootStatus, new LinearLayout.LayoutParams(dp(132), -2));' "$JAVA"
 echo 'FX native single-navigation and WebUI route regression: PASS'
+grep -Fq "if(!page||!page.children.length)return false;" "$JAVA"
+grep -Fq "var pages=document.querySelectorAll('#screen .page');" "$JAVA"
+grep -Fq "page.classList.add('on');page.scrollTop=0;" "$JAVA"
+grep -Fq "navItems[n].classList.toggle('on',navItems[n].getAttribute('data-tab')===navTab);" "$JAVA"
+grep -Fq "getComputedStyle(page).display!=='none'" "$JAVA"
