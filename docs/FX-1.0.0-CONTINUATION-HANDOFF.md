@@ -94,3 +94,32 @@ Branch checkpoint at this update: `35514f004a15fc870446e2c195d50a2de5c7f805`.
 - No final build was intentionally started for this batch.
 - No OnePlus 12 real-device verification is recorded.
 - No final APK/KernelSU ZIP should be published yet.
+
+
+## Latest continuation update — 2026-11-04
+
+Branch checkpoint before this handoff update: `cf173a06233262f43738a3aee23d2db132e51f0c`.
+
+### Changes in this continuation batch
+
+- Replaced the restored-release subscription cache `mkdir` lock with a POSIX `noclobber` exclusive file lock. The new patcher is `fx-patches/patch_subfetch_file_lock.py`; it rejects symlinks, writes the owner PID atomically with mode 0600, verifies owner identity before atomic rename/release, and conservatively recognizes old PID-bearing directory locks during upgrades. The patcher is run twice by `scripts/tests/fx-atomic-cache-lock-release-regression.sh` to verify idempotency. The canonical two-worker regression now keeps the first mocked transfer blocked until the second worker has had time to contend and checks that no second transfer starts early. The final assertion checks that no lock file/directory/symlink remains.
+- A local Linux Shell reproduction using the same `subfetch.sh` and a gated mock curl passed: one request entered while the first transfer was held; the second began only after release; both forced refreshes completed in order, the cache retained the second response, and the lock pathname was removed. This is local host validation only; CI must still confirm the restored Release module source passes the full regression repeatedly.
+- Dia 23.11 Frida script library now supports SAF JSON file import/export with a schema check, 1 MiB total limit, 64-script limit and 128 KiB per-script limit. Imported source is stored locally and never auto-executed.
+- Frida script-library export now stages JSON in app-private cache. Activity saved state retains only a validated staged filename, not up to 1 MiB JSON bytes. The SAF callback streams the staged file, then deletes it; cancellation, invalid staged paths and launch errors also clean the file. Old abandoned temp files older than 24 hours are removed without deleting a recent pending export.
+- Updated `scripts/tests/fx-dia-frida-script-library-saf-regression.sh` to guard private-cache staging, rotation filename restore, streamed export and the absence of JSON payload in Activity Bundle state.
+- Fixed the Dia global-settings regression script structure so the original hidden console preference assertions are outside the preference-key tuple.
+
+### Current validation state
+
+- Latest Actions run at checkpoint: `41698321368`, commit `cf173a06233262f43738a3aee23d2db132e51f0c`; at this update it has completed source restoration and is running static migration checks. No outcome is inferred while it is still running.
+- No Gradle/APK build result, install test or real-device result is claimed for this batch. The build/compile stage is only reachable after static migration checks and the complete host regression suite pass.
+- No final APK or KernelSU ZIP was generated or delivered.
+
+### Next actions
+
+1. Resolve any failure from run `41698321368`; specifically verify the restored-release file-lock patch and all repeated subscription/Hosts contention tests.
+2. Only after host regression passes, review the Gradle APK compilation result and inspect its artifacts/logs.
+3. Continue Dia Frida original listener/message/console behavior against the 23.11 smali, then map remaining unported Dia pages.
+4. Continue Yulong AdBlock Trie/Bloom compatibility and per-app DNS counters; do not relabel UID traffic bytes as DNS query counts.
+5. Continue Shield Stellar Binder request/confirmation/response and original ProtectService semantics.
+6. Keep real-device validation marked incomplete until installed and exercised on the target OnePlus 12; do not produce the final paired APK/KernelSU ZIP before all migrations and acceptance gates pass.
