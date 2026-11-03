@@ -85,16 +85,23 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
         try {
             worker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(command(args), 90000L, 512 * 1024);
+                RootAccess.Result result;
+                try {
+                    result = RootAccess.execute(command(args), 90000L, 512 * 1024);
+                } catch (Throwable failure) {
+                    result = RootAccess.failure(127,
+                            failure.getClass().getSimpleName() + ": " + String.valueOf(failure.getMessage()));
+                }
+                final RootAccess.Result completed = result;
                 runOnUiThread(() -> {
-                    if (!destroyed && !isFinishing() && !isDestroyed()) callback.accept(result);
+                    if (!destroyed && !isFinishing() && !isDestroyed()) callback.accept(completed);
                 });
             });
         } catch (RejectedExecutionException full) {
             runOnUiThread(() -> {
                 if (!destroyed && !isFinishing() && !isDestroyed()) {
                     status.setText("Root 操作队列已满，请稍后重试。");
-                    callback.accept(RootAccess.execute(""));
+                    callback.accept(RootAccess.failure(75, "Root 操作队列已满，请稍后重试。"));
                 }
             });
         }
