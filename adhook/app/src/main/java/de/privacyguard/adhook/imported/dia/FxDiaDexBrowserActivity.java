@@ -42,10 +42,14 @@ public final class FxDiaDexBrowserActivity extends Activity {
     private final ThreadPoolExecutor exportWorker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
             r -> new Thread(r, "fx-dia-dex-export"), new ThreadPoolExecutor.DiscardOldestPolicy());
+    private final ThreadPoolExecutor detailWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-dia-dex-detail"), new ThreadPoolExecutor.DiscardOldestPolicy());
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> appLabels = new HashMap<>();
     private int searchGeneration;
     private int exportGeneration;
+    private int detailGeneration;
     private int dexGeneration;
     private boolean appsLoading;
     private volatile boolean destroyed;
@@ -333,7 +337,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         row.addView(title);
         row.addView(detail);
         row.setBackgroundColor(0xffffffff);
-        row.setOnClickListener(v -> showClassMembers(item, hit.matches));
+        row.setOnClickListener(v -> showClassMembers(item));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(10), dp(2), dp(10), dp(2));
         results.addView(row, lp);
@@ -415,74 +419,101 @@ public final class FxDiaDexBrowserActivity extends Activity {
         }
     }
 
-    private void showClassMembers(FxDiaDexIndex.DexClass item, List<String> searchMatches) {
+    private void showClassMembers(FxDiaDexIndex.DexClass item) {
+        final int request = ++detailGeneration;
+        final String q = filter.getText() == null ? ""
+                : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
+        summary.setText("正在后台整理类成员和直接调用关系…");
+        try {
+            detailWorker.execute(() -> {
+                String built = buildClassDetail(item, q);
+                if (built == null || Thread.currentThread().isInterrupted()) return;
+                final String content = built;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed() || request != detailGeneration) return;
+                    EditText output = new EditText(this);
+                    output.setText(content);
+                    output.setSingleLine(false);
+                    output.setMinLines(10);
+                    output.setGravity(Gravity.TOP | Gravity.START);
+                    output.setTextIsSelectable(true);
+                    new AlertDialog.Builder(this).setTitle("DEX 成员 · " + item.javaName())
+                            .setView(output)
+                            .setNegativeButton("关闭", null)
+                            .setPositiveButton("复制签名", (dialog, which) -> {
+                                android.content.ClipboardManager clipboard =
+                                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                                if (clipboard != null) {
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                                            "DEX signatures", output.getText().toString()));
+                                }
+                            }).show();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 详情后台队列繁忙，请稍后重试。");
+        }
+    }
+
+    private String buildClassDetail(FxDiaDexIndex.DexClass item, String q) {
         StringBuilder detail = new StringBuilder();
-        detail.append(item.descriptor).append("\\n");
+        detail.append(item.descriptor).append('\n');
         detail.append("父类：").append(item.superDescriptor == null
-                ? "无/根类型" : item.superDescriptor).append("\\n");
+                ? "无/根类型" : item.superDescriptor).append('\n');
         if (!item.interfaces.isEmpty()) {
             detail.append("接口：");
             for (String iface : item.interfaces) detail.append(iface).append("  ");
-            detail.append("\\n");
+            detail.append('\n');
         }
         detail.append("字段：").append(item.fields.size()).append(" · 方法：")
                 .append(item.methods.size()).append(" · 调用边：").append(item.calls.size())
-                .append("\\n\\n");
-        List<FxDiaDexIndex.Member> source = new ArrayList<>();
+                .append("\n\n");
+        String className = item.javaName().toLowerCase(Locale.ROOT);
+        int count = 0;
+        boolean memberLimit = false;
+        List<FxDiaDexIndex.Member> source = new ArrayList<>(item.fields.size() + item.methods.size());
         source.addAll(item.fields);
         source.addAll(item.methods);
-        String q = filter.getText() == null ? "" : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int count = 0;
         for (FxDiaDexIndex.Member member : source) {
+            if (Thread.currentThread().isInterrupted()) return null;
             String line = member.display();
-            if (!q.isEmpty() && !item.javaName().toLowerCase(Locale.ROOT).contains(q)
-                    && !line.toLowerCase(Locale.ROOT).contains(q)) continue;
-            detail.append(line).append("\\n");
-            if (++count >= 400) {
-                detail.append("…成员显示达到 400 条上限，请缩小搜索范围。\\n");
+            if (!q.isEmpty() && !className.contains(q) && !line.toLowerCase(Locale.ROOT).contains(q)) continue;
+            if (count >= 400) {
+                memberLimit = true;
                 break;
             }
+            detail.append(line).append('\n');
+            count++;
         }
-        detail.append("\\n直接调用关系（DEX invoke 指令）：\\n");
+        if (memberLimit) detail.append("…成员显示达到 400 条上限，请缩小搜索范围。\n");
+
+        detail.append("\n直接调用关系（DEX invoke 指令）：\n");
         int callCount = 0;
         for (FxDiaDexIndex.CallSite call : item.calls) {
+            if (Thread.currentThread().isInterrupted()) return null;
             String line = call.display();
-            if (!q.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(q)
-                    && !item.javaName().toLowerCase(Locale.ROOT).contains(q)) continue;
-            detail.append(line).append("\\n");
-            if (++callCount >= 200) {
-                detail.append("…调用边显示达到 200 条上限。\\n");
+            if (!q.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(q) && !className.contains(q)) continue;
+            if (callCount >= 200) {
+                detail.append("…调用边显示达到 200 条上限。\n");
                 break;
             }
+            detail.append(line).append('\n');
+            callCount++;
         }
-        if (item.calls.isEmpty()) detail.append("没有可解析的直接调用边；抽象/native/无代码方法不会产生调用边。\\n");
-        EditText output = new EditText(this);
-        output.setText(detail.toString());
-        output.setSingleLine(false);
-        output.setMinLines(10);
-        output.setGravity(Gravity.TOP | Gravity.START);
-        output.setTextIsSelectable(true);
-        new AlertDialog.Builder(this).setTitle("DEX 成员 · " + item.javaName())
-                .setView(output)
-                .setNegativeButton("关闭", null)
-                .setPositiveButton("复制签名", (dialog, which) -> {
-                    android.content.ClipboardManager clipboard =
-                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                    if (clipboard != null) {
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                                "DEX signatures", output.getText().toString()));
-                    }
-                }).show();
+        if (item.calls.isEmpty()) detail.append("没有可解析的直接调用边；抽象/native/无代码方法不会产生调用边。\n");
+        return detail.toString();
     }
 
     @Override protected void onDestroy() {
         destroyed = true;
         searchGeneration++;
         exportGeneration++;
+        detailGeneration++;
         dexGeneration++;
         worker.shutdownNow();
         searchWorker.shutdownNow();
         exportWorker.shutdownNow();
+        detailWorker.shutdownNow();
         super.onDestroy();
     }
 }
