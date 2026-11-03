@@ -92,6 +92,12 @@ public final class FxYulongAdActivity extends Activity {
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
        txt("备用 DNS（故障回退）",12,0xff617080,true),fallbackServers,
        btn("保存备用 DNS",()->saveDnsServerList("fallback",fallbackServers)),
+       btn("清除备用 DNS",()->new AlertDialog.Builder(this).setTitle("清除备用 DNS")
+         .setMessage("清除故障回退服务器后，AdGuard Home 将不再使用备用 DNS。是否继续？")
+         .setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->root("dns-config-clear fallback",r->{
+           if(r.exitCode==0){fallbackServers.setText("");status.setText("备用 DNS 已清除。");}
+           else new AlertDialog.Builder(this).setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+         })).show()),
        txt("全局 DNS 替换",12,0xff617080,true),globalServers,
        btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
   EditText remoteDns=new EditText(this);
