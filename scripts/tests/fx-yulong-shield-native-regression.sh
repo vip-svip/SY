@@ -10,7 +10,14 @@ from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, main_path, shield_dir, merge_source_path = map(Path, sys.argv[1:])
+manifest_path, main_path, shield_dir, merge_source_arg = map(Path, sys.argv[1:])
+# A caller may invoke this script from an alternate runner work directory.
+# Resolve the repository root from the manifest's Git work tree, not $PWD.
+import subprocess
+repo_root = Path(subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], cwd=manifest_path.parent, text=True
+).strip())
+merge_source_path = repo_root / "fx-patches" / "merge_hook_single_apk.py"
 manifest_text = manifest_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 main = main_path.read_text(encoding="utf-8")
