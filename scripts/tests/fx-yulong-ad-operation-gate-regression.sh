@@ -1,0 +1,63 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
+TILE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java"
+WIDGET="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java"
+GATE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdOperationGate.java"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+for file in "$ACTIVITY" "$TILE" "$WIDGET" "$GATE"; do
+  [ -s "$file" ] || fail "missing shared ad operation gate source: $file"
+done
+python3 - "$ACTIVITY" "$TILE" "$WIDGET" "$GATE" <<'PY'
+from pathlib import Path
+import sys
+
+activity, tile, widget, gate = [Path(x).read_text(encoding="utf-8") for x in sys.argv[1:]]
+start = activity.find("private void apply(")
+if start < 0:
+    raise SystemExit("FAIL: ad activity apply method missing")
+end = activity.find("\n @Override protected void onCreate", start)
+if end < 0:
+    raise SystemExit("FAIL: ad activity apply method boundary missing")
+apply = activity[start:end]
+worker = apply.find("worker.execute(")
+acquire = apply.find("FxYulongAdOperationGate.tryAcquire()")
+finally_release = apply.find("if(gateAcquired)FxYulongAdOperationGate.release()")
+reject = apply.find("catch(RejectedExecutionException full)")
+if min(worker, acquire, finally_release, reject) < 0:
+    raise SystemExit("FAIL: ad activity does not show the full queue/gate lifecycle")
+if not worker < acquire < finally_release < reject:
+    raise SystemExit("FAIL: ad activity must acquire/release only inside accepted worker execution")
+reject_block = apply[reject:]
+if "FxYulongAdOperationGate.release()" in reject_block:
+    raise SystemExit("FAIL: rejected Activity task releases a gate it never acquired")
+if "后台任务繁忙，请稍后重试。" not in reject_block:
+    raise SystemExit("FAIL: rejected Activity task no longer reports queue saturation")
+
+# The Tile acquires in its accepted worker and releases only when gateAcquired.
+tile_click = tile[tile.find("@Override public void onClick()"):]
+tile_worker = tile_click.find("worker.execute(")
+tile_acquire = tile_click.find("FxYulongAdOperationGate.tryAcquire()")
+tile_release = tile_click.find("if (gateAcquired) FxYulongAdOperationGate.release()")
+if min(tile_worker, tile_acquire, tile_release) < 0 or not tile_worker < tile_acquire < tile_release:
+    raise SystemExit("FAIL: Quick Settings tile gate is not acquired/released in its worker finally")
+tile_reject = tile_click.find("catch (RejectedExecutionException full)")
+if tile_reject < 0 or "FxYulongAdOperationGate.release()" in tile_click[tile_reject:]:
+    raise SystemExit("FAIL: rejected Tile task must not release an unacquired gate")
+
+# The Widget acquires before goAsync/worker submission. Its submission-failure
+# branches are allowed to release because this callback already owns the gate.
+widget_receive = widget[widget.find("@Override public void onReceive("):]
+widget_acquire = widget_receive.find("FxYulongAdOperationGate.tryAcquire()")
+go_async = widget_receive.find("goAsync()")
+worker_submit = widget_receive.find("WORKER.execute(")
+if min(widget_acquire, go_async, worker_submit) < 0 or not widget_acquire < go_async < worker_submit:
+    raise SystemExit("FAIL: Widget must acquire before starting async work")
+if widget_receive.count("FxYulongAdOperationGate.release()") < 3:
+    raise SystemExit("FAIL: Widget must release on both pre-submit failures and worker completion")
+if "BUSY.compareAndSet(false, true)" not in gate or "BUSY.set(false)" not in gate:
+    raise SystemExit("FAIL: operation gate no longer implements atomic acquire/release")
+
+print("PASS: Activity queue rejection cannot clear another writer's gate; Tile and Widget retain ownership-balanced release paths")
+PY
