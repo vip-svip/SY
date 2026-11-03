@@ -323,6 +323,93 @@ public final class FxDiaFridaActivity extends Activity {
         } else if ("JS 脚本列表".equals(title)) {
             body.post(this::showFridaScriptLibrary);
         }
+
+        // Restore transient editor/target state after page templates have been applied.
+        // EditText widgets are created dynamically and have no stable view IDs, so
+        // Android's automatic view-state restoration cannot preserve their contents.
+        if (state != null) restoreTransientState(state);
+    }
+
+    private void restoreTransientState(Bundle state) {
+        if (state == null) return;
+        if (serverPath != null) serverPath.setText(state.getString("fx_frida_server_path",
+                serverPath.getText().toString()));
+        if (injectorPath != null) injectorPath.setText(state.getString("fx_frida_injector_path",
+                injectorPath.getText().toString()));
+        if (gadgetPath != null) gadgetPath.setText(state.getString("fx_frida_gadget_path",
+                gadgetPath.getText().toString()));
+        if (gadgetPort != null) gadgetPort.setText(state.getString("fx_frida_gadget_port",
+                gadgetPort.getText().toString()));
+        if (script != null) script.setText(state.getString("fx_frida_script", script.getText().toString()));
+
+        String savedPackage = state.getString("fx_frida_target_package");
+        if (savedPackage != null && !savedPackage.trim().isEmpty()) {
+            try {
+                ApplicationInfo info = getPackageManager().getApplicationInfo(savedPackage, 0);
+                if ((info.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                        && (info.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+                    targetPackage = savedPackage;
+                    targetName = state.getString("fx_frida_target_name", savedPackage);
+                    targetLabel.setText(targetName + "\\n" + targetPackage);
+                    selectedProcessPids.clear();
+                    ArrayList<String> restoredPids =
+                            state.getStringArrayList("fx_frida_selected_pids");
+                    if (restoredPids != null) {
+                        for (String pid : restoredPids) {
+                            if (pid != null && pid.matches("[0-9]{1,10}"))
+                                selectedProcessPids.add(pid);
+                        }
+                    }
+                    if (!selectedProcessPids.isEmpty()) {
+                        targetLabel.append("\\n已恢复所选进程数：" + selectedProcessPids.size()
+                                + "（注入前仍会重新校验 PID）");
+                    } else {
+                        targetLabel.append("\\n进程：注入时自动枚举");
+                    }
+                }
+            } catch (PackageManager.NameNotFoundException ignored) {
+                targetPackage = null;
+                targetName = null;
+                selectedProcessPids.clear();
+                targetLabel.setText("上次选择的目标应用已卸载，需重新选择。");
+            }
+        }
+        if (gadgetLoadMode != null) {
+            int checked = state.getInt("fx_frida_gadget_load_mode", 0);
+            if (gadgetLoadMode.getChildCount() > checked && checked >= 0)
+                gadgetLoadMode.check(gadgetLoadMode.getChildAt(checked).getId());
+        }
+        if (status != null) status.setText(state.getString("fx_frida_status", "已恢复上次编辑状态。"));
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (serverPath != null) outState.putString("fx_frida_server_path", serverPath.getText().toString());
+        if (injectorPath != null) outState.putString("fx_frida_injector_path", injectorPath.getText().toString());
+        if (gadgetPath != null) outState.putString("fx_frida_gadget_path", gadgetPath.getText().toString());
+        if (gadgetPort != null) outState.putString("fx_frida_gadget_port", gadgetPort.getText().toString());
+        if (script != null) {
+            String source = script.getText().toString();
+            // Frida editor content is intentionally capped to avoid oversized saved-state Bundles.
+            if (source.getBytes(StandardCharsets.UTF_8).length <= 48 * 1024)
+                outState.putString("fx_frida_script", source);
+        }
+        if (targetPackage != null) outState.putString("fx_frida_target_package", targetPackage);
+        if (targetName != null) outState.putString("fx_frida_target_name", targetName);
+        outState.putStringArrayList("fx_frida_selected_pids",
+                new ArrayList<>(selectedProcessPids));
+        if (gadgetLoadMode != null) {
+            int checkedId = gadgetLoadMode.getCheckedRadioButtonId();
+            int checkedIndex = 0;
+            for (int i = 0; i < gadgetLoadMode.getChildCount(); i++) {
+                if (gadgetLoadMode.getChildAt(i).getId() == checkedId) {
+                    checkedIndex = i;
+                    break;
+                }
+            }
+            outState.putInt("fx_frida_gadget_load_mode", checkedIndex);
+        }
+        if (status != null) outState.putString("fx_frida_status", status.getText().toString());
     }
 
     private org.json.JSONObject readFridaScriptLibrary() throws Exception {
