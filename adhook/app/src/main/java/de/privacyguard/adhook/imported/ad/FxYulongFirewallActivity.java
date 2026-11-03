@@ -50,6 +50,8 @@ public final class FxYulongFirewallActivity extends Activity {
     private final Map<String, Boolean> selected = new HashMap<>();
     private boolean loading = true;
     private boolean suppressMaster;
+    private String suitePage = "应用网络拦截";
+    private int appFilterMode;
 
     private int dp(float n) {
         return (int)(n * getResources().getDisplayMetrics().density + 0.5f);
@@ -110,12 +112,20 @@ public final class FxYulongFirewallActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        String requestedPage = getIntent() == null ? null : getIntent().getStringExtra("suite_page");
+        if ("用户应用".equals(requestedPage) || "系统应用".equals(requestedPage)
+                || "按应用设置".equals(requestedPage) || "应用网络拦截".equals(requestedPage)) {
+            suitePage = requestedPage;
+        } else {
+            suitePage = "应用网络拦截";
+        }
+        appFilterMode = "用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0;
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 · 应用网络拦截", 18, 0xff17212b, true),
+        header.addView(text("游龙广告插件 · " + suitePage, 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -195,8 +205,12 @@ public final class FxYulongFirewallActivity extends Activity {
                 try {
                     PackageManager pm = getPackageManager();
                     loaded.addAll(pm.getInstalledApplications(0));
-                    loaded.removeIf(info -> info.packageName == null
-                            || info.packageName.equals(getPackageName()));
+                    loaded.removeIf(info -> {
+                        if (info.packageName == null || info.packageName.equals(getPackageName())) return true;
+                        boolean systemApp = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                                || (info.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+                        return appFilterMode == 1 ? systemApp : appFilterMode == 2 && !systemApp;
+                    });
                     for (ApplicationInfo info : loaded) {
                         String label;
                         try { label = String.valueOf(pm.getApplicationLabel(info)); }
@@ -228,7 +242,7 @@ public final class FxYulongFirewallActivity extends Activity {
                     }
                     loading = false;
                     master.setEnabled(true);
-                    status.setText("已读取 " + apps.size() + " 个应用；列表按需分页加载。");
+                    status.setText("已读取 " + apps.size() + " 个" + ("用户应用".equals(suitePage) ? "用户应用" : "系统应用".equals(suitePage) ? "系统应用" : "应用") + "；列表按需分页加载。");
                     appPage = 1;
                     renderRows();
                 });
