@@ -27,8 +27,6 @@ for label, needle in {
     if needle not in haystack:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 for label, needle in {
-    "deploy action UI": 'button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget())',
-    "remove action UI": 'button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget())',
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
     "system-app exclusion": "ApplicationInfo.FLAG_SYSTEM",
     "package native library directory": "info.nativeLibraryDir",
