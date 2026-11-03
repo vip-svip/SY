@@ -97,13 +97,13 @@ sh "$SOURCE" stop >/dev/null
 [ ! -e "$LOCK" ] || { echo "FAIL: stale regular Root Proxy lock file was not recovered" >&2; exit 1; }
 
 # A live regular-file owner is never stolen.
-printf '%s\n' "$" > "$LOCK"
+printf '%s\n' "$$" > "$LOCK"
 set +e
 sh "$SOURCE" stop >/dev/null 2>&1
 file_rc=$?
 set -e
 [ "$file_rc" -eq 10 ] || { echo "FAIL: live regular Root Proxy file lock did not return busy (rc=$file_rc)" >&2; exit 1; }
-[ "$(cat "$LOCK")" = "$" ] || { echo "FAIL: live regular Root Proxy file lock owner changed" >&2; exit 1; }
+[ "$(cat "$LOCK")" = "$$" ] || { echo "FAIL: live regular Root Proxy file lock owner changed" >&2; exit 1; }
 rm -f "$LOCK"
 
 # A dead lock owner is recovered rather than blocking all future DNS changes.

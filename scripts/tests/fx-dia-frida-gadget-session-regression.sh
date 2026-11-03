@@ -157,7 +157,7 @@ printf 'mock-send-message\nmock-console-log\n'
 IGNORE_TERM=0
 if [ "$IGNORE_TERM" = "1" ]; then
   trap '' TERM
-  printf 'mock-ignore-term-ready\\n'
+  printf 'mock-ignore-term-ready\n'
 fi
 # Keep the CLI alive with TERM explicitly ignored; the stop path must preserve
 # its PID record after the bounded wait instead of pretending it stopped.
