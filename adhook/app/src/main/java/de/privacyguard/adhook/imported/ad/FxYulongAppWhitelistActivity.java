@@ -23,12 +23,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Yulong 7.0.1 app whitelist: excludes selected UIDs from FX ad/DNS filtering. */
 public final class FxYulongAppWhitelistActivity extends Activity {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private static final int APP_PAGE_SIZE = 50;
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> new Thread(r, "fx-yulong-whitelist-root"), new ThreadPoolExecutor.AbortPolicy());
+    private final ThreadPoolExecutor appWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-yulong-whitelist-apps"), new ThreadPoolExecutor.AbortPolicy());
+    private int appPage = 1;
+    private volatile boolean destroyed;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
     private final Map<String, Boolean> selected = new HashMap<>();
@@ -36,6 +46,7 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     private TextView status;
     private EditText query;
     private boolean loading = true;
+    private boolean appLoading;
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -51,12 +62,21 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                 + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-app-whitelist.sh\\" " + args;
     }
     private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
-        worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(command(args), 90000L, 512 * 1024);
-            runOnUiThread(() -> {
-                if (!isFinishing() && !isDestroyed()) callback.accept(result);
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(command(args), 90000L, 512 * 1024);
+                runOnUiThread(() -> {
+                    if (!destroyed && !isFinishing() && !isDestroyed()) callback.accept(result);
+                });
             });
-        });
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (!destroyed && !isFinishing() && !isDestroyed()) {
+                    status.setText("Root 操作队列已满，请稍后重试。");
+                    callback.accept(RootAccess.execute(""));
+                }
+            });
+        }
     }
     private TextView text(String value, int size, int color, boolean bold) {
         TextView view = new TextView(this);
@@ -113,7 +133,10 @@ public final class FxYulongAppWhitelistActivity extends Activity {
 
         query.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderRows(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                appPage = 1;
+                renderRows();
+            }
             @Override public void afterTextChanged(Editable s) { }
         });
 
@@ -124,10 +147,8 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                 return;
             }
             parse(result.output);
-            loadApps();
             loading = false;
-            updateStatus();
-            renderRows();
+            loadAppsAsync();
         });
     }
 
@@ -146,44 +167,91 @@ public final class FxYulongAppWhitelistActivity extends Activity {
             }
         }
     }
-    private void loadApps() {
-        apps.clear();
-        labels.clear();
-        PackageManager pm = getPackageManager();
+    /** Package enumeration, label resolution and sorting stay off the Activity UI thread. */
+    private void loadAppsAsync() {
+        appLoading = true;
+        status.setText("正在后台读取已安装应用…");
+        renderRows();
         try {
-            apps.addAll(pm.getInstalledApplications(0));
-            apps.removeIf(info -> info.packageName == null || info.packageName.equals(getPackageName()));
-            apps.sort(Comparator.comparing(info -> {
-                try { return String.valueOf(pm.getApplicationLabel(info)).toLowerCase(Locale.ROOT); }
-                catch (Throwable ignored) { return info.packageName.toLowerCase(Locale.ROOT); }
-            }));
-            for (ApplicationInfo info : apps) {
-                String label;
-                try { label = String.valueOf(pm.getApplicationLabel(info)); }
-                catch (Throwable ignored) { label = info.packageName; }
-                labels.put(info.packageName, label);
-                selected.putIfAbsent(info.packageName, false);
-            }
-        } catch (Throwable error) {
-            status.setText("无法读取应用列表：" + error.getClass().getSimpleName());
+            appWorker.execute(() -> {
+                List<ApplicationInfo> loaded = new ArrayList<>();
+                Map<String, String> loadedLabels = new HashMap<>();
+                Throwable failure = null;
+                try {
+                    PackageManager pm = getApplicationContext().getPackageManager();
+                    loaded.addAll(pm.getInstalledApplications(0));
+                    loaded.removeIf(info -> info.packageName == null
+                            || info.packageName.equals(getPackageName()));
+                    for (ApplicationInfo info : loaded) {
+                        String label;
+                        try { label = String.valueOf(pm.getApplicationLabel(info)); }
+                        catch (Throwable ignored) { label = info.packageName; }
+                        loadedLabels.put(info.packageName, label);
+                    }
+                    loaded.sort(Comparator.comparing(info ->
+                            loadedLabels.getOrDefault(info.packageName, info.packageName)
+                                    .toLowerCase(Locale.ROOT)));
+                } catch (Throwable error) {
+                    failure = error;
+                }
+                final Throwable loadFailure = failure;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    appLoading = false;
+                    if (loadFailure != null) {
+                        status.setText("无法读取应用列表：" + loadFailure.getClass().getSimpleName());
+                        renderRows();
+                        return;
+                    }
+                    apps.clear();
+                    apps.addAll(loaded);
+                    labels.clear();
+                    labels.putAll(loadedLabels);
+                    for (ApplicationInfo info : loaded) {
+                        selected.putIfAbsent(info.packageName, false);
+                    }
+                    appPage = 1;
+                    updateStatus();
+                    renderRows();
+                });
+            });
+        } catch (RejectedExecutionException closing) {
+            appLoading = false;
+            if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
         }
     }
     private void updateStatus() {
+        if (loading) {
+            status.setText("正在读取设备端白名单…");
+            return;
+        }
+        if (appLoading) {
+            status.setText("正在后台读取已安装应用…");
+            return;
+        }
         int enabled = 0;
         for (Boolean value : selected.values()) if (Boolean.TRUE.equals(value)) enabled++;
         status.setText("已排除 " + enabled + " 个应用。每次修改都会保存配置并重新应用网络规则。");
     }
     private void renderRows() {
-        if (list == null || isFinishing()) return;
+        if (list == null || isFinishing() || destroyed) return;
         list.removeAllViews();
+        if (loading || appLoading) {
+            list.addView(text("正在读取白名单和应用信息…", 13, 0xff617080, false));
+            return;
+        }
         String filter = query.getText() == null ? ""
                 : query.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int count = 0;
+        int matched = 0;
+        int shown = 0;
+        int limit = Math.max(1, appPage) * APP_PAGE_SIZE;
         for (ApplicationInfo app : apps) {
             String pkg = app.packageName;
             String label = labels.getOrDefault(pkg, pkg);
             if (!filter.isEmpty() && !pkg.toLowerCase(Locale.ROOT).contains(filter)
                     && !label.toLowerCase(Locale.ROOT).contains(filter)) continue;
+            matched++;
+            if (shown >= limit) continue;
 
             LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
@@ -195,12 +263,16 @@ public final class FxYulongAppWhitelistActivity extends Activity {
             Switch enabled = new Switch(this);
             enabled.setText("排除广告/DNS 过滤");
             enabled.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
+            final boolean[] suppress = {false};
             enabled.setOnCheckedChangeListener((button, checked) -> {
+                if (suppress[0]) return;
                 button.setEnabled(false);
                 root((checked ? "add " : "remove ") + quote(pkg), result -> {
                     button.setEnabled(true);
                     if (result.exitCode != 0) {
+                        suppress[0] = true;
                         button.setChecked(!checked);
+                        suppress[0] = false;
                         status.setText("白名单更新失败：" + safe(result.output));
                     } else {
                         selected.put(pkg, checked);
@@ -212,13 +284,20 @@ public final class FxYulongAppWhitelistActivity extends Activity {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(12), dp(2), dp(12), dp(2));
             list.addView(item, lp);
-            count++;
+            shown++;
         }
-        if (count == 0) list.addView(text("没有匹配的应用。", 13, 0xff617080, false));
+        if (shown == 0) list.addView(text("没有匹配的应用。", 13, 0xff617080, false));
+        if (matched > limit) {
+            list.addView(button("加载更多（剩余 " + (matched - limit) + " 个）", () -> {
+                appPage++;
+                renderRows();
+            }), new LinearLayout.LayoutParams(-1, -2));
+        }
     }
-
     @Override protected void onDestroy() {
+        destroyed = true;
         worker.shutdownNow();
+        appWorker.shutdownNow();
         super.onDestroy();
     }
 }
