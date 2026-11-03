@@ -375,12 +375,20 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, packageName.hashCode(), open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+        Intent uninstallIntent = new Intent(this,
+                FxYulongUninstallReceiver.class);
+        uninstallIntent.putExtra("target_pkg", packageName);
+        PendingIntent uninstallAction = PendingIntent.getBroadcast(
+                this, 0x5951 ^ packageName.hashCode(), uninstallIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT
+                        | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, ALERT_CHANNEL) : new Notification.Builder(this);
         Notification notification = builder.setSmallIcon(android.R.drawable.stat_sys_warning)
                 .setContentTitle("检测到管控名单应用")
                 .setContentText(label + " 正在前台")
                 .setStyle(new Notification.BigTextStyle().bigText(message))
+                .addAction(android.R.drawable.ic_menu_delete, "系统卸载确认", uninstallAction)
                 .setContentIntent(content).setAutoCancel(true).build();
         manager.notify(0x5950 ^ packageName.hashCode(), notification);
     }
