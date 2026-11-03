@@ -384,7 +384,9 @@ public final class FxYulongFirewallActivity extends Activity {
         if (rows == null || isFinishing() || destroyed) return;
         rows.removeViews(4, Math.max(0, rows.getChildCount() - 4));
         String filter = query.getText() == null ? "" : query.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int matched = 0, shown = 0, limit = Math.max(1, appPage) * APP_PAGE_SIZE;
+        int matched = 0;
+        int shown = 0;
+        int limit = Math.max(1, appPage) * APP_PAGE_SIZE;
         for (ApplicationInfo info : apps) {
             String pkg = info.packageName, label = labels.getOrDefault(pkg, pkg);
             if (!filter.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(filter)
