@@ -8,6 +8,8 @@ python3 - "$SOURCE" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert r'line.split("\\|",3)' in source, "Stellar dump parser must split on a literal pipe delimiter"
+assert r'line.split("\\\\|",3)' not in source, "Stellar dump parser must not split on backslash/empty alternatives"
 start = source.index("private void restoreBackupBytes(")
 end = source.index("private String githubContentsUrl(", start)
 restore = source[start:end]
