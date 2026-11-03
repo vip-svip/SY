@@ -78,15 +78,28 @@ if service.is_file():
         service.chmod(0o755)
 
 uninstall = root / "uninstall.sh"
-if uninstall.is_file():
-    uninstall_text = uninstall.read_text(encoding="utf-8")
-    if "yulong-ad-schedule.sh" not in uninstall_text:
-        marker = "STATE_DIR=/data/adb/privacyguard\n"
-        if marker in uninstall_text:
-            uninstall_text = uninstall_text.replace(
-                marker,
-                marker + 'if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" >/dev/null 2>&1 || :; fi\n',
-                1
-            )
-            uninstall.write_text(uninstall_text, encoding="utf-8")
-            uninstall.chmod(0o755)
+if not uninstall.is_file():
+    raise SystemExit("restored FX uninstall.sh missing")
+uninstall_text = uninstall.read_text(encoding="utf-8")
+old_stop = 'if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" >/dev/null 2>&1 || :; fi\n'
+uninstall_text = uninstall_text.replace(old_stop, "")
+if "# Stop Yulong ad schedule before uninstall cleanup." not in uninstall_text:
+    marker = "PG=/data/adb/privacyguard\n"
+    if marker not in uninstall_text:
+        raise SystemExit("FX uninstall PG state anchor missing for Yulong schedule shutdown")
+    stop_block = '''# Stop Yulong ad schedule before uninstall cleanup.
+if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+  if ! sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$PG" uninstall >/dev/null 2>&1; then
+    PG_KEEP_DATA=1
+    _mitm_warn "could not confirm stopping Yulong ad schedule watcher; preserving $PG and aborting uninstall"
+    exit 1
+  fi
+elif [ -s "$PG/yulong-ad-schedule.pid" ]; then
+  PG_KEEP_DATA=1
+  _mitm_warn "Yulong ad schedule PID record exists but its script is missing; preserving $PG and aborting uninstall"
+  exit 1
+fi
+'''
+    uninstall_text = uninstall_text.replace(marker, marker + stop_block, 1)
+    uninstall.write_text(uninstall_text, encoding="utf-8")
+    uninstall.chmod(0o755)
