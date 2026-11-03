@@ -32,19 +32,36 @@ public final class FxDiaGadgetDeployment {
                 || (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
             throw new IllegalArgumentException("仅允许部署到用户安装的 debuggable 应用。");
         }
-        if (info.nativeLibraryDir == null || info.nativeLibraryDir.trim().isEmpty()) {
+        String nativeLibraryPath = info.nativeLibraryDir;
+        if (nativeLibraryPath == null || nativeLibraryPath.trim().isEmpty()) {
             throw new IllegalArgumentException("目标应用没有可用的 nativeLibraryDir。");
         }
-        File raw = new File(info.nativeLibraryDir);
-        if (Files.isSymbolicLink(raw.toPath())) {
-            throw new IllegalArgumentException("目标应用 nativeLibraryDir 是符号链接，拒绝部署。");
+        if (!nativeLibraryPath.startsWith("/") || nativeLibraryPath.contains("..")) {
+            throw new IllegalArgumentException("目标应用 nativeLibraryDir 不是规范绝对路径，拒绝部署。");
         }
-        File canonical = raw.getCanonicalFile();
-        String path = canonical.getPath();
-        if (!path.startsWith("/data/app/") || !canonical.isDirectory()) {
-            throw new IllegalArgumentException("目标 nativeLibraryDir 不在受支持的 /data/app 路径中。");
+        File rawNativeDir = new File(nativeLibraryPath);
+        if (hasSymlinkComponent(rawNativeDir)) {
+            throw new IllegalArgumentException("目标应用 nativeLibraryDir 路径包含符号链接，拒绝部署。");
         }
-        return path;
+        File canonical = rawNativeDir.getCanonicalFile();
+        String canonicalNativePath = canonical.getPath();
+        if (!nativeLibraryPath.equals(canonicalNativePath)
+                || !canonicalNativePath.startsWith("/data/app/")
+                || !canonical.isDirectory()) {
+            throw new IllegalArgumentException("目标 nativeLibraryDir 不在受支持的规范 /data/app 路径中。");
+        }
+        return canonicalNativePath;
+    }
+
+    /** Checks every path component before canonicalization so a symlinked parent cannot redirect deployment. */
+    static boolean hasSymlinkComponent(File rawPath) throws Exception {
+        if (rawPath == null || !rawPath.isAbsolute()) return true;
+        File current = rawPath.getAbsoluteFile();
+        while (current != null) {
+            if (Files.isSymbolicLink(current.toPath())) return true;
+            current = current.getParentFile();
+        }
+        return false;
     }
 
     /** Reject privileged/default or out-of-range ports at the deployment boundary, not only in UI. */
