@@ -29,6 +29,11 @@ for label, needle in {
     "LSPosed target scope instructions": "在 LSPosed 中启用 FX 对该目标的作用域",
     "restart after Gadget deployment": "完全停止并重启目标应用",
     "re-deploy after app update": "需要重新部署",
+    "one process selector UI": "private EditText gadgetProcess",
+    "default to target main process": "gadgetProcess.setText(targetPackage)",
+    "process selection passed to deployment backend": "port, processName",
+    "process selection saved across recreation": 'outState.putString("fx_frida_gadget_process"',
+    "process selection restored after recreation": 'state.getString("fx_frida_gadget_process"',
 }.items():
     activity_labels = {
         "deploy action UI",
@@ -36,6 +41,10 @@ for label, needle in {
         "LSPosed target scope instructions",
         "restart after Gadget deployment",
         "re-deploy after app update",
+        "one process selector UI",
+        "default to target main process",
+        "process selection saved across recreation",
+        "process selection restored after recreation",
     }
     haystack = activity if label in activity_labels else deploy_contract
     if needle not in haystack:
