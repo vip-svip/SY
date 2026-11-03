@@ -2704,6 +2704,18 @@ public final class MainActivity extends ComponentActivity {
                 case "方法 Hook": case "Native 方法": case "函数重写":
                     showAppList("自定义 Hook");
                     return;
+                case "规则组": case "规则列表":
+                    showAppList("自定义 Hook");
+                    return;
+                case "应用版本":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class));
+                    return;
+                case "按键控制":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", page));
+                    return;
                 case "应用选择": case "目标应用": case "模块配置": case "模块功能":
                     showAppList();
                     return;
@@ -2743,7 +2755,7 @@ public final class MainActivity extends ComponentActivity {
                     openImportedNativeTab(3);
                     return;
                 case "规则组": case "规则列表":
-                    openImportedNativeTab(1);
+                    showAppList("自定义 Hook");
                     return;
                 case "运行日志":
                     showNativeRuntimeLogs();

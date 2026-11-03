@@ -182,6 +182,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入线程/启动调用栈观察", () -> loadDiaMonitorTemplate("thread")),
                 button("载入 Activity 调用栈观察", () -> loadDiaMonitorTemplate("stack")),
                 button("载入 Runtime/Process 启动观察", () -> loadDiaMonitorTemplate("runtime")),
+                button("载入按键事件观察", () -> loadDiaMonitorTemplate("key")),
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
     }
@@ -480,6 +481,18 @@ public final class FxDiaFridaActivity extends Activity {
                         + "    for (var i = 0; i < frames.length && i < 8; i++) out.push(String(frames[i].getClassName()) + '.' + String(frames[i].getMethodName()));\\n"
                         + "    send('[DIA_STACK] Activity.onResume ' + name + ' frames=' + out.join(' <- '));\\n"
                         + "    return resume.call(this);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "key":
+                source = "Java.perform(function () {\\n"
+                        + "  var Activity = Java.use('android.app.Activity');\\n"
+                        + "  var dispatch = Activity.dispatchKeyEvent.overload('android.view.KeyEvent');\\n"
+                        + "  dispatch.implementation = function (event) {\\n"
+                        + "    var code = -1; var action = -1;\\n"
+                        + "    try { code = event.getKeyCode(); action = event.getAction(); } catch (_) {}\\n"
+                        + "    send('[DIA_KEY] keyCode=' + code + ' action=' + action);\\n"
+                        + "    return dispatch.call(this, event);\\n"
                         + "  };\\n"
                         + "});";
                 break;
