@@ -24,6 +24,11 @@ required = {
     "unique schedule candidate": 'mktemp "$file.tmp.XXXXXX"',
     "unique schedule backup": 'mktemp "$file.rollback.XXXXXX"',
     "unique schedule restore": 'mktemp "$file.restore.XXXXXX"',
+    "domain raw import uses random private staging": 'mktemp "$PG/yulong-domain-import.XXXXXX"',
+    "domain normalized import uses random private staging": 'mktemp "$PG/yulong-domain-import-clean.XXXXXX"',
+    "domain raw import tracked by shared cleanup": "_yad_import_raw=$_import_raw",
+    "domain normalized import tracked by shared cleanup": "_yad_import_clean=$_import_clean",
+    "domain import files are removed by exit cleanup": 'rm -f "$_yad_import_raw"',
     "candidate file mode": 'chmod 600 "$tmp"',
     "atomic settings replacement": 'mv -f "$tmp" "$CONF"',
     "shared cleanup handler": "trap '_yad_cleanup' 0",
@@ -41,6 +46,7 @@ bad_patterns = (
     r'tmp=\$CONF\.yulong-[^\r\n]*\.\$\$',
     r'(?:backup|restore)=\$CONF\.yulong-[^\r\n]*\.\$',
     r'tmp="\$CONF\.yulong-[^\r\n]*\.\$"',
+    r'_import_(?:raw|clean)="\$PG/yulong-domain-import[^\r\n]*\$\$"',
 )
 for pattern in bad_patterns:
     if re.search(pattern, source):

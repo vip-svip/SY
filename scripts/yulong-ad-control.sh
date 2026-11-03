@@ -21,6 +21,8 @@ _yad_schedule_tmp=
 _yad_schedule_backup=
 _yad_control_lock=
 _yad_cache_lock=
+_yad_import_raw=
+_yad_import_clean=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -30,6 +32,8 @@ _yad_cleanup() {
   [ -z "$_yad_control_lock" ] || rmdir "$_yad_control_lock" 2>/dev/null || :
   [ -z "$_yad_schedule_lock" ] || rmdir "$_yad_schedule_lock" 2>/dev/null || :
   [ -z "$_yad_cache_lock" ] || rmdir "$_yad_cache_lock" 2>/dev/null || :
+  [ -z "$_yad_import_raw" ] || rm -f "$_yad_import_raw" 2>/dev/null || :
+  [ -z "$_yad_import_clean" ] || rm -f "$_yad_import_clean" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -325,9 +329,20 @@ import_domains() {
   case "$_import_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain import" >&2; return 2 ;; esac
   [ "${#_import_encoded}" -le 87384 ] || { echo "domain import exceeds 64 KiB" >&2; return 2; }
 
-  _import_raw="$PG/yulong-domain-import-$$"
-  _import_clean="$_import_raw.clean"
-  rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+  _import_raw=$(mktemp "$PG/yulong-domain-import.XXXXXX") || {
+    echo "unable to create private domain import staging file" >&2
+    return 1
+  }
+  _yad_import_raw=$_import_raw
+  _import_clean=$(mktemp "$PG/yulong-domain-import-clean.XXXXXX") || {
+    echo "unable to create private normalized domain import staging file" >&2
+    return 1
+  }
+  _yad_import_clean=$_import_clean
+  chmod 600 "$_import_raw" "$_import_clean" || {
+    echo "unable to protect domain import staging files" >&2
+    return 1
+  }
   (umask 077; printf '%s' "$_import_encoded" | base64 -d > "$_import_raw") || {
     rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
     echo "unable to decode domain import" >&2
