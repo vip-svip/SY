@@ -32,13 +32,16 @@ public final class FxYulongRescueOverlayService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
-        if(!Settings.canDrawOverlays(this)
-                || !getSharedPreferences("shield_prefs",MODE_PRIVATE).getBoolean("overlay_rescue_on",false)){
+        if(!getSharedPreferences("shield_prefs",MODE_PRIVATE).getBoolean("overlay_rescue_on",false)){
+            stopSelf();return START_NOT_STICKY;
+        }
+        if(!Settings.canDrawOverlays(this)){
+            getSharedPreferences("shield_prefs",MODE_PRIVATE).edit().putBoolean("overlay_rescue_on",false).apply();
             stopSelf();return START_NOT_STICKY;
         }
         startForeground(ID,notification());
         attachBubble();
-        return START_NOT_STICKY;
+        return bubble == null ? START_NOT_STICKY : START_STICKY;
     }
 
     private void ensureChannel(){
@@ -90,7 +93,11 @@ public final class FxYulongRescueOverlayService extends Service {
                 PixelFormat.TRANSLUCENT);
         lp.gravity=Gravity.END|Gravity.CENTER_VERTICAL;
         lp.x=dp(8);lp.y=dp(40);
-        try{manager.addView(bubble,lp);}catch(Throwable error){bubble=null;stopSelf();}
+        try{manager.addView(bubble,lp);}catch(Throwable error){
+            bubble=null;
+            getSharedPreferences("shield_prefs",MODE_PRIVATE).edit().putBoolean("overlay_rescue_on",false).apply();
+            stopSelf();
+        }
     }
 
     @Override public void onDestroy(){
