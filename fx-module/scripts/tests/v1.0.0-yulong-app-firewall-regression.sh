@@ -3,7 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 MODULE="$ROOT/fx-module"
 SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
-TMP="${TMPDIR:-/tmp}/fx-yulong-firewall-$"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-firewall.XXXXXX")
 mkdir -p "$TMP/module/scripts" "$TMP/pg" "$TMP/bin"
 cp "$SOURCE" "$TMP/module/scripts/yulong-app-firewall.sh"
 printf 'id=privacyguard\n' > "$TMP/module/module.prop"
@@ -39,6 +39,7 @@ fi
 exit 1
 EOF
 chmod 755 "$TMP/bin/"*
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 export MP="$TMP/module" PG="$TMP/pg" MOCK_LOG="$TMP/iptables.log"
 export PATH="$TMP/bin:$PATH"
 run() { sh "$TMP/module/scripts/yulong-app-firewall.sh" "$@"; }
@@ -79,4 +80,3 @@ grep -Fqx "  trap 'exit 143' TERM" "$SOURCE"
   echo "FAIL: firewall lock is released directly by a signal trap" >&2; exit 1;
 }
 echo \"PASS: Yulong app firewall persists lists, resolves UID, activates IPv4+IPv6 rules, disables, and cleans up only its own chains\"
-rm -rf "$TMP"

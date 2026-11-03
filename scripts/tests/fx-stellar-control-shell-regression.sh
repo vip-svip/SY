@@ -15,7 +15,10 @@ assert "id" + slash * 2 + " -u" not in source, "case pattern has two backslashes
 assert "printf '%s" + slash + "n'" in source, "command validation must print a real newline"
 assert "awk -F '" + slash + "t'" in source, "scope lookups must split on a real tab"
 assert "awk -F '" + slash + "t' -v OFS='" + slash + "t'" in source, "scope writes must use real tab separators"
-print("PASS: Stellar POSIX shell syntax and delimiter escaping")
+assert "trap cleanup_lock EXIT" in source, "lock cleanup must happen from EXIT only"
+for signal, code in (("HUP",129),("INT",130),("TERM",143)):
+    assert "trap 'exit " + str(code) + "' " + signal in source, signal + " must exit into the cleanup trap"
+print("PASS: Stellar POSIX shell syntax, delimiter escaping and signal-safe locking")
 PY
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-stellar-control.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
@@ -35,4 +38,19 @@ case "$uid" in ''|*[!0-9]*) fail "id -u did not return a numeric UID" ;; esac
 run pkg-set "$PKG" 0
 listing=$(run list)
 if printf '%s\n' "$listing" | grep -Fq "$PKG"; then fail "removing package must also remove its scopes and always-allow commands"; fi
-echo "PASS: Stellar package, scope and always-allow storage round-trip through tab-delimited files"
+
+# Reject a symlinked state directory and a symlinked state file before touching targets.
+mkdir "$TMP/directory-target"
+ln -s "$TMP/directory-target" "$TMP/stellar_guard"
+sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/stellar_guard|" "$SOURCE" > "$TMP/directory-link.sh"
+if sh "$TMP/directory-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar data directory was accepted"; fi
+test ! -e "$TMP/directory-target/command_whitelist.txt" || fail "directory symlink target was modified"
+rm "$TMP/stellar_guard"
+
+mkdir -m 0700 "$TMP/file-target"
+printf 'preserve-me\n' > "$TMP/victim"
+ln -s "$TMP/victim" "$TMP/file-target/command_whitelist.txt"
+sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/file-target|" "$SOURCE" > "$TMP/file-link.sh"
+if sh "$TMP/file-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar state file was accepted"; fi
+grep -Fxq preserve-me "$TMP/victim" || fail "symlink target content was changed"
+echo "PASS: Stellar package/scope storage, symlink rejection and rollback-safe locks"

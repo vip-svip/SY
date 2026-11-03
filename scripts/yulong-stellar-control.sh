@@ -6,9 +6,26 @@ PKGS=$DIR/command_whitelist.txt
 ALWAYS=$DIR/command_always_allow.txt
 SCOPES=$DIR/scope_grants.txt
 LOCK=$DIR/fx-stellar.lock
-mkdir -p "$DIR"
-touch "$PKGS" "$ALWAYS" "$SCOPES"
-chmod 0600 "$PKGS" "$ALWAYS" "$SCOPES"
+if [ -e "$DIR" ] || [ -L "$DIR" ]; then
+  [ -d "$DIR" ] && [ ! -L "$DIR" ] || { echo "Stellar data directory is not a safe directory" >&2; exit 40; }
+else
+  (umask 077; mkdir "$DIR") || { echo "cannot create Stellar data directory" >&2; exit 40; }
+fi
+chmod 0700 "$DIR"
+secure_file(){
+  path=$1
+  [ ! -L "$path" ] || { echo "refusing symlinked Stellar state file: $path" >&2; return 1; }
+  if [ -e "$path" ]; then
+    [ -f "$path" ] || { echo "Stellar state path is not a regular file: $path" >&2; return 1; }
+  else
+    (umask 077; : > "$path") || return 1
+  fi
+  chmod 0600 "$path"
+}
+secure_file "$PKGS"
+secure_file "$ALWAYS"
+secure_file "$SCOPES"
+secure_file "$DIR/action.log"
 valid_pkg(){ printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$'; }
 valid_scope(){ case "$1" in SHELL_ID_COMMAND|PACKAGE_LIST_COMMAND|PROCESS_LIST_COMMAND|PROPERTY_READ_COMMAND|SETTINGS_READ_COMMAND|SELINUX_STATUS_COMMAND|FILESYSTEM_READ_COMMAND|SERVICE_LIST_COMMAND|SECURE_SETTINGS_WRITE|APPOPS_MANAGE|RUNTIME_PERMISSION_MANAGE|TERMINAL_COMMAND) return 0 ;; *) return 1 ;; esac; }
 valid_command(){
@@ -20,7 +37,12 @@ valid_command(){
 with_lock(){
   n=0
   while ! mkdir "$LOCK" 2>/dev/null; do n=$((n+1)); [ "$n" -lt 20 ] || return 30; sleep 1; done
-  trap 'rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
+  cleanup_lock(){ rmdir "$LOCK" 2>/dev/null || :; }
+  # A signal must terminate into EXIT cleanup; do not release the lock and resume.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   "$@"
 }
 authorized_pkg(){ grep -Fxq "$1" "$PKGS"; }
