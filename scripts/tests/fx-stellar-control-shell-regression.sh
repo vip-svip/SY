@@ -15,6 +15,9 @@ assert "id" + slash * 2 + " -u" not in source, "case pattern has two backslashes
 assert "printf '%s" + slash + "n'" in source, "command validation must print a real newline"
 assert "awk -F '" + slash + "t'" in source, "scope lookups must split on a real tab"
 assert "awk -F '" + slash + "t' -v OFS='" + slash + "t'" in source, "scope writes must use real tab separators"
+assert "LC_ALL=C grep -q '[[:cntrl:]]'" in source, "valid_command must reject control characters before grep line matching"
+assert "printf '%s' \"$1\"" in source, "valid_command must not append a synthetic line terminator"
+
 assert "trap cleanup_lock EXIT" in source, "lock cleanup must happen from EXIT only"
 for signal, code in (("HUP",129),("INT",130),("TERM",143)):
     assert "trap 'exit " + str(code) + "' " + signal in source, signal + " must exit into the cleanup trap"
@@ -34,6 +37,15 @@ printf '%s\n' "$listing" | grep -Fqx "PKG|$PKG" || fail "authorized package miss
 printf '%s\n' "$listing" | grep -Fqx "SCOPE|$PKG|SHELL_ID_COMMAND" || fail "tab-delimited scope lookup did not round-trip"
 printf '%s\n' "$listing" | grep -Fqx "ALWAYS|$PKG|id -u" || fail "tab-delimited command allowlist did not round-trip"
 uid=$(run run "$PKG" SHELL_ID_COMMAND 'id -u') || fail "authorized id -u command was rejected"
+bad_command=$(printf 'id -u\nid; touch %s' "$TMP/stellar-injected")
+if run always-set "$PKG" "$bad_command" 1 >/dev/null 2>&1; then
+  fail "multi-line Stellar allowlist command was accepted"
+fi
+if run run "$PKG" SHELL_ID_COMMAND "$bad_command" >/dev/null 2>&1; then
+  fail "multi-line Stellar read-only command was accepted"
+fi
+[ ! -e "$TMP/stellar-injected" ] || fail "multi-line command injection created a marker file"
+
 case "$uid" in ''|*[!0-9]*) fail "id -u did not return a numeric UID" ;; esac
 run pkg-set "$PKG" 0
 listing=$(run list)
