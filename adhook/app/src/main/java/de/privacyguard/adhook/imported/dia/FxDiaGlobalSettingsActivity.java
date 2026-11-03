@@ -92,19 +92,16 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
         divider();
     }
 
-    private void addStoredSwitch(String title, String summary, String key, boolean defaultValue) {
+    private void addUnavailableSwitch(String title, String summary, String key, boolean defaultValue) {
         Switch control = new Switch(this);
         control.setChecked(preferences.getBoolean(key, defaultValue));
-        control.setOnCheckedChangeListener((button, checked) ->
-                preferences.edit().putBoolean(key, checked).apply());
-        row(title, summary, control, null);
-    }
-
-    private void addUnavailableSwitch(String title, String summary, String key) {
-        Switch control = new Switch(this);
-        control.setChecked(preferences.getBoolean(key, false));
         control.setEnabled(false);
         row(title, summary, control, () -> showUnavailable(title, summary));
+    }
+
+    private void addUnavailableAction(String title, String summary) {
+        row(title, summary, text("未迁移", 12, 0xff9aa4ae, false),
+                () -> showUnavailable(title + "尚未迁移", summary));
     }
 
     private void addAction(String title, String summary, Runnable action) {
@@ -116,26 +113,6 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
                 .setTitle(title)
                 .setMessage(detail)
                 .setPositiveButton("知道了", null)
-                .show();
-    }
-
-    private void showLanguagePicker() {
-        final String[] labels = {"跟随系统", "中文", "English"};
-        final String[] values = {"0", "1", "2"};
-        String selected = preferences.getString("language_setting", "0");
-        int checked = 0;
-        for (int i = 0; i < values.length; i++) {
-            if (values[i].equals(selected)) checked = i;
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("设置语言")
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    preferences.edit().putString("language_setting", values[which]).apply();
-                    dialog.dismiss();
-                    showUnavailable("语言偏好已保存",
-                            "已按 Dia 23.11 的原始键 language_setting 保存选择。原版多语言运行时依赖尚未迁入 FX；当前选择不会伪装成已切换整个 FX 应用语言。");
-                })
-                .setNegativeButton("取消", null)
                 .show();
     }
 
@@ -169,26 +146,25 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
         body.addView(notice);
 
         section("提示显示");
-        addStoredSwitch("显示 Xposed 激活提示",
-                "对应原版 Dia 首页的模块激活版本不一致警告条显示开关。FX 尚未迁入 Dia 原首页及其激活版本比较逻辑；当前仅保存原始偏好，不会声称已控制 FX 主界面的提示显示。",
+        addUnavailableSwitch("显示 Xposed 激活提示",
+                "原版依赖 Dia 主界面的 activeVersionName() 检查和提示横幅。FX 尚未迁入该激活版本检测与提示组件；此项只保留原始偏好状态，不开放一个不会生效的开关。",
                 "active_tip", true);
-        addStoredSwitch("显示原生模块激活提示",
-                "保留原始 digXposed/native_active_tip 偏好。原始 APK 资源包含原生模块提示布局和文案，但当前反编译 Smali 未发现对应消费路径；FX 不伪称该提示已接入。",
+        addUnavailableSwitch("显示原生模块激活提示",
+                "原始 APK 的 my_settings.xml 声明了 native_active_tip，但完整 Smali 检索未发现该键的读取/消费逻辑。FX 保留该原始键状态，不把无消费路径的偏好伪装成有效开关。",
                 "native_active_tip", true);
 
         section("框架与作用域");
         addUnavailableSwitch("自动同步到 LSPosed 作用域",
                 "原版依赖 dialog.box.lsp.LScope 与跨进程作用域 API。FX 尚未迁入该运行时，因此此项保持禁用，不会显示为已同步。",
-                "lsp_sync");
+                "lsp_sync", false);
         addAction("快速重启系统",
                 "原版实际是仅重启框架服务层，不是重启 Android 系统。FX 尚未迁入原版重启实现；点击只显示安全说明，不执行 Root 命令。",
                 () -> showUnavailable("快速重启系统尚未迁移",
                         "原版操作会中断框架服务并可能影响 Hook/模块状态。FX 当前没有经过验证的框架专用重启实现，因此不会执行重启或伪装成功。"));
 
         section("应用与数据");
-        addAction("设置语言",
-                "保留原始 0/1/2 选择值；全局语言运行时尚未迁移。当前仅保存偏好，不声明 UI 已切换。",
-                this::showLanguagePicker);
+        addUnavailableAction("设置语言",
+                "原版通过 MultiLanguages 运行时切换独立 Dia APK 的资源语言。FX 尚未迁入统一应用的完整本地化资源和 Locale 生命周期；此项暂不可用，不再只保存一个不会改变界面的选择值。");
         addAction("应用更新",
                 "原版更新器面向独立 Dia APK。统一版 FX 不会启动旧 APK 更新器；请使用 FX 统一发布渠道更新。",
                 () -> showUnavailable("统一应用更新",
