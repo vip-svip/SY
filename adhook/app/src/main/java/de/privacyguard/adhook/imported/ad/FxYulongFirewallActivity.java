@@ -46,9 +46,9 @@ public final class FxYulongFirewallActivity extends Activity {
     private String scriptCommand(String args) {
         return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; "
-                + "then MP=\\"$d\\"; break; fi; done; "
-                + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-app-firewall.sh\\" " + args;
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-app-firewall.sh\" " + args;
     }
     private String quote(String s) {
         return "'" + (s == null ? "" : s.replace("'", "'\\''")) + "'";
@@ -186,12 +186,16 @@ public final class FxYulongFirewallActivity extends Activity {
             TextView packageText = text(pkg + " · UID " + info.uid, 10, 0xff718091, false);
             Switch blocked = new Switch(this); blocked.setText("阻断该应用的全部网络");
             blocked.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
+            final boolean[] suppressRow = {false};
             blocked.setOnCheckedChangeListener((button, enabled) -> {
+                if (suppressRow[0]) return;
                 button.setEnabled(false);
                 runRoot("set " + quote(pkg) + " " + info.uid + " " + (enabled ? "1" : "0"), result -> {
                     button.setEnabled(true);
                     if (result.exitCode != 0) {
+                        suppressRow[0] = true;
                         button.setChecked(!enabled);
+                        suppressRow[0] = false;
                         status.setText("应用防火墙更新失败：" + safeOutput(result.output));
                     } else {
                         selected.put(pkg, enabled);

@@ -1,17 +1,17 @@
 #!/system/bin/sh
 # Yulong 7.0.1 per-app firewall, independent of FX VPN routing.
 set -eu
-MP=\${MP:-}
+MP=${MP:-}
 if [ -z "$MP" ]; then
   for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
     if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop" 2>/dev/null; then MP="$d"; break; fi
   done
 fi
 [ -n "$MP" ] && [ -s "$MP/module.prop" ] || { echo "FX module is not installed" >&2; exit 20; }
-PG=/data/adb/privacyguard
-CONF="$PG/settings.conf"
-ACTIVE="$PG/yulong-firewall-active"
-LOCK="$PG/yulong-firewall.lock"
+PG=${PG:-/data/adb/privacyguard}
+CONF=${CONF:-$PG/settings.conf}
+ACTIVE=${ACTIVE:-$PG/yulong-firewall-active}
+LOCK=${LOCK:-$PG/yulong-firewall.lock}
 mkdir -p "$PG"
 [ -f "$CONF" ] || { echo "FX settings.conf is missing" >&2; exit 21; }
 
@@ -146,7 +146,7 @@ apply_rules() {
     uid="$(resolve_uid "$pkg")" || { echo "cannot resolve current UID for $pkg; old firewall kept" >&2; return 5; }
     [ -n "$resolved" ] && resolved="$resolved
 "
-    resolved="\${resolved}\${pkg}|\${uid}|1"
+    resolved="${resolved}${pkg}|${uid}|1"
   done <<EOF
 $rows
 EOF
@@ -197,7 +197,7 @@ mutate_transaction() {
   rm -f "$backup"
   return 1
 }
-cmd="\${1:-list}"
+cmd="${1:-list}"
 case "$cmd" in
   list)
     echo "FXYULONGFW1"
