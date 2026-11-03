@@ -2660,7 +2660,7 @@ public final class MainActivity extends ComponentActivity {
                 case "传感器":
                     showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
                     return;
-                case "HTTP 监控": case "算法监控":
+                case "HTTP 监控": case "SQL 监控": case "算法监控":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                             .putExtra("dia_page", page));
