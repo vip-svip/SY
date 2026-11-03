@@ -48,10 +48,12 @@ public final class FxYulongScanEngine {
         public final boolean contentDatabaseReady;
         public final int contentScanned;
         public final boolean contentTruncated;
+        /** False when PackageManager could not provide a complete installed-app inventory. */
+        public final boolean inventoryComplete;
 
         Result(int scanned, int entries, List<Finding> findings, int certain, int suspect,
                String message, boolean contentEnabled, boolean contentReady,
-               int contentScanned, boolean contentTruncated) {
+               int contentScanned, boolean contentTruncated, boolean inventoryComplete) {
             this.scanned = scanned;
             this.databaseEntries = entries;
             this.findings = Collections.unmodifiableList(findings);
@@ -62,6 +64,7 @@ public final class FxYulongScanEngine {
             this.contentDatabaseReady = contentReady;
             this.contentScanned = contentScanned;
             this.contentTruncated = contentTruncated;
+            this.inventoryComplete = inventoryComplete;
         }
     }
 
@@ -89,7 +92,7 @@ public final class FxYulongScanEngine {
         if (packageName == null || packageName.trim().isEmpty()) {
             if (callback != null) callback.onResult(new Result(0, 0,
                     Collections.emptyList(), 0, 0, "目标包名为空。", enableContentScan,
-                    false, 0, false));
+                    false, 0, false, false));
             return;
         }
         scanInternal(context, packageName.trim(), enableContentScan, callback);
@@ -106,6 +109,7 @@ public final class FxYulongScanEngine {
             int contentScanned = 0;
             boolean contentTruncated = false;
             boolean contentReady = false;
+            boolean inventoryComplete = false;
             long contentDeadline = System.currentTimeMillis() + 8000L;
             String message;
             try {
@@ -120,7 +124,9 @@ public final class FxYulongScanEngine {
                     return;
                 }
 
-                LinkedHashMap<String, ApplicationInfo> installed = collectInstalled(app);
+                InstalledInventory inventory = collectInstalled(app);
+                LinkedHashMap<String, ApplicationInfo> installed = inventory.apps;
+                inventoryComplete = inventory.complete;
                 PackageManager pm = app.getPackageManager();
                 for (ApplicationInfo info : installed.values()) {
                     String pkg = info.packageName == null ? "" : info.packageName.trim();
@@ -182,6 +188,12 @@ public final class FxYulongScanEngine {
                 message = enableContentScan
                         ? (contentReady ? "扫描完成。" : "名单扫描完成；内容特征库未就绪，未执行第二阶段。")
                         : "扫描完成。";
+                if (!inventoryComplete) {
+                    message = "扫描不完整：系统未能提供完整的已安装应用清单。以下命中结果仅供参考，未扫描到的应用不能视为安全。";
+                } else if (onlyPackage != null && !installed.containsKey(onlyPackage)) {
+                    message = "目标应用未出现在当前安装清单中，无法确认扫描结果；请重新扫描。";
+                    inventoryComplete = false;
+                }
             } catch (Throwable error) {
                 message = "扫描失败：" + error.getClass().getSimpleName()
                         + (error.getMessage() == null ? "" : "：" + error.getMessage());
@@ -190,20 +202,39 @@ public final class FxYulongScanEngine {
             try { entries = FxYulongVirusDb.get(app).total(); } catch (Throwable ignored) { }
             if (callback != null) callback.onResult(
                     new Result(scanned, entries, findings, certain, suspect, message,
-                            enableContentScan, contentReady, contentScanned, contentTruncated));
+                            enableContentScan, contentReady, contentScanned, contentTruncated,
+                            inventoryComplete));
         });
     }
 
-    private static LinkedHashMap<String, ApplicationInfo> collectInstalled(Context context) {
-        PackageManager pm = context.getPackageManager();
-        LinkedHashMap<String, ApplicationInfo> result = new LinkedHashMap<>();
-        try {
-            for (ApplicationInfo app : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (app != null && app.packageName != null) result.put(app.packageName, app);
-            }
-        } catch (Throwable ignored) { }
+    private static final class InstalledInventory {
+        final LinkedHashMap<String, ApplicationInfo> apps = new LinkedHashMap<>();
+        boolean complete;
+    }
 
-        // Some ROMs restrict the installed-app query. Merge launcher-visible apps as a fallback.
+    private static InstalledInventory collectInstalled(Context context) {
+        PackageManager pm = context.getPackageManager();
+        InstalledInventory inventory = new InstalledInventory();
+        try {
+            List<ApplicationInfo> installed =
+                    pm.getInstalledApplications(PackageManager.GET_META_DATA);
+            if (installed == null) {
+                throw new IllegalStateException("PackageManager returned a null installed-app list");
+            }
+            for (ApplicationInfo app : installed) {
+                if (app != null && app.packageName != null) {
+                    inventory.apps.put(app.packageName, app);
+                }
+            }
+            // Only this full inventory query can establish scan completeness. Launcher
+            // visibility is a useful fallback for partial findings, never proof of coverage.
+            inventory.complete = true;
+        } catch (Throwable inventoryError) {
+            inventory.complete = false;
+        }
+
+        // Merge launcher-visible apps even if the full query failed, so known apps can still
+        // be checked. The caller must preserve the incomplete status and never report "safe".
         try {
             Intent launcher = new Intent(Intent.ACTION_MAIN);
             launcher.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -212,10 +243,14 @@ public final class FxYulongScanEngine {
                 for (ResolveInfo item : resolved) {
                     if (item.activityInfo == null) continue;
                     ApplicationInfo app = item.activityInfo.applicationInfo;
-                    if (app != null && app.packageName != null) result.put(app.packageName, app);
+                    if (app != null && app.packageName != null) {
+                        inventory.apps.put(app.packageName, app);
+                    }
                 }
             }
-        } catch (Throwable ignored) { }
-        return result;
+        } catch (Throwable ignored) {
+            // Partial inventory remains useful for findings, but complete stays false.
+        }
+        return inventory;
     }
 }
