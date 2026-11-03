@@ -170,20 +170,10 @@ replace_once(
     "subscription worker B must capture lock trace",
 )
 
-# Capture the two shell lock paths on failure. This shows whether both workers
-# acquire the per-URL mkdir lock or whether a waiter reclaims a live PID.
-replace_once(
-    sub_test,
-    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" & p1=$!\n',
-    'PS4=\'+[$$] \' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" 2> "$T/trace1" & p1=$!\n',
-    "subscription worker A must capture lock trace",
-)
-replace_once(
-    sub_test,
-    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" & p2=$!\n',
-    'PS4=\'+[$$] \' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" 2> "$T/trace2" & p2=$!\n',
-    "subscription worker B must capture lock trace",
-)
+# The restored release artifact already includes per-curl START/END markers.
+# Its worker launch syntax differs from the repository fixture, so do not force
+# a second, brittle rewrite of those commands; the count-failure assertion below
+# prints the event log and both worker responses for diagnosis.
 # The legacy test uses set -e with bare assertions. When one metadata/lock
 # invariant fails it previously exited with an empty log, so add precise failure
 # output while keeping the same assertions and exit behavior.
