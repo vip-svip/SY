@@ -131,6 +131,9 @@ jobs:
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
           sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
+          # Stage the canonical Root Proxy before applying the shared atomic lock migration.
+          python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py
+          python3 fx-patches/patch_yulong_root_proxy.py fx-module .
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh

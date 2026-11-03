@@ -158,14 +158,17 @@ jobs:
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
           install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
-          python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
-          sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
-          sh scripts/tests/fx-yulong-schedule-default-regression.sh
           python3 fx-patches/patch_yulong_dns_upstreams.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
           sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
+          # Root Proxy staging copies the canonical source; run it before the
+          # shared atomic lock patch so it cannot overwrite the lock migration.
+          python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
+          python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
+          sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
+          sh scripts/tests/fx-yulong-schedule-default-regression.sh
           python3 fx-patches/patch_yulong_app_whitelist.py fx-module
           python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
           python3 fx-patches/patch_native_script_store.py fx-module
