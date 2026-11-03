@@ -207,10 +207,11 @@ public final class FxDiaGadgetDeployment {
         c.append("printf 'schema=%s\\npackage=%s\\nprocesses=*\\nlibrary_sha256=%s\\nconfig_sha256=%s\\nport=%s\\n' ")
                 .append(q(MARKER_SCHEMA)).append(" \"$pkg\" \"$libhash\" \"$confhash\" \"$port\" > \"$stage/$marker\"\n");
         c.append("chown \"$owner\" \"$stage/$gadget\" \"$stage/$conf\" \"$stage/$marker\"; chmod 0755 \"$stage/$gadget\"; chmod 0644 \"$stage/$conf\" \"$stage/$marker\"\n");
-        c.append("if command -v restorecon >/dev/null 2>&1; then restorecon \"$stage/$gadget\" \"$stage/$conf\" \"$stage/$marker\" 2>/dev/null || :; fi\n");
+
         c.append("mv \"$stage/$gadget\" \"$dest/$gadget\"; new_g=1\n");
         c.append("mv \"$stage/$conf\" \"$dest/$conf\"; new_c=1\n");
         c.append("mv \"$stage/$marker\" \"$dest/$marker\"; new_m=1\n");
+        c.append("if command -v restorecon >/dev/null 2>&1; then restorecon \"$dest/$gadget\" \"$dest/$conf\" \"$dest/$marker\" 2>/dev/null || { echo FX_GADGET_RESTORECON_FAILED; exit 41; }; fi\n");
         c.append("committed=1; echo FX_GADGET_DEPLOYED; echo package=$pkg; echo nativeLibraryDir=$dest; echo port=$port\n");
         return c.toString();
     }
