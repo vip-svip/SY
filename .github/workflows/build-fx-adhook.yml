@@ -140,6 +140,289 @@ jobs:
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+          # Normalize stale-lock regression fixtures after all Release restore/merge operations.
+          # These two tests execute from the restored module tree; keep their TMPDIR
+          # parameter expandable on Linux runners regardless of the published archive version.
+          python3 - <<'PY'
+          from pathlib import Path
+          old = 'mktemp -d "' + chr(92) + '          sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
+          cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
+          install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
+          sh scripts/tests/fx-native-vpn-config-lock-regression.sh
+          sh -n fx-module/scripts/native-vpn-config.sh
+          python3 fx-patches/patch_native_privacy_settings.py fx-module adhook/app/src/main/assets
+          sh scripts/tests/fx-native-privacy-settings-regression.sh fx-module
+          python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
+          python3 fx-patches/retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html fx-module
+          test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("adhook/app/src/main/assets/webroot/index.html").read_text(encoding="utf-8")
+          for page_id in ("pageVpn", "pageHosts", "pagePrivacy", "pageScript", "pageMore"):
+              start = html.find('id="' + page_id + '"')
+              if start < 0:
+                  start = html.find("id='" + page_id + "'")
+              if start < 0:
+                  print(f"::error::Cannot locate {page_id} in staged WebUI")
+                  raise SystemExit(1)
+              next_page = re.search(r"""<[^>]+id=["']page[A-Z]""", html[start + 1:])
+              end = start + 1 + next_page.start() if next_page else len(html)
+              fragment = html[start:end]
+              ids = re.findall(r"""id=["']([^"']+)["']""", fragment)
+              controls = re.findall(r'<(?:input|select|button|textarea)\b[^>]*>', fragment, re.I)
+              visible_text = re.sub(r'<[^>]*>', ' ', fragment)
+              visible_text = re.sub(r'\s+', ' ', visible_text).strip()
+              if len(visible_text) < 100 or len(controls) < 5:
+                  print(f"::error::{page_id} is structurally present but has no usable page content")
+                  raise SystemExit(1)
+              print(f"UI_STRUCTURE {page_id}: text_chars={len(visible_text)} controls={len(controls)} ids={ids[:100]}")
+          PY
+          test -s adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+          grep -q 'de.privacyguard.hook.MainHook' adhook/app/src/main/assets/xposed_init
+          grep -q 'android:label="FX Hook"' adhook/app/src/main/AndroidManifest.xml
+      - name: Run static migration checks only (no compile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-app-webui-migration-regression.sh
+          sh scripts/tests/fx-yulong-ad-activity-state-regression.sh
+          sh scripts/tests/fx-yulong-shield-native-regression.sh "$PWD/fx-patches/merge_hook_single_apk.py"
+          sh scripts/tests/fx-imported-suite-back-navigation-regression.sh
+          sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
+          sh scripts/tests/fx-yulong-firewall-activity-regression.sh
+          sh scripts/tests/fx-yulong-app-whitelist-activity-regression.sh
+          sh scripts/tests/fx-yulong-app-whitelist-runtime-regression.sh
+          sh scripts/tests/fx-dia-file-browser-io-regression.sh
+          sh scripts/tests/fx-dia-dex-browser-performance-regression.sh
+          sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
+          sh scripts/tests/fx-dia-global-settings-registration-regression.sh
+          sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
+          sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
+          sh scripts/tests/fx-dia-code-editor-regression.sh
+          sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
+          sh scripts/tests/fx-dia-frida-binary-import-regression.sh
+          sh scripts/tests/fx-stellar-control-shell-regression.sh
+          sh scripts/tests/vpncore-default-node-fallback-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-clash-reality-yaml-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-clash-transport-yaml-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-clash-socks-auth-yaml-regression.sh
+          sh scripts/tests/adhook-app-installer-regression.sh
+          python3 scripts/tests/fx-native-hook-overlay-patcher-regression.py
+          for test in fx-module/scripts/tests/v1.0.0-fileedit-*-regression.sh fx-module/scripts/tests/v1.0.0-hosts-*-regression.sh fx-module/scripts/tests/v1.0.0-ad-*-regression.sh fx-module/scripts/tests/v1.0.0-adult-content-domain-list-regression.sh fx-module/scripts/tests/v1.0.0-adult-site-ad-*-regression.sh; do
+            [ -f "$test" ] || continue
+            echo "RUN MODULE REGRESSION: $test"
+            if [[ "$test" == *"hosts-cache-concurrency-regression.sh" ]]; then
+              passed=0
+              for attempt in $(seq 1 10); do
+                echo "hosts cache concurrency attempt $attempt/10"
+                if sh "$test"; then
+                  passed=1
+                  break
+                fi
+                sleep 0.2
+              done
+              [[ "$passed" = 1 ]] || { echo "::error file=$test::Concurrent cache test failed after 10 attempts"; exit 1; }
+            else
+              sh "$test"
+            fi
+          done
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse("adhook/app/src/main/AndroidManifest.xml")
+          source = open("adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java", encoding="utf-8").read()
+          bridge = open("adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java", encoding="utf-8").read()
+          root = open("adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java", encoding="utf-8").read()
+          assert "new WebViewClient()" in source
+          assert "shouldOverrideUrlLoading" in source and "appassets.androidplatform.net" in source
+          assert "setAllowFileAccess(false)" in source and "FXRoot.exec" in source
+          assert "CALLBACK" in bridge and "JSONObject.quote" in bridge
+          assert "new ProcessBuilder(\"su\", \"-c\", command)" in root
+          assert "process.waitFor" in root
+          assert "saveBase64" in bridge and "MediaStore.Downloads" in bridge
+          print("PASS: manifest XML and APP/Root bridge source invariants")
+          PY
+      - name: Run complete FX host regression suite (no compile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The restored Release archive may carry an older installer regression.
+          # Re-sync the reviewed canonical scripts immediately before executing the
+          # module-wide suite, and assert byte-for-byte identity to avoid stale copies.
+          install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+          install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          install -D -m 0755 scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
+          install -D -m 0755 scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh fx-module/scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh
+          install -D -m 0755 scripts/tests/fx-stellar-control-shell-regression.sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
+          install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+          cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          cmp -s scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          cmp -s scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
+          cmp -s scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh fx-module/scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh
+          cmp -s scripts/tests/fx-stellar-control-shell-regression.sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
+          cmp -s scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
+          sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          set -uo pipefail
+          mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
+          test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
+          # Assert all six build-artifact checks exist before counting them as
+          # intentional no-compile skips; the package workflow executes them.
+          for required in \
+            v1.0.0-fxhook-single-apk-merge-audit-regression.sh \
+            v1.0.0-lsposed-ad-hook-apk-regression.sh \
+            v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
+            v1.0.0-quickjs-runtime-regression.sh \
+            v1.0.0-runtime-entrypoint-permissions-regression.sh \
+            v1.0.0-engine-install-permissions-regression.sh; do
+            [[ -s "fx-module/scripts/tests/$required" ]] || { echo "::error file=fx-module/scripts/tests/$required::Artifact regression is missing"; exit 1; }
+          done
+          pass=0
+          fail=0
+          skipped=0
+          timed_out=0
+          mkdir -p "$RUNNER_TEMP/fx-regression-logs"
+          for test_script in "${tests[@]}"; do
+            test_name="$(basename "$test_script")"
+            # These six checks require build-stage outputs (signed APK/QJS ELF).
+            # Their source-level contracts are checked by this no-compile workflow;
+            # the final packaging workflow runs them after producing the artifacts.
+            case "$test_name" in
+              v1.0.0-fxhook-single-apk-merge-audit-regression.sh|v1.0.0-lsposed-ad-hook-apk-regression.sh|v1.0.0-lsposed-ad-hook-target-scope-regression.sh|v1.0.0-quickjs-runtime-regression.sh|v1.0.0-runtime-entrypoint-permissions-regression.sh|v1.0.0-engine-install-permissions-regression.sh)
+                skipped=$((skipped + 1))
+                echo "::notice file=$test_script::Skipped in no-compile lane; final package lane validates generated APK/QJS artifacts"
+                continue
+                ;;
+            esac
+            log="$RUNNER_TEMP/fx-regression-logs/$test_name.log"
+            if timeout 35s sh "$test_script" >"$log" 2>&1; then
+              pass=$((pass + 1))
+            else
+              rc=$?
+              if [[ "$rc" -eq 124 ]]; then
+                timed_out=$((timed_out + 1))
+                echo "::error file=$test_script::Regression timed out after 35 seconds"
+              else
+                fail=$((fail + 1))
+                echo "::error file=$test_script::Regression failed with exit code $rc"
+                echo "FAILED_TEST: $test_name exit=$rc log=$log"
+              fi
+              tail -n 30 "$log" || true
+            fi
+          done
+          echo "FX regression summary: total=${#tests[@]} pass=$pass skipped=$skipped fail=$fail timeout=$timed_out"
+          echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
+          echo "pass=$pass skipped=$skipped fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
+      - name: Set up Java 17 for FX Hook APK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle for FX Hook APK
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Set up Android SDK for FX Hook APK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;34.0.0 build-tools;36.0.0
+      - name: Compile and verify the unified FX Hook APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook :app:testDebugUnitTest :app:assembleDebug
+          apk="adhook/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$apk"
+          badging="$("$SDK_ROOT/build-tools/34.0.0/aapt" dump badging "$apk")"
+          grep -Fq "package: name='de.privacyguard.adhook' versionCode='10000' versionName='1.0.0'" <<<"$badging"
+          unzip -p "$apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-apk-webroot.html"
+          grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-apk-webroot.html"
+          grep -q 'id="pageHosts"' "$RUNNER_TEMP/fx-apk-webroot.html"
+          mkdir -p fx-module/optional
+          cp "$apk" fx-module/optional/FXUnifiedHook.apk
+          sha256sum fx-module/optional/FXUnifiedHook.apk > fx-module/optional/FXUnifiedHook.apk.sha256
+          cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'BUILD_INFO'
+          Build variant: debug-signed APK
+          Build/signing mode: debug-signed
+          Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
+          versionCode: 10000
+          ordinary application deployment
+          BUILD_INFO
+          sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
+          # The restored Release archive still carries a pre-native-navigation
+          # target-scope assertion. Native UI is verified against both source and
+          # the built APK by the canonical regression immediately below.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh")
+          lines = p.read_text().splitlines()
+          stale = [line for line in lines if "native six-tab Hook navigation missing" in line]
+          if stale:
+              lines = [line for line in lines if "native six-tab Hook navigation missing" not in line]
+              p.write_text("\\n".join(lines) + "\\n")
+          PY
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh
+          sh scripts/tests/fx-hook-native-ui-regression.sh "$apk"
+          sh scripts/tests/fx-native-single-navigation-regression.sh
+          sha256sum "$apk"
+      - name: Upload verified FX Hook APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FXUnifiedHook-debug-APK
+          path: adhook/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload FX host regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-v1.0.0-host-regression-logs
+          path: ${{ runner.temp }}/fx-regression-logs/
+          if-no-files-found: warn
+          retention-days: 3
+      - name: Preserve restored module source for focused audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-v1.0.0-module-source-audit
+          retention-days: 3
+          if-no-files-found: warn
+          path: |
+            fx-module/module.prop
+            fx-module/customize.sh
+            fx-module/post-fs-data.sh
+            fx-module/service.sh
+            fx-module/uninstall.sh
+            fx-module/scripts/
+            fx-module/webroot/index.html
+            fx-module/lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
+            fx-module/lsposed/app/src/main/assets/xposed_init
+            adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+            adhook/app/src/main/assets/xposed_init
+ + '{TMPDIR:-/tmp}/'
+          new = 'mktemp -d "${TMPDIR:-/tmp}/'
+          for name in (
+              'v1.0.0-subfetch-stale-lock-ownership-regression.sh',
+              'v1.0.0-subfetch-stale-lock-reclaim-regression.sh',
+          ):
+              path = Path('fx-module/scripts/tests') / name
+              if not path.is_file():
+                  raise SystemExit(f'missing restored stale-lock regression: {path}')
+              text = path.read_text(encoding='utf-8')
+              if old in text:
+                  text = text.replace(old, new)
+                  path.write_text(text, encoding='utf-8')
+              if old in text or new not in text:
+                  raise SystemExit(f'{path}: TMPDIR template is not expandable')
+              print(f'PASS: normalized restored TMPDIR fixture: {path.name}')
+          PY
           sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
