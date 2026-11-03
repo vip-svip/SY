@@ -26,6 +26,7 @@ assert restore.index("expected.equalsIgnoreCase(sha(module))") < first_root_writ
 assert "files.getString(name)" not in restore, "Stellar data must be decoded/validated before module mutation"
 assert "buildTransactionalRestoreCommand(" in restore, "module settings and Stellar grants must share one Root transaction"
 assert "previousPreferences" in restore and "error.addSuppressed(rollbackError)" in restore, "failed Root restore must restore app preference snapshots"
+assert "if (!edit.commit())" in source, "backup restore must detect synchronous SharedPreferences persistence failure"
 assert "staged.delete();" in restore and "moduleTemp.delete();" in restore, "restore staging files must be deleted on both success and failure"
 helper_start = source.index("private java.util.Map<String, java.io.File> stageAndValidateStellarFiles(")
 helper_end = source.index("private void validateBackupPreferences(", helper_start)

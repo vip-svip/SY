@@ -191,7 +191,9 @@ public final class FxDiaBackupActivity extends Activity {
                 for(int i=0;i<a.length();i++)set.add(a.optString(i));edit.putStringSet(key,set);
             }
         }
-        edit.apply();
+        if (!edit.commit()) {
+            throw new IllegalStateException("偏好设置写入失败：" + name);
+        }
     }
     private void root(String command,java.util.function.Consumer<RootAccess.Result> callback){
         worker.execute(()->{RootAccess.Result r=RootAccess.execute(command,90000L,MAX_BACKUP_BYTES);
