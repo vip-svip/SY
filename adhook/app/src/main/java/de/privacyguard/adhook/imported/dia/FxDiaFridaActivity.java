@@ -970,6 +970,21 @@ public final class FxDiaFridaActivity extends Activity {
                         + "      });\\n"
                         + "    } catch (_) { send('[DIA_SQL] class unavailable ' + className); }\\n"
                         + "  });\\n"
+                        + "  var statementClasses = ['android.database.sqlite.SQLiteStatement', 'net.sqlcipher.database.SQLiteStatement', 'com.tencent.wcdb.database.SQLiteStatement', 'net.zetetic.database.sqlcipher.SQLiteStatement'];\\n"
+                        + "  var statementMethods = ['execute', 'executeInsert', 'executeUpdateDelete', 'simpleQueryForLong', 'simpleQueryForString'];\\n"
+                        + "  statementClasses.forEach(function (className) {\\n"
+                        + "    try { var ST = Java.use(className);\\n"
+                        + "      statementMethods.forEach(function (methodName) {\\n"
+                        + "        try { ST[methodName].overloads.forEach(function (overload) {\\n"
+                        + "          overload.implementation = function () { var started = Date.now();\\n"
+                        + "            try { var result = overload.apply(this, arguments);\\n"
+                        + "              send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' elapsedMs=' + (Date.now() - started)); return result;\\n"
+                        + "            } catch (e) { send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' exception=' + e.$className + ' elapsedMs=' + (Date.now() - started)); throw e; }\\n"
+                        + "          };\\n"
+                        + "        }); } catch (_) {}\\n"
+                        + "      });\\n"
+                        + "    } catch (_) { send('[DIA_SQL] statement class unavailable ' + className); }\\n"
+                        + "  });\\n"
                         + "});";
                 break;
             case "socket":
