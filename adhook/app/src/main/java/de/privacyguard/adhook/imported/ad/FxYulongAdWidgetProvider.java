@@ -12,8 +12,11 @@ import android.widget.RemoteViews;
 import de.privacyguard.adhook.MainActivity;
 import de.privacyguard.adhook.RootAccess;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Home-screen widget for the FX/Yulong ad-filter master switch. */
 public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
@@ -21,7 +24,11 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
             "de.privacyguard.adhook.widget.YULONG_AD_TOGGLE";
     public static final String ACTION_REFRESH =
             "de.privacyguard.adhook.widget.YULONG_AD_REFRESH";
-    private static final ExecutorService WORKER = Executors.newSingleThreadExecutor();
+    private static final ThreadPoolExecutor WORKER = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
+            r -> new Thread(r, "fx-yulong-widget"), new ThreadPoolExecutor.AbortPolicy());
+    private static final AtomicBoolean REFRESH_PENDING = new AtomicBoolean(false);
+    private static final AtomicBoolean TOGGLE_PENDING = new AtomicBoolean(false);
 
     private static String shell(String action) {
         return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
@@ -33,9 +40,19 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
     }
 
     public static void refreshAll(Context context) {
-        if (context == null) return;
+        if (context == null || !REFRESH_PENDING.compareAndSet(false, true)) return;
         Context app = context.getApplicationContext();
-        WORKER.execute(() -> refreshFromRoot(app));
+        try {
+            WORKER.execute(() -> {
+                try {
+                    refreshFromRoot(app);
+                } finally {
+                    REFRESH_PENDING.set(false);
+                }
+            });
+        } catch (RejectedExecutionException full) {
+            REFRESH_PENDING.set(false);
+        }
     }
 
     private static void refreshFromRoot(Context context) {
@@ -146,24 +163,45 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         }
         if (!ACTION_TOGGLE.equals(action)) return;
 
-        final PendingResult pending = goAsync();
-        WORKER.execute(() -> {
-            int current = readEnabled(context);
-            if (current < 0) {
+        if (!TOGGLE_PENDING.compareAndSet(false, true)) return;
+        final PendingResult pending;
+        try {
+            pending = goAsync();
+        } catch (RuntimeException unavailable) {
+            TOGGLE_PENDING.set(false);
+            return;
+        }
+        try {
+            WORKER.execute(() -> {
+                try {
+                    int current = readEnabled(context);
+                    if (current < 0) {
+                        updateViews(context, false, false);
+                        return;
+                    }
+                    int wanted = current == 1 ? 0 : 1;
+                    RootAccess.Result applied = RootAccess.execute(
+                            shell("ad-master " + wanted), 90000L, 128 * 1024);
+                    if (applied.exitCode == 0) {
+                        refreshFromRoot(context);
+                    } else {
+                        updateViews(context, current == 1, false);
+                    }
+                } catch (Throwable failure) {
+                    updateViews(context, false, false);
+                } finally {
+                    TOGGLE_PENDING.set(false);
+                    pending.finish();
+                }
+            });
+        } catch (RejectedExecutionException full) {
+            TOGGLE_PENDING.set(false);
+            try {
                 updateViews(context, false, false);
+            } finally {
                 pending.finish();
-                return;
             }
-            int wanted = current == 1 ? 0 : 1;
-            RootAccess.Result applied = RootAccess.execute(
-                    shell("ad-master " + wanted), 90000L, 128 * 1024);
-            if (applied.exitCode == 0) {
-                refreshFromRoot(context);
-            } else {
-                updateViews(context, current == 1, false);
-            }
-            pending.finish();
-        });
+        }
     }
 
     private static int readEnabled(Context context) {
