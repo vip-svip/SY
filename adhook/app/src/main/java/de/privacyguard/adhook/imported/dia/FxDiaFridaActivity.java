@@ -2,7 +2,9 @@ package de.privacyguard.adhook.imported.dia;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.net.Uri;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -18,7 +20,12 @@ import android.widget.Toast;
 
 import de.privacyguard.adhook.RootAccess;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -35,8 +42,8 @@ import java.util.concurrent.Executors;
  */
 public final class FxDiaFridaActivity extends Activity {
     private static final String PREFS = "fx_dia_frida";
-    private static final String DEFAULT_SERVER = "/data/local/tmp/frida-server";
-    private static final String DEFAULT_INJECTOR = "/data/local/tmp/frida-inject";
+    private static final String DEFAULT_SERVER = "/data/local/tmp/fx-frida/fx-frida-server";
+    private static final String DEFAULT_INJECTOR = "/data/local/tmp/fx-frida/fx-frida-inject";
     private static final String SERVER_PID = "/data/adb/privacyguard/dia-frida-server.pid";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
@@ -140,7 +147,9 @@ public final class FxDiaFridaActivity extends Activity {
         card(body, "Frida 工具路径", "填写设备上已安装的可执行文件绝对路径，不会自动下载或替换二进制。",
                 text("frida-server", 12, 0xff617080, true), serverPath,
                 text("frida-inject", 12, 0xff617080, true), injectorPath,
-                button("保存路径", () -> savePaths()));
+                button("保存路径", () -> savePaths()),
+                button("从文件选择并导入 Frida Server", () -> pickBinary(7101)),
+                button("从文件选择并导入 Frida Inject", () -> pickBinary(7102)));
 
         status = text("尚未检测 Frida 环境。", 13, 0xff334155, false);
         card(body, "服务状态", "本地 Frida server", status,
@@ -185,6 +194,114 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入按键事件观察", () -> loadDiaMonitorTemplate("key")),
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
+    }
+
+    private void pickBinary(int requestCode) {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("*/*");
+        try {
+            startActivityForResult(pick, requestCode);
+        } catch (Throwable error) {
+            setStatus("无法打开系统文件选择器：" + error.getClass().getSimpleName());
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode != 7101 && requestCode != 7102) || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+        importBinary(data.getData(), requestCode == 7101);
+    }
+
+    private void importBinary(Uri uri, boolean server) {
+        final String label = server ? "Frida Server" : "Frida Inject";
+        final long maxBytes = server ? 150L * 1024L * 1024L : 80L * 1024L * 1024L;
+        setStatus("正在读取并校验 " + label + " 文件…");
+        worker.execute(() -> {
+            File staging = new File(getFilesDir(), "frida-import");
+            File source = new File(staging, server ? "server.upload" : "inject.upload");
+            try {
+                if (!staging.isDirectory() && !staging.mkdirs())
+                    throw new IllegalStateException("无法创建 FX 私有导入目录。");
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] header = new byte[20];
+                int headerCount = 0;
+                long total = 0;
+                try (InputStream input = new BufferedInputStream(getContentResolver().openInputStream(uri));
+                     FileOutputStream output = new FileOutputStream(source, false)) {
+                    if (input == null) throw new IllegalStateException("无法读取所选文件。");
+                    byte[] buffer = new byte[32768];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        if (total > maxBytes - count)
+                            throw new IllegalStateException("文件超过 " + (maxBytes / 1024 / 1024) + " MiB 限制。");
+                        int copy = Math.min(count, header.length - headerCount);
+                        if (copy > 0) {
+                            System.arraycopy(buffer, 0, header, headerCount, copy);
+                            headerCount += copy;
+                        }
+                        digest.update(buffer, 0, count);
+                        output.write(buffer, 0, count);
+                        total += count;
+                    }
+                    output.getFD().sync();
+                }
+                if (total < 20 || headerCount < 20
+                        || header[0] != 0x7f || header[1] != 'E'
+                        || header[2] != 'L' || header[3] != 'F'
+                        || header[4] != 2 || header[5] != 1
+                        || (header[18] & 0xff) != 0xb7 || header[19] != 0) {
+                    throw new IllegalArgumentException(
+                            "文件不是未压缩的 ELF64 little-endian ARM64 可执行文件；请先解压 .xz/.zip 文件。");
+                }
+                String sha = hexDigest(digest.digest());
+                String destination = server
+                        ? "/data/local/tmp/fx-frida/fx-frida-server"
+                        : "/data/local/tmp/fx-frida/fx-frida-inject";
+                String command = "set -e; d=/data/local/tmp/fx-frida; "
+                        + "if [ -L /data/local/tmp/fx-frida ]; then echo unsafe-destination; exit 71; fi; "
+                        + "mkdir -p \"$d\"; test ! -L \"$d\"; "
+                        + "src=" + quote(source.getAbsolutePath()) + "; dst=" + quote(destination) + "; "
+                        + "tmp=\"$dst.fx-import.tmp\"; rm -f \"$tmp\"; "
+                        + "cp \"$src\" \"$tmp\"; chmod 0700 \"$tmp\"; "
+                        + "actual=$(sha256sum \"$tmp\" | awk '{print $1}'); "
+                        + "[ \"$actual\" = " + quote(sha) + " ] || { rm -f \"$tmp\"; exit 72; }; "
+                        + "mv -f \"$tmp\" \"$dst\"; chmod 0700 \"$dst\"; sync; "
+                        + "actual=$(sha256sum \"$dst\" | awk '{print $1}'); "
+                        + "[ \"$actual\" = " + quote(sha) + " ]; test -x \"$dst\"; "
+                        + "printf 'installed=%s\\\\nsha256=%s\\\\nbytes=%s\\\\n' \"$dst\" \"$actual\" " + total;
+                RootAccess.Result result = RootAccess.execute(command, 60000L, 256 * 1024);
+                if (result.exitCode != 0)
+                    throw new IllegalStateException("Root 安装失败（退出码 " + result.exitCode + "）："
+                            + (result.output == null ? "" : result.output.trim()));
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString(server ? "server_path" : "injector_path", destination)
+                        .putString(server ? "server_sha256" : "injector_sha256", sha)
+                        .putLong(server ? "server_bytes" : "injector_bytes", total)
+                        .apply();
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    (server ? serverPath : injectorPath).setText(destination);
+                    setStatus(label + " 已导入并校验。\\nSHA-256：" + sha
+                            + "\\n大小：" + total + " bytes\\n" + result.output);
+                });
+                source.delete();
+            } catch (Throwable error) {
+                source.delete();
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed())
+                        setStatus(label + " 导入失败：" + error.getClass().getSimpleName()
+                                + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                });
+            }
+        });
+    }
+
+    private String hexDigest(byte[] bytes) {
+        StringBuilder value = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) value.append(String.format(Locale.ROOT, "%02x", b & 0xff));
+        return value.toString();
     }
 
     private void savePaths() {
