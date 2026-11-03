@@ -607,3 +607,13 @@ After each implementation batch:
 - Yulong schedule validation rejects duplicate/invalid weekdays, and disabled schedules stop their minute-polling watcher.
 - Yulong Ad DNS filtering response mode is now native-configurable: NXDOMAIN (default), REFUSED, or custom null-address response (0.0.0.0 / ::); the AdGuard Home runtime renderer reads this setting at startup.
 - No final KernelSU ZIP or APK was produced in this continuation batch. The build workflows remain manual-dispatch only, so subsequent source commits do not package prematurely. No real-device verification is claimed.
+
+## Yulong AdBlock 7.0.1 convenience-component migration (2026-11-03)
+
+- Added a single-APK FX home-screen AppWidget. It reads the actual yulong-ad-control.sh master state, toggles only the FX ad-filter master setting, opens the native Yulong Ad page, and never starts the original AdBlockVpnService or RootProxyService.
+- The widget shows today's blocked-query sample count only when local AdGuard Home query logging is enabled and log timestamps can be parsed. Empty/disabled/unparseable logs are surfaced explicitly; the most recent 500 records are not presented as a complete daily total.
+- Widget state refreshes after native Yulong Ad page changes, Tasker changes and Quick Settings tile changes.
+- Added the original Yulong VPN-toggle launcher shortcut action to FX. It uses the existing FX status.sh and native apply.sh path to toggle between the current proxy mode and direct mode, remembers the last non-direct mode, and requires an existing selected node before starting proxy mode. It does not create a second VPN service.
+- The Tasker receiver still accepts both the new FX actions and original app.pwhs.blockads.TASKER_START/STOP actions. Its result action now broadcasts the requested state, source action, success flag and exit code so external automation apps can receive it.
+- Corrected shell-command quoting and line/delimiter parsing in the native Yulong Tasker, Quick Settings and ad-control screens so the Root command strings and backend output parsing match the actual shell format.
+- All source changes are committed to fx-v1.0.0-unified-hook-integration. Build workflows remain manual-only and no intermediate/final ZIP or APK has been generated for these changes. This is source migration work; current-HEAD build and device behavior remain unverified.
