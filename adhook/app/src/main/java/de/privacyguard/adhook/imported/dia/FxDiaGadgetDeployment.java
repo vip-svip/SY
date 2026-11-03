@@ -47,10 +47,18 @@ public final class FxDiaGadgetDeployment {
         return path;
     }
 
+    /** Reject privileged/default or out-of-range ports at the deployment boundary, not only in UI. */
+    static boolean isValidListenPort(int port) {
+        return port >= 1024 && port <= 65535 && port != 27042;
+    }
+
     public static String validateSources(Context context, String packageName,
                                          String libraryPath, String configPath,
                                          int expectedPort) {
         try {
+            if (!isValidListenPort(expectedPort)) {
+                return "Gadget 监听端口必须在 1024–65535 范围内，且不能使用 frida-server 默认端口 27042。";
+            }
             targetNativeLibraryDir(context, packageName);
             File library = safeRegularFile(libraryPath, 150L * 1024L * 1024L);
             File config = safeRegularFile(configPath, 16L * 1024L);
@@ -131,6 +139,9 @@ public final class FxDiaGadgetDeployment {
     public static String buildDeployCommand(String library, String config,
                                             String nativeDir, String packageName,
                                             int port) {
+        if (!isValidListenPort(port)) {
+            throw new IllegalArgumentException("Gadget listener port must be within 1024–65535 and must not be 27042");
+        }
         StringBuilder c = new StringBuilder();
         c.append("set -eu\numask 077\n");
         c.append("src=").append(q(library)).append("\n");
