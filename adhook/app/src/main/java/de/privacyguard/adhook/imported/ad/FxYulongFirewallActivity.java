@@ -155,7 +155,11 @@ public final class FxYulongFirewallActivity extends Activity {
                 if (result.exitCode != 0) {
                     suppressMaster = true; master.setChecked(!checked); suppressMaster = false;
                     status.setText("防火墙未应用：" + safeOutput(result.output));
-                } else status.setText(checked ? "应用网络拦截已启用。" : "应用网络拦截已关闭。");
+                } else {
+                    getSharedPreferences("yulong_app_firewall", MODE_PRIVATE).edit()
+                            .putBoolean("master_enabled", checked).apply();
+                    status.setText(checked ? "应用网络拦截已启用。" : "应用网络拦截已关闭。");
+                }
             });
         });
         query.addTextChangedListener(new TextWatcher() {
@@ -180,9 +184,11 @@ public final class FxYulongFirewallActivity extends Activity {
     }
     private void parseList(String output) {
         selected.clear();
+        boolean masterEnabled = false;
         for (String line : (output == null ? "" : output).split("\\r?\\n")) {
             if (line.startsWith("master=")) {
-                suppressMaster = true; master.setChecked("1".equals(line.substring(7).trim())); suppressMaster = false;
+                masterEnabled = "1".equals(line.substring(7).trim());
+                suppressMaster = true; master.setChecked(masterEnabled); suppressMaster = false;
             } else if (line.startsWith("FXYULONGFW1")) {
                 // header
             } else {
@@ -191,6 +197,8 @@ public final class FxYulongFirewallActivity extends Activity {
                     selected.put(p[0], "1".equals(p[2]));
             }
         }
+        getSharedPreferences("yulong_app_firewall", MODE_PRIVATE).edit()
+                .putBoolean("master_enabled", masterEnabled).apply();
     }
     /** Package enumeration, label resolution and sorting must never block the Activity UI. */
     private void loadAppsAsync() {

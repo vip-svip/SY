@@ -44,6 +44,11 @@ IP6TABLES
 cat > "$TMP/bin/cmd" <<'CMD'
 #!/bin/sh
 if [ "$1" = package ] && [ "$2" = list ] && [ "$3" = packages ] && [ "$4" = -U ]; then
+  [ -z "${MOCK_PACKAGE_LIST_FAIL:-}" ] || exit 1
+  if [ -n "${MOCK_PACKAGE_LIST:-}" ] && [ -s "$MOCK_PACKAGE_LIST" ]; then
+    cat "$MOCK_PACKAGE_LIST"
+    exit 0
+  fi
   echo "package:com.example.blocked uid:10123"
   echo "package:com.example.allowed uid:10124"
   exit 0
@@ -51,7 +56,10 @@ fi
 exit 1
 CMD
 chmod 0755 "$TMP/bin/"*
+PACKAGE_LIST="$TMP/packages.txt"
+printf 'package:com.example.blocked uid:10123\\npackage:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
 export MP="$TMP/module" PG="$TMP/pg" MOCK_LOG="$TMP/iptables.log"
+export MOCK_PACKAGE_LIST="$PACKAGE_LIST"
 export PATH="$TMP/bin:$PATH"
 CONF="$PG/settings.conf"
 ACTIVE="$PG/yulong-firewall-active"
@@ -122,6 +130,34 @@ grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10123 -j REJECT' "
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
+# Uninstalling a selected app removes stale UID rules but preserves its selection.
+printf 'package:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+before_lines=$(wc -l < "$MOCK_LOG")
+run apply-event > "$TMP/uninstalled.out"
+grep -Fq 'firewall=1' "$TMP/uninstalled.out" || fail "master firewall state was lost after app uninstall"
+grep -Fq 'blocked_packages=0' "$TMP/uninstalled.out" || fail "uninstalled app remained in the active UID set"
+[ ! -e "$ACTIVE" ] || fail "uninstall left a stale active-chain marker"
+run list > "$TMP/uninstalled.list"
+grep -Fq 'com.example.blocked|10123|1' "$TMP/uninstalled.list" || fail "uninstall discarded the saved package selection"
+[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- '-F FXYUL_')" -ge 4 ] || fail "uninstall did not flush owned IPv4/IPv6 chains"
+
+# Reinstalling the same package with a new UID applies the new UID to both families.
+printf 'package:com.example.blocked uid:10125\\npackage:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+before_lines=$(wc -l < "$MOCK_LOG")
+run apply-event > "$TMP/reinstalled.out"
+grep -Fq 'blocked_packages=1' "$TMP/reinstalled.out" || fail "reinstalled app was not restored to the firewall"
+grep -Fq 'iptables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv4 firewall did not adopt new UID"
+grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv6 firewall did not adopt new UID"
+[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- 'uid-owner 10123')" -eq 0 ] || fail "reinstalled firewall kept the stale UID"
+
+# An unavailable PackageManager snapshot must preserve the last known-good chain.
+export MOCK_PACKAGE_LIST_FAIL=1
+if run apply-event > "$TMP/snapshot-failed.out" 2>&1; then
+  fail "firewall accepted a failed PackageManager UID snapshot"
+fi
+unset MOCK_PACKAGE_LIST_FAIL
+[ -f "$ACTIVE" ] || fail "failed PackageManager snapshot removed the active chain"
+
 run list > "$TMP/active.list"
 grep -qx 'master=1' "$TMP/active.list" || fail "enabled master state not visible"
 grep -Fq 'com.example.blocked|10123|1' "$TMP/active.list" || fail "enabled app row not visible"
@@ -155,4 +191,15 @@ fi
 
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
-echo "PASS: Yulong app firewall isolates temp files, rejects symlinks, rolls back dual-stack failure and cleans up its own chains"
+RECEIVER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallPackageReceiver.java"
+MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
+[ -s "$RECEIVER" ] || fail "package lifecycle firewall receiver missing"
+grep -Fq 'FxYulongFirewallPackageReceiver' "$MANIFEST" || fail "package lifecycle receiver is not declared"
+grep -Fq 'ACTION_PACKAGE_REMOVED' "$RECEIVER" || fail "package removal is not observed"
+grep -Fq 'ACTION_PACKAGE_ADDED' "$RECEIVER" || fail "package install is not observed"
+grep -Fq 'ACTION_PACKAGE_REPLACED' "$RECEIVER" || fail "package update is not observed"
+grep -Fq 'PREF_MASTER' "$RECEIVER" || fail "receiver is not gated by the firewall master switch"
+grep -Fq 'apply-event' "$RECEIVER" || fail "package receiver does not use bounded reconciliation"
+grep -Fq 'apply-event) with_lock --event apply_rules ;;' "$SOURCE" || fail "bounded package-event command missing"
+grep -Fq 'putBoolean("master_enabled", masterEnabled)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" || fail "firewall UI does not publish its master state"
+echo "PASS: Yulong app firewall reconciles uninstall/reinstall UID changes, preserves last-good rules on snapshot failure and cleans only owned chains"
