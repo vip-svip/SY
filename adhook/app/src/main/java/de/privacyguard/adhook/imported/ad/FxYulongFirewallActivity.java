@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.net.TrafficStats;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -105,7 +106,7 @@ public final class FxYulongFirewallActivity extends Activity {
         card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用的规则。", master);
         query = new EditText(this); query.setSingleLine(true); query.setHint("搜索应用名称或包名");
         query.setPadding(dp(14), dp(8), dp(14), dp(8));
-        card("应用列表", "选择要完全阻断网络的应用", query);
+        card("应用列表", "选择要完全阻断网络的应用；每个 UID 的收发计数由 Android TrafficStats 提供，按刷新时刻读取。", query, button("刷新流量统计", this::renderRows));
         master.setOnCheckedChangeListener((button, checked) -> {
             if (loading || suppressMaster) return;
             if (checked && !selected.containsValue(Boolean.TRUE)) {
@@ -171,6 +172,19 @@ public final class FxYulongFirewallActivity extends Activity {
             status.setText("无法读取应用列表：" + error.getClass().getSimpleName());
         }
     }
+    private String formatBytes(long bytes) {
+        if (bytes < 0) return "系统未提供";
+        if (bytes < 1024) return bytes + " B";
+        double value = bytes;
+        String[] units = {"B", "KiB", "MiB", "GiB", "TiB"};
+        int unit = 0;
+        while (value >= 1024.0 && unit < units.length - 1) {
+            value /= 1024.0;
+            unit++;
+        }
+        return String.format(Locale.ROOT, "%.2f %s", value, units[unit]);
+    }
+
     private void renderRows() {
         if (rows == null || isFinishing()) return;
         rows.removeViews(4, Math.max(0, rows.getChildCount() - 4));
@@ -184,6 +198,10 @@ public final class FxYulongFirewallActivity extends Activity {
             item.setPadding(dp(12), dp(7), dp(12), dp(7));
             TextView name = text(label, 14, 0xff17212b, true);
             TextView packageText = text(pkg + " · UID " + info.uid, 10, 0xff718091, false);
+            long received = TrafficStats.getUidRxBytes(info.uid);
+            long transmitted = TrafficStats.getUidTxBytes(info.uid);
+            TextView traffic = text("本次系统 UID 计数 · 接收 " + formatBytes(received)
+                    + " · 发送 " + formatBytes(transmitted), 10, 0xff526170, false);
             Switch blocked = new Switch(this); blocked.setText("阻断该应用的全部网络");
             blocked.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
             final boolean[] suppressRow = {false};
@@ -203,7 +221,7 @@ public final class FxYulongFirewallActivity extends Activity {
                     }
                 });
             });
-            item.addView(name); item.addView(packageText); item.addView(blocked);
+            item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(blocked);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
         }
