@@ -548,3 +548,11 @@ After each implementation batch:
 - `scripts/native-vpn-config.sh` is installed into the module and exposes an allowlisted reader/writer for canonical `[conf:vpn]` keys. The native VPN editor exposes local/mixed ports, DNS, URLs, update interval, routing mode, core version/path/auto-download, log level, cache lifetime, auto-selection thresholds and hide options.
 - `MainActivity.loadNativePrivacyEditEntries()` now opens that native VPN editor. The unused `VPN_EDIT` / `secVal()` / `secSet()` WebView editor and save/poll methods have been removed from `MainActivity`.
 - Both build workflows remain manual-dispatch only during migration. The above are source-level changes only; no final ZIP/APK has been rebuilt for this state and no device verification is claimed.
+
+## Native migration continuation — 2026-11-03 (latest batch)
+
+- Yulong Stellar manager: added an explicit SECURE_SETTINGS_WRITE action path. The UI requires the per-package scope and a confirmation. The Root backend accepts only show_ime_with_hard_keyboard (0/1), screensaver_enabled (0/1), and long_press_timeout (100–1000 ms); arbitrary secure-setting keys are rejected. The script verifies the value after writing and records the action.
+- Yulong AdBlock schedule: schedule writes now use an exclusive lock and per-process temporary file, preserve the previous schedule, apply the new schedule, ensure the background watcher is running, and restore the previous schedule if applying or starting the watcher fails.
+- Yulong Shield rescue: the overlay shortcut now opens a dedicated native Rescue Center instead of only returning to the Shield home page. It can stop foreground protection, pause volume/shake triggers, close the overlay entry, inspect the latest foreground package, open Android app info/uninstall confirmation, add the foreground app to the whitelist, remove it from the blacklist, clear the blacklist after confirmation, and open Usage Access / Accessibility / overlay settings.
+- Rescue operations are user initiated. No automatic app force-stop, freeze, uninstall, arbitrary permission grant, or accessibility permission restoration was added.
+- All changes remain on fx-v1.0.0-unified-hook-integration. No intermediate APK/KernelSU ZIP was generated. This batch has source-level changes only; it does not claim a current-HEAD build or device test.
