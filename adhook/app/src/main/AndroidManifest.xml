@@ -85,6 +85,7 @@
         <activity android:name=".imported.ad.FxYulongAdActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongDnsActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdSummaryActivity" android:exported="false" />
+        <activity android:name=".imported.ad.FxYulongAdGeneralActivity" android:exported="false" />
         <receiver android:name=".imported.ad.FxYulongAdTaskerReceiver" android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="de.privacyguard.adhook.AD_FILTER_ENABLE" />
