@@ -880,6 +880,20 @@ public final class FxDiaFridaActivity extends Activity {
                         + "  try { var Volley=Java.use('com.android.volley.Request'); var getUrl=Volley.getUrl.overload(); getUrl.implementation=function(){ var url=String(getUrl.call(this)); send('[DIA_HTTP] Volley host='+safeHost(url)); return url; }; } catch (_) {}\\n"
                         + "});";
                 break;
+            case "webview-http":
+                source = "Java.perform(function () {\\n"
+                        + "  function hostOf(value) { try { return String(Java.use('java.net.URL').$new(String(value)).getHost()); } catch (_) { return ''; } }\\n"
+                        + "  try { var WebView=Java.use('android.webkit.WebView');\\n"
+                        + "    try { var load=WebView.loadUrl.overload('java.lang.String'); load.implementation=function(url){\\n"
+                        + "      var host=hostOf(url); send('[DIA_WEBVIEW] loadUrl host='+host); return load.call(this,url); }; } catch (_) {}\\n"
+                        + "    try { var loadHeaders=WebView.loadUrl.overload('java.lang.String','java.util.Map'); loadHeaders.implementation=function(url,headers){\\n"
+                        + "      var host=hostOf(url); send('[DIA_WEBVIEW] loadUrl(headers) host='+host); return loadHeaders.call(this,url,headers); }; } catch (_) {}\\n"
+                        + "    try { var post=WebView.postUrl.overload('java.lang.String','[B'); post.implementation=function(url,body){\\n"
+                        + "      var host=hostOf(url); var length=-1; try { length=body===null?-1:body.length; } catch (_) {}\\n"
+                        + "      send('[DIA_WEBVIEW] postUrl host='+host+' bodyBytes='+length+' content=redacted'); return post.call(this,url,body); }; } catch (_) {}\\n"
+                        + "  } catch(e) { send('[DIA_WEBVIEW] WebView class unavailable: '+e.$className); }\\n"
+                        + "});";
+                break;
             case "sql":
                 source = "Java.perform(function () {\\n"
                         + "  var DB = Java.use('android.database.sqlite.SQLiteDatabase');\\n"
