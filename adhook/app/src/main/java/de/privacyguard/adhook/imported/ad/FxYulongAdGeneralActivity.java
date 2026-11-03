@@ -317,14 +317,17 @@ public final class FxYulongAdGeneralActivity extends Activity {
     }
 
     private void applyImport(JSONObject json) {
-        if (!FxYulongAdOperationGate.tryAcquire()) {
-            operationStatus.setText("另一入口正在修改广告过滤，请稍后再导入。");
-            return;
-        }
         operationStatus.setText("正在备份并导入设备端配置…");
         try {
             worker.execute(() -> {
+                boolean gateAcquired = false;
                 try {
+                gateAcquired = FxYulongAdOperationGate.tryAcquire();
+                if (!gateAcquired) {
+                    runOnUiThread(() -> { if (!isFinishing() && !isDestroyed())
+                        operationStatus.setText("另一入口正在修改广告过滤，请稍后再导入。"); });
+                    return;
+                }
                 RootAccess.Result current=root("list");
                 if(current.exitCode!=0)throw new IllegalStateException("读取现有设置失败："+safe(current.output));
                 StringBuilder command=new StringBuilder("set -eu; ");
@@ -396,11 +399,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 } catch(Throwable error) {
                     showError("导入失败", error);
                 } finally {
-                    FxYulongAdOperationGate.release();
+                    if (gateAcquired) FxYulongAdOperationGate.release();
                 }
             });
         } catch (RejectedExecutionException full) {
-            FxYulongAdOperationGate.release();
             operationStatus.setText("后台任务繁忙，导入未开始。");
         }
     }
