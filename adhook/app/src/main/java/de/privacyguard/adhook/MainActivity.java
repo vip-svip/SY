@@ -2715,6 +2715,10 @@ public final class MainActivity extends ComponentActivity {
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class));
                     return;
+                case "签名信息":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class));
+                    return;
                 case "数据库监控": case "内存快照":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaInspectorActivity.class)

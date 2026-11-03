@@ -93,9 +93,9 @@ public final class FxDiaDexIndex {
                     ZipEntry entry = entries.nextElement();
                     if (entry.isDirectory()) continue;
                     String name = entry.getName();
-                    if (name.matches("classes([2-9][0-9]*)?\\.dex")) ordered.add(entry);
+                    if (name.matches("classes([2-9]|[1-9][0-9]*)?\\.dex")) ordered.add(entry);
                 }
-                ordered.sort((a, b) -> dexOrder(a.getName()) - dexOrder(b.getName()));
+                ordered.sort(java.util.Comparator.comparingInt(entry -> dexOrder(entry.getName())));
                 for (ZipEntry entry : ordered) {
                     byte[] bytes;
                     try (InputStream input = zip.getInputStream(entry)) {
@@ -155,8 +155,15 @@ public final class FxDiaDexIndex {
         long methodTotal = (long) directMethods + virtualMethods;
         if (fieldTotal > MAX_MEMBERS_PER_CLASS || methodTotal > MAX_MEMBERS_PER_CLASS)
             throw new IOException("class member count exceeds safety limit");
+        parseFieldList(cursor, staticFields, item);
+        parseFieldList(cursor, instanceFields, item);
+        parseMethodList(cursor, directMethods, item);
+        parseMethodList(cursor, virtualMethods, item);
+    }
+
+    private void parseFieldList(int[] cursor, int count, DexClass item) throws IOException {
         int fieldIndex = 0;
-        for (int i = 0; i < fieldTotal; i++) {
+        for (int i = 0; i < count; i++) {
             fieldIndex += readUleb(cursor);
             int access = readUleb(cursor);
             if (fieldIndex < 0 || fieldIndex >= fieldsSize) throw new IOException("bad field index");
@@ -168,9 +175,11 @@ public final class FxDiaDexIndex {
             if (name != null && desc != null) item.fields.add(
                     new Member(false, name, ":" + desc, access));
         }
+    }
 
+    private void parseMethodList(int[] cursor, int count, DexClass item) throws IOException {
         int methodIndex = 0;
-        for (int i = 0; i < methodTotal; i++) {
+        for (int i = 0; i < count; i++) {
             methodIndex += readUleb(cursor);
             int access = readUleb(cursor);
             readUleb(cursor); // code_off; inspect metadata only, never execute it
