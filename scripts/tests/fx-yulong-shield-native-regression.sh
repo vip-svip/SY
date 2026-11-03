@@ -60,6 +60,11 @@ for token in ("Intent.ACTION_UNINSTALL_PACKAGE", "Intent.EXTRA_RETURN_RESULT",
 assert "FxYulongUninstallReceiver.class" in protection_service
 assert '"系统卸载确认"' in protection_service and ".addAction(" in protection_service
 assert "pm uninstall" not in uninstall_source and "su -c" not in uninstall_source
+assert 'open.setData(Uri.parse("fx-shield-risk://" + Uri.encode(packageName)))' in protection_service, "Warning PendingIntent identity must include the complete package name"
+assert 'uninstallIntent.setData(Uri.parse("fx-shield-uninstall://" + Uri.encode(packageName)))' in protection_service, "Uninstall PendingIntent identity must include the complete package name"
+assert 'manager.notify("fx-shield-risk:" + packageName, 0x5950, notification)' in protection_service, "Risk notifications must use an exact package tag instead of String.hashCode"
+assert '"protect_alert_last_" + packageName' in protection_service, "Per-package alert cooldown must not collide on String.hashCode"
+assert "packageName.hashCode()" not in protection_service, "Package-scoped notification identity must not depend on collision-prone String.hashCode"
 merge_source = merge_source_path.read_text(encoding="utf-8")
 assert "FxYulongInstallScanReceiver" in merge_source
 assert "ET.fromstring(manifest_text)" in merge_source, "Unified APK merger must parse the original Manifest tree"
