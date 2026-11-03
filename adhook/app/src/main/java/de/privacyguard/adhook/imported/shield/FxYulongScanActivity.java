@@ -91,7 +91,8 @@ public final class FxYulongScanActivity extends Activity {
                         : "已启用但内容特征库未就绪")
                     : "未启用（默认关闭）"));
             if(result.findings.isEmpty()){
-                card("扫描结果",text("没有命中当前名单。这不代表设备绝对安全。",13,0xff607080,false));return;
+                resultRows.addView(text("没有命中当前名单。这不代表设备绝对安全。",13,0xff607080,false));
+                return;
             }
             for(FxYulongScanEngine.Finding f:result.findings)addFinding(f);
         }));

@@ -696,3 +696,16 @@ After each implementation batch:
 - Tile enable/disable uses the same saved-previous-value and compare-before-restore rules as the native proxy page.
 - Added a recovery action that clears only FX's local proxy-management metadata while leaving the current Android proxy value untouched. This lets the user recover from an external-setting conflict without FX overwriting another app's value.
 - Source-only commits; no intermediate APK/KernelSU ZIP was produced.
+
+
+### Yulong Security Shield 9.9.60 — batch-cleanup queue continuity
+
+- Fixed the empty-scan result so repeated scans replace the result content instead of
+  appending duplicate summary cards to the page.
+- The user-selected batch-uninstall queue now survives Activity recreation and
+  process restoration: package list, labels, reasons, current position and already
+  missing packages are saved/restored with instance state.
+- The queue is capped at 100 entries, validates package identifiers, rechecks
+  installation state before opening the system uninstaller, and continues only
+  through explicit user actions. FX still never confirms, force-stops, freezes or
+  silently uninstalls a target application.
