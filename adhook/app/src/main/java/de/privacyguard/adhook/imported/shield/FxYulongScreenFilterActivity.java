@@ -105,13 +105,13 @@ public final class FxYulongScreenFilterActivity extends Activity {
             } else stopFilter();
         });
         card(body, "滤镜状态",
-                "只绘制浅色滤镜，不接收点击、不读取屏幕图像。系统显示可停止的前台通知。",
+                "使用不接收触摸的透明覆盖层调节叠加色，不读取屏幕图像。系统显示可停止的前台通知。",
                 enabled,
                 button("打开悬浮窗权限设置", this::openOverlaySettings),
                 button("停止并移除滤镜", this::stopFilter));
 
         Spinner preset = new Spinner(this);
-        String[] presetNames = {"标准", "游戏"};
+        String[] presetNames = {"标准浅色", "暖色覆盖"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, presetNames);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -125,7 +125,7 @@ public final class FxYulongScreenFilterActivity extends Activity {
                 applyIfRunning();
             }
         });
-        card(body, "滤镜预设", "标准模式使用自然增强矩阵；游戏模式使用更高的色彩增强矩阵。", preset);
+        card(body, "滤镜预设", "预设只改变覆盖滤镜的颜色；Android 普通悬浮层不能对下层应用画面进行真实像素级对比度/饱和度变换。", preset);
         Switch volumeAdjust = new Switch(this);
         volumeAdjust.setText("使用音量键微调滤镜亮度");
         volumeAdjust.setChecked(prefs.getBoolean("screen_filter_volume_adjust_enabled", false));
@@ -147,8 +147,8 @@ public final class FxYulongScreenFilterActivity extends Activity {
                 "开启后音量上/下键按每次 5 个单位调整滤镜亮度；系统音量仍正常变化。",
                 volumeAdjust);
         addSlider(body, "亮度", "screen_filter_brightness", 0, 200, 100, "%");
-        addSlider(body, "对比度", "screen_filter_contrast", 0, 200, 100, "%");
-        addSlider(body, "饱和度", "screen_filter_saturation", 0, 200, 100, "%");
+        addSlider(body, "覆盖色对比度", "screen_filter_contrast", 0, 200, 100, "%");
+        addSlider(body, "覆盖色饱和度", "screen_filter_saturation", 0, 200, 100, "%");
         addSlider(body, "色温", "screen_filter_temperature", 0, 100, 50, "");
         card(body, "操作", "启用后拖动参数会即时更新；关闭后只移除 FX 自己创建的覆盖层。",
                 button("应用当前参数", this::applyIfRunning),
