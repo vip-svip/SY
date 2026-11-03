@@ -144,5 +144,31 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 
 ### Remaining Frida migration boundary
 
-- The UI writes the official Gadget listen configuration and provides ADB-forward/Frida CLI commands. It does **not** automatically inject or load Gadget into an arbitrary third-party app. The page states that the target app must already load the Gadget library; this remains an explicit incomplete Dia runtime integration.
-- Original Dia 23.11 `FridaHook.smali` / `ExpandListenActivity.smali` show an Xposed-side Application startup hook that loads the configured native Gadget library and applies the per-process listener target. FX still needs a reviewed unified LSPosed target-side adapter before this can be called a complete port. Do not bypass this boundary by silently patching/repacking third-party APKs.
+- The Gadget target-side loading path is present: `DiaFridaTargetHook.java` hooks `Application.attach(Context)`, verifies the selected package and exact process, requires a debuggable non-system app under a non-symlinked `/data/app` native-library path, checks the deployment marker schema/package/process/port, verifies SHA-256 for the library and config, validates loopback Listen mode, then calls `System.load()`.
+- `FxDiaGadgetDeployment.java` performs Root-assisted deployment/removal with per-target ownership markers, exact process binding, ABI/source validation, staged atomic replacement, hashes and rollback. Deploy/remove regression and Frida session regression cover source contracts and a local mock lifecycle.
+- This replaces the original broad `code_inject` + `frida_listen` preference pair with an explicit per-package/per-process deployment marker as the opt-in. This is a deliberately narrower scope and safer permission boundary, not a byte-for-byte UI preference port.
+- The target-side loader is a legacy Xposed entrypoint packaged into the unified APK and registered by `merge_hook_single_apk.py`; it is not a second APK or a duplicate API-101 loader. Keep it registered in merged `assets/xposed_init`.
+- Android LSPosed/Gadget execution, update/restart behavior and uninstall/rollback still require OnePlus 12 verification. Do not silently patch/repack arbitrary third-party APKs.
+
+
+## Latest continuation update — 2026-11-04 (branch checkpoint ef1dcad78d6b)
+
+### Completed source changes since the previous recorded handoff
+
+- Native Hook app package-list lifecycle sync: `MainActivity` observes package install/uninstall/update while resumed, refreshes the visible app list, revalidates a selected target after Activity resume, and preserves a selected app's Hook configuration if that app is removed. API 33+ receiver registration is explicitly non-exported. Commit: `e0d70d269b83ec1c2b80ff69e67fe2b7b8fc4246`.
+- Yulong per-app firewall package lifecycle reconciliation: an internal receiver reacts to package lifecycle changes only while the firewall master preference is enabled; the Root script refreshes UID rules for reinstall/UID changes, removes stale active UIDs after uninstall while retaining saved package selection, and preserves last-known-good rules if PackageManager enumeration fails. The same implementation is carried into the restored Release module overlay. Commits: `cdcc3132208c`, `c7a1818038ef`, `ef1dcad78d6b`.
+- Repaired the Java compile blockers identified by the previous APK workflow: missing imports, incorrect `OutputStream` typing where `FileOutputStream.getFD().sync()` is required, and Yulong widget app-resource namespace import. The same batch hardened backup reads against symlinked module/settings paths. Commit: `73f6c2be14c7`.
+- Original Dia Frida target loading is present and now accurately documented: the package-scoped Xposed loader and Root deploy/remove implementation exist in source. The original global injection/listen preferences are represented by an explicit per-package/process deployment marker rather than a global toggle. See `DiaFridaTargetHook.java`, `FxDiaGadgetDeployment.java` and `fx-dia-frida-gadget-deploy-regression.sh`.
+
+### Validation state at this checkpoint
+
+- Latest Actions run on this branch must be checked before asserting a build result. Do not infer a compile result from source restoration or host regression completion.
+- The Frida session regression's local mock is host-only; it does not prove Android LSPosed/Gadget load behavior on the target device.
+- No OnePlus 12 physical-device validation is recorded. No final APK or KernelSU ZIP was produced.
+
+### Next source work
+
+1. Continue Yulong AdBlock original Trie/Bloom matcher and DNS query-accounting parity. Do not present UID traffic counters as DNS query counts.
+2. Continue Stellar Binder request/confirmation/response transport and compare the original Shield receiver/service lifecycle with FX's safe equivalents.
+3. Reconcile the original Dia page/resource/method inventory with actual FX operations; prioritize method/class/field editing, JS runtime page behavior, and missing monitor event forwarding.
+4. Keep final APK/KernelSU packaging blocked until every migration gate closes; real-device verification is a separate required gate.

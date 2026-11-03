@@ -65,7 +65,7 @@ FX 当前刻意不声明原始 `AdBlockVpnService`，这是正确的 VPN 槽位�
 
 1. 当前 FX 有 Shield 页面、扫描、名单、救援、屏幕滤镜、完整性和一个 Stellar 管理 Activity；但原 Stellar Provider / ADB pairing / daemon / self-starter / Receiver 的职责是否已被安全重构并未得到证明。
 2. Stellar 的应用授权、能力作用域、始终允许命令、配置持久化和日志需要一个统一、可审计的内部数据层；不能只迁移 Manager UI。
-3. 原 `AdSkipService` 的无障碍行为必须逐项比对 FX 无障碍服务；当前 FX 服务声明 `canRetrieveWindowContent=false`，不能据此声称已经复制了原屏幕读取 / 点击行为。只有在用户明确授权且符合最小权限时，才可迁移需要的行为。
+3. 原 `AdSkipService` 已按 Smali 核实：它只转发 `TYPE_WINDOW_STATE_CHANGED` 前台包名和音量键方向事件，不读取 Accessibility 节点树，也不执行点击。FX `FxAccessibilityService` 已实现对应的前台包名与音量键行为，音量事件返回 `false` 保留系统默认音量控制，并设置 `canRetrieveWindowContent=false` / `canPerformGestures=false`。这是符合最小权限的功能迁移，不是缺失的屏幕读取功能；除非发现另一个原始功能确实依赖节点树或手势，否则不要扩大无障碍权限。
 4. NotifyUninstall、VirusInstall、StellarReceiver 和启动恢复事件需要逐项核对；当前仅有 KeepAlive、Boot、InstallScan 等部分 Receiver。
 5. 批量清理必须验证队列持久化、卸载结果回读、失败重试、Activity 重建恢复和误删保护。
 
@@ -93,3 +93,12 @@ FX 当前刻意不声明原始 `AdBlockVpnService`，这是正确的 VPN 槽位�
 5. 所有缺口均通过源代码、自动化测试和设备验证后才能标记完成。
 
 **本审计不触发最终 APK / KernelSU ZIP 构建。**
+
+
+## 2026-11-04 follow-up verification — Dia Frida and Shield Accessibility
+
+At branch checkpoint `ef1dcad78d6be573beb2e7cdc590ec53dd00c970`, the earlier gap statements above are narrowed by direct source comparison:
+
+- **Dia Frida target loading is present in FX source.** `DiaFridaTargetHook` installs before `Application.attach(Context)`, requires an exact package/process match and a debuggable non-system user app, rejects symlinked native-library path components, verifies the FX marker and both SHA-256 digests, validates `127.0.0.1` Listen config, then calls `System.load()`. `FxDiaGadgetDeployment` provides the matching Root deployment/removal transaction. Regression: `scripts/tests/fx-dia-frida-gadget-deploy-regression.sh`. This is source-level integration only; Android LSPosed/Gadget execution remains unverified on OnePlus 12.
+- The original Frida `code_inject` and `frida_listen` preferences default off. FX's explicit deployment marker is the per-app/per-process opt-in replacement; it is deliberately narrower than the original global preference path. The unified APK keeps this loader in the legacy Xposed entrypoint through the merge script, not in a second APK.
+- **Shield Accessibility scope is verified.** Original `AdSkipService` only forwards foreground package changes and volume-key events; it does not read window node trees or automate clicks. FX's `FxAccessibilityService` mirrors those needed events and keeps window-content retrieval and gestures disabled. Do not increase Accessibility privileges to imitate behavior the original service did not perform.
