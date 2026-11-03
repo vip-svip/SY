@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
@@ -35,6 +36,8 @@ public final class FxYulongAdActivity extends Activity {
  private static final String STATE_PAGE="fx_yulong_ad_page";
  private static final String STATE_DRAFTS="fx_yulong_ad_drafts";
  private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();
+ private static final int BULK_DRAFT_MAX_CHARS=48*1024;
+ private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
@@ -43,6 +46,8 @@ public final class FxYulongAdActivity extends Activity {
  private EditText draftField(String key){
   EditText field=new EditText(this);
   field.setTag("fx-yulong-ad-draft:"+key);
+  int maxChars=key.endsWith("_bulk")?BULK_DRAFT_MAX_CHARS:TEXT_DRAFT_MAX_CHARS;
+  field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});
   draftFields.put(key,field);
   return field;
  }
@@ -304,7 +309,7 @@ private void saveVpnDns(String key,EditText input){
       }));
   EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入白名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入白名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
       allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
 
   EditText block=draftField("block_domain"); block.setSingleLine(true); block.setHint("黑名单域名");
@@ -317,7 +322,7 @@ private void saveVpnDns(String key,EditText input){
       }));
   EditText blockBulk=draftField("block_bulk"); blockBulk.setGravity(Gravity.TOP|Gravity.START);
   blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入黑名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
 
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);

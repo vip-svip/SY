@@ -19,6 +19,11 @@ required = [
     'restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;',
     'out.putString(STATE_PAGE,page);',
     'out.putBundle(STATE_DRAFTS,drafts);',
+    'private static final int BULK_DRAFT_MAX_CHARS=48*1024;',
+    'private static final int TEXT_DRAFT_MAX_CHARS=4096;',
+    'field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});',
+    'int maxChars=key.endsWith("_bulk")?BULK_DRAFT_MAX_CHARS:TEXT_DRAFT_MAX_CHARS;',
+    '最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）',
     'draftFields.clear();body.removeAllViews();',
 ]
 for token in required:
