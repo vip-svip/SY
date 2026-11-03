@@ -58,6 +58,8 @@ public class BlacklistActivity extends Activity {
     private final AtomicLong appLoadGeneration = new AtomicLong();
     private volatile boolean activityDestroyed;
     private boolean appsLoading = true;
+    private static final int BLACKLIST_PAGE_SIZE = 50;
+    private int blacklistPage = 1;
     private LinearLayout blacklistContainer;
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
@@ -404,6 +406,7 @@ public class BlacklistActivity extends Activity {
         dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
                 .setOnClickListener(v -> {
                     currentBlacklist.addAll(staged);
+                    blacklistPage = 1;
                     saveBlacklist();
                     refreshBlacklistUI();
                     dialog.dismiss();
@@ -430,6 +433,7 @@ public class BlacklistActivity extends Activity {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         currentBlacklist.clear();
+                        blacklistPage = 1;
                         saveBlacklist();
                         refreshBlacklistUI();
                     }
@@ -441,47 +445,67 @@ public class BlacklistActivity extends Activity {
     private void refreshBlacklistUI() {
         blacklistContainer.removeAllViews();
 
-        // 更新信任按钮文字
         if (trustAllBtn != null) {
-            trustAllBtn.setText("我都很信任" + (currentBlacklist.isEmpty() ? "" : "（清空" + currentBlacklist.size() + "个管控）"));
+            trustAllBtn.setText("我都很信任" + (currentBlacklist.isEmpty()
+                    ? "" : "（清空" + currentBlacklist.size() + "个管控）"));
         }
 
         List<AppItem> blacklisted = new ArrayList<>();
         for (String pkg : currentBlacklist) {
             AppItem found = appByPackage.get(pkg);
             if (found == null) {
-                found = new AppItem();
-                found.packageName = pkg;
-                found.label = pkg;
+                try {
+                    ApplicationInfo info = pm.getApplicationInfo(pkg, 0);
+                    if (isSystemApp(info)) continue;
+                    AppItem item = new AppItem();
+                    item.packageName = pkg;
+                    item.label = String.valueOf(info.loadLabel(pm));
+                    found = item;
+                    appByPackage.put(pkg, item);
+                } catch (Throwable ignored) {
+                    // Keep the saved package token; the app may be temporarily unavailable.
+                    AppItem item = new AppItem();
+                    item.packageName = pkg;
+                    item.label = pkg;
+                    found = item;
+                }
             }
             blacklisted.add(found);
         }
-        Collections.sort(blacklisted, new Comparator<AppItem>() {
-            @Override
-            public int compare(AppItem a, AppItem b) {
-                return a.label.compareToIgnoreCase(b.label);
-            }
-        });
+        Collections.sort(blacklisted, Comparator.comparing(item ->
+                item.label == null ? item.packageName : item.label, String.CASE_INSENSITIVE_ORDER));
 
         if (blacklisted.isEmpty()) {
-            emptyHint.setVisibility(View.VISIBLE);
+            blacklistPage = 1;
             blacklistContainer.setVisibility(View.GONE);
             return;
         }
 
-        emptyHint.setVisibility(View.GONE);
         blacklistContainer.setVisibility(View.VISIBLE);
-
         TextView listTitle = new TextView(this);
         listTitle.setText("已加入管控 (" + blacklisted.size() + ")");
-        listTitle.setTextColor(0xFF333333);
-        listTitle.setTextSize(14);
+        listTitle.setTextColor(0xff333333);
+        listTitle.setTextSize(16);
         listTitle.setTypeface(null, Typeface.BOLD);
-        listTitle.setPadding(0, 0, 0, dp(8));
+        listTitle.setPadding(0, dp(12), 0, dp(12));
         blacklistContainer.addView(listTitle);
 
-        for (final AppItem item : blacklisted) {
-            blacklistContainer.addView(buildBlacklistRow(item));
+        int limit = Math.min(blacklisted.size(), Math.max(1, blacklistPage) * BLACKLIST_PAGE_SIZE);
+        for (int i = 0; i < limit; i++) {
+            blacklistContainer.addView(buildBlacklistRow(blacklisted.get(i)));
+        }
+        if (limit < blacklisted.size()) {
+            TextView more = new TextView(this);
+            more.setText("加载更多（剩余 " + (blacklisted.size() - limit) + " 个）");
+            more.setTextColor(0xff1565c0);
+            more.setTextSize(14);
+            more.setGravity(Gravity.CENTER);
+            more.setPadding(dp(12), dp(14), dp(12), dp(14));
+            more.setOnClickListener(v -> {
+                blacklistPage++;
+                refreshBlacklistUI();
+            });
+            blacklistContainer.addView(more);
         }
     }
 
@@ -553,6 +577,7 @@ public class BlacklistActivity extends Activity {
             @Override
             public void onClick(View v) {
                 currentBlacklist.remove(item.packageName);
+                blacklistPage = 1;
                 saveBlacklist();
                 refreshBlacklistUI();
             }
