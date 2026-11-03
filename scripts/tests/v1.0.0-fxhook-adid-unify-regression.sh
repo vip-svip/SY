@@ -24,7 +24,7 @@ grep -Fq 'k.equals("ad_id_unify")' "$ACTIVITY" || fail "ad_id_unify does not act
 
 grep -Fq 'public final boolean adIdUnify;' "$PARSER" || fail "parser Target field missing"
 grep -Fq 'case "ad_id_unify": adIdUnify = on; break;' "$PARSER" || fail "parser does not accept ad_id_unify"
-grep -Fq 'adIdUnify=false;' "$PARSER" || fail "legacy/default parser path does not default ad_id_unify off"
+grep -Fq 'mediaStoreQueryBlock=false, adIdUnify=false' "$PARSER" || fail "legacy/default parser path does not default ad_id_unify off"
 grep -Fq '.append(",ad_id_unify=")' "$SERIALIZER" || fail "serializer does not emit ad_id_unify"
 
 grep -Fq 'installAdvertisingIdHooks(param.getClassLoader(), pkg)' "$RUNTIME" || fail "API-101 runtime does not install advertising ID hooks"
