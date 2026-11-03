@@ -119,7 +119,7 @@ old_root_proxy_lock = '''with_lock() {
     _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
     case "$_owner" in
       ''|*[!0-9]*)
-        # Allow the owner to publish a PID immediately after mkdir.
+        # Allow the owner to publish its PID immediately after mkdir.
         if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
           rmdir "$LOCK" 2>/dev/null || :
         fi
