@@ -1103,9 +1103,42 @@ public final class AdVisibilityHook extends XposedModule {
             logFx(Log.WARN, "LocationManager unavailable; debug GPS simulation remains inactive");
             return false;
         }
+        // Cover Location objects returned by modern fused providers as well as
+        // LocationManager.getLastKnownLocation(). Only the current debuggable
+        // target process sees these test values; system GNSS/provider state is untouched.
+        try {
+            Class<?> locationType = Class.forName("android.location.Location", false, null);
+            for (final Method method : locationType.getDeclaredMethods()) {
+                String name = method.getName();
+                if (method.getParameterTypes().length != 0) continue;
+                final int field;
+                if ("getLatitude".equals(name) && method.getReturnType() == double.class) field = 1;
+                else if ("getLongitude".equals(name) && method.getReturnType() == double.class) field = 2;
+                else if ("getAccuracy".equals(name) && method.getReturnType() == float.class) field = 3;
+                else continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                if (active != null && debuggablePackages.contains(currentPackage)
+                                        && active.locationSimulation) {
+                                    if (field == 1) return Double.valueOf(active.simulatedLatitude);
+                                    if (field == 2) return Double.valueOf(active.simulatedLongitude);
+                                    return Float.valueOf(active.simulatedAccuracy);
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "Location value simulation unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "Location value accessors unavailable; last-known-location fallback remains active");
+        }
         locationSimulationHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "debug-only last-known-location simulation hooks installed=" + installed + " for " + pkg);
+                "debug-only Location object/GNSS test accessors installed=" + installed + " for " + pkg);
         return locationSimulationHooksInstalled;
     }
 

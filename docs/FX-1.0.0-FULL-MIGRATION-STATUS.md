@@ -89,6 +89,16 @@ published during this migration phase.
   permission-degrade recovery. The current floating bubble is an explicit rescue
   shortcut, not a full clone of the original watchdog.
 
+### Dia 23.11 — expanded per-app GPS test fixture
+
+- The existing per-app latitude/longitude/accuracy fixture now also hooks
+  android.location.Location.getLatitude(), getLongitude() and getAccuracy()
+  within the explicitly selected debuggable target process. This covers callers
+  that receive Location objects through fused/provider callbacks and later read
+  their coordinate getters, in addition to LocationManager last-known queries.
+- The UI copy now states the exact scope. No system-wide GNSS/provider setting,
+  real hardware location, route, or other application's location is changed.
+
 ### Dia 23.11 — direct monitor entry integration
 
 - The original fourth-level HTTP, SQL and algorithm menu entries now open the

@@ -4514,7 +4514,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(saveTimeZone);
         section("位置隐私");
         TextView gpsNote = new TextView(this);
-        gpsNote.setText("GPS 测试模拟只覆盖此 debuggable 目标进程的 LocationManager.getLastKnownLocation()；不改变真实 GPS、GNSS、系统定位或 Fused Location 持续回调。");
+        gpsNote.setText("GPS 测试模拟仅对所选 debuggable 应用生效：覆盖 LocationManager.getLastKnownLocation()，并统一模拟该进程读取 Location.getLatitude()/getLongitude()/getAccuracy() 的结果（含返回 Location 对象的 Fused 回调）。不改变系统 GPS/GNSS provider、真实定位硬件或其他应用。");
         gpsNote.setTextColor(0xff697681);
         gpsNote.setPadding(dp(18), dp(2), dp(18), dp(8));
         content.addView(gpsNote);
