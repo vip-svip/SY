@@ -26,7 +26,10 @@ export MP="$MODULE" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/whiteli
 
 # Environment overrides must be expanded by the shell, not treated as literal text.
 LIST=$(sh "$SCRIPT" list)
-printf '%s\n' "$LIST" | grep -qx 'FXYULONGWHITE1'
+if grep -Fq '\${' "$SCRIPT"; then
+  echo "FAIL: whitelist script contains escaped shell parameter expansions" >&2
+  exit 1
+fi
 ! printf '%s\n' "$LIST" | grep -q '\\\\$'
 
 sh "$SCRIPT" add com.example.alpha
