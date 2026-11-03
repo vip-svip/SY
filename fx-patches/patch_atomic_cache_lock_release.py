@@ -146,13 +146,13 @@ wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" 
 replace_once(
     sub_test,
     'countfile="$TEST_ROOT/count"\n',
-    'countfile="$TEST_ROOT/count"\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\n" "$(date +%s)" "$" >> "$events"\n',
+    'countfile="$TEST_ROOT/count"\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\n" "$(date +%s)" "$$" >> "$events"\n',
     "subscription mock must record each curl start",
 )
 replace_once(
     sub_test,
     'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\n',
-    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\n" "$(date +%s)" "$" >> "$events"\n',
+    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\n" "$(date +%s)" "$$" >> "$events"\n',
     "subscription mock must record each curl completion",
 )
 
