@@ -63,9 +63,11 @@ assert 'required_migrated_services = {' in merge_source and '".FxAccessibilitySe
     "the accessibility service must be explicitly retained"
 assert "app_match = re.search" not in merge_source and 'app = """' not in merge_source, \
     "Manifest migration must not reconstruct and discard existing application nodes"
-for tag in ("activity", "service", "receiver", "provider"):
-    assert f'application_node.findall("{tag}")' in merge_source, \
-        f"Unified APK merger must preserve all original {tag} children"
+assert 'for tag in ("activity", "service", "receiver", "provider")' in merge_source
+assert "for node in application_node.findall(tag)" in merge_source, \
+    "Unified APK merger must inventory the original children of every component category"
+assert "original_component_names.items()" in merge_source, \
+    "component category inventories must be compared after serialization"
 for tag in ("activity", "service", "receiver", "provider"):
     names = [
         node.attrib.get(A + "name", "")
