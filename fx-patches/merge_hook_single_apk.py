@@ -168,37 +168,77 @@ gradle.write_text(g, encoding="utf-8")
 
 manifest = modern / "AndroidManifest.xml"
 manifest_text = manifest.read_text(encoding="utf-8")
-# Update the existing XML tree in place. Rebuilding <application> from a partial
-# template used to silently drop migrated Activities, Services, Providers and
-# shortcut metadata; preserving the tree avoids losing any component attributes.
+# The FX source manifest already owns the real native Activities, Services and
+# Receivers for all migrated suites. Modify its XML tree in-place: rebuilding the
+# application tag from a hand-maintained template was dropping those components.
 import xml.etree.ElementTree as ET
-ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+ANDROID_NS = "http://schemas.android.com/apk/res/android"
+ANDROID = "{" + ANDROID_NS + "}"
+ET.register_namespace("android", ANDROID_NS)
 manifest_root = ET.fromstring(manifest_text)
 application_node = manifest_root.find("application")
 if application_node is None:
     raise SystemExit("modern manifest application element missing or malformed")
 
-ANDROID_NS = "http://schemas.android.com/apk/res/android"
-ANDROID_NAME = "{" + ANDROID_NS + "}name"
-ANDROID_LABEL = "{" + ANDROID_NS + "}label"
-ANDROID_ALLOW_BACKUP = "{" + ANDROID_NS + "}allowBackup"
-ANDROID_CLEAR_TEXT = "{" + ANDROID_NS + "}usesCleartextTraffic"
-ANDROID_THEME = "{" + ANDROID_NS + "}theme"
-ANDROID_MIN_SDK = "{" + ANDROID_NS + "}minSdkVersion"
-ANDROID_VALUE = "{" + ANDROID_NS + "}value"
-ANDROID_RESOURCE = "{" + ANDROID_NS + "}resource"
+# Preserve app identity and security defaults while retaining every direct child.
+application_node.set(ANDROID + "label", "FX Hook")
+application_node.set(ANDROID + "allowBackup", "false")
+application_node.set(ANDROID + "usesCleartextTraffic", "false")
+if application_node.get(ANDROID + "theme") is None:
+    application_node.set(ANDROID + "theme", "@android:style/Theme.Material.Light.NoActionBar")
 
-def component_names(tag):
-    return [
-        node.attrib.get(ANDROID_NAME, "")
-        for node in application_node.findall(tag)
-        if node.attrib.get(ANDROID_NAME, "")
-    ]
+uses_sdk = manifest_root.find("uses-sdk")
+if uses_sdk is None:
+    uses_sdk = ET.Element("uses-sdk")
+    manifest_root.insert(0, uses_sdk)
+uses_sdk.set(ANDROID + "minSdkVersion", "27")
+uses_sdk.set(ANDROID + "targetSdkVersion", "34")
 
-retained_activities = component_names("activity")
-retained_services = component_names("service")
-retained_receivers = component_names("receiver")
-retained_providers = component_names("provider")
+query_permission = "android.permission.QUERY_ALL_PACKAGES"
+if not any(node.get(ANDROID + "name") == query_permission
+           for node in manifest_root.findall("uses-permission")):
+    ET.SubElement(manifest_root, "uses-permission", {ANDROID + "name": query_permission})
+
+# Keep exactly one launcher and make sure the main app entrypoint stays exported.
+launcher_activities = []
+for activity in application_node.findall("activity"):
+    name = activity.get(ANDROID + "name", "")
+    has_main = any(item.get(ANDROID + "name") == "android.intent.action.MAIN"
+                   for intent_filter in activity.findall("intent-filter")
+                   for item in intent_filter.findall("action"))
+    has_launcher = any(item.get(ANDROID + "name") == "android.intent.category.LAUNCHER"
+                       for intent_filter in activity.findall("intent-filter")
+                       for item in intent_filter.findall("category"))
+    if has_main and has_launcher:
+        launcher_activities.append(activity)
+if len(launcher_activities) != 1:
+    raise SystemExit("Unified Hook manifest must declare exactly one MAIN/LAUNCHER Activity")
+if launcher_activities[0].get(ANDROID + "name") not in (".MainActivity", "de.privacyguard.adhook.MainActivity"):
+    raise SystemExit("Unified Hook launcher is not the native FX MainActivity")
+launcher_activities[0].set(ANDROID + "exported", "true")
+launcher_activities[0].set(ANDROID + "windowSoftInputMode", "adjustResize")
+
+# Both legacy Xposed and modern libxposed entrypoints belong to this one APK.
+xposed_metadata = {
+    "xposedmodule": "true",
+    "xposedminversion": "93",
+    "xposeddescription": "FX unified privacy and ad filtering Hook",
+}
+existing_meta = {
+    node.get(ANDROID + "name"): node
+    for node in application_node.findall("meta-data")
+}
+for key, value in xposed_metadata.items():
+    if key not in existing_meta:
+        ET.SubElement(application_node, "meta-data", {
+            ANDROID + "name": key, ANDROID + "value": value
+        })
+if "xposedscope" not in existing_meta:
+    ET.SubElement(application_node, "meta-data", {
+        ANDROID + "name": "xposedscope",
+        ANDROID + "resource": "@array/xposed_scope"
+    })
+
 required_migrated_activities = {
     ".imported.shield.FxYulongShieldActivity",
     ".imported.shield.FxYulongVirusDatabaseActivity",
@@ -207,101 +247,46 @@ required_migrated_activities = {
     ".imported.shield.WhitelistPickerActivity",
     ".imported.shield.BlacklistActivity",
 }
-missing_migrated = required_migrated_activities - set(retained_activities)
-if missing_migrated:
-    raise SystemExit("Source manifest is missing migrated Yulong Shield Activities: "
-                     + ", ".join(sorted(missing_migrated)))
-
-# Preserve the previous compatibility floor without reconstructing or replacing
-# the rest of the manifest tree.
-uses_sdk = manifest_root.find("uses-sdk")
-if uses_sdk is not None:
-    uses_sdk.attrib[ANDROID_MIN_SDK] = "27"
-
-application_node.attrib[ANDROID_LABEL] = "FX Hook"
-application_node.attrib[ANDROID_ALLOW_BACKUP] = "false"
-application_node.attrib[ANDROID_CLEAR_TEXT] = "false"
-application_node.attrib[ANDROID_THEME] = "@android:style/Theme.Material.Light.NoActionBar"
-
-def set_application_metadata(name, attribute, value):
-    node = next(
-        (child for child in application_node.findall("meta-data")
-         if child.attrib.get(ANDROID_NAME) == name),
-        None,
-    )
-    if node is None:
-        node = ET.SubElement(application_node, "meta-data")
-    node.attrib[ANDROID_NAME] = name
-    node.attrib[attribute] = value
-
-set_application_metadata("xposedmodule", ANDROID_VALUE, "true")
-set_application_metadata("xposedminversion", ANDROID_VALUE, "93")
-set_application_metadata("xposeddescription", ANDROID_VALUE,
-                         "FX unified privacy and ad filtering Hook")
-set_application_metadata("xposedscope", ANDROID_RESOURCE, "@array/xposed_scope")
-
-# QUERY_ALL_PACKAGES is needed by the app picker and must remain a top-level
-# permission, not an application child. Preserve existing permission attributes.
-query_permission = "android.permission.QUERY_ALL_PACKAGES"
-permissions = manifest_root.findall("uses-permission")
-if not any(node.attrib.get(ANDROID_NAME) == query_permission for node in permissions):
-    ET.SubElement(manifest_root, "uses-permission", {ANDROID_NAME: query_permission})
-
-# Preserve the single launcher entry, all original migrated components and
-# the accessibility service, and reject duplicate or competing VPN services.
-launcher = [
-    node for node in application_node.findall("activity")
-    if node.attrib.get(ANDROID_NAME) in (".MainActivity", "de.privacyguard.adhook.MainActivity")
-    and any(child.tag == "intent-filter" and
-            any(action.attrib.get(ANDROID_NAME) == "android.intent.action.MAIN"
-                for action in child.findall("action")) and
-            any(category.attrib.get(ANDROID_NAME) == "android.intent.category.LAUNCHER"
-                for category in child.findall("category"))
-            for child in list(node))
-]
-if len(launcher) != 1:
-    raise SystemExit("Unified Hook manifest must retain exactly one FX launcher Activity")
-accessibility = [
-    node for node in application_node.findall("service")
-    if node.attrib.get(ANDROID_NAME) in (
-        ".FxAccessibilityService", "de.privacyguard.adhook.FxAccessibilityService")
-]
-if len(accessibility) != 1:
-    raise SystemExit("Unified Hook manifest must retain exactly one FX accessibility service")
-
-for tag, expected in (
-    ("activity", retained_activities),
-    ("service", retained_services),
-    ("receiver", retained_receivers),
-    ("provider", retained_providers),
-):
-    current = component_names(tag)
-    missing = sorted(set(expected) - set(current))
-    duplicates = sorted(name for name in set(current) if current.count(name) > 1)
+for tag, required_names in (("activity", required_migrated_activities),):
+    declared = {node.get(ANDROID + "name", "") for node in application_node.findall(tag)}
+    missing = required_names - declared
     if missing:
-        raise SystemExit("Unified Hook manifest dropped migrated " + tag + " components: "
-                         + ", ".join(missing))
-    if duplicates:
-        raise SystemExit("Unified Hook manifest duplicated " + tag + " components: "
-                         + ", ".join(duplicates))
+        raise SystemExit("Unified Hook source manifest is missing migrated " + tag + " components: "
+                         + ", ".join(sorted(missing)))
 
+# Ensure no migrated Android component is lost or duplicated in the final tree.
+for tag in ("activity", "service", "receiver", "provider"):
+    names = [node.get(ANDROID + "name", "") for node in application_node.findall(tag)]
+    duplicates = sorted(name for name in set(names) if names.count(name) > 1)
+    if duplicates:
+        raise SystemExit("Unified Hook manifest has duplicate " + tag + " components: "
+                         + ", ".join(duplicates))
 vpn_services = [
-    node.attrib.get(ANDROID_NAME, "")
+    node.get(ANDROID + "name", "")
     for node in application_node.findall("service")
-    if node.attrib.get("{" + ANDROID_NS + "}permission") == "android.permission.BIND_VPN_SERVICE"
+    if node.get(ANDROID + "permission") == "android.permission.BIND_VPN_SERVICE"
 ]
 if vpn_services:
-    raise SystemExit("Migration added a second VpnService: " + ", ".join(vpn_services))
-if ".imported.shield.FxYulongInstallScanReceiver" not in retained_receivers:
-    raise SystemExit("Unified Hook manifest dropped the migrated Yulong install-scan receiver")
+    raise SystemExit("Unified Hook migration must not register a competing VpnService: "
+                     + ", ".join(vpn_services))
 
-manifest.write_text(
-    '<?xml version="1.0" encoding="utf-8"?>\n'
-    + ET.tostring(manifest_root, encoding="unicode", short_empty_elements=True)
-    + "\n",
-    encoding="utf-8",
-)
-
+ET.indent(manifest_root, space="    ")
+manifest_text = ET.tostring(manifest_root, encoding="unicode", xml_declaration=False)
+manifest.write_text('<?xml version="1.0" encoding="utf-8"?>\\n' + manifest_text + "\\n", encoding="utf-8")
+merged_root = ET.parse(manifest).getroot()
+merged_application = merged_root.find("application")
+for tag, required_names in (
+    ("activity", required_migrated_activities),
+    ("service", set()),
+    ("receiver", {" .imported.shield.FxYulongInstallScanReceiver".strip()}),
+    ("provider", set()),
+):
+    declared = {node.get(ANDROID + "name", "") for node in merged_application.findall(tag)}
+    missing = required_names - declared
+    if missing:
+        raise SystemExit("Unified Hook manifest failed final " + tag + " preservation check: "
+                         + ", ".join(sorted(missing)))
+merged_manifest = manifest.read_text(encoding="utf-8")
 
 # Align the archived APK regression with the single app's explicit FX Hook label.
 apk_regression = fx / "scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh"
