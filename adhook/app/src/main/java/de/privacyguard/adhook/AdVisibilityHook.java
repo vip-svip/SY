@@ -159,6 +159,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean wifiInfoSimulationHooksInstalled;
+    private volatile boolean networkTypeSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
@@ -272,6 +273,7 @@ public final class AdVisibilityHook extends XposedModule {
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
         final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
+        final boolean networkTypeSimulationForPackage = target != null && target.networkTypeSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
@@ -280,7 +282,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -292,6 +294,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (wifiSimulationForPackage) installWifiInfoSimulationHooks(pkg);
+        if (networkTypeSimulationForPackage) installNetworkTypeSimulationHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
@@ -956,6 +959,66 @@ public final class AdVisibilityHook extends XposedModule {
      * Wi-Fi association, DHCP, sockets, VPN routing and DNS are not intercepted.
      */
     /** Per-app fake SSID/BSSID for explicitly selected debuggable test builds only. */
+    /** Report Wi-Fi or cellular transport only to the selected debuggable test app. */
+    private synchronized boolean installNetworkTypeSimulationHooks(final String pkg) {
+        if (networkTypeSimulationHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> info = Class.forName("android.net.NetworkInfo", false, null);
+            for (final Method method : info.getDeclaredMethods()) {
+                final String name = method.getName();
+                final boolean type = "getType".equals(name)
+                        && method.getParameterTypes().length == 0
+                        && method.getReturnType() == int.class;
+                final boolean typeName = "getTypeName".equals(name)
+                        && method.getParameterTypes().length == 0
+                        && method.getReturnType() == String.class;
+                if (!type && !typeName) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                if (active != null && debuggablePackages.contains(currentPackage)
+                                        && active.networkTypeSimulation) {
+                                    boolean wifi = "wifi".equals(active.simulatedNetworkType);
+                                    return type ? (wifi ? 1 : 0) : (wifi ? "WIFI" : "MOBILE");
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "NetworkInfo type simulation unavailable: " + name);
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "NetworkInfo unavailable; network type simulation remains inactive");
+        }
+        try {
+            Class<?> caps = Class.forName("android.net.NetworkCapabilities", false, null);
+            final Method hasTransport = caps.getDeclaredMethod("hasTransport", int.class);
+            hook(hasTransport).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                        if (active != null && debuggablePackages.contains(currentPackage)
+                                && active.networkTypeSimulation) {
+                            Object arg = chain.getArgs().get(0);
+                            int transport = arg instanceof Number ? ((Number) arg).intValue() : -1;
+                            boolean wifi = "wifi".equals(active.simulatedNetworkType);
+                            if (transport == 1) return wifi; // TRANSPORT_WIFI
+                            if (transport == 0) return !wifi; // TRANSPORT_CELLULAR
+                        }
+                        return chain.proceed();
+                    });
+            installed++;
+        } catch (Throwable failure) {
+            logFx(Log.DEBUG, "NetworkCapabilities transport hook unavailable");
+        }
+        networkTypeSimulationHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "debug-only network type simulation hooks installed=" + installed + " for " + pkg);
+        return networkTypeSimulationHooksInstalled;
+    }
+
     private synchronized boolean installWifiInfoSimulationHooks(final String pkg) {
         if (wifiInfoSimulationHooksInstalled) return true;
         int installed = 0;
