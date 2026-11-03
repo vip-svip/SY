@@ -80,7 +80,7 @@ public final class FxYulongShieldActivity extends Activity {
         setContentView(root);
 
         card("功能迁移状态",
-                "已迁入原版病毒名单匹配、离线缓存、手动扫描、白名单与管控名单管理。原版 ProtectService 实时守护、自保 watchdog 和 Stellar 特权运行时尚未迁入。");
+                "已迁入原版病毒名单匹配、离线缓存、手动扫描、白名单与管控名单、安装后扫描、前台应用守护与 Stellar 权限管理。原版持续进程 watchdog、KeepAliveAlarm、自保护覆盖层救援及部分权限降级逻辑仍在迁移。");
         card("病毒库与名单",
                 "五类逻辑名单：确定风险包名、可能风险包名、确定风险名称、可能风险名称、风险关键字；名称库会合并原版旧名单。",
                 action("打开病毒库管理页", () -> startActivity(new Intent(this,
@@ -129,23 +129,7 @@ public final class FxYulongShieldActivity extends Activity {
         card("实时守护状态",
                 protectionState + "\\n累计提醒：" + warningCount
                         + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
-                        + "\\n" + warning,
-                action("启动实时守护", () -> {
-                    if (!hasUsageAccess()) {
-                        try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
-                        catch (Throwable ignored) { }
-                        return;
-                    }
-                    shieldPrefs.edit().putBoolean("protect_on", true).apply();
-                    Intent start = new Intent(this, FxYulongProtectionService.class);
-                    start.setAction(FxYulongProtectionService.ACTION_START);
-                    if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(start);
-                    else startService(start);
-                }),
-                action("停止实时守护", () -> {
-                    shieldPrefs.edit().putBoolean("protect_on", false).apply();
-                    stopService(new Intent(this, FxYulongProtectionService.class));
-                }));
+                        + "\\n" + warning);
         String lastScan = shieldPrefs.getString("automatic_scan_last_result", "尚无自动扫描记录");
         String lastPackage = shieldPrefs.getString("automatic_scan_last_package", "");
         String lastTime = shieldPrefs.getString("automatic_scan_last_time", "");
