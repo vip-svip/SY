@@ -498,14 +498,38 @@ replace_once(
 
 replace_once(
     root_proxy_test,
-    'for script in adguardhome.sh unbound.sh; do\n  cat > "$MOD/scripts/$script" <<\\'SH\\'\n#!/system/bin/sh\nexit 0\nSH\n  chmod 0755 "$MOD/scripts/$script"\ndone',
-    'for script in adguardhome.sh unbound.sh; do\n  cat > "$MOD/scripts/$script" <<\\'SH\\'\n#!/system/bin/sh\n[ "$1" != stop ] || /bin/sleep 0.04\nexit 0\nSH\n  chmod 0755 "$MOD/scripts/$script"\ndone',
+    r'''for script in adguardhome.sh unbound.sh; do
+  cat > "$MOD/scripts/$script" <<'SH'
+#!/system/bin/sh
+exit 0
+SH
+  chmod 0755 "$MOD/scripts/$script"
+done''',
+    r'''for script in adguardhome.sh unbound.sh; do
+  cat > "$MOD/scripts/$script" <<'SH'
+#!/system/bin/sh
+[ "$1" != stop ] || /bin/sleep 0.04
+exit 0
+SH
+  chmod 0755 "$MOD/scripts/$script"
+done''',
     "Root Proxy engine stub holds lock during stop",
 )
 replace_once(
     root_proxy_test,
-    'cat > "$BIN/sleep" <<\\'SH\\'\n#!/system/bin/sh\nexit 0\nSH\n',
-    'cat > "$BIN/sleep" <<\\'SH\\'\n#!/system/bin/sh\ncase "$1" in\n  1) /bin/sleep 0.01 ;;\n  *) /bin/sleep "$@" ;;\nesac\nSH\n',
+    r'''cat > "$BIN/sleep" <<'SH'
+#!/system/bin/sh
+exit 0
+SH
+''',
+    r'''cat > "$BIN/sleep" <<'SH'
+#!/system/bin/sh
+case "$1" in
+  1) /bin/sleep 0.01 ;;
+  *) /bin/sleep "$@" ;;
+esac
+SH
+''',
     "Root Proxy waiter sleep must be bounded but observable",
 )
 replace_once(
