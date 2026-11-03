@@ -83,7 +83,7 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
                         .putString("automatic_scan_last_time",
                                 DateFormat.getDateTimeInstance().format(new Date()))
                         .apply();
-                if (matched != null) showFindingNotification(app, title, detail);
+                if (matched != null) showFindingNotification(app, title, detail, matched.packageName, matched.label, matched.reason, matched.severity.name());
             } catch (Throwable ignored) {
                 // Never let one broken package or notification break package installation.
             } finally {
@@ -92,7 +92,7 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
         });
     }
 
-    private static void showFindingNotification(Context context, String title, String detail) {
+    private static void showFindingNotification(Context context, String title, String detail, String packageName, String label, String reason, String severity) {
         if (Build.VERSION.SDK_INT >= 33
                 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return;
@@ -105,7 +105,11 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
             channel.setDescription("显示新安装应用的名单命中提示");
             manager.createNotificationChannel(channel);
         }
-        Intent open = new Intent(context, FxYulongScanActivity.class);
+        Intent open = new Intent(context, FxYulongWarningActivity.class);
+        open.putExtra("package_name", packageName);
+        open.putExtra("app_label", label);
+        open.putExtra("reason", reason);
+        open.putExtra("severity", severity);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(context, 9021, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23

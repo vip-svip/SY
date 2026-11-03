@@ -316,7 +316,11 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     }
 
     private Notification buildOngoingNotification() {
-        Intent open = new Intent(this, FxYulongShieldActivity.class);
+        Intent open = new Intent(this, FxYulongWarningActivity.class);
+        open.putExtra("package_name", packageName);
+        open.putExtra("app_label", label);
+        open.putExtra("reason", message);
+        open.putExtra("severity", "BLACKLIST");
         PendingIntent content = PendingIntent.getActivity(this, 9023, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Intent stop = new Intent(this, FxYulongProtectionService.class);

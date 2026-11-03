@@ -122,6 +122,15 @@ public final class FxYulongShieldActivity extends Activity {
                 "保留原版 roro.stellar.manager 命令授权、逐应用能力作用域和始终允许清单；此页面属于安全护盾内部，不新增 FX 主导航标签。",
                 action("打开 Stellar 特权管理", () -> startActivity(new Intent(this,
                         roro.stellar.manager.authorization.FxStellarManagerActivity.class))));
+        card("批量风险应用清理",
+                "勾选扫描结果后逐项打开 Android 系统卸载确认；不会自动强停、冻结或静默卸载。",
+                action("扫描并进入批量清理", () -> startActivity(new Intent(this, FxYulongScanActivity.class))));
+        card("风险应用警告",
+                "查看风险命中原因；可加入白名单或手动打开系统卸载确认。",
+                action("打开风险提醒页", () -> startActivity(new Intent(this, FxYulongWarningActivity.class))));
+        card("应用签名与完整性",
+                "展示 FX 当前安装包证书指纹；不复用原游龙 APK 固定证书强制退出校验。",
+                action("查看当前签名指纹", () -> startActivity(new Intent(this, FxYulongIntegrityActivity.class))));
         android.content.SharedPreferences shieldPrefs =
                 getSharedPreferences("shield_prefs", MODE_PRIVATE);
         android.widget.Switch installScan = new android.widget.Switch(this);
