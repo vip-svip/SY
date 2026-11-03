@@ -2038,13 +2038,17 @@ public final class FxDiaFridaActivity extends Activity {
                 + "case \"$cli_pid:$feed_pid\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
                 + "case \"$stored_port\" in ''|*[!0-9]*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
                 + "[ \"$stored_pkg\" = \"$expected_pkg\" ] && [ \"$stored_port\" = \"$port\" ] && [ \"$stored_process\" = \"$expected_process\" ] && [ \"$cli\" = \"$expected_cli\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
+                + "pid_active() { case \"$1\" in ''|*[!0-9]*) return 1;; esac; state=$(sed 's/^.*) //' \"/proc/$1/stat\" 2>/dev/null | cut -d ' ' -f1); case \"$state\" in Z|X) return 1;; esac; kill -0 \"$1\" 2>/dev/null; }; "
                 + "if kill -0 \"$cli_pid\" 2>/dev/null; then "
                 + "cmd=$(tr '\\000' ' ' < /proc/\"$cli_pid\"/cmdline 2>/dev/null || :); "
                 + "case \"$cmd\" in *\"$cli\"*'127.0.0.1:" + port + "'*Gadget*\"$script\"*) kill \"$cli_pid\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
                 + "if kill -0 \"$feed_pid\" 2>/dev/null; then "
                 + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$feed_pid\"/cmdline 2>/dev/null || :); "
                 + "case \"$feed_cmd\" in *\"fx-gadget-feed-" + port + "\"*\"$pipe\"*) kill \"$feed_pid\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
-                + "sleep 1; rm -f \"$pidfile\"; [ ! -L \"$pipe\" ] && rm -f \"$pipe\"; lock_held=0; rmdir \"$start_lock\"; echo FX_GADGET_SESSION_STOPPED";
+                + "_stop_wait=0; while pid_active \"$cli_pid\" || pid_active \"$feed_pid\"; do "
+                + "[ \"$_stop_wait\" -lt 5 ] || { echo FX_GADGET_STOP_TIMEOUT; exit 31; }; "
+                + "sleep 1; _stop_wait=$((_stop_wait+1)); done; "
+                + "rm -f \"$pidfile\"; [ ! -L \"$pipe\" ] && rm -f \"$pipe\"; lock_held=0; rmdir \"$start_lock\"; echo FX_GADGET_SESSION_STOPPED";
         runRoot(command, 12000L, result -> setStatus("Gadget 会话停止退出码 "
                 + result.exitCode + "\n" + result.output));
     }
