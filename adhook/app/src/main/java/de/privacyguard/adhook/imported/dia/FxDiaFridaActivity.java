@@ -60,6 +60,7 @@ public final class FxDiaFridaActivity extends Activity {
     private EditText fridaCliPath;
     private EditText gadgetPath;
     private EditText gadgetPort;
+    private EditText gadgetProcess;
     private android.widget.RadioGroup gadgetLoadMode;
     private EditText script;
     private TextView status;
@@ -263,6 +264,10 @@ public final class FxDiaFridaActivity extends Activity {
         gadgetPort.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         gadgetPort.setHint("27043");
         gadgetPort.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("gadget_port", "27043"));
+        gadgetProcess = new EditText(this);
+        gadgetProcess.setSingleLine(true);
+        gadgetProcess.setHint("默认主进程；可填 包名:remote 等一个独立进程");
+        gadgetProcess.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("gadget_process", ""));
         gadgetLoadMode = new android.widget.RadioGroup(this);
         gadgetLoadMode.setOrientation(android.widget.RadioGroup.HORIZONTAL);
         android.widget.RadioButton waitMode = new android.widget.RadioButton(this);
@@ -279,7 +284,9 @@ public final class FxDiaFridaActivity extends Activity {
         card(body, "监听参数",
                 "为了避免把调试端口暴露到局域网，此管理页固定绑定 127.0.0.1。跨设备调试请使用 ADB 端口转发；不要把未经认证的 Frida 端口绑定到 0.0.0.0。",
                 text("监听 TCP 端口（1024–65535）", 12, 0xff617080, true),
-                gadgetPort, gadgetLoadMode,
+                gadgetPort,
+                text("Gadget 目标进程（每个端口只允许一个进程）", 12, 0xff617080, true),
+                gadgetProcess, gadgetLoadMode,
                 button("生成并写入 Gadget 配置", () -> saveGadgetListenConfig()),
                 button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget()),
                 button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget()),
@@ -1187,8 +1194,10 @@ public final class FxDiaFridaActivity extends Activity {
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
                     selectedProcessPids.clear();
+                    gadgetProcess.setText(targetPackage);
                     targetLabel.setText(targetName + "\\n" + targetPackage
-                            + "\\n进程：注入时自动枚举所有当前运行进程");
+                            + "\\nGadget 默认进程：" + targetPackage
+                            + "\\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
                 }).setNegativeButton("取消", null).show();
     }
 
@@ -1657,6 +1666,14 @@ public final class FxDiaFridaActivity extends Activity {
         }
         String library = gadgetPath == null ? "" : gadgetPath.getText().toString().trim();
         String config = gadgetConfigTarget(library);
+        String processName = gadgetProcess == null || gadgetProcess.getText() == null
+                ? targetPackage : gadgetProcess.getText().toString().trim();
+        if (processName.isEmpty()) processName = targetPackage;
+        String processError = FxDiaGadgetDeployment.validateProcessName(targetPackage, processName);
+        if (processError != null) {
+            setStatus(processError);
+            return;
+        }
         int port;
         try {
             port = selectedGadgetPort();
@@ -1665,7 +1682,7 @@ public final class FxDiaFridaActivity extends Activity {
             return;
         }
         String problem = FxDiaGadgetDeployment.validateSources(
-                this, targetPackage, library, config, port);
+                this, targetPackage, library, config, port, processName);
         if (problem != null) {
             setStatus(problem + " 请先导入 Gadget 动态库并生成对应监听配置。");
             return;
@@ -1681,17 +1698,19 @@ public final class FxDiaFridaActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("部署 Frida Gadget")
                 .setMessage("即将在目标应用的 nativeLibraryDir 中部署官方 Gadget、回环监听配置和哈希标记：\n\n"
-                        + name + "\n" + targetPackage + "\n" + destination
-                        + "\n\n不会修改或重打包 APK。部署后需要完全停止并重新启动目标应用；还必须在 LSPosed 中确认 FX 模块作用域包含该目标。")
+                        + name + "\n" + targetPackage + "\n进程：" + processName + "\n" + destination
+                        + "\n\n一个监听端口只绑定该进程，不会让同一应用其他进程争抢端口。部署后需在 LSPosed 启用该目标作用域并重启应用。")
                 .setNegativeButton("取消", null)
-                .setPositiveButton("部署", (dialog, which) -> deployGadgetToTarget(library, config, destination, port))
+                .setPositiveButton("部署", (dialog, which) -> deployGadgetToTarget(library, config, destination, port, processName))
                 .show();
     }
 
     private void deployGadgetToTarget(String library, String config,
-                                      String destination, int port) {
+                                      String destination, int port, String processName) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString("gadget_process", processName).apply();
         String command = FxDiaGadgetDeployment.buildDeployCommand(
-                library, config, destination, targetPackage, port);
+                library, config, destination, targetPackage, port, processName);
         runRoot(command, 45000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && result.output.contains("FX_GADGET_DEPLOYED")) {
