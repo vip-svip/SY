@@ -1052,7 +1052,7 @@ public final class FxDiaFridaActivity extends Activity {
                         + "test -f \"$dst\" && test ! -L \"$dst\"; chmod 0700 \"$dst\"; sync; "
                         + "actual=$(sha256sum \"$dst\" | awk '{print $1}'); "
                         + "[ \"$actual\" = " + quote(sha) + " ]; test -x \"$dst\"; "
-                        + "printf 'installed=%s\\\\nsha256=%s\\\\nbytes=%s\\\\n' \"$dst\" \"$actual\" " + total;
+                        + "printf 'installed=%s\\nsha256=%s\\nbytes=%s\\n' \"$dst\" \"$actual\" " + total;
                 RootAccess.Result result = RootAccess.execute(command, 60000L, 256 * 1024);
                 if (result.exitCode != 0)
                     throw new IllegalStateException("Root 安装失败（退出码 " + result.exitCode + "）："
