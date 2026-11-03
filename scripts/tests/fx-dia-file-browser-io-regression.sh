@@ -28,6 +28,18 @@ assert "getContentResolver().query(children" in directory
 assert "directoryRequestId" in directory and "request != directoryRequestId" in directory,     "stale directory responses must not overwrite the latest location"
 assert "MAX_DIRECTORY_ENTRIES = 5000" in source
 assert "DIRECTORY_PAGE_SIZE = 100" in source
+assert "final int maxSoEntries = 2000;" in source, "SO inventory must be capped"
+assert "if (count >= maxSoEntries)" in source, "SO inventory cap must be enforced"
+assert "Native Library Dir 不可读取" in source, "native library directory exceptions must be reported"
+
+# The new Java methods must use real Java escape sequences, not literal backslash text.
+preview_so = section("private void preview(Entry entry)", "private String bytes(long n)")
+assert r"content.indexOf('\uFFFD')" in preview_so, "UTF-8 replacement marker must be a valid Java char literal"
+assert r"append('\n')" in preview_so, "SO report must use valid Java newline char literals"
+assert r'append("\n\n")' in preview_so, "SO report must use actual newlines, not visible backslash-n text"
+assert r'+ "\n"' in preview_so, "debug target labels must use an actual line break"
+assert r'.setMessage("仅删除所选授权目录中的文件：\n"' in preview_so, "delete confirmation must contain an actual newline"
+assert r"content.indexOf('\\\\uFFFD')" not in preview_so, "double-escaped replacement character is invalid"
 pages = section("private void appendDirectoryPage()", "private Uri docUri")
 assert "DIRECTORY_PAGE_SIZE" in pages and "加载更多" in pages
 assert "directoryTruncated" in pages and "只读取前" in pages
