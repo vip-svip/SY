@@ -79,6 +79,18 @@ public final class FxYulongRescueOverlayService extends Service {
         bubble.setBackground(bg);
         bubble.setElevation(dp(6));
         bubble.setOnClickListener(v->{
+            android.content.SharedPreferences prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
+            String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+                    .format(new java.util.Date());
+            int count = today.equals(prefs.getString("overlay_open_day", ""))
+                    ? prefs.getInt("overlay_open_count_today", 0) : 0;
+            prefs.edit().putString("overlay_open_day", today)
+                    .putInt("overlay_open_count_today", count + 1)
+                    .putInt("overlay_open_count", prefs.getInt("overlay_open_count", 0) + 1)
+                    .putString("overlay_last_open_time",
+                            new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+                                    .format(new java.util.Date()))
+                    .apply();
             Intent open=new Intent(this,FxYulongShieldActivity.class);
             open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
             try{startActivity(open);}catch(Throwable ignored){}
