@@ -233,12 +233,14 @@ jobs:
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           install -D -m 0755 scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh fx-module/scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh
           install -D -m 0755 scripts/tests/fx-stellar-control-shell-regression.sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
+          install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
           cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
           cmp -s scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
           cmp -s scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           cmp -s scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh fx-module/scripts/tests/v1.0.0-fxhook-adid-unify-regression.sh
           cmp -s scripts/tests/fx-stellar-control-shell-regression.sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
+          cmp -s scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           sh fx-module/scripts/tests/fx-stellar-control-shell-regression.sh
           sh fx-module/scripts/tests/adhook-app-installer-regression.sh
           set -uo pipefail
