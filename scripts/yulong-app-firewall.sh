@@ -256,13 +256,48 @@ EOF
   build_chain "$ipt" "$next" "$resolved" "$now" || { clear_chain "$ipt" "$next"; echo "IPv4 firewall chain build failed; old firewall kept" >&2; return 6; }
   blocked_count=$_FW_BLOCKED_COUNT
   build_chain "$ip6t" "$next" "$resolved" "$now" || { clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"; echo "IPv6 firewall chain build failed; old firewall kept" >&2; return 7; }
+
+  # Build both inactive chains first. Only then attach the new jump to OUTPUT.
+  # If either address family cannot activate, remove the new jump(s) and keep
+  # the previously active chains and marker intact.
+  if ! "$ipt" -t filter -I OUTPUT 1 -j "$next" >/dev/null 2>&1; then
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "IPv4 OUTPUT hook activation failed; old firewall kept" >&2
+    return 8
+  fi
+  if ! "$ip6t" -t filter -I OUTPUT 1 -j "$next" >/dev/null 2>&1; then
+    remove_hook "$ipt" "$next"; remove_hook "$ip6t" "$next"
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "IPv6 OUTPUT hook activation failed; old firewall kept" >&2
+    return 9
+  fi
+
+  _FW_TEMP=$(mktemp "$ACTIVE.XXXXXX") || {
+    remove_hook "$ipt" "$next"; remove_hook "$ip6t" "$next"
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to create private firewall active marker; old firewall kept" >&2
+    return 10
+  }
+  printf '%s\n' "$next" > "$_FW_TEMP" || {
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    remove_hook "$ipt" "$next"; remove_hook "$ip6t" "$next"
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to write firewall active marker; old firewall kept" >&2
+    return 10
+  }
+  if [ ! -L "$ACTIVE" ] && chmod 600 "$_FW_TEMP" && mv -f "$_FW_TEMP" "$ACTIVE"; then _FW_TEMP=
+  else
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    remove_hook "$ipt" "$next"; remove_hook "$ip6t" "$next"
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to install firewall active marker; old firewall kept" >&2
+    return 10
+  fi
+
+  # The new dual-stack jump and active marker are now committed. Retire the
+  # previous jump only after both new address-family hooks are live.
   remove_hook "$ipt" "$old"; remove_hook "$ip6t" "$old"
   clear_chain "$ipt" "$old"; clear_chain "$ip6t" "$old"
-  _FW_TEMP=$(mktemp "$ACTIVE.XXXXXX") || { echo "unable to create private firewall active marker" >&2; return 10; }
-  printf '%s\n' "$next" > "$_FW_TEMP" || { rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to write firewall active marker" >&2; return 10; }
-  if [ ! -L "$ACTIVE" ] && chmod 600 "$_FW_TEMP" && mv -f "$_FW_TEMP" "$ACTIVE"; then _FW_TEMP=
-  else rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to install firewall active marker" >&2; return 10
-  fi
   echo "firewall=1"; echo "blocked_packages=$blocked_count"; echo "evaluated_at=$now"
 }
 with_lock() {
