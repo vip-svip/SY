@@ -506,12 +506,29 @@ wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; 
 [ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked lock file" >&2; exit 1; }
 echo "PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization"
 '''
-replace_once(
-    root_proxy_test,
-    root_proxy_test_done_marker,
-    root_proxy_test_done,
-    "Root Proxy lock regression with concurrent stop",
-)
+root_proxy_test_text = root_proxy_test.read_text(encoding="utf-8")
+if root_proxy_test_done_marker in root_proxy_test_text:
+    replace_once(
+        root_proxy_test,
+        root_proxy_test_done_marker,
+        root_proxy_test_done,
+        "Root Proxy lock regression with concurrent stop",
+    )
+elif (
+    'grep -Fq \'( umask 077; set -C; printf \' "$SOURCE"' in root_proxy_test_text
+    and 'grep -Fq \'mv "$LOCK" "$_release"\' "$SOURCE"' in root_proxy_test_text
+    and '[ ! -s "$TMP/engine-overlap" ]' in root_proxy_test_text
+    and 'PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization' in root_proxy_test_text
+):
+    # Newer Release archives already contain the full lock/concurrent-stop
+    # regression with a different success marker. Preserve that stronger
+    # fixture instead of failing on an obsolete exact-text anchor.
+    pass
+else:
+    raise SystemExit(
+        f"{root_proxy_test}: unsupported Root Proxy lock regression fixture; "
+        "expected a known legacy marker or the complete current lock/concurrency checks"
+    )
 
 for path in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     path.chmod(0o755)
