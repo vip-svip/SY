@@ -122,6 +122,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
