@@ -233,6 +233,7 @@ public final class FxDiaFridaActivity extends Activity {
         card(body, "Dia 开发监控模板",
                 "仅对可调试测试应用启用。Intent/View/Fragment/线程模板只记录类型、类名、资源 ID 和耗时，不读取文本、参数值、Intent extras 或命令内容；内存快照会包含进程私有内存，请只对自有测试应用使用。",
                 button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
+                button("载入 WebView 导航监控", () -> loadDiaMonitorTemplate("webview-http")),
                 button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
                 button("载入 SQLCipher/WCDB 调用监控", () -> loadDiaMonitorTemplate("sqlcipher")),
                 button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
