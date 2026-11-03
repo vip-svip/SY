@@ -54,14 +54,10 @@ for label, needle in {
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
 for label, needle in {
-    "runtime target path captured before canonicalization": "String nativeLibraryPath = info.nativeLibraryDir;",
-    "runtime symlink-component rejection": "hasSymlinkComponent(rawNativeDir)",
-    "runtime canonical target constrained to app install path": 'canonicalNativePath.startsWith("/data/app/")',
-    "runtime symlink detection checks each original path component": "Files.isSymbolicLink(current.toPath())",
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
     "system-app exclusion": "ApplicationInfo.FLAG_SYSTEM",
     "package native library directory": "info.nativeLibraryDir",
-    "native library path constrained to /data/app": 'canonicalNativePath.startsWith("/data/app/")',
+    "native library path constrained to /data/app": 'path.startsWith("/data/app/")',
     "Gadget ELF ABI validation": "matchesElfAbi",
     "deployment rejects invalid/default ports": "if (!isValidListenPort(expectedPort))",
     "Root command builder rejects invalid/default ports": "if (!isValidListenPort(port))",
@@ -87,6 +83,15 @@ for label, needle in {
 }.items():
     if needle not in deploy_contract:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+
+for label, needle in {
+    "runtime target path captured before canonicalization": "String nativeLibraryPath = info.nativeLibraryDir;",
+    "runtime symlink-component rejection": "hasSymlinkComponent(rawNativeDir)",
+    "runtime canonical target constrained to app install path": 'canonicalNativePath.startsWith("/data/app/")',
+    "runtime symlink detection checks each original path component": "Files.isSymbolicLink(current.toPath())",
+}.items():
+    if needle not in hook:
+        raise SystemExit(f"FAIL: target loader {label}: missing {needle!r}")
 if 'owner=$(stat -c \'%u:%g\' "$dest")' not in deploy_contract:
     raise SystemExit("FAIL: deployment does not match staged files to app UID/GID")
 lib_commit = deploy_contract.find('mv "$stage/$gadget" "$dest/$gadget"; new_g=1')
