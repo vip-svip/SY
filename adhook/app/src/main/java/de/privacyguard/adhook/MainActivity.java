@@ -803,7 +803,7 @@ public final class MainActivity extends ComponentActivity {
             for (int i = 1; i < lines.length; i++) {
                 String line = lines[i];
                 if (line.trim().isEmpty()) continue;
-                String[] parts = line.split("\\\\|", 4);
+                String[] parts = line.split("\\|", 4);
                 if (parts.length != 4) continue;
                 try {
                     int rowIndex = Integer.parseInt(parts[0]);
