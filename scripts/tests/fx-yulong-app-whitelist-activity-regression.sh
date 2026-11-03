@@ -33,6 +33,15 @@ require("callback.accept(RootAccess.execute(\"\"));", "saturated Root queue must
 require("destroyed = true;", "Activity teardown must reject late callbacks")
 require("worker.shutdownNow();", "Root worker must be released")
 require("appWorker.shutdownNow();", "application inventory worker must be released")
+require("ACTION_PACKAGE_ADDED", "whitelist UI must observe application install broadcasts")
+require("ACTION_PACKAGE_REMOVED", "whitelist UI must observe application removal broadcasts")
+require("ACTION_PACKAGE_REPLACED", "whitelist UI must observe application update broadcasts")
+require("filter.addDataScheme(\"package\")", "package broadcasts must be limited to package data")
+require("Context.RECEIVER_NOT_EXPORTED", "dynamic package receiver must not be externally callable")
+require("private boolean appReloadPending;", "single-flight inventory reload state is missing")
+require("if (appLoading) {\n            appReloadPending = true;\n            return;", "package-change bursts must be coalesced into a single pending refresh")
+require("if (appReloadPending) {\n                        appReloadPending = false;\n                        loadAppsAsync();", "a package change during scanning must trigger one follow-up scan")
+require("unregisterPackageChanges();", "package receiver must be unregistered when the Activity stops/destroys")
 render = source[source.index("private void renderRows()"):source.index("@Override protected void onDestroy()")]
 assert "getInstalledApplications(" not in render, "PackageManager enumeration still runs inside row rendering"
 assert "getApplicationLabel(" not in render, "label loading still runs inside row rendering"
