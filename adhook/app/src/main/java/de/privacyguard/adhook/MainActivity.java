@@ -2701,8 +2701,13 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("launcher_only", true)
                             .putExtra("dia_page", page));
                     return;
-                case "方法 Hook": case "Native 方法": case "函数重写":
+                case "方法 Hook": case "函数重写":
                     showAppList("自定义 Hook");
+                    return;
+                case "Native 方法":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", page));
                     return;
                 case "规则组": case "规则列表":
                     showAppList("自定义 Hook");

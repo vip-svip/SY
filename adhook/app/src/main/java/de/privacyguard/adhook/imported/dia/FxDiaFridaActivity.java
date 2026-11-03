@@ -195,6 +195,8 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 Activity 调用栈观察", () -> loadDiaMonitorTemplate("stack")),
                 button("载入 Runtime/Process 启动观察", () -> loadDiaMonitorTemplate("runtime")),
                 button("载入按键事件观察", () -> loadDiaMonitorTemplate("key")),
+                button("载入 Native 导出符号观察", () -> loadDiaMonitorTemplate("native")),
+                button("载入 ClassLoader 观察", () -> loadDiaMonitorTemplate("classloader")),
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
     }
@@ -592,6 +594,37 @@ public final class FxDiaFridaActivity extends Activity {
                         + "      return result;\\n"
                         + "    };\\n"
                         + "  });\\n"
+                        + "});";
+                break;
+            case "native":
+                source = "var moduleName = 'libtarget.so';\\n"
+                        + "var symbolName = 'target_export';\\n"
+                        + "var address = Module.findExportByName(moduleName, symbolName);\\n"
+                        + "if (address === null) {\\n"
+                        + "  send('[DIA_NATIVE] export not found: ' + moduleName + '!' + symbolName);\\n"
+                        + "} else {\\n"
+                        + "  Interceptor.attach(address, {\\n"
+                        + "    onEnter: function (args) { this.started = Date.now(); },\\n"
+                        + "    onLeave: function (retval) {\\n"
+                        + "      send('[DIA_NATIVE] ' + moduleName + '!' + symbolName + ' elapsedMs=' + (Date.now() - this.started));\\n"
+                        + "    }\\n"
+                        + "  });\\n"
+                        + "  send('[DIA_NATIVE] attached ' + moduleName + '!' + symbolName);\\n"
+                        + "}";
+                break;
+            case "classloader":
+                source = "Java.perform(function () {\\n"
+                        + "  var prefix = 'com.example.target.'; // change to the target package/class prefix\\n"
+                        + "  var Loader = Java.use('java.lang.ClassLoader');\\n"
+                        + "  var load = Loader.loadClass.overload('java.lang.String');\\n"
+                        + "  load.implementation = function (name) {\\n"
+                        + "    var result = load.call(this, name);\\n"
+                        + "    if (String(name).indexOf(prefix) === 0) {\\n"
+                        + "      var loaderName = ''; try { loaderName = String(this.getClass().getName()); } catch (_) {}\\n"
+                        + "      send('[DIA_CLASSLOADER] class=' + name + ' loader=' + loaderName);\\n"
+                        + "    }\\n"
+                        + "    return result;\\n"
+                        + "  };\\n"
                         + "});";
                 break;
             case "sqlcipher":
