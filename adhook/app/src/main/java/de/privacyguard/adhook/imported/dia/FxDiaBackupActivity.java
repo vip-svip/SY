@@ -287,61 +287,174 @@ public final class FxDiaBackupActivity extends Activity {
         return encryptBackupPayload(plaintext,encryptionPassword);
     }
 
+    private java.util.Map<String, java.io.File> stageAndValidateStellarFiles(JSONObject backup) throws Exception {
+        java.util.LinkedHashMap<String, java.io.File> staged = new java.util.LinkedHashMap<>();
+        if (!backup.has("stellar_files_b64")) return staged;
+
+        JSONObject files = backup.getJSONObject("stellar_files_b64");
+        JSONObject hashes = backup.optJSONObject("stellar_files_sha256");
+        String[] names = {"command_whitelist.txt", "command_always_allow.txt", "scope_grants.txt"};
+        java.util.HashSet<String> allowed = new java.util.HashSet<>(Arrays.asList(names));
+        Iterator<String> fileKeys = files.keys();
+        while (fileKeys.hasNext()) {
+            String key = fileKeys.next();
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException("备份包含未知 Stellar 文件：" + key);
+            }
+        }
+        if (files.length() > 0 && hashes == null) {
+            throw new IllegalArgumentException("备份缺少 Stellar 文件 SHA-256 清单。");
+        }
+        if (hashes != null) {
+            Iterator<String> hashKeys = hashes.keys();
+            while (hashKeys.hasNext()) {
+                String key = hashKeys.next();
+                if (!allowed.contains(key) || !files.has(key)) {
+                    throw new IllegalArgumentException("Stellar SHA-256 清单与文件清单不匹配：" + key);
+                }
+            }
+        }
+
+        long totalBytes = 0;
+        for (String name : names) {
+            if (!files.has(name)) continue;
+            Object raw = files.get(name);
+            if (!(raw instanceof String)) {
+                throw new IllegalArgumentException("Stellar 文件编码格式无效：" + name);
+            }
+            String encoded = (String) raw;
+            if (encoded.length() > (MAX_BACKUP_BYTES * 4L / 3L) + 8L) {
+                throw new IllegalArgumentException("Stellar 文件编码超过备份上限：" + name);
+            }
+            byte[] data = Base64.getDecoder().decode(encoded);
+            totalBytes += data.length;
+            if (totalBytes > MAX_BACKUP_BYTES) {
+                throw new IllegalArgumentException("Stellar 文件总大小超过备份上限。");
+            }
+            String expected = hashes.optString(name, "");
+            if (!expected.matches("(?i)[0-9a-f]{64}") || !expected.equalsIgnoreCase(sha(data))) {
+                throw new IllegalArgumentException("Stellar 授权文件 SHA-256 不匹配：" + name);
+            }
+            java.io.File cache = new java.io.File(getCacheDir(), "fx-dia-restore-" + name + ".tmp");
+            try (OutputStream out = new java.io.FileOutputStream(cache, false)) {
+                out.write(data);
+                out.flush();
+                out.getFD().sync();
+            }
+            staged.put(name, cache);
+        }
+        return staged;
+    }
+
+    private void validateBackupPreferences(JSONObject preferences) throws Exception {
+        String[] names = {"MainActivity", "fx_dia_frida", "shield_prefs",
+                "stellar_command_whitelist", "fx_hook_publish", "fx_dia_launcher_hidden"};
+        for (String name : names) {
+            if (!preferences.has(name)) continue;
+            JSONObject values = preferences.getJSONObject(name);
+            Iterator<String> keys = values.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object value = values.get(key);
+                if (value instanceof JSONArray) {
+                    JSONArray items = (JSONArray) value;
+                    for (int i = 0; i < items.length(); i++) {
+                        if (!(items.get(i) instanceof String)) {
+                            throw new IllegalArgumentException("偏好设置字符串集合包含非字符串项：" + name + "/" + key);
+                        }
+                    }
+                } else if (!(value instanceof String || value instanceof Boolean || value instanceof Number)) {
+                    throw new IllegalArgumentException("偏好设置值类型不受支持：" + name + "/" + key);
+                }
+            }
+        }
+    }
+
     private void restoreBackupBytes(byte[] payload, String encryptionPassword) throws Exception {
         payload = decryptBackupPayload(payload, encryptionPassword);
-        JSONObject backup=new JSONObject(new String(payload,StandardCharsets.UTF_8));
-        if(!"FX-DIA-BACKUP-1".equals(backup.optString("schema")))
+        JSONObject backup = new JSONObject(new String(payload, StandardCharsets.UTF_8));
+        if (!"FX-DIA-BACKUP-1".equals(backup.optString("schema"))) {
             throw new IllegalArgumentException("备份版本不兼容。");
-        String encoded=backup.getString("module_settings_b64");
-        byte[] module=android.util.Base64.decode(encoded,android.util.Base64.DEFAULT);
-        String expected=backup.getString("module_settings_sha256");
-        if(!expected.equalsIgnoreCase(sha(module)))
+        }
+
+        // Validate every section before the first privileged write. In particular,
+        // do not replace settings.conf and run apply.sh before discovering that a
+        // later Stellar file has a bad Base64 payload or mismatched digest.
+        String encoded = backup.getString("module_settings_b64");
+        if (encoded.length() > (MAX_BACKUP_BYTES * 2L / 3L) + 8L) {
+            throw new IllegalArgumentException("模块配置编码超过备份上限。");
+        }
+        byte[] module = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+        if (module.length > MAX_BACKUP_BYTES / 2) {
+            throw new IllegalArgumentException("模块配置超过本地备份大小上限。");
+        }
+        String expected = backup.getString("module_settings_sha256");
+        if (!expected.matches("(?i)[0-9a-f]{64}") || !expected.equalsIgnoreCase(sha(module))) {
             throw new IllegalArgumentException("模块配置 SHA-256 不匹配，文件可能已损坏。");
-        java.io.File temp=new java.io.File(getCacheDir(),"fx-dia-settings.restore");
-        try(OutputStream out=new java.io.FileOutputStream(temp)){out.write(module);out.flush();out.getFD().sync();}
-        String restoreCommand="set -e; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; "
-                +"test -d \\"$PG\\" && test -f \\"$CONF\\"; "
-                +"cp -p \\"$CONF\\" \\"$CONF.fx-dia-rollback\\"; "
-                +"cp "+quote(temp.getAbsolutePath())+" \\"$CONF.fx-dia-new\\"; chmod 0600 \\"$CONF.fx-dia-new\\"; "
-                +"actual=$(sha256sum \\"$CONF.fx-dia-new\\" | cut -d ' ' -f1); "
-                +"test \\"$actual\\" = "+quote(expected)+"; mv -f \\"$CONF.fx-dia-new\\" \\"$CONF\\"; "
-                +"if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then rm -f \\"$CONF.fx-dia-rollback\\"; "
-                +"else mv -f \\"$CONF.fx-dia-rollback\\" \\"$CONF\\"; sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || :; exit 31; fi";
-        RootAccess.Result applied=RootAccess.execute(restoreCommand,120000L,MAX_BACKUP_BYTES);
-        if(applied.exitCode!=0)throw new IllegalStateException("模块配置恢复/应用失败："+safe(applied.output));
-        if(backup.has("stellar_files_b64")){
-            JSONObject files=backup.getJSONObject("stellar_files_b64");
-            JSONObject hashes=backup.optJSONObject("stellar_files_sha256");
-            String[] names={"command_whitelist.txt","command_always_allow.txt","scope_grants.txt"};
-            StringBuilder command=new StringBuilder("set -e; DIR=/data/local/tmp/stellar_guard; mkdir -p \\"$DIR\\"; ");
-            java.util.Map<String,String> cachePaths=new java.util.LinkedHashMap<>();
-            for(String name:names){
-                if(!files.has(name))continue;
-                byte[] bytes=android.util.Base64.decode(files.getString(name),android.util.Base64.DEFAULT);
-                String expectedFileHash=hashes==null?"":hashes.optString(name,"");
-                if(expectedFileHash.isEmpty()||!expectedFileHash.equalsIgnoreCase(sha(bytes)))
-                    throw new IllegalArgumentException("Stellar 授权文件 SHA-256 不匹配："+name);
-                java.io.File cache=new java.io.File(getCacheDir(),"fx-dia-"+name);
-                try(OutputStream out=new java.io.FileOutputStream(cache)){out.write(bytes);out.flush();out.getFD().sync();}
-                String target="/data/local/tmp/stellar_guard/"+name;
-                String temp=target+".fx-new",rollback=target+".fx-dia-rollback";
+        }
+        JSONObject prefs = backup.getJSONObject("preferences");
+        validateBackupPreferences(prefs);
+        java.util.Map<String, java.io.File> stagedStellar = stageAndValidateStellarFiles(backup);
+
+        java.io.File temp = new java.io.File(getCacheDir(), "fx-dia-settings.restore");
+        try (OutputStream out = new java.io.FileOutputStream(temp, false)) {
+            out.write(module);
+            out.flush();
+            out.getFD().sync();
+        }
+        String restoreCommand = "set -e; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; "
+                + "test -d \\"$PG\\" && test -f \\"$CONF\\"; "
+                + "cp -p \\"$CONF\\" \\"$CONF.fx-dia-rollback\\"; "
+                + "cp " + quote(temp.getAbsolutePath()) + " \\"$CONF.fx-dia-new\\"; chmod 0600 \\"$CONF.fx-dia-new\\"; "
+                + "actual=$(sha256sum \\"$CONF.fx-dia-new\\" | cut -d ' ' -f1); "
+                + "test \\"$actual\\" = " + quote(expected) + "; mv -f \\"$CONF.fx-dia-new\\" \\"$CONF\\"; "
+                + "if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then rm -f \\"$CONF.fx-dia-rollback\\"; "
+                + "else mv -f \\"$CONF.fx-dia-rollback\\" \\"$CONF\\"; sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || :; exit 31; fi";
+        RootAccess.Result applied = RootAccess.execute(restoreCommand, 120000L, MAX_BACKUP_BYTES);
+        if (applied.exitCode != 0) {
+            throw new IllegalStateException("模块配置恢复/应用失败：" + safe(applied.output));
+        }
+
+        if (!stagedStellar.isEmpty()) {
+            StringBuilder command = new StringBuilder(
+                    "set -e; DIR=/data/local/tmp/stellar_guard; mkdir -p \\"$DIR\\"; ");
+            String[] names = {"command_whitelist.txt", "command_always_allow.txt", "scope_grants.txt"};
+            for (String name : names) {
+                java.io.File cache = stagedStellar.get(name);
+                if (cache == null) continue;
+                String expectedFileHash = backup.getJSONObject("stellar_files_sha256").getString(name);
+                String target = "/data/local/tmp/stellar_guard/" + name;
+                String tempPath = target + ".fx-new";
+                String rollback = target + ".fx-dia-rollback";
                 command.append("if [ -f ").append(quote(target)).append(" ]; then cp -p ")
-                        .append(quote(target)).append(" ").append(quote(rollback)).append("; else rm -f ")
-                        .append(quote(rollback)).append("; fi; ");
-                command.append("cp ").append(quote(cache.getAbsolutePath())).append(" ").append(quote(temp))
-                        .append("; chmod 0600 ").append(quote(temp)).append("; ");
-                command.append("actual=$(sha256sum ").append(quote(temp)).append(" | cut -d ' ' -f1); test \\"$actual\\" = ")
-                        .append(quote(expectedFileHash)).append("; mv -f ").append(quote(temp)).append(" ").append(quote(target)).append("; ");
-                cachePaths.put(name,cache.getAbsolutePath());
+                        .append(quote(target)).append(" ").append(quote(rollback))
+                        .append("; else rm -f ").append(quote(rollback)).append("; fi; ");
+                command.append("cp ").append(quote(cache.getAbsolutePath())).append(" ").append(quote(tempPath))
+                        .append("; chmod 0600 ").append(quote(tempPath)).append("; ");
+                command.append("actual=$(sha256sum ").append(quote(tempPath))
+                        .append(" | cut -d ' ' -f1); test \\"$actual\\" = ")
+                        .append(quote(expectedFileHash)).append("; mv -f ")
+                        .append(quote(tempPath)).append(" ").append(quote(target)).append("; ");
             }
             command.append("true");
-            RootAccess.Result stellarRestore=RootAccess.execute(command.toString(),30000L,MAX_BACKUP_BYTES);
-            if(stellarRestore.exitCode!=0)throw new IllegalStateException("Stellar 授权文件恢复失败："+safe(stellarRestore.output));
-            for(String name:names)RootAccess.execute("rm -f "+quote("/data/local/tmp/stellar_guard/"+name+".fx-dia-rollback"),10000L,4096);
+            RootAccess.Result stellarRestore = RootAccess.execute(command.toString(), 30000L, MAX_BACKUP_BYTES);
+            if (stellarRestore.exitCode != 0) {
+                throw new IllegalStateException("Stellar 授权文件恢复失败：" + safe(stellarRestore.output));
+            }
+            for (String name : names) {
+                RootAccess.execute("rm -f " + quote("/data/local/tmp/stellar_guard/" + name + ".fx-dia-rollback"),
+                        10000L, 4096);
+            }
         }
-        JSONObject prefs=backup.getJSONObject("preferences");
-        for(String name:new String[]{"MainActivity","fx_dia_frida","shield_prefs","stellar_command_whitelist","fx_hook_publish","fx_dia_launcher_hidden"})
-            if(prefs.has(name))restorePrefs(name,prefs.getJSONObject(name));
+
+        for (String name : new String[]{"MainActivity", "fx_dia_frida", "shield_prefs",
+                "stellar_command_whitelist", "fx_hook_publish", "fx_dia_launcher_hidden"}) {
+            if (prefs.has(name)) restorePrefs(name, prefs.getJSONObject(name));
+        }
+        for (java.io.File staged : stagedStellar.values()) {
+            //noinspection ResultOfMethodCallIgnored
+            staged.delete();
+        }
     }
 
     private String githubContentsUrl(String owner,String repo,String path) throws Exception {
