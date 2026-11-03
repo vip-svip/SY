@@ -156,20 +156,6 @@ if "FX_SUBFETCH_CURL_TRACE_END_V1" not in sub_test.read_text(encoding="utf-8"):
         "subscription mock must record each curl completion",
     )
 
-# Capture shell xtrace independently from each worker's JSON stdout.
-replace_once(
-    sub_test,
-    'PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out1" 2> "$T/err1" &\n',
-    'PS4="FXSUB " PG="$T/state" sh -x "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out1" 2> "$T/trace1" &\n',
-    "subscription worker A must capture lock trace",
-)
-replace_once(
-    sub_test,
-    'PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out2" 2> "$T/err2" &\n',
-    'PS4="FXSUB " PG="$T/state" sh -x "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out2" 2> "$T/trace2" &\n',
-    "subscription worker B must capture lock trace",
-)
-
 # The restored release artifact already includes per-curl START/END markers.
 # Its worker launch syntax differs from the repository fixture, so do not force
 # a second, brittle rewrite of those commands; the count-failure assertion below
