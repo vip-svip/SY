@@ -18,7 +18,7 @@ def assert_proxy_contract(label, source):
 
 assert_proxy_contract("Dia Wi-Fi proxy Activity", activity)
 assert_proxy_contract("Dia Wi-Fi proxy Quick Settings Tile", tile)
-assert 'host.split("' + slash * 2 + '\\.', -1)' in tile, "Tile host validation must split DNS labels on literal dots"
+assert 'host.split("\\\\.", -1)' in tile, "Tile host validation must split DNS labels on literal dots"
 assert "value.replace('" + slash + "n', ' ').replace('" + slash + "r', ' ')" in tile, "Tile log sanitizer must use valid Java newline character literals"
 for token in ('putString("previous", newPrevious)', 'putString("applied", target)', '.remove("previous").remove("applied")'):
     assert token in activity, "proxy persisted ownership/rollback behavior missing: " + token
