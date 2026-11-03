@@ -4665,8 +4665,7 @@ public final class MainActivity extends ComponentActivity {
         if (value == null) return false;
         String name = value.trim();
         return !name.isEmpty() && name.length() <= 24
-                && name.matches("[\\\\p{L}\\\\p{N}_ -]+")
-                && !name.contains("|");
+                && !name.contains("|") && !name.contains("\\n") && !name.contains("\\r");
     }
 
     private java.util.LinkedHashSet<String> getCustomRuleGroups() {
