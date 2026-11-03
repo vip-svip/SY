@@ -172,12 +172,15 @@ m = manifest.read_text(encoding="utf-8")
 # The unified Hook manifest is rebuilt below, so omitting these silently removes
 # migrated pages from the final APK even though their Java sources still compile.
 retained_activities = re.findall(
-    r'(?s)<activity\\b(?:(?!/>).)*?/>|<activity\\b[^>]*>.*?</activity>',
+    r'(?s)<activity\b[^>]*?(?:/>|>.*?</activity>)',
     m
 )
 retained_activities = [
     activity for activity in retained_activities
-    if not re.search(r'android:name=["\\'](?:\\.MainActivity|de\\.privacyguard\\.adhook\\.MainActivity)["\\']', activity)
+    if not re.search(
+        r"""android:name=["'](?:\.MainActivity|de\.privacyguard\.adhook\.MainActivity)["']""",
+        activity
+    )
 ]
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
