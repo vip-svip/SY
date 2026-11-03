@@ -27,6 +27,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -43,6 +47,31 @@ public final class FxDiaFileActivity extends Activity {
     private final List<String> pathStack = new ArrayList<>();
     private LinearLayout files;
     private TextView fileStatus, location, soStatus, soResults;
+    private static final int DIRECTORY_PAGE_SIZE = 100;
+    private static final int MAX_DIRECTORY_ENTRIES = 5000;
+    private final ThreadPoolExecutor ioWorker = new ThreadPoolExecutor(2, 2, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> new Thread(r, "fx-dia-file-io"), new ThreadPoolExecutor.AbortPolicy());
+    private final List<Entry> directoryEntries = new ArrayList<>();
+    private int displayedEntries;
+    private boolean directoryTruncated;
+    private long directoryRequestId;
+    private Button loadMoreButton;
+    private volatile boolean destroyed;
+
+    private void postUi(Runnable action) {
+        runOnUiThread(() -> {
+            if (!destroyed && !isFinishing() && !isDestroyed()) action.run();
+        });
+    }
+
+    private void submitIo(String operation, Runnable task) {
+        try {
+            ioWorker.execute(task);
+        } catch (RejectedExecutionException full) {
+            postUi(() -> fileStatus.setText(operation + "队列已满，请稍后重试。"));
+        }
+    }
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String s, int size, int color, boolean bold) {
