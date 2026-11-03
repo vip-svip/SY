@@ -23,7 +23,9 @@ public final class DeveloperHookRule {
         this.id = id;
         this.descriptor = descriptor;
         this.action = action;
-        this.replacement = action == Action.RETURN_TRUE || action == Action.RETURN_FALSE\n                || action == Action.RETURN_NULL || action == Action.RETURN_ZERO\n                || action == Action.RETURN_EMPTY_STRING;
+        this.replacement = action == Action.RETURN_TRUE || action == Action.RETURN_FALSE
+                || action == Action.RETURN_NULL || action == Action.RETURN_ZERO
+                || action == Action.RETURN_EMPTY_STRING;
         this.priority = priority;
     }
 
