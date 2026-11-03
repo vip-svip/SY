@@ -113,6 +113,13 @@ public final class FxYulongScanActivity extends Activity {
             updateBatchCleanup();
         });
         item.addView(check);
+        item.addView(action("打开风险警告页", () -> {
+            Intent warning = new Intent(this, FxYulongWarningActivity.class);
+            warning.putExtra("package_name", finding.packageName);
+            warning.putExtra("app_label", finding.label);
+            warning.putExtra("reason", finding.reason);
+            startActivity(warning);
+        }));
         item.addView(action("核实后打开系统卸载确认",()->confirmUninstall(finding)));
     }
 
