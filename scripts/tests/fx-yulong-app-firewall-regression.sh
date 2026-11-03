@@ -171,7 +171,7 @@ run uninstall
 # STATE_DIR and REMOVER. The patcher must still insert firewall cleanup safely.
 RESTORE="$TMP/release-layout"
 mkdir -p "$RESTORE/scripts"
-printf 'id=privacyguard\\n' > "$RESTORE/module.prop"
+printf 'id=privacyguard\n' > "$RESTORE/module.prop"
 cat > "$RESTORE/service.sh" <<'SERVICE'
 #!/system/bin/sh
 sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
