@@ -45,9 +45,21 @@ if "yulong_ad_schedule_active" not in u:
     u = u.replace(needle, schedule_gate, 1)
     util.write_text(u, encoding="utf-8")
 
-if "yulong_ad_schedule_active=" not in d:
-    d += "\\n# Weekly Yulong ad schedule runtime state (1=inside schedule, default enabled).\\nyulong_ad_schedule_active=1\\n"
-    default.write_text(d, encoding="utf-8")
+# Keep scalar defaults in the key/value section, before every [list:*] block.
+# Older code appended escaped \\n sequences after [list:fx], corrupting rule isolation.
+malformed_schedule_block = r"\\n# Weekly Yulong ad schedule runtime state (1=inside schedule, default enabled).\\nyulong_ad_schedule_active=1\\n"
+d = d.replace(malformed_schedule_block, "")
+d = re.sub(r"(?m)^# Weekly Yulong ad schedule runtime state.*(?:\\r?\\n|$)", "", d)
+d = re.sub(r"(?m)^yulong_ad_schedule_active=.*(?:\\r?\\n|$)", "", d)
+schedule_anchor = re.search(r"(?m)^yulong_ad_filter_enabled=[^\\r\\n]*", d)
+if schedule_anchor is None:
+    raise SystemExit("Yulong ad master default key missing before schedule state insertion")
+schedule_default = (
+    "\\n# Weekly Yulong ad schedule runtime state (1=inside schedule, default enabled).\\n"
+    "yulong_ad_schedule_active=1\\n"
+)
+d = d[:schedule_anchor.end()] + schedule_default + d[schedule_anchor.end():]
+default.write_text(d, encoding="utf-8")
 
 service = root / "service.sh"
 service_marker = 'if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then'
@@ -69,7 +81,7 @@ uninstall = root / "uninstall.sh"
 if uninstall.is_file():
     uninstall_text = uninstall.read_text(encoding="utf-8")
     if "yulong-ad-schedule.sh" not in uninstall_text:
-        marker = 'STATE_DIR=/data/adb/privacyguard\\n'
+        marker = "STATE_DIR=/data/adb/privacyguard\n"
         if marker in uninstall_text:
             uninstall_text = uninstall_text.replace(
                 marker,
