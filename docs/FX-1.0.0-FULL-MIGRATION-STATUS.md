@@ -659,3 +659,13 @@ After each implementation batch:
 - It verifies module identity/version/enabled markers, presence of core FX and migrated Yulong scripts, shell syntax, and the ARM64 QuickJS executable bit.
 - The page reports missing or malformed files but does not auto-repair, restart services, force-stop/freeze apps, re-enable the app, or restore accessibility permissions. These invasive legacy SelfDefense actions remain intentionally outside the FX migration.
 - Source-only change on the unified branch; no build or device test was run.
+
+
+## Dia 23.11 — native GPS map picker integration
+
+- Added `FxDiaGpsPickerActivity` inside the single FX Hook APK, restoring the original Dia GPS screen's AMap picker destination at `https://lbs.amap.com/console/show/picker`.
+- The map helper accepts AMap's `longitude,latitude` coordinate text, validates coordinate ranges, and returns latitude/longitude to the selected app's existing GPS simulation editor.
+- Added the native `高德地图选点` action next to the per-app GPS test fields. Returning from the picker fills the current target's latitude/longitude draft; the existing explicit `保存并发布 GPS 测试位置` action remains the point at which the config is published to LSPosed Remote Files.
+- The picker WebView has JavaScript enabled only for the map page, exposes no JavaScript bridge, disables file/content access and mixed content, permits only HTTPS AMap/Gaode navigation, and cancels TLS errors.
+- This does not change the device's real GNSS/provider state. GPS mocking remains scoped to an explicitly selected debuggable target process.
+- Source commit only; the paired APK/KernelSU package remains deferred until all three application migrations are complete.
