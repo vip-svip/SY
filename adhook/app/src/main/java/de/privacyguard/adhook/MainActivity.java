@@ -4330,9 +4330,9 @@ public final class MainActivity extends ComponentActivity {
         note.setTextColor(0xff697681); note.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(note);
         section("自定义 Hook");
         TextView custom=new TextView(this);
-        custom.setText("仅对可调试版本目标应用生效。自定义规则只记录方法调用、参数类型、耗时和异常类型；不记录参数/返回值，也不修改返回值、登录状态或会员资格。");
+        custom.setText("仅对可调试版本目标应用生效。OBSERVE 只记录方法调用元数据；RETURN_TRUE/FALSE 仅允许零参数 boolean 测试方法，用于你自己的调试构建。不会修改正式应用、账号、会员或服务端授权。");
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
-        Button addRule=new Button(this); addRule.setText("添加只读观察规则");
+        Button addRule=new Button(this); addRule.setText("添加自定义 Hook 规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
         LinearLayout ruleTools = new LinearLayout(this);
         ruleTools.setOrientation(LinearLayout.HORIZONTAL);
@@ -4389,6 +4389,10 @@ public final class MainActivity extends ComponentActivity {
         descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[])java.lang.Object\n"
                 + "Smali：Lcom/example/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;\n"
                 + "旧式：com.example.Foo#isReady()Z");
+        EditText action = new EditText(this);
+        action.setSingleLine(true);
+        action.setText("OBSERVE");
+        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE");
         EditText priority = new EditText(this);
         priority.setSingleLine(true);
         priority.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
@@ -4398,26 +4402,37 @@ public final class MainActivity extends ComponentActivity {
 
         TextView help = new TextView(this);
         help.setText("支持 Java 精确签名、Smali/JVM 描述符和旧式零参数 boolean 签名。"
-                + "只允许当前目标应用包名下的方法；规则只记录调用元数据，不读取参数/返回值，不改写方法行为。");
+                + "RETURN_TRUE/FALSE 仅支持当前 debuggable 目标包内的零参数 boolean 方法；"
+                + "其他签名只能 OBSERVE。观察日志不记录参数值、返回值、口令或令牌。");
         help.setTextSize(12);
         help.setTextColor(0xff687681);
         help.setPadding(0, dp(6), 0, dp(8));
         form.addView(id);
         form.addView(descriptor);
+        form.addView(action);
         form.addView(priority);
         form.addView(help);
 
-        new AlertDialog.Builder(this).setTitle("新增只读 Hook 规则").setView(form)
+        new AlertDialog.Builder(this).setTitle("新增自定义 Hook 规则").setView(form)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("保存", (dialog, which) -> {
                     String ruleId = id.getText().toString().trim();
                     String method = descriptor.getText().toString().trim();
+                    String actionText = action.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
                     String priorityText = priority.getText().toString().trim();
+                    ApplicationInfo target = findApp(selectedPackage);
+                    boolean debuggable = target != null
+                            && (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                    if (!debuggable && !"OBSERVE".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("行为替换仅对 debuggable 目标开放。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
                     DeveloperHookRule rule = DeveloperHookRule.parse(
-                            ruleId + "|" + method + "|OBSERVE|" + priorityText, selectedPackage);
+                            ruleId + "|" + method + "|" + actionText + "|" + priorityText, selectedPackage);
                     if (rule == null) {
                         new AlertDialog.Builder(this)
-                                .setMessage("规则无效：请检查目标包名、Java/Smali 方法签名及优先级。")
+                                .setMessage("规则无效：检查目标包名、方法签名、动作类型和优先级。替换动作只接受零参数 boolean 方法。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -4438,7 +4453,8 @@ public final class MainActivity extends ComponentActivity {
                     }
                     getPreferences(0).edit()
                             .putString(selectedPackage + ":dev_rule_" + slot,
-                                    rule.id + "|" + rule.descriptor + "|OBSERVE|" + rule.priority)
+                                    rule.id + "|" + rule.descriptor + "|" + rule.action.name() + "|" + rule.priority)
+                            .putString(selectedPackage + ":dev_rule_base_" + slot, rule.action.name())
                             .putBoolean(selectedPackage + ":dev_hook_enabled", true)
                             .apply();
                     ApplicationInfo currentTarget = findApp(selectedPackage);
@@ -4462,7 +4478,11 @@ public final class MainActivity extends ComponentActivity {
                 org.json.JSONObject item = new org.json.JSONObject();
                 item.put("id", parts[0]);
                 item.put("descriptor", parts[1]);
-                item.put("action", parts[2]);
+                String baseAction = getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_base_" + n,
+                        "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]);
+                item.put("action", baseAction);
+                item.put("enabled", !"OFF".equals(parts[2]));
                 item.put("priority", Integer.parseInt(parts[3]));
                 exported.put(item);
             }
@@ -4471,7 +4491,7 @@ public final class MainActivity extends ComponentActivity {
             output.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
             output.setMinLines(8);
             output.setSelectAllOnFocus(true);
-            new AlertDialog.Builder(this).setTitle("导出只读 Hook 规则")
+            new AlertDialog.Builder(this).setTitle("导出自定义 Hook 规则")
                     .setView(output)
                     .setNegativeButton("关闭", null)
                     .setPositiveButton("复制", (dialog, which) -> {
@@ -4494,8 +4514,8 @@ public final class MainActivity extends ComponentActivity {
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
         input.setMinLines(8);
         input.setHint("[{\\"id\\":\\"observe1\\",\\"descriptor\\":\\"com.example.Foo#run()Z\\",\\"action\\":\\"OBSERVE\\",\\"priority\\":0}]");
-        new AlertDialog.Builder(this).setTitle("批量导入只读 Hook 规则")
-                .setMessage("仅接受 OBSERVE/OFF 规则；规则必须限定在当前目标应用包名内。导入会与现有规则合并，不覆盖同 ID 规则。")
+        new AlertDialog.Builder(this).setTitle("批量导入自定义 Hook 规则")
+                .setMessage("接受 OBSERVE、RETURN_TRUE、RETURN_FALSE；RETURN_* 仅限 debuggable 目标包中的零参数 boolean 方法。JSON 可用 enabled:false 暂停规则。")
                 .setView(input)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("验证并导入", (dialog, which) -> {
@@ -4504,11 +4524,17 @@ public final class MainActivity extends ComponentActivity {
                         if (array.length() > 64) throw new IllegalArgumentException("单次导入最多 64 条规则。");
                         java.util.Set<String> ids = new java.util.HashSet<>();
                         java.util.List<String> candidates = new java.util.ArrayList<>();
+                        java.util.List<String> baseActions = new java.util.ArrayList<>();
                         for (int n = 1; n <= 64; n++) {
                             String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                             if (existing != null) {
                                 String[] parts = existing.split("\\|", -1);
-                                if (parts.length == 4) ids.add(parts[0]);
+                                if (parts.length == 4) {
+                                    ids.add(parts[0]);
+                                    baseActions.add(getPreferences(0).getString(
+                                            selectedPackage + ":dev_rule_base_" + n,
+                                            "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]));
+                                }
                                 candidates.add(existing);
                             }
                         }
@@ -4519,21 +4545,33 @@ public final class MainActivity extends ComponentActivity {
                             String descriptor = item.optString("descriptor", "");
                             String action = item.optString("action", "OBSERVE").toUpperCase(java.util.Locale.ROOT);
                             int priority = item.optInt("priority", 0);
-                            if (!"OBSERVE".equals(action) && !"OFF".equals(action)
-                                    && !"DISABLED".equals(action))
-                                throw new IllegalArgumentException("只支持 OBSERVE/OFF，拒绝导入行为替换规则。");
-                            String storedAction = ("OFF".equals(action) || "DISABLED".equals(action)) ? "OFF" : "OBSERVE";
+                            boolean enabled = item.optBoolean("enabled", true);
+                            if (!"OBSERVE".equals(action) && !"RETURN_TRUE".equals(action)
+                                    && !"RETURN_FALSE".equals(action))
+                                throw new IllegalArgumentException("只支持 OBSERVE、RETURN_TRUE 或 RETURN_FALSE。");
+                            ApplicationInfo currentTarget = findApp(selectedPackage);
+                            boolean debugBuild = currentTarget != null
+                                    && (currentTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                            if (!debugBuild && !"OBSERVE".equals(action))
+                                throw new IllegalArgumentException("RETURN_* 规则仅能导入 debuggable 目标。");
                             DeveloperHookRule parsed = DeveloperHookRule.parse(
-                                    id + "|" + descriptor + "|" + storedAction + "|" + priority, selectedPackage);
-                            if (parsed == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则签名无效或不属于当前目标包。");
+                                    id + "|" + descriptor + "|" + action + "|" + priority, selectedPackage);
+                            if (parsed == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则签名/动作无效或不属于当前目标包。");
                             if (!ids.add(parsed.id)) throw new IllegalArgumentException("规则 ID 重复：" + parsed.id);
+                            String storedAction = enabled ? action : "OFF";
                             candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction + "|" + parsed.priority);
+                            baseActions.add(action);
                         }
                         if (candidates.size() > 64) throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
                         android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
-                        for (int n = 1; n <= 64; n++) editor.remove(selectedPackage + ":dev_rule_" + n);
-                        for (int i = 0; i < candidates.size(); i++)
+                        for (int n = 1; n <= 64; n++) {
+                            editor.remove(selectedPackage + ":dev_rule_" + n);
+                            editor.remove(selectedPackage + ":dev_rule_base_" + n);
+                        }
+                        for (int i = 0; i < candidates.size(); i++) {
                             editor.putString(selectedPackage + ":dev_rule_" + (i + 1), candidates.get(i));
+                            editor.putString(selectedPackage + ":dev_rule_base_" + (i + 1), baseActions.get(i));
+                        }
                         editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty()).apply();
                         ApplicationInfo currentTarget = findApp(selectedPackage);
                         if (currentTarget != null) showTarget(currentTarget);
@@ -4553,37 +4591,47 @@ public final class MainActivity extends ComponentActivity {
 
     private void renderCustomRules() {
         for (int i = 1; i <= 64; i++) {
-            String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + i, null);
+            String key = selectedPackage + ":dev_rule_" + i;
+            String value = getPreferences(0).getString(key, null);
             if (value == null) continue;
             String[] parts = value.split("\\|", -1);
             if (parts.length != 4) continue;
             final int slot = i;
-            boolean active = "OBSERVE".equalsIgnoreCase(parts[2]);
+            String baseAction = getPreferences(0).getString(
+                    selectedPackage + ":dev_rule_base_" + slot,
+                    "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]);
+            boolean active = !"OFF".equalsIgnoreCase(parts[2]);
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(12), dp(6), dp(12), dp(6));
             row.setBackground(uiPanelDrawable());
             TextView item = new TextView(this);
-            item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + parts[2] + " · 优先级：" + parts[3]);
+            item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
+                    + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
             item.setTextSize(12);
             item.setTextColor(0xff596775);
             row.addView(item);
             Switch enabled = new Switch(this);
-            enabled.setText("启用只读观察");
+            enabled.setText("启用规则");
             enabled.setChecked(active);
             enabled.setOnCheckedChangeListener((button, checked) -> {
-                String[] current = getPreferences(0).getString(
-                        selectedPackage + ":dev_rule_" + slot, "").split("\\|", -1);
+                String[] current = getPreferences(0).getString(key, "").split("\\|", -1);
                 if (current.length != 4) return;
-                current[2] = checked ? "OBSERVE" : "OFF";
-                getPreferences(0).edit().putString(selectedPackage + ":dev_rule_" + slot,
-                        current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3]).apply();
+                String currentBase = getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_base_" + slot,
+                        "OFF".equals(current[2]) ? "OBSERVE" : current[2]);
+                current[2] = checked ? currentBase : "OFF";
+                getPreferences(0).edit()
+                        .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3])
+                        .putString(selectedPackage + ":dev_rule_base_" + slot, currentBase)
+                        .apply();
             });
             row.addView(enabled);
             Button remove = new Button(this);
             remove.setText("删除 " + parts[0]);
             remove.setOnClickListener(v -> {
-                getPreferences(0).edit().remove(selectedPackage + ":dev_rule_" + slot).apply();
+                getPreferences(0).edit().remove(key)
+                        .remove(selectedPackage + ":dev_rule_base_" + slot).apply();
                 ApplicationInfo ai = findApp(selectedPackage);
                 if (ai != null) showTarget(ai);
             });
