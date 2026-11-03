@@ -160,6 +160,34 @@ remove_dns_section() {
 }
 m_dns_section_clear() { remove_dns_section "$1"; }
 
+
+write_dns_response() {
+  mode=$1
+  tmp="$CONF.yulong-dns-response.$"
+  awk -v mode="$mode" '
+    BEGIN{inside=0;seen=0;written=0}
+    $0=="[conf:yulong_dns_response]" {
+      if(inside&&!written){print "mode=" mode;written=1}
+      inside=1;seen=1;print;next
+    }
+    /^\[/ {
+      if(inside&&!written){print "mode=" mode;written=1}
+      inside=0;print;next
+    }
+    inside&&/^mode=/ {
+      if(!written)print "mode=" mode
+      written=1;next
+    }
+    {print}
+    END{
+      if(inside&&!written)print "mode=" mode
+      if(!seen){print "";print "[conf:yulong_dns_response]";print "mode=" mode}
+    }
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
+  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+}
+m_dns_response() { write_dns_response "$1"; }
+
 write_vpn_dns() {
   key=$1; value=$2; tmp="$CONF.yulong-vpn-dns.$"
   awk -v key="$key" -v value="$value" '
@@ -404,6 +432,19 @@ case "$cmd" in
     *) exit 2 ;;
   esac
   with_lock transaction m_dns_servers "$section" "$servers"
+  ;;
+
+
+ dns-response-get)
+  echo FXYULONGDNSRESP1
+  mode=$(awk -F= '$1=="mode" {v=$2} $0=="[conf:yulong_dns_response]" {inside=1;next} /^\[/ {inside=0} inside&&$1=="mode" {v=$2} END{print v}' "$CONF" 2>/dev/null)
+  case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
+  echo "mode=$mode"
+  ;;
+ dns-response-set)
+  [ "$#" -eq 2 ] || { echo "usage: $0 dns-response-set nxdomain|refused|custom_ip" >&2; exit 2; }
+  case "$2" in nxdomain|refused|custom_ip) ;; *) exit 2 ;; esac
+  with_lock transaction m_dns_response "$2"
   ;;
 
  dns-config-clear)
