@@ -124,6 +124,7 @@ jobs:
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
+          sh scripts/tests/fx-native-vpn-config-lock-regression.sh
           sh -n fx-module/scripts/native-vpn-config.sh
           python3 fx-patches/patch_native_privacy_settings.py fx-module adhook/app/src/main/assets
           sh scripts/tests/fx-native-privacy-settings-regression.sh fx-module
