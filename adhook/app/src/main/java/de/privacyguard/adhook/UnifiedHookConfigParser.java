@@ -43,6 +43,9 @@ public final class UnifiedHookConfigParser {
         public final boolean microphoneAccessBlock;
         public final boolean mediaStoreQueryBlock;
         public final boolean adIdUnify;
+        public boolean wifiSimulation;
+        public String simulatedWifiSsid;
+        public String simulatedWifiBssid;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -270,6 +273,8 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false;
+            boolean wifiSimulation=false;
+            String simulatedWifiSsid=null, simulatedWifiBssid=null;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
@@ -281,6 +286,17 @@ public final class UnifiedHookConfigParser {
                 String key = parts[i].substring(0, eq).trim();
                 String value = parts[i].substring(eq + 1).trim();
                 if (!seen.add(key)) throw new IllegalArgumentException("duplicate feature");
+                if ("wifi_ssid".equals(key)) {
+                    if (!validWifiSsid(value)) throw new IllegalArgumentException("invalid simulated Wi-Fi SSID");
+                    simulatedWifiSsid=value;
+                    continue;
+                }
+                if ("wifi_bssid".equals(key)) {
+                    if (!value.matches("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))
+                        throw new IllegalArgumentException("invalid simulated Wi-Fi BSSID");
+                    simulatedWifiBssid=value.toLowerCase(java.util.Locale.ROOT);
+                    continue;
+                }
                 if ("dev_hook_enabled".equals(key)) {
                     if (!bit(value)) throw new IllegalArgumentException("invalid developer hook opt-in");
                     developerHooksEnabled = "1".equals(value);
@@ -321,6 +337,7 @@ public final class UnifiedHookConfigParser {
                     case "sensor_prox": sensorProx = on; break;
                     case "sensor_rate_limit": sensorRateLimit = on; break;
                     case "wifi_scan_block": wifiScanBlock = on; break;
+                    case "wifi_simulate": wifiSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
@@ -339,6 +356,13 @@ public final class UnifiedHookConfigParser {
             parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
             parsedTarget.developerHooksEnabled = developerHooksEnabled;
             parsedTarget.developerRules.addAll(developerRules);
+            if (wifiSimulation && simulatedWifiSsid == null && simulatedWifiBssid == null)
+                throw new IllegalArgumentException("Wi-Fi simulation requires an SSID or BSSID");
+            if (!wifiSimulation && (simulatedWifiSsid != null || simulatedWifiBssid != null))
+                throw new IllegalArgumentException("Wi-Fi values require wifi_simulate=1");
+            parsedTarget.wifiSimulation = wifiSimulation;
+            parsedTarget.simulatedWifiSsid = simulatedWifiSsid;
+            parsedTarget.simulatedWifiBssid = simulatedWifiBssid;
             targets.put(pkg, parsedTarget);
         }
 
@@ -422,6 +446,16 @@ public final class UnifiedHookConfigParser {
         if (!matcher.matches()) return false;
         String owner = matcher.group(1);
         return owner.startsWith(packageName + ".") && !owner.startsWith("java.") && !owner.startsWith("android.");
+    }
+
+    private static boolean validWifiSsid(String value) {
+        if (value == null || value.isEmpty()
+                || value.getBytes(StandardCharsets.UTF_8).length > 32) return false;
+        for (int i=0;i<value.length();i++) {
+            char c=value.charAt(i);
+            if (c<0x20 || c==0x7f || c==',' || c=='|') return false;
+        }
+        return true;
     }
 
     private static boolean bit(String value) {
