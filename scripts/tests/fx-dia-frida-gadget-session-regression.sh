@@ -82,6 +82,11 @@ if '[ \\"$cli\\" = \\"$expected_cli\\" ]' not in stop:
 print("PASS: Frida CLI Gadget session validates target/port/CLI identity, owns a persistent process, captures logs and provides a PID-checked stop action")
 PY
 
+# Trace the local process/UID/FIFO lifecycle fixture. Source-contract checks above
+# are intentionally separate from this behavioral simulation.
+set -x
+echo "GADGET_SESSION_TEST_STAGE: local UID/process fixture"
+
 # Exercise a long-lived remote Frida CLI session with a local mock. This validates
 # FIFO lifetime, argument contract, PID ownership checks and cleanup; it does not
 # claim Android-device Frida compatibility.
