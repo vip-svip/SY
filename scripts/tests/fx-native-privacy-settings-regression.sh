@@ -89,6 +89,7 @@ for key in required_keys:
     assert key in helper, "native VPN config helper does not handle editor key: " + key
 print("PASS: VPN text/list/choice controls use the native editor and validated, locked, rollback-capable [conf:vpn] writer")
 
+PY
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
 sh -n "$HELPER" || fail "native privacy writer has shell syntax errors"
