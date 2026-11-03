@@ -26,6 +26,13 @@ import de.privacyguard.adhook.R;
  */
 public final class FxDiaGlobalSettingsActivity extends Activity {
     private static final String PREFS = "digXposed";
+    // Original Dia 23.11 res/xml/my_settings.xml preference keys, including
+    // actions whose old standalone runtime is intentionally not invoked by FX.
+    private static final String[] ORIGINAL_SETTING_KEYS = {
+            "active_tip", "native_active_tip", "lsp_sync", "fast_restart_system",
+            "language_setting", "app_update", "data_backup", "system_expand",
+            "internal_community", "about"
+    };
     private SharedPreferences preferences;
     private LinearLayout body;
 
