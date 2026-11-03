@@ -890,17 +890,26 @@ public final class FxDiaFridaActivity extends Activity {
         setStatus("正在读取并校验 " + label + " 文件…");
         worker.execute(() -> {
             File staging = new File(getFilesDir(), "frida-import");
-            File source = new File(staging, server ? "server.upload" : "inject.upload");
+            File source = null;
             try {
+                if (java.nio.file.Files.isSymbolicLink(staging.toPath()))
+                    throw new IllegalStateException("Frida 私有导入目录不能是符号链接。");
                 if (!staging.isDirectory() && !staging.mkdirs())
                     throw new IllegalStateException("无法创建 FX 私有导入目录。");
+                if (java.nio.file.Files.isSymbolicLink(staging.toPath()) || !staging.isDirectory())
+                    throw new IllegalStateException("Frida 私有导入目录状态异常。");
+                source = File.createTempFile(server ? "server-" : "inject-", ".upload", staging);
+                if (java.nio.file.Files.isSymbolicLink(source.toPath()))
+                    throw new IllegalStateException("Frida 导入暂存文件不能是符号链接。");
+
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 byte[] header = new byte[20];
                 int headerCount = 0;
                 long total = 0;
-                try (InputStream input = new BufferedInputStream(getContentResolver().openInputStream(uri));
+                InputStream opened = getContentResolver().openInputStream(uri);
+                if (opened == null) throw new IllegalStateException("无法读取所选文件。");
+                try (InputStream input = new BufferedInputStream(opened);
                      FileOutputStream output = new FileOutputStream(source, false)) {
-                    if (input == null) throw new IllegalStateException("无法读取所选文件。");
                     byte[] buffer = new byte[32768];
                     int count;
                     while ((count = input.read(buffer)) != -1) {
@@ -929,18 +938,29 @@ public final class FxDiaFridaActivity extends Activity {
                 String destination = server
                         ? "/data/local/tmp/fx-frida/fx-frida-server"
                         : "/data/local/tmp/fx-frida/fx-frida-inject";
+                String sourcePath = source.getCanonicalPath();
+                if (!source.isFile() || !source.canRead()
+                        || java.nio.file.Files.isSymbolicLink(source.toPath())) {
+                    throw new IllegalStateException("Frida 私有导入暂存文件不可读或路径异常。");
+                }
                 String command = "set -e; d=/data/local/tmp/fx-frida; "
                         + "if [ -L /data/local/tmp/fx-frida ]; then echo unsafe-destination; exit 71; fi; "
-                        + "mkdir -p \"$d\"; test ! -L \"$d\"; "
-                        + "src=" + quote(source.getAbsolutePath()) + "; dst=" + quote(destination) + "; "
-                        + "tmp=\"$dst.fx-import.tmp\"; rm -f \"$tmp\"; "
-                        + "cp \"$src\" \"$tmp\"; chmod 0700 \"$tmp\"; "
-                        + "actual=$(sha256sum \"$tmp\" | awk '{print $1}'); "
-                        + "[ \"$actual\" = " + quote(sha) + " ] || { rm -f \"$tmp\"; exit 72; }; "
-                        + "mv -f \"$tmp\" \"$dst\"; chmod 0700 \"$dst\"; sync; "
-                        + "actual=$(sha256sum \"$dst\" | awk '{print $1}'); "
-                        + "[ \"$actual\" = " + quote(sha) + " ]; test -x \"$dst\"; "
-                        + "printf 'installed=%s\\\\nsha256=%s\\\\nbytes=%s\\\\n' \"$dst\" \"$actual\" " + total;
+                        + "mkdir -p \\"$d\\"; test -d \\"$d\\" && test ! -L \\"$d\\"; "
+                        + "src=" + quote(sourcePath) + "; dst=" + quote(destination) + "; "
+                        + "test -f \\"$src\\" && test ! -L \\"$src\\"; "
+                        + "if [ -L \\"$dst\\" ] || { [ -e \\"$dst\\" ] && [ ! -f \\"$dst\\" ]; }; then echo unsafe-existing-destination; exit 73; fi; "
+                        + "umask 077; tmp=$(mktemp \\"$d/.fx-frida-import.XXXXXX\\"); "
+                        + "[ -n \\"$tmp\\" ] && [ -f \\"$tmp\\" ] && [ ! -L \\"$tmp\\" ]; "
+                        + "cleanup_tmp() { [ -z \\"$tmp\\" ] || rm -f \\"$tmp\\"; }; "
+                        + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
+                        + "cp \\"$src\\" \\"$tmp\\"; chmod 0700 \\"$tmp\\"; "
+                        + "actual=$(sha256sum \\"$tmp\\" | awk '{print $1}'); "
+                        + "[ \\"$actual\\" = " + quote(sha) + " ] || { cleanup_tmp; exit 72; }; "
+                        + "mv -f \\"$tmp\\" \\"$dst\\"; tmp=; "
+                        + "test -f \\"$dst\\" && test ! -L \\"$dst\\"; chmod 0700 \\"$dst\\"; sync; "
+                        + "actual=$(sha256sum \\"$dst\\" | awk '{print $1}'); "
+                        + "[ \\"$actual\\" = " + quote(sha) + " ]; test -x \\"$dst\\"; "
+                        + "printf 'installed=%s\\\\nsha256=%s\\\\nbytes=%s\\\\n' \\"$dst\\" \\"$actual\\" " + total;
                 RootAccess.Result result = RootAccess.execute(command, 60000L, 256 * 1024);
                 if (result.exitCode != 0)
                     throw new IllegalStateException("Root 安装失败（退出码 " + result.exitCode + "）："
@@ -950,20 +970,24 @@ public final class FxDiaFridaActivity extends Activity {
                         .putString(server ? "server_sha256" : "injector_sha256", sha)
                         .putLong(server ? "server_bytes" : "injector_bytes", total)
                         .apply();
+                String successMessage = label + " 已导入并校验。\\nSHA-256：" + sha
+                        + "\\n大小：" + total + " bytes\\n" + result.output;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     (server ? serverPath : injectorPath).setText(destination);
-                    setStatus(label + " 已导入并校验。\\nSHA-256：" + sha
-                            + "\\n大小：" + total + " bytes\\n" + result.output);
+                    setStatus(successMessage);
                 });
-                source.delete();
             } catch (Throwable error) {
-                source.delete();
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed())
                         setStatus(label + " 导入失败：" + error.getClass().getSimpleName()
                                 + (error.getMessage() == null ? "" : "：" + error.getMessage()));
                 });
+            } finally {
+                if (source != null) {
+                    //noinspection ResultOfMethodCallIgnored
+                    source.delete();
+                }
             }
         });
     }
