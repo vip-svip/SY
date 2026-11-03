@@ -109,6 +109,12 @@ public final class MainActivity extends ComponentActivity {
     private boolean hookTargetVisible;
     private boolean hookHubVisible;
     private boolean settingsUiVisible;
+    // Preserve the Settings > migration suite > category > page return chain.
+    private String migrationSuite;
+    private String migrationCategory;
+    private String migrationPage;
+    private int migrationLevel;
+    private boolean migrationChildActive;
     private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
@@ -147,6 +153,11 @@ public final class MainActivity extends ComponentActivity {
             activePrivacySection = state.getString("fx_privacy_section");
             restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
+            migrationSuite = state.getString("fx_migration_suite");
+            migrationCategory = state.getString("fx_migration_category");
+            migrationPage = state.getString("fx_migration_page");
+            migrationLevel = Math.max(0, Math.min(3, state.getInt("fx_migration_level", 0)));
+            migrationChildActive = state.getBoolean("fx_migration_child_active", false);
             if ("target".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
             }
@@ -155,7 +166,7 @@ public final class MainActivity extends ComponentActivity {
             if ("hub".equals(restoreHookKind)) showHookHub();
             else showAppList(activePrivacySection);
         } else if (restoreSettingsScreen) {
-            showSettings();
+            restoreMigrationNavigation();
         } else {
             showDashboard();
         }
@@ -245,6 +256,11 @@ public final class MainActivity extends ComponentActivity {
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
+        if (migrationSuite != null) outState.putString("fx_migration_suite", migrationSuite);
+        if (migrationCategory != null) outState.putString("fx_migration_category", migrationCategory);
+        if (migrationPage != null) outState.putString("fx_migration_page", migrationPage);
+        outState.putInt("fx_migration_level", migrationLevel);
+        outState.putBoolean("fx_migration_child_active", migrationChildActive);
         if (hookUiVisible) {
             if (activePrivacySection != null) outState.putString("fx_privacy_section", activePrivacySection);
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
@@ -284,9 +300,54 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    private void clearMigrationNavigation() {
+        migrationSuite = null;
+        migrationCategory = null;
+        migrationPage = null;
+        migrationLevel = 0;
+        migrationChildActive = false;
+    }
+
+    private void markMigrationChild(String suite, String category, String page) {
+        migrationSuite = suite;
+        migrationCategory = category;
+        migrationPage = page;
+        migrationLevel = 2;
+        migrationChildActive = true;
+    }
+
+    private void restoreMigrationNavigation() {
+        if (migrationSuite == null || migrationSuite.trim().isEmpty()) {
+            clearMigrationNavigation();
+            showSettings();
+            return;
+        }
+        if (migrationChildActive && migrationCategory != null && migrationPage != null) {
+            String suite = migrationSuite;
+            String category = migrationCategory;
+            String page = migrationPage;
+            migrationChildActive = false;
+            migrationLevel = 2;
+            showImportedSuiteCategory(suite, category);
+            openImportedSuitePage(suite, category, page);
+            return;
+        }
+        if (migrationLevel >= 3 && migrationCategory != null && migrationPage != null) {
+            showImportedSuitePendingPage(migrationSuite, migrationCategory, migrationPage,
+                    "该原功能尚未完成独立运行时迁移；当前保留功能入口与返回层级，不会显示虚假的运行状态。");
+            return;
+        }
+        if (migrationLevel >= 2 && migrationCategory != null) {
+            showImportedSuiteCategory(migrationSuite, migrationCategory);
+            return;
+        }
+        showImportedSuite(migrationSuite);
+    }
+
     private void showDashboard() { showWebDashboard(); }
 
     private void showWebDashboard() {
+        clearMigrationNavigation();
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         settingsUiVisible = false;
@@ -2702,6 +2763,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showSettings() {
+        clearMigrationNavigation();
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         if (webView == null) showWebDashboard();
@@ -2831,6 +2893,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showImportedSuite(String suite) {
+        migrationSuite = suite;
+        migrationCategory = null;
+        migrationPage = null;
+        migrationLevel = 1;
+        migrationChildActive = false;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         pauseAndDetachWebView();
@@ -2855,6 +2922,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showImportedSuiteCategory(String suite, String category) {
+        migrationSuite = suite;
+        migrationCategory = category;
+        migrationPage = null;
+        migrationLevel = 2;
+        migrationChildActive = false;
         String title = importedSuiteTitle(suite);
         base(title + " · " + category);
         for (String[] section : importedSuiteSections(suite)) {
@@ -2886,6 +2958,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void openImportedSuitePage(String suite, String category, String page) {
+        migrationSuite = suite;
+        migrationCategory = category;
+        migrationPage = page;
+        migrationLevel = 2;
+        migrationChildActive = false;
         if ("yulong-ad".equals(suite)) {
             switch (page) {
                 case "统计": case "每日防护总结":
@@ -2925,6 +3002,7 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "HTTPS 过滤": case "根 CA 证书": case "保存证书":
                 case "安装证书": case "验证证书": case "过滤 HTTP/3 (QUIC)":
+                    markMigrationChild(suite, category, page);
                     showNativeCertificateManager();
                     return;
                 case "DNS 日志": case "DNS 查询日志":
@@ -3024,6 +3102,7 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("dia_page", page));
                     return;
                 case "方法 Hook": case "函数重写":
+                    markMigrationChild(suite, category, page);
                     showAppList("自定义 Hook");
                     return;
                 case "Native 方法":
@@ -3032,6 +3111,7 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("dia_page", page));
                     return;
                 case "规则组": case "规则列表":
+                    markMigrationChild(suite, category, page);
                     showAppList("自定义 Hook");
                     return;
                 case "应用版本":
@@ -3044,12 +3124,15 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("dia_page", page));
                     return;
                 case "应用选择": case "目标应用": case "模块配置": case "模块功能":
+                    markMigrationChild(suite, category, page);
                     showAppList();
                     return;
                 case "对话框与通知": case "剪贴板":
+                    markMigrationChild(suite, category, page);
                     showNativeSettingsGroup("notifyPanel", "Dia · " + page);
                     return;
                 case "传感器":
+                    markMigrationChild(suite, category, page);
                     showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
                     return;
                 case "HTTP 监控": case "SQL 监控": case "算法监控":
@@ -3061,6 +3144,7 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("dia_page", page));
                     return;
                 case "网络与代理":
+                    markMigrationChild(suite, category, page);
                     showNativeSettingsGroup("netPanel", "Dia · " + page);
                     return;
                 case "HTTP 代理":
@@ -3068,12 +3152,15 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaWifiProxyActivity.class));
                     return;
                 case "设备属性":
+                    markMigrationChild(suite, category, page);
                     showAppList("设备标识模拟");
                     return;
                 case "Wi-Fi 模拟":
+                    markMigrationChild(suite, category, page);
                     showAppList("Wi-Fi 环境模拟");
                     return;
                 case "网络类型模拟":
+                    markMigrationChild(suite, category, page);
                     showAppList("网络类型模拟");
                     return;
                 case "文件与 so 库":
@@ -3081,9 +3168,11 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaFileActivity.class));
                     return;
                 case "位置与 GPS":
+                    markMigrationChild(suite, category, page);
                     showAppList("位置隐私");
                     return;
                 case "时间与时区":
+                    markMigrationChild(suite, category, page);
                     showAppList("时间与时区模拟");
                     return;
                 case "JS 脚本列表": case "脚本编辑器":
@@ -3096,6 +3185,7 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaJsonActivity.class));
                     return;
                 case "运行日志":
+                    markMigrationChild(suite, category, page);
                     showNativeRuntimeLogs();
                     return;
                 case "全局设置":
@@ -3452,6 +3542,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showImportedSuitePendingPage(String suite, String category, String page, String detail) {
+        migrationSuite = suite;
+        migrationCategory = category;
+        migrationPage = page;
+        migrationLevel = 3;
+        migrationChildActive = false;
         String title = importedSuiteTitle(suite);
         base(title + " · " + page);
         content.addView(title(page, 21));
@@ -4043,6 +4138,27 @@ public final class MainActivity extends ComponentActivity {
 
     @Override public void onBackPressed() {
         if (hookTargetVisible) { showAppList(); return; }
+        if (migrationChildActive && migrationSuite != null && migrationCategory != null) {
+            migrationChildActive = false;
+            migrationLevel = 2;
+            showImportedSuiteCategory(migrationSuite, migrationCategory);
+            return;
+        }
+        if (migrationLevel >= 3 && migrationSuite != null && migrationCategory != null) {
+            migrationLevel = 2;
+            showImportedSuiteCategory(migrationSuite, migrationCategory);
+            return;
+        }
+        if (migrationLevel == 2 && migrationSuite != null) {
+            migrationLevel = 1;
+            showImportedSuite(migrationSuite);
+            return;
+        }
+        if (migrationLevel == 1 && migrationSuite != null) {
+            clearMigrationNavigation();
+            showSettings();
+            return;
+        }
         if (settingsUiVisible) { showDashboard(); return; }
         if (hookUiVisible && !hookHubVisible) { showHookHub(); return; }
         if (hookHubVisible) { showWebDashboard(); return; }
