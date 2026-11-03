@@ -79,16 +79,56 @@ valid_ipv4() {
   '
 }
 normalize_dns_csv() { printf '%s' "$1" | tr -d '[:space:]'; }
-valid_dns_csv() {
+valid_ipv4_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
     {
       if(NF<1||NF>3){bad=1;exit}
       for(i=1;i<=NF;i++){
         if($i!~/^[0-9.]+$/){bad=1;exit}
-        split($i,a,".")
-        if(length(a)!=4){bad=1;exit}
+        n=split($i,a,".")
+        if(n!=4){bad=1;exit}
         for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        if($i=="0.0.0.0"||$i=="255.255.255.255"){bad=1;exit}
       }
+    }
+    END{exit bad}
+  '
+}
+valid_dns_csv() {
+  printf '%s\n' "$1" | awk -F, '
+    function ipv4(v, n, a, j) {
+      if(v!~/^[0-9.]+$/) return 0
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
+      if(v=="0.0.0.0"||v=="255.255.255.255") return 0
+      return 1
+    }
+    function dns_host(v) {
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
+    }
+    function valid_hostport(v, n, a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ && a[2]+0>=1 && a[2]+0<=65535
+      return 0
+    }
+    function endpoint(v, rest, parts, hostpart) {
+      if(ipv4(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9)
+        split(rest,parts,"/")
+        hostpart=parts[1]
+        if(!valid_hostport(hostpart)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
+    {
+      if(NF<1||NF>3){bad=1;exit}
+      for(i=1;i<=NF;i++) if(!endpoint($i)){bad=1;exit}
     }
     END{exit bad}
   '
@@ -126,6 +166,7 @@ dns_config_get() {
   echo "GLOBAL_ENABLED|$(pg_get global_dns 0)"
   pg_conf custom_dns 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{print "CUSTOM|" $2}'
   pg_conf global_dns 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{print "GLOBAL|" $2}'
+  pg_conf yulong_dns_fallback 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{print "FALLBACK|" $2}'
   echo "VPN_REMOTE|$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
   echo "VPN_CN|$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
 }
@@ -331,10 +372,23 @@ case "$cmd" in
   dns_config_get
   ;;
  dns-config-set)
-  [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global ipv4[,ipv4...]" >&2; exit 2; }
-  case "$2" in custom) section=custom_dns ;; global) section=global_dns ;; *) exit 2 ;; esac
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
   servers=$(normalize_dns_csv "$3")
-  valid_dns_csv "$servers" || { echo "DNS list must contain 1..3 IPv4 literals" >&2; exit 2; }
+  case "$2" in
+    custom)
+      section=custom_dns
+      valid_dns_csv "$servers" || { echo "custom DNS accepts 1..3 IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; exit 2; }
+      ;;
+    global)
+      section=global_dns
+      valid_ipv4_dns_csv "$servers" || { echo "global DNS requires 1..3 IPv4 literals" >&2; exit 2; }
+      ;;
+    fallback)
+      section=yulong_dns_fallback
+      valid_ipv4_dns_csv "$servers" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; exit 2; }
+      ;;
+    *) exit 2 ;;
+  esac
   with_lock transaction m_dns_servers "$section" "$servers"
   ;;
  dns-vpn-set)
