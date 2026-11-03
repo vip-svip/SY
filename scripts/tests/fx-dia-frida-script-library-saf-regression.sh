@@ -22,9 +22,13 @@ required = {
     "schema validation": '"FX-DIA-FRIDA-SCRIPTS-1".equals(root.optString("schema"))',
     "bounded per-script import": "source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024",
     "duplicate name merge persistence": "writeFridaScriptLibrary(merged)",
-    "cancel-safe export cleanup": "pendingFridaLibraryExport = null",
-    "rotation saved state": "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport)",
-    "rotation restore": 'state.getString(STATE_PENDING_LIBRARY_EXPORT)',
+    "private-cache export staging": 'File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir())',
+    "private-cache export path validation": "resolvePendingFridaLibraryExport(stagedName)",
+    "streamed SAF export": "new java.io.FileInputStream(staged)",
+    "cancel-safe export cleanup": "deletePendingFridaLibraryExport(stagedName)",
+    "rotation saves only filename": "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName)",
+    "rotation restores filename": "state.getString(STATE_PENDING_LIBRARY_EXPORT)",
+    "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
 }
 for label, needle in required.items():
@@ -34,6 +38,10 @@ if "导出脚本库 JSON 文件" not in source or "从 JSON 文件批量导入�
     raise SystemExit("FAIL: Frida script library UI does not expose file import/export")
 if "exportFridaScriptLibrary() {\n        try {\n            org.json.JSONObject root" in source:
     raise SystemExit("FAIL: script library export still bypasses the SAF file picker")
+if "pendingFridaLibraryExport;" in source or "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport)" in source:
+    raise SystemExit("FAIL: script library JSON payload is stored directly in Activity state Bundle")
+if not re.search(r"pendingFridaLibraryExportFileName = staged.getName\(\)", source):
+    raise SystemExit("FAIL: staged export file name is not tracked for Activity restoration")
 if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
 print("PASS: Dia Frida script library supports bounded SAF JSON import/export, cancellation and rotation state")
