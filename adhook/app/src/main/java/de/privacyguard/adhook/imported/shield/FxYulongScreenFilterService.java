@@ -211,7 +211,11 @@ public final class FxYulongScreenFilterService extends Service {
 
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            if (alpha >= 2) canvas.drawColor(Color.argb(alpha, 245, 245, 245));
+            if (alpha >= 2) {
+                paint.setColor(Color.WHITE);
+                paint.setAlpha(alpha);
+                canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
+            }
         }
 
         private static int clamp(int value, int min, int max) {
