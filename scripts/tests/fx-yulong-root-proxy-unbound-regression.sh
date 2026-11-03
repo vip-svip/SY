@@ -90,12 +90,12 @@ printf '%s\n' "$vpn" | grep -Fq 'outgoing-interface: 10.23.4.5' || {
 
 # Reject malformed marker data. Do not quietly produce a config that might
 # bypass the third-party VPN on an unbound/default route.
-printf '%s\n' "10.23.4.5;touch /tmp/fx-unbound-injected" > "$PG/unbound-vpn-egress-ip"
+printf '%s\n' "10.23.4.5;touch $T/fx-unbound-injected" > "$PG/unbound-vpn-egress-ip"
 if render_config "$PG" > "$T/invalid.out" 2> "$T/invalid.err"; then
   echo "FAIL: invalid external VPN egress marker was accepted" >&2
   exit 1
 fi
-[ ! -e /tmp/fx-unbound-injected ] || {
+[ ! -e "$T/fx-unbound-injected" ] || {
   echo "FAIL: invalid egress marker caused shell execution" >&2; exit 1;
 }
 grep -Fq 'invalid external VPN egress marker' "$T/invalid.err" || {
