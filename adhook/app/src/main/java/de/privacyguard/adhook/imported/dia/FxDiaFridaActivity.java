@@ -1576,7 +1576,7 @@ public final class FxDiaFridaActivity extends Activity {
         String command = "set -e; gadget=" + quote(library) + "; config=" + quote(configPath) + "; "
                 + "test -f \"$gadget\" && test ! -L \"$gadget\"; "
                 + "dir=$(dirname \"$config\"); mkdir -p \"$dir\"; "
-                + "tmp=\"$config.tmp.$\"; "
+                + "tmp=\"$config.tmp.$$\"; "
                 + "cleanup_tmp() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; }; "
                 + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
                 + "umask 077; "
