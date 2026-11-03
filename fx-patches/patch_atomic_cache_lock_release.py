@@ -195,6 +195,22 @@ PS4='FXSUB-B ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetc
     "subscription worker B shell trace",
 )
 
+# Add shell xtrace to the actual restore-artifact fixture's launch form. This
+# differs from the editable source-tree fixture and is intentionally anchored
+# separately so the test reports both lock owners and stale-reaper decisions.
+replace_once(
+    sub_test,
+    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" & p1=$!\n',
+    'PS4="FXSUB " PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" 2> "$T/trace1" & p1=$!\n',
+    "restored subscription worker A must capture shell lock trace",
+)
+replace_once(
+    sub_test,
+    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" & p2=$!\n',
+    'PS4="FXSUB " PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" 2> "$T/trace2" & p2=$!\n',
+    "restored subscription worker B must capture shell lock trace",
+)
+
 # The legacy test uses set -e with bare assertions. When one metadata/lock
 # invariant fails it previously exited with an empty log, so add precise failure
 # output while keeping the same assertions and exit behavior.
