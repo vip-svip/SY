@@ -53,6 +53,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private SensorManager sensorManager;
     private Sensor accelerometer;
     private long lastShakeAlert;
+    private boolean shakeRegistered;
     private volatile boolean running;
 
     private final Runnable poll = new Runnable() {
@@ -121,8 +122,13 @@ public final class FxYulongProtectionService extends Service implements SensorEv
                 .getBoolean("protect_on", false)
                 && getSharedPreferences(PREFS, MODE_PRIVATE)
                 .getBoolean("shake_trigger_on", false);
-        if (enabled) sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler);
-        else sensorManager.unregisterListener(this);
+        if (enabled && !shakeRegistered) {
+            shakeRegistered = sensorManager.registerListener(
+                    this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler);
+        } else if (!enabled && shakeRegistered) {
+            sensorManager.unregisterListener(this);
+            shakeRegistered = false;
+        }
     }
 
     @Override public void onSensorChanged(SensorEvent event) {
@@ -299,6 +305,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         running = false;
         if (handler != null) handler.removeCallbacksAndMessages(null);
         if (sensorManager != null) sensorManager.unregisterListener(this);
+        shakeRegistered = false;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("protect_service_running", false).apply();
         if (thread != null) thread.quitSafely();
