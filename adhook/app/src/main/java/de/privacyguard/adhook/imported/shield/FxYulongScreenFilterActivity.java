@@ -126,6 +126,26 @@ public final class FxYulongScreenFilterActivity extends Activity {
             }
         });
         card(body, "滤镜预设", "标准模式使用自然增强矩阵；游戏模式使用更高的色彩增强矩阵。", preset);
+        Switch volumeAdjust = new Switch(this);
+        volumeAdjust.setText("使用音量键微调滤镜亮度");
+        volumeAdjust.setChecked(prefs.getBoolean("screen_filter_volume_adjust_enabled", false));
+        volumeAdjust.setOnCheckedChangeListener((button, checked) -> {
+            if (checked && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
+                binding = true; volumeAdjust.setChecked(false); binding = false;
+                new AlertDialog.Builder(this).setTitle("需要 FX 无障碍服务")
+                        .setMessage("音量键调节只接收音量上/下键方向，不读取界面内容，也不会吞掉按键。请手动启用 FX 无障碍服务。")
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("打开设置", (d, w) -> {
+                            try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+                            catch (Throwable ignored) { }
+                        }).show();
+                return;
+            }
+            prefs.edit().putBoolean("screen_filter_volume_adjust_enabled", checked).apply();
+        });
+        card(body, "音量键快捷调节",
+                "开启后音量上/下键按每次 5 个单位调整滤镜亮度；系统音量仍正常变化。",
+                volumeAdjust);
         addSlider(body, "亮度", "screen_filter_brightness", 0, 200, 100, "%");
         addSlider(body, "对比度", "screen_filter_contrast", 0, 200, 100, "%");
         addSlider(body, "饱和度", "screen_filter_saturation", 0, 200, 100, "%");
