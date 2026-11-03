@@ -56,7 +56,7 @@ assert "FxDiaSystemExpandActivity.class" in global_page, "system expansion must 
 assert 'addUnavailableSwitch("显示 Xposed 激活提示"' in global_page, "active_tip must remain disabled until its Dia home warning consumer is migrated"
 assert 'addUnavailableSwitch("显示原生模块激活提示"' in global_page, "native_active_tip must not be exposed as an active switch without a consumer"
 assert '"active_tip", true' in global_page and '"native_active_tip", true' in global_page, "original default-on values must be preserved in read-only rows"
-assert "原版 Dia 主界面的 activeVersionName() 检查和提示横幅" in global_page, "active_tip limitation must identify the original runtime dependency"
+assert "Dia 主界面的 activeVersionName() 检查和提示横幅" in global_page, "active_tip limitation must identify the original runtime dependency"
 assert "完整 Smali 检索未发现该键的读取/消费逻辑" in global_page, "native_active_tip must disclose that original APK has no consumer"
 assert "addUnavailableAction(\"设置语言\"" in global_page, "language must stay unavailable until unified locale resources/lifecycle are migrated"
 assert "showLanguagePicker" not in global_page and "addStoredSwitch" not in global_page, "no saved-only preference control may masquerade as an operational setting"
