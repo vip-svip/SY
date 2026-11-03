@@ -2976,6 +2976,15 @@ public final class MainActivity extends ComponentActivity {
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
                     return;
+                case "应用白名单":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class));
+                    return;
+                case "用户应用": case "系统应用": case "按应用设置": case "应用网络拦截":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class)
+                            .putExtra("suite_page", page));
+                    return;
                 case "白名单域名": case "黑名单域名": case "自定义规则": case "规则编辑":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
