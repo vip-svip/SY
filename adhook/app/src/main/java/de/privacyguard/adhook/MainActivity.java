@@ -5198,8 +5198,10 @@ public final class MainActivity extends ComponentActivity {
                     DeveloperHookRule rule = DeveloperHookRule.parse(
                             ruleId + "|" + method + "|" + actionText + "|" + priorityText, selectedPackage);
                     if (rule == null) {
-                        new AlertDialog.Builder(this)
-                                .setMessage("规则无效：检查目标包名、完整方法签名、动作类型和优先级；NO_OP_VOID 必须是返回 void 的真实方法，不能用于构造器。")
+                        String reason = DeveloperHookRule.isUnsupportedMutationAction(actionText)
+                                ? DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE
+                                : "规则无效：检查目标包名、完整方法签名、动作类型和优先级；NO_OP_VOID 必须是返回 void 的真实方法，不能用于构造器。";
+                        new AlertDialog.Builder(this).setMessage(reason)
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }

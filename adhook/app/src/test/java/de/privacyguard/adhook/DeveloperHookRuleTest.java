@@ -177,4 +177,16 @@ public class DeveloperHookRuleTest {
         assertNull(DeveloperHookRule.parse("x|com.example.vpn.App#isVip()Z|network_bypass|1", "com.example.vpn"));
         assertNull(DeveloperHookRule.parse("x|com.example.vpn.App#isVip()Z|true|9999", "com.example.vpn"));
     }
+    @Test public void rejectsMutationActionsWithAnExplicitReason() {
+        assertTrue(DeveloperHookRule.isUnsupportedMutationAction("SET_FIELD"));
+        assertTrue(DeveloperHookRule.isUnsupportedMutationAction("WRITE_PROPERTY"));
+        assertTrue(DeveloperHookRule.isUnsupportedMutationAction("INVOKE_METHOD"));
+        assertTrue(DeveloperHookRule.isUnsupportedMutationAction("MUTATE_STATE"));
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("OBSERVE"));
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_TRUE"));
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("NO_OP_VOID"));
+        assertTrue(DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE
+                .contains("mutation actions are not supported"));
+    }
+
 }

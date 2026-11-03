@@ -386,7 +386,14 @@ public final class UnifiedHookConfigParser {
                     String ruleValue = encodedRuleKey.matches()
                             ? decodeDeveloperRuleValue(value) : value;
                     DeveloperHookRule rule = DeveloperHookRule.parse(ruleValue, pkg);
-                    if (rule == null) throw new IllegalArgumentException("invalid developer rule");
+                    if (rule == null) {
+                        String[] ruleFields = ruleValue.split("\\|", -1);
+                        if (ruleFields.length == 4
+                                && DeveloperHookRule.isUnsupportedMutationAction(ruleFields[2])) {
+                            throw new IllegalArgumentException(DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE);
+                        }
+                        throw new IllegalArgumentException("invalid developer rule");
+                    }
                     if (!developerRuleIds.add(rule.id))
                         throw new IllegalArgumentException("duplicate developer rule id");
                     developerRules.add(rule);

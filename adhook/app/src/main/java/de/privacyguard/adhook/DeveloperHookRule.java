@@ -13,6 +13,28 @@ import java.util.Set;
  */
 public final class DeveloperHookRule {
     public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, NO_OP_VOID, OBSERVE, DISABLED }
+
+    public static final String UNSUPPORTED_MUTATION_ACTION_MESSAGE =
+            "自定义 Hook 修改型动作不支持（mutation actions are not supported）。当前仅支持 OBSERVE、RETURN_*（仅 debuggable 本地测试）、NO_OP_VOID（仅精确 void 方法）和 DISABLED。";
+
+    /** Identify common state-changing action names so the UI and config parser can fail closed with a precise reason. */
+    public static boolean isUnsupportedMutationAction(String rawAction) {
+        if (rawAction == null) return false;
+        String action = rawAction.trim().toUpperCase(java.util.Locale.ROOT);
+        if (action.isEmpty() || action.length() > 64) return false;
+        if (action.contains("MUTAT") || action.contains("WRITE")
+                || action.contains("INVOKE") || action.contains("EXECUTE")) return true;
+        for (String prefix : new String[]{
+                "SET_", "PUT_", "DELETE_", "CREATE_", "REMOVE_", "MODIFY_",
+                "PATCH_", "CALL_", "FIELD_SET", "PROPERTY_SET", "REPLACE_FIELD",
+                "REPLACE_ARGUMENT", "ASSIGN_"
+        }) {
+            if (action.startsWith(prefix)) return true;
+        }
+        return "SET".equals(action) || "PUT".equals(action) || "DELETE".equals(action)
+                || "CREATE".equals(action) || "REMOVE".equals(action) || "PATCH".equals(action)
+                || "CALL".equals(action) || "MODIFY".equals(action);
+    }
     public final String id;
     public final String descriptor;
     public final boolean replacement;
