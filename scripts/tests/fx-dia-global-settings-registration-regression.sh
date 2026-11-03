@@ -39,15 +39,16 @@ for name in (
 
 for key in (
     "digXposed", "active_tip", "native_active_tip", "lsp_sync",
-    assert "console" in global_page, "original XML console preference is missing from the source inventory"
-assert "SettingsActivity removes" in global_page, "hidden original console preference visibility behavior is undocumented"
-assert "addStoredSwitch(\"显示控制台\"" not in global_page, "original SettingsActivity-hidden console preference must not be newly exposed"
     "language_setting", "fast_restart_system", "app_update",
     "data_backup", "system_expand", "internal_community",
 ):
     # Preference keys are retained in comments or implementation identifiers
     # so the migrated screen can be audited against Dia's original XML.
     assert key in global_page, f"Dia original preference key missing: {key}"
+
+assert "console" in global_page, "original XML console preference is missing from the source inventory"
+assert "SettingsActivity removes" in global_page, "hidden original console preference visibility behavior is undocumented"
+assert 'addStoredSwitch("显示控制台"' not in global_page, "original SettingsActivity-hidden console preference must not be newly exposed"
 
 assert "MODE_PRIVATE" in global_page, "legacy world-readable preferences must not be recreated"
 assert "FxDiaBackupActivity.class" in global_page, "data backup must use the migrated encrypted backup page"
