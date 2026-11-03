@@ -312,18 +312,20 @@ public final class FxDiaFileActivity extends Activity {
         if (destinationParent == null) { fileStatus.setText("当前目录已失效，请重新选择。"); return; }
         fileStatus.setText("正在导入文件…");
         submitIo("导入文件", () -> {
-            String name = displayName(uri);
-            String mime = getContentResolver().getType(uri);
-            if (mime == null) mime = "application/octet-stream";
-            try (InputStream in = getContentResolver().openInputStream(uri)) {
-                if (in == null) throw new IllegalStateException("无法读取来源文件。");
-                Uri created = DocumentsContract.createDocument(getContentResolver(), destinationParent, mime, name);
-                if (created == null) throw new IllegalStateException("无法创建目标文件。");
-                try (OutputStream out = getContentResolver().openOutputStream(created, "w")) {
-                    if (out == null) throw new IllegalStateException("无法写入目标文件。");
-                    byte[] buffer = new byte[16384]; int count;
-                    while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
-                    out.flush();
+            try {
+                final String name = displayName(uri);
+                String mime = getContentResolver().getType(uri);
+                if (mime == null) mime = "application/octet-stream";
+                try (InputStream in = getContentResolver().openInputStream(uri)) {
+                    if (in == null) throw new IllegalStateException("无法读取来源文件。");
+                    Uri created = DocumentsContract.createDocument(getContentResolver(), destinationParent, mime, name);
+                    if (created == null) throw new IllegalStateException("无法创建目标文件。");
+                    try (OutputStream out = getContentResolver().openOutputStream(created, "w")) {
+                        if (out == null) throw new IllegalStateException("无法写入目标文件。");
+                        byte[] buffer = new byte[16384]; int count;
+                        while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+                        out.flush();
+                    }
                 }
                 postUi(() -> { fileStatus.setText("已导入 " + name); loadDirectory(); });
             } catch (Throwable error) {
@@ -414,9 +416,9 @@ public final class FxDiaFileActivity extends Activity {
     private void chooseDebugTarget() {
         soStatus.setText("正在后台读取 debuggable 应用…");
         submitIo("读取应用列表", () -> {
-            List<ApplicationInfo> apps = new ArrayList<>();
-            PackageManager pm = getPackageManager();
             try {
+                List<ApplicationInfo> apps = new ArrayList<>();
+                PackageManager pm = getPackageManager();
                 for (ApplicationInfo app : pm.getInstalledApplications(0)) {
                     if (app.packageName == null || app.packageName.equals(getPackageName())) continue;
                     if ((app.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
@@ -425,22 +427,21 @@ public final class FxDiaFileActivity extends Activity {
                 }
                 apps.sort(Comparator.comparing(app ->
                         String.valueOf(pm.getApplicationLabel(app)).toLowerCase(Locale.ROOT)));
+                final List<ApplicationInfo> targets = new ArrayList<>(apps);
+                final String[] labels = new String[targets.size()];
+                for (int i = 0; i < targets.size(); i++) {
+                    labels[i] = String.valueOf(pm.getApplicationLabel(targets.get(i))) + "\\n"
+                            + targets.get(i).packageName;
+                }
+                postUi(() -> {
+                    if (targets.isEmpty()) { soStatus.setText("没有用户安装的 debuggable 应用。"); return; }
+                    new AlertDialog.Builder(this).setTitle("选择 debuggable 应用")
+                            .setItems(labels, (dialog, which) -> inspectSo(targets.get(which)))
+                            .setNegativeButton("取消", null).show();
+                });
             } catch (Throwable error) {
                 postUi(() -> soStatus.setText("读取应用列表失败：" + error.getClass().getSimpleName()));
-                return;
             }
-            final List<ApplicationInfo> targets = new ArrayList<>(apps);
-            final String[] labels = new String[targets.size()];
-            for (int i = 0; i < targets.size(); i++) {
-                labels[i] = String.valueOf(pm.getApplicationLabel(targets.get(i))) + "\\n"
-                        + targets.get(i).packageName;
-            }
-            postUi(() -> {
-                if (targets.isEmpty()) { soStatus.setText("没有用户安装的 debuggable 应用。"); return; }
-                new AlertDialog.Builder(this).setTitle("选择 debuggable 应用")
-                        .setItems(labels, (dialog, which) -> inspectSo(targets.get(which)))
-                        .setNegativeButton("取消", null).show();
-            });
         });
     }
 
