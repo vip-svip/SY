@@ -14,6 +14,16 @@ published during this migration phase.
 - The native automation panel exposes copy buttons for both new and original
   broadcast action names; result broadcasts remain package-scoped to FX.
 
+### Yulong Ad Plugin 7.0.1 — DNS upstream configuration
+
+- The native DNS page now exposes FX's existing custom_dns/global_dns controls and
+  their address lists, plus the VPN remote_dns/cn_dns fields.
+- Address writes are limited to one to three IPv4 literals per list; config-section
+  replacement is atomic and uses the existing FX apply transaction.
+- Local AdGuard Home to Unbound recursive DNS remains the default. The UI separates
+  custom/global forwarding from VPN DNS and does not claim full parity with every
+  original DoH/DoT upstream protocol option.
+
 ### Yulong Ad Plugin 7.0.1 — weekly schedule integration
 
 - Native Ad settings now include a weekly schedule editor: enable/disable, local

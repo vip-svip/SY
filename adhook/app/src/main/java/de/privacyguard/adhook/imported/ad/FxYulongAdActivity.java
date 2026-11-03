@@ -62,12 +62,80 @@ public final class FxYulongAdActivity extends Activity {
     btn("复制原版 Tasker 停用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_STOP")));
 }
  private void renderRules(){EditText url=new EditText(this);url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=new EditText(this);name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=new EditText(this);search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
- private void renderDns(){card("DNS 后端","更改后重新应用 FX DNS 配置。",
- dnsSwitch("本地 AdGuard Home","dns_engine_adguardhome"),dnsSwitch("DNS 兜底转发","dns_forward"),dnsSwitch("阻止 QUIC","block_quic"),dnsSwitch("阻止 DNS-over-TLS","block_dot"),dnsSwitch("阻止明文 DNS","block_plain_dns"),dnsSwitch("阻止 IPv6","block_ipv6"),dnsSwitch("跟踪域名保护","block_track_domains"));
- card("DNS 查询日志","默认关闭。开启后只在本机保存最近 7 天 DNS 查询记录，可查看域名、查询类型与拦截原因。不会上传查询记录。",
- dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
- btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
- card("第三方 VPN DNS 过滤回退","只有在系统确认唯一活动 VPN 接口和 VPN 所属 UID、VPN 出口路由有效且 Unbound/AdGuard Home 查询探测成功后，才接管明文 DNS。失败时撤销 FX 自有规则并保留第三方 VPN DNS。",dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));}
+ private void renderDns(){
+  dnsSwitch("本地 AdGuard Home","dns_engine_adguardhome");
+  card("本地 DNS 架构",
+       "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。只有明确启用自定义 DNS 或全局 DNS 时才会使用下面填写的 IPv4 地址。",
+       dnsSwitch("DNS 兜底转发","dns_forward"),
+       dnsSwitch("启用自定义 DNS","custom_dns"),
+       dnsSwitch("启用全局 DNS 替换","global_dns"));
+  card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。",
+       dnsSwitch("阻止 QUIC","block_quic"),
+       dnsSwitch("阻止 DNS-over-TLS","block_dot"),
+       dnsSwitch("阻止明文 DNS","block_plain_dns"),
+       dnsSwitch("阻止 IPv6","block_ipv6"),
+       dnsSwitch("跟踪域名保护","block_track_domains"));
+  EditText customServers=new EditText(this);
+  customServers.setSingleLine(false);customServers.setMinLines(2);
+  customServers.setHint("例如：223.5.5.5,119.29.29.29");
+  EditText globalServers=new EditText(this);
+  globalServers.setSingleLine(false);globalServers.setMinLines(2);
+  globalServers.setHint("例如：8.8.8.8,1.1.1.1");
+  card("自定义/全局 DNS 服务器","最多 3 个 IPv4 地址，以逗号分隔；仅在对应总开关开启时生效。",
+       txt("自定义 DNS",12,0xff617080,true),customServers,
+       btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
+       txt("全局 DNS",12,0xff617080,true),globalServers,
+       btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
+  EditText remoteDns=new EditText(this);
+  remoteDns.setSingleLine(true);remoteDns.setHint("VPN 远端 DNS，例如 1.1.1.1");
+  EditText cnDns=new EditText(this);
+  cnDns.setSingleLine(true);cnDns.setHint("国内直连 DNS，例如 223.5.5.5");
+  card("VPN 节点 DNS",
+       "编辑 FX VPN 配置中的 remote_dns/cn_dns；它们不会替换本地 Unbound 递归模式，只有 VPN DNS 劫持/分流使用时生效。",
+       txt("远端 DNS",12,0xff617080,true),remoteDns,
+       btn("保存远端 DNS",()->saveVpnDns("remote_dns",remoteDns)),
+       txt("国内直连 DNS",12,0xff617080,true),cnDns,
+       btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)));
+  card("DNS 查询日志","默认关闭。仅本机保存最近 7 天 DNS 查询记录，不会上传查询记录。",
+       dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
+       btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
+  card("第三方 VPN DNS 过滤回退",
+       "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
+       dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
+       btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
+  loadDnsLists(customServers,globalServers,remoteDns,cnDns);
+}
+private void loadDnsLists(EditText custom,EditText global,EditText remote,EditText domestic){
+  root("dns-config-get",r->{
+    if(r.exitCode!=0){status.setText("DNS 地址读取失败："+safe(r.output));return;}
+    List<String> a=new ArrayList<>(),b=new ArrayList<>();
+    String remoteValue="1.1.1.1",cnValue="223.5.5.5";
+    for(String line:r.output.split("\\\\r?\\\\n")){
+      String[] p=line.split("\\\\|",-1);
+      if(p.length==2&&"CUSTOM".equals(p[0]))a.add(p[1]);
+      else if(p.length==2&&"GLOBAL".equals(p[0]))b.add(p[1]);
+      else if(p.length==2&&"VPN_REMOTE".equals(p[0])&&!p[1].isEmpty())remoteValue=p[1];
+      else if(p.length==2&&"VPN_CN".equals(p[0])&&!p[1].isEmpty())cnValue=p[1];
+    }
+    if(!a.isEmpty())custom.setText(android.text.TextUtils.join(",",a));
+    if(!b.isEmpty())global.setText(android.text.TextUtils.join(",",b));
+    remote.setText(remoteValue);domestic.setText(cnValue);
+  });
+}
+private void saveDnsServerList(String kind,EditText input){
+  String value=input.getText()==null?"":input.getText().toString().trim();
+  root("dns-config-set "+kind+" "+q(value),r->{
+    if(r.exitCode==0){status.setText(("custom".equals(kind)?"自定义 DNS":"全局 DNS")+" 已保存并应用。");load();}
+    else new AlertDialog.Builder(this).setTitle("DNS 地址未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+  });
+}
+private void saveVpnDns(String key,EditText input){
+  String value=input.getText()==null?"":input.getText().toString().trim();
+  root("dns-vpn-set "+key+" "+q(value),r->{
+    if(r.exitCode==0)status.setText(("remote_dns".equals(key)?"VPN 远端 DNS":"国内直连 DNS")+" 已保存并应用。");
+    else new AlertDialog.Builder(this).setTitle("VPN DNS 未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+  });
+}
  private boolean syncing;
  private Switch dnsSwitch(String label,String key){Switch s=new Switch(this);s.setText(label);s.setTag(key);s.setEnabled(false);s.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("dns-set "+key+" "+(on?"1":"0"),label);});return s;}
  private void renderDomains(){EditText allow=new EditText(this);allow.setSingleLine(true);allow.setHint("白名单域名");EditText allowNote=new EditText(this);allowNote.setSingleLine(true);allowNote.setHint("备注");card("域名白名单","精确放行域名及其子域。",allow,allowNote,btn("添加白名单",()->{if(!allow.getText().toString().trim().isEmpty())apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");}));EditText block=new EditText(this);block.setSingleLine(true);block.setHint("黑名单域名");EditText blockNote=new EditText(this);blockNote.setSingleLine(true);blockNote.setHint("备注");card("域名黑名单","只添加明确需要阻断的域名。",block,blockNote,btn("添加黑名单",()->{if(!block.getText().toString().trim().isEmpty())apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");}));entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}

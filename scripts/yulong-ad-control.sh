@@ -69,6 +69,62 @@ transaction() {
  rm -f "$backup"; echo "apply failed; previous config restored" >&2; return 1
 }
 m_dns(){ pg_set "$1" "$2"; }
+valid_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF!=4 {exit 1}
+    {for(i=1;i<=4;i++) if($i=="" || $i!~/^[0-9]+$/ || length($i)>3 || $i+0>255) exit 1}
+    END{if(NF==4)exit 0;exit 1}
+  '
+}
+normalize_dns_csv() { printf '%s' "$1" | tr -d '[:space:]'; }
+valid_dns_csv() {
+  printf '%s\n' "$1" | awk -F, '
+    NF<1 || NF>3 {exit 1}
+    {for(i=1;i<=NF;i++){
+      if($i!~/^[0-9.]+$/)exit 1
+      split($i,a,".")
+      if(length(a)!=4)exit 1
+      for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255)exit 1
+    }}
+    END{if(NF>=1&&NF<=3)exit 0;exit 1}
+  '
+}
+write_dns_section() {
+  section=$1; servers=$2; tmp="$CONF.yulong-dns.$"
+  awk -v section="$section" -v servers="$servers" '
+    function emit(    n,a,i) {n=split(servers,a,",");for(i=1;i<=n;i++)print "nameserver " a[i]}
+    BEGIN{inside=0;seen=0;written=0}
+    $0=="[conf:" section "]"{if(inside&&!written){emit();written=1}inside=1;seen=1;print;next}
+    /^\[/{if(inside&&!written){emit();written=1}inside=0;print;next}
+    inside{next}
+    {print}
+    END{if(inside&&!written){emit();written=1}if(!seen){print "";print "[conf:" section "]";emit()}}
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
+  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+}
+write_vpn_dns() {
+  key=$1; value=$2; tmp="$CONF.yulong-vpn-dns.$"
+  awk -v key="$key" -v value="$value" '
+    BEGIN{inside=0;seen=0;written=0}
+    $0=="[conf:vpn]"{if(inside&&!written){print key "=" value;written=1}inside=1;seen=1;print;next}
+    /^\[/{if(inside&&!written){print key "=" value;written=1}inside=0;print;next}
+    inside&&index($0,key "=")==1{if(!written)print key "=" value;written=1;next}
+    {print}
+    END{if(inside&&!written)print key "=" value;if(!seen){print "";print "[conf:vpn]";print key "=" value}}
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
+  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+}
+m_dns_servers() { write_dns_section "$1" "$2"; }
+m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+dns_config_get() {
+  echo FXYULONGDNS1
+  echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
+  echo "GLOBAL_ENABLED|$(pg_get global_dns 0)"
+  pg_conf custom_dns 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{print "CUSTOM|" $2}'
+  pg_conf global_dns 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{print "GLOBAL|" $2}'
+  echo "VPN_REMOTE|$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
+  echo "VPN_CN|$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
+}
 m_rule_add(){ write_rule "$1" "$2" "$3" add; }
 m_rule_set(){ old=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $2;exit}'); [ -n "$old" ] || return 3; write_rule "$1" "$old" "$2" set; }
 m_rule_remove(){ write_rule "$1" "" 0 remove; }
@@ -160,7 +216,7 @@ case "$cmd" in
   pg_list rule|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=3{print "RULE|"$1"|"$2"|"($3=="1"?"1":"0")}'
   pg_list domain|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "ALLOW|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
   pg_list block|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "BLOCK|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
-  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
+  for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
     default=0
     [ "$key" = "vpn_external_dns_proxy" ] && default=1
     echo "DNS|$key|$(pg_get "$key" "$default")"
@@ -191,9 +247,25 @@ case "$cmd" in
   with_lock transaction m_block_remove "$d" ;;
  dns-set)
   [ "$#" -eq 3 ] || exit 2
-  case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled) ;; *) exit 2 ;; esac
+  case "$2" in dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled) ;; *) exit 2 ;; esac
   [ "$3" = 0 ] || [ "$3" = 1 ] || exit 2
   with_lock transaction m_dns "$2" "$3" ;;
+ dns-config-get)
+  dns_config_get
+  ;;
+ dns-config-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global ipv4[,ipv4...]" >&2; exit 2; }
+  case "$2" in custom) section=custom_dns ;; global) section=global_dns ;; *) exit 2 ;; esac
+  servers=$(normalize_dns_csv "$3")
+  valid_dns_csv "$servers" || { echo "DNS list must contain 1..3 IPv4 literals" >&2; exit 2; }
+  with_lock transaction m_dns_servers "$section" "$servers"
+  ;;
+ dns-vpn-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-vpn-set remote_dns|cn_dns ipv4" >&2; exit 2; }
+  case "$2" in remote_dns|cn_dns) ;; *) exit 2 ;; esac
+  valid_ipv4 "$3" || { echo "VPN DNS must be an IPv4 literal" >&2; exit 2; }
+  with_lock transaction m_vpn_dns "$2" "$3"
+  ;;
  schedule-get)
   schedule_get
   ;;
