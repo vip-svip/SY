@@ -79,14 +79,20 @@ public final class FxYulongAdActivity extends Activity {
        dnsSwitch("跟踪域名保护","block_track_domains"));
   EditText customServers=new EditText(this);
   customServers.setSingleLine(false);customServers.setMinLines(2);
-  customServers.setHint("例如：223.5.5.5,119.29.29.29");
+  customServers.setHint("IPv4 / https://DoH / tls://DoT / quic://DoQ");
+  EditText fallbackServers=new EditText(this);
+  fallbackServers.setSingleLine(false);fallbackServers.setMinLines(2);
+  fallbackServers.setHint("备用 DNS IPv4，例如：1.1.1.1,8.8.8.8");
   EditText globalServers=new EditText(this);
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
-  card("自定义/全局 DNS 服务器","最多 3 个 IPv4 地址，以逗号分隔；仅在对应总开关开启时生效。",
-       txt("自定义 DNS",12,0xff617080,true),customServers,
+  card("自定义/全局/备用 DNS 服务器",
+       "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
-       txt("全局 DNS",12,0xff617080,true),globalServers,
+       txt("备用 DNS（故障回退）",12,0xff617080,true),fallbackServers,
+       btn("保存备用 DNS",()->saveDnsServerList("fallback",fallbackServers)),
+       txt("全局 DNS 替换",12,0xff617080,true),globalServers,
        btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
   EditText remoteDns=new EditText(this);
   remoteDns.setSingleLine(true);remoteDns.setHint("VPN 远端 DNS，例如 1.1.1.1");
@@ -112,29 +118,31 @@ public final class FxYulongAdActivity extends Activity {
        "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
        btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
-  loadDnsLists(customServers,globalServers,remoteDns,cnDns);
+  loadDnsLists(customServers,globalServers,fallbackServers,remoteDns,cnDns);
 }
-private void loadDnsLists(EditText custom,EditText global,EditText remote,EditText domestic){
+private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
     if(r.exitCode!=0){status.setText("DNS 地址读取失败："+safe(r.output));return;}
-    List<String> a=new ArrayList<>(),b=new ArrayList<>();
+    List<String> a=new ArrayList<>(),b=new ArrayList<>(),f=new ArrayList<>();
     String remoteValue="1.1.1.1",cnValue="223.5.5.5";
     for(String line:r.output.split("\\r?\\n")){
       String[] p=line.split("\\|",-1);
       if(p.length==2&&"CUSTOM".equals(p[0]))a.add(p[1]);
       else if(p.length==2&&"GLOBAL".equals(p[0]))b.add(p[1]);
+      else if(p.length==2&&"FALLBACK".equals(p[0]))f.add(p[1]);
       else if(p.length==2&&"VPN_REMOTE".equals(p[0])&&!p[1].isEmpty())remoteValue=p[1];
       else if(p.length==2&&"VPN_CN".equals(p[0])&&!p[1].isEmpty())cnValue=p[1];
     }
     if(!a.isEmpty())custom.setText(android.text.TextUtils.join(",",a));
     if(!b.isEmpty())global.setText(android.text.TextUtils.join(",",b));
+    if(!f.isEmpty())fallback.setText(android.text.TextUtils.join(",",f));
     remote.setText(remoteValue);domestic.setText(cnValue);
   });
 }
 private void saveDnsServerList(String kind,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
   root("dns-config-set "+kind+" "+q(value),r->{
-    if(r.exitCode==0){status.setText(("custom".equals(kind)?"自定义 DNS":"全局 DNS")+" 已保存并应用。");load();}
+    if(r.exitCode==0){status.setText(("custom".equals(kind)?"自定义 DNS":("fallback".equals(kind)?"备用 DNS":"全局 DNS"))+" 已保存并应用。");load();}
     else new AlertDialog.Builder(this).setTitle("DNS 地址未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
   });
 }
