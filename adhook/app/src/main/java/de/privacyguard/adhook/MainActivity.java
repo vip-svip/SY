@@ -2745,7 +2745,7 @@ public final class MainActivity extends ComponentActivity {
             {"Hook 功能", "方法 Hook", "对话框与通知", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
             {"设备模拟", "设备属性", "位置与 GPS", "Wi-Fi 模拟", "网络类型模拟", "时间与时区", "应用版本", "签名信息"},
             {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
-            {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "Socket 监控", "Intent 监控", "Shell/Process 监控", "方法堆栈", "View 点击监控", "ViewGroup 层级监控", "Fragment 生命周期", "Thread 启动监控", "ClassLoader 监控", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
+            {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "Socket 监控", "Intent 监控", "Shell/Process 监控", "方法堆栈", "View 点击监控", "ViewGroup 层级监控", "Fragment 生命周期", "Thread 启动监控", "ClassLoader 监控", "SQL 监控", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
             {"规则与数据", "规则组", "规则列表", "运行日志", "本地备份", "GitHub 备份", "WebDAV 备份", "全局设置"}
         };
         if ("yulong-shield".equals(suite)) return new String[][] {
