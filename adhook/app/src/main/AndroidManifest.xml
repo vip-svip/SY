@@ -80,6 +80,7 @@
         <activity android:name=".imported.shield.FxYulongBatchCleanupActivity" android:exported="false" />
         <activity android:name=".imported.shield.FxYulongIntegrityActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongFirewallActivity" android:exported="false" />
+        <activity android:name=".imported.ad.FxYulongAppWhitelistActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAppStatsActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongDnsActivity" android:exported="false" />
