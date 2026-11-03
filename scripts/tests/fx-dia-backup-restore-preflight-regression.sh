@@ -16,9 +16,9 @@ for label, body in (("module settings reader", module_reader), ("Stellar state r
     assert slash * 2 + '"' not in body, label + " contains over-escaped shell quotes that break Java compilation"
     assert "tr -d '" + slash * 2 + "n'" in body, label + " must pass a single literal \\n pattern to tr"
     assert "tr -d '" + slash * 4 + "n'" not in body, label + " contains an over-escaped newline pattern"
-assert "[ ! -L \\"$DIR\\" ]" in stellar_reader, "Stellar backup must reject a symlinked state directory"
-assert "[ ! -L \\"$DIR/$f\\" ]" in stellar_reader, "Stellar backup must reject symlinked state files"
-assert "[ -d \\"$DIR\\" ] || exit 0" in stellar_reader, "backup must not create empty Stellar state when no directory exists"
+assert r'[ ! -L \"$DIR\" ]' in stellar_reader, "Stellar backup must reject a symlinked state directory"
+assert r'[ ! -L \"$DIR/$f\" ]' in stellar_reader, "Stellar backup must reject symlinked state files"
+assert r'[ -d \"$DIR\" ] || exit 0' in stellar_reader, "backup must not create empty Stellar state when no directory exists"
 
 assert r'line.split("\\|",3)' in source, "Stellar dump parser must split on a literal pipe delimiter"
 assert r'line.split("\\\\|",3)' not in source, "Stellar dump parser must not split on backslash/empty alternatives"
