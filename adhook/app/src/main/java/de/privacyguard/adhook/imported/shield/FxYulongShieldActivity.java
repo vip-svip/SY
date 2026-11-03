@@ -116,7 +116,7 @@ public final class FxYulongShieldActivity extends Activity {
                 "保留原版搜索、应用选择、列表维护和本地保存行为；未接入原版 Stellar 指令白名单同步。",
                 action("打开白名单", () -> startActivity(new Intent(this, WhitelistActivity.class))));
         card("管控应用列表",
-                "保留原版应用选择、批量加入、移除与清空确认流程；后台自动拦截服务尚未迁入。",
+                "保留原版应用选择、批量加入、移除与清空确认流程；开启实时守护后，黑名单应用进入前台时会收到提醒，白名单应用不会触发提醒。",
                 action("打开管控列表", () -> startActivity(new Intent(this, BlacklistActivity.class))));
         card("Stellar 金龙权限管理",
                 "保留原版 roro.stellar.manager 命令授权、逐应用能力作用域和始终允许清单；此页面属于安全护盾内部，不新增 FX 主导航标签。",
@@ -126,8 +126,8 @@ public final class FxYulongShieldActivity extends Activity {
                 "勾选扫描结果后逐项打开 Android 系统卸载确认；不会自动强停、冻结或静默卸载。",
                 action("扫描并进入批量清理", () -> startActivity(new Intent(this, FxYulongScanActivity.class))));
         card("风险应用警告",
-                "查看风险命中原因；可加入白名单或手动打开系统卸载确认。",
-                action("打开风险提醒页", () -> startActivity(new Intent(this, FxYulongWarningActivity.class))));
+                "先扫描并选择具体命中项，再进入带有包名、应用名和命中理由的风险提醒页；不会显示无目标的空白警告。",
+                action("扫描应用并查看风险项", () -> startActivity(new Intent(this, FxYulongScanActivity.class))));
         card("应用签名与完整性",
                 "展示 FX 当前安装包证书指纹；不复用原游龙 APK 固定证书强制退出校验。",
                 action("查看当前签名指纹", () -> startActivity(new Intent(this, FxYulongIntegrityActivity.class))));
