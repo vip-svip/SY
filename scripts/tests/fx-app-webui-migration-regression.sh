@@ -346,7 +346,18 @@ grep -q 'BIND_ACCESSIBILITY_SERVICE' "$ROOT/adhook/app/src/main/AndroidManifest.
 grep -q 'fx_accessibility_service' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "accessibility service metadata missing"
 grep -q 'canRetrieveWindowContent="false"' "$ROOT/adhook/app/src/main/res/xml/fx_accessibility_service.xml" || fail "accessibility service must not inspect screen content"
 grep -q 'onAccessibilityEvent(AccessibilityEvent event)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility event callback missing"
-grep -q 'Intentionally observe no event payload' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java" || fail "accessibility service must not inspect event content"
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("onAccessibilityEvent(AccessibilityEvent event)")
+end = source.index("@Override public boolean onKeyEvent", start)
+handler = source[start:end]
+assert "event.getEventType()" in handler and "event.getPackageName()" in handler, "foreground package metadata observer is missing"
+for forbidden in ("event.getText(", "event.getSource(", "getContentDescription(", "getViewIdResourceName(", "performAction("):
+    assert forbidden not in handler, "accessibility service must not read screen text/tree or interact with controls: " + forbidden
+assert "setPackage(getPackageName())" in handler, "foreground event broadcast is not package-scoped"
+print("PASS: accessibility service observes only foreground package metadata and never reads screen content or interacts with controls")
+PY
 grep -q 'FxAccessibilityService' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge would drop accessibility service"
 grep -q 'xposedmodule' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "LSPosed module metadata missing from merged APK"
 grep -q 'new ProcessBuilder("su", "-c", command)' "$ROOT_ACCESS" || fail "KernelSU su executor missing"
