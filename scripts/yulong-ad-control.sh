@@ -1,6 +1,7 @@
 #!/system/bin/sh
 # Native Yulong AdBlock 7.0.1 data adapter for FX.
 set -eu
+umask 077
 MP=""
 for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
   if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop"; then MP="$d"; break; fi
@@ -36,7 +37,7 @@ with_lock() {
  "$@"
 }
 write_rule() {
- src=$1; title=$2; state=$3; mode=$4; tmp=$CONF.yulong-rule.$$
+ src=$1; title=$2; state=$3; mode=$4; tmp=$(mktemp "$CONF.yulong-rule.XXXXXX") || return 1
  awk -F'|' -v OFS='|' -v src="$src" -v title="$title" -v state="$state" -v mode="$mode" '
  BEGIN{inside=0;found=0;done=0}
  $0=="[list:rule]"{inside=1;found=1;print;next}
@@ -45,10 +46,12 @@ write_rule() {
  {print}
  END{if(inside&&mode=="add"&&!done){print src,title,state;done=1}if(!found&&mode=="add"){print "";print "[list:rule]";print src,title,state}if(!done&&mode=="set")exit 3}
  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
- [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+ if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  rm -f "$tmp"
+  return 1
 }
 write_block() {
- domain=$1; note=$2; state=$3; mode=$4; tmp=$CONF.yulong-block.$$
+ domain=$1; note=$2; state=$3; mode=$4; tmp=$(mktemp "$CONF.yulong-block.XXXXXX") || return 1
  awk -F'|' -v OFS='|' -v domain="$domain" -v note="$note" -v state="$state" -v mode="$mode" '
  BEGIN{inside=0;found=0;done=0}
  $0=="[list:block]"{inside=1;found=1;print;next}
@@ -57,34 +60,59 @@ write_block() {
  {print}
  END{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}if(!found&&mode=="add"){print "";print "[list:block]";print domain,note,state}}
  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
- [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+ if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  rm -f "$tmp"
+  return 1
+}
+restore_transaction_backup() {
+  restore=$(mktemp "$CONF.yulong-ad-restore.XXXXXX") || return 1
+  if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
+    restore=
+    return 0
+  fi
+  rm -f "$restore"
+  restore=
+  return 1
 }
 transaction() {
- op=$1; shift; backup=$CONF.yulong-ad-rollback.$
- restore=$CONF.yulong-ad-restore.$
- cp -p "$CONF" "$backup" || return 1
- if ! "$op" "$@"; then
-   if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
-     sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || \
-       echo "mutation failed; previous config restored but runtime reconcile failed" >&2
-     rm -f "$backup" "$restore"
-     echo "mutation failed; previous config restored" >&2
-     return 1
-   fi
-   rm -f "$backup" "$restore"
-   echo "mutation failed and config rollback failed" >&2
-   return 31
- fi
- if sh "$MP/scripts/apply.sh" fast; then rm -f "$backup" "$restore"; return 0; fi
- if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
-   sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
-   rm -f "$backup" "$restore"
-   echo "apply failed; previous config restored" >&2
-   return 1
- fi
- rm -f "$backup" "$restore"
- echo "apply failed and config rollback failed" >&2
- return 31
+  op=$1; shift
+  backup=$(mktemp "$CONF.yulong-ad-rollback.XXXXXX") || return 1
+  restore=
+  if ! cp -p "$CONF" "$backup" || ! chmod 600 "$backup"; then
+    rm -f "$backup"
+    backup=
+    return 1
+  fi
+  if ! "$op" "$@"; then
+    if restore_transaction_backup; then
+      sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || \
+        echo "mutation failed; previous config restored but runtime reconcile failed" >&2
+      rm -f "$backup"
+      backup=
+      echo "mutation failed; previous config restored" >&2
+      return 1
+    fi
+    rm -f "$backup" "$restore"
+    backup=; restore=
+    echo "mutation failed and config rollback failed" >&2
+    return 31
+  fi
+  if sh "$MP/scripts/apply.sh" fast; then
+    rm -f "$backup" "$restore"
+    backup=; restore=
+    return 0
+  fi
+  if restore_transaction_backup; then
+    sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
+    rm -f "$backup"
+    backup=
+    echo "apply failed; previous config restored" >&2
+    return 1
+  fi
+  rm -f "$backup" "$restore"
+  backup=; restore=
+  echo "apply failed and config rollback failed" >&2
+  return 31
 }
 m_dns(){ pg_set "$1" "$2"; }
 valid_ipv4() {
@@ -152,7 +180,7 @@ valid_dns_csv() {
   '
 }
 write_dns_section() {
-  section=$1; servers=$2; tmp="$CONF.yulong-dns.$"
+  section=$1; servers=$2; tmp=$(mktemp "$CONF.yulong-dns.XXXXXX") || return 1
   awk -v section="$section" -v servers="$servers" '
     function emit(    n,a,i) {n=split(servers,a,",");for(i=1;i<=n;i++)print "nameserver " a[i]}
     BEGIN{inside=0;seen=0;written=0}
@@ -162,12 +190,14 @@ write_dns_section() {
     {print}
     END{if(inside&&!written){emit();written=1}if(!seen){print "";print "[conf:" section "]";emit()}}
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  rm -f "$tmp"
+  return 1
 }
 
 remove_dns_section() {
   section=$1
-  tmp="$CONF.yulong-dns-remove.$"
+  tmp=$(mktemp "$CONF.yulong-dns-remove.XXXXXX") || return 1
   awk -v section="$section" '
     $0=="[conf:" section "]" {inside=1; next}
     /^\[/ {inside=0}
@@ -181,7 +211,7 @@ m_dns_section_clear() { remove_dns_section "$1"; }
 
 write_dns_response() {
   mode=$1
-  tmp="$CONF.yulong-dns-response.$"
+  tmp=$(mktemp "$CONF.yulong-dns-response.XXXXXX") || return 1
   awk -v mode="$mode" '
     BEGIN{inside=0;seen=0;written=0}
     $0=="[conf:yulong_dns_response]" {
@@ -202,12 +232,14 @@ write_dns_response() {
       if(!seen){print "";print "[conf:yulong_dns_response]";print "mode=" mode}
     }
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  rm -f "$tmp"
+  return 1
 }
 m_dns_response() { write_dns_response "$1"; }
 
 write_vpn_dns() {
-  key=$1; value=$2; tmp="$CONF.yulong-vpn-dns.$"
+  key=$1; value=$2; tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
   awk -v key="$key" -v value="$value" '
     BEGIN{inside=0;seen=0;written=0}
     $0=="[conf:vpn]"{if(inside&&!written){print key "=" value;written=1}inside=1;seen=1;print;next}
@@ -216,7 +248,9 @@ write_vpn_dns() {
     {print}
     END{if(inside&&!written)print key "=" value;if(!seen){print "";print "[conf:vpn]";print key "=" value}}
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  rm -f "$tmp"
+  return 1
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
@@ -373,21 +407,27 @@ schedule_set() {
 
   file="$PG/yulong-ad-schedule.conf"
   lock="$PG/yulong-ad-schedule.lock"
-  tmp="$file.tmp.$$"
-  backup="$file.rollback.$$"
   if ! mkdir "$lock" 2>/dev/null; then
     echo "schedule update is busy" >&2
     return 30
   fi
-  trap 'rm -f "$tmp" "$backup"; rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
+  tmp=$(mktemp "$file.tmp.XXXXXX") || { rmdir "$lock" 2>/dev/null || :; return 31; }
+  backup=
+  trap '[ -z "$tmp" ] || rm -f "$tmp"; [ -z "$backup" ] || rm -f "$backup"; rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
 
   existed=0
   if [ -f "$file" ] && [ ! -L "$file" ]; then
-    cp -p "$file" "$backup" || { echo "unable to preserve previous schedule" >&2; return 31; }
+    backup=$(mktemp "$file.rollback.XXXXXX") || {
+      echo "unable to allocate schedule rollback file" >&2
+      return 31
+    }
+    cp -p "$file" "$backup" && chmod 600 "$backup" || {
+      echo "unable to preserve previous schedule" >&2
+      return 31
+    }
     existed=1
   fi
 
-  umask 077
   {
     printf 'enabled=%s\n' "$enabled"
     printf 'start=%s\n' "$start"
@@ -398,6 +438,7 @@ schedule_set() {
     echo "unable to commit schedule candidate" >&2
     return 33
   }
+  tmp=
   sync
 
   if [ ! -x "$MP/scripts/yulong-ad-schedule.sh" ]; then
@@ -406,6 +447,7 @@ schedule_set() {
     if MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate \
         && MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" start; then
       rm -f "$backup"
+      backup=
       echo "schedule=committed"
       return 0
     fi
@@ -413,10 +455,20 @@ schedule_set() {
   fi
 
   if [ "$existed" = 1 ] && [ -f "$backup" ]; then
-    cp -p "$backup" "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$file" || {
-      echo "schedule rollback failed; previous copy remains at $backup" >&2
+    tmp=$(mktemp "$file.restore.XXXXXX") || {
+      echo "schedule rollback temp creation failed; previous copy remains at $backup" >&2
+      backup=
       return 34
     }
+    if cp -p "$backup" "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$file"; then
+      tmp=
+    else
+      rm -f "$tmp"
+      tmp=
+      echo "schedule rollback failed; previous copy remains at $backup" >&2
+      backup=
+      return 34
+    fi
   else
     rm -f "$file"
   fi
