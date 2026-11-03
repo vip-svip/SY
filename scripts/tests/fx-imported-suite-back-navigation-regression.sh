@@ -62,5 +62,9 @@ for name in ("migrationSuite = null", "migrationCategory = null", "migrationPage
              "migrationLevel = 0", "migrationChildActive = false"):
     assert name in clear, f"leaving migration screens does not clear {name}"
 
+handler = method("private void handleNativeTabSelection(int index)")
+hook_tab = handler.split("else if (index == 4)", 1)[1].split("else if (index >= 0", 1)[0]
+assert "clearMigrationNavigation();" in hook_tab and hook_tab.index("clearMigrationNavigation();") < hook_tab.index("showAppList();"), \
+    "opening the top-level Hook tab must leave the imported-suite return stack"
 print("PASS: imported-suite Android Back hierarchy, same-Activity child return, and Activity recreation state")
 PY
