@@ -56,8 +56,10 @@ if "runRoot(command, 20000L" not in attach:
     raise SystemExit("FAIL: persistent Gadget command must use the bounded RootAccess worker")
 if "nohup sh -c 'while kill -0 " not in attach or "fx-gadget-feed-$port" not in attach:
     raise SystemExit("FAIL: FIFO feeder must be the fixed CLI-PID-bound helper, not a user-controlled shell payload")
-if 'kill "$cli_pid"' not in stop or 'kill "$feed_pid"' not in stop:
-    raise SystemExit("FAIL: session stop must terminate both owned processes")
+for process_id in ("cli_pid", "feed_pid"):
+    escaped_kill = 'kill \\"$' + process_id + '\\"'
+    if escaped_kill not in stop:
+        raise SystemExit(f"FAIL: session stop must terminate the owned {process_id} process")
 if "FX_GADGET_CLI_PID_CONFLICT" not in stop or "FX_GADGET_FEEDER_PID_CONFLICT" not in stop:
     raise SystemExit("FAIL: stop path must refuse unrelated PID owners")
 print("PASS: Frida CLI Gadget session validates target/port, owns a persistent process, captures logs and provides a PID-checked stop action")
