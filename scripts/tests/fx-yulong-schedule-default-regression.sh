@@ -25,15 +25,16 @@ fi
 EOF
 cat > "$TMP/uninstall.sh" <<'EOF'
 #!/bin/sh
-STATE_DIR=/data/adb/privacyguard
+PG=/data/adb/privacyguard
 EOF
 python3 "$PATCHER" "$TMP"
-python3 - "$TMP/scripts/default.conf" "$TMP/uninstall.sh" "$TMP/service.sh" <<'PY'
+python3 - "$TMP/scripts/default.conf" "$TMP/uninstall.sh" "$TMP/service.sh" "$TMP/scripts/yulong-ad-schedule.sh" <<'PY'
 from pathlib import Path
 import sys
 conf = Path(sys.argv[1]).read_text(encoding="utf-8")
 uninstall = Path(sys.argv[2]).read_text(encoding="utf-8")
 service = Path(sys.argv[3]).read_text(encoding="utf-8")
+schedule = Path(sys.argv[4]).read_text(encoding="utf-8")
 assert r"\n# Weekly Yulong ad schedule runtime state" not in conf, "escaped schedule block remains in default.conf"
 assert r"\nyulong_ad_schedule_active=1\n" not in conf, "literal backslash-n schedule value remains"
 assert conf.index("yulong_ad_schedule_active=1") < conf.index("[list:fx]"), "schedule state must stay in scalar key/value area before all list sections"
@@ -44,10 +45,15 @@ assert entries == [
     "fxfile://96110_candidate|96110 candidate|0",
 ], "schedule state must not leak into FX anti-fraud list"
 assert "yulong_ad_schedule_active=1" in conf, "schedule state default was not restored"
-assert 'yulong-ad-schedule.sh" stop' in uninstall, "uninstall must stop the schedule watcher"
+assert 'stop "$MODDIR" "$PG" uninstall' in uninstall, "uninstall must stop the schedule watcher without re-applying rules"
+assert uninstall.index("PG=/data/adb/privacyguard") < uninstall.index("# Stop Yulong ad schedule before uninstall cleanup.") < uninstall.index("XDIR="), "schedule watcher must stop before uninstall cleanup begins"
+assert "is_our_watcher()" in schedule and "/proc/$_watch_pid/cmdline" in schedule, "schedule stop must verify PID ownership before signalling"
+assert 'if [ "$_uninstall_mode" = "uninstall" ]; then' in schedule, "uninstall stop mode must skip schedule state re-apply"
+assert schedule.index('if [ "$_uninstall_mode" = "uninstall" ]; then') < schedule.index("pg_set yulong_ad_schedule_active 1"), "uninstall must return before re-applying Yulong rules"
 assert r"\n" not in uninstall, "uninstall contains a literal backslash-n"
 assert 'yulong-ad-schedule.sh" start' in service, "boot service must restore the schedule watcher"
 print("PASS: Yulong schedule defaults remain outside [list:fx] and lifecycle hooks use real newlines")
 PY
 sh -n "$TMP/service.sh"
 sh -n "$TMP/uninstall.sh"
+sh -n "$TMP/scripts/yulong-ad-schedule.sh"
