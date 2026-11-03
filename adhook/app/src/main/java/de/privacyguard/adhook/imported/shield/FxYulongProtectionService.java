@@ -101,7 +101,11 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_START : intent.getAction();
         if (ACTION_STOP.equals(action)) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("protect_on", false).apply();
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("protect_on", false)
+                    .putBoolean("shake_trigger_on", false)
+                    .putBoolean("volume_trigger_on", false)
+                    .apply();
             FxYulongKeepAliveReceiver.refreshSchedule(this);
             stopSelf();
             return START_NOT_STICKY;
@@ -119,7 +123,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
             startupPrefs.edit().putBoolean("protect_on", false).apply();
             protectEnabled = false;
             if (!shakeEnabled) {
-                startupPrefs.putBoolean("protect_service_running", false).apply();
+                startupPrefs.edit().putBoolean("protect_service_running", false).apply();
                 FxYulongKeepAliveReceiver.refreshSchedule(this);
                 stopSelf();
                 return START_NOT_STICKY;
