@@ -24,6 +24,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="app.pwhs.blockads.ACTION_TOGGLE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/fx_yulong_ad_shortcuts" />
         </activity>
         <service
             android:name=".FxAccessibilityService"
