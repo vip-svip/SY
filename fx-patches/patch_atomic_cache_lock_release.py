@@ -496,46 +496,51 @@ replace_once(
     "subscription concurrency test must explain lock directory leak",
 )
 
+
+old_root_proxy_engine_stub = """for script in adguardhome.sh unbound.sh; do
+  cat > "$MOD/scripts/$script" <<'SH'
+#!/system/bin/sh
+exit 0
+SH
+  chmod 0755 "$MOD/scripts/$script"
+done"""
+new_root_proxy_engine_stub = """for script in adguardhome.sh unbound.sh; do
+  cat > "$MOD/scripts/$script" <<'SH'
+#!/system/bin/sh
+case "$1" in stop) /bin/sleep 0.04 ;; esac
+exit 0
+SH
+  chmod 0755 "$MOD/scripts/$script"
+done"""
 replace_once(
     root_proxy_test,
-    r'''for script in adguardhome.sh unbound.sh; do
-  cat > "$MOD/scripts/$script" <<'SH'
-#!/system/bin/sh
-exit 0
-SH
-  chmod 0755 "$MOD/scripts/$script"
-done''',
-    r'''for script in adguardhome.sh unbound.sh; do
-  cat > "$MOD/scripts/$script" <<'SH'
-#!/system/bin/sh
-[ "$1" != stop ] || /bin/sleep 0.04
-exit 0
-SH
-  chmod 0755 "$MOD/scripts/$script"
-done''',
+    old_root_proxy_engine_stub,
+    new_root_proxy_engine_stub,
     "Root Proxy engine stub holds lock during stop",
 )
-replace_once(
-    root_proxy_test,
-    r'''cat > "$BIN/sleep" <<'SH'
+
+old_root_proxy_sleep_stub = """cat > "$BIN/sleep" <<'SH'
 #!/system/bin/sh
 exit 0
 SH
-''',
-    r'''cat > "$BIN/sleep" <<'SH'
+"""
+new_root_proxy_sleep_stub = """cat > "$BIN/sleep" <<'SH'
 #!/system/bin/sh
 case "$1" in
   1) /bin/sleep 0.01 ;;
   *) /bin/sleep "$@" ;;
 esac
 SH
-''',
-    "Root Proxy waiter sleep must be bounded but observable",
-)
+"""
 replace_once(
     root_proxy_test,
-    'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\\n',
-    '''grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
+    old_root_proxy_sleep_stub,
+    new_root_proxy_sleep_stub,
+    "Root Proxy waiter sleep must be bounded but observable",
+)
+
+root_proxy_test_done_marker = 'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\n'
+root_proxy_test_done = '''grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
   echo "FAIL: Root Proxy unlock does not atomically rename its owner directory" >&2; exit 1;
 }
 if grep -Fq 'rm -f "$LOCK/pid" 2>/dev/null || :' "$SOURCE"; then
@@ -544,8 +549,8 @@ fi
 if grep -Fq 'rmdir "$LOCK" 2>/dev/null || :' "$SOURCE"; then
   echo "FAIL: Root Proxy unlock still exposes a PID-less directory window" >&2; exit 1;
 fi
-# Two stop operations overlap while the mock engines keep the first owner
-# inside the protected section. The waiter must acquire after atomic release.
+# Two stop operations overlap while mock engines keep the first owner inside
+# the protected section. The waiter must acquire only after atomic release.
 sh "$SOURCE" stop > "$TMP/concurrent-a.log" 2>&1 & p1=$!
 /bin/sleep 0.005
 sh "$SOURCE" stop > "$TMP/concurrent-b.log" 2>&1 & p2=$!
@@ -556,7 +561,11 @@ wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; 
   echo "FAIL: Root Proxy stale/release directory leaked" >&2; exit 1;
 }
 echo "PASS: Yulong Root Proxy lock uses atomic owner-directory release, recovers stale owners, preserves live owners and serializes concurrent stops"
-''',
+'''
+replace_once(
+    root_proxy_test,
+    root_proxy_test_done_marker,
+    root_proxy_test_done,
     "Root Proxy lock regression with concurrent stop",
 )
 
