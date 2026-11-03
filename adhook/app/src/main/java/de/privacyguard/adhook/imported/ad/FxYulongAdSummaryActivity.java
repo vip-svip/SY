@@ -110,8 +110,8 @@ public final class FxYulongAdSummaryActivity extends Activity {
             if (p.length == 2 && "AD_MASTER".equals(p[0])) out.adMaster = "1".equals(p[1]);
             else if (p.length >= 4 && "RULE".equals(p[0])) {
                 out.totalRules++; if ("1".equals(p[3])) out.enabledRules++;
-            } else if (p.length >= 3 && "ALLOW".equals(p[0]) && "1".equals(p[3])) out.allowDomains++;
-            else if (p.length >= 3 && "BLOCK".equals(p[0]) && "1".equals(p[3])) out.blockDomains++;
+            } else if (p.length >= 4 && "ALLOW".equals(p[0]) && "1".equals(p[3])) out.allowDomains++;
+            else if (p.length >= 4 && "BLOCK".equals(p[0]) && "1".equals(p[3])) out.blockDomains++;
         }
         return out;
     }
