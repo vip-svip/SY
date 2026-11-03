@@ -477,7 +477,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/fx-regression-logs"
           for test_script in "${tests[@]}"; do
             log="$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").log"
-            if timeout 35s sh "$test_script" >"$log" 2>&1; then
+            # Respect each test's declared interpreter. Some concurrency regressions
+            # use Bash arrays/wait semantics and must not be forced through dash.
+            if IFS= read -r shebang < "$test_script" && [[ "$shebang" == *bash* ]]; then
+              test_shell="bash"
+            else
+              test_shell="sh"
+            fi
+            if timeout 35s "$test_shell" "$test_script" >"$log" 2>&1; then
               pass=$((pass + 1))
             else
               rc=$?
