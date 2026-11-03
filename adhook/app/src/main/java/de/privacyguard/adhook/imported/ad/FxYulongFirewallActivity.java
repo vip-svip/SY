@@ -69,17 +69,19 @@ public final class FxYulongFirewallActivity extends Activity {
             worker.execute(() -> {
                 RootAccess.Result result = RootAccess.execute(scriptCommand(args), 60000L, 1024 * 1024);
                 runOnUiThread(() -> {
-                    if (!isFinishing() && !isDestroyed()) callback.accept(result);
+                    if (!destroyed && !isFinishing() && !isDestroyed()) callback.accept(result);
                 });
             });
         } catch (RejectedExecutionException full) {
-            // Reuse RootAccess' no-process validation result so existing callbacks
-            // restore switches and expose the queue-busy state consistently.
+            // RootAccess rejects an empty command before ProcessBuilder starts su;
+            // reuse that explicit failure result so existing callbacks restore UI state.
             RootAccess.Result rejected = RootAccess.execute("");
-            if (!isFinishing() && !isDestroyed()) {
-                status.setText("后台任务繁忙，本次防火墙操作未执行。");
-                callback.accept(rejected);
-            }
+            runOnUiThread(() -> {
+                if (!destroyed && !isFinishing() && !isDestroyed()) {
+                    status.setText("后台任务繁忙，本次防火墙操作未执行。");
+                    callback.accept(rejected);
+                }
+            });
         }
     }
     private TextView text(String value, int size, int color, boolean bold) {
