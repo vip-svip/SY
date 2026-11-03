@@ -4,6 +4,16 @@ Source branch: `fx-v1.0.0-unified-hook-integration`.
 All changes below are source-tree work only. No final APK/KernelSU package is being
 published during this migration phase.
 
+### Yulong Ad Plugin 7.0.1 — Tasker broadcast compatibility
+
+- The single FX automation receiver now accepts the original
+  `app.pwhs.blockads.TASKER_START` and `TASKER_STOP` actions as aliases for
+  the FX ad-filter master enable/disable actions.
+- The legacy actions change only the Yulong/FX ad-filter source master. They do
+  not start the original AdBlockVpnService or allocate another Android VPN slot.
+- The native automation panel exposes copy buttons for both new and original
+  broadcast action names; result broadcasts remain package-scoped to FX.
+
 ### Yulong Ad Plugin 7.0.1 — weekly schedule integration
 
 - Native Ad settings now include a weekly schedule editor: enable/disable, local

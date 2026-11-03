@@ -84,6 +84,8 @@
             <intent-filter>
                 <action android:name="de.privacyguard.adhook.AD_FILTER_ENABLE" />
                 <action android:name="de.privacyguard.adhook.AD_FILTER_DISABLE" />
+            <action android:name="app.pwhs.blockads.TASKER_START" />
+            <action android:name="app.pwhs.blockads.TASKER_STOP" />
             </intent-filter>
         </receiver>
         <service android:name=".imported.ad.FxYulongAdTileService"
