@@ -18,13 +18,18 @@ exit 0
 SH
   chmod 0755 "$MOD/scripts/$script"
 done
-for tool in iptables ip6tables sleep; do
+for tool in iptables ip6tables; do
   cat > "$BIN/$tool" <<'SH'
 #!/system/bin/sh
 exit 1
 SH
   chmod 0755 "$BIN/$tool"
 done
+cat > "$BIN/sleep" <<'SH'
+#!/system/bin/sh
+exit 0
+SH
+chmod 0755 "$BIN/sleep"
 export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"
 LOCK="$PG/yulong-root-proxy.lock"
 
