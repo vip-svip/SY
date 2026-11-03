@@ -61,8 +61,7 @@ public final class FxAccessibilityService extends AccessibilityService {
 
         if (event.getAction() == KeyEvent.ACTION_UP && key == KeyEvent.KEYCODE_VOLUME_UP) {
             SharedPreferences shield = getSharedPreferences("shield_prefs", MODE_PRIVATE);
-            if (shield.getBoolean("protect_on", false)
-                    && shield.getBoolean("volume_trigger_on", false)) {
+            if (shield.getBoolean("volume_trigger_on", false)) {
                 long now = SystemClock.elapsedRealtime();
                 if (now - volumeSequenceStart > 2500L) {
                     volumeSequenceStart = now;
