@@ -1,6 +1,7 @@
 package de.privacyguard.adhook;
 
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import java.util.TreeMap;
 
 /**
@@ -78,10 +79,13 @@ public final class UnifiedHookConfigSerializer {
                     .append(",dev_hook_enabled=").append(target.developerHooksEnabled ? '1' : '0');
             int ruleIndex = 1;
             for (DeveloperHookRule rule : target.developerRules) {
-                if (rule == null || ruleIndex > UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET) throw new IllegalArgumentException("invalid developer rule list");
-                out.append(",dev_rule_").append(ruleIndex++).append('=')
-                        .append(rule.id).append('|').append(rule.descriptor).append('|')
-                        .append(rule.action.name()).append('|').append(rule.priority);
+                if (rule == null || ruleIndex > UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET)
+                    throw new IllegalArgumentException("invalid developer rule list");
+                String ruleValue = rule.id + "|" + rule.descriptor + "|"
+                        + rule.action.name() + "|" + rule.priority;
+                String encodedRule = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(ruleValue.getBytes(StandardCharsets.UTF_8));
+                out.append(",dev_rule_b64_").append(ruleIndex++).append('=').append(encodedRule);
             }
             out.append('\n');
         }
