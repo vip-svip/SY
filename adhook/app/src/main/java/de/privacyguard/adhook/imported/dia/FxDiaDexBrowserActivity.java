@@ -20,8 +20,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -37,8 +39,13 @@ public final class FxDiaDexBrowserActivity extends Activity {
     private final ThreadPoolExecutor searchWorker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
             r -> new Thread(r, "fx-dia-dex-search"), new ThreadPoolExecutor.DiscardOldestPolicy());
+    private final ThreadPoolExecutor exportWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-dia-dex-export"), new ThreadPoolExecutor.DiscardOldestPolicy());
     private final List<ApplicationInfo> apps = new ArrayList<>();
+    private final Map<String, String> appLabels = new HashMap<>();
     private int searchGeneration;
+    private int exportGeneration;
     private int dexGeneration;
     private boolean appsLoading;
     private volatile boolean destroyed;
@@ -122,18 +129,21 @@ public final class FxDiaDexBrowserActivity extends Activity {
         try {
             worker.execute(() -> {
                 List<ApplicationInfo> loaded = new ArrayList<>();
+                Map<String, String> loadedLabels = new HashMap<>();
                 Throwable failure = null;
                 try {
                     PackageManager pm = getApplicationContext().getPackageManager();
                     loaded.addAll(pm.getInstalledApplications(0));
                     loaded.removeIf(app -> app.packageName == null || app.packageName.equals(getPackageName()));
-                    loaded.sort(Comparator.comparing(app -> {
+                    for (ApplicationInfo app : loaded) {
                         try {
-                            return String.valueOf(pm.getApplicationLabel(app)).toLowerCase(Locale.ROOT);
+                            loadedLabels.put(app.packageName, String.valueOf(pm.getApplicationLabel(app)));
                         } catch (Throwable ignored) {
-                            return app.packageName.toLowerCase(Locale.ROOT);
+                            loadedLabels.put(app.packageName, app.packageName);
                         }
-                    }));
+                    }
+                    loaded.sort(Comparator.comparing(app ->
+                            loadedLabels.getOrDefault(app.packageName, app.packageName).toLowerCase(Locale.ROOT)));
                 } catch (Throwable error) {
                     failure = error;
                 }
@@ -147,6 +157,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
                     }
                     apps.clear();
                     apps.addAll(loaded);
+                    appLabels.clear();
+                    appLabels.putAll(loadedLabels);
                     summary.setText("已读取 " + apps.size() + " 个应用；选择目标后读取 DEX。");
                 });
             });
@@ -168,9 +180,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         }
         String[] labels = new String[apps.size()];
         for (int i = 0; i < apps.size(); i++) {
-            String label;
-            try { label = String.valueOf(getPackageManager().getApplicationLabel(apps.get(i))); }
-            catch (Throwable ignored) { label = apps.get(i).packageName; }
+            String label = appLabels.getOrDefault(apps.get(i).packageName, apps.get(i).packageName);
             labels[i] = label + "\n" + apps.get(i).packageName;
         }
         new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
@@ -334,57 +344,75 @@ public final class FxDiaDexBrowserActivity extends Activity {
             summary.setText("尚无可导出的 DEX 索引，请先读取 DEX。");
             return;
         }
-        String q = filter.getText() == null ? "" : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
-        StringBuilder out = new StringBuilder();
-        int emitted = 0;
-        boolean truncated = false;
-        for (FxDiaDexIndex.DexClass item : classes) {
-            String className = item.javaName();
-            boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
-                    || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
-            List<FxDiaDexIndex.Member> members = new ArrayList<>();
-            if (classMatch) {
-                members.addAll(item.fields);
-                members.addAll(item.methods);
-            } else {
-                for (FxDiaDexIndex.Member member : item.fields) {
-                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
+        final int request = ++exportGeneration;
+        final String q = filter.getText() == null ? ""
+                : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
+        final List<FxDiaDexIndex.DexClass> snapshot = new ArrayList<>(classes);
+        summary.setText("正在后台生成 DEX 签名导出…");
+        try {
+            exportWorker.execute(() -> {
+                StringBuilder out = new StringBuilder();
+                int emitted = 0;
+                boolean truncated = false;
+                for (FxDiaDexIndex.DexClass item : snapshot) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    String className = item.javaName();
+                    boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
+                            || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
+                    List<FxDiaDexIndex.Member> members = new ArrayList<>();
+                    if (classMatch) {
+                        members.addAll(item.fields);
+                        members.addAll(item.methods);
+                    } else {
+                        for (FxDiaDexIndex.Member member : item.fields) {
+                            if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
+                        }
+                        for (FxDiaDexIndex.Member member : item.methods) {
+                            if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
+                        }
+                    }
+                    if (!classMatch && members.isEmpty()) continue;
+                    if (out.length() + item.descriptor.length() + 32 > 512 * 1024 || emitted >= 12000) {
+                        truncated = true;
+                        break;
+                    }
+                    out.append("CLASS ").append(item.descriptor).append('\n');
+                    for (FxDiaDexIndex.Member member : members) {
+                        String line = member.display();
+                        if (out.length() + line.length() + 1 > 512 * 1024 || emitted >= 12000) {
+                            truncated = true;
+                            break;
+                        }
+                        out.append(line).append('\n');
+                        emitted++;
+                    }
+                    if (truncated) break;
                 }
-                for (FxDiaDexIndex.Member member : item.methods) {
-                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
-                }
-            }
-            if (!classMatch && members.isEmpty()) continue;
-            if (out.length() + className.length() + 32 > 512 * 1024 || emitted >= 12000) {
-                truncated = true;
-                break;
-            }
-            out.append("CLASS ").append(item.descriptor).append('\n');
-            for (FxDiaDexIndex.Member member : members) {
-                String line = member.display();
-                if (out.length() + line.length() + 1 > 512 * 1024 || emitted >= 12000) {
-                    truncated = true;
-                    break;
-                }
-                out.append(line).append('\n');
-                emitted++;
-            }
-            if (truncated) break;
+                if (truncated) out.append("\n# 已达到导出安全上限（512 KiB / 12000 成员）；请缩小搜索条件后再次导出。\n");
+                final String exported = out.toString();
+                final int exportedCount = emitted;
+                final boolean wasTruncated = truncated;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed() || request != exportGeneration) return;
+                    if (exported.isEmpty()) {
+                        summary.setText("当前搜索条件没有可导出结果。");
+                        return;
+                    }
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard == null) {
+                        summary.setText("系统剪贴板不可用。");
+                        return;
+                    }
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                            "Dia DEX signatures", exported));
+                    summary.setText("已复制 " + exportedCount + " 个成员签名"
+                            + (wasTruncated ? "（输出达到安全上限，请进一步缩小搜索）" : "") + "。");
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 导出后台队列繁忙，请稍后重试。");
         }
-        if (truncated) out.append("\n# 已达到导出安全上限（512 KiB / 12000 成员）；请缩小搜索条件后再次导出。\n");
-        if (out.length() == 0) {
-            summary.setText("当前搜索条件没有可导出结果。");
-            return;
-        }
-        android.content.ClipboardManager clipboard =
-                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        if (clipboard == null) {
-            summary.setText("系统剪贴板不可用。");
-            return;
-        }
-        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Dia DEX signatures", out.toString()));
-        summary.setText("已复制 " + emitted + " 个成员签名"
-                + (truncated ? "（输出达到安全上限，请进一步缩小搜索）" : "") + "。");
     }
 
     private void showClassMembers(FxDiaDexIndex.DexClass item, List<String> searchMatches) {
@@ -450,9 +478,11 @@ public final class FxDiaDexBrowserActivity extends Activity {
     @Override protected void onDestroy() {
         destroyed = true;
         searchGeneration++;
+        exportGeneration++;
         dexGeneration++;
         worker.shutdownNow();
         searchWorker.shutdownNow();
+        exportWorker.shutdownNow();
         super.onDestroy();
     }
 }
