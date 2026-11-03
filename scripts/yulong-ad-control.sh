@@ -146,6 +146,20 @@ write_dns_section() {
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
   [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
 }
+
+remove_dns_section() {
+  section=$1
+  tmp="$CONF.yulong-dns-remove.$"
+  awk -v section="$section" '
+    $0=="[conf:" section "]" {inside=1; next}
+    /^\[/ {inside=0}
+    !inside {print}
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
+  [ -s "$tmp" ] || { rm -f "$tmp"; return 1; }
+  chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+}
+m_dns_section_clear() { remove_dns_section "$1"; }
+
 write_vpn_dns() {
   key=$1; value=$2; tmp="$CONF.yulong-vpn-dns.$"
   awk -v key="$key" -v value="$value" '
@@ -391,6 +405,12 @@ case "$cmd" in
   esac
   with_lock transaction m_dns_servers "$section" "$servers"
   ;;
+
+ dns-config-clear)
+  [ "$#" -eq 2 ] && [ "$2" = fallback ] || { echo "usage: $0 dns-config-clear fallback" >&2; exit 2; }
+  with_lock transaction m_dns_section_clear yulong_dns_fallback
+  ;;
+
  dns-vpn-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-vpn-set remote_dns|cn_dns ipv4" >&2; exit 2; }
   case "$2" in remote_dns|cn_dns) ;; *) exit 2 ;; esac
