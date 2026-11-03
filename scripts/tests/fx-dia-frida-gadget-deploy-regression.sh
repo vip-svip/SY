@@ -30,7 +30,14 @@ for label, needle in {
     "restart after Gadget deployment": "完全停止并重启目标应用",
     "re-deploy after app update": "需要重新部署",
 }.items():
-    haystack = activity if label.endswith("UI") else deploy_contract
+    activity_labels = {
+        "deploy action UI",
+        "remove action UI",
+        "LSPosed target scope instructions",
+        "restart after Gadget deployment",
+        "re-deploy after app update",
+    }
+    haystack = activity if label in activity_labels else deploy_contract
     if needle not in haystack:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
