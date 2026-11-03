@@ -53,6 +53,28 @@ AGH_INSERT = r'''  # Ad-domain rules stay in [list:rule], separate from FX's 961
       _pg_log 'Yulong ad-domain source enabled but rulefile missing; FX anti-fraud rules remain active'
     fi
   fi
+  # User-managed Yulong allow/block domains flow into AdGuard Home user_rules.
+  # Domain rows are validated and kept separate from FX's reserved [list:fx] data.
+  _yulong_custom_rules=$(
+    {
+      pg_list domain 2>/dev/null | awk -F'|' '
+        function valid(d) {
+          return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+        }
+        $1 !~ /^[[:space:]]*#/ && valid($1) && (NF<3 || $3=="1") {
+          print "@@||" tolower($1) "^"
+        }
+      '
+      pg_list block 2>/dev/null | awk -F'|' '
+        function valid(d) {
+          return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+        }
+        $1 !~ /^[[:space:]]*#/ && valid($1) && (NF<3 || $3=="1") {
+          print "||" tolower($1) "^"
+        }
+      '
+    } | awk '!seen[$0]++'
+  )
 '''
 AGH_USER_RULES_MARKER = "user_rules:\n$_rules\nquerylog:\n  enabled: false\n"
 AGH_USER_RULES_REPLACEMENT = r'''user_rules:
@@ -68,6 +90,9 @@ EOF_CFG
           print "  - \"||" d "^\""
       }
     ' "$_yulong_file" | awk '!seen[$0]++'
+  fi
+  if [ -n "$_yulong_custom_rules" ]; then
+    printf '%s\n' "$_yulong_custom_rules"
   fi
   cat <<EOF_CFG
 querylog:
