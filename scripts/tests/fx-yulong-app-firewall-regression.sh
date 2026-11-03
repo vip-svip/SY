@@ -290,6 +290,9 @@ v2run rule com.example.mobile 20002 1 0 1 0 22:00 06:00 > "$V2/mobile-save.out"
 v2run rule com.example.night 20003 1 1 1 1 22:00 06:00 > "$V2/night-save.out"
 v2run rule com.example.none 20004 0 1 1 0 22:00 06:00 > "$V2/disabled-save.out"
 export MOCK_TIME=23:00
+# The master switch auto-starts the watcher; set the short host-test interval
+# before that process is spawned so it inherits the intended 1-second cadence.
+export WATCH_INTERVAL=1
 v2run master 1 > "$V2/enable.out"
 grep -Fq 'firewall=1' "$V2/enable.out" || fail "v2 firewall did not enable"
 grep -Fq 'iptables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi wildcard rule missing"
@@ -313,7 +316,6 @@ v2run apply-event > "$V2/after-end.out"
 if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003'; then fail "cross-midnight rule remained active after its end minute"; fi
 
 export MOCK_TIME=23:00
-export WATCH_INTERVAL=1
 v2run start-watch > "$V2/watch-start.out"
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing"
