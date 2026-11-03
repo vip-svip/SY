@@ -4904,7 +4904,7 @@ public final class MainActivity extends ComponentActivity {
     private void showCustomRuleExportDialog() {
         try {
             org.json.JSONArray rules = new org.json.JSONArray();
-            java.util.Set<String> exportedGroups = new java.util.LinkedHashSet<>();
+            java.util.Set<String> exportedGroups = new java.util.LinkedHashSet<>(getCustomRuleGroups());
             exportedGroups.add("默认");
             for (int n = 1; n <= 64; n++) {
                 String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
@@ -4961,7 +4961,7 @@ public final class MainActivity extends ComponentActivity {
         EditText input = new EditText(this);
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
         input.setMinLines(8);
-        input.setHint("{\\"format\\":\\"fx-dia-hook-rule-groups-v1\\",\\"sourcePackage\\":\\"com.example.old\\",\\"rules\\":[...]}");
+        input.setHint("Paste FX portable rule-group JSON with format, sourcePackage and rules fields.");
         new AlertDialog.Builder(this).setTitle("导入自定义 Hook 规则组")
                 .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
@@ -4971,6 +4971,7 @@ public final class MainActivity extends ComponentActivity {
                         String raw = input.getText().toString().trim();
                         org.json.JSONArray array;
                         String sourcePackage = selectedPackage;
+                        java.util.Set<String> importedGroupNames = new java.util.LinkedHashSet<>();
                         if (raw.startsWith("[")) {
                             array = new org.json.JSONArray(raw);
                         } else {
@@ -4980,6 +4981,15 @@ public final class MainActivity extends ComponentActivity {
                                 throw new IllegalArgumentException("不支持的规则组 JSON 格式。");
                             sourcePackage = root.optString("sourcePackage", "");
                             array = root.optJSONArray("rules");
+                            org.json.JSONArray groupArray = root.optJSONArray("groups");
+                            if (groupArray != null) {
+                                for (int g = 0; g < groupArray.length(); g++) {
+                                    String groupName = groupArray.optString(g, "").trim();
+                                    if (!validCustomRuleGroupName(groupName))
+                                        throw new IllegalArgumentException("规则组包含无效分组名称。");
+                                    importedGroupNames.add(groupName);
+                                }
+                            }
                             if (array == null) throw new IllegalArgumentException("规则组缺少 rules 数组。");
                         }
                         if (!sourcePackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
@@ -5059,6 +5069,7 @@ public final class MainActivity extends ComponentActivity {
                         editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty());
                         java.util.Set<String> allGroups = new java.util.LinkedHashSet<>();
                         allGroups.add("默认");
+                        allGroups.addAll(importedGroupNames);
                         allGroups.addAll(baseGroups);
                         editor.putStringSet(selectedPackage + ":dev_rule_groups", allGroups);
                         editor.apply();
