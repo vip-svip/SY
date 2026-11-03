@@ -99,6 +99,13 @@ public final class FxYulongAdActivity extends Activity {
   card("DNS 查询日志","默认关闭。仅本机保存最近 7 天 DNS 查询记录，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
+  card("DNS 缓存管理","刷新 FX 自己的 AdGuard Home / Unbound 缓存会短暂重启本地解析服务；第三方 VPN 和它的规则不会被停止。",
+       btn("刷新本地 DNS 缓存",()->new AlertDialog.Builder(this).setTitle("刷新本地 DNS 缓存")
+         .setMessage("本地 DNS 查询可能短暂重试。FX 会重启自有解析服务并重新应用当前规则；不会操作第三方 VPN。")
+         .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush",r->{
+           new AlertDialog.Builder(this).setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
+             .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+         })).show()));
   card("第三方 VPN DNS 过滤回退",
        "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
