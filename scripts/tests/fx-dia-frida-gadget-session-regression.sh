@@ -30,7 +30,7 @@ required = {
     "existing session record binds TCP port": "old_port=$(sed -n '5p' \\\"$pidfile\\\")",
     "existing session record binds exact process": "old_process=$(sed -n '6p' \\\"$pidfile\\\")",
     "stop record binds exact process": "stored_process=$(sed -n '6p' \\\"$pidfile\\\")",
-    "Gadget CLI start persists exact process identity": "process=\\\" + quote(processName)",
+    "Gadget CLI start persists exact process identity": 'process=" + quote(processName)',
 
     "reattach refuses a different target": "FX_GADGET_SESSION_TARGET_CONFLICT",
     "stop record validates package": "stored_pkg=$(sed -n '4p' \\\"$pidfile\\\")",
