@@ -2648,8 +2648,10 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("launcher_only", true)
                             .putExtra("dia_page", page));
                     return;
-                case "应用选择": case "目标应用": case "模块配置": case "模块功能":
                 case "方法 Hook": case "Native 方法": case "函数重写":
+                    showAppList("自定义 Hook");
+                    return;
+                case "应用选择": case "目标应用": case "模块配置": case "模块功能":
                     showAppList();
                     return;
                 case "对话框与通知": case "剪贴板":
