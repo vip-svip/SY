@@ -34,6 +34,48 @@ sh -n "$TMP/control.sh"
 run(){ sh "$TMP/control.sh" "$@"; }
 PKG=com.example.stellarclient
 run pkg-set "$PKG" 1
+# Secure settings require an explicitly granted Stellar scope and a confirmed
+# read-after-write result. The mock represents Android's settings service.
+mkdir -p "$TMP/bin"
+: > "$TMP/settings.store"
+cat > "$TMP/bin/settings" <<'SETTINGS'
+#!/bin/sh
+set -eu
+case "$1:$2" in
+  put:secure)
+    [ "$#" -eq 4 ] || exit 2
+    tmp="$SETTINGS_STORE.tmp.$"
+    awk -F= -v key="$3" '$1!=key{print}' "$SETTINGS_STORE" > "$tmp"
+    printf '%s=%s\\n' "$3" "$4" >> "$tmp"
+    mv "$tmp" "$SETTINGS_STORE"
+    ;;
+  get:secure)
+    [ "$#" -eq 3 ] || exit 2
+    awk -F= -v key="$3" '$1==key{v=$2} END{if(v=="") print "null"; else print v}' "$SETTINGS_STORE"
+    ;;
+  *) exit 2 ;;
+esac
+SETTINGS
+chmod 0700 "$TMP/bin/settings"
+export SETTINGS_STORE="$TMP/settings.store"
+export PATH="$TMP/bin:$PATH"
+if run secure-setting "$PKG" show_ime_with_hard_keyboard 1 >/dev/null 2>&1; then
+  fail "secure-setting write was allowed without SECURE_SETTINGS_WRITE"
+fi
+run scope-set "$PKG" SECURE_SETTINGS_WRITE 1
+secure_result=$(run secure-setting "$PKG" show_ime_with_hard_keyboard 1)
+printf '%s\\n' "$secure_result" | grep -Fq 'success=1 package=com.example.stellarclient secure_setting=show_ime_with_hard_keyboard value=1' || fail "secure-setting write was not confirmed"
+[ "$(settings get secure show_ime_with_hard_keyboard)" = 1 ] || fail "mock Android setting did not retain the written value"
+if run secure-setting "$PKG" adb_enabled 1 >/dev/null 2>&1; then
+  fail "secure-setting key outside the fixed allowlist was accepted"
+fi
+if run secure-setting "$PKG" long_press_timeout 99 >/dev/null 2>&1; then
+  fail "unsafe long_press_timeout value was accepted"
+fi
+run scope-set "$PKG" SECURE_SETTINGS_WRITE 0
+if run secure-setting "$PKG" show_ime_with_hard_keyboard 0 >/dev/null 2>&1; then
+  fail "secure-setting write was allowed after its scope was revoked"
+fi
 run scope-set "$PKG" SHELL_ID_COMMAND 1
 run always-set "$PKG" 'id -u' 1
 listing=$(run list)
@@ -73,4 +115,4 @@ ln -s "$TMP/victim" "$TMP/file-target/command_whitelist.txt"
 sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/file-target|" "$SOURCE" > "$TMP/file-link.sh"
 if sh "$TMP/file-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar state file was accepted"; fi
 grep -Fxq preserve-me "$TMP/victim" || fail "symlink target content was changed"
-echo "PASS: Stellar package/scope storage, symlink rejection and rollback-safe locks"
+echo "PASS: Stellar package/scope storage, SECURE_SETTINGS_WRITE gate/readback, symlink rejection and rollback-safe locks"

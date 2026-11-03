@@ -132,6 +132,7 @@ public final class FxStellarManagerActivity extends Activity {
   addSwitch("读取系统服务列表","SERVICE_LIST_COMMAND",false);
   addSwitch("管理 AppOps（高权限）","APPOPS_MANAGE",true);
   addSwitch("管理运行时权限（高权限）","RUNTIME_PERMISSION_MANAGE",true);
+  addSwitch("安全设置写入（高权限）","SECURE_SETTINGS_WRITE",true);
   body.addView(button("撤销终端命令作用域",()->{
     if(target.isEmpty())return;
     new AlertDialog.Builder(this).setTitle("撤销终端命令权限").setMessage("移除当前应用的 TERMINAL_COMMAND 作用域？")

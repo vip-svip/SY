@@ -40,5 +40,10 @@ save_end = source.index("private void render()", save_start)
 save = source[save_start:save_end]
 assert 'out.putString("stellar_target_package",target)' in save, "selected target package must survive Activity recreation"
 assert "worker.shutdownNow()" in source, "worker must be stopped with Activity lifecycle"
-print("PASS: Stellar manager app inventory is off-main-thread, Root work is bounded, and target selection is restorable")
+assert 'addSwitch("安全设置写入（高权限）","SECURE_SETTINGS_WRITE",true);' in source, \
+       "SECURE_SETTINGS_WRITE has no user-accessible high-privilege grant switch"
+secure_card = source.split('addCard("安全设置写入"', 1)[1].split('addCard("AppOps 管理"', 1)[0]
+assert "SECURE_SETTINGS_WRITE" in secure_card and 'confirmManaged("secure-setting ' in secure_card, \
+       "secure-setting actions must require the dedicated scope and explicit confirmation"
+print("PASS: Stellar manager app inventory is off-main-thread, Root work is bounded, target selection is restorable, and secure-settings scope is grantable")
 PY
