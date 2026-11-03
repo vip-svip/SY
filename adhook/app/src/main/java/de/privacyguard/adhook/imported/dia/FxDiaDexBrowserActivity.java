@@ -47,10 +47,10 @@ public final class FxDiaDexBrowserActivity extends Activity {
             r -> new Thread(r, "fx-dia-dex-detail"), new ThreadPoolExecutor.DiscardOldestPolicy());
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> appLabels = new HashMap<>();
-    private int searchGeneration;
-    private int exportGeneration;
-    private int detailGeneration;
-    private int dexGeneration;
+    private volatile int searchGeneration;
+    private volatile int exportGeneration;
+    private volatile int detailGeneration;
+    private volatile int dexGeneration;
     private boolean appsLoading;
     private volatile boolean destroyed;
 
@@ -120,7 +120,11 @@ public final class FxDiaDexBrowserActivity extends Activity {
         body.addView(results);
         filter.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                exportGeneration++;
+                detailGeneration++;
+                render();
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
         loadInstalledApps();
@@ -190,12 +194,16 @@ public final class FxDiaDexBrowserActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
                 .setItems(labels, (dialog, which) -> {
                     selected = apps.get(which);
+                    exportGeneration++;
+                    detailGeneration++;
                     target.setText(labels[which]);
                     classes.clear(); render();
                 }).setNegativeButton("取消", null).show();
     }
 
     private void loadFrameworkDex() {
+        exportGeneration++;
+        detailGeneration++;
         summary.setText("正在读取 Dia 23.11 随附的 Android Framework DEX…");
         results.removeAllViews();
         final int request = ++dexGeneration;
@@ -282,17 +290,19 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 List<SearchHit> hits = new ArrayList<>();
                 boolean hasMore = false;
                 for (FxDiaDexIndex.DexClass item : snapshot) {
-                    if (Thread.currentThread().isInterrupted()) return;
+                    if (Thread.currentThread().isInterrupted() || request != searchGeneration) return;
                     String className = item.javaName();
                     boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
                             || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
                     List<String> matches = new ArrayList<>();
                     if (!classMatch && !q.isEmpty()) {
                         for (FxDiaDexIndex.Member member : item.methods) {
+                            if (Thread.currentThread().isInterrupted() || request != searchGeneration) return;
                             if (member.display().toLowerCase(Locale.ROOT).contains(q))
                                 matches.add(member.display());
                         }
                         for (FxDiaDexIndex.Member member : item.fields) {
+                            if (Thread.currentThread().isInterrupted() || request != searchGeneration) return;
                             if (member.display().toLowerCase(Locale.ROOT).contains(q))
                                 matches.add(member.display());
                         }
@@ -359,7 +369,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 int emitted = 0;
                 boolean truncated = false;
                 for (FxDiaDexIndex.DexClass item : snapshot) {
-                    if (Thread.currentThread().isInterrupted()) return;
+                    if (Thread.currentThread().isInterrupted() || request != exportGeneration) return;
                     String className = item.javaName();
                     boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
                             || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
@@ -369,9 +379,11 @@ public final class FxDiaDexBrowserActivity extends Activity {
                         members.addAll(item.methods);
                     } else {
                         for (FxDiaDexIndex.Member member : item.fields) {
+                            if (Thread.currentThread().isInterrupted() || request != exportGeneration) return;
                             if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
                         }
                         for (FxDiaDexIndex.Member member : item.methods) {
+                            if (Thread.currentThread().isInterrupted() || request != exportGeneration) return;
                             if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
                         }
                     }
@@ -382,6 +394,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
                     }
                     out.append("CLASS ").append(item.descriptor).append('\n');
                     for (FxDiaDexIndex.Member member : members) {
+                        if (Thread.currentThread().isInterrupted() || request != exportGeneration) return;
                         String line = member.display();
                         if (out.length() + line.length() + 1 > 512 * 1024 || emitted >= 12000) {
                             truncated = true;
@@ -426,8 +439,9 @@ public final class FxDiaDexBrowserActivity extends Activity {
         summary.setText("正在后台整理类成员和直接调用关系…");
         try {
             detailWorker.execute(() -> {
-                String built = buildClassDetail(item, q);
-                if (built == null || Thread.currentThread().isInterrupted()) return;
+                String built = buildClassDetail(item, q, request);
+                if (built == null || Thread.currentThread().isInterrupted()
+                        || request != detailGeneration) return;
                 final String content = built;
                 runOnUiThread(() -> {
                     if (destroyed || isFinishing() || isDestroyed() || request != detailGeneration) return;
@@ -455,7 +469,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         }
     }
 
-    private String buildClassDetail(FxDiaDexIndex.DexClass item, String q) {
+    private String buildClassDetail(FxDiaDexIndex.DexClass item, String q, int request) {
         StringBuilder detail = new StringBuilder();
         detail.append(item.descriptor).append('\n');
         detail.append("父类：").append(item.superDescriptor == null
@@ -475,7 +489,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         source.addAll(item.fields);
         source.addAll(item.methods);
         for (FxDiaDexIndex.Member member : source) {
-            if (Thread.currentThread().isInterrupted()) return null;
+            if (Thread.currentThread().isInterrupted() || request != detailGeneration) return null;
             String line = member.display();
             if (!q.isEmpty() && !className.contains(q) && !line.toLowerCase(Locale.ROOT).contains(q)) continue;
             if (count >= 400) {
@@ -490,7 +504,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         detail.append("\n直接调用关系（DEX invoke 指令）：\n");
         int callCount = 0;
         for (FxDiaDexIndex.CallSite call : item.calls) {
-            if (Thread.currentThread().isInterrupted()) return null;
+            if (Thread.currentThread().isInterrupted() || request != detailGeneration) return null;
             String line = call.display();
             if (!q.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(q) && !className.contains(q)) continue;
             if (callCount >= 200) {

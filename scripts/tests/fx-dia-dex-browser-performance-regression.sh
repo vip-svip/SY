@@ -46,6 +46,9 @@ assert "searchWorker.execute(() -> {" in render, "class/member filtering must ru
 assert "new ArrayList<>(classes)" in render, "background search must use a stable UI-created snapshot"
 assert "request != searchGeneration" in render, "stale search results must not replace the latest query"
 assert "Thread.currentThread().isInterrupted()" in render, "superseded search work must stop early"
+assert "request != searchGeneration) return;" in render, "running search must stop when a newer query is published"
+assert render.count("request != searchGeneration) return;") >= 3, "search must check cancellation in class and member loops"
+assert "private volatile int searchGeneration;" in source, "search cancellation generation must be visible across threads"
 assert "results.removeAllViews()" in render, "results are committed only on the UI thread"
 assert "for (FxDiaDexIndex.DexClass item : classes)" not in render, "DEX member scans must not execute on the UI thread"
 assert "private void DexClassRow(SearchHit hit)" in source
@@ -55,6 +58,9 @@ export = section("private void exportMatches()", "private void showClassMembers(
 assert "exportWorker.execute(() -> {" in export, "signature export must run off the UI thread"
 assert "new ArrayList<>(classes)" in export, "signature export must use a stable UI-created snapshot"
 assert "Thread.currentThread().isInterrupted()" in export, "superseded exports must stop early"
+assert "request != exportGeneration) return;" in export, "running export must stop when a newer export/query is published"
+assert export.count("request != exportGeneration) return;") >= 4, "export must check cancellation in outer and member loops"
+assert "private volatile int exportGeneration;" in source, "export cancellation generation must be visible across threads"
 assert "runOnUiThread(() -> {" in export, "clipboard access must return to the UI thread"
 assert "clipboard.setPrimaryClip(" in export, "exported signatures must still reach the system clipboard"
 assert "for (FxDiaDexIndex.DexClass item : classes)" not in export, "DEX export must not scan the class graph on the UI thread"
@@ -65,10 +71,14 @@ assert 'new Thread(r, "fx-dia-dex-detail")' in source, "DEX detail worker must h
 detail = section("private void showClassMembers(", "private String buildClassDetail(")
 assert "detailWorker.execute(() -> {" in detail, "member/call detail construction must run off the UI thread"
 assert "runOnUiThread(() -> {" in detail, "member dialog must be displayed on the UI thread"
-assert "buildClassDetail(item, q)" in detail
+assert "buildClassDetail(item, q, request)" in detail
+assert "request != detailGeneration" in detail, "class detail must pass its generation into the worker"
 assert "for (FxDiaDexIndex.Member" not in detail, "the UI click handler must not scan class members"
 builder = section("private String buildClassDetail(", "@Override protected void onDestroy()")
 assert "Thread.currentThread().isInterrupted()" in builder, "superseded detail work must stop early"
+assert "request != detailGeneration) return null;" in builder, "class detail must stop on a newer detail/query request"
+assert builder.count("request != detailGeneration) return null;") >= 2, "detail must check cancellation in member and call loops"
+assert "private volatile int detailGeneration;" in source, "detail cancellation generation must be visible across threads"
 assert "count >= 400" in builder and "callCount >= 200" in builder, "member/call detail limits must remain"
 assert "append('\\n')" in builder, "member detail output must use actual line breaks, not literal backslash-n text"
 
@@ -76,6 +86,7 @@ destroy_start = source.find("@Override protected void onDestroy()")
 assert destroy_start >= 0, "Activity cleanup method is missing"
 destroy = source[destroy_start:]
 assert "destroyed = true;" in destroy
+assert "private volatile int dexGeneration;" in source, "DEX load generation must be visible across threads"
 assert "searchGeneration++;" in destroy and "exportGeneration++;" in destroy and "dexGeneration++;" in destroy
 assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy and "detailWorker.shutdownNow();" in destroy
 assert "Executors.newSingleThreadExecutor" not in source, "unbounded DEX executor must not return"
