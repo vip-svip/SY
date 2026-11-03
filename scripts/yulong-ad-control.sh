@@ -76,6 +76,58 @@ m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
 m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
+valid_time() {
+  printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'
+}
+valid_days() {
+  printf '%s\n' "$1" | awk -F, '
+    NF<1 || NF>7 {exit 1}
+    {for(i=1;i<=NF;i++){if($i!~/^[1-7]$/ || seen[$i]++) exit 1}}
+    END{if(NF>=1 && NF<=7) exit 0; exit 1}
+  '
+}
+schedule_get() {
+  file="$PG/yulong-ad-schedule.conf"
+  enabled=0; start=22:00; end=07:00; days=1,2,3,4,5,6,7
+  if [ -f "$file" ] && [ ! -L "$file" ]; then
+    enabled=$(awk -F= '$1=="enabled"{print $2;exit}' "$file")
+    start=$(awk -F= '$1=="start"{print $2;exit}' "$file")
+    end=$(awk -F= '$1=="end"{print $2;exit}' "$file")
+    days=$(awk -F= '$1=="days"{print $2;exit}' "$file")
+    [ "$enabled" = 1 ] || enabled=0
+    valid_time "$start" || start=22:00
+    valid_time "$end" || end=07:00
+    valid_days "$days" || days=1,2,3,4,5,6,7
+  fi
+  echo FXYULONGADSCHED1
+  echo "enabled=$enabled"
+  echo "start=$start"
+  echo "end=$end"
+  echo "days=$days"
+  echo "active=$(pg_get yulong_ad_schedule_active 1)"
+}
+schedule_set() {
+  enabled=$1; start=$2; end=$3; days=$4
+  { [ "$enabled" = 0 ] || [ "$enabled" = 1 ]; } || return 2
+  valid_time "$start" && valid_time "$end" && valid_days "$days" || {
+    echo "invalid schedule: use HH:MM and unique weekdays 1..7" >&2; return 2;
+  }
+  file="$PG/yulong-ad-schedule.conf"
+  tmp="$file.tmp.$"
+  umask 077
+  {
+    printf 'enabled=%s\n' "$enabled"
+    printf 'start=%s\n' "$start"
+    printf 'end=%s\n' "$end"
+    printf 'days=%s\n' "$days"
+  } > "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 600 "$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  if [ -x "$MP/scripts/yulong-ad-schedule.sh" ]; then
+    MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate
+  else
+    echo "schedule saved; runtime scheduler will apply it after module update/restart"
+  fi
+}
 cmd="${1:-list}"
 case "$cmd" in
   dns-log-tail)
@@ -142,6 +194,13 @@ case "$cmd" in
   case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled) ;; *) exit 2 ;; esac
   [ "$3" = 0 ] || [ "$3" = 1 ] || exit 2
   with_lock transaction m_dns "$2" "$3" ;;
+ schedule-get)
+  schedule_get
+  ;;
+ schedule-set)
+  [ "$#" -eq 5 ] || { echo "usage: $0 schedule-set 0|1 HH:MM HH:MM days-csv" >&2; exit 2; }
+  with_lock schedule_set "$2" "$3" "$4" "$5"
+  ;;
  rootproxy-status)
   if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
     sh "$MP/scripts/yulong-root-proxy.sh" status
