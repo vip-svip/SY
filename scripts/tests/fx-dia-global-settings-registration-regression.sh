@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 APP="$ROOT/adhook/app/src/main"
 MAIN="$APP/java/de/privacyguard/adhook/MainActivity.java"
 MANIFEST="$APP/AndroidManifest.xml"
