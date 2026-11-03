@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        FX uses libxposed dynamic scope (META-INF/xposed/module.prop:
+        staticScope=false). Keep the legacy Xposed metadata resource valid
+        without preselecting every installed package; users choose exact targets
+        in the LSPosed manager.
+    -->
+    <string-array name="xposed_scope" />
+</resources>
