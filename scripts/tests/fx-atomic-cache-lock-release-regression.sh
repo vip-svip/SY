@@ -17,6 +17,10 @@ done
 python3 "$PATCHER" "$MODULE" || fail "first atomic-lock patch application failed"
 python3 "$PATCHER" "$MODULE" || fail "second atomic-lock patch application failed"
 
+# Run the canonical concurrency fixture, not an older copy embedded in the
+# published module. The source fixture contains the deterministic transfer gate.
+install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh" "$SUB_TEST"
+
 grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$APPLY" || fail "Hosts lock release does not atomically rename the owner directory"
 grep -Fq 'mv "$LOCK" "$_sl_release"' "$SUBFETCH" || fail "subscription lock release does not atomically rename the owner directory"
 python3 - "$APPLY" "$SUBFETCH" <<'PY'
