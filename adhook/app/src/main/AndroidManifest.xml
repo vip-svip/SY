@@ -58,5 +58,6 @@
                 <data android:scheme="package" />
             </intent-filter>
         </receiver>
+            <activity android:name=".imported.dia.FxDiaFridaActivity" android:exported="false" />
     </application>
 </manifest>

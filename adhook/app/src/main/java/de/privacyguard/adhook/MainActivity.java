@@ -2676,8 +2676,9 @@ public final class MainActivity extends ComponentActivity {
                     showSettings();
                     return;
                 case "Frida 环境": case "Frida 注入": case "监听模式":
-                    showImportedSuitePendingPage(suite, category, page,
-                            "Dia 23.11 的 Frida 服务管理、进程注入和监听模式尚未整体迁入。FX 当前的 QuickJS 脚本运行时不是 Frida，不能把二者标为等价。");
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", page));
                     return;
                 case "本地备份": case "GitHub 备份": case "WebDAV 备份":
                     showImportedSuitePendingPage(suite, category, page,
