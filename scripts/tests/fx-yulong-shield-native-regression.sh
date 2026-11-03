@@ -41,6 +41,14 @@ for label in ("Dia 23.11", "游龙广告插件 7.0.1", "游龙安全护盾 9.9.6
     assert label in main, f"Settings migration entry missing: {label}"
 for name in ("showImportedSuite", "showImportedSuiteCategory", "openImportedSuitePage"):
     assert name in main, f"3rd/4th-level navigation missing: {name}"
+for panel in ("notifyPanel", "sensorPanel", "netPanel", "devicePanel", "filePanel",
+              "locationPanel", "miscPanel"):
+    assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia page is not wired to native FX panel: {panel}"
+assert "FX 当前的 QuickJS 脚本运行时不是 Frida" in main, "Frida must not be mislabeled as QuickJS"
+assert 'case "Wi-Fi 模拟"' not in main and 'case "网络类型模拟"' not in main, \
+    "Unimplemented Dia Wi-Fi/network simulation must remain explicitly pending"
+assert 'case "按键控制"' not in main and 'case "应用版本"' not in main and 'case "签名信息"' not in main, \
+    "Unimplemented Dia features must not be routed to unrelated settings panels"
 
 hub = shield["FxYulongShieldActivity.java"]
 db_page = shield["FxYulongVirusDatabaseActivity.java"]
