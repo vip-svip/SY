@@ -151,10 +151,16 @@ assert "private LinearLayout body" in scan_page and "private LinearLayout result
 assert "resultRows.removeAllViews()" in scan_page and "resultRows.addView(item" in scan_page
 assert "findings.removeAllViews()" not in scan_page
 
+# Keep the original shield_prefs namespace so lists created by the 9.9.60
+# app remain visible after migration; do not invent a second FX-only list store.
 for source, label in ((white, "WhitelistActivity"), (picker, "WhitelistPickerActivity"),
                       (black, "BlacklistActivity")):
-    assert '"fx_yulong_shield_prefs"' in source, f"{label} preference namespace missing"
+    assert 'getSharedPreferences("shield_prefs", MODE_PRIVATE)' in source, \
+        f"{label} no longer reads the compatible Shield preference namespace"
     assert "com.youlong.hd" not in source, f"{label} still references source package"
+assert '"whitelist_pkgs"' in white and '"whitelist_pkgs"' in picker, \
+    "Whitelist manager and picker must share the original whitelist key"
+assert '"blacklist_pkgs"' in black, "Blacklist manager must preserve the original blacklist key"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
 
 # Blacklist inventory and selection must not enumerate every installed package on
