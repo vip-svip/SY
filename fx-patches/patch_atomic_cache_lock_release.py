@@ -8,6 +8,8 @@ apply_file = module / "scripts/apply.sh"
 subfetch_file = module / "scripts/subfetch.sh"
 host_test = module / "scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh"
 sub_test = module / "scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
+root_proxy = module / "scripts/yulong-root-proxy.sh"
+root_proxy_test = module / "scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh"
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
     source = path.read_text(encoding="utf-8")
@@ -36,7 +38,7 @@ def replace_if_present(path: Path, old: str, new: str, label: str) -> bool:
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
     return True
 
-for required in (apply_file, subfetch_file, host_test, sub_test):
+for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
 
@@ -109,6 +111,128 @@ new_sub_unlock = '''subfetch_unlock() {
 }'''
 replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
 
+
+old_root_proxy_lock = '''with_lock() {
+  _tries=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+    case "$_owner" in
+      ''|*[!0-9]*)
+        # Allow the owner to publish its PID immediately after mkdir.
+        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+      *)
+        if ! kill -0 "$_owner" 2>/dev/null; then
+          rm -f "$LOCK/pid" 2>/dev/null || :
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+    esac
+    _tries=$((_tries+1))
+    [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
+    sleep 1
+  done
+  if ! printf '%s\\n' "$" > "$LOCK/pid"; then
+    rmdir "$LOCK" 2>/dev/null || :
+    echo "cannot record root DNS proxy lock owner" >&2
+    return 10
+  fi
+  cleanup_lock() {
+    rm -f "$LOCK/pid" 2>/dev/null || :
+    rmdir "$LOCK" 2>/dev/null || :
+  }
+  # Signal handlers exit first; EXIT performs the one authoritative cleanup.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  "$@"
+}'''
+new_root_proxy_lock = '''with_lock() {
+  _tries=0
+  _lock_held=0
+  while :; do
+    if [ ! -L "$LOCK" ] && mkdir "$LOCK" 2>/dev/null; then
+      _lock_held=1
+      break
+    fi
+    [ ! -L "$LOCK" ] || { echo "unsafe root DNS proxy lock path" >&2; return 11; }
+    [ ! -L "$LOCK/pid" ] || { echo "unsafe root DNS proxy lock owner record" >&2; return 11; }
+    _owner=$(cat "$LOCK/pid" 2>/dev/null || :)
+    case "$_owner" in
+      ''|*[!0-9]*)
+        # Give a newly-created owner a short PID publication window. If it
+        # remains empty, atomically quarantine the complete directory.
+        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
+          _stale="$LOCK.stale.$.$_tries"
+          if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
+            _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
+            if [ -z "$_moved_owner" ]; then
+              rm -rf "$_stale" 2>/dev/null || :
+            elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+              mv "$_stale" "$LOCK" 2>/dev/null || :
+            fi
+          fi
+        fi
+        ;;
+      *)
+        if ! kill -0 "$_owner" 2>/dev/null; then
+          _owner_again=$(cat "$LOCK/pid" 2>/dev/null || :)
+          if [ "$_owner_again" = "$_owner" ] && ! kill -0 "$_owner_again" 2>/dev/null; then
+            _stale="$LOCK.stale.$.$_tries"
+            if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
+              _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
+              if [ "$_moved_owner" = "$_owner" ] && ! kill -0 "$_moved_owner" 2>/dev/null; then
+                rm -rf "$_stale" 2>/dev/null || :
+              elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+                mv "$_stale" "$LOCK" 2>/dev/null || :
+              fi
+            fi
+          fi
+        fi
+        ;;
+    esac
+    _tries=$((_tries+1))
+    [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
+    sleep 1
+  done
+  if ! (umask 077; set -C; printf '%s\\\\n' "$" > "$LOCK/pid") 2>/dev/null; then
+    _release="$LOCK.failed.$"
+    if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
+      rm -rf "$_release" 2>/dev/null || :
+    fi
+    _lock_held=0
+    echo "cannot record root DNS proxy lock owner" >&2
+    return 10
+  fi
+  cleanup_lock() {
+    [ "$_lock_held" = 1 ] || return 0
+    _owner=$(cat "$LOCK/pid" 2>/dev/null || :)
+    if [ "$_owner" = "$" ]; then
+      _release="$LOCK.release.$"
+      _release_try=0
+      while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_release_try" -lt 20 ]; do
+        _release_try=$((_release_try+1))
+        _release="$LOCK.release.$.$_release_try"
+      done
+      if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
+        _release_owner=$(cat "$_release/pid" 2>/dev/null || :)
+        if [ "$_release_owner" = "$" ]; then rm -rf "$_release" 2>/dev/null || :; fi
+      fi
+    fi
+    _lock_held=0
+    return 0
+  }
+  # Signal handlers exit first; EXIT performs the one authoritative cleanup.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  "$@"
+}'''
+replace_once(root_proxy, old_root_proxy_lock, new_root_proxy_lock, "Root Proxy lock must use atomic directory rename")
 replace_once(
     subfetch_file,
     '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
@@ -368,6 +492,47 @@ replace_once(
     '[ ! -d "$T/state/subs/.lock.$key" ] || { echo "FAIL: subscription lock directory leaked after both workers exited" >&2; find "$T/state/subs/.lock.$key" -maxdepth 2 -print >&2; exit 1; }\n',
     "subscription concurrency test must explain lock directory leak",
 )
-for path in (apply_file, subfetch_file, host_test, sub_test):
+
+replace_once(
+    root_proxy_test,
+    'for script in adguardhome.sh unbound.sh; do\n  cat > "$MOD/scripts/$script" <<\\'SH\\'\n#!/system/bin/sh\nexit 0\nSH\n  chmod 0755 "$MOD/scripts/$script"\ndone',
+    'for script in adguardhome.sh unbound.sh; do\n  cat > "$MOD/scripts/$script" <<\\'SH\\'\n#!/system/bin/sh\n[ "$1" != stop ] || /bin/sleep 0.04\nexit 0\nSH\n  chmod 0755 "$MOD/scripts/$script"\ndone',
+    "Root Proxy engine stub holds lock during stop",
+)
+replace_once(
+    root_proxy_test,
+    'cat > "$BIN/sleep" <<\\'SH\\'\n#!/system/bin/sh\nexit 0\nSH\n',
+    'cat > "$BIN/sleep" <<\\'SH\\'\n#!/system/bin/sh\ncase "$1" in\n  1) /bin/sleep 0.01 ;;\n  *) /bin/sleep "$@" ;;\nesac\nSH\n',
+    "Root Proxy waiter sleep must be bounded but observable",
+)
+replace_once(
+    root_proxy_test,
+    'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\\n',
+    '''grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
+  echo "FAIL: Root Proxy unlock does not atomically rename its owner directory" >&2; exit 1;
+}
+if grep -Fq 'rm -f "$LOCK/pid" 2>/dev/null || :' "$SOURCE"; then
+  echo "FAIL: Root Proxy unlock still removes PID before the lock directory" >&2; exit 1;
+fi
+if grep -Fq 'rmdir "$LOCK" 2>/dev/null || :' "$SOURCE"; then
+  echo "FAIL: Root Proxy unlock still exposes a PID-less directory window" >&2; exit 1;
+fi
+# Two stop operations overlap while the mock engines keep the first owner
+# inside the protected section. The waiter must acquire after atomic release.
+sh "$SOURCE" stop > "$TMP/concurrent-a.log" 2>&1 & p1=$!
+/bin/sleep 0.005
+sh "$SOURCE" stop > "$TMP/concurrent-b.log" 2>&1 & p2=$!
+wait "$p1" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
+wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
+[ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked their lock" >&2; exit 1; }
+[ -z "$(find "$PG" -maxdepth 1 -name 'yulong-root-proxy.lock.*' -print -quit)" ] || {
+  echo "FAIL: Root Proxy stale/release directory leaked" >&2; exit 1;
+}
+echo "PASS: Yulong Root Proxy lock uses atomic owner-directory release, recovers stale owners, preserves live owners and serializes concurrent stops"
+''',
+    "Root Proxy lock regression with concurrent stop",
+)
+
+for path in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     path.chmod(0o755)
 print("PASS: Hosts and subscription cache locks use atomic owner-directory release")

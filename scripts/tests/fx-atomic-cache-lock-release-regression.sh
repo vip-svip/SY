@@ -167,4 +167,5 @@ while [ "$i" -le 4 ]; do
   fi
   i=$((i+1))
 done
-echo "PASS: atomic Hosts/subscription lock release; 6 Hosts and 4 subscription concurrency runs passed"
+sh "$MODULE/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh" || fail "Yulong Root Proxy atomic lock regression failed"
+echo "PASS: atomic Hosts/subscription/Root Proxy lock regressions passed"
