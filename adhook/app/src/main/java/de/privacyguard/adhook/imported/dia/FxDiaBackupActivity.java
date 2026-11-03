@@ -344,12 +344,12 @@ public final class FxDiaBackupActivity extends Activity {
             for (Map.Entry<String, byte[]> entry : validated.entrySet()) {
                 java.io.File cache = java.io.File.createTempFile(
                         "fx-dia-restore-", ".tmp", getCacheDir());
+                staged.put(entry.getKey(), cache);
                 try (OutputStream out = new java.io.FileOutputStream(cache, false)) {
                     out.write(entry.getValue());
                     out.flush();
                     out.getFD().sync();
                 }
-                staged.put(entry.getKey(), cache);
             }
             return staged;
         } catch (Exception error) {
@@ -398,6 +398,7 @@ public final class FxDiaBackupActivity extends Activity {
                 .append("if [ -f \\\"$TXN/settings.old\\\" ]; then mv -f \\\"$TXN/settings.old\\\" \\\"$CONF\\\" || _fx_recovery_failed=1; ")
                 .append("else _fx_recovery_failed=1; fi; ");
         for (String name : names) {
+            if (!stellarFiles.containsKey(name)) continue;
             command.append("if [ -f \\\"$STXN/").append(name).append(".existed\\\" ]; then ")
                     .append("if [ -f \\\"$STXN/").append(name).append(".old\\\" ]; then ")
                     .append("mv -f \\\"$STXN/").append(name).append(".old\\\" \\\"$DIR/")
@@ -445,7 +446,7 @@ public final class FxDiaBackupActivity extends Activity {
         }
         command.append("if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then :; else exit 31; fi; ")
                 .append("_fx_committed=1; trap - EXIT HUP INT TERM; ")
-                .append("rm -rf \\\"$TXN\\\" \\\"$STXN\\\"; echo FX_DIA_RESTORE_COMMITTED");
+                .append("rm -rf \\\"$TXN\\\" \\\"$STXN\\\" || :; echo FX_DIA_RESTORE_COMMITTED");
         return command.toString();
     }
 
@@ -471,11 +472,11 @@ public final class FxDiaBackupActivity extends Activity {
         }
         JSONObject prefs = backup.getJSONObject("preferences");
         validateBackupPreferences(prefs);
-        java.util.Map<String, java.io.File> stagedStellar = stageAndValidateStellarFiles(backup);
         String[] preferenceNames = {"MainActivity", "fx_dia_frida", "shield_prefs",
                 "stellar_command_whitelist", "fx_hook_publish", "fx_dia_launcher_hidden"};
         JSONObject previousPreferences = new JSONObject();
         for (String name : preferenceNames) previousPreferences.put(name, prefsJson(name));
+        java.util.Map<String, java.io.File> stagedStellar = stageAndValidateStellarFiles(backup);
 
         java.io.File moduleTemp = new java.io.File(getCacheDir(), "fx-dia-settings.restore");
         boolean preferencesMayHaveChanged = false;
