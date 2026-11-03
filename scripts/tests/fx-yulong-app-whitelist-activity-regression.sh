@@ -29,7 +29,7 @@ require("int limit = Math.max(1, appPage) * APP_PAGE_SIZE;", "application rows a
 require("if (matched > limit)", "a load-more action is required for additional applications")
 require("appPage = 1;", "search/filter changes must restart at page one")
 require("final boolean[] suppress = {false};", "failed whitelist changes must suppress rollback listener recursion")
-require("callback.accept(RootAccess.execute(\"\"));", "saturated Root queue must complete UI callbacks with an explicit failure")
+require("callback.accept(RootAccess.failure(75,", "saturated Root queue must complete UI callbacks with an explicit failure result")
 require("destroyed = true;", "Activity teardown must reject late callbacks")
 require("worker.shutdownNow();", "Root worker must be released")
 require("appWorker.shutdownNow();", "application inventory worker must be released")
