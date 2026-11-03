@@ -61,7 +61,7 @@ assert item_start > advanced_end and choice_start > item_start and save_start > 
     "native VPN advanced edit/choice/save chain is incomplete"
 item_path=source[item_start:choice_start]
 choice_path=source[choice_start:save_start]
-save_path=source[save_start:source.find("\\n    private ", save_start+20)]
+save_path=source[save_start:source.find("private void", save_start+30)]
 assert "EditText" in item_path and "saveNativeVpnAdvancedValue" in item_path, \
     "free-form advanced VPN values are no longer editable"
 assert "setSingleChoiceItems" in choice_path and "saveNativeVpnAdvancedValue" in choice_path, \
