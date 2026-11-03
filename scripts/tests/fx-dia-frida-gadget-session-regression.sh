@@ -62,7 +62,11 @@ for process_id in ("cli_pid", "feed_pid"):
         raise SystemExit(f"FAIL: session stop must terminate the owned {process_id} process")
 if "FX_GADGET_CLI_PID_CONFLICT" not in stop or "FX_GADGET_FEEDER_PID_CONFLICT" not in stop:
     raise SystemExit("FAIL: stop path must refuse unrelated PID owners")
-print("PASS: Frida CLI Gadget session validates target/port, owns a persistent process, captures logs and provides a PID-checked stop action")
+if "final String expectedCli = currentFridaCliPath();" not in stop:
+    raise SystemExit("FAIL: stop path must bind to the currently configured Frida CLI")
+if '[ \\"$cli\\" = \\"$expected_cli\\" ]' not in stop:
+    raise SystemExit("FAIL: stop path must compare the recorded CLI path, not the Gadget JS path")
+print("PASS: Frida CLI Gadget session validates target/port/CLI identity, owns a persistent process, captures logs and provides a PID-checked stop action")
 PY
 
 # Exercise a long-lived remote Frida CLI session with a local mock. This validates
@@ -199,9 +203,10 @@ cli=$(sed -n '3p' "$pidfile")
 stored_pkg=$(sed -n '4p' "$pidfile")
 stored_port=$(sed -n '5p' "$pidfile")
 expected_pkg=$2
+expected_cli=$3
 case "$cli_pid:$feed_pid" in *[!0-9:]*|:*) exit 22;; esac
 case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
-[ "$stored_pkg" = "$expected_pkg" ] && [ "$stored_port" = "$port" ] && [ "$cli" = "$dir/gadget-$port.js" ] || {
+[ "$stored_pkg" = "$expected_pkg" ] && [ "$stored_port" = "$port" ] && [ "$cli" = "$expected_cli" ] || {
   echo FX_GADGET_SESSION_TARGET_CONFLICT
   exit 30
 }
@@ -240,16 +245,21 @@ grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-start.result"
 grep -Fq FX_GADGET_SESSION_ALREADY_RUNNING "$T/reconnect.result"
 kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")"
 
-if "$T/stop.sh" "$T/logs" "com.example.other" > "$T/wrong-target-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.other" "$T/frida" > "$T/wrong-target-stop.result" 2>&1; then
   echo "FAIL: Gadget stop accepted a different target package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-stop.result"
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/not-the-frida-cli" > "$T/wrong-cli-stop.result" 2>&1; then
+  echo "FAIL: Gadget stop accepted a different Frida CLI identity" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-cli-stop.result"
 kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
   echo "FAIL: wrong-target stop terminated the active session" >&2
   exit 1
 }
-"$T/stop.sh" "$T/logs" "com.example.debuggable" > "$T/stop.result"
+"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
 [ ! -e "$T/logs/gadget-27043.pid" ] && [ ! -e "$T/logs/gadget-27043.stdin" ]
 [ -z "$(find "$T/logs" -maxdepth 1 -name '.gadget-27043.*' -print -quit)" ] || {
