@@ -32,7 +32,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                 if (code == 0) FxYulongAdWidgetProvider.refreshAll(context);
             }catch(Throwable ignored){}
             Intent reply=new Intent(ACTION_RESULT);
-            reply.setPackage(context.getPackageName());
+            reply.putExtra("source_action", action);
             reply.putExtra("requested_enabled",enabled);
             reply.putExtra("success",code==0);
             reply.putExtra("exit_code",code);
