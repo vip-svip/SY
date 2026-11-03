@@ -157,6 +157,67 @@ public final class MainActivity extends ComponentActivity {
         } else {
             showDashboard();
         }
+        handleLegacyVpnShortcut(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleLegacyVpnShortcut(intent);
+    }
+
+    private void handleLegacyVpnShortcut(Intent intent) {
+        if (intent == null || !"app.pwhs.blockads.ACTION_TOGGLE_SHORTCUT".equals(intent.getAction())) return;
+        intent.setAction(null);
+        nativeVpnExecutor.execute(() -> {
+            RootAccess.Result status = RootAccess.execute(nativeVpnRootCommand("status", ""), 20000L, 128 * 1024);
+            String nextMode;
+            String currentMode;
+            String node;
+            try {
+                if (status.exitCode != 0) throw new IllegalStateException(status.output);
+                JSONObject state = new JSONObject(status.output.trim());
+                currentMode = state.optString("vpn_mode", "direct");
+                node = state.optString("vpn_node", "");
+                boolean live = state.optBoolean("vpn_on", false);
+                if (live && !"direct".equals(currentMode)) {
+                    getSharedPreferences("fx_vpn_shortcut", MODE_PRIVATE).edit()
+                            .putString("last_non_direct_mode", currentMode).apply();
+                    nextMode = "direct";
+                } else {
+                    String saved = getSharedPreferences("fx_vpn_shortcut", MODE_PRIVATE)
+                            .getString("last_non_direct_mode", "global");
+                    nextMode = "direct".equals(currentMode) ? saved : currentMode;
+                    if (!java.util.Arrays.asList("global", "rule", "tun").contains(nextMode)) nextMode = "global";
+                    if (node == null || node.trim().isEmpty()) {
+                        runOnUiThread(() -> Toast.makeText(this,
+                                "尚未选择 VPN 节点；请先在 FX VPN 页面选择节点。",
+                                Toast.LENGTH_LONG).show());
+                        return;
+                    }
+                }
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "无法读取 FX VPN 状态：" + error.getMessage(), Toast.LENGTH_LONG).show());
+                return;
+            }
+            final String wanted = nextMode;
+            RootAccess.Result applied = RootAccess.execute(
+                    nativeVpnRootCommand("mode", wanted), 120000L, 256 * 1024);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (applied.exitCode == 0) {
+                    Toast.makeText(this,
+                            "FX VPN 快捷切换：" + ("direct".equals(wanted) ? "直连" : wanted),
+                            Toast.LENGTH_SHORT).show();
+                    refreshWebUiAfterNativeVpn();
+                    syncNativeVpnControls();
+                } else {
+                    Toast.makeText(this, "FX VPN 快捷切换失败：" + applied.output,
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     @Override protected void onResume() {
