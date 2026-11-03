@@ -491,3 +491,12 @@ After each implementation batch:
 - The Gadget listener is fixed to `127.0.0.1`; the UI does not expose an unauthenticated LAN listener.
 - This writes configuration only. The selected debuggable target must actually load the corresponding Frida Gadget library; this does not claim to patch or inject Gadget into a third-party APK.
 - The existing local frida-server and frida-inject path remains separate and unchanged.
+
+
+### Yulong AdBlock control backend restored (2026-11-03)
+
+- Added the previously missing `fx-module/scripts/yulong-ad-control.sh` used by the native Yulong Ad activity.
+- The KernelSU packaging workflow now stages this script into the restored FX Release module via `patch_yulong_ad_control.py`.
+- Implemented the native UI's command contract: ad-filter master switch, rule list add/enable/remove, custom allow/block domain CRUD, DNS switch state, custom/global DNS server sections, VPN remote/CN DNS values, cache engine restart, weekly schedule get/set, Root Proxy status and apply-log view.
+- Config edits use the existing FX `util.sh` helpers or atomic section/list rewrites and call the existing FX apply path. The script does not start or register another Android VpnService.
+- Final ZIP generation remains deferred until all three application migrations are complete.
