@@ -23,6 +23,7 @@ ACTIVE_META="$PG/yulong-root-proxy-active.meta"
 EGRESS="$PG/unbound-vpn-egress-ip"
 LOCK="$PG/yulong-root-proxy.lock"
 LOG="$PG/yulong-root-proxy.log"
+_RPROXY_TEMP=
 mkdir -p "$PG"
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
@@ -39,6 +40,81 @@ _is_enabled() {
   [ "$(pg_get vpn_external_dns_proxy 1 2>/dev/null)" = "1" ] \
     && [ "$(pg_get vpn_external_compat 1 2>/dev/null)" = "1" ] \
     && [ "$(pg_get dns_forward 1 2>/dev/null)" = "1" ]
+}
+_valid_package() {
+  case "${1:-}" in ''|*[!A-Za-z0-9_.-]*) return 1 ;; esac
+  printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$'
+}
+_list_whitelist_packages() {
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] || return 1
+  awk -F'|' '
+    $0=="[list:yulong_root_proxy_whitelist]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ &&
+      ($2=="0" || $2=="1") && $2=="1" {print $1}
+  ' "$CONF"
+}
+_whitelist_set_value() {
+  _package="$1"; _state="$2"
+  _valid_package "$_package" && { [ "$_state" = 0 ] || [ "$_state" = 1 ]; } || return 2
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] || { _log "settings.conf is missing or unsafe"; return 21; }
+  _RPROXY_TEMP=$(mktemp "$CONF.yulong-rootproxy-whitelist.XXXXXX") || return 1
+  awk -F'|' -v pkg="$_package" -v state="$_state" '
+    BEGIN {inside=0; seen=0; written=0}
+    $0=="[list:yulong_root_proxy_whitelist]" {inside=1; seen=1; print; next}
+    /^\[/ {
+      if(inside && state=="1" && !written) {print pkg "|1"; written=1}
+      inside=0; print; next
+    }
+    inside && $1==pkg {
+      if(state=="1" && !written) {print pkg "|1"; written=1}
+      next
+    }
+    {print}
+    END {
+      if(inside && state=="1" && !written) print pkg "|1"
+      if(!seen && state=="1") {print ""; print "[list:yulong_root_proxy_whitelist]"; print pkg "|1"}
+    }
+  ' "$CONF" > "$_RPROXY_TEMP" || { rm -f "$_RPROXY_TEMP"; _RPROXY_TEMP=; return 1; }
+  if [ -s "$_RPROXY_TEMP" ] && [ ! -L "$CONF" ] && chmod 600 "$_RPROXY_TEMP" && mv -f "$_RPROXY_TEMP" "$CONF"; then
+    _RPROXY_TEMP=
+    return 0
+  fi
+  rm -f "$_RPROXY_TEMP"; _RPROXY_TEMP=
+  return 1
+}
+_resolve_whitelist_uids() {
+  _packages=$(_list_whitelist_packages) || return 1
+  [ -n "$_packages" ] || return 0
+  _snapshot=$(cmd package list packages -U 2>/dev/null) || { _log "cannot read PackageManager UID snapshot for Root Proxy whitelist"; return 1; }
+  [ -n "$_snapshot" ] || { _log "PackageManager returned an empty UID snapshot"; return 1; }
+  printf '%s\n' "$_snapshot" | awk '
+    $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
+      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {valid=1; break}
+    }
+    END {exit !valid}
+  ' || { _log "PackageManager UID snapshot is malformed; fail-open"; return 1; }
+  _resolved=""
+  while IFS= read -r _package; do
+    [ -n "$_package" ] || continue
+    _uid=$(printf '%s\n' "$_snapshot" | awk -v wanted="package:$_package" '
+      $1==wanted {for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {sub(/^uid:/,"",$i); print $i; exit}}
+    ')
+    [ -n "$_uid" ] || continue
+    case "$_uid" in *[!0-9]*|0) _log "invalid current UID for whitelist package $_package"; return 1 ;; esac
+    case "
+$_resolved
+" in *"
+$_uid
+"*) ;; *)
+      [ -n "$_resolved" ] && _resolved="$_resolved
+"
+      _resolved="$_resolved$_uid"
+    ;; esac
+  done <<EOF
+$_packages
+EOF
+  printf '%s\n' "$_resolved"
 }
 _remove_hook() {
   _bin="$1"; _chain="$2"
@@ -108,70 +184,60 @@ _resolve_vpn_egress() {
   printf '%s\n' "$_ip"
 }
 _build_chain4() {
-  _chain="$1"; _uid="$2"
+  _chain="$1"; _uid="$2"; _whitelist_uids="$3"
   iptables -t nat -N "$_chain" >/dev/null 2>&1 || iptables -t nat -F "$_chain" || return 1
   iptables -t nat -A "$_chain" -m owner --uid-owner 0 -j RETURN || return 1
   iptables -t nat -A "$_chain" -m owner --uid-owner "$_uid" -j RETURN || return 1
+  while IFS= read -r _whitelist_uid; do
+    [ -n "$_whitelist_uid" ] || continue
+    _valid_uid "$_whitelist_uid" || return 1
+    iptables -t nat -A "$_chain" -m owner --uid-owner "$_whitelist_uid" -j RETURN || return 1
+  done <<EOF
+$_whitelist_uids
+EOF
   iptables -t nat -A "$_chain" -d 127.0.0.0/8 -j RETURN || return 1
   iptables -t nat -A "$_chain" -p udp --dport 53 -j DNAT --to-destination 127.0.0.1:53 || return 1
   iptables -t nat -A "$_chain" -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1:53 || return 1
 }
 _build_chain6() {
-  _chain="$1"; _uid="$2"
+  _chain="$1"; _uid="$2"; _whitelist_uids="$3"
   ip6tables -t nat -N "$_chain" >/dev/null 2>&1 || ip6tables -t nat -F "$_chain" || return 1
   ip6tables -t nat -A "$_chain" -m owner --uid-owner 0 -j RETURN || return 1
   ip6tables -t nat -A "$_chain" -m owner --uid-owner "$_uid" -j RETURN || return 1
+  while IFS= read -r _whitelist_uid; do
+    [ -n "$_whitelist_uid" ] || continue
+    _valid_uid "$_whitelist_uid" || return 1
+    ip6tables -t nat -A "$_chain" -m owner --uid-owner "$_whitelist_uid" -j RETURN || return 1
+  done <<EOF
+$_whitelist_uids
+EOF
   ip6tables -t nat -A "$_chain" -d ::1/128 -j RETURN || return 1
   ip6tables -t nat -A "$_chain" -p udp --dport 53 -j DNAT --to-destination '[::1]:53' || return 1
   ip6tables -t nat -A "$_chain" -p tcp --dport 53 -j DNAT --to-destination '[::1]:53' || return 1
 }
 _activate_chains() {
-  _uid="$1"
+  _uid="$1"; _whitelist_uids="$2"
   _current=$(awk 'NR==1 {print $1}' "$ACTIVE" 2>/dev/null)
   case "$_current" in FXYRP4_A) _n4=FXYRP4_B; _o4=FXYRP4_A;; FXYRP4_B) _n4=FXYRP4_A; _o4=FXYRP4_B;; *) _n4=FXYRP4_A; _o4=FXYRP4_B;; esac
   case "$_current" in FXYRP4_A) _n6=FXYRP6_B; _o6=FXYRP6_A;; FXYRP4_B) _n6=FXYRP6_A; _o6=FXYRP6_B;; *) _n6=FXYRP6_A; _o6=FXYRP6_B;; esac
-  _build_chain4 "$_n4" "$_uid" || {
-    _clear_chain iptables "$_n4"; _log "IPv4 DNS chain build failed"; return 1;
+  _build_chain4 "$_n4" "$_uid" "$_whitelist_uids" || { _clear_chain iptables "$_n4"; _log "IPv4 DNS chain build failed"; return 1; }
+  _build_chain6 "$_n6" "$_uid" "$_whitelist_uids" || {
+    _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; _log "IPv6 NAT chain build failed"; return 1;
   }
-  _build_chain6 "$_n6" "$_uid" || {
-    _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"
-    _log "IPv6 NAT is unavailable or its chain failed; no DNS redirect activated"
-    return 1
-  }
-  iptables -t nat -I OUTPUT 1 -j "$_n4" || {
-    _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
-  }
+  iptables -t nat -I OUTPUT 1 -j "$_n4" || { _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1; }
   ip6tables -t nat -I OUTPUT 1 -j "$_n6" || {
-    _remove_hook iptables "$_n4"
-    _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1
+    _remove_hook iptables "$_n4"; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
   }
-  _remove_hook iptables "$_o4"
-  _remove_hook ip6tables "$_o6"
-  _clear_chain iptables "$_o4"
-  _clear_chain ip6tables "$_o6"
+  _remove_hook iptables "$_o4"; _remove_hook ip6tables "$_o6"
+  _clear_chain iptables "$_o4"; _clear_chain ip6tables "$_o6"
   _active_tmp=$(mktemp "$ACTIVE.tmp.XXXXXX") || {
-    _clear_chain iptables "$_n4"
-    _clear_chain ip6tables "$_n6"
-    _log "unable to create active marker temp; removed new DNS redirect hooks"
-    return 1
+    _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; _log "unable to create active marker temp"; return 1;
   }
   if [ ! -f "$_active_tmp" ] || [ -L "$_active_tmp" ]; then
-    rm -f "$_active_tmp" 2>/dev/null || :
-    _clear_chain iptables "$_n4"
-    _clear_chain ip6tables "$_n6"
-    _log "unsafe active marker temp; removed new DNS redirect hooks"
-    return 1
+    rm -f "$_active_tmp" 2>/dev/null || :; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
   fi
-  if ! {
-    printf '%s\n%s\n' "$_n4" "$_n6" > "$_active_tmp" &&
-    chmod 600 "$_active_tmp" &&
-    mv -f "$_active_tmp" "$ACTIVE"
-  }; then
-    rm -f "$_active_tmp" 2>/dev/null || :
-    _clear_chain iptables "$_n4"
-    _clear_chain ip6tables "$_n6"
-    _log "failed to publish active chain marker; removed new DNS redirect hooks"
-    return 1
+  if ! { printf '%s\n%s\n' "$_n4" "$_n6" > "$_active_tmp" && chmod 600 "$_active_tmp" && mv -f "$_active_tmp" "$ACTIVE"; }; then
+    rm -f "$_active_tmp" 2>/dev/null || :; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
   fi
 }
 _ensure_locked() {
@@ -183,6 +249,11 @@ _ensure_locked() {
   fi
   _valid_uid "$_uid" && _valid_if "$_iface" || {
     _stop_locked; _log "missing unique active VPN owner UID/interface; fail-open"; return 1;
+  }
+  _whitelist_uids=$(_resolve_whitelist_uids) || {
+    _stop_locked
+    _log "cannot resolve selected app DNS exceptions; fail-open"
+    return 1
   }
   _egress=$(_resolve_vpn_egress "$_iface") || {
     _stop_locked; _log "VPN egress route could not be proven; fail-open"; return 1;
@@ -220,7 +291,7 @@ _ensure_locked() {
              | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
     _stop_locked; _log "post-start DNS probe failed; fail-open"; return 1;
   fi
-  _activate_chains "$_uid" || {
+  _activate_chains "$_uid" "$_whitelist_uids" || {
     _stop_locked; _log "dual-stack DNS NAT setup failed; fail-open"; return 1;
   }
   _meta_tmp=$(mktemp "$ACTIVE_META.tmp.XXXXXX") || {
@@ -331,6 +402,7 @@ with_lock() {
   done
 
   cleanup_lock() {
+    [ -z "$_RPROXY_TEMP" ] || rm -f "$_RPROXY_TEMP" 2>/dev/null || :
     [ "$_lock_held" = 1 ] || return 0
     _owner="$(_read_lock_owner "$LOCK" 2>/dev/null || true)"
     if [ "$_owner" = "$$" ]; then
@@ -359,6 +431,28 @@ with_lock() {
   trap 'exit 143' TERM
   "$@"
 }
+_whitelist_set_locked() {
+  _package="$1"; _state="$2"
+  _whitelist_set_value "$_package" "$_state" || return $?
+  echo "saved=1"
+  if [ -s "$ACTIVE_META" ]; then
+    [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata symlink; fail-open"; return 1; }
+    _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
+    _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null)
+    _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata after whitelist update"; return 1; }
+    _ensure_locked "$_iface" "$_uid"
+  else
+    echo "active=0"
+  fi
+}
+_reconcile_locked() {
+  if [ ! -e "$ACTIVE_META" ]; then echo "active=0"; return 0; fi
+  [ -f "$ACTIVE_META" ] && [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata during package event"; return 1; }
+  _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
+  _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null)
+  _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata during package event"; return 1; }
+  _ensure_locked "$_iface" "$_uid"
+}
 cmd=${1:-status}
 case "$cmd" in
   ensure)
@@ -377,6 +471,7 @@ case "$cmd" in
   status)
     echo "enabled=$(pg_get vpn_external_dns_proxy 1)"
     echo "dns_forward=$(pg_get dns_forward 1)"
+    echo "whitelist_count=$(printf '%s\n' "$(_list_whitelist_packages)" | awk 'NF {n++} END {print n+0}')"
     if [ -s "$ACTIVE_META" ]; then
       sed -n '1,4p' "$ACTIVE_META" | sed '1s/^/interface=/;2s/^/vpn_uid=/;3s/^/egress_ipv4=/;4s/^/activated_at=/'
       echo "active=1"
@@ -384,8 +479,22 @@ case "$cmd" in
       echo "active=0"
     fi
     ;;
+  whitelist-list)
+    echo "FXYRPWHITELIST1"
+    _list_whitelist_packages | while IFS= read -r _package; do
+      [ -n "$_package" ] && printf 'PACKAGE|%s\n' "$_package"
+    done
+    ;;
+  whitelist-set)
+    [ "$#" -eq 3 ] && _valid_package "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; } \
+      || { echo "usage: yulong-root-proxy.sh whitelist-set PACKAGE 0|1" >&2; exit 2; }
+    with_lock _whitelist_set_locked "$2" "$3"
+    ;;
+  reconcile)
+    with_lock _reconcile_locked
+    ;;
   uninstall)
     with_lock _stop_locked
     ;;
-  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|uninstall}' >&2; exit 64 ;;
+  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|reconcile|uninstall}' >&2; exit 64 ;;
 esac

@@ -697,6 +697,13 @@ case "$cmd" in
   [ "$#" -eq 5 ] || { echo "usage: $0 schedule-set 0|1 HH:MM HH:MM days-csv" >&2; exit 2; }
   with_lock schedule_set "$2" "$3" "$4" "$5"
   ;;
+ rootproxy-whitelist-list)
+  [ -x "$MP/scripts/yulong-root-proxy.sh" ] || { echo "Root Proxy is not installed" >&2; exit 20; }
+  sh "$MP/scripts/yulong-root-proxy.sh" whitelist-list ;;
+ rootproxy-whitelist-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 rootproxy-whitelist-set PACKAGE 0|1" >&2; exit 2; }
+  [ -x "$MP/scripts/yulong-root-proxy.sh" ] || { echo "Root Proxy is not installed" >&2; exit 20; }
+  sh "$MP/scripts/yulong-root-proxy.sh" whitelist-set "$2" "$3" ;;
  rootproxy-status)
   if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
     sh "$MP/scripts/yulong-root-proxy.sh" status
