@@ -11,6 +11,8 @@ host_test = module / "scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh
 sub_test = module / "scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
 root_proxy = module / "scripts/yulong-root-proxy.sh"
 root_proxy_test = module / "scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh"
+subfetch_stale_owner_test = module / "scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh"
+subfetch_stale_reclaim_test = module / "scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh"
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
     source = path.read_text(encoding="utf-8")
@@ -62,9 +64,26 @@ def replace_shell_function(path: Path, function_name: str, replacement: str, lab
 
 
 
-for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
+for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test, subfetch_stale_owner_test, subfetch_stale_reclaim_test):
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
+
+# Release artifacts carry two stale-lock tests that build their temp paths
+# from TMPDIR. Older copies escaped the dollar sign inside double quotes, so
+# mktemp received a literal TMPDIR placeholder and failed before testing ownership.
+_stale_tmp_old = 'T=$(mktemp -d "' + chr(92) + chr(36) + '{TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")'
+_stale_tmp_new = 'T=$(mktemp -d "' + chr(36) + '{TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")'
+for _stale_test in (subfetch_stale_owner_test, subfetch_stale_reclaim_test):
+    _stale_text = _stale_test.read_text(encoding="utf-8")
+    if _stale_tmp_new not in _stale_text:
+        if _stale_text.count(_stale_tmp_old) != 1:
+            raise SystemExit(
+                f"{_stale_test}: expected exactly one escaped TMPDIR fixture or its corrected form"
+            )
+        _stale_text = _stale_text.replace(_stale_tmp_old, _stale_tmp_new, 1)
+        _stale_test.write_text(_stale_text, encoding="utf-8")
+    if _stale_tmp_old in _stale_test.read_text(encoding="utf-8"):
+        raise SystemExit(f"{_stale_test}: escaped TMPDIR template remains after normalization")
 
 # A waiter can race the old owner's rm-pid/rmdir-lock sequence. In that window
 # cat lock/pid fails and set -e terminates the waiting worker.
@@ -449,7 +468,7 @@ exit 0
 SH
 """
 new_root_proxy_sleep_stub = """cat > "$BIN/sleep" <<'SH'
-#!/system/bin/sh
+#!/bin/sh
 case "$1" in
   1) /bin/sleep 0.01 ;;
   *) /bin/sleep "$@" ;;

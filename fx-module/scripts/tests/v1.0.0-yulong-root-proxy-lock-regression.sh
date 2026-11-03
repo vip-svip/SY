@@ -35,7 +35,7 @@ SH
   chmod 0755 "$BIN/$tool"
 done
 cat > "$BIN/sleep" <<'SH'
-#!/system/bin/sh
+#!/bin/sh
 case "$1" in
   1) /bin/sleep 0.01 ;;
   *) /bin/sleep "$@" ;;
