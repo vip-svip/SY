@@ -20,7 +20,7 @@ required = {
     "Gadget target process validator is called": "validateProcessName(targetPackage, process)",
     "target UID is captured from PackageManager": "targetUid = targetInfo.uid",
     "process enumeration matches one exact target process": "$2==proc",
-    "process enumeration verifies target app UID": '"$uid" = "$target_uid"',
+    "process enumeration verifies target app UID": '\\\"$uid\\\" = \\\"$target_uid\\\"',
     "process UID comes from proc status": '"/$pid/status"',
     "Frida script size is bounded": "sourceBytes.length > 48 * 1024",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
