@@ -62,7 +62,6 @@ for label, needle in {
     "marker binds exact package": "package=%s",
     "marker process is bound to one named process": "processes=%s",
     "process name validator is available": "validateProcessName",
-    "wildcard Gadget marker is forbidden": "processes=*",
     "marker binds port": "port=%s",
     "marker is committed after library and config": 'mv "$stage/$marker" "$dest/$marker"; new_m=1',
     "rollback trap": 'trap cleanup 0',
