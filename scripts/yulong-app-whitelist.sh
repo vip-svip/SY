@@ -79,7 +79,7 @@ with_lock() {
     [ "$tries" -lt 20 ] || { echo "app whitelist update is busy" >&2; return 10; }
     sleep 1
   done
-  if ! printf '%s\\n' "$" > "$LOCK/pid"; then
+  if ! printf '%s\n' "$$" > "$LOCK/pid"; then
     rmdir "$LOCK" 2>/dev/null || :
     echo "cannot record app whitelist lock owner" >&2
     return 10
