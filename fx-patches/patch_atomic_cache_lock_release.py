@@ -425,8 +425,8 @@ new_root_proxy_engine_stub = """for script in adguardhome.sh unbound.sh; do
 #!/system/bin/sh
 case "$1" in
   stop)
-    if ! (umask 077; set -C; printf '%s\\n' "$" > "$TMP/engine.lock") 2>/dev/null; then
-      printf 'overlap|%s\\n' "$" >> "$TMP/engine-overlap"
+    if ! (umask 077; set -C; printf 'locked\\n' > "$TMP/engine.lock") 2>/dev/null; then
+      printf 'overlap\\n' >> "$TMP/engine-overlap"
     fi
     /bin/sleep 0.04
     rm -f "$TMP/engine.lock"
