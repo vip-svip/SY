@@ -43,22 +43,25 @@ public final class FxYulongAdActivity extends Activity {
  private String safe(String s){return s==null||s.trim().isEmpty()?"请确认 FX Hook Root 权限。":s.trim();}
  private void apply(String args,String label){
   final boolean masterWrite = args != null && args.matches("^ad-master\\s+[01]$");
-  if(masterWrite && !FxYulongAdOperationGate.tryAcquire()){
-   status.setText("另一入口正在修改广告过滤，请稍后重试。");
-   load();
-   return;
-  }
   try{
    worker.execute(()->{
+    boolean gateAcquired = false;
     RootAccess.Result result;
     try{
+     if(masterWrite){
+      gateAcquired=FxYulongAdOperationGate.tryAcquire();
+      if(!gateAcquired){
+       runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText("另一入口正在修改广告过滤，请稍后重试。");});
+       return;
+      }
+     }
      result=RootAccess.execute(cmd(args),90000L,512*1024);
     }catch(Throwable failure){
-     if(masterWrite)FxYulongAdOperationGate.release();
      runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText(label+"失败："+failure.getClass().getSimpleName());});
      return;
+    }finally{
+     if(gateAcquired)FxYulongAdOperationGate.release();
     }
-    if(masterWrite)FxYulongAdOperationGate.release();
     runOnUiThread(()->{
      if(isFinishing()||isDestroyed())return;
      if(result.exitCode==0){
