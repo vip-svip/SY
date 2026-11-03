@@ -24,13 +24,33 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Read-only DEX class-name browser migrated from Dia 23.11. */
 public final class FxDiaDexBrowserActivity extends Activity {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
+            r -> new Thread(r, "fx-dia-dex-io"), new ThreadPoolExecutor.AbortPolicy());
+    private final ThreadPoolExecutor searchWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-dia-dex-search"), new ThreadPoolExecutor.DiscardOldestPolicy());
     private final List<ApplicationInfo> apps = new ArrayList<>();
+    private int searchGeneration;
+    private int dexGeneration;
+    private boolean appsLoading;
+    private volatile boolean destroyed;
+
+    private static final class SearchHit {
+        final FxDiaDexIndex.DexClass item;
+        final List<String> matches;
+        SearchHit(FxDiaDexIndex.DexClass item, List<String> matches) {
+            this.item = item;
+            this.matches = matches;
+        }
+    }
     private final List<FxDiaDexIndex.DexClass> classes = new ArrayList<>();
     private EditText filter;
     private TextView target;
@@ -96,22 +116,56 @@ public final class FxDiaDexBrowserActivity extends Activity {
     }
 
     private void loadInstalledApps() {
+        if (appsLoading || destroyed) return;
+        appsLoading = true;
+        summary.setText("正在后台读取已安装应用…");
         try {
-            apps.clear();
-            apps.addAll(getPackageManager().getInstalledApplications(0));
-            apps.removeIf(app -> app.packageName == null || app.packageName.equals(getPackageName()));
-            apps.sort(Comparator.comparing(app -> {
-                try { return String.valueOf(getPackageManager().getApplicationLabel(app)).toLowerCase(Locale.ROOT); }
-                catch (Throwable ignored) { return app.packageName.toLowerCase(Locale.ROOT); }
-            }));
-        } catch (Throwable error) {
-            summary.setText("读取应用清单失败：" + error.getClass().getSimpleName());
+            worker.execute(() -> {
+                List<ApplicationInfo> loaded = new ArrayList<>();
+                Throwable failure = null;
+                try {
+                    PackageManager pm = getApplicationContext().getPackageManager();
+                    loaded.addAll(pm.getInstalledApplications(0));
+                    loaded.removeIf(app -> app.packageName == null || app.packageName.equals(getPackageName()));
+                    loaded.sort(Comparator.comparing(app -> {
+                        try {
+                            return String.valueOf(pm.getApplicationLabel(app)).toLowerCase(Locale.ROOT);
+                        } catch (Throwable ignored) {
+                            return app.packageName.toLowerCase(Locale.ROOT);
+                        }
+                    }));
+                } catch (Throwable error) {
+                    failure = error;
+                }
+                final Throwable readFailure = failure;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    appsLoading = false;
+                    if (readFailure != null) {
+                        summary.setText("读取应用清单失败：" + readFailure.getClass().getSimpleName());
+                        return;
+                    }
+                    apps.clear();
+                    apps.addAll(loaded);
+                    summary.setText("已读取 " + apps.size() + " 个应用；选择目标后读取 DEX。");
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            appsLoading = false;
+            summary.setText("应用清单后台队列繁忙，请稍后重试。");
         }
     }
 
     private void chooseApp() {
-        if (apps.isEmpty()) loadInstalledApps();
-        if (apps.isEmpty()) { summary.setText("当前无法读取已安装应用。"); return; }
+        if (appsLoading) {
+            summary.setText("应用清单仍在后台读取，请稍后选择。");
+            return;
+        }
+        if (apps.isEmpty()) {
+            loadInstalledApps();
+            summary.setText("正在读取应用清单；读取完成后再次点击选择。");
+            return;
+        }
         String[] labels = new String[apps.size()];
         for (int i = 0; i < apps.size(); i++) {
             String label;
@@ -130,6 +184,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
     private void loadFrameworkDex() {
         summary.setText("正在读取 Dia 23.11 随附的 Android Framework DEX…");
         results.removeAllViews();
+        final int request = ++dexGeneration;
+        try {
         worker.execute(() -> {
             final java.util.Map<String, FxDiaDexIndex.DexClass> found = new java.util.TreeMap<>();
             String error = null;
@@ -140,7 +196,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
             }
             final String err = error;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed() || request != dexGeneration) return;
                 selected = null;
                 target.setText("Dia 原版 Android Framework DEX");
                 classes.clear();
@@ -156,13 +212,18 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 render();
             });
         });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 后台队列繁忙，请稍后重试。");
+        }
     }
 
     private void loadDex() {
         if (selected == null) { summary.setText("请先选择应用。"); return; }
         final ApplicationInfo app = selected;
+        final int request = ++dexGeneration;
         summary.setText("正在只读解析 DEX 类、方法与字段索引…");
         results.removeAllViews();
+        try {
         worker.execute(() -> {
             List<String> paths = new ArrayList<>();
             if (app.sourceDir != null) paths.add(app.sourceDir);
@@ -176,7 +237,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
             }
             final String err = error;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed() || request != dexGeneration) return;
                 classes.clear();
                 classes.addAll(found.values());
                 int methods = 0, fields = 0;
@@ -191,50 +252,81 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 render();
             });
         });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 后台队列繁忙，请稍后重试。");
+        }
     }
 
     private void render() {
-        if (results == null) return;
-        results.removeAllViews();
-        String q = filter.getText() == null ? "" : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int shown = 0;
-        for (FxDiaDexIndex.DexClass item : classes) {
-            String className = item.javaName();
-            boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
-                    || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
-            List<String> matches = new ArrayList<>();
-            if (!classMatch && !q.isEmpty()) {
-                for (FxDiaDexIndex.Member member : item.methods) {
-                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) matches.add(member.display());
+        if (results == null || destroyed) return;
+        final int request = ++searchGeneration;
+        final String q = filter.getText() == null ? ""
+                : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
+        final List<FxDiaDexIndex.DexClass> snapshot = new ArrayList<>(classes);
+        try {
+            searchWorker.execute(() -> {
+                List<SearchHit> hits = new ArrayList<>();
+                boolean hasMore = false;
+                for (FxDiaDexIndex.DexClass item : snapshot) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    String className = item.javaName();
+                    boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
+                            || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
+                    List<String> matches = new ArrayList<>();
+                    if (!classMatch && !q.isEmpty()) {
+                        for (FxDiaDexIndex.Member member : item.methods) {
+                            if (member.display().toLowerCase(Locale.ROOT).contains(q))
+                                matches.add(member.display());
+                        }
+                        for (FxDiaDexIndex.Member member : item.fields) {
+                            if (member.display().toLowerCase(Locale.ROOT).contains(q))
+                                matches.add(member.display());
+                        }
+                    }
+                    if (!classMatch && matches.isEmpty()) continue;
+                    if (hits.size() >= 300) {
+                        hasMore = true;
+                        break;
+                    }
+                    hits.add(new SearchHit(item, matches));
                 }
-                for (FxDiaDexIndex.Member member : item.fields) {
-                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) matches.add(member.display());
-                }
-            }
-            if (!classMatch && matches.isEmpty()) continue;
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(12), dp(6), dp(12), dp(6));
-            TextView title = text(className, 12, 0xff17212b, true);
-            TextView detail = text("方法 " + item.methods.size() + " · 字段 " + item.fields.size()
-                    + (matches.isEmpty() ? "" : " · 命中成员 " + matches.size()),
-                    10, 0xff718091, false);
-            row.addView(title);
-            row.addView(detail);
-            row.setBackgroundColor(0xffffffff);
-            row.setOnClickListener(v -> showClassMembers(item, matches));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.setMargins(dp(10), dp(2), dp(10), dp(2));
-            results.addView(row, lp);
-            if (++shown >= 300) break;
+                final boolean truncated = hasMore;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed() || request != searchGeneration) return;
+                    results.removeAllViews();
+                    for (SearchHit hit : hits) {
+                        DexClassRow(hit);
+                    }
+                    if (hits.isEmpty()) results.addView(text(
+                            snapshot.isEmpty() ? "尚无 DEX 结果。" : "没有匹配的类、方法或字段。",
+                            13, 0xff718091, false));
+                    else if (truncated) results.addView(text(
+                            "仅显示前 300 个匹配类，请缩小搜索范围。",
+                            12, 0xff8a6d3b, false));
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            // The search executor discards the oldest queued query; this callback
+            // is only a defensive fallback for an unexpected shutdown/rejection.
         }
-        if (shown == 0) results.addView(text(
-                classes.isEmpty() ? "尚无 DEX 结果。" : "没有匹配的类、方法或字段。",
-                13, 0xff718091, false));
-        else if (shown >= 300) results.addView(text(
-                "仅显示前 300 个匹配类，请缩小搜索范围。",
-                12, 0xff8a6d3b, false));
+    }
+
+    private void DexClassRow(SearchHit hit) {
+        FxDiaDexIndex.DexClass item = hit.item;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(12), dp(6), dp(12), dp(6));
+        TextView title = text(item.javaName(), 12, 0xff17212b, true);
+        TextView detail = text("方法 " + item.methods.size() + " · 字段 " + item.fields.size()
+                + (hit.matches.isEmpty() ? "" : " · 命中成员 " + hit.matches.size()),
+                10, 0xff718091, false);
+        row.addView(title);
+        row.addView(detail);
+        row.setBackgroundColor(0xffffffff);
+        row.setOnClickListener(v -> showClassMembers(item, hit.matches));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(10), dp(2), dp(10), dp(2));
+        results.addView(row, lp);
     }
 
     private void exportMatches() {
@@ -356,7 +448,11 @@ public final class FxDiaDexBrowserActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        destroyed = true;
+        searchGeneration++;
+        dexGeneration++;
         worker.shutdownNow();
+        searchWorker.shutdownNow();
         super.onDestroy();
     }
 }
