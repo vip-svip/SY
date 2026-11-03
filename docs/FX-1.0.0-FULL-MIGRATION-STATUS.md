@@ -222,6 +222,21 @@ published during this migration phase.
 - The source still requires the selected user-installed debuggable target and an
   explicitly available Frida runtime for these monitor templates.
 
+### Yulong Security Shield 9.9.60 — AdSkipService callback migration
+
+- Merged the original foreground-window callback into the optional FX
+  AccessibilityService: only `TYPE_WINDOW_STATE_CHANGED` package names are
+  forwarded to the app's non-exported receiver. No accessibility node tree or
+  event text is read.
+- Merged the original volume-key callback: volume up/down direction metadata
+  is broadcast only to the same app package. Key events are not consumed.
+- The Shield protection service consumes foreground-package events immediately
+  and reuses its existing blacklist/whitelist warning rules. UsageStats polling
+  remains as a fallback when Accessibility is not enabled.
+- The Screen Filter page optionally uses volume-up/down to change filter
+  brightness by five units per press. This requires the user to enable FX
+  Accessibility and leaves normal system volume behavior intact.
+
 ### Yulong Security Shield / Stellar source cleanup
 
 - Removed a duplicated obsolete implementation tail appended after the closing
