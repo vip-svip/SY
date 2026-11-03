@@ -2695,8 +2695,7 @@ public final class MainActivity extends ComponentActivity {
                 case "界面": case "主题色": case "网络切换延迟":
                 case "电池优化": case "设置导入": case "设置导出": case "关于":
                     startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "通用设置"));
+                            de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class));
                     return;
             }
         }
