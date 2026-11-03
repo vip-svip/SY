@@ -35,6 +35,7 @@ public final class FxDiaActivityBrowserActivity extends Activity {
     private TextView target;
     private TextView status;
     private ApplicationInfo selected;
+    private boolean launcherOnly;
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String value, int size, int color, boolean bold) {
@@ -50,12 +51,13 @@ public final class FxDiaActivityBrowserActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        launcherOnly = getIntent().getBooleanExtra("launcher_only", false);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · Activity 入口与禁用", 18, 0xff17212b, true),
+        header.addView(text(launcherOnly ? "Dia 23.11 · 隐藏应用" : "Dia 23.11 · Activity 入口与禁用", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -67,7 +69,9 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         status = text("选择用户应用以查看其声明的 Activity 入口。", 13, 0xff617080, false);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-        card(body, "目标应用", "只显示非系统用户应用；组件禁用需要 Root 权限并逐项确认。",
+        card(body, "目标应用", launcherOnly
+                        ? "仅列出用户应用的 MAIN/LAUNCHER 启动入口。禁用后图标会从启动器隐藏；可在此页重新启用。"
+                        : "只显示非系统用户应用；组件禁用需要 Root 权限并逐项确认。",
                 target, button("选择应用", this::chooseApp), button("读取 Activity 入口", this::loadActivities));
         card(body, "状态", "系统 PackageManager 实际返回值", status);
         body.addView(rows, rp);
@@ -128,9 +132,26 @@ public final class FxDiaActivityBrowserActivity extends Activity {
             List<ActivityInfo> result = new ArrayList<>();
             String error = null;
             try {
-                PackageInfo info = getPackageManager().getPackageInfo(app.packageName, PackageManager.GET_ACTIVITIES);
+                PackageManager pm = getPackageManager();
+                PackageInfo info = pm.getPackageInfo(app.packageName,
+                        PackageManager.GET_ACTIVITIES | PackageManager.MATCH_DISABLED_COMPONENTS);
                 if (info.activities != null) {
-                    for (ActivityInfo item : info.activities) if (item != null) result.add(item);
+                    java.util.Set<String> launcherNames = new java.util.HashSet<>();
+                    if (launcherOnly) {
+                        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+                        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                        for (android.content.pm.ResolveInfo resolve :
+                                pm.queryIntentActivities(launcherIntent, PackageManager.MATCH_DISABLED_COMPONENTS)) {
+                            if (resolve.activityInfo != null
+                                    && app.packageName.equals(resolve.activityInfo.packageName)
+                                    && resolve.activityInfo.name != null) {
+                                launcherNames.add(resolve.activityInfo.name);
+                            }
+                        }
+                    }
+                    for (ActivityInfo item : info.activities) {
+                        if (item != null && (!launcherOnly || launcherNames.contains(item.name))) result.add(item);
+                    }
                 }
                 result.sort(Comparator.comparing(item -> item.name == null ? "" : item.name));
             } catch (Throwable failure) {
