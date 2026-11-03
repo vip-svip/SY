@@ -2637,9 +2637,12 @@ public final class MainActivity extends ComponentActivity {
     private void openImportedSuitePage(String suite, String category, String page) {
         if ("dia".equals(suite)) {
             switch (page) {
+                case "Activity 入口与禁用":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class));
+                    return;
                 case "应用选择": case "目标应用": case "模块配置": case "模块功能":
-                case "Activity 入口与禁用": case "隐藏应用": case "方法 Hook":
-                case "Native 方法": case "函数重写":
+                case "隐藏应用": case "方法 Hook": case "Native 方法": case "函数重写":
                     showAppList();
                     return;
                 case "对话框与通知": case "剪贴板":
