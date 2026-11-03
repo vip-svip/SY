@@ -138,6 +138,40 @@ wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" 
 ''',
     "subscription concurrency test must explain worker failure",
 )
+
+# The legacy test uses set -e with bare assertions. When one metadata/lock
+# invariant fails it previously exited with an empty log, so add precise failure
+# output while keeping the same assertions and exit behavior.
+replace_once(
+    sub_test,
+    '[ -s "$body" ] && [ -s "$meta" ]\n',
+    '[ -s "$body" ] && [ -s "$meta" ] || { echo "FAIL: subscription body or metadata sidecar missing" >&2; find "$T/state/subs" -maxdepth 2 -print >&2; exit 1; }\n',
+    "subscription concurrency test must explain missing cache files",
+)
+replace_once(
+    sub_test,
+    '[ "$actual_size" = "$meta_size" ]\n',
+    '[ "$actual_size" = "$meta_size" ] || { echo "FAIL: subscription metadata size mismatch body=$actual_size meta=$meta_size" >&2; cat "$meta" >&2; exit 1; }\n',
+    "subscription concurrency test must explain size metadata mismatch",
+)
+replace_once(
+    sub_test,
+    '[ "$actual_lines" = "$meta_lines" ]\n',
+    '[ "$actual_lines" = "$meta_lines" ] || { echo "FAIL: subscription metadata line mismatch body=$actual_lines meta=$meta_lines" >&2; cat "$meta" >&2; exit 1; }\n',
+    "subscription concurrency test must explain line metadata mismatch",
+)
+replace_once(
+    sub_test,
+    '[ "$(cat "$T/state/count")" -eq 2 ]\n',
+    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
+    "subscription concurrency test must explain lost or overlapping requests",
+)
+replace_once(
+    sub_test,
+    '[ ! -d "$T/state/subs/.lock.$key" ]\n',
+    '[ ! -d "$T/state/subs/.lock.$key" ] || { echo "FAIL: subscription lock directory leaked after both workers exited" >&2; find "$T/state/subs/.lock.$key" -maxdepth 2 -print >&2; exit 1; }\n',
+    "subscription concurrency test must explain lock directory leak",
+)
 for path in (apply_file, subfetch_file, host_test, sub_test):
     path.chmod(0o755)
 print("PASS: Hosts and subscription cache locks use atomic owner-directory release")
