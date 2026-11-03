@@ -2,6 +2,7 @@
 """Create one dual-entry LSPosed APK by copying the complete legacy MainHook verbatim."""
 from pathlib import Path
 import re, shutil, sys
+from xposed_resource_merge import remove_legacy_scope_resource
 
 fx = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 repo = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
@@ -171,7 +172,11 @@ if not dia_frida_source.is_file() or dia_frida_source.stat().st_size < 5000:
     raise SystemExit("native Dia Frida target loader source missing or unexpectedly small")
 if dia_frida_entry not in xposed_init.read_text(encoding="utf-8"):
     raise SystemExit("Dia Frida target loader entrypoint missing from unified xposed_init")
-shutil.copy2(legacy / "res/values/arrays.xml", modern / "res/values/arrays.xml")
+legacy_arrays = legacy / "res/values/arrays.xml"
+fx_scope_arrays = modern / "res/values/xposed_scope.xml"
+# The FX resource is the sole dynamic scope source; do not import legacy static target selections.
+remove_legacy_scope_resource(legacy_arrays, fx_scope_arrays)
+shutil.copy2(legacy_arrays, modern / "res/values/arrays.xml")
 
 gradle = repo / "adhook/app/build.gradle"
 g = gradle.read_text(encoding="utf-8")

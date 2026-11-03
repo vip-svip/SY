@@ -6,4 +6,5 @@
         here: Android resource merging rejects duplicate names. Its
         staticScope=false module metadata keeps scope dynamically user-managed.
     -->
+    <string-array name="xposed_scope" />
 </resources>
