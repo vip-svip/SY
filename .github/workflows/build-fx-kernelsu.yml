@@ -152,6 +152,7 @@ jobs:
           install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
+          sh scripts/tests/fx-yulong-dns-cache-regression.sh
           install -D -m 0755 scripts/yulong-ad-schedule.sh fx-module/scripts/yulong-ad-schedule.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh

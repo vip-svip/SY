@@ -33,6 +33,7 @@ public final class FxYulongDnsActivity extends Activity {
     private LinearLayout rows;
     private TextView status;
     private EditText search;
+    private Button cacheFlushButton;
 
     private static final class Entry {
         final String time, domain, type, reason;
@@ -62,8 +63,12 @@ public final class FxYulongDnsActivity extends Activity {
                 + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
     }
     private void root(String command, java.util.function.Consumer<RootAccess.Result> done) {
+        root(command, 30000L, done);
+    }
+    private void root(String command, long timeoutMs,
+                      java.util.function.Consumer<RootAccess.Result> done) {
         worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(command, 30000L, 768 * 1024);
+            RootAccess.Result result = RootAccess.execute(command, timeoutMs, 768 * 1024);
             runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) done.accept(result); });
         });
     }
@@ -96,9 +101,13 @@ public final class FxYulongDnsActivity extends Activity {
         status = text("正在读取本机查询日志…", 13, 0xff526170, false);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
         card(body, "本机日志说明",
-                "查询日志默认关闭；启用后 AdGuard Home 最多保留 7 天记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
+                "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
                 status, button("刷新", this::load),
                 button("清理本地查询日志", this::confirmClear));
+        cacheFlushButton = button("重启本地 DNS 并清理缓存", this::confirmCacheFlush);
+        card(body, "DNS 缓存维护",
+                "只重启 FX 管理的本地 Unbound / AdGuard Home。DNS 可能短暂中断；不会清理系统 DNS 缓存、Hosts 或查询日志。",
+                cacheFlushButton);
         card(body, "搜索", "输入域名、查询类型或拦截原因", search);
         rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
         search.addTextChangedListener(new TextWatcher() {
@@ -186,6 +195,27 @@ public final class FxYulongDnsActivity extends Activity {
         }
         if (count == 0) rows.addView(text("没有匹配的 DNS 查询记录。", 13, 0xff718091, false));
         else if (count >= 200) rows.addView(text("仅显示前 200 条匹配项。", 11, 0xff718091, false));
+    }
+
+    private void confirmCacheFlush() {
+        new AlertDialog.Builder(this).setTitle("清理本机 DNS 缓存")
+                .setMessage("将停止并重新启动 FX 管理的本地 Unbound / AdGuard Home，以清空它们的进程内缓存。期间 DNS 可能短暂中断。不会清理 Android 系统 DNS 缓存、Hosts 或查询日志。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("重启并清理", (dialog, which) -> {
+                    if (cacheFlushButton != null) cacheFlushButton.setEnabled(false);
+                    status.setText("正在重启 FX 本地 DNS 服务并清理缓存…");
+                    root(shell("cache-flush"), 120000L, result -> {
+                        if (cacheFlushButton != null) cacheFlushButton.setEnabled(true);
+                        String output = result.output == null ? "" : result.output;
+                        if (result.exitCode == 0 && output.contains("cache=flushed")) {
+                            status.setText("本地 DNS 缓存已清理，FX DNS 服务重启完成。");
+                        } else if (result.exitCode == 0 && output.contains("dns-engine-disabled")) {
+                            status.setText("FX 本地 DNS 引擎当前未启用，无需清理。");
+                        } else {
+                            status.setText("DNS 缓存清理未完成：" + safe(output));
+                        }
+                    });
+                }).show();
     }
 
     private void confirmClear() {
