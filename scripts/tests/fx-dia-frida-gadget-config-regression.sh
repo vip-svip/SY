@@ -25,6 +25,10 @@ required = {
     "Gadget loopback-only listener": 'interaction.put("address", "127.0.0.1")',
     "Gadget port conflict policy": 'interaction.put("on_port_conflict", "fail")',
     "Gadget WAIT/RESUME mode": 'interaction.put("on_load", wait ? "wait" : "resume")',
+    "Gadget default avoids frida-server port": 'getString("gadget_port", "27043")',
+    "Gadget input hint avoids frida-server port": 'gadgetPort.setHint("27043")',
+    "Gadget rejects frida-server port": 'if (port == 27042)',
+    "Gadget connection command defaults to separate port": 'gadgetPort == null ? "27043"',
     "ADB forwarding command": 'adb forward tcp:',
     "local Gadget connection target": 'frida-ps -H 127.0.0.1:',
 }
