@@ -100,6 +100,21 @@ public final class FxYulongProtectionService extends Service implements SensorEv
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_START : intent.getAction();
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("protect_on", false)
+                    .putBoolean("shake_trigger_on", false)
+                    .putBoolean("volume_trigger_on", false)
+                    .putBoolean("protect_service_running", false)
+                    .putString("protect_restore_error", "notification permission revoked")
+                    .apply();
+            FxYulongKeepAliveReceiver.refreshSchedule(this);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
         if (ACTION_STOP.equals(action)) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                     .putBoolean("protect_on", false)
