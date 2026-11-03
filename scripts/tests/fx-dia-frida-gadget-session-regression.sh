@@ -130,7 +130,7 @@ lock="$dir/.gadget-$port.start-lock"
 test -x "$cli" && test ! -L "$cli"
 version=$("$cli" --version)
 pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc="$proc" 'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}')
-[ -n "$pids" ] || { echo FX_GADGET_TARGET_PROCESS_NOT_RUNNING; exit 4; }
+[ -n "$pids" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }
 mkdir "$lock"
 lock_held=1
 tmp=
