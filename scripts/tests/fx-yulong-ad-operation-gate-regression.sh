@@ -56,8 +56,8 @@ go_async = widget_receive.find("goAsync()")
 worker_submit = widget_receive.find("WORKER.execute(")
 if min(widget_acquire, go_async, worker_submit) < 0 or not widget_acquire < go_async < worker_submit:
     raise SystemExit("FAIL: Widget must acquire before starting async work")
-if widget_receive.count("FxYulongAdOperationGate.release()") < 3:
-    raise SystemExit("FAIL: Widget must release on both pre-submit failures and worker completion")
+if widget_receive.count("FxYulongAdOperationGate.release(gateToken)") != 3:
+    raise SystemExit("FAIL: Widget must release its exact lease token on both pre-submit failures and worker completion")
 if "OWNER_TOKEN.compareAndSet(0L, token)" not in gate or "OWNER_TOKEN.compareAndSet(token, 0L)" not in gate:
     raise SystemExit("FAIL: operation gate does not enforce exact-token ownership")
 all_callers = "\\n".join((activity, general, tasker, tile, widget))
