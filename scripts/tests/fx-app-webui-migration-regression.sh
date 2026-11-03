@@ -7,6 +7,7 @@ FILEEDIT="$ROOT/fx-module/scripts/fileedit.sh"
 APPLY="$ROOT/fx-module/scripts/apply.sh"
 UTIL="$ROOT/fx-module/scripts/util.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
+sh "$ROOT/scripts/tests/fx-yulong-schedule-default-regression.sh" || fail "Yulong schedule defaults leaked into FX anti-fraud list"
 
 [ -s "$HTML" ] || fail "complete FX WebUI was not staged into APK assets"
 grep -q "FX: merged pageAd into pageHosts" "$HTML" || fail "legacy Ad content was not merged into the Hosts page"
