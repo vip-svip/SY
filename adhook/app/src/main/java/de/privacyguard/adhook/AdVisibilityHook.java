@@ -254,8 +254,8 @@ public final class AdVisibilityHook extends XposedModule {
             // Resolve once so the package gate and installed hooks use identical priority decisions.
             effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
-                    developerObserveForPackage = true;
+                if (rule.action != DeveloperHookRule.Action.DISABLED) {
+                    developerObserveForPackage = true; // Keeps any active custom rule in the package install path.
                     break;
                 }
             }
@@ -310,17 +310,16 @@ public final class AdVisibilityHook extends XposedModule {
             installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
         }
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            // Only read-only observation is currently supported by the native
-            // runtime. The parser retains legacy replacement actions so old
-            // configs can be read, but never silently imply those actions ran.
+            // Every action is scoped to a debuggable target and explicit per-app opt-in.
+            // Boolean replacement is restricted by DeveloperHookRule.parse to zero-arg boolean methods.
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
                 if (rule.action == DeveloperHookRule.Action.OBSERVE) {
                     installDeveloperObservationHook(param.getClassLoader(), pkg,
                             debuggableTarget, rule.descriptor, rule.id);
                 } else if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
                         || rule.action == DeveloperHookRule.Action.RETURN_FALSE) {
-                    logFx(Log.WARN, "developer rule blocked: mutation actions are not supported; "
-                            + "no method behavior changed (rule=" + rule.id + ", package=" + pkg + ")");
+                    installDeveloperBooleanTestHook(param.getClassLoader(), pkg,
+                            debuggableTarget, rule.descriptor, rule.action, rule.id);
                 }
             }
         }
