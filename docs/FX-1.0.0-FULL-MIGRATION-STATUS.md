@@ -471,3 +471,13 @@ After each implementation batch:
 2. Do not start final build until the remaining Dia, Yulong Ad and Yulong Shield feature scopes are implemented.
 3. At finalization, run the Hook APK and KernelSU ZIP workflows against the same exact commit; publish only the paired APK embedded in that ZIP, with SHA-256 and ZIP integrity evidence.
 4. Automated CI is host evidence only. Device behavior must remain marked unverified until a real Android device test is recorded.
+
+## Continued native migration record (2026-11-03)
+
+- The Yulong Shield 9.9.60 native hub now has an opt-in foreground protection service. It uses Usage Access to observe only the foreground package, reads the migrated `blacklist_pkgs` / `whitelist_pkgs` preferences, and sends rate-limited warnings. It does not force-stop, freeze, disable, or uninstall applications.
+- Shield install/update scanning now calls the existing per-package scan engine, stores the latest result, and notifies only on a finding. Manual all-app scanning remains separately available.
+- Shield rescue triggers include an opt-in volume-up sequence through FX Accessibility and an opt-in accelerometer shake trigger. Neither reads screen text or consumes hardware keys. Accessibility must be enabled by the user in Android Settings.
+- Dia 23.11 native migration now includes Activity/component management, Frida runtime/script import/export and target selection, Dex indexing/browsing, database/memory inspection, JSON tools, file/SAF management, signature inspection, GitHub/WebDAV/local backup workflows, and native HTTP/JCA/SQL/algorithm monitor templates. Runtime remains scoped to the chosen app and depends on the required Root/Frida/debuggable-target permissions; no claim of device verification is made.
+- Yulong AdBlock 7.0.1 includes a separate native app whitelist. Its `[list:yulong_app_whitelist]` data is independent from `[list:vpn_app]` (proxy routing) and the per-app firewall list. The package workflow patches the restored module so these UIDs are excluded from FX sing-box TUN, legacy PGNAT/PGVPN/PGVPN6 redirects, and the FX-owned external-VPN Root DNS Proxy chains.
+- The whitelist manager is a native fourth-level Activity under Settings → 迁移应用 → 游龙广告插件 7.0.1 → 应用管理 → 应用白名单. Its backend writes atomically and runs the normal FX apply transaction; it is not a second VPN service.
+- All changes remain on `fx-v1.0.0-unified-hook-integration`. The KernelSU and Hook build workflows are manual-dispatch only while migration continues. No final package has been regenerated for these changes. These are source-level implementations, not real-device verification.
