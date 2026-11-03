@@ -35,6 +35,8 @@ required = {
     "existing session record binds TCP port": "old_port=$(sed -n '5p' \\\"$pidfile\\\")",
     "existing session record binds exact process": "old_process=$(sed -n '6p' \\\"$pidfile\\\")",
     "stop record binds exact process": "stored_process=$(sed -n '6p' \\\"$pidfile\\\")",
+    "stop waits for owned CLI and feeder to exit": "pid_active()",
+    "stop timeout does not discard ownership record": "FX_GADGET_STOP_TIMEOUT",
     "Gadget CLI start persists exact process identity": 'process=" + quote(processName)',
 
     "reattach refuses a different target": "FX_GADGET_SESSION_TARGET_CONFLICT",
@@ -77,6 +79,10 @@ for process_id in ("cli_pid", "feed_pid"):
         raise SystemExit(f"FAIL: session stop must terminate the owned {process_id} process")
 if "FX_GADGET_CLI_PID_CONFLICT" not in stop or "FX_GADGET_FEEDER_PID_CONFLICT" not in stop:
     raise SystemExit("FAIL: stop path must refuse unrelated PID owners")
+if "pid_active()" not in stop or "FX_GADGET_STOP_TIMEOUT" not in stop:
+    raise SystemExit("FAIL: stop path must verify CLI/feeder process exit before removing the session record")
+if stop.index("FX_GADGET_STOP_TIMEOUT") > stop.index("rm -f \\\"$pidfile\\\""):
+    raise SystemExit("FAIL: stop timeout check must happen before deleting the PID record")
 if "final String expectedCli = currentFridaCliPath();" not in stop:
     raise SystemExit("FAIL: stop path must bind to the currently configured Frida CLI")
 if 'start_lock=" + quote(startLockPath)' not in stop or "trap cleanup_stop 0" not in stop:
@@ -99,7 +105,7 @@ cleanup(){
   if [ -s "$T/logs/gadget-27043.pid" ]; then
     cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
     feed_pid=$(sed -n '2p' "$T/logs/gadget-27043.pid")
-    kill "$cli_pid" "$feed_pid" 2>/dev/null || :
+    kill -KILL "$cli_pid" "$feed_pid" 2>/dev/null || :
   fi
   rm -rf "$T"
 }
@@ -142,8 +148,10 @@ fi
 [ -f "$6" ] && [ ! -L "$6" ]
 [ "$(stat -c %a "$6")" = "600" ]
 printf 'mock-send-message\nmock-console-log\n'
-# Keep the CLI attached while the FIFO's feeder is alive.
+if [ "${FX_GADGET_TEST_IGNORE_TERM:-0}" = "1" ]; then trap '' TERM; fi
+# Keep the CLI process alive after the FIFO closes so stop timeout is testable.
 cat >/dev/null
+while :; do sleep 1; done
 MOCK
 chmod 700 "$T/frida"
 
@@ -299,7 +307,7 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
   exit 1
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
-"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
+FX_GADGET_TEST_IGNORE_TERM=1 "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
 grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2
 grep -Fq "mock-send-message" "$T/logs/gadget-27043.log"
@@ -358,6 +366,17 @@ kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
   echo "FAIL: wrong-target stop terminated the active session" >&2
   exit 1
 }
+cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/timeout-stop.result" 2>&1; then
+  echo "FAIL: Gadget stop discarded its record while the owned CLI ignored TERM" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_STOP_TIMEOUT "$T/timeout-stop.result"
+[ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ] || {
+  echo "FAIL: timed-out stop must retain the session record and FIFO for recovery" >&2
+  exit 1
+}
+kill -KILL "$cli_pid" 2>/dev/null || :
 "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
 [ ! -e "$T/logs/gadget-27043.pid" ] && [ ! -e "$T/logs/gadget-27043.stdin" ]
