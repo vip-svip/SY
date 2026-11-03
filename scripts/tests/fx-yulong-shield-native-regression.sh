@@ -49,15 +49,17 @@ assert install_receiver.attrib.get(A + "exported") == "false", "Install scan rec
 merge_source = merge_source_path.read_text(encoding="utf-8")
 assert "FxYulongInstallScanReceiver" in merge_source
 assert "ET.fromstring(manifest_text)" in merge_source, "Unified APK merger must parse the original Manifest tree"
-assert 'application_node.attrib[ANDROID_LABEL] = "FX Hook"' in merge_source
-assert "set_application_metadata(" in merge_source, "LSPosed metadata must be added without reconstructing application nodes"
-for tag, variable in (("activity", "retained_activities"), ("service", "retained_services"),
-                     ("receiver", "retained_receivers"), ("provider", "retained_providers")):
-    assert variable + " = component_names(" in merge_source and '"' + tag + '"' in merge_source, \
-        f"Unified APK merger does not retain original {tag} components"
-assert "ET.tostring(manifest_root" in merge_source, "Unified APK merger must serialize the preserved XML tree"
+assert 'application_node.set(ANDROID + "label", "FX Hook")' in merge_source
+assert "set_application_metadata(" in merge_source or '"xposedmodule": "true"' in merge_source, \
+    "LSPosed metadata must be applied without replacing application children"
+assert "launcher_activities" in merge_source and "android.intent.category.LAUNCHER" in merge_source
+assert "ET.tostring(manifest_root" in merge_source and "ET.parse(manifest)" in merge_source, \
+    "Unified APK merger must serialize and reparse the preserved XML tree"
 assert "app_match = re.search" not in merge_source and 'app = """' not in merge_source, \
     "Manifest migration must not reconstruct and discard existing application nodes"
+for tag in ("activity", "service", "receiver", "provider"):
+    assert f'application_node.findall("{tag}")' in merge_source, \
+        f"Unified APK merger must preserve all original {tag} children"
 for tag in ("activity", "service", "receiver", "provider"):
     names = [
         node.attrib.get(A + "name", "")
