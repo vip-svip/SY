@@ -63,7 +63,9 @@ public final class FxYulongAdActivity extends Activity {
 }
  private void renderRules(){EditText url=new EditText(this);url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=new EditText(this);name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=new EditText(this);search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
-  dnsSwitch("本地 AdGuard Home","dns_engine_adguardhome");
+  card("本地 DNS 引擎",
+       "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
+       dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
   card("本地 DNS 架构",
        "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。只有明确启用自定义 DNS 或全局 DNS 时才会使用下面填写的 IPv4 地址。",
        dnsSwitch("DNS 兜底转发","dns_forward"),
