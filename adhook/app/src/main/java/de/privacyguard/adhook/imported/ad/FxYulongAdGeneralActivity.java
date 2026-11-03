@@ -25,6 +25,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 /** Yulong AdBlock 7.0.1 general settings and transactional filter backup/restore. */
 public final class FxYulongAdGeneralActivity extends Activity {
@@ -316,9 +317,14 @@ public final class FxYulongAdGeneralActivity extends Activity {
     }
 
     private void applyImport(JSONObject json) {
+        if (!FxYulongAdOperationGate.tryAcquire()) {
+            operationStatus.setText("另一入口正在修改广告过滤，请稍后再导入。");
+            return;
+        }
         operationStatus.setText("正在备份并导入设备端配置…");
-        worker.execute(() -> {
-            try {
+        try {
+            worker.execute(() -> {
+                try {
                 RootAccess.Result current=root("list");
                 if(current.exitCode!=0)throw new IllegalStateException("读取现有设置失败："+safe(current.output));
                 StringBuilder command=new StringBuilder("set -eu; ");
@@ -387,8 +393,16 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 RootAccess.Result result=RootAccess.execute(command.toString(),180000L,1024*1024);
                 if(result.exitCode!=0)throw new IllegalStateException("设备端回滚/导入失败："+safe(result.output));
                 runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())operationStatus.setText("导入完成。配置已原子备份并逐项应用："+safe(result.output));});
-            } catch(Throwable error) { showError("导入失败",error); }
-        });
+                } catch(Throwable error) {
+                    showError("导入失败", error);
+                } finally {
+                    FxYulongAdOperationGate.release();
+                }
+            });
+        } catch (RejectedExecutionException full) {
+            FxYulongAdOperationGate.release();
+            operationStatus.setText("后台任务繁忙，导入未开始。");
+        }
     }
 
     private String safe(String value) { return value==null||value.trim().isEmpty()?"无错误详情":value.trim(); }
