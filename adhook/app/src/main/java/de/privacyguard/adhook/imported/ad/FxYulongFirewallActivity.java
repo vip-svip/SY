@@ -25,14 +25,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Native Yulong 7.0.1 per-app firewall UI; separate from FX's per-app VPN route. */
 public final class FxYulongFirewallActivity extends Activity {
     private static final int APP_PAGE_SIZE = 50;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private final ExecutorService appWorker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> new Thread(r, "fx-yulong-firewall-root"), new ThreadPoolExecutor.AbortPolicy());
+    private final ThreadPoolExecutor appWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-yulong-firewall-apps"), new ThreadPoolExecutor.AbortPolicy());
     private int appPage = 1;
     private volatile boolean destroyed;
     private LinearLayout rows;
@@ -59,12 +65,22 @@ public final class FxYulongFirewallActivity extends Activity {
         return "'" + (s == null ? "" : s.replace("'", "'\\''")) + "'";
     }
     private void runRoot(String args, java.util.function.Consumer<RootAccess.Result> callback) {
-        worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(scriptCommand(args), 60000L, 1024 * 1024);
-            runOnUiThread(() -> {
-                if (!isFinishing() && !isDestroyed()) callback.accept(result);
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(scriptCommand(args), 60000L, 1024 * 1024);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) callback.accept(result);
+                });
             });
-        });
+        } catch (RejectedExecutionException full) {
+            // Reuse RootAccess' no-process validation result so existing callbacks
+            // restore switches and expose the queue-busy state consistently.
+            RootAccess.Result rejected = RootAccess.execute("");
+            if (!isFinishing() && !isDestroyed()) {
+                status.setText("后台任务繁忙，本次防火墙操作未执行。");
+                callback.accept(rejected);
+            }
+        }
     }
     private TextView text(String value, int size, int color, boolean bold) {
         TextView view = new TextView(this);
