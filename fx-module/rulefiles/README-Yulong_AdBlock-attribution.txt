@@ -33,3 +33,14 @@ AdGuard Chinese filter
 FX stores validated domain-only Hosts/DNS entries in Yulong_AdBlock.txt.
 ABP cosmetic selectors and exceptions are retained separately in
 Yulong_AdBlock_Cosmetic.txt, and are not applied by the DNS/Hosts pipeline.
+
+
+Decoder output contract:
+- `Yulong_AdBlock.txt`: DNS-safe host rules. A complete hostname written as
+  `domain^` or `||domain^` is normalized to the exact hostname because the
+  original DNS trie matches that domain and its subdomains.
+- `Yulong_AdBlock_Cosmetic.txt`: preserved cosmetic selectors/exceptions;
+  not activated by the DNS-only import path.
+- `Yulong_AdBlock_Review.jsonl`: exact unsupported terminals paired with their
+  source trie. URL-start anchors, paths, wildcard expressions, IP literals and
+  malformed tokens remain review-only and are never widened into DNS blocks.

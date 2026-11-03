@@ -112,12 +112,13 @@ def main():
     root = Path(sys.argv[1])
     rules = root / "rulefiles/Yulong_AdBlock.txt"
     cosmetic = root / "rulefiles/Yulong_AdBlock_Cosmetic.txt"
+    review = root / "rulefiles/Yulong_AdBlock_Review.jsonl"
     default = root / "scripts/default.conf"
     util = root / "scripts/util.sh"
     agh = root / "scripts/adguardhome.sh"
     test_source = root.parent / "scripts/tests/fx-yulong-ad-rule-import-regression.sh"
     test_target = root / "scripts/tests/fx-yulong-ad-rule-import-regression.sh"
-    for path in (rules, cosmetic, default, util, agh, test_source):
+    for path in (rules, cosmetic, review, default, util, agh, test_source):
         if not path.is_file():
             raise SystemExit(f"required FX input missing: {path}")
     if rules.stat().st_size < 1_000_000:

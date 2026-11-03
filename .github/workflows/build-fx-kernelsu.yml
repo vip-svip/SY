@@ -141,6 +141,7 @@ jobs:
           python3 scripts/decode_yulong_ad_tries.py "$assets_dir" \
             fx-module/rulefiles/Yulong_AdBlock.txt \
             --cosmetic-output fx-module/rulefiles/Yulong_AdBlock_Cosmetic.txt \
+            --review-output fx-module/rulefiles/Yulong_AdBlock_Review.jsonl \
             --report fx-module/rulefiles/Yulong_AdBlock-report.json
           python3 scripts/integrate_yulong_ad_rules.py fx-module
           sh scripts/tests/fx-yulong-ad-rule-import-regression.sh fx-module

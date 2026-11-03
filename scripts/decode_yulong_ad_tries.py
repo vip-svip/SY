@@ -7,6 +7,7 @@ exceptions are preserved separately and are not enabled by the DNS importer.
 from __future__ import annotations
 import argparse
 import json
+import ipaddress
 import os
 import re
 import struct
@@ -202,11 +203,49 @@ def validate_bloom(path: Path):
     }
 
 
+def normalize_dns_terminal(value: str):
+    """Return a DNS-safe hostname and whether an ABP separator was normalized.
+
+    Only a complete hostname, optionally written as an ABP domain anchor
+    (||host^) or a plain host with one trailing separator (^), is eligible.
+    URL-start anchors, paths, wildcard labels, modifiers and IP literals are
+    deliberately not widened into whole-domain DNS blocks.
+    """
+    token = value.strip().lower()
+    if not token:
+        return None
+
+    if token.startswith("||"):
+        token = token[2:]
+    elif token.startswith("|"):
+        return None
+
+    had_separator = token.endswith("^")
+    if had_separator:
+        token = token[:-1]
+
+    # HOST_RE allows at most one optional terminal dot. Check before stripping
+    # it so malformed multiple-dot inputs cannot be silently normalized.
+    if not HOST_RE.fullmatch(token) or "." not in token or ".." in token:
+        return None
+    domain = token[:-1] if token.endswith(".") else token
+    if not domain:
+        return None
+    try:
+        ipaddress.ip_address(domain)
+        return None
+    except ValueError:
+        pass
+    return domain, had_separator
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("assets", type=Path, help="extracted 7.0.1 assets directory")
     ap.add_argument("output", type=Path, help="FX rulefiles/Yulong_AdBlock.txt")
     ap.add_argument("--cosmetic-output", type=Path, required=True)
+    ap.add_argument("--review-output", type=Path, required=True,
+                    help="preserved non-DNS terminals; never activated automatically")
     ap.add_argument("--report", type=Path, required=True)
     args = ap.parse_args()
     if not args.assets.is_dir():
@@ -215,7 +254,9 @@ def main():
     per_file = {}
     hosts = set()
     cosmetic = set()
+    review = set()
     invalid = Counter()
+    normalized_separator_total = 0
     total = 0
     for name in TRIE_FILES:
         path = args.assets / name
@@ -230,29 +271,39 @@ def main():
         total += len(entries)
         file_hosts = set()
         file_cosmetic = set()
+        file_review = set()
+        file_normalized_separator_count = 0
         for entry in entries:
             value = entry.strip()
-            if "##" in value or "#@#" in value or "#?#" in value:
+            if any(marker in value for marker in ("##", "#@#", "#?#", "#$#", "#%#")):
                 file_cosmetic.add(value)
                 continue
-            domain = value.rstrip(".").lower()
-            if HOST_RE.fullmatch(domain) and "." in domain and ".." not in domain:
-                file_hosts.add(domain)
-            else:
+            normalized = normalize_dns_terminal(value)
+            if normalized is None:
+                file_review.add(value)
                 invalid[name] += 1
+                continue
+            domain, had_separator = normalized
+            file_hosts.add(domain)
+            if had_separator:
+                file_normalized_separator_count += 1
         hosts.update(file_hosts)
         cosmetic.update(file_cosmetic)
+        review.update((name, value) for value in file_review)
+        normalized_separator_total += file_normalized_separator_count
         per_file[name] = {
             **stats,
             "bloom": bloom_stats,
             "valid_dns_hosts": len(file_hosts),
+            "normalized_separator_terminals": file_normalized_separator_count,
             "cosmetic_and_exception_rules": len(file_cosmetic),
+            "preserved_review_terminals": len(file_review),
         }
 
-    output_paths = [args.output, args.cosmetic_output, args.report]
+    output_paths = [args.output, args.cosmetic_output, args.review_output, args.report]
     absolute_outputs = [Path(os.path.abspath(os.fspath(path))) for path in output_paths]
     if len(set(absolute_outputs)) != len(absolute_outputs):
-        raise SystemExit("DNS, cosmetic and report output paths must be distinct")
+        raise SystemExit("DNS, cosmetic, review and report output paths must be distinct")
     source_assets = set()
     for name in TRIE_FILES:
         trie_path = args.assets / name
@@ -263,6 +314,7 @@ def main():
     try:
         output_path = validate_output_target(args.output)
         cosmetic_path = validate_output_target(args.cosmetic_output)
+        review_path = validate_output_target(args.review_output)
         report_path = validate_output_target(args.report)
     except ValueError as error:
         raise SystemExit(str(error)) from error
@@ -286,15 +338,27 @@ def main():
         "bloom_asset_count": len(TRIE_FILES),
         "decoded_terminals": total,
         "unique_valid_dns_domains": len(hosts),
+        "normalized_separator_terminals": normalized_separator_total,
         "preserved_cosmetic_rules": len(cosmetic),
+        "preserved_review_terminal_count": len(review),
         "rejected_non_dns_terminals": dict(invalid),
         "files": per_file,
         "output": str(args.output),
         "cosmetic_output": str(args.cosmetic_output),
+        "review_output": str(args.review_output),
     }
 
     atomic_write_text(output_path, write_rules)
     atomic_write_text(cosmetic_path, write_cosmetic)
+
+    def write_review(stream):
+        stream.write("# Preserved Yulong 7.0.1 terminals that are not safe DNS host rules.\n")
+        stream.write("# Review/format migration only; never loaded automatically by DNS or Hosts.\n")
+        stream.write("# JSONL records preserve source trie and exact original terminal.\n")
+        for source, value in sorted(review):
+            stream.write(json.dumps({"source": source, "terminal": value}, ensure_ascii=False) + "\n")
+
+    atomic_write_text(review_path, write_review)
     atomic_write_text(
         report_path,
         lambda stream: stream.write(json.dumps(report, ensure_ascii=False, indent=2) + "\n"),

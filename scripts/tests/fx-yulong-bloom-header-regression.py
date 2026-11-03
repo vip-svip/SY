@@ -24,26 +24,59 @@ def fail(message: str) -> None:
 
 
 def minimal_trie() -> bytes:
-    # root -> "com" -> terminal "example", yielding example.com after reversal.
-    root_offset = DECODER_MODULE.HEADER_SIZE
-    middle_offset = root_offset + 5 + 2 + 3 + 4
-    leaf_offset = middle_offset + 5 + 2 + 7 + 4
-    header = struct.pack(
-        ">IIII", DECODER_MODULE.MAGIC, DECODER_MODULE.VERSION, 3, 1
+    """Build a valid TRIE v2 fixture with DNS, cosmetic and review-only terms."""
+    terminals = (
+        "example.com",
+        "cdn.example.net^",
+        "|a.klaviyo.com^",
+        "news.example.org##.ad",
+        "1.2.3.4",
     )
-    root = (
-        b"\x00" + struct.pack(">I", 1)
-        + struct.pack(">H", 3) + b"com"
-        + struct.pack(">I", middle_offset)
-    )
-    middle = (
-        b"\x00" + struct.pack(">I", 1)
-        + struct.pack(">H", 7) + b"example"
-        + struct.pack(">I", leaf_offset)
-    )
-    leaf = b"\x01" + struct.pack(">I", 0)
-    return header + root + middle + leaf
 
+    class Node:
+        def __init__(self):
+            self.terminal = False
+            self.children = {}
+
+    root = Node()
+    for terminal in terminals:
+        node = root
+        for label in reversed(terminal.split(".")):
+            node = node.children.setdefault(label, Node())
+        node.terminal = True
+
+    nodes = []
+    queue = [root]
+    while queue:
+        current = queue.pop(0)
+        nodes.append(current)
+        for label in sorted(current.children):
+            queue.append(current.children[label])
+
+    offsets = {}
+    offset = DECODER_MODULE.HEADER_SIZE
+    for current in nodes:
+        offsets[id(current)] = offset
+        offset += 5 + sum(
+            2 + len(label.encode("utf-8")) + 4
+            for label in current.children
+        )
+
+    payload = bytearray()
+    for current in nodes:
+        payload.append(1 if current.terminal else 0)
+        payload.extend(struct.pack(">I", len(current.children)))
+        for label in sorted(current.children):
+            encoded = label.encode("utf-8")
+            payload.extend(struct.pack(">H", len(encoded)))
+            payload.extend(encoded)
+            payload.extend(struct.pack(">I", offsets[id(current.children[label])]))
+
+    header = struct.pack(
+        ">IIII", DECODER_MODULE.MAGIC, DECODER_MODULE.VERSION,
+        len(nodes), len(terminals)
+    )
+    return header + bytes(payload)
 
 def valid_bloom() -> bytes:
     return struct.pack(
@@ -66,11 +99,13 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-bloom-") as temp:
     # Bloom headers, rather than merely testing a helper in isolation.
     output = tmp / "Yulong_AdBlock.txt"
     cosmetic = tmp / "Yulong_AdBlock_Cosmetic.txt"
+    review = tmp / "Yulong_AdBlock_Review.jsonl"
     report = tmp / "Yulong_AdBlock-report.json"
     completed = subprocess.run(
         [
             sys.executable, str(DECODER), str(assets), str(output),
-            "--cosmetic-output", str(cosmetic), "--report", str(report),
+            "--cosmetic-output", str(cosmetic), "--review-output", str(review),
+            "--report", str(report),
         ],
         capture_output=True, text=True, check=False,
     )
@@ -81,8 +116,27 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-bloom-") as temp:
         fail("decoder report does not identify both native formats")
     if result.get("trie_asset_count") != 4 or result.get("bloom_asset_count") != 4:
         fail("decoder report does not count all four native asset pairs")
-    if result.get("unique_valid_dns_domains") != 1 or "0.0.0.0 example.com" not in output.read_text():
-        fail("valid TRIE terminals were not decoded into the expected DNS domain")
+    rules_text = output.read_text(encoding="utf-8")
+    if result.get("unique_valid_dns_domains") != 2:
+        fail("expected plain and safe separator DNS domains")
+    if "0.0.0.0 example.com" not in rules_text or "0.0.0.0 cdn.example.net" not in rules_text:
+        fail("plain or safely normalized DNS terminal missing")
+    if result.get("normalized_separator_terminals") != 4:
+        fail("separator normalization count is incorrect")
+    cosmetic_text = cosmetic.read_text(encoding="utf-8")
+    if "news.example.org##.ad" not in cosmetic_text:
+        fail("cosmetic rule was not preserved separately")
+    review_rows = [json.loads(line) for line in review.read_text(encoding="utf-8").splitlines()
+                   if line and not line.startswith("#")]
+    if len(review_rows) != 8:
+        fail("two review-only terminals per source Trie should be preserved")
+    review_terms = {row["terminal"] for row in review_rows}
+    if not {"|a.klaviyo.com^", "1.2.3.4"} <= review_terms:
+        fail("non-DNS filter terminals were not preserved for review")
+    if "0.0.0.0 a.klaviyo.com" in rules_text:
+        fail("URL-start anchored terminal was incorrectly widened into DNS blocking")
+    if result.get("preserved_review_terminal_count") != 8:
+        fail("review terminal count should preserve two unsupported terminals per source trie")
     for item in result["files"].values():
         bloom = item.get("bloom", {})
         if bloom.get("version") != 1 or bloom.get("magic") != "0x424c4f4d":
@@ -143,6 +197,7 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-bloom-") as temp:
         blocked = subprocess.run(
             [sys.executable, str(DECODER), str(assets), str(symlink_output),
              "--cosmetic-output", str(tmp / "blocked-cosmetic.txt"),
+             "--review-output", str(tmp / "blocked-review.jsonl"),
              "--report", str(tmp / "blocked-report.json")],
             capture_output=True, text=True, check=False,
         )
@@ -163,6 +218,7 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-bloom-") as temp:
     completed = subprocess.run(
         [sys.executable, str(DECODER), str(assets), str(safe_output),
          "--cosmetic-output", str(tmp / "safe-cosmetic.txt"),
+         "--review-output", str(tmp / "safe-review.jsonl"),
          "--report", str(tmp / "safe-report.json")],
         capture_output=True, text=True, check=False,
     )
