@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Enable user-opt-in, local-only AdGuard Home DNS query logging in restored FX release source."""
 from pathlib import Path
+import shutil
 import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module").resolve()
@@ -46,4 +47,13 @@ else:
 
 script.write_text(source, encoding="utf-8")
 script.chmod(0o755)
-print("Applied user-opt-in local AdGuard Home query log (7-day retention, disabled by default).")
+
+repo = Path(__file__).resolve().parent.parent
+helper_source = repo / "scripts/yulong-ad-dns-summary.sh"
+helper_target = module / "scripts/yulong-ad-dns-summary.sh"
+if not helper_source.is_file() or helper_source.stat().st_size < 500:
+    raise SystemExit("privacy-preserving DNS summary helper is missing or unexpectedly small")
+helper_target.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(helper_source, helper_target)
+helper_target.chmod(0o755)
+print("Applied user-opt-in local AdGuard Home query log and staged numeric-only DNS summary helper.")

@@ -129,6 +129,8 @@ jobs:
           sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
+          python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
+          sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh fx-module
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
           sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
           # Stage the canonical Root Proxy before applying the shared atomic lock migration.

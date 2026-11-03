@@ -172,6 +172,7 @@ jobs:
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           python3 fx-patches/patch_yulong_app_whitelist.py fx-module
           python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
+          sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh fx-module
           python3 fx-patches/patch_native_script_store.py fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
           sh scripts/tests/fx-native-script-local-run-regression.sh

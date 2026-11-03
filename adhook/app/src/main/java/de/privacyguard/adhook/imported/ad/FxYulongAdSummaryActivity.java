@@ -12,14 +12,6 @@ import android.widget.TextView;
 
 import de.privacyguard.adhook.RootAccess;
 
-import org.json.JSONObject;
-
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -28,12 +20,6 @@ public final class FxYulongAdSummaryActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private LinearLayout body;
     private TextView status;
-    private static final class Query {
-        final boolean blocked;
-        final long time;
-        Query(boolean blocked, long time) { this.blocked = blocked; this.time = time; }
-    }
-
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String s, int size, int color, boolean bold) {
         TextView t = new TextView(this); t.setText(s); t.setTextSize(size); t.setTextColor(color);
@@ -80,7 +66,7 @@ public final class FxYulongAdSummaryActivity extends Activity {
 
         status = text("正在读取本机广告过滤配置与 DNS 查询日志…", 13, 0xff526170, false);
         card("本机数据口径",
-                "汇总 FX 当前生效的游龙广告过滤主开关、规则源与域名名单；查询统计只读取本机 AdGuard Home 最近 500 条日志样本。若日志关闭，不会推测今日拦截数。",
+                "汇总 FX 当前生效的游龙广告过滤主开关、规则源与域名名单；DNS 累计只返回本机当前保留日志的数字计数，不返回域名、客户端 IP 或原始记录。日志默认关闭，须由用户主动开启。",
                 status, button("刷新总结", this::load),
                 button("查看 DNS 查询日志", () -> startActivity(new Intent(this, FxYulongDnsActivity.class))),
                 button("查看分应用流量", () -> startActivity(new Intent(this, FxYulongAppStatsActivity.class))));
@@ -95,7 +81,7 @@ public final class FxYulongAdSummaryActivity extends Activity {
                 status.setText("读取广告过滤配置失败：" + safe(config.output)); return;
             }
             Summary summary = parseConfig(config.output);
-            root("dns-log-tail", logs -> renderSummary(summary, logs));
+            root("dns-log-summary", stats -> renderSummary(summary, stats));
         });
     }
 
@@ -116,73 +102,56 @@ public final class FxYulongAdSummaryActivity extends Activity {
         return out;
     }
 
-    private long timestamp(String value) {
-        if (value == null || value.trim().isEmpty()) return -1L;
-        try { return Instant.parse(value.trim()).toEpochMilli(); } catch (Throwable ignored) { }
-        try { return ZonedDateTime.parse(value.trim()).toInstant().toEpochMilli(); } catch (Throwable ignored) { }
-        return -1L;
-    }
-
-    private void renderSummary(Summary config, RootAccess.Result logs) {
+    private static long metric(String raw, String key) {
+        for (String line : (raw == null ? "" : raw).split("\\r?\\n")) {
+            if (!line.startsWith(key + "=")) continue;
+            try {
+                long value = Long.parseLong(line.substring(key.length() + 1).trim());
+                return value < 0 ? -1L : value;
+               private void renderSummary(Summary config, RootAccess.Result stats) {
         if (isFinishing() || isDestroyed()) return;
         StringBuilder configuration = new StringBuilder();
         configuration.append("广告过滤主开关：").append(config.adMaster ? "已启用" : "已关闭")
-                .append("\n已启用规则源：").append(config.enabledRules).append(" / ").append(config.totalRules)
-                .append("\n白名单域名：").append(config.allowDomains)
-                .append("\n黑名单域名：").append(config.blockDomains);
+                .append("\\n已启用规则源：").append(config.enabledRules).append(" / ").append(config.totalRules)
+                .append("\\n白名单域名：").append(config.allowDomains)
+                .append("\\n黑名单域名：").append(config.blockDomains);
         card("广告过滤配置", "直接来自设备端 yulong-ad-control.sh list。", text(configuration.toString(), 13, 0xff334155, false));
 
-        if (logs.exitCode != 0) {
-            card("DNS 查询样本", "读取本地日志失败。", text(safe(logs.output), 12, 0xff9b2c2c, false));
-            status.setText("配置摘要已读取；DNS 查询样本读取失败。");
+        if (stats.exitCode != 0) {
+            card("DNS 累计统计", "读取本机累计计数失败。", text(safe(stats.output), 12, 0xff9b2c2c, false));
+            status.setText("配置摘要已读取；DNS 累计统计读取失败。");
             return;
         }
-        String raw = logs.output == null ? "" : logs.output;
+        String raw = stats.output == null ? "" : stats.output;
         if (raw.contains("FXDNSLOG_DISABLED")) {
-            card("DNS 查询样本", "本地查询日志当前关闭。", text("请在 DNS 设置中开启本地 DNS 查询日志后再查看统计。", 12, 0xff617080, false));
-            status.setText("配置摘要已读取；DNS 查询日志未启用。今日拦截数不作推算。");
+            card("DNS 累计统计", "本机查询日志当前关闭。",
+                    text("统计保持关闭；返回 DNS 设置后可由用户主动开启。不会为了显示计数而自动启用日志。", 12, 0xff617080, false));
+            status.setText("配置摘要已读取；DNS 查询日志未启用，未生成统计。");
             return;
         }
         if (raw.contains("FXDNSLOG_EMPTY")) {
-            card("DNS 查询样本", "本地暂无查询记录。", text("启用查询日志并产生 DNS 请求后，这里会显示样本摘要。", 12, 0xff617080, false));
-            status.setText("配置摘要已读取；本机暂无查询样本。");
+            card("DNS 累计统计", "当前保留日志暂无有效查询记录。",
+                    text("日志开启后，统计会按本机当前保留的记录累计；最长保留期由 AdGuard Home 设置为 7 天。", 12, 0xff617080, false));
+            status.setText("配置摘要已读取；本机暂无 DNS 累计记录。");
             return;
         }
-
-        List<Query> queries = new ArrayList<>();
-        int malformed = 0;
-        long dayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
-        long now = System.currentTimeMillis();
-        int today = 0, todayBlocked = 0, unknownTime = 0;
-        for (String line : raw.split("\\r?\\n")) {
-            String value = line.trim();
-            if (!value.startsWith("{")) continue;
-            try {
-                JSONObject item = new JSONObject(value);
-                JSONObject result = item.optJSONObject("Result");
-                boolean blocked = item.optBoolean("IsFiltered", false)
-                        || (result != null && result.optBoolean("IsFiltered", false));
-                String reason = result == null ? item.optString("reason", "")
-                        : result.optString("Reason", item.optString("reason", ""));
-                String logStatus = item.optString("status", "").toLowerCase(java.util.Locale.ROOT);
-                if (logStatus.contains("block") || logStatus.contains("filter")
-                        || reason.toLowerCase(java.util.Locale.ROOT).startsWith("filtered")) blocked = true;
-                long time = timestamp(item.optString("T", item.optString("time", "")));
-                if (time < 0) unknownTime++;
-                else if (time >= dayStart && time <= now) { today++; if (blocked) todayBlocked++; }
-                queries.add(new Query(blocked, time));
-            } catch (Throwable error) { malformed++; }
+        long queries = metric(raw, "queries");
+        long blocked = metric(raw, "blocked");
+        long unblocked = metric(raw, "unblocked");
+        if (!raw.contains("FXYULONGDNSSTATS1") || queries < 0 || blocked < 0
+                || unblocked < 0 || blocked > queries || unblocked != queries - blocked) {
+            card("DNS 累计统计", "统计格式无效或数据不一致。",
+                    text("为避免展示错误计数，本次统计没有被采纳。", 12, 0xff9b2c2c, false));
+            status.setText("配置摘要已读取；DNS 累计统计格式校验失败。");
+            return;
         }
-        int blocked = 0; for (Query q : queries) if (q.blocked) blocked++;
-        String metrics = "最近 500 条日志样本中解析：" + queries.size() + " 条"
-                + "\n其中拦截：" + blocked + " 条"
-                + "\n未标记拦截：" + Math.max(0, queries.size() - blocked) + " 条"
-                + "\n今日样本（仅日志带可解析时间时）： " + today + " 条 · 拦截 " + todayBlocked + " 条"
-                + "\n时间无法解析：" + unknownTime + " 条 · 无效行：" + malformed + " 条";
-        card("DNS 查询与拦截样本",
-                "本机 AdGuard Home querylog.json 的最近 500 条尾部样本。不是完整历史总量，也不代表每个应用的独立查询计数。",
+        String metrics = "当前保留日志内 DNS 查询： " + queries + " 条"
+                + "\\n其中拦截： " + blocked + " 条"
+                + "\\n未拦截： " + unblocked + " 条";
+        card("DNS 累计统计",
+                "基于本机 AdGuard Home 当前保留日志流式汇总，最长保留期 7 天。统计接口只返回数字，不返回域名、客户端 IP 或原始查询记录；不代表逐应用查询次数。",
                 text(metrics, 13, 0xff334155, false));
-        status.setText("总结已更新。样本仅限最近 500 条本地 DNS 查询日志；完整日累计需以日志保留策略为准。");
+        status.setText("统计已更新；范围为当前本机保留日志，日志默认关闭，只有用户主动启用期间才累计。");
     }
 
     private String safe(String value) {

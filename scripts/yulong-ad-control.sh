@@ -558,6 +558,16 @@ cache_flush() {
 
 cmd="${1:-list}"
 case "$cmd" in
+  dns-log-summary)
+  [ "$#" -eq 1 ] || exit 2
+  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
+    echo FXDNSLOG_DISABLED
+    exit 0
+  fi
+  helper="$MP/scripts/yulong-ad-dns-summary.sh"
+  [ -x "$helper" ] || { echo "DNS summary helper is not installed" >&2; exit 20; }
+  sh "$helper" "$PG/adguardhome/work/data"
+  ;;
   dns-log-tail)
   if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
     echo FXDNSLOG_DISABLED
