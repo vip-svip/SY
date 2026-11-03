@@ -37,6 +37,12 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/fx_accessibility_service" />
         </service>
+        <activity android:name=".imported.shield.FxYulongScreenFilterActivity" android:exported="false" />
+        <service android:name=".imported.shield.FxYulongScreenFilterService"
+            android:enabled="true" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="用户主动开启的屏幕滤镜悬浮覆盖层服务" />
+        </service>
         <service android:name=".imported.shield.FxYulongRescueOverlayService"
             android:enabled="true" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
