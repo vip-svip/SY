@@ -14,6 +14,9 @@ source = receiver_path.read_text(encoding="utf-8")
 root = receiver_path.parents[0]
 widget_source = (root / "FxYulongAdWidgetProvider.java").read_text(encoding="utf-8")
 tile_source = (root / "FxYulongAdTileService.java").read_text(encoding="utf-8")
+ad_activity = (root / "FxYulongAdActivity.java").read_text(encoding="utf-8")
+general_activity = (root / "FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
+gate_source = (root / "FxYulongAdOperationGate.java").read_text(encoding="utf-8")
 gate_source = (root / "FxYulongAdOperationGate.java").read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -76,5 +79,20 @@ tile = next((x for x in manifest.findall("./application/service")
 assert tile is not None
 assert tile.attrib.get(ns + "permission") == "android.permission.BIND_QUICK_SETTINGS_TILE"
 assert tile.attrib.get(ns + "exported") == "true"
+
+# All Android-side ad-master writers share one process gate; the yulong shell
+# command retains its own mkdir transaction lock for cross-process callers.
+assert "AtomicBoolean BUSY" in gate_source
+assert "BUSY.compareAndSet(false, true)" in gate_source
+assert "BUSY.set(false)" in gate_source
+assert "FxYulongAdOperationGate.tryAcquire()" in source
+assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
+assert "FxYulongAdOperationGate.tryAcquire()" in tile_source
+assert "FxYulongAdOperationGate.tryAcquire()" in ad_activity
+assert 'args.matches("^ad-master\\\\s+[01]$")' in ad_activity
+assert "FxYulongAdOperationGate.release();" in ad_activity
+assert "FxYulongAdOperationGate.tryAcquire()" in general_activity
+assert "FxYulongAdOperationGate.release();" in general_activity
+assert "finally {" in general_activity and "导入未开始" in general_activity
 print("PASS: Tasker, widget and Quick Settings Root toggles are bounded, serialized and fail closed")
 PY
