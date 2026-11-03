@@ -106,7 +106,7 @@ public final class FxYulongShieldActivity extends Activity {
         card("功能迁移状态",
                 "已迁入病毒名单、离线缓存、手动扫描、白名单/管控名单、安装后扫描、前台应用守护、Stellar 权限管理、开机恢复与 15 分钟低频恢复 Alarm。原版 2 分钟高频 watchdog、强制恢复无障碍权限和部分覆盖层自保护行为未照搬；FX 不会擅自修改系统权限或强停目标应用。");
         card("屏幕滤镜",
-                "迁入原版 ScreenFilterService 的标准/游戏预设、亮度、对比度、饱和度和色温调节。滤镜使用不接收触摸的透明悬浮层。",
+                "迁入标准浅色/暖色覆盖预设及亮度、色温叠加调节。滤镜使用不接收触摸的透明悬浮层，不读取屏幕图像；普通悬浮层不能对下层应用画面执行像素级对比度/饱和度变换。",
                 action("打开屏幕滤镜设置", () -> startActivity(new Intent(this,
                         FxYulongScreenFilterActivity.class))));
         card("病毒库与名单",
