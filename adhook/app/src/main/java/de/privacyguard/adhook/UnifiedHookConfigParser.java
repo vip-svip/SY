@@ -299,6 +299,7 @@ public final class UnifiedHookConfigParser {
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
             Set<String> developerRuleIds = new HashSet<>();
+            Set<Integer> developerRuleSlots = new HashSet<>();
             Set<String> seen = new HashSet<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -367,9 +368,24 @@ public final class UnifiedHookConfigParser {
                     developerHooksEnabled = "1".equals(value);
                     continue;
                 }
-                if (key.matches("dev_rule_[0-9]{1,2}")) {
-                    if (developerRulesCount(developerRules) >= MAX_DEVELOPER_RULES_PER_TARGET) throw new IllegalArgumentException("too many developer rules");
-                    DeveloperHookRule rule = DeveloperHookRule.parse(value, pkg);
+                java.util.regex.Matcher rawRuleKey =
+                        java.util.regex.Pattern.compile("^dev_rule_([0-9]{1,2})$").matcher(key);
+                java.util.regex.Matcher encodedRuleKey =
+                        java.util.regex.Pattern.compile("^dev_rule_b64_([0-9]{1,2})$").matcher(key);
+                if (rawRuleKey.matches() || encodedRuleKey.matches()) {
+                    if (developerRulesCount(developerRules) >= MAX_DEVELOPER_RULES_PER_TARGET)
+                        throw new IllegalArgumentException("too many developer rules");
+                    int slot = Integer.parseInt(rawRuleKey.matches()
+                            ? rawRuleKey.group(1) : encodedRuleKey.group(1));
+                    if (slot < 1 || slot > MAX_DEVELOPER_RULES_PER_TARGET
+                            || !developerRuleSlots.add(slot))
+                        throw new IllegalArgumentException("duplicate or invalid developer rule slot");
+                    // Legacy dev_rule_N values remain readable. New writes use URL-safe
+                    // Base64 so commas inside typed Java/JVM parameter signatures cannot
+                    // be mistaken for target-row separators.
+                    String ruleValue = encodedRuleKey.matches()
+                            ? decodeDeveloperRuleValue(value) : value;
+                    DeveloperHookRule rule = DeveloperHookRule.parse(ruleValue, pkg);
                     if (rule == null) throw new IllegalArgumentException("invalid developer rule");
                     if (!developerRuleIds.add(rule.id))
                         throw new IllegalArgumentException("duplicate developer rule id");
@@ -540,6 +556,24 @@ public final class UnifiedHookConfigParser {
     }
 
     private static int developerRulesCount(List<DeveloperHookRule> rules) { return rules.size(); }
+
+    private static String decodeDeveloperRuleValue(String value) {
+        if (value == null || value.isEmpty() || value.length() > 1024
+                || !value.matches("[A-Za-z0-9_-]+"))
+            throw new IllegalArgumentException("invalid encoded developer rule");
+        final byte[] decoded;
+        try {
+            decoded = java.util.Base64.getUrlDecoder().decode(value);
+        } catch (IllegalArgumentException malformed) {
+            throw new IllegalArgumentException("invalid encoded developer rule");
+        }
+        if (decoded.length == 0 || decoded.length > 768)
+            throw new IllegalArgumentException("encoded developer rule exceeds size limit");
+        String rule = new String(decoded, StandardCharsets.UTF_8);
+        if (!Arrays.equals(decoded, rule.getBytes(StandardCharsets.UTF_8)))
+            throw new IllegalArgumentException("encoded developer rule is not valid UTF-8");
+        return rule;
+    }
 
     private static boolean validDeveloperBooleanMethodSpec(String value, String packageName) {
         if (value == null || value.length() > 512) return false;
