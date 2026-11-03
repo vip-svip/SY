@@ -412,41 +412,82 @@ public final class FxDiaFileActivity extends Activity {
     }
 
     private void chooseDebugTarget() {
-        List<ApplicationInfo> apps=new ArrayList<>();PackageManager pm=getPackageManager();
-        try{for(ApplicationInfo a:pm.getInstalledApplications(0)){
-            if(a.packageName==null||a.packageName.equals(getPackageName()))continue;
-            if((a.flags&ApplicationInfo.FLAG_DEBUGGABLE)==0||(a.flags&ApplicationInfo.FLAG_SYSTEM)!=0)continue;
-            apps.add(a);
-        }}catch(Throwable e){soStatus.setText("读取应用列表失败："+e.getClass().getSimpleName());return;}
-        apps.sort(Comparator.comparing(a->String.valueOf(pm.getApplicationLabel(a)).toLowerCase(Locale.ROOT)));
-        if(apps.isEmpty()){soStatus.setText("没有用户安装的 debuggable 应用。");return;}
-        String[] labels=new String[apps.size()];
-        for(int i=0;i<apps.size();i++)labels[i]=String.valueOf(pm.getApplicationLabel(apps.get(i)))+"\n"+apps.get(i).packageName;
-        new AlertDialog.Builder(this).setTitle("选择 debuggable 应用").setItems(labels,(d,w)->inspectSo(apps.get(w)))
-                .setNegativeButton("取消",null).show();
+        soStatus.setText("正在后台读取 debuggable 应用…");
+        submitIo("读取应用列表", () -> {
+            List<ApplicationInfo> apps = new ArrayList<>();
+            PackageManager pm = getPackageManager();
+            try {
+                for (ApplicationInfo app : pm.getInstalledApplications(0)) {
+                    if (app.packageName == null || app.packageName.equals(getPackageName())) continue;
+                    if ((app.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                            || (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0) continue;
+                    apps.add(app);
+                }
+                apps.sort(Comparator.comparing(app ->
+                        String.valueOf(pm.getApplicationLabel(app)).toLowerCase(Locale.ROOT)));
+            } catch (Throwable error) {
+                postUi(() -> soStatus.setText("读取应用列表失败：" + error.getClass().getSimpleName()));
+                return;
+            }
+            final List<ApplicationInfo> targets = new ArrayList<>(apps);
+            final String[] labels = new String[targets.size()];
+            for (int i = 0; i < targets.size(); i++) {
+                labels[i] = String.valueOf(pm.getApplicationLabel(targets.get(i))) + "\\n"
+                        + targets.get(i).packageName;
+            }
+            postUi(() -> {
+                if (targets.isEmpty()) { soStatus.setText("没有用户安装的 debuggable 应用。"); return; }
+                new AlertDialog.Builder(this).setTitle("选择 debuggable 应用")
+                        .setItems(labels, (dialog, which) -> inspectSo(targets.get(which)))
+                        .setNegativeButton("取消", null).show();
+            });
+        });
     }
+
     private void inspectSo(ApplicationInfo app) {
-        StringBuilder out=new StringBuilder();
-        out.append("应用：").append(app.packageName).append('\n')
-                .append("APK：").append(app.sourceDir).append('\n')
-                .append("Native Library Dir：").append(app.nativeLibraryDir).append("\n\n");
-        int count=0;List<String> apks=new ArrayList<>();apks.add(app.sourceDir);
-        if(app.splitSourceDirs!=null)java.util.Collections.addAll(apks,app.splitSourceDirs);
-        for(String apk:apks)try(ZipFile zip=new ZipFile(apk)){
-            java.util.Enumeration<? extends ZipEntry> entries=zip.entries();
-            while(entries.hasMoreElements()){ZipEntry e=entries.nextElement();
-                if(!e.isDirectory()&&e.getName().startsWith("lib/")&&e.getName().endsWith(".so")){
-                    out.append(e.getName()).append(" · ").append(e.getSize()<0?"大小未知":bytes(e.getSize())).append('\n');count++;
+        soStatus.setText("正在后台检查 APK/SO 目录…");
+        submitIo("检查 APK/SO", () -> {
+            StringBuilder out = new StringBuilder();
+            out.append("应用：").append(app.packageName).append('\\n')
+                    .append("APK：").append(app.sourceDir).append('\\n')
+                    .append("Native Library Dir：").append(app.nativeLibraryDir).append("\\n\\n");
+            int count = 0;
+            List<String> apks = new ArrayList<>();
+            apks.add(app.sourceDir);
+            if (app.splitSourceDirs != null) java.util.Collections.addAll(apks, app.splitSourceDirs);
+            for (String apk : apks) {
+                try (ZipFile zip = new ZipFile(apk)) {
+                    java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+                    while (entries.hasMoreElements()) {
+                        ZipEntry entry = entries.nextElement();
+                        if (!entry.isDirectory() && entry.getName().startsWith("lib/")
+                                && entry.getName().endsWith(".so")) {
+                            out.append(entry.getName()).append(" · ")
+                                    .append(entry.getSize() < 0 ? "大小未知" : bytes(entry.getSize())).append('\\n');
+                            count++;
+                        }
+                    }
+                } catch (Throwable error) {
+                    out.append("APK 库目录不可读取：").append(apk).append('\\n');
                 }
             }
-        }catch(Throwable error){out.append("APK 库目录不可读取：").append(apk).append('\n');}
-        out.append("\n已安装 Native 目录：\n");
-        File dir=app.nativeLibraryDir==null?null:new File(app.nativeLibraryDir);
-        File[] libs=dir==null?null:dir.listFiles((d,n)->n.endsWith(".so"));
-        if(libs==null)out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\n");
-        else for(File f:libs){out.append(f.getName()).append(" · ").append(bytes(f.length())).append('\n');count++;}
-        soResults.setText(out.toString());soStatus.setText("只读列出 "+count+" 个 SO 条目；不执行、不注入、不修改。");
+            out.append("\\n已安装 Native 目录：\\n");
+            File dir = app.nativeLibraryDir == null ? null : new File(app.nativeLibraryDir);
+            File[] libs = dir == null ? null : dir.listFiles((d, name) -> name.endsWith(".so"));
+            if (libs == null) out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\\n");
+            else for (File lib : libs) {
+                out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\\n');
+                count++;
+            }
+            final String report = out.toString();
+            final int total = count;
+            postUi(() -> {
+                soResults.setText(report);
+                soStatus.setText("只读列出 " + total + " 个 SO 条目；不执行、不注入、不修改。");
+            });
+        });
     }
+
     private String bytes(long n){
         if(n<1024)return n+" B";double x=n;String[] units={"B","KiB","MiB","GiB"};int i=0;
         while(x>=1024&&i<units.length-1){x/=1024;i++;}return String.format(Locale.ROOT,"%.2f %s",x,units[i]);
@@ -461,5 +502,12 @@ public final class FxDiaFileActivity extends Activity {
             }catch(Throwable e){fileStatus.setText("保存目录授权失败："+e.getClass().getSimpleName());}
         }else if(requestCode==PICK_IMPORT)importFile(uri);
         else if(requestCode==PICK_EXPORT)exportFile(uri);
+    }
+
+    @Override protected void onDestroy() {
+        destroyed = true;
+        directoryRequestId++;
+        ioWorker.shutdownNow();
+        super.onDestroy();
     }
 }
