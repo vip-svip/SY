@@ -18,8 +18,16 @@ def assert_proxy_contract(label, source):
 
 assert_proxy_contract("Dia Wi-Fi proxy Activity", activity)
 assert_proxy_contract("Dia Wi-Fi proxy Quick Settings Tile", tile)
-assert 'host.split("\\\\.", -1)' in tile, "Tile host validation must split DNS labels on literal dots"
+assert r'host.split("\\.", -1)' in tile, "Tile host validation must split DNS labels on literal dots"
 assert "value.replace('" + slash + "n', ' ').replace('" + slash + "r', ' ')" in tile, "Tile log sanitizer must use valid Java newline character literals"
 for token in ('putString("previous", newPrevious)', 'putString("applied", target)', '.remove("previous").remove("applied")'):
     assert token in activity, "proxy persisted ownership/rollback behavior missing: " + token
+for path in (
+    ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java",
+    ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java",
+    ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTaskerReceiver.java",
+    ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java",
+):
+    source = path.read_text(encoding="utf-8")
+    assert slash * 2 + '"' not in source, path.name + " contains a Java-breaking double-escaped Shell quote"
 print("PASS: Dia Wi-Fi proxy Activity and Tile Java escapes, host validation, and shell ownership/rollback contract")

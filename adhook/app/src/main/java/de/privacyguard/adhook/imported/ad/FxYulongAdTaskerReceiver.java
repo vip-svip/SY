@@ -52,8 +52,8 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                 int code=127;
                 try{
                     String command="MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                            +"if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; then MP=\\"$d\\"; break; fi; done; "
-                            +"[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" ad-master "+enabled;
+                            +"if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
+                            +"[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" ad-master "+enabled;
                     RootAccess.Result result=RootAccess.execute(command,90000L,128*1024);
                     code=result.exitCode;
                     if(code==0)FxYulongAdWidgetProvider.refreshAll(context);

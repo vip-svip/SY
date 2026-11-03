@@ -2063,8 +2063,8 @@ public final class FxDiaFridaActivity extends Activity {
         }
         String log = gadgetSessionLogPath(port);
         String command = "set -eu; path=" + quote(log) + "; "
-                + "[ ! -L \\"$path\\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
-                + "if [ -s \\"$path\\" ]; then tail -n 500 \\"$path\\"; "
+                + "[ ! -L \"$path\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
+                + "if [ -s \"$path\" ]; then tail -n 500 \"$path\"; "
                 + "else echo '当前端口尚无 Gadget 会话消息/console 输出。'; fi";
         runRoot(command, 12000L, result -> {
             TextView viewer = text(result.output == null ? "" : result.output,

@@ -78,9 +78,9 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     private String command(String args) {
         return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; "
-                + "then MP=\\"$d\\"; break; fi; done; "
-                + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-app-whitelist.sh\\" " + args;
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-app-whitelist.sh\" " + args;
     }
     private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
         try {

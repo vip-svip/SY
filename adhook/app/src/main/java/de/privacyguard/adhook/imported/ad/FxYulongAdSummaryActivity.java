@@ -54,9 +54,9 @@ public final class FxYulongAdSummaryActivity extends Activity {
     private String moduleShell(String scriptArgs) {
         return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; "
-                + "then MP=\\"$d\\"; break; fi; done; "
-                + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" " + scriptArgs;
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + scriptArgs;
     }
     private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
         worker.execute(() -> {
