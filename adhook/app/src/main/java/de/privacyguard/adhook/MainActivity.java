@@ -4422,6 +4422,12 @@ public final class MainActivity extends ComponentActivity {
                     String method = descriptor.getText().toString().trim();
                     String actionText = action.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
                     String priorityText = priority.getText().toString().trim();
+                    if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
+                            && !"RETURN_FALSE".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE 或 RETURN_FALSE。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
                     ApplicationInfo target = findApp(selectedPackage);
                     boolean debuggable = target != null
                             && (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
