@@ -254,14 +254,16 @@ public final class AdVisibilityHook extends XposedModule {
         // OBSERVE records metadata; RETURN_* actions are local Debug fixtures only.
         // They never grant production authorization or modify server-side entitlements.
         boolean developerRuleForPackage = false;
+        boolean developerObserveForPackage = false;
         List<DeveloperHookRule> effectiveDeveloperRules = Collections.emptyList();
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            // Resolve once so the package gate and installed hooks use identical priority decisions.
+            // Resolve once so package eligibility and installed interceptors use identical priority decisions.
             effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (rule.action != DeveloperHookRule.Action.DISABLED) {
-                    developerRuleForPackage = true; // Keeps any active custom rule in the package install path.
-                    break;
+                if (rule.action == DeveloperHookRule.Action.DISABLED) continue;
+                developerRuleForPackage = true; // Keeps every active custom action in the package install path.
+                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
+                    developerObserveForPackage = true;
                 }
             }
         }
@@ -324,7 +326,7 @@ public final class AdVisibilityHook extends XposedModule {
             // Every action is scoped to a debuggable target and explicit per-app opt-in.
             // Boolean replacement is restricted by DeveloperHookRule.parse to zero-arg boolean methods.
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
+                if (developerObserveForPackage && rule.action == DeveloperHookRule.Action.OBSERVE) {
                     installDeveloperObservationHook(param.getClassLoader(), pkg,
                             debuggableTarget, rule.descriptor, rule.id);
                 } else if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
