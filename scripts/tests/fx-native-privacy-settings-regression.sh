@@ -85,7 +85,7 @@ assert 'native-vpn-config.sh' in save and "shellQuote(key)" in save and "shellQu
 assert "String.valueOf(value)" in quote and ".replace(" in quote, "shell argument quoting is not present"
 
 assert helper_path.is_file(), "shipped native-vpn-config.sh helper missing from module"
-for required in ("FXVPNCONF1", "valid_key()", "validate_value()", "with_lock()", "mutate()", "apply.sh fast", "[conf:vpn]", "VPN config rollback failed"):
+for required in ("FXVPNCONF1", "valid_key()", "validate_value()", "with_lock()", "mutate()", 'sh "$MP/scripts/apply.sh" fast', "[conf:vpn]", "VPN config rollback failed"):
     assert required in helper, "native VPN config helper missing safeguard: " + required
 for key in required_keys:
     assert key in helper, "native VPN config helper does not handle editor key: " + key
