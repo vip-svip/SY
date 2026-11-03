@@ -1597,7 +1597,7 @@ public final class MainActivity extends ComponentActivity {
             }
             Map<String, String> values = new HashMap<>();
             for (int i = 1; i < lines.length; i++) {
-                String[] parts = lines[i].split("\\\\|", 2);
+                String[] parts = lines[i].split("\\|", 2);
                 if (parts.length == 2) values.put(parts[0], parts[1]);
             }
             String[] keys = {
@@ -1690,15 +1690,17 @@ public final class MainActivity extends ComponentActivity {
             input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         }
         input.setHint(nativeVpnAdvancedHint(key));
-        new AlertDialog.Builder(this).setTitle(nativeVpnAdvancedLabel(key))
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(nativeVpnAdvancedLabel(key))
                 .setMessage(nativeVpnAdvancedDescription(key))
                 .setView(input)
                 .setNegativeButton("取消", null)
-                .setNeutralButton(("core_bin".equals(key) || "mixed_port".equals(key)) ? "清空" : null,
-                        (dialog, which) -> saveNativeVpnAdvancedValue(key, ""))
                 .setPositiveButton("保存", (dialog, which) ->
-                        saveNativeVpnAdvancedValue(key, input.getText().toString().trim()))
-                .show();
+                        saveNativeVpnAdvancedValue(key, input.getText().toString().trim()));
+        if ("core_bin".equals(key) || "mixed_port".equals(key)) {
+            builder.setNeutralButton("清空", (dialog, which) -> saveNativeVpnAdvancedValue(key, ""));
+        }
+        builder.show();
     }
 
     private String nativeVpnAdvancedHint(String key) {
