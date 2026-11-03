@@ -175,11 +175,39 @@ _ensure_locked() {
 with_lock() {
   _tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
+    _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+    case "$_owner" in
+      ''|*[!0-9]*)
+        # Allow the owner to publish its PID immediately after mkdir.
+        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+      *)
+        if ! kill -0 "$_owner" 2>/dev/null; then
+          rm -f "$LOCK/pid" 2>/dev/null || :
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+    esac
     _tries=$((_tries+1))
     [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
     sleep 1
   done
-  trap 'rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
+  if ! printf '%s\\n' "$$" > "$LOCK/pid"; then
+    rmdir "$LOCK" 2>/dev/null || :
+    echo "cannot record root DNS proxy lock owner" >&2
+    return 10
+  fi
+  cleanup_lock() {
+    rm -f "$LOCK/pid" 2>/dev/null || :
+    rmdir "$LOCK" 2>/dev/null || :
+  }
+  # Signal handlers exit first; EXIT performs the one authoritative cleanup.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   "$@"
 }
 cmd=${1:-status}
