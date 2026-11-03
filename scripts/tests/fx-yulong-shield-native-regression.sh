@@ -114,6 +114,27 @@ assert 'Intent.ACTION_OPEN_DOCUMENT_TREE' in (repo_root / "adhook/app/src/main/j
 assert 'GET_SIGNING_CERTIFICATES' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSignatureActivity.java").read_text(encoding="utf-8"), \
     "Dia signature inspector must read PackageManager signing certificates"
 
+accessibility = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java").read_text(encoding="utf-8")
+volume_sequence = shield["FxYulongVolumeTriggerSequence.java"]
+volume_sequence_test = (repo_root / "adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVolumeTriggerSequenceTest.java").read_text(encoding="utf-8")
+assert "volume_trigger_key" in accessibility and "volume_trigger_count" in accessibility
+assert "volumeTriggerSequence.recordPress" in accessibility
+assert "event.getAction() == KeyEvent.ACTION_UP" in accessibility
+assert "return false; // Preserve normal Android volume behavior." in accessibility
+assert "volumeUpCount >= 6" not in accessibility, "fixed six-volume-up placeholder remains"
+for token in ("DEFAULT_COUNT = 3", "MIN_COUNT = 2", "MAX_COUNT = 10",
+              "sequenceWindowMs", "TRIGGER_COOLDOWN_MS", "resetSequence()"):
+    assert token in volume_sequence, f"Volume trigger sequence helper missing {token}"
+for token in ("triggersOnlyAfterConfiguredVolumeDownCount",
+              "selectedDirectionMustMatchAndOppositeKeyResetsSequence",
+              "countControlsWindowUsingLegacyMinimumAndPerPressTiming",
+              "completedSequenceHasCooldownAndThenCanTriggerAgain"):
+    assert token in volume_sequence_test, f"Volume trigger unit test missing {token}"
+volume_ui = shield["FxYulongShieldActivity.java"]
+assert "volume_trigger_key" in volume_ui and "volume_trigger_count" in volume_ui
+assert "选择救援触发按键" in volume_ui and "连续按键次数（2–10 次）" in volume_ui
+assert "volumeKeyButton" in volume_ui and "volumeCountButton" in volume_ui
+
 hub = shield["FxYulongShieldActivity.java"]
 db_page = shield["FxYulongVirusDatabaseActivity.java"]
 scan_page = shield["FxYulongScanActivity.java"]
