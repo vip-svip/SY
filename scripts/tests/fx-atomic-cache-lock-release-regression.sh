@@ -50,17 +50,100 @@ fi
 sh -n "$APPLY" || fail "patched apply.sh has invalid POSIX shell syntax"
 sh -n "$SUBFETCH" || fail "patched subfetch.sh has invalid POSIX shell syntax"
 
-# Repeated real two-worker races exercise both critical sections. A worker failure
-# now emits its identity and exit code instead of leaving an empty CI test log.
+# Use a deterministic transfer gate, not a timing-only sleep. The first
+# same-URL fetch stays inside hosts_fetch_cached() while the second process
+# contends for the exact restored release function. Then validate the committed
+# cache body against its SHA-256 sidecar and require a fully serialized timeline.
+_GATE_TMP=$(mktemp -d "/tmp/fx-hosts-cache-gate.XXXXXX")
+trap 'rm -rf "$_GATE_TMP"' EXIT HUP INT TERM
+cat > "$_GATE_TMP/hosts-gate.sh" <<'HOST_GATE'
+#!/bin/sh
+set -eu
+APPLY=$1
+T=$(mktemp -d "/tmp/fx-host-cache-gate.XXXXXX")
+cleanup(){ rm -rf "$T"; }
+trap cleanup EXIT HUP INT TERM
+awk '/^hosts_fetch_cached\(\) \{/ {p=1} p {print} p && /^\}/ {exit}' "$APPLY" > "$T/function.sh"
+[ -s "$T/function.sh" ] || { echo "FAIL: could not extract restored hosts_fetch_cached()" >&2; exit 1; }
+cat > "$T/worker.sh" <<'WORKER'
+#!/bin/sh
+set -eu
+. "$FUNCTION_FILE"
+PG="$TEST_ROOT/state"
+HOSTS_CACHE_MIN=0
+pg_log(){ :; }
+pg_fetch_t(){
+  printf 'START|%s\n' "$$" >> "$TEST_ROOT/fetch-events"
+  tries=0
+  while [ ! -e "$TEST_ROOT/release-fetch" ]; do
+    tries=$((tries+1))
+    [ "$tries" -lt 500 ] || { echo "mock Hosts fetch gate timed out" >&2; return 70; }
+    sleep 0.01
+  done
+  printf 'worker-%s.example\nsecond-line.example\n' "$$" > "$2"
+  printf 'END|%s\n' "$$" >> "$TEST_ROOT/fetch-events"
+  return 0
+}
+hosts_fetch_cached 'https://same.example/rules' "$TEST_ROOT/out.$1"
+WORKER
+chmod 0755 "$T/worker.sh"
+export TEST_ROOT="$T" FUNCTION_FILE="$T/function.sh"
+mkdir -p "$T/state/cache/rules"
+"$T/worker.sh" a & p1=$!
+"$T/worker.sh" b & p2=$!
+tries=0
+while [ ! -s "$T/fetch-events" ] && [ "$tries" -lt 200 ]; do
+  tries=$((tries+1))
+  sleep 0.01
+done
+sleep 0.25
+starts=$(grep -c '^START|' "$T/fetch-events" 2>/dev/null || echo 0)
+touch "$T/release-fetch"
+if [ "$starts" -ne 1 ]; then
+  echo "FAIL: second same-URL Hosts fetch entered while first response was blocked (START count=$starts)" >&2
+  cat "$T/fetch-events" >&2 || :
+  wait "$p1" || :
+  wait "$p2" || :
+  exit 1
+fi
+wait "$p1" || { rc=$?; echo "FAIL: Hosts worker A exited with $rc" >&2; cat "$T/fetch-events" >&2; exit "$rc"; }
+wait "$p2" || { rc=$?; echo "FAIL: Hosts worker B exited with $rc" >&2; cat "$T/fetch-events" >&2; exit "$rc"; }
+key=$(printf '%s' 'https://same.example/rules' | cksum | awk '{print $1}')
+cache="$T/state/cache/rules/$key"
+actual=$(sha256sum "$cache" | awk '{print $1}')
+expected=$(tr -d '[:space:]' < "$cache.sha256")
+[ "$actual" = "$expected" ] || {
+  echo "FAIL: same-URL Hosts cache SHA mismatch actual=$actual expected=$expected" >&2
+  echo "cache body:" >&2; cat "$cache" >&2 || :
+  echo "sidecar:" >&2; cat "$cache.sha256" >&2 || :
+  echo "fetch timeline:" >&2; cat "$T/fetch-events" >&2 || :
+  find "$T/state/cache/rules" -maxdepth 1 -type f -print >&2
+  exit 1
+}
+[ -s "$T/out.a" ] && [ -s "$T/out.b" ] || { echo "FAIL: Host destination files missing" >&2; exit 1; }
+[ ! -e "$T/state/cache/rules/.lock.$key" ] && [ ! -L "$T/state/cache/rules/.lock.$key" ] || {
+  echo "FAIL: Hosts lock path remained after both workers exited" >&2
+  find "$T/state/cache/rules" -maxdepth 1 -name '.lock.*' -print >&2
+  exit 1
+}
+awk -F'|' '
+$1=="START" { if (active!="") exit 1; active=$2; starts++ }
+$1=="END" { if (active!=$2) exit 1; active=""; ends++ }
+END { exit !(starts==2 && ends==2 && active=="") }
+' "$T/fetch-events" || { echo "FAIL: Hosts fetches were not strictly serialized" >&2; cat "$T/fetch-events" >&2; exit 1; }
+echo "PASS: deterministic Hosts same-URL fetch gate, ordered cache commits and SHA-256 sidecar"
+HOST_GATE
+chmod 0755 "$_GATE_TMP/hosts-gate.sh"
 i=1
 while [ "$i" -le 6 ]; do
   if command -v timeout >/dev/null 2>&1; then
-    timeout 8 sh "$HOST_TEST" || fail "Hosts concurrent cache run $i failed"
+    timeout 10 sh "$_GATE_TMP/hosts-gate.sh" "$APPLY" || fail "deterministic Hosts cache gate run $i failed"
   else
-    sh "$HOST_TEST" || fail "Hosts concurrent cache run $i failed"
+    sh "$_GATE_TMP/hosts-gate.sh" "$APPLY" || fail "deterministic Hosts cache gate run $i failed"
   fi
   i=$((i+1))
 done
+i=1
 i=1
 while [ "$i" -le 4 ]; do
   if command -v timeout >/dev/null 2>&1; then
