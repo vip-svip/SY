@@ -120,7 +120,7 @@ public final class FxYulongScanEngine {
                 }
                 if (database.isEmpty()) {
                     message = "病毒库为空。请先同步名单；无规则时不能把扫描结果解释为安全。";
-                    if (callback != null) callback.onResult(new Result(0, 0, findings, 0, 0, message, enableContentScan, contentReady, 0, false));
+                    if (callback != null) callback.onResult(new Result(0, 0, findings, 0, 0, message, enableContentScan, contentReady, 0, false, false));
                     return;
                 }
 
