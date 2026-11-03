@@ -9,8 +9,8 @@ MOD="$TMP/module"
 PG="$TMP/state"
 BIN="$TMP/bin"
 mkdir -p "$MOD/scripts" "$PG" "$BIN"
-printf 'id=privacyguard\\n' > "$MOD/module.prop"
-printf "%s\\n" "# test utility stub" > "$MOD/scripts/util.sh"
+printf 'id=privacyguard\n' > "$MOD/module.prop"
+printf "%s\n" "# test utility stub" > "$MOD/scripts/util.sh"
 for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
 #!/system/bin/sh
@@ -39,13 +39,13 @@ sh "$SOURCE" stop >/dev/null
 
 # A dead lock owner is recovered rather than blocking all future DNS changes.
 mkdir "$LOCK"
-printf '2147483647\\n' > "$LOCK/pid"
+printf '2147483647\n' > "$LOCK/pid"
 sh "$SOURCE" stop >/dev/null
 [ ! -e "$LOCK" ] || { echo "FAIL: stale Root Proxy lock was not recovered" >&2; exit 1; }
 
 # A live owner is never stolen; the command returns a bounded busy error.
 mkdir "$LOCK"
-printf '%s\\n' "$$" > "$LOCK/pid"
+printf '%s\n' "$" > "$LOCK/pid"
 set +e
 sh "$SOURCE" stop >/dev/null 2>&1
 rc=$?
