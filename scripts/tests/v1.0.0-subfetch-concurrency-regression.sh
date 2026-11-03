@@ -1,8 +1,15 @@
 #!/bin/sh
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-SOURCE_MODULE="$ROOT/fx-module"
+BASE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+if [ -s "$BASE_ROOT/fx-module/scripts/subfetch.sh" ]; then
+  SOURCE_MODULE="$BASE_ROOT/fx-module"
+elif [ -s "$BASE_ROOT/scripts/subfetch.sh" ]; then
+  SOURCE_MODULE="$BASE_ROOT"
+else
+  echo "FAIL: cannot locate restored FX module from $BASE_ROOT" >&2
+  exit 1
+fi
 for required in scripts/subfetch.sh scripts/subfetch-download.sh scripts/util.sh; do
   [ -s "$SOURCE_MODULE/$required" ] || {
     echo "FAIL: restored FX source is missing $required" >&2
