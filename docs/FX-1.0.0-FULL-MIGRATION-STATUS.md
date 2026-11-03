@@ -89,6 +89,16 @@ published during this migration phase.
   permission-degrade recovery. The current floating bubble is an explicit rescue
   shortcut, not a full clone of the original watchdog.
 
+### Dia 23.11 — per-app telephony identifier privacy
+
+- The existing per-app privacy master now also masks TelephonyManager reads for
+  IMEI/device ID, MEID, subscriber ID, SIM serial, line number, NAI and group ID
+  in the selected target process. The hook returns the same null/unavailable
+  shape Android commonly returns when identifier access is not granted.
+- It is package-scoped and opt-in through the existing privacy target flag.
+  It does not fabricate a carrier identity or modify system telephony, SIM state,
+  radio configuration or network registration.
+
 ### Dia 23.11 — expanded per-app GPS test fixture
 
 - The existing per-app latitude/longitude/accuracy fixture now also hooks
