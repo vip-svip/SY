@@ -38,6 +38,29 @@ def replace_if_present(path: Path, old: str, new: str, label: str) -> bool:
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
     return True
 
+def replace_shell_function(path: Path, function_name: str, replacement: str, label: str) -> None:
+    source = path.read_text(encoding="utf-8")
+    # Release archives have small formatting variants. Replace only the named
+    # top-level POSIX function, bounded by its unindented closing brace.
+    pattern = re.compile(r"(?ms)^" + re.escape(function_name) + r"\\(\\) \\{\\n.*?^\\}")
+    matches = list(pattern.finditer(source))
+    if not matches:
+        if 'mv "$LOCK" "$_release"' in source and '_lock_held=1' in source:
+            return
+        raise SystemExit(f"{path}: {label}: function boundary missing")
+    if len(matches) != 1:
+        raise SystemExit(f"{path}: {label}: expected one function, found {len(matches)}")
+    updated = pattern.sub(lambda _: replacement, source, count=1)
+    match = pattern.search(updated)
+    if match is None:
+        raise SystemExit(f"{path}: {label}: replacement function disappeared")
+    function_body = match.group(0)
+    if 'rm -f "$LOCK/pid"' in function_body or 'rmdir "$LOCK"' in function_body:
+        raise SystemExit(f"{path}: {label}: legacy PID-first lock release remains")
+    path.write_text(updated, encoding="utf-8")
+
+
+
 for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
@@ -234,7 +257,7 @@ new_root_proxy_lock = '''with_lock() {
   trap 'exit 143' TERM
   "$@"
 }'''.replace("__PID__", pid_literal)
-replace_once(root_proxy, old_root_proxy_lock, new_root_proxy_lock, "Root Proxy lock must use atomic directory rename")
+replace_shell_function(root_proxy, "with_lock", new_root_proxy_lock, "Root Proxy lock must use atomic directory rename")
 
 replace_once(
     subfetch_file,
