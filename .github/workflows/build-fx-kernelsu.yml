@@ -154,6 +154,7 @@ jobs:
           install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
           install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
+          install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
