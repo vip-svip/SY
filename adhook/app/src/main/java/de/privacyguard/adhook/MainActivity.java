@@ -124,6 +124,8 @@ public final class MainActivity extends ComponentActivity {
     private int appLoadGeneration;
     private boolean appsLoaded;
     private static final int REQUEST_FILE_PICKER = 4101;
+    private static final int REQUEST_DIA_GPS_PICKER = 4110;
+    private String pendingDiaGpsTargetPackage;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
     private String pendingNativeScriptExport;
@@ -3958,6 +3960,33 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_DIA_GPS_PICKER) {
+            String target = pendingDiaGpsTargetPackage;
+            pendingDiaGpsTargetPackage = null;
+            if (resultCode != RESULT_OK || data == null || target == null
+                    || !target.equals(selectedPackage)) return;
+            String latitude = data.getStringExtra("latitude");
+            String longitude = data.getStringExtra("longitude");
+            if (latitude == null || longitude == null) return;
+            try {
+                double lat = Double.parseDouble(latitude);
+                double lon = Double.parseDouble(longitude);
+                if (!Double.isFinite(lat) || !Double.isFinite(lon)
+                        || lat < -90d || lat > 90d || lon < -180d || lon > 180d)
+                    throw new IllegalArgumentException("地图坐标超出有效范围。");
+                getPreferences(0).edit()
+                        .putString(target + ":location_lat", Double.toString(lat))
+                        .putString(target + ":location_lon", Double.toString(lon))
+                        .apply();
+                ApplicationInfo targetInfo = findApp(target);
+                if (targetInfo != null) showTarget(targetInfo);
+                Toast.makeText(this, "地图坐标已填入，点击“保存并发布 GPS 测试位置”后生效。",
+                        Toast.LENGTH_LONG).show();
+            } catch (Exception invalid) {
+                Toast.makeText(this, "地图坐标无效：" + invalid.getMessage(), Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         if (requestCode == REQUEST_NATIVE_SCRIPT_EXPORT) {
             String payload = pendingNativeScriptExport;
             pendingNativeScriptExport = null;
@@ -4661,9 +4690,22 @@ public final class MainActivity extends ComponentActivity {
                         .setPositiveButton("知道了", null).show();
             }
         });
+        Button mapPicker = new Button(this);
+        mapPicker.setAllCaps(false);
+        mapPicker.setText("高德地图选点");
+        mapPicker.setEnabled(targetDebuggable);
+        mapPicker.setOnClickListener(v -> {
+            pendingDiaGpsTargetPackage = selectedPackage;
+            Intent picker = new Intent(this,
+                    de.privacyguard.adhook.imported.dia.FxDiaGpsPickerActivity.class);
+            picker.putExtra("latitude", gpsLatitude.getText().toString());
+            picker.putExtra("longitude", gpsLongitude.getText().toString());
+            startActivityForResult(picker, REQUEST_DIA_GPS_PICKER);
+        });
         content.addView(gpsLatitude);
         content.addView(gpsLongitude);
         content.addView(gpsAccuracy);
+        content.addView(mapPicker);
         content.addView(simulateLocation);
         content.addView(saveLocation);
         toggle("限制位置访问", "location_access_block", false);

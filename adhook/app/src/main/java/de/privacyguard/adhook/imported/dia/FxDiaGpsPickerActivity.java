@@ -1,0 +1,225 @@
+package de.privacyguard.adhook.imported.dia;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.graphics.Typeface;
+import android.net.Uri;
+import android.os.Bundle;
+import android.text.InputType;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.net.http.SslError;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import java.util.Locale;
+
+/**
+ * Native FX migration of Dia 23.11 GPSActivity:
+ * embeds the original AMap coordinate picker and returns the chosen WGS84-style
+ * numeric pair to the selected app's existing LSPosed test-location editor.
+ *
+ * No Javascript bridge is exposed. Only HTTPS AMap pages may be navigated.
+ */
+public final class FxDiaGpsPickerActivity extends Activity {
+    private static final String PICKER_URL = "https://lbs.amap.com/console/show/picker";
+    private WebView webView;
+    private EditText pairInput;
+    private EditText latitudeInput;
+    private EditText longitudeInput;
+    private TextView status;
+
+    private int dp(float value) {
+        return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private TextView label(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        view.setPadding(dp(4), dp(5), dp(4), dp(5));
+        return view;
+    }
+
+    private Button button(String value, Runnable action) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(value);
+        button.setOnClickListener(v -> action.run());
+        return button;
+    }
+
+    private EditText decimalInput(String hint, String value) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED
+                | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setHint(hint);
+        input.setText(value == null ? "" : value);
+        return input;
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff7f8fa);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(10), dp(4), dp(12), dp(4));
+        header.addView(button("‹ 返回", this::finish));
+        header.addView(label("Dia · GPS 地图选点", 18, 0xff17212b, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(14), dp(6), dp(14), dp(8));
+
+        pairInput = new EditText(this);
+        pairInput.setSingleLine(true);
+        pairInput.setHint("粘贴高德坐标：经度,纬度");
+        pairInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        form.addView(pairInput);
+
+        LinearLayout coordinateRow = new LinearLayout(this);
+        coordinateRow.setOrientation(LinearLayout.HORIZONTAL);
+        latitudeInput = decimalInput("纬度 -90 至 90", getIntent().getStringExtra("latitude"));
+        longitudeInput = decimalInput("经度 -180 至 180", getIntent().getStringExtra("longitude"));
+        coordinateRow.addView(longitudeInput, new LinearLayout.LayoutParams(0, -2, 1));
+        coordinateRow.addView(latitudeInput, new LinearLayout.LayoutParams(0, -2, 1));
+        form.addView(coordinateRow);
+
+        TextView note = label("使用方法：在下方高德地图选择位置，把地图显示的“经度,纬度”复制到上方输入框，再点“解析坐标”。也可以直接分别输入经度和纬度。坐标只会回填到当前选择的 debuggable 目标应用，不会改变系统真实定位。", 12, 0xff647282, false);
+        form.addView(note);
+        status = label("等待地图坐标。", 12, 0xff526170, false);
+        form.addView(status);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.addView(button("解析高德坐标", this::parsePair),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        buttons.addView(button("确认并返回", this::returnCoordinates),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        form.addView(buttons);
+        root.addView(form);
+
+        webView = new WebView(this);
+        configureWebView(webView);
+        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+
+        if (state != null) {
+            webView.restoreState(state);
+        } else {
+            webView.loadUrl(PICKER_URL);
+        }
+    }
+
+    private void configureWebView(WebView view) {
+        WebSettings settings = view.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setSupportMultipleWindows(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        view.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView web, WebResourceRequest request) {
+                return !isAllowedMapUrl(request == null || request.getUrl() == null
+                        ? null : request.getUrl());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView web, String url) {
+                Uri uri;
+                try { uri = Uri.parse(url); } catch (Exception invalid) { return true; }
+                return !isAllowedMapUrl(uri);
+            }
+            @Override public void onReceivedSslError(WebView web, SslErrorHandler handler, SslError error) {
+                handler.cancel();
+                status.setText("高德地图 TLS 证书校验失败，已阻止不安全连接。");
+            }
+        });
+    }
+
+    private boolean isAllowedMapUrl(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme())) return false;
+        String host = uri.getHost();
+        return host != null && (host.equalsIgnoreCase("amap.com")
+                || host.toLowerCase(Locale.ROOT).endsWith(".amap.com")
+                || host.equalsIgnoreCase("gaode.com")
+                || host.toLowerCase(Locale.ROOT).endsWith(".gaode.com"));
+    }
+
+    private void parsePair() {
+        String raw = pairInput.getText() == null ? "" : pairInput.getText().toString().trim();
+        String[] parts = raw.split("[,，\\\\s]+");
+        if (parts.length != 2) {
+            status.setText("格式应为：经度,纬度，例如 121.473658,31.230378。");
+            return;
+        }
+        try {
+            double lon = Double.parseDouble(parts[0]);
+            double lat = Double.parseDouble(parts[1]);
+            setCoordinates(lat, lon);
+            status.setText("已解析高德坐标（经度,纬度）。");
+        } catch (Exception invalid) {
+            status.setText("坐标无效：" + invalid.getMessage());
+        }
+    }
+
+    private void setCoordinates(double latitude, double longitude) {
+        latitudeInput.setText(Double.toString(latitude));
+        longitudeInput.setText(Double.toString(longitude));
+    }
+
+    private void returnCoordinates() {
+        try {
+            double lat = Double.parseDouble(latitudeInput.getText().toString().trim());
+            double lon = Double.parseDouble(longitudeInput.getText().toString().trim());
+            if (!Double.isFinite(lat) || !Double.isFinite(lon)
+                    || lat < -90d || lat > 90d || lon < -180d || lon > 180d) {
+                throw new IllegalArgumentException("纬度必须在 -90 至 90，经度必须在 -180 至 180。");
+            }
+            Intent result = new Intent();
+            result.putExtra("latitude", Double.toString(lat));
+            result.putExtra("longitude", Double.toString(lon));
+            setResult(RESULT_OK, result);
+            finish();
+        } catch (Exception invalid) {
+            status.setText(invalid.getMessage() == null ? "请输入有效坐标。" : invalid.getMessage());
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) webView.saveState(outState);
+    }
+
+    @Override protected void onDestroy() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
+    }
+}

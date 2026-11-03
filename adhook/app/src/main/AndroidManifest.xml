@@ -134,6 +134,7 @@
             <activity android:name=".imported.dia.FxDiaFridaActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaBackupActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaDexBrowserActivity" android:exported="false" />
+        <activity android:name=".imported.dia.FxDiaGpsPickerActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaSignatureActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaActivityBrowserActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaInspectorActivity" android:exported="false" />
