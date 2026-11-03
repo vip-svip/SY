@@ -64,6 +64,31 @@ appops_action(){
   chmod 0600 "$DIR/action.log" 2>/dev/null || :
   echo "success=1 package=$pkg appop=$operation mode=$mode"
 }
+secure_setting_action(){
+  pkg="$1"; key="$2"; value="$3"
+  valid_pkg "$pkg" || { echo "invalid target package" >&2; return 2; }
+  authorized_pkg "$pkg" || { echo "target app is not authorized in Stellar" >&2; return 3; }
+  has_scope "$pkg" SECURE_SETTINGS_WRITE || { echo "SECURE_SETTINGS_WRITE scope is required" >&2; return 4; }
+  case "$key:$value" in
+    show_ime_with_hard_keyboard:0|show_ime_with_hard_keyboard:1|screensaver_enabled:0|screensaver_enabled:1) ;;
+    long_press_timeout:*)
+      case "$value" in ''|*[!0-9]*) echo "long_press_timeout must be numeric" >&2; return 2 ;; esac
+      [ "$value" -ge 100 ] && [ "$value" -le 1000 ] || {
+        echo "long_press_timeout must be between 100 and 1000 milliseconds" >&2; return 2;
+      }
+      ;;
+    *)
+      echo "secure setting is not in the fixed safe allowlist" >&2
+      return 2
+      ;;
+  esac
+  settings put secure "$key" "$value" || return $?
+  actual="$(settings get secure "$key" 2>/dev/null || true)"
+  [ "$actual" = "$value" ] || { echo "secure setting write could not be confirmed" >&2; return 7; }
+  printf '[%s] secure-setting %s=%s by %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$key" "$value" "$pkg" >> "$DIR/action.log"
+  chmod 0600 "$DIR/action.log" 2>/dev/null || :
+  echo "success=1 package=$pkg secure_setting=$key value=$actual"
+}
 run_readonly(){
   pkg="$1"; scope="$2"; command="$3"
   valid_pkg "$pkg" && valid_scope "$scope" && valid_command "$command" || { echo "invalid read-only command or scope" >&2; return 2; }
@@ -134,6 +159,10 @@ case "$cmd" in
   appops)
     [ "$#" -eq 4 ] || exit 2
     with_lock appops_action "$2" "$3" "$4"
+    ;;
+  secure-setting)
+    [ "$#" -eq 4 ] || exit 2
+    with_lock secure_setting_action "$2" "$3" "$4"
     ;;
   run)
     [ "$#" -eq 4 ] || exit 2

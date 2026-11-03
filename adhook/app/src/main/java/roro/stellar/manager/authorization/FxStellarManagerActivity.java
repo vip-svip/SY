@@ -105,6 +105,25 @@ public final class FxStellarManagerActivity extends Activity {
     permissionName,
     button("授予权限",()->confirmManaged("permission "+quote(target)+" grant "+quote(permissionName.getText().toString().trim()),"授予运行时权限")),
     button("撤销权限",()->confirmManaged("permission "+quote(target)+" revoke "+quote(permissionName.getText().toString().trim()),"撤销运行时权限")));
+  EditText secureKey = new EditText(this);
+  secureKey.setSingleLine(true);
+  secureKey.setHint("show_ime_with_hard_keyboard / screensaver_enabled / long_press_timeout");
+  EditText secureValue = new EditText(this);
+  secureValue.setSingleLine(true);
+  secureValue.setHint("0 / 1 / 100-1000");
+  addCard("安全设置写入",
+    "先开启 SECURE_SETTINGS_WRITE。只开放三个固定低风险键；其他 secure setting 一律拒绝。每次写入都要求再次确认。",
+    secureKey, secureValue,
+    button("写入安全设置",()->{
+      String key = secureKey.getText().toString().trim();
+      String value = secureValue.getText().toString().trim();
+      if (target.isEmpty() || key.isEmpty() || value.isEmpty()) {
+        state.setText("请先选择目标应用并填写设置项和值。");
+        return;
+      }
+      confirmManaged("secure-setting "+quote(target)+" "+quote(key)+" "+quote(value),
+              "写入 Android 安全设置");
+    }));
   EditText appOpName=new EditText(this);
   appOpName.setSingleLine(true);appOpName.setHint("CAMERA / RECORD_AUDIO / FINE_LOCATION / POST_NOTIFICATION");
   EditText appOpMode=new EditText(this);
