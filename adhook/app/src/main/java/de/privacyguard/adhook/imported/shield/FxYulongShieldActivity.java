@@ -62,6 +62,14 @@ public final class FxYulongShieldActivity extends Activity {
         FxYulongKeepAliveReceiver.refreshSchedule(this);
     }
 
+    private boolean ensureNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) return true;
+        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9022);
+        return false;
+    }
+
     private boolean hasUsageAccess() {
         try {
             android.app.AppOpsManager appOps =
@@ -120,12 +128,11 @@ public final class FxYulongShieldActivity extends Activity {
         installScan.setText("安装新应用时自动扫描");
         installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", false));
         installScan.setOnCheckedChangeListener((button, enabled) -> {
-            shieldPrefs.edit().putBoolean("automatic_install_scan_enabled", enabled).apply();
-            if (enabled && android.os.Build.VERSION.SDK_INT >= 33
-                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9021);
+            if (enabled && !ensureNotificationPermission()) {
+                button.setChecked(false);
+                return;
             }
+            shieldPrefs.edit().putBoolean("automatic_install_scan_enabled", enabled).apply();
         });
         android.widget.Switch contentScan = new android.widget.Switch(this);
         contentScan.setText("同时启用 APK 内容特征扫描");
@@ -174,11 +181,8 @@ public final class FxYulongShieldActivity extends Activity {
                             }).show();
                     return;
                 }
-                if (android.os.Build.VERSION.SDK_INT >= 33
-                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                if (!ensureNotificationPermission()) {
                     button.setChecked(false);
-                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9022);
                     return;
                 }
                 shieldPrefs.edit().putBoolean("protect_on", true).apply();
@@ -199,6 +203,10 @@ public final class FxYulongShieldActivity extends Activity {
         overlayRescue.setText("显示浮动救援入口");
         overlayRescue.setChecked(shieldPrefs.getBoolean("overlay_rescue_on", false));
         overlayRescue.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled && !ensureNotificationPermission()) {
+                button.setChecked(false);
+                return;
+            }
             if (enabled && !android.provider.Settings.canDrawOverlays(this)) {
                 button.setChecked(false);
                 new android.app.AlertDialog.Builder(this)
@@ -231,6 +239,10 @@ android.widget.Switch volumeTrigger = new android.widget.Switch(this);
         volumeTrigger.setText("音量上键连续触发救援提醒（需启用 FX 无障碍服务）");
         volumeTrigger.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
         volumeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled && !ensureNotificationPermission()) {
+                button.setChecked(false);
+                return;
+            }
             shieldPrefs.edit().putBoolean("volume_trigger_on", enabled).apply();
             if (enabled && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
                 new android.app.AlertDialog.Builder(this).setTitle("需要 FX 无障碍服务")
@@ -246,6 +258,10 @@ android.widget.Switch volumeTrigger = new android.widget.Switch(this);
         shakeTrigger.setText("摇动设备触发救援提醒");
         shakeTrigger.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
         shakeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled && !ensureNotificationPermission()) {
+                button.setChecked(false);
+                return;
+            }
             shieldPrefs.edit().putBoolean("shake_trigger_on", enabled).apply();
             syncProtectionService(shieldPrefs);
         });
