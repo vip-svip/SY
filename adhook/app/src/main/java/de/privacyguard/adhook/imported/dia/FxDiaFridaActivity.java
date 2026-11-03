@@ -2017,9 +2017,14 @@ public final class FxDiaFridaActivity extends Activity {
         final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
         final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
         final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
+        final String startLockPath = "/data/adb/privacyguard/dia-frida/logs/.gadget-" + port + ".start-lock";
         String command = "set -eu; pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
-                + "script=" + quote(scriptPath) + "; expected_pkg=" + quote(expectedPackage)
+                + "script=" + quote(scriptPath) + "; start_lock=" + quote(startLockPath) + "; expected_pkg=" + quote(expectedPackage)
                 + "; expected_process=" + quote(expectedProcess) + "; expected_cli=" + quote(expectedCli) + "; port=" + port + "; "
+                + "[ ! -L \"$start_lock\" ] || { echo FX_GADGET_UNSAFE_START_LOCK; exit 29; }; "
+                + "mkdir \"$start_lock\" 2>/dev/null || { echo FX_GADGET_START_IN_PROGRESS; exit 26; }; "
+                + "lock_held=1; cleanup_stop() { [ \"$lock_held\" != 1 ] || rmdir \"$start_lock\" 2>/dev/null || :; }; "
+                + "trap cleanup_stop 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
                 + "[ ! -L \"$pidfile\" ] && [ ! -L \"$pipe\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
                 + "if [ ! -s \"$pidfile\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
                 + "cli_pid=$(sed -n '1p' \"$pidfile\"); feed_pid=$(sed -n '2p' \"$pidfile\"); cli=$(sed -n '3p' \"$pidfile\"); "
@@ -2033,7 +2038,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "if kill -0 \"$feed_pid\" 2>/dev/null; then "
                 + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$feed_pid\"/cmdline 2>/dev/null || :); "
                 + "case \"$feed_cmd\" in *\"fx-gadget-feed-" + port + "\"*\"$pipe\"*) kill \"$feed_pid\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
-                + "sleep 1; rm -f \"$pidfile\"; [ ! -L \"$pipe\" ] && rm -f \"$pipe\"; echo FX_GADGET_SESSION_STOPPED";
+                + "sleep 1; rm -f \"$pidfile\"; [ ! -L \"$pipe\" ] && rm -f \"$pipe\"; lock_held=0; rmdir \"$start_lock\"; echo FX_GADGET_SESSION_STOPPED";
         runRoot(command, 12000L, result -> setStatus("Gadget 会话停止退出码 "
                 + result.exitCode + "\n" + result.output));
     }
