@@ -43,7 +43,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
         super.onStartListening();
         worker.execute(() -> {
             RootAccess.Result result = RootAccess.execute(
-                    "settings get global http_proxy 2>/dev/null | tr -d '\\\\r'", 12000L, 4096);
+                    "settings get global http_proxy 2>/dev/null | tr -d '\\r'", 12000L, 4096);
             boolean active = false;
             if (result.exitCode == 0 && result.output != null) {
                 String current = result.output.trim();
@@ -69,14 +69,14 @@ public final class FxDiaWifiProxyTileService extends TileService {
         String target;
 
         if (active) {
-            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
-                    + "[ \\"$current\\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
+            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                    + "[ \"$current\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                     + "if [ " + quote(previous) + " = null ]; then settings delete global http_proxy; "
                     + "else settings put global http_proxy " + quote(previous) + "; fi; "
-                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
+                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
                     + "if [ " + quote(previous) + " = null ]; then "
-                    + "[ -z \\"$actual\\" ] || [ \\"$actual\\" = null ] || exit 31; "
-                    + "else [ \\"$actual\\" = " + quote(previous) + " ] || exit 31; fi; "
+                    + "[ -z \"$actual\" ] || [ \"$actual\" = null ] || exit 31; "
+                    + "else [ \"$actual\" = " + quote(previous) + " ] || exit 31; fi; "
                     + "echo FX_PROXY_RESTORED";
             RootAccess.Result result = RootAccess.execute(command, 20000L, 8192);
             if (result.exitCode == 0 && result.output != null && result.output.contains("FX_PROXY_RESTORED")) {
@@ -94,7 +94,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
                 } else {
                     host = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
                     if (!host.matches("[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?")) return;
-                    for (String label : host.split("\\\\.", -1))
+                    for (String label : host.split("\\.", -1))
                         if (label.isEmpty() || label.length() > 63
                                 || label.startsWith("-") || label.endsWith("-")) return;
                 }
@@ -103,15 +103,15 @@ public final class FxDiaWifiProxyTileService extends TileService {
                 target = host + ":" + port;
             } catch (Exception invalid) { return; }
 
-            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
-                    + "[ -n \\"$current\\" ] || current=null; "
+            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                    + "[ -n \"$current\" ] || current=null; "
                     + "settings put global http_proxy " + quote(target) + "; "
-                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
-                    + "if [ \\"$actual\\" != " + quote(target) + " ]; then "
-                    + "if [ \\"$current\\" = null ]; then settings delete global http_proxy; "
-                    + "else settings put global http_proxy \\"$current\\"; fi; "
+                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                    + "if [ \"$actual\" != " + quote(target) + " ]; then "
+                    + "if [ \"$current\" = null ]; then settings delete global http_proxy; "
+                    + "else settings put global http_proxy \"$current\"; fi; "
                     + "echo FX_PROXY_WRITE_FAILED; exit 31; fi; "
-                    + "printf 'PREVIOUS=%s\\\\nAPPLIED=%s\\\\n' \\"$current\\" \\"$actual\\"";
+                    + "printf 'PREVIOUS=%s\\nAPPLIED=%s\\n' \"$current\" \"$actual\"";
             RootAccess.Result result = RootAccess.execute(command, 20000L, 8192);
             if (result.exitCode == 0 && result.output != null
                     && result.output.contains("APPLIED=" + target)) {
@@ -130,12 +130,12 @@ public final class FxDiaWifiProxyTileService extends TileService {
     }
 
     private String extract(String output, String prefix) {
-        for (String line : output.split("\\\\r?\\\\n"))
+        for (String line : output.split("\\r?\\n"))
             if (line.startsWith(prefix)) return line.substring(prefix.length());
         return "";
     }
     private String safe(String value) {
-        return value == null ? "" : value.replace('\\n', ' ').replace('\\r', ' ');
+        return value == null ? "" : value.replace('\n', ' ').replace('\r', ' ');
     }
 
     @Override public void onStopListening() {
