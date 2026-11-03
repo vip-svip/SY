@@ -46,6 +46,20 @@ install_receiver = next((node for node in receivers
                          if node.attrib.get(A + "name", "").endswith("FxYulongInstallScanReceiver")), None)
 assert install_receiver is not None, "Yulong install scan receiver is not registered"
 assert install_receiver.attrib.get(A + "exported") == "false", "Install scan receiver must not be externally callable"
+
+uninstall_receiver = next((node for node in receivers
+                           if node.attrib.get(A + "name", "").endswith("FxYulongUninstallReceiver")), None)
+assert uninstall_receiver is not None, "Original Shield notification uninstall receiver is missing"
+assert uninstall_receiver.attrib.get(A + "exported") == "false", "Uninstall receiver must remain private"
+uninstall_source = shield["FxYulongUninstallReceiver.java"]
+protection_service = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongProtectionService.java").read_text(encoding="utf-8")
+for token in ("Intent.ACTION_UNINSTALL_PACKAGE", "Intent.EXTRA_RETURN_RESULT",
+              "PackageManager.NameNotFoundException", "FLAG_SYSTEM",
+              "FLAG_UPDATED_SYSTEM_APP", "Settings.ACTION_APPLICATION_DETAILS_SETTINGS"):
+    assert token in uninstall_source, f"User-confirmed uninstall receiver missing safety behavior: {token}"
+assert "FxYulongUninstallReceiver.class" in protection_service
+assert '"系统卸载确认"' in protection_service and ".addAction(" in protection_service
+assert "pm uninstall" not in uninstall_source and "su -c" not in uninstall_source
 merge_source = merge_source_path.read_text(encoding="utf-8")
 assert "FxYulongInstallScanReceiver" in merge_source
 assert "ET.fromstring(manifest_text)" in merge_source, "Unified APK merger must parse the original Manifest tree"
