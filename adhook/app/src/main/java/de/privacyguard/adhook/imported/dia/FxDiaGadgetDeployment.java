@@ -55,10 +55,19 @@ public final class FxDiaGadgetDeployment {
     public static String validateSources(Context context, String packageName,
                                          String libraryPath, String configPath,
                                          int expectedPort) {
+        return validateSources(context, packageName, libraryPath, configPath,
+                expectedPort, packageName);
+    }
+
+    public static String validateSources(Context context, String packageName,
+                                         String libraryPath, String configPath,
+                                         int expectedPort, String processName) {
         try {
             if (!isValidListenPort(expectedPort)) {
                 return "Gadget 监听端口必须在 1024–65535 范围内，且不能使用 frida-server 默认端口 27042。";
             }
+            String processError = validateProcessName(packageName, processName);
+            if (processError != null) return processError;
             targetNativeLibraryDir(context, packageName);
             File library = safeRegularFile(libraryPath, 150L * 1024L * 1024L);
             File config = safeRegularFile(configPath, 16L * 1024L);
@@ -132,6 +141,19 @@ public final class FxDiaGadgetDeployment {
         return pkg != null && pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
     }
 
+    /** One Gadget listener port belongs to exactly one app process. */
+    public static String validateProcessName(String packageName, String processName) {
+        if (!validPackage(packageName)) return "目标包名无效，无法绑定 Gadget 进程。";
+        if (processName == null || processName.length() > 180
+                || !(processName.equals(packageName)
+                    || (processName.startsWith(packageName + ":")
+                        && processName.substring(packageName.length() + 1)
+                                .matches("[A-Za-z0-9_.-]{1,120}")))) {
+            return "Gadget 进程必须是目标包名本身，或该包名下的一个独立子进程（包名:进程名）。";
+        }
+        return null;
+    }
+
     /**
      * Accept only absolute, normalized paths. Canonical equality also rejects
      * traversal and symlinked parent components, not merely a symlink at the
@@ -164,12 +186,19 @@ public final class FxDiaGadgetDeployment {
     public static String buildDeployCommand(String library, String config,
                                             String nativeDir, String packageName,
                                             int port) {
+        return buildDeployCommand(library, config, nativeDir, packageName, port, packageName);
+    }
+
+    public static String buildDeployCommand(String library, String config,
+                                            String nativeDir, String packageName,
+                                            int port, String processName) {
         if (!isValidListenPort(port)) {
             throw new IllegalArgumentException("Gadget listener port must be within 1024–65535 and must not be 27042");
         }
-        if (!validPackage(packageName) || !validNativeLibraryDirArgument(nativeDir)
+        if (validateProcessName(packageName, processName) != null
+                || !validNativeLibraryDirArgument(nativeDir)
                 || !validGadgetInputPath(library) || !validGadgetInputPath(config)) {
-            throw new IllegalArgumentException("Gadget source/config/package/nativeLibraryDir path is invalid or non-canonical");
+            throw new IllegalArgumentException("Gadget source/config/package/process/nativeLibraryDir path is invalid or non-canonical");
         }
         StringBuilder c = new StringBuilder();
         c.append("set -eu\numask 077\n");
@@ -177,6 +206,7 @@ public final class FxDiaGadgetDeployment {
         c.append("cfg=").append(q(config)).append("\n");
         c.append("dest=").append(q(nativeDir)).append("\n");
         c.append("pkg=").append(q(packageName)).append("\n");
+        c.append("process=").append(q(processName)).append("\n");
         c.append("port=").append(port).append("\n");
         c.append("gadget=").append(q(GADGET_NAME)).append("\nconf=").append(q(CONFIG_NAME))
                 .append("\nmarker=").append(q(MARKER_NAME)).append("\n");
@@ -204,8 +234,8 @@ public final class FxDiaGadgetDeployment {
         c.append("  mv \"$dest/$gadget\" \"$backup/$gadget\"; old_g=1; mv \"$dest/$conf\" \"$backup/$conf\"; old_c=1; mv \"$dest/$marker\" \"$backup/$marker\"; old_m=1\nfi\n");
         c.append("cp \"$src\" \"$stage/$gadget\"; cp \"$cfg\" \"$stage/$conf\"\n");
         c.append("libhash=$(sha256sum \"$stage/$gadget\" | awk '{print $1}'); confhash=$(sha256sum \"$stage/$conf\" | awk '{print $1}')\n");
-        c.append("printf 'schema=%s\\npackage=%s\\nprocesses=*\\nlibrary_sha256=%s\\nconfig_sha256=%s\\nport=%s\\n' ")
-                .append(q(MARKER_SCHEMA)).append(" \"$pkg\" \"$libhash\" \"$confhash\" \"$port\" > \"$stage/$marker\"\n");
+        c.append("printf 'schema=%s\\npackage=%s\\nprocesses=%s\\nlibrary_sha256=%s\\nconfig_sha256=%s\\nport=%s\\n' ")
+                .append(q(MARKER_SCHEMA)).append(" \"$pkg\" \"$process\" \"$libhash\" \"$confhash\" \"$port\" > \"$stage/$marker\"\n");
         c.append("chown \"$owner\" \"$stage/$gadget\" \"$stage/$conf\" \"$stage/$marker\"; chmod 0755 \"$stage/$gadget\"; chmod 0644 \"$stage/$conf\" \"$stage/$marker\"\n");
 
         c.append("mv \"$stage/$gadget\" \"$dest/$gadget\"; new_g=1\n");
