@@ -5,16 +5,16 @@
 # Independent from FX's proxy route list and the network-blocking firewall.
 set -eu
 
-MP=\${MP:-}
+MP=${MP:-}
 if [ -z "$MP" ]; then
   for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
     if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop" 2>/dev/null; then MP="$d"; break; fi
   done
 fi
 [ -n "$MP" ] && [ -s "$MP/module.prop" ] || { echo "FX module is not installed" >&2; exit 20; }
-PG=\${PG:-/data/adb/privacyguard}
-CONF=\${CONF:-$PG/settings.conf}
-LOCK=\${LOCK:-$PG/yulong-app-whitelist.lock}
+PG=${PG:-/data/adb/privacyguard}
+CONF=${CONF:-$PG/settings.conf}
+LOCK=${LOCK:-$PG/yulong-app-whitelist.lock}
 mkdir -p "$PG"
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 
@@ -85,7 +85,7 @@ mutate_transaction() {
   echo "apply failed; previous whitelist restored" >&2
   return 1
 }
-cmd=\${1:-list}
+cmd=${1:-list}
 case "$cmd" in
   list)
     echo FXYULONGWHITE1
