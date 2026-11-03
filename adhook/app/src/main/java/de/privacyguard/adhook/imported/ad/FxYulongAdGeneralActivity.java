@@ -166,7 +166,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         JSONObject dnsConfig = new JSONObject();
         JSONArray custom = new JSONArray(), global = new JSONArray();
         for (String line : lines(dns.output)) {
-            String[] p = line.split("\\\\|", -1);
+            String[] p = line.split("\\|", -1);
             if (p.length == 2 && "CUSTOM_ENABLED".equals(p[0])) dnsConfig.put("customEnabled", "1".equals(p[1]));
             else if (p.length == 2 && "GLOBAL_ENABLED".equals(p[0])) dnsConfig.put("globalEnabled", "1".equals(p[1]));
             else if (p.length == 2 && "CUSTOM".equals(p[0])) custom.put(p[1]);
@@ -333,7 +333,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
                         .append("if [ \"$HAD_PLAN\" = 1 ]; then cp -p \"$B2\" \"$PLAN.restore.$$\" && chmod 600 \"$PLAN.restore.$$\" && mv -f \"$PLAN.restore.$$\" \"$PLAN\" || :; else rm -f \"$PLAN\"; fi; ")
                         .append("sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1 || :; fi; rm -f \"$B1\" \"$B2\"; exit $rc; }; trap rollback EXIT; ");
                 for(String line:lines(current.output)){
-                    String[] p=line.split("\\\\|",-1); if(p.length<2)continue;
+                    String[] p=line.split("\\|",-1); if(p.length<2)continue;
                     if("RULE".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" rule-remove ").append(quote(p[1])).append("; ");
                     else if("ALLOW".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" allow-remove ").append(quote(p[1])).append("; ");
                     else if("BLOCK".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" block-remove ").append(quote(p[1])).append("; ");
