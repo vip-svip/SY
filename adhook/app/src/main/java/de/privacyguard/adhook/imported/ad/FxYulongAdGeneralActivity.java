@@ -123,9 +123,9 @@ public final class FxYulongAdGeneralActivity extends Activity {
     private String rootCommand(String args) {
         return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; "
-                + "then MP=\\"$d\\"; break; fi; done; "
-                + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" " + args;
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
     }
 
     private RootAccess.Result root(String args) {
@@ -147,7 +147,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         JSONArray rules = new JSONArray(), allow = new JSONArray(), block = new JSONArray();
         JSONObject dnsFlags = new JSONObject();
         for (String line : lines(list.output)) {
-            String[] p = line.split("\\\\|", -1);
+            String[] p = line.split("\\|", -1);
             if (p.length == 2 && "AD_MASTER".equals(p[0])) out.put("adMaster", "1".equals(p[1]));
             else if (p.length >= 4 && "RULE".equals(p[0])) {
                 JSONObject item = new JSONObject(); item.put("source", p[1]); item.put("title", p[2]);
@@ -191,7 +191,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
     private List<String> lines(String text) {
         List<String> out = new ArrayList<>();
         if (text == null) return out;
-        for (String line : text.split("\\\\r?\\\\n")) {
+        for (String line : text.split("\\r?\\n")) {
             String v = line.trim(); if (!v.isEmpty()) out.add(v);
         }
         return out;
@@ -302,10 +302,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
             throw new IllegalArgumentException("过滤计划时间/星期格式无效。");
     }
 
-    private String quote(String value) { return "'" + value.replace("'", "'\\\\''") + "'"; }
+    private String quote(String value) { return "'" + value.replace("'", "'\\''") + "'"; }
     private boolean validIpv4(String value) {
-        if (value == null || !value.matches("[0-9]{1,3}(\\\\.[0-9]{1,3}){3}")) return false;
-        for (String part : value.split("\\\\.")) if (Integer.parseInt(part)>255) return false;
+        if (value == null || !value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) return false;
+        for (String part : value.split("\\.")) if (Integer.parseInt(part)>255) return false;
         return true;
     }
     private String csv(JSONArray array) throws Exception {
@@ -323,25 +323,25 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 if(current.exitCode!=0)throw new IllegalStateException("读取现有设置失败："+safe(current.output));
                 StringBuilder command=new StringBuilder("set -eu; ");
                 command.append("MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do ")
-                        .append("if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; then MP=\\"$d\\"; break; fi; done; ")
-                        .append("[ -n \\"$MP\\" ] || exit 20; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; PLAN=$PG/yulong-ad-schedule.conf; ")
+                        .append("if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; ")
+                        .append("[ -n \"$MP\" ] || exit 20; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; PLAN=$PG/yulong-ad-schedule.conf; ")
                         .append("B1=$PG/yulong-ad-import-settings.rollback.$$; B2=$PG/yulong-ad-import-schedule.rollback.$$; ")
-                        .append("test -f \\"$CONF\\" && test ! -L \\"$CONF\\"; cp -p \\"$CONF\\" \\"$B1\\"; ")
-                        .append("HAD_PLAN=0; if [ -f \\"$PLAN\\" ] && [ ! -L \\"$PLAN\\" ]; then cp -p \\"$PLAN\\" \\"$B2\\"; HAD_PLAN=1; fi; ")
-                        .append("COMMITTED=0; rollback(){ rc=$?; if [ \\"$COMMITTED\\" != 1 ]; then ")
-                        .append("cp -p \\"$B1\\" \\"$CONF.restore.$$\\" && chmod 600 \\"$CONF.restore.$$\\" && mv -f \\"$CONF.restore.$$\\" \\"$CONF\\" || :; ")
-                        .append("if [ \\"$HAD_PLAN\\" = 1 ]; then cp -p \\"$B2\\" \\"$PLAN.restore.$$\\" && chmod 600 \\"$PLAN.restore.$$\\" && mv -f \\"$PLAN.restore.$$\\" \\"$PLAN\\" || :; else rm -f \\"$PLAN\\"; fi; ")
-                        .append("sh \\"$MP/scripts/apply.sh\\" fast >/dev/null 2>&1 || :; fi; rm -f \\"$B1\\" \\"$B2\\"; exit $rc; }; trap rollback EXIT; ");
+                        .append("test -f \"$CONF\" && test ! -L \"$CONF\"; cp -p \"$CONF\" \"$B1\"; ")
+                        .append("HAD_PLAN=0; if [ -f \"$PLAN\" ] && [ ! -L \"$PLAN\" ]; then cp -p \"$PLAN\" \"$B2\"; HAD_PLAN=1; fi; ")
+                        .append("COMMITTED=0; rollback(){ rc=$?; if [ \"$COMMITTED\" != 1 ]; then ")
+                        .append("cp -p \"$B1\" \"$CONF.restore.$$\" && chmod 600 \"$CONF.restore.$$\" && mv -f \"$CONF.restore.$$\" \"$CONF\" || :; ")
+                        .append("if [ \"$HAD_PLAN\" = 1 ]; then cp -p \"$B2\" \"$PLAN.restore.$$\" && chmod 600 \"$PLAN.restore.$$\" && mv -f \"$PLAN.restore.$$\" \"$PLAN\" || :; else rm -f \"$PLAN\"; fi; ")
+                        .append("sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1 || :; fi; rm -f \"$B1\" \"$B2\"; exit $rc; }; trap rollback EXIT; ");
                 for(String line:lines(current.output)){
                     String[] p=line.split("\\\\|",-1); if(p.length<2)continue;
-                    if("RULE".equals(p[0]))command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" rule-remove ").append(quote(p[1])).append("; ");
-                    else if("ALLOW".equals(p[0]))command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" allow-remove ").append(quote(p[1])).append("; ");
-                    else if("BLOCK".equals(p[0]))command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" block-remove ").append(quote(p[1])).append("; ");
+                    if("RULE".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" rule-remove ").append(quote(p[1])).append("; ");
+                    else if("ALLOW".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" allow-remove ").append(quote(p[1])).append("; ");
+                    else if("BLOCK".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" block-remove ").append(quote(p[1])).append("; ");
                 }
                 JSONArray rules=json.getJSONArray("rules");
                 for(int i=0;i<rules.length();i++){
                     JSONObject row=rules.getJSONObject(i);
-                    command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" rule-add ")
+                    command.append("sh \"$MP/scripts/yulong-ad-control.sh\" rule-add ")
                             .append(quote(row.getString("source"))).append(" ")
                             .append(quote(row.getString("title"))).append(" ")
                             .append(row.optBoolean("enabled",true)?"1":"0").append("; ");
@@ -349,14 +349,14 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 JSONArray allow=json.getJSONArray("allowDomains");
                 for(int i=0;i<allow.length();i++){
                     JSONObject row=allow.getJSONObject(i);if(!row.optBoolean("enabled",true))continue;
-                    command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" allow-add ")
+                    command.append("sh \"$MP/scripts/yulong-ad-control.sh\" allow-add ")
                             .append(quote(row.getString("domain"))).append(" ")
                             .append(quote(row.optString("note","FX 白名单"))).append("; ");
                 }
                 JSONArray block=json.getJSONArray("blockDomains");
                 for(int i=0;i<block.length();i++){
                     JSONObject row=block.getJSONObject(i);if(!row.optBoolean("enabled",true))continue;
-                    command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" block-add ")
+                    command.append("sh \"$MP/scripts/yulong-ad-control.sh\" block-add ")
                             .append(quote(row.getString("domain"))).append(" ")
                             .append(quote(row.optString("note","FX 黑名单"))).append("; ");
                 }
@@ -364,25 +364,25 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 java.util.Iterator<String> keys=flags.keys();
                 while(keys.hasNext()){
                     String key=keys.next(); boolean value=flags.optBoolean(key,false);
-                    command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" dns-set ")
+                    command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-set ")
                             .append(quote(key)).append(" ").append(value?"1":"0").append("; ");
                 }
                 JSONObject dns=json.getJSONObject("dnsConfig");
                 String custom=csv(dns.optJSONArray("customServers")==null?new JSONArray():dns.getJSONArray("customServers"));
                 String global=csv(dns.optJSONArray("globalServers")==null?new JSONArray():dns.getJSONArray("globalServers"));
-                if(!custom.isEmpty())command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" dns-config-set custom ").append(quote(custom)).append("; ");
-                if(!global.isEmpty())command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" dns-config-set global ").append(quote(global)).append("; ");
+                if(!custom.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-config-set custom ").append(quote(custom)).append("; ");
+                if(!global.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-config-set global ").append(quote(global)).append("; ");
                 String remote=dns.optString("vpnRemote",""), cn=dns.optString("vpnCn","");
-                if(!remote.isEmpty()&&validIpv4(remote))command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" dns-vpn-set remote_dns ").append(quote(remote)).append("; ");
-                if(!cn.isEmpty()&&validIpv4(cn))command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" dns-vpn-set cn_dns ").append(quote(cn)).append("; ");
-                command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" ad-master ").append(json.optBoolean("adMaster",true)?"1":"0").append("; ");
+                if(!remote.isEmpty()&&validIpv4(remote))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set remote_dns ").append(quote(remote)).append("; ");
+                if(!cn.isEmpty()&&validIpv4(cn))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set cn_dns ").append(quote(cn)).append("; ");
+                command.append("sh \"$MP/scripts/yulong-ad-control.sh\" ad-master ").append(json.optBoolean("adMaster",true)?"1":"0").append("; ");
                 JSONObject schedule=json.getJSONObject("schedule");
-                command.append("sh \\"$MP/scripts/yulong-ad-control.sh\\" schedule-set ")
+                command.append("sh \"$MP/scripts/yulong-ad-control.sh\" schedule-set ")
                         .append(schedule.optBoolean("enabled",false)?"1":"0").append(" ")
                         .append(quote(schedule.optString("start","22:00"))).append(" ")
                         .append(quote(schedule.optString("end","07:00"))).append(" ")
                         .append(quote(schedule.optString("days","1,2,3,4,5,6,7"))).append("; ");
-                command.append("COMMITTED=1; rm -f \\"$B1\\" \\"$B2\\"; trap - EXIT; echo import=success");
+                command.append("COMMITTED=1; rm -f \"$B1\" \"$B2\"; trap - EXIT; echo import=success");
                 if(command.length()>120000)throw new IllegalArgumentException("恢复命令超过安全长度限制。");
                 RootAccess.Result result=RootAccess.execute(command.toString(),180000L,1024*1024);
                 if(result.exitCode!=0)throw new IllegalStateException("设备端回滚/导入失败："+safe(result.output));
