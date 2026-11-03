@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="fx_toggle_vpn"
+        android:enabled="true"
+        android:icon="@drawable/fx_yulong_vpn_shortcut"
+        android:shortcutShortLabel="@string/fx_shortcut_toggle_vpn_short"
+        android:shortcutLongLabel="@string/fx_shortcut_toggle_vpn">
+        <intent
+            android:action="app.pwhs.blockads.ACTION_TOGGLE_SHORTCUT"
+            android:targetPackage="de.privacyguard.adhook"
+            android:targetClass="de.privacyguard.adhook.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>
