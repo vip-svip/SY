@@ -2636,31 +2636,61 @@ public final class MainActivity extends ComponentActivity {
 
     private void openImportedSuitePage(String suite, String category, String page) {
         if ("dia".equals(suite)) {
-            if (page.contains("应用") || page.contains("Hook") || page.contains("Activity")
-                    || page.contains("模块") || page.contains("Native")) {
-                showAppList();
-                return;
-            }
-            if (page.contains("脚本") || page.contains("Frida")) {
-                if (page.contains("Frida")) {
-                    showImportedSuitePendingPage(suite, category, page,
-                            "Dia 的 Frida 环境初始化、注入及监听运行时尚未整体迁入。FX 现有脚本编辑与运行页面可先使用，但不会宣称等同于 Dia 的 Frida 子系统。");
-                } else {
+            switch (page) {
+                case "应用选择": case "目标应用": case "模块配置": case "模块功能":
+                case "Activity 入口与禁用": case "隐藏应用": case "方法 Hook":
+                case "Native 方法": case "函数重写":
+                    showAppList();
+                    return;
+                case "对话框与通知": case "剪贴板":
+                    showNativeSettingsGroup("notifyPanel", "Dia · " + page);
+                    return;
+                case "传感器":
+                    showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
+                    return;
+                case "网络与代理": case "Wi-Fi 模拟": case "网络类型模拟":
+                case "HTTP 监控": case "HTTP 代理":
+                    showNativeSettingsGroup("netPanel", "Dia · " + page);
+                    return;
+                case "按键控制": case "设备属性": case "时间与时区":
+                case "应用版本": case "签名信息":
+                    showNativeSettingsGroup("devicePanel", "Dia · " + page);
+                    return;
+                case "文件与 so 库":
+                    showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
+                    return;
+                case "位置与 GPS":
+                    showNativeSettingsGroup("locationPanel", "Dia · 位置与 GPS");
+                    return;
+                case "JS 脚本列表": case "脚本编辑器": case "JSON 操作":
                     openImportedNativeTab(3);
-                }
-                return;
+                    return;
+                case "规则组": case "规则列表":
+                    openImportedNativeTab(1);
+                    return;
+                case "运行日志":
+                    showNativeRuntimeLogs();
+                    return;
+                case "全局设置":
+                    showSettings();
+                    return;
+                case "Frida 环境": case "Frida 注入": case "监听模式":
+                    showImportedSuitePendingPage(suite, category, page,
+                            "Dia 23.11 的 Frida 服务管理、进程注入和监听模式尚未整体迁入。FX 当前的 QuickJS 脚本运行时不是 Frida，不能把二者标为等价。");
+                    return;
+                case "本地备份": case "GitHub 备份": case "WebDAV 备份":
+                    showImportedSuitePendingPage(suite, category, page,
+                            "Dia 原版备份适配器尚未迁入；不会把 FX 的模块日志或设置导出冒充 GitHub/WebDAV 备份。");
+                    return;
+                case "数据库监控": case "算法监控": case "Dex 查找与解析": case "内存快照":
+                    showImportedSuitePendingPage(suite, category, page,
+                            "该 Dia 开发监控功能尚未迁入；当前只登记原功能入口，不显示虚假运行状态。");
+                    return;
+                default:
+                    showImportedSuitePendingPage(suite, category, page,
+                            "该 Dia 页面已登记到迁移目录；对应运行逻辑尚未移植完成。当前不会创建无效开关，也不会修改目标应用或系统状态。");
+                    return;
             }
-            if (page.contains("规则")) {
-                openImportedNativeTab(1);
-                return;
-            }
-            if (page.contains("备份") || page.contains("全局设置")) {
-                showSettings();
-                return;
-            }
-            showImportedSuitePendingPage(suite, category, page,
-                    "该 Dia 页面已登记到迁移目录；对应运行逻辑尚未移植完成。当前不会创建无效开关，也不会修改目标应用或系统状态。");
-            return;
         }
 
         if (category.equals("首页与防护") || category.equals("过滤列表与规则")) {
