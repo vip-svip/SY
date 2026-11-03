@@ -30,7 +30,11 @@ import java.util.concurrent.Executors;
 
 /** Native Yulong 7.0.1 per-app firewall UI; separate from FX's per-app VPN route. */
 public final class FxYulongFirewallActivity extends Activity {
+    private static final int APP_PAGE_SIZE = 50;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ExecutorService appWorker = Executors.newSingleThreadExecutor();
+    private int appPage = 1;
+    private volatile boolean destroyed;
     private LinearLayout rows;
     private TextView status;
     private Switch master;
@@ -72,13 +76,15 @@ public final class FxYulongFirewallActivity extends Activity {
         Button b = new Button(this); b.setAllCaps(false); b.setText(value);
         b.setOnClickListener(v -> action.run()); return b;
     }
-    private void card(String title, String detail, View child) {
+    private void card(String title, String detail, View... children) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(14), dp(10), dp(14), dp(10));
         card.setBackgroundColor(0xfff0f3f7);
         card.addView(text(title, 16, 0xff17212b, true));
         card.addView(text(detail, 12, 0xff617080, false));
-        if (child != null) card.addView(child);
+        if (children != null) {
+            for (View child : children) if (child != null) card.addView(child);
+        }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(5), dp(12), dp(5)); rows.addView(card, lp);
     }
@@ -103,6 +109,7 @@ public final class FxYulongFirewallActivity extends Activity {
         status = text("正在读取设备端防火墙设置…", 13, 0xff526170, false);
         card("当前状态", "Root 与 IPv4/IPv6 规则应用结果", status);
         master = new Switch(this); master.setText("启用已选择应用的网络拦截");
+        master.setEnabled(false);
         card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用的规则。", master);
         query = new EditText(this); query.setSingleLine(true); query.setHint("搜索应用名称或包名");
         query.setPadding(dp(14), dp(8), dp(14), dp(8));
@@ -124,7 +131,10 @@ public final class FxYulongFirewallActivity extends Activity {
         });
         query.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderRows(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                appPage = 1;
+                renderRows();
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
         runRoot("list", result -> {
@@ -132,7 +142,8 @@ public final class FxYulongFirewallActivity extends Activity {
                 loading = false; master.setEnabled(false);
                 status.setText("无法读取防火墙配置：" + safeOutput(result.output)); return;
             }
-            parseList(result.output); loadApps(); loading = false; renderRows();
+            parseList(result.output);
+            loadAppsAsync();
         });
     }
     private String safeOutput(String value) {
@@ -152,24 +163,60 @@ public final class FxYulongFirewallActivity extends Activity {
             }
         }
     }
-    private void loadApps() {
-        apps.clear(); labels.clear(); PackageManager pm = getPackageManager();
+    /** Package enumeration, label resolution and sorting must never block the Activity UI. */
+    private void loadAppsAsync() {
+        loading = true;
+        master.setEnabled(false);
+        status.setText("正在后台读取已安装应用…");
         try {
-            apps.addAll(pm.getInstalledApplications(0));
-            apps.removeIf(info -> info.packageName == null || info.packageName.equals(getPackageName()));
-            apps.sort(Comparator.comparing(info -> {
-                try { return String.valueOf(pm.getApplicationLabel(info)).toLowerCase(Locale.ROOT); }
-                catch (Throwable ignored) { return info.packageName.toLowerCase(Locale.ROOT); }
-            }));
-            for (ApplicationInfo info : apps) {
-                String label;
-                try { label = String.valueOf(pm.getApplicationLabel(info)); }
-                catch (Throwable ignored) { label = info.packageName; }
-                labels.put(info.packageName, label);
-                if (!selected.containsKey(info.packageName)) selected.put(info.packageName, false);
-            }
-        } catch (Throwable error) {
-            status.setText("无法读取应用列表：" + error.getClass().getSimpleName());
+            appWorker.execute(() -> {
+                List<ApplicationInfo> loaded = new ArrayList<>();
+                Map<String, String> loadedLabels = new HashMap<>();
+                Throwable failure = null;
+                try {
+                    PackageManager pm = getPackageManager();
+                    loaded.addAll(pm.getInstalledApplications(0));
+                    loaded.removeIf(info -> info.packageName == null
+                            || info.packageName.equals(getPackageName()));
+                    for (ApplicationInfo info : loaded) {
+                        String label;
+                        try { label = String.valueOf(pm.getApplicationLabel(info)); }
+                        catch (Throwable ignored) { label = info.packageName; }
+                        loadedLabels.put(info.packageName, label);
+                    }
+                    loaded.sort(Comparator.comparing(info ->
+                            loadedLabels.getOrDefault(info.packageName, info.packageName)
+                                    .toLowerCase(Locale.ROOT)));
+                } catch (Throwable error) {
+                    failure = error;
+                }
+                final Throwable loadFailure = failure;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    if (loadFailure != null) {
+                        loading = false;
+                        master.setEnabled(false);
+                        status.setText("无法读取应用列表：" + loadFailure.getClass().getSimpleName());
+                        renderRows();
+                        return;
+                    }
+                    apps.clear();
+                    apps.addAll(loaded);
+                    labels.clear();
+                    labels.putAll(loadedLabels);
+                    for (ApplicationInfo info : loaded) {
+                        if (!selected.containsKey(info.packageName)) selected.put(info.packageName, false);
+                    }
+                    loading = false;
+                    master.setEnabled(true);
+                    status.setText("已读取 " + apps.size() + " 个应用；列表按需分页加载。");
+                    appPage = 1;
+                    renderRows();
+                });
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closing) {
+            loading = false;
+            if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
         }
     }
     private String formatBytes(long bytes) {
@@ -186,14 +233,19 @@ public final class FxYulongFirewallActivity extends Activity {
     }
 
     private void renderRows() {
-        if (rows == null || isFinishing()) return;
+        if (rows == null || isFinishing() || destroyed) return;
+        // The first four children are the fixed intro/status/master/app-list cards.
         rows.removeViews(4, Math.max(0, rows.getChildCount() - 4));
         String filter = query.getText() == null ? "" : query.getText().toString().trim().toLowerCase(Locale.ROOT);
+        int matched = 0;
         int shown = 0;
+        int limit = Math.max(1, appPage) * APP_PAGE_SIZE;
         for (ApplicationInfo info : apps) {
             String pkg = info.packageName; String label = labels.getOrDefault(pkg, pkg);
             if (!filter.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(filter)
                     && !pkg.toLowerCase(Locale.ROOT).contains(filter)) continue;
+            matched++;
+            if (shown >= limit) continue;
             LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL);
             item.setPadding(dp(12), dp(7), dp(12), dp(7));
             TextView name = text(label, 14, 0xff17212b, true);
@@ -226,8 +278,17 @@ public final class FxYulongFirewallActivity extends Activity {
             lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
         }
         if (shown == 0) rows.addView(text("没有匹配的应用。", 13, 0xff617080, false));
+        if (matched > limit) {
+            rows.addView(button("加载更多（剩余 " + (matched - limit) + " 个）", () -> {
+                appPage++;
+                renderRows();
+            }), new LinearLayout.LayoutParams(-1, -2));
+        }
     }
     @Override protected void onDestroy() {
-        worker.shutdownNow(); super.onDestroy();
+        destroyed = true;
+        worker.shutdownNow();
+        appWorker.shutdownNow();
+        super.onDestroy();
     }
 }
