@@ -28,14 +28,16 @@ assert source.count('new Thread(()->{') == 1, "only the guarded request may crea
 assert "REQUEST_PENDING.set(false);" in source, "in-flight guard must be released"
 assert "pending.finish();" in source, "goAsync result must always be finished"
 assert "private static void publishResult" in source, "result reporting must be centralized"
+assert "reply.setPackage(context.getPackageName())" in source, "result broadcasts must be scoped to the FX package"
 assert "RootAccess.execute(command,90000L,128*1024)" in source, "Tasker must still use the fixed allowlisted Root command"
 
 # All three UI/automation entry points must serialize writes through one process gate.
-assert "AtomicBoolean BUSY" in gate_source
-assert "BUSY.compareAndSet(false, true)" in gate_source
-assert "BUSY.set(false)" in gate_source
+assert "AtomicLong NEXT_TOKEN" in gate_source
+assert "AtomicLong OWNER_TOKEN" in gate_source
+assert "OWNER_TOKEN.compareAndSet(0L, token)" in gate_source
+assert "OWNER_TOKEN.compareAndSet(token, 0L)" in gate_source
 assert "FxYulongAdOperationGate.tryAcquire()" in source
-assert source.count("FxYulongAdOperationGate.release()") == 3, "Tasker must release gate on all three exit paths"
+assert source.count("FxYulongAdOperationGate.release(gateToken)") == 3, "Tasker must release gate on all three exit paths"
 
 receiver = next((x for x in manifest.findall("./application/receiver")
                  if x.attrib.get(ns + "name", "").endswith("FxYulongAdTaskerReceiver")), None)
@@ -61,7 +63,7 @@ worker_finally_at = toggle_body.find("} finally {")
 assert worker_finally_at >= 0, "widget Root worker must have a completion finally block"
 worker_finally = toggle_body[worker_finally_at:]
 assert "pending.finish();" in worker_finally, "widget Root toggle must always finish its asynchronous broadcast"
-assert worker_finally.find("FxYulongAdOperationGate.release();") < worker_finally.find("TOGGLE_PENDING.set(false);") < worker_finally.find("pending.finish();"), "widget worker must release the shared gate, clear its pending flag, then finish";
+assert worker_finally.find("FxYulongAdOperationGate.release(gateToken)") < worker_finally.find("TOGGLE_PENDING.set(false);") < worker_finally.find("pending.finish();"), "widget worker must release the shared gate, clear its pending flag, then finish";
 
 assert "Executors.newSingleThreadExecutor" not in widget_source
 widget = next((x for x in manifest.findall("./application/receiver")
@@ -76,10 +78,10 @@ assert "current == Tile.STATE_UNAVAILABLE" in tile_source
 assert "未更改" in tile_source
 assert "worker.shutdownNow();" in tile_source
 assert "Executors.newSingleThreadExecutor" not in tile_source
-assert "gateAcquired = FxYulongAdOperationGate.tryAcquire();" in tile_source
-assert "if (gateAcquired) FxYulongAdOperationGate.release();" in tile_source
+assert "gateToken = FxYulongAdOperationGate.tryAcquire();" in tile_source
+assert "if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);" in tile_source
 assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
-assert widget_source.count("FxYulongAdOperationGate.release()") == 3, "widget must release the cross-entry gate on every failure/finish path"
+assert widget_source.count("FxYulongAdOperationGate.release(gateToken)") == 3, "widget must release the cross-entry gate on every failure/finish path"
 tile = next((x for x in manifest.findall("./application/service")
              if x.attrib.get(ns + "name", "").endswith("FxYulongAdTileService")), None)
 assert tile is not None
@@ -88,28 +90,29 @@ assert tile.attrib.get(ns + "exported") == "true"
 
 # All Android-side ad-master writers share one process gate; the yulong shell
 # command retains its own mkdir transaction lock for cross-process callers.
-assert "AtomicBoolean BUSY" in gate_source
-assert "BUSY.compareAndSet(false, true)" in gate_source
-assert "BUSY.set(false)" in gate_source
+assert "AtomicLong NEXT_TOKEN" in gate_source
+assert "AtomicLong OWNER_TOKEN" in gate_source
+assert "OWNER_TOKEN.compareAndSet(0L, token)" in gate_source
+assert "OWNER_TOKEN.compareAndSet(token, 0L)" in gate_source
 assert "FxYulongAdOperationGate.tryAcquire()" in source
 assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
 assert "FxYulongAdOperationGate.tryAcquire()" in tile_source
 assert "FxYulongAdOperationGate.tryAcquire()" in ad_activity
 assert 'args.matches("^ad-master\\\\s+[01]$")' in ad_activity
-assert "FxYulongAdOperationGate.release();" in ad_activity
+assert "FxYulongAdOperationGate.release(gateToken);" in ad_activity
 assert "FxYulongAdOperationGate.tryAcquire()" in general_activity
-assert "FxYulongAdOperationGate.release();" in general_activity
+assert "FxYulongAdOperationGate.release(gateToken);" in general_activity
 assert "finally {" in general_activity and "导入未开始" in general_activity
 # Queueable Activities must acquire the global gate only after their worker starts;
 # otherwise onDestroy()+shutdownNow() can drop a queued task while leaking BUSY forever.
 restore_worker = general_activity.find("worker.execute(() -> {", general_activity.find("private void applyImport(JSONObject json)"))
-restore_gate = general_activity.find("gateAcquired = FxYulongAdOperationGate.tryAcquire();", restore_worker)
-restore_release = general_activity.find("if (gateAcquired) FxYulongAdOperationGate.release();", restore_gate)
+restore_gate = general_activity.find("gateToken = FxYulongAdOperationGate.tryAcquire();", restore_worker)
+restore_release = general_activity.find("if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);", restore_gate)
 assert restore_worker >= 0 and restore_gate > restore_worker and restore_release > restore_gate
 assert general_activity.find("FxYulongAdOperationGate.tryAcquire();", general_activity.find("private void applyImport(JSONObject json)")) >= restore_worker
 ad_worker = ad_activity.find("worker.execute(()->{", ad_activity.find("private void apply(String args,String label)"))
-ad_gate = ad_activity.find("gateAcquired=FxYulongAdOperationGate.tryAcquire();", ad_worker)
-ad_release = ad_activity.find("if(gateAcquired)FxYulongAdOperationGate.release();", ad_gate)
+ad_gate = ad_activity.find("gateToken=FxYulongAdOperationGate.tryAcquire();", ad_worker)
+ad_release = ad_activity.find("if(gateToken!=0L)FxYulongAdOperationGate.release(gateToken);", ad_gate)
 assert ad_worker >= 0 and ad_gate > ad_worker and ad_release > ad_gate
 print("PASS: Tasker, widget and Quick Settings Root toggles are bounded, serialized and fail closed")
 PY
