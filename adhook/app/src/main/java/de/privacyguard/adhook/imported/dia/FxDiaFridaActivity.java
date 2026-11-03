@@ -1680,7 +1680,7 @@ public final class FxDiaFridaActivity extends Activity {
                 ? "" : script.getText().toString();
         byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
         if (source.trim().isEmpty() || sourceBytes.length > 48 * 1024
-                || source.indexOf('\u0000') >= 0) {
+                || source.indexOf(0) >= 0) {
             java.util.Arrays.fill(sourceBytes, (byte) 0);
             setStatus("Frida 脚本为空、包含 NUL 字符或超过 48 KiB。");
             return;
