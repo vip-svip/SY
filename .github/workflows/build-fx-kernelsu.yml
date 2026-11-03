@@ -110,6 +110,7 @@ jobs:
           APK_ACCESS_TOKEN: ${{ secrets.APK_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          python3 scripts/tests/fx-yulong-bloom-header-regression.py
           test -n "$APK_ACCESS_TOKEN" || { echo "::error::APK_ACCESS_TOKEN secret is missing"; exit 1; }
           archive="$RUNNER_TEMP/yulong-7.0.1-source.zip"
           curl --fail --silent --show-error --location \
