@@ -358,7 +358,8 @@ for forbidden in ("event.getText(", "event.getSource(", "getContentDescription("
 assert "setPackage(getPackageName())" in handler, "foreground event broadcast is not package-scoped"
 print("PASS: accessibility service observes only foreground package metadata and never reads screen content or interacts with controls")
 PY
-grep -q 'FxAccessibilityService' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge would drop accessibility service"
+grep -Fq 'application_node = manifest_root.find("application")' "$MERGE_HOOK" || fail "APK merge must edit the existing application tree without dropping its components"
+grep -Fq 'ET.tostring(manifest_root' "$MERGE_HOOK" || fail "APK merge must serialize the retained application tree"
 grep -q 'xposedmodule' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "LSPosed module metadata missing from merged APK"
 grep -q 'new ProcessBuilder("su", "-c", command)' "$ROOT_ACCESS" || fail "KernelSU su executor missing"
 grep -q 'command.length() > 131072' "$ROOT_ACCESS" || fail "Root command cap must support 87 KiB config chunks"
@@ -401,7 +402,7 @@ grep -Fq 'v1.0.0-quickjs-runtime-regression.sh' "$ROOT/.github/workflows/build-f
 suite_line=$(grep -n 'Run complete FX host regression suite' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 retire_line=$(grep -n 'Remove KernelSU WebUI and manual action entrypoints' "$ROOT/.github/workflows/build-fx-kernelsu.yml" | cut -d: -f1)
 [ -n "$suite_line" ] && [ -n "$retire_line" ] && [ "$suite_line" -lt "$retire_line" ] || fail "module WebUI must be retired only after original UI regression suite"
-grep -q 'android:label="FX"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "APK merge does not preserve FX application label"
+grep -Fq 'application_node.set(ANDROID + "label", "FX Hook")' "$MERGE_HOOK" || fail "APK merge does not preserve the unified FX Hook application label"
 [ -s "$ROOT/fx-patches/retire_webui_legacy_hook.py" ] || fail "legacy WebUI Hook retirement patch missing"
 grep -Fq 'retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-adhook.yml" || fail "standalone Hook APK workflow does not remove the duplicate WebUI Hook manager"
 grep -Fq 'retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html' "$ROOT/.github/workflows/build-fx-kernelsu.yml" || fail "KernelSU workflow does not remove the duplicate WebUI Hook manager"
