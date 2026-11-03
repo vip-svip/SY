@@ -2666,7 +2666,7 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("Wi-Fi 环境模拟");
                     return;
                 case "网络类型模拟":
-                    showNativeSettingsGroup("netPanel", "Dia · 网络类型模拟");
+                    showAppList("网络类型模拟");
                     return;
                 case "文件与 so 库":
                     showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
@@ -4199,7 +4199,7 @@ public final class MainActivity extends ComponentActivity {
         toggle("隔离剪贴板", "clipboard_isolate", false);
         section("Wi-Fi 网络隐私");
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
-        section("Wi-Fi 环境模拟（仅可调试版本）");
+        section("Wi-Fi 环境模拟");
         TextView wifiSimulationNote = new TextView(this);
         wifiSimulationNote.setText("仅在本地 debuggable 目标应用的 LSPosed 进程中覆盖 WifiInfo.getSSID()/getBSSID() 返回值；不更改系统真实 Wi-Fi 连接或扫描结果。");
         wifiSimulationNote.setTextColor(0xff697681);
@@ -4249,6 +4249,52 @@ public final class MainActivity extends ComponentActivity {
         content.addView(simulatedBssid);
         content.addView(simulateWifi);
         content.addView(saveWifiSimulation);
+        section("网络类型模拟");
+        TextView networkSimulationNote = new TextView(this);
+        networkSimulationNote.setText("仅在 debuggable 目标进程中覆盖 NetworkInfo 类型和 NetworkCapabilities.hasTransport() 判断；不改变系统实际连接、路由或 VPN。");
+        networkSimulationNote.setTextColor(0xff697681);
+        networkSimulationNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(networkSimulationNote);
+        String[] networkModes = {"wifi", "cellular"};
+        String[] networkModeLabels = {"Wi-Fi", "移动数据"};
+        String savedNetworkMode = getPreferences(0).getString(selectedPackage + ":network_type", "wifi");
+        final String[] chosenNetworkMode = { "cellular".equals(savedNetworkMode) ? "cellular" : "wifi" };
+        TextView chosenNetworkModeText = new TextView(this);
+        chosenNetworkModeText.setText("当前模拟类型：" + ("cellular".equals(chosenNetworkMode[0]) ? "移动数据" : "Wi-Fi"));
+        chosenNetworkModeText.setTextColor(0xff526170);
+        chosenNetworkModeText.setPadding(dp(18), dp(4), dp(18), dp(4));
+        Button chooseNetworkMode = new Button(this);
+        chooseNetworkMode.setAllCaps(false);
+        chooseNetworkMode.setText("选择模拟网络类型");
+        chooseNetworkMode.setOnClickListener(v -> {
+            int selectedMode = "cellular".equals(chosenNetworkMode[0]) ? 1 : 0;
+            new AlertDialog.Builder(this).setTitle("网络类型")
+                    .setSingleChoiceItems(networkModeLabels, selectedMode,
+                            (dialog, which) -> chosenNetworkMode[0] = networkModes[which])
+                    .setPositiveButton("确定", (dialog, which) -> chosenNetworkModeText.setText(
+                            "当前模拟类型：" + ("cellular".equals(chosenNetworkMode[0]) ? "移动数据" : "Wi-Fi")))
+                    .setNegativeButton("取消", null).show();
+        });
+        Switch simulateNetworkType = new Switch(this);
+        simulateNetworkType.setText("启用此应用的网络类型模拟");
+        simulateNetworkType.setChecked(getPreferences(0).getBoolean(selectedPackage + ":network_type_sim", false));
+        simulateNetworkType.setEnabled(targetDebuggable);
+        chooseNetworkMode.setEnabled(targetDebuggable);
+        Button saveNetworkType = new Button(this);
+        saveNetworkType.setAllCaps(false);
+        saveNetworkType.setText("保存并发布网络类型配置");
+        saveNetworkType.setEnabled(targetDebuggable);
+        saveNetworkType.setOnClickListener(v -> {
+            getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":network_type_sim", simulateNetworkType.isChecked())
+                    .putString(selectedPackage + ":network_type", chosenNetworkMode[0])
+                    .apply();
+            publishConfig();
+        });
+        content.addView(chosenNetworkModeText);
+        content.addView(chooseNetworkMode);
+        content.addView(simulateNetworkType);
+        content.addView(saveNetworkType);
         section("位置隐私");
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
@@ -4603,6 +4649,13 @@ public final class MainActivity extends ComponentActivity {
                         if (!fakeBssid.isEmpty()) row.append(",wifi_bssid=").append(fakeBssid);
                         has = true;
                     }
+                }
+                boolean networkTypeSim = getPreferences(0).getBoolean(p + ":network_type_sim", false);
+                String networkType = getPreferences(0).getString(p + ":network_type", "wifi");
+                if (networkTypeSim && (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                        && ("wifi".equals(networkType) || "cellular".equals(networkType))) {
+                    row.append(",network_type_simulate=1,network_type=").append(networkType);
+                    has = true;
                 }
                 boolean customEnabled=false;
                 for(int n=1;n<=64;n++) {
