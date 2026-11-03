@@ -4617,6 +4617,9 @@ public final class MainActivity extends ComponentActivity {
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
         Button addRule=new Button(this); addRule.setText("添加自定义 Hook 规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
+        Button ruleGroups = new Button(this); ruleGroups.setText("管理规则分组");
+        ruleGroups.setOnClickListener(v -> showCustomRuleGroupsDialog());
+        content.addView(ruleGroups);
         LinearLayout ruleTools = new LinearLayout(this);
         ruleTools.setOrientation(LinearLayout.HORIZONTAL);
         Button importRules = new Button(this); importRules.setText("批量导入 JSON");
@@ -4658,6 +4661,115 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private boolean validCustomRuleGroupName(String value) {
+        if (value == null) return false;
+        String name = value.trim();
+        return !name.isEmpty() && name.length() <= 24
+                && name.matches("[\\\\p{L}\\\\p{N}_ -]+")
+                && !name.contains("|");
+    }
+
+    private java.util.LinkedHashSet<String> getCustomRuleGroups() {
+        java.util.LinkedHashSet<String> groups = new java.util.LinkedHashSet<>();
+        groups.add("默认");
+        java.util.Set<String> saved = getPreferences(0).getStringSet(
+                selectedPackage + ":dev_rule_groups", null);
+        if (saved != null) {
+            for (String group : saved) {
+                if (validCustomRuleGroupName(group)) groups.add(group.trim());
+            }
+        }
+        for (int i = 1; i <= 64; i++) {
+            String group = getPreferences(0).getString(
+                    selectedPackage + ":dev_rule_group_" + i, "默认");
+            if (validCustomRuleGroupName(group)) groups.add(group.trim());
+        }
+        return groups;
+    }
+
+    private void ensureCustomRuleGroup(String groupName) {
+        if (!validCustomRuleGroupName(groupName)) return;
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        groups.add(groupName.trim());
+        getPreferences(0).edit().putStringSet(
+                selectedPackage + ":dev_rule_groups",
+                new java.util.HashSet<>(groups)).apply();
+    }
+
+    private void showAddCustomRuleGroupDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("例如：网络监控、会员状态、设备模拟");
+        new AlertDialog.Builder(this).setTitle("新增规则分组")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("新增", (dialog, which) -> {
+                    String value = input.getText().toString().trim();
+                    if (!validCustomRuleGroupName(value)) {
+                        new AlertDialog.Builder(this).setMessage("分组名称无效，最长 24 个字符。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    ensureCustomRuleGroup(value);
+                    new AlertDialog.Builder(this).setMessage("已创建分组：" + value)
+                            .setPositiveButton("继续管理", (d, w) -> showCustomRuleGroupsDialog())
+                            .setNegativeButton("关闭", null).show();
+                }).show();
+    }
+
+    private void showCustomRuleGroupsDialog() {
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        String[] names = groups.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("规则分组 · " + names.length + " 个")
+                .setItems(names, (dialog, which) -> {
+                    String chosen = names[which];
+                    if ("默认".equals(chosen)) {
+                        new AlertDialog.Builder(this).setMessage("“默认”分组始终保留。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    new AlertDialog.Builder(this).setTitle("删除分组")
+                            .setMessage("删除分组“" + chosen + "”？其中的规则会移动到“默认”，不会删除 Hook 规则。")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("删除分组", (d, w) -> {
+                                for (int slot = 1; slot <= 64; slot++) {
+                                    String key = selectedPackage + ":dev_rule_group_" + slot;
+                                    if (chosen.equals(getPreferences(0).getString(key, "默认")))
+                                        getPreferences(0).edit().putString(key, "默认").apply();
+                                }
+                                java.util.LinkedHashSet<String> latest = getCustomRuleGroups();
+                                latest.remove(chosen);
+                                getPreferences(0).edit().putStringSet(
+                                        selectedPackage + ":dev_rule_groups",
+                                        new java.util.HashSet<>(latest)).apply();
+                                ApplicationInfo target = findApp(selectedPackage);
+                                if (target != null) showTarget(target);
+                            }).show();
+                })
+                .setNeutralButton("新增分组", (dialog, which) -> showAddCustomRuleGroupDialog())
+                .setNegativeButton("关闭", null).show();
+    }
+
+    private void showCustomRuleGroupPicker(int slot) {
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        String[] names = groups.toArray(new String[0]);
+        String key = selectedPackage + ":dev_rule_group_" + slot;
+        String current = getPreferences(0).getString(key, "默认");
+        int selected = 0;
+        for (int i = 0; i < names.length; i++) if (names[i].equals(current)) selected = i;
+        final int[] chosen = { selected };
+        new AlertDialog.Builder(this).setTitle("将规则移动到分组")
+                .setSingleChoiceItems(names, selected, (dialog, which) -> chosen[0] = which)
+                .setNeutralButton("新增分组", (dialog, which) -> showAddCustomRuleGroupDialog())
+                .setNegativeButton("取消", null)
+                .setPositiveButton("移动", (dialog, which) -> {
+                    String group = names[chosen[0]];
+                    getPreferences(0).edit().putString(key, group).apply();
+                    ApplicationInfo target = findApp(selectedPackage);
+                    if (target != null) showTarget(target);
+                }).show();
+    }
+
     private void showCustomRuleDialog() {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
@@ -4676,6 +4788,10 @@ public final class MainActivity extends ComponentActivity {
         action.setSingleLine(true);
         action.setText("OBSERVE");
         action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING");
+        EditText group = new EditText(this);
+        group.setSingleLine(true);
+        group.setText("默认");
+        group.setHint("规则分组，例如 网络监控");
         EditText priority = new EditText(this);
         priority.setSingleLine(true);
         priority.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
@@ -4694,6 +4810,7 @@ public final class MainActivity extends ComponentActivity {
         form.addView(id);
         form.addView(descriptor);
         form.addView(action);
+        form.addView(group);
         form.addView(priority);
         form.addView(help);
 
@@ -4703,7 +4820,13 @@ public final class MainActivity extends ComponentActivity {
                     String ruleId = id.getText().toString().trim();
                     String method = descriptor.getText().toString().trim();
                     String actionText = action.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
+                    String groupName = group.getText().toString().trim();
                     String priorityText = priority.getText().toString().trim();
+                    if (!validCustomRuleGroupName(groupName)) {
+                        new AlertDialog.Builder(this).setMessage("分组名称最多 24 个字符，只允许字母、数字、空格、下划线和连字符。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
                     if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
                             && !"RETURN_FALSE".equals(actionText) && !"RETURN_NULL".equals(actionText)
                             && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)) {
@@ -4746,8 +4869,10 @@ public final class MainActivity extends ComponentActivity {
                             .putString(selectedPackage + ":dev_rule_" + slot,
                                     rule.id + "|" + rule.descriptor + "|" + rule.action.name() + "|" + rule.priority)
                             .putString(selectedPackage + ":dev_rule_base_" + slot, rule.action.name())
+                            .putString(selectedPackage + ":dev_rule_group_" + slot, groupName)
                             .putBoolean(selectedPackage + ":dev_hook_enabled", true)
                             .apply();
+                    ensureCustomRuleGroup(groupName);
                     ApplicationInfo currentTarget = findApp(selectedPackage);
                     if (currentTarget == null) {
                         new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
@@ -4775,6 +4900,8 @@ public final class MainActivity extends ComponentActivity {
                 item.put("action", baseAction);
                 item.put("enabled", !"OFF".equals(parts[2]));
                 item.put("priority", Integer.parseInt(parts[3]));
+                item.put("group", getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_group_" + n, "默认"));
                 exported.put(item);
             }
             EditText output = new EditText(this);
@@ -4816,6 +4943,7 @@ public final class MainActivity extends ComponentActivity {
                         java.util.Set<String> ids = new java.util.HashSet<>();
                         java.util.List<String> candidates = new java.util.ArrayList<>();
                         java.util.List<String> baseActions = new java.util.ArrayList<>();
+                        java.util.List<String> baseGroups = new java.util.ArrayList<>();
                         for (int n = 1; n <= 64; n++) {
                             String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                             if (existing != null) {
@@ -4825,6 +4953,8 @@ public final class MainActivity extends ComponentActivity {
                                     baseActions.add(getPreferences(0).getString(
                                             selectedPackage + ":dev_rule_base_" + n,
                                             "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]));
+                                    baseGroups.add(getPreferences(0).getString(
+                                            selectedPackage + ":dev_rule_group_" + n, "默认"));
                                 }
                                 candidates.add(existing);
                             }
@@ -4836,7 +4966,10 @@ public final class MainActivity extends ComponentActivity {
                             String descriptor = item.optString("descriptor", "");
                             String action = item.optString("action", "OBSERVE").toUpperCase(java.util.Locale.ROOT);
                             int priority = item.optInt("priority", 0);
+                            String groupName = item.optString("group", "默认").trim();
                             boolean enabled = item.optBoolean("enabled", true);
+                            if (!validCustomRuleGroupName(groupName))
+                                throw new IllegalArgumentException("第 " + (i + 1) + " 条规则分组名称无效。");
                             if (!"OBSERVE".equals(action) && !"RETURN_TRUE".equals(action)
                                     && !"RETURN_FALSE".equals(action) && !"RETURN_NULL".equals(action)
                                     && !"RETURN_ZERO".equals(action) && !"RETURN_EMPTY_STRING".equals(action))
@@ -4853,18 +4986,25 @@ public final class MainActivity extends ComponentActivity {
                             String storedAction = enabled ? action : "OFF";
                             candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction + "|" + parsed.priority);
                             baseActions.add(action);
+                            baseGroups.add(groupName);
                         }
                         if (candidates.size() > 64) throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
                         android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
                         for (int n = 1; n <= 64; n++) {
                             editor.remove(selectedPackage + ":dev_rule_" + n);
                             editor.remove(selectedPackage + ":dev_rule_base_" + n);
+                            editor.remove(selectedPackage + ":dev_rule_group_" + n);
                         }
                         for (int i = 0; i < candidates.size(); i++) {
                             editor.putString(selectedPackage + ":dev_rule_" + (i + 1), candidates.get(i));
                             editor.putString(selectedPackage + ":dev_rule_base_" + (i + 1), baseActions.get(i));
+                            editor.putString(selectedPackage + ":dev_rule_group_" + (i + 1), baseGroups.get(i));
                         }
                         editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty()).apply();
+                        java.util.Set<String> allGroups = new java.util.LinkedHashSet<>();
+                        allGroups.add("默认");
+                        allGroups.addAll(baseGroups);
+                        editor.putStringSet(selectedPackage + ":dev_rule_groups", allGroups);
                         ApplicationInfo currentTarget = findApp(selectedPackage);
                         if (currentTarget != null) showTarget(currentTarget);
                         Toast.makeText(this, "已导入 " + array.length() + " 条规则。", Toast.LENGTH_SHORT).show();
@@ -4898,7 +5038,9 @@ public final class MainActivity extends ComponentActivity {
             row.setPadding(dp(12), dp(6), dp(12), dp(6));
             row.setBackground(uiPanelDrawable());
             TextView item = new TextView(this);
-            item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
+            String groupName = getPreferences(0).getString(
+                    selectedPackage + ":dev_rule_group_" + slot, "默认");
+            item.setText("[" + groupName + "] " + parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
                     + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
             item.setTextSize(12);
             item.setTextColor(0xff596775);
@@ -4919,11 +5061,16 @@ public final class MainActivity extends ComponentActivity {
                         .apply();
             });
             row.addView(enabled);
+            Button moveGroup = new Button(this);
+            moveGroup.setText("移动到分组");
+            moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(slot));
+            row.addView(moveGroup);
             Button remove = new Button(this);
             remove.setText("删除 " + parts[0]);
             remove.setOnClickListener(v -> {
                 getPreferences(0).edit().remove(key)
-                        .remove(selectedPackage + ":dev_rule_base_" + slot).apply();
+                        .remove(selectedPackage + ":dev_rule_base_" + slot)
+                        .remove(selectedPackage + ":dev_rule_group_" + slot).apply();
                 ApplicationInfo ai = findApp(selectedPackage);
                 if (ai != null) showTarget(ai);
             });
