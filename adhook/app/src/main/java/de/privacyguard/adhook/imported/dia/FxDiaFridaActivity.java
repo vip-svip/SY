@@ -269,6 +269,8 @@ public final class FxDiaFridaActivity extends Activity {
                 text("监听 TCP 端口（1024–65535）", 12, 0xff617080, true),
                 gadgetPort, gadgetLoadMode,
                 button("生成并写入 Gadget 配置", () -> saveGadgetListenConfig()),
+                button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume()),
+                button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog()),
                 button("复制 ADB 连接命令", () -> copyGadgetConnectCommand()));
         TextView gadgetNote = text(
                 "重要：目标应用必须实际加载这份 Frida Gadget 动态库。此功能只生成官方 Gadget 配置，不会修改或重打包第三方 APK，也不会声称已注入未加载 Gadget 的目标。",
@@ -1602,6 +1604,142 @@ public final class FxDiaFridaActivity extends Activity {
             } else {
                 setStatus("Gadget 配置写入失败（退出码 " + result.exitCode + "）：\\n" + result.output);
             }
+        });
+    }
+
+    private int selectedGadgetPort() {
+        String value = gadgetPort == null ? "27042" : gadgetPort.getText().toString().trim();
+        try {
+            int port = Integer.parseInt(value);
+            if (port < 1024 || port > 65535) throw new NumberFormatException("out of range");
+            return port;
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("Gadget 端口必须是 1024–65535 的数字。");
+        }
+    }
+
+    private String gadgetSessionLogPath(int port) {
+        return "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".log";
+    }
+
+    /**
+     * Connects the Frida CLI injector to a Gadget Listen endpoint.
+     *
+     * Gadget's Listen interaction is frida-server compatible. Attaching to its
+     * single exposed process named "Gadget" is the operation that releases an
+     * on_load=wait target. The injector's stdout/stderr is retained as the
+     * session message/console log instead of claiming a TCP probe is an attach.
+     */
+    private void attachToGadgetAndResume() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择已经运行的 debuggable 目标应用；Gadget 必须由该应用实际加载。");
+            return;
+        }
+        try {
+            ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
+            if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                    || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝连接。");
+                return;
+            }
+        } catch (Throwable missing) {
+            setStatus("目标应用已卸载或不可用，拒绝连接 Gadget。");
+            return;
+        }
+
+        String injector = currentInjectorPath();
+        if (!validPath(injector)) {
+            setStatus("frida-inject 路径无效，请先设置工具路径。");
+            return;
+        }
+        String source = script == null || script.getText() == null
+                ? "" : script.getText().toString();
+        byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
+        if (source.trim().isEmpty() || sourceBytes.length > 48 * 1024
+                || source.indexOf('\u0000') >= 0) {
+            java.util.Arrays.fill(sourceBytes, (byte) 0);
+            setStatus("Frida 脚本为空、包含 NUL 字符或超过 48 KiB。");
+            return;
+        }
+
+        final int port;
+        try {
+            port = selectedGadgetPort();
+        } catch (IllegalArgumentException invalid) {
+            java.util.Arrays.fill(sourceBytes, (byte) 0);
+            setStatus(invalid.getMessage());
+            return;
+        }
+        final String encoded = android.util.Base64.encodeToString(
+                sourceBytes, android.util.Base64.NO_WRAP);
+        java.util.Arrays.fill(sourceBytes, (byte) 0);
+
+        final String logPath = gadgetSessionLogPath(port);
+        String command = "set -eu; umask 077; "
+                + "injector=" + quote(injector) + "; pkg=" + quote(targetPackage) + "; "
+                + "log=" + quote(logPath) + "; port=" + port + "; "
+                + "test -x \\"$injector\\" && test ! -L \\"$injector\\"; "
+                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\\"$pkg\\" "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \\":\\")==1) {print $1}'); "
+                + "[ -n \\"$pids\\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
+                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \\"$dir\\"; "
+                + "test -d \\"$dir\\" && test ! -L \\"$dir\\"; chmod 700 \\"$dir\\"; "
+                + "[ ! -L \\"$log\\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
+                + ": >> \\"$log\\"; chmod 600 \\"$log\\"; "
+                + "tmp=$(mktemp \\"$dir/.gadget-$port.XXXXXX\\"); "
+                + "[ -n \\"$tmp\\" ] && [ -f \\"$tmp\\" ] && [ ! -L \\"$tmp\\" ]; "
+                + "cleanup_tmp() { [ -z \\"$tmp\\" ] || rm -f \\"$tmp\\"; }; "
+                + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \\"$tmp\\"; "
+                + "test -s \\"$tmp\\"; chmod 600 \\"$tmp\\"; "
+                + "printf '\\\\n[FX Dia Gadget] target=%s endpoint=127.0.0.1:%s attach-start %s\\\\n' "
+                + "\\"$pkg\\" \\"$port\\" \\"$(date '+%F %T')\\" >> \\"$log\\"; "
+                + "if \\"$injector\\" -H \\"127.0.0.1:$port\\" -n Gadget -s \\"$tmp\\" >> \\"$log\\" 2>&1; then "
+                + "echo FX_GADGET_ATTACHED_AND_WAIT_RELEASED; "
+                + "else rc=$?; printf '[FX Dia Gadget] attach-failed exit=%s\\\\n' \\"$rc\\" >> \\"$log\\"; exit \\"$rc\\"; fi";
+        runRoot(command, 90000L, result -> {
+            if (result.exitCode == 0 && result.output != null
+                    && result.output.contains("FX_GADGET_ATTACHED_AND_WAIT_RELEASED")) {
+                setStatus("已通过 Frida Gadget Listen 接口附加目标进程；WAIT 目标已收到控制端 attach。"
+                        + "\\n消息/console 输出已写入：" + logPath
+                        + "\\n" + result.output);
+            } else if (result.output != null
+                    && result.output.contains("FX_GADGET_TARGET_NOT_RUNNING")) {
+                setStatus("目标应用当前没有运行进程；请先启动目标应用并确认 Gadget 已加载。");
+            } else {
+                setStatus("Gadget 连接/脚本加载失败（退出码 " + result.exitCode + "）。"
+                        + "\\n请确认目标应用已加载相同端口的 Gadget，且 frida-inject 与 Gadget 版本匹配。"
+                        + "\\n日志：" + logPath + "\\n" + result.output);
+            }
+        });
+    }
+
+    private void showGadgetSessionLog() {
+        final int port;
+        try {
+            port = selectedGadgetPort();
+        } catch (IllegalArgumentException invalid) {
+            setStatus(invalid.getMessage());
+            return;
+        }
+        String log = gadgetSessionLogPath(port);
+        String command = "set -eu; path=" + quote(log) + "; "
+                + "[ ! -L \\"$path\\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
+                + "if [ -s \\"$path\\" ]; then tail -n 500 \\"$path\\"; "
+                + "else echo '当前端口尚无 Gadget 会话消息/console 输出。'; fi";
+        runRoot(command, 12000L, result -> {
+            TextView viewer = text(result.output == null ? "" : result.output,
+                    12, 0xff334155, false);
+            viewer.setTextIsSelectable(true);
+            viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
+            ScrollView scroll = new ScrollView(this);
+            scroll.addView(viewer);
+            new AlertDialog.Builder(this)
+                    .setTitle("Frida Gadget 消息/控制台 · " + port)
+                    .setView(scroll)
+                    .setPositiveButton("关闭", null)
+                    .show();
+            setStatus("Gadget 会话日志读取退出码 " + result.exitCode);
         });
     }
 
