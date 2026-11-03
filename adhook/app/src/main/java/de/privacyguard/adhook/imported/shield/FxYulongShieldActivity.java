@@ -47,6 +47,21 @@ public final class FxYulongShieldActivity extends Activity {
         body.addView(panel, lp);
     }
 
+    private void syncProtectionService(android.content.SharedPreferences prefs) {
+        boolean protect = prefs.getBoolean("protect_on", false);
+        boolean shake = prefs.getBoolean("shake_trigger_on", false);
+        if (protect && !hasUsageAccess()) return;
+        Intent intent = new Intent(this, FxYulongProtectionService.class);
+        if (protect || shake) {
+            intent.setAction(FxYulongProtectionService.ACTION_START);
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent);
+            else startService(intent);
+        } else {
+            stopService(intent);
+        }
+        FxYulongKeepAliveReceiver.refreshSchedule(this);
+    }
+
     private boolean hasUsageAccess() {
         try {
             android.app.AppOpsManager appOps =
@@ -163,13 +178,10 @@ public final class FxYulongShieldActivity extends Activity {
                     return;
                 }
                 shieldPrefs.edit().putBoolean("protect_on", true).apply();
-                Intent service = new Intent(this, FxYulongProtectionService.class);
-                service.setAction(FxYulongProtectionService.ACTION_START);
-                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(service);
-                else startService(service);
+                syncProtectionService(shieldPrefs);
             } else {
                 shieldPrefs.edit().putBoolean("protect_on", false).apply();
-                stopService(new Intent(this, FxYulongProtectionService.class));
+                syncProtectionService(shieldPrefs);
             }
         });
         card("实时应用守护",
@@ -229,8 +241,10 @@ android.widget.Switch volumeTrigger = new android.widget.Switch(this);
         android.widget.Switch shakeTrigger = new android.widget.Switch(this);
         shakeTrigger.setText("摇动设备触发救援提醒");
         shakeTrigger.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
-        shakeTrigger.setOnCheckedChangeListener((button, enabled) ->
-                shieldPrefs.edit().putBoolean("shake_trigger_on", enabled).apply());
+        shakeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+            shieldPrefs.edit().putBoolean("shake_trigger_on", enabled).apply();
+            syncProtectionService(shieldPrefs);
+        });
         card("原版救援触发迁移",
                 "支持用户主动开启的音量键序列和加速度传感器摇动触发。触发后只显示提醒，不会擅自强停、卸载应用或修改无障碍权限。",
                 volumeTrigger, shakeTrigger);

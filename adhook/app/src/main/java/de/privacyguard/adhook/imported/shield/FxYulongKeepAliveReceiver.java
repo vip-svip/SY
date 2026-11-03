@@ -22,6 +22,7 @@ public final class FxYulongKeepAliveReceiver extends BroadcastReceiver {
         android.content.SharedPreferences prefs =
                 app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
         boolean enabled = prefs.getBoolean("protect_on", false)
+                || prefs.getBoolean("shake_trigger_on", false)
                 || prefs.getBoolean("overlay_rescue_on", false);
         android.app.AlarmManager alarms =
                 (android.app.AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
@@ -46,7 +47,7 @@ public final class FxYulongKeepAliveReceiver extends BroadcastReceiver {
         android.content.SharedPreferences prefs =
                 app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
 
-        if (prefs.getBoolean("protect_on", false)) {
+        if (prefs.getBoolean("protect_on", false) || prefs.getBoolean("shake_trigger_on", false)) {
             Intent monitor = new Intent(app, FxYulongProtectionService.class);
             monitor.setAction(FxYulongProtectionService.ACTION_START);
             try {

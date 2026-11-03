@@ -61,17 +61,24 @@ public final class FxYulongProtectionService extends Service implements SensorEv
             if (!running) return;
             try {
                 SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-                if (!prefs.getBoolean("protect_on", false)) {
+                boolean protectEnabled = prefs.getBoolean("protect_on", false);
+                boolean shakeEnabled = prefs.getBoolean("shake_trigger_on", false);
+                if (!protectEnabled && !shakeEnabled) {
                     stopFromPolicy();
                     return;
                 }
-                if (!hasUsageAccess()) {
+                if (protectEnabled && !hasUsageAccess()) {
                     prefs.edit().putBoolean("protect_on", false).apply();
-                    stopFromPolicy();
-                    return;
+                    protectEnabled = false;
+                    if (!shakeEnabled) {
+                        stopFromPolicy();
+                        return;
+                    }
                 }
-                String foreground = readForegroundPackage(System.currentTimeMillis() - 8000L);
-                if (foreground != null) evaluateForeground(foreground, prefs);
+                if (protectEnabled) {
+                    String foreground = readForegroundPackage(System.currentTimeMillis() - 8000L);
+                    if (foreground != null) evaluateForeground(foreground, prefs);
+                }
             } catch (Throwable ignored) {
                 // One Usage Access/PackageManager failure must not crash the service.
             }
@@ -99,10 +106,24 @@ public final class FxYulongProtectionService extends Service implements SensorEv
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (!hasUsageAccess()) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("protect_on", false).apply();
+        SharedPreferences startupPrefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        boolean protectEnabled = startupPrefs.getBoolean("protect_on", false);
+        boolean shakeEnabled = startupPrefs.getBoolean("shake_trigger_on", false);
+        if (!protectEnabled && !shakeEnabled) {
+            startupPrefs.edit().putBoolean("protect_service_running", false).apply();
+            FxYulongKeepAliveReceiver.refreshSchedule(this);
             stopSelf();
             return START_NOT_STICKY;
+        }
+        if (protectEnabled && !hasUsageAccess()) {
+            startupPrefs.edit().putBoolean("protect_on", false).apply();
+            protectEnabled = false;
+            if (!shakeEnabled) {
+                startupPrefs.putBoolean("protect_service_running", false).apply();
+                FxYulongKeepAliveReceiver.refreshSchedule(this);
+                stopSelf();
+                return START_NOT_STICKY;
+            }
         }
 
         startForeground(ONGOING_ID, buildOngoingNotification());
@@ -123,8 +144,6 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private void syncShakeSensor() {
         if (sensorManager == null || accelerometer == null) return;
         boolean enabled = getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getBoolean("protect_on", false)
-                && getSharedPreferences(PREFS, MODE_PRIVATE)
                 .getBoolean("shake_trigger_on", false);
         if (enabled && !shakeRegistered) {
             shakeRegistered = sensorManager.registerListener(
@@ -138,8 +157,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     @Override public void onSensorChanged(SensorEvent event) {
         if (event == null || event.values == null || event.values.length < 3) return;
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        if (!prefs.getBoolean("protect_on", false)
-                || !prefs.getBoolean("shake_trigger_on", false)) return;
+        if (!prefs.getBoolean("shake_trigger_on", false)) return;
         float x = event.values[0], y = event.values[1], z = event.values[2];
         double magnitude = Math.sqrt(x * x + y * y + z * z);
         long now = SystemClock.elapsedRealtime();
@@ -273,7 +291,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
                 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         Notification.Builder configured = builder.setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentTitle("FX 游龙安全护盾正在守护")
-                .setContentText("仅监测用户配置的前台应用名单；不会自动停止应用。")
+                .setContentText("仅运行用户启用的前台名单监测或摇动触发；不会自动停止应用。")
                 .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(content);
         if (Build.VERSION.SDK_INT >= 16) configured.addAction(
                 android.R.drawable.ic_menu_close_clear_cancel, "停止守护", stopPending);

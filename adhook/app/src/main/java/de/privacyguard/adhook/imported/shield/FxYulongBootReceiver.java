@@ -53,7 +53,7 @@ public final class FxYulongBootReceiver extends BroadcastReceiver {
         android.content.SharedPreferences prefs =
                 app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
 
-        if (prefs.getBoolean("protect_on", false)) {
+        if (prefs.getBoolean("protect_on", false) || prefs.getBoolean("shake_trigger_on", false)) {
             Intent monitor = new Intent(app, FxYulongProtectionService.class);
             monitor.setAction(FxYulongProtectionService.ACTION_START);
             try {
