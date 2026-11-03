@@ -75,7 +75,9 @@ public final class FxYulongAdActivity extends Activity {
     });
    });
   }catch(RejectedExecutionException full){
-   if(masterWrite)FxYulongAdOperationGate.release();
+   // The writer lock is acquired only inside the queued worker. A rejected
+   // submission never acquired it, so releasing here could unlock another
+   // entry point's in-flight operation.
    status.setText("后台任务繁忙，请稍后重试。");
   }
  }
