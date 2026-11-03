@@ -24,7 +24,27 @@ EGRESS="$PG/unbound-vpn-egress-ip"
 LOCK="$PG/yulong-root-proxy.lock"
 LOG="$PG/yulong-root-proxy.log"
 _RPROXY_TEMP=
+_reject_symlink_components() {
+  _symlink_path=$1
+  while [ -n "$_symlink_path" ] && [ "$_symlink_path" != "/" ]; do
+    [ ! -L "$_symlink_path" ] || return 1
+    case "$_symlink_path" in
+      */*) _symlink_parent=${_symlink_path%/*}; [ -n "$_symlink_parent" ] || _symlink_parent=/ ;;
+      *) break ;;
+    esac
+    [ "$_symlink_parent" != "$_symlink_path" ] || break
+    _symlink_path=$_symlink_parent
+  done
+  return 0
+}
+for _state_path in "$PG" "$CONF" "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$LOCK" "$LOG"; do
+  _reject_symlink_components "$_state_path" || {
+    echo "unsafe Root Proxy state path: $_state_path" >&2
+    exit 22
+  }
+done
 mkdir -p "$PG"
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "Root Proxy state directory is missing or unsafe" >&2; exit 21; }
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
