@@ -113,7 +113,9 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         syncShakeSensor();
         handler.removeCallbacks(poll);
         handler.post(poll);
-        return START_NOT_STICKY;
+        // User opt-in is persisted in shield_prefs; sticky restart is allowed only
+        // while protect_on and Usage Access remain valid in onStartCommand().
+        return START_STICKY;
     }
 
     private void syncShakeSensor() {
