@@ -264,6 +264,7 @@ run uninstall
 # V2 fixture isolates the original per-app network/schedule behavior.
 V2="$TMP/v2"
 mkdir -p "$V2/module/scripts" "$V2/pg" "$V2/net/wlan0" "$V2/net/rmnet_data0" "$V2/net/eth0" "$V2/net/tun0"
+: > "$V2/iptables.hooks"; : > "$V2/ip6tables.hooks"
 cp "$SOURCE" "$V2/module/scripts/yulong-app-firewall.sh"
 printf 'id=privacyguard\n' > "$V2/module/module.prop"
 cat > "$V2/pg/settings.conf" <<'EOF'
@@ -281,8 +282,9 @@ PKGS
 v2run() {
   MP="$V2/module" PG="$V2/pg" CONF="$V2/pg/settings.conf" \
   ACTIVE="$V2/pg/yulong-firewall-active" LOCK="$V2/pg/yulong-firewall.lock" \
-  NET_CLASS="$V2/net" MOCK_LOG="$V2/iptables.log" MOCK_PACKAGE_LIST="$V2/packages.txt" \
-  sh "$V2/module/scripts/yulong-app-firewall.sh" "$@"
+  NET_CLASS="$V2/net" MOCK_LOG="$V2/iptables.log" \
+  MOCK_HOOKS4="$V2/iptables.hooks" MOCK_HOOKS6="$V2/ip6tables.hooks" \
+  MOCK_PACKAGE_LIST="$V2/packages.txt" sh "$V2/module/scripts/yulong-app-firewall.sh" "$@"
 }
 export MOCK_TIME=12:00
 v2run rule com.example.wifi 20001 1 1 0 0 22:00 06:00 > "$V2/wifi-save.out"
@@ -295,6 +297,7 @@ export MOCK_TIME=23:00
 export WATCH_INTERVAL=1
 v2run master 1 > "$V2/enable.out"
 grep -Fq 'firewall=1' "$V2/enable.out" || fail "v2 firewall did not enable"
+grep -qx 'FXYUL_B' "$V2/iptables.hooks" && grep -qx 'FXYUL_B' "$V2/ip6tables.hooks" || fail "V2 firewall did not attach both OUTPUT hooks"
 grep -Fq 'iptables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi wildcard rule missing"
 grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "IPv6 Wi-Fi wildcard rule missing"
 if grep -Fq ' -o rmnet+ -m owner --uid-owner 20001 ' "$V2/iptables.log"; then fail "Wi-Fi-only rule blocked mobile data"; fi
@@ -326,13 +329,17 @@ v2run start-watch > "$V2/watch-start-again.out"
 grep -Fq 'already-running' "$V2/watch-start-again.out" || fail "second start created duplicate watcher"
 mkdir -p "$V2/net/vendor0"
 sleep 2
-if ! grep -Eq 'iptables -t filter -A FXYUL_[AB] -o vendor0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log"; then
-  fail "watcher did not re-apply after a new vendor network interface appeared"
-fi
+_watch_wait=0
+while ! grep -Eq 'iptables -t filter -A FXYUL_[AB] -o vendor0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log"; do
+  [ "$_watch_wait" -lt 40 ] || fail "watcher did not re-apply after a new vendor network interface appeared within 10 seconds"
+  sleep 0.25
+  _watch_wait=$((_watch_wait + 1))
+done
 v2run stop-watch > "$V2/watch-stop.out"
 [ ! -e "$WATCH_PIDFILE" ] || fail "watcher PID file remained after stop"
 v2run uninstall > "$V2/uninstall.out"
 [ ! -e "$V2/pg/yulong-firewall-active" ] || fail "v2 uninstall left firewall active"
+[ ! -s "$V2/iptables.hooks" ] && [ ! -s "$V2/ip6tables.hooks" ] || fail "V2 uninstall left OUTPUT hooks attached"
 
 # Restore-from-Release layouts already include a schedule-stop block between
 # STATE_DIR and REMOVER. The patcher must still insert firewall cleanup safely.
