@@ -288,7 +288,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("停止 Gadget 会话", () -> stopGadgetSession()),
                 button("复制 ADB 连接命令", () -> copyGadgetConnectCommand()));
         TextView gadgetNote = text(
-                "重要：目标应用必须实际加载这份 Frida Gadget 动态库。此功能只生成官方 Gadget 配置，不会修改或重打包第三方 APK，也不会声称已注入未加载 Gadget 的目标。",
+                "目标加载流程：选择 debuggable 用户应用 → 生成监听配置 → 部署到目标 nativeLibraryDir → 在 LSPosed 中启用 FX 对该目标的作用域 → 完全停止并重启目标应用。FX 只部署带 SHA-256 标记的 Gadget 动态库/配置，不修改、重打包或重签 APK；监听仅绑定 127.0.0.1。目标应用更新后可能覆盖 nativeLibraryDir，需要重新部署。",
                 12, 0xff7a5b20, false);
         gadgetNote.setPadding(dp(16), dp(4), dp(16), dp(10));
         body.addView(gadgetNote);
