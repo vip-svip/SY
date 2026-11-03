@@ -69,5 +69,14 @@ grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG"
 run uninstall
 test ! -e "$PG/yulong-firewall-active"
 
-echo "PASS: Yulong app firewall persists lists, resolves UID, activates IPv4+IPv6 rules, disables, and cleans up only its own chains"
+# Signals must terminate into the sole EXIT cleanup handler; a signal must
+# never unlock the firewall transaction and then resume its mutation.
+grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE"
+grep -Fqx "  trap 'exit 129' HUP" "$SOURCE"
+grep -Fqx "  trap 'exit 130' INT" "$SOURCE"
+grep -Fqx "  trap 'exit 143' TERM" "$SOURCE"
+! grep -Fq "trap 'rmdir \"\$LOCK\" 2>/dev/null || :' EXIT HUP INT TERM" "$SOURCE" || {
+  echo "FAIL: firewall lock is released directly by a signal trap" >&2; exit 1;
+}
+echo \"PASS: Yulong app firewall persists lists, resolves UID, activates IPv4+IPv6 rules, disables, and cleans up only its own chains\"
 rm -rf "$TMP"
