@@ -30,11 +30,17 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             publishResult(context,action,enabled,false,75);
             return;
         }
+        if (!FxYulongAdOperationGate.tryAcquire()) {
+            REQUEST_PENDING.set(false);
+            publishResult(context, action, enabled, false, 75);
+            return;
+        }
 
         final PendingResult pending;
         try{
             pending=goAsync();
         }catch(RuntimeException error){
+            FxYulongAdOperationGate.release();
             REQUEST_PENDING.set(false);
             publishResult(context,action,enabled,false,127);
             return;
@@ -54,11 +60,13 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                 try{
                     publishResult(context,action,enabled,code==0,code);
                 }finally{
+                    FxYulongAdOperationGate.release();
                     REQUEST_PENDING.set(false);
                     pending.finish();
                 }
             },"fx-yulong-tasker-toggle").start();
         }catch(RuntimeException startError){
+            FxYulongAdOperationGate.release();
             REQUEST_PENDING.set(false);
             try{
                 publishResult(context,action,enabled,false,127);
