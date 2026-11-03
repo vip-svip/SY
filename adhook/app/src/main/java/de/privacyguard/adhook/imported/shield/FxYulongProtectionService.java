@@ -51,7 +51,12 @@ public final class FxYulongProtectionService extends Service {
             if (!running) return;
             try {
                 SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-                if (!prefs.getBoolean("protect_on", false) || !hasUsageAccess()) {
+                if (!prefs.getBoolean("protect_on", false)) {
+                    stopFromPolicy();
+                    return;
+                }
+                if (!hasUsageAccess()) {
+                    prefs.edit().putBoolean("protect_on", false).apply();
                     stopFromPolicy();
                     return;
                 }

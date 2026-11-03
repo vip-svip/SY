@@ -17,7 +17,7 @@ import java.util.Date;
 
 /** Install-time scan hook migrated from Yulong Shield 9.9.60. */
 public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
-    private static final String PREFS = "fx_yulong_shield_prefs";
+    private static final String PREFS = "shield_prefs";
     private static final String CHANNEL = "fx_yulong_install_scan";
     private static final int NOTIFICATION_ID = 0x594c;
 

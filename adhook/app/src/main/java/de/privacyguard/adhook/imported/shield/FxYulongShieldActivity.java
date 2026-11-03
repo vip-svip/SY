@@ -116,6 +116,32 @@ public final class FxYulongShieldActivity extends Activity {
         card("安装后自动检测",
                 "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
                 installScan, contentScan);
+        String protectionState = shieldPrefs.getBoolean("protect_service_running", false)
+                ? "实时守护服务正在运行"
+                : (shieldPrefs.getBoolean("protect_on", false) ? "守护开关已保存，服务当前未运行" : "实时守护未开启");
+        String warning = shieldPrefs.getString("protect_last_warn_message", "尚无管控名单提醒");
+        String warningTime = shieldPrefs.getString("protect_last_warn_time", "");
+        int warningCount = shieldPrefs.getInt("protect_warn_count", 0);
+        card("实时守护状态",
+                protectionState + "\\n累计提醒：" + warningCount
+                        + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
+                        + "\\n" + warning,
+                action("启动实时守护", () -> {
+                    if (!hasUsageAccess()) {
+                        try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
+                        catch (Throwable ignored) { }
+                        return;
+                    }
+                    shieldPrefs.edit().putBoolean("protect_on", true).apply();
+                    Intent start = new Intent(this, FxYulongProtectionService.class);
+                    start.setAction(FxYulongProtectionService.ACTION_START);
+                    if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(start);
+                    else startService(start);
+                }),
+                action("停止实时守护", () -> {
+                    shieldPrefs.edit().putBoolean("protect_on", false).apply();
+                    stopService(new Intent(this, FxYulongProtectionService.class));
+                }));
         String lastScan = shieldPrefs.getString("automatic_scan_last_result", "尚无自动扫描记录");
         String lastPackage = shieldPrefs.getString("automatic_scan_last_package", "");
         String lastTime = shieldPrefs.getString("automatic_scan_last_time", "");
