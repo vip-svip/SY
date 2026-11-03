@@ -128,6 +128,7 @@ jobs:
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
+          python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
           python3 fx-patches/patch_native_script_store.py fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
           sh scripts/tests/fx-native-script-local-run-regression.sh

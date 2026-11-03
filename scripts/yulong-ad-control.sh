@@ -78,13 +78,37 @@ m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
 cmd="$1"
 case "$cmd" in
+  dns-log-tail)
+  if ! grep -q '^dns_querylog_enabled=1 "$CONF" 2>/dev/null; then
+    echo FXDNSLOG_DISABLED
+    exit 0
+  fi
+  logfile="$PG/adguardhome/work/data/querylog.json"
+  if [ -s "$logfile" ]; then
+    tail -n 500 "$logfile"
+  else
+    echo FXDNSLOG_EMPTY
+  fi
+  ;;
+ dns-log-clear)
+  dir="$PG/adguardhome/work/data"
+  found=0
+  for file in "$dir"/querylog.json "$dir"/querylog.json.*; do
+    [ -f "$file" ] || continue
+    : > "$file" || exit 31
+    chmod 600 "$file" 2>/dev/null || :
+    found=1
+  done
+  echo "cleared=$found"
+  ;;
+
  list)
   echo FXYULONGAD1
   echo "AD_MASTER|$(pg_get yulong_ad_filter_enabled 1)"
   pg_list rule|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=3{print "RULE|"$1"|"$2"|"($3=="1"?"1":"0")}'
   pg_list domain|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "ALLOW|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
   pg_list block|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "BLOCK|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
-  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy; do
+  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy dns_querylog_enabled; do
     default=0
     [ "$key" = "vpn_external_dns_proxy" ] && default=1
     echo "DNS|$key|$(pg_get "$key" "$default")"
@@ -115,7 +139,7 @@ case "$cmd" in
   with_lock transaction m_block_remove "$d" ;;
  dns-set)
   [ "$#" -eq 3 ] || exit 2
-  case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy) ;; *) exit 2 ;; esac
+  case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|dns_querylog_enabled) ;; *) exit 2 ;; esac
   [ "$3" = 0 ] || [ "$3" = 1 ] || exit 2
   with_lock transaction m_dns "$2" "$3" ;;
  rootproxy-status)

@@ -1,0 +1,198 @@
+package de.privacyguard.adhook.imported.ad;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import de.privacyguard.adhook.RootAccess;
+
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
+public final class FxYulongDnsActivity extends Activity {
+    private static final String PREFS = "fx_dns_log";
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final List<Entry> data = new ArrayList<>();
+    private LinearLayout rows;
+    private TextView status;
+    private EditText search;
+
+    private static final class Entry {
+        final String time, domain, type, reason;
+        final boolean blocked;
+        Entry(String time, String domain, String type, boolean blocked, String reason) {
+            this.time = time; this.domain = domain; this.type = type;
+            this.blocked = blocked; this.reason = reason;
+        }
+        String searchable() { return (time + " " + domain + " " + type + " " + reason).toLowerCase(Locale.ROOT); }
+    }
+
+    private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        if (bold) t.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        t.setPadding(dp(4), dp(5), dp(4), dp(5)); return t;
+    }
+    private Button button(String label, Runnable action) {
+        Button b = new Button(this); b.setAllCaps(false); b.setText(label);
+        b.setOnClickListener(v -> action.run()); return b;
+    }
+    private String shell(String args) {
+        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
+                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
+    }
+    private void root(String command, java.util.function.Consumer<RootAccess.Result> done) {
+        worker.execute(() -> {
+            RootAccess.Result result = RootAccess.execute(command, 30000L, 768 * 1024);
+            runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) done.accept(result); });
+        });
+    }
+    private void card(LinearLayout parent, String title, String desc, View... children) {
+        LinearLayout c = new LinearLayout(this); c.setOrientation(1);
+        c.setPadding(dp(14), dp(9), dp(14), dp(9)); c.setBackgroundColor(0xfff0f3f7);
+        c.addView(text(title, 15, 0xff17212b, true));
+        c.addView(text(desc, 12, 0xff617080, false));
+        for (View child : children) c.addView(child);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(4), dp(12), dp(4)); parent.addView(c, lp);
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout root = new LinearLayout(this); root.setOrientation(1);
+        root.setBackgroundColor(0xfff7f8fa);
+        LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(10), dp(6), dp(10), dp(6));
+        header.addView(button("‹ 返回", this::finish));
+        header.addView(text("游龙广告插件 · DNS 查询日志", 18, 0xff17212b, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        LinearLayout body = new LinearLayout(this); body.setOrientation(1);
+        body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+
+        status = text("正在读取本机查询日志…", 13, 0xff526170, false);
+        search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
+        card(body, "本机日志说明",
+                "查询日志默认关闭；启用后 AdGuard Home 最多保留 7 天记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
+                status, button("刷新", this::load),
+                button("清理本地查询日志", this::confirmClear));
+        card(body, "搜索", "输入域名、查询类型或拦截原因", search);
+        rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render(); }
+            @Override public void afterTextChanged(Editable e) {}
+        });
+        load();
+    }
+
+    private void load() {
+        status.setText("正在读取最近 500 条 DNS 查询记录…");
+        String command = shell("dns-log-tail");
+        root(command, result -> {
+            if (result.exitCode != 0) {
+                status.setText("读取失败：" + safe(result.output));
+                data.clear(); render(); return;
+            }
+            parse(result.output);
+        });
+    }
+
+    private void parse(String output) {
+        data.clear();
+        int total = 0, blocked = 0;
+        String raw = output == null ? "" : output;
+        if (raw.contains("FXDNSLOG_DISABLED")) {
+            status.setText("DNS 查询日志当前关闭。请返回游龙广告插件 → DNS 设置，手动开启本地日志。");
+            render(); return;
+        }
+        if (raw.contains("FXDNSLOG_EMPTY")) {
+            status.setText("本机暂无 DNS 查询记录。开启查询日志并产生 DNS 请求后，这里会出现记录。");
+            render(); return;
+        }
+        for (String line : raw.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("{")) continue;
+            try {
+                JSONObject item = new JSONObject(trimmed);
+                JSONObject result = item.optJSONObject("Result");
+                boolean isBlocked = result != null && result.optBoolean("IsFiltered", false);
+                String reason = result == null ? "" : result.optString("Reason", "");
+                String domain = item.optString("QH", "").trim();
+                String type = item.optString("QT", "").trim();
+                String time = item.optString("T", "");
+                if (domain.isEmpty()) continue;
+                data.add(new Entry(time, domain, type, isBlocked, reason));
+                total++;
+                if (isBlocked) blocked++;
+            } catch (Exception ignored) { }
+        }
+        status.setText("最近解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
+                + Math.max(0, total - blocked) + " 条。数据仅来自本地查询日志尾部。");
+        render();
+    }
+
+    private void render() {
+        if (rows == null) return;
+        rows.removeAllViews();
+        String query = search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        int count = 0;
+        for (Entry item : data) {
+            if (!query.isEmpty() && !item.searchable().contains(query)) continue;
+            LinearLayout row = new LinearLayout(this); row.setOrientation(1);
+            row.setPadding(dp(10), dp(6), dp(10), dp(6));
+            row.setBackgroundColor(0xffffffff);
+            row.addView(text(item.domain, 13, 0xff17212b, true));
+            row.addView(text(item.type + " · " + (item.blocked ? "已拦截" : "未拦截")
+                    + (item.reason.isEmpty() ? "" : " · " + item.reason), 11,
+                    item.blocked ? 0xffb42318 : 0xff526170, false));
+            if (!item.time.isEmpty()) row.addView(text(item.time, 10, 0xff718091, false));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(dp(10), dp(2), dp(10), dp(2)); rows.addView(row, lp);
+            if (++count >= 200) break;
+        }
+        if (count == 0) rows.addView(text("没有匹配的 DNS 查询记录。", 13, 0xff718091, false));
+        else if (count >= 200) rows.addView(text("仅显示前 200 条匹配项。", 11, 0xff718091, false));
+    }
+
+    private void confirmClear() {
+        new AlertDialog.Builder(this).setTitle("清理本地 DNS 查询日志")
+                .setMessage("只清理 FX AdGuard Home 自己的 querylog.json 文件，不修改 DNS 规则、Hosts 或系统日志。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清理", (d, w) -> root(shell("dns-log-clear"), result -> {
+                    if (result.exitCode == 0) {
+                        status.setText("本地 DNS 查询日志已清理。");
+                        data.clear(); render();
+                    } else status.setText("清理失败：" + safe(result.output));
+                })).show();
+    }
+
+    private String safe(String value) {
+        return value == null || value.trim().isEmpty() ? "请确认 FX Hook Root 权限。" : value.trim();
+    }
+
+    @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+}

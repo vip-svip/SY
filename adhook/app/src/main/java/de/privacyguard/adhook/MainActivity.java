@@ -2635,6 +2635,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void openImportedSuitePage(String suite, String category, String page) {
+        if ("yulong-ad".equals(suite) && "DNS 日志".equals(page)) {
+            startActivity(new Intent(this,
+                    de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
+            return;
+        }
         if ("dia".equals(suite)) {
             switch (page) {
                 case "Activity 入口与禁用":
