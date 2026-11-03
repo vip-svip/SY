@@ -151,8 +151,19 @@ if "FX_SUBFETCH_CURL_TRACE_V1" not in sub_test.read_text(encoding="utf-8"):
     )
     replace_once(
         sub_test,
-        'if [ "$out" = \'-\' ]; then printf \'%s\\\\n\' "$body"; else printf \'%s\\\\n\' "$body" > "$out"; fi\n',
-        'if [ "$out" = \'-\' ]; then printf \'%s\\\\n\' "$body"; else printf \'%s\\\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\\\n" "$(date +%s)" "$$" >> "$events"\n',
+        '''if [ "$out" = '-' ]; then
+  printf '%s\n' "$body"
+else
+  printf '%s\n' "$body" > "$out"
+fi
+''',
+        '''if [ "$out" = '-' ]; then
+  printf '%s\n' "$body"
+else
+  printf '%s\n' "$body" > "$out"
+fi
+printf "END|%s|%s\n" "$(date +%s)" "$$" >> "$events"
+''',
         "subscription mock must record each curl completion",
     )
 
