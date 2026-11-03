@@ -2684,9 +2684,13 @@ public final class MainActivity extends ComponentActivity {
                     showImportedSuitePendingPage(suite, category, page,
                             "Dia 原版备份适配器尚未迁入；不会把 FX 的模块日志或设置导出冒充 GitHub/WebDAV 备份。");
                     return;
-                case "数据库监控": case "算法监控": case "Dex 查找与解析": case "内存快照":
+                case "Dex 查找与解析":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class));
+                    return;
+                case "数据库监控": case "算法监控": case "内存快照":
                     showImportedSuitePendingPage(suite, category, page,
-                            "该 Dia 开发监控功能尚未迁入；当前只登记原功能入口，不显示虚假运行状态。");
+                            "该 Dia 监控子系统仍需移植；当前不读取非调试应用私有数据，也不显示虚假监控结果。");
                     return;
                 default:
                     showImportedSuitePendingPage(suite, category, page,

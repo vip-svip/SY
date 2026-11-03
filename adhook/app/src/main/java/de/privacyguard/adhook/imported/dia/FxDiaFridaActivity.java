@@ -193,8 +193,9 @@ public final class FxDiaFridaActivity extends Activity {
         }
         String command = pathCommand(server, "frida-server") + "; "
                 + pathCommand(injector, "frida-inject") + "; "
-                + "if [ -s " + quote(SERVER_PID) + " ] && kill -0 \"$(cat "
-                + quote(SERVER_PID) + ")\" 2>/dev/null; then echo server=running; "
+                + "if [ -s " + quote(SERVER_PID) + " ]; then pid=$(sed -n '1p' " + quote(SERVER_PID) + "); expected=$(sed -n '2p' " + quote(SERVER_PID) + "); "
+                + "case \"$pid\" in ''|*[!0-9]*) echo server=stale-pid;; *) cmdline=$(tr '\\000' ' ' < /proc/\\"$pid\\"/cmdline 2>/dev/null || true); "
+                + "case \"$cmdline\" in *\"$expected\"*) echo server=running;; *) echo server=stale-pid;; esac;; esac; "
                 + "else echo server=stopped; fi";
         runRoot(command, 12000L, result ->
                 setStatus("退出码 " + result.exitCode + "\\n" + result.output));
@@ -209,21 +210,23 @@ public final class FxDiaFridaActivity extends Activity {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("server_path", server).apply();
         String command = "set -e; test -x " + quote(server) + "; "
                 + "mkdir -p /data/adb/privacyguard; "
-                + "if [ -s " + quote(SERVER_PID) + " ] && kill -0 \"$(cat " + quote(SERVER_PID) + ")\" 2>/dev/null; then "
-                + "echo server=already-running; "
-                + "else nohup " + quote(server) + " -l 127.0.0.1:27042 >> /data/adb/privacyguard/dia-frida-server.log 2>&1 </dev/null & "
-                + "pid=$!; echo \"$pid\" > " + quote(SERVER_PID) + "; chmod 600 " + quote(SERVER_PID) + "; "
-                + "sleep 1; kill -0 \"$pid\"; echo server=started pid=$pid; fi";
+                + "existing=; if [ -s " + quote(SERVER_PID) + " ]; then existing=$(sed -n '1p' " + quote(SERVER_PID) + "); expected=$(sed -n '2p' " + quote(SERVER_PID) + "); "
+                + "case \"$existing\" in ''|*[!0-9]*) existing=;; *) cmdline=$(tr '\\000' ' ' < /proc/\\"$existing\\"/cmdline 2>/dev/null || true); case \"$cmdline\" in *\"$server\"*) echo server=already-running; exit 0;; esac;; esac; fi; "
+                + "nohup " + quote(server) + " -l 127.0.0.1:27042 >> /data/adb/privacyguard/dia-frida-server.log 2>&1 </dev/null & "
+                + "pid=$!; printf '%s\\n%s\\n' \"$pid\" " + quote(server) + " > " + quote(SERVER_PID) + "; chmod 600 " + quote(SERVER_PID) + "; "
+                + "sleep 1; kill -0 \"$pid\"; echo server=started pid=$pid;";
         runRoot(command, 20000L, result ->
                 setStatus("启动退出码 " + result.exitCode + "\\n" + result.output));
     }
 
     private void stopServer() {
         String command = "if [ -s " + quote(SERVER_PID) + " ]; then "
-                + "pid=$(cat " + quote(SERVER_PID) + "); "
+                + "pid=$(sed -n '1p' " + quote(SERVER_PID) + "); expected=$(sed -n '2p' " + quote(SERVER_PID) + "); "
                 + "case \"$pid\" in ''|*[!0-9]*) echo invalid-pid; exit 2;; esac; "
-                + "if kill -0 \"$pid\" 2>/dev/null; then kill \"$pid\"; fi; "
-                + "rm -f " + quote(SERVER_PID) + "; echo server=stopped; "
+                + "cmdline=$(tr '\\000' ' ' < /proc/\\"$pid\\"/cmdline 2>/dev/null || true); "
+                + "case \"$cmdline\" in *\"$expected\"*) kill \"$pid\"; echo server=stopped;; "
+                + "*) echo stale-pid-not-killed;; esac; "
+                + "rm -f " + quote(SERVER_PID) + "; "
                 + "else echo no-fx-owned-server; fi";
         runRoot(command, 12000L, result ->
                 setStatus("停止退出码 " + result.exitCode + "\\n" + result.output));

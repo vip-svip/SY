@@ -59,5 +59,6 @@
             </intent-filter>
         </receiver>
             <activity android:name=".imported.dia.FxDiaFridaActivity" android:exported="false" />
+        <activity android:name=".imported.dia.FxDiaDexBrowserActivity" android:exported="false" />
     </application>
 </manifest>
