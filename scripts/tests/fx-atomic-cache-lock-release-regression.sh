@@ -7,16 +7,19 @@ SUBFETCH="$MODULE/scripts/subfetch.sh"
 HOST_TEST="$MODULE/scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh"
 SUB_TEST="$MODULE/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
 PATCHER="$ROOT/fx-patches/patch_atomic_cache_lock_release.py"
+HOST_FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_hosts_file_lock.py"
 FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_subfetch_file_lock.py"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for f in "$APPLY" "$SUBFETCH" "$HOST_TEST" "$SUB_TEST" "$PATCHER" "$FILE_LOCK_PATCHER"; do
+for f in "$APPLY" "$SUBFETCH" "$HOST_TEST" "$SUB_TEST" "$PATCHER" "$HOST_FILE_LOCK_PATCHER" "$FILE_LOCK_PATCHER"; do
   [ -s "$f" ] || fail "required cache lock source/test missing: $f"
 done
 
 # The patch is part of both restore-from-Release build lanes. Prove it is
 # idempotent against the exact restored module tree that will be tested.
-python3 "$PATCHER" "$MODULE" || fail "first atomic-lock patch application failed"
-python3 "$PATCHER" "$MODULE" || fail "second atomic-lock patch application failed"
+python3 "$PATCHER" "$MODULE" || fail "first legacy lock compatibility patch application failed"
+python3 "$PATCHER" "$MODULE" || fail "second legacy lock compatibility patch application failed"
+python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "first Hosts file-lock patch application failed"
+python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "second Hosts file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "first subscription file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "second subscription file-lock patch application failed"
 
@@ -24,7 +27,10 @@ python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "second subscription file-lock pa
 # published module. The source fixture contains the deterministic transfer gate.
 install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh" "$SUB_TEST"
 
-grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$APPLY" || fail "Hosts lock release does not atomically rename the owner directory"
+grep -Fq 'FX_HOSTS_FILE_LOCK_V2' "$APPLY" || fail "Hosts cache does not use the reviewed atomic file lock"
+grep -Fq 'set -C' "$APPLY" || fail "Hosts lock does not use noclobber atomic file creation"
+grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$APPLY" || fail "Hosts lock release does not atomically rename its owner file"
+grep -Fq 'FX_SUBFETCH_FILE_LOCK_V2' "$SUBFETCH" || fail "subscription cache does not use the reviewed atomic file lock"
 grep -Fq 'set -C' "$SUBFETCH" || fail "subscription lock does not use noclobber atomic file creation"
 grep -Fq 'mv "$LOCK" "$_sl_release"' "$SUBFETCH" || fail "subscription file lock release does not atomically rename the owner file"
 grep -Fq '_sl_read_lock_owner "$LOCK"' "$SUBFETCH" || fail "subscription lock owner validation missing"
@@ -36,15 +42,18 @@ from pathlib import Path
 import sys
 apply = Path(sys.argv[1]).read_text(encoding="utf-8")
 subfetch = Path(sys.argv[2]).read_text(encoding="utf-8")
-assert '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n' not in apply, "Hosts waiter still has an unguarded owner read"
-assert '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\\n' not in apply, "Hosts stale-owner recheck still has an unguarded read"
+assert 'FX_HOSTS_FILE_LOCK_V2' in apply, "Hosts atomic file lock version marker missing"
+assert '( umask 077; set -C; printf ' in apply, "Hosts lock must atomically create a private owner file"
+assert '[ ! -L "$_hf_lock" ] && [ ! -e "$_hf_lock" ]' in apply, "Hosts lock must refuse symlink or pre-existing paths"
+assert 'mv "$_hf_lock" "$_hf_release"' in apply, "Hosts lock release must atomically rename its owner file"
+assert 'while ! mkdir "$_hf_lock"' not in apply, "Hosts lock still uses mkdir acquisition"
 assert 'FX_SUBFETCH_FILE_LOCK_V2' in subfetch, "subscription file lock version marker missing"
 assert '( umask 077; set -C; printf ' in subfetch, "subscription file lock must atomically create a private owner file"
 assert '[ ! -L "$LOCK" ] && [ ! -e "$LOCK" ]' in subfetch, "subscription file lock must refuse symlink or pre-existing paths"
 assert 'mv "$LOCK" "$_sl_release"' in subfetch, "subscription file lock release must atomically rename its owner file"
 PY
-if grep -Fq 'rm -f "$_hf_lock/pid" 2>/dev/null; rmdir "$_hf_lock"' "$APPLY"; then
-  fail "Hosts lock still exposes a pid-less directory before rmdir"
+if grep -Fq 'while ! mkdir "$_hf_lock"' "$APPLY"; then
+  fail "Hosts lock still uses the legacy mkdir acquisition loop"
 fi
 
 sh -n "$APPLY" || fail "patched apply.sh has invalid POSIX shell syntax"
