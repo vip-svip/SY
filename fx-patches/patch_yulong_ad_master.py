@@ -15,9 +15,15 @@ replacement='''pg_list_enabled() {
   if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_filter_enabled 1)" != "1" ]; then return 0; fi
   pg_list "$1" | grep -v '^[[:space:]]*#' | awk -F'|' '$3=="1" && $1!=""{print $1}'
 }'''
-u2,n=pattern.subn(replacement,u,count=1)
-if n!=1: raise SystemExit("pg_list_enabled function anchor missing")
-util.write_text(u2,encoding="utf-8")
+if pattern.search(u):
+    u2,n=pattern.subn(replacement,u,count=1)
+    if n!=1: raise SystemExit("pg_list_enabled function anchor missing")
+    u=u2
+    util.write_text(u,encoding="utf-8")
+elif "pg_list_enabled() {" not in u or "yulong_ad_filter_enabled" not in u:
+    # A second build invocation sees the already-expanded multi-line function.
+    # Accept only that known patched state; fail closed on an unknown shape.
+    raise SystemExit("pg_list_enabled is neither the original one-line form nor the reviewed Yulong-patched form")
 d=default.read_text(encoding="utf-8")
 if "yulong_ad_filter_enabled=" not in d:
     marker="hook_ads_enabled=0\n"
