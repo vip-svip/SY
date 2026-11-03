@@ -4,7 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 PATCHER="$ROOT/fx-patches/patch_yulong_root_proxy.py"
 [ -s "$PATCHER" ] || { echo "FAIL: Yulong Root Proxy patcher missing" >&2; exit 1; }
 
-T=$(mktemp -d "\${TMPDIR:-/tmp}/fx-yulong-unbound.XXXXXX")
+T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-unbound.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 MOD="$T/module"
 PG="$T/state"
