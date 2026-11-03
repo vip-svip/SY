@@ -1864,18 +1864,24 @@ public final class FxDiaFridaActivity extends Activity {
             return;
         }
         final String expectedPackage = targetPackage;
+        final String expectedCli = currentFridaCliPath();
+        if (!validPath(expectedCli)) {
+            setStatus("当前 Frida CLI 路径无效，拒绝停止可能不属于当前配置的 Gadget 会话。");
+            return;
+        }
         final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
         final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
         final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
         String command = "set -eu; pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
-                + "script=" + quote(scriptPath) + "; expected_pkg=" + quote(expectedPackage) + "; port=" + port + "; "
+                + "script=" + quote(scriptPath) + "; expected_pkg=" + quote(expectedPackage)
+                + "; expected_cli=" + quote(expectedCli) + "; port=" + port + "; "
                 + "[ ! -L \"$pidfile\" ] && [ ! -L \"$pipe\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
                 + "if [ ! -s \"$pidfile\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
                 + "cli_pid=$(sed -n '1p' \"$pidfile\"); feed_pid=$(sed -n '2p' \"$pidfile\"); cli=$(sed -n '3p' \"$pidfile\"); "
                 + "stored_pkg=$(sed -n '4p' \"$pidfile\"); stored_port=$(sed -n '5p' \"$pidfile\"); "
                 + "case \"$cli_pid:$feed_pid\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
                 + "case \"$stored_port\" in ''|*[!0-9]*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
-                + "[ \"$stored_pkg\" = \"$expected_pkg\" ] && [ \"$stored_port\" = \"$port\" ] && [ \"$cli\" = \"$script\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
+                + "[ \"$stored_pkg\" = \"$expected_pkg\" ] && [ \"$stored_port\" = \"$port\" ] && [ \"$cli\" = \"$expected_cli\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
                 + "if kill -0 \"$cli_pid\" 2>/dev/null; then "
                 + "cmd=$(tr '\\000' ' ' < /proc/\"$cli_pid\"/cmdline 2>/dev/null || :); "
                 + "case \"$cmd\" in *\"$cli\"*'127.0.0.1:" + port + "'*Gadget*\"$script\"*) kill \"$cli_pid\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
