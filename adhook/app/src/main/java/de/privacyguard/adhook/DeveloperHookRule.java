@@ -23,9 +23,9 @@ public final class DeveloperHookRule {
         this.id = id;
         this.descriptor = descriptor;
         this.action = action;
-        this.replacement = action == Action.RETURN_TRUE || action == Action.RETURN_FALSE
-                || action == Action.RETURN_NULL || action == Action.RETURN_ZERO
-                || action == Action.RETURN_EMPTY_STRING || action == Action.NO_OP_VOID;
+        // Legacy boolean compatibility flag: true means RETURN_TRUE.
+        // The Action enum remains authoritative for every other return/no-op action.
+        this.replacement = action == Action.RETURN_TRUE;
         this.priority = priority;
     }
 

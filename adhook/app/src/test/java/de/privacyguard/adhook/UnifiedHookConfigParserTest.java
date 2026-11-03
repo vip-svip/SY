@@ -72,8 +72,8 @@ public class UnifiedHookConfigParserTest {
         String rawRule = "trace|com.example.owned.AuthRepo#dispatch(java.lang.String,int[])java.lang.Object|OBSERVE|25";
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 rawRule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        String config = "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
-                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=" + encoded + "\\n";
+        String config = "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=" + encoded + "\n";
 
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config);
         UnifiedHookConfigParser.Target target = parsed.targets.get("com.example.owned");
@@ -95,8 +95,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void retainsBackwardCompatibilityWithSimpleLegacyCustomRuleFields() {
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
-                + "com.example.owned,dev_hook_enabled=1,dev_rule_1=observe|com.example.owned.AuthRepo#isVip()Z|OBSERVE|1\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_1=observe|com.example.owned.AuthRepo#isVip()Z|OBSERVE|1\n");
         assertTrue(parsed.targets.get("com.example.owned").developerHooksEnabled);
         assertEquals(1, parsed.targets.get("com.example.owned").developerRules.size());
     }
@@ -104,8 +104,8 @@ public class UnifiedHookConfigParserTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMalformedEncodedCustomRuleField() {
         UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
-                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=not*base64\\n");
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=not*base64\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -114,9 +114,9 @@ public class UnifiedHookConfigParserTest {
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 rule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
                 + "com.example.owned,dev_hook_enabled=1,dev_rule_1=" + rule
-                + ",dev_rule_b64_1=" + encoded + "\\n");
+                + ",dev_rule_b64_1=" + encoded + "\n");
     }
 
     @Test
