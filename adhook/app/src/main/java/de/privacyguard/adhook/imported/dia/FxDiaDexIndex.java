@@ -62,6 +62,8 @@ public final class FxDiaDexIndex {
         public final List<Member> fields = new ArrayList<>();
         public final List<Member> methods = new ArrayList<>();
         public final List<CallSite> calls = new ArrayList<>();
+        public String superDescriptor;
+        public final List<String> interfaces = new ArrayList<>();
 
         DexClass(String descriptor) { this.descriptor = descriptor; }
         public String javaName() {
@@ -157,6 +159,20 @@ public final class FxDiaDexIndex {
             if (item == null) {
                 item = new DexClass(descriptor);
                 output.put(descriptor, item);
+            }
+            long superIndex = u32Bits(base + 12);
+            if (superIndex != 0xffffffffL && superIndex < typesSize) {
+                item.superDescriptor = type((int) superIndex);
+            }
+            int interfacesOff = u32(base + 16);
+            if (interfacesOff > 0) {
+                int interfaceCount = u32(interfacesOff);
+                if (interfaceCount > 4096) throw new IOException("class interface count exceeds limit");
+                checkRange(interfacesOff + 4, interfaceCount * 2);
+                for (int j = 0; j < interfaceCount; j++) {
+                    String iface = type(u16(interfacesOff + 4 + j * 2));
+                    if (iface != null && !item.interfaces.contains(iface)) item.interfaces.add(iface);
+                }
             }
             int classDataOff = u32(base + 24);
             if (classDataOff == 0) continue;
@@ -380,6 +396,14 @@ public final class FxDiaDexIndex {
             shift += 7;
         }
         throw new IOException("invalid ULEB128");
+    }
+
+    private long u32Bits(int offset) throws IOException {
+        checkRange(offset, 4);
+        return (data[offset] & 0xffL)
+                | ((data[offset + 1] & 0xffL) << 8)
+                | ((data[offset + 2] & 0xffL) << 16)
+                | ((data[offset + 3] & 0xffL) << 24);
     }
 
     private int u16(int offset) throws IOException {

@@ -266,6 +266,13 @@ public final class FxDiaDexBrowserActivity extends Activity {
     private void showClassMembers(FxDiaDexIndex.DexClass item, List<String> searchMatches) {
         StringBuilder detail = new StringBuilder();
         detail.append(item.descriptor).append("\\n");
+        detail.append("父类：").append(item.superDescriptor == null
+                ? "无/根类型" : item.superDescriptor).append("\\n");
+        if (!item.interfaces.isEmpty()) {
+            detail.append("接口：");
+            for (String iface : item.interfaces) detail.append(iface).append("  ");
+            detail.append("\\n");
+        }
         detail.append("字段：").append(item.fields.size()).append(" · 方法：")
                 .append(item.methods.size()).append(" · 调用边：").append(item.calls.size())
                 .append("\\n\\n");
