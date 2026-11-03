@@ -11,6 +11,37 @@ import android.provider.Settings;
  * No background permission is granted or changed automatically.
  */
 public final class FxYulongBootReceiver extends BroadcastReceiver {
+
+    static final String ACTION_KEEPALIVE = "de.privacyguard.adhook.shield.KEEPALIVE";
+    private static final long INTERVAL_MS = 15L * 60L * 1000L;
+    private static final int REQUEST_CODE = 0x5963;
+
+    public static void refreshSchedule(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        android.content.SharedPreferences prefs =
+                app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean("protect_on", false)
+                || prefs.getBoolean("overlay_rescue_on", false);
+        android.app.AlarmManager alarms =
+                (android.app.AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
+        if (alarms == null) return;
+        Intent tick = new Intent(app, FxYulongKeepAliveReceiver.class);
+        tick.setAction(ACTION_KEEPALIVE);
+        PendingIntent pending = PendingIntent.getBroadcast(app, REQUEST_CODE, tick,
+                PendingIntent.FLAG_UPDATE_CURRENT
+                        | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+        alarms.cancel(pending);
+        if (!enabled) return;
+        long next = android.os.SystemClock.elapsedRealtime() + INTERVAL_MS;
+        if (Build.VERSION.SDK_INT >= 23) {
+            alarms.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    next, pending);
+        } else {
+            alarms.set(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, next, pending);
+        }
+    }
+
     @Override public void onReceive(Context context, Intent intent) {
         if (context == null || intent == null) return;
         String action = intent.getAction();
@@ -18,6 +49,7 @@ public final class FxYulongBootReceiver extends BroadcastReceiver {
                 && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) return;
 
         final Context app = context.getApplicationContext();
+        FxYulongKeepAliveReceiver.refreshSchedule(app);
         android.content.SharedPreferences prefs =
                 app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
 

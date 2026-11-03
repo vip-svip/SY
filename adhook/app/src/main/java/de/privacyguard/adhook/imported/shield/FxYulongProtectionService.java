@@ -95,6 +95,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         String action = intent == null ? ACTION_START : intent.getAction();
         if (ACTION_STOP.equals(action)) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("protect_on", false).apply();
+            FxYulongKeepAliveReceiver.refreshSchedule(this);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -105,6 +106,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         }
 
         startForeground(ONGOING_ID, buildOngoingNotification());
+        FxYulongKeepAliveReceiver.refreshSchedule(this);
         running = true;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("protect_service_running", true)
