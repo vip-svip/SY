@@ -8,8 +8,10 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -56,6 +58,20 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private boolean shakeRegistered;
     private volatile boolean running;
 
+    private boolean foregroundReceiverRegistered;
+    private final BroadcastReceiver foregroundChangeReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null || !running) return;
+            String packageName = intent.getStringExtra("package_name");
+            if (packageName == null || packageName.isEmpty() || handler == null) return;
+            handler.post(() -> {
+                if (!running) return;
+                SharedPreferences current = getSharedPreferences(PREFS, MODE_PRIVATE);
+                if (current.getBoolean("protect_on", false)) evaluateForeground(packageName, current);
+            });
+        }
+    };
+
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             if (!running) return;
@@ -96,6 +112,16 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         createChannels();
+        IntentFilter foregroundFilter = new IntentFilter(
+                de.privacyguard.adhook.FxAccessibilityService.ACTION_FOREGROUND_PACKAGE_CHANGED);
+        try {
+            if (Build.VERSION.SDK_INT >= 33)
+                registerReceiver(foregroundChangeReceiver, foregroundFilter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(foregroundChangeReceiver, foregroundFilter);
+            foregroundReceiverRegistered = true;
+        } catch (Throwable ignored) {
+            foregroundReceiverRegistered = false;
+        }
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -370,6 +396,10 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         if (handler != null) handler.removeCallbacksAndMessages(null);
         if (sensorManager != null) sensorManager.unregisterListener(this);
         shakeRegistered = false;
+        if (foregroundReceiverRegistered) {
+            try { unregisterReceiver(foregroundChangeReceiver); } catch (Throwable ignored) { }
+            foregroundReceiverRegistered = false;
+        }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("protect_service_running", false).apply();
         if (thread != null) thread.quitSafely();
