@@ -20,6 +20,16 @@ public final class RootAccess {
         }
     }
 
+    /** Create a completed failure result without starting a Root process. */
+    public static Result failure(int exitCode, String message) {
+        int code = exitCode == 0 ? 1 : exitCode;
+        String text = message == null ? "Root 操作未执行" : message;
+        if (text.length() > DEFAULT_OUTPUT_LIMIT) {
+            text = text.substring(0, DEFAULT_OUTPUT_LIMIT);
+        }
+        return new Result(code, text, false);
+    }
+
     public static Result execute(String command) {
         return execute(command, 20000L, DEFAULT_OUTPUT_LIMIT);
     }
