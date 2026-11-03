@@ -29,47 +29,66 @@ assert set(keys) <= defaults, "native privacy schema contains non-top-level or n
 assert all(item["title"] and item["key"] for panel in panels for item in panel["items"])
 print("PASS: generated 13 native VPN/privacy panels with",len(keys),"top-level boolean settings")
 PY
-python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
-import pathlib, sys
-source=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-start=source.find("private void showNativeSettingsGroup(String panelId, String title)")
-render=source.find("private void renderNativePrivacySettingsGroup", start)
-edit_bridge=source.find("private void loadNativePrivacyEditEntries", render)
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$MODULE/scripts/native-vpn-config.sh" <<'PY'
+import pathlib, re, sys
+source_path, helper_path = map(pathlib.Path, sys.argv[1:])
+source = source_path.read_text(encoding="utf-8")
+helper = helper_path.read_text(encoding="utf-8")
+start = source.find("private void showNativeSettingsGroup(String panelId, String title)")
+render = source.find("private void renderNativePrivacySettingsGroup", start)
+edit_bridge = source.find("private void loadNativePrivacyEditEntries", render)
 assert start >= 0 and render > start and edit_bridge > render, "native privacy method boundaries missing"
-native_group=source[start:render]
-native_render=source[render:edit_bridge]
+native_group = source[start:render]
+native_render = source[render:edit_bridge]
 for body in (native_group, native_render):
     for forbidden in ("webView.evaluateJavascript", "VPN_EDIT", "PGB.model.sw", "secVal(", "secSet(", "pgPersistNow("):
-        assert forbidden not in body, "native privacy toggle path still depends on hidden WebView bridge: "+forbidden
+        assert forbidden not in body, "native privacy toggle path still depends on hidden WebView bridge: " + forbidden
 for required in ("native-privacy-settings.json", "renderNativePrivacySettingsGroup", "setNativePrivacySetting"):
-    assert required in native_group + native_render, "native privacy category missing native path: "+required
-# Non-boolean text/list/choice controls are retained as a clearly isolated
-# compatibility path rather than silently disappearing during this migration.
-legacy_end=source.find("private void showNativeVpnAdvancedEditor", edit_bridge)
-legacy=source[edit_bridge:legacy_end]
-assert 'if (!"vpnPanel".equals(panelId)) return;' in legacy, "advanced VPN editor must be scoped to the VPN panel"
-assert "showNativeVpnAdvancedEditor()" in legacy, "VPN panel no longer exposes its advanced native editor"
-advanced_end=source.find("private void showNativeCertificateManager", legacy_end)
-advanced=source[legacy_end:advanced_end]
-for required in ("native-vpn-config.sh", "FXVPNCONF1", "showNativeVpnAdvancedItemDialog",
-                 "nativeVpnAdvancedLabel", "saveNativeVpnAdvancedValue"):
-    assert required in advanced, "native advanced VPN editor lost functionality: "+required
-item_start=source.find("private void showNativeVpnAdvancedItemDialog", legacy_end)
-choice_start=source.find("private void showNativeVpnAdvancedChoice", item_start)
-save_start=source.find("private void saveNativeVpnAdvancedValue", choice_start)
-assert item_start > advanced_end and choice_start > item_start and save_start > choice_start, \
-    "native VPN advanced edit/choice/save chain is incomplete"
-item_path=source[item_start:choice_start]
-choice_path=source[choice_start:save_start]
-save_path=source[save_start:source.find("private void", save_start+30)]
-assert "EditText" in item_path and "saveNativeVpnAdvancedValue" in item_path, \
-    "free-form advanced VPN values are no longer editable"
-assert "setSingleChoiceItems" in choice_path and "saveNativeVpnAdvancedValue" in choice_path, \
-    "enum advanced VPN values are no longer selectable"
-assert 'sh \\"$MP/scripts/native-vpn-config.sh\\" set' in save_path, \
-    "advanced VPN values must persist through the native validated config writer"
-print("PASS: boolean privacy toggles and non-boolean advanced VPN editors use native config I/O")
-PY
+    assert required in native_group + native_render, "native privacy category missing native path: " + required
+
+# The old WebView-based VPN_EDIT compatibility path was replaced by a real
+# native editor. Keep it attached only to vpnPanel and assert the full native
+# list -> choice/text editor -> validated Root writer path instead.
+legacy = source[edit_bridge:source.find("private void setNativePrivacySetting", edit_bridge)]
+assert 'if (!"vpnPanel".equals(panelId)) return;' in legacy, "advanced VPN editor must remain isolated to vpnPanel"
+assert "showNativeVpnAdvancedEditor" in legacy, "VPN advanced editor entry is missing"
+
+def method(signature):
+    pos = source.find(signature)
+    assert pos >= 0, "missing native VPN editor method: " + signature
+    end = source.find("\\n    private ", pos + len(signature))
+    return source[pos:] if end < 0 else source[pos:end]
+
+editor = method("private void showNativeVpnAdvancedEditor()")
+item = method("private void showNativeVpnAdvancedItemDialog(String key, String currentValue)")
+choice = method("private void showNativeVpnAdvancedChoice(String key, String currentValue,")
+save = method("private void saveNativeVpnAdvancedValue(String key, String value)")
+quote = method("private static String shellQuote(String value)")
+assert 'native-vpn-config.sh\\\\" list' in editor or 'native-vpn-config.sh\\\\" list' in editor, "native editor does not read the device [conf:vpn] helper"
+assert "FXVPNCONF1" in editor and "availableKeys.add(key)" in editor, "native editor response parsing/listing is missing"
+key_block = editor.split("String[] keys = {", 1)[1].split("};", 1)[0]
+editor_keys = set(re.findall(r'"([a-z][a-z0-9_]*)"', key_block))
+required_keys = {
+    "local_ip", "local_port", "mixed_port", "remote_dns", "cn_dns", "test_url",
+    "auto_update_h", "chnroute_url", "app_mode", "core_ver", "core_auto",
+    "core_bin", "log_level", "hosts_cache_min", "pick_min_ms",
+    "pick_test_timeout", "pick_max_nodes", "hide_level", "hide_mtu_clamp",
+    "hide_udp_block_all", "hide_icmp_block_all", "hide_dot_block"
+}
+assert required_keys <= editor_keys, "native VPN editor dropped keys: " + ", ".join(sorted(required_keys - editor_keys))
+assert "EditText input = new EditText(this)" in item and 'setPositiveButton("保存"' in item, "native text editor path is missing"
+assert "showNativeVpnAdvancedChoice" in item and "showNativeVpnAdvancedValue" in item, "native choice editor path is missing"
+assert ".setSingleChoiceItems(" in choice and 'setPositiveButton("应用"' in choice, "native choice dialog is incomplete"
+assert 'native-vpn-config.sh' in save and "shellQuote(key)" in save and "shellQuote(value)" in save, "native config write does not quote both arguments"
+assert "replace(\"'\", \"'\\\\''\")" in quote, "shell argument quoting is not present"
+
+assert helper_path.is_file(), "shipped native-vpn-config.sh helper missing from module"
+for required in ("FXVPNCONF1", "valid_key()", "validate_value()", "with_lock()", "mutate()", "apply.sh fast", "[conf:vpn]", "VPN config rollback failed"):
+    assert required in helper, "native VPN config helper missing safeguard: " + required
+for key in required_keys:
+    assert key in helper, "native VPN config helper does not handle editor key: " + key
+print("PASS: VPN text/list/choice controls use the native editor and validated, locked, rollback-capable [conf:vpn] writer")
+
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
 sh -n "$HELPER" || fail "native privacy writer has shell syntax errors"
