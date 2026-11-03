@@ -4,7 +4,7 @@
 # Every uncertain state removes only FXYRP-owned rules and fails open.
 set -eu
 
-MP=\${MP:-}
+MP=${MP:-}
 if [ -z "$MP" ]; then
   for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
     if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop" 2>/dev/null; then
@@ -16,8 +16,8 @@ fi
 [ -s "$MP/scripts/util.sh" ] || { echo "FX config utilities missing" >&2; exit 21; }
 . "$MP/scripts/util.sh"
 
-PG=\${PG:-/data/adb/privacyguard}
-CONF=\${CONF:-$PG/settings.conf}
+PG=${PG:-/data/adb/privacyguard}
+CONF=${CONF:-$PG/settings.conf}
 ACTIVE="$PG/yulong-root-proxy-active"
 ACTIVE_META="$PG/yulong-root-proxy-active.meta"
 EGRESS="$PG/unbound-vpn-egress-ip"
@@ -26,8 +26,8 @@ LOG="$PG/yulong-root-proxy.log"
 mkdir -p "$PG"
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
-_valid_uid() { case "\${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
-_valid_if() { case "\${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1;; *) return 0;; esac; }
+_valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
+_valid_if() { case "${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1;; *) return 0;; esac; }
 _valid_ipv4() {
   printf '%s\n' "$1" | awk -F. '
     NF != 4 {ok=0; exit}
@@ -83,7 +83,7 @@ _resolve_vpn_egress() {
     _route=$(ip route get "$_dest" from "$_ip" 2>/dev/null) || {
       _log "route lookup failed through tunnel source $_ip for $_dest"; return 1;
     }
-    printf '%s\n' "$_route" | grep -Eq "(^|[[:space:]])dev[[:space:]]+\${_if}([[:space:]]|$)" || {
+    printf '%s\n' "$_route" | grep -Eq "(^|[[:space:]])dev[[:space:]]+${_if}([[:space:]]|$)" || {
       _log "route for $_dest from $_ip does not use $_if: $_route"; return 1;
     }
   done
@@ -182,7 +182,7 @@ with_lock() {
   trap 'rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
   "$@"
 }
-cmd=\${1:-status}
+cmd=${1:-status}
 case "$cmd" in
   ensure)
     [ "$#" -ge 5 ] || { echo "usage: $0 ensure module data_dir interface vpn_uid" >&2; exit 2; }

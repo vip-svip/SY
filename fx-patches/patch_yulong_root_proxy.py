@@ -13,6 +13,9 @@ if not source.is_file() or source.stat().st_size < 8000:
     raise SystemExit("Yulong Root Proxy source is missing or incomplete")
 target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy2(source, target)
+runtime_text = target.read_text(encoding="utf-8")
+if "\\$" in runtime_text:
+    raise SystemExit("Yulong Root Proxy contains escaped shell variable references")
 target.chmod(0o755)
 
 def replace_once(path, old, new, label):
