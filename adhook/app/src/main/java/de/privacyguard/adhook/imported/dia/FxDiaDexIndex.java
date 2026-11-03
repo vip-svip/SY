@@ -310,6 +310,10 @@ public final class FxDiaDexIndex {
     }
 
     private int instructionWidth(int opcode) {
+        // const-wide (format 51l) stores a 64-bit literal in four code units
+        // following the opcode. Treating it as one unit desynchronizes every
+        // subsequent instruction and can fabricate or miss invoke edges.
+        if (opcode == 0x18) return 5;
         if ((opcode >= 0x02 && opcode <= 0x02)
                 || opcode == 0x05 || opcode == 0x08
                 || opcode == 0x13 || opcode == 0x15 || opcode == 0x16
