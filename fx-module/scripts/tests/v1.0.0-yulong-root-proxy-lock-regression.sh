@@ -45,7 +45,7 @@ sh "$SOURCE" stop >/dev/null
 
 # A live owner is never stolen; the command returns a bounded busy error.
 mkdir "$LOCK"
-printf '%s\n' "$" > "$LOCK/pid"
+printf '%s\n' "$$" > "$LOCK/pid"
 set +e
 sh "$SOURCE" stop >/dev/null 2>&1
 rc=$?
