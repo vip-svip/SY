@@ -2,18 +2,20 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
+GENERAL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java"
+TASKER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTaskerReceiver.java"
 TILE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java"
 WIDGET="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java"
 GATE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdOperationGate.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$ACTIVITY" "$TILE" "$WIDGET" "$GATE"; do
+for file in "$ACTIVITY" "$GENERAL" "$TASKER" "$TILE" "$WIDGET" "$GATE"; do
   [ -s "$file" ] || fail "missing shared ad operation gate source: $file"
 done
-python3 - "$ACTIVITY" "$TILE" "$WIDGET" "$GATE" <<'PY'
+python3 - "$ACTIVITY" "$GENERAL" "$TASKER" "$TILE" "$WIDGET" "$GATE" <<'PY'
 from pathlib import Path
 import sys
 
-activity, tile, widget, gate = [Path(x).read_text(encoding="utf-8") for x in sys.argv[1:]]
+activity, general, tasker, tile, widget, gate = [Path(x).read_text(encoding="utf-8") for x in sys.argv[1:]]
 start = activity.find("private void apply(")
 if start < 0:
     raise SystemExit("FAIL: ad activity apply method missing")
@@ -22,8 +24,8 @@ if end < 0:
     raise SystemExit("FAIL: ad activity apply method boundary missing")
 apply = activity[start:end]
 worker = apply.find("worker.execute(")
-acquire = apply.find("FxYulongAdOperationGate.tryAcquire()")
-finally_release = apply.find("if(gateAcquired)FxYulongAdOperationGate.release()")
+acquire = apply.find("gateToken=FxYulongAdOperationGate.tryAcquire()")
+finally_release = apply.find("if(gateToken!=0L)FxYulongAdOperationGate.release(gateToken)")
 reject = apply.find("catch(RejectedExecutionException full)")
 if min(worker, acquire, finally_release, reject) < 0:
     raise SystemExit("FAIL: ad activity does not show the full queue/gate lifecycle")
@@ -38,8 +40,8 @@ if "后台任务繁忙，请稍后重试。" not in reject_block:
 # The Tile acquires in its accepted worker and releases only when gateAcquired.
 tile_click = tile[tile.find("@Override public void onClick()"):]
 tile_worker = tile_click.find("worker.execute(")
-tile_acquire = tile_click.find("FxYulongAdOperationGate.tryAcquire()")
-tile_release = tile_click.find("if (gateAcquired) FxYulongAdOperationGate.release()")
+tile_acquire = tile_click.find("gateToken = FxYulongAdOperationGate.tryAcquire()")
+tile_release = tile_click.find("if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken)")
 if min(tile_worker, tile_acquire, tile_release) < 0 or not tile_worker < tile_acquire < tile_release:
     raise SystemExit("FAIL: Quick Settings tile gate is not acquired/released in its worker finally")
 tile_reject = tile_click.find("catch (RejectedExecutionException full)")
@@ -56,8 +58,15 @@ if min(widget_acquire, go_async, worker_submit) < 0 or not widget_acquire < go_a
     raise SystemExit("FAIL: Widget must acquire before starting async work")
 if widget_receive.count("FxYulongAdOperationGate.release()") < 3:
     raise SystemExit("FAIL: Widget must release on both pre-submit failures and worker completion")
-if "BUSY.compareAndSet(false, true)" not in gate or "BUSY.set(false)" not in gate:
-    raise SystemExit("FAIL: operation gate no longer implements atomic acquire/release")
+if "OWNER_TOKEN.compareAndSet(0L, token)" not in gate or "OWNER_TOKEN.compareAndSet(token, 0L)" not in gate:
+    raise SystemExit("FAIL: operation gate does not enforce exact-token ownership")
+all_callers = "\\n".join((activity, general, tasker, tile, widget))
+if "FxYulongAdOperationGate.release()" in all_callers:
+    raise SystemExit("FAIL: a caller still uses unsafe ownerless release API")
+if "gateToken = FxYulongAdOperationGate.tryAcquire()" not in general or "release(gateToken)" not in general:
+    raise SystemExit("FAIL: General settings import does not carry its lease token")
+if "final long gateToken = FxYulongAdOperationGate.tryAcquire()" not in tasker or tasker.count("release(gateToken)") != 3:
+    raise SystemExit("FAIL: Tasker does not preserve its lease token through async completion/failure")
 
 root_start = activity.find("private void root(")
 root_end = activity.find("private String safe(", root_start)

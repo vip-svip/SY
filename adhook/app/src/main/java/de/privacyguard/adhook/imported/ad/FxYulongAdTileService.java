@@ -71,10 +71,10 @@ public final class FxYulongAdTileService extends TileService {
         applyTile(Tile.STATE_UNAVAILABLE, "正在应用…");
         try {
             worker.execute(() -> {
-                boolean gateAcquired = false;
+                long gateToken = 0L;
                 try {
-                    gateAcquired = FxYulongAdOperationGate.tryAcquire();
-                    if (!gateAcquired) {
+                    gateToken = FxYulongAdOperationGate.tryAcquire();
+                    if (gateToken == 0L) {
                         main.post(() -> { if (!destroyed) applyTile(Tile.STATE_UNAVAILABLE, "另一入口正在修改广告过滤"); });
                         return;
                     }
@@ -100,7 +100,7 @@ public final class FxYulongAdTileService extends TileService {
                 } catch (Throwable failure) {
                     main.post(() -> { if (!destroyed) applyTile(Tile.STATE_UNAVAILABLE, "Root 操作失败"); });
                 } finally {
-                    if (gateAcquired) FxYulongAdOperationGate.release();
+                    if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
                     togglePending.set(false);
                 }
             });

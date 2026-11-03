@@ -60,12 +60,12 @@ public final class FxYulongAdActivity extends Activity {
   final boolean masterWrite = args != null && args.matches("^ad-master\\s+[01]$");
   try{
    worker.execute(()->{
-    boolean gateAcquired = false;
+    long gateToken = 0L;
     RootAccess.Result result;
     try{
      if(masterWrite){
-      gateAcquired=FxYulongAdOperationGate.tryAcquire();
-      if(!gateAcquired){
+      gateToken=FxYulongAdOperationGate.tryAcquire();
+      if(gateToken==0L){
        runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText("另一入口正在修改广告过滤，请稍后重试。");});
        return;
       }
@@ -75,7 +75,7 @@ public final class FxYulongAdActivity extends Activity {
      runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText(label+"失败："+failure.getClass().getSimpleName());});
      return;
     }finally{
-     if(gateAcquired)FxYulongAdOperationGate.release();
+     if(gateToken!=0L)FxYulongAdOperationGate.release(gateToken);
     }
     runOnUiThread(()->{
      if(isFinishing()||isDestroyed())return;

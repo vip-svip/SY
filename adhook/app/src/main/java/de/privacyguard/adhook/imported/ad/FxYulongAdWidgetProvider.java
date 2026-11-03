@@ -164,7 +164,8 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         if (!ACTION_TOGGLE.equals(action)) return;
 
         if (!TOGGLE_PENDING.compareAndSet(false, true)) return;
-        if (!FxYulongAdOperationGate.tryAcquire()) {
+        final long gateToken = FxYulongAdOperationGate.tryAcquire();
+        if (gateToken == 0L) {
             TOGGLE_PENDING.set(false);
             updateViews(context, false, false, "另一入口正在修改广告过滤");
             return;
@@ -173,7 +174,7 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         try {
             pending = goAsync();
         } catch (RuntimeException unavailable) {
-            FxYulongAdOperationGate.release();
+            FxYulongAdOperationGate.release(gateToken);
             TOGGLE_PENDING.set(false);
             return;
         }
@@ -196,13 +197,13 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
                 } catch (Throwable failure) {
                     updateViews(context, false, false);
                 } finally {
-                    FxYulongAdOperationGate.release();
+                    FxYulongAdOperationGate.release(gateToken);
                     TOGGLE_PENDING.set(false);
                     pending.finish();
                 }
             });
         } catch (RejectedExecutionException full) {
-            FxYulongAdOperationGate.release();
+            FxYulongAdOperationGate.release(gateToken);
             TOGGLE_PENDING.set(false);
             try {
                 updateViews(context, false, false);

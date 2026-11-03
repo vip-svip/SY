@@ -320,10 +320,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
         operationStatus.setText("正在备份并导入设备端配置…");
         try {
             worker.execute(() -> {
-                boolean gateAcquired = false;
+                long gateToken = 0L;
                 try {
-                gateAcquired = FxYulongAdOperationGate.tryAcquire();
-                if (!gateAcquired) {
+                gateToken = FxYulongAdOperationGate.tryAcquire();
+                if (gateToken == 0L) {
                     runOnUiThread(() -> { if (!isFinishing() && !isDestroyed())
                         operationStatus.setText("另一入口正在修改广告过滤，请稍后再导入。"); });
                     return;
@@ -399,7 +399,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 } catch(Throwable error) {
                     showError("导入失败", error);
                 } finally {
-                    if (gateAcquired) FxYulongAdOperationGate.release();
+                    if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
                 }
             });
         } catch (RejectedExecutionException full) {
