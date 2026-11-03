@@ -31,13 +31,16 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                 code=result.exitCode;
                 if (code == 0) FxYulongAdWidgetProvider.refreshAll(context);
             }catch(Throwable ignored){}
-            Intent reply=new Intent(ACTION_RESULT);
-            reply.putExtra("source_action", action);
-            reply.putExtra("requested_enabled",enabled);
-            reply.putExtra("success",code==0);
-            reply.putExtra("exit_code",code);
-            context.sendBroadcast(reply);
-            pending.finish();
+            try {
+                Intent reply=new Intent(ACTION_RESULT);
+                reply.putExtra("source_action", action);
+                reply.putExtra("requested_enabled",enabled);
+                reply.putExtra("success",code==0);
+                reply.putExtra("exit_code",code);
+                context.sendBroadcast(reply);
+            } finally {
+                pending.finish();
+            }
         },"fx-yulong-tasker-toggle").start();
     }
 }
