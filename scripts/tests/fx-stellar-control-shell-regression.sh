@@ -20,7 +20,7 @@ assert "printf '%s' \"$1\"" in source, "valid_command must not append a syntheti
 assert source.count("valid_command(){") == 1, "Stellar command validator must be defined exactly once"
 assert source.count("with_lock(){") == 1, "Stellar mutation lock must be defined exactly once"
 validator = source.split("valid_command(){", 1)[1].split("\nwith_lock(){", 1)[0]
-assert "grep -Eq '" in validator and validator.rstrip().endswith("}") is False, "valid_command must retain its complete bounded grammar and close before with_lock"
+assert "grep -Eq '" in validator and validator.rstrip().endswith("}"), "valid_command must retain its complete bounded grammar and close before with_lock"
 
 assert "trap cleanup_lock EXIT" in source, "lock cleanup must happen from EXIT only"
 for signal, code in (("HUP",129),("INT",130),("TERM",143)):
