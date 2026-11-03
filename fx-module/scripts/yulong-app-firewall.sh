@@ -12,8 +12,13 @@ PG=${PG:-/data/adb/privacyguard}
 CONF=${CONF:-$PG/settings.conf}
 ACTIVE=${ACTIVE:-$PG/yulong-firewall-active}
 LOCK=${LOCK:-$PG/yulong-firewall.lock}
+_FW_TEMP=
+_FW_BACKUP=
+_FW_RESTORE=
 mkdir -p "$PG"
-[ -f "$CONF" ] || { echo "FX settings.conf is missing" >&2; exit 21; }
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX firewall state directory is unsafe" >&2; exit 21; }
+[ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf is missing or unsafe" >&2; exit 21; }
+[ ! -L "$ACTIVE" ] || { echo "FX firewall active marker is unsafe" >&2; exit 22; }
 
 valid_package() {
   case "$1" in ''|*[!A-Za-z0-9_.-]*) return 1 ;; esac
@@ -40,7 +45,9 @@ list_rows() {
   ' "$CONF"
 }
 set_master_value() {
-  wanted="$1"; tmp="$CONF.yulong-master.$$"
+  wanted="$1"
+  tmp=$(mktemp "$CONF.yulong-master.XXXXXX") || return 1
+  _FW_TEMP=$tmp
   awk -v wanted="$wanted" '
     BEGIN {insec=0; seen=0; written=0}
     $0=="[conf:yulong_app_firewall]" {
@@ -60,12 +67,19 @@ set_master_value() {
       if(insec && !written) print "enabled=" wanted
       if(!seen) {print ""; print "[conf:yulong_app_firewall]"; print "enabled=" wanted}
     }
-  ' "$CONF" > "$tmp"
-  [ -s "$tmp" ] || { rm -f "$tmp"; return 1; }
-  chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _FW_TEMP=; return 1; }
+  if [ -s "$tmp" ] && [ ! -L "$CONF" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then
+    _FW_TEMP=
+    return 0
+  fi
+  rm -f "$tmp"
+  _FW_TEMP=
+  return 1
 }
 set_item_value() {
-  pkg="$1"; uid="$2"; state="$3"; tmp="$CONF.yulong-list.$$"
+  pkg="$1"; uid="$2"; state="$3"
+  tmp=$(mktemp "$CONF.yulong-list.XXXXXX") || return 1
+  _FW_TEMP=$tmp
   awk -F'|' -v OFS='|' -v pkg="$pkg" -v uid="$uid" -v state="$state" '
     BEGIN {inlist=0; seen=0; inserted=0}
     $0=="[list:yulong_app_firewall]" {
@@ -82,9 +96,14 @@ set_item_value() {
       if(inlist && !inserted && state=="1"){print pkg,uid,state; inserted=1}
       if(!seen && state=="1"){print ""; print "[list:yulong_app_firewall]"; print pkg,uid,state}
     }
-  ' "$CONF" > "$tmp"
-  [ -s "$tmp" ] || { rm -f "$tmp"; return 1; }
-  chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _FW_TEMP=; return 1; }
+  if [ -s "$tmp" ] && [ ! -L "$CONF" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then
+    _FW_TEMP=
+    return 0
+  fi
+  rm -f "$tmp"
+  _FW_TEMP=
+  return 1
 }
 resolve_uid() {
   pkg="$1"
@@ -169,8 +188,17 @@ EOF
   }
   remove_hook "$ipt" "$old"; remove_hook "$ip6t" "$old"
   clear_chain "$ipt" "$old"; clear_chain "$ip6t" "$old"
-  printf '%s\n' "$next" > "$ACTIVE.tmp.$$"
-  chmod 600 "$ACTIVE.tmp.$$" && mv -f "$ACTIVE.tmp.$$" "$ACTIVE"
+  _FW_TEMP=$(mktemp "$ACTIVE.XXXXXX") || {
+    echo "unable to create private firewall active marker" >&2; return 10;
+  }
+  printf '%s\n' "$next" > "$_FW_TEMP" || {
+    rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to write firewall active marker" >&2; return 10;
+  }
+  if [ ! -L "$ACTIVE" ] && chmod 600 "$_FW_TEMP" && mv -f "$_FW_TEMP" "$ACTIVE"; then
+    _FW_TEMP=
+  else
+    rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to install firewall active marker" >&2; return 10
+  fi
   echo "firewall=1"
   echo "blocked_packages=$(printf '%s\n' "$resolved" | wc -l | tr -d ' ')"
 }
@@ -182,10 +210,11 @@ with_lock() {
     sleep 1
   done
   cleanup_lock() {
+    [ -z "$_FW_TEMP" ] || rm -f "$_FW_TEMP" 2>/dev/null || :
+    [ -z "$_FW_BACKUP" ] || rm -f "$_FW_BACKUP" 2>/dev/null || :
+    [ -z "$_FW_RESTORE" ] || rm -f "$_FW_RESTORE" 2>/dev/null || :
     rmdir "$LOCK" 2>/dev/null || :
   }
-  # Signal handlers must exit into EXIT cleanup; never unlock and then resume
-  # a config/firewall mutation without owning the transaction lock.
   trap cleanup_lock EXIT
   trap 'exit 129' HUP
   trap 'exit 130' INT
@@ -193,16 +222,32 @@ with_lock() {
   "$@"
 }
 mutate_transaction() {
-  backup="$CONF.yulong-rollback.$$"
-  cp -p "$CONF" "$backup" || return 1
-  if ! "$@"; then rm -f "$backup"; return 1; fi
-  if apply_rules; then rm -f "$backup"; return 0; fi
-  cp -p "$backup" "$CONF.restore.$$" && chmod 600 "$CONF.restore.$$" \
-    && mv -f "$CONF.restore.$$" "$CONF" || {
-      rm -f "$backup"; echo "firewall config rollback failed" >&2; return 11;
-    }
+  op="$1"; shift
+  _FW_BACKUP=$(mktemp "$CONF.yulong-rollback.XXXXXX") || return 1
+  backup="$_FW_BACKUP"
+  if ! cp -p "$CONF" "$backup" || ! chmod 600 "$backup"; then
+    rm -f "$backup"; _FW_BACKUP=; return 1
+  fi
+  if ! "$op" "$@"; then
+    rm -f "$backup"; _FW_BACKUP=; return 1
+  fi
+  if apply_rules; then
+    rm -f "$backup"; _FW_BACKUP=; return 0
+  fi
+  _FW_RESTORE=$(mktemp "$CONF.restore.XXXXXX") || {
+    rm -f "$backup"; _FW_BACKUP=; echo "unable to create private firewall restore temp" >&2; return 11;
+  }
+  if cp -p "$backup" "$_FW_RESTORE" && chmod 600 "$_FW_RESTORE" \
+      && [ ! -L "$CONF" ] && mv -f "$_FW_RESTORE" "$CONF"; then
+    _FW_RESTORE=
+  else
+    rm -f "$_FW_RESTORE" "$backup"; _FW_RESTORE=; _FW_BACKUP=
+    echo "firewall config rollback failed" >&2
+    return 11
+  fi
   apply_rules >/dev/null 2>&1 || echo "previous config restored; firewall reconcile failed" >&2
   rm -f "$backup"
+  _FW_BACKUP=
   return 1
 }
 cmd="${1:-list}"
