@@ -29,6 +29,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.Base64;
 import java.util.concurrent.Executors;
 
 /** Dia 23.11 data-management migration into the unified FX app. */
@@ -123,32 +127,147 @@ public final class FxDiaBackupActivity extends Activity {
                     byte[] buf=new byte[8192];int n;
                     while((n=in.read(buf))!=-1){bytes.write(buf,0,n);if(bytes.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB，拒绝恢复。");}
                 }
-                JSONObject backup=new JSONObject(new String(bytes.toByteArray(),StandardCharsets.UTF_8));
-                if(!"FX-DIA-BACKUP-1".equals(backup.optString("schema")))throw new IllegalArgumentException("备份版本不兼容。");
-                String encoded=backup.getString("module_settings_b64");
-                byte[] module=android.util.Base64.decode(encoded,android.util.Base64.DEFAULT);
-                String expected=backup.getString("module_settings_sha256");
-                if(!expected.equalsIgnoreCase(sha(module)))throw new IllegalArgumentException("模块配置 SHA-256 不匹配，文件可能已损坏。");
-                java.io.File temp=new java.io.File(getCacheDir(),"fx-dia-settings.restore");
-                try(OutputStream out=new java.io.FileOutputStream(temp)){out.write(module);out.flush();out.getFD().sync();}
-                String path=temp.getAbsolutePath();
-                String command="set -e; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; "
-                        +"test -d \\"$PG\\" && test -f \\"$CONF\\"; "
-                        +"cp -p \\"$CONF\\" \\"$CONF.fx-dia-rollback\\"; "
-                        +"cp "+quote(path)+" \\"$CONF.fx-dia-new\\"; chmod 0600 \\"$CONF.fx-dia-new\\"; "
-                        +"actual=$(sha256sum \\"$CONF.fx-dia-new\\" | cut -d ' ' -f1); "
-                        +"test \\"$actual\\" = "+quote(expected)+"; mv -f \\"$CONF.fx-dia-new\\" \\"$CONF\\"; "
-                        +"if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then rm -f \\"$CONF.fx-dia-rollback\\"; "
-                        +"else mv -f \\"$CONF.fx-dia-rollback\\" \\"$CONF\\"; sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || :; exit 31; fi";
-                RootAccess.Result applied=RootAccess.execute(command,120000L,MAX_BACKUP_BYTES);
-                if(applied.exitCode!=0)throw new IllegalStateException("模块配置恢复/应用失败："+safe(applied.output));
-                JSONObject prefs=backup.getJSONObject("preferences");
-                for(String name:new String[]{"MainActivity","shield_prefs","stellar_command_whitelist","fx_hook_publish"})
-                    if(prefs.has(name))restorePrefs(name,prefs.getJSONObject(name));
-                runOnUiThread(()->status.setText("恢复成功：FX 配置已校验、原子替换并重新应用；Hook、护盾和 Stellar 本地规则已恢复。"));
+                restoreBackupBytes(bytes.toByteArray());
+                runOnUiThread(()->status.setText("恢复成功：配置、Hook、护盾和 Stellar 记录已恢复。"));
             }catch(Exception e){runOnUiThread(()->status.setText("恢复失败："+e.getMessage()));}
         });
     }
+
+    private byte[] createBackupPayload() throws Exception {
+        RootAccess.Result r=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
+        if(r.exitCode!=0)throw new IllegalStateException("读取模块配置失败："+safe(r.output));
+        JSONObject backup=buildBackup(r.output.trim());
+        byte[] payload=backup.toString(2).getBytes(StandardCharsets.UTF_8);
+        if(payload.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
+        return payload;
+    }
+
+    private void restoreBackupBytes(byte[] payload) throws Exception {
+        if(payload==null||payload.length==0||payload.length>MAX_BACKUP_BYTES)
+            throw new IllegalArgumentException("备份数据为空或超过 1 MiB。");
+        JSONObject backup=new JSONObject(new String(payload,StandardCharsets.UTF_8));
+        if(!"FX-DIA-BACKUP-1".equals(backup.optString("schema")))
+            throw new IllegalArgumentException("备份版本不兼容。");
+        String encoded=backup.getString("module_settings_b64");
+        byte[] module=android.util.Base64.decode(encoded,android.util.Base64.DEFAULT);
+        String expected=backup.getString("module_settings_sha256");
+        if(!expected.equalsIgnoreCase(sha(module)))
+            throw new IllegalArgumentException("模块配置 SHA-256 不匹配，文件可能已损坏。");
+        java.io.File temp=new java.io.File(getCacheDir(),"fx-dia-settings.restore");
+        try(OutputStream out=new java.io.FileOutputStream(temp)){out.write(module);out.flush();out.getFD().sync();}
+        String restoreCommand="set -e; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; "
+                +"test -d \\"$PG\\" && test -f \\"$CONF\\"; "
+                +"cp -p \\"$CONF\\" \\"$CONF.fx-dia-rollback\\"; "
+                +"cp "+quote(temp.getAbsolutePath())+" \\"$CONF.fx-dia-new\\"; chmod 0600 \\"$CONF.fx-dia-new\\"; "
+                +"actual=$(sha256sum \\"$CONF.fx-dia-new\\" | cut -d ' ' -f1); "
+                +"test \\"$actual\\" = "+quote(expected)+"; mv -f \\"$CONF.fx-dia-new\\" \\"$CONF\\"; "
+                +"if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then rm -f \\"$CONF.fx-dia-rollback\\"; "
+                +"else mv -f \\"$CONF.fx-dia-rollback\\" \\"$CONF\\"; sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || :; exit 31; fi";
+        RootAccess.Result applied=RootAccess.execute(restoreCommand,120000L,MAX_BACKUP_BYTES);
+        if(applied.exitCode!=0)throw new IllegalStateException("模块配置恢复/应用失败："+safe(applied.output));
+        JSONObject prefs=backup.getJSONObject("preferences");
+        for(String name:new String[]{"MainActivity","shield_prefs","stellar_command_whitelist","fx_hook_publish"})
+            if(prefs.has(name))restorePrefs(name,prefs.getJSONObject(name));
+    }
+
+    private String githubContentsUrl(String owner,String repo,String path) throws Exception {
+        StringBuilder encoded=new StringBuilder();
+        String[] parts=path.split("/");
+        for(String part:parts){if(encoded.length()>0)encoded.append('/');encoded.append(URLEncoder.encode(part,"UTF-8").replace("+","%20"));}
+        return "https://api.github.com/repos/"+owner+"/"+repo+"/contents/"+encoded;
+    }
+
+    private JSONObject githubRequest(String url,String token,String method,JSONObject body) throws Exception {
+        HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
+        c.setRequestMethod(method);c.setConnectTimeout(15000);c.setReadTimeout(25000);
+        c.setRequestProperty("Accept","application/vnd.github+json");
+        c.setRequestProperty("X-GitHub-Api-Version","2022-11-28");
+        c.setRequestProperty("Authorization","Bearer "+token);
+        if(body!=null){
+            c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");
+            try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}
+        }
+        int code=c.getResponseCode();
+        InputStream stream=code>=200&&code<300?c.getInputStream():c.getErrorStream();
+        byte[] data=new byte[0];
+        if(stream!=null)try(InputStream in=stream){ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("GitHub 响应超过 1 MiB。");}data=b.toByteArray();}
+        c.disconnect();
+        if(code<200||code>=300)throw new IllegalStateException("GitHub API HTTP "+code+"："+new String(data,StandardCharsets.UTF_8));
+        return data.length==0?new JSONObject():new JSONObject(new String(data,StandardCharsets.UTF_8));
+    }
+
+    private void githubUpload(String owner,String repo,String path,String branch,String token){
+        status.setText("正在创建加密校验备份并上传 GitHub…");
+        worker.execute(()->{
+            try{
+                byte[] payload=createBackupPayload();
+                String url=githubContentsUrl(owner,repo,path);
+                JSONObject prior=null;String sha=null;
+                try{prior=githubRequest(url,token,"GET",null);sha=prior.optString("sha",null);}
+                catch(Exception notFound){if(notFound.getMessage()==null||!notFound.getMessage().contains("HTTP 404"))throw notFound;}
+                JSONObject body=new JSONObject();
+                body.put("message","FX Dia configuration backup");
+                body.put("content",Base64.getEncoder().encodeToString(payload));
+                body.put("branch",branch);
+                if(sha!=null&&!sha.isEmpty())body.put("sha",sha);
+                githubRequest(url,token,"PUT",body);
+                runOnUiThread(()->status.setText("GitHub 备份上传成功："+owner+"/"+repo+"/"+path));
+            }catch(Exception e){runOnUiThread(()->status.setText("GitHub 上传失败："+e.getMessage()));}
+        });
+    }
+
+    private void githubDownload(String owner,String repo,String path,String token){
+        status.setText("正在从 GitHub 下载备份…");
+        worker.execute(()->{
+            try{
+                JSONObject response=githubRequest(githubContentsUrl(owner,repo,path),token,"GET",null);
+                String content=response.optString("content","").replace("\\n","");
+                byte[] payload=Base64.getMimeDecoder().decode(content);
+                restoreBackupBytes(payload);
+                runOnUiThread(()->status.setText("GitHub 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
+            }catch(Exception e){runOnUiThread(()->status.setText("GitHub 下载/恢复失败："+e.getMessage()));}
+        });
+    }
+
+    private HttpURLConnection webdavConnection(String url,String username,String password,String method) throws Exception {
+        if(url==null||!url.startsWith("https://"))throw new IllegalArgumentException("WebDAV 必须使用 HTTPS。");
+        HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
+        c.setRequestMethod(method);c.setConnectTimeout(15000);c.setReadTimeout(25000);
+        String auth=Base64.getEncoder().encodeToString((username+":"+password).getBytes(StandardCharsets.UTF_8));
+        c.setRequestProperty("Authorization","Basic "+auth);
+        return c;
+    }
+
+    private void webdavUpload(String url,String username,String password){
+        status.setText("正在上传 WebDAV 备份…");
+        worker.execute(()->{
+            try{
+                byte[] payload=createBackupPayload();
+                HttpURLConnection c=webdavConnection(url,username,password,"PUT");
+                c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");
+                try(OutputStream out=c.getOutputStream()){out.write(payload);}
+                int code=c.getResponseCode();c.disconnect();
+                if(code<200||code>=300)throw new IllegalStateException("WebDAV PUT HTTP "+code);
+                runOnUiThread(()->status.setText("WebDAV 备份上传成功。"));
+            }catch(Exception e){runOnUiThread(()->status.setText("WebDAV 上传失败："+e.getMessage()));}
+        });
+    }
+
+    private void webdavDownload(String url,String username,String password){
+        status.setText("正在从 WebDAV 下载备份…");
+        worker.execute(()->{
+            try{
+                HttpURLConnection c=webdavConnection(url,username,password,"GET");
+                int code=c.getResponseCode();
+                if(code<200||code>=300){c.disconnect();throw new IllegalStateException("WebDAV GET HTTP "+code);}
+                ByteArrayOutputStream b=new ByteArrayOutputStream();
+                try(InputStream in=c.getInputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB。");}}
+                c.disconnect();restoreBackupBytes(b.toByteArray());
+                runOnUiThread(()->status.setText("WebDAV 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
+            }catch(Exception e){runOnUiThread(()->status.setText("WebDAV 下载/恢复失败："+e.getMessage()));}
+        });
+    }
+
     private String safe(String s){return s==null||s.trim().isEmpty()?"Root 后端没有返回错误详情。":s.trim();}
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);
@@ -160,6 +279,39 @@ public final class FxDiaBackupActivity extends Activity {
         body.addView(text("注意：模块配置包含 VPN 节点凭据、DNS 和过滤设置。请将备份保存在可信位置，不要公开分享。",12,0xffb45309,true));
         body.addView(button("导出本地 JSON 备份",this::exportBackup));
         body.addView(button("从 JSON 备份恢复",this::importBackup));
+        EditText ghOwner=new EditText(this);ghOwner.setSingleLine(true);ghOwner.setHint("GitHub 仓库 Owner");
+        EditText ghRepo=new EditText(this);ghRepo.setSingleLine(true);ghRepo.setHint("GitHub 仓库名");
+        EditText ghPath=new EditText(this);ghPath.setSingleLine(true);ghPath.setText("backups/fx-dia-backup.json");
+        EditText ghBranch=new EditText(this);ghBranch.setSingleLine(true);ghBranch.setText("main");
+        EditText ghToken=new EditText(this);ghToken.setSingleLine(true);ghToken.setHint("Fine-grained Token（Contents: Read/Write）");ghToken.setInputType(129);
+        body.addView(text("GitHub Contents 远程备份",14,0xff17212b,true));
+        body.addView(ghOwner);body.addView(ghRepo);body.addView(ghPath);body.addView(ghBranch);body.addView(ghToken);
+        body.addView(button("上传到 GitHub",()->{
+            String o=ghOwner.getText().toString().trim(),r=ghRepo.getText().toString().trim(),p=ghPath.getText().toString().trim(),b=ghBranch.getText().toString().trim(),t=ghToken.getText().toString().trim();
+            if(o.isEmpty()||r.isEmpty()||p.isEmpty()||t.isEmpty()){status.setText("请填写完整 GitHub 仓库和 Token。");return;}
+            githubUpload(o,r,p,b.isEmpty()?"main":b,t);
+        }));
+        body.addView(button("从 GitHub 恢复",()->{
+            String o=ghOwner.getText().toString().trim(),r=ghRepo.getText().toString().trim(),p=ghPath.getText().toString().trim(),t=ghToken.getText().toString().trim();
+            if(o.isEmpty()||r.isEmpty()||p.isEmpty()||t.isEmpty()){status.setText("请填写完整 GitHub 仓库和 Token。");return;}
+            new AlertDialog.Builder(this).setTitle("确认 GitHub 恢复").setMessage("将覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。")
+                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->githubDownload(o,r,p,t)).show();
+        }));
+        EditText davUrl=new EditText(this);davUrl.setSingleLine(true);davUrl.setHint("https://dav.example.com/path/fx-dia-backup.json");
+        EditText davUser=new EditText(this);davUser.setSingleLine(true);davUser.setHint("WebDAV 用户名");
+        EditText davPass=new EditText(this);davPass.setSingleLine(true);davPass.setHint("WebDAV 应用密码");davPass.setInputType(129);
+        body.addView(text("WebDAV 远程备份",14,0xff17212b,true));
+        body.addView(davUrl);body.addView(davUser);body.addView(davPass);
+        body.addView(button("上传到 WebDAV",()->{
+            String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
+            if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}webdavUpload(u,n,p);
+        }));
+        body.addView(button("从 WebDAV 恢复",()->{
+            String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
+            if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}
+            new AlertDialog.Builder(this).setTitle("确认 WebDAV 恢复").setMessage("将覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。")
+                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->webdavDownload(u,n,p)).show();
+        }));
         status=text("尚未执行备份或恢复。",12,0xff526170,false);body.addView(status);
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
