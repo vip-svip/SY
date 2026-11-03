@@ -43,8 +43,8 @@ attach = source[source.index("private void attachToGadgetAndResume()"):
                  source.index("private void stopGadgetSession()")]
 stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
-if "currentInjectorPath()" in attach or "frida-inject" in attach:
-    raise SystemExit("FAIL: remote Gadget session must use frida CLI, not frida-inject")
+if "currentInjectorPath()" in attach or "String injector" in attach:
+    raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach or "sh -c" in attach:
     raise SystemExit("FAIL: Frida attach must use the bounded RootAccess command bridge")
 if 'kill "$cli_pid"' not in stop or 'kill "$feed_pid"' not in stop:
@@ -68,6 +68,17 @@ cleanup(){
 }
 trap cleanup EXIT HUP INT TERM
 mkdir -m 700 "$T/logs"
+# The application requires a live target package. Make the mock package
+# deterministic rather than depending on the GitHub runner's process names.
+mkdir -p "$T/bin"
+cat > "$T/bin/ps" <<'PS'
+#!/bin/sh
+printf '  PID NAME\n'
+printf '12345 com.example.debuggable\n'
+PS
+chmod 700 "$T/bin/ps"
+PATH="$T/bin:$PATH"
+export PATH
 
 cat > "$T/frida" <<'MOCK'
 #!/bin/sh
