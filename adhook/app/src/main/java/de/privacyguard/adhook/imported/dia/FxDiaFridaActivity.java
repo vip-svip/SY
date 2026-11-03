@@ -57,6 +57,7 @@ public final class FxDiaFridaActivity extends Activity {
     private TextView targetLabel;
     private String targetPackage;
     private String targetName;
+    private final java.util.LinkedHashSet<String> selectedProcessPids = new java.util.LinkedHashSet<>();
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -200,8 +201,10 @@ public final class FxDiaFridaActivity extends Activity {
 
 
         targetLabel = text("尚未选择目标应用。", 13, 0xff334155, false);
-        card(body, "目标应用", "仅显示用户安装且可调试的应用。非调试版本不会出现在目标列表中。",
-                targetLabel, button("选择调试目标", () -> chooseTarget()));
+        card(body, "目标应用与进程", "仅显示用户安装且可调试的应用。进程选择支持多选；注入时会重新校验 PID 对应的包名，避免 PID 复用后附加到其他应用。",
+                targetLabel,
+                button("选择调试目标", () -> chooseTarget()),
+                button("选择多个运行进程", () -> chooseTargetProcesses()));
 
         script = new EditText(this);
         script.setGravity(Gravity.TOP | Gravity.START);
@@ -720,8 +723,65 @@ public final class FxDiaFridaActivity extends Activity {
                 .setItems(labels, (dialog, which) -> {
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
-                    targetLabel.setText(targetName + "\\n" + targetPackage);
+                    selectedProcessPids.clear();
+                    targetLabel.setText(targetName + "\\n" + targetPackage
+                            + "\\n进程：注入时自动枚举所有当前运行进程");
                 }).setNegativeButton("取消", null).show();
+    }
+
+    private void chooseTargetProcesses() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择 debuggable 目标应用。");
+            return;
+        }
+        String command = "pkg=" + quote(targetPackage)
+                + "; ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1 \"|\" $2}'";
+        runRoot(command, 15000L, result -> {
+            if (result.exitCode != 0 || result.output == null) {
+                setStatus("读取目标进程失败：" + result.output);
+                return;
+            }
+            List<String> pids = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+            for (String line : result.output.split("\\r?\\n")) {
+                String[] parts = line.trim().split("\\|", 2);
+                if (parts.length != 2 || !parts[0].matches("[0-9]{1,10}")) continue;
+                if (!parts[1].equals(targetPackage) && !parts[1].startsWith(targetPackage + ":")) continue;
+                pids.add(parts[0]);
+                labels.add(parts[1] + "  · PID " + parts[0]);
+            }
+            if (pids.isEmpty()) {
+                selectedProcessPids.clear();
+                setStatus("目标应用当前没有运行进程。启动目标应用后可重新选择；注入时也可自动枚举全部进程。");
+                targetLabel.setText(targetName + "\\n" + targetPackage + "\\n当前没有运行进程");
+                return;
+            }
+            boolean[] checked = new boolean[pids.size()];
+            for (int i = 0; i < pids.size(); i++)
+                checked[i] = selectedProcessPids.isEmpty() || selectedProcessPids.contains(pids.get(i));
+            new AlertDialog.Builder(this).setTitle("选择目标进程（可多选）")
+                    .setMultiChoiceItems(labels.toArray(new String[0]), checked,
+                            (dialog, which, enabled) -> checked[which] = enabled)
+                    .setNeutralButton("自动附加全部进程", (dialog, which) -> {
+                        selectedProcessPids.clear();
+                        targetLabel.setText(targetName + "\\n" + targetPackage
+                                + "\\n进程：自动枚举全部运行进程");
+                    })
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("保存进程选择", (dialog, which) -> {
+                        selectedProcessPids.clear();
+                        for (int i = 0; i < pids.size(); i++)
+                            if (checked[i]) selectedProcessPids.add(pids.get(i));
+                        if (selectedProcessPids.isEmpty()) {
+                            targetLabel.setText(targetName + "\\n" + targetPackage
+                                    + "\\n进程：未固定，注入时自动枚举全部运行进程");
+                        } else {
+                            targetLabel.setText(targetName + "\\n" + targetPackage
+                                    + "\\n已选择进程数：" + selectedProcessPids.size());
+                        }
+                    }).show();
+        });
     }
 
     private void loadOriginalExamples() {
@@ -1157,6 +1217,17 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
+        try {
+            ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
+            if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                    || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝注入。");
+                return;
+            }
+        } catch (Throwable missing) {
+            setStatus("目标应用已卸载或不可用，拒绝注入。");
+            return;
+        }
         String source = script.getText() == null ? "" : script.getText().toString();
         if (source.trim().isEmpty() || source.length() > 48 * 1024) {
             setStatus("Frida 脚本为空或超过 48 KiB。");
@@ -1171,20 +1242,38 @@ public final class FxDiaFridaActivity extends Activity {
                 source.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         String scriptPath = "/data/adb/privacyguard/dia-frida/" + targetPackage + ".js";
         String logPath = sessionLogPath();
+        String selected = String.join(" ", selectedProcessPids);
+        String pidSource = selected.isEmpty()
+                ? "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
+                    + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1}'); "
+                : "pids=" + quote(selected) + "; ";
         String command = "set -e; test -x " + quote(injector) + "; "
                 + "mkdir -p /data/adb/privacyguard/dia-frida/logs; "
                 + "printf '%s' " + quote(encoded) + " | base64 -d > " + quote(scriptPath) + "; "
                 + "chmod 600 " + quote(scriptPath) + "; "
                 + ": >> " + quote(logPath) + "; chmod 600 " + quote(logPath) + "; "
-                + "printf '\\n[FX Dia] injection start %s target=%s\\n' \"$(date '+%F %T')\" "
+                + "pkg=" + quote(targetPackage) + "; "
+                + "printf '\\n[FX Dia] multi-process injection start %s target=%s\\n' \"$(date '+%F %T')\" "
                 + quote(targetPackage) + " >> " + quote(logPath) + "; "
-                + "pid=$(pidof " + quote(targetPackage) + " | awk '{print $1}'); "
-                + "case \"$pid\" in ''|*[!0-9]*) echo target-not-running; exit 4;; esac; "
-                + quote(injector) + " -p \"$pid\" -s " + quote(scriptPath)
-                + " >> " + quote(logPath) + " 2>&1";
-        runRoot(command, 45000L, result ->
-                setStatus("注入退出码 " + result.exitCode + "\\n日志文件：" + logPath + "\\n" + result.output));
+                + pidSource
+                + "[ -n \"$pids\" ] || { echo no-running-target-process; exit 4; }; "
+                + "injected=0; failed=0; "
+                + "for pid in $pids; do "
+                + "case \"$pid\" in ''|*[!0-9]*) echo invalid-pid=$pid >> " + quote(logPath) + "; failed=1; continue;; esac; "
+                + "proc=$(ps -A -o PID,NAME 2>/dev/null | awk -v wanted=\"$pid\" '$1==wanted {print $2; exit}'); "
+                + "case \"$proc\" in \"$pkg\"|\"$pkg\":*) ;; *) "
+                + "echo skipped-stale-or-unmatched-pid=$pid >> " + quote(logPath) + "; continue;; esac; "
+                + "echo attach process=$proc pid=$pid >> " + quote(logPath) + "; "
+                + "if " + quote(injector) + " -p \"$pid\" -s " + quote(scriptPath)
+                + " >> " + quote(logPath) + " 2>&1; then injected=$((injected+1)); "
+                + "else rc=$?; failed=1; echo attach-failed pid=$pid exit=$rc >> " + quote(logPath) + "; fi; "
+                + "done; echo attached_processes=$injected; "
+                + "[ \"$injected\" -gt 0 ] || exit 4; [ \"$failed\" -eq 0 ] || exit 5";
+        runRoot(command, 90000L, result ->
+                setStatus("多进程注入退出码 " + result.exitCode + "\\n日志文件：" + logPath
+                        + "\\n" + result.output));
     }
+
 
     private String sessionLogPath() {
         if (targetPackage == null || targetPackage.trim().isEmpty()) return "";
