@@ -5,6 +5,33 @@ Repository: `vip-svip/SY`
 Branch: `fx-v1.0.0-unified-hook-integration`
 Target: `FX 1.0.0`, versionCode `10000`
 
+## Latest continuation update — 2026-11-03
+
+Branch checkpoint at this update: `35514f004a15fc870446e2c195d50a2de5c7f805`.
+
+### Changes since the previous handoff checkpoint
+
+- Dia 23.11 global settings is no longer routed to the generic pending page. `MainActivity.openImportedSuitePage()` now opens `FxDiaGlobalSettingsActivity`, declared non-exported in the Manifest.
+- Added `FxDiaGlobalSettingsActivity.java` with original preference-key mapping from `res/xml/my_settings.xml`. The original `digXposed` namespace is retained with `MODE_PRIVATE`, not the old world-readable mode. Backup routes to the existing encrypted Dia backup activity. Language values are persisted but the original app-wide locale runtime is not claimed migrated. Activation-tip keys are stored but the original EMessage consumers are not yet integrated. LSPosed scope sync, framework-only restart, and standalone Dia updater are explicitly disabled with explanations.
+- Added `FxDiaSystemExpandActivity.java` for the original SystemExpand page. Wi-Fi HTTP proxy routes to the existing FX implementation. `ro.debuggable`, global unknown-source installation, module toggle and package-installer restart remain explicitly unavailable; no unchecked Root property or Package Installer command is issued.
+- Added `scripts/tests/fx-dia-global-settings-registration-regression.sh` and wired it into `.github/workflows/build-fx-adhook.yml`. It checks the native route, private Manifest declarations, original preference keys, backup route, and disabled/unmigrated security-sensitive controls.
+- Network cache lock patcher: the restored-release test fixture uses a different subfetch worker command form from the source fixture. Removed the stale worker-command rewrite from `patch_atomic_cache_lock_release.py`; the per-curl event log remains the diagnostic path. Do not claim the subscription concurrency issue closed until the next host regression run passes.
+
+### Validation at this checkpoint
+
+- Latest Actions run: `41692586086`, commit `35514f004a15fc870446e2c195d50a2de5c7f805`; it was still in progress at the time of this update (DEX staging step). No result is inferred from a running job.
+- Earlier Actions run `41692477232` (commit `7afd6bad...`) failed during restore-stage preflight because the old worker-command trace anchor did not match the restored release fixture. This was the condition addressed by the current patcher change; the new run must verify it.
+- No successful Gradle build, install test or real-device test is recorded for this update. No final APK or KernelSU ZIP was generated or delivered.
+
+### Next tasks
+
+1. Confirm `41692586086` completes restore, all host regressions, the new Dia settings test and Gradle APK verification. Investigate any failure from job logs; do not weaken assertions.
+2. Continue Dia page-by-page migration: Frida WAIT/RESUME/listener and message forwarding; original JS editor and scripts; method/class/field Hook pages; extensions; remaining settings/system expansion controls.
+3. Complete the true LSPosed scope sync adapter only after porting/reviewing Dia's `dialog.box.lsp.LScope` and replacing hard-coded `dialog.box` package identity with the unified FX package. Until then keep the setting visibly unavailable.
+4. Continue Yulong Ad filter engine compatibility and Shield Stellar transport migration.
+5. Preserve honest verification levels. The no-compile/host suite does not prove Android install or OnePlus 12 functionality.
+
+
 ## Hard delivery constraints
 
 - All changes stay on this branch.
