@@ -35,7 +35,7 @@ cat > "$TMP/bin/iptables" <<'IPTABLES'
 echo "iptables $*" >> "$MOCK_LOG"
 case "${3:-}" in
   -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS4"; exit $? ;;
-  -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
+  -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
   -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS4.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
@@ -48,7 +48,7 @@ case "${3:-}" in
   -I)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1
     if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then rm -f "$MOCK_FAIL_IPV6_ONCE"; exit 1; fi
-    printf '%s\\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
+    printf '%s\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
   -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS6.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0

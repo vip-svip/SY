@@ -279,7 +279,7 @@ EOF
     echo "unable to create private firewall active marker; old firewall kept" >&2
     return 10
   }
-  if ! printf '%s\\n' "$next" > "$_FW_TEMP" || ! chmod 600 "$_FW_TEMP"; then
+  if ! printf '%s\n' "$next" > "$_FW_TEMP" || ! chmod 600 "$_FW_TEMP"; then
     rm -f "$_FW_TEMP"; _FW_TEMP=
     clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
     echo "unable to prepare firewall active marker; old firewall kept" >&2
