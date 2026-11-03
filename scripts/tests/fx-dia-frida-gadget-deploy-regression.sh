@@ -17,11 +17,15 @@ deploy = Path(sys.argv[2]).read_text(encoding="utf-8")
 hook = Path(sys.argv[3]).read_text(encoding="utf-8")
 merger = Path(sys.argv[4]).read_text(encoding="utf-8")
 
-for text, label in ((activity, "Activity"), (deploy, "deployment helper")):
-    if "confirmDeployGadgetToTarget" not in text or "deployGadgetToTarget(" not in text:
-        raise SystemExit(f"FAIL: {label} does not expose the Gadget deploy action")
-    if "confirmRemoveGadgetFromTarget" not in text or "removeGadgetFromTarget(" not in text:
-        raise SystemExit(f"FAIL: {label} does not expose the Gadget removal action")
+for label, needle in {
+    "deploy action UI": 'button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget())',
+    "remove action UI": 'button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget())',
+    "deployment command builder": "buildDeployCommand(",
+    "removal command builder": "buildRemoveCommand(",
+}.items():
+    haystack = activity if label.endswith("UI") else deploy
+    if needle not in haystack:
+        raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 for label, needle in {
     "deploy action UI": 'button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget())',
     "remove action UI": 'button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget())',
@@ -37,14 +41,12 @@ for label, needle in {
     "per-target deploy lock": ".fx-dia-gadget.deploy.lock",
     "source and config symlink rejection": '[ ! -L "$src" ]',
     "target directory symlink rejection": '[ -d "$dest" ] && [ ! -L "$dest" ]',
-    "application UID/GID ownership": 'owner=$(stat -c \\'%u:%g\\' "$dest")',
     "Gadget file hash created": 'libhash=$(sha256sum "$stage/$gadget"',
     "config file hash created": 'confhash=$(sha256sum "$stage/$conf"',
     "marker binds exact package": "package=%s",
     "marker restricts process set": "processes=*",
     "marker binds port": "port=%s",
     "marker is committed after library and config": 'mv "$stage/$marker" "$dest/$marker"; new_m=1',
-    "marker is the last committed file": 'mv "$stage/$marker" "$dest/$marker"; new_m=1\\n        c.append("committed=1',
     "rollback trap": 'trap cleanup 0',
     "remove verifies marker package": 'grep -Fxq "package=$pkg"',
     "remove verifies current library/config hashes": 'FX_GADGET_HASH_CONFLICT',
@@ -52,6 +54,14 @@ for label, needle in {
 }.items():
     if needle not in deploy:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+if 'owner=$(stat -c \'%u:%g\' "$dest")' not in deploy:
+    raise SystemExit("FAIL: deployment does not match staged files to app UID/GID")
+lib_commit = deploy.find('mv "$stage/$gadget" "$dest/$gadget"; new_g=1')
+config_commit = deploy.find('mv "$stage/$conf" "$dest/$conf"; new_c=1')
+marker_commit = deploy.find('mv "$stage/$marker" "$dest/$marker"; new_m=1')
+commit_flag = deploy.find('committed=1; echo FX_GADGET_DEPLOYED')
+if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
+    raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
 for label, needle in {
     "marker schema checked": "MARKER_SCHEMA.equals(record.get(\\"schema\\"))",
     "package identity checked": "expectedPackage.equals(record.get(\\"package\\"))",
