@@ -26,6 +26,7 @@ EOF
 cat > "$TMP/uninstall.sh" <<'EOF'
 #!/bin/sh
 PG=/data/adb/privacyguard
+XDIR=/data/local/tmp/privacyguard
 EOF
 python3 "$PATCHER" "$TMP"
 python3 - "$TMP/scripts/default.conf" "$TMP/uninstall.sh" "$TMP/service.sh" "$TMP/scripts/yulong-ad-schedule.sh" <<'PY'
