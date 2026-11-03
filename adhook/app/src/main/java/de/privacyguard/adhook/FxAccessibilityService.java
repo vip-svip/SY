@@ -72,7 +72,7 @@ public final class FxAccessibilityService extends AccessibilityService {
                 if (volumeUpCount >= 6 && now - lastRescueTrigger > 10000L) {
                     lastRescueTrigger = now;
                     volumeUpCount = 0;
-                    FxYulongRescueNotifier.notify(this, "连续按下音量上键，已触发安全护盾提醒。");
+                    de.privacyguard.adhook.imported.shield.FxYulongProtectionService.notifyRescue(this, "连续按下音量上键，已触发安全护盾提醒。");
                 }
             }
         }
