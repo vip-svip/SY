@@ -68,22 +68,19 @@ for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, roo
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
 
-# Release artifacts carry two stale-lock tests that build their temp paths
-# from TMPDIR. Older copies escaped the dollar sign inside double quotes, so
-# mktemp received a literal TMPDIR placeholder and failed before testing ownership.
-_stale_tmp_old = 'T=$(mktemp -d "' + chr(92) + chr(36) + '{TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")'
-_stale_tmp_new = 'T=$(mktemp -d "' + chr(36) + '{TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")'
+# Release artifacts carry two stale-lock tests whose temp-directory suffixes
+# differ between published versions. Normalize only the escaped TMPDIR prefix;
+# keep each release's original unique suffix and accept already-correct copies.
+_stale_tmp_old_prefix = 'mktemp -d "' + chr(92) + chr(36) + '{TMPDIR:-/tmp}/'
+_stale_tmp_new_prefix = 'mktemp -d "' + chr(36) + '{TMPDIR:-/tmp}/'
 for _stale_test in (subfetch_stale_owner_test, subfetch_stale_reclaim_test):
     _stale_text = _stale_test.read_text(encoding="utf-8")
-    if _stale_tmp_new not in _stale_text:
-        if _stale_text.count(_stale_tmp_old) != 1:
-            raise SystemExit(
-                f"{_stale_test}: expected exactly one escaped TMPDIR fixture or its corrected form"
-            )
-        _stale_text = _stale_text.replace(_stale_tmp_old, _stale_tmp_new, 1)
+    if _stale_tmp_old_prefix in _stale_text:
+        _stale_text = _stale_text.replace(_stale_tmp_old_prefix, _stale_tmp_new_prefix)
         _stale_test.write_text(_stale_text, encoding="utf-8")
-    if _stale_tmp_old in _stale_test.read_text(encoding="utf-8"):
-        raise SystemExit(f"{_stale_test}: escaped TMPDIR template remains after normalization")
+    _stale_text = _stale_test.read_text(encoding="utf-8")
+    if _stale_tmp_old_prefix in _stale_text or _stale_tmp_new_prefix not in _stale_text:
+        raise SystemExit(f"{_stale_test}: TMPDIR mktemp template is not safely expanded")
 
 # A waiter can race the old owner's rm-pid/rmdir-lock sequence. In that window
 # cat lock/pid fails and set -e terminates the waiting worker.
