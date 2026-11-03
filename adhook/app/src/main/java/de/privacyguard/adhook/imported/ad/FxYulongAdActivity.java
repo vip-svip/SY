@@ -77,6 +77,44 @@ public final class FxYulongAdActivity extends Activity {
        dnsSwitch("阻止明文 DNS","block_plain_dns"),
        dnsSwitch("阻止 IPv6","block_ipv6"),
        dnsSwitch("跟踪域名保护","block_track_domains"));
+  android.widget.RadioGroup responseGroup=new android.widget.RadioGroup(this);
+  responseGroup.setOrientation(android.widget.RadioGroup.VERTICAL);
+  android.widget.RadioButton responseNx=new android.widget.RadioButton(this);
+  responseNx.setText("NXDOMAIN（标准不存在响应）");
+  responseNx.setId(View.generateViewId());
+  android.widget.RadioButton responseRefused=new android.widget.RadioButton(this);
+  responseRefused.setText("REFUSED（拒绝查询）");
+  responseRefused.setId(View.generateViewId());
+  android.widget.RadioButton responseNull=new android.widget.RadioButton(this);
+  responseNull.setText("返回空地址 0.0.0.0 / ::");
+  responseNull.setId(View.generateViewId());
+  responseGroup.addView(responseNx);
+  responseGroup.addView(responseRefused);
+  responseGroup.addView(responseNull);
+  responseGroup.check(responseNx.getId());
+  TextView responseState=txt("正在读取 DNS 返回模式…",12,0xff617080,false);
+  card("DNS 拦截返回模式",
+       "选择被广告/黑名单规则拦截的域名如何响应。默认 NXDOMAIN；自定义模式返回空地址，不会修改未命中的 DNS 查询。",
+       responseGroup,
+       btn("保存返回模式",()->{
+         int chosen=responseGroup.getCheckedRadioButtonId();
+         String mode=chosen==responseRefused.getId()?"refused"
+             :chosen==responseNull.getId()?"custom_ip":"nxdomain";
+         root("dns-response-set "+mode,r->{
+           if(r.exitCode==0)responseState.setText("已保存并应用："+mode);
+           else responseState.setText("保存失败："+safe(r.output));
+         });
+       }),
+       responseState);
+  root("dns-response-get",r->{
+    if(r.exitCode!=0){responseState.setText("读取失败："+safe(r.output));return;}
+    String mode="nxdomain";
+    for(String line:r.output.split("\\\\r?\\\\n"))
+      if(line.startsWith("mode="))mode=line.substring(5).trim();
+    responseGroup.check("refused".equals(mode)?responseRefused.getId()
+        :"custom_ip".equals(mode)?responseNull.getId():responseNx.getId());
+    responseState.setText("当前模式："+mode);
+  });
   EditText customServers=new EditText(this);
   customServers.setSingleLine(false);customServers.setMinLines(2);
   customServers.setHint("IPv4 / https://DoH / tls://DoT / quic://DoQ");
