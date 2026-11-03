@@ -2,6 +2,9 @@
 # KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=/data/adb/privacyguard
+if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
+  sh "$MODDIR/scripts/yulong-app-firewall.sh" uninstall >/dev/null 2>&1 || :
+fi
 REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
 if [ -f "$REMOVER" ]; then
   sh "$REMOVER" "$MODDIR" "$STATE_DIR"

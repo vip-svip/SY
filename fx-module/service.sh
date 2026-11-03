@@ -108,6 +108,10 @@ if [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
 fi
 sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
 _rc=$?
+if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
+  sh "$MODDIR/scripts/yulong-app-firewall.sh" apply >> "$PG/boot.log" 2>&1 || \
+    echo "[$(date '+%m-%d %H:%M:%S')] Yulong per-app firewall deferred; FX main startup continues" >> "$PG/boot.log"
+fi
 if [ "$_rc" -eq 0 ] && [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" mark-applied "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN applied-state commit failed" >> "$PG/boot.log"
 fi

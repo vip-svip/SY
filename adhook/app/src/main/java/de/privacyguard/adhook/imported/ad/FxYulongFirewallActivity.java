@@ -1,0 +1,211 @@
+package de.privacyguard.adhook.imported.ad;
+
+import android.app.Activity;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Typeface;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Switch;
+import android.widget.TextView;
+
+import de.privacyguard.adhook.RootAccess;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** Native Yulong 7.0.1 per-app firewall UI; separate from FX's per-app VPN route. */
+public final class FxYulongFirewallActivity extends Activity {
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private LinearLayout rows;
+    private TextView status;
+    private Switch master;
+    private EditText query;
+    private final List<ApplicationInfo> apps = new ArrayList<>();
+    private final Map<String, String> labels = new HashMap<>();
+    private final Map<String, Boolean> selected = new HashMap<>();
+    private boolean loading = true;
+    private boolean suppressMaster;
+
+    private int dp(float n) {
+        return (int)(n * getResources().getDisplayMetrics().density + 0.5f);
+    }
+    private String scriptCommand(String args) {
+        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
+                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
+                + "if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; "
+                + "then MP=\\"$d\\"; break; fi; done; "
+                + "[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-app-firewall.sh\\" " + args;
+    }
+    private String quote(String s) {
+        return "'" + (s == null ? "" : s.replace("'", "'\\''")) + "'";
+    }
+    private void runRoot(String args, java.util.function.Consumer<RootAccess.Result> callback) {
+        worker.execute(() -> {
+            RootAccess.Result result = RootAccess.execute(scriptCommand(args), 60000L, 1024 * 1024);
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) callback.accept(result);
+            });
+        });
+    }
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value); view.setTextSize(size); view.setTextColor(color);
+        if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        view.setPadding(dp(4), dp(5), dp(4), dp(5)); return view;
+    }
+    private Button button(String value, Runnable action) {
+        Button b = new Button(this); b.setAllCaps(false); b.setText(value);
+        b.setOnClickListener(v -> action.run()); return b;
+    }
+    private void card(String title, String detail, View child) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(14), dp(10), dp(14), dp(10));
+        card.setBackgroundColor(0xfff0f3f7);
+        card.addView(text(title, 16, 0xff17212b, true));
+        card.addView(text(detail, 12, 0xff617080, false));
+        if (child != null) card.addView(child);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(5), dp(12), dp(5)); rows.addView(card, lp);
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xfff7f8fa);
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(10), dp(6), dp(12), dp(6));
+        header.addView(button("‹ 返回", this::finish));
+        header.addView(text("游龙广告插件 · 应用网络拦截", 18, 0xff17212b, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setPadding(0, dp(4), 0, dp(20)); scroll.addView(rows);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+
+        TextView intro = text("按应用 UID 在系统 OUTPUT 链同时阻断 IPv4/IPv6 外连。它独立于 FX 分应用 VPN 路由，不启动第二个 VpnService；默认关闭，只有手动选择应用并启用后才生效。", 13, 0xff617080, false);
+        card("防火墙说明", "系统级应用网络限制", intro);
+        status = text("正在读取设备端防火墙设置…", 13, 0xff526170, false);
+        card("当前状态", "Root 与 IPv4/IPv6 规则应用结果", status);
+        master = new Switch(this); master.setText("启用已选择应用的网络拦截");
+        card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用的规则。", master);
+        query = new EditText(this); query.setSingleLine(true); query.setHint("搜索应用名称或包名");
+        query.setPadding(dp(14), dp(8), dp(14), dp(8));
+        card("应用列表", "选择要完全阻断网络的应用", query);
+        master.setOnCheckedChangeListener((button, checked) -> {
+            if (loading || suppressMaster) return;
+            if (checked && !selected.containsValue(Boolean.TRUE)) {
+                suppressMaster = true; master.setChecked(false); suppressMaster = false;
+                status.setText("启用前至少选择一个应用。"); return;
+            }
+            master.setEnabled(false);
+            runRoot("master " + (checked ? "1" : "0"), result -> {
+                master.setEnabled(true);
+                if (result.exitCode != 0) {
+                    suppressMaster = true; master.setChecked(!checked); suppressMaster = false;
+                    status.setText("防火墙未应用：" + safeOutput(result.output));
+                } else status.setText(checked ? "应用网络拦截已启用。" : "应用网络拦截已关闭。");
+            });
+        });
+        query.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderRows(); }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        runRoot("list", result -> {
+            if (result.exitCode != 0) {
+                loading = false; master.setEnabled(false);
+                status.setText("无法读取防火墙配置：" + safeOutput(result.output)); return;
+            }
+            parseList(result.output); loadApps(); loading = false; renderRows();
+        });
+    }
+    private String safeOutput(String value) {
+        return value == null || value.trim().isEmpty() ? "请确认 FX Hook 已获得 Root 权限。" : value.trim();
+    }
+    private void parseList(String output) {
+        selected.clear();
+        for (String line : (output == null ? "" : output).split("\\r?\\n")) {
+            if (line.startsWith("master=")) {
+                suppressMaster = true; master.setChecked("1".equals(line.substring(7).trim())); suppressMaster = false;
+            } else if (line.startsWith("FXYULONGFW1")) {
+                // header
+            } else {
+                String[] p = line.split("\\|", -1);
+                if (p.length == 3 && p[0].contains(".") && ("0".equals(p[2]) || "1".equals(p[2])))
+                    selected.put(p[0], "1".equals(p[2]));
+            }
+        }
+    }
+    private void loadApps() {
+        apps.clear(); labels.clear(); PackageManager pm = getPackageManager();
+        try {
+            apps.addAll(pm.getInstalledApplications(0));
+            apps.removeIf(info -> info.packageName == null || info.packageName.equals(getPackageName()));
+            apps.sort(Comparator.comparing(info -> {
+                try { return String.valueOf(pm.getApplicationLabel(info)).toLowerCase(Locale.ROOT); }
+                catch (Throwable ignored) { return info.packageName.toLowerCase(Locale.ROOT); }
+            }));
+            for (ApplicationInfo info : apps) {
+                String label;
+                try { label = String.valueOf(pm.getApplicationLabel(info)); }
+                catch (Throwable ignored) { label = info.packageName; }
+                labels.put(info.packageName, label);
+                if (!selected.containsKey(info.packageName)) selected.put(info.packageName, false);
+            }
+        } catch (Throwable error) {
+            status.setText("无法读取应用列表：" + error.getClass().getSimpleName());
+        }
+    }
+    private void renderRows() {
+        if (rows == null || isFinishing()) return;
+        rows.removeViews(4, Math.max(0, rows.getChildCount() - 4));
+        String filter = query.getText() == null ? "" : query.getText().toString().trim().toLowerCase(Locale.ROOT);
+        int shown = 0;
+        for (ApplicationInfo info : apps) {
+            String pkg = info.packageName; String label = labels.getOrDefault(pkg, pkg);
+            if (!filter.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(filter)
+                    && !pkg.toLowerCase(Locale.ROOT).contains(filter)) continue;
+            LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(dp(12), dp(7), dp(12), dp(7));
+            TextView name = text(label, 14, 0xff17212b, true);
+            TextView packageText = text(pkg + " · UID " + info.uid, 10, 0xff718091, false);
+            Switch blocked = new Switch(this); blocked.setText("阻断该应用的全部网络");
+            blocked.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
+            blocked.setOnCheckedChangeListener((button, enabled) -> {
+                button.setEnabled(false);
+                runRoot("set " + quote(pkg) + " " + info.uid + " " + (enabled ? "1" : "0"), result -> {
+                    button.setEnabled(true);
+                    if (result.exitCode != 0) {
+                        button.setChecked(!enabled);
+                        status.setText("应用防火墙更新失败：" + safeOutput(result.output));
+                    } else {
+                        selected.put(pkg, enabled);
+                        status.setText(enabled ? "已加入网络拦截名单。" : "已从网络拦截名单移除。");
+                    }
+                });
+            });
+            item.addView(name); item.addView(packageText); item.addView(blocked);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
+        }
+        if (shown == 0) rows.addView(text("没有匹配的应用。", 13, 0xff617080, false));
+    }
+    @Override protected void onDestroy() {
+        worker.shutdownNow(); super.onDestroy();
+    }
+}
