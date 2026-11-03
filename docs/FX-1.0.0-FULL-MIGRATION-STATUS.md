@@ -56,6 +56,18 @@ published during this migration phase.
   permission-degrade recovery. The current floating bubble is an explicit rescue
   shortcut, not a full clone of the original watchdog.
 
+### Dia 23.11 — direct monitor entry integration
+
+- The original fourth-level HTTP, SQL and algorithm menu entries now open the
+  matching Frida page with the corresponding working script template preloaded.
+  SQL defaults to the SQLite/SQLCipher/WCDB family observer; Native method and
+  key-event entries also preload their matching templates.
+- The templates intentionally record metadata only: HTTP host, SQL call type/
+  argument count/string length/duration, and algorithm call count/duration.
+  They do not serialize authorization headers, SQL values, arguments or results.
+- The target still must be selected explicitly and must be a user-installed
+  debuggable app; template loading never auto-injects or runs against a target.
+
 ### Dia 23.11 — additional integrated work
 
 - Added the native privacy-settings Asset: seven panels covering notifications/

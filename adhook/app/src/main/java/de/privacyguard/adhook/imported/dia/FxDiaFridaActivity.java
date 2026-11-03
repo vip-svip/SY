@@ -199,6 +199,20 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 ClassLoader 观察", () -> loadDiaMonitorTemplate("classloader")),
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
+
+        // Dia fourth-level monitor pages open with their matching executable template,
+        // rather than landing on an unrelated generic Frida editor.
+        if ("HTTP 监控".equals(title)) {
+            loadDiaMonitorTemplate("http");
+        } else if ("SQL 监控".equals(title)) {
+            loadDiaMonitorTemplate("sqlcipher");
+        } else if ("算法监控".equals(title)) {
+            loadDiaMonitorTemplate("algorithm");
+        } else if ("Native 方法".equals(title)) {
+            loadDiaMonitorTemplate("native");
+        } else if ("按键控制".equals(title)) {
+            loadDiaMonitorTemplate("key");
+        }
     }
 
     private void pickScript() {
