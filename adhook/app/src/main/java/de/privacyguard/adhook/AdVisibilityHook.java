@@ -168,7 +168,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> advertisingIdHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();\n    private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
@@ -320,6 +320,11 @@ public final class AdVisibilityHook extends XposedModule {
                         || rule.action == DeveloperHookRule.Action.RETURN_FALSE) {
                     installDeveloperBooleanTestHook(param.getClassLoader(), pkg,
                             debuggableTarget, rule.descriptor, rule.action, rule.id);
+                } else if (rule.action == DeveloperHookRule.Action.RETURN_NULL
+                        || rule.action == DeveloperHookRule.Action.RETURN_ZERO
+                        || rule.action == DeveloperHookRule.Action.RETURN_EMPTY_STRING) {
+                    installDeveloperTypedReturnHook(param.getClassLoader(), pkg,
+                            debuggableTarget, rule.descriptor, rule.action, rule.id);
                 }
             }
         }
@@ -407,6 +412,62 @@ public final class AdVisibilityHook extends XposedModule {
     private boolean targetDeveloperOptIn(String packageName) {
         UnifiedHookConfigParser.Target target = targets.get(packageName);
         return target != null && target.developerHooksEnabled;
+    }
+
+    private void installDeveloperTypedReturnHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
+        if (descriptor == null || !MemberTestGate.isEnabled(
+                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
+        try {
+            DeveloperExecutableDescriptor parsed =
+                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)) return;
+            java.lang.reflect.Executable executable = parsed.resolve(loader);
+            if (!(executable instanceof Method)
+                    || developerTypedReturnHookedExecutables.contains(executable)) return;
+            final Object fixed;
+            switch (action) {
+                case RETURN_NULL:
+                    if (!(parsed.returnDescriptor.startsWith("L")
+                            || parsed.returnDescriptor.startsWith("["))) return;
+                    fixed = null;
+                    break;
+                case RETURN_ZERO:
+                    switch (parsed.returnDescriptor) {
+                        case "B": fixed = Byte.valueOf((byte) 0); break;
+                        case "C": fixed = Character.valueOf((char) 0); break;
+                        case "S": fixed = Short.valueOf((short) 0); break;
+                        case "I": fixed = Integer.valueOf(0); break;
+                        case "J": fixed = Long.valueOf(0L); break;
+                        case "F": fixed = Float.valueOf(0F); break;
+                        case "D": fixed = Double.valueOf(0D); break;
+                        default: return;
+                    }
+                    break;
+                case RETURN_EMPTY_STRING:
+                    if (!"Ljava/lang/String;".equals(parsed.returnDescriptor)) return;
+                    fixed = "";
+                    break;
+                default:
+                    return;
+            }
+            final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
+            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        long count = hits.incrementAndGet();
+                        if (count == 1L || count % 100L == 0L) {
+                            logFx(Log.INFO, "developer typed fixture hit=" + label
+                                    + " package=" + packageName + " count=" + count);
+                        }
+                        return fixed;
+                    });
+            developerTypedReturnHookedExecutables.add(executable);
+            logFx(Log.INFO, "developer typed fixture installed=" + label
+                    + " package=" + packageName + " method=" + parsed.name);
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "developer typed fixture failed open=" + label
+                    + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
+        }
     }
 
     private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,

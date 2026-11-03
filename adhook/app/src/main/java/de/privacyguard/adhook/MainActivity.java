@@ -4451,7 +4451,7 @@ public final class MainActivity extends ComponentActivity {
         EditText action = new EditText(this);
         action.setSingleLine(true);
         action.setText("OBSERVE");
-        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE");
+        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING");
         EditText priority = new EditText(this);
         priority.setSingleLine(true);
         priority.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
@@ -4461,8 +4461,9 @@ public final class MainActivity extends ComponentActivity {
 
         TextView help = new TextView(this);
         help.setText("支持 Java 精确签名、Smali/JVM 描述符和旧式零参数 boolean 签名。"
-                + "RETURN_TRUE/FALSE 仅支持当前 debuggable 目标包内的零参数 boolean 方法；"
-                + "其他签名只能 OBSERVE。观察日志不记录参数值、返回值、口令或令牌。");
+                + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
+                + "RETURN_ZERO 仅支持数值原语；RETURN_EMPTY_STRING 仅支持 String。"
+                + "所有替换动作只对 debuggable 目标生效；观察日志不记录参数值、返回值、口令或令牌。");
         help.setTextSize(12);
         help.setTextColor(0xff687681);
         help.setPadding(0, dp(6), 0, dp(8));
@@ -4480,8 +4481,9 @@ public final class MainActivity extends ComponentActivity {
                     String actionText = action.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
                     String priorityText = priority.getText().toString().trim();
                     if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
-                            && !"RETURN_FALSE".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE 或 RETURN_FALSE。")
+                            && !"RETURN_FALSE".equals(actionText) && !"RETURN_NULL".equals(actionText)
+                            && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO 或 RETURN_EMPTY_STRING。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -4580,7 +4582,7 @@ public final class MainActivity extends ComponentActivity {
         input.setMinLines(8);
         input.setHint("[{\\"id\\":\\"observe1\\",\\"descriptor\\":\\"com.example.Foo#run()Z\\",\\"action\\":\\"OBSERVE\\",\\"priority\\":0}]");
         new AlertDialog.Builder(this).setTitle("批量导入自定义 Hook 规则")
-                .setMessage("接受 OBSERVE、RETURN_TRUE、RETURN_FALSE；RETURN_* 仅限 debuggable 目标包中的零参数 boolean 方法。JSON 可用 enabled:false 暂停规则。")
+                .setMessage("接受 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING；所有 RETURN_* 仅对 debuggable 目标开放，且按签名限制返回类型。JSON 可用 enabled:false 暂停规则。")
                 .setView(input)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("验证并导入", (dialog, which) -> {
@@ -4612,8 +4614,9 @@ public final class MainActivity extends ComponentActivity {
                             int priority = item.optInt("priority", 0);
                             boolean enabled = item.optBoolean("enabled", true);
                             if (!"OBSERVE".equals(action) && !"RETURN_TRUE".equals(action)
-                                    && !"RETURN_FALSE".equals(action))
-                                throw new IllegalArgumentException("只支持 OBSERVE、RETURN_TRUE 或 RETURN_FALSE。");
+                                    && !"RETURN_FALSE".equals(action) && !"RETURN_NULL".equals(action)
+                                    && !"RETURN_ZERO".equals(action) && !"RETURN_EMPTY_STRING".equals(action))
+                                throw new IllegalArgumentException("不支持该规则动作。");
                             ApplicationInfo currentTarget = findApp(selectedPackage);
                             boolean debugBuild = currentTarget != null
                                     && (currentTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
