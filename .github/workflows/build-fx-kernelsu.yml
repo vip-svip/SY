@@ -25,10 +25,21 @@ jobs:
           source_dir="$RUNNER_TEMP/fx-dia-source-intake"
           mkdir -p "$source_dir"
           gh run download 41538478144 --repo vip-svip/SY --name fx-apk-source-intake --dir "$source_dir"
-          dex="$(find "$source_dir" -type f -path '*/Dia_23.11_src/assets/android_framework.dex' -print -quit)"
-          test -s "$dex"
-          install -D -m 0644 "$dex" adhook/app/src/main/assets/dia/android_framework.dex
-          echo "Staged original Dia Android Framework DEX into the single FX APK."
+          dia_root="$(find "$source_dir" -type d -name Dia_23.11_src -print -quit)"
+          [[ -n "$dia_root" ]] || { echo "::error::Dia 23.11 source intake directory is missing."; exit 1; }
+          stage_dia_asset() {
+            local source_rel="$1" target_rel="$2" source_file
+            source_file="$dia_root/assets/$source_rel"
+            [[ -s "$source_file" ]] || { echo "::error::Missing original Dia asset: $source_rel"; exit 1; }
+            install -D -m 0644 "$source_file" "adhook/app/src/main/assets/dia/$target_rel"
+          }
+          stage_dia_asset android_framework.dex android_framework.dex
+          stage_dia_asset fridaJsExample.zip fridaJsExample.zip
+          stage_dia_asset frida_listen_help.md frida_listen_help.md
+          stage_dia_asset rewrite_rule_help.md rewrite_rule_help.md
+          # Dia's Java UI opens dia/my-script.js; the original file lives under assets/js/.
+          stage_dia_asset js/my-script.js my-script.js
+          echo "Staged Dia Framework DEX, Frida examples, both original help files, and the script template into the single FX APK."
       - name: Restore complete module source from Release when checkout is incomplete
         shell: bash
         env:
