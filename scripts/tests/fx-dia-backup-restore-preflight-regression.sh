@@ -49,6 +49,6 @@ assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollb
 assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must never touch Stellar files absent from this backup"
 assert transaction.count("if (stellarFiles.containsKey(name))") >= 1, "commit loop must only replace staged Stellar files"
 assert "|| :; echo FX_DIA_RESTORE_COMMITTED" in transaction, "post-commit cache cleanup failure must not report an already-committed restore as failed"
-assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
+assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new java.io.FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
 print("PASS: Dia backup import validates module bytes, preferences and all allowlisted Stellar hashes before any Root write")
 PY
