@@ -316,11 +316,8 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     }
 
     private Notification buildOngoingNotification() {
-        Intent open = new Intent(this, FxYulongWarningActivity.class);
-        open.putExtra("package_name", packageName);
-        open.putExtra("app_label", label);
-        open.putExtra("reason", message);
-        open.putExtra("severity", "BLACKLIST");
+        Intent open = new Intent(this, FxYulongShieldActivity.class);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, 9023, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Intent stop = new Intent(this, FxYulongProtectionService.class);
@@ -344,7 +341,11 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return;
-        Intent open = new Intent(this, FxYulongShieldActivity.class);
+        Intent open = new Intent(this, FxYulongWarningActivity.class);
+        open.putExtra("package_name", packageName);
+        open.putExtra("app_label", label);
+        open.putExtra("reason", message);
+        open.putExtra("severity", "BLACKLIST");
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, packageName.hashCode(), open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
@@ -360,6 +361,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
 
     private void stopFromPolicy() {
         running = false;
+        FxYulongKeepAliveReceiver.refreshSchedule(this);
         stopSelf();
     }
 
@@ -371,6 +373,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("protect_service_running", false).apply();
         if (thread != null) thread.quitSafely();
+        FxYulongKeepAliveReceiver.refreshSchedule(this);
         stopForeground(true);
         super.onDestroy();
     }
