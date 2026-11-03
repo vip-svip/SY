@@ -49,6 +49,7 @@ public final class UnifiedHookConfigParser {
         public boolean networkTypeSimulation;
         public String simulatedNetworkType;
         public boolean locationSimulation;
+        public boolean locationProviderEnabledSimulation;
         public double simulatedLatitude;
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
@@ -282,7 +283,7 @@ public final class UnifiedHookConfigParser {
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
-            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false, locationProviderEnabledSimulation=false;
             boolean wifiSimulation=false;
             String simulatedWifiSsid=null, simulatedWifiBssid=null;
             boolean networkTypeSimulation=false;
@@ -404,6 +405,7 @@ public final class UnifiedHookConfigParser {
                     case "wifi_simulate": wifiSimulation = on; break;
                     case "network_type_simulate": networkTypeSimulation = on; break;
                     case "location_simulate": locationSimulation = on; break;
+                    case "location_provider_enabled_simulate": locationProviderEnabledSimulation = on; break;
                     case "android_id_simulate": androidIdSimulation = on; break;
                     case "time_zone_simulate": timeZoneSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
@@ -443,7 +445,10 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("location coordinates require location_simulate=1");
             if (locationSimulation && locationAccessBlock)
                 throw new IllegalArgumentException("location simulation conflicts with location access blocking");
+            if (locationProviderEnabledSimulation && locationAccessBlock)
+                throw new IllegalArgumentException("provider-enabled simulation conflicts with location access blocking");
             parsedTarget.locationSimulation = locationSimulation;
+            parsedTarget.locationProviderEnabledSimulation = locationProviderEnabledSimulation;
             if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
             if (simulatedLongitude != null) parsedTarget.simulatedLongitude = simulatedLongitude;
             parsedTarget.simulatedAccuracy = simulatedAccuracy;

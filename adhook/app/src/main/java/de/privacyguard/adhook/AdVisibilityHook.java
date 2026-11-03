@@ -162,6 +162,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean wifiInfoSimulationHooksInstalled;
     private volatile boolean networkTypeSimulationHooksInstalled;
     private volatile boolean locationSimulationHooksInstalled;
+    private volatile boolean locationProviderEnabledHooksInstalled;
     private volatile boolean timeZoneSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
@@ -278,6 +279,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
         final boolean networkTypeSimulationForPackage = target != null && target.networkTypeSimulation && debuggableTarget;
         final boolean locationSimulationForPackage = target != null && target.locationSimulation && debuggableTarget;
+        final boolean locationProviderEnabledSimulationForPackage = target != null && target.locationProviderEnabledSimulation && debuggableTarget;
         final boolean androidIdSimulationForPackage = target != null && target.androidIdSimulation && debuggableTarget;
         final boolean timeZoneSimulationForPackage = target != null && target.timeZoneSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
@@ -288,7 +290,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -302,7 +304,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (wifiSimulationForPackage) installWifiInfoSimulationHooks(pkg);
         if (networkTypeSimulationForPackage) installNetworkTypeSimulationHooks(pkg);
-        if (locationSimulationForPackage) installLocationSimulationHooks(pkg);
+        if (locationSimulationForPackage || locationProviderEnabledSimulationForPackage) installLocationSimulationHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
@@ -1060,6 +1062,37 @@ public final class AdVisibilityHook extends XposedModule {
     private synchronized boolean installLocationSimulationHooks(final String pkg) {
         if (locationSimulationHooksInstalled) return true;
         int installed = 0;
+        // Dia's optional "pretend GPS is on" setting is kept separate from
+        // coordinate spoofing. It reports provider availability only to this
+        // explicitly selected debuggable target; Android permission checks remain real.
+        try {
+            Class<?> manager = Class.forName("android.location.LocationManager", false, null);
+            for (final Method method : manager.getDeclaredMethods()) {
+                final String name = method.getName();
+                final Class<?>[] parameters = method.getParameterTypes();
+                final boolean providerQuery = "isProviderEnabled".equals(name)
+                        && method.getReturnType() == boolean.class
+                        && parameters.length == 1 && parameters[0] == String.class;
+                final boolean locationQuery = "isLocationEnabled".equals(name)
+                        && method.getReturnType() == boolean.class && parameters.length == 0;
+                if (!providerQuery && !locationQuery) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                if (active != null && debuggablePackages.contains(currentPackage)
+                                        && active.locationProviderEnabledSimulation) return Boolean.TRUE;
+                                return chain.proceed();
+                            });
+                    locationProviderEnabledHooksInstalled = true;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "Location provider-state simulation unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.DEBUG, "Location provider-state simulation API unavailable");
+        }
+
         try {
             Class<?> type = Class.forName("android.location.LocationManager", false, null);
             for (final Method method : type.getDeclaredMethods()) {

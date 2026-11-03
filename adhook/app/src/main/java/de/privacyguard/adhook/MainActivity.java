@@ -4654,7 +4654,12 @@ public final class MainActivity extends ComponentActivity {
         Switch simulateLocation = new Switch(this);
         simulateLocation.setText("启用此应用的 GPS 测试位置");
         simulateLocation.setChecked(getPreferences(0).getBoolean(selectedPackage + ":location_simulate", false));
+        Switch providerEnabledSimulation = new Switch(this);
+        providerEnabledSimulation.setText("在此应用中模拟 GPS 服务已开启");
+        providerEnabledSimulation.setChecked(getPreferences(0).getBoolean(
+                selectedPackage + ":location_provider_enabled_simulate", false));
         simulateLocation.setEnabled(targetDebuggable);
+        providerEnabledSimulation.setEnabled(targetDebuggable);
         gpsLatitude.setEnabled(targetDebuggable);
         gpsLongitude.setEnabled(targetDebuggable);
         gpsAccuracy.setEnabled(targetDebuggable);
@@ -4664,29 +4669,28 @@ public final class MainActivity extends ComponentActivity {
         saveLocation.setEnabled(targetDebuggable);
         saveLocation.setOnClickListener(v -> {
             boolean enabled = simulateLocation.isChecked();
+            boolean providerEnabled = providerEnabledSimulation.isChecked();
             String latitudeText = gpsLatitude.getText().toString().trim();
             String longitudeText = gpsLongitude.getText().toString().trim();
             String accuracyText = gpsAccuracy.getText().toString().trim();
             try {
-                if (!enabled) {
-                    getPreferences(0).edit().putBoolean(selectedPackage + ":location_simulate", false).apply();
-                    publishConfig();
-                    return;
+                android.content.SharedPreferences.Editor gpsEditor = getPreferences(0).edit()
+                        .putBoolean(selectedPackage + ":location_simulate", enabled)
+                        .putBoolean(selectedPackage + ":location_provider_enabled_simulate", providerEnabled);
+                if (enabled) {
+                    double lat = Double.parseDouble(latitudeText);
+                    double lon = Double.parseDouble(longitudeText);
+                    float accuracy = Float.parseFloat(accuracyText.isEmpty() ? "5" : accuracyText);
+                    if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90d || lat > 90d
+                            || Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180d || lon > 180d
+                            || Float.isNaN(accuracy) || Float.isInfinite(accuracy) || accuracy < 0f || accuracy > 1000f) {
+                        throw new IllegalArgumentException("坐标或精度超出范围。");
+                    }
+                    gpsEditor.putString(selectedPackage + ":location_lat", Double.toString(lat))
+                            .putString(selectedPackage + ":location_lon", Double.toString(lon))
+                            .putString(selectedPackage + ":location_accuracy", Float.toString(accuracy));
                 }
-                double lat = Double.parseDouble(latitudeText);
-                double lon = Double.parseDouble(longitudeText);
-                float accuracy = Float.parseFloat(accuracyText.isEmpty() ? "5" : accuracyText);
-                if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90d || lat > 90d
-                        || Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180d || lon > 180d
-                        || Float.isNaN(accuracy) || Float.isInfinite(accuracy) || accuracy < 0f || accuracy > 1000f) {
-                    throw new IllegalArgumentException("坐标或精度超出范围。");
-                }
-                getPreferences(0).edit()
-                        .putBoolean(selectedPackage + ":location_simulate", true)
-                        .putString(selectedPackage + ":location_lat", Double.toString(lat))
-                        .putString(selectedPackage + ":location_lon", Double.toString(lon))
-                        .putString(selectedPackage + ":location_accuracy", Float.toString(accuracy))
-                        .apply();
+                gpsEditor.apply();
                 publishConfig();
             } catch (Exception invalid) {
                 new AlertDialog.Builder(this).setTitle("GPS 参数无效")
@@ -4711,6 +4715,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(gpsAccuracy);
         content.addView(mapPicker);
         content.addView(simulateLocation);
+        content.addView(providerEnabledSimulation);
         content.addView(saveLocation);
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
@@ -5325,7 +5330,7 @@ public final class MainActivity extends ComponentActivity {
                 String[] keys={"member_diag","privacy","exif_strip",
                     "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
                     "notification_permission_hide","ad_id_unify","mic_silence","camera_access_block","location_access_block",
-                    "location_simulate","android_id_simulate","time_zone_simulate",
+                    "location_simulate","location_provider_enabled_simulate","android_id_simulate","time_zone_simulate",
                     "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
                     "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
                 StringBuilder row=new StringBuilder(p);
@@ -5353,6 +5358,10 @@ public final class MainActivity extends ComponentActivity {
                     row.append(",location_lat=").append(lat)
                             .append(",location_lon=").append(lon)
                             .append(",location_accuracy=").append(accuracy);
+                    has = true;
+                }
+                if (enabled(p, "location_provider_enabled_simulate")) {
+                    row.append(",location_provider_enabled_simulate=1");
                     has = true;
                 }
                 if (enabled(p, "android_id_simulate")) {

@@ -679,3 +679,11 @@ After each implementation batch:
 - Disabling restores the saved original value only if the system setting still equals the value last written by FX. When another app or the user has changed it, FX reports a conflict and leaves the external value untouched.
 - Default state remains disabled. No ADB/Wireless Debugging pairing implementation is claimed by this Root-only migration.
 - Source-only commit on the unified branch; no intermediate APK/KernelSU ZIP was generated.
+
+
+## Dia 23.11 — GPS provider-enabled simulation migration
+
+- Added an independent per-target option for the original `gps_open_server` behavior. In a selected debuggable target, FX can report `LocationManager.isProviderEnabled()` / `isLocationEnabled()` as enabled without changing actual GPS hardware/provider state.
+- The option is separate from coordinate spoofing and from the location-access-block policy. FX does not fake Android permission grants; the OS permission checks remain authoritative.
+- The native per-app GPS editor now saves the provider-state option with the existing coordinate fixture and publishes both through the unified LSPosed Remote Files config.
+- Source-only commit; no package was generated.
