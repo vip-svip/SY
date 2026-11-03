@@ -365,6 +365,17 @@ PY
 grep -Fq 'application_node = manifest_root.find("application")' "$MERGE_HOOK" || fail "APK merge must edit the existing application tree without dropping its components"
 grep -Fq 'ET.tostring(manifest_root' "$MERGE_HOOK" || fail "APK merge must serialize the retained application tree"
 grep -q 'xposedmodule' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "LSPosed module metadata missing from merged APK"
+python3 - "$ROOT/adhook/app/src/main/res/values/xposed_scope.xml" "$ROOT/adhook/app/src/main/resources/META-INF/xposed/module.prop" "$ROOT/adhook/app/src/main/resources/META-INF/xposed/scope.list" <<'PY'
+import pathlib, sys, xml.etree.ElementTree as ET
+resource, module_prop, scope_list = map(pathlib.Path, sys.argv[1:])
+root = ET.parse(resource).getroot()
+scope = root.find("string-array[@name='xposed_scope']")
+assert scope is not None and len(scope) == 0, "legacy xposedscope resource must exist without silently enabling every app"
+properties = dict(line.split("=", 1) for line in module_prop.read_text().splitlines() if "=" in line)
+assert properties.get("staticScope") == "false", "modern libxposed scope must remain user-configurable"
+assert not scope_list.read_text().strip(), "dynamic scope must not hardcode arbitrary target apps"
+print("PASS: legacy Xposed scope resource resolves and modern libxposed scope remains dynamic")
+PY
 grep -q 'new ProcessBuilder("su", "-c", command)' "$ROOT_ACCESS" || fail "KernelSU su executor missing"
 grep -q 'command.length() > 131072' "$ROOT_ACCESS" || fail "Root command cap must support 87 KiB config chunks"
 grep -q 'command.length() > 131072' "$BRIDGE" || fail "WebView bridge command cap must support 87 KiB config chunks"
