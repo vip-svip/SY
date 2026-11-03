@@ -149,6 +149,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
     private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
+    private final Set<String> debuggablePackages = ConcurrentHashMap.newKeySet();
     // Settings.Secure.getString is process-global. Register one interceptor per process;
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
@@ -157,6 +158,7 @@ public final class AdVisibilityHook extends XposedModule {
     private static volatile Object processClipboardShadow;
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
+    private volatile boolean wifiInfoSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
@@ -240,6 +242,8 @@ public final class AdVisibilityHook extends XposedModule {
         // All optional per-app policy flags below remain false unless a valid config loaded.
         final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        if (debuggableTarget) debuggablePackages.add(pkg);
+        else debuggablePackages.remove(pkg);
         // Custom Hook is observation-only, explicitly enabled per app, and
         // restricted to debuggable target builds. Production authorization,
         // VIP, login and update decisions are never modified.
@@ -267,6 +271,7 @@ public final class AdVisibilityHook extends XposedModule {
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
+        final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
@@ -275,7 +280,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -286,6 +291,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (clipboardIsolateForPackage) installClipboardIsolationHooks(pkg);
         if (sensorForPackage) installSensorEnumerationHooks(pkg);
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
+        if (wifiSimulationForPackage) installWifiInfoSimulationHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
@@ -949,6 +955,47 @@ public final class AdVisibilityHook extends XposedModule {
      * shared-UID/shared-process cases fail open to avoid affecting another app.
      * Wi-Fi association, DHCP, sockets, VPN routing and DNS are not intercepted.
      */
+    /** Per-app fake SSID/BSSID for explicitly selected debuggable test builds only. */
+    private synchronized boolean installWifiInfoSimulationHooks(final String pkg) {
+        if (wifiInfoSimulationHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.net.wifi.WifiInfo", false, null);
+            for (final Method method : type.getDeclaredMethods()) {
+                final boolean ssid = "getSSID".equals(method.getName())
+                        && method.getParameterTypes().length == 0
+                        && method.getReturnType() == String.class;
+                final boolean bssid = "getBSSID".equals(method.getName())
+                        && method.getParameterTypes().length == 0
+                        && method.getReturnType() == String.class;
+                if (!ssid && !bssid) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (active != null && debuggablePackages.contains(activePackage)
+                                        && active.wifiSimulation) {
+                                    String value = ssid ? active.simulatedWifiSsid : active.simulatedWifiBssid;
+                                    if (value != null && !value.isEmpty()) return value;
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "Wi-Fi simulation hook unavailable: " + method.getName());
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "WifiInfo unavailable; test simulation remains inactive");
+            return false;
+        }
+        wifiInfoSimulationHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "debug-only Wi-Fi SSID/BSSID simulation hooks installed=" + installed + " for " + pkg);
+        return wifiInfoSimulationHooksInstalled;
+    }
+
     private synchronized boolean installWifiScanPrivacyHooks(final String pkg) {
         if (wifiScanHooksInstalled) return true;
         int installed = 0;
