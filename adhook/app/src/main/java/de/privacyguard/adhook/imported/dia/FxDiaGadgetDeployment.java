@@ -154,7 +154,7 @@ public final class FxDiaGadgetDeployment {
         c.append("  [ \"$old_m\" != 1 ] || mv \"$backup/$marker\" \"$dest/$marker\" 2>/dev/null || :;\nfi\n");
         c.append("  [ -z \"$stage\" ] || rm -rf \"$stage\"; rmdir \"$lock\" 2>/dev/null || :; return \"$rc\"; }\n");
         c.append("trap cleanup 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM\n");
-        c.append("owner=$(stat -c '%u:%g' \"$dest\"); case \"$owner\" in *[!0-9:]*|:*) echo FX_GADGET_BAD_OWNER; exit 34;; esac\n");
+        c.append("owner=$(stat -c '%u:%g' \"$dest\"); case \"$owner\" in *[!0-9:]*|:*|0:*|*:0) echo FX_GADGET_BAD_OWNER; exit 34;; esac\n");
         c.append("stage=$(mktemp -d \"$dest/.fx-dia-gadget-deploy.XXXXXX\"); [ -d \"$stage\" ] && [ ! -L \"$stage\" ]; backup=\"$stage/backup\"; mkdir \"$backup\"\n");
         c.append("if [ -e \"$dest/$gadget\" ] || [ -e \"$dest/$conf\" ] || [ -e \"$dest/$marker\" ] || [ -L \"$dest/$gadget\" ] || [ -L \"$dest/$conf\" ] || [ -L \"$dest/$marker\" ]; then\n");
         c.append("  [ -f \"$dest/$marker\" ] && [ ! -L \"$dest/$marker\" ] && [ -f \"$dest/$gadget\" ] && [ ! -L \"$dest/$gadget\" ] && [ -f \"$dest/$conf\" ] && [ ! -L \"$dest/$conf\" ] || { echo FX_GADGET_EXISTING_FILE_CONFLICT; exit 35; }\n");
@@ -167,33 +167,33 @@ public final class FxDiaGadgetDeployment {
         c.append("printf 'schema=%s\\npackage=%s\\nprocesses=*\\nlibrary_sha256=%s\\nconfig_sha256=%s\\nport=%s\\n' ")
                 .append(q(MARKER_SCHEMA)).append(" \"$pkg\" \"$libhash\" \"$confhash\" \"$port\" > \"$stage/$marker\"\n");
         c.append("chown \"$owner\" \"$stage/$gadget\" \"$stage/$conf\" \"$stage/$marker\"; chmod 0755 \"$stage/$gadget\"; chmod 0644 \"$stage/$conf\" \"$stage/$marker\"\n");
+        c.append("if command -v restorecon >/dev/null 2>&1; then restorecon \"$stage/$gadget\" \"$stage/$conf\" \"$stage/$marker\" 2>/dev/null || :; fi\n");
         c.append("mv \"$stage/$gadget\" \"$dest/$gadget\"; new_g=1\n");
         c.append("mv \"$stage/$conf\" \"$dest/$conf\"; new_c=1\n");
         c.append("mv \"$stage/$marker\" \"$dest/$marker\"; new_m=1\n");
-        c.append("committed=1; echo FX_GADGET_DEPLOYED; echo package=$pkg; echo nativeLibraryDir=$dest; echo port=$port\n");
-        return c.toString();
-    }
-
-    public static String buildRemoveCommand(String nativeDir, String packageName) {
+        public static String buildRemoveCommand(String nativeDir, String packageName) {
         StringBuilder c = new StringBuilder();
         c.append("set -eu\n");
         c.append("dest=").append(q(nativeDir)).append("\npkg=").append(q(packageName)).append("\n");
         c.append("gadget=").append(q(GADGET_NAME)).append("\nconf=").append(q(CONFIG_NAME))
                 .append("\nmarker=").append(q(MARKER_NAME)).append("\n");
         c.append("[ -d \"$dest\" ] && [ ! -L \"$dest\" ]\n");
-        c.append("[ -f \"$dest/$marker\" ] && [ ! -L \"$dest/$marker\" ] || { echo FX_GADGET_NOT_DEPLOYED; exit 0; }\n");
-        c.append("grep -Fxq 'schema=").append(MARKER_SCHEMA).append("' \"$dest/$marker\" && grep -Fxq \"package=$pkg\" \"$dest/$marker\" || { echo FX_GADGET_MARKER_CONFLICT; exit 38; }\n");
-        c.append("[ -f \"$dest/$gadget\" ] && [ ! -L \"$dest/$gadget\" ] && [ -f \"$dest/$conf\" ] && [ ! -L \"$dest/$conf\" ] || { echo FX_GADGET_FILE_CONFLICT; exit 39; }\n");
-        c.append("old_l=$(sed -n 's/^library_sha256=//p' \"$dest/$marker\" | head -1); old_c=$(sed -n 's/^config_sha256=//p' \"$dest/$marker\" | head -1)\n");
-        c.append("[ -n \"$old_l\" ] && [ -n \"$old_c\" ] && [ \"$(sha256sum \"$dest/$gadget\" | awk '{print $1}')\" = \"$old_l\" ] && [ \"$(sha256sum \"$dest/$conf\" | awk '{print $1}')\" = \"$old_c\" ] || { echo FX_GADGET_HASH_CONFLICT; exit 40; }\n");
         c.append("lock=\"$dest/.fx-dia-gadget.deploy.lock\"; [ ! -L \"$lock\" ] || exit 32; mkdir \"$lock\" 2>/dev/null || { echo FX_GADGET_DEPLOY_BUSY; exit 33; }\n");
-        c.append("stage=$(mktemp -d \"$dest/.fx-dia-gadget-remove.XXXXXX\"); cleanup(){ rc=$?; if [ -d \"$stage\" ]; then\n");
+        c.append("stage=; cleanup(){ rc=$?; if [ -n \"$stage\" ] && [ -d \"$stage\" ]; then\n");
         c.append("  [ ! -e \"$stage/$marker\" ] || mv \"$stage/$marker\" \"$dest/$marker\" 2>/dev/null || :;\n");
         c.append("  [ ! -e \"$stage/$conf\" ] || mv \"$stage/$conf\" \"$dest/$conf\" 2>/dev/null || :;\n");
         c.append("  [ ! -e \"$stage/$gadget\" ] || mv \"$stage/$gadget\" \"$dest/$gadget\" 2>/dev/null || :;\n");
         c.append("  rm -rf \"$stage\"; fi; rmdir \"$lock\" 2>/dev/null || :; return \"$rc\"; }\n");
         c.append("trap cleanup 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM\n");
+        c.append("stage=$(mktemp -d \"$dest/.fx-dia-gadget-remove.XXXXXX\"); [ -d \"$stage\" ] && [ ! -L \"$stage\" ]\n");
+        c.append("[ -f \"$dest/$marker\" ] && [ ! -L \"$dest/$marker\" ] || { echo FX_GADGET_NOT_DEPLOYED; exit 0; }\n");
+        c.append("grep -Fxq 'schema=").append(MARKER_SCHEMA).append("' \"$dest/$marker\" && grep -Fxq \"package=$pkg\" \"$dest/$marker\" || { echo FX_GADGET_MARKER_CONFLICT; exit 38; }\n");
+        c.append("[ -f \"$dest/$gadget\" ] && [ ! -L \"$dest/$gadget\" ] && [ -f \"$dest/$conf\" ] && [ ! -L \"$dest/$conf\" ] || { echo FX_GADGET_FILE_CONFLICT; exit 39; }\n");
+        c.append("old_l=$(sed -n 's/^library_sha256=//p' \"$dest/$marker\" | head -1); old_c=$(sed -n 's/^config_sha256=//p' \"$dest/$marker\" | head -1)\n");
+        c.append("[ -n \"$old_l\" ] && [ -n \"$old_c\" ] && [ \"$(sha256sum \"$dest/$gadget\" | awk '{print $1}')\" = \"$old_l\" ] && [ \"$(sha256sum \"$dest/$conf\" | awk '{print $1}')\" = \"$old_c\" ] || { echo FX_GADGET_HASH_CONFLICT; exit 40; }\n");
         c.append("mv \"$dest/$marker\" \"$stage/$marker\"; mv \"$dest/$conf\" \"$stage/$conf\"; mv \"$dest/$gadget\" \"$stage/$gadget\"; rm -rf \"$stage\"; stage=; trap - 0 HUP INT TERM; rmdir \"$lock\"; echo FX_GADGET_REMOVED\n");
+        return c.toString();
+    }"$stage\"; stage=; trap - 0 HUP INT TERM; rmdir \"$lock\"; echo FX_GADGET_REMOVED\n");
         return c.toString();
     }
 }
