@@ -22,6 +22,9 @@ for label, needle in {
     "remove action UI": 'button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget())',
     "deployment command builder": "buildDeployCommand(",
     "removal command builder": "buildRemoveCommand(",
+    "LSPosed target scope instructions": "在 LSPosed 中启用 FX 对该目标的作用域",
+    "restart after Gadget deployment": "完全停止并重启目标应用",
+    "re-deploy after app update": "需要重新部署",
 }.items():
     haystack = activity if label.endswith("UI") else deploy
     if needle not in haystack:
