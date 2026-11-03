@@ -235,7 +235,7 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (webView != null && !hookUiVisible) {
+        if (webView != null && !hookUiVisible && !settingsUiVisible) {
             webView.onResume();
             webView.resumeTimers();
         }
