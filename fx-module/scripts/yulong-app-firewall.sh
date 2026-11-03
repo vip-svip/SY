@@ -228,16 +228,12 @@ build_chain() {
     for iface in eth+ en+ usb+ rndis+ tun+ wg+ ppp+ tap+ ipsec+; do
       "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
     done
-    # Catch vendor-specific interfaces present in the current sysfs snapshot.
-    for iface_path in "$NET_CLASS"/*; do
-      [ -e "$iface_path" ] || continue
-      iface=${iface_path##*/}
-      case "$iface" in
-        ''|lo|dummy*|ifb*|wlan*|wifi*|swlan*|p2p*|ap*|rmnet*|v4-rmnet*|ccmni*|ccemni*|ccmn*|pdp*|wwan*|eth*|en*|usb*|rndis*|tun*|wg*|ppp*|tap*|ipsec*) continue ;;
-      esac
-      "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
-      rule_added=1
-    done
+    # Unknown/vendor-specific interfaces are deliberately fail-open.
+    # Their transport class cannot be inferred safely from an interface name:
+    # treating every unknown interface as blocked makes a Wi-Fi-only policy
+    # silently block vendor mobile-data interfaces (and vice versa). Known
+    # transports are covered by the explicit wildcard groups above. Add a
+    # vendor prefix only after its transport has been verified on target devices.
     [ "$rule_added" = 0 ] || _FW_BLOCKED_COUNT=$((_FW_BLOCKED_COUNT + 1))
   done <<EOF
 $uids

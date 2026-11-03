@@ -4,6 +4,14 @@ Source branch: `fx-v1.0.0-unified-hook-integration`.
 All changes below are source-tree work only. No final APK/KernelSU package is being
 published during this migration phase.
 
+### Yulong per-app firewall — unknown transport safety
+
+- Corrected a transport-classification hazard in the per-app firewall: unknown/vendor-specific network interfaces are no longer blocked by a catch-all rule.
+- Wi-Fi and mobile restrictions continue to use explicit known interface families; Ethernet, USB, VPN and other named transports retain their explicit fallback rules.
+- Unknown interfaces fail open until their transport class is verified. This avoids silently turning a Wi-Fi-only rule into a block on vendor-specific cellular interfaces, or a mobile-only rule into a block on an unknown Wi-Fi interface.
+- The schedule watcher still reconciles when interface inventory changes. Host regression now asserts that it re-applies while refusing to create a packet-block rule for an unclassified vendor interface.
+- Host regression coverage added; no physical-device vendor-interface classification has been performed.
+
 ### Yulong Ad Plugin 7.0.1 — Tasker broadcast compatibility
 
 - The single FX automation receiver now accepts the original

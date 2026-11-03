@@ -327,14 +327,20 @@ case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
 v2run start-watch > "$V2/watch-start-again.out"
 grep -Fq 'already-running' "$V2/watch-start-again.out" || fail "second start created duplicate watcher"
+before_rebuild=$(grep -cE 'iptables -t filter -F FXYUL_[AB]' "$V2/iptables.log" || true)
 mkdir -p "$V2/net/vendor0"
 sleep 2
 _watch_wait=0
-while ! grep -Eq 'iptables -t filter -A FXYUL_[AB] -o vendor0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log"; do
-  [ "$_watch_wait" -lt 40 ] || fail "watcher did not re-apply after a new vendor network interface appeared within 10 seconds"
+after_rebuild=$before_rebuild
+while [ "$after_rebuild" -le "$before_rebuild" ]; do
+  [ "$_watch_wait" -lt 40 ] || fail "watcher did not re-apply after a new vendor interface appeared within 10 seconds"
   sleep 0.25
+  after_rebuild=$(grep -cE 'iptables -t filter -F FXYUL_[AB]' "$V2/iptables.log" || true)
   _watch_wait=$((_watch_wait + 1))
 done
+if grep -Fq -- '-o vendor0 -m owner --uid-owner' "$V2/iptables.log"; then
+  fail "unknown vendor interface was blocked without transport classification"
+fi
 v2run stop-watch > "$V2/watch-stop.out"
 [ ! -e "$WATCH_PIDFILE" ] || fail "watcher PID file remained after stop"
 v2run uninstall > "$V2/uninstall.out"
