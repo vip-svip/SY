@@ -79,7 +79,7 @@ required_keys = {
 }
 assert required_keys <= editor_keys, "native VPN editor dropped keys: " + ", ".join(sorted(required_keys - editor_keys))
 assert "EditText input = new EditText(this)" in item and 'setPositiveButton("保存"' in item, "native text editor path is missing"
-assert "showNativeVpnAdvancedChoice" in item and "showNativeVpnAdvancedValue" in item, "native choice editor path is missing"
+assert "showNativeVpnAdvancedChoice" in item and "saveNativeVpnAdvancedValue" in item, "native choice/save editor path is missing"
 assert ".setSingleChoiceItems(" in choice and 'setPositiveButton("应用"' in choice, "native choice dialog is incomplete"
 assert 'native-vpn-config.sh' in save and "shellQuote(key)" in save and "shellQuote(value)" in save, "native config write does not quote both arguments"
 assert "String.valueOf(value)" in quote and ".replace(" in quote, "shell argument quoting is not present"
