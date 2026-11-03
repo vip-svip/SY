@@ -2816,8 +2816,12 @@ public final class MainActivity extends ComponentActivity {
                 case "时间与时区":
                     showAppList("时间与时区模拟");
                     return;
-                case "JS 脚本列表": case "脚本编辑器": case "JSON 操作":
+                case "JS 脚本列表": case "脚本编辑器":
                     openImportedNativeTab(3);
+                    return;
+                case "JSON 操作":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaJsonActivity.class));
                     return;
                 case "规则组": case "规则列表":
                     showAppList("自定义 Hook");

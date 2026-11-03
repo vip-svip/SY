@@ -110,5 +110,6 @@
         <activity android:name=".imported.dia.FxDiaSignatureActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaActivityBrowserActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaInspectorActivity" android:exported="false" />
+        <activity android:name=".imported.dia.FxDiaJsonActivity" android:exported="false" />
     </application>
 </manifest>
