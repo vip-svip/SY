@@ -25,6 +25,11 @@ required = {
     "Gadget log directory is private": "chmod 700",
     "Gadget log file is private": "chmod 600",
     "per-port start lock prevents duplicate sessions": ".gadget-$port.start-lock",
+    "existing session record binds target package": "old_pkg=$(sed -n '4p' \"$pidfile\")",
+    "existing session record binds TCP port": "old_port=$(sed -n '5p' \"$pidfile\")",
+    "reattach refuses a different target": "FX_GADGET_SESSION_TARGET_CONFLICT",
+    "stop record validates package": "stored_pkg=$(sed -n '4p' \"$pidfile\")",
+    "stop record validates port": "stored_port=$(sed -n '5p' \"$pidfile\")",
     "start lock is acquired atomically": 'mkdir \\"$start_lock\\"',
     "session script is passed to Frida CLI": '-n Gadget -l',
     "remote endpoint is loopback only": '127.0.0.1:$port',
@@ -129,6 +134,27 @@ trap cleanup_start 0
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [ -s "$pidfile" ]; then
+  old_cli=$(sed -n '1p' "$pidfile")
+  old_feed=$(sed -n '2p' "$pidfile")
+  old_path=$(sed -n '3p' "$pidfile")
+  old_pkg=$(sed -n '4p' "$pidfile")
+  old_port=$(sed -n '5p' "$pidfile")
+  case "$old_cli:$old_feed" in *[!0-9:]*|:*) exit 22;; esac
+  case "$old_port" in ''|*[!0-9]*) exit 22;; esac
+  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_path" = "$script" ] || {
+    echo FX_GADGET_SESSION_TARGET_CONFLICT
+    exit 30
+  }
+  if kill -0 "$old_cli" 2>/dev/null; then
+    old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
+    case "$old_cmd" in *"$old_path"*"127.0.0.1:$port"*Gadget*)
+      echo FX_GADGET_SESSION_ALREADY_RUNNING
+      exit 0;;
+      *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
+    esac
+  fi
+fi
 tmp=$(mktemp "$dir/.gadget-$port.XXXXXX")
 printf 'send("message"); console.log("console");\n' > "$tmp"
 chmod 600 "$tmp"
@@ -167,7 +193,15 @@ pipe="$dir/gadget-$port.stdin"
 cli_pid=$(sed -n '1p' "$pidfile")
 feed_pid=$(sed -n '2p' "$pidfile")
 cli=$(sed -n '3p' "$pidfile")
+stored_pkg=$(sed -n '4p' "$pidfile")
+stored_port=$(sed -n '5p' "$pidfile")
+expected_pkg=$2
 case "$cli_pid:$feed_pid" in *[!0-9:]*|:*) exit 22;; esac
+case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
+[ "$stored_pkg" = "$expected_pkg" ] && [ "$stored_port" = "$port" ] && [ "$cli" = "$dir/gadget-$port.js" ] || {
+  echo FX_GADGET_SESSION_TARGET_CONFLICT
+  exit 30
+}
 if kill -0 "$cli_pid" 2>/dev/null; then
   cmd=$(tr '\000' ' ' < /proc/"$cli_pid"/cmdline 2>/dev/null || :)
   case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*) kill "$cli_pid";;
@@ -194,7 +228,25 @@ grep -Fq "mock-console-log" "$T/logs/gadget-27043.log"
 [ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ]
 [ ! -d "$T/logs/.gadget-27043.start-lock" ]
 
-"$T/stop.sh" "$T/logs" > "$T/stop.result"
+if "$T/start.sh" "$T/frida" "com.example.other" "$T/logs" > "$T/wrong-target-start.result" 2>&1; then
+  echo "FAIL: Gadget reconnect accepted a different target package" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-start.result"
+"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" > "$T/reconnect.result"
+grep -Fq FX_GADGET_SESSION_ALREADY_RUNNING "$T/reconnect.result"
+kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")"
+
+if "$T/stop.sh" "$T/logs" "com.example.other" > "$T/wrong-target-stop.result" 2>&1; then
+  echo "FAIL: Gadget stop accepted a different target package" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-stop.result"
+kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
+  echo "FAIL: wrong-target stop terminated the active session" >&2
+  exit 1
+}
+"$T/stop.sh" "$T/logs" "com.example.debuggable" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
 [ ! -e "$T/logs/gadget-27043.pid" ] && [ ! -e "$T/logs/gadget-27043.stdin" ]
 [ -z "$(find "$T/logs" -maxdepth 1 -name '.gadget-27043.*' -print -quit)" ] || {
