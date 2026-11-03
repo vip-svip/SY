@@ -46,6 +46,8 @@ public final class FxDiaFridaActivity extends Activity {
     private static final String DEFAULT_INJECTOR = "/data/local/tmp/fx-frida/fx-frida-inject";
     private static final String SERVER_PID = "/data/adb/privacyguard/dia-frida-server.pid";
     private static final int REQUEST_EXPORT_LIBRARY = 7105;
+    private static final int REQUEST_CODE_FULL_EDITOR = 0x3039;
+    private static final int MAX_FRIDA_SOURCE_BYTES = 48 * 1024;
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
     private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
@@ -293,6 +295,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "});");
         card(body, "Frida JavaScript", "输入目标应用内的调试脚本；建议只观察应用自有代码和测试接口。",
                 script,
+                button("打开全屏代码编辑器", this::openFullScreenCodeEditor),
                 button("保存到 Frida 脚本库", () -> saveCurrentFridaScript()),
                 button("打开 Frida 脚本库", () -> showFridaScriptLibrary()),
                 button("导出脚本库 JSON 文件", () -> exportFridaScriptLibrary()),
@@ -553,6 +556,24 @@ public final class FxDiaFridaActivity extends Activity {
                         setStatus("保存脚本失败：" + error.getMessage());
                     }
                 }).show();
+    }
+
+
+    private void openFullScreenCodeEditor() {
+        String source = script == null || script.getText() == null
+                ? "" : script.getText().toString();
+        if (source.getBytes(StandardCharsets.UTF_8).length > MAX_FRIDA_SOURCE_BYTES) {
+            setStatus("当前 Frida 脚本超过 48 KiB，无法送入全屏编辑器。");
+            return;
+        }
+        Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
+        intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
+        try {
+            startActivityForResult(intent, REQUEST_CODE_FULL_EDITOR);
+            setStatus("已打开 Dia 全屏代码编辑器；代码只有在保存返回后才会更新到当前脚本。");
+        } catch (Exception error) {
+            setStatus("无法打开全屏代码编辑器：" + error.getClass().getSimpleName());
+        }
     }
 
     private void showFridaScriptLibrary() {
@@ -820,6 +841,22 @@ public final class FxDiaFridaActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_FULL_EDITOR) {
+            if (resultCode == FxDiaCodeEditorActivity.RESULT_CODE_EDITOR && data != null) {
+                String editedSource = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
+                if (editedSource == null) {
+                    setStatus("全屏编辑器返回的代码为空，当前脚本未更改。");
+                } else if (editedSource.getBytes(StandardCharsets.UTF_8).length > MAX_FRIDA_SOURCE_BYTES) {
+                    setStatus("返回代码超过 48 KiB，当前脚本未更改。");
+                } else if (script != null) {
+                    script.setText(editedSource);
+                    setStatus("全屏编辑器内容已回传；尚未执行或注入。");
+                }
+            } else {
+                setStatus("全屏编辑器未保存，当前 Frida 脚本保持不变。");
+            }
+            return;
+        }
         if (requestCode == REQUEST_EXPORT_LIBRARY) {
             String stagedName = pendingFridaLibraryExportFileName;
             pendingFridaLibraryExportFileName = null;

@@ -57,6 +57,9 @@ dependencies {
     // Smooth continuous-corner primitives required by Kyant's upstream LiquidBottomTabs.
     implementation 'io.github.kyant0:capsule:2.1.1'
     implementation 'androidx.webkit:webkit:1.12.1'
+    // Dia 23.11 used Rosemoe Sora CodeEditor and JavaLanguage for its full-screen editor.
+    implementation 'io.github.Rosemoe.sora-editor:editor:0.23.6'
+    implementation 'io.github.Rosemoe.sora-editor:language-java:0.23.6'
     // Modern LSPosed API enables Remote Files, avoiding SELinux-denied reads of /data/local/tmp.
     compileOnly 'io.github.libxposed:api:101.0.1'
     testImplementation 'junit:junit:4.13.2'
