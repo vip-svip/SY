@@ -251,6 +251,45 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
 
+        if ("SQL 监控".equals(title)) {
+            android.content.SharedPreferences sqlPrefs =
+                    getSharedPreferences(PREFS, MODE_PRIVATE);
+            android.widget.CheckBox sqlite = new android.widget.CheckBox(this);
+            sqlite.setText("Android SQLite");
+            sqlite.setChecked(sqlPrefs.getBoolean("sql_monitor_sqlite", true));
+            sqlite.setOnCheckedChangeListener((button, checked) ->
+                    sqlPrefs.edit().putBoolean("sql_monitor_sqlite", checked).apply());
+
+            android.widget.CheckBox sqlcipher = new android.widget.CheckBox(this);
+            sqlcipher.setText("SQLCipher");
+            sqlcipher.setChecked(sqlPrefs.getBoolean("sql_monitor_sqlcipher", true));
+            sqlcipher.setOnCheckedChangeListener((button, checked) ->
+                    sqlPrefs.edit().putBoolean("sql_monitor_sqlcipher", checked).apply());
+
+            android.widget.CheckBox wcdb = new android.widget.CheckBox(this);
+            wcdb.setText("腾讯 WCDB");
+            wcdb.setChecked(sqlPrefs.getBoolean("sql_monitor_wcdb", true));
+            wcdb.setOnCheckedChangeListener((button, checked) ->
+                    sqlPrefs.edit().putBoolean("sql_monitor_wcdb", checked).apply());
+
+            android.widget.CheckBox zetetic = new android.widget.CheckBox(this);
+            zetetic.setText("Zetetic SQLCipher");
+            zetetic.setChecked(sqlPrefs.getBoolean("sql_monitor_zetetic", true));
+            zetetic.setOnCheckedChangeListener((button, checked) ->
+                    sqlPrefs.edit().putBoolean("sql_monitor_zetetic", checked).apply());
+
+            android.widget.CheckBox stack = new android.widget.CheckBox(this);
+            stack.setText("记录最多 8 层调用栈");
+            stack.setChecked(sqlPrefs.getBoolean("sql_monitor_stack", false));
+            stack.setOnCheckedChangeListener((button, checked) ->
+                    sqlPrefs.edit().putBoolean("sql_monitor_stack", checked).apply());
+
+            card(body, "SQL 监控范围",
+                    "选择要观察的数据库实现。默认不记录 SQL 文本、绑定值或查询结果；调用栈会增加日志量，默认关闭。",
+                    sqlite, sqlcipher, wcdb, zetetic, stack,
+                    button("载入当前 SQL 监控配置", () -> loadDiaMonitorTemplate("sqlcipher")));
+        }
+
         // Dia fourth-level monitor pages open with their matching executable template,
         // rather than landing on an unrelated generic Frida editor.
         if ("HTTP 监控".equals(title)) {
@@ -963,10 +1002,37 @@ public final class FxDiaFridaActivity extends Activity {
                         + "  };\\n"
                         + "});";
                 break;
-            case "sqlcipher":
+            case "sqlcipher": {
+                android.content.SharedPreferences sqlPrefs =
+                        getSharedPreferences(PREFS, MODE_PRIVATE);
+                java.util.List<String> databaseClasses = new java.util.ArrayList<>();
+                java.util.List<String> statementClasses = new java.util.ArrayList<>();
+                if (sqlPrefs.getBoolean("sql_monitor_sqlite", true)) {
+                    databaseClasses.add("android.database.sqlite.SQLiteDatabase");
+                    statementClasses.add("android.database.sqlite.SQLiteStatement");
+                }
+                if (sqlPrefs.getBoolean("sql_monitor_sqlcipher", true)) {
+                    databaseClasses.add("net.sqlcipher.database.SQLiteDatabase");
+                    statementClasses.add("net.sqlcipher.database.SQLiteStatement");
+                }
+                if (sqlPrefs.getBoolean("sql_monitor_wcdb", true)) {
+                    databaseClasses.add("com.tencent.wcdb.database.SQLiteDatabase");
+                    statementClasses.add("com.tencent.wcdb.database.SQLiteStatement");
+                }
+                if (sqlPrefs.getBoolean("sql_monitor_zetetic", true)) {
+                    databaseClasses.add("net.zetetic.database.sqlcipher.SQLiteDatabase");
+                    statementClasses.add("net.zetetic.database.sqlcipher.SQLiteStatement");
+                }
+                String databaseJson = new org.json.JSONArray(databaseClasses).toString();
+                String statementJson = new org.json.JSONArray(statementClasses).toString();
+                boolean captureStack = sqlPrefs.getBoolean("sql_monitor_stack", false);
+                String stackCapture = captureStack
+                        ? "var stackText=''; try { stackText=Java.backtrace({limit:8}).frames.map(function(f){return f.className+'.'+f.methodName;}).join(' <- '); } catch (_) {}"
+                        : "var stackText='';";
                 source = "Java.perform(function () {\\n"
-                        + "  var classes = ['android.database.sqlite.SQLiteDatabase', 'net.sqlcipher.database.SQLiteDatabase', 'com.tencent.wcdb.database.SQLiteDatabase'];\\n"
+                        + "  var classes = " + databaseJson + ";\\n"
                         + "  var methods = ['rawQuery', 'execSQL', 'query', 'insert', 'update', 'delete'];\\n"
+                        + "  if (classes.length === 0) { send('[DIA_SQL] no database backend selected'); return; }\\n"
                         + "  classes.forEach(function (className) {\\n"
                         + "    try { var DB = Java.use(className);\\n"
                         + "      methods.forEach(function (methodName) {\\n"
@@ -975,33 +1041,36 @@ public final class FxDiaFridaActivity extends Activity {
                         + "            overload.implementation = function () {\\n"
                         + "              var started = Date.now(); var argCount = arguments.length; var firstLength = -1;\\n"
                         + "              try { if (typeof arguments[0] === 'string') firstLength = arguments[0].length; } catch (_) {}\\n"
+                        + "              " + stackCapture + "\\n"
                         + "              try { var result = overload.apply(this, arguments);\\n"
-                        + "                send('[DIA_SQL] class=' + className + ' method=' + methodName + ' args=' + argCount + ' firstStringLength=' + firstLength + ' elapsedMs=' + (Date.now() - started));\\n"
+                        + "                send('[DIA_SQL] class=' + className + ' method=' + methodName + ' args=' + argCount + ' firstStringLength=' + firstLength + ' elapsedMs=' + (Date.now() - started) + (stackText ? ' stack=' + stackText : ''));\\n"
                         + "                return result;\\n"
-                        + "              } catch (e) { send('[DIA_SQL] class=' + className + ' method=' + methodName + ' exception=' + e.$className); throw e; }\\n"
+                        + "              } catch (e) { send('[DIA_SQL] class=' + className + ' method=' + methodName + ' exception=' + e.$className + ' elapsedMs=' + (Date.now() - started) + (stackText ? ' stack=' + stackText : '')); throw e; }\\n"
                         + "            };\\n"
                         + "          });\\n"
                         + "        } catch (_) {}\\n"
                         + "      });\\n"
                         + "    } catch (_) { send('[DIA_SQL] class unavailable ' + className); }\\n"
                         + "  });\\n"
-                        + "  var statementClasses = ['android.database.sqlite.SQLiteStatement', 'net.sqlcipher.database.SQLiteStatement', 'com.tencent.wcdb.database.SQLiteStatement', 'net.zetetic.database.sqlcipher.SQLiteStatement'];\\n"
+                        + "  var statementClasses = " + statementJson + ";\\n"
                         + "  var statementMethods = ['execute', 'executeInsert', 'executeUpdateDelete', 'simpleQueryForLong', 'simpleQueryForString'];\\n"
                         + "  statementClasses.forEach(function (className) {\\n"
                         + "    try { var ST = Java.use(className);\\n"
                         + "      statementMethods.forEach(function (methodName) {\\n"
                         + "        try { ST[methodName].overloads.forEach(function (overload) {\\n"
-                        + "          overload.implementation = function () { var started = Date.now();\\n"
+                        + "          overload.implementation = function () { var started = Date.now(); " + stackCapture + "\\n"
                         + "            try { var result = overload.apply(this, arguments);\\n"
-                        + "              send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' elapsedMs=' + (Date.now() - started)); return result;\\n"
-                        + "            } catch (e) { send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' exception=' + e.$className + ' elapsedMs=' + (Date.now() - started)); throw e; }\\n"
+                        + "              send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' elapsedMs=' + (Date.now() - started) + (stackText ? ' stack=' + stackText : '')); return result;\\n"
+                        + "            } catch (e) { send('[DIA_SQL] statement class=' + className + ' method=' + methodName + ' exception=' + e.$className + ' elapsedMs=' + (Date.now() - started) + (stackText ? ' stack=' + stackText : '')); throw e; }\\n"
                         + "          };\\n"
                         + "        }); } catch (_) {}\\n"
                         + "      });\\n"
                         + "    } catch (_) { send('[DIA_SQL] statement class unavailable ' + className); }\\n"
                         + "  });\\n"
+                        + "  send('[DIA_SQL] metadata-only observer ready; SQL values and result rows are not logged.');\\n"
                         + "});";
                 break;
+            }
             case "socket":
                 source = "Java.perform(function () {\\n"
                         + "  var Socket = Java.use('java.net.Socket');\\n"
