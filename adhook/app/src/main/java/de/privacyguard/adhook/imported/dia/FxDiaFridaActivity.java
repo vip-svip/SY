@@ -49,8 +49,9 @@ public final class FxDiaFridaActivity extends Activity {
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
     private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
+    private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private String pendingFridaLibraryExport;
+    private String pendingFridaLibraryExportFileName;
 
     private EditText serverPath;
     private EditText injectorPath;
@@ -117,8 +118,79 @@ public final class FxDiaFridaActivity extends Activity {
         return injectorPath.getText() == null ? "" : injectorPath.getText().toString().trim();
     }
 
+    private static boolean isSafePendingLibraryExportName(String name) {
+        return name != null && name.matches("fx-dia-frida-library-[A-Za-z0-9]+\\.tmp");
+    }
+
+    private File stagePendingFridaLibraryExport(String json) throws Exception {
+        if (json == null) throw new IllegalArgumentException("Frida 脚本库为空。");
+        byte[] payload = json.getBytes(StandardCharsets.UTF_8);
+        if (payload.length == 0 || payload.length > MAX_LIBRARY_JSON_BYTES)
+            throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB，无法导出。");
+        File staged = File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir());
+        try (FileOutputStream output = new FileOutputStream(staged, false)) {
+            output.write(payload);
+            output.flush();
+            output.getFD().sync();
+            return staged;
+        } catch (Exception error) {
+            //noinspection ResultOfMethodCallIgnored
+            staged.delete();
+            throw error;
+        } finally {
+            java.util.Arrays.fill(payload, (byte) 0);
+        }
+    }
+
+    private File resolvePendingFridaLibraryExport(String name) throws Exception {
+        if (!isSafePendingLibraryExportName(name))
+            throw new IllegalArgumentException("Frida 脚本库暂存文件名无效。");
+        File cacheRoot = getCacheDir().getCanonicalFile();
+        File candidate = new File(cacheRoot, name);
+        if (java.nio.file.Files.isSymbolicLink(candidate.toPath()))
+            throw new IllegalArgumentException("Frida 脚本库暂存文件不能是符号链接。");
+        File canonical = candidate.getCanonicalFile();
+        if (!cacheRoot.equals(canonical.getParentFile()) || !canonical.isFile() || !canonical.canRead()
+                || canonical.length() <= 0 || canonical.length() > MAX_LIBRARY_JSON_BYTES)
+            throw new IllegalArgumentException("Frida 脚本库暂存文件不存在或大小无效。");
+        return canonical;
+    }
+
+    private void deletePendingFridaLibraryExport(String name) {
+        if (!isSafePendingLibraryExportName(name)) return;
+        try {
+            File cacheRoot = getCacheDir().getCanonicalFile();
+            File candidate = new File(cacheRoot, name);
+            if (java.nio.file.Files.isSymbolicLink(candidate.toPath())) return;
+            File canonical = candidate.getCanonicalFile();
+            if (cacheRoot.equals(canonical.getParentFile())) {
+                //noinspection ResultOfMethodCallIgnored
+                canonical.delete();
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private void cleanupStalePendingLibraryExports(String keepName) {
+        File[] files = getCacheDir().listFiles((dir, name) ->
+                name.startsWith(PENDING_LIBRARY_EXPORT_PREFIX) && name.endsWith(".tmp"));
+        if (files == null) return;
+        long staleBefore = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+        for (File file : files) {
+            if (!file.getName().equals(keepName) && file.lastModified() < staleBefore) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
+    }
+
+
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        String restoredPendingName = state == null ? null : state.getString(STATE_PENDING_LIBRARY_EXPORT);
+        if (isSafePendingLibraryExportName(restoredPendingName))
+            pendingFridaLibraryExportFileName = restoredPendingName;
+        cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName);
         String title = getIntent().getStringExtra("dia_page");
         if (title == null || title.trim().isEmpty()) title = "Frida 环境";
 
@@ -387,18 +459,12 @@ public final class FxDiaFridaActivity extends Activity {
                 gadgetLoadMode.check(gadgetLoadMode.getChildAt(checked).getId());
         }
         if (status != null) status.setText(state.getString("fx_frida_status", "已恢复上次编辑状态。"));
-        String pendingLibrary = state.getString(STATE_PENDING_LIBRARY_EXPORT);
-        if (pendingLibrary != null
-                && pendingLibrary.getBytes(StandardCharsets.UTF_8).length <= MAX_LIBRARY_JSON_BYTES) {
-            pendingFridaLibraryExport = pendingLibrary;
-        }
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        if (pendingFridaLibraryExport != null
-                && pendingFridaLibraryExport.getBytes(StandardCharsets.UTF_8).length <= MAX_LIBRARY_JSON_BYTES) {
-            outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport);
+        if (isSafePendingLibraryExportName(pendingFridaLibraryExportFileName)) {
+            outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName);
         }
         if (serverPath != null) outState.putString("fx_frida_server_path", serverPath.getText().toString());
         if (injectorPath != null) outState.putString("fx_frida_injector_path", injectorPath.getText().toString());
@@ -544,8 +610,10 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void exportFridaScriptLibrary() {
+        File staged = null;
         try {
-            pendingFridaLibraryExport = buildFridaScriptLibraryJson();
+            staged = stagePendingFridaLibraryExport(buildFridaScriptLibraryJson());
+            pendingFridaLibraryExportFileName = staged.getName();
             Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             create.addCategory(Intent.CATEGORY_OPENABLE);
             create.setType("application/json");
@@ -553,9 +621,15 @@ public final class FxDiaFridaActivity extends Activity {
                     .format(new java.util.Date());
             create.putExtra(Intent.EXTRA_TITLE, "FX-Dia-Frida-Scripts-" + stamp + ".json");
             startActivityForResult(create, REQUEST_EXPORT_LIBRARY);
-            setStatus("已准备脚本库 JSON；请在系统文件选择器中选择保存位置。");
+            setStatus("脚本库已安全暂存；请在系统文件选择器中选择保存位置。");
         } catch (Throwable error) {
-            pendingFridaLibraryExport = null;
+            String failedName = pendingFridaLibraryExportFileName;
+            pendingFridaLibraryExportFileName = null;
+            if (staged != null) {
+                //noinspection ResultOfMethodCallIgnored
+                staged.delete();
+            }
+            deletePendingFridaLibraryExport(failedName);
             setStatus("无法准备脚本库导出：" + error.getClass().getSimpleName()
                     + (error.getMessage() == null ? "" : "：" + error.getMessage()));
         }
@@ -745,33 +819,49 @@ public final class FxDiaFridaActivity extends Activity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_EXPORT_LIBRARY) {
-            String json = pendingFridaLibraryExport;
-            pendingFridaLibraryExport = null;
+            String stagedName = pendingFridaLibraryExportFileName;
+            pendingFridaLibraryExportFileName = null;
             if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                deletePendingFridaLibraryExport(stagedName);
                 if (!isFinishing() && !isDestroyed()) setStatus("已取消 Frida 脚本库文件导出。");
                 return;
             }
-            if (json == null || json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES) {
-                setStatus("待导出的 Frida 脚本库内容已失效，请重新导出。");
+            final File staged;
+            try {
+                staged = resolvePendingFridaLibraryExport(stagedName);
+            } catch (Exception invalidPending) {
+                deletePendingFridaLibraryExport(stagedName);
+                setStatus("Frida 脚本库暂存文件已失效，请重新导出。");
                 return;
             }
             Uri destination = data.getData();
             worker.execute(() -> {
-                try (OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
+                String resultMessage;
+                try (InputStream input = new java.io.FileInputStream(staged);
+                     OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
                     if (output == null) throw new IllegalStateException("无法写入所选 JSON 文件。");
-                    output.write(json.getBytes(StandardCharsets.UTF_8));
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    long total = 0;
+                    while ((count = input.read(buffer)) != -1) {
+                        total += count;
+                        if (total > MAX_LIBRARY_JSON_BYTES)
+                            throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB。");
+                        output.write(buffer, 0, count);
+                    }
                     output.flush();
-                    runOnUiThread(() -> {
-                        if (!isFinishing() && !isDestroyed())
-                            setStatus("Frida 脚本库 JSON 文件已导出。");
-                    });
+                    resultMessage = "Frida 脚本库 JSON 文件已导出。";
                 } catch (Throwable error) {
-                    runOnUiThread(() -> {
-                        if (!isFinishing() && !isDestroyed())
-                            setStatus("Frida 脚本库导出失败：" + error.getClass().getSimpleName()
-                                    + (error.getMessage() == null ? "" : "：" + error.getMessage()));
-                    });
+                    resultMessage = "Frida 脚本库导出失败：" + error.getClass().getSimpleName()
+                            + (error.getMessage() == null ? "" : "：" + error.getMessage());
+                } finally {
+                    //noinspection ResultOfMethodCallIgnored
+                    staged.delete();
                 }
+                String message = resultMessage;
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) setStatus(message);
+                });
             });
             return;
         }
