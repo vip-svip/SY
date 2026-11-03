@@ -19,6 +19,14 @@ public final class FxDiaDexIndexTest {
         assertEquals(4, FxDiaDexIndex.instructionWidth(0xfa)); // invoke-polymorphic
     }
 
+    @Test public void customInvokeInstructionsConsumeThreeCodeUnits() {
+        // These opcodes reference call_site_ids rather than method_ids. The
+        // indexer intentionally omits their call edges but must still skip
+        // the complete instruction so later invoke edges remain aligned.
+        assertEquals(3, FxDiaDexIndex.instructionWidth(0xfc)); // invoke-custom
+        assertEquals(3, FxDiaDexIndex.instructionWidth(0xfd)); // invoke-custom/range
+    }
+
     @Test public void singleUnitInstructionsRemainSingleUnit() {
         assertEquals(1, FxDiaDexIndex.instructionWidth(0x00)); // nop
         assertEquals(1, FxDiaDexIndex.instructionWidth(0x12)); // const/4

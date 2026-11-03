@@ -329,7 +329,10 @@ public final class FxDiaDexIndex {
                 || opcode == 0x1b || opcode == 0x24 || opcode == 0x25 || opcode == 0x26
                 || opcode == 0x2a || opcode == 0x2b || opcode == 0x2c
                 || (opcode >= 0x6e && opcode <= 0x72)
-                || (opcode >= 0x74 && opcode <= 0x78)) return 3;
+                || (opcode >= 0x74 && opcode <= 0x78)
+                // invoke-custom and invoke-custom/range reference call_site_ids, not method_ids,
+                // but still occupy three code units and must not desynchronize the scan.
+                || opcode == 0xfc || opcode == 0xfd) return 3;
         if (opcode == 0xfa || opcode == 0xfb) return 4;
         return 1;
     }
