@@ -83,8 +83,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
         card(body, "目标 APK", "只读解析 DEX class/method/field 索引；不加载目标类、不执行目标代码。",
                 target, button("选择已安装应用", this::chooseApp),
                 button("读取 DEX 类名", this::loadDex));
-        card(body, "搜索", "结果只显示类名和来源 APK，不读取目标应用私有数据库或进程内存。",
-                filter, summary);
+        card(body, "搜索", "结果只显示类名、方法/字段签名和来源 APK，不读取目标应用私有数据库或进程内存。",
+                filter, summary, button("导出当前匹配的类/方法/字段签名", this::exportMatches));
         body.addView(results);
         filter.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -203,6 +203,64 @@ public final class FxDiaDexBrowserActivity extends Activity {
         else if (shown >= 300) results.addView(text(
                 "仅显示前 300 个匹配类，请缩小搜索范围。",
                 12, 0xff8a6d3b, false));
+    }
+
+    private void exportMatches() {
+        if (classes.isEmpty()) {
+            summary.setText("尚无可导出的 DEX 索引，请先读取 DEX。");
+            return;
+        }
+        String q = filter.getText() == null ? "" : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder();
+        int emitted = 0;
+        boolean truncated = false;
+        for (FxDiaDexIndex.DexClass item : classes) {
+            String className = item.javaName();
+            boolean classMatch = q.isEmpty() || className.toLowerCase(Locale.ROOT).contains(q)
+                    || item.descriptor.toLowerCase(Locale.ROOT).contains(q);
+            List<FxDiaDexIndex.Member> members = new ArrayList<>();
+            if (classMatch) {
+                members.addAll(item.fields);
+                members.addAll(item.methods);
+            } else {
+                for (FxDiaDexIndex.Member member : item.fields) {
+                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
+                }
+                for (FxDiaDexIndex.Member member : item.methods) {
+                    if (member.display().toLowerCase(Locale.ROOT).contains(q)) members.add(member);
+                }
+            }
+            if (!classMatch && members.isEmpty()) continue;
+            if (out.length() + className.length() + 32 > 512 * 1024 || emitted >= 12000) {
+                truncated = true;
+                break;
+            }
+            out.append("CLASS ").append(item.descriptor).append('\n');
+            for (FxDiaDexIndex.Member member : members) {
+                String line = member.display();
+                if (out.length() + line.length() + 1 > 512 * 1024 || emitted >= 12000) {
+                    truncated = true;
+                    break;
+                }
+                out.append(line).append('\n');
+                emitted++;
+            }
+            if (truncated) break;
+        }
+        if (truncated) out.append("\n# 已达到导出安全上限（512 KiB / 12000 成员）；请缩小搜索条件后再次导出。\n");
+        if (out.length() == 0) {
+            summary.setText("当前搜索条件没有可导出结果。");
+            return;
+        }
+        android.content.ClipboardManager clipboard =
+                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            summary.setText("系统剪贴板不可用。");
+            return;
+        }
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Dia DEX signatures", out.toString()));
+        summary.setText("已复制 " + emitted + " 个成员签名"
+                + (truncated ? "（输出达到安全上限，请进一步缩小搜索）" : "") + "。");
     }
 
     private void showClassMembers(FxDiaDexIndex.DexClass item, List<String> searchMatches) {
