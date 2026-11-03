@@ -28,6 +28,7 @@ assert "buildTransactionalRestoreCommand(" in restore, "module settings and Stel
 assert "previousPreferences" in restore and "error.addSuppressed(rollbackError)" in restore, "failed Root restore must restore app preference snapshots"
 assert "if (!edit.commit())" in source, "backup restore must detect synchronous SharedPreferences persistence failure"
 assert "staged.delete();" in restore and "moduleTemp.delete();" in restore, "restore staging files must be deleted on both success and failure"
+assert "if (!edit.commit())" in source, "backup preferences must be durably committed before Root settings are restored"
 helper_start = source.index("private java.util.Map<String, java.io.File> stageAndValidateStellarFiles(")
 helper_end = source.index("private void validateBackupPreferences(", helper_start)
 helper = source[helper_start:helper_end]
@@ -44,7 +45,7 @@ assert transaction.count("RootAccess.execute") == 0, "Root transaction builder m
 assert r'CONF=\"$PG/settings.conf\"' in transaction, "generated shell variables must use shell quotes, not literal backslash-quote bytes"
 assert r'CONF=\\\"' not in transaction, "Java source must not over-escape generated shell quotes"
 rollback_loop_start = transaction.index("rollback(){")
-rollback_loop_end = transaction.index("if [ \\\"$_fx_config_swapped", rollback_loop_start)
+rollback_loop_end = transaction.index("$_fx_config_swapped", rollback_loop_start)
 rollback_loop = transaction[rollback_loop_start:rollback_loop_end]
 assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from an older/partial backup"
 assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must never touch Stellar files absent from this backup"
