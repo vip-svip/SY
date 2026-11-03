@@ -191,9 +191,6 @@ retained_services = [
 ]
 retained_receivers = retained_components("receiver")
 retained_providers = retained_components("provider")
-retained_components_xml = (
-    retained_activities + retained_services + retained_receivers + retained_providers
-)
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
 # incorrect once the launcher activity contains a self-closing child element.
@@ -234,20 +231,46 @@ app = """<application
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
-        <!-- FX_PRESERVED_MIGRATED_COMPONENTS -->
+        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->
+        <!-- FX_PRESERVED_MIGRATED_SERVICES -->
         <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->
+        <!-- FX_PRESERVED_MIGRATED_PROVIDERS -->
     </application>"""
-app = app.replace(
-    "        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->",
-    "\n".join(retained_components_xml)
-)
-app = app.replace(
-    "        <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->",
-    "\n".join(retained_receivers)
-)
+for marker, components in (
+    ("<!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->", retained_activities),
+    ("<!-- FX_PRESERVED_MIGRATED_SERVICES -->", retained_services),
+    ("<!-- FX_PRESERVED_MIGRATED_RECEIVERS -->", retained_receivers),
+    ("<!-- FX_PRESERVED_MIGRATED_PROVIDERS -->", retained_providers),
+):
+    if marker not in app:
+        raise SystemExit("Unified Hook application template is missing " + marker)
+    app = app.replace(marker, "\n".join(components), 1)
+
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
 merged_manifest = manifest.read_text(encoding="utf-8")
+for tag, components in (
+    ("activity", retained_activities),
+    ("service", retained_services),
+    ("receiver", retained_receivers),
+    ("provider", retained_providers),
+):
+    names = [
+        match.group(1)
+        for component in components
+        if (match := re.search(r"""android:name=["']([^"']+)["']""", component))
+    ]
+    merged_names = re.findall(
+        rf"""<{tag}\\b[^>]*?android:name=["']([^"']+)["']""",
+        merged_manifest,
+        re.S,
+    )
+    missing = sorted(set(names) - set(merged_names))
+    duplicates = sorted(name for name in set(merged_names) if merged_names.count(name) > 1)
+    if missing:
+        raise SystemExit("Unified Hook manifest dropped migrated " + tag + " components: " + ", ".join(missing))
+    if duplicates:
+        raise SystemExit("Unified Hook manifest duplicated migrated " + tag + " components: " + ", ".join(duplicates))
 if 'android:name=".imported.shield.FxYulongInstallScanReceiver"' not in merged_manifest:
     raise SystemExit("Unified Hook manifest dropped the migrated Yulong install-scan receiver")
 
