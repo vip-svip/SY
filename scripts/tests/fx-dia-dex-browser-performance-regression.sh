@@ -29,6 +29,9 @@ assert "runOnUiThread(() -> {" in inventory, "inventory results must return to t
 assert "appsLoading" in inventory
 chooser = section("private void chooseApp()", "private void loadFrameworkDex()")
 assert "if (appsLoading)" in chooser, "the chooser must not race the asynchronous app inventory"
+assert "appLabels.getOrDefault(" in chooser, "application labels must come from the background inventory cache"
+assert "getPackageManager().getApplicationLabel" not in chooser, "the chooser must not resolve labels on the UI thread"
+assert "appLabels.putAll(loadedLabels)" in inventory, "background inventory labels must be published with app rows"
 assert "正在后台读取已安装应用" in source
 
 framework = section("private void loadFrameworkDex()", "private void loadDex()")
@@ -48,12 +51,21 @@ assert "for (FxDiaDexIndex.DexClass item : classes)" not in render, "DEX member 
 assert "private void DexClassRow(SearchHit hit)" in source
 assert "private static final class SearchHit" in source
 
+export = section("private void exportMatches()", "private void showClassMembers(")
+assert "exportWorker.execute(() -> {" in export, "signature export must run off the UI thread"
+assert "new ArrayList<>(classes)" in export, "signature export must use a stable UI-created snapshot"
+assert "Thread.currentThread().isInterrupted()" in export, "superseded exports must stop early"
+assert "runOnUiThread(() -> {" in export, "clipboard access must return to the UI thread"
+assert "clipboard.setPrimaryClip(" in export, "exported signatures must still reach the system clipboard"
+assert "for (FxDiaDexIndex.DexClass item : classes)" not in export, "DEX export must not scan the class graph on the UI thread"
+assert "512 * 1024" in export and "12000" in export, "signature export size/count safeguards must remain"
+
 destroy_start = source.find("@Override protected void onDestroy()")
 assert destroy_start >= 0, "Activity cleanup method is missing"
 destroy = source[destroy_start:]
 assert "destroyed = true;" in destroy
-assert "searchGeneration++;" in destroy and "dexGeneration++;" in destroy
-assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy
+assert "searchGeneration++;" in destroy and "exportGeneration++;" in destroy and "dexGeneration++;" in destroy
+assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy
 assert "Executors.newSingleThreadExecutor" not in source, "unbounded DEX executor must not return"
 print("PASS: Dia DEX inventory and filtering run on bounded workers; stale searches are dropped and Activity teardown cancels workers")
 PY
