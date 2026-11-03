@@ -237,7 +237,11 @@ _activate_chains() {
     rm -f "$_active_tmp" 2>/dev/null || :; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
   fi
   if ! { printf '%s\n%s\n' "$_n4" "$_n6" > "$_active_tmp" && chmod 600 "$_active_tmp" && mv -f "$_active_tmp" "$ACTIVE"; }; then
-    rm -f "$_active_tmp" 2>/dev/null || :; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
+    rm -f "$_active_tmp" 2>/dev/null || :
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "failed to publish active chain marker; rolled back dual-stack DNS redirects (fail-open)"
+    return 1
   fi
 }
 _ensure_locked() {
