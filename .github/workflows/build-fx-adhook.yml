@@ -84,6 +84,7 @@ jobs:
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
           python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
+          install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           python3 fx-patches/patch_native_privacy_settings.py fx-module adhook/app/src/main/assets
