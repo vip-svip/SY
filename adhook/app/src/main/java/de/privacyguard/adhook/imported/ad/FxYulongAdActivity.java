@@ -32,10 +32,26 @@ public final class FxYulongAdActivity extends Activity {
          r -> new Thread(r, "fx-yulong-ad-ui"), new ThreadPoolExecutor.AbortPolicy());
  private LinearLayout body,entries; private TextView status; private EditText search;
  private String page="首页与防护",snapshot="";
+ private static final String STATE_PAGE="fx_yulong_ad_page";
+ private static final String STATE_DRAFTS="fx_yulong_ad_drafts";
+ private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();
+ private Bundle pendingRestoredDrafts;
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView txt(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button btn(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
+ private EditText draftField(String key){
+  EditText field=new EditText(this);
+  field.setTag("fx-yulong-ad-draft:"+key);
+  draftFields.put(key,field);
+  return field;
+ }
+ private void restoreDrafts(Bundle saved){
+  if(saved==null)return;
+  for(java.util.Map.Entry<String,EditText> entry:draftFields.entrySet()){
+   if(saved.containsKey(entry.getKey()))entry.getValue().setText(saved.getString(entry.getKey(),""));
+  }
+ }
  private void card(String title,String detail,View... views){LinearLayout p=new LinearLayout(this);p.setOrientation(1);p.setPadding(dp(14),dp(10),dp(14),dp(10));p.setBackgroundColor(0xfff0f3f7);p.addView(txt(title,15,0xff17212b,true));p.addView(txt(detail,12,0xff617080,false));for(View v:views)p.addView(v);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(p,lp);}
  private String q(String s){return "'"+(s==null?"":s.replace("'","'\\''"))+"'";}
  private String cmd(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; then MP=\\"$d\\"; break; fi; done; [ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" "+args;}
@@ -96,8 +112,27 @@ public final class FxYulongAdActivity extends Activity {
    status.setText("后台任务繁忙，请稍后重试。");
   }
  }
- @Override protected void onCreate(Bundle b){super.onCreate(b);page=getIntent().getStringExtra("suite_page");if(page==null)page="首页与防护";LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();load();}
- private void render(){body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
+ @Override protected void onCreate(Bundle b){
+  super.onCreate(b);
+  if(b!=null){
+   page=b.getString(STATE_PAGE,"首页与防护");
+   pendingRestoredDrafts=b.getBundle(STATE_DRAFTS);
+  }else{
+   page=getIntent().getStringExtra("suite_page");
+   if(page==null)page="首页与防护";
+  }
+  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
+ @Override protected void onSaveInstanceState(Bundle out){
+  out.putString(STATE_PAGE,page);
+  Bundle drafts=new Bundle();
+  for(java.util.Map.Entry<String,EditText> entry:draftFields.entrySet()){
+   EditText field=entry.getValue();
+   drafts.putString(entry.getKey(),field.getText()==null?"":field.getText().toString());
+  }
+  out.putBundle(STATE_DRAFTS,drafts);
+  super.onSaveInstanceState(out);
+ }
+ private void render(){draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
     dnsSwitch("第三方 VPN 兼容路由开关","vpn_external_compat"),
@@ -120,7 +155,7 @@ public final class FxYulongAdActivity extends Activity {
     btn("复制原版 Tasker 启用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_START")),
     btn("复制原版 Tasker 停用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_STOP")));
 }
- private void renderRules(){EditText url=new EditText(this);url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=new EditText(this);name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=new EditText(this);search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
@@ -174,13 +209,13 @@ public final class FxYulongAdActivity extends Activity {
         :"custom_ip".equals(mode)?responseNull.getId():responseNx.getId());
     responseState.setText("当前模式："+mode);
   });
-  EditText customServers=new EditText(this);
+  EditText customServers=draftField("dns_custom_servers");
   customServers.setSingleLine(false);customServers.setMinLines(2);
   customServers.setHint("IPv4 / https://DoH / tls://DoT / quic://DoQ");
-  EditText fallbackServers=new EditText(this);
+  EditText fallbackServers=draftField("dns_fallback_servers");
   fallbackServers.setSingleLine(false);fallbackServers.setMinLines(2);
   fallbackServers.setHint("备用 DNS IPv4，例如：1.1.1.1,8.8.8.8");
-  EditText globalServers=new EditText(this);
+  EditText globalServers=draftField("dns_global_servers");
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
@@ -197,9 +232,9 @@ public final class FxYulongAdActivity extends Activity {
          })).show()),
        txt("全局 DNS 替换",12,0xff617080,true),globalServers,
        btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
-  EditText remoteDns=new EditText(this);
+  EditText remoteDns=draftField("vpn_remote_dns");
   remoteDns.setSingleLine(true);remoteDns.setHint("VPN 远端 DNS，例如 1.1.1.1");
-  EditText cnDns=new EditText(this);
+  EditText cnDns=draftField("vpn_cn_dns");
   cnDns.setSingleLine(true);cnDns.setHint("国内直连 DNS，例如 223.5.5.5");
   card("VPN 节点 DNS",
        "编辑 FX VPN 配置中的 remote_dns/cn_dns；它们不会替换本地 Unbound 递归模式，只有 VPN DNS 劫持/分流使用时生效。",
@@ -259,28 +294,28 @@ private void saveVpnDns(String key,EditText input){
  private boolean syncing;
  private Switch dnsSwitch(String label,String key){Switch s=new Switch(this);s.setText(label);s.setTag(key);s.setEnabled(false);s.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("dns-set "+key+" "+(on?"1":"0"),label);});return s;}
  private void renderDomains(){
-  EditText allow=new EditText(this); allow.setSingleLine(true); allow.setHint("白名单域名");
-  EditText allowNote=new EditText(this); allowNote.setSingleLine(true); allowNote.setHint("备注");
+  EditText allow=draftField("allow_domain"); allow.setSingleLine(true); allow.setHint("白名单域名");
+  EditText allowNote=draftField("allow_note"); allowNote.setSingleLine(true); allowNote.setHint("备注");
   card("域名白名单","精确放行域名及其子域。",
       allow,allowNote,
       btn("添加白名单",()->{
         if(!allow.getText().toString().trim().isEmpty())
           apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");
       }));
-  EditText allowBulk=new EditText(this); allowBulk.setGravity(Gravity.TOP|Gravity.START);
+  EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
   card("批量导入白名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
       allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
 
-  EditText block=new EditText(this); block.setSingleLine(true); block.setHint("黑名单域名");
-  EditText blockNote=new EditText(this); blockNote.setSingleLine(true); blockNote.setHint("备注");
+  EditText block=draftField("block_domain"); block.setSingleLine(true); block.setHint("黑名单域名");
+  EditText blockNote=draftField("block_note"); blockNote.setSingleLine(true); blockNote.setHint("备注");
   card("域名黑名单","只添加明确需要阻断的域名。",
       block,blockNote,
       btn("添加黑名单",()->{
         if(!block.getText().toString().trim().isEmpty())
           apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");
       }));
-  EditText blockBulk=new EditText(this); blockBulk.setGravity(Gravity.TOP|Gravity.START);
+  EditText blockBulk=draftField("block_bulk"); blockBulk.setGravity(Gravity.TOP|Gravity.START);
   blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
   card("批量导入黑名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
@@ -318,9 +353,9 @@ private void saveVpnDns(String key,EditText input){
  private void renderSchedule(){
   Switch enabled=new Switch(this);
   enabled.setText("启用每周自动计划");
-  EditText start=new EditText(this);
+  EditText start=draftField("schedule_start");
   start.setSingleLine(true);start.setHint("开始时间 HH:MM");start.setText("22:00");
-  EditText end=new EditText(this);
+  EditText end=draftField("schedule_end");
   end.setSingleLine(true);end.setHint("结束时间 HH:MM");end.setText("07:00");
   LinearLayout daysBox=new LinearLayout(this);daysBox.setOrientation(1);
   String[] labels={"周一","周二","周三","周四","周五","周六","周日"};
