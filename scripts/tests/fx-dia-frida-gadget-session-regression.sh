@@ -65,6 +65,12 @@ stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
 if "ps -A -o PID,NAME" in attach:
     raise SystemExit("FAIL: Gadget process matching must not rely on the ps NAME column")
+if "session_pid_active()" not in attach or "Z|X|x" not in attach:
+    raise SystemExit("FAIL: Gadget reattach must treat zombie/dead recorded PIDs as exited")
+if attach.count("session_pid_active") < 3:
+    raise SystemExit("FAIL: both recorded CLI and feeder PIDs must use the same zombie-aware liveness guard")
+if 'if kill -0 \\"$old_cli\\"' in attach or '&& kill -0 \\"$old_feed\\"' in attach:
+    raise SystemExit("FAIL: reattach must not use kill -0 alone for old Gadget session ownership")
 if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach:
