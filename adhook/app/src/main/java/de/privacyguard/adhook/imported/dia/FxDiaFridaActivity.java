@@ -168,6 +168,12 @@ public final class FxDiaFridaActivity extends Activity {
 
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
         warning.setPadding(dp(16), dp(6), dp(16), dp(14));
+        card(body, "Dia 开发监控模板",
+                "仅对可调试测试应用启用。HTTP 模板只记录主机名，SQLite 模板只记录调用类型/长度/耗时；内存快照会包含进程私有内存，请只对自有测试应用使用。",
+                button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
+                button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
+                button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
+                button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
     }
 
@@ -338,6 +344,69 @@ public final class FxDiaFridaActivity extends Activity {
         } catch (Exception error) {
             setStatus("读取帮助文档失败：" + error.getMessage());
         }
+    }
+
+    private void loadDiaMonitorTemplate(String kind) {
+        String source;
+        switch (kind) {
+            case "http":
+                source = "Java.perform(function () {\\n"
+                        + "  var URL = Java.use('java.net.URL');\\n"
+                        + "  var open = URL.openConnection.overload();\\n"
+                        + "  open.implementation = function () {\\n"
+                        + "    var host = String(this.getHost());\\n"
+                        + "    send('[DIA_HTTP] connection host=' + host);\\n"
+                        + "    return open.call(this);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "sql":
+                source = "Java.perform(function () {\\n"
+                        + "  var DB = Java.use('android.database.sqlite.SQLiteDatabase');\\n"
+                        + "  var raw = DB.rawQuery.overload('java.lang.String', '[Ljava.lang.String;');\\n"
+                        + "  raw.implementation = function (sql, args) {\\n"
+                        + "    var start = Date.now(); var result = raw.call(this, sql, args);\\n"
+                        + "    send('[DIA_SQL] rawQuery chars=' + String(sql).length + ' elapsedMs=' + (Date.now()-start));\\n"
+                        + "    return result;\\n"
+                        + "  };\\n"
+                        + "  var exec = DB.execSQL.overload('java.lang.String');\\n"
+                        + "  exec.implementation = function (sql) {\\n"
+                        + "    var start = Date.now(); var result = exec.call(this, sql);\\n"
+                        + "    send('[DIA_SQL] execSQL chars=' + String(sql).length + ' elapsedMs=' + (Date.now()-start));\\n"
+                        + "    return result;\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "algorithm":
+                source = "Java.perform(function () {\\n"
+                        + "  var className = 'com.example.app.AlgorithmClass';\\n"
+                        + "  var methodName = 'calculate';\\n"
+                        + "  var C = Java.use(className);\\n"
+                        + "  C[methodName].overloads.forEach(function (overload) {\\n"
+                        + "    overload.implementation = function () {\\n"
+                        + "      var started = Date.now();\\n"
+                        + "      var result = overload.apply(this, arguments);\\n"
+                        + "      send('[DIA_ALGORITHM] ' + className + '.' + methodName + ' args=' + arguments.length + ' elapsedMs=' + (Date.now()-started));\\n"
+                        + "      return result;\\n"
+                        + "    };\\n"
+                        + "  });\\n"
+                        + "});";
+                break;
+            case "memory":
+                source = "Java.perform(function () {\\n"
+                        + "  var ActivityThread = Java.use('android.app.ActivityThread');\\n"
+                        + "  var app = ActivityThread.currentApplication();\\n"
+                        + "  if (app === null) { send('[DIA_MEMORY] application context unavailable'); return; }\\n"
+                        + "  var path = String(app.getFilesDir().getAbsolutePath()) + '/dia-memory-' + Date.now() + '.hprof';\\n"
+                        + "  Java.use('android.os.Debug').dumpHprofData(path);\\n"
+                        + "  send('[DIA_MEMORY] snapshot saved: ' + path);\\n"
+                        + "});";
+                break;
+            default:
+                return;
+        }
+        script.setText(source);
+        setStatus("监控模板已载入；请先检查目标类/方法，再手动执行注入。");
     }
 
     private void injectScript() {
