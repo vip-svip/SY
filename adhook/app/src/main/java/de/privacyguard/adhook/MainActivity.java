@@ -3002,7 +3002,9 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("时间与时区模拟");
                     return;
                 case "JS 脚本列表": case "脚本编辑器":
-                    openImportedNativeTab(3);
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", page));
                     return;
                 case "JSON 操作":
                     startActivity(new Intent(this,
