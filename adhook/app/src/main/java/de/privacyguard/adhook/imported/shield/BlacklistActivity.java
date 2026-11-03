@@ -10,10 +10,15 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.Toast;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -22,8 +27,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Locale;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 管控应用管理（原黑名单管理）。
@@ -36,7 +49,15 @@ public class BlacklistActivity extends Activity {
     private PackageManager pm;
     private SharedPreferences prefs;
     private Set<String> currentBlacklist = new HashSet<>();
-    private List<AppItem> allApps = new ArrayList<>();
+    private final List<AppItem> allApps = new ArrayList<>();
+    private final Map<String, AppItem> appByPackage = new HashMap<>();
+    private final ThreadPoolExecutor appLoader = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-shield-blacklist-apps"),
+            new ThreadPoolExecutor.AbortPolicy());
+    private final AtomicLong appLoadGeneration = new AtomicLong();
+    private volatile boolean activityDestroyed;
+    private boolean appsLoading = true;
     private LinearLayout blacklistContainer;
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
@@ -183,8 +204,8 @@ public class BlacklistActivity extends Activity {
 
         setContentView(root);
 
-        loadApps();
         refreshBlacklistUI();
+        loadAppsAsync();
     }
 
     private int getStatusBarHeight() {
@@ -230,73 +251,165 @@ public class BlacklistActivity extends Activity {
         return false;
     }
 
-    private void loadApps() {
-        List<ApplicationInfo> installed = pm.getInstalledApplications(0);
-        allApps.clear();
-        for (ApplicationInfo app : installed) {
-            // 过滤掉自身和系统应用
-            if (app.packageName.equals(getPackageName())) continue;
-            if (isSystemApp(app)) continue;
-
-            AppItem item = new AppItem();
-            item.packageName = app.packageName;
-            item.label = app.loadLabel(pm).toString();
-            allApps.add(item);
-        }
-        Collections.sort(allApps, new Comparator<AppItem>() {
-            @Override
-            public int compare(AppItem a, AppItem b) {
-                return a.label.compareToIgnoreCase(b.label);
+    /** Package enumeration and label resolution stay off the Activity UI thread. */
+    private void loadAppsAsync() {
+        final long generation = appLoadGeneration.incrementAndGet();
+        appsLoading = true;
+        try {
+            appLoader.execute(() -> {
+                final List<AppItem> loaded = new ArrayList<>();
+                final Map<String, AppItem> loadedIndex = new HashMap<>();
+                Throwable failure = null;
+                try {
+                    PackageManager backgroundPm = getApplicationContext().getPackageManager();
+                    for (ApplicationInfo app : backgroundPm.getInstalledApplications(0)) {
+                        if (Thread.currentThread().isInterrupted()
+                                || generation != appLoadGeneration.get()) return;
+                        if (app.packageName == null || app.packageName.equals(getPackageName())
+                                || isSystemApp(app)) continue;
+                        AppItem item = new AppItem();
+                        item.packageName = app.packageName;
+                        try {
+                            CharSequence label = backgroundPm.getApplicationLabel(app);
+                            item.label = label == null ? app.packageName : label.toString();
+                        } catch (Throwable ignored) {
+                            item.label = app.packageName;
+                        }
+                        loaded.add(item);
+                        loadedIndex.put(item.packageName, item);
+                    }
+                    loaded.sort(Comparator.comparing(item ->
+                            item.label.toLowerCase(Locale.ROOT)));
+                } catch (Throwable error) {
+                    failure = error;
+                }
+                final Throwable loadFailure = failure;
+                runOnUiThread(() -> {
+                    if (activityDestroyed || isFinishing() || isDestroyed()
+                            || generation != appLoadGeneration.get()) return;
+                    appsLoading = false;
+                    if (loadFailure != null) {
+                        Toast.makeText(this,
+                                "读取已安装应用失败：" + loadFailure.getClass().getSimpleName(),
+                                Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    allApps.clear();
+                    allApps.addAll(loaded);
+                    appByPackage.clear();
+                    appByPackage.putAll(loadedIndex);
+                    refreshBlacklistUI();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            appsLoading = false;
+            if (!activityDestroyed && !isFinishing()) {
+                Toast.makeText(this, "应用列表任务繁忙，请重新打开管控页面。", Toast.LENGTH_LONG).show();
             }
-        });
+        }
     }
 
     private void showAppPicker() {
-        final List<AppItem> candidates = new ArrayList<>();
-        for (AppItem a : allApps) {
-            if (!currentBlacklist.contains(a.packageName)) {
-                candidates.add(a);
-            }
+        if (appsLoading) {
+            Toast.makeText(this, "正在读取应用列表，请稍后再试。", Toast.LENGTH_SHORT).show();
+            return;
         }
-
+        final List<AppItem> candidates = new ArrayList<>();
+        for (AppItem item : allApps) {
+            if (!currentBlacklist.contains(item.packageName)) candidates.add(item);
+        }
         if (candidates.isEmpty()) {
             new AlertDialog.Builder(this)
                     .setTitle("提示")
-                    .setMessage("所有已安装应用都已在管控中")
+                    .setMessage("没有可加入管控的应用")
                     .setPositiveButton("确定", null)
                     .show();
             return;
         }
 
-        final String[] names = new String[candidates.size()];
-        final boolean[] checked = new boolean[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) {
-            names[i] = candidates.get(i).label + "\n" + candidates.get(i).packageName;
-            checked[i] = false;
-        }
+        final Set<String> staged = new HashSet<>();
+        final int[] page = {1};
+        final int pageSize = 50;
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(16), dp(6), dp(16), dp(4));
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("搜索应用名称或包名");
+        content.addView(search, new LinearLayout.LayoutParams(-1, -2));
+        TextView count = new TextView(this);
+        count.setTextColor(0xff687681);
+        count.setTextSize(12);
+        content.addView(count);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(rows);
+        content.addView(scroll, new LinearLayout.LayoutParams(-1, dp(360)));
+        Button more = new Button(this);
+        more.setAllCaps(false);
+        more.setText("加载更多");
+        content.addView(more);
 
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("选择要加入管控的应用（可多选）")
-                .setMultiChoiceItems(names, checked, new DialogInterface.OnMultiChoiceClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which, boolean isChecked) {
-                        checked[which] = isChecked;
-                    }
-                })
-                .setPositiveButton("确定加入", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        for (int i = 0; i < candidates.size(); i++) {
-                            if (checked[i]) {
-                                currentBlacklist.add(candidates.get(i).packageName);
-                            }
-                        }
-                        saveBlacklist();
-                        refreshBlacklistUI();
-                    }
-                })
+                .setView(content)
+                .setPositiveButton("确定加入", null)
                 .setNegativeButton("取消", null)
-                .show();
+                .create();
+
+        final Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            rows.removeAllViews();
+            String filter = search.getText() == null ? ""
+                    : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+            List<AppItem> filtered = new ArrayList<>();
+            for (AppItem item : candidates) {
+                if (filter.isEmpty()
+                        || item.packageName.toLowerCase(Locale.ROOT).contains(filter)
+                        || item.label.toLowerCase(Locale.ROOT).contains(filter)) {
+                    filtered.add(item);
+                }
+            }
+            int limit = Math.min(filtered.size(), page[0] * pageSize);
+            for (int i = 0; i < limit; i++) {
+                AppItem item = filtered.get(i);
+                CheckBox check = new CheckBox(this);
+                check.setText(item.label + "\n" + item.packageName);
+                check.setTextSize(13);
+                check.setChecked(staged.contains(item.packageName));
+                check.setOnCheckedChangeListener((button, checked) -> {
+                    if (checked) staged.add(item.packageName);
+                    else staged.remove(item.packageName);
+                    count.setText("匹配 " + filtered.size() + " 个，已选择 " + staged.size() + " 个");
+                });
+                rows.addView(check, new LinearLayout.LayoutParams(-1, -2));
+            }
+            count.setText("匹配 " + filtered.size() + " 个，已选择 " + staged.size() + " 个");
+            more.setVisibility(filtered.size() > limit ? View.VISIBLE : View.GONE);
+            more.setText("加载更多（剩余 " + Math.max(0, filtered.size() - limit) + " 个）");
+        };
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                page[0] = 1;
+                render[0].run();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        more.setOnClickListener(v -> {
+            page[0]++;
+            render[0].run();
+        });
+        dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    currentBlacklist.addAll(staged);
+                    saveBlacklist();
+                    refreshBlacklistUI();
+                    dialog.dismiss();
+                }));
+        render[0].run();
+        dialog.show();
     }
 
     /** "我都很信任" — 清空所有管控 */
@@ -335,10 +448,7 @@ public class BlacklistActivity extends Activity {
 
         List<AppItem> blacklisted = new ArrayList<>();
         for (String pkg : currentBlacklist) {
-            AppItem found = null;
-            for (AppItem a : allApps) {
-                if (a.packageName.equals(pkg)) { found = a; break; }
-            }
+            AppItem found = appByPackage.get(pkg);
             if (found == null) {
                 found = new AppItem();
                 found.packageName = pkg;
@@ -455,6 +565,14 @@ public class BlacklistActivity extends Activity {
         row.setLayoutParams(rp);
 
         return row;
+    }
+
+    @Override
+    protected void onDestroy() {
+        activityDestroyed = true;
+        appLoadGeneration.incrementAndGet();
+        appLoader.shutdownNow();
+        super.onDestroy();
     }
 
     private int avatarColor(int idx) {
