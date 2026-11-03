@@ -148,7 +148,7 @@ if [ -s "$pidfile" ]; then
   }
   if kill -0 "$old_cli" 2>/dev/null; then
     old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
-    case "$old_cmd" in *"$old_path"*"127.0.0.1:$port"*Gadget*)
+    case "$old_cmd" in *"127.0.0.1:$port"*Gadget*"$old_path"*)
       echo FX_GADGET_SESSION_ALREADY_RUNNING
       exit 0;;
       *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
@@ -204,7 +204,7 @@ case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
 }
 if kill -0 "$cli_pid" 2>/dev/null; then
   cmd=$(tr '\000' ' ' < /proc/"$cli_pid"/cmdline 2>/dev/null || :)
-  case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*) kill "$cli_pid";;
+  case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*"$dir/gadget-$port.js"*) kill "$cli_pid";;
     *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;;
   esac
 fi
