@@ -14,6 +14,7 @@ source = receiver_path.read_text(encoding="utf-8")
 root = receiver_path.parents[0]
 widget_source = (root / "FxYulongAdWidgetProvider.java").read_text(encoding="utf-8")
 tile_source = (root / "FxYulongAdTileService.java").read_text(encoding="utf-8")
+gate_source = (root / "FxYulongAdOperationGate.java").read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 ns = "{http://schemas.android.com/apk/res/android}"
 
@@ -25,6 +26,13 @@ assert "REQUEST_PENDING.set(false);" in source, "in-flight guard must be release
 assert "pending.finish();" in source, "goAsync result must always be finished"
 assert "private static void publishResult" in source, "result reporting must be centralized"
 assert "RootAccess.execute(command,90000L,128*1024)" in source, "Tasker must still use the fixed allowlisted Root command"
+
+# All three UI/automation entry points must serialize writes through one process gate.
+assert "AtomicBoolean BUSY" in gate_source
+assert "BUSY.compareAndSet(false, true)" in gate_source
+assert "BUSY.set(false)" in gate_source
+assert "FxYulongAdOperationGate.tryAcquire()" in source
+assert source.count("FxYulongAdOperationGate.release()") == 3, "Tasker must release gate on all three exit paths"
 
 receiver = next((x for x in manifest.findall("./application/receiver")
                  if x.attrib.get(ns + "name", "").endswith("FxYulongAdTaskerReceiver")), None)
@@ -59,6 +67,10 @@ assert "current == Tile.STATE_UNAVAILABLE" in tile_source
 assert "未更改" in tile_source
 assert "worker.shutdownNow();" in tile_source
 assert "Executors.newSingleThreadExecutor" not in tile_source
+assert "gateAcquired = FxYulongAdOperationGate.tryAcquire();" in tile_source
+assert "if (gateAcquired) FxYulongAdOperationGate.release();" in tile_source
+assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
+assert widget_source.count("FxYulongAdOperationGate.release()") == 3, "widget must release the cross-entry gate on every failure/finish path"
 tile = next((x for x in manifest.findall("./application/service")
              if x.attrib.get(ns + "name", "").endswith("FxYulongAdTileService")), None)
 assert tile is not None
