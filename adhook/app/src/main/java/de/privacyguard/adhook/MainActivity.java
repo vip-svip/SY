@@ -2700,6 +2700,15 @@ public final class MainActivity extends ComponentActivity {
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class));
                     return;
+                case "数据库监控": case "内存快照":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaInspectorActivity.class)
+                            .putExtra("dia_mode", "数据库监控".equals(page) ? "database" : "memory"));
+                    return;
+                case "算法监控":
+                    showImportedSuitePendingPage(suite, category, page,
+                            "算法调用链自动识别和运行时追踪仍需迁移；当前不伪造调用结果。");
+                    return;
 
                 default:
                     showImportedSuitePendingPage(suite, category, page,
