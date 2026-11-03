@@ -81,6 +81,7 @@ done
 grep -Fq 'id="cardHook"' "$HTML" || fail "separate UID network-blocking Hook feature must remain"
 
 ACTIVITY="$APP/java/de/privacyguard/adhook/MainActivity.java"
+grep -Fq 'if (webView != null && !hookUiVisible && !settingsUiVisible) {' "$ACTIVITY" || fail "hidden WebView compatibility bridge must remain paused while Settings is visible"
 BRIDGE="$APP/java/de/privacyguard/adhook/RootBridge.java"
 HOOK="$APP/java/de/privacyguard/adhook/AdVisibilityHook.java"
 PARSER="$APP/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
