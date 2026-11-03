@@ -31,5 +31,11 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/fx_accessibility_service" />
         </service>
+        <activity android:name=".imported.shield.FxYulongShieldActivity" android:exported="false" />
+        <activity android:name=".imported.shield.WhitelistActivity" android:exported="false" />
+        <activity android:name=".imported.shield.WhitelistPickerActivity" android:exported="false" />
+        <activity android:name=".imported.shield.BlacklistActivity" android:exported="false" />
+        <activity android:name=".imported.shield.FxYulongVirusDatabaseActivity" android:exported="false" />
+        <activity android:name=".imported.shield.FxYulongScanActivity" android:exported="false" />
     </application>
 </manifest>

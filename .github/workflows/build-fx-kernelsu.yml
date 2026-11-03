@@ -125,8 +125,6 @@ jobs:
             fx-module/rulefiles/Yulong_AdBlock.txt \
             --cosmetic-output fx-module/rulefiles/Yulong_AdBlock_Cosmetic.txt \
             --report fx-module/rulefiles/Yulong_AdBlock-report.json
-          install -m 0644 fx-module/rulefiles/README-Yulong_AdBlock-attribution.txt \
-            fx-module/rulefiles/README-Yulong_AdBlock-attribution.txt
           python3 scripts/integrate_yulong_ad_rules.py fx-module
           sh scripts/tests/fx-yulong-ad-rule-import-regression.sh fx-module
       - name: Apply reviewed FX source compatibility patches

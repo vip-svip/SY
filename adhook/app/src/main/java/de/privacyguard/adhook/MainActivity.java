@@ -2476,6 +2476,17 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(18), dp(4), dp(18), dp(14));
         content.addView(intro);
+        section("迁移应用");
+        addNativeActionCard("Dia 23.11",
+                "三级入口 · Hook、设备模拟、Frida、脚本、开发监控与规则页面",
+                "打开 Dia 23.11", () -> showImportedSuite("dia"));
+        addNativeActionCard("游龙广告插件 7.0.1",
+                "三级入口 · 广告过滤、DNS、VPN / Root Proxy、HTTPS 与诊断页面",
+                "打开游龙广告插件", () -> showImportedSuite("yulong-ad"));
+        addNativeActionCard("游龙安全护盾 9.9.60",
+                "原生页面 · 病毒库同步、只读扫描、白名单与管控名单",
+                "打开安全护盾", () -> startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class)));
         section("界面模式");
         TextView note = new TextView(this);
         note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。六个主页面均由 Android 原生视图承载；内置 WebView 仅作为尚未替换完毕的兼容运行桥，不显示网页像素。");
@@ -2540,6 +2551,417 @@ public final class MainActivity extends ComponentActivity {
         content.addView(appDetails);
         section("运行日志");
         content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+    }
+
+    private String importedSuiteTitle(String suite) {
+        if ("dia".equals(suite)) return "Dia 23.11";
+        return "游龙广告插件 7.0.1";
+    }
+
+    private String[][] importedSuiteSections(String suite) {
+        if ("dia".equals(suite)) return new String[][] {
+            {"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "Activity 入口与禁用", "隐藏应用"},
+            {"Hook 功能", "方法 Hook", "对话框与通知", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
+            {"设备模拟", "设备属性", "位置与 GPS", "Wi-Fi 模拟", "网络类型模拟", "时间与时区", "应用版本", "签名信息"},
+            {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
+            {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
+            {"规则与数据", "规则组", "规则列表", "运行日志", "本地备份", "GitHub 备份", "WebDAV 备份", "全局设置"}
+        };
+        return new String[][] {
+            {"首页与防护", "广告拦截开关", "防护级别", "防护状态", "统计", "每日防护总结"},
+            {"过滤列表与规则", "过滤列表", "过滤器设置", "添加过滤列表", "自定义规则", "规则编辑", "白名单域名", "黑名单域名", "计划任务"},
+            {"DNS 设置", "DNS 服务器", "上游 DNS", "备用 DNS", "自定义 DNS", "DNS 协议", "分离 DNS 区域", "DNS 日志"},
+            {"应用管理", "应用白名单", "用户应用", "系统应用", "按应用设置", "应用统计", "应用网络拦截"},
+            {"VPN 与 Root Proxy", "VPN 保护", "VPN 状态", "自动重连", "信任的网络", "Root 代理模式", "iptables DNS 重定向"},
+            {"HTTPS 与证书", "HTTPS 过滤", "根 CA 证书", "保存证书", "安装证书", "验证证书", "过滤 HTTP/3 (QUIC)"},
+            {"日志与诊断", "DNS 查询日志", "导出本地日志", "分享日志", "崩溃报告", "隐私与诊断"},
+            {"通用设置", "界面", "主题色", "网络切换延迟", "电池优化", "设置导入", "设置导出", "关于"}
+        };
+    }
+
+    private void showImportedSuite(String suite) {
+        cancelHookStatusRefresh();
+        cancelAppIconLoad();
+        pauseAndDetachWebView();
+        hookUiVisible = false;
+        hookTargetVisible = false;
+        hookHubVisible = false;
+        settingsUiVisible = true;
+        selectedBottomTab = 5;
+        String title = importedSuiteTitle(suite);
+        base(title);
+        TextView intro = new TextView(this);
+        intro.setText("按原软件的功能分类进入独立页面。能够复用 FX 原生功能的页面会直接打开对应控制页；尚未完成运行时移植的功能会明确标注，不显示伪造的开关或运行状态。");
+        intro.setTextColor(0xff66727e);
+        intro.setPadding(dp(16), dp(8), dp(16), dp(12));
+        content.addView(intro);
+        for (String[] section : importedSuiteSections(suite)) {
+            String category = section[0];
+            addNativeActionCard(category, (section.length - 1) + " 个原始功能页面",
+                    "进入 " + category, () -> showImportedSuiteCategory(suite, category));
+        }
+        content.addView(nativeAction("返回 FX 设置", this::showSettings));
+    }
+
+    private void showImportedSuiteCategory(String suite, String category) {
+        String title = importedSuiteTitle(suite);
+        base(title + " · " + category);
+        for (String[] section : importedSuiteSections(suite)) {
+            if (!section[0].equals(category)) continue;
+            TextView intro = new TextView(this);
+            intro.setText("原功能页面分类：" + category);
+            intro.setTextColor(0xff66727e);
+            intro.setPadding(dp(16), dp(6), dp(16), dp(10));
+            content.addView(intro);
+            for (int i = 1; i < section.length; i++) {
+                final String page = section[i];
+                addNativeActionCard(page, "原软件四级页面入口",
+                        "打开 " + page, () -> openImportedSuitePage(suite, category, page));
+            }
+            break;
+        }
+        content.addView(nativeAction("返回 " + title, () -> showImportedSuite(suite)));
+    }
+
+    private void openImportedNativeTab(int index) {
+        lastWebTabIndex = Math.max(0, Math.min(3, index));
+        selectedBottomTab = lastWebTabIndex;
+        pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+        hookUiVisible = false;
+        hookTargetVisible = false;
+        hookHubVisible = false;
+        settingsUiVisible = false;
+        showWebDashboard();
+    }
+
+    private void openImportedSuitePage(String suite, String category, String page) {
+        if ("dia".equals(suite)) {
+            if (page.contains("应用") || page.contains("Hook") || page.contains("Activity")
+                    || page.contains("模块") || page.contains("Native")) {
+                showAppList();
+                return;
+            }
+            if (page.contains("脚本") || page.contains("Frida")) {
+                if (page.contains("Frida")) {
+                    showImportedSuitePendingPage(suite, category, page,
+                            "Dia 的 Frida 环境初始化、注入及监听运行时尚未整体迁入。FX 现有脚本编辑与运行页面可先使用，但不会宣称等同于 Dia 的 Frida 子系统。");
+                } else {
+                    openImportedNativeTab(3);
+                }
+                return;
+            }
+            if (page.contains("规则")) {
+                openImportedNativeTab(1);
+                return;
+            }
+            if (page.contains("备份") || page.contains("全局设置")) {
+                showSettings();
+                return;
+            }
+            showImportedSuitePendingPage(suite, category, page,
+                    "该 Dia 页面已登记到迁移目录；对应运行逻辑尚未移植完成。当前不会创建无效开关，也不会修改目标应用或系统状态。");
+            return;
+        }
+
+        if (category.equals("首页与防护") || category.equals("过滤列表与规则")) {
+            openImportedNativeTab(1);
+            return;
+        }
+        if (category.equals("DNS 设置") || category.equals("VPN 与 Root Proxy")) {
+            openImportedNativeTab(0);
+            return;
+        }
+        if (category.equals("应用管理")) {
+            if (page.equals("用户应用") || page.equals("系统应用") || page.equals("按应用设置")) {
+                showImportedVpnAppManager();
+                return;
+            }
+            if (page.equals("应用统计")) {
+                showImportedSuitePendingPage(suite, category, page,
+                        "FX 已统一记录 DNS / 过滤日志，但游龙原版按应用累计的查询数、拦截数与排序统计尚未迁移；不会把全局统计冒充为单应用统计。");
+                return;
+            }
+            showImportedSuitePendingPage(suite, category, page,
+                    "游龙原版独立应用防火墙（移动数据/Wi-Fi 阻断与时间计划）尚未迁移。这里仅提供已接入 FX VPN 后端的分应用路由管理，不将路由例外伪装成断网防火墙。");
+            return;
+        }
+        if (category.equals("HTTPS 与证书")) {
+            showNativeCertificateManager();
+            return;
+        }
+        if (category.equals("日志与诊断")) {
+            showNativeRuntimeLogs();
+            return;
+        }
+        if (category.equals("通用设置")) {
+            showSettings();
+            return;
+        }
+        showImportedSuitePendingPage(suite, category, page,
+                "游龙广告插件 7.0.1 的独立应用过滤与 Root Proxy 运行时尚未迁入。现阶段可使用 FX 的 Hosts、DNS / VPN、证书和日志原生控制页；不会把 FX 状态冒充为原插件状态。");
+    }
+
+    /**
+     * Yulong 7.0.1 application-management screen, backed by FX's single VPN route.
+     * The [list:vpn_app] package list is independent of Hook target scope.
+     */
+    private void showImportedVpnAppManager() {
+        cancelHookStatusRefresh();
+        cancelAppIconLoad();
+        pauseAndDetachWebView();
+        hookUiVisible = false;
+        hookTargetVisible = false;
+        hookHubVisible = false;
+        settingsUiVisible = true;
+        selectedBottomTab = 5;
+        base("游龙广告插件 · 应用管理");
+
+        TextView intro = new TextView(this);
+        intro.setText("管理指定应用是否加入 FX 分应用 VPN 路由列表。FX 继续使用唯一的 VPN/TUN；不会启动游龙第二个 VpnService。此页面只设置路由范围，不等同于阻断移动数据/Wi-Fi 的独立防火墙。");
+        intro.setTextColor(0xff66727e);
+        intro.setPadding(dp(16), dp(8), dp(16), dp(12));
+        content.addView(intro);
+
+        TextView status = new TextView(this);
+        status.setText("正在读取设备端分应用路由配置…");
+        status.setPadding(dp(16), dp(6), dp(16), dp(8));
+        content.addView(status);
+
+        Switch master = new Switch(this);
+        master.setText("启用分应用 VPN 路由");
+        master.setTextSize(15);
+        master.setPadding(dp(16), dp(10), dp(16), dp(10));
+        content.addView(master);
+
+        RadioGroup modeGroup = new RadioGroup(this);
+        modeGroup.setOrientation(RadioGroup.HORIZONTAL);
+        RadioButton onlyMode = new RadioButton(this);
+        onlyMode.setText("仅列表应用走代理");
+        onlyMode.setId(View.generateViewId());
+        RadioButton bypassMode = new RadioButton(this);
+        bypassMode.setText("列表应用直连");
+        bypassMode.setId(View.generateViewId());
+        modeGroup.addView(onlyMode);
+        modeGroup.addView(bypassMode);
+        content.addView(modeGroup);
+
+        TextView modeHint = new TextView(this);
+        modeHint.setText("仅列表应用走代理：只把选中的应用接入 FX 节点。列表应用直连：选中的应用绕过 FX 节点，其余应用按当前 VPN 模式处理。");
+        modeHint.setTextSize(12);
+        modeHint.setTextColor(0xff718091);
+        modeHint.setPadding(dp(16), dp(2), dp(16), dp(10));
+        content.addView(modeHint);
+
+        EditText query = new EditText(this);
+        query.setSingleLine(true);
+        query.setHint("搜索应用名称或包名");
+        query.setPadding(dp(14), dp(8), dp(14), dp(8));
+        content.addView(query, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        content.addView(rows);
+
+        final Map<String, Boolean> selected = new HashMap<>();
+        final List<ApplicationInfo> installedApps = new ArrayList<>();
+        final Map<String, String> labels = new HashMap<>();
+        final boolean[] loadingConfig = {true};
+        final boolean[] routeMaster = {false};
+        final String[] routeMode = {"bypass"};
+
+        Runnable renderRows = () -> {
+            if (rows.getParent() == null) return;
+            rows.removeAllViews();
+            String filter = query.getText() == null ? "" : query.getText().toString().trim().toLowerCase(Locale.ROOT);
+            int shown = 0;
+            for (ApplicationInfo info : installedApps) {
+                String pkg = info.packageName == null ? "" : info.packageName;
+                String label = labels.getOrDefault(pkg, pkg);
+                if (!filter.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(filter)
+                        && !pkg.toLowerCase(Locale.ROOT).contains(filter)) continue;
+                shown++;
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.VERTICAL);
+                row.setPadding(dp(12), dp(7), dp(12), dp(7));
+                row.setBackground(uiPanelDrawable());
+                TextView name = new TextView(this);
+                name.setText(label);
+                name.setTextSize(14);
+                name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                name.setTextColor(0xff17212b);
+                TextView packageName = new TextView(this);
+                packageName.setText(pkg);
+                packageName.setTextSize(10);
+                packageName.setTextColor(0xff718091);
+                Switch enabled = new Switch(this);
+                enabled.setText("加入列表");
+                enabled.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
+                enabled.setOnCheckedChangeListener((button, checked) -> {
+                    if (loadingConfig[0]) return;
+                    button.setEnabled(false);
+                    String command = "sh \"$MP/scripts/vpn-apps.sh\" apply-item "
+                            + shellQuote(pkg) + " " + (checked ? "1" : "0");
+                    runNativeModuleCommand(command, 120000L, result -> {
+                        button.setEnabled(true);
+                        if (result.exitCode != 0) {
+                            button.setChecked(!checked);
+                            new AlertDialog.Builder(this).setTitle("分应用配置未应用")
+                                    .setMessage(result.output == null ? "模块未确认配置应用成功。" : result.output.trim())
+                                    .setPositiveButton("关闭", null).show();
+                        } else {
+                            selected.put(pkg, checked);
+                            status.setText("分应用列表已更新并重新应用。");
+                        }
+                    });
+                });
+                row.addView(name);
+                row.addView(packageName);
+                row.addView(enabled);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                lp.setMargins(dp(12), dp(2), dp(12), dp(3));
+                rows.addView(row, lp);
+            }
+            if (shown == 0) {
+                TextView empty = new TextView(this);
+                empty.setText("没有符合搜索条件的应用。");
+                empty.setPadding(dp(16), dp(18), dp(16), dp(18));
+                rows.addView(empty);
+            }
+        };
+
+        query.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) { renderRows.run(); }
+            public void afterTextChanged(Editable s) {}
+        });
+
+        master.setOnCheckedChangeListener((button, checked) -> {
+            if (loadingConfig[0]) return;
+            boolean anySelected = false;
+            for (Boolean value : selected.values()) {
+                if (Boolean.TRUE.equals(value)) { anySelected = true; break; }
+            }
+            if (checked && !anySelected) {
+                master.setChecked(false);
+                new AlertDialog.Builder(this).setTitle("先选择应用")
+                        .setMessage("启用分应用 VPN 路由前，至少需要选择一个应用。")
+                        .setPositiveButton("知道了", null).show();
+                return;
+            }
+            master.setEnabled(false);
+            runNativeModuleCommand("sh \"$MP/scripts/vpn-apps.sh\" apply-master " + (checked ? "1" : "0"),
+                    120000L, result -> {
+                master.setEnabled(true);
+                if (result.exitCode != 0) {
+                    master.setChecked(!checked);
+                    status.setText("分应用开关未应用：" + (result.output == null ? "" : result.output.trim()));
+                } else {
+                    routeMaster[0] = checked;
+                    status.setText(checked ? "分应用 VPN 路由已应用。" : "已关闭分应用 VPN 路由。");
+                }
+            });
+        });
+
+        modeGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            if (loadingConfig[0]) return;
+            String wanted = checkedId == onlyMode.getId() ? "only" : "bypass";
+            runNativeModuleCommand("sh \"$MP/scripts/vpn-apps.sh\" apply-mode " + wanted,
+                    120000L, result -> {
+                if (result.exitCode != 0) {
+                    modeGroup.check("only".equals(routeMode[0]) ? onlyMode.getId() : bypassMode.getId());
+                    status.setText("路由模式未应用：" + (result.output == null ? "" : result.output.trim()));
+                } else {
+                    routeMode[0] = wanted;
+                    status.setText("分应用路由模式已切换。");
+                }
+            });
+        });
+
+        runNativeModuleCommand("sh \"$MP/scripts/vpn-apps.sh\" list", 30000L, config -> {
+            if (config.exitCode != 0) {
+                loadingConfig[0] = false;
+                status.setText("无法读取分应用 VPN 配置：" + (config.output == null ? "" : config.output.trim()));
+                master.setEnabled(false);
+                onlyMode.setEnabled(false);
+                bypassMode.setEnabled(false);
+                return;
+            }
+            try {
+                String[] lines = (config.output == null ? "" : config.output).split("\\r?\\n");
+                if (lines.length == 0 || !"FXVPNAPP1".equals(lines[0].trim())) {
+                    throw new IllegalStateException("模块返回了无法识别的分应用列表格式");
+                }
+                for (int i = 1; i < lines.length; i++) {
+                    String line = lines[i].trim();
+                    if (line.startsWith("master=")) routeMaster[0] = "1".equals(line.substring(7));
+                    else if (line.startsWith("mode=")) routeMode[0] = line.substring(5).trim();
+                    else if (!line.isEmpty()) {
+                        String[] fields = line.split("\\|", -1);
+                        if (fields.length == 3 && fields[0].matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_-]+)+"))
+                            selected.put(fields[0], "1".equals(fields[2]));
+                    }
+                }
+                loadingConfig[0] = false;
+                master.setChecked(routeMaster[0]);
+                onlyMode.setChecked("only".equals(routeMode[0]));
+                bypassMode.setChecked(!"only".equals(routeMode[0]));
+                status.setText("已读取 " + selected.size() + " 个分应用路由条目。当前模式："
+                        + ("only".equals(routeMode[0]) ? "仅列表应用走代理" : "列表应用直连")
+                        + "；请确认主 VPN 已正常运行后再启用分应用路由。");
+
+                Thread loader = new Thread(() -> {
+                    List<ApplicationInfo> loaded = new ArrayList<>();
+                    Map<String, String> names = new HashMap<>();
+                    try {
+                        PackageManager pm = getPackageManager();
+                        for (ApplicationInfo info : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
+                            if (info == null || info.packageName == null || info.packageName.equals(getPackageName())) continue;
+                            loaded.add(info);
+                            String label;
+                            try { label = String.valueOf(pm.getApplicationLabel(info)); }
+                            catch (Throwable ignored) { label = info.packageName; }
+                            names.put(info.packageName, label);
+                        }
+                        Collections.sort(loaded, (a, b) -> names.getOrDefault(a.packageName, a.packageName)
+                                .compareToIgnoreCase(names.getOrDefault(b.packageName, b.packageName)));
+                    } catch (Throwable error) {
+                        runOnUiThread(() -> status.setText("应用列表读取失败：" + error.getClass().getSimpleName()));
+                        return;
+                    }
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed() || rows.getParent() == null) return;
+                        installedApps.clear();
+                        installedApps.addAll(loaded);
+                        labels.clear();
+                        labels.putAll(names);
+                        renderRows.run();
+                    });
+                }, "FxYulongAppRoutes");
+                loader.setDaemon(true);
+                loader.start();
+            } catch (Exception error) {
+                loadingConfig[0] = false;
+                status.setText("分应用列表解析失败：" + error.getMessage());
+                master.setEnabled(false);
+                onlyMode.setEnabled(false);
+                bypassMode.setEnabled(false);
+            }
+        });
+
+        content.addView(nativeAction("重新读取应用路由状态", this::showImportedVpnAppManager));
+        content.addView(nativeAction("返回游龙广告插件应用管理", () -> showImportedSuiteCategory("yulong-ad", "应用管理")));
+    }
+
+    private void showImportedSuitePendingPage(String suite, String category, String page, String detail) {
+        String title = importedSuiteTitle(suite);
+        base(title + " · " + page);
+        content.addView(title(page, 21));
+        TextView description = new TextView(this);
+        description.setText(detail);
+        description.setTextColor(0xff66727e);
+        description.setPadding(dp(16), dp(10), dp(16), dp(16));
+        content.addView(description);
+        content.addView(nativeAction("返回 " + category, () -> showImportedSuiteCategory(suite, category)));
     }
 
     private void addNativeSettingsCategory(String label, String panelId) {

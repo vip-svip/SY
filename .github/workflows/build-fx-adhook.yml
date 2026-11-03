@@ -144,6 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
+          sh scripts/tests/fx-yulong-shield-native-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-reality-yaml-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-transport-yaml-regression.sh
