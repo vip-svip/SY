@@ -1,3 +1,89 @@
+## Latest continuation checkpoint — 2026-11-03 (Asia/Tokyo)
+
+Source branch: `fx-v1.0.0-unified-hook-integration`.
+All changes below are source-tree work only. No final APK/KernelSU package is being
+published during this migration phase.
+
+### Yulong Ad Plugin 7.0.1 — additional integrated work
+
+- Added a native per-app statistics screen using Android `TrafficStats` UID
+  counters. It shows cumulative RX/TX since boot, sort/search/refresh, and clearly
+  marks unsupported UIDs. These bytes are not misrepresented as DNS query counts.
+- Added the Root Proxy DNS fallback script and native settings/status switch.
+  It reuses FX AdGuard Home + Unbound; it does not install a second VpnService.
+- The Root Proxy requires a known external VPN interface and owner UID, an UP
+  interface with an IPv4 address, route checks through that interface, a successful
+  local DNS probe, and enabled DNS forwarding/compatibility settings. Failure
+  removes only FXYRP-owned rules and leaves third-party VPN DNS unchanged.
+- `fx-patches/patch_yulong_root_proxy.py` is wired into the KernelSU build workflow
+  after the stable Release module archive is restored. It adds the Root Proxy,
+  pins Unbound's source address to the route-checked egress marker, starts/stops
+  the fallback from the module apply flow, and removes its own rules on uninstall.
+- `vpn_external_dns_proxy` is exposed in the native DNS control page and defaults
+  on for compatible external VPN operation; user can disable it.
+- Remaining: exact per-app DNS request/block counters, RootProxy behavior on each
+  vendor VPN implementation, and real-device route/packet-path verification.
+  Do not claim universal VPN coexistence based only on host-side code.
+
+### Yulong Security Shield 9.9.60 — additional integrated work
+
+- Repaired the in-app Stellar authorization manager bridge: Root script lookup,
+  explicit package authorization, per-scope grants, read-only always-allow command
+  records, and refresh rendering. `roro.stellar.manager` remains inside the Shield
+  subtree, not a new FX main tab.
+- Added a user-authorized floating rescue bubble. It requires the system overlay
+  permission, starts its own foreground service, and only opens the Shield hub.
+  It does not read or click other apps' UI.
+- Removed duplicate live-protection controls in the Shield hub. The user-controlled
+  foreground monitor remains based on Usage Access and blacklist/whitelist rules.
+- Remaining: full original Golden Dragon/Stellar privileged command runtime parity,
+  automatic boot/KeepAliveAlarm watchdog, original overlay rescue behavior, and
+  permission-degrade recovery. The current floating bubble is an explicit rescue
+  shortcut, not a full clone of the original watchdog.
+
+### Dia 23.11 — additional integrated work
+
+- Added the native privacy-settings Asset: seven panels covering notifications/
+  clipboard, sensors, device identifiers, location/GNSS, network, filesystem and
+  system diagnostics. The KernelSU build workflow now stages
+  `native-privacy-settings.sh` into the restored module so those panel switches
+  can read/write the actual module configuration through the Root allowlist helper.
+- Added per-app Wi-Fi identity testing: fake SSID/BSSID values are serialized into
+  the LSPosed Remote Files config and only override `WifiInfo.getSSID()` /
+  `getBSSID()` inside user-installed debuggable target apps.
+- Added per-app network transport testing: a debuggable target may report Wi-Fi or
+  cellular through `NetworkInfo` and `NetworkCapabilities.hasTransport()`; the
+  system's real routes, VPN and physical connection are not changed.
+- Added launcher-only component hiding mode to the native Activity manager. It
+  lists MAIN/LAUNCHER components, confirms before changing state, and allows
+  re-enabling the launcher component from the same page.
+- Added debug-only boolean test replacements to the custom Hook runtime. Rules
+  support OBSERVE, RETURN_TRUE and RETURN_FALSE; replacement is restricted to
+  exact-package, zero-argument boolean methods on debuggable targets. Rule import/
+  export preserves enabled state and base action. Production apps and server-side
+  membership/authorization are not modified.
+- Database Inspector lists databases and reads `sqlite_master` schema only when a
+  local sqlite3 CLI is present; it does not read business rows. Memory Inspector
+  shows process status, PSS/RSS and bounded memory maps, not raw memory dumps.
+- HTTP/SQL/algorithm instrumentation is still provided as editable Frida templates
+  in the native Frida manager. That is not equivalent to a full Dia built-in
+  instrumented runtime. DEX browser, Activity manager, Frida bridge and local/
+  GitHub/WebDAV backup adapters are integrated.
+- Remaining: broader Dia activity screens, full HTTP/SQL/algorithm runtime
+  instrumentation, complete method/native function interception parity, advanced
+  GPS/time/telephony identity simulation, and real-device LSPosed behavior checks.
+
+### Packaging policy remains unchanged
+
+- Push-triggered package builds stay disabled while migration is in progress.
+- Continue committing to this same branch; do not create interim release ZIPs.
+- Once source migration is complete, run the unified APK + KernelSU build from one
+  exact commit, verify the embedded APK matches the standalone APK, generate
+  SHA-256 checksums, verify ZIP integrity, and then publish the final artifacts.
+- Host build/regression results are not real-device verification.
+
+---
+
 ## 2026-11-03 migration continuation checkpoint
 
 Source of truth: branch `fx-v1.0.0-unified-hook-integration`.
