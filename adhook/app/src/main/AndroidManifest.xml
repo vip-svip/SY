@@ -55,6 +55,10 @@
                 android:value="用户主动开启的 FX 安全护盾悬浮救援入口" />
         </service>
         <receiver
+            android:name=".imported.shield.FxYulongUninstallReceiver"
+            android:enabled="true"
+            android:exported="false" />
+        <receiver
             android:name=".imported.shield.FxYulongKeepAliveReceiver"
             android:enabled="true"
             android:exported="false">
