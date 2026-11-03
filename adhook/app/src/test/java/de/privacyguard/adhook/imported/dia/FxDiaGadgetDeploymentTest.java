@@ -121,6 +121,30 @@ public final class FxDiaGadgetDeploymentTest {
         assertFalse(command.contains("processes=*"));
     }
 
+    @Test public void rejectsSymlinksAtAnyNativeLibraryPathComponent() throws Exception {
+        java.nio.file.Path root = java.nio.file.Files.createTempDirectory("fx-gadget-native-path");
+        java.nio.file.Path real = java.nio.file.Files.createDirectory(root.resolve("real"));
+        java.nio.file.Path nativeDir = java.nio.file.Files.createDirectory(real.resolve("arm64"));
+        java.nio.file.Path parentLink = root.resolve("parent-link");
+        java.nio.file.Path leafLink = root.resolve("leaf-link");
+        try {
+            java.nio.file.Files.createSymbolicLink(parentLink, real);
+            java.nio.file.Files.createSymbolicLink(leafLink, nativeDir);
+            assertFalse(FxDiaGadgetDeployment.hasSymlinkComponent(nativeDir.toFile()));
+            assertTrue(FxDiaGadgetDeployment.hasSymlinkComponent(
+                    parentLink.resolve("arm64").toFile()));
+            assertTrue(FxDiaGadgetDeployment.hasSymlinkComponent(leafLink.toFile()));
+            assertTrue(FxDiaGadgetDeployment.hasSymlinkComponent(
+                    new java.io.File("relative-native-dir")));
+        } finally {
+            java.nio.file.Files.deleteIfExists(leafLink);
+            java.nio.file.Files.deleteIfExists(parentLink);
+            java.nio.file.Files.deleteIfExists(nativeDir);
+            java.nio.file.Files.deleteIfExists(real);
+            java.nio.file.Files.deleteIfExists(root);
+        }
+    }
+
     @Test public void rootCommandBuilderRetainsValidatedPort() {
         String command = FxDiaGadgetDeployment.buildDeployCommand(
                 "/data/local/tmp/libfrida-gadget.so",
