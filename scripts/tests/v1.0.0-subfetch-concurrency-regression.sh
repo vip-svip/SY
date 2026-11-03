@@ -98,6 +98,7 @@ touch "$T/state/release-curl"
 if [ "$_starts_before_release" -ne 1 ]; then
   echo "FAIL: second subscription download entered while first transfer was blocked (START count=$_starts_before_release)" >&2
   cat "$T/state/curl-events" >&2 || :
+  echo "lock operation timeline:" >&2; cat "$T/state/lock-events" >&2 || :
   echo "worker A shell trace:" >&2; cat "$T/trace1" >&2 || :
   echo "worker B shell trace:" >&2; cat "$T/trace2" >&2 || :
   cat "$T/out1" "$T/out2" >&2 || :
