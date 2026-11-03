@@ -71,7 +71,6 @@ public final class FxStellarManagerActivity extends Activity {
   addSwitch("读取系统服务列表","SERVICE_LIST_COMMAND",false);
   addSwitch("管理 AppOps（高权限）","APPOPS_MANAGE",true);
   addSwitch("管理运行时权限（高权限）","RUNTIME_PERMISSION_MANAGE",true);
-  addSwitch("写入受限安全设置（高权限）","SECURE_SETTINGS_WRITE",true);
   body.addView(button("撤销终端命令作用域",()->{
     if(target.isEmpty())return;
     new AlertDialog.Builder(this).setTitle("撤销终端命令权限").setMessage("移除当前应用的 TERMINAL_COMMAND 作用域？")
@@ -108,12 +107,12 @@ public final class FxStellarManagerActivity extends Activity {
     button("撤销权限",()->confirmManaged("permission "+quote(target)+" revoke "+quote(permissionName.getText().toString().trim()),"撤销运行时权限")));
   EditText secureKey = new EditText(this);
   secureKey.setSingleLine(true);
-  secureKey.setHint("仅允许：show_ime_with_hard_keyboard / screensaver_enabled / long_press_timeout");
+  secureKey.setHint("show_ime_with_hard_keyboard / screensaver_enabled / long_press_timeout");
   EditText secureValue = new EditText(this);
   secureValue.setSingleLine(true);
   secureValue.setHint("0 / 1 / 100-1000");
   addCard("安全设置写入",
-    "先在上方明确开启“写入受限安全设置”。只开放三个固定键和值域；其他 secure setting 一律拒绝。每次写入都要求再次确认，成功后由系统回读核实。",
+    "先开启 SECURE_SETTINGS_WRITE。只开放三个固定低风险键；其他 secure setting 一律拒绝。每次写入都要求再次确认。",
     secureKey, secureValue,
     button("写入安全设置",()->{
       String key = secureKey.getText().toString().trim();

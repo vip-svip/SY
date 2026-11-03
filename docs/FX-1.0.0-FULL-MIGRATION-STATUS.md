@@ -725,3 +725,10 @@ After each implementation batch:
 - Foreground-service behavior and permission revocation still require Android
   device verification; this change prevents a known repeated wake-up loop but does
   not claim OEM-wide background-survival parity.
+
+
+### Yulong Security Shield 9.9.60 — install-scan correctness and shared scan preference
+
+- The manual scanner's APK-content switch now reads and writes the same `shield_prefs/automatic_content_scan_enabled` preference used by the Shield automatic-install scanner; the two screens no longer silently diverge.
+- Automatic install-scan results now remain explicitly inconclusive when the virus database is empty, the scan throws, or the target package could not be enumerated. Only a completed package scan with no match is reported as "not matched"; failures are never represented as a clean result.
+- Risk notifications and their activity PendingIntents now use a stable package-specific ID so separate installed applications do not overwrite one another's warning notification.

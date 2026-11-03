@@ -61,10 +61,18 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
                             ? "发现高风险应用" : "发现可疑应用";
                     detail = matched.label + "\n" + packageName + "\n" + matched.reason;
                 } else {
-                    status = result.databaseEntries <= 0
-                            ? "扫描未形成安全结论：病毒库为空"
-                            : "未命中当前已加载的病毒名单";
-                    title = "新应用检测完成";
+                    boolean scanFailed = result.message != null
+                            && result.message.startsWith("扫描失败");
+                    if (result.databaseEntries <= 0) {
+                        status = "扫描未形成安全结论：病毒库为空";
+                    } else if (scanFailed) {
+                        status = "扫描未完成，不能判定安全：" + result.message;
+                    } else if (result.scanned <= 0) {
+                        status = "扫描未形成安全结论：未能读取目标应用清单";
+                    } else {
+                        status = "未命中当前已加载的病毒名单";
+                    }
+                    title = "新应用检测结果";
                     detail = packageName + "\n" + status;
                 }
 
@@ -92,6 +100,12 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
         });
     }
 
+    private static int notificationIdFor(String packageName) {
+        int hash = packageName == null ? 0 : packageName.hashCode();
+        // Keep a stable, positive notification/request ID per package.
+        return 0x10000000 | (hash & 0x0fffffff);
+    }
+
     private static void showFindingNotification(Context context, String title, String detail, String packageName, String label, String reason, String severity) {
         if (Build.VERSION.SDK_INT >= 33
                 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -111,7 +125,8 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
         open.putExtra("reason", reason);
         open.putExtra("severity", severity);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent content = PendingIntent.getActivity(context, 9021, open,
+        int notificationId = notificationIdFor(packageName);
+        PendingIntent content = PendingIntent.getActivity(context, notificationId, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23
                         ? PendingIntent.FLAG_IMMUTABLE : 0));
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
@@ -125,6 +140,6 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
                 .setContentIntent(content)
                 .setAutoCancel(true)
                 .build();
-        manager.notify(NOTIFICATION_ID, notification);
+        manager.notify(notificationId, notification);
     }
 }
