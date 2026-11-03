@@ -103,7 +103,7 @@ public final class FxYulongShieldActivity extends Activity {
         setContentView(root);
 
         card("功能迁移状态",
-                "已迁入原版病毒名单匹配、离线缓存、手动扫描、白名单与管控名单、安装后扫描、前台应用守护与 Stellar 权限管理。原版持续进程 watchdog、KeepAliveAlarm、自保护覆盖层救援及部分权限降级逻辑仍在迁移。");
+                "已迁入病毒名单、离线缓存、手动扫描、白名单/管控名单、安装后扫描、前台应用守护、Stellar 权限管理、开机恢复与 15 分钟低频恢复 Alarm。原版 2 分钟高频 watchdog、强制恢复无障碍权限和部分覆盖层自保护行为未照搬；FX 不会擅自修改系统权限或强停目标应用。");
         card("病毒库与名单",
                 "五类逻辑名单：确定风险包名、可能风险包名、确定风险名称、可能风险名称、风险关键字；名称库会合并原版旧名单。",
                 action("打开病毒库管理页", () -> startActivity(new Intent(this,
@@ -161,6 +161,17 @@ public final class FxYulongShieldActivity extends Activity {
                 protectionState + "\\n累计提醒：" + warningCount
                         + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
                         + "\\n" + warning);
+        boolean recoveryEnabled = shieldPrefs.getBoolean("protect_on", false)
+                || shieldPrefs.getBoolean("shake_trigger_on", false);
+        card("开机与低频后台恢复",
+                (recoveryEnabled
+                        ? "已启用：系统启动时按用户保存的开关恢复；运行期间每 15 分钟安排一次低频检查。"
+                        : "未启用：守护与救援触发均关闭时，不安排后台恢复 Alarm。")
+                        + "\\n只恢复用户主动开启的 FX 守护/救援服务，不会自动开启无障碍权限。",
+                action("重新计算恢复计划", () -> {
+                    FxYulongKeepAliveReceiver.refreshSchedule(this);
+                    Toast.makeText(this, "后台恢复计划已重新计算。", Toast.LENGTH_SHORT).show();
+                }));
         card("每日安全总结",
                 "汇总当日管控名单提醒、新安装应用扫描数量与风险命中情况。",
                 action("打开每日安全总结", () -> startActivity(new Intent(this,
