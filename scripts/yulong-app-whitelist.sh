@@ -59,11 +59,32 @@ write_item() {
 with_lock() {
   tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
+    owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+    case "$owner" in
+      ''|*[!0-9]*)
+        # A process may be between mkdir and writing its PID. Give that short
+        # critical section time to finish before treating a PID-less lock stale.
+        if [ ! -e "$LOCK/pid" ] && [ "$tries" -ge 3 ]; then
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+      *)
+        if ! kill -0 "$owner" 2>/dev/null; then
+          rm -f "$LOCK/pid" 2>/dev/null || :
+          rmdir "$LOCK" 2>/dev/null || :
+        fi
+        ;;
+    esac
     tries=$((tries+1))
     [ "$tries" -lt 20 ] || { echo "app whitelist update is busy" >&2; return 10; }
     sleep 1
   done
-  trap 'rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
+  if ! printf '%s\\n' "$" > "$LOCK/pid"; then
+    rmdir "$LOCK" 2>/dev/null || :
+    echo "cannot record app whitelist lock owner" >&2
+    return 10
+  fi
+  trap 'rm -f "$LOCK/pid" 2>/dev/null || :; rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
   "$@"
 }
 mutate_transaction() {
