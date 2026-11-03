@@ -83,14 +83,35 @@ for label in ("Dia 23.11", "游龙广告插件 7.0.1", "游龙安全护盾 9.9.6
     assert label in main, f"Settings migration entry missing: {label}"
 for name in ("showImportedSuite", "showImportedSuiteCategory", "openImportedSuitePage"):
     assert name in main, f"3rd/4th-level navigation missing: {name}"
-for panel in ("notifyPanel", "sensorPanel", "netPanel", "devicePanel", "filePanel",
-              "locationPanel", "miscPanel"):
-    assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia page is not wired to native FX panel: {panel}"
+# Dia pages must route to their matching native feature surface. General FX
+# privacy groups are not substitutes for Dia's target-specific editors or tools.
+for panel in ("notifyPanel", "sensorPanel", "netPanel"):
+    assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia feature has lost its matching native settings panel: {panel}"
+assert 'case "设备属性":' in main and 'showAppList("设备标识模拟")' in main, \
+    "Dia device identity must open the per-target identity editor, not a global device panel"
+assert 'case "位置与 GPS":' in main and 'showAppList("位置隐私")' in main, \
+    "Dia GPS settings must open the per-target location/GPS editor"
+assert 'case "Wi-Fi 模拟":' in main and 'showAppList("Wi-Fi 环境模拟")' in main, \
+    "Dia Wi-Fi simulation must open its per-target editor"
+assert 'case "网络类型模拟":' in main and 'showAppList("网络类型模拟")' in main, \
+    "Dia network-type simulation must open its per-target editor"
+assert 'case "文件与 so 库":' in main and "FxDiaFileActivity.class" in main, \
+    "Dia file/SO tools must open the SAF-backed native file browser"
+assert 'case "按键控制":' in main and 'loadDiaMonitorTemplate("key")' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java").read_text(encoding="utf-8"), \
+    "Dia key-control page must open its key-event observer template"
+assert 'case "应用版本":' in main and 'case "签名信息":' in main and "FxDiaSignatureActivity.class" in main, \
+    "Dia version/signature pages must open the native PackageManager signing inspector"
 assert "FX 当前的 QuickJS 脚本运行时不是 Frida" in main, "Frida must not be mislabeled as QuickJS"
-assert 'case "Wi-Fi 模拟"' not in main and 'case "网络类型模拟"' not in main, \
-    "Unimplemented Dia Wi-Fi/network simulation must remain explicitly pending"
-assert 'case "按键控制"' not in main and 'case "应用版本"' not in main and 'case "签名信息"' not in main, \
-    "Unimplemented Dia features must not be routed to unrelated settings panels"
+assert 'wifi_simulate' in main and 'network_type_sim' in main and 'publishConfig();' in main, \
+    "Dia network simulation UI must persist per-target drafts and publish configuration"
+assert 'installWifiInfoSimulationHooks' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java").read_text(encoding="utf-8"), \
+    "Wi-Fi simulation settings have no runtime Hook implementation"
+assert 'installNetworkTypeSimulationHooks' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java").read_text(encoding="utf-8"), \
+    "Network-type simulation settings have no runtime Hook implementation"
+assert 'Intent.ACTION_OPEN_DOCUMENT_TREE' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFileActivity.java").read_text(encoding="utf-8"), \
+    "Dia file browser must use explicit SAF directory grants"
+assert 'GET_SIGNING_CERTIFICATES' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSignatureActivity.java").read_text(encoding="utf-8"), \
+    "Dia signature inspector must read PackageManager signing certificates"
 
 hub = shield["FxYulongShieldActivity.java"]
 db_page = shield["FxYulongVirusDatabaseActivity.java"]
