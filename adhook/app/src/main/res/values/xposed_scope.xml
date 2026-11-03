@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        FX uses libxposed dynamic scope (META-INF/xposed/module.prop:
-        staticScope=false). Keep the legacy Xposed metadata resource valid
-        without preselecting every installed package; users choose exact targets
-        in the LSPosed manager.
+        The legacy Hook resource merge supplies the canonical xposed_scope
+        array from its original arrays.xml. Do not define a second empty array
+        here: Android resource merging rejects duplicate names. Its
+        staticScope=false module metadata keeps scope dynamically user-managed.
     -->
-    <string-array name="xposed_scope" />
 </resources>

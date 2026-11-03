@@ -140,6 +140,7 @@ jobs:
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+          python3 scripts/tests/fx-android-resource-unique-regression.py adhook/app/src/main/res
           # Normalize stale-lock regression fixtures after all Release restore/merge operations.
           # Assemble the shell variable marker numerically to keep this workflow YAML literal-safe.
           python3 - <<'PY'
