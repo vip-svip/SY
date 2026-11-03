@@ -18,10 +18,19 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Per-application cumulative UID traffic counters, independent of VPN and DNS. */
 public final class FxYulongAppStatsActivity extends Activity {
     private final List<Row> data = new ArrayList<>();
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "fx-yulong-app-stats"));
+    private final AtomicInteger refreshGeneration = new AtomicInteger();
+    private Future<?> refreshTask;
+    private volatile boolean destroying;
     private LinearLayout rows;
     private EditText search;
     private TextView summary;
@@ -31,7 +40,10 @@ public final class FxYulongAppStatsActivity extends Activity {
         final int uid;
         final long rx, tx;
         Row(String p, String l, int u, long r, long t) { pkg=p; label=l; uid=u; rx=r; tx=t; }
-        long total() { return rx < 0 || tx < 0 ? -1 : rx + tx; }
+        long total() {
+            if (rx < 0 || tx < 0) return -1;
+            return tx > Long.MAX_VALUE - rx ? Long.MAX_VALUE : rx + tx;
+        }
     }
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
@@ -44,7 +56,7 @@ public final class FxYulongAppStatsActivity extends Activity {
         Button b = new Button(this); b.setAllCaps(false); b.setText(label);
         b.setOnClickListener(v -> action.run()); return b;
     }
-    private String bytes(long v) {
+    private static String bytes(long v) {
         if (v < 0) return "系统未提供";
         if (v < 1024) return v + " B";
         double n=v; String[] units={"B","KiB","MiB","GiB","TiB"}; int i=0;
@@ -90,28 +102,67 @@ public final class FxYulongAppStatsActivity extends Activity {
     }
 
     private void refresh() {
-        data.clear();
-        PackageManager pm=getPackageManager();
-        long sumRx=0,sumTx=0; int unknown=0;
+        final int generation = refreshGeneration.incrementAndGet();
+        if (refreshTask != null) refreshTask.cancel(true);
+        summary.setText("正在后台读取 UID 流量计数…");
+        final PackageManager packageManager = getApplicationContext().getPackageManager();
+        final String ownPackage = getPackageName();
         try {
-            for (ApplicationInfo app:pm.getInstalledApplications(0)) {
-                if (app.packageName==null || app.packageName.equals(getPackageName())) continue;
-                String label;
-                try { label=String.valueOf(pm.getApplicationLabel(app)); }
-                catch (Throwable ignored) { label=app.packageName; }
-                long rx=TrafficStats.getUidRxBytes(app.uid);
-                long tx=TrafficStats.getUidTxBytes(app.uid);
-                data.add(new Row(app.packageName,label,app.uid,rx,tx));
-                if (rx<0 || tx<0) unknown++;
-                else { sumRx+=rx; sumTx+=tx; }
+            refreshTask = worker.submit(() -> {
+                List<Row> loaded = new ArrayList<>();
+                UidTrafficTotals totals = new UidTrafficTotals();
+                String failure = null;
+                try {
+                    for (ApplicationInfo app : packageManager.getInstalledApplications(0)) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (app.packageName == null || app.packageName.equals(ownPackage)) continue;
+                        String label;
+                        try { label = String.valueOf(packageManager.getApplicationLabel(app)); }
+                        catch (RuntimeException ignored) { label = app.packageName; }
+                        long rx;
+                        long tx;
+                        try {
+                            rx = TrafficStats.getUidRxBytes(app.uid);
+                            tx = TrafficStats.getUidTxBytes(app.uid);
+                        } catch (RuntimeException unavailable) {
+                            rx = -1L;
+                            tx = -1L;
+                        }
+                        loaded.add(new Row(app.packageName, label, app.uid, rx, tx));
+                        totals.add(app.uid, rx, tx);
+                    }
+                    loaded.sort(Comparator.comparingLong((Row row) ->
+                            row.total() < 0 ? Long.MIN_VALUE : row.total()).reversed());
+                } catch (RuntimeException error) {
+                    failure = error.getClass().getSimpleName();
+                }
+                if (Thread.currentThread().isInterrupted()) return;
+                final String failureMessage = failure;
+                final List<Row> resultRows = loaded;
+                final String resultSummary = "应用数：" + loaded.size()
+                        + " · 唯一 UID：" + totals.getUidCount()
+                        + " · 可用 UID：" + totals.getAvailableUidCount()
+                        + " · 无计数 UID：" + totals.getUnavailableUidCount()
+                        + "\n累计接收（按唯一 UID）：" + bytes(totals.getRxBytes())
+                        + " · 累计发送：" + bytes(totals.getTxBytes());
+                runOnUiThread(() -> {
+                    if (destroying || isFinishing() || isDestroyed()
+                            || generation != refreshGeneration.get()) return;
+                    if (failureMessage != null) {
+                        summary.setText("读取失败：" + failureMessage);
+                        return;
+                    }
+                    data.clear();
+                    data.addAll(resultRows);
+                    summary.setText(resultSummary);
+                    render();
+                });
+            });
+        } catch (RejectedExecutionException rejected) {
+            if (!destroying && !isFinishing() && !isDestroyed()) {
+                summary.setText("后台统计任务已关闭，请重新打开页面。");
             }
-            data.sort(Comparator.comparingLong((Row r)->r.total()<0?Long.MIN_VALUE:r.total()).reversed());
-            summary.setText("应用数："+data.size()+" · 可用 UID："+(data.size()-unknown)
-                    +" · 无计数："+unknown+"\\n累计接收："+bytes(sumRx)+" · 累计发送："+bytes(sumTx));
-        } catch (Throwable error) {
-            summary.setText("读取失败："+error.getClass().getSimpleName());
         }
-        render();
     }
 
     private void render() {
@@ -132,4 +183,12 @@ public final class FxYulongAppStatsActivity extends Activity {
         }
         if (shown==0) rows.addView(text("没有匹配的应用。",13,0xff718091,false));
     }
+    @Override protected void onDestroy() {
+        destroying = true;
+        refreshGeneration.incrementAndGet();
+        if (refreshTask != null) refreshTask.cancel(true);
+        worker.shutdownNow();
+        super.onDestroy();
+    }
+
 }

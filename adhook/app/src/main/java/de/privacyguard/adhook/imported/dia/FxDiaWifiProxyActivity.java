@@ -177,8 +177,8 @@ public final class FxDiaWifiProxyActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this).setTitle("启用全局 HTTP 代理？")
-                .setMessage("将 Android 全局 http_proxy 设置为：\\n" + target
-                        + "\\n\\n所有使用系统代理的应用都可能受到影响。FX 会保存旧值，并在关闭时尝试恢复。")
+                .setMessage("将 Android 全局 http_proxy 设置为：\n" + target
+                        + "\n\n所有使用系统代理的应用都可能受到影响。FX 会保存旧值，并在关闭时尝试恢复。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("启用", (dialog, which) -> applyProxy(target))
                 .show();
@@ -191,18 +191,18 @@ public final class FxDiaWifiProxyActivity extends Activity {
         String restorePrevious = alreadyActive ? previous : "";
         String expectedCurrent = alreadyActive ? previousApplied : "";
 
-        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
+        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
                 + "if [ " + (alreadyActive ? "1" : "0") + " = 1 ]; then "
-                + "[ \\"$current\\" = " + quote(expectedCurrent) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
+                + "[ \"$current\" = " + quote(expectedCurrent) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                 + "old=" + quote(restorePrevious) + "; "
-                + "else old=\\"$current\\"; [ -n \\"$old\\" ] || old=null; fi; "
+                + "else old=\"$current\"; [ -n \"$old\" ] || old=null; fi; "
                 + "settings put global http_proxy " + quote(target) + "; "
-                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
-                + "if [ \\"$actual\\" != " + quote(target) + " ]; then "
-                + "if [ \\"$old\\" = null ]; then settings delete global http_proxy; "
-                + "else settings put global http_proxy \\"$old\\"; fi; "
+                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                + "if [ \"$actual\" != " + quote(target) + " ]; then "
+                + "if [ \"$old\" = null ]; then settings delete global http_proxy; "
+                + "else settings put global http_proxy \"$old\"; fi; "
                 + "echo FX_PROXY_WRITE_FAILED; exit 31; fi; "
-                + "printf 'PREVIOUS=%s\\\\nAPPLIED=%s\\\\n' \\"$old\\" \\"$actual\\"";
+                + "printf 'PREVIOUS=%s\\nAPPLIED=%s\\n' \"$old\" \"$actual\"";
         runRoot(command, result -> {
             if (result.exitCode != 0 || result.output == null
                     || !result.output.contains("APPLIED=" + target)) {
@@ -237,14 +237,14 @@ public final class FxDiaWifiProxyActivity extends Activity {
     private void restoreProxyConfirmed() {
         String expected = prefs().getString("applied", "");
         String previous = prefs().getString("previous", "null");
-        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
-                + "[ \\"$current\\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
+        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                + "[ \"$current\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                 + "if [ " + quote(previous) + " = null ]; then settings delete global http_proxy; "
                 + "else settings put global http_proxy " + quote(previous) + "; fi; "
-                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\\\r'); "
+                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
                 + "if [ " + quote(previous) + " = null ]; then "
-                + "[ -z \\"$actual\\" ] || [ \\"$actual\\" = null ] || exit 31; "
-                + "else [ \\"$actual\\" = " + quote(previous) + " ] || exit 31; fi; "
+                + "[ -z \"$actual\" ] || [ \"$actual\" = null ] || exit 31; "
+                + "else [ \"$actual\" = " + quote(previous) + " ] || exit 31; fi; "
                 + "echo FX_PROXY_RESTORED";
         runRoot(command, result -> {
             if (result.exitCode != 0 || result.output == null
@@ -268,7 +268,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
         }
         new AlertDialog.Builder(this).setTitle("解除 FX 代理管理？")
                 .setMessage("只清除 FX 保存的旧值和管理标记，不会修改 Android 当前 global http_proxy。"
-                        + "\\n\\n如果系统代理已被其他程序更改，请使用此项解除冲突。")
+                        + "\n\n如果系统代理已被其他程序更改，请使用此项解除冲突。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("解除管理", (dialog, which) -> {
                     prefs().edit().putBoolean("active", false)
@@ -279,17 +279,17 @@ public final class FxDiaWifiProxyActivity extends Activity {
     }
 
     private void refreshStatus() {
-        runRoot("settings get global http_proxy 2>/dev/null | tr -d '\\\\r'", result -> {
+        runRoot("settings get global http_proxy 2>/dev/null | tr -d '\\r'", result -> {
             if (result.exitCode == 0) {
                 String current = result.output == null ? "" : result.output.trim();
                 status.setText("global http_proxy = " + (current.isEmpty() ? "(未设置)" : current)
-                        + (prefs().getBoolean("active", false) ? "\\\\nFX 管理状态：启用" : "\\\\nFX 管理状态：未启用"));
+                        + (prefs().getBoolean("active", false) ? "\nFX 管理状态：启用" : "\nFX 管理状态：未启用"));
             } else status.setText("无法读取系统代理：" + safe(result.output));
         });
     }
 
     private String extract(String output, String prefix) {
-        for (String line : output.split("\\\\r?\\\\n")) if (line.startsWith(prefix)) return line.substring(prefix.length());
+        for (String line : output.split("\\r?\\n")) if (line.startsWith(prefix)) return line.substring(prefix.length());
         return "";
     }
 
