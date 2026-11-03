@@ -6,6 +6,10 @@ CONTROL="$ROOT/scripts/yulong-ad-control.sh"
 PATCHER="$ROOT/fx-patches/patch_yulong_ad_dns_logs.py"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$HELPER" ] || fail "numeric-only DNS summary helper missing"
+if [ -n "${1:-}" ]; then
+  [ -s "$1/scripts/yulong-ad-dns-summary.sh" ] || fail "restored module DNS summary helper missing"
+  cmp -s "$HELPER" "$1/scripts/yulong-ad-dns-summary.sh" || fail "restored module DNS summary helper differs from canonical source"
+fi
 sh -n "$HELPER" || fail "DNS summary helper syntax invalid"
 sh -n "$CONTROL" || fail "Yulong control script syntax invalid"
 
@@ -19,12 +23,12 @@ cat > "$TMP/data/querylog.json" <<'JSON'
 {"question":{"host":"pass.example","type":"A"},"status":"NOERROR","ClientIP":"192.0.2.14"}
 JSON
 OUT=$(sh "$HELPER" "$TMP/data")
-printf '%s\\n' "$OUT" | grep -qx 'FXYULONGDNSSTATS1' || fail "summary protocol header missing"
-printf '%s\\n' "$OUT" | grep -qx 'queries=4' || fail "all DNS query rows were not counted"
-printf '%s\\n' "$OUT" | grep -qx 'blocked=2' || fail "blocked DNS rows were not counted"
-printf '%s\\n' "$OUT" | grep -qx 'unblocked=2' || fail "unblocked DNS rows were not counted"
+printf '%s\n' "$OUT" | grep -qx 'FXYULONGDNSSTATS1' || fail "summary protocol header missing"
+printf '%s\n' "$OUT" | grep -qx 'queries=4' || fail "all DNS query rows were not counted"
+printf '%s\n' "$OUT" | grep -qx 'blocked=2' || fail "blocked DNS rows were not counted"
+printf '%s\n' "$OUT" | grep -qx 'unblocked=2' || fail "unblocked DNS rows were not counted"
 for secret in ads.example open.example tracker.example pass.example 192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14 ClientIP; do
-  ! printf '%s\\n' "$OUT" | grep -Fq "$secret" || fail "summary leaked raw DNS field: $secret"
+  ! printf '%s\n' "$OUT" | grep -Fq "$secret" || fail "summary leaked raw DNS field: $secret"
 done
 
 : > "$TMP/data/querylog.json"
@@ -32,7 +36,7 @@ done
 rm -f "$TMP/data/querylog.json"
 [ "$(sh "$HELPER" "$TMP/data")" = FXDNSLOG_EMPTY ] || fail "missing query log was not reported"
 
-printf '%s\\n' '{"QH":"secret.example","IsFiltered":true,"ClientIP":"192.0.2.15"}' > "$TMP/data/querylog.json"
+printf '%s\n' '{"QH":"secret.example","IsFiltered":true,"ClientIP":"192.0.2.15"}' > "$TMP/data/querylog.json"
 ln -s "$TMP/data/querylog.json" "$TMP/data/querylog.link"
 if sh "$HELPER" "$TMP/data/querylog.link" >/dev/null 2>&1; then fail "helper accepted an incorrect argument layout"; fi
 mv "$TMP/data/querylog.json" "$TMP/data/querylog.saved"

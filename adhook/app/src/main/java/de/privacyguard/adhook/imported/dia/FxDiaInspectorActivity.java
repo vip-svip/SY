@@ -100,7 +100,8 @@ public final class FxDiaInspectorActivity extends Activity {
                 +"else echo 'SMAPS_ROLLUP_UNAVAILABLE'; fi; echo 'MEMORY_MAPS'; sed -n '1,160p' /proc/$pid/maps 2>/dev/null || true; echo 'MAPS_TRUNCATED_AFTER_160_LINES';";
         }
         status.setText("正在读取…");output.setText("");
-        worker.execute(()->{RootAccess.Result result=RootAccess.execute(command,45000L,256*1024);
+        final String commandToRun = command;
+        worker.execute(()->{RootAccess.Result result=RootAccess.execute(commandToRun,45000L,256*1024);
             runOnUiThread(()->{if(isFinishing()||isDestroyed())return;status.setText("读取完成，退出码："+result.exitCode);output.setText(result.output==null?"（无输出）":result.output);});});
     }
     private void copyResult(){
