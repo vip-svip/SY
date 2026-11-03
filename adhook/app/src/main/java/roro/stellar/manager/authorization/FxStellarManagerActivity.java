@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -31,12 +32,17 @@ public final class FxStellarManagerActivity extends Activity {
  private String target="";
  private LinearLayout body;
  private TextView state, selectedLabel;
+ private LinearLayout alwaysRows;
  private boolean syncing;
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
  private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
- private String command(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard
+ private String command(String args) {
+  return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
+    + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
+    + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-stellar-control.sh\" " + args;
+ }
  private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){worker.execute(()->{RootAccess.Result r=RootAccess.execute(command(args),60000L,256*1024);runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())cb.accept(r);});});}
  private String appLabel(String pkg){try{return String.valueOf(getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)));}catch(Throwable ignored){return pkg;}}
  @Override protected void onCreate(Bundle saved){
@@ -78,6 +84,9 @@ public final class FxStellarManagerActivity extends Activity {
       .setNegativeButton("取消",null).setPositiveButton("确认",(d,w)->apply("always-set "+quote(target)+" "+quote(c)+" 1","添加始终允许命令")).show();
   }));
   addCard("授权记录","可查看当前目标应用保存的始终允许命令。",button("刷新",this::refresh));
+  alwaysRows = new LinearLayout(this);
+  alwaysRows.setOrientation(LinearLayout.VERTICAL);
+  body.addView(alwaysRows);
   body.addView(button("撤销当前应用全部 Stellar 授权",()->{
     if(target.isEmpty())return;
     new AlertDialog.Builder(this).setTitle("撤销授权").setMessage("同时移除应用白名单、能力作用域和始终允许命令？")
@@ -100,7 +109,8 @@ public final class FxStellarManagerActivity extends Activity {
         .setPositiveButton("明确授权",(d,w)->apply("scope-set "+quote(target)+" "+key+" 1",label)).show();
       return;
     }
-    apply("scope-set "+quote(target)+" "+key+" "+(on?"1":"0"),label);
+    if ("PKG".equals(key)) apply("pkg-set "+quote(target)+" "+(on?"1":"0"),label);
+    else apply("scope-set "+quote(target)+" "+key+" "+(on?"1":"0"),label);
   });
   body.addView(sw);
  }
@@ -131,9 +141,10 @@ public final class FxStellarManagerActivity extends Activity {
     }
     state.setText("策略已同步 · 应用 "+packages.size()+" · 能力 "+scopes.size()+" · 始终允许 "+always.size());
     bind();
+    if(alwaysRows!=null) alwaysRows.removeAllViews();
     for(String item:always){String[] p=item.split("\\|",2);if(p.length==2&&p[0].equals(target)){
-      body.addView(text(p[1],11,0xff526170,false));
-      body.addView(button("移除此命令",()->apply("always-set "+quote(p[0])+" "+quote(p[1])+" 0","移除始终允许命令")));
+      alwaysRows.addView(text(p[1],11,0xff526170,false));
+      alwaysRows.addView(button("移除此命令",()->apply("always-set "+quote(p[0])+" "+quote(p[1])+" 0","移除始终允许命令")));
     }}
   });
  }
