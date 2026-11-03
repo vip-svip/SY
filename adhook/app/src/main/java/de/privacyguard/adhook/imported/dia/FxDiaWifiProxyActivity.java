@@ -126,6 +126,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
         restoreButton = button("关闭并恢复原系统代理", () -> restoreProxy());
         body.addView(applyButton);
         body.addView(restoreButton);
+        body.addView(button("解除 FX 管理（保留当前系统值）", () -> forgetProxyManagement()));
         body.addView(button("刷新系统代理状态", () -> refreshStatus()));
 
         body.addView(text("快捷设置", 16, 0xff17212b, true));
@@ -258,6 +259,23 @@ public final class FxDiaWifiProxyActivity extends Activity {
             status.setText("已恢复启用 FX 前保存的系统代理值。");
             updateButtons();
         });
+    }
+
+    private void forgetProxyManagement() {
+        if (!prefs().getBoolean("active", false)) {
+            status.setText("FX 当前没有正在管理的系统代理。");
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("解除 FX 代理管理？")
+                .setMessage("只清除 FX 保存的旧值和管理标记，不会修改 Android 当前 global http_proxy。"
+                        + "\\n\\n如果系统代理已被其他程序更改，请使用此项解除冲突。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("解除管理", (dialog, which) -> {
+                    prefs().edit().putBoolean("active", false)
+                            .remove("previous").remove("applied").apply();
+                    status.setText("已解除 FX 管理；系统当前代理值保持不变。");
+                    updateButtons();
+                }).show();
     }
 
     private void refreshStatus() {
