@@ -59,7 +59,7 @@ public final class FxStellarManagerActivity extends Activity {
   addCard("Stellar 管理器","保留在游龙安全护盾内部。授权数据沿用原版 /data/local/tmp/stellar_guard 文件；不创建 FX 独立主导航标签。");
   state=text("正在读取授权策略…",12,0xff617080,false);body.addView(state);
   body.addView(button("选择授权目标应用",this::chooseTarget));
-  addSwitch("允许该应用请求 Stellar 授权","PKG");
+  addSwitch("允许该应用请求 Stellar 授权","PKG",false);
   selectedLabel=text("当前目标应用：未选择",13,0xff334155,true);body.addView(selectedLabel);
   addSwitch("读取 Shell 身份","SHELL_ID_COMMAND",false);
   addSwitch("读取已安装包列表","PACKAGE_LIST_COMMAND",false);
