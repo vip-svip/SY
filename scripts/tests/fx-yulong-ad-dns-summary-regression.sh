@@ -87,15 +87,15 @@ python3 "$PATCHER" "$TMP/module" >/dev/null
 
 printf 'dns_querylog_enabled=0\n' > "$TMP/pg/settings.conf"
 sh "$TMP/module/scripts/adguardhome.sh" render-config "$TMP/module" "$TMP/pg" > "$TMP/querylog-off.yaml"
-grep -A6 '^querylog: "$TMP/querylog-off.yaml" | grep -qx '  enabled: false' || fail "query logging is not disabled by default"
-grep -A6 '^querylog: "$TMP/querylog-off.yaml" | grep -qx '  file_enabled: false' || fail "file logging is not disabled by default"
-if grep -A6 '^querylog: "$TMP/querylog-off.yaml" | grep -Eq '^  (enabled|file_enabled): [01]; then
+grep -A6 "^querylog:" "$TMP/querylog-off.yaml" | grep -qx "  enabled: false" || fail "query logging is not disabled by default"
+grep -A6 "^querylog:" "$TMP/querylog-off.yaml" | grep -qx "  file_enabled: false" || fail "file logging is not disabled by default"
+if grep -A6 "^querylog:" "$TMP/querylog-off.yaml" | grep -Eq "^  (enabled|file_enabled): [01]$"; then
   fail "querylog booleans were rendered as YAML integers"
 fi
 
 printf 'dns_querylog_enabled=1\n' > "$TMP/pg/settings.conf"
 sh "$TMP/module/scripts/adguardhome.sh" render-config "$TMP/module" "$TMP/pg" > "$TMP/querylog-on.yaml"
-grep -A6 '^querylog: "$TMP/querylog-on.yaml" | grep -qx '  enabled: true' || fail "explicit query logging opt-in did not enable querylog"
-grep -A6 '^querylog: "$TMP/querylog-on.yaml" | grep -qx '  file_enabled: true' || fail "explicit query logging opt-in did not enable file logging"
+grep -A6 "^querylog:" "$TMP/querylog-on.yaml" | grep -qx "  enabled: true" || fail "explicit query logging opt-in did not enable querylog"
+grep -A6 "^querylog:" "$TMP/querylog-on.yaml" | grep -qx "  file_enabled: true" || fail "explicit query logging opt-in did not enable file logging"
 
 echo "PASS: 30-day local DNS log summary returns numeric counts only, honors opt-in, emits valid YAML booleans and rejects symlinked paths"
