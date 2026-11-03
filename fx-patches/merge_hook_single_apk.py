@@ -168,83 +168,52 @@ gradle.write_text(g, encoding="utf-8")
 
 manifest = modern / "AndroidManifest.xml"
 m = manifest.read_text(encoding="utf-8")
-# Preserve all non-launcher Android components contributed by FX migrations.
-def retained_components(tag):
-    pattern = re.compile(
-        rf'(?s)<{tag}\b[^>]*?(?:/>|>.*?</{tag}>)'
-    )
-    return pattern.findall(m)
+# Parse direct application children as XML rather than using a regex over nested
+# <activity>/<intent-filter> tags. This preserves every migrated page/receiver
+# when rebuilding the unified manifest and avoids silently retaining only the launcher.
+import xml.etree.ElementTree as ET
+ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+manifest_root = ET.fromstring(m)
+application_node = manifest_root.find("application")
+if application_node is None:
+    raise SystemExit("modern manifest application element missing or malformed")
 
-retained_activities = [
-    component for component in retained_components("activity")
-    if not re.search(
-        r"""android:name=["'](?:\.MainActivity|de\.privacyguard\.adhook\.MainActivity)["']""",
-        component
-    )
-]
-retained_services = [
-    component for component in retained_components("service")
-    if not re.search(
-        r"""android:name=["'](?:\.FxAccessibilityService|de\.privacyguard\.adhook\.FxAccessibilityService)["']""",
-        component
-    )
-]
+ANDROID_NAME = "{http://schemas.android.com/apk/res/android}name"
+def retained_components(tag, excluded=()):
+    retained = []
+    for component in list(application_node):
+        if component.tag != tag:
+            continue
+        name = component.attrib.get(ANDROID_NAME, "")
+        if name in excluded:
+            continue
+        retained.append(ET.tostring(component, encoding="unicode"))
+    return retained
+
+retained_activities = retained_components("activity", {
+    ".MainActivity", "de.privacyguard.adhook.MainActivity"
+})
+retained_services = retained_components("service", {
+    ".FxAccessibilityService", "de.privacyguard.adhook.FxAccessibilityService"
+})
 retained_receivers = retained_components("receiver")
 retained_providers = retained_components("provider")
-m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
-# Replace the complete application element. Cutting at the first "/>" is
-# incorrect once the launcher activity contains a self-closing child element.
-app_match = re.search(r"<application\b[^>]*>.*?</application>", m, re.S)
-if not app_match:
-    raise SystemExit("modern manifest application element missing or unbalanced")
-# Preserve the APK's native launcher UI while adding the LSPosed metadata.
-if 'android.permission.QUERY_ALL_PACKAGES' not in m:
-    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\n    <application', 1)
-app = """<application
-        android:label="FX Hook"
-        android:allowBackup="false"
-        android:usesCleartextTraffic="false"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <service
-            android:name=".FxAccessibilityService"
-            android:label="FX 可选辅助服务"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/fx_accessibility_service" />
-        </service>
-        <meta-data android:name="xposedmodule" android:value="true" />
-        <meta-data android:name="xposedminversion" android:value="93" />
-        <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
-        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
-        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->
-        <!-- FX_PRESERVED_MIGRATED_SERVICES -->
-        <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->
-        <!-- FX_PRESERVED_MIGRATED_PROVIDERS -->
-    </application>"""
-for marker, components in (
-    ("<!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->", retained_activities),
-    ("<!-- FX_PRESERVED_MIGRATED_SERVICES -->", retained_services),
-    ("<!-- FX_PRESERVED_MIGRATED_RECEIVERS -->", retained_receivers),
-    ("<!-- FX_PRESERVED_MIGRATED_PROVIDERS -->", retained_providers),
-):
-    if marker not in app:
-        raise SystemExit("Unified Hook application template is missing " + marker)
-    app = app.replace(marker, "\n".join(components), 1)
+required_migrated_activities = {
+    ".imported.shield.FxYulongShieldActivity",
+    ".imported.shield.FxYulongVirusDatabaseActivity",
+    ".imported.shield.FxYulongScanActivity",
+    ".imported.shield.WhitelistActivity",
+    ".imported.shield.WhitelistPickerActivity",
+    ".imported.shield.BlacklistActivity",
+}
+retained_activity_names = {
+    component.attrib.get(ANDROID_NAME, "")
+    for component in application_node.findall("activity")
+}
+missing_migrated = required_migrated_activities - retained_activity_names
+if missing_migrated:
+    raise SystemExit("Source manifest is missing migrated Yulong Shield Activities: "
+                     + ", ".join(sorted(missing_migrated)))
 
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
