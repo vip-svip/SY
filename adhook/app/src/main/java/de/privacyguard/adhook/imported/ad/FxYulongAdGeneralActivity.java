@@ -26,6 +26,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Yulong AdBlock 7.0.1 general settings and transactional filter backup/restore. */
 public final class FxYulongAdGeneralActivity extends Activity {

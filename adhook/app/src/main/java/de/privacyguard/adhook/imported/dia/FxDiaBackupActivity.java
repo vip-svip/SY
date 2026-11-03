@@ -1,6 +1,7 @@
 package de.privacyguard.adhook.imported.dia;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -259,7 +260,8 @@ public final class FxDiaBackupActivity extends Activity {
             runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())callback.accept(r);});});
     }
     private String rootModuleCommand(){
-        return "PG=/data/adb/privacyguard; test -s \"$PG/settings.conf\" || exit 20; "
+        return "PG=/data/adb/privacyguard; [ ! -L \"$PG\" ] || exit 19; [ -d \"$PG\" ] || exit 20; "
+                +"[ ! -L \"$PG/settings.conf\" ] || exit 21; [ -f \"$PG/settings.conf\" ] && [ -s \"$PG/settings.conf\" ] || exit 20; "
                 +"base64 \"$PG/settings.conf\" | tr -d '\\n'";
     }
 
@@ -427,7 +429,7 @@ public final class FxDiaBackupActivity extends Activity {
                 java.io.File cache = java.io.File.createTempFile(
                         "fx-dia-restore-", ".tmp", getCacheDir());
                 staged.put(entry.getKey(), cache);
-                try (OutputStream out = new java.io.FileOutputStream(cache, false)) {
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(cache, false)) {
                     out.write(entry.getValue());
                     out.flush();
                     out.getFD().sync();
@@ -567,7 +569,7 @@ public final class FxDiaBackupActivity extends Activity {
         java.io.File moduleTemp = new java.io.File(getCacheDir(), "fx-dia-settings.restore");
         boolean preferencesMayHaveChanged = false;
         try {
-            try (OutputStream out = new java.io.FileOutputStream(moduleTemp, false)) {
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(moduleTemp, false)) {
                 out.write(module);
                 out.flush();
                 out.getFD().sync();

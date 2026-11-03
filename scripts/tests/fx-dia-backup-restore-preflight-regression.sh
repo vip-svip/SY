@@ -12,6 +12,9 @@ slash = chr(92)
 module_reader = source.split("private String rootModuleCommand()", 1)[1].split("private String rootStellarFilesCommand()", 1)[0]
 stellar_reader = source.split("private String rootStellarFilesCommand()", 1)[1].split("private JSONObject buildBackup()", 1)[0]
 for label, body in (("module settings reader", module_reader), ("Stellar state reader", stellar_reader)):
+    if label == "module settings reader":
+        assert '[ ! -L ' + slash + '"$PG' + slash + '" ]' in body, "module backup must reject a symlinked state directory"
+        assert '[ ! -L ' + slash + '"$PG/settings.conf' + slash + '" ]' in body, "module backup must reject a symlinked settings file"
     assert slash + '"' in body, label + " must use Java-escaped shell quote delimiters"
     assert slash * 2 + '"' not in body, label + " contains over-escaped shell quotes that break Java compilation"
     assert "tr -d '" + slash * 2 + "n'" in body, label + " must pass a single literal \\n pattern to tr"

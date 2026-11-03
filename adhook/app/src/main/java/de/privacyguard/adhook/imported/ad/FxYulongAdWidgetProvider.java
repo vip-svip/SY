@@ -10,6 +10,7 @@ import android.os.Build;
 import android.widget.RemoteViews;
 
 import de.privacyguard.adhook.MainActivity;
+import de.privacyguard.adhook.R;
 import de.privacyguard.adhook.RootAccess;
 
 import java.util.concurrent.ArrayBlockingQueue;

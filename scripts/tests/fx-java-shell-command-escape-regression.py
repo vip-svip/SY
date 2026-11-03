@@ -30,4 +30,17 @@ assert "FX_GADGET_LOG_SYMLINK_REJECTED" in dia, "Frida log reader must reject sy
 integrity = (ROOT / FILES[7]).read_text(encoding="utf-8")
 for token in ("MODULE=missing", "STATE=disabled", "STATE=marked-for-removal", "shell-syntax-error"):
     assert token in integrity, "Shield module integrity checks missing: " + token
+general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
+assert "import java.util.List;" in general and "import java.util.ArrayList;" in general, "Yulong Ad general settings must import List/ArrayList"
+backup = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaBackupActivity.java").read_text(encoding="utf-8")
+assert "import android.app.AlertDialog;" in backup, "Dia backup dialogs must import AlertDialog"
+assert "try (java.io.FileOutputStream out = new java.io.FileOutputStream(cache, false))" in backup
+assert "try (java.io.FileOutputStream out = new java.io.FileOutputStream(moduleTemp, false))" in backup
+assert backup.count("out.getFD().sync();") == 3, "all three staged backup writes must sync a file descriptor"
+frida = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java").read_text(encoding="utf-8")
+assert "import java.io.OutputStream;" in frida, "Frida SAF export must import OutputStream"
+widget = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java").read_text(encoding="utf-8")
+assert "import de.privacyguard.adhook.R;" in widget, "Yulong widget must import the app R namespace"
+adActivity = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java").read_text(encoding="utf-8")
+assert "import android.widget.Toast;" in adActivity, "Yulong AdActivity must import Toast"
 print("PASS: Yulong, Dia Frida and Shield migrated Java shell string escaping")
