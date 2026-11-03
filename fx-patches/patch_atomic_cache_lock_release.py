@@ -139,33 +139,36 @@ wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" 
     "subscription concurrency test must explain worker failure",
 )
 
-# Instrument the subscription concurrency fixture exactly once. The marker
-# prevents the patcher (run in more than one build stage) from appending duplicate
-# START/END events to the mock curl script.
+# Trace the actual mock curl heredoc using stable line anchors. START/END are
+# patched independently so a partial fixture patch can recover on rerun.
 if "FX_SUBFETCH_CURL_TRACE_V1" not in sub_test.read_text(encoding="utf-8"):
     replace_once(
         sub_test,
         'countfile="$TEST_ROOT/count"\n',
-        'countfile="$TEST_ROOT/count"\n# FX_SUBFETCH_CURL_TRACE_V1\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\\\n" "$(date +%s)" "$$" >> "$events"\n',
+        'countfile="$TEST_ROOT/count"\n# FX_SUBFETCH_CURL_TRACE_V1\nprintf "START|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\n',
         "subscription mock must record each curl start",
     )
+if "FX_SUBFETCH_CURL_TRACE_END_V1" not in sub_test.read_text(encoding="utf-8"):
     replace_once(
         sub_test,
-        '''if [ "$out" = '-' ]; then
-  printf '%s\n' "$body"
-else
-  printf '%s\n' "$body" > "$out"
-fi
-''',
-        '''if [ "$out" = '-' ]; then
-  printf '%s\n' "$body"
-else
-  printf '%s\n' "$body" > "$out"
-fi
-printf "END|%s|%s\n" "$(date +%s)" "$$" >> "$events"
-''',
+        'fi\nCURL\n',
+        'fi\n# FX_SUBFETCH_CURL_TRACE_END_V1\nprintf "END|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\nCURL\n',
         "subscription mock must record each curl completion",
     )
+
+# Capture shell xtrace independently from each worker's JSON stdout.
+replace_once(
+    sub_test,
+    'PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out1" 2> "$T/err1" &\n',
+    'PS4="FXSUB " PG="$T/state" sh -x "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out1" 2> "$T/trace1" &\n',
+    "subscription worker A must capture lock trace",
+)
+replace_once(
+    sub_test,
+    'PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out2" 2> "$T/err2" &\n',
+    'PS4="FXSUB " PG="$T/state" sh -x "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out2" 2> "$T/trace2" &\n',
+    "subscription worker B must capture lock trace",
+)
 
 # Capture the two shell lock paths on failure. This shows whether both workers
 # acquire the per-URL mkdir lock or whether a waiter reclaims a live PID.
