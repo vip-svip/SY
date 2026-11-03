@@ -1,3 +1,75 @@
+## 2026-11-03 migration continuation checkpoint
+
+Source of truth: branch `fx-v1.0.0-unified-hook-integration`.
+This note is the durable handoff for the current full three-app migration. Do not
+replace it with a package-only summary or revert to empty menu scaffolding.
+
+### Changes now present in the branch
+
+**Yulong Ad Plugin 7.0.1**
+- Added `scripts/decode_yulong_ad_tries.py` and `scripts/integrate_yulong_ad_rules.py`
+  to decode the 7.0.1 bundled TRIE assets into DNS-safe Hosts entries and a separate
+  cosmetic-rule file, then register the source in FX's existing rule pipeline.
+- Added attribution for AdGuard DNS/Mobile, Peter Lowe, anti-AD, EasyList China,
+  ADgk and AdGuard Chinese filter source lists.
+- Added `fx-module/scripts/yulong-app-firewall.sh` plus a native FX Hook Activity.
+  The firewall is separate from per-app VPN routing, writes only FXYUL_A/FXYUL_B
+  OUTPUT chains, refreshes package UIDs at apply time, applies IPv4 and IPv6 as a
+  transaction, and rolls back settings if either family fails.
+- The module boot hook reapplies the firewall and module uninstall removes only
+  the firewall's own chains. The original AdBlockVpnService is not added as a second
+  VpnService; FX continues to own the single Android VPN/TUN.
+- Remaining: original per-app traffic statistics, full RootProxyService fallback
+  compatibility for a third-party VPN, some DNS/HTTPS preference screens and
+  exact behavior parity with every original AdPlugin diagnostic screen.
+
+**Yulong Security Shield 9.9.60**
+- Added the native shield hub, virus database manager, installed-app scanner,
+  content-signature database, whitelist, blacklist and install/update scan receiver.
+- Unified `shield_prefs` keys with the original app's `blacklist_pkgs`,
+  `whitelist_pkgs`, `protect_on`, `shake_trigger_on` and `volume_trigger_on`
+  keys so the migrated services and list UIs share the same state.
+- Added a user-controlled foreground service that reads only Usage Access foreground
+  package names, applies blacklist/whitelist rules, and sends warnings. It does not
+  force-stop, disable, freeze or uninstall apps and does not change accessibility
+  settings on the user's behalf.
+- Added opt-in volume-up sequence and accelerometer-shake rescue notifications.
+  The accessibility service does not consume volume keys; the sensor listener is
+  registered only while the user enables the shake trigger.
+- Automatic install/update scanning uses the existing package scanner and can
+  optionally use the original APK content-signature database.
+- Remaining: exact Stellar/Golden Dragon privileged runtime, original overlay rescue
+  workflow, foreground watchdog/KeepAliveAlarm, permission-degrade handling and
+  legacy UI-driven force-stop/uninstall automation. Those intrusive actions are not
+  silently re-created; any later replacement must remain explicit and user-confirmed.
+
+**Dia 23.11**
+- The Settings > migration-app tree and category/fourth-level navigation exist.
+- Supported routes use FX's existing native installed-app Hook list, native privacy
+  controls, local QuickJS script UI, Hosts/rules UI and runtime log UI.
+- Added multiple-format custom Hook rule management in the native Hook target page:
+  Java exact signature, legacy `Class#method()Z` and Smali/JVM descriptors;
+  priority; per-rule OBSERVE/OFF; 64-rule limit; JSON bulk import/export.
+- All custom rules remain exact-package scoped and read-only. The runtime does not
+  rewrite production app authorization, account, login or membership decisions.
+- Remaining: Frida server/client and injection UI, Activity/method rewrite runtime,
+  device-property/location/network simulation, HTTP/SQL/database/algorithm monitors,
+  DEX/memory inspection, backup adapters and the remaining Dia-specific UI screens.
+  QuickJS is not a Frida replacement and must not be presented as one.
+
+### Build / packaging policy
+- Automatic push-triggered runs in both `.github/workflows/build-fx-adhook.yml` and
+  `.github/workflows/build-fx-kernelsu.yml` were paused during migration; they are
+  manual-dispatch workflows only. Do not restore automatic packaging for each
+  incremental migration commit.
+- No final KernelSU ZIP or APK is claimed for this continuation checkpoint.
+- After all three source scopes are migrated, run the full source regressions, build
+  the unified FX Hook APK and KernelSU ZIP from one exact commit, verify the APK
+  embedded in the ZIP matches the paired standalone APK, verify checksums and ZIP
+  integrity, and only then publish the final artifacts.
+- CI/build evidence is host evidence only; real-device verification remains a
+  separate final step.
+
 ## Latest continuation audit (2026-11-03, Asia/Tokyo)
 
 - Current branch: `fx-v1.0.0-unified-hook-integration`; current branch HEAD at documentation update: `c4e24f4a545d78ba5af929317dd933d2d891640d`.
