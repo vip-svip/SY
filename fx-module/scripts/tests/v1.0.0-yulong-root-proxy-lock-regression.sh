@@ -14,6 +14,15 @@ printf "%s\n" "# test utility stub" > "$MOD/scripts/util.sh"
 for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
 #!/system/bin/sh
+case "$1" in
+  stop)
+    if ! (umask 077; set -C; printf '%s\n' "$" > "$TMP/engine.lock") 2>/dev/null; then
+      printf 'overlap|%s\n' "$" >> "$TMP/engine-overlap"
+    fi
+    /bin/sleep 0.04
+    rm -f "$TMP/engine.lock"
+    ;;
+esac
 exit 0
 SH
   chmod 0755 "$MOD/scripts/$script"
@@ -27,10 +36,13 @@ SH
 done
 cat > "$BIN/sleep" <<'SH'
 #!/system/bin/sh
-exit 0
+case "$1" in
+  1) /bin/sleep 0.01 ;;
+  *) /bin/sleep "$@" ;;
+esac
 SH
 chmod 0755 "$BIN/sleep"
-export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"
+export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"
 LOCK="$PG/yulong-root-proxy.lock"
 
 grep -Fq '( umask 077; set -C; printf ' "$SOURCE" || {
@@ -79,6 +91,21 @@ rm "$LOCK"
 sh "$SOURCE" stop >/dev/null
 [ ! -e "$LOCK" ] || { echo "FAIL: normal Root Proxy operation leaked its lock" >&2; exit 1; }
 
+# A stale regular-file owner is reclaimed.
+printf '2147483647\n' > "$LOCK"
+sh "$SOURCE" stop >/dev/null
+[ ! -e "$LOCK" ] || { echo "FAIL: stale regular Root Proxy lock file was not recovered" >&2; exit 1; }
+
+# A live regular-file owner is never stolen.
+printf '%s\n' "$" > "$LOCK"
+set +e
+sh "$SOURCE" stop >/dev/null 2>&1
+file_rc=$?
+set -e
+[ "$file_rc" -eq 10 ] || { echo "FAIL: live regular Root Proxy file lock did not return busy (rc=$file_rc)" >&2; exit 1; }
+[ "$(cat "$LOCK")" = "$" ] || { echo "FAIL: live regular Root Proxy file lock owner changed" >&2; exit 1; }
+rm -f "$LOCK"
+
 # A dead lock owner is recovered rather than blocking all future DNS changes.
 mkdir "$LOCK"
 printf '2147483647\n' > "$LOCK/pid"
@@ -109,4 +136,16 @@ grep -Fqx "  trap 'exit 129' HUP" "$SOURCE"
 grep -Fqx "  trap 'exit 130' INT" "$SOURCE"
 grep -Fqx "  trap 'exit 143' TERM" "$SOURCE"
 
-echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"
+# Concurrent stop operations must serialize through the private file lock.
+sh "$SOURCE" stop > "$TMP/concurrent-a.log" 2>&1 & p1=$!
+/bin/sleep 0.005
+sh "$SOURCE" stop > "$TMP/concurrent-b.log" 2>&1 & p2=$!
+wait "$p1" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
+wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
+[ ! -s "$TMP/engine-overlap" ] || {
+  echo "FAIL: concurrent Root Proxy engine cleanup overlapped" >&2
+  cat "$TMP/engine-overlap" >&2
+  exit 1
+}
+[ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked lock file" >&2; exit 1; }
+echo "PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization"
