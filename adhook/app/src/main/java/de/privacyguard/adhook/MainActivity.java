@@ -2484,9 +2484,8 @@ public final class MainActivity extends ComponentActivity {
                 "三级入口 · 广告过滤、DNS、VPN / Root Proxy、HTTPS 与诊断页面",
                 "打开游龙广告插件", () -> showImportedSuite("yulong-ad"));
         addNativeActionCard("游龙安全护盾 9.9.60",
-                "原生页面 · 病毒库同步、只读扫描、白名单与管控名单",
-                "打开安全护盾", () -> startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class)));
+                "三级入口 · 安全中心、病毒库、应用扫描、Stellar 与救援恢复四级页面",
+                "打开安全护盾", () -> showImportedSuite("yulong-shield"));
         section("界面模式");
         TextView note = new TextView(this);
         note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。六个主页面均由 Android 原生视图承载；内置 WebView 仅作为尚未替换完毕的兼容运行桥，不显示网页像素。");
