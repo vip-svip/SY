@@ -173,35 +173,106 @@ _ensure_locked() {
   echo "egress_ipv4=$_egress"
 }
 with_lock() {
+  _lock_held=0
+  _read_lock_owner() {
+    _path=$1
+    [ ! -L "$_path" ] || return 1
+    if [ -d "$_path" ]; then
+      [ ! -L "$_path/pid" ] || return 1
+      cat "$_path/pid" 2>/dev/null
+    elif [ -f "$_path" ]; then
+      cat "$_path" 2>/dev/null
+    else
+      return 1
+    fi
+  }
+  _remove_lock_path() {
+    _path=$1
+    [ ! -L "$_path" ] || return 1
+    if [ -d "$_path" ]; then
+      rm -rf "$_path" 2>/dev/null
+    elif [ -f "$_path" ]; then
+      rm -f "$_path" 2>/dev/null
+    else
+      return 1
+    fi
+  }
   _tries=0
-  while ! mkdir "$LOCK" 2>/dev/null; do
-    _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  while :; do
+    # The canonical lock is now a private regular file acquired with noclobber.
+    # Directory/PID locks remain readable for safe migration from old releases.
+    if [ ! -L "$LOCK" ] && [ ! -e "$LOCK" ]; then
+      if ( umask 077; set -C; printf '%s\n' "$$" > "$LOCK" ) 2>/dev/null; then
+        _lock_held=1
+        break
+      fi
+    fi
+
+    [ ! -L "$LOCK" ] || { echo "unsafe root DNS proxy lock symlink" >&2; return 11; }
+    _owner="$(_read_lock_owner "$LOCK" 2>/dev/null || true)"
     case "$_owner" in
       ''|*[!0-9]*)
-        # Allow the owner to publish its PID immediately after mkdir.
-        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
-          rmdir "$LOCK" 2>/dev/null || :
+        # Reclaim only a legacy directory that stayed PID-less past the
+        # publication grace period. Quarantine it with one atomic rename.
+        if [ -d "$LOCK" ] && [ ! -L "$LOCK" ] && [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 10 ]; then
+          _stale="$LOCK.stale.$$.$_tries"
+          if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
+            _moved_owner="$(_read_lock_owner "$_stale" 2>/dev/null || true)"
+            if [ -z "$_moved_owner" ] && [ ! -e "$_stale/pid" ]; then
+              _remove_lock_path "$_stale" || :
+            elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+              mv "$_stale" "$LOCK" 2>/dev/null || :
+            fi
+          fi
         fi
         ;;
       *)
         if ! kill -0 "$_owner" 2>/dev/null; then
-          rm -f "$LOCK/pid" 2>/dev/null || :
-          rmdir "$LOCK" 2>/dev/null || :
+          # Re-read before rename and validate the moved owner afterwards.
+          # If another waiter has already replaced this lock, restore the
+          # moved path instead of deleting a live operation's lock.
+          _owner2="$(_read_lock_owner "$LOCK" 2>/dev/null || true)"
+          if [ "$_owner2" = "$_owner" ] && ! kill -0 "$_owner2" 2>/dev/null; then
+            _stale="$LOCK.stale.$$.$_tries"
+            if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
+              _moved_owner="$(_read_lock_owner "$_stale" 2>/dev/null || true)"
+              if [ "$_moved_owner" = "$_owner" ] && ! kill -0 "$_moved_owner" 2>/dev/null; then
+                _remove_lock_path "$_stale" || :
+              elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+                mv "$_stale" "$LOCK" 2>/dev/null || :
+              fi
+            fi
+          fi
         fi
         ;;
     esac
+
     _tries=$((_tries+1))
     [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
     sleep 1
   done
-  if ! printf '%s\n' "$$" > "$LOCK/pid"; then
-    rmdir "$LOCK" 2>/dev/null || :
-    echo "cannot record root DNS proxy lock owner" >&2
-    return 10
-  fi
+
   cleanup_lock() {
-    rm -f "$LOCK/pid" 2>/dev/null || :
-    rmdir "$LOCK" 2>/dev/null || :
+    [ "$_lock_held" = 1 ] || return 0
+    _owner="$(_read_lock_owner "$LOCK" 2>/dev/null || true)"
+    if [ "$_owner" = "$$" ]; then
+      _release="$LOCK.release.$$"
+      _release_try=0
+      while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_release_try" -lt 20 ]; do
+        _release_try=$((_release_try+1))
+        _release="$LOCK.release.$$.$_release_try"
+      done
+      if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
+        _release_owner="$(_read_lock_owner "$_release" 2>/dev/null || true)"
+        if [ "$_release_owner" = "$$" ]; then
+          _remove_lock_path "$_release" || :
+        elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+          mv "$_release" "$LOCK" 2>/dev/null || :
+        fi
+      fi
+    fi
+    _lock_held=0
+    return 0
   }
   # Signal handlers exit first; EXIT performs the one authoritative cleanup.
   trap cleanup_lock EXIT
