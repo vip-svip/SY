@@ -5,12 +5,12 @@ APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook"
 SHIELD="$JAVA/imported/shield"
 
-python3 - "$APP/AndroidManifest.xml" "$JAVA/MainActivity.java" "$SHIELD" <<'PY'
+python3 - "$APP/AndroidManifest.xml" "$JAVA/MainActivity.java" "$SHIELD" "$ROOT/fx-patches/merge_hook_single_apk.py" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, main_path, shield_dir = map(Path, sys.argv[1:])
+manifest_path, main_path, shield_dir, merge_source_path = map(Path, sys.argv[1:])
 manifest_text = manifest_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 main = main_path.read_text(encoding="utf-8")
