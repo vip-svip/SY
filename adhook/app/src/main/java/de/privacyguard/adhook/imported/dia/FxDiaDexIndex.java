@@ -392,13 +392,55 @@ public final class FxDiaDexIndex {
         if (cached != null) return cached;
         int dataOff = u32(stringsOff + index * 4);
         int[] cursor = {dataOff};
-        readUleb(cursor); // UTF-16 length; identifiers and descriptors are bounded below
-        int start = cursor[0], end = start;
-        while (end < data.length && data[end] != 0) end++;
-        if (end >= data.length) throw new IOException("unterminated DEX string");
-        String value = new String(data, start, end - start, java.nio.charset.StandardCharsets.UTF_8);
+        int utf16Length = readUleb(cursor);
+        String value = decodeMutf8(data, cursor[0], utf16Length);
         stringCache[index] = value;
         return value;
+    }
+
+    /** Decode the DEX string_data_item MUTF-8 payload, whose length counts UTF-16 code units. */
+    static String decodeMutf8(byte[] bytes, int offset, int utf16Length) throws IOException {
+        if (bytes == null || offset < 0 || offset > bytes.length
+                || utf16Length < 0 || utf16Length > bytes.length) {
+            throw new IOException("invalid DEX MUTF-8 string bounds");
+        }
+        char[] decoded = new char[utf16Length];
+        int cursor = offset;
+        for (int i = 0; i < utf16Length; i++) {
+            if (cursor >= bytes.length) throw new IOException("truncated DEX MUTF-8 string");
+            int first = bytes[cursor++] & 0xff;
+            if (first == 0) throw new IOException("DEX MUTF-8 terminator before declared UTF-16 length");
+            if (first <= 0x7f) {
+                decoded[i] = (char) first;
+                continue;
+            }
+            if ((first & 0xe0) == 0xc0) {
+                if (cursor >= bytes.length) throw new IOException("truncated DEX MUTF-8 two-byte sequence");
+                int second = bytes[cursor++] & 0xff;
+                if ((second & 0xc0) != 0x80) throw new IOException("invalid DEX MUTF-8 continuation byte");
+                int value = ((first & 0x1f) << 6) | (second & 0x3f);
+                if (value < 0x80 && value != 0) throw new IOException("overlong DEX MUTF-8 two-byte sequence");
+                decoded[i] = (char) value;
+                continue;
+            }
+            if ((first & 0xf0) == 0xe0) {
+                if (cursor > bytes.length - 2) throw new IOException("truncated DEX MUTF-8 three-byte sequence");
+                int second = bytes[cursor++] & 0xff;
+                int third = bytes[cursor++] & 0xff;
+                if ((second & 0xc0) != 0x80 || (third & 0xc0) != 0x80)
+                    throw new IOException("invalid DEX MUTF-8 continuation bytes");
+                int value = ((first & 0x0f) << 12) | ((second & 0x3f) << 6) | (third & 0x3f);
+                if (value < 0x800) throw new IOException("overlong DEX MUTF-8 three-byte sequence");
+                // Supplementary Unicode values are represented by a UTF-16 surrogate pair,
+                // each encoded as its own three-byte MUTF-8 sequence.
+                decoded[i] = (char) value;
+                continue;
+            }
+            throw new IOException("invalid DEX MUTF-8 leading byte");
+        }
+        if (cursor >= bytes.length || bytes[cursor] != 0)
+            throw new IOException("DEX MUTF-8 terminator missing at declared UTF-16 length");
+        return new String(decoded);
     }
 
     private int readUleb(int[] cursor) throws IOException {
