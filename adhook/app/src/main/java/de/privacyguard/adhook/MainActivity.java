@@ -4882,9 +4882,30 @@ public final class MainActivity extends ComponentActivity {
                 }).show();
     }
 
+    private String remapCustomRuleDescriptor(String descriptor, String sourcePackage, String targetPackage) {
+        if (descriptor == null || sourcePackage == null || targetPackage == null
+                || !sourcePackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+                || !targetPackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+            throw new IllegalArgumentException("规则组来源包名无效。");
+        }
+        String sourceSmali = "L" + sourcePackage.replace('.', '/') + "/";
+        String targetSmali = "L" + targetPackage.replace('.', '/') + "/";
+        if (descriptor.startsWith(sourceSmali)) {
+            return targetSmali + descriptor.substring(sourceSmali.length());
+        }
+        String sourceJava = sourcePackage + ".";
+        if (descriptor.startsWith(sourceJava)) {
+            return targetPackage + descriptor.substring(sourcePackage.length());
+        }
+        throw new IllegalArgumentException(
+                "规则类所有者不属于来源包 " + sourcePackage + "：" + descriptor);
+    }
+
     private void showCustomRuleExportDialog() {
         try {
-            org.json.JSONArray exported = new org.json.JSONArray();
+            org.json.JSONArray rules = new org.json.JSONArray();
+            java.util.Set<String> exportedGroups = new java.util.LinkedHashSet<>();
+            exportedGroups.add("默认");
             for (int n = 1; n <= 64; n++) {
                 String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                 if (value == null) continue;
@@ -4899,16 +4920,25 @@ public final class MainActivity extends ComponentActivity {
                 item.put("action", baseAction);
                 item.put("enabled", !"OFF".equals(parts[2]));
                 item.put("priority", Integer.parseInt(parts[3]));
-                item.put("group", getPreferences(0).getString(
-                        selectedPackage + ":dev_rule_group_" + n, "默认"));
-                exported.put(item);
+                String group = getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_group_" + n, "默认");
+                item.put("group", group);
+                exportedGroups.add(group);
+                rules.put(item);
             }
+            org.json.JSONObject exported = new org.json.JSONObject();
+            exported.put("format", "fx-dia-hook-rule-groups-v1");
+            exported.put("sourcePackage", selectedPackage);
+            exported.put("groups", new org.json.JSONArray(exportedGroups));
+            exported.put("rules", rules);
+
             EditText output = new EditText(this);
             output.setText(exported.toString(2));
             output.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
             output.setMinLines(8);
             output.setSelectAllOnFocus(true);
-            new AlertDialog.Builder(this).setTitle("导出自定义 Hook 规则")
+            new AlertDialog.Builder(this).setTitle("导出可移植 Hook 规则组")
+                    .setMessage("导出包含来源包名、分组元数据、规则动作、启停状态与优先级。导入其他应用时只会重写类所有者包名前缀，方法参数/返回描述符保持不变。")
                     .setView(output)
                     .setNegativeButton("关闭", null)
                     .setPositiveButton("复制", (dialog, which) -> {
@@ -4916,8 +4946,8 @@ public final class MainActivity extends ComponentActivity {
                                 (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
                         if (clipboard != null) {
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                                    "FX Hook rules", output.getText().toString()));
-                            Toast.makeText(this, "规则 JSON 已复制。", Toast.LENGTH_SHORT).show();
+                                    "FX Dia portable rule groups", output.getText().toString()));
+                            Toast.makeText(this, "规则组 JSON 已复制。", Toast.LENGTH_SHORT).show();
                         }
                     }).show();
         } catch (Exception error) {
@@ -4926,19 +4956,36 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+
     private void showCustomRuleImportDialog() {
         EditText input = new EditText(this);
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
         input.setMinLines(8);
-        input.setHint("[{\\"id\\":\\"observe1\\",\\"descriptor\\":\\"com.example.Foo#run()Z\\",\\"action\\":\\"OBSERVE\\",\\"priority\\":0}]");
-        new AlertDialog.Builder(this).setTitle("批量导入自定义 Hook 规则")
-                .setMessage("接受 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING；所有 RETURN_* 仅对 debuggable 目标开放，且按签名限制返回类型。JSON 可用 enabled:false 暂停规则。")
+        input.setHint("{\\"format\\":\\"fx-dia-hook-rule-groups-v1\\",\\"sourcePackage\\":\\"com.example.old\\",\\"rules\\":[...]}");
+        new AlertDialog.Builder(this).setTitle("导入自定义 Hook 规则组")
+                .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("验证并导入", (dialog, which) -> {
                     try {
-                        org.json.JSONArray array = new org.json.JSONArray(input.getText().toString());
+                        String raw = input.getText().toString().trim();
+                        org.json.JSONArray array;
+                        String sourcePackage = selectedPackage;
+                        if (raw.startsWith("[")) {
+                            array = new org.json.JSONArray(raw);
+                        } else {
+                            org.json.JSONObject root = new org.json.JSONObject(raw);
+                            String format = root.optString("format", "");
+                            if (!format.isEmpty() && !"fx-dia-hook-rule-groups-v1".equals(format))
+                                throw new IllegalArgumentException("不支持的规则组 JSON 格式。");
+                            sourcePackage = root.optString("sourcePackage", "");
+                            array = root.optJSONArray("rules");
+                            if (array == null) throw new IllegalArgumentException("规则组缺少 rules 数组。");
+                        }
+                        if (!sourcePackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
+                            throw new IllegalArgumentException("规则组来源包名无效。");
                         if (array.length() > 64) throw new IllegalArgumentException("单次导入最多 64 条规则。");
+
                         java.util.Set<String> ids = new java.util.HashSet<>();
                         java.util.List<String> candidates = new java.util.ArrayList<>();
                         java.util.List<String> baseActions = new java.util.ArrayList<>();
@@ -4960,10 +5007,14 @@ public final class MainActivity extends ComponentActivity {
                         }
                         for (int i = 0; i < array.length(); i++) {
                             org.json.JSONObject item = array.optJSONObject(i);
-                            if (item == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则不是对象。");
+                            if (item == null)
+                                throw new IllegalArgumentException("第 " + (i + 1) + " 条规则不是对象。");
                             String id = item.optString("id", "");
                             String descriptor = item.optString("descriptor", "");
-                            String action = item.optString("action", "OBSERVE").toUpperCase(java.util.Locale.ROOT);
+                            if (!sourcePackage.equals(selectedPackage))
+                                descriptor = remapCustomRuleDescriptor(descriptor, sourcePackage, selectedPackage);
+                            String action = item.optString("action", "OBSERVE")
+                                    .toUpperCase(java.util.Locale.ROOT);
                             int priority = item.optInt("priority", 0);
                             String groupName = item.optString("group", "默认").trim();
                             boolean enabled = item.optBoolean("enabled", true);
@@ -4980,14 +5031,20 @@ public final class MainActivity extends ComponentActivity {
                                 throw new IllegalArgumentException("RETURN_* 规则仅能导入 debuggable 目标。");
                             DeveloperHookRule parsed = DeveloperHookRule.parse(
                                     id + "|" + descriptor + "|" + action + "|" + priority, selectedPackage);
-                            if (parsed == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则签名/动作无效或不属于当前目标包。");
-                            if (!ids.add(parsed.id)) throw new IllegalArgumentException("规则 ID 重复：" + parsed.id);
+                            if (parsed == null)
+                                throw new IllegalArgumentException("第 " + (i + 1)
+                                        + " 条规则签名/动作无效或不属于当前目标包。");
+                            if (!ids.add(parsed.id))
+                                throw new IllegalArgumentException("规则 ID 重复：" + parsed.id);
                             String storedAction = enabled ? action : "OFF";
-                            candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction + "|" + parsed.priority);
+                            candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction
+                                    + "|" + parsed.priority);
                             baseActions.add(action);
                             baseGroups.add(groupName);
                         }
-                        if (candidates.size() > 64) throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
+                        if (candidates.size() > 64)
+                            throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
+
                         android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
                         for (int n = 1; n <= 64; n++) {
                             editor.remove(selectedPackage + ":dev_rule_" + n);
@@ -4999,21 +5056,26 @@ public final class MainActivity extends ComponentActivity {
                             editor.putString(selectedPackage + ":dev_rule_base_" + (i + 1), baseActions.get(i));
                             editor.putString(selectedPackage + ":dev_rule_group_" + (i + 1), baseGroups.get(i));
                         }
-                        editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty()).apply();
+                        editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty());
                         java.util.Set<String> allGroups = new java.util.LinkedHashSet<>();
                         allGroups.add("默认");
                         allGroups.addAll(baseGroups);
                         editor.putStringSet(selectedPackage + ":dev_rule_groups", allGroups);
+                        editor.apply();
+
                         ApplicationInfo currentTarget = findApp(selectedPackage);
                         if (currentTarget != null) showTarget(currentTarget);
-                        Toast.makeText(this, "已导入 " + array.length() + " 条规则。", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "已导入 " + array.length()
+                                + " 条规则组规则。", Toast.LENGTH_SHORT).show();
                     } catch (Exception invalid) {
                         new AlertDialog.Builder(this).setTitle("导入失败")
-                                .setMessage(invalid.getMessage() == null ? "JSON 格式或规则数据无效。" : invalid.getMessage())
+                                .setMessage(invalid.getMessage() == null
+                                        ? "JSON 格式或规则数据无效。" : invalid.getMessage())
                                 .setPositiveButton("知道了", null).show();
                     }
                 }).show();
     }
+
 
     private ApplicationInfo findApp(String pkg) {
         for(ApplicationInfo ai:apps) if(ai.packageName.equals(pkg)) return ai;
