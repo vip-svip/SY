@@ -19,9 +19,8 @@ public final class FxAccessibilityService extends AccessibilityService {
             "de.privacyguard.adhook.shield.VOLUME_KEY";
     private static volatile boolean connected;
     private String lastForegroundPackage = "";
-    private long volumeSequenceStart;
-    private int volumeUpCount;
-    private long lastRescueTrigger;
+    private final de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence
+            volumeTriggerSequence = new de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence();
 
     public static boolean isConnected() { return connected; }
 
@@ -59,19 +58,28 @@ public final class FxAccessibilityService extends AccessibilityService {
             sendBroadcast(changed);
         }
 
-        if (event.getAction() == KeyEvent.ACTION_UP && key == KeyEvent.KEYCODE_VOLUME_UP) {
+        if (event.getAction() == KeyEvent.ACTION_UP) {
             SharedPreferences shield = getSharedPreferences("shield_prefs", MODE_PRIVATE);
-            if (shield.getBoolean("volume_trigger_on", false)) {
-                long now = SystemClock.elapsedRealtime();
-                if (now - volumeSequenceStart > 2500L) {
-                    volumeSequenceStart = now;
-                    volumeUpCount = 0;
-                }
-                volumeUpCount++;
-                if (volumeUpCount >= 6 && now - lastRescueTrigger > 10000L) {
-                    lastRescueTrigger = now;
-                    volumeUpCount = 0;
-                    de.privacyguard.adhook.imported.shield.FxYulongProtectionService.notifyRescue(this, "连续按下音量上键，已触发安全护盾提醒。");
+            if (!shield.getBoolean("volume_trigger_on", false)) {
+                volumeTriggerSequence.resetSequence();
+            } else {
+                String configuredKey = shield.getString("volume_trigger_key", "down");
+                int wantedDirection =
+                        de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence
+                                .directionForPreference(configuredKey);
+                int requiredCount =
+                        de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence
+                                .normalizeCount(shield.getInt("volume_trigger_count", 3));
+                int direction = key == KeyEvent.KEYCODE_VOLUME_UP
+                        ? de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence.DIRECTION_UP
+                        : de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence.DIRECTION_DOWN;
+                if (volumeTriggerSequence.recordPress(direction, wantedDirection,
+                        requiredCount, SystemClock.elapsedRealtime())) {
+                    String keyLabel = direction == de.privacyguard.adhook.imported.shield
+                            .FxYulongVolumeTriggerSequence.DIRECTION_UP ? "音量上键" : "音量下键";
+                    de.privacyguard.adhook.imported.shield.FxYulongProtectionService.notifyRescue(
+                            this, "连续按下" + keyLabel + " " + requiredCount
+                                    + " 次，已触发安全护盾提醒。");
                 }
             }
         }
