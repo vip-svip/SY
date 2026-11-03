@@ -182,7 +182,15 @@ public final class FxDiaGadgetDeployment {
         c.append("mv \"$stage/$gadget\" \"$dest/$gadget\"; new_g=1\n");
         c.append("mv \"$stage/$conf\" \"$dest/$conf\"; new_c=1\n");
         c.append("mv \"$stage/$marker\" \"$dest/$marker\"; new_m=1\n");
-        public static String buildRemoveCommand(String nativeDir, String packageName) {
+        c.append("committed=1; echo FX_GADGET_DEPLOYED; echo package=$pkg; echo nativeLibraryDir=$dest; echo port=$port\n");
+        return c.toString();
+    }
+
+    public static String buildRemoveCommand(String nativeDir, String packageName) {
+        if (!validPackage(packageName) || nativeDir == null
+                || !nativeDir.startsWith("/data/app/") || nativeDir.contains("..")) {
+            throw new IllegalArgumentException("Unsupported target package/native library path");
+        }
         StringBuilder c = new StringBuilder();
         c.append("set -eu\n");
         c.append("dest=").append(q(nativeDir)).append("\npkg=").append(q(packageName)).append("\n");
@@ -203,8 +211,6 @@ public final class FxDiaGadgetDeployment {
         c.append("old_l=$(sed -n 's/^library_sha256=//p' \"$dest/$marker\" | head -1); old_c=$(sed -n 's/^config_sha256=//p' \"$dest/$marker\" | head -1)\n");
         c.append("[ -n \"$old_l\" ] && [ -n \"$old_c\" ] && [ \"$(sha256sum \"$dest/$gadget\" | awk '{print $1}')\" = \"$old_l\" ] && [ \"$(sha256sum \"$dest/$conf\" | awk '{print $1}')\" = \"$old_c\" ] || { echo FX_GADGET_HASH_CONFLICT; exit 40; }\n");
         c.append("mv \"$dest/$marker\" \"$stage/$marker\"; mv \"$dest/$conf\" \"$stage/$conf\"; mv \"$dest/$gadget\" \"$stage/$gadget\"; rm -rf \"$stage\"; stage=; trap - 0 HUP INT TERM; rmdir \"$lock\"; echo FX_GADGET_REMOVED\n");
-        return c.toString();
-    }"$stage\"; stage=; trap - 0 HUP INT TERM; rmdir \"$lock\"; echo FX_GADGET_REMOVED\n");
         return c.toString();
     }
 }
