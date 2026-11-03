@@ -74,10 +74,10 @@ cleanup_import(){
   [ -z "$tmp" ] || rm -f "$tmp" 2>/dev/null || :
   if [ "$lock_held" = 1 ]; then
     owner=$(cat "$lock" 2>/dev/null || :)
-    if [ "$owner" = "$" ]; then
-      release="$lock.release.$"
+    if [ "$owner" = "$$" ]; then
+      release="$lock.release.$$"
       if [ ! -e "$release" ] && [ ! -L "$release" ] && mv "$lock" "$release" 2>/dev/null; then
-        [ "$(cat "$release" 2>/dev/null || :)" = "$" ] && rm -f "$release" 2>/dev/null || :
+        [ "$(cat "$release" 2>/dev/null || :)" = "$$" ] && rm -f "$release" 2>/dev/null || :
       fi
     fi
   fi
@@ -89,7 +89,7 @@ trap 'exit 143' TERM
 waited=0
 while :; do
   if [ ! -L "$lock" ] && [ ! -e "$lock" ]; then
-    if (umask 077; set -C; printf '%s\n' "$" > "$lock") 2>/dev/null; then
+    if (umask 077; set -C; printf '%s\n' "$$" > "$lock") 2>/dev/null; then
       lock_held=1
       break
     fi
@@ -102,7 +102,7 @@ while :; do
       if ! kill -0 "$owner" 2>/dev/null; then
         owner2=$(cat "$lock" 2>/dev/null || :)
         if [ "$owner2" = "$owner" ] && ! kill -0 "$owner2" 2>/dev/null; then
-          stale="$lock.stale.$.$waited"
+          stale="$lock.stale.$$.$waited"
           if [ ! -e "$stale" ] && [ ! -L "$stale" ] && mv "$lock" "$stale" 2>/dev/null; then
             moved=$(cat "$stale" 2>/dev/null || :)
             if [ "$moved" = "$owner" ] && ! kill -0 "$moved" 2>/dev/null; then
