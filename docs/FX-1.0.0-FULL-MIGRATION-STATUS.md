@@ -109,6 +109,18 @@ published during this migration phase.
 - The UI copy now states the exact scope. No system-wide GNSS/provider setting,
   real hardware location, route, or other application's location is changed.
 
+### Dia 23.11 — broader HTTP and algorithm observers
+
+- HTTP template now observes URLConnection, HttpURLConnection status, OkHttp
+  execute/enqueue and Volley URL access. It records method/host/status/duration
+  only; paths, query strings, headers, cookies and bodies are not serialized.
+- Algorithm template now auto-hooks the Java JCA MessageDigest, Cipher, Mac and
+  Signature method families. It records algorithm family/name, byte lengths,
+  elapsed time and exception class, never cryptographic payloads or keys.
+- This expands the built-in metadata observers; native/custom app-specific
+  algorithms and non-Java networking stacks still require a manually authored
+  Frida template and are not claimed as complete parity.
+
 ### Dia 23.11 — direct monitor entry integration
 
 - The original fourth-level HTTP, SQL and algorithm menu entries now open the

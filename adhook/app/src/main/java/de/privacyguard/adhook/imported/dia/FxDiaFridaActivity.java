@@ -569,13 +569,28 @@ public final class FxDiaFridaActivity extends Activity {
         switch (kind) {
             case "http":
                 source = "Java.perform(function () {\\n"
+                        + "  function safeHost(value) { try { return String(Java.use('java.net.URL').$new(String(value)).getHost()); } catch (_) { return ''; } }\\n"
                         + "  var URL = Java.use('java.net.URL');\\n"
                         + "  var open = URL.openConnection.overload();\\n"
                         + "  open.implementation = function () {\\n"
                         + "    var host = String(this.getHost());\\n"
-                        + "    send('[DIA_HTTP] connection host=' + host);\\n"
+                        + "    send('[DIA_HTTP] URLConnection host=' + host);\\n"
                         + "    return open.call(this);\\n"
                         + "  };\\n"
+                        + "  try { var H = Java.use('java.net.HttpURLConnection'); var code = H.getResponseCode.overload();\\n"
+                        + "    code.implementation = function () { var started=Date.now(); var result=code.call(this); var host=''; var method='';\\n"
+                        + "      try { host=String(this.getURL().getHost()); } catch (_) {} try { method=String(this.getRequestMethod()); } catch (_) {}\\n"
+                        + "      send('[DIA_HTTP] HttpURLConnection method=' + method + ' host=' + host + ' status=' + result + ' elapsedMs=' + (Date.now()-started)); return result;\\n"
+                        + "    };\\n"
+                        + "  } catch (_) {}\\n"
+                        + "  function hookOkHttp(className) { try { var C=Java.use(className);\\n"
+                        + "    try { var execute=C.execute.overload(); execute.implementation=function(){ var request=this.request(); var url=request.url(); var host=String(url.host()); var method=String(request.method()); var started=Date.now();\\n"
+                        + "      try { var response=execute.call(this); var status=response.code(); send('[DIA_HTTP] OkHttp method='+method+' host='+host+' status='+status+' elapsedMs='+(Date.now()-started)); return response; }\\n"
+                        + "      catch(e){send('[DIA_HTTP] OkHttp method='+method+' host='+host+' exception='+e.$className);throw e;} }; } catch (_) {}\\n"
+                        + "    try { C.enqueue.overloads.forEach(function(enqueue){ if(enqueue.argumentTypes.length!==1)return; enqueue.implementation=function(callback){ var request=this.request(); var url=request.url(); send('[DIA_HTTP] OkHttp enqueue method='+String(request.method())+' host='+String(url.host())); return enqueue.call(this,callback); }; }); } catch (_) {}\\n"
+                        + "  } catch (_) {} }\\n"
+                        + "  hookOkHttp('okhttp3.RealCall'); hookOkHttp('okhttp3.internal.connection.RealCall');\\n"
+                        + "  try { var Volley=Java.use('com.android.volley.Request'); var getUrl=Volley.getUrl.overload(); getUrl.implementation=function(){ var url=String(getUrl.call(this)); send('[DIA_HTTP] Volley host='+safeHost(url)); return url; }; } catch (_) {}\\n"
                         + "});";
                 break;
             case "sql":
@@ -597,17 +612,22 @@ public final class FxDiaFridaActivity extends Activity {
                 break;
             case "algorithm":
                 source = "Java.perform(function () {\\n"
-                        + "  var className = 'com.example.app.AlgorithmClass';\\n"
-                        + "  var methodName = 'calculate';\\n"
-                        + "  var C = Java.use(className);\\n"
-                        + "  C[methodName].overloads.forEach(function (overload) {\\n"
-                        + "    overload.implementation = function () {\\n"
-                        + "      var started = Date.now();\\n"
-                        + "      var result = overload.apply(this, arguments);\\n"
-                        + "      send('[DIA_ALGORITHM] ' + className + '.' + methodName + ' args=' + arguments.length + ' elapsedMs=' + (Date.now()-started));\\n"
-                        + "      return result;\\n"
-                        + "    };\\n"
-                        + "  });\\n"
+                        + "  function byteLength(value) { try { return value === null ? -1 : value.length; } catch (_) { return -1; } }\\n"
+                        + "  function install(className, methodNames, label) {\\n"
+                        + "    try { var C=Java.use(className); methodNames.forEach(function(name){ try { C[name].overloads.forEach(function(overload){\\n"
+                        + "      overload.implementation=function(){ var started=Date.now(); var inputBytes=arguments.length?byteLength(arguments[0]):-1; var algorithm='unknown';\\n"
+                        + "        try { algorithm=String(this.getAlgorithm()); } catch (_) {}\\n"
+                        + "        try { var result=overload.apply(this,arguments); var outputBytes=byteLength(result);\\n"
+                        + "          send('[DIA_ALGORITHM] family='+label+' algorithm='+algorithm+' method='+name+' inputBytes='+inputBytes+' outputBytes='+outputBytes+' elapsedMs='+(Date.now()-started)); return result;\\n"
+                        + "        } catch(e){ send('[DIA_ALGORITHM] family='+label+' algorithm='+algorithm+' method='+name+' exception='+e.$className+' elapsedMs='+(Date.now()-started)); throw e; }\\n"
+                        + "      };\\n"
+                        + "    }); } catch (_) {} }); } catch(e) { send('[DIA_ALGORITHM] class unavailable '+className); }\\n"
+                        + "  }\\n"
+                        + "  install('java.security.MessageDigest',['digest'],'MessageDigest');\\n"
+                        + "  install('javax.crypto.Cipher',['doFinal'],'Cipher');\\n"
+                        + "  install('javax.crypto.Mac',['doFinal'],'Mac');\\n"
+                        + "  install('java.security.Signature',['sign','verify'],'Signature');\\n"
+                        + "  send('[DIA_ALGORITHM] JCA metadata observers installed; payloads, keys and returned values are not logged.');\\n"
                         + "});";
                 break;
             case "native":
