@@ -86,14 +86,60 @@ start() {
   pid=$!; (umask 077; printf '%s\n' "$pid" > "$PIDFILE") || return 1
   evaluate || :; echo "started pid=$pid"
 }
+is_our_watcher() {
+  _watch_pid=$1
+  [ -r "/proc/$_watch_pid/cmdline" ] || return 1
+  _watch_cmd=$(tr '\000' ' ' < "/proc/$_watch_pid/cmdline" 2>/dev/null) || return 1
+  case "$_watch_cmd" in
+    *"$SCRIPT"*' watch '*) return 0 ;;
+  esac
+  return 1
+}
 stop() {
+  _uninstall_mode=${4:-}
   if [ -s "$PIDFILE" ]; then
-    pid=$(cat "$PIDFILE" 2>/dev/null); case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    [ -z "$pid" ] || kill "$pid" 2>/dev/null || :
+    pid=$(cat "$PIDFILE" 2>/dev/null)
+    case "$pid" in ''|*[!0-9]*) pid= ;; esac
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      if ! is_our_watcher "$pid"; then
+        log "refusing to signal PID $pid: process identity does not match this watcher"
+        return 1
+      fi
+      kill -TERM "$pid" 2>/dev/null || :
+      _stop_wait=0
+      while [ "$_stop_wait" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
+        sleep 0.2
+        _stop_wait=$((_stop_wait+1))
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        if ! is_our_watcher "$pid"; then
+          log "PID $pid changed identity during shutdown; refusing SIGKILL"
+          return 1
+        fi
+        kill -KILL "$pid" 2>/dev/null || :
+        _stop_wait=0
+        while [ "$_stop_wait" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
+          sleep 0.2
+          _stop_wait=$((_stop_wait+1))
+        done
+      fi
+      if kill -0 "$pid" 2>/dev/null; then
+        log "could not confirm watcher PID $pid stopped"
+        return 1
+      fi
+    fi
   fi
   rm -f "$PIDFILE"
+  if [ "$_uninstall_mode" = "uninstall" ]; then
+    log "watcher stopped for uninstall; skipping rule re-apply"
+    echo stopped
+    return 0
+  fi
   pg_set yulong_ad_schedule_active 1 >/dev/null 2>&1 || :
-  sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1 || :
+  if ! sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1; then
+    log "watcher stopped but failed to re-apply manual Yulong rule state"
+    return 1
+  fi
   log "watcher stopped; Yulong manual master preference remains unchanged"
   echo stopped
 }
