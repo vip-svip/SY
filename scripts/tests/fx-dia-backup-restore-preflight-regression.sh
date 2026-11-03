@@ -10,6 +10,14 @@ import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 assert r'line.split("\\|",3)' in source, "Stellar dump parser must split on a literal pipe delimiter"
 assert r'line.split("\\\\|",3)' not in source, "Stellar dump parser must not split on backslash/empty alternatives"
+assert "STATE_PENDING_EXPORT_FILE" in source, "pending export state key missing"
+assert "outState.putString(STATE_PENDING_EXPORT_FILE, pendingBackupFileName)" in source, "pending export filename is not saved across recreation"
+assert "state.getString(STATE_PENDING_EXPORT_FILE)" in source, "pending export filename is not restored after recreation"
+assert "File.createTempFile(PENDING_EXPORT_PREFIX, \".tmp\", getCacheDir())" in source, "encrypted export is not staged in private cache"
+assert "resolvePendingBackupFile(stagedName)" in source, "export result does not validate its staged cache file"
+assert "deletePendingBackupFile(stagedName)" in source, "cancelled/invalid export does not clean its staged cache file"
+assert "new java.io.FileInputStream(staged)" in source, "export result does not stream the staged backup"
+assert "private byte[] pendingBackup;" not in source and "payload=pendingBackup" not in source, "export payload must not live only in Activity memory"
 start = source.index("private void restoreBackupBytes(")
 end = source.index("private String githubContentsUrl(", start)
 restore = source[start:end]
