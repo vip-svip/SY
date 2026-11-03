@@ -57,7 +57,7 @@ exit 1
 CMD
 chmod 0755 "$TMP/bin/"*
 PACKAGE_LIST="$TMP/packages.txt"
-printf 'package:com.example.blocked uid:10123\\npackage:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+printf 'package:com.example.blocked uid:10123\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
 export MP="$TMP/module" PG="$TMP/pg" MOCK_LOG="$TMP/iptables.log"
 export MOCK_PACKAGE_LIST="$PACKAGE_LIST"
 export PATH="$TMP/bin:$PATH"
@@ -131,7 +131,7 @@ grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
 # Uninstalling a selected app removes stale UID rules but preserves its selection.
-printf 'package:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+printf 'package:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
 before_lines=$(wc -l < "$MOCK_LOG")
 run apply-event > "$TMP/uninstalled.out"
 grep -Fq 'firewall=1' "$TMP/uninstalled.out" || fail "master firewall state was lost after app uninstall"
@@ -142,7 +142,7 @@ grep -Fq 'com.example.blocked|10123|1' "$TMP/uninstalled.list" || fail "uninstal
 [ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- '-F FXYUL_')" -ge 4 ] || fail "uninstall did not flush owned IPv4/IPv6 chains"
 
 # Reinstalling the same package with a new UID applies the new UID to both families.
-printf 'package:com.example.blocked uid:10125\\npackage:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+printf 'package:com.example.blocked uid:10125\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
 before_lines=$(wc -l < "$MOCK_LOG")
 run apply-event > "$TMP/reinstalled.out"
 grep -Fq 'blocked_packages=1' "$TMP/reinstalled.out" || fail "reinstalled app was not restored to the firewall"

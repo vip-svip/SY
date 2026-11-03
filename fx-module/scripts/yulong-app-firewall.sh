@@ -108,7 +108,7 @@ set_item_value() {
 resolve_uid() {
   pkg="$1"
   snapshot="$2"
-  found="$(printf '%s\\n' "$snapshot" | awk -v wanted="package:$pkg" '
+  found="$(printf '%s\n' "$snapshot" | awk -v wanted="package:$pkg" '
     BEGIN {seen=0}
     $1==wanted {
       seen=1
@@ -120,7 +120,7 @@ resolve_uid() {
   ')"
   [ "$found" = "__MISSING__" ] && return 2
   case "$found" in ''|*[!0-9]*) return 1 ;; esac
-  printf '%s\\n' "$found"
+  printf '%s\n' "$found"
 }
 remove_hook() {
   bin="$1"; chain="$2"
