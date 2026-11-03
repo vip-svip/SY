@@ -52,10 +52,11 @@ firewall_watcher_block = '''if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; 
 fi
 '''
 if 'yulong-app-firewall.sh" start-watch' not in service:
-    if schedule_anchor in service:
-        service = service.replace(schedule_anchor, schedule_anchor + "\n" + firewall_watcher_block, 1)
-    else:
-        raise SystemExit("service.sh firewall apply block is missing; refusing watcher insertion")
+    firewall_apply_end = '''    echo "[$(date '+%m-%d %H:%M:%S')] Yulong per-app firewall deferred; FX main startup continues" >> "$PG/boot.log"
+fi'''
+    if firewall_apply_end not in service:
+        raise SystemExit("service.sh firewall apply block is missing or incomplete; refusing watcher insertion")
+    service = service.replace(firewall_apply_end, firewall_apply_end + "\n" + firewall_watcher_block, 1)
 
 schedule_anchor = '''if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
   sh "$MODDIR/scripts/yulong-app-firewall.sh" apply >> "$PG/boot.log" 2>&1 || \\
