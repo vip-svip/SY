@@ -64,12 +64,12 @@ commit_flag = deploy.find('committed=1; echo FX_GADGET_DEPLOYED')
 if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
     raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
 for label, needle in {
-    "marker schema checked": "MARKER_SCHEMA.equals(record.get(\\"schema\\"))",
-    "package identity checked": "expectedPackage.equals(record.get(\\"package\\"))",
+    "marker schema checked": 'MARKER_SCHEMA.equals(record.get("schema"))',
+    "package identity checked": 'expectedPackage.equals(record.get("package"))',
     "process identity checked": "matchesProcess(markerProcesses, expectedProcess)",
     "marker port syntax checked": 'markerPort.matches("[0-9]{4,5}")',
     "config port must equal marker port": "Integer.toString(configPort).equals(markerPort)",
-    "library/config SHA checked": "constantEquals(record.get(\\"library_sha256\\"), libraryHash)",
+    "library/config SHA checked": 'constantEquals(record.get("library_sha256"), libraryHash)',
     "absolute Gadget load": "System.load(gadget.getAbsolutePath())",
 }.items():
     if needle not in hook:
