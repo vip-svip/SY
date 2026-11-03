@@ -3064,8 +3064,12 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                             .putExtra("dia_page", page));
                     return;
-                case "网络与代理": case "HTTP 代理":
+                case "网络与代理":
                     showNativeSettingsGroup("netPanel", "Dia · " + page);
+                    return;
+                case "HTTP 代理":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaWifiProxyActivity.class));
                     return;
                 case "设备属性":
                     showAppList("设备标识模拟");
