@@ -54,7 +54,7 @@ advanced=source[legacy_end:advanced_end]
 for required in ("native-vpn-config.sh", "FXVPNCONF1", "showNativeVpnAdvancedItemDialog",
                  "nativeVpnAdvancedLabel", "saveNativeVpnAdvancedValue"):
     assert required in advanced, "native advanced VPN editor lost functionality: "+required
-item_start=source.find("private void showNativeVpnAdvancedItemDialog", advanced_end)
+item_start=source.find("private void showNativeVpnAdvancedItemDialog", legacy_end)
 choice_start=source.find("private void showNativeVpnAdvancedChoice", item_start)
 save_start=source.find("private void saveNativeVpnAdvancedValue", choice_start)
 assert item_start > advanced_end and choice_start > item_start and save_start > choice_start, \
