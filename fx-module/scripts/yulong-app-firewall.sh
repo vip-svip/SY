@@ -122,6 +122,7 @@ resolve_uid() {
   case "$found" in ''|*[!0-9]*) return 1 ;; esac
   printf '%s\n' "$found"
 }
+
 remove_hook() {
   bin="$1"; chain="$2"
   while "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1; do
@@ -155,7 +156,14 @@ apply_rules() {
   master="$(read_master)"
   if [ "$master" != 1 ]; then clear_all; echo "firewall=0"; return 0; fi
   rows="$(list_rows | awk -F'|' '$3=="1" {print}')"
-  [ -n "$rows" ] || { echo "no selected apps; firewall remains disabled" >&2; return 3; }
+  if [ -z "$rows" ]; then
+    # Removing the last selected application is a valid empty policy, not a
+    # failed transaction. Clear any previously active chains before commit.
+    clear_all
+    echo "firewall=0"
+    echo "no selected apps; per-app firewall is disabled"
+    return 0
+  fi
 
   ipt="$(command -v iptables 2>/dev/null || true)"
   ip6t="$(command -v ip6tables 2>/dev/null || true)"
@@ -163,14 +171,14 @@ apply_rules() {
     echo "IPv4/IPv6 iptables tools are both required; no firewall rules were changed" >&2; return 4;
   }
 
-  current="$(cat "$ACTIVE" 2>/dev/null || echo FXYUL_A)"
-  case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all; next=FXYUL_A; old=FXYUL_B ;; esac
   uid_snapshot="$(cmd package list packages -U 2>/dev/null)" || {
     echo "cannot read installed package UID snapshot; old firewall kept" >&2; return 5;
   }
   [ -n "$uid_snapshot" ] || {
     echo "installed package UID snapshot is empty; old firewall kept" >&2; return 5;
   }
+  current="$(cat "$ACTIVE" 2>/dev/null || echo FXYUL_A)"
+  case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all; next=FXYUL_A; old=FXYUL_B ;; esac
   resolved=""
   while IFS='|' read -r pkg stored_uid state; do
     [ "$state" = 1 ] || continue
@@ -305,6 +313,6 @@ case "$cmd" in
     ;;
   apply) with_lock apply_rules ;;
   apply-event) with_lock --event apply_rules ;;
-  uninstall) clear_all ;;
+  uninstall) with_lock clear_all ;;
   *) echo "unknown command: $cmd" >&2; exit 2 ;;
 esac

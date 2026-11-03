@@ -1,12 +1,23 @@
 #!/bin/sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
-MODULE="$ROOT/fx-module"
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -n "${1:-}" ]; then
+  MODULE=$(CDPATH= cd -- "$1" && pwd)
+else
+  case "$SCRIPT_DIR" in
+    */fx-module/scripts/tests) MODULE=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) ;;
+    *) ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd); MODULE="$ROOT/fx-module" ;;
+  esac
+fi
+case "$SCRIPT_DIR" in
+  */fx-module/scripts/tests) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd) ;;
+  *) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) ;;
+esac
 SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Yulong firewall implementation missing"
 sh -n "$SOURCE" || fail "Yulong firewall implementation has invalid POSIX shell syntax"
-TMP=$(mktemp -d "\${TMPDIR:-/tmp}/fx-yulong-firewall.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-firewall.XXXXXX")
 cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT HUP INT TERM
 mkdir -p "$TMP/module/scripts" "$TMP/pg" "$TMP/bin"
@@ -33,7 +44,7 @@ echo "ip6tables $*" >> "$MOCK_LOG"
 case "$*" in
   *" -C OUTPUT -j "*) exit 1 ;;
   *" -I OUTPUT 1 -j "*)
-    if [ -n "\${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
+    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
       rm -f "$MOCK_FAIL_IPV6_ONCE"
       exit 1
     fi
@@ -130,37 +141,56 @@ grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10123 -j REJECT' "
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
-# Uninstalling a selected app removes stale UID rules but preserves its selection.
-printf 'package:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
-before_lines=$(wc -l < "$MOCK_LOG")
-run apply-event > "$TMP/uninstalled.out"
-grep -Fq 'firewall=1' "$TMP/uninstalled.out" || fail "master firewall state was lost after app uninstall"
-grep -Fq 'blocked_packages=0' "$TMP/uninstalled.out" || fail "uninstalled app remained in the active UID set"
-[ ! -e "$ACTIVE" ] || fail "uninstall left a stale active-chain marker"
-run list > "$TMP/uninstalled.list"
-grep -Fq 'com.example.blocked|10123|1' "$TMP/uninstalled.list" || fail "uninstall discarded the saved package selection"
-[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- '-F FXYUL_')" -ge 4 ] || fail "uninstall did not flush owned IPv4/IPv6 chains"
-
-# Reinstalling the same package with a new UID applies the new UID to both families.
-printf 'package:com.example.blocked uid:10125\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
-before_lines=$(wc -l < "$MOCK_LOG")
-run apply-event > "$TMP/reinstalled.out"
-grep -Fq 'blocked_packages=1' "$TMP/reinstalled.out" || fail "reinstalled app was not restored to the firewall"
-grep -Fq 'iptables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv4 firewall did not adopt new UID"
-grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv6 firewall did not adopt new UID"
-[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- 'uid-owner 10123')" -eq 0 ] || fail "reinstalled firewall kept the stale UID"
-
-# An unavailable PackageManager snapshot must preserve the last known-good chain.
-export MOCK_PACKAGE_LIST_FAIL=1
-if run apply-event > "$TMP/snapshot-failed.out" 2>&1; then
-  fail "firewall accepted a failed PackageManager UID snapshot"
+# Removing the last selected app is a valid empty policy. It must commit the
+# config mutation and remove both active IPv4/IPv6 chains instead of rolling
+# back to a still-blocking policy.
+run remove com.example.blocked > "$TMP/remove-last.out"
+grep -Fq 'firewall=0' "$TMP/remove-last.out" || fail "removing the last app did not disable the firewall"
+[ ! -e "$ACTIVE" ] || fail "removing the last app left a stale active marker"
+if grep -Fq 'com.example.blocked|10123|1' "$CONF"; then
+  fail "removing the last app rolled back its config mutation"
 fi
-unset MOCK_PACKAGE_LIST_FAIL
-[ -f "$ACTIVE" ] || fail "failed PackageManager snapshot removed the active chain"
+grep -Fq 'iptables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal did not clear IPv4 active chain"
+grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal did not clear IPv6 active chain"
+
+# Re-add once so uninstall is tested while the firewall is actually active.
+run set com.example.blocked 10123 1 > "$TMP/re-enable.out"
+grep -Fq 'firewall=1' "$TMP/re-enable.out" || fail "firewall did not reactivate after last-app removal"
+[ -s "$ACTIVE" ] || fail "re-enabled firewall has no active marker"
 
 run list > "$TMP/active.list"
 grep -qx 'master=1' "$TMP/active.list" || fail "enabled master state not visible"
 grep -Fq 'com.example.blocked|10123|1' "$TMP/active.list" || fail "enabled app row not visible"
+
+# A selected app uninstall removes only owned chains but preserves the saved
+# package selection so a reinstall can reapply the policy under its new UID.
+printf 'package:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
+before_lines=$(wc -l < "$MOCK_LOG")
+run apply-event > "$TMP/uninstalled.out"
+grep -Fq 'firewall=1' "$TMP/uninstalled.out" || fail "firewall master state was lost after selected app uninstall"
+grep -Fq 'blocked_packages=0' "$TMP/uninstalled.out" || fail "uninstalled app remained in active UID rules"
+[ ! -e "$ACTIVE" ] || fail "uninstall left a stale active-chain marker"
+run list > "$TMP/uninstalled.list"
+grep -Fq 'com.example.blocked|10123|1' "$TMP/uninstalled.list" || fail "uninstall discarded saved selection"
+[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- '-F FXYUL_')" -ge 4 ] || fail "uninstall did not flush both owned IPv4/IPv6 chains"
+
+# Reinstall same package with a new UID; both IP families must use only the
+# fresh UID, never the stale UID recorded before uninstall.
+printf 'package:com.example.blocked uid:10125\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
+before_lines=$(wc -l < "$MOCK_LOG")
+run apply-event > "$TMP/reinstalled.out"
+grep -Fq 'blocked_packages=1' "$TMP/reinstalled.out" || fail "reinstalled app was not restored to firewall"
+grep -Fq 'iptables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv4 firewall did not adopt new UID"
+grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10125 -j REJECT' "$MOCK_LOG" || fail "IPv6 firewall did not adopt new UID"
+[ "$(tail -n +$((before_lines + 1)) "$MOCK_LOG" | grep -c -- 'uid-owner 10123')" -eq 0 ] || fail "reinstalled firewall kept stale UID"
+
+# A failed PackageManager snapshot must leave the last known-good firewall on.
+export MOCK_PACKAGE_LIST_FAIL=1
+if run apply-event > "$TMP/snapshot-failed.out" 2>&1; then
+  fail "firewall accepted failed PackageManager UID snapshot"
+fi
+unset MOCK_PACKAGE_LIST_FAIL
+[ -f "$ACTIVE" ] || fail "snapshot failure removed last known-good active chain"
 
 run master 0 > "$TMP/disable.out"
 grep -Fq 'firewall=0' "$TMP/disable.out" || fail "firewall did not disable"
@@ -189,17 +219,46 @@ if grep -Fq "trap 'rmdir \"\$LOCK\" 2>/dev/null || :' EXIT HUP INT TERM" "$SOURC
   fail "firewall lock is released directly by signal traps"
 fi
 
+# Uninstall uses the same lock as apply and mutation, so it cannot race an
+# in-flight chain swap and leave an orphaned active firewall rule.
+grep -Fq 'uninstall) with_lock clear_all ;;' "$SOURCE" || fail "uninstall bypasses the firewall operation lock"
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
-RECEIVER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallPackageReceiver.java"
-MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
-[ -s "$RECEIVER" ] || fail "package lifecycle firewall receiver missing"
-grep -Fq 'FxYulongFirewallPackageReceiver' "$MANIFEST" || fail "package lifecycle receiver is not declared"
-grep -Fq 'ACTION_PACKAGE_REMOVED' "$RECEIVER" || fail "package removal is not observed"
-grep -Fq 'ACTION_PACKAGE_ADDED' "$RECEIVER" || fail "package install is not observed"
-grep -Fq 'ACTION_PACKAGE_REPLACED' "$RECEIVER" || fail "package update is not observed"
-grep -Fq 'PREF_MASTER' "$RECEIVER" || fail "receiver is not gated by the firewall master switch"
-grep -Fq 'apply-event' "$RECEIVER" || fail "package receiver does not use bounded reconciliation"
-grep -Fq 'apply-event) with_lock --event apply_rules ;;' "$SOURCE" || fail "bounded package-event command missing"
-grep -Fq 'putBoolean("master_enabled", masterEnabled)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" || fail "firewall UI does not publish its master state"
-echo "PASS: Yulong app firewall reconciles uninstall/reinstall UID changes, preserves last-good rules on snapshot failure and cleans only owned chains"
+[ ! -d "$PG/yulong-firewall.lock" ] || fail "uninstall left the firewall operation lock behind"
+
+# Restore-from-Release layouts already include a schedule-stop block between
+# STATE_DIR and REMOVER. The patcher must still insert firewall cleanup safely.
+RESTORE="$TMP/release-layout"
+mkdir -p "$RESTORE/scripts"
+printf 'id=privacyguard\n' > "$RESTORE/module.prop"
+cat > "$RESTORE/service.sh" <<'SERVICE'
+#!/system/bin/sh
+sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
+_rc=$?
+SERVICE
+cat > "$RESTORE/uninstall.sh" <<'UNINSTALL'
+#!/system/bin/sh
+MODDIR=/data/adb/modules/privacyguard
+STATE_DIR=/data/adb/privacyguard
+if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+  sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
+fi
+REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
+UNINSTALL
+[ -s "$REPO/fx-patches/patch_yulong_app_firewall.py" ] || fail "firewall source restore patcher missing"
+python3 "$REPO/fx-patches/patch_yulong_app_firewall.py" "$RESTORE" "$REPO" || fail "Release-layout firewall patch failed"
+grep -Fq 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh" || fail "service hook was not inserted"
+grep -Fq 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh" || fail "schedule start was not inserted"
+grep -Fq 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh" || fail "schedule stop was removed"
+grep -Fq 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh" || fail "firewall uninstall cleanup was not inserted"
+python3 "$REPO/fx-patches/patch_yulong_app_firewall.py" "$RESTORE" "$REPO" || fail "second Release-layout firewall patch failed"
+cmp -s "$RESTORE/scripts/yulong-app-firewall.sh" "$REPO/scripts/yulong-app-firewall.sh" || fail "Release patcher staged a stale firewall implementation"
+cmp -s "$RESTORE/scripts/tests/v1.0.0-yulong-app-firewall-regression.sh" "$REPO/scripts/tests/fx-yulong-app-firewall-regression.sh" || fail "Release patcher staged a stale firewall regression"
+grep -Fq 'apply-event) with_lock --event apply_rules ;;' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored module script has no package-event path"
+
+[ "$(grep -Fc 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall boot hook is not idempotent"
+[ "$(grep -Fc 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh")" -eq 1 ] || fail "schedule start hook is not idempotent"
+[ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
+[ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"
+
+echo "PASS: Yulong app firewall isolates temp files, rejects symlinks, rolls back dual-stack failure, and restores Release lifecycle hooks idempotently"

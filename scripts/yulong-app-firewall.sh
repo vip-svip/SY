@@ -107,15 +107,22 @@ set_item_value() {
 }
 resolve_uid() {
   pkg="$1"
-  found="$(cmd package list packages -U 2>/dev/null | awk -v wanted="package:$pkg" '
+  snapshot="$2"
+  found="$(printf '%s\n' "$snapshot" | awk -v wanted="package:$pkg" '
+    BEGIN {seen=0}
     $1==wanted {
+      seen=1
       for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {
         sub(/^uid:/,"",$i); print $i; exit
       }
-    }')"
+    }
+    END {if(!seen) print "__MISSING__"}
+  ')"
+  [ "$found" = "__MISSING__" ] && return 2
   case "$found" in ''|*[!0-9]*) return 1 ;; esac
   printf '%s\n' "$found"
 }
+
 remove_hook() {
   bin="$1"; chain="$2"
   while "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1; do
@@ -164,19 +171,41 @@ apply_rules() {
     echo "IPv4/IPv6 iptables tools are both required; no firewall rules were changed" >&2; return 4;
   }
 
+  uid_snapshot="$(cmd package list packages -U 2>/dev/null)" || {
+    echo "cannot read installed package UID snapshot; old firewall kept" >&2; return 5;
+  }
+  [ -n "$uid_snapshot" ] || {
+    echo "installed package UID snapshot is empty; old firewall kept" >&2; return 5;
+  }
   current="$(cat "$ACTIVE" 2>/dev/null || echo FXYUL_A)"
   case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all; next=FXYUL_A; old=FXYUL_B ;; esac
   resolved=""
   while IFS='|' read -r pkg stored_uid state; do
     [ "$state" = 1 ] || continue
-    uid="$(resolve_uid "$pkg")" || { echo "cannot resolve current UID for $pkg; old firewall kept" >&2; return 5; }
+    uid_rc=0
+    uid="$(resolve_uid "$pkg" "$uid_snapshot")" || uid_rc=$?
+    if [ "$uid_rc" -eq 2 ]; then
+      echo "selected package is no longer installed; stale UID excluded: $pkg" >&2
+      continue
+    elif [ "$uid_rc" -ne 0 ]; then
+      echo "cannot resolve current UID for $pkg; old firewall kept" >&2
+      return 5
+    fi
     [ -n "$resolved" ] && resolved="$resolved
 "
     resolved="${resolved}${pkg}|${uid}|1"
   done <<EOF
 $rows
 EOF
-  [ -n "$resolved" ] || { echo "no installed selected apps; old firewall kept" >&2; return 5; }
+  if [ -z "$resolved" ]; then
+    # Keep the user's selections in settings.conf for a future reinstall, but
+    # remove stale UID rules so a reused Android UID cannot block another app.
+    clear_all
+    echo "firewall=1"
+    echo "blocked_packages=0"
+    echo "no selected package is currently installed; saved selections retained"
+    return 0
+  fi
 
   build_chain "$ipt" "$next" "$resolved" || {
     clear_chain "$ipt" "$next"; echo "IPv4 firewall chain build failed; old firewall kept" >&2; return 6;
@@ -211,9 +240,14 @@ EOF
 }
 with_lock() {
   tries=0
+  max_tries=20
+  if [ "${1:-}" = "--event" ]; then
+    max_tries=5
+    shift
+  fi
   while ! mkdir "$LOCK" 2>/dev/null; do
     tries=$((tries + 1))
-    [ "$tries" -lt 20 ] || { echo "firewall update is busy" >&2; return 10; }
+    [ "$tries" -lt "$max_tries" ] || { echo "firewall update is busy" >&2; return 10; }
     sleep 1
   done
   cleanup_lock() {
@@ -278,6 +312,7 @@ case "$cmd" in
     with_lock mutate_transaction set_item_value "$2" 0 0
     ;;
   apply) with_lock apply_rules ;;
+  apply-event) with_lock --event apply_rules ;;
   uninstall) with_lock clear_all ;;
   *) echo "unknown command: $cmd" >&2; exit 2 ;;
 esac
