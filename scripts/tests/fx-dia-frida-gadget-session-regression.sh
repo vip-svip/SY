@@ -139,18 +139,18 @@ trap 'exit 143' TERM
 if [ -s "$pidfile" ]; then
   old_cli=$(sed -n '1p' "$pidfile")
   old_feed=$(sed -n '2p' "$pidfile")
-  old_path=$(sed -n '3p' "$pidfile")
+  old_cli_path=$(sed -n '3p' "$pidfile")
   old_pkg=$(sed -n '4p' "$pidfile")
   old_port=$(sed -n '5p' "$pidfile")
   case "$old_cli:$old_feed" in *[!0-9:]*|:*) exit 22;; esac
   case "$old_port" in ''|*[!0-9]*) exit 22;; esac
-  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_path" = "$script" ] || {
+  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_cli_path" = "$cli" ] || {
     echo FX_GADGET_SESSION_TARGET_CONFLICT
     exit 30
   }
   if kill -0 "$old_cli" 2>/dev/null; then
     old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
-    case "$old_cmd" in *"127.0.0.1:$port"*Gadget*"$old_path"*)
+    case "$old_cmd" in *"$old_cli_path"*" -H "* "127.0.0.1:$port"* " -n "*Gadget*" -l "*"$script"*)
       echo FX_GADGET_SESSION_ALREADY_RUNNING
       exit 0;;
       *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
@@ -173,6 +173,7 @@ pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
 printf '%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" > "$pid_tmp"
 chmod 600 "$pid_tmp"
 mv -f "$pid_tmp" "$pidfile"
+[ "$(sed -n '3p' "$pidfile")" = "$cli" ] || { echo "FAIL: PID record line 3 must store CLI executable path" >&2; exit 1; }
 pid_tmp=
 sleep 0.2
 kill -0 "$cli_pid"
