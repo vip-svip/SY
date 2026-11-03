@@ -2768,6 +2768,8 @@ public final class MainActivity extends ComponentActivity {
         final boolean[] loadingConfig = {true};
         final boolean[] routeMaster = {false};
         final String[] routeMode = {"bypass"};
+        final boolean[] suppressMasterListener = {false};
+        final boolean[] suppressModeListener = {false};
 
         Runnable renderRows = () -> {
             if (rows.getParent() == null) return;
@@ -2794,17 +2796,20 @@ public final class MainActivity extends ComponentActivity {
                 packageName.setTextSize(10);
                 packageName.setTextColor(0xff718091);
                 Switch enabled = new Switch(this);
+                final boolean[] revertingRow = {false};
                 enabled.setText("加入列表");
                 enabled.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
                 enabled.setOnCheckedChangeListener((button, checked) -> {
-                    if (loadingConfig[0]) return;
+                    if (loadingConfig[0] || revertingRow[0]) return;
                     button.setEnabled(false);
                     String command = "sh \"$MP/scripts/vpn-apps.sh\" apply-item "
                             + shellQuote(pkg) + " " + (checked ? "1" : "0");
                     runNativeModuleCommand(command, 120000L, result -> {
                         button.setEnabled(true);
                         if (result.exitCode != 0) {
+                            revertingRow[0] = true;
                             button.setChecked(!checked);
+                            revertingRow[0] = false;
                             new AlertDialog.Builder(this).setTitle("分应用配置未应用")
                                     .setMessage(result.output == null ? "模块未确认配置应用成功。" : result.output.trim())
                                     .setPositiveButton("关闭", null).show();
@@ -2836,13 +2841,15 @@ public final class MainActivity extends ComponentActivity {
         });
 
         master.setOnCheckedChangeListener((button, checked) -> {
-            if (loadingConfig[0]) return;
+            if (loadingConfig[0] || suppressMasterListener[0]) return;
             boolean anySelected = false;
             for (Boolean value : selected.values()) {
                 if (Boolean.TRUE.equals(value)) { anySelected = true; break; }
             }
             if (checked && !anySelected) {
+                suppressMasterListener[0] = true;
                 master.setChecked(false);
+                suppressMasterListener[0] = false;
                 new AlertDialog.Builder(this).setTitle("先选择应用")
                         .setMessage("启用分应用 VPN 路由前，至少需要选择一个应用。")
                         .setPositiveButton("知道了", null).show();
@@ -2853,7 +2860,9 @@ public final class MainActivity extends ComponentActivity {
                     120000L, result -> {
                 master.setEnabled(true);
                 if (result.exitCode != 0) {
+                    suppressMasterListener[0] = true;
                     master.setChecked(!checked);
+                    suppressMasterListener[0] = false;
                     status.setText("分应用开关未应用：" + (result.output == null ? "" : result.output.trim()));
                 } else {
                     routeMaster[0] = checked;
@@ -2863,12 +2872,14 @@ public final class MainActivity extends ComponentActivity {
         });
 
         modeGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            if (loadingConfig[0]) return;
+            if (loadingConfig[0] || suppressModeListener[0]) return;
             String wanted = checkedId == onlyMode.getId() ? "only" : "bypass";
             runNativeModuleCommand("sh \"$MP/scripts/vpn-apps.sh\" apply-mode " + wanted,
                     120000L, result -> {
                 if (result.exitCode != 0) {
+                    suppressModeListener[0] = true;
                     modeGroup.check("only".equals(routeMode[0]) ? onlyMode.getId() : bypassMode.getId());
+                    suppressModeListener[0] = false;
                     status.setText("路由模式未应用：" + (result.output == null ? "" : result.output.trim()));
                 } else {
                     routeMode[0] = wanted;
@@ -2901,10 +2912,10 @@ public final class MainActivity extends ComponentActivity {
                             selected.put(fields[0], "1".equals(fields[2]));
                     }
                 }
-                loadingConfig[0] = false;
                 master.setChecked(routeMaster[0]);
                 onlyMode.setChecked("only".equals(routeMode[0]));
                 bypassMode.setChecked(!"only".equals(routeMode[0]));
+                loadingConfig[0] = false;
                 status.setText("已读取 " + selected.size() + " 个分应用路由条目。当前模式："
                         + ("only".equals(routeMode[0]) ? "仅列表应用走代理" : "列表应用直连")
                         + "；请确认主 VPN 已正常运行后再启用分应用路由。");
