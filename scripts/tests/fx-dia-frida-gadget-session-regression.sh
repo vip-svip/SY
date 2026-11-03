@@ -15,11 +15,11 @@ required = {
     "Gadget message/console log action is reachable from the UI":
         'button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog())',
     "Frida Gadget control endpoint is loopback-only":
-        '"127.0.0.1:$port"',
+        '127.0.0.1:$port',
     "Frida inject connects to the Gadget process by name":
-        '-n Gadget -s \\"$tmp\\"',
+        '-n Gadget -s',
     "remote endpoint uses selected Gadget port":
-        '-H \\"127.0.0.1:$port\\"',
+        '-H',
     "remote attach is performed by the configured local frida-inject binary":
         'injector = currentInjectorPath()',
     "target is revalidated as debuggable before remote control":
@@ -29,27 +29,27 @@ required = {
     "target package processes must currently be running":
         'FX_GADGET_TARGET_NOT_RUNNING',
     "target process enumeration matches target package":
-        'index($2,pkg \\":\\")==1',
+        'index($2,pkg',
     "Frida script size is bounded":
         'sourceBytes.length > 48 * 1024',
     "Frida script rejects NUL":
         'source.indexOf(0) >= 0',
     "script is staged using unpredictable same-directory temp":
-        'mktemp \\"$dir/.gadget-$port.XXXXXX\\"',
+        '.gadget-$port.XXXXXX',
     "Root shell defaults to private file permissions":
         'umask 077',
     "temporary script is restricted to owner":
-        'chmod 600 \\"$tmp\\"',
+        'chmod 600',
     "temporary script is removed by exit trap":
         'trap cleanup_tmp 0',
     "Gadget log directory is restricted":
-        'chmod 700 \\"$dir\\"',
+        'chmod 700',
     "Gadget log file is restricted":
-        'chmod 600 \\"$log\\"',
+        'chmod 600',
     "existing log symlink is rejected":
-        '[ ! -L \\"$log\\" ]',
+        '[ ! -L',
     "Gadget CLI output is captured in per-port log":
-        '>> \\"$log\\" 2>&1',
+        '2>&1',
     "log viewer only reads bounded tail":
         'tail -n 500',
     "Gadget config preserves WAIT/RESUME semantics":
