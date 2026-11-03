@@ -687,3 +687,12 @@ After each implementation batch:
 - The option is separate from coordinate spoofing and from the location-access-block policy. FX does not fake Android permission grants; the OS permission checks remain authoritative.
 - The native per-app GPS editor now saves the provider-state option with the existing coordinate fixture and publishes both through the unified LSPosed Remote Files config.
 - Source-only commit; no package was generated.
+
+
+## Dia 23.11 — Wi-Fi proxy Quick Settings tile and conflict recovery
+
+- Added `FxDiaWifiProxyTileService` to the unified FX APK and registered the original Wi-Fi proxy quick-setting entry under the FX identity.
+- The tile reads the live Android global `http_proxy` value when it starts listening; it does not create or start any VPN service.
+- Tile enable/disable uses the same saved-previous-value and compare-before-restore rules as the native proxy page.
+- Added a recovery action that clears only FX's local proxy-management metadata while leaving the current Android proxy value untouched. This lets the user recover from an external-setting conflict without FX overwriting another app's value.
+- Source-only commits; no intermediate APK/KernelSU ZIP was produced.
