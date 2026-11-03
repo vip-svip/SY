@@ -617,3 +617,14 @@ After each implementation batch:
 - The Tasker receiver still accepts both the new FX actions and original app.pwhs.blockads.TASKER_START/STOP actions. Its result action now broadcasts the requested state, source action, success flag and exit code so external automation apps can receive it.
 - Corrected shell-command quoting and line/delimiter parsing in the native Yulong Tasker, Quick Settings and ad-control screens so the Root command strings and backend output parsing match the actual shell format.
 - All source changes are committed to fx-v1.0.0-unified-hook-integration. Build workflows remain manual-only and no intermediate/final ZIP or APK has been generated for these changes. This is source migration work; current-HEAD build and device behavior remain unverified.
+
+
+## Dia 23.11 — SQL monitor option migration (2026-11-03)
+
+- The native fourth-level SQL monitor page now exposes the original backend selection as independent options: Android SQLite, SQLCipher, Tencent WCDB, and Zetetic SQLCipher.
+- A separate optional call-stack switch is available; it defaults off to limit overhead and log volume.
+- The Frida monitor template is generated from the selected backends, including each backend's database and statement classes.
+- SQL monitoring remains metadata-only: method name, argument count, first SQL-string length, elapsed time, and exception class. It does not serialize SQL text, bound values, query results, or result rows.
+- Options persist in the FX Dia Frida preference namespace and apply to the next generated/attached script.
+- Source change is committed on `fx-v1.0.0-unified-hook-integration`. No intermediate APK/KernelSU ZIP was generated; this is not device verification.
+
