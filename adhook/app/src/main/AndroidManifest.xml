@@ -93,6 +93,17 @@
         <activity android:name=".imported.ad.FxYulongDnsActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdSummaryActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdGeneralActivity" android:exported="false" />
+        <receiver
+            android:name=".imported.ad.FxYulongAdWidgetProvider"
+            android:label="FX 广告过滤"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/fx_yulong_ad_widget_info" />
+        </receiver>
         <receiver android:name=".imported.ad.FxYulongAdTaskerReceiver" android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="de.privacyguard.adhook.AD_FILTER_ENABLE" />
