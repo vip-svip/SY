@@ -40,8 +40,18 @@ install_receiver = next((node for node in receivers
 assert install_receiver is not None, "Yulong install scan receiver is not registered"
 assert install_receiver.attrib.get(A + "exported") == "false", "Install scan receiver must not be externally callable"
 merge_source = (Path(__file__).resolve().parents[2] / "fx-patches/merge_hook_single_apk.py").read_text(encoding="utf-8")
-assert "FX_PRESERVED_MIGRATED_RECEIVERS" in merge_source
 assert "FxYulongInstallScanReceiver" in merge_source
+for kind in ("ACTIVITIES", "SERVICES", "RECEIVERS", "PROVIDERS"):
+    marker = "FX_PRESERVED_MIGRATED_" + kind
+    assert marker in merge_source, f"Unified APK merger has no {kind.lower()} preservation slot"
+    assert "retained_" + kind.lower() in merge_source, f"Unified APK merger does not collect retained {kind.lower()} components"
+for tag in ("activity", "service", "receiver", "provider"):
+    names = [
+        node.attrib.get(A + "name", "")
+        for node in manifest.findall("./application/" + tag)
+    ]
+    duplicates = sorted(name for name in set(names) if name and names.count(name) > 1)
+    assert not duplicates, f"Unified manifest duplicates {tag} components: {duplicates}"
 
 assert not any(p in manifest_text for p in ("com.youlong.hd", "com.youlong.ad", "dialog.box")), \
     "A source APK/package was registered instead of an in-app Activity"
