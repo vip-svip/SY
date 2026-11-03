@@ -4198,6 +4198,56 @@ public final class MainActivity extends ComponentActivity {
         toggle("隔离剪贴板", "clipboard_isolate", false);
         section("Wi-Fi 网络隐私");
         toggle("限制 Wi-Fi 扫描", "wifi_scan_block", false);
+        section("Wi-Fi 环境模拟（仅可调试版本）");
+        TextView wifiSimulationNote = new TextView(this);
+        wifiSimulationNote.setText("仅在本地 debuggable 目标应用的 LSPosed 进程中覆盖 WifiInfo.getSSID()/getBSSID() 返回值；不更改系统真实 Wi-Fi 连接或扫描结果。");
+        wifiSimulationNote.setTextColor(0xff697681);
+        wifiSimulationNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(wifiSimulationNote);
+        EditText simulatedSsid = new EditText(this);
+        simulatedSsid.setSingleLine(true);
+        simulatedSsid.setHint("测试 SSID（最多 32 字节）");
+        simulatedSsid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_ssid", ""));
+        EditText simulatedBssid = new EditText(this);
+        simulatedBssid.setSingleLine(true);
+        simulatedBssid.setHint("测试 BSSID（AA:BB:CC:DD:EE:FF）");
+        simulatedBssid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_bssid", ""));
+        Switch simulateWifi = new Switch(this);
+        simulateWifi.setText("启用此应用的 Wi-Fi 标识模拟");
+        simulateWifi.setChecked(getPreferences(0).getBoolean(selectedPackage + ":wifi_simulate", false));
+        simulateWifi.setEnabled(targetDebuggable);
+        simulatedSsid.setEnabled(targetDebuggable);
+        simulatedBssid.setEnabled(targetDebuggable);
+        Button saveWifiSimulation = new Button(this);
+        saveWifiSimulation.setAllCaps(false);
+        saveWifiSimulation.setText("保存并发布 Wi-Fi 测试配置");
+        saveWifiSimulation.setEnabled(targetDebuggable);
+        saveWifiSimulation.setOnClickListener(v -> {
+            String ssid = simulatedSsid.getText().toString();
+            String bssid = simulatedBssid.getText().toString().trim();
+            boolean enabled = simulateWifi.isChecked();
+            if (enabled && ssid.isEmpty() && bssid.isEmpty()) {
+                Toast.makeText(this, "至少填写 SSID 或 BSSID。", Toast.LENGTH_LONG).show(); return;
+            }
+            if (ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 32
+                    || ssid.contains(",") || ssid.contains("|")
+                    || ssid.indexOf('\n') >= 0 || ssid.indexOf('\r') >= 0) {
+                Toast.makeText(this, "SSID 不能超过 32 字节或包含逗号、换行。", Toast.LENGTH_LONG).show(); return;
+            }
+            if (!bssid.isEmpty() && !bssid.matches("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}")) {
+                Toast.makeText(this, "BSSID 格式应为 AA:BB:CC:DD:EE:FF。", Toast.LENGTH_LONG).show(); return;
+            }
+            getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":wifi_simulate", enabled)
+                    .putString(selectedPackage + ":wifi_sim_ssid", ssid)
+                    .putString(selectedPackage + ":wifi_sim_bssid", bssid)
+                    .apply();
+            publishConfig();
+        });
+        content.addView(simulatedSsid);
+        content.addView(simulatedBssid);
+        content.addView(simulateWifi);
+        content.addView(saveWifiSimulation);
         section("位置隐私");
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
@@ -4542,6 +4592,17 @@ public final class MainActivity extends ComponentActivity {
                     if (enabled(p, mapping[0])) legacyManaged.append(',').append(mapping[1]);
                 }
                 if (legacyManaged.length() > p.length()) legacyManagedRows.add(legacyManaged.toString());
+                boolean wifiSim = getPreferences(0).getBoolean(p + ":wifi_simulate", false);
+                if (wifiSim && (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                    String fakeSsid = getPreferences(0).getString(p + ":wifi_sim_ssid", "");
+                    String fakeBssid = getPreferences(0).getString(p + ":wifi_sim_bssid", "");
+                    if (!fakeSsid.isEmpty() || !fakeBssid.isEmpty()) {
+                        row.append(",wifi_simulate=1");
+                        if (!fakeSsid.isEmpty()) row.append(",wifi_ssid=").append(fakeSsid);
+                        if (!fakeBssid.isEmpty()) row.append(",wifi_bssid=").append(fakeBssid);
+                        has = true;
+                    }
+                }
                 boolean customEnabled=false;
                 for(int n=1;n<=64;n++) {
                     String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
