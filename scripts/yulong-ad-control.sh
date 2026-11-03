@@ -84,7 +84,7 @@ case "$cmd" in
   pg_list rule|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=3{print "RULE|"$1"|"$2"|"($3=="1"?"1":"0")}'
   pg_list domain|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "ALLOW|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
   pg_list block|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "BLOCK|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
-  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains; do echo "DNS|$key|$(pg_get "$key" 0)"; done
+  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy; do echo "DNS|$key|$(pg_get "$key" 0)"; done
   ;;
  rule-add)
   [ "$#" -eq 4 ] && valid_source "$2" && valid_text "$3" && { [ "$4" = 0 ] || [ "$4" = 1 ]; } || exit 2
@@ -111,9 +111,16 @@ case "$cmd" in
   with_lock transaction m_block_remove "$d" ;;
  dns-set)
   [ "$#" -eq 3 ] || exit 2
-  case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains) ;; *) exit 2 ;; esac
+  case "$2" in dns_engine_adguardhome|dns_forward|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy) ;; *) exit 2 ;; esac
   [ "$3" = 0 ] || [ "$3" = 1 ] || exit 2
   with_lock transaction m_dns "$2" "$3" ;;
+ rootproxy-status)
+  if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
+    sh "$MP/scripts/yulong-root-proxy.sh" status
+  else
+    echo "active=0"
+    echo "status=not-installed"
+  fi ;;
  logs)
   [ -s "$PG/boot.log" ] && tail -n 180 "$PG/boot.log" || echo "暂无日志" ;;
  ad-master)
