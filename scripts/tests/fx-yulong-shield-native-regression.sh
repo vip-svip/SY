@@ -101,7 +101,8 @@ assert 'case "按键控制":' in main and 'loadDiaMonitorTemplate("key")' in (re
     "Dia key-control page must open its key-event observer template"
 assert 'case "应用版本":' in main and 'case "签名信息":' in main and "FxDiaSignatureActivity.class" in main, \
     "Dia version/signature pages must open the native PackageManager signing inspector"
-assert "FX 当前的 QuickJS 脚本运行时不是 Frida" in main, "Frida must not be mislabeled as QuickJS"
+frida_activity = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java").read_text(encoding="utf-8")
+assert "FX QuickJS 脚本页仍是独立运行时，不会被当作 Frida。" in frida_activity, "Frida and QuickJS runtimes must remain explicitly distinct"
 assert 'wifi_simulate' in main and 'network_type_sim' in main and 'publishConfig();' in main, \
     "Dia network simulation UI must persist per-target drafts and publish configuration"
 assert 'installWifiInfoSimulationHooks' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java").read_text(encoding="utf-8"), \
