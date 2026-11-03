@@ -453,6 +453,8 @@ public final class FxDiaFileActivity extends Activity {
                     .append("APK：").append(app.sourceDir).append('\n')
                     .append("Native Library Dir：").append(app.nativeLibraryDir).append("\n\n");
             int count = 0;
+            boolean truncated = false;
+            final int maxSoEntries = 2000;
             List<String> apks = new ArrayList<>();
             apks.add(app.sourceDir);
             if (app.splitSourceDirs != null) java.util.Collections.addAll(apks, app.splitSourceDirs);
@@ -463,6 +465,7 @@ public final class FxDiaFileActivity extends Activity {
                         ZipEntry entry = entries.nextElement();
                         if (!entry.isDirectory() && entry.getName().startsWith("lib/")
                                 && entry.getName().endsWith(".so")) {
+                            if (count >= maxSoEntries) { truncated = true; break; }
                             out.append(entry.getName()).append(" · ")
                                     .append(entry.getSize() < 0 ? "大小未知" : bytes(entry.getSize())).append('\n');
                             count++;
@@ -471,20 +474,30 @@ public final class FxDiaFileActivity extends Activity {
                 } catch (Throwable error) {
                     out.append("APK 库目录不可读取：").append(apk).append('\n');
                 }
+                if (truncated) break;
             }
             out.append("\n已安装 Native 目录：\n");
-            File dir = app.nativeLibraryDir == null ? null : new File(app.nativeLibraryDir);
-            File[] libs = dir == null ? null : dir.listFiles((d, name) -> name.endsWith(".so"));
-            if (libs == null) out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\n");
-            else for (File lib : libs) {
-                out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\n');
-                count++;
+            try {
+                File dir = app.nativeLibraryDir == null ? null : new File(app.nativeLibraryDir);
+                File[] libs = dir == null ? null : dir.listFiles((d, name) -> name.endsWith(".so"));
+                if (libs == null) {
+                    out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\n");
+                } else {
+                    for (File lib : libs) {
+                        if (count >= maxSoEntries) { truncated = true; break; }
+                        out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\n');
+                        count++;
+                    }
+                }
+            } catch (Throwable error) {
+                out.append("Native Library Dir 不可读取：").append(error.getClass().getSimpleName()).append('\n');
             }
+            if (truncated) out.append("\nSO 条目过多，仅显示前 ").append(maxSoEntries).append(" 项。\n");
             final String report = out.toString();
             final int total = count;
             postUi(() -> {
                 soResults.setText(report);
-                soStatus.setText("只读列出 " + total + " 个 SO 条目；不执行、不注入、不修改。");
+                soStatus.setText("只读列出 " + total + " 个 SO 条目" + (report.contains("SO 条目过多") ? "（已限制显示）" : "") + "；不执行、不注入、不修改。");
             });
         });
     }
