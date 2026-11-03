@@ -669,3 +669,13 @@ After each implementation batch:
 - The picker WebView has JavaScript enabled only for the map page, exposes no JavaScript bridge, disables file/content access and mixed content, permits only HTTPS AMap/Gaode navigation, and cancels TLS errors.
 - This does not change the device's real GNSS/provider state. GPS mocking remains scoped to an explicitly selected debuggable target process.
 - Source commit only; the paired APK/KernelSU package remains deferred until all three application migrations are complete.
+
+
+## Dia 23.11 — native system Wi-Fi HTTP proxy migration
+
+- Added a dedicated fourth-level `FxDiaWifiProxyActivity` and routed Dia's `HTTP 代理` page to it instead of the generic network settings panel.
+- The page configures Android's global `http_proxy` using explicit KernelSU Root authorization. It is separate from the FX VPN, node proxy and Root DNS Proxy; the UI explains that it can affect all apps using the system HTTP proxy.
+- Enabling stores the previous global proxy value, applies the requested host/port, and reads the value back. Replacing an already FX-managed proxy preserves the original pre-FX value.
+- Disabling restores the saved original value only if the system setting still equals the value last written by FX. When another app or the user has changed it, FX reports a conflict and leaves the external value untouched.
+- Default state remains disabled. No ADB/Wireless Debugging pairing implementation is claimed by this Root-only migration.
+- Source-only commit on the unified branch; no intermediate APK/KernelSU ZIP was generated.
