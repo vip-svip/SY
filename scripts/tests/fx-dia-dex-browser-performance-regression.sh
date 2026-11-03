@@ -48,7 +48,9 @@ assert "for (FxDiaDexIndex.DexClass item : classes)" not in render, "DEX member 
 assert "private void DexClassRow(SearchHit hit)" in source
 assert "private static final class SearchHit" in source
 
-destroy = section("@Override protected void onDestroy()", "")
+destroy_start = source.find("@Override protected void onDestroy()")
+assert destroy_start >= 0, "Activity cleanup method is missing"
+destroy = source[destroy_start:]
 assert "destroyed = true;" in destroy
 assert "searchGeneration++;" in destroy and "dexGeneration++;" in destroy
 assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy
