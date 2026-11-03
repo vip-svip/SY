@@ -166,6 +166,7 @@ jobs:
           # shared atomic lock patch so it cannot overwrite the lock migration.
           python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
+          sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
