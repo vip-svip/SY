@@ -246,7 +246,7 @@ private void saveVpnDns(String key,EditText input){
    if(lines.size()>2000){status.setText("单次最多导入 2000 条域名。");return;}
   }
   if(lines.isEmpty()){status.setText("没有可导入的域名。");return;}
-  String payload=String.join("\\n",lines);
+  String payload=String.join("\n",lines);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>65536){status.setText("批量域名数据超过 64 KiB，请分批导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);

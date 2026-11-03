@@ -220,9 +220,9 @@ import_domains() {
   _import_encoded="$2"
   case "$_import_kind" in allow|block) ;; *) return 2 ;; esac
   case "$_import_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain import" >&2; return 2 ;; esac
-  [ "\${#_import_encoded}" -le 87384 ] || { echo "domain import exceeds 64 KiB" >&2; return 2; }
+  [ "${#_import_encoded}" -le 87384 ] || { echo "domain import exceeds 64 KiB" >&2; return 2; }
 
-  _import_raw="$PG/yulong-domain-import.$"
+  _import_raw="$PG/yulong-domain-import-$$"
   _import_clean="$_import_raw.clean"
   rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
   (umask 077; printf '%s' "$_import_encoded" | base64 -d > "$_import_raw") || {
