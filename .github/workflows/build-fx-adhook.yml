@@ -135,6 +135,7 @@ jobs:
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           python3 fx-patches/merge_hook_single_apk.py fx-module .
+          sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
