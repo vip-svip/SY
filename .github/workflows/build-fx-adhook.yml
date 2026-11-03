@@ -361,12 +361,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
       - name: Preserve restored module source for focused audit
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fx-v1.0.0-module-source-audit
           retention-days: 3
-          if-no-files-found: error
+          if-no-files-found: warn
           path: |
             fx-module/module.prop
             fx-module/customize.sh
