@@ -162,6 +162,7 @@ jobs:
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           python3 fx-patches/patch_yulong_dns_upstreams.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
+          sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
           python3 fx-patches/patch_yulong_app_whitelist.py fx-module
           python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
