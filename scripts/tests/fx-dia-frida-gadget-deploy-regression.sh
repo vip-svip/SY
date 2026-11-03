@@ -43,6 +43,7 @@ for label, needle in {
         "re-deploy after app update",
         "one process selector UI",
         "default to target main process",
+        "process selection passed to deployment backend",
         "process selection saved across recreation",
         "process selection restored after recreation",
     }
