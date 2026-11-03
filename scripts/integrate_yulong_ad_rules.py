@@ -62,7 +62,7 @@ AGH_INSERT = r'''  # Ad-domain rules stay in [list:rule], separate from FX's 961
           return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
         }
         $1 !~ /^[[:space:]]*#/ && valid($1) && (NF<3 || $3=="1") {
-          print "@@||" tolower($1) "^"
+          print "  - \"@@||" tolower($1) "^\""
         }
       '
       pg_list block 2>/dev/null | awk -F'|' '
@@ -70,7 +70,7 @@ AGH_INSERT = r'''  # Ad-domain rules stay in [list:rule], separate from FX's 961
           return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
         }
         $1 !~ /^[[:space:]]*#/ && valid($1) && (NF<3 || $3=="1") {
-          print "||" tolower($1) "^"
+          print "  - \"||" tolower($1) "^\""
         }
       '
     } | awk '!seen[$0]++'
