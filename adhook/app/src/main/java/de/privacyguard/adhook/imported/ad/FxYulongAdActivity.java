@@ -236,7 +236,7 @@ private void saveVpnDns(String key,EditText input){
   for(String line:raw.split("\\r?\\n")){
    String value=line.trim();
    if(value.isEmpty()||value.startsWith("#")) continue;
-   String[] fields=value.split("\\\\|",-1);
+   String[] fields=value.split("\\|",-1);
    if(fields.length>2 || fields[0].trim().isEmpty() || fields[0].trim().length()>253
        || (fields.length==2 && fields[1].trim().length()>180)){
     status.setText("导入格式错误：请使用 domain 或 domain|note，每行一条。");
