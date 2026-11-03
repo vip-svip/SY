@@ -2812,9 +2812,9 @@ public final class MainActivity extends ComponentActivity {
         if ("yulong-shield".equals(suite)) return new String[][] {
             {"安全中心", "安全护盾首页", "防护级别", "防护状态", "实时守护", "每日安全总结", "屏幕滤镜"},
             {"病毒库与名单", "病毒库管理", "病毒库同步", "白名单管理", "管控应用列表"},
-            {"应用扫描", "已安装应用扫描", "安装后自动检测", "APK 内容特征扫描", "扫描结果"},
+            {"应用扫描", "已安装应用扫描", "安装后自动检测", "APK 内容特征扫描", "扫描结果", "批量清理"},
             {"Stellar 金龙", "Stellar 特权管理", "应用授权", "能力作用域", "始终允许命令"},
-            {"救援与恢复", "悬浮救援入口", "音量键触发", "摇动触发", "开机恢复", "守护运行状态"}
+            {"救援与恢复", "悬浮救援入口", "音量键触发", "摇动触发", "开机恢复", "守护运行状态", "完整性校验"}
         };
         return new String[][] {
             {"首页与防护", "广告拦截开关", "防护级别", "防护状态", "统计", "每日防护总结"},
@@ -2959,11 +2959,26 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.shield.FxYulongScreenFilterActivity.class));
                     return;
                 case "安全护盾首页": case "防护级别": case "防护状态":
-                case "实时守护": case "悬浮救援入口":
-                case "音量键触发": case "摇动触发": case "开机恢复":
-                case "守护运行状态":
+                case "实时守护": case "音量键触发": case "摇动触发": case "开机恢复":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                    return;
+                case "悬浮救援入口":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongRescueActivity.class));
+                    return;
+                case "守护运行状态": case "每日安全总结":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
+                    return;
+                case "完整性校验":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongIntegrityActivity.class));
+                    return;
+                case "批量清理":
+                    // The scanner owns selection state and passes the selected package queue.
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongScanActivity.class));
                     return;
                 case "每日安全总结":
                     startActivity(new Intent(this,
