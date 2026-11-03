@@ -71,9 +71,27 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
                                     return;
                                 }
 
-                                File nativeDir = new File(info.nativeLibraryDir).getCanonicalFile();
-                                if (!nativeDir.isDirectory() || Files.isSymbolicLink(nativeDir.toPath())) {
-                                    log("skip " + expectedPackage + ": nativeLibraryDir is unsafe");
+                                String nativeLibraryPath = info.nativeLibraryDir;
+                                if (nativeLibraryPath == null || nativeLibraryPath.trim().isEmpty()
+                                        || !nativeLibraryPath.startsWith("/data/app/")
+                                        || nativeLibraryPath.contains("..")) {
+                                    log("skip " + expectedPackage + ": nativeLibraryDir is outside /data/app");
+                                    return;
+                                }
+                                File rawNativeDir = new File(nativeLibraryPath);
+                                // Check the original path before canonicalization. Checking a
+                                // canonical File for symlink-ness is ineffective because the
+                                // canonicalization has already followed the link.
+                                if (!rawNativeDir.isAbsolute() || hasSymlinkComponent(rawNativeDir)) {
+                                    log("skip " + expectedPackage + ": nativeLibraryDir contains a symlink");
+                                    return;
+                                }
+                                File nativeDir = rawNativeDir.getCanonicalFile();
+                                String canonicalNativePath = nativeDir.getPath();
+                                if (!nativeDir.isDirectory()
+                                        || !canonicalNativePath.startsWith("/data/app/")
+                                        || canonicalNativePath.contains("/../")) {
+                                    log("skip " + expectedPackage + ": canonical nativeLibraryDir is unsafe");
                                     return;
                                 }
                                 File marker = child(nativeDir, MARKER_NAME);
@@ -131,6 +149,15 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
         } catch (Throwable hookError) {
             log("cannot hook Application.attach for " + expectedPackage + ": " + hookError);
         }
+    }
+
+    private static boolean hasSymlinkComponent(File path) {
+        File current = path.getAbsoluteFile();
+        while (current != null) {
+            if (Files.isSymbolicLink(current.toPath())) return true;
+            current = current.getParentFile();
+        }
+        return false;
     }
 
     private static File child(File parent, String name) throws Exception {
