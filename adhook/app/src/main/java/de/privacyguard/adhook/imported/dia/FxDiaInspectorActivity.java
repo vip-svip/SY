@@ -55,6 +55,13 @@ public final class FxDiaInspectorActivity extends Activity {
         card(body,"状态","Root 只读检查",status);
         card(body,"结果","不读取数据库业务行，也不导出任意进程内存内容。",
             output,button("复制结果",this::copyResult));
+        if ("memory".equals(mode)) {
+            card(body, "HPROF 内存快照",
+                    "当前页面显示进程内存指标与有界内存映射。完整 Java 堆快照通过内置 Frida 工具生成；只允许用户安装的 debuggable 测试目标。",
+                    button("打开 HPROF 快照工具", () -> startActivity(
+                            new android.content.Intent(this, FxDiaFridaActivity.class)
+                                    .putExtra("dia_page", "内存快照"))));
+        }
         loadApps();
     }
     private void loadApps(){
