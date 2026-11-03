@@ -45,7 +45,12 @@ public final class FxDiaFridaActivity extends Activity {
     private static final String DEFAULT_SERVER = "/data/local/tmp/fx-frida/fx-frida-server";
     private static final String DEFAULT_INJECTOR = "/data/local/tmp/fx-frida/fx-frida-inject";
     private static final String SERVER_PID = "/data/adb/privacyguard/dia-frida-server.pid";
+    private static final int REQUEST_EXPORT_LIBRARY = 7105;
+    private static final int REQUEST_IMPORT_LIBRARY = 7106;
+    private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
+    private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private String pendingFridaLibraryExport;
 
     private EditText serverPath;
     private EditText injectorPath;
@@ -216,8 +221,10 @@ public final class FxDiaFridaActivity extends Activity {
                 script,
                 button("保存到 Frida 脚本库", () -> saveCurrentFridaScript()),
                 button("打开 Frida 脚本库", () -> showFridaScriptLibrary()),
-                button("导出脚本库 JSON", () -> exportFridaScriptLibrary()),
-                button("批量导入脚本库 JSON", () -> importFridaScriptLibrary()),
+                button("导出脚本库 JSON 文件", () -> exportFridaScriptLibrary()),
+                button("从 JSON 文件批量导入脚本库", () -> importFridaScriptLibrary()),
+                button("复制脚本库 JSON 到剪贴板", () -> copyFridaScriptLibraryJson()),
+                button("从剪贴板粘贴 JSON 导入", () -> importFridaScriptLibraryFromClipboard()),
                 button("载入 Dia 原版 Frida 示例", () -> loadOriginalExamples()),
                 button("载入 FX 示例脚本", () -> loadDiaScriptTemplate()),
                 button("查看监听模式说明", () -> showDiaHelp("dia/frida_listen_help.md", "Frida 监听模式")),
@@ -380,10 +387,19 @@ public final class FxDiaFridaActivity extends Activity {
                 gadgetLoadMode.check(gadgetLoadMode.getChildAt(checked).getId());
         }
         if (status != null) status.setText(state.getString("fx_frida_status", "已恢复上次编辑状态。"));
+        String pendingLibrary = state.getString(STATE_PENDING_LIBRARY_EXPORT);
+        if (pendingLibrary != null
+                && pendingLibrary.getBytes(StandardCharsets.UTF_8).length <= MAX_LIBRARY_JSON_BYTES) {
+            pendingFridaLibraryExport = pendingLibrary;
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        if (pendingFridaLibraryExport != null
+                && pendingFridaLibraryExport.getBytes(StandardCharsets.UTF_8).length <= MAX_LIBRARY_JSON_BYTES) {
+            outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport);
+        }
         if (serverPath != null) outState.putString("fx_frida_server_path", serverPath.getText().toString());
         if (injectorPath != null) outState.putString("fx_frida_injector_path", injectorPath.getText().toString());
         if (gadgetPath != null) outState.putString("fx_frida_gadget_path", gadgetPath.getText().toString());
@@ -517,12 +533,37 @@ public final class FxDiaFridaActivity extends Activity {
                 .setNegativeButton("关闭", null).show();
     }
 
+    private String buildFridaScriptLibraryJson() throws Exception {
+        org.json.JSONObject root = new org.json.JSONObject();
+        root.put("schema", "FX-DIA-FRIDA-SCRIPTS-1");
+        root.put("scripts", readFridaScriptLibrary());
+        String json = root.toString(2);
+        if (json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES)
+            throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB，无法导出。");
+        return json;
+    }
+
     private void exportFridaScriptLibrary() {
         try {
-            org.json.JSONObject root = new org.json.JSONObject();
-            root.put("schema", "FX-DIA-FRIDA-SCRIPTS-1");
-            root.put("scripts", readFridaScriptLibrary());
-            String json = root.toString(2);
+            pendingFridaLibraryExport = buildFridaScriptLibraryJson();
+            Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            create.addCategory(Intent.CATEGORY_OPENABLE);
+            create.setType("application/json");
+            String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT)
+                    .format(new java.util.Date());
+            create.putExtra(Intent.EXTRA_TITLE, "FX-Dia-Frida-Scripts-" + stamp + ".json");
+            startActivityForResult(create, REQUEST_EXPORT_LIBRARY);
+            setStatus("已准备脚本库 JSON；请在系统文件选择器中选择保存位置。");
+        } catch (Throwable error) {
+            pendingFridaLibraryExport = null;
+            setStatus("无法准备脚本库导出：" + error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+        }
+    }
+
+    private void copyFridaScriptLibraryJson() {
+        try {
+            String json = buildFridaScriptLibraryJson();
             android.content.ClipboardManager clipboard =
                     (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
             if (clipboard == null) {
@@ -530,46 +571,97 @@ public final class FxDiaFridaActivity extends Activity {
                 return;
             }
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Dia Frida scripts", json));
-            setStatus("Frida 脚本库 JSON 已复制；可保存为 JSON 文件用于迁移/备份。");
+            setStatus("Frida 脚本库 JSON 已复制到剪贴板。");
         } catch (Exception error) {
-            setStatus("导出脚本库失败：" + error.getMessage());
+            setStatus("复制脚本库 JSON 失败：" + error.getMessage());
         }
     }
 
     private void importFridaScriptLibrary() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("application/json");
+        try {
+            startActivityForResult(pick, REQUEST_IMPORT_LIBRARY);
+        } catch (Throwable error) {
+            setStatus("无法打开脚本库 JSON 文件选择器：" + error.getClass().getSimpleName());
+        }
+    }
+
+    private void importFridaScriptLibraryFromClipboard() {
         EditText input = new EditText(this);
         input.setGravity(Gravity.TOP | Gravity.START);
         input.setMinLines(8);
         input.setHint("{\"schema\":\"FX-DIA-FRIDA-SCRIPTS-1\",\"scripts\":{\"demo\":\"console.log('hello')\"}}");
-        new AlertDialog.Builder(this).setTitle("批量导入 Frida 脚本库")
+        new AlertDialog.Builder(this).setTitle("从剪贴板 JSON 导入 Frida 脚本库")
                 .setMessage("只导入 JSON 中的脚本源码，不会自动执行。重复名称将覆盖本机同名脚本。")
                 .setView(input)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("验证并导入", (dialog, which) -> {
                     try {
-                        org.json.JSONObject root = new org.json.JSONObject(input.getText().toString());
-                        if (!"FX-DIA-FRIDA-SCRIPTS-1".equals(root.optString("schema")))
-                            throw new IllegalArgumentException("JSON schema 不匹配。");
-                        org.json.JSONObject incoming = root.getJSONObject("scripts");
-                        if (incoming.length() > 64) throw new IllegalArgumentException("单次最多导入 64 个脚本。");
-                        org.json.JSONObject merged = readFridaScriptLibrary();
-                        java.util.Iterator<String> keys = incoming.keys();
-                        while (keys.hasNext()) {
-                            String name = keys.next();
-                            String source = incoming.optString(name, "");
-                            if (name.trim().isEmpty() || name.length() > 64
-                                    || name.indexOf('|') >= 0 || source.trim().isEmpty()
-                                    || source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024)
-                                throw new IllegalArgumentException("脚本名称或大小不符合限制：" + name);
-                            merged.put(name, source);
-                        }
-                        writeFridaScriptLibrary(merged);
-                        setStatus("成功导入 Frida 脚本库；当前共 " + merged.length() + " 个脚本。");
+                        mergeFridaScriptLibraryJson(input.getText().toString());
                         showFridaScriptLibrary();
                     } catch (Exception error) {
-                        setStatus("导入 Frida 脚本库失败：" + error.getMessage());
+                        setStatus("导入脚本库失败：" + error.getMessage());
                     }
                 }).show();
+    }
+
+    private void importFridaScriptLibraryFile(Uri uri) {
+        setStatus("正在读取 Frida 脚本库 JSON…");
+        worker.execute(() -> {
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("无法读取所选 JSON 文件。");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() > MAX_LIBRARY_JSON_BYTES - count)
+                        throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB。");
+                    output.write(buffer, 0, count);
+                }
+                String json = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    try {
+                        int countScripts = mergeFridaScriptLibraryJson(json);
+                        setStatus("已从文件导入 " + countScripts + " 个 Frida 脚本。");
+                        showFridaScriptLibrary();
+                    } catch (Exception error) {
+                        setStatus("导入 Frida 脚本库文件失败：" + error.getMessage());
+                    }
+                });
+            } catch (Throwable error) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed())
+                        setStatus("读取 Frida 脚本库文件失败：" + error.getClass().getSimpleName()
+                                + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                });
+            }
+        });
+    }
+
+    private int mergeFridaScriptLibraryJson(String json) throws Exception {
+        if (json == null || json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES)
+            throw new IllegalArgumentException("Frida 脚本库 JSON 为空或超过 1 MiB。");
+        org.json.JSONObject root = new org.json.JSONObject(json);
+        if (!"FX-DIA-FRIDA-SCRIPTS-1".equals(root.optString("schema")))
+            throw new IllegalArgumentException("JSON schema 不匹配。");
+        org.json.JSONObject incoming = root.getJSONObject("scripts");
+        if (incoming.length() > 64) throw new IllegalArgumentException("单次最多导入 64 个脚本。");
+        org.json.JSONObject merged = readFridaScriptLibrary();
+        java.util.Iterator<String> keys = incoming.keys();
+        while (keys.hasNext()) {
+            String name = keys.next();
+            String source = incoming.optString(name, "");
+            if (name.trim().isEmpty() || name.length() > 64
+                    || name.indexOf('|') >= 0 || source.trim().isEmpty()
+                    || source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024)
+                throw new IllegalArgumentException("脚本名称或大小不符合限制：" + name);
+            merged.put(name, source);
+        }
+        writeFridaScriptLibrary(merged);
+        return incoming.length();
     }
 
     private void pickScript() {
@@ -652,6 +744,44 @@ public final class FxDiaFridaActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_EXPORT_LIBRARY) {
+            String json = pendingFridaLibraryExport;
+            pendingFridaLibraryExport = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                if (!isFinishing() && !isDestroyed()) setStatus("已取消 Frida 脚本库文件导出。");
+                return;
+            }
+            if (json == null || json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES) {
+                setStatus("待导出的 Frida 脚本库内容已失效，请重新导出。");
+                return;
+            }
+            Uri destination = data.getData();
+            worker.execute(() -> {
+                try (OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
+                    if (output == null) throw new IllegalStateException("无法写入所选 JSON 文件。");
+                    output.write(json.getBytes(StandardCharsets.UTF_8));
+                    output.flush();
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed())
+                            setStatus("Frida 脚本库 JSON 文件已导出。");
+                    });
+                } catch (Throwable error) {
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed())
+                            setStatus("Frida 脚本库导出失败：" + error.getClass().getSimpleName()
+                                    + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                    });
+                }
+            });
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_LIBRARY) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null)
+                importFridaScriptLibraryFile(data.getData());
+            else if (!isFinishing() && !isDestroyed())
+                setStatus("已取消 Frida 脚本库文件导入。");
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         if (requestCode == 7101 || requestCode == 7102) {
             importBinary(data.getData(), requestCode == 7101);
