@@ -97,7 +97,7 @@ if hook.find("hasSymlinkComponent(rawNativeDir)") > hook.find("rawNativeDir.getC
 matcher_start = hook.find("private static boolean matchesProcess(")
 if matcher_start < 0:
     raise SystemExit("FAIL: target loader exact process matcher is missing")
-matcher_end = hook.find("\\n    }", matcher_start)
+matcher_end = hook.find("\n    }", matcher_start)
 if matcher_end < 0:
     raise SystemExit("FAIL: target loader process matcher body is incomplete")
 matcher = hook[matcher_start:matcher_end]
