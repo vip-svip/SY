@@ -195,6 +195,87 @@ PS4='FXSUB-B ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetc
     "subscription worker B shell trace",
 )
 
+# Instrument filesystem lock operations at the command boundary. Shell xtrace can
+# show the same PID path in separate files but does not preserve cross-process
+# ordering. These wrappers timestamp successful/failed mkdir, mv, rm and rmdir
+# operations on the subscription lock pathname, so a stale reaper or unexpected
+# cleanup is directly attributable to one process.
+const_lock_ops_block = r"""
+# FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1
+cat > "$T/bin/mkdir" <<'FX_MKDIR'
+#!/bin/sh
+lock=''
+for arg in "$@"; do case "$arg" in */subs/.lock.*) lock=$arg ;; esac; done
+before=absent; owner=-
+if [ -n "$lock" ] && [ -d "$lock" ]; then before=present; owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
+rc=0
+/usr/bin/mkdir "$@" || rc=$?
+if [ -n "$lock" ]; then
+  after=absent; new_owner=-
+  if [ -d "$lock" ]; then after=present; new_owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
+  printf 'MKDIR|pid=%s|time=%s|rc=%s|path=%s|before=%s:%s|after=%s:%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$lock" "$before" "$owner" "$after" "$new_owner" >> "$TEST_ROOT/lock-events"
+fi
+exit "$rc"
+FX_MKDIR
+cat > "$T/bin/mv" <<'FX_MV'
+#!/bin/sh
+set -- "$@"
+src=''; dst=''
+for arg in "$@"; do src=$dst; dst=$arg; done
+case "$src $dst" in
+  *"/subs/.lock."*)
+    owner=$(cat "$src/pid" 2>/dev/null || echo missing)
+    rc=0; /usr/bin/mv "$@" || rc=$?
+    src_after=absent; dst_after=absent
+    [ ! -e "$src" ] || src_after=present
+    [ ! -e "$dst" ] || dst_after=present
+    dst_owner=$(cat "$dst/pid" 2>/dev/null || echo missing)
+    printf 'MV|pid=%s|time=%s|rc=%s|src=%s|dst=%s|owner_before=%s|src_after=%s|dst_after=%s|dst_owner=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$src" "$dst" "$owner" "$src_after" "$dst_after" "$dst_owner" >> "$TEST_ROOT/lock-events"
+    exit "$rc"
+    ;;
+esac
+exec /usr/bin/mv "$@"
+FX_MV
+cat > "$T/bin/rm" <<'FX_RM'
+#!/bin/sh
+matched=0
+for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
+if [ "$matched" = 1 ]; then
+  printf 'RM_BEGIN|pid=%s|time=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+  rc=0; /usr/bin/rm "$@" || rc=$?
+  printf 'RM_END|pid=%s|time=%s|rc=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+  exit "$rc"
+fi
+exec /usr/bin/rm "$@"
+FX_RM
+cat > "$T/bin/rmdir" <<'FX_RMDIR'
+#!/bin/sh
+matched=0
+for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
+if [ "$matched" = 1 ]; then
+  printf 'RMDIR_BEGIN|pid=%s|time=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+  rc=0; /usr/bin/rmdir "$@" || rc=$?
+  printf 'RMDIR_END|pid=%s|time=%s|rc=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+  exit "$rc"
+fi
+exec /usr/bin/rmdir "$@"
+FX_RMDIR
+chmod 0755 "$T/bin/mkdir" "$T/bin/mv" "$T/bin/rm" "$T/bin/rmdir"
+"""
+if "FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1" not in sub_test.read_text(encoding="utf-8"):
+    if not replace_if_present(
+        sub_test,
+        'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n',
+        'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
+        "subscription lock operation event wrappers (split env)",
+    ):
+        replace_if_present(
+            sub_test,
+            'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n',
+            'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
+            "subscription lock operation event wrappers (combined env)",
+        )
+
 # Do not require one particular restored-release worker launch spelling.
 # Optional per-source-tree tracing above is sufficient when the anchor exists;
 # failure diagnostics still print both worker outputs and the cache state.
@@ -222,7 +303,7 @@ replace_once(
 replace_once(
     sub_test,
     '[ "$(cat "$T/state/count")" -eq 2 ]\n',
-    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; echo "worker A lock trace:" >&2; cat "$T/trace1" >&2 || :; echo "worker B lock trace:" >&2; cat "$T/trace2" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
+    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; echo "lock operation log:" >&2; cat "$T/state/lock-events" >&2 || :; echo "worker A lock trace:" >&2; cat "$T/trace1" >&2 || :; echo "worker B lock trace:" >&2; cat "$T/trace2" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
     "subscription concurrency test must explain lost or overlapping requests",
 )
 replace_once(
