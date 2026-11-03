@@ -22,6 +22,15 @@ public final class FxDiaGadgetDeploymentTest {
         assertFalse(FxDiaGadgetDeployment.isValidListenPort(65536));
     }
 
+    @Test public void preflightRejectsInvalidPortsBeforeResolvingTargetPackage() {
+        for (int port : new int[] {-1, 0, 1023, 27042, 65536}) {
+            String error = FxDiaGadgetDeployment.validateSources(
+                    null, null, null, null, port);
+            assertTrue("port " + port + " must be rejected by preflight",
+                    error != null && error.contains("监听端口"));
+        }
+    }
+
     @Test public void rootCommandBuilderRejectsInvalidPortsBeforeGeneratingShell() {
         for (int port : new int[] {-1, 0, 1023, 27042, 65536}) {
             assertThrows(IllegalArgumentException.class, () ->
