@@ -31,6 +31,12 @@ cat > "$T/module/scripts/jsruntime/host.js" <<'HOST'
   }
 })();
 HOST
+python3 - "$T/module/scripts/jsruntime/host.js" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8") + "\n// Fixture padding to match the stable host bridge minimum size.\n" + "x" * 6000, encoding="utf-8")
+PY
 python3 - "$T/module/scripts/jsruntime/README-zh-CN.md" <<'PY'
 from pathlib import Path
 import sys
