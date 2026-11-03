@@ -24,6 +24,14 @@
         android:textSize="12sp"
         android:textColor="#617080"
         android:paddingBottom="8dp" />
+    <TextView
+        android:id="@+id/fx_yulong_widget_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="今日拦截：日志未启用"
+        android:textSize="11sp"
+        android:textColor="#617080"
+        android:paddingBottom="4dp" />
     <Button
         android:id="@+id/fx_yulong_widget_toggle"
         android:layout_width="match_parent"
