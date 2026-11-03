@@ -128,6 +128,8 @@ public final class FxDiaWifiProxyActivity extends Activity {
         body.addView(restoreButton);
         body.addView(button("刷新系统代理状态", () -> refreshStatus()));
 
+        body.addView(text("快捷设置", 16, 0xff17212b, true));
+        body.addView(text("可在系统快捷设置编辑页手动添加“FX 系统代理”磁贴。磁贴只切换本页面配置的系统 HTTP 代理，不会启动 VPN。", 12, 0xff718091, false));
         body.addView(text("安全处理", 16, 0xff17212b, true));
         body.addView(text("启用前记录当前 global http_proxy；每次写入后重新读取核对。关闭时若发现系统代理已被其他程序改写，不会覆盖它，而是提示冲突。Root 命令仅通过 KernelSU 授权执行。", 12, 0xff718091, false));
         updateButtons();

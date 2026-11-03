@@ -136,6 +136,16 @@
         <activity android:name=".imported.dia.FxDiaDexBrowserActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaGpsPickerActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaWifiProxyActivity" android:exported="false" />
+        <service
+            android:name=".imported.dia.FxDiaWifiProxyTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true"
+            android:label="FX 系统代理">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="true" />
+        </service>
         <activity android:name=".imported.dia.FxDiaSignatureActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaActivityBrowserActivity" android:exported="false" />
         <activity android:name=".imported.dia.FxDiaInspectorActivity" android:exported="false" />
