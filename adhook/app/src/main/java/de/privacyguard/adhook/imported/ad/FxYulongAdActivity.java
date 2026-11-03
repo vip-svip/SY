@@ -187,7 +187,7 @@ private void saveVpnDns(String key,EditText input){
        android.widget.CheckBox[] days,TextView state){
   root("schedule-get",r->{
     if(r.exitCode!=0){state.setText("读取失败："+safe(r.output));return;}
-    String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1";
+    String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1",watcher="0";
     for(String line:r.output.split("\\\\r?\\\\n")){
       int pos=line.indexOf('=');if(pos<0)continue;
       String key=line.substring(0,pos),value=line.substring(pos+1);
@@ -196,6 +196,7 @@ private void saveVpnDns(String key,EditText input){
       else if("end".equals(key))ed=value;
       else if("days".equals(key))ds=value;
       else if("active".equals(key))active=value;
+      else if("watcher".equals(key))watcher=value;
     }
     enabled.setChecked("1".equals(en));start.setText(st);end.setText(ed);
     String[] selected=ds.split(",");
