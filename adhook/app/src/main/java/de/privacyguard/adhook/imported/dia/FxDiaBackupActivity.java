@@ -217,7 +217,7 @@ public final class FxDiaBackupActivity extends Activity {
         JSONObject stellarFiles=new JSONObject(),stellarHashes=new JSONObject();
         for(String line:(stellarDump==null?"":stellarDump).split("\\r?\\n")){
             if(!line.startsWith("STELLARFILE|"))continue;
-            String[] parts=line.split("\\\\|",3);
+            String[] parts=line.split("\\|",3);
             if(parts.length!=3)continue;
             String name=parts[1];
             if(!name.equals("command_whitelist.txt")&&!name.equals("command_always_allow.txt")&&!name.equals("scope_grants.txt"))continue;
