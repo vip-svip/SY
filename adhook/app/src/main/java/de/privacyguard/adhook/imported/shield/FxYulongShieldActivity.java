@@ -47,6 +47,17 @@ public final class FxYulongShieldActivity extends Activity {
         body.addView(panel, lp);
     }
 
+    private boolean hasUsageAccess() {
+        try {
+            android.app.AppOpsManager appOps =
+                    (android.app.AppOpsManager) getSystemService(APP_OPS_SERVICE);
+            if (appOps == null) return false;
+            int mode = appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(), getPackageName());
+            return mode == android.app.AppOpsManager.MODE_ALLOWED;
+        } catch (Throwable ignored) { return false; }
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         LinearLayout root = new LinearLayout(this);
@@ -85,7 +96,7 @@ public final class FxYulongShieldActivity extends Activity {
                 "保留原版应用选择、批量加入、移除与清空确认流程；后台自动拦截服务尚未迁入。",
                 action("打开管控列表", () -> startActivity(new Intent(this, BlacklistActivity.class))));
         android.content.SharedPreferences shieldPrefs =
-                getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE);
+                getSharedPreferences("shield_prefs", MODE_PRIVATE);
         android.widget.Switch installScan = new android.widget.Switch(this);
         installScan.setText("安装新应用时自动扫描");
         installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", false));
@@ -113,7 +124,48 @@ public final class FxYulongShieldActivity extends Activity {
                         + (lastTime.isEmpty() ? "" : "\\n时间：" + lastTime),
                 action("打开完整应用扫描", () -> startActivity(new Intent(this,
                         FxYulongScanActivity.class))));
+        android.widget.Switch protection = new android.widget.Switch(this);
+        protection.setText("实时应用守护（黑名单前台提醒）");
+        protection.setChecked(shieldPrefs.getBoolean("protect_on", false));
+        protection.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled) {
+                if (!hasUsageAccess()) {
+                    button.setChecked(false);
+                    new android.app.AlertDialog.Builder(this)
+                            .setTitle("需要使用情况访问权限")
+                            .setMessage("实时守护需要读取当前前台应用包名，才能识别管控名单。只读取前台包名，不读取屏幕内容或输入内容。")
+                            .setNegativeButton("稍后", null)
+                            .setPositiveButton("打开设置", (dialog, which) -> {
+                                try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
+                                catch (Throwable ignored) { }
+                            }).show();
+                    return;
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    button.setChecked(false);
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9022);
+                    return;
+                }
+                shieldPrefs.edit().putBoolean("protect_on", true).apply();
+                Intent service = new Intent(this, FxYulongProtectionService.class);
+                service.setAction(FxYulongProtectionService.ACTION_START);
+                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(service);
+                else startService(service);
+            } else {
+                shieldPrefs.edit().putBoolean("protect_on", false).apply();
+                stopService(new Intent(this, FxYulongProtectionService.class));
+            }
+        });
+        card("实时应用守护",
+                "复用原版 blacklist_pkgs / whitelist_pkgs 规则，周期识别前台应用并向用户发出提醒。需要手动授予使用情况访问权限。为避免误操作，FX 不自动强停、冻结或卸载任何应用。",
+                protection,
+                action("打开使用情况访问权限设置", () -> {
+                    try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
+                    catch (Throwable ignored) { }
+                }));
         card("原版高级守护功能",
-                "原版音量/摇动触发、覆盖层交互、持续进程自保和 Stellar 金龙特权运行时仍需单独移植；本次已恢复安装后自动检测，不以普通包广播冒充完整 watchdog。");
+                "原版音量/摇动触发、覆盖层救援流程和 Stellar 金龙特权命令仍需单独迁移；当前实时守护已接入前台应用检测、黑名单和白名单规则及提醒通知。");
     }
 }

@@ -94,7 +94,7 @@ public class WhitelistPickerActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         pm = getPackageManager();
-        prefs = getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE);
+        prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadCurrentWhitelist();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

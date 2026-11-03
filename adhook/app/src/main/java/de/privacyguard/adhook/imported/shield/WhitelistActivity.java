@@ -82,7 +82,7 @@ public class WhitelistActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         pm = getPackageManager();
-        prefs = getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE);
+        prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadWhitelist();
 
         getWindow().setStatusBarColor(COLOR_PRIMARY_DARK);

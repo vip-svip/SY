@@ -27,7 +27,7 @@ import java.util.Set;
 
 /**
  * 管控应用管理（原黑名单管理）。
- * 用户将应用加入管控后，安全护盾将拦截这些应用。
+ * 用户将应用加入管控后，实时守护会提醒这些应用进入前台；不会自动停止、冻结或卸载应用。
  * 不显示系统应用。
  * "我都很信任" 按钮清空管控列表。
  */
@@ -46,7 +46,7 @@ public class BlacklistActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         pm = getPackageManager();
-        prefs = getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE);
+        prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadBlacklist();
 
         // ===== 根布局 =====
