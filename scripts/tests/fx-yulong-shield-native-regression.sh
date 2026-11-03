@@ -26,7 +26,8 @@ required = {
     ".imported.shield.WhitelistPickerActivity",
     ".imported.shield.BlacklistActivity",
 }
-assert not (required - declared), f"Manifest Activities missing: {sorted(required - declared)}"
+missing = {name for name in required if not any(actual == name or actual.endswith(name) for actual in declared)}
+assert not missing, f"Manifest Activities missing: {sorted(missing)}; declared={sorted(declared)}"
 vpn_services = [
     node.attrib.get(A + "name", "")
     for node in manifest.findall("./application/service")
