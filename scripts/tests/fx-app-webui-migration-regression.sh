@@ -349,7 +349,7 @@ grep -q 'onAccessibilityEvent(AccessibilityEvent event)' "$ROOT/adhook/app/src/m
 python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java" <<'PY'
 import pathlib, sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-start = source.index("onAccessibilityEvent(AccessibilityEvent event)")
+start = source.index("@Override public void onAccessibilityEvent(AccessibilityEvent event)")
 end = source.index("@Override public boolean onKeyEvent", start)
 handler = source[start:end]
 assert "event.getEventType()" in handler and "event.getPackageName()" in handler, "foreground package metadata observer is missing"
