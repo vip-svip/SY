@@ -114,6 +114,38 @@ grep -Fq 'cache=flushed' "$T/forward-only.out" || fail "forward-only DNS cache f
 grep -Fq 'unbound:stop' "$MOCK_LOG" || fail "forward-only mode did not restart Unbound"
 ! grep -Fq 'adguardhome:' "$MOCK_LOG" || fail "forward-only mode touched disabled AdGuard Home"
 
+
+# Independent engine combinations restart only the resolver engines enabled in config.
+: > "$MOCK_LOG"
+printf 'dns_engine_adguardhome=1\ndns_forward=0\n' > "$T/pg/settings.conf"
+run cache-flush > "$T/agh-only.out"
+grep -Fq 'cache=flushed' "$T/agh-only.out" || fail "AdGuard Home-only cache flush failed"
+cat > "$T/agh-only.expected" <<'EXPECTED'
+adguardhome:stop
+adguardhome:ensure
+apply:fast
+EXPECTED
+cmp -s "$T/agh-only.expected" "$MOCK_LOG" || fail "AdGuard Home-only mode restarted an unrelated Unbound service"
+
+# Missing enabled helpers are errors, not successful no-op cache flushes.
+: > "$MOCK_LOG"
+printf 'dns_engine_adguardhome=0\ndns_forward=1\n' > "$T/pg/settings.conf"
+mv "$T/module/scripts/unbound.sh" "$T/module/scripts/unbound.sh.disabled"
+if run cache-flush > "$T/unbound-missing.out" 2>&1; then
+  fail "missing enabled Unbound helper was reported as successful"
+fi
+grep -Fq 'Unbound is enabled but its FX lifecycle helper is missing' "$T/unbound-missing.out" || fail "missing Unbound helper reason was not surfaced"
+[ ! -s "$MOCK_LOG" ] || fail "missing Unbound helper still executed resolver or apply actions"
+mv "$T/module/scripts/unbound.sh.disabled" "$T/module/scripts/unbound.sh"
+
+printf 'dns_engine_adguardhome=1\ndns_forward=0\n' > "$T/pg/settings.conf"
+mv "$T/module/scripts/adguardhome.sh" "$T/module/scripts/adguardhome.sh.disabled"
+if run cache-flush > "$T/agh-missing.out" 2>&1; then
+  fail "missing enabled AdGuard Home helper was reported as successful"
+fi
+grep -Fq 'AdGuard Home is enabled but its FX lifecycle helper is missing' "$T/agh-missing.out" || fail "missing AdGuard Home helper reason was not surfaced"
+mv "$T/module/scripts/adguardhome.sh.disabled" "$T/module/scripts/adguardhome.sh"
+
 # No active resolver means no-op; a contended lock must not be removed by this process.
 : > "$MOCK_LOG"
 printf 'dns_engine_adguardhome=0\ndns_forward=0\n' > "$T/pg/settings.conf"

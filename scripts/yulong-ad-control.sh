@@ -543,33 +543,43 @@ cache_flush() {
   _yad_cache_lock=$lock
   agh_enabled=$(pg_get dns_engine_adguardhome 1 2>/dev/null)
   forward_enabled=$(pg_get dns_forward 1 2>/dev/null)
-  if [ "$agh_enabled" != 1 ] && [ "$forward_enabled" != 1 ]; then echo "dns-engine-disabled"; return 0; fi
+  if [ "$agh_enabled" != 1 ] && [ "$forward_enabled" != 1 ]; then
+    echo "dns-engine-disabled"
+    return 0
+  fi
+  if [ "$forward_enabled" = 1 ] && [ ! -x "$MP/scripts/unbound.sh" ]; then
+    echo "Unbound is enabled but its FX lifecycle helper is missing; cache was not cleared" >&2
+    return 32
+  fi
+  if [ "$agh_enabled" = 1 ] && [ ! -x "$MP/scripts/adguardhome.sh" ]; then
+    echo "AdGuard Home is enabled but its FX lifecycle helper is missing; cache was not cleared" >&2
+    return 32
+  fi
   a_stop_rc=0; u_stop_rc=0; u_rc=0; a_rc=0; apply_rc=0
-  # Stop only FX-managed resolvers; each helper validates its own PID marker.
-  # A failed stop must not be reported as a cache flush, even if ensure later
-  # returns success because the old process was never actually stopped.
-  if [ "$agh_enabled" = 1 ] && [ -x "$MP/scripts/adguardhome.sh" ]; then
+  # Restart only the resolver engines that are actually enabled in FX config.
+  # Failed stops, ensures or route re-apply must never emit the success marker.
+  if [ "$agh_enabled" = 1 ]; then
     sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" || a_stop_rc=$?
   fi
-  if [ -x "$MP/scripts/unbound.sh" ]; then
+  if [ "$forward_enabled" = 1 ]; then
     sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" || u_stop_rc=$?
   fi
-  if [ -x "$MP/scripts/unbound.sh" ]; then
+  if [ "$forward_enabled" = 1 ]; then
     sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || u_rc=$?
   fi
-  if [ "$agh_enabled" = 1 ] && [ -x "$MP/scripts/adguardhome.sh" ]; then
+  if [ "$agh_enabled" = 1 ]; then
     sh "$MP/scripts/adguardhome.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || a_rc=$?
   fi
   sh "$MP/scripts/apply.sh" fast >> "$PG/boot.log" 2>&1 || apply_rc=$?
   echo "adguardhome_stop_exit=$a_stop_rc"; echo "unbound_stop_exit=$u_stop_rc"
   echo "unbound_exit=$u_rc"; echo "adguardhome_exit=$a_rc"; echo "apply_exit=$apply_rc"
-  [ "$a_stop_rc" -eq 0 ] && [ "$u_stop_rc" -eq 0 ]     && [ "$u_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] && [ "$apply_rc" -eq 0 ] || {
+  [ "$a_stop_rc" -eq 0 ] && [ "$u_stop_rc" -eq 0 ] \
+    && [ "$u_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] && [ "$apply_rc" -eq 0 ] || {
       echo "cache refresh incomplete; FX DNS routing was reconciled on a best-effort basis" >&2
       return 31
     }
   echo "cache=flushed"
 }
-
 cmd="${1:-list}"
 case "$cmd" in
   dns-log-summary)
