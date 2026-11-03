@@ -3,16 +3,16 @@
 # Maps legacy UI IDs to the canonical settings.conf list sections.
 set -eu
 
-MP=\${MP:-}
+MP=${MP:-}
 if [ -z "$MP" ]; then
   for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
     if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop" 2>/dev/null; then MP="$d"; break; fi
   done
 fi
 [ -n "$MP" ] && [ -s "$MP/module.prop" ] || { echo "FX module is not installed" >&2; exit 20; }
-PG=\${PG:-/data/adb/privacyguard}
-CONF=\${CONF:-$PG/settings.conf}
-LOCK=\${LOCK:-$PG/native-managed-lists.lock}
+PG=${PG:-/data/adb/privacyguard}
+CONF=${CONF:-$PG/settings.conf}
+LOCK=${LOCK:-$PG/native-managed-lists.lock}
 mkdir -p "$PG"
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 
@@ -26,22 +26,27 @@ resolve_section() {
 }
 valid_field() {
   [ -n "$1" ] || return 1
-  [ "\${#1}" -le 4096 ] || return 1
-  case "$1" in *'|'*|*'
-'*) return 1 ;; esac
-  case "$1" in *"$(printf '\\r')"*|*"$(printf '\\t')"*) return 1 ;; esac
+  [ "${#1}" -le 4096 ] || return 1
+  case "$1" in *'|'*) return 1 ;; esac
+  if printf '%s' "$1" | grep -q '[[:cntrl:]]'; then return 1; fi
+  return 0
+}
+valid_note() {
+  [ "${#1}" -le 256 ] || return 1
+  case "$1" in *'|'*) return 1 ;; esac
+  if printf '%s' "$1" | grep -q '[[:cntrl:]]'; then return 1; fi
   return 0
 }
 list_rows() {
   section="$1"
   awk -F'|' -v target="[list:$section]" '
-    BEGIN { index=0; inlist=0 }
+    BEGIN { rownum=0; inlist=0 }
     $0==target {inlist=1; next}
     /^\[/ {inlist=0}
     inlist && NF>=3 && $1!="" && $1 !~ /^[[:space:]]*#/ {
       note=$2
       enabled=($3=="0" ? 0 : 1)
-      printf "%d|%s|%s|%d\n", index++, $1, note, enabled
+      printf "%d|%s|%s|%d\n", rownum++, $1, note, enabled
     }
   ' "$CONF"
 }
@@ -59,7 +64,7 @@ update_row() {
         found=1
         if(action=="delete") { rownum++; next }
         if(action=="toggle") { print $1,$2,enabled; rownum++; next }
-        if(action=="edit") { print value,note,enabled; index++; next }
+        if(action=="edit") { print value,note,enabled; rownum++; next }
       }
       rownum++
       print
@@ -105,7 +110,7 @@ mutate_transaction() {
   backup="$CONF.native-list-rollback.$$"
   cp -p "$CONF" "$backup" || return 1
   case "$action" in
-    add) append_row "$section" "$value" "$note" || { rm -f "$backup"; return $?; } ;;
+    add) append_row "$section" "$value" "$note" || { rc=$?; rm -f "$backup"; return "$rc"; } ;;
     edit|toggle|delete)
       update_row "$section" "$index" "$action" "$value" "$note" "$enabled" \
         || { rc=$?; rm -f "$backup"; return "$rc"; } ;;
@@ -128,7 +133,7 @@ mutate_transaction() {
   return 1
 }
 
-cmd=\${1:-list}
+cmd=${1:-list}
 [ "$#" -ge 2 ] || { echo "usage: $0 list|add|edit|toggle|delete LIST_ID ..." >&2; exit 2; }
 section="$(resolve_section "$2")" || { echo "unknown managed list: $2" >&2; exit 2; }
 
@@ -139,7 +144,7 @@ case "$cmd" in
     ;;
   add)
     [ "$#" -eq 4 ] || { echo "usage: $0 add LIST_ID VALUE NOTE" >&2; exit 2; }
-    valid_field "$3" && [ "\${#4}" -le 256 ] || { echo "invalid value or note" >&2; exit 2; }
+    valid_field "$3" && valid_note "$4" || { echo "invalid value or note" >&2; exit 2; }
     if [ "$section" = rule ]; then
       case "$3" in http://*|https://*) : ;; *) echo "subscription URL must use HTTP(S)" >&2; exit 2 ;; esac
     fi
@@ -148,7 +153,7 @@ case "$cmd" in
   edit)
     [ "$#" -eq 6 ] || { echo "usage: $0 edit LIST_ID INDEX VALUE NOTE ENABLED" >&2; exit 2; }
     case "$3" in ''|*[!0-9]*) exit 2 ;; esac
-    valid_field "$4" && [ "\${#5}" -le 256 ] || { echo "invalid value or note" >&2; exit 2; }
+    valid_field "$4" && valid_note "$5" || { echo "invalid value or note" >&2; exit 2; }
     case "$6" in 0|1) : ;; *) exit 2 ;; esac
     with_lock mutate_transaction edit "$section" "$3" "$4" "$5" "$6"
     ;;
