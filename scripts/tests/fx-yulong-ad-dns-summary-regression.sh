@@ -50,7 +50,7 @@ if sh "$HELPER" "$TMP/data-link" >/dev/null 2>&1; then fail "helper followed a s
 python3 - "$CONTROL" "$PATCHER" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java" "$ROOT/.github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml" <<'PY'
 from pathlib import Path
 import sys
-control, patcher, activity = (Path(x).read_text(encoding="utf-8") for x in sys.argv[1:])
+control, patcher, activity, documented_config = (Path(x).read_text(encoding="utf-8") for x in sys.argv[1:])
 assert '  dns-log-summary)' in control, "control command missing"
 assert 'pg_get dns_querylog_enabled 0' in control, "statistics command does not honor opt-in"
 assert 'yulong-ad-dns-summary.sh' in control, "control command does not invoke numeric summary helper"
@@ -67,9 +67,9 @@ assert "private static long metric" in activity and "private void renderSummary"
 assert "游龙广告插件 · 本机防护总结" in activity, "summary title must not imply a daily-only window"
 assert "最长保留期 30 天" in activity, "summary must match the documented 30-day retention"
 assert 'interval: 30d' in patcher, "runtime generator must retain the documented 30-day interval"
-assert 'interval: 30d' in Path(sys.argv[4]).read_text(encoding="utf-8"), "documented AdGuard Home config must match runtime retention"
+assert 'interval: 30d' in documented_config, "documented AdGuard Home config must match runtime retention"
 for fragment in ('append("\\\\n已启用规则源：', 'append("\\\\n白名单域名：', 'append("\\\\n黑名单域名：', '+ "\\\\n其中拦截：', '+ "\\\\n未拦截：'):
     assert fragment not in activity, "UI renders a literal backslash-n instead of a line break: " + fragment
 
 PY
-echo "PASS: seven-day local DNS log summary returns numeric counts only, honors opt-in and rejects symlinked paths"
+echo "PASS: 30-day local DNS log summary returns numeric counts only, honors opt-in and rejects symlinked paths"
