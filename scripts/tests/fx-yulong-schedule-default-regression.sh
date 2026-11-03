@@ -51,6 +51,8 @@ assert uninstall.index("PG=/data/adb/privacyguard") < uninstall.index("# Stop Yu
 assert "is_our_watcher()" in schedule and "/proc/$_watch_pid/cmdline" in schedule, "schedule stop must verify PID ownership before signalling"
 assert 'if [ "$_uninstall_mode" = "uninstall" ]; then' in schedule, "uninstall stop mode must skip schedule state re-apply"
 assert schedule.index('if [ "$_uninstall_mode" = "uninstall" ]; then') < schedule.index("pg_set yulong_ad_schedule_active 1"), "uninstall must return before re-applying Yulong rules"
+assert "stop || return 1" in schedule, "disabled schedule start must surface watcher shutdown failures"
+assert "if ! pg_set yulong_ad_schedule_active 1" in schedule, "normal stop must surface failure to restore the active schedule state"
 assert r"\n" not in uninstall, "uninstall contains a literal backslash-n"
 assert 'yulong-ad-schedule.sh" start' in service, "boot service must restore the schedule watcher"
 print("PASS: Yulong schedule defaults remain outside [list:fx] and lifecycle hooks use real newlines")
