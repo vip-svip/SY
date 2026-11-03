@@ -1,6 +1,12 @@
 package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.Uri;
+import android.os.Build;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
@@ -47,6 +53,21 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     private EditText query;
     private boolean loading = true;
     private boolean appLoading;
+    private boolean appReloadPending;
+    private boolean packageReceiverRegistered;
+    private final BroadcastReceiver packageChanges = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (destroyed || intent == null) return;
+            Uri changed = intent.getData();
+            String changedPackage = changed == null ? null : changed.getSchemeSpecificPart();
+            if (getPackageName().equals(changedPackage)) return;
+            appReloadPending = true;
+            if (!appLoading) {
+                appReloadPending = false;
+                loadAppsAsync();
+            }
+        }
+    };
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -93,6 +114,41 @@ public final class FxYulongAppWhitelistActivity extends Activity {
         view.setText(label);
         view.setOnClickListener(v -> action.run());
         return view;
+    }
+
+    @Override protected void onStart() {
+        super.onStart();
+        if (packageReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        filter.addDataScheme("package");
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(packageChanges, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(packageChanges, filter);
+            }
+            packageReceiverRegistered = true;
+        } catch (RuntimeException unavailable) {
+            packageReceiverRegistered = false;
+        }
+    }
+
+    @Override protected void onStop() {
+        unregisterPackageChanges();
+        super.onStop();
+    }
+
+    private void unregisterPackageChanges() {
+        if (!packageReceiverRegistered) return;
+        try {
+            unregisterReceiver(packageChanges);
+        } catch (IllegalArgumentException ignored) {
+        } finally {
+            packageReceiverRegistered = false;
+        }
     }
 
     @Override protected void onCreate(Bundle state) {
@@ -169,7 +225,13 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     }
     /** Package enumeration, label resolution and sorting stay off the Activity UI thread. */
     private void loadAppsAsync() {
+        if (destroyed || isFinishing() || isDestroyed()) return;
+        if (appLoading) {
+            appReloadPending = true;
+            return;
+        }
         appLoading = true;
+        appReloadPending = false;
         status.setText("正在后台读取已安装应用…");
         renderRows();
         try {
@@ -201,6 +263,10 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                     if (loadFailure != null) {
                         status.setText("无法读取应用列表：" + loadFailure.getClass().getSimpleName());
                         renderRows();
+                        if (appReloadPending) {
+                            appReloadPending = false;
+                            loadAppsAsync();
+                        }
                         return;
                     }
                     apps.clear();
@@ -213,6 +279,10 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                     appPage = 1;
                     updateStatus();
                     renderRows();
+                    if (appReloadPending) {
+                        appReloadPending = false;
+                        loadAppsAsync();
+                    }
                 });
             });
         } catch (RejectedExecutionException closing) {
@@ -296,6 +366,7 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        unregisterPackageChanges();
         worker.shutdownNow();
         appWorker.shutdownNow();
         super.onDestroy();
