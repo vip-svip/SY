@@ -132,6 +132,7 @@ printf 'com.example.debuggable:remote\000' > "$T/proc/12346/cmdline"
 printf 'Name: com.example.debuggable:spoof\nUid: 10099 10099 10099 10099\n' > "$T/proc/12347/status"
 printf 'com.example.debuggable:spoof\000' > "$T/proc/12347/cmdline"
 export FX_GADGET_TEST_PROC_ROOT="$T/proc"
+export FX_GADGET_TEST_READY="$T/ignore-term.ready"
 PATH="$T/bin:$PATH"
 export PATH
 
@@ -148,9 +149,12 @@ fi
 [ -f "$6" ] && [ ! -L "$6" ]
 [ "$(stat -c %a "$6")" = "600" ]
 printf 'mock-send-message\nmock-console-log\n'
-if [ "${FX_GADGET_TEST_IGNORE_TERM:-0}" = "1" ]; then trap '' TERM; fi
-# Keep the CLI process alive after the FIFO closes so stop timeout is testable.
-cat >/dev/null
+if [ "${FX_GADGET_TEST_IGNORE_TERM:-0}" = "1" ]; then
+  trap '' TERM
+  [ -n "${FX_GADGET_TEST_READY:-}" ] && : > "$FX_GADGET_TEST_READY"
+fi
+# Keep the CLI alive with TERM explicitly ignored; the stop path must preserve
+# its PID record after the bounded wait instead of pretending it stopped.
 while :; do sleep 1; done
 MOCK
 chmod 700 "$T/frida"
@@ -326,6 +330,7 @@ grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2
 grep -Fq "mock-send-message" "$T/logs/gadget-27043.log"
 grep -Fq "mock-console-log" "$T/logs/gadget-27043.log"
+[ -s "$T/ignore-term.ready" ] || { echo "FAIL: mock CLI did not confirm that TERM is ignored" >&2; exit 1; }
 [ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ]
 [ ! -d "$T/logs/.gadget-27043.start-lock" ]
 
