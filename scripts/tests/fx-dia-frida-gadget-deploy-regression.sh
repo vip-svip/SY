@@ -61,7 +61,7 @@ for label, needle in {
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
     "system-app exclusion": "ApplicationInfo.FLAG_SYSTEM",
     "package native library directory": "info.nativeLibraryDir",
-    "native library path constrained to /data/app": 'path.startsWith("/data/app/")',
+    "native library path constrained to /data/app": 'canonicalNativePath.startsWith("/data/app/")',
     "Gadget ELF ABI validation": "matchesElfAbi",
     "deployment rejects invalid/default ports": "if (!isValidListenPort(expectedPort))",
     "Root command builder rejects invalid/default ports": "if (!isValidListenPort(port))",
@@ -95,7 +95,9 @@ marker_commit = deploy_contract.find('mv "$stage/$marker" "$dest/$marker"; new_m
 commit_flag = deploy_contract.find('committed=1; echo FX_GADGET_DEPLOYED')
 if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
     raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
-if hook.find("hasSymlinkComponent(rawNativeDir)") > hook.find("rawNativeDir.getCanonicalFile()"):
+symlink_check = deploy.find("if (hasSymlinkComponent(rawNativeDir))")
+canonicalize = deploy.find("rawNativeDir.getCanonicalFile()")
+if symlink_check < 0 or canonicalize < 0 or symlink_check > canonicalize:
     raise SystemExit("FAIL: Gadget runtime canonicalized nativeLibraryDir before checking symlink components")
 matcher_start = hook.find("private static boolean matchesProcess(")
 if matcher_start < 0:
