@@ -15,6 +15,9 @@ from pathlib import Path
 MAGIC = 0x54524945
 VERSION = 2
 HEADER_SIZE = 16
+BLOOM_MAGIC = 0x424C4F4D
+BLOOM_VERSION = 1
+BLOOM_HEADER_SIZE = 8
 HOST_RE = re.compile(
     r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
     r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
@@ -105,6 +108,37 @@ def decode_trie(path: Path):
         raise ValueError(f"{path.name}: terminal count header={expected_rules}, decoded={len(terminals)}")
     return terminals, {"bytes": len(data), "nodes": len(visited), "terminals": len(terminals)}
 
+def validate_bloom(path: Path):
+    """Validate the paired BLOOM v1 header used by Yulong's native engine.
+
+    The original 7.0.1 BuiltinRuleSource checks both files independently:
+    TRIE_MAGIC/TRIE_VERSION for .trie and BLOOM_MAGIC/BLOOM_VERSION for
+    .bloom. Its hasHeader() reads the first eight bytes as two big-endian
+    integers. Keep the binary payload opaque; FX exports only the DNS-safe
+    terminals decoded from the paired TRIE.
+    """
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{path.name}: paired Bloom asset is missing or is a symlink")
+    size = path.stat().st_size
+    if size < BLOOM_HEADER_SIZE:
+        raise ValueError(f"{path.name}: file shorter than BLOOM header")
+    with path.open("rb") as stream:
+        header = stream.read(BLOOM_HEADER_SIZE)
+    if len(header) != BLOOM_HEADER_SIZE:
+        raise ValueError(f"{path.name}: truncated BLOOM header")
+    magic, version = struct.unpack(">II", header)
+    if magic != BLOOM_MAGIC or version != BLOOM_VERSION:
+        raise ValueError(
+            f"{path.name}: invalid BLOOM header magic={magic:08x} version={version}"
+        )
+    return {
+        "bytes": size,
+        "magic": f"0x{magic:08x}",
+        "version": version,
+        "header_bytes": BLOOM_HEADER_SIZE,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("assets", type=Path, help="extracted 7.0.1 assets directory")
@@ -122,8 +156,13 @@ def main():
     total = 0
     for name in TRIE_FILES:
         path = args.assets / name
-        if not path.is_file():
-            raise SystemExit(f"required trie is missing: {path}")
+        if path.is_symlink() or not path.is_file():
+            raise SystemExit(f"required trie is missing or is a symlink: {path}")
+        bloom_path = path.with_suffix(".bloom")
+        try:
+            bloom_stats = validate_bloom(bloom_path)
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
         entries, stats = decode_trie(path)
         total += len(entries)
         file_hosts = set()
@@ -142,6 +181,7 @@ def main():
         cosmetic.update(file_cosmetic)
         per_file[name] = {
             **stats,
+            "bloom": bloom_stats,
             "valid_dns_hosts": len(file_hosts),
             "cosmetic_and_exception_rules": len(file_cosmetic),
         }
@@ -166,8 +206,9 @@ def main():
     ctmp.replace(args.cosmetic_output)
 
     report = {
-        "format": "TRIE v2",
-        "asset_count": len(TRIE_FILES),
+        "format": "TRIE v2 + BLOOM v1",
+        "trie_asset_count": len(TRIE_FILES),
+        "bloom_asset_count": len(TRIE_FILES),
         "decoded_terminals": total,
         "unique_valid_dns_domains": len(hosts),
         "preserved_cosmetic_rules": len(cosmetic),
