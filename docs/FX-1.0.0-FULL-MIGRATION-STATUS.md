@@ -336,3 +336,46 @@ After each implementation batch:
 - Never promote a feature to a higher status without evidence.
 - Record blocked features with exact technical/licensing reason and a viable alternative.
 - Keep FX version at 1.0.0 and work on the existing integration branch.
+
+## Current unified migration continuation (2026-11-03, same branch)
+
+- Continuation branch: fx-v1.0.0-unified-hook-integration.
+- Source HEAD before this checkpoint: 08750f9c866e8b7636fd342bf957af71c40dfbc2.
+- All migration changes are kept in this branch. Both build workflows are currently manual-only (workflow_dispatch); no intermediate ZIP/APK packaging is intended. Do not restore automatic build triggers until the three source applications are migrated.
+- No final package is produced by this checkpoint.
+
+### Dia 23.11 — new integrated native surfaces
+
+- The Dia entry in Settings now opens its own third-level hub and separate fourth-level pages.
+- FxDiaDexIndex parses APK DEX tables without loading/initializing target classes. It indexes class definitions, fields, method names, JVM descriptors, direct/virtual methods and split APK DEX files. The browser supports class/member search and copies descriptors.
+- FxDiaSignatureActivity reads package version metadata, signing-certificate history/current signers and SHA-256/SHA-1/MD5 X.509 fingerprints.
+- Frida manager remains a real Frida path, not QuickJS relabeled as Frida: it checks user-supplied frida-server/frida-inject, binds the server to 127.0.0.1:27042, and limits attach targets to user-installed debuggable apps.
+- Frida templates now include HTTP, SQLite, algorithm, HPROF, Intent, View click, ViewGroup, Fragment lifecycle, Thread start, Activity stack and Runtime/Process launch observation. Metadata templates omit text, extras, command contents, argument values and return values.
+- Custom Hook UI accepts Java exact method signatures, JVM/Smali descriptors and legacy zero-argument boolean descriptors. It supports up to 64 per-target entries, priority, OBSERVE/OFF state and JSON import/export. The runtime remains read-only and debuggable-target scoped; method-return replacement is not exposed as a working capability.
+- Still not migrated one-to-one: Dia's full original module/Hook inventory, Frida WAIT/RESUME and multi-process lifecycle, SQLCipher/WCDB-specific instrumentation, complete rule-group backend, class-loader/call-graph analysis, and all original backup/monitor adapters. A visible menu or template is not evidence of parity.
+
+### Yulong AdBlock 7.0.1 — new integrated runtime and DNS surfaces
+
+- The third-party VPN conflict is handled by reusing FX's existing VPN/TUN ingress and Root DNS fallback path; the original second AdBlockVpnService is not packaged or started.
+- A distinct per-app firewall uses FX-owned FXYUL_A / FXYUL_B dual-stack OUTPUT chains, resolves current package UIDs at apply time, uses transactional configuration rollback and removes only its own chains during disable/uninstall.
+- Root Proxy configuration is exposed in the dedicated VPN/Root Proxy fourth-level page, including external-VPN DNS fallback and compatibility toggles. The actual patcher is wired into the KernelSU workflow.
+- The AdGuard Home query log is user opt-in and off by default. When enabled it writes locally under the FX AdGuard Home work directory with a 7-day retention setting. The native DNS log page reads the last 500 entries, shows query type/block reason without client IP, and supports clearing only FX-owned querylog files.
+- Filter-list CRUD, domain allow/block lists, DNS settings, app firewall, per-UID traffic statistics, Tasker broadcast actions and the Quick Settings tile remain in the Yulong Ad native page family.
+- Still incomplete: exact parity for the original task/schedule subsystem, per-app DNS query counters (the current per-app statistics view is network-byte based and must not be presented as DNS query counts), complete upstream/DNS protocol UI parity, and device-level verification of external VPN coexistence.
+
+### Yulong Security Shield 9.9.60 — new integrated native surfaces
+
+- Settings now routes to a dedicated third-level Shield hub and separate fourth-level pages for the safety center, virus database, app scan, whitelist, control list, Stellar and rescue/recovery. Stellar remains inside the Shield suite, not a new bottom tab.
+- Installed-app scan and install/update-time scan reuse the migrated virus-name/package database and optional APK-content database. Automatic scans only notify and store results; they do not silently disable or uninstall packages.
+- FxYulongProtectionService supports opt-in foreground-package monitoring against the original blacklist_pkgs/whitelist_pkgs keys. It uses Usage Access only when foreground monitoring is enabled.
+- Volume-up sequence and accelerometer shake rescue triggers are independently opt-in; volume events require the user to enable FX Accessibility manually. The service does not retrieve window text, click UI, alter accessibility settings or consume the volume key.
+- The overlay rescue shortcut is user-authorized and only opens the FX Shield hub. Boot restore and a 15-minute low-frequency keepalive are limited to previously opted-in Shield monitor/shake/overlay functions; the keepalive is not an always-on hidden watchdog.
+- A local daily summary records current-day foreground alerts, install scans and risk hits; it does not claim data for events that were not recorded.
+- Still incomplete: the original Stellar privileged runtime/command bridge parity, original multi-mode automatic remediation and full rescue overlay workflows. Automatic force-stop/freeze/uninstall and permission re-grant behaviors were not migrated; only explicit user review/notification is retained.
+
+### Packaging policy for this branch
+
+1. Keep all commits on fx-v1.0.0-unified-hook-integration; do not create numbered backup branches or intermediate deliverable ZIPs.
+2. Do not start final build until the remaining Dia, Yulong Ad and Yulong Shield feature scopes are implemented.
+3. At finalization, run the Hook APK and KernelSU ZIP workflows against the same exact commit; publish only the paired APK embedded in that ZIP, with SHA-256 and ZIP integrity evidence.
+4. Automated CI is host evidence only. Device behavior must remain marked unverified until a real Android device test is recorded.
