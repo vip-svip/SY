@@ -62,27 +62,26 @@ if 'yulong-ad-schedule.sh" start' not in service:
         raise SystemExit("service.sh Yulong firewall insertion anchor missing; refusing unsafe schedule insertion")
     service = service.replace(schedule_anchor, schedule_insert, 1)
 
-uninstall_anchor = "STATE_DIR=/data/adb/privacyguard\nREMOVER="
-uninstall_insert = '''STATE_DIR=/data/adb/privacyguard
-if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
-  sh "$MODDIR/scripts/yulong-app-firewall.sh" uninstall >/dev/null 2>&1 || :
-fi
-REMOVER='''
-if 'yulong-app-firewall.sh" uninstall' not in uninstall:
-    if uninstall_anchor not in uninstall:
-        raise SystemExit("uninstall.sh state anchor not found; refusing unsafe insertion")
-    uninstall = uninstall.replace(uninstall_anchor, uninstall_insert, 1)
-
-schedule_stop_anchor = "STATE_DIR=/data/adb/privacyguard\n"
-schedule_stop_insert = '''STATE_DIR=/data/adb/privacyguard
-if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+# Release ZIP layouts may already contain the schedule stop hook between
+# STATE_DIR and REMOVER. Insert by stable component anchors, not adjacency.
+state_dir_line = "STATE_DIR=/data/adb/privacyguard\\n"
+remover_line = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"'
+schedule_stop_block = '''if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
 fi
 '''
+firewall_stop_block = '''if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
+  sh "$MODDIR/scripts/yulong-app-firewall.sh" uninstall >/dev/null 2>&1 || :
+fi
+'''
 if 'yulong-ad-schedule.sh" stop' not in uninstall:
-    if schedule_stop_anchor not in uninstall:
+    if state_dir_line not in uninstall:
         raise SystemExit("uninstall.sh state directory anchor missing; refusing unsafe schedule cleanup insertion")
-    uninstall = uninstall.replace(schedule_stop_anchor, schedule_stop_insert, 1)
+    uninstall = uninstall.replace(state_dir_line, state_dir_line + schedule_stop_block, 1)
+if 'yulong-app-firewall.sh" uninstall' not in uninstall:
+    if remover_line not in uninstall:
+        raise SystemExit("uninstall.sh remover anchor missing; refusing unsafe firewall cleanup insertion")
+    uninstall = uninstall.replace(remover_line, firewall_stop_block + remover_line, 1)
 
 service_path.write_text(service, encoding="utf-8")
 uninstall_path.write_text(uninstall, encoding="utf-8")
