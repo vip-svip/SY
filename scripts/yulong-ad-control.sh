@@ -84,7 +84,11 @@ case "$cmd" in
   pg_list rule|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=3{print "RULE|"$1"|"$2"|"($3=="1"?"1":"0")}'
   pg_list domain|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "ALLOW|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
   pg_list block|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "BLOCK|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
-  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy; do echo "DNS|$key|$(pg_get "$key" 0)"; done
+  for key in dns_engine_adguardhome dns_forward block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy; do
+    default=0
+    [ "$key" = "vpn_external_dns_proxy" ] && default=1
+    echo "DNS|$key|$(pg_get "$key" "$default")"
+  done
   ;;
  rule-add)
   [ "$#" -eq 4 ] && valid_source "$2" && valid_text "$3" && { [ "$4" = 0 ] || [ "$4" = 1 ]; } || exit 2
