@@ -194,7 +194,7 @@ with_lock() {
     [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
     sleep 1
   done
-  if ! printf '%s\n' "$" > "$LOCK/pid"; then
+  if ! printf '%s\n' "$$" > "$LOCK/pid"; then
     rmdir "$LOCK" 2>/dev/null || :
     echo "cannot record root DNS proxy lock owner" >&2
     return 10
