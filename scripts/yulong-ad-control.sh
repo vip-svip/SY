@@ -71,22 +71,26 @@ transaction() {
 m_dns(){ pg_set "$1" "$2"; }
 valid_ipv4() {
   printf '%s\n' "$1" | awk -F. '
-    NF!=4 {exit 1}
-    {for(i=1;i<=4;i++) if($i=="" || $i!~/^[0-9]+$/ || length($i)>3 || $i+0>255) exit 1}
-    END{if(NF==4)exit 0;exit 1}
+    {
+      if(NF!=4){bad=1;exit}
+      for(i=1;i<=4;i++)if($i==""||$i!~/^[0-9]+$/||length($i)>3||$i+0>255){bad=1;exit}
+    }
+    END{exit bad}
   '
 }
 normalize_dns_csv() { printf '%s' "$1" | tr -d '[:space:]'; }
 valid_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
-    NF<1 || NF>3 {exit 1}
-    {for(i=1;i<=NF;i++){
-      if($i!~/^[0-9.]+$/)exit 1
-      split($i,a,".")
-      if(length(a)!=4)exit 1
-      for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255)exit 1
-    }}
-    END{if(NF>=1&&NF<=3)exit 0;exit 1}
+    {
+      if(NF<1||NF>3){bad=1;exit}
+      for(i=1;i<=NF;i++){
+        if($i!~/^[0-9.]+$/){bad=1;exit}
+        split($i,a,".")
+        if(length(a)!=4){bad=1;exit}
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+      }
+    }
+    END{exit bad}
   '
 }
 write_dns_section() {
