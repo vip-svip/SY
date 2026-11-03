@@ -250,17 +250,17 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         if (debuggableTarget) debuggablePackages.add(pkg);
         else debuggablePackages.remove(pkg);
-        // Custom Hook is observation-only, explicitly enabled per app, and
-        // restricted to debuggable target builds. Production authorization,
-        // VIP, login and update decisions are never modified.
-        boolean developerObserveForPackage = false;
+        // Custom Hook is explicitly enabled per app and restricted to debuggable builds.
+        // OBSERVE records metadata; RETURN_* actions are local Debug fixtures only.
+        // They never grant production authorization or modify server-side entitlements.
+        boolean developerRuleForPackage = false;
         List<DeveloperHookRule> effectiveDeveloperRules = Collections.emptyList();
         if (target != null && target.developerHooksEnabled && debuggableTarget) {
             // Resolve once so the package gate and installed hooks use identical priority decisions.
             effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
             for (DeveloperHookRule rule : effectiveDeveloperRules) {
                 if (rule.action != DeveloperHookRule.Action.DISABLED) {
-                    developerObserveForPackage = true; // Keeps any active custom rule in the package install path.
+                    developerRuleForPackage = true; // Keeps any active custom rule in the package install path.
                     break;
                 }
             }
@@ -291,7 +291,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
