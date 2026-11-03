@@ -125,9 +125,11 @@ jobs:
           install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
+          install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
+          python3 fx-patches/patch_yulong_app_whitelist.py fx-module
           python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
           python3 fx-patches/patch_native_script_store.py fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
