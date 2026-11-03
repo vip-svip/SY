@@ -10,7 +10,7 @@ PG="$TMP/state"
 BIN="$TMP/bin"
 mkdir -p "$MOD/scripts" "$PG" "$BIN"
 printf 'id=privacyguard\\n' > "$MOD/module.prop"
-: > "$MOD/scripts/util.sh"
+printf "%s\\n" "# test utility stub" > "$MOD/scripts/util.sh"
 for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
 #!/system/bin/sh
