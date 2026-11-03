@@ -82,17 +82,29 @@ INSTALL
 chmod 0755 "$T/install.sh"
 
 # An attacker pre-creates the old predictable temp name as a symlink. The new
-# same-directory mktemp path must not follow it or modify the target.
+# same-directory mktemp path must not follow it or modify the target. Two writers
+# then race to install the same target; the final file must be one complete input.
 ln -s "$SENTINEL" "$D/frida-server.fx-import.tmp"
-"$T/install.sh" "$SOURCE_A" "$D/frida-server"
-"$T/install.sh" "$SOURCE_B" "$D/frida-inject"
+"$T/install.sh" "$SOURCE_A" "$D/frida-server" & p1=$!
+"$T/install.sh" "$SOURCE_B" "$D/frida-server" & p2=$!
+wait "$p1"
+wait "$p2"
+if ! cmp -s "$SOURCE_A" "$D/frida-server" && ! cmp -s "$SOURCE_B" "$D/frida-server"; then
+  echo "FAIL: concurrent Frida server imports left a partial/corrupted binary" >&2
+  exit 1
+fi
+"$T/install.sh" "$SOURCE_A" "$D/frida-inject"
 [ "$(cat "$SENTINEL")" = "keep-original-sentinel" ] || {
   echo "FAIL: predictable import-temp symlink target was modified" >&2
   exit 1
 }
-cmp -s "$SOURCE_A" "$D/frida-server" || { echo "FAIL: Frida server import content mismatch" >&2; exit 1; }
-cmp -s "$SOURCE_B" "$D/frida-inject" || { echo "FAIL: Frida inject import content mismatch" >&2; exit 1; }
+cmp -s "$SOURCE_A" "$D/frida-inject" || { echo "FAIL: Frida inject import content mismatch" >&2; exit 1; }
 [ -x "$D/frida-server" ] && [ -x "$D/frida-inject" ] || { echo "FAIL: installed Frida binaries are not executable" >&2; exit 1; }
+ln -s "$SENTINEL" "$D/unsafe-destination"
+if "$T/install.sh" "$SOURCE_B" "$D/unsafe-destination" 2>/dev/null; then
+  echo "FAIL: Root import accepted a symlink destination" >&2
+  exit 1
+fi
 leftovers=$(find "$D" -maxdepth 1 -name '.fx-frida-import.*' -print)
 [ -z "$leftovers" ] || { echo "FAIL: random Root import temporary files leaked: $leftovers" >&2; exit 1; }
 echo "PASS: concurrent Frida imports use independent temp files and do not follow predictable symlink paths"
