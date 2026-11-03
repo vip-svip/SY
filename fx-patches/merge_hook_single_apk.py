@@ -258,7 +258,13 @@ required_migrated_activities = {
     ".imported.shield.WhitelistPickerActivity",
     ".imported.shield.BlacklistActivity",
 }
-for tag, required_names in (("activity", required_migrated_activities),):
+required_migrated_services = {
+    ".FxAccessibilityService",
+}
+for tag, required_names in (
+    ("activity", required_migrated_activities),
+    ("service", required_migrated_services),
+):
     declared = {node.get(ANDROID + "name", "") for node in application_node.findall(tag)}
     missing = required_names - declared
     if missing:
@@ -299,8 +305,8 @@ for tag, original_names in original_component_names.items():
                          + ", ".join(sorted(missing)))
 for tag, required_names in (
     ("activity", required_migrated_activities),
-    ("service", set()),
-    ("receiver", {" .imported.shield.FxYulongInstallScanReceiver".strip()}),
+    ("service", required_migrated_services),
+    ("receiver", {".imported.shield.FxYulongInstallScanReceiver"}),
     ("provider", set()),
 ):
     declared = {node.get(ANDROID + "name", "") for node in merged_application.findall(tag)}
