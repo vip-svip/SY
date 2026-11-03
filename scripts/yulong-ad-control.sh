@@ -76,10 +76,10 @@ m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
 m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
-cmd="$1"
+cmd="${1:-list}"
 case "$cmd" in
   dns-log-tail)
-  if ! grep -q '^dns_querylog_enabled=1 "$CONF" 2>/dev/null; then
+  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
     echo FXDNSLOG_DISABLED
     exit 0
   fi
