@@ -162,30 +162,84 @@ public final class FxDiaFileActivity extends Activity {
     }
 
     private void loadDirectory() {
-        if (treeUri == null || pathStack.isEmpty()) { fileStatus.setText("请先选择一个目录。"); return; }
-        files.removeAllViews(); fileStatus.setText("正在读取目录…");
-        String id = pathStack.get(pathStack.size()-1);
-        location.setText("目录 ID：" + id);
-        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, id);
-        String[] projection = { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE,
-                DocumentsContract.Document.COLUMN_SIZE };
-        List<Entry> entries = new ArrayList<>();
-        try (Cursor c = getContentResolver().query(children, projection, null, null,
-                DocumentsContract.Document.COLUMN_DISPLAY_NAME + " COLLATE NOCASE ASC")) {
-            if (c != null) {
-                int ci=c.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
-                int cn=c.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
-                int cm=c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
-                int cs=c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE);
-                while (c.moveToNext()) entries.add(new Entry(c.getString(ci), c.getString(cn),
-                        c.getString(cm), cs<0?-1:c.getLong(cs)));
-            }
-        } catch (Throwable e) {
-            fileStatus.setText("读取目录失败：" + e.getClass().getSimpleName()); return;
+        final Uri selectedTree = treeUri;
+        if (selectedTree == null || pathStack.isEmpty()) {
+            fileStatus.setText("请先选择一个目录。");
+            return;
         }
-        for (Entry e:entries) addEntry(e);
-        fileStatus.setText("已读取 " + entries.size() + " 个项目。");
+        final String id = pathStack.get(pathStack.size() - 1);
+        final long request = ++directoryRequestId;
+        files.removeAllViews();
+        directoryEntries.clear();
+        displayedEntries = 0;
+        directoryTruncated = false;
+        loadMoreButton = null;
+        fileStatus.setText("正在后台读取目录…");
+        location.setText("目录 ID：" + id);
+        final Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(selectedTree, id);
+        submitIo("读取目录", () -> {
+            List<Entry> found = new ArrayList<>();
+            Throwable failure = null;
+            boolean truncated = false;
+            String[] projection = { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_SIZE };
+            try (Cursor c = getContentResolver().query(children, projection, null, null,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME + " COLLATE NOCASE ASC")) {
+                if (c != null) {
+                    int ci = c.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+                    int cn = c.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+                    int cm = c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
+                    int cs = c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE);
+                    if (ci < 0 || cn < 0 || cm < 0) throw new IllegalStateException("目录提供方缺少必要字段。");
+                    while (c.moveToNext()) {
+                        if (found.size() >= MAX_DIRECTORY_ENTRIES) {
+                            truncated = true;
+                            break;
+                        }
+                        found.add(new Entry(c.getString(ci), c.getString(cn), c.getString(cm),
+                                cs < 0 ? -1 : c.getLong(cs)));
+                    }
+                }
+            } catch (Throwable error) {
+                failure = error;
+            }
+            final Throwable readFailure = failure;
+            final boolean wasTruncated = truncated;
+            postUi(() -> {
+                if (request != directoryRequestId || !selectedTree.equals(treeUri)
+                        || pathStack.isEmpty() || !id.equals(pathStack.get(pathStack.size() - 1))) return;
+                if (readFailure != null) {
+                    fileStatus.setText("读取目录失败：" + readFailure.getClass().getSimpleName());
+                    return;
+                }
+                directoryEntries.clear();
+                directoryEntries.addAll(found);
+                directoryTruncated = wasTruncated;
+                appendDirectoryPage();
+            });
+        });
+    }
+
+    private void appendDirectoryPage() {
+        if (loadMoreButton != null) {
+            files.removeView(loadMoreButton);
+            loadMoreButton = null;
+        }
+        int end = Math.min(directoryEntries.size(), displayedEntries + DIRECTORY_PAGE_SIZE);
+        for (int i = displayedEntries; i < end; i++) addEntry(directoryEntries.get(i));
+        displayedEntries = end;
+        if (displayedEntries < directoryEntries.size()) {
+            loadMoreButton = button("加载更多（剩余 " + (directoryEntries.size() - displayedEntries) + " 项）",
+                    this::appendDirectoryPage);
+            files.addView(loadMoreButton);
+        }
+        String summary = "已显示 " + displayedEntries + " / " + directoryEntries.size() + " 个项目。";
+        if (directoryTruncated) {
+            summary += " 目录超过 " + MAX_DIRECTORY_ENTRIES + " 项；为避免内存和界面卡顿，本次只读取前 "
+                    + MAX_DIRECTORY_ENTRIES + " 项。";
+        }
+        fileStatus.setText(summary);
     }
 
     private Uri docUri(Entry entry) {
