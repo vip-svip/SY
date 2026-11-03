@@ -196,6 +196,17 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         NotificationManager manager = (NotificationManager)
                 context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+                .format(new Date());
+        int todayCount = today.equals(prefs.getString("rescue_trigger_day", ""))
+                ? prefs.getInt("rescue_trigger_count_today", 0) : 0;
+        prefs.edit().putString("rescue_trigger_day", today)
+                .putInt("rescue_trigger_count_today", todayCount + 1)
+                .putInt("rescue_trigger_count", prefs.getInt("rescue_trigger_count", 0) + 1)
+                .putString("rescue_trigger_last_time", DateFormat.getDateTimeInstance().format(new Date()))
+                .putString("rescue_trigger_last_message", message)
+                .apply();
         String channelId = "fx_yulong_protection_alert";
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(
