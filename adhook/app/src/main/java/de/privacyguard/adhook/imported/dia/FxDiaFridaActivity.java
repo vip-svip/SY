@@ -302,7 +302,7 @@ public final class FxDiaFridaActivity extends Activity {
 
 
         targetLabel = text("尚未选择目标应用。", 13, 0xff334155, false);
-        card(body, "目标应用与进程", "仅显示用户安装且可调试的应用。进程选择支持多选；注入时会重新校验 PID 对应的包名，避免 PID 复用后附加到其他应用。",
+        card(body, "目标应用与进程", "仅显示用户安装且可调试的应用。下方多选进程仅供 Frida-inject 使用，并会重新校验 PID 对应的包名；Gadget 监听进程在上方独立选择，每个端口只绑定一个进程。",
                 targetLabel,
                 button("选择调试目标", () -> chooseTarget()),
                 button("选择多个运行进程", () -> chooseTargetProcesses()));
