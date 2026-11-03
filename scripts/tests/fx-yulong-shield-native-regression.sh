@@ -135,6 +135,21 @@ for source, label in ((white, "WhitelistActivity"), (picker, "WhitelistPickerAct
     assert "com.youlong.hd" not in source, f"{label} still references source package"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
 
+# Blacklist inventory and selection must not enumerate every installed package on
+# the UI thread or create a giant MultiChoiceItems dialog.
+assert "private void loadAppsAsync()" in black
+assert "appLoader.execute(() -> {" in black
+assert "new ArrayBlockingQueue<>(1)" in black
+assert "getInstalledApplications(0)" in black
+assert "appByPackage.get(pkg)" in black
+assert "pageSize = 50" in black
+assert "search.addTextChangedListener" in black
+assert "appLoadGeneration.incrementAndGet()" in black
+assert "appLoader.shutdownNow();" in black
+assert "activityDestroyed = true;" in black
+assert "private void loadApps()" not in black
+assert "setMultiChoiceItems(names, checked" not in black
+
 # Whitelist label/icon refresh must not spawn overlapping unbounded raw threads.
 assert "ThreadPoolExecutor(1, 1, 30L" in white
 assert "new ArrayBlockingQueue<>(1)" in white
