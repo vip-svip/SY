@@ -23,6 +23,8 @@ public final class FxYulongScanActivity extends Activity {
     private TextView status;
     private Button scan;
     private Switch contentScan;
+    private Button batchCleanup;
+    private final java.util.LinkedHashMap<String, FxYulongScanEngine.Finding> selectedForCleanup = new java.util.LinkedHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
@@ -63,6 +65,9 @@ public final class FxYulongScanActivity extends Activity {
                         .putBoolean("content_scan_enabled", enabled).apply());
         scan=action("开始扫描",this::startScan);
         card("扫描状态",status,contentScan,scan);
+        batchCleanup = action("批量清理已选择风险应用（0）", this::openBatchCleanup);
+        batchCleanup.setEnabled(false);
+        card("批量清理", text("逐项打开 Android 系统卸载确认。FX 不会自动点击确认，也不会在后台静默卸载、强停或冻结应用。",12,0xff617080,false), batchCleanup);
         body.addView(text("风险结果",16,0xff17212b,true));
         resultRows=new LinearLayout(this);
         resultRows.setOrientation(LinearLayout.VERTICAL);
@@ -77,6 +82,7 @@ public final class FxYulongScanActivity extends Activity {
         FxYulongScanEngine.scan(this, deepScan, result->runOnUiThread(()->{
             running.set(false);scan.setEnabled(true);scan.setText("重新扫描");
             resultRows.removeAllViews();
+            selectedForCleanup.clear(); updateBatchCleanup();
             status.setText(result.message+" 扫描 "+result.scanned+" 个应用；名单 "+result.databaseEntries
                     +" 条；确定风险 "+result.certainCount+"；可能风险 "+result.suspectCount
                     +"。\n内容特征扫描："+(result.contentScanEnabled
@@ -99,7 +105,41 @@ public final class FxYulongScanActivity extends Activity {
         item.addView(text((finding.severity==FxYulongScanEngine.Severity.CERTAIN?"确定风险 · ":"可能风险 · ")+finding.label,
                 14,finding.severity==FxYulongScanEngine.Severity.CERTAIN?0xffa32620:0xff8a5b12,true));
         item.addView(text(finding.packageName+"\n"+finding.reason,12,0xff617080,false));
+        android.widget.CheckBox check = new android.widget.CheckBox(this);
+        check.setText("加入批量清理清单");
+        check.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) selectedForCleanup.put(finding.packageName, finding);
+            else selectedForCleanup.remove(finding.packageName);
+            updateBatchCleanup();
+        });
+        item.addView(check);
         item.addView(action("核实后打开系统卸载确认",()->confirmUninstall(finding)));
+    }
+
+    private void updateBatchCleanup() {
+        if (batchCleanup == null) return;
+        batchCleanup.setText("批量清理已选择风险应用（" + selectedForCleanup.size() + "）");
+        batchCleanup.setEnabled(!running.get() && !selectedForCleanup.isEmpty());
+    }
+
+    private void openBatchCleanup() {
+        if (selectedForCleanup.isEmpty()) {
+            Toast.makeText(this, "请先勾选需要处理的风险应用。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.ArrayList<String> packages = new java.util.ArrayList<>();
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+        java.util.ArrayList<String> reasons = new java.util.ArrayList<>();
+        for (FxYulongScanEngine.Finding finding : selectedForCleanup.values()) {
+            packages.add(finding.packageName);
+            labels.add(finding.label);
+            reasons.add(finding.reason);
+        }
+        Intent intent = new Intent(this, FxYulongBatchCleanupActivity.class);
+        intent.putStringArrayListExtra("packages", packages);
+        intent.putStringArrayListExtra("labels", labels);
+        intent.putStringArrayListExtra("reasons", reasons);
+        startActivity(intent);
     }
 
     private void confirmUninstall(FxYulongScanEngine.Finding finding){
