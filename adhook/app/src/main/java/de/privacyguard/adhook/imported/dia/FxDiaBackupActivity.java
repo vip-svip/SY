@@ -33,6 +33,14 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Base64;
+import java.util.Arrays;
+import java.security.SecureRandom;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import android.widget.EditText;
 import java.util.concurrent.Executors;
 
 /** Dia 23.11 data-management migration into the unified FX app. */
@@ -43,6 +51,7 @@ public final class FxDiaBackupActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private byte[] pendingBackup;
     private TextView status;
+    private EditText backupPassword;
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
     private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
@@ -51,6 +60,114 @@ public final class FxDiaBackupActivity extends Activity {
         byte[] d=MessageDigest.getInstance("SHA-256").digest(data);StringBuilder s=new StringBuilder();
         for(byte b:d)s.append(String.format(Locale.ROOT,"%02x",b&255));return s.toString();
     }
+
+    private static final String ENCRYPTED_BACKUP_SCHEMA = "FX-DIA-BACKUP-2-ENC";
+    private static final String BACKUP_AAD = "FX-DIA-BACKUP-2-ENC";
+    private static final int BACKUP_KDF_ITERATIONS = 210000;
+
+    private static byte[] deriveBackupKey(String password, byte[] salt, int iterations)
+            throws Exception {
+        if (password == null || password.length() < 12)
+            throw new IllegalArgumentException("备份加密密码至少需要 12 个字符。");
+        if (iterations < 100000 || iterations > 500000)
+            throw new IllegalArgumentException("备份 KDF 参数无效。");
+        char[] chars = password.toCharArray();
+        PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, 256);
+        Arrays.fill(chars, (char) 0);
+        try {
+            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec).getEncoded();
+        } finally {
+            spec.clearPassword();
+        }
+    }
+
+    private byte[] encryptBackupPayload(byte[] plaintext, String password) throws Exception {
+        if (plaintext == null || plaintext.length == 0 || plaintext.length > MAX_BACKUP_BYTES)
+            throw new IllegalArgumentException("待加密备份为空或超过 1 MiB。");
+        if (password == null || password.length() < 12)
+            throw new IllegalArgumentException("请设置至少 12 个字符的备份加密密码。");
+        byte[] salt = new byte[16];
+        byte[] nonce = new byte[12];
+        SecureRandom random = new SecureRandom();
+        random.nextBytes(salt);
+        random.nextBytes(nonce);
+        byte[] rawKey = deriveBackupKey(password, salt, BACKUP_KDF_ITERATIONS);
+        byte[] ciphertext;
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(rawKey, "AES"),
+                    new GCMParameterSpec(128, nonce));
+            cipher.updateAAD(BACKUP_AAD.getBytes(StandardCharsets.UTF_8));
+            ciphertext = cipher.doFinal(plaintext);
+        } finally {
+            Arrays.fill(rawKey, (byte) 0);
+        }
+        JSONObject envelope = new JSONObject();
+        envelope.put("schema", ENCRYPTED_BACKUP_SCHEMA);
+        envelope.put("kdf", "PBKDF2WithHmacSHA256");
+        envelope.put("iterations", BACKUP_KDF_ITERATIONS);
+        envelope.put("salt_b64", Base64.getEncoder().encodeToString(salt));
+        envelope.put("nonce_b64", Base64.getEncoder().encodeToString(nonce));
+        envelope.put("ciphertext_b64", Base64.getEncoder().encodeToString(ciphertext));
+        envelope.put("ciphertext_sha256", sha(ciphertext));
+        byte[] result = envelope.toString(2).getBytes(StandardCharsets.UTF_8);
+        if (result.length > MAX_BACKUP_BYTES)
+            throw new IllegalStateException("加密备份超过 1 MiB。");
+        return result;
+    }
+
+    private byte[] decryptBackupPayload(byte[] payload, String password) throws Exception {
+        if (payload == null || payload.length == 0 || payload.length > MAX_BACKUP_BYTES)
+            throw new IllegalArgumentException("备份数据为空或超过 1 MiB。");
+        JSONObject envelope = new JSONObject(new String(payload, StandardCharsets.UTF_8));
+        String schema = envelope.optString("schema", "");
+        if ("FX-DIA-BACKUP-1".equals(schema)) return payload;
+        if (!ENCRYPTED_BACKUP_SCHEMA.equals(schema))
+            throw new IllegalArgumentException("备份版本不兼容。");
+        if (!"PBKDF2WithHmacSHA256".equals(envelope.optString("kdf", "")))
+            throw new IllegalArgumentException("备份密钥派生算法不受支持。");
+        if (password == null || password.length() < 12)
+            throw new IllegalArgumentException("请输入创建此加密备份时使用的密码（至少 12 个字符）。");
+        int iterations = envelope.getInt("iterations");
+        if (iterations < 100000 || iterations > 500000)
+            throw new IllegalArgumentException("备份 KDF 参数超出允许范围。");
+        byte[] salt = Base64.getDecoder().decode(envelope.getString("salt_b64"));
+        byte[] nonce = Base64.getDecoder().decode(envelope.getString("nonce_b64"));
+        byte[] ciphertext = Base64.getDecoder().decode(envelope.getString("ciphertext_b64"));
+        if (salt.length != 16 || nonce.length != 12 || ciphertext.length < 16)
+            throw new IllegalArgumentException("备份加密参数无效或数据不完整。");
+        String expected = envelope.getString("ciphertext_sha256");
+        if (!expected.equalsIgnoreCase(sha(ciphertext)))
+            throw new IllegalArgumentException("加密备份 SHA-256 不匹配，文件可能已损坏。");
+        byte[] rawKey = deriveBackupKey(password, salt, iterations);
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(rawKey, "AES"),
+                    new GCMParameterSpec(128, nonce));
+            cipher.updateAAD(BACKUP_AAD.getBytes(StandardCharsets.UTF_8));
+            return cipher.doFinal(ciphertext);
+        } catch (javax.crypto.AEADBadTagException wrongPassword) {
+            throw new IllegalArgumentException("备份密码错误或加密内容已被篡改。", wrongPassword);
+        } finally {
+            Arrays.fill(rawKey, (byte) 0);
+        }
+    }
+
+    private String enteredBackupPassword() {
+        return backupPassword == null || backupPassword.getText() == null
+                ? "" : backupPassword.getText().toString();
+    }
+
+    private String requireExportPassword() {
+        String value = enteredBackupPassword();
+        if (value.length() < 12) {
+            status.setText("请先设置至少 12 个字符的备份加密密码。密码仅用于本次加密，不会保存在 FX 设置中。");
+            return null;
+        }
+        return value;
+    }
+
     private JSONObject prefsJson(String name)throws Exception{
         SharedPreferences p=getSharedPreferences(name,MODE_PRIVATE);JSONObject out=new JSONObject();
         for(Map.Entry<String,?> e:p.getAll().entrySet()){
@@ -117,7 +234,9 @@ public final class FxDiaBackupActivity extends Activity {
         return out;
     }
     private void exportBackup(){
-        status.setText("正在读取 Root 配置和应用内规则…");
+        String encryptionPassword = requireExportPassword();
+        if (encryptionPassword == null) return;
+        status.setText("正在读取 Root 配置并创建 AES-256-GCM 加密备份…");
         worker.execute(()->{
             try{
                 RootAccess.Result config=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
@@ -125,8 +244,8 @@ public final class FxDiaBackupActivity extends Activity {
                 RootAccess.Result stellar=RootAccess.execute(rootStellarFilesCommand(),30000L,MAX_BACKUP_BYTES);
                 if(stellar.exitCode!=0)throw new IllegalStateException("读取 Stellar 授权文件失败："+safe(stellar.output));
                 JSONObject backup=buildBackup(config.output.trim(),stellar.output);
-                byte[] payload=backup.toString(2).getBytes(StandardCharsets.UTF_8);
-                if(payload.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
+                byte[] plaintext=backup.toString(2).getBytes(StandardCharsets.UTF_8);
+                byte[] payload=encryptBackupPayload(plaintext,encryptionPassword);
                 runOnUiThread(()->{
                     pendingBackup=payload;
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -142,7 +261,7 @@ public final class FxDiaBackupActivity extends Activity {
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");startActivityForResult(intent,REQUEST_IMPORT);
     }
-    private void restoreBackup(Uri uri){
+    private void restoreBackup(Uri uri, String encryptionPassword){
         status.setText("正在读取并校验备份…");
         worker.execute(()->{
             try{
@@ -152,26 +271,24 @@ public final class FxDiaBackupActivity extends Activity {
                     byte[] buf=new byte[8192];int n;
                     while((n=in.read(buf))!=-1){bytes.write(buf,0,n);if(bytes.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB，拒绝恢复。");}
                 }
-                restoreBackupBytes(bytes.toByteArray());
+                restoreBackupBytes(bytes.toByteArray(), encryptionPassword);
                 runOnUiThread(()->status.setText("恢复成功：配置、Hook、护盾和 Stellar 记录已恢复。"));
             }catch(Exception e){runOnUiThread(()->status.setText("恢复失败："+e.getMessage()));}
         });
     }
 
-    private byte[] createBackupPayload() throws Exception {
+    private byte[] createBackupPayload(String encryptionPassword) throws Exception {
         RootAccess.Result r=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
         if(r.exitCode!=0)throw new IllegalStateException("读取模块配置失败："+safe(r.output));
         RootAccess.Result stellar=RootAccess.execute(rootStellarFilesCommand(),30000L,MAX_BACKUP_BYTES);
         if(stellar.exitCode!=0)throw new IllegalStateException("读取 Stellar 授权文件失败："+safe(stellar.output));
         JSONObject backup=buildBackup(r.output.trim(),stellar.output);
-        byte[] payload=backup.toString(2).getBytes(StandardCharsets.UTF_8);
-        if(payload.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
-        return payload;
+        byte[] plaintext=backup.toString(2).getBytes(StandardCharsets.UTF_8);
+        return encryptBackupPayload(plaintext,encryptionPassword);
     }
 
-    private void restoreBackupBytes(byte[] payload) throws Exception {
-        if(payload==null||payload.length==0||payload.length>MAX_BACKUP_BYTES)
-            throw new IllegalArgumentException("备份数据为空或超过 1 MiB。");
+    private void restoreBackupBytes(byte[] payload, String encryptionPassword) throws Exception {
+        payload = decryptBackupPayload(payload, encryptionPassword);
         JSONObject backup=new JSONObject(new String(payload,StandardCharsets.UTF_8));
         if(!"FX-DIA-BACKUP-1".equals(backup.optString("schema")))
             throw new IllegalArgumentException("备份版本不兼容。");
@@ -253,11 +370,11 @@ public final class FxDiaBackupActivity extends Activity {
         return data.length==0?new JSONObject():new JSONObject(new String(data,StandardCharsets.UTF_8));
     }
 
-    private void githubUpload(String owner,String repo,String path,String branch,String token){
-        status.setText("正在创建加密校验备份并上传 GitHub…");
+    private void githubUpload(String owner,String repo,String path,String branch,String token,String encryptionPassword){
+        status.setText("正在创建 AES-256-GCM 加密备份并上传 GitHub…");
         worker.execute(()->{
             try{
-                byte[] payload=createBackupPayload();
+                byte[] payload=createBackupPayload(encryptionPassword);
                 String url=githubContentsUrl(owner,repo,path);
                 JSONObject prior=null;String sha=null;
                 try{prior=githubRequest(url,token,"GET",null);sha=prior.optString("sha",null);}
@@ -273,14 +390,14 @@ public final class FxDiaBackupActivity extends Activity {
         });
     }
 
-    private void githubDownload(String owner,String repo,String path,String token){
+    private void githubDownload(String owner,String repo,String path,String token,String encryptionPassword){
         status.setText("正在从 GitHub 下载备份…");
         worker.execute(()->{
             try{
                 JSONObject response=githubRequest(githubContentsUrl(owner,repo,path),token,"GET",null);
                 String content=response.optString("content","").replace("\\n","");
                 byte[] payload=Base64.getMimeDecoder().decode(content);
-                restoreBackupBytes(payload);
+                restoreBackupBytes(payload,encryptionPassword);
                 runOnUiThread(()->status.setText("GitHub 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
             }catch(Exception e){runOnUiThread(()->status.setText("GitHub 下载/恢复失败："+e.getMessage()));}
         });
@@ -295,11 +412,11 @@ public final class FxDiaBackupActivity extends Activity {
         return c;
     }
 
-    private void webdavUpload(String url,String username,String password){
-        status.setText("正在上传 WebDAV 备份…");
+    private void webdavUpload(String url,String username,String password,String encryptionPassword){
+        status.setText("正在上传 AES-256-GCM 加密 WebDAV 备份…");
         worker.execute(()->{
             try{
-                byte[] payload=createBackupPayload();
+                byte[] payload=createBackupPayload(encryptionPassword);
                 HttpURLConnection c=webdavConnection(url,username,password,"PUT");
                 c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");
                 try(OutputStream out=c.getOutputStream()){out.write(payload);}
@@ -310,7 +427,7 @@ public final class FxDiaBackupActivity extends Activity {
         });
     }
 
-    private void webdavDownload(String url,String username,String password){
+    private void webdavDownload(String url,String username,String password,String encryptionPassword){
         status.setText("正在从 WebDAV 下载备份…");
         worker.execute(()->{
             try{
@@ -319,7 +436,7 @@ public final class FxDiaBackupActivity extends Activity {
                 if(code<200||code>=300){c.disconnect();throw new IllegalStateException("WebDAV GET HTTP "+code);}
                 ByteArrayOutputStream b=new ByteArrayOutputStream();
                 try(InputStream in=c.getInputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB。");}}
-                c.disconnect();restoreBackupBytes(b.toByteArray());
+                c.disconnect();restoreBackupBytes(b.toByteArray(),encryptionPassword);
                 runOnUiThread(()->status.setText("WebDAV 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
             }catch(Exception e){runOnUiThread(()->status.setText("WebDAV 下载/恢复失败："+e.getMessage()));}
         });
@@ -334,7 +451,14 @@ public final class FxDiaBackupActivity extends Activity {
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(18));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
         body.addView(text("本地备份覆盖 FX settings.conf、Dia 已迁入的 Hook 目标规则、护盾白/黑名单、Stellar 授权记录和 Hook 发布状态。",13,0xff526170,false));
         body.addView(text("注意：模块配置包含 VPN 节点凭据、DNS 和过滤设置。请将备份保存在可信位置，不要公开分享。",12,0xffb45309,true));
-        body.addView(button("导出本地 JSON 备份",this::exportBackup));
+        backupPassword=new EditText(this);
+        backupPassword.setSingleLine(true);
+        backupPassword.setHint("备份加密密码（至少 12 个字符；请自行保管）");
+        backupPassword.setInputType(129);
+        body.addView(text("备份加密",14,0xff17212b,true));
+        body.addView(backupPassword);
+        body.addView(text("新备份使用 PBKDF2-HMAC-SHA256 + AES-256-GCM；密码不会保存。旧版 FX-DIA-BACKUP-1 明文备份仍可导入。",12,0xff8a5b20,false));
+        body.addView(button("导出本地加密 JSON 备份",this::exportBackup));
         body.addView(button("从 JSON 备份恢复",this::importBackup));
         EditText ghOwner=new EditText(this);ghOwner.setSingleLine(true);ghOwner.setHint("GitHub 仓库 Owner");
         EditText ghRepo=new EditText(this);ghRepo.setSingleLine(true);ghRepo.setHint("GitHub 仓库名");
@@ -346,13 +470,15 @@ public final class FxDiaBackupActivity extends Activity {
         body.addView(button("上传到 GitHub",()->{
             String o=ghOwner.getText().toString().trim(),r=ghRepo.getText().toString().trim(),p=ghPath.getText().toString().trim(),b=ghBranch.getText().toString().trim(),t=ghToken.getText().toString().trim();
             if(o.isEmpty()||r.isEmpty()||p.isEmpty()||t.isEmpty()){status.setText("请填写完整 GitHub 仓库和 Token。");return;}
-            githubUpload(o,r,p,b.isEmpty()?"main":b,t);
+            String encryptionPassword = requireExportPassword();
+            if (encryptionPassword == null) return;
+            githubUpload(o,r,p,b.isEmpty()?"main":b,t,encryptionPassword);
         }));
         body.addView(button("从 GitHub 恢复",()->{
             String o=ghOwner.getText().toString().trim(),r=ghRepo.getText().toString().trim(),p=ghPath.getText().toString().trim(),t=ghToken.getText().toString().trim();
             if(o.isEmpty()||r.isEmpty()||p.isEmpty()||t.isEmpty()){status.setText("请填写完整 GitHub 仓库和 Token。");return;}
-            new AlertDialog.Builder(this).setTitle("确认 GitHub 恢复").setMessage("将覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。")
-                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->githubDownload(o,r,p,t)).show();
+            new AlertDialog.Builder(this).setTitle("确认 GitHub 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
+                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->githubDownload(o,r,p,t,enteredBackupPassword())).show();
         }));
         EditText davUrl=new EditText(this);davUrl.setSingleLine(true);davUrl.setHint("https://dav.example.com/path/fx-dia-backup.json");
         EditText davUser=new EditText(this);davUser.setSingleLine(true);davUser.setHint("WebDAV 用户名");
@@ -361,13 +487,16 @@ public final class FxDiaBackupActivity extends Activity {
         body.addView(davUrl);body.addView(davUser);body.addView(davPass);
         body.addView(button("上传到 WebDAV",()->{
             String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
-            if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}webdavUpload(u,n,p);
+            if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}
+            String encryptionPassword = requireExportPassword();
+            if (encryptionPassword == null) return;
+            webdavUpload(u,n,p,encryptionPassword);
         }));
         body.addView(button("从 WebDAV 恢复",()->{
             String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
             if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}
-            new AlertDialog.Builder(this).setTitle("确认 WebDAV 恢复").setMessage("将覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。")
-                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->webdavDownload(u,n,p)).show();
+            new AlertDialog.Builder(this).setTitle("确认 WebDAV 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
+                .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->webdavDownload(u,n,p,enteredBackupPassword())).show();
         }));
         status=text("尚未执行备份或恢复。",12,0xff526170,false);body.addView(status);
     }
@@ -382,8 +511,8 @@ public final class FxDiaBackupActivity extends Activity {
             }catch(Exception e){runOnUiThread(()->status.setText("导出失败："+e.getMessage()));}});
         }else if(request==REQUEST_IMPORT){
             new AlertDialog.Builder(this).setTitle("恢复 FX 备份")
-                    .setMessage("恢复会替换设备当前模块 settings.conf，并覆盖 Hook、护盾和 Stellar 本地偏好设置。继续前会校验 SHA-256，并在应用失败时回滚模块配置。")
-                    .setNegativeButton("取消",null).setPositiveButton("继续恢复",(d,w)->restoreBackup(data.getData())).show();
+                    .setMessage("恢复会解密并替换设备当前模块 settings.conf，以及 Hook、护盾和 Stellar 本地偏好设置。新备份需要上方密码；旧版未加密备份无需密码。SHA-256/GCM 完整性校验失败时拒绝恢复。")
+                    .setNegativeButton("取消",null).setPositiveButton("继续恢复",(d,w)->restoreBackup(data.getData(),enteredBackupPassword())).show();
         }
     }
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}

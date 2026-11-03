@@ -58,11 +58,11 @@ public final class FxYulongScanActivity extends Activity {
         contentScan = new Switch(this);
         contentScan.setText("启用 APK 内容特征扫描（第二阶段）");
         contentScan.setTextSize(14);
-        contentScan.setChecked(getSharedPreferences("shield_prefs", MODE_PRIVATE)
-                .getBoolean("automatic_content_scan_enabled", false));
+        contentScan.setChecked(getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE)
+                .getBoolean("content_scan_enabled", false));
         contentScan.setOnCheckedChangeListener((button, enabled) ->
-                getSharedPreferences("shield_prefs", MODE_PRIVATE).edit()
-                        .putBoolean("automatic_content_scan_enabled", enabled).apply());
+                getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE).edit()
+                        .putBoolean("content_scan_enabled", enabled).apply());
         scan=action("开始扫描",this::startScan);
         card("扫描状态",status,contentScan,scan);
         batchCleanup = action("批量清理已选择风险应用（0）", this::openBatchCleanup);

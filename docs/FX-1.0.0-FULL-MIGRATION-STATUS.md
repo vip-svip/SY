@@ -732,3 +732,11 @@ After each implementation batch:
 - The manual scanner's APK-content switch now reads and writes the same `shield_prefs/automatic_content_scan_enabled` preference used by the Shield automatic-install scanner; the two screens no longer silently diverge.
 - Automatic install-scan results now remain explicitly inconclusive when the virus database is empty, the scan throws, or the target package could not be enumerated. Only a completed package scan with no match is reported as "not matched"; failures are never represented as a clean result.
 - Risk notifications and their activity PendingIntents now use a stable package-specific ID so separate installed applications do not overwrite one another's warning notification.
+
+
+### Dia 23.11 — encrypted local and remote backup format
+
+- New backup exports are wrapped in an authenticated AES-256-GCM envelope. The key is derived from a user-entered passphrase using PBKDF2-HMAC-SHA256 (210,000 iterations), a random 16-byte salt and a random 12-byte nonce; the envelope schema is authenticated as AAD.
+- A SHA-256 digest catches transport/file corruption before decryption; GCM authentication rejects wrong passwords or modified ciphertext. The passphrase is not persisted in SharedPreferences or the backup file.
+- Local JSON, GitHub Contents and HTTPS WebDAV uploads all use the same encrypted envelope. Restore paths decrypt before inspecting the inner FX-DIA backup and continue to verify the embedded settings/Stellar file hashes.
+- Legacy `FX-DIA-BACKUP-1` JSON remains importable for compatibility, but it was not encrypted and may contain readable VPN credentials; users should re-export it in the new encrypted format.
