@@ -80,9 +80,13 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
                                 if (marker == null || !marker.isFile() || !marker.canRead()) return;
 
                                 Map<String, String> record = readMarker(marker);
+                                String markerProcesses = record.get("processes");
+                                String markerPort = record.get("port");
                                 if (!MARKER_SCHEMA.equals(record.get("schema"))
                                         || !expectedPackage.equals(record.get("package"))
-                                        || !matchesProcess(record.get("processes"), expectedProcess)) {
+                                        || markerProcesses == null || markerProcesses.length() > 2048
+                                        || markerPort == null || !markerPort.matches("[0-9]{4,5}")
+                                        || !matchesProcess(markerProcesses, expectedProcess)) {
                                     log("skip " + expectedPackage + ": target marker does not match this process");
                                     return;
                                 }
@@ -102,7 +106,11 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
                                     log("skip " + expectedPackage + ": Gadget library/config hash mismatch");
                                     return;
                                 }
-                                validateConfig(config);
+                                int configPort = validateConfig(config);
+                                if (!Integer.toString(configPort).equals(markerPort)) {
+                                    log("skip " + expectedPackage + ": marker/config port mismatch");
+                                    return;
+                                }
 
                                 // Mark before loading to avoid duplicate System.load attempts if
                                 // application attach callbacks are re-entered by vendor frameworks.
@@ -187,7 +195,7 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
         return out.toString();
     }
 
-    private static void validateConfig(File file) throws Exception {
+    private static int validateConfig(File file) throws Exception {
         if (file.length() <= 0 || file.length() > 16 * 1024) {
             throw new IllegalStateException("Gadget config size is invalid");
         }
@@ -213,6 +221,7 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
                 || !("wait".equals(onLoad) || "resume".equals(onLoad))) {
             throw new IllegalStateException("Gadget config port/on_load is invalid");
         }
+        return port;
     }
 
     private static boolean constantEquals(String expected, String actual) {
