@@ -125,7 +125,7 @@ Branch checkpoint before this handoff update: `cf173a06233262f43738a3aee23d2db13
 6. Keep real-device validation marked incomplete until installed and exercised on the target OnePlus 12; do not produce the final paired APK/KernelSU ZIP before all migrations and acceptance gates pass.
 
 
-## Latest continuation update — 2026-11-04 03:xx Asia/Tokyo
+## Latest continuation update — 2026-11-04
 
 Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70634f38c`.
 
