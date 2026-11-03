@@ -46,6 +46,8 @@ public final class UnifiedHookConfigParser {
         public boolean wifiSimulation;
         public String simulatedWifiSsid;
         public String simulatedWifiBssid;
+        public boolean networkTypeSimulation;
+        public String simulatedNetworkType;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -275,6 +277,8 @@ public final class UnifiedHookConfigParser {
             boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false;
             boolean wifiSimulation=false;
             String simulatedWifiSsid=null, simulatedWifiBssid=null;
+            boolean networkTypeSimulation=false;
+            String simulatedNetworkType=null;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
@@ -295,6 +299,12 @@ public final class UnifiedHookConfigParser {
                     if (!value.matches("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))
                         throw new IllegalArgumentException("invalid simulated Wi-Fi BSSID");
                     simulatedWifiBssid=value.toLowerCase(java.util.Locale.ROOT);
+                    continue;
+                }
+                if ("network_type".equals(key)) {
+                    if (!"wifi".equals(value) && !"cellular".equals(value))
+                        throw new IllegalArgumentException("network_type must be wifi or cellular");
+                    simulatedNetworkType=value;
                     continue;
                 }
                 if ("dev_hook_enabled".equals(key)) {
@@ -338,6 +348,7 @@ public final class UnifiedHookConfigParser {
                     case "sensor_rate_limit": sensorRateLimit = on; break;
                     case "wifi_scan_block": wifiScanBlock = on; break;
                     case "wifi_simulate": wifiSimulation = on; break;
+                    case "network_type_simulate": networkTypeSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
@@ -363,6 +374,12 @@ public final class UnifiedHookConfigParser {
             parsedTarget.wifiSimulation = wifiSimulation;
             parsedTarget.simulatedWifiSsid = simulatedWifiSsid;
             parsedTarget.simulatedWifiBssid = simulatedWifiBssid;
+            if (networkTypeSimulation && simulatedNetworkType == null)
+                throw new IllegalArgumentException("network type simulation requires a selected type");
+            if (!networkTypeSimulation && simulatedNetworkType != null)
+                throw new IllegalArgumentException("network_type requires network_type_simulate=1");
+            parsedTarget.networkTypeSimulation = networkTypeSimulation;
+            parsedTarget.simulatedNetworkType = simulatedNetworkType;
             targets.put(pkg, parsedTarget);
         }
 
