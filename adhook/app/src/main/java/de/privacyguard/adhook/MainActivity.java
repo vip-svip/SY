@@ -4661,7 +4661,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(scopeNotice);
         TextView targetBuildState = new TextView(this);
         targetBuildState.setText(targetDebuggable
-                ? "目标应用：可调试版本（OBSERVE 只记元数据；RETURN_* 为本地测试替换；NO_OP_VOID 仅跳过精确 void 方法）。"
+                ? "目标应用：可调试版本（dev_hook_enabled 开启后：OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture；NO_OP_VOID 仅用于精确 void 方法）。"
                 : "目标应用：非调试版本（自定义 Hook 不执行；配置仅保留，返回值替换不会应用）。");
         targetBuildState.setTextColor(0xff697681);
         targetBuildState.setPadding(dp(18),0,dp(18),dp(12));
