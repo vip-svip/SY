@@ -125,6 +125,7 @@ jobs:
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
           python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
+          sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
