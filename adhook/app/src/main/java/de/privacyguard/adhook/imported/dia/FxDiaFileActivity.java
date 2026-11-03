@@ -274,17 +274,27 @@ public final class FxDiaFileActivity extends Activity {
                 && n.indexOf('\n')<0 && n.indexOf('\r')<0;
     }
     private void createFolder() {
-        if (treeUri==null) { fileStatus.setText("请先选择目录。"); return; }
-        EditText name=new EditText(this); name.setSingleLine(true); name.setHint("文件夹名称");
-        new AlertDialog.Builder(this).setTitle("新建文件夹").setView(name).setNegativeButton("取消",null)
-                .setPositiveButton("创建",(d,w)->{
-                    String v=name.getText().toString().trim();
-                    if(!validName(v)){fileStatus.setText("文件夹名称无效。");return;}
-                    try { DocumentsContract.createDocument(getContentResolver(),parentUri(),
-                            DocumentsContract.Document.MIME_TYPE_DIR,v); loadDirectory(); }
-                    catch(Throwable e){fileStatus.setText("创建失败："+e.getClass().getSimpleName());}
+        if (treeUri == null) { fileStatus.setText("请先选择目录。"); return; }
+        EditText name = new EditText(this); name.setSingleLine(true); name.setHint("文件夹名称");
+        new AlertDialog.Builder(this).setTitle("新建文件夹").setView(name).setNegativeButton("取消", null)
+                .setPositiveButton("创建", (d, w) -> {
+                    String value = name.getText().toString().trim();
+                    if (!validName(value)) { fileStatus.setText("文件夹名称无效。"); return; }
+                    final Uri destinationParent = parentUri();
+                    fileStatus.setText("正在创建文件夹…");
+                    submitIo("创建文件夹", () -> {
+                        try {
+                            Uri created = DocumentsContract.createDocument(getContentResolver(), destinationParent,
+                                    DocumentsContract.Document.MIME_TYPE_DIR, value);
+                            if (created == null) throw new IllegalStateException("目录提供方未创建文件夹。");
+                            postUi(() -> { fileStatus.setText("文件夹已创建。"); loadDirectory(); });
+                        } catch (Throwable error) {
+                            postUi(() -> fileStatus.setText("创建失败：" + error.getClass().getSimpleName()));
+                        }
+                    });
                 }).show();
     }
+
     private void pickImport() {
         if(treeUri==null){fileStatus.setText("请先选择目录。");return;}
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
@@ -298,37 +308,62 @@ public final class FxDiaFileActivity extends Activity {
         return "import.bin";
     }
     private void importFile(Uri uri) {
-        String name=displayName(uri), mime=getContentResolver().getType(uri);
-        if(mime==null)mime="application/octet-stream"; final String contentType=mime;
-        fileStatus.setText("正在导入 "+name+"…");
-        new Thread(()->{
-            try(InputStream in=getContentResolver().openInputStream(uri)){
-                if(in==null)throw new IllegalStateException("无法读取来源文件。");
-                Uri created=DocumentsContract.createDocument(getContentResolver(),parentUri(),contentType,name);
-                if(created==null)throw new IllegalStateException("无法创建目标文件。");
-                try(OutputStream out=getContentResolver().openOutputStream(created,"w")){
-                    if(out==null)throw new IllegalStateException("无法写入目标文件。");
-                    byte[] b=new byte[16384];int n;while((n=in.read(b))!=-1)out.write(b,0,n);out.flush();
+        final Uri destinationParent = parentUri();
+        if (destinationParent == null) { fileStatus.setText("当前目录已失效，请重新选择。"); return; }
+        fileStatus.setText("正在导入文件…");
+        submitIo("导入文件", () -> {
+            String name = displayName(uri);
+            String mime = getContentResolver().getType(uri);
+            if (mime == null) mime = "application/octet-stream";
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) throw new IllegalStateException("无法读取来源文件。");
+                Uri created = DocumentsContract.createDocument(getContentResolver(), destinationParent, mime, name);
+                if (created == null) throw new IllegalStateException("无法创建目标文件。");
+                try (OutputStream out = getContentResolver().openOutputStream(created, "w")) {
+                    if (out == null) throw new IllegalStateException("无法写入目标文件。");
+                    byte[] buffer = new byte[16384]; int count;
+                    while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+                    out.flush();
                 }
-                runOnUiThread(()->{fileStatus.setText("已导入 "+name);loadDirectory();});
-            }catch(Throwable e){runOnUiThread(()->fileStatus.setText("导入失败："+e.getClass().getSimpleName()));}
-        },"FxDiaFileImport").start();
+                postUi(() -> { fileStatus.setText("已导入 " + name); loadDirectory(); });
+            } catch (Throwable error) {
+                postUi(() -> fileStatus.setText("导入失败：" + error.getClass().getSimpleName()));
+            }
+        });
     }
-    private void preview(Entry e) {
-        if(e.size>MAX_PREVIEW){fileStatus.setText("文件超过 512 KiB，仅显示元数据。");return;}
-        new Thread(()->{
-            try(InputStream in=getContentResolver().openInputStream(docUri(e));ByteArrayOutputStream out=new ByteArrayOutputStream()){
-                if(in==null)throw new IllegalStateException("无法读取文件。");
-                byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()>MAX_PREVIEW-n)throw new IllegalArgumentException("预览超过 512 KiB。");out.write(b,0,n);}
-                String content=new String(out.toByteArray(),StandardCharsets.UTF_8);
-                if(content.indexOf('\uFFFD')>=0)content="该文件可能不是 UTF-8 文本；字节数："+out.size();
-                final String shown=content;
-                runOnUiThread(()->{EditText view=new EditText(this);view.setText(shown);view.setMinLines(8);view.setTextIsSelectable(true);
-                    new AlertDialog.Builder(this).setTitle(e.name).setView(view).setPositiveButton("关闭",null)
-                            .setNeutralButton("复制文本",(d,w)->{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                                if(cm!=null)cm.setPrimaryClip(android.content.ClipData.newPlainText(e.name,shown));}).show();});
-            }catch(Throwable error){runOnUiThread(()->fileStatus.setText("预览失败："+error.getClass().getSimpleName()));}
-        },"FxDiaFilePreview").start();
+
+    private void preview(Entry entry) {
+        if (entry.size > MAX_PREVIEW) { fileStatus.setText("文件超过 512 KiB，仅显示元数据。"); return; }
+        final Uri source = docUri(entry);
+        final String name = entry.name;
+        submitIo("预览文件", () -> {
+            try (InputStream in = getContentResolver().openInputStream(source);
+                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                if (in == null) throw new IllegalStateException("无法读取文件。");
+                byte[] buffer = new byte[8192]; int count;
+                while ((count = in.read(buffer)) != -1) {
+                    if (out.size() > MAX_PREVIEW - count) throw new IllegalArgumentException("预览超过 512 KiB。");
+                    out.write(buffer, 0, count);
+                }
+                String content = new String(out.toByteArray(), StandardCharsets.UTF_8);
+                if (content.indexOf('\\uFFFD') >= 0) {
+                    content = "该文件可能不是 UTF-8 文本；字节数：" + out.size();
+                }
+                final String shown = content;
+                postUi(() -> {
+                    EditText view = new EditText(this);
+                    view.setText(shown); view.setMinLines(8); view.setTextIsSelectable(true);
+                    new AlertDialog.Builder(this).setTitle(name).setView(view).setPositiveButton("关闭", null)
+                            .setNeutralButton("复制文本", (d, w) -> {
+                                android.content.ClipboardManager cm =
+                                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                                if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText(name, shown));
+                            }).show();
+                });
+            } catch (Throwable error) {
+                postUi(() -> fileStatus.setText("预览失败：" + error.getClass().getSimpleName()));
+            }
+        });
     }
     private void beginExport(Entry e) {
         exportSource=docUri(e);exportName=e.name;
@@ -336,23 +371,43 @@ public final class FxDiaFileActivity extends Activity {
         i.putExtra(Intent.EXTRA_TITLE,exportName);
         try{startActivityForResult(i,PICK_EXPORT);}catch(Throwable error){fileStatus.setText("无法打开导出选择器。");}
     }
-    private void exportFile(Uri dest) {
-        if(exportSource==null)return; final Uri src=exportSource;final String name=exportName;
-        fileStatus.setText("正在导出 "+name+"…");
-        new Thread(()->{
-            try(InputStream in=getContentResolver().openInputStream(src);OutputStream out=getContentResolver().openOutputStream(dest,"w")){
-                if(in==null||out==null)throw new IllegalStateException("无法打开来源或目标。");
-                byte[] b=new byte[16384];int n;while((n=in.read(b))!=-1)out.write(b,0,n);out.flush();
-                runOnUiThread(()->fileStatus.setText("已导出 "+name));
-            }catch(Throwable e){runOnUiThread(()->fileStatus.setText("导出失败："+e.getClass().getSimpleName()));}
-            finally{exportSource=null;}
-        },"FxDiaFileExport").start();
+    private void exportFile(Uri destination) {
+        if (exportSource == null) return;
+        final Uri source = exportSource;
+        final String name = exportName;
+        exportSource = null;
+        fileStatus.setText("正在导出 " + name + "…");
+        submitIo("导出文件", () -> {
+            try (InputStream in = getContentResolver().openInputStream(source);
+                 OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
+                if (in == null || out == null) throw new IllegalStateException("无法打开来源或目标。");
+                byte[] buffer = new byte[16384]; int count;
+                while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+                out.flush();
+                postUi(() -> fileStatus.setText("已导出 " + name));
+            } catch (Throwable error) {
+                postUi(() -> fileStatus.setText("导出失败：" + error.getClass().getSimpleName()));
+            }
+        });
     }
-    private void confirmDelete(Entry e) {
-        new AlertDialog.Builder(this).setTitle("删除文件").setMessage("仅删除所选授权目录中的文件：\n"+e.name)
-                .setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->{
-                    try{DocumentsContract.deleteDocument(getContentResolver(),docUri(e));loadDirectory();}
-                    catch(Throwable error){fileStatus.setText("删除失败："+error.getClass().getSimpleName());}
+
+    private void confirmDelete(Entry entry) {
+        new AlertDialog.Builder(this).setTitle("删除文件")
+                .setMessage("仅删除所选授权目录中的文件：\\n" + entry.name)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (d, w) -> {
+                    final Uri selected = docUri(entry);
+                    fileStatus.setText("正在删除 " + entry.name + "…");
+                    submitIo("删除文件", () -> {
+                        try {
+                            if (!DocumentsContract.deleteDocument(getContentResolver(), selected)) {
+                                throw new IllegalStateException("目录提供方拒绝删除。");
+                            }
+                            postUi(() -> { fileStatus.setText("已删除 " + entry.name); loadDirectory(); });
+                        } catch (Throwable error) {
+                            postUi(() -> fileStatus.setText("删除失败：" + error.getClass().getSimpleName()));
+                        }
+                    });
                 }).show();
     }
 
