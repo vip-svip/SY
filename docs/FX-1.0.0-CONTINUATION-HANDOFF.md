@@ -123,3 +123,26 @@ Branch checkpoint before this handoff update: `cf173a06233262f43738a3aee23d2db13
 4. Continue Yulong AdBlock Trie/Bloom compatibility and per-app DNS counters; do not relabel UID traffic bytes as DNS query counts.
 5. Continue Shield Stellar Binder request/confirmation/response and original ProtectService semantics.
 6. Keep real-device validation marked incomplete until installed and exercised on the target OnePlus 12; do not produce the final paired APK/KernelSU ZIP before all migrations and acceptance gates pass.
+
+
+## Latest continuation update — 2026-11-04 03:xx Asia/Tokyo
+
+Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70634f38c`.
+
+### Dia 23.11 — harden Frida Gadget config replacement
+
+- `FxDiaFridaActivity.saveGadgetListenConfig()` no longer writes to the predictable `<config>.tmp.<pid>` path. It creates an unpredictable same-directory temporary file via `mktemp` after setting `umask 077`, verifies the temporary file is a regular non-symlink, writes and checks non-empty JSON, changes the final read mode, and atomically replaces the Gadget config.
+- The writer rejects a symlink at the final Gadget library or config directory and checks that the final config is a regular non-symlink after replacement. Existing loopback-only listen behavior, port conflict policy, and WAIT/RESUME semantics are unchanged.
+- Updated `scripts/tests/fx-dia-frida-gadget-config-regression.sh`: it now tests two separate writer processes, pre-creates the old PID-based temporary pathname as a symlink to an unrelated sentinel file, verifies the sentinel remains unchanged, and checks random temporary files are removed.
+- Commits: `2d216df6bc3f9ca49a193f6d6838f27b41740e89` (implementation), `9f9dedcda9d1deeeed29ada177a617d70634f38c` (regression test).
+
+### Verification
+
+- Local Linux shell regression of two concurrent writers and a pre-planted legacy PID-path symlink: PASS.
+- GitHub Actions run `41701536687`, commit `9f9dedcda9d1deeeed29ada177a617d70634f38c`: restore stage and static migration checks passed; full host regression was still in progress when this note was written. Do not infer completion from the running job.
+- No new Gradle build result, APK installation test or real-device validation is claimed for this change. Android device availability of the target `mktemp` behavior and Gadget library load/runtime remain to be verified.
+
+### Remaining Frida migration boundary
+
+- The UI writes the official Gadget listen configuration and provides ADB-forward/Frida CLI commands. It does **not** automatically inject or load Gadget into an arbitrary third-party app. The page states that the target app must already load the Gadget library; this remains an explicit incomplete Dia runtime integration.
+- Original Dia 23.11 `FridaHook.smali` / `ExpandListenActivity.smali` show an Xposed-side Application startup hook that loads the configured native Gadget library and applies the per-process listener target. FX still needs a reviewed unified LSPosed target-side adapter before this can be called a complete port. Do not bypass this boundary by silently patching/repacking third-party APKs.
