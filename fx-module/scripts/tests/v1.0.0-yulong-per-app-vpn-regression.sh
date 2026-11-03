@@ -9,7 +9,11 @@ cat > "$T/module/module.prop" <<'EOF'
 id=privacyguard
 EOF
 cp "$SOURCE_DIR/scripts/util.sh" "$T/module/scripts/util.sh"
-printf '#!/system/bin/sh\nexit 0\n' > "$T/module/scripts/apply.sh"
+cat > "$T/module/scripts/apply.sh" <<'EOF'
+#!/system/bin/sh
+[ "${FX_TEST_APPLY_FAIL:-0}" = "1" ] && exit 17
+exit 0
+EOF
 chmod +x "$T/module/scripts/apply.sh"
 cat > "$T/pg/settings.conf" <<'EOF'
 vpn_app_proxy=0
@@ -23,6 +27,14 @@ EOF
 run() { MP="$T/module" PG="$T/pg" CONF="$T/pg/settings.conf" sh "$SCRIPT" "$@"; }
 run list > "$T/list"
 grep -qx 'FXVPNAPP1' "$T/list"
+cp "$T/pg/settings.conf" "$T/before-failed-apply.conf"
+if FX_TEST_APPLY_FAIL=1 run apply-item com.example.rollback 1 >/dev/null 2>&1; then
+  echo "configuration write unexpectedly survived a failed apply" >&2; exit 1
+fi
+cmp -s "$T/before-failed-apply.conf" "$T/pg/settings.conf" || {
+  echo "failed apply did not restore the previous settings.conf" >&2; exit 1;
+}
+! grep -q '^com.example.rollback|' "$T/pg/settings.conf"
 grep -qx 'master=0' "$T/list"
 grep -qx 'mode=bypass' "$T/list"
 grep -q '^com.example.alpha|com.example.alpha|1$' "$T/list"
