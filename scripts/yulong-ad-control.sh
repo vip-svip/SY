@@ -60,13 +60,31 @@ write_block() {
  [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
 }
 transaction() {
- op=$1; shift; backup=$CONF.yulong-ad-rollback.$$
+ op=$1; shift; backup=$CONF.yulong-ad-rollback.$
+ restore=$CONF.yulong-ad-restore.$
  cp -p "$CONF" "$backup" || return 1
- if ! "$op" "$@"; then rm -f "$backup"; return 1; fi
- if sh "$MP/scripts/apply.sh" fast; then rm -f "$backup"; return 0; fi
- cp -p "$backup" "$CONF.restore.$$" && chmod 600 "$CONF.restore.$$" && mv -f "$CONF.restore.$$" "$CONF" || { rm -f "$backup"; return 31; }
- sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
- rm -f "$backup"; echo "apply failed; previous config restored" >&2; return 1
+ if ! "$op" "$@"; then
+   if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
+     sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || \
+       echo "mutation failed; previous config restored but runtime reconcile failed" >&2
+     rm -f "$backup" "$restore"
+     echo "mutation failed; previous config restored" >&2
+     return 1
+   fi
+   rm -f "$backup" "$restore"
+   echo "mutation failed and config rollback failed" >&2
+   return 31
+ fi
+ if sh "$MP/scripts/apply.sh" fast; then rm -f "$backup" "$restore"; return 0; fi
+ if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
+   sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
+   rm -f "$backup" "$restore"
+   echo "apply failed; previous config restored" >&2
+   return 1
+ fi
+ rm -f "$backup" "$restore"
+ echo "apply failed and config rollback failed" >&2
+ return 31
 }
 m_dns(){ pg_set "$1" "$2"; }
 valid_ipv4() {
