@@ -24,21 +24,36 @@ public final class FxDiaWifiProxyTileService extends TileService {
         return "'" + value.replace("'", "'\\''") + "'";
     }
     private void refreshTile() {
+        refreshTile(prefs().getBoolean("active", false));
+    }
+
+    private void refreshTile(boolean active) {
         Tile tile = getQsTile();
         if (tile == null) return;
-        boolean active = prefs().getBoolean("active", false);
         tile.setState(active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
         tile.setLabel("FX 系统代理");
         tile.setSubtitle(active ? "已启用" : "已关闭");
         tile.setContentDescription(active
                 ? "FX 系统 HTTP 代理已启用，点击恢复原设置"
-                : "FX 系统 HTTP 代理已关闭，点击启用");
+                : "FX 系统 HTTP 代理已关闭或已被外部更改，点击启用");
         tile.updateTile();
     }
 
     @Override public void onStartListening() {
         super.onStartListening();
-        refreshTile();
+        worker.execute(() -> {
+            RootAccess.Result result = RootAccess.execute(
+                    "settings get global http_proxy 2>/dev/null | tr -d '\\\\r'", 12000L, 4096);
+            boolean active = false;
+            if (result.exitCode == 0 && result.output != null) {
+                String current = result.output.trim();
+                String expected = prefs().getString("applied", "");
+                active = prefs().getBoolean("active", false) && current.equals(expected);
+            }
+            final boolean liveActive = active;
+            android.os.Handler handler = new android.os.Handler(getMainLooper());
+            handler.post(() -> refreshTile(liveActive));
+        });
     }
 
     @Override public void onClick() {
