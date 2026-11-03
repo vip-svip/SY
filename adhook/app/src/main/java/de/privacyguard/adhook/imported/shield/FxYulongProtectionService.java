@@ -12,6 +12,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -291,7 +292,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         if (!blacklist.contains(packageName) || whitelist.contains(packageName)) return;
 
         long now = System.currentTimeMillis();
-        String key = "protect_alert_last_" + Integer.toHexString(packageName.hashCode());
+        String key = "protect_alert_last_" + packageName;
         long last = prefs.getLong(key, 0L);
         if (now - last < ALERT_COOLDOWN_MS) return;
 
@@ -373,13 +374,15 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         open.putExtra("reason", message);
         open.putExtra("severity", "BLACKLIST");
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent content = PendingIntent.getActivity(this, packageName.hashCode(), open,
+        open.setData(Uri.parse("fx-shield-risk://" + Uri.encode(packageName)));
+        PendingIntent content = PendingIntent.getActivity(this, 0, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Intent uninstallIntent = new Intent(this,
                 FxYulongUninstallReceiver.class);
         uninstallIntent.putExtra("target_pkg", packageName);
+        uninstallIntent.setData(Uri.parse("fx-shield-uninstall://" + Uri.encode(packageName)));
         PendingIntent uninstallAction = PendingIntent.getBroadcast(
-                this, 0x5951 ^ packageName.hashCode(), uninstallIntent,
+                this, 0, uninstallIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT
                         | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
@@ -390,7 +393,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
                 .setStyle(new Notification.BigTextStyle().bigText(message))
                 .addAction(android.R.drawable.ic_menu_delete, "系统卸载确认", uninstallAction)
                 .setContentIntent(content).setAutoCancel(true).build();
-        manager.notify(0x5950 ^ packageName.hashCode(), notification);
+        manager.notify("fx-shield-risk:" + packageName, 0x5950, notification);
     }
 
     private void stopFromPolicy() {
