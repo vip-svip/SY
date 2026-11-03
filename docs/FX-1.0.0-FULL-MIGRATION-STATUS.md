@@ -60,6 +60,19 @@ published during this migration phase.
   vendor VPN implementation, and real-device route/packet-path verification.
   Do not claim universal VPN coexistence based only on host-side code.
 
+### Yulong Security Shield 9.9.60 — scoped Stellar management
+
+- Removed a duplicated detached command-dialog fragment from the Stellar activity
+  that was outside any method body.
+- Added package-scoped runtime permission grant/revoke and AppOps mode controls.
+  Each action requires the target app to be Stellar-authorized, the corresponding
+  capability scope to be explicitly granted, and an extra confirmation dialog.
+- The command backend accepts only fixed permission, AppOps operation and mode
+  allowlists; arbitrary Shell execution remains disabled. Changes are logged under
+  the original Stellar guard data directory.
+- The generic secure-settings write scope is not exposed as a UI toggle until a
+  specific safe key/value surface is implemented.
+
 ### Yulong Security Shield 9.9.60 — additional integrated work
 
 - Repaired the in-app Stellar authorization manager bridge: Root script lookup,

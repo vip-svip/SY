@@ -69,7 +69,6 @@ public final class FxStellarManagerActivity extends Activity {
   addSwitch("读取 SELinux 状态","SELINUX_STATUS_COMMAND",false);
   addSwitch("只读文件访问","FILESYSTEM_READ_COMMAND",false);
   addSwitch("读取系统服务列表","SERVICE_LIST_COMMAND",false);
-  addSwitch("写入安全设置（高权限）","SECURE_SETTINGS_WRITE",true);
   addSwitch("管理 AppOps（高权限）","APPOPS_MANAGE",true);
   addSwitch("管理运行时权限（高权限）","RUNTIME_PERMISSION_MANAGE",true);
   body.addView(button("撤销终端命令作用域",()->{
@@ -98,10 +97,23 @@ public final class FxStellarManagerActivity extends Activity {
         state.setText(result.exitCode==0?"只读命令执行完成。":"只读命令未执行："+(result.output==null?"":result.output));
       });
     }));
-    String c=cmd.getText().toString().trim();if(target.isEmpty()||c.isEmpty())return;
-    new AlertDialog.Builder(this).setTitle("确认始终允许").setMessage(target+"\n"+c)
-      .setNegativeButton("取消",null).setPositiveButton("确认",(d,w)->apply("always-set "+quote(target)+" "+quote(c)+" 1","添加始终允许命令")).show();
-  }));
+      EditText permissionName=new EditText(this);
+  permissionName.setSingleLine(true);
+  permissionName.setHint("android.permission.CAMERA / RECORD_AUDIO / ACCESS_FINE_LOCATION");
+  addCard("运行时权限管理",
+    "先在上方打开 RUNTIME_PERMISSION_MANAGE。仅支持预设 Android 运行时权限名称；每次授予/撤销都要求再次确认。",
+    permissionName,
+    button("授予权限",()->confirmManaged("permission "+quote(target)+" grant "+quote(permissionName.getText().toString().trim()),"授予运行时权限")),
+    button("撤销权限",()->confirmManaged("permission "+quote(target)+" revoke "+quote(permissionName.getText().toString().trim()),"撤销运行时权限")));
+  EditText appOpName=new EditText(this);
+  appOpName.setSingleLine(true);appOpName.setHint("CAMERA / RECORD_AUDIO / FINE_LOCATION / POST_NOTIFICATION");
+  EditText appOpMode=new EditText(this);
+  appOpMode.setSingleLine(true);appOpMode.setHint("allow / ignore / deny / default / foreground");
+  appOpMode.setText("default");
+  addCard("AppOps 管理",
+    "先在上方打开 APPOPS_MANAGE。操作名和模式均使用固定白名单；不会执行任意 Shell 命令。",
+    appOpName,appOpMode,
+    button("应用 AppOps 模式",()->confirmManaged("appops "+quote(target)+" "+quote(appOpName.getText().toString().trim())+" "+quote(appOpMode.getText().toString().trim()),"应用 AppOps 模式")));
   addCard("授权记录","可查看当前目标应用保存的始终允许命令。",button("刷新",this::refresh));
   alwaysRows = new LinearLayout(this);
   alwaysRows.setOrientation(LinearLayout.VERTICAL);
@@ -146,6 +158,17 @@ public final class FxStellarManagerActivity extends Activity {
     s.setChecked("PKG".equals(k)?packages.contains(target):scopes.contains(target+"|"+k));
   }
   syncing=false;
+ }
+ private void confirmManaged(String command,String title){
+  if(target.isEmpty()){state.setText("请先选择授权目标应用。");return;}
+  new AlertDialog.Builder(this).setTitle(title)
+    .setMessage("目标应用："+target+"\n请求："+command.substring(command.indexOf(' ')+1)
+       +"\n\n此操作会修改目标应用的系统权限/AppOps 状态。只有你信任该应用时才继续。")
+    .setNegativeButton("取消",null)
+    .setPositiveButton("明确执行",(dialog,which)->root(command,result->{
+      state.setText(result.exitCode==0?title+"已完成。":title+"失败："+(result.output==null?"":result.output));
+      refresh();
+    })).show();
  }
  private void apply(String op,String name){root(op,r->{if(r.exitCode==0)state.setText(name+"已保存。");else state.setText(name+"失败："+(r.output==null?"":r.output));refresh();});}
  private void refresh(){
