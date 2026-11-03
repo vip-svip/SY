@@ -124,7 +124,7 @@ chmod 600 "$log"
 mkfifo -m 600 "$pipe"
 nohup "$cli" -H "127.0.0.1:$port" -n Gadget -l "$script" < "$pipe" >> "$log" 2>&1 &
 cli_pid=$!
-nohup sh -c 'while :; do sleep 3600; done' "fx-gadget-feed-$port" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
+nohup sh -c 'while kill -0 "$1" 2>/dev/null; do sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
 feed_pid=$!
 pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
 printf '%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" > "$pid_tmp"
