@@ -7,6 +7,18 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 REPO_ROOT=$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)
 [ -n "$REPO_ROOT" ] || { echo "FAIL: cannot resolve FX repository root" >&2; exit 1; }
 MODULE_ROOT="$REPO_ROOT/fx-module"
+DEFAULT_CONF="$MODULE_ROOT/scripts/default.conf"
+if [ -r "$DEFAULT_CONF" ]; then
+  printf '%s\n' 'FX_PURPOSE_LIST_AUDIT_BEGIN'
+  awk -F'|' '
+    /^\[list:fx\][[:space:]]*$/ {infx=1; next}
+    /^\[/ {if (infx) exit}
+    infx && NF >= 2 && $1 !~ /^[[:space:]]*#/ {
+      printf "name=%s enabled=%s fields=%d\n", $2, $NF, NF
+    }
+  ' "$DEFAULT_CONF"
+  printf '%s\n' 'FX_PURPOSE_LIST_AUDIT_END'
+fi
 ACTIVITY="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 PARSER="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
 SERIALIZER="$REPO_ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java"
