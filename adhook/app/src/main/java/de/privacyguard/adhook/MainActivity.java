@@ -2734,7 +2734,7 @@ public final class MainActivity extends ComponentActivity {
                     showNativeSettingsGroup("netPanel", "Dia · " + page);
                     return;
                 case "设备属性":
-                    showNativeSettingsGroup("devicePanel", "Dia · 设备属性");
+                    showAppList("设备标识模拟");
                     return;
                 case "Wi-Fi 模拟":
                     showAppList("Wi-Fi 环境模拟");
@@ -2749,7 +2749,7 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("位置隐私");
                     return;
                 case "时间与时区":
-                    showNativeSettingsGroup("miscPanel", "Dia · 时间与时区");
+                    showAppList("时间与时区模拟");
                     return;
                 case "JS 脚本列表": case "脚本编辑器": case "JSON 操作":
                     openImportedNativeTab(3);
@@ -4373,6 +4373,76 @@ public final class MainActivity extends ComponentActivity {
         content.addView(chooseNetworkMode);
         content.addView(simulateNetworkType);
         content.addView(saveNetworkType);
+        section("设备标识模拟");
+        TextView androidIdNote = new TextView(this);
+        androidIdNote.setText("只覆盖此 debuggable 目标进程读取 Settings.Secure.ANDROID_ID 的结果；不会更改系统 Android ID 或其他应用。");
+        androidIdNote.setTextColor(0xff697681);
+        androidIdNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(androidIdNote);
+        EditText simulatedAndroidId = new EditText(this);
+        simulatedAndroidId.setSingleLine(true);
+        simulatedAndroidId.setHint("16 位十六进制 Android ID");
+        simulatedAndroidId.setText(getPreferences(0).getString(selectedPackage + ":android_id", ""));
+        Switch simulateAndroidId = new Switch(this);
+        simulateAndroidId.setText("启用此应用的 Android ID 测试值");
+        simulateAndroidId.setChecked(getPreferences(0).getBoolean(selectedPackage + ":android_id_simulate", false));
+        simulateAndroidId.setEnabled(targetDebuggable);
+        simulatedAndroidId.setEnabled(targetDebuggable);
+        Button saveAndroidId = new Button(this);
+        saveAndroidId.setAllCaps(false);
+        saveAndroidId.setText("保存并发布 Android ID 测试值");
+        saveAndroidId.setEnabled(targetDebuggable);
+        saveAndroidId.setOnClickListener(v -> {
+            String value = simulatedAndroidId.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            boolean enabled = simulateAndroidId.isChecked();
+            if (enabled && !value.matches("[0-9a-f]{16}")) {
+                Toast.makeText(this, "Android ID 必须为 16 位十六进制字符串。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":android_id_simulate", enabled)
+                    .putString(selectedPackage + ":android_id", value).apply();
+            publishConfig();
+        });
+        content.addView(simulatedAndroidId);
+        content.addView(simulateAndroidId);
+        content.addView(saveAndroidId);
+        section("时间与时区模拟");
+        TextView timeZoneNote = new TextView(this);
+        timeZoneNote.setText("只覆盖此 debuggable 目标进程调用 TimeZone.getDefault() 的结果；不修改系统时间、系统时区或其他应用。");
+        timeZoneNote.setTextColor(0xff697681);
+        timeZoneNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(timeZoneNote);
+        EditText simulatedTimeZone = new EditText(this);
+        simulatedTimeZone.setSingleLine(true);
+        simulatedTimeZone.setHint("IANA 时区，例如 Asia/Tokyo");
+        simulatedTimeZone.setText(getPreferences(0).getString(selectedPackage + ":time_zone", "Asia/Tokyo"));
+        Switch simulateTimeZone = new Switch(this);
+        simulateTimeZone.setText("启用此应用的时区测试值");
+        simulateTimeZone.setChecked(getPreferences(0).getBoolean(selectedPackage + ":time_zone_simulate", false));
+        simulateTimeZone.setEnabled(targetDebuggable);
+        simulatedTimeZone.setEnabled(targetDebuggable);
+        Button saveTimeZone = new Button(this);
+        saveTimeZone.setAllCaps(false);
+        saveTimeZone.setText("保存并发布时区测试值");
+        saveTimeZone.setEnabled(targetDebuggable);
+        saveTimeZone.setOnClickListener(v -> {
+            String value = simulatedTimeZone.getText().toString().trim();
+            boolean enabled = simulateTimeZone.isChecked();
+            boolean known = false;
+            for (String id : java.util.TimeZone.getAvailableIDs()) if (id.equals(value)) { known = true; break; }
+            if (enabled && !known) {
+                Toast.makeText(this, "请输入系统支持的 IANA 时区，例如 Asia/Tokyo。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":time_zone_simulate", enabled)
+                    .putString(selectedPackage + ":time_zone", value).apply();
+            publishConfig();
+        });
+        content.addView(simulatedTimeZone);
+        content.addView(simulateTimeZone);
+        content.addView(saveTimeZone);
         section("位置隐私");
         TextView gpsNote = new TextView(this);
         gpsNote.setText("GPS 测试模拟只覆盖此 debuggable 目标进程的 LocationManager.getLastKnownLocation()；不改变真实 GPS、GNSS、系统定位或 Fused Location 持续回调。");
@@ -4824,7 +4894,8 @@ public final class MainActivity extends ComponentActivity {
                 String[] keys={"member_diag","privacy","exif_strip",
                     "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
                     "notification_permission_hide","ad_id_unify","mic_silence","camera_access_block","location_access_block",
-                    "location_simulate","mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
+                    "location_simulate","android_id_simulate","time_zone_simulate",
+                    "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
                     "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
                 StringBuilder row=new StringBuilder(p);
                 boolean has=false;
@@ -4851,6 +4922,21 @@ public final class MainActivity extends ComponentActivity {
                     row.append(",location_lat=").append(lat)
                             .append(",location_lon=").append(lon)
                             .append(",location_accuracy=").append(accuracy);
+                    has = true;
+                }
+                if (enabled(p, "android_id_simulate")) {
+                    String value = getPreferences(0).getString(p + ":android_id", "");
+                    if (!value.matches("(?i)[0-9a-f]{16}"))
+                        throw new IllegalStateException("Android ID 测试值必须为 16 位十六进制字符串：" + p);
+                    row.append(",android_id=").append(value.toLowerCase(java.util.Locale.ROOT));
+                    has = true;
+                }
+                if (enabled(p, "time_zone_simulate")) {
+                    String value = getPreferences(0).getString(p + ":time_zone", "");
+                    boolean known = false;
+                    for (String id : java.util.TimeZone.getAvailableIDs()) if (id.equals(value)) { known = true; break; }
+                    if (!known) throw new IllegalStateException("不支持的测试时区：" + p);
+                    row.append(",time_zone=").append(value);
                     has = true;
                 }
                 StringBuilder legacyManaged = new StringBuilder(p);

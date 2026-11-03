@@ -52,6 +52,10 @@ public final class UnifiedHookConfigParser {
         public double simulatedLatitude;
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
+        public boolean androidIdSimulation;
+        public String simulatedAndroidId;
+        public boolean timeZoneSimulation;
+        public String simulatedTimeZone;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -286,6 +290,10 @@ public final class UnifiedHookConfigParser {
             boolean locationSimulation=false;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
+            boolean androidIdSimulation=false;
+            String simulatedAndroidId=null;
+            boolean timeZoneSimulation=false;
+            String simulatedTimeZone=null;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
@@ -338,6 +346,21 @@ public final class UnifiedHookConfigParser {
                         throw new IllegalArgumentException("simulated accuracy out of range");
                     continue;
                 }
+                if ("android_id".equals(key)) {
+                    if (!value.matches("(?i)[0-9a-f]{16}"))
+                        throw new IllegalArgumentException("simulated Android ID must be 16 hex characters");
+                    simulatedAndroidId = value.toLowerCase(java.util.Locale.ROOT);
+                    continue;
+                }
+                if ("time_zone".equals(key)) {
+                    boolean known = false;
+                    for (String id : java.util.TimeZone.getAvailableIDs()) {
+                        if (id.equals(value)) { known = true; break; }
+                    }
+                    if (!known) throw new IllegalArgumentException("unknown simulated time zone");
+                    simulatedTimeZone = value;
+                    continue;
+                }
                 if ("dev_hook_enabled".equals(key)) {
                     if (!bit(value)) throw new IllegalArgumentException("invalid developer hook opt-in");
                     developerHooksEnabled = "1".equals(value);
@@ -381,6 +404,8 @@ public final class UnifiedHookConfigParser {
                     case "wifi_simulate": wifiSimulation = on; break;
                     case "network_type_simulate": networkTypeSimulation = on; break;
                     case "location_simulate": locationSimulation = on; break;
+                    case "android_id_simulate": androidIdSimulation = on; break;
+                    case "time_zone_simulate": timeZoneSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
@@ -422,6 +447,18 @@ public final class UnifiedHookConfigParser {
             if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
             if (simulatedLongitude != null) parsedTarget.simulatedLongitude = simulatedLongitude;
             parsedTarget.simulatedAccuracy = simulatedAccuracy;
+            if (androidIdSimulation && simulatedAndroidId == null)
+                throw new IllegalArgumentException("Android ID simulation requires a value");
+            if (!androidIdSimulation && simulatedAndroidId != null)
+                throw new IllegalArgumentException("android_id requires android_id_simulate=1");
+            parsedTarget.androidIdSimulation = androidIdSimulation;
+            parsedTarget.simulatedAndroidId = simulatedAndroidId;
+            if (timeZoneSimulation && simulatedTimeZone == null)
+                throw new IllegalArgumentException("time zone simulation requires a zone");
+            if (!timeZoneSimulation && simulatedTimeZone != null)
+                throw new IllegalArgumentException("time_zone requires time_zone_simulate=1");
+            parsedTarget.timeZoneSimulation = timeZoneSimulation;
+            parsedTarget.simulatedTimeZone = simulatedTimeZone;
             targets.put(pkg, parsedTarget);
         }
 

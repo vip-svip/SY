@@ -161,6 +161,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean wifiInfoSimulationHooksInstalled;
     private volatile boolean networkTypeSimulationHooksInstalled;
     private volatile boolean locationSimulationHooksInstalled;
+    private volatile boolean timeZoneSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
@@ -276,6 +277,8 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
         final boolean networkTypeSimulationForPackage = target != null && target.networkTypeSimulation && debuggableTarget;
         final boolean locationSimulationForPackage = target != null && target.locationSimulation && debuggableTarget;
+        final boolean androidIdSimulationForPackage = target != null && target.androidIdSimulation && debuggableTarget;
+        final boolean timeZoneSimulationForPackage = target != null && target.timeZoneSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
@@ -284,12 +287,13 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
-        if (privacyForPackage) installPrivacyIdentifierHooks(pkg);
+        if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
+        if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (clipboardIsolateForPackage) installClipboardIsolationHooks(pkg);
@@ -1028,6 +1032,30 @@ public final class AdVisibilityHook extends XposedModule {
      * results in an explicitly selected debuggable target process. It does not alter the
      * device provider, GNSS, system mock-location setting, fused-provider callbacks or routes.
      */
+    /** Per-app timezone fixture for explicitly selected debuggable test builds. */
+    private synchronized boolean installTimeZoneSimulationHooks(final String pkg) {
+        if (timeZoneSimulationHooksInstalled) return true;
+        try {
+            final Method getDefault = java.util.TimeZone.class.getDeclaredMethod("getDefault");
+            hook(getDefault).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                        if (active != null && debuggablePackages.contains(currentPackage)
+                                && active.timeZoneSimulation && active.simulatedTimeZone != null) {
+                            return java.util.TimeZone.getTimeZone(active.simulatedTimeZone);
+                        }
+                        return chain.proceed();
+                    });
+            timeZoneSimulationHooksInstalled = true;
+            logFx(Log.INFO, "debug-only TimeZone.getDefault simulation installed for " + pkg);
+            return true;
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "TimeZone simulation unavailable for " + pkg
+                    + ": " + failure.getClass().getSimpleName());
+            return false;
+        }
+    }
+
     private synchronized boolean installLocationSimulationHooks(final String pkg) {
         if (locationSimulationHooksInstalled) return true;
         int installed = 0;
@@ -1407,8 +1435,13 @@ public final class AdVisibilityHook extends XposedModule {
                 // interceptor for every PackageReady callback.
                 String activePackage = currentPackage;
                 UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
-                if (!privacyEnabled || activeTarget == null || !activeTarget.privacy ||
-                        NEVER.contains(activePackage)) return original;
+                if (activeTarget == null || NEVER.contains(activePackage)) return original;
+                if (activeTarget.androidIdSimulation
+                        && debuggablePackages.contains(activePackage)
+                        && activeTarget.simulatedAndroidId != null) {
+                    return activeTarget.simulatedAndroidId;
+                }
+                if (!privacyEnabled || !activeTarget.privacy) return original;
                 try {
                     return PrivacyIdentifier.forPackage(activePackage, (String) original);
                 } catch (Throwable t) {
