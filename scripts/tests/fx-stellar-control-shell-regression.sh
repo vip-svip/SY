@@ -45,7 +45,7 @@ case "$1:$2" in
   put:secure)
     [ "$#" -eq 4 ] || exit 2
     write_value="$4"
-    if [ -n "\${MOCK_SETTINGS_CORRUPT_REQUEST:-}" ] \
+    if [ -n "${MOCK_SETTINGS_CORRUPT_REQUEST:-}" ] \
         && [ "$4" = "$MOCK_SETTINGS_CORRUPT_REQUEST" ]; then
       write_value=mock-corrupted
     fi
@@ -53,7 +53,7 @@ case "$1:$2" in
     awk -F= -v key="$3" '$1!=key{print}' "$SETTINGS_STORE" > "$tmp"
     printf '%s=%s\n' "$3" "$write_value" >> "$tmp"
     mv "$tmp" "$SETTINGS_STORE"
-    if [ -n "\${MOCK_SETTINGS_FAIL_AFTER_WRITE:-}" ] \
+    if [ -n "${MOCK_SETTINGS_FAIL_AFTER_WRITE:-}" ] \
         && [ "$4" = "$MOCK_SETTINGS_FAIL_AFTER_WRITE" ]; then
       exit 9
     fi
