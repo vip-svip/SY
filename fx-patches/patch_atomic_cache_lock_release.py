@@ -213,7 +213,8 @@ rc=0
 if [ -n "$lock" ]; then
   after=absent; new_owner=-
   if [ -d "$lock" ]; then after=present; new_owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
-  printf 'MKDIR|pid=%s|time=%s|rc=%s|path=%s|before=%s:%s|after=%s:%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$lock" "$before" "$owner" "$after" "$new_owner" >> "$TEST_ROOT/lock-events"
+  inode_before=$(stat -c %i "$lock" 2>/dev/null || echo missing)
+  printf 'MKDIR|pid=%s|ppid=%s|time=%s|rc=%s|args=%s|path=%s|before=%s:%s|after=%s:%s|inode=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" "$lock" "$before" "$owner" "$after" "$new_owner" "$inode_before" >> "$TEST_ROOT/lock-events"
 fi
 exit "$rc"
 FX_MKDIR
@@ -230,7 +231,7 @@ case "$src $dst" in
     [ ! -e "$src" ] || src_after=present
     [ ! -e "$dst" ] || dst_after=present
     dst_owner=$(cat "$dst/pid" 2>/dev/null || echo missing)
-    printf 'MV|pid=%s|time=%s|rc=%s|src=%s|dst=%s|owner_before=%s|src_after=%s|dst_after=%s|dst_owner=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$src" "$dst" "$owner" "$src_after" "$dst_after" "$dst_owner" >> "$TEST_ROOT/lock-events"
+    printf 'MV|pid=%s|ppid=%s|time=%s|rc=%s|src=%s|dst=%s|owner_before=%s|src_after=%s|dst_after=%s|dst_owner=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$src" "$dst" "$owner" "$src_after" "$dst_after" "$dst_owner" >> "$TEST_ROOT/lock-events"
     exit "$rc"
     ;;
 esac
@@ -241,9 +242,9 @@ cat > "$T/bin/rm" <<'FX_RM'
 matched=0
 for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
 if [ "$matched" = 1 ]; then
-  printf 'RM_BEGIN|pid=%s|time=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+  printf 'RM_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
   rc=0; /usr/bin/rm "$@" || rc=$?
-  printf 'RM_END|pid=%s|time=%s|rc=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+  printf 'RM_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
   exit "$rc"
 fi
 exec /usr/bin/rm "$@"
@@ -253,9 +254,9 @@ cat > "$T/bin/rmdir" <<'FX_RMDIR'
 matched=0
 for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
 if [ "$matched" = 1 ]; then
-  printf 'RMDIR_BEGIN|pid=%s|time=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+  printf 'RMDIR_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
   rc=0; /usr/bin/rmdir "$@" || rc=$?
-  printf 'RMDIR_END|pid=%s|time=%s|rc=%s|args=%s\n' "$" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+  printf 'RMDIR_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
   exit "$rc"
 fi
 exec /usr/bin/rmdir "$@"
