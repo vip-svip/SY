@@ -467,7 +467,7 @@ public final class UnifiedHookConfigParser {
 
     private static boolean validWifiSsid(String value) {
         if (value == null || value.isEmpty()
-                || value.getBytes(StandardCharsets.UTF_8).length > 32) return false;
+                || value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 32) return false;
         for (int i=0;i<value.length();i++) {
             char c=value.charAt(i);
             if (c<0x20 || c==0x7f || c==',' || c=='|') return false;
