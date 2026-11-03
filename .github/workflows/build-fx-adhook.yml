@@ -161,7 +161,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-app-webui-migration-regression.sh
-          sh scripts/tests/fx-yulong-shield-native-regression.sh
+          sh scripts/tests/fx-yulong-shield-native-regression.sh "$PWD/fx-patches/merge_hook_single_apk.py"
           sh scripts/tests/fx-imported-suite-back-navigation-regression.sh
           sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
           sh scripts/tests/fx-yulong-firewall-activity-regression.sh
