@@ -136,129 +136,21 @@ new_sub_unlock = '''subfetch_unlock() {
 replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
 
 
-pid_literal = "$" + "$"
-old_root_proxy_lock = '''with_lock() {
-  _tries=0
-  while ! mkdir "$LOCK" 2>/dev/null; do
-    _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
-    case "$_owner" in
-      ''|*[!0-9]*)
-        # Allow the owner to publish its PID immediately after mkdir.
-        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
-          rmdir "$LOCK" 2>/dev/null || :
-        fi
-        ;;
-      *)
-        if ! kill -0 "$_owner" 2>/dev/null; then
-          rm -f "$LOCK/pid" 2>/dev/null || :
-          rmdir "$LOCK" 2>/dev/null || :
-        fi
-        ;;
-    esac
-    _tries=$((_tries+1))
-    [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
-    sleep 1
-  done
-  if ! printf '%s\\n' "__PID__" > "$LOCK/pid"; then
-    rmdir "$LOCK" 2>/dev/null || :
-    echo "cannot record root DNS proxy lock owner" >&2
-    return 10
-  fi
-  cleanup_lock() {
-    rm -f "$LOCK/pid" 2>/dev/null || :
-    rmdir "$LOCK" 2>/dev/null || :
-  }
-  # Signal handlers exit first; EXIT performs the one authoritative cleanup.
-  trap cleanup_lock EXIT
-  trap 'exit 129' HUP
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-  "$@"
-}'''.replace("__PID__", pid_literal)
-
-new_root_proxy_lock = '''with_lock() {
-  _tries=0
-  _lock_held=0
-  while :; do
-    if [ ! -L "$LOCK" ] && mkdir "$LOCK" 2>/dev/null; then
-      _lock_held=1
-      break
-    fi
-    [ ! -L "$LOCK" ] || { echo "unsafe root DNS proxy lock path" >&2; return 11; }
-    [ ! -L "$LOCK/pid" ] || { echo "unsafe root DNS proxy lock owner record" >&2; return 11; }
-    _owner=$(cat "$LOCK/pid" 2>/dev/null || :)
-    case "$_owner" in
-      ''|*[!0-9]*)
-        # Give a newly-created owner a short PID publication window. If it
-        # remains empty, atomically quarantine the complete directory.
-        if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
-          _stale="$LOCK.stale.__PID__.$_tries"
-          if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
-            _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
-            if [ -z "$_moved_owner" ]; then
-              rm -rf "$_stale" 2>/dev/null || :
-            elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
-              mv "$_stale" "$LOCK" 2>/dev/null || :
-            fi
-          fi
-        fi
-        ;;
-      *)
-        if ! kill -0 "$_owner" 2>/dev/null; then
-          _owner_again=$(cat "$LOCK/pid" 2>/dev/null || :)
-          if [ "$_owner_again" = "$_owner" ] && ! kill -0 "$_owner_again" 2>/dev/null; then
-            _stale="$LOCK.stale.__PID__.$_tries"
-            if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
-              _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
-              if [ "$_moved_owner" = "$_owner" ] && ! kill -0 "$_moved_owner" 2>/dev/null; then
-                rm -rf "$_stale" 2>/dev/null || :
-              elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
-                mv "$_stale" "$LOCK" 2>/dev/null || :
-              fi
-            fi
-          fi
-        fi
-        ;;
-    esac
-    _tries=$((_tries+1))
-    [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
-    sleep 1
-  done
-  if ! (umask 077; set -C; printf '%s\\n' "__PID__" > "$LOCK/pid") 2>/dev/null; then
-    _release="$LOCK.failed.__PID__"
-    if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
-      rm -rf "$_release" 2>/dev/null || :
-    fi
-    _lock_held=0
-    echo "cannot record root DNS proxy lock owner" >&2
-    return 10
-  fi
-  cleanup_lock() {
-    [ "$_lock_held" = 1 ] || return 0
-    _owner=$(cat "$LOCK/pid" 2>/dev/null || :)
-    if [ "$_owner" = "__PID__" ]; then
-      _release="$LOCK.release.__PID__"
-      _release_try=0
-      while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_release_try" -lt 20 ]; do
-        _release_try=$((_release_try+1))
-        _release="$LOCK.release.__PID__.$_release_try"
-      done
-      if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
-        _release_owner=$(cat "$_release/pid" 2>/dev/null || :)
-        if [ "$_release_owner" = "__PID__" ]; then rm -rf "$_release" 2>/dev/null || :; fi
-      fi
-    fi
-    _lock_held=0
-    return 0
-  }
-  # Signal handlers exit first; EXIT performs the one authoritative cleanup.
-  trap cleanup_lock EXIT
-  trap 'exit 129' HUP
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-  "$@"
-}'''.replace("__PID__", pid_literal)
-replace_shell_function(root_proxy, "with_lock", new_root_proxy_lock, "Root Proxy lock must use atomic directory rename")
+# The workflow stages the canonical Root Proxy before this shared lock patch.
+# Do not rewrite it here: doing so would downgrade its private file lock back to
+# the older directory/PID lock. Validate the staged source instead.
+root_proxy_text = root_proxy.read_text(encoding="utf-8")
+root_lock_pattern = re.compile(r"(?ms)^with_lock\(\) \{\n.*?^\}")
+root_lock_matches = list(root_lock_pattern.finditer(root_proxy_text))
+if len(root_lock_matches) != 1:
+    raise SystemExit(f"{root_proxy}: expected one top-level with_lock function, found {len(root_lock_matches)}")
+root_lock_body = root_lock_matches[0].group(0)
+if "( umask 077; set -C; printf " not in root_lock_body or ' > "$LOCK" )' not in root_lock_body:
+    raise SystemExit(f"{root_proxy}: Root Proxy must use a private noclobber regular-file lock")
+if 'mv "$LOCK" "$_release"' not in root_lock_body:
+    raise SystemExit(f"{root_proxy}: Root Proxy lock release must use an atomic rename")
+if 'rm -f "$LOCK/pid"' in root_lock_body or 'rmdir "$LOCK"' in root_lock_body:
+    raise SystemExit(f"{root_proxy}: obsolete directory/PID lock cleanup remains")
 
 replace_once(
     subfetch_file,
