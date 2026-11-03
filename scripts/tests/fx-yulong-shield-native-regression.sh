@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook"
 SHIELD="$JAVA/imported/shield"
