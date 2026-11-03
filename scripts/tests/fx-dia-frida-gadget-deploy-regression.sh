@@ -51,6 +51,10 @@ for label, needle in {
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
 for label, needle in {
+    "runtime target path captured before canonicalization": "String nativeLibraryPath = info.nativeLibraryDir;",
+    "runtime symlink-component rejection": "hasSymlinkComponent(rawNativeDir)",
+    "runtime canonical target constrained to app install path": 'canonicalNativePath.startsWith("/data/app/")',
+    "runtime symlink detection checks each original path component": "Files.isSymbolicLink(current.toPath())",
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
     "system-app exclusion": "ApplicationInfo.FLAG_SYSTEM",
     "package native library directory": "info.nativeLibraryDir",
@@ -88,6 +92,8 @@ marker_commit = deploy_contract.find('mv "$stage/$marker" "$dest/$marker"; new_m
 commit_flag = deploy_contract.find('committed=1; echo FX_GADGET_DEPLOYED')
 if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
     raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
+if hook.find("hasSymlinkComponent(rawNativeDir)") > hook.find("rawNativeDir.getCanonicalFile()"):
+    raise SystemExit("FAIL: Gadget runtime canonicalized nativeLibraryDir before checking symlink components")
 matcher_start = hook.find("private static boolean matchesProcess(")
 if matcher_start < 0:
     raise SystemExit("FAIL: target loader exact process matcher is missing")
