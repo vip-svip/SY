@@ -84,7 +84,16 @@ with_lock() {
     echo "cannot record app whitelist lock owner" >&2
     return 10
   fi
-  trap 'rm -f "$LOCK/pid" 2>/dev/null || :; rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
+  cleanup_lock() {
+    rm -f "$LOCK/pid" 2>/dev/null || :
+    rmdir "$LOCK" 2>/dev/null || :
+  }
+  # Keep the lock until the transaction shell has actually exited. A signal
+  # must not run cleanup and then resume mutation without owning the lock.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   "$@"
 }
 mutate_transaction() {
