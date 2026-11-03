@@ -183,6 +183,7 @@ public final class FxDiaFridaActivity extends Activity {
                 "仅对可调试测试应用启用。Intent/View/Fragment/线程模板只记录类型、类名、资源 ID 和耗时，不读取文本、参数值、Intent extras 或命令内容；内存快照会包含进程私有内存，请只对自有测试应用使用。",
                 button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
                 button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
+                button("载入 SQLCipher/WCDB 调用监控", () -> loadDiaMonitorTemplate("sqlcipher")),
                 button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
                 button("载入 Intent 调用观察", () -> loadDiaMonitorTemplate("intent")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
@@ -516,6 +517,30 @@ public final class FxDiaFridaActivity extends Activity {
                         + "      send('[DIA_ALGORITHM] ' + className + '.' + methodName + ' args=' + arguments.length + ' elapsedMs=' + (Date.now()-started));\\n"
                         + "      return result;\\n"
                         + "    };\\n"
+                        + "  });\\n"
+                        + "});";
+                break;
+            case "sqlcipher":
+                source = "Java.perform(function () {\\n"
+                        + "  var classes = ['android.database.sqlite.SQLiteDatabase', 'net.sqlcipher.database.SQLiteDatabase', 'com.tencent.wcdb.database.SQLiteDatabase'];\\n"
+                        + "  var methods = ['rawQuery', 'execSQL', 'query', 'insert', 'update', 'delete'];\\n"
+                        + "  classes.forEach(function (className) {\\n"
+                        + "    try { var DB = Java.use(className);\\n"
+                        + "      methods.forEach(function (methodName) {\\n"
+                        + "        try { var overloads = DB[methodName].overloads;\\n"
+                        + "          overloads.forEach(function (overload) {\\n"
+                        + "            overload.implementation = function () {\\n"
+                        + "              var started = Date.now(); var argCount = arguments.length; var firstLength = -1;\\n"
+                        + "              try { if (typeof arguments[0] === 'string') firstLength = arguments[0].length; } catch (_) {}\\n"
+                        + "              try { var result = overload.apply(this, arguments);\\n"
+                        + "                send('[DIA_SQL] class=' + className + ' method=' + methodName + ' args=' + argCount + ' firstStringLength=' + firstLength + ' elapsedMs=' + (Date.now() - started));\\n"
+                        + "                return result;\\n"
+                        + "              } catch (e) { send('[DIA_SQL] class=' + className + ' method=' + methodName + ' exception=' + e.$className); throw e; }\\n"
+                        + "            };\\n"
+                        + "          });\\n"
+                        + "        } catch (_) {}\\n"
+                        + "      });\\n"
+                        + "    } catch (_) { send('[DIA_SQL] class unavailable ' + className); }\\n"
                         + "  });\\n"
                         + "});";
                 break;
