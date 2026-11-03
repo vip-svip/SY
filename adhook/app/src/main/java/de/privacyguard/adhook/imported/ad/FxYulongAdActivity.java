@@ -20,12 +20,16 @@ import de.privacyguard.adhook.RootAccess;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Native control screens for migrated Yulong AdBlock 7.0.1. */
 public final class FxYulongAdActivity extends Activity {
- private final ExecutorService worker=Executors.newSingleThreadExecutor();
+ private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
+         TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+         r -> new Thread(r, "fx-yulong-ad-ui"), new ThreadPoolExecutor.AbortPolicy());
  private LinearLayout body,entries; private TextView status; private EditText search;
  private String page="首页与防护",snapshot="";
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
@@ -37,7 +41,41 @@ public final class FxYulongAdActivity extends Activity {
  private String cmd(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; then MP=\\"$d\\"; break; fi; done; [ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" "+args;}
  private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){worker.execute(()->{RootAccess.Result r=RootAccess.execute(cmd(args),90000L,512*1024);runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())cb.accept(r);});});}
  private String safe(String s){return s==null||s.trim().isEmpty()?"请确认 FX Hook Root 权限。":s.trim();}
- private void apply(String args,String label){root(args,r->{if(r.exitCode==0){FxYulongAdWidgetProvider.refreshAll(this);status.setText(label+"：已保存并应用。");load();}else{status.setText(label+"失败："+safe(r.output));new AlertDialog.Builder(this).setTitle("配置未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();load();}});}
+ private void apply(String args,String label){
+  final boolean masterWrite = args != null && args.matches("^ad-master\\s+[01]$");
+  if(masterWrite && !FxYulongAdOperationGate.tryAcquire()){
+   status.setText("另一入口正在修改广告过滤，请稍后重试。");
+   load();
+   return;
+  }
+  try{
+   worker.execute(()->{
+    RootAccess.Result result;
+    try{
+     result=RootAccess.execute(cmd(args),90000L,512*1024);
+    }catch(Throwable failure){
+     if(masterWrite)FxYulongAdOperationGate.release();
+     runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText(label+"失败："+failure.getClass().getSimpleName());});
+     return;
+    }
+    if(masterWrite)FxYulongAdOperationGate.release();
+    runOnUiThread(()->{
+     if(isFinishing()||isDestroyed())return;
+     if(result.exitCode==0){
+      FxYulongAdWidgetProvider.refreshAll(this);
+      status.setText(label+"：已保存并应用。");
+     }else{
+      status.setText(label+"失败："+safe(result.output));
+      new AlertDialog.Builder(this).setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+     }
+     load();
+    });
+   });
+  }catch(RejectedExecutionException full){
+   if(masterWrite)FxYulongAdOperationGate.release();
+   status.setText("后台任务繁忙，请稍后重试。");
+  }
+ }
  @Override protected void onCreate(Bundle b){super.onCreate(b);page=getIntent().getStringExtra("suite_page");if(page==null)page="首页与防护";LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();load();}
  private void render(){body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
