@@ -57,6 +57,7 @@ public final class FxDiaFridaActivity extends Activity {
 
     private EditText serverPath;
     private EditText injectorPath;
+    private EditText fridaCliPath;
     private EditText gadgetPath;
     private EditText gadgetPort;
     private android.widget.RadioGroup gadgetLoadMode;
@@ -118,6 +119,10 @@ public final class FxDiaFridaActivity extends Activity {
     }
     private String currentInjectorPath() {
         return injectorPath.getText() == null ? "" : injectorPath.getText().toString().trim();
+    }
+    private String currentFridaCliPath() {
+        return fridaCliPath == null || fridaCliPath.getText() == null
+                ? "" : fridaCliPath.getText().toString().trim();
     }
 
     private static boolean isSafePendingLibraryExportName(String name) {
@@ -227,9 +232,14 @@ public final class FxDiaFridaActivity extends Activity {
         injectorPath.setSingleLine(true);
         injectorPath.setHint(DEFAULT_INJECTOR);
         injectorPath.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("injector_path", DEFAULT_INJECTOR));
-        card(body, "Frida 工具路径", "填写设备上已安装的可执行文件绝对路径，不会自动下载或替换二进制。",
+        fridaCliPath = new EditText(this);
+        fridaCliPath.setSingleLine(true);
+        fridaCliPath.setHint("/data/data/com.termux/files/usr/bin/frida");
+        fridaCliPath.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("frida_cli_path", ""));
+        card(body, "Frida 工具路径", "frida-server 与 frida-inject 用于本机服务/进程注入。Gadget 远程控制需单独安装可用的 frida CLI 与 Python 依赖；FX 不会把 frida-inject 误当成远程 CLI，也不会下载第三方执行环境。",
                 text("frida-server", 12, 0xff617080, true), serverPath,
-                text("frida-inject", 12, 0xff617080, true), injectorPath,
+                text("frida-inject（本机 PID 注入）", 12, 0xff617080, true), injectorPath,
+                text("frida CLI（Gadget 远程控制，可选）", 12, 0xff617080, true), fridaCliPath,
                 button("保存路径", () -> savePaths()),
                 button("从文件选择并导入 Frida Server", () -> pickBinary(7101)),
                 button("从文件选择并导入 Frida Inject", () -> pickBinary(7102)));
@@ -273,6 +283,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("生成并写入 Gadget 配置", () -> saveGadgetListenConfig()),
                 button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume()),
                 button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog()),
+                button("停止 Gadget 会话", () -> stopGadgetSession()),
                 button("复制 ADB 连接命令", () -> copyGadgetConnectCommand()));
         TextView gadgetNote = text(
                 "重要：目标应用必须实际加载这份 Frida Gadget 动态库。此功能只生成官方 Gadget 配置，不会修改或重打包第三方 APK，也不会声称已注入未加载 Gadget 的目标。",
@@ -420,6 +431,8 @@ public final class FxDiaFridaActivity extends Activity {
                 serverPath.getText().toString()));
         if (injectorPath != null) injectorPath.setText(state.getString("fx_frida_injector_path",
                 injectorPath.getText().toString()));
+        if (fridaCliPath != null) fridaCliPath.setText(state.getString("fx_frida_cli_path",
+                fridaCliPath.getText().toString()));
         if (gadgetPath != null) gadgetPath.setText(state.getString("fx_frida_gadget_path",
                 gadgetPath.getText().toString()));
         if (gadgetPort != null) gadgetPort.setText(state.getString("fx_frida_gadget_port",
@@ -473,6 +486,7 @@ public final class FxDiaFridaActivity extends Activity {
         }
         if (serverPath != null) outState.putString("fx_frida_server_path", serverPath.getText().toString());
         if (injectorPath != null) outState.putString("fx_frida_injector_path", injectorPath.getText().toString());
+        if (fridaCliPath != null) outState.putString("fx_frida_cli_path", fridaCliPath.getText().toString());
         if (gadgetPath != null) outState.putString("fx_frida_gadget_path", gadgetPath.getText().toString());
         if (gadgetPort != null) outState.putString("fx_frida_gadget_port", gadgetPort.getText().toString());
         if (script != null) {
@@ -1067,14 +1081,17 @@ public final class FxDiaFridaActivity extends Activity {
     private void savePaths() {
         String server = currentServerPath();
         String injector = currentInjectorPath();
-        if (!validPath(server) || !validPath(injector)) {
+        String cli = currentFridaCliPath();
+        if (!validPath(server) || !validPath(injector)
+                || (!cli.isEmpty() && !validPath(cli))) {
             setStatus("路径无效：必须是绝对路径，且不能包含空白字符或 ..。");
             return;
         }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putString("server_path", server)
-                .putString("injector_path", injector).apply();
-        setStatus("Frida 工具路径已保存。");
+                .putString("injector_path", injector)
+                .putString("frida_cli_path", cli).apply();
+        setStatus("Frida 工具路径已保存；远程 Gadget CLI " + (cli.isEmpty() ? "尚未配置。" : "已配置。"));
     }
 
     private String pathCommand(String value, String label) {
@@ -1085,12 +1102,17 @@ public final class FxDiaFridaActivity extends Activity {
     private void checkRuntime() {
         String server = currentServerPath();
         String injector = currentInjectorPath();
-        if (!validPath(server) || !validPath(injector)) {
-            setStatus("请先填写有效的 frida-server / frida-inject 路径。");
+        String cli = currentFridaCliPath();
+        if (!validPath(server) || !validPath(injector)
+                || (!cli.isEmpty() && !validPath(cli))) {
+            setStatus("请先填写有效的 frida-server / frida-inject 路径；可选 frida CLI 路径也必须有效。");
             return;
         }
         String command = pathCommand(server, "frida-server") + "; "
                 + pathCommand(injector, "frida-inject") + "; "
+                + (cli.isEmpty()
+                    ? "echo frida-cli=not-configured; "
+                    : pathCommand(cli, "frida-cli") + "; " + quote(cli) + " --version; ")
                 + "if [ -s " + quote(SERVER_PID) + " ]; then "
                 + "pid=$(sed -n '1p' " + quote(SERVER_PID) + "); expected=$(sed -n '2p' " + quote(SERVER_PID) + "); "
                 + "case $pid in ''|*[!0-9]*) echo server=stale-pid;; *) "
@@ -1736,22 +1758,19 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("目标应用已卸载或不可用，拒绝连接 Gadget。");
             return;
         }
-
-        String injector = currentInjectorPath();
-        if (!validPath(injector)) {
-            setStatus("frida-inject 路径无效，请先设置工具路径。");
+        String cli = currentFridaCliPath();
+        if (!validPath(cli)) {
+            setStatus("尚未配置 Frida CLI。请安装 frida-tools 及其 Python 依赖，再填写可执行的 frida 命令绝对路径；frida-inject 不能替代它。");
             return;
         }
         String source = script == null || script.getText() == null
                 ? "" : script.getText().toString();
         byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
-        if (source.trim().isEmpty() || sourceBytes.length > 48 * 1024
-                || source.indexOf(0) >= 0) {
+        if (source.trim().isEmpty() || sourceBytes.length > 48 * 1024 || source.indexOf(0) >= 0) {
             java.util.Arrays.fill(sourceBytes, (byte) 0);
             setStatus("Frida 脚本为空、包含 NUL 字符或超过 48 KiB。");
             return;
         }
-
         final int port;
         try {
             port = selectedGadgetPort();
@@ -1760,48 +1779,91 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus(invalid.getMessage());
             return;
         }
-        final String encoded = android.util.Base64.encodeToString(
-                sourceBytes, android.util.Base64.NO_WRAP);
+        final String encoded = android.util.Base64.encodeToString(sourceBytes, android.util.Base64.NO_WRAP);
         java.util.Arrays.fill(sourceBytes, (byte) 0);
 
         final String logPath = gadgetSessionLogPath(port);
+        final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
+        final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
+        final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
         String command = "set -eu; umask 077; "
-                + "injector=" + quote(injector) + "; pkg=" + quote(targetPackage) + "; "
-                + "log=" + quote(logPath) + "; port=" + port + "; "
-                + "test -x \"$injector\" && test ! -L \"$injector\"; "
-                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
-                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1}'); "
-                + "[ -n \"$pids\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
-                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \"$dir\"; "
-                + "test -d \"$dir\" && test ! -L \"$dir\"; chmod 700 \"$dir\"; "
-                + "[ ! -L \"$log\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
-                + ": >> \"$log\"; chmod 600 \"$log\"; "
-                + "tmp=$(mktemp \"$dir/.gadget-$port.XXXXXX\"); "
-                + "[ -n \"$tmp\" ] && [ -f \"$tmp\" ] && [ ! -L \"$tmp\" ]; "
-                + "cleanup_tmp() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; }; "
+                + "cli=" + quote(cli) + "; pkg=" + quote(targetPackage) + "; "
+                + "log=" + quote(logPath) + "; script=" + quote(scriptPath) + "; "
+                + "pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; port=" + port + "; "
+                + "test -x \\"$cli\\" && test ! -L \\"$cli\\"; "
+                + "cli_version=$(\\"$cli\\" --version 2>&1) || { echo FX_GADGET_CLI_UNAVAILABLE; exit 20; }; "
+                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\\"$pkg\\" "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \\":\\")==1) {print $1}'); "
+                + "[ -n \\"$pids\\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
+                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \\"$dir\\"; "
+                + "test -d \\"$dir\\" && test ! -L \\"$dir\\"; chmod 700 \\"$dir\\"; "
+                + "[ ! -L \\"$log\\" ] && [ ! -L \\"$pidfile\\" ] && [ ! -L \\"$pipe\\" ] && [ ! -L \\"$script\\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
+                + "if [ -s \\"$pidfile\\" ]; then old_cli=$(sed -n '1p' \\"$pidfile\\"); old_feed=$(sed -n '2p' \\"$pidfile\\"); old_path=$(sed -n '3p' \\"$pidfile\\"); "
+                + "case \\"$old_cli:$old_feed\\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "if kill -0 \\"$old_cli\\" 2>/dev/null; then "
+                + "old_cmd=$(tr '\\\\000' ' ' < /proc/\\"$old_cli\\"/cmdline 2>/dev/null || :); "
+                + "case \\"$old_cmd\\" in *\\"$old_path\\"*\\"127.0.0.1:$port\\"*Gadget*) echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
+                + "*) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;; esac; fi; "
+                + "if [ -n \\"$old_feed\\" ] && kill -0 \\"$old_feed\\" 2>/dev/null; then "
+                + "feed_cmd=$(tr '\\\\000' ' ' < /proc/\\"$old_feed\\"/cmdline 2>/dev/null || :); "
+                + "case \\"$feed_cmd\\" in *tail*'/dev/null'*) kill \\"$old_feed\\" 2>/dev/null || :;; "
+                + "*) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
+                + "rm -f \\"$pidfile\\"; fi; "
+                + "tmp=$(mktemp \\"$dir/.gadget-$port.XXXXXX\\"); "
+                + "[ -f \\"$tmp\\" ] && [ ! -L \\"$tmp\\" ]; "
+                + "cleanup_tmp() { [ -z \\"$tmp\\" ] || rm -f \\"$tmp\\"; }; "
                 + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; "
-                + "test -s \"$tmp\"; chmod 600 \"$tmp\"; "
-                + "printf '\\n[FX Dia Gadget] target=%s endpoint=127.0.0.1:%s attach-start %s\\n' "
-                + "\"$pkg\" \"$port\" \"$(date '+%F %T')\" >> \"$log\"; "
-                + "if \"$injector\" -H \"127.0.0.1:$port\" -n Gadget -s \"$tmp\" >> \"$log\" 2>&1; then "
-                + "echo FX_GADGET_ATTACHED_AND_WAIT_RELEASED; "
-                + "else rc=$?; printf '[FX Dia Gadget] attach-failed exit=%s\\n' \"$rc\" >> \"$log\"; exit \"$rc\"; fi";
-        runRoot(command, 90000L, result -> {
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \\"$tmp\\"; chmod 600 \\"$tmp\\"; "
+                + "mv -f \\"$tmp\\" \\"$script\\"; tmp=; chmod 600 \\"$script\\"; "
+                + ": >> \\"$log\\"; chmod 600 \\"$log\\"; rm -f \\"$pipe\\"; mkfifo -m 600 \\"$pipe\\"; "
+                + "\\"$cli\\" -H \\"127.0.0.1:$port\\" -n Gadget -l \\"$script\\" < \\"$pipe\\" >> \\"$log\\" 2>&1 & cli_pid=$!; "
+                + "tail -f /dev/null > \\"$pipe\\" 2>/dev/null < /dev/null & feed_pid=$!; "
+                + "printf '%s\\\\n%s\\\\n%s\\\\n%s\\\\n%s\\\\n' \\"$cli_pid\\" \\"$feed_pid\\" \\"$cli\\" \\"$pkg\\" \\"$port\\" > \\"$pidfile\\"; "
+                + "chmod 600 \\"$pidfile\\"; "
+                + "sleep 1; "
+                + "if ! kill -0 \\"$cli_pid\\" 2>/dev/null || ! kill -0 \\"$feed_pid\\" 2>/dev/null; then "
+                + "tail -n 40 \\"$log\\"; kill \\"$feed_pid\\" 2>/dev/null || :; rm -f \\"$pidfile\\" \\"$pipe\\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
+                + "printf 'FX_GADGET_SESSION_STARTED\\\\ncli_pid=%s\\\\nfeeder_pid=%s\\\\ncli_version=%s\\\\n' \\"$cli_pid\\" \\"$feed_pid\\" \\"$cli_version\\"";
+        runRoot(command, 20000L, result -> {
             if (result.exitCode == 0 && result.output != null
-                    && result.output.contains("FX_GADGET_ATTACHED_AND_WAIT_RELEASED")) {
-                setStatus("已通过 Frida Gadget Listen 接口附加目标进程；WAIT 目标已收到控制端 attach。"
-                        + "\n消息/console 输出已写入：" + logPath
-                        + "\n" + result.output);
-            } else if (result.output != null
-                    && result.output.contains("FX_GADGET_TARGET_NOT_RUNNING")) {
+                    && (result.output.contains("FX_GADGET_SESSION_STARTED")
+                        || result.output.contains("FX_GADGET_SESSION_ALREADY_RUNNING"))) {
+                setStatus("Frida CLI Gadget 会话已连接/正在运行。Gadget WAIT 将由远程 attach 释放；持续 send()/console 输出会记录到："
+                        + "\\n" + logPath + "\\n" + result.output);
+            } else if (result.output != null && result.output.contains("FX_GADGET_TARGET_NOT_RUNNING")) {
                 setStatus("目标应用当前没有运行进程；请先启动目标应用并确认 Gadget 已加载。");
+            } else if (result.output != null && result.output.contains("FX_GADGET_CLI_UNAVAILABLE")) {
+                setStatus("Frida CLI 不可执行或 Python 依赖不完整；请检查 frida-tools 安装及其 shebang 运行环境。\\n" + result.output);
             } else {
-                setStatus("Gadget 连接/脚本加载失败（退出码 " + result.exitCode + "）。"
-                        + "\n请确认目标应用已加载相同端口的 Gadget，且 frida-inject 与 Gadget 版本匹配。"
-                        + "\n日志：" + logPath + "\n" + result.output);
+                setStatus("Frida CLI Gadget 会话启动失败（退出码 " + result.exitCode + "）。\\n请确认 CLI 与 Gadget 版本匹配、目标已加载相同端口。\\n日志：" + logPath + "\\n" + result.output);
             }
         });
+    }
+
+    private void stopGadgetSession() {
+        final int port;
+        try {
+            port = selectedGadgetPort();
+        } catch (IllegalArgumentException invalid) {
+            setStatus(invalid.getMessage());
+            return;
+        }
+        final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
+        final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
+        String command = "set -eu; pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
+                + "[ ! -L \\"$pidfile\\" ] && [ ! -L \\"$pipe\\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
+                + "if [ ! -s \\"$pidfile\\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
+                + "cli_pid=$(sed -n '1p' \\"$pidfile\\"); feed_pid=$(sed -n '2p' \\"$pidfile\\"); cli=$(sed -n '3p' \\"$pidfile\\"); "
+                + "case \\"$cli_pid:$feed_pid\\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "if kill -0 \\"$cli_pid\\" 2>/dev/null; then "
+                + "cmd=$(tr '\\\\000' ' ' < /proc/\\"$cli_pid\\"/cmdline 2>/dev/null || :); "
+                + "case \\"$cmd\\" in *\\"$cli\\"*'127.0.0.1:" + port + "'*Gadget*) kill \\"$cli_pid\\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
+                + "if kill -0 \\"$feed_pid\\" 2>/dev/null; then "
+                + "feed_cmd=$(tr '\\\\000' ' ' < /proc/\\"$feed_pid\\"/cmdline 2>/dev/null || :); "
+                + "case \\"$feed_cmd\\" in *tail*'/dev/null'*) kill \\"$feed_pid\\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
+                + "rm -f \\"$pidfile\\"; [ ! -L \\"$pipe\\" ] && rm -f \\"$pipe\\"; echo FX_GADGET_SESSION_STOPPED";
+        runRoot(command, 12000L, result -> setStatus("Gadget 会话停止退出码 "
+                + result.exitCode + "\\n" + result.output));
     }
 
     private void showGadgetSessionLog() {
