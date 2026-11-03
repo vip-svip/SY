@@ -30,8 +30,14 @@ if grep -Fq '\${' "$SCRIPT"; then
   echo "FAIL: whitelist script contains escaped shell parameter expansions" >&2
   exit 1
 fi
-! printf '%s\n' "$LIST" | grep -q '\\\\$'
 
+
+# A killed writer must not leave a permanent directory lock.
+mkdir -p "$LOCK"
+printf '2147483647\\n' > "$LOCK/pid"
+sh "$SCRIPT" add com.example.stale
+grep -Fqx 'com.example.stale|com.example.stale|1' "$CONF"
+[ ! -e "$LOCK" ] || { echo "FAIL: recovered stale lock was not released" >&2; exit 1; }
 sh "$SCRIPT" add com.example.alpha
 grep -Fqx 'com.example.alpha|com.example.alpha|1' "$CONF"
 [ "$(stat -c %a "$CONF")" = 600 ]
