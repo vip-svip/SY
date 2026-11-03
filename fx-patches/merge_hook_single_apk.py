@@ -222,8 +222,12 @@ app = """<application
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
-        {"".join(retained_activities)}
+        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->
     </application>"""
+app = app.replace(
+    "        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->",
+    "\n".join(retained_activities)
+)
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
 
