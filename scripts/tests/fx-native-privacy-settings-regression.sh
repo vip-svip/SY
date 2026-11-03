@@ -45,12 +45,30 @@ for required in ("native-privacy-settings.json", "renderNativePrivacySettingsGro
     assert required in native_group + native_render, "native privacy category missing native path: "+required
 # Non-boolean text/list/choice controls are retained as a clearly isolated
 # compatibility path rather than silently disappearing during this migration.
-legacy_end=source.find("private void setNativePrivacySetting", edit_bridge)
+legacy_end=source.find("private void showNativeVpnAdvancedEditor", edit_bridge)
 legacy=source[edit_bridge:legacy_end]
-assert 'if (!"vpnPanel".equals(panelId)) return;' in legacy, "edit compatibility bridge must be scoped to VPN settings only"
-for required in ("webView.evaluateJavascript", "VPN_EDIT", "showNativeSettingsEditDialog"):
-    assert required in legacy, "advanced non-boolean edit control was dropped: "+required
-print("PASS: boolean privacy toggles use native config I/O; non-boolean editors remain available via isolated compatibility bridge")
+assert 'if (!"vpnPanel".equals(panelId)) return;' in legacy, "advanced VPN editor must be scoped to the VPN panel"
+assert "showNativeVpnAdvancedEditor()" in legacy, "VPN panel no longer exposes its advanced native editor"
+advanced_end=source.find("private void showNativeCertificateManager", legacy_end)
+advanced=source[legacy_end:advanced_end]
+for required in ("native-vpn-config.sh", "FXVPNCONF1", "showNativeVpnAdvancedItemDialog",
+                 "nativeVpnAdvancedLabel", "saveNativeVpnAdvancedValue"):
+    assert required in advanced, "native advanced VPN editor lost functionality: "+required
+item_start=source.find("private void showNativeVpnAdvancedItemDialog", advanced_end)
+choice_start=source.find("private void showNativeVpnAdvancedChoice", item_start)
+save_start=source.find("private void saveNativeVpnAdvancedValue", choice_start)
+assert item_start > advanced_end and choice_start > item_start and save_start > choice_start, \
+    "native VPN advanced edit/choice/save chain is incomplete"
+item_path=source[item_start:choice_start]
+choice_path=source[choice_start:save_start]
+save_path=source[save_start:source.find("\\n    private ", save_start+20)]
+assert "EditText" in item_path and "saveNativeVpnAdvancedValue" in item_path, \
+    "free-form advanced VPN values are no longer editable"
+assert "setSingleChoiceItems" in choice_path and "saveNativeVpnAdvancedValue" in choice_path, \
+    "enum advanced VPN values are no longer selectable"
+assert 'sh \\"$MP/scripts/native-vpn-config.sh\\" set' in save_path, \
+    "advanced VPN values must persist through the native validated config writer"
+print("PASS: boolean privacy toggles and non-boolean advanced VPN editors use native config I/O")
 PY
 HELPER="$MODULE/scripts/native-privacy-settings.sh"
 [ -s "$HELPER" ] || fail "module-side native privacy writer missing"
