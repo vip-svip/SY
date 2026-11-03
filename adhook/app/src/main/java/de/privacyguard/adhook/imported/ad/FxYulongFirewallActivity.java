@@ -73,9 +73,10 @@ public final class FxYulongFirewallActivity extends Activity {
                 });
             });
         } catch (RejectedExecutionException full) {
-            // RootAccess rejects an empty command before ProcessBuilder starts su;
-            // reuse that explicit failure result so existing callbacks restore UI state.
-            RootAccess.Result rejected = RootAccess.execute("");
+            // Queue saturation is a completed operation failure, not a fake
+            // command-validation attempt. Do not call the Root process at all.
+            RootAccess.Result rejected = RootAccess.failure(
+                    75, "后台任务繁忙，本次防火墙操作未执行。");
             runOnUiThread(() -> {
                 if (!destroyed && !isFinishing() && !isDestroyed()) {
                     status.setText("后台任务繁忙，本次防火墙操作未执行。");
