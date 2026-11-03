@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Patch the bundled AdGuard Home renderer to use FX-owned DNS upstream settings."""
+from pathlib import Path
+import sys
+
+if len(sys.argv) != 2:
+    raise SystemExit("usage: patch_yulong_dns_upstreams.py FX_MODULE_DIR")
+
+module = Path(sys.argv[1])
+target = module / "scripts" / "adguardhome.sh"
+if not target.is_file():
+    raise SystemExit(f"AdGuard Home lifecycle script is missing: {target}")
+
+source = target.read_text(encoding="utf-8")
+if "FX_YULONG_UPSTREAMS_BEGIN" in source:
+    print("Yulong DNS upstream renderer already patched")
+    raise SystemExit(0)
+
+old = """  upstream_dns:
+  - 127.0.0.1:5353
+"""
+new = r'''  upstream_dns:
+EOF_CFG
+  # FX_YULONG_UPSTREAMS_BEGIN
+  # Use custom DoH/DoT/DoQ/plain endpoints only after explicit opt-in.
+  # Default remains the device-local Unbound recursive resolver.
+  _settings="$PG/settings.conf"
+  _custom_enabled=$(awk -F= '$1=="custom_dns"{v=$2} END{print v}' "$_settings" 2>/dev/null)
+  _primary=$(awk -F'[[:space:]]+' '
+    $0=="[conf:custom_dns]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && $1=="nameserver" && NF>=2 {print $2}
+  ' "$_settings" 2>/dev/null)
+  if [ "$_custom_enabled" = "1" ] && [ -n "$_primary" ]; then
+    while IFS= read -r _server; do
+      [ -n "$_server" ] && printf '  - "%s"\n' "$_server"
+    done <<EOF_PRIMARY
+$_primary
+EOF_PRIMARY
+    _fallback=$(awk -F'[[:space:]]+' '
+      $0=="[conf:yulong_dns_fallback]" {inside=1; next}
+      /^\[/ {inside=0}
+      inside && $1=="nameserver" && NF>=2 {print $2}
+    ' "$_settings" 2>/dev/null)
+    if [ -n "$_fallback" ]; then
+      printf '  fallback_dns:\n'
+      while IFS= read -r _server; do
+        [ -n "$_server" ] && printf '  - "%s"\n' "$_server"
+      done <<EOF_FALLBACK
+$_fallback
+EOF_FALLBACK
+    else
+      printf '  fallback_dns: []\n'
+    fi
+    # Bootstrap only resolves encrypted upstream hostnames. It is never used
+    # as the normal DNS resolver and is emitted only for explicit custom DNS.
+    if printf '%s\n' "$_primary" | grep -Eq '^(https://|tls://|quic://)'; then
+      printf '  bootstrap_dns:\n  - 223.5.5.5\n  - 1.1.1.1\n'
+    fi
+  else
+    printf '  - 127.0.0.1:5353\n'
+    printf '  fallback_dns: []\n'
+  fi
+  # FX_YULONG_UPSTREAMS_END
+  cat <<EOF_CFG
+'''
+if source.count(old) != 1:
+    raise SystemExit(
+        "expected exactly one stock Unbound upstream block in adguardhome.sh; "
+        "refusing an ambiguous patch"
+    )
+
+target.write_text(source.replace(old, new, 1), encoding="utf-8")
+print("Patched AdGuard Home to read FX custom DoH/DoT/DoQ/plain and fallback DNS")
