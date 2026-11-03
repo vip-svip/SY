@@ -646,3 +646,9 @@ After each implementation batch:
 - The shared Yulong Ad transaction now restores the previous settings file if either the mutation function or the FX apply step fails, then reconciles the restored runtime configuration. This closes the partial-write rollback hole that would otherwise matter during a batch import.
 - Source changes remain committed to the unified branch. No APK/KernelSU package or test workflow was run in this batch, as requested.
 
+## Dia 23.11 — Android Framework DEX browser integration
+
+- The original `assets/android_framework.dex` is staged into the FX Hook APK build from the preserved source-intake artifact.
+- The native Dia DEX browser now indexes this standalone framework DEX as well as installed application APK/split DEX files. It uses the same bounded, read-only parser and displays framework classes, fields and methods without defining or executing inspected code.
+- The Framework DEX is shipped inside the single FX Hook APK under `assets/dia/android_framework.dex`; no second APK or external entry is introduced.
+- Both the Hook APK and paired KernelSU workflow stage the same source asset. Workflow dispatch remains manual-only during migration; no package was generated for this source change.

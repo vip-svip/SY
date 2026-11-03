@@ -3,6 +3,7 @@ name: Validate FX APP migration and build Hook APK
 on:
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -11,6 +12,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Stage original Dia Android Framework DEX asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/fx-dia-source-intake"
+          mkdir -p "$source_dir"
+          gh run download 41538478144 --repo vip-svip/SY --name fx-apk-source-intake --dir "$source_dir"
+          dex="$(find "$source_dir" -type f -path '*/Dia_23.11_src/assets/android_framework.dex' -print -quit)"
+          test -s "$dex"
+          install -D -m 0644 "$dex" adhook/app/src/main/assets/dia/android_framework.dex
+          echo "Staged original Dia Android Framework DEX into the single FX APK."
       - name: Restore module sources, merge Hook entrypoints, and stage WebUI (no compile)
         shell: bash
         env:

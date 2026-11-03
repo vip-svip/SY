@@ -82,7 +82,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
         results = new LinearLayout(this); results.setOrientation(LinearLayout.VERTICAL);
         card(body, "目标 APK", "只读解析 DEX class/method/field 索引；不加载目标类、不执行目标代码。",
                 target, button("选择已安装应用", this::chooseApp),
-                button("读取 DEX 类名", this::loadDex));
+                button("读取 DEX 类名", this::loadDex),
+                button("浏览 Dia 原版 Android Framework DEX", this::loadFrameworkDex));
         card(body, "搜索", "结果只显示类名、方法/字段签名和来源 APK，不读取目标应用私有数据库或进程内存。",
                 filter, summary, button("导出当前匹配的类/方法/字段签名", this::exportMatches));
         body.addView(results);
@@ -124,6 +125,37 @@ public final class FxDiaDexBrowserActivity extends Activity {
                     target.setText(labels[which]);
                     classes.clear(); render();
                 }).setNegativeButton("取消", null).show();
+    }
+
+    private void loadFrameworkDex() {
+        summary.setText("正在读取 Dia 23.11 随附的 Android Framework DEX…");
+        results.removeAllViews();
+        worker.execute(() -> {
+            final java.util.Map<String, FxDiaDexIndex.DexClass> found = new java.util.TreeMap<>();
+            String error = null;
+            try (java.io.InputStream input = getAssets().open("dia/android_framework.dex")) {
+                found.putAll(FxDiaDexIndex.readDex(input));
+            } catch (Throwable failure) {
+                error = failure.getClass().getSimpleName() + ": " + failure.getMessage();
+            }
+            final String err = error;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                selected = null;
+                target.setText("Dia 原版 Android Framework DEX");
+                classes.clear();
+                classes.addAll(found.values());
+                int methods = 0, fields = 0;
+                for (FxDiaDexIndex.DexClass c : classes) {
+                    methods += c.methods.size();
+                    fields += c.fields.size();
+                }
+                summary.setText("已读取 Framework DEX：" + classes.size()
+                        + " 个类 · " + methods + " 个方法 · " + fields + " 个字段"
+                        + (err == null ? "" : " · 解析错误：" + err));
+                render();
+            });
+        });
     }
 
     private void loadDex() {

@@ -101,6 +101,15 @@ public final class FxDiaDexIndex {
         typeCache = new String[typesSize];
     }
 
+    /** Parse one standalone DEX stream, such as Dia's bundled Android framework index. */
+    public static Map<String, DexClass> readDex(InputStream input) throws IOException {
+        byte[] bytes = readBounded(input, MAX_DEX_BYTES);
+        FxDiaDexIndex index = new FxDiaDexIndex(bytes);
+        LinkedHashMap<String, DexClass> classes = new LinkedHashMap<>();
+        index.appendClasses(classes);
+        return classes;
+    }
+
     public static Map<String, DexClass> readApks(List<String> apkPaths) throws IOException {
         LinkedHashMap<String, DexClass> all = new LinkedHashMap<>();
         if (apkPaths == null) return all;
