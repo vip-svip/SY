@@ -39,9 +39,13 @@ run pkg-set "$PKG" 0
 listing=$(run list)
 if printf '%s\n' "$listing" | grep -Fq "$PKG"; then fail "removing package must also remove its scopes and always-allow commands"; fi
 
+# Remove the populated state directory first; otherwise ln -s creates a link
+# inside that directory and the test never exercises the intended path.
+rm -rf "$TMP/stellar_guard"
 # Reject a symlinked state directory and a symlinked state file before touching targets.
 mkdir "$TMP/directory-target"
 ln -s "$TMP/directory-target" "$TMP/stellar_guard"
+test -L "$TMP/stellar_guard" || fail "could not create symlinked directory fixture"
 sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/stellar_guard|" "$SOURCE" > "$TMP/directory-link.sh"
 if sh "$TMP/directory-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar data directory was accepted"; fi
 test ! -e "$TMP/directory-target/command_whitelist.txt" || fail "directory symlink target was modified"
