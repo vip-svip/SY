@@ -39,7 +39,7 @@ install_receiver = next((node for node in receivers
                          if node.attrib.get(A + "name", "").endswith("FxYulongInstallScanReceiver")), None)
 assert install_receiver is not None, "Yulong install scan receiver is not registered"
 assert install_receiver.attrib.get(A + "exported") == "false", "Install scan receiver must not be externally callable"
-merge_source = (Path(__file__).resolve().parents[1] / "fx-patches/merge_hook_single_apk.py").read_text(encoding="utf-8")
+merge_source = merge_source_path.read_text(encoding="utf-8")
 assert "FxYulongInstallScanReceiver" in merge_source
 for kind in ("ACTIVITIES", "SERVICES", "RECEIVERS", "PROVIDERS"):
     marker = "FX_PRESERVED_MIGRATED_" + kind
