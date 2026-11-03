@@ -1805,8 +1805,10 @@ public final class FxDiaFridaActivity extends Activity {
                 + "cleanup_start() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; [ -z \"$pid_tmp\" ] || rm -f \"$pid_tmp\"; "
                 + "[ \"$lock_held\" != 1 ] || rmdir \"$start_lock\" 2>/dev/null || :; }; "
                 + "trap cleanup_start 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
-                + "if [ -s \"$pidfile\" ]; then old_cli=$(sed -n '1p' \"$pidfile\"); old_feed=$(sed -n '2p' \"$pidfile\"); old_path=$(sed -n '3p' \"$pidfile\"); "
+                + "if [ -s \"$pidfile\" ]; then old_cli=$(sed -n '1p' \"$pidfile\"); old_feed=$(sed -n '2p' \"$pidfile\"); old_path=$(sed -n '3p' \"$pidfile\"); old_pkg=$(sed -n '4p' \"$pidfile\"); old_port=$(sed -n '5p' \"$pidfile\"); "
                 + "case \"$old_cli:$old_feed\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "case \"$old_port\" in ''|*[!0-9]*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "[ \"$old_pkg\" = \"$pkg\" ] && [ \"$old_port\" = \"$port\" ] && [ \"$old_path\" = \"$script\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
                 + "if kill -0 \"$old_cli\" 2>/dev/null; then "
                 + "old_cmd=$(tr '\\000' ' ' < /proc/\"$old_cli\"/cmdline 2>/dev/null || :); "
                 + "case \"$old_cmd\" in *\"$old_path\"*\"127.0.0.1:$port\"*Gadget*) echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
@@ -1850,6 +1852,10 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void stopGadgetSession() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择创建该 Gadget 会话时使用的目标应用；不会停止其他目标的 Frida 会话。");
+            return;
+        }
         final int port;
         try {
             port = selectedGadgetPort();
@@ -1857,22 +1863,28 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus(invalid.getMessage());
             return;
         }
+        final String expectedPackage = targetPackage;
         final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
         final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
+        final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
         String command = "set -eu; pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
-                + "[ ! -L \\"$pidfile\\" ] && [ ! -L \\"$pipe\\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
-                + "if [ ! -s \\"$pidfile\\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
-                + "cli_pid=$(sed -n '1p' \\"$pidfile\\"); feed_pid=$(sed -n '2p' \\"$pidfile\\"); cli=$(sed -n '3p' \\"$pidfile\\"); "
-                + "case \\"$cli_pid:$feed_pid\\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
-                + "if kill -0 \\"$cli_pid\\" 2>/dev/null; then "
-                + "cmd=$(tr '\\\\000' ' ' < /proc/\\"$cli_pid\\"/cmdline 2>/dev/null || :); "
-                + "case \\"$cmd\\" in *\\"$cli\\"*'127.0.0.1:" + port + "'*Gadget*) kill \\"$cli_pid\\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
-                + "if kill -0 \\"$feed_pid\\" 2>/dev/null; then "
-                + "feed_cmd=$(tr '\\\\000' ' ' < /proc/\\"$feed_pid\\"/cmdline 2>/dev/null || :); "
+                + "script=" + quote(scriptPath) + "; expected_pkg=" + quote(expectedPackage) + "; port=" + port + "; "
+                + "[ ! -L \"$pidfile\" ] && [ ! -L \"$pipe\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
+                + "if [ ! -s \"$pidfile\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
+                + "cli_pid=$(sed -n '1p' \"$pidfile\"); feed_pid=$(sed -n '2p' \"$pidfile\"); cli=$(sed -n '3p' \"$pidfile\"); "
+                + "stored_pkg=$(sed -n '4p' \"$pidfile\"); stored_port=$(sed -n '5p' \"$pidfile\"); "
+                + "case \"$cli_pid:$feed_pid\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "case \"$stored_port\" in ''|*[!0-9]*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "[ \"$stored_pkg\" = \"$expected_pkg\" ] && [ \"$stored_port\" = \"$port\" ] && [ \"$cli\" = \"$script\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
+                + "if kill -0 \"$cli_pid\" 2>/dev/null; then "
+                + "cmd=$(tr '\\000' ' ' < /proc/\"$cli_pid\"/cmdline 2>/dev/null || :); "
+                + "case \"$cmd\" in *\"$cli\"*\"$script\"*'127.0.0.1:" + port + "'*Gadget*) kill \"$cli_pid\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
+                + "if kill -0 \"$feed_pid\" 2>/dev/null; then "
+                + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$feed_pid\"/cmdline 2>/dev/null || :); "
                 + "case \"$feed_cmd\" in *\"fx-gadget-feed-" + port + "\"*\"$pipe\"*) kill \"$feed_pid\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
-                + "sleep 1; rm -f \\"$pidfile\\"; [ ! -L \\"$pipe\\" ] && rm -f \\"$pipe\\"; echo FX_GADGET_SESSION_STOPPED";
+                + "sleep 1; rm -f \"$pidfile\"; [ ! -L \"$pipe\" ] && rm -f \"$pipe\"; echo FX_GADGET_SESSION_STOPPED";
         runRoot(command, 12000L, result -> setStatus("Gadget 会话停止退出码 "
-                + result.exitCode + "\\n" + result.output));
+                + result.exitCode + "\n" + result.output));
     }
 
     private void showGadgetSessionLog() {
