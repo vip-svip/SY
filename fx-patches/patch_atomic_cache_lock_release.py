@@ -139,6 +139,23 @@ wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" 
     "subscription concurrency test must explain worker failure",
 )
 
+# Record each mock network call separately from the deliberately unsynchronized
+# counter. If the counter says one but the event log has two overlapping starts,
+# the cache lock failed to serialize curl; if it has one start, force/cache mode
+# skipped the second download.
+replace_once(
+    sub_test,
+    'countfile="$TEST_ROOT/count"\n',
+    'countfile="$TEST_ROOT/count"\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\n" "$(date +%s)" "$" >> "$events"\n',
+    "subscription mock must record each curl start",
+)
+replace_once(
+    sub_test,
+    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\n',
+    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\n" "$(date +%s)" "$" >> "$events"\n',
+    "subscription mock must record each curl completion",
+)
+
 # The legacy test uses set -e with bare assertions. When one metadata/lock
 # invariant fails it previously exited with an empty log, so add precise failure
 # output while keeping the same assertions and exit behavior.
@@ -163,7 +180,7 @@ replace_once(
 replace_once(
     sub_test,
     '[ "$(cat "$T/state/count")" -eq 2 ]\n',
-    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
+    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
     "subscription concurrency test must explain lost or overlapping requests",
 )
 replace_once(
