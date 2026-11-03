@@ -39,6 +39,9 @@ if 'tmp=\\"$dst.fx-import.tmp\\"' in source:
 print("PASS: Frida binary import source uses unique private staging and random Root temp files")
 PY
 
+# Leave shell tracing enabled for the local mock section so a failed wait,
+# rename, or stale-lock recovery is diagnosable from CI rather than silent under -e.
+set -x
 T=$(mktemp -d "/tmp/fx-dia-frida-binary.XXXXXX")
 cleanup(){ rm -rf "$T"; }
 trap cleanup EXIT HUP INT TERM
