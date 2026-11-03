@@ -48,6 +48,9 @@ public final class FxYulongAdActivity extends Activity {
   card("DNS 设置","管理本地 AdGuard Home、DNS 转发与 QUIC/DoT 策略。",btn("DNS 设置",()->open("DNS 设置")));
   card("域名白/黑名单","白名单优先放行；黑名单只阻断明确域名。",btn("域名名单",()->open("域名名单")));
   card("应用网络拦截","与 VPN 路由分离的 IPv4/IPv6 OUTPUT 阻断。",btn("按应用管理",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));
+  card("Tasker 与自动化","发送广播 action：de.privacyguard.adhook.AD_FILTER_ENABLE / AD_FILTER_DISABLE。接收 action：de.privacyguard.adhook.AD_FILTER_RESULT。",
+    btn("复制启用 Action",()->copyAutomationAction("de.privacyguard.adhook.AD_FILTER_ENABLE")),
+    btn("复制停用 Action",()->copyAutomationAction("de.privacyguard.adhook.AD_FILTER_DISABLE")));
 }
  private void renderRules(){EditText url=new EditText(this);url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=new EditText(this);name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=new EditText(this);search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){card("DNS 后端","更改后重新应用 FX DNS 配置。",
@@ -73,7 +76,11 @@ public final class FxYulongAdActivity extends Activity {
   }if("过滤列表".equals(page)&&entries!=null){entries.removeAllViews();String f=search==null||search.getText()==null?"":search.getText().toString().trim().toLowerCase(Locale.ROOT);for(Row e:rows("RULE")){if(!f.isEmpty()&&!(e.value+" "+e.title).toLowerCase(Locale.ROOT).contains(f))continue;LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt(e.title,13,0xff17212b,true));r.addView(txt(e.value,10,0xff718091,false));Switch sw=new Switch(this);sw.setText("启用此列表");sw.setChecked(e.enabled);sw.setOnCheckedChangeListener((b,on)->apply("rule-set "+q(e.value)+" "+(on?"1":"0"),"规则状态"));r.addView(sw);r.addView(btn("删除",()->new AlertDialog.Builder(this).setTitle("删除过滤列表").setMessage(e.value).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->apply("rule-remove "+q(e.value),"规则删除")).show()));entries.addView(r);}}
  else if("DNS 设置".equals(page)){syncing=true;for(int i=0;i<body.getChildCount();i++)if(body.getChildAt(i) instanceof LinearLayout){LinearLayout p=(LinearLayout)body.getChildAt(i);for(int j=0;j<p.getChildCount();j++)if(p.getChildAt(j) instanceof Switch){Switch sw=(Switch)p.getChildAt(j);if(sw.getTag() instanceof String){sw.setChecked(dnsValue((String)sw.getTag()).equals("1"));sw.setEnabled(true);}}}syncing=false;}
  else if("域名名单".equals(page)&&entries!=null){entries.removeAllViews();for(Row e:rows("ALLOW"))domainRow(e,true);for(Row e:rows("BLOCK"))domainRow(e,false);if(entries.getChildCount()==0)entries.addView(txt("暂无用户自定义域名名单。",12,0xff718091,false));}}
- private boolean adMaster(){
+ private void copyAutomationAction(String value){
+  android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+  if(clipboard!=null){clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Tasker action",value));Toast.makeText(this,"广播 Action 已复制。",Toast.LENGTH_SHORT).show();}
+}
+private boolean adMaster(){
   for(String line:snapshot.split("\\r?\\n")){
    String[] p=line.split("\\\\|",-1);
    if(p.length==2&&p[0].equals("AD_MASTER"))return p[1].equals("1");
