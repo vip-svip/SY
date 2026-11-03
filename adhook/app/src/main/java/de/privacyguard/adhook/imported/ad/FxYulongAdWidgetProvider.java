@@ -51,10 +51,56 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
                 }
             }
         }
-        updateViews(context, enabled, valid);
+        String dailyCount = readTodayBlockedSamples();
+        updateViews(context, enabled, valid, dailyCount);
+    }
+
+    private static String readTodayBlockedSamples() {
+        RootAccess.Result logs = RootAccess.execute(shell("dns-log-tail"), 30000L, 512 * 1024);
+        if (logs.exitCode != 0 || logs.output == null) return "今日拦截：日志读取失败";
+        String raw = logs.output;
+        if (raw.contains("FXDNSLOG_DISABLED")) return "今日拦截：查询日志未启用";
+        if (raw.contains("FXDNSLOG_EMPTY")) return "今日拦截：暂无日志样本";
+        long dayStart = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
+                .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long now = System.currentTimeMillis();
+        int today = 0, blocked = 0, unknown = 0;
+        for (String line : raw.split("\\r?\\n")) {
+            String value = line.trim();
+            if (!value.startsWith("{")) continue;
+            try {
+                org.json.JSONObject item = new org.json.JSONObject(value);
+                org.json.JSONObject result = item.optJSONObject("Result");
+                boolean filtered = item.optBoolean("IsFiltered", false)
+                        || (result != null && result.optBoolean("IsFiltered", false));
+                String reason = result == null ? item.optString("reason", "")
+                        : result.optString("Reason", item.optString("reason", ""));
+                String logStatus = item.optString("status", "").toLowerCase(java.util.Locale.ROOT);
+                if (logStatus.contains("block") || logStatus.contains("filter")
+                        || reason.toLowerCase(java.util.Locale.ROOT).startsWith("filtered")) filtered = true;
+                String timestamp = item.optString("T", item.optString("time", ""));
+                long time = -1L;
+                try { time = java.time.Instant.parse(timestamp).toEpochMilli(); } catch (Throwable ignored) { }
+                if (time < 0) {
+                    try { time = java.time.ZonedDateTime.parse(timestamp).toInstant().toEpochMilli(); }
+                    catch (Throwable ignored) { }
+                }
+                if (time < 0) unknown++;
+                else if (time >= dayStart && time <= now) {
+                    today++;
+                    if (filtered) blocked++;
+                }
+            } catch (Throwable ignored) { }
+        }
+        if (today == 0 && unknown > 0) return "今日拦截：日志时间无法解析";
+        return "今日日志样本拦截：" + blocked + " / " + today + " 条";
     }
 
     private static void updateViews(Context context, boolean enabled, boolean valid) {
+        updateViews(context, enabled, valid, "今日拦截：状态未知");
+    }
+
+    private static void updateViews(Context context, boolean enabled, boolean valid, String dailyCount) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         ComponentName provider = new ComponentName(context, FxYulongAdWidgetProvider.class);
         int[] ids = manager.getAppWidgetIds(provider);
@@ -62,6 +108,7 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.fx_yulong_ad_widget);
         views.setTextViewText(R.id.fx_yulong_widget_status,
                 !valid ? "Root 状态不可用" : (enabled ? "广告过滤已开启" : "广告过滤已关闭"));
+        views.setTextViewText(R.id.fx_yulong_widget_count, dailyCount);
         views.setTextViewText(R.id.fx_yulong_widget_toggle,
                 !valid ? "刷新状态" : (enabled ? "关闭过滤" : "开启过滤"));
         views.setViewVisibility(R.id.fx_yulong_widget_status,
