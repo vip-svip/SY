@@ -29,7 +29,7 @@ require("pm.getInstalledApplications(0)", "installed applications are not loaded
 require("pm.getApplicationLabel(info)", "application labels are not resolved")
 require("apps.addAll(loaded);", "loaded applications are not committed on the UI thread")
 require("master.setEnabled(false);", "firewall master switch must remain disabled while config/app inventory is unavailable")
-require("int limit = Math.max(1, appPage) * APP_PAGE_SIZE;", "app rows are not bounded by the selected page")
+require("limit = Math.max(1, appPage) * APP_PAGE_SIZE", "app rows are not bounded by the selected page")
 require("if (matched > limit)", "overflow rows do not expose a load-more action")
 require("appPage = 1;", "search changes must reset pagination")
 require("appWorker.shutdownNow();", "background app worker is not released on Activity destruction")
