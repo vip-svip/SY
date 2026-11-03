@@ -24,18 +24,6 @@ for required in (apply_file, subfetch_file, host_test, sub_test):
 
 # A waiter can race the old owner's rm-pid/rmdir-lock sequence. In that window
 # cat lock/pid fails and set -e terminates the waiting worker.
-replace_once(
-    apply_file,
-    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-    "Hosts lock owner read must tolerate atomic release",
-)
-replace_once(
-    apply_file,
-    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-    "Hosts stale-owner recheck must tolerate concurrent release",
-)
 old_hf_unlock = '''  _hf_unlock() {
     [ "$_hf_lock_held" = 1 ] || return 0
     _hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)
@@ -65,22 +53,16 @@ new_hf_unlock = '''  _hf_unlock() {
 replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
 
 replace_once(
-    subfetch_file,
-    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
-    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
-    "subscription lock owner read must tolerate atomic release",
+    apply_file,
+    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
+    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
+    "Hosts lock owner read must tolerate atomic release",
 )
 replace_once(
-    subfetch_file,
-    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null)\n',
-    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
-    "subscription stale-owner recheck must tolerate concurrent release",
-)
-replace_once(
-    subfetch_file,
-    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null)\n',
-    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null || :)\n',
-    "subscription quarantined-owner read must tolerate concurrent release",
+    apply_file,
+    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
+    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
+    "Hosts stale-owner recheck must tolerate concurrent release",
 )
 old_sub_unlock = '''subfetch_unlock() {
   [ "$LOCK_HELD" = 1 ] || return 0
@@ -109,6 +91,24 @@ new_sub_unlock = '''subfetch_unlock() {
 }'''
 replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
 
+replace_once(
+    subfetch_file,
+    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
+    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
+    "subscription lock owner read must tolerate atomic release",
+)
+replace_once(
+    subfetch_file,
+    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null)\n',
+    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
+    "subscription stale-owner recheck must tolerate concurrent release",
+)
+replace_once(
+    subfetch_file,
+    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null)\n',
+    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null || :)\n',
+    "subscription quarantined-owner read must tolerate concurrent release",
+)
 # Keep the CI failure actionable: an errexit-triggered worker must identify which
 # concurrent request exited, rather than leaving only an empty test log.
 replace_once(
