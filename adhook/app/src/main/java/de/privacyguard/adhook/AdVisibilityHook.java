@@ -160,6 +160,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean wifiScanHooksInstalled;
     private volatile boolean wifiInfoSimulationHooksInstalled;
     private volatile boolean networkTypeSimulationHooksInstalled;
+    private volatile boolean locationSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
@@ -274,6 +275,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
         final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
         final boolean networkTypeSimulationForPackage = target != null && target.networkTypeSimulation && debuggableTarget;
+        final boolean locationSimulationForPackage = target != null && target.locationSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
@@ -282,7 +284,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerObserveForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
@@ -295,6 +297,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
         if (wifiSimulationForPackage) installWifiInfoSimulationHooks(pkg);
         if (networkTypeSimulationForPackage) installNetworkTypeSimulationHooks(pkg);
+        if (locationSimulationForPackage) installLocationSimulationHooks(pkg);
         if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
         if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
         if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
@@ -1020,6 +1023,64 @@ public final class AdVisibilityHook extends XposedModule {
      */
     /** Per-app fake SSID/BSSID for explicitly selected debuggable test builds only. */
     /** Report Wi-Fi or cellular transport only to the selected debuggable test app. */
+    /**
+     * Per-app debug location fixture. It changes only LocationManager.getLastKnownLocation()
+     * results in an explicitly selected debuggable target process. It does not alter the
+     * device provider, GNSS, system mock-location setting, fused-provider callbacks or routes.
+     */
+    private synchronized boolean installLocationSimulationHooks(final String pkg) {
+        if (locationSimulationHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.location.LocationManager", false, null);
+            for (final Method method : type.getDeclaredMethods()) {
+                if (!"getLastKnownLocation".equals(method.getName())
+                        || method.getReturnType() != android.location.Location.class
+                        || method.getParameterTypes().length != 1
+                        || method.getParameterTypes()[0] != String.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object original = chain.proceed();
+                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                if (active == null || !debuggablePackages.contains(currentPackage)
+                                        || !active.locationSimulation) return original;
+                                String provider = "gps";
+                                try {
+                                    Object value = chain.getArgs().get(0);
+                                    if (value instanceof String && !((String) value).isEmpty())
+                                        provider = (String) value;
+                                } catch (Throwable ignored) { }
+                                android.location.Location simulated;
+                                if (original instanceof android.location.Location) {
+                                    simulated = new android.location.Location((android.location.Location) original);
+                                } else {
+                                    simulated = new android.location.Location(provider);
+                                }
+                                simulated.setLatitude(active.simulatedLatitude);
+                                simulated.setLongitude(active.simulatedLongitude);
+                                simulated.setAccuracy(active.simulatedAccuracy);
+                                simulated.setTime(System.currentTimeMillis());
+                                if (android.os.Build.VERSION.SDK_INT >= 17) {
+                                    simulated.setElapsedRealtimeNanos(android.os.SystemClock.elapsedRealtimeNanos());
+                                }
+                                return simulated;
+                            });
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "LocationManager simulation unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "LocationManager unavailable; debug GPS simulation remains inactive");
+            return false;
+        }
+        locationSimulationHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "debug-only last-known-location simulation hooks installed=" + installed + " for " + pkg);
+        return locationSimulationHooksInstalled;
+    }
+
     private synchronized boolean installNetworkTypeSimulationHooks(final String pkg) {
         if (networkTypeSimulationHooksInstalled) return true;
         int installed = 0;

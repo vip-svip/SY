@@ -48,6 +48,10 @@ public final class UnifiedHookConfigParser {
         public String simulatedWifiBssid;
         public boolean networkTypeSimulation;
         public String simulatedNetworkType;
+        public boolean locationSimulation;
+        public double simulatedLatitude;
+        public double simulatedLongitude;
+        public float simulatedAccuracy = 5f;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -279,6 +283,9 @@ public final class UnifiedHookConfigParser {
             String simulatedWifiSsid=null, simulatedWifiBssid=null;
             boolean networkTypeSimulation=false;
             String simulatedNetworkType=null;
+            boolean locationSimulation=false;
+            Double simulatedLatitude=null, simulatedLongitude=null;
+            float simulatedAccuracy=5f;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
@@ -305,6 +312,30 @@ public final class UnifiedHookConfigParser {
                     if (!"wifi".equals(value) && !"cellular".equals(value))
                         throw new IllegalArgumentException("network_type must be wifi or cellular");
                     simulatedNetworkType=value;
+                    continue;
+                }
+                if ("location_lat".equals(key)) {
+                    try { simulatedLatitude = Double.valueOf(value); }
+                    catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated latitude"); }
+                    if (simulatedLatitude.isNaN() || simulatedLatitude.isInfinite()
+                            || simulatedLatitude < -90d || simulatedLatitude > 90d)
+                        throw new IllegalArgumentException("simulated latitude out of range");
+                    continue;
+                }
+                if ("location_lon".equals(key)) {
+                    try { simulatedLongitude = Double.valueOf(value); }
+                    catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated longitude"); }
+                    if (simulatedLongitude.isNaN() || simulatedLongitude.isInfinite()
+                            || simulatedLongitude < -180d || simulatedLongitude > 180d)
+                        throw new IllegalArgumentException("simulated longitude out of range");
+                    continue;
+                }
+                if ("location_accuracy".equals(key)) {
+                    try { simulatedAccuracy = Float.parseFloat(value); }
+                    catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated accuracy"); }
+                    if (Float.isNaN(simulatedAccuracy) || Float.isInfinite(simulatedAccuracy)
+                            || simulatedAccuracy < 0f || simulatedAccuracy > 1000f)
+                        throw new IllegalArgumentException("simulated accuracy out of range");
                     continue;
                 }
                 if ("dev_hook_enabled".equals(key)) {
@@ -349,6 +380,7 @@ public final class UnifiedHookConfigParser {
                     case "wifi_scan_block": wifiScanBlock = on; break;
                     case "wifi_simulate": wifiSimulation = on; break;
                     case "network_type_simulate": networkTypeSimulation = on; break;
+                    case "location_simulate": locationSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
@@ -380,6 +412,16 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("network_type requires network_type_simulate=1");
             parsedTarget.networkTypeSimulation = networkTypeSimulation;
             parsedTarget.simulatedNetworkType = simulatedNetworkType;
+            if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
+                throw new IllegalArgumentException("location simulation requires latitude and longitude");
+            if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null))
+                throw new IllegalArgumentException("location coordinates require location_simulate=1");
+            if (locationSimulation && locationAccessBlock)
+                throw new IllegalArgumentException("location simulation conflicts with location access blocking");
+            parsedTarget.locationSimulation = locationSimulation;
+            if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
+            if (simulatedLongitude != null) parsedTarget.simulatedLongitude = simulatedLongitude;
+            parsedTarget.simulatedAccuracy = simulatedAccuracy;
             targets.put(pkg, parsedTarget);
         }
 

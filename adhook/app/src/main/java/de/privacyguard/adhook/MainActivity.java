@@ -2746,7 +2746,7 @@ public final class MainActivity extends ComponentActivity {
                     showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
                     return;
                 case "位置与 GPS":
-                    showNativeSettingsGroup("locationPanel", "Dia · 位置与 GPS");
+                    showAppList("位置隐私");
                     return;
                 case "时间与时区":
                     showNativeSettingsGroup("miscPanel", "Dia · 时间与时区");
@@ -4374,6 +4374,79 @@ public final class MainActivity extends ComponentActivity {
         content.addView(simulateNetworkType);
         content.addView(saveNetworkType);
         section("位置隐私");
+        TextView gpsNote = new TextView(this);
+        gpsNote.setText("GPS 测试模拟只覆盖此 debuggable 目标进程的 LocationManager.getLastKnownLocation()；不改变真实 GPS、GNSS、系统定位或 Fused Location 持续回调。");
+        gpsNote.setTextColor(0xff697681);
+        gpsNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(gpsNote);
+        EditText gpsLatitude = new EditText(this);
+        gpsLatitude.setSingleLine(true);
+        gpsLatitude.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        gpsLatitude.setHint("纬度 -90 至 90");
+        gpsLatitude.setText(getPreferences(0).getString(selectedPackage + ":location_lat", ""));
+        EditText gpsLongitude = new EditText(this);
+        gpsLongitude.setSingleLine(true);
+        gpsLongitude.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        gpsLongitude.setHint("经度 -180 至 180");
+        gpsLongitude.setText(getPreferences(0).getString(selectedPackage + ":location_lon", ""));
+        EditText gpsAccuracy = new EditText(this);
+        gpsAccuracy.setSingleLine(true);
+        gpsAccuracy.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        gpsAccuracy.setHint("精度（米，0 至 1000）");
+        gpsAccuracy.setText(getPreferences(0).getString(selectedPackage + ":location_accuracy", "5"));
+        Switch simulateLocation = new Switch(this);
+        simulateLocation.setText("启用此应用的 GPS 测试位置");
+        simulateLocation.setChecked(getPreferences(0).getBoolean(selectedPackage + ":location_simulate", false));
+        simulateLocation.setEnabled(targetDebuggable);
+        gpsLatitude.setEnabled(targetDebuggable);
+        gpsLongitude.setEnabled(targetDebuggable);
+        gpsAccuracy.setEnabled(targetDebuggable);
+        Button saveLocation = new Button(this);
+        saveLocation.setAllCaps(false);
+        saveLocation.setText("保存并发布 GPS 测试位置");
+        saveLocation.setEnabled(targetDebuggable);
+        saveLocation.setOnClickListener(v -> {
+            boolean enabled = simulateLocation.isChecked();
+            String latitudeText = gpsLatitude.getText().toString().trim();
+            String longitudeText = gpsLongitude.getText().toString().trim();
+            String accuracyText = gpsAccuracy.getText().toString().trim();
+            try {
+                if (!enabled) {
+                    getPreferences(0).edit().putBoolean(selectedPackage + ":location_simulate", false).apply();
+                    publishConfig();
+                    return;
+                }
+                double lat = Double.parseDouble(latitudeText);
+                double lon = Double.parseDouble(longitudeText);
+                float accuracy = Float.parseFloat(accuracyText.isEmpty() ? "5" : accuracyText);
+                if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90d || lat > 90d
+                        || Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180d || lon > 180d
+                        || Float.isNaN(accuracy) || Float.isInfinite(accuracy) || accuracy < 0f || accuracy > 1000f) {
+                    throw new IllegalArgumentException("坐标或精度超出范围。");
+                }
+                getPreferences(0).edit()
+                        .putBoolean(selectedPackage + ":location_simulate", true)
+                        .putString(selectedPackage + ":location_lat", Double.toString(lat))
+                        .putString(selectedPackage + ":location_lon", Double.toString(lon))
+                        .putString(selectedPackage + ":location_accuracy", Float.toString(accuracy))
+                        .apply();
+                publishConfig();
+            } catch (Exception invalid) {
+                new AlertDialog.Builder(this).setTitle("GPS 参数无效")
+                        .setMessage(invalid.getMessage() == null ? "请输入有效经纬度和精度。" : invalid.getMessage())
+                        .setPositiveButton("知道了", null).show();
+            }
+        });
+        content.addView(gpsLatitude);
+        content.addView(gpsLongitude);
+        content.addView(gpsAccuracy);
+        content.addView(simulateLocation);
+        content.addView(saveLocation);
         toggle("限制位置访问", "location_access_block", false);
         section("设备访问");
         toggle("限制摄像头访问", "camera_access_block", false);
@@ -4751,7 +4824,7 @@ public final class MainActivity extends ComponentActivity {
                 String[] keys={"member_diag","privacy","exif_strip",
                     "clipboard_read_block","clipboard_isolate","wifi_scan_block","notification_listen_block",
                     "notification_permission_hide","ad_id_unify","mic_silence","camera_access_block","location_access_block",
-                    "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
+                    "location_simulate","mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
                     "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
                 StringBuilder row=new StringBuilder(p);
                 boolean has=false;
@@ -4768,6 +4841,17 @@ public final class MainActivity extends ComponentActivity {
                         if(k.equals("notification_permission_hide")) anyNotifPerm=true;
                         if(k.equals("clipboard_isolate")) anyClipboardIso=true;
                     }
+                }
+                if (enabled(p, "location_simulate")) {
+                    String lat = getPreferences(0).getString(p + ":location_lat", "");
+                    String lon = getPreferences(0).getString(p + ":location_lon", "");
+                    String accuracy = getPreferences(0).getString(p + ":location_accuracy", "5");
+                    if (lat.isEmpty() || lon.isEmpty())
+                        throw new IllegalStateException("GPS 模拟必须同时填写纬度和经度：" + p);
+                    row.append(",location_lat=").append(lat)
+                            .append(",location_lon=").append(lon)
+                            .append(",location_accuracy=").append(accuracy);
+                    has = true;
                 }
                 StringBuilder legacyManaged = new StringBuilder(p);
                 for (String[] mapping : legacyDuplicateKeys) {
