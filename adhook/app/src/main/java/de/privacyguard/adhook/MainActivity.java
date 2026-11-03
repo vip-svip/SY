@@ -2683,7 +2683,7 @@ public final class MainActivity extends ComponentActivity {
                 case "安装证书": case "验证证书": case "过滤 HTTP/3 (QUIC)":
                     showNativeCertificateManager();
                     return;
-                case "DNS 查询日志":
+                case "DNS 日志": case "DNS 查询日志":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
                     return;
