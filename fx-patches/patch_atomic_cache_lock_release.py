@@ -423,7 +423,15 @@ done"""
 new_root_proxy_engine_stub = """for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
 #!/system/bin/sh
-case "$1" in stop) /bin/sleep 0.04 ;; esac
+case "$1" in
+  stop)
+    if ! (umask 077; set -C; printf '%s\\n' "$" > "$TMP/engine.lock") 2>/dev/null; then
+      printf 'overlap|%s\\n' "$" >> "$TMP/engine-overlap"
+    fi
+    /bin/sleep 0.04
+    rm -f "$TMP/engine.lock"
+    ;;
+esac
 exit 0
 SH
   chmod 0755 "$MOD/scripts/$script"
@@ -450,33 +458,53 @@ SH
 """
 replace_once(
     root_proxy_test,
+    'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\n',
+    'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\n',
+    "Root Proxy test exports private temp path",
+)
+replace_once(
+    root_proxy_test,
     old_root_proxy_sleep_stub,
     new_root_proxy_sleep_stub,
     "Root Proxy waiter sleep must be bounded but observable",
 )
 
 root_proxy_test_done_marker = 'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\n'
-root_proxy_test_done = '''grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
-  echo "FAIL: Root Proxy unlock does not atomically rename its owner directory" >&2; exit 1;
+root_proxy_test_done = '''grep -Fq '( umask 077; set -C; printf ' "$SOURCE" || {
+  echo "FAIL: Root Proxy lock does not use private noclobber file creation" >&2; exit 1;
 }
-if grep -Fq 'rm -f "$LOCK/pid" 2>/dev/null || :' "$SOURCE"; then
-  echo "FAIL: Root Proxy unlock still removes PID before the lock directory" >&2; exit 1;
+grep -Fq '_read_lock_owner() {' "$SOURCE" || {
+  echo "FAIL: Root Proxy owner validation is missing" >&2; exit 1;
+}
+grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
+  echo "FAIL: Root Proxy release does not atomically rename the lock file" >&2; exit 1;
+}
+if grep -Fq 'while ! mkdir "$LOCK"' "$SOURCE" || grep -Fq 'rm -f "$LOCK/pid"' "$SOURCE" || grep -Fq 'rmdir "$LOCK"' "$SOURCE"; then
+  echo "FAIL: legacy PID-directory Root Proxy lock remains" >&2; exit 1;
 fi
-if grep -Fq 'rmdir "$LOCK" 2>/dev/null || :' "$SOURCE"; then
-  echo "FAIL: Root Proxy unlock still exposes a PID-less directory window" >&2; exit 1;
-fi
-# Two stop operations overlap while mock engines keep the first owner inside
-# the protected section. The waiter must acquire only after atomic release.
+printf '2147483647\\n' > "$LOCK"
+sh "$SOURCE" stop >/dev/null
+[ ! -e "$LOCK" ] || { echo "FAIL: stale regular Root Proxy file lock was not recovered" >&2; exit 1; }
+printf '%s\\n' "$$" > "$LOCK"
+set +e
+sh "$SOURCE" stop >/dev/null 2>&1
+file_rc=$?
+set -e
+[ "$file_rc" -eq 10 ] || { echo "FAIL: live regular Root Proxy file lock did not return busy (rc=$file_rc)" >&2; exit 1; }
+[ "$(cat "$LOCK")" = "$$" ] || { echo "FAIL: live regular Root Proxy file lock owner changed" >&2; exit 1; }
+rm -f "$LOCK"
 sh "$SOURCE" stop > "$TMP/concurrent-a.log" 2>&1 & p1=$!
 /bin/sleep 0.005
 sh "$SOURCE" stop > "$TMP/concurrent-b.log" 2>&1 & p2=$!
 wait "$p1" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
 wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; exit "$rc"; }
-[ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked their lock" >&2; exit 1; }
-[ -z "$(find "$PG" -maxdepth 1 -name 'yulong-root-proxy.lock.*' -print -quit)" ] || {
-  echo "FAIL: Root Proxy stale/release directory leaked" >&2; exit 1;
+[ ! -s "$TMP/engine-overlap" ] || {
+  echo "FAIL: concurrent Root Proxy engine cleanup overlapped" >&2
+  cat "$TMP/engine-overlap" >&2
+  exit 1
 }
-echo "PASS: Yulong Root Proxy lock uses atomic owner-directory release, recovers stale owners, preserves live owners and serializes concurrent stops"
+[ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked lock file" >&2; exit 1; }
+echo "PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization"
 '''
 replace_once(
     root_proxy_test,
@@ -487,4 +515,4 @@ replace_once(
 
 for path in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     path.chmod(0o755)
-print("PASS: Hosts and subscription cache locks use atomic owner-directory release")
+print("PASS: Hosts/subscription cache locks and Root Proxy atomic file-lock validation")
