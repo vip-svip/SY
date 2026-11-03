@@ -48,20 +48,20 @@ list_rows() {
 update_row() {
   section="$1"; wanted="$2"; action="$3"; value="$4"; note="$5"; enabled="$6"
   tmp="$CONF.native-list.$$"
-  awk -F'|' -v OFS='|' -v target="[list:""$section""]" \
+  awk -F'|' -v OFS='|' -v target="[list:$section]" \
       -v wanted="$wanted" -v action="$action" -v value="$value" \
       -v note="$note" -v enabled="$enabled" '
-    BEGIN {inlist=0; index=0; found=0}
+    BEGIN {inlist=0; rownum=0; found=0}
     $0==target {inlist=1; print; next}
     /^\[/ {inlist=0; print; next}
     inlist && NF>=3 && $1!="" && $1 !~ /^[[:space:]]*#/ {
-      if(index==wanted) {
+      if(rownum==wanted) {
         found=1
-        if(action=="delete") { index++; next }
-        if(action=="toggle") { print $1,$2,enabled; index++; next }
+        if(action=="delete") { rownum++; next }
+        if(action=="toggle") { print $1,$2,enabled; rownum++; next }
         if(action=="edit") { print value,note,enabled; index++; next }
       }
-      index++
+      rownum++
       print
       next
     }
@@ -138,7 +138,7 @@ case "$cmd" in
     list_rows "$section"
     ;;
   add)
-    [ "$#" -eq 5 ] || { echo "usage: $0 add LIST_ID VALUE NOTE" >&2; exit 2; }
+    [ "$#" -eq 4 ] || { echo "usage: $0 add LIST_ID VALUE NOTE" >&2; exit 2; }
     valid_field "$3" && [ "\${#4}" -le 256 ] || { echo "invalid value or note" >&2; exit 2; }
     if [ "$section" = rule ]; then
       case "$3" in http://*|https://*) : ;; *) echo "subscription URL must use HTTP(S)" >&2; exit 2 ;; esac
@@ -146,7 +146,7 @@ case "$cmd" in
     with_lock mutate_transaction add "$section" -1 "$3" "$4" 1
     ;;
   edit)
-    [ "$#" -eq 7 ] || { echo "usage: $0 edit LIST_ID INDEX VALUE NOTE ENABLED" >&2; exit 2; }
+    [ "$#" -eq 6 ] || { echo "usage: $0 edit LIST_ID INDEX VALUE NOTE ENABLED" >&2; exit 2; }
     case "$3" in ''|*[!0-9]*) exit 2 ;; esac
     valid_field "$4" && [ "\${#5}" -le 256 ] || { echo "invalid value or note" >&2; exit 2; }
     case "$6" in 0|1) : ;; *) exit 2 ;; esac
