@@ -1739,25 +1739,25 @@ public final class FxDiaFridaActivity extends Activity {
         String command = "set -eu; umask 077; "
                 + "injector=" + quote(injector) + "; pkg=" + quote(targetPackage) + "; "
                 + "log=" + quote(logPath) + "; port=" + port + "; "
-                + "test -x \\"$injector\\" && test ! -L \\"$injector\\"; "
-                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\\"$pkg\\" "
-                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \\":\\")==1) {print $1}'); "
-                + "[ -n \\"$pids\\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
-                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \\"$dir\\"; "
-                + "test -d \\"$dir\\" && test ! -L \\"$dir\\"; chmod 700 \\"$dir\\"; "
-                + "[ ! -L \\"$log\\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
-                + ": >> \\"$log\\"; chmod 600 \\"$log\\"; "
-                + "tmp=$(mktemp \\"$dir/.gadget-$port.XXXXXX\\"); "
-                + "[ -n \\"$tmp\\" ] && [ -f \\"$tmp\\" ] && [ ! -L \\"$tmp\\" ]; "
-                + "cleanup_tmp() { [ -z \\"$tmp\\" ] || rm -f \\"$tmp\\"; }; "
+                + "test -x \"$injector\" && test ! -L \"$injector\"; "
+                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1}'); "
+                + "[ -n \"$pids\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
+                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \"$dir\"; "
+                + "test -d \"$dir\" && test ! -L \"$dir\"; chmod 700 \"$dir\"; "
+                + "[ ! -L \"$log\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
+                + ": >> \"$log\"; chmod 600 \"$log\"; "
+                + "tmp=$(mktemp \"$dir/.gadget-$port.XXXXXX\"); "
+                + "[ -n \"$tmp\" ] && [ -f \"$tmp\" ] && [ ! -L \"$tmp\" ]; "
+                + "cleanup_tmp() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; }; "
                 + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > \\"$tmp\\"; "
-                + "test -s \\"$tmp\\"; chmod 600 \\"$tmp\\"; "
-                + "printf '\\\\n[FX Dia Gadget] target=%s endpoint=127.0.0.1:%s attach-start %s\\\\n' "
-                + "\\"$pkg\\" \\"$port\\" \\"$(date '+%F %T')\\" >> \\"$log\\"; "
-                + "if \\"$injector\\" -H \\"127.0.0.1:$port\\" -n Gadget -s \\"$tmp\\" >> \\"$log\\" 2>&1; then "
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; "
+                + "test -s \"$tmp\"; chmod 600 \"$tmp\"; "
+                + "printf '\\n[FX Dia Gadget] target=%s endpoint=127.0.0.1:%s attach-start %s\\n' "
+                + "\"$pkg\" \"$port\" \"$(date '+%F %T')\" >> \"$log\"; "
+                + "if \"$injector\" -H \"127.0.0.1:$port\" -n Gadget -s \"$tmp\" >> \"$log\" 2>&1; then "
                 + "echo FX_GADGET_ATTACHED_AND_WAIT_RELEASED; "
-                + "else rc=$?; printf '[FX Dia Gadget] attach-failed exit=%s\\\\n' \\"$rc\\" >> \\"$log\\"; exit \\"$rc\\"; fi";
+                + "else rc=$?; printf '[FX Dia Gadget] attach-failed exit=%s\\n' \"$rc\" >> \"$log\"; exit \"$rc\"; fi";
         runRoot(command, 90000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && result.output.contains("FX_GADGET_ATTACHED_AND_WAIT_RELEASED")) {
@@ -1769,7 +1769,7 @@ public final class FxDiaFridaActivity extends Activity {
                 setStatus("目标应用当前没有运行进程；请先启动目标应用并确认 Gadget 已加载。");
             } else {
                 setStatus("Gadget 连接/脚本加载失败（退出码 " + result.exitCode + "）。"
-                        + "\\n请确认目标应用已加载相同端口的 Gadget，且 frida-inject 与 Gadget 版本匹配。"
+                        + "\n请确认目标应用已加载相同端口的 Gadget，且 frida-inject 与 Gadget 版本匹配。"
                         + "\\n日志：" + logPath + "\\n" + result.output);
             }
         });
