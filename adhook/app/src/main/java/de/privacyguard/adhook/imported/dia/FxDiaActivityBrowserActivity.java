@@ -3,6 +3,7 @@ package de.privacyguard.adhook.imported.dia;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -191,9 +192,10 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         toggle.setOnCheckedChangeListener((button, wanted) -> {
             button.setEnabled(false);
             String componentArg = packageName + "/" + className;
-            String command = wanted
-                    ? "pm enable --user 0 " + quote(componentArg)
-                    : "pm disable-user --user 0 " + quote(componentArg);
+            String command = "user_id=$(am get-current-user 2>/dev/null); "
+                    + "case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; "
+                    + (wanted ? "pm enable --user \"$user_id\" " : "pm disable-user --user \"$user_id\" ")
+                    + quote(componentArg);
             new AlertDialog.Builder(this).setTitle(wanted ? "启用 Activity？" : "禁用 Activity？")
                     .setMessage("这会修改目标应用的组件状态。禁用启动入口可能导致目标应用无法正常打开；可返回 FX 再次启用。")
                     .setNegativeButton("取消", (d, w) -> {
