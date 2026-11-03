@@ -42,7 +42,7 @@ def replace_shell_function(path: Path, function_name: str, replacement: str, lab
     source = path.read_text(encoding="utf-8")
     # Release archives have small formatting variants. Replace only the named
     # top-level POSIX function, bounded by its unindented closing brace.
-    pattern = re.compile(r"(?ms)^" + re.escape(function_name) + r"\\(\\) \\{\\n.*?^\\}")
+    pattern = re.compile(r"(?ms)^" + re.escape(function_name) + r"\(\) \{\n.*?^\}")
     matches = list(pattern.finditer(source))
     if not matches:
         if 'mv "$LOCK" "$_release"' in source and '_lock_held=1' in source:
