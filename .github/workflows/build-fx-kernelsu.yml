@@ -124,6 +124,7 @@ jobs:
           set -euo pipefail
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
+          python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           python3 fx-patches/patch_native_script_store.py fx-module
           sh scripts/tests/fx-native-script-store-regression.sh

@@ -53,6 +53,12 @@
         <activity android:name=".imported.shield.FxYulongScanActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongFirewallActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdActivity" android:exported="false" />
+        <service android:name=".imported.ad.FxYulongAdTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true" android:label="FX 广告过滤">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+            <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="true" />
+        </service>
         <receiver android:name=".imported.shield.FxYulongInstallScanReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
