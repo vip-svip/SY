@@ -33,7 +33,7 @@ valid_command(){
   # matching the complete string so a valid first line cannot hide a second.
   if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then return 1; fi
   case "$1" in
-    getprop|id|id\\ -u|whoami|ps|ps\\ -A|ps\\ -ef|getenforce|service\\ list) return 0 ;;
+    getprop|id|id\ -u|whoami|ps|ps\ -A|ps\ -ef|getenforce|service\ list) return 0 ;;
   esac
   printf '%s' "$1" | LC_ALL=C grep -Eq '^(getprop [A-Za-z0-9_.-]{1,128}|pm list packages( -3|-s|-f|-U)?|cmd package list packages( -3|-s|-f|-U)?|dumpsys package [A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+|settings get (secure|global|system) [A-Za-z0-9_.-]{1,128}|cat /proc/(version|uptime)|cat /sys/fs/selinux/enforce|ls (/system|/product|/vendor|/apex|/proc|/sys)(/[A-Za-z0-9_.-]+)*)$'
 }
