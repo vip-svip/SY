@@ -23,6 +23,7 @@ public final class FxDiaDexIndexTest {
         assertEquals(1, FxDiaDexIndex.instructionWidth(0x00)); // nop
         assertEquals(1, FxDiaDexIndex.instructionWidth(0x12)); // const/4
         assertEquals(1, FxDiaDexIndex.instructionWidth(0x27)); // throw
-        assertEquals(1, FxDiaDexIndex.instructionWidth(0xff)); // reserved/unused opcode
+        assertEquals(2, FxDiaDexIndex.instructionWidth(0xfe)); // const-method-handle
+        assertEquals(2, FxDiaDexIndex.instructionWidth(0xff)); // const-method-type
     }
 }
