@@ -446,6 +446,8 @@ public final class FxDiaFridaActivity extends Activity {
                 gadgetPath.getText().toString()));
         if (gadgetPort != null) gadgetPort.setText(state.getString("fx_frida_gadget_port",
                 gadgetPort.getText().toString()));
+        if (gadgetProcess != null) gadgetProcess.setText(state.getString("fx_frida_gadget_process",
+                gadgetProcess.getText().toString()));
         if (script != null) script.setText(state.getString("fx_frida_script", script.getText().toString()));
 
         String savedPackage = state.getString("fx_frida_target_package");
@@ -498,6 +500,7 @@ public final class FxDiaFridaActivity extends Activity {
         if (fridaCliPath != null) outState.putString("fx_frida_cli_path", fridaCliPath.getText().toString());
         if (gadgetPath != null) outState.putString("fx_frida_gadget_path", gadgetPath.getText().toString());
         if (gadgetPort != null) outState.putString("fx_frida_gadget_port", gadgetPort.getText().toString());
+        if (gadgetProcess != null) outState.putString("fx_frida_gadget_process", gadgetProcess.getText().toString());
         if (script != null) {
             String source = script.getText().toString();
             // Frida editor content is intentionally capped to avoid oversized saved-state Bundles.
