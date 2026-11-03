@@ -1813,7 +1813,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "*) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;; esac; fi; "
                 + "if [ -n \"$old_feed\" ] && kill -0 \"$old_feed\" 2>/dev/null; then "
                 + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$old_feed\"/cmdline 2>/dev/null || :); "
-                + "case \"$feed_cmd\" in *tail*'/dev/null'*) kill \"$old_feed\" 2>/dev/null || :;; "
+                + "case \"$feed_cmd\" in *\"fx-gadget-feed-$port\"*\"$pipe\"*) kill \"$old_feed\" 2>/dev/null || :;; "
                 + "*) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
                 + "rm -f \"$pidfile\"; "
                 + "if [ -e \"$pipe\" ]; then [ -p \"$pipe\" ] || { echo FX_GADGET_UNSAFE_STALE_PIPE; exit 27; }; rm -f \"$pipe\"; fi; "
@@ -1824,7 +1824,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "mv -f \"$tmp\" \"$script\"; tmp=; chmod 600 \"$script\"; "
                 + ": >> \"$log\"; chmod 600 \"$log\"; mkfifo -m 600 \"$pipe\"; "
                 + "nohup \"$cli\" -H \"127.0.0.1:$port\" -n Gadget -l \"$script\" < \"$pipe\" >> \"$log\" 2>&1 & cli_pid=$!; "
-                + "nohup tail -f /dev/null > \"$pipe\" 2>/dev/null < /dev/null & feed_pid=$!; "
+                + "nohup sh -c 'while :; do sleep 3600; done' \"fx-gadget-feed-$port\" \"$pipe\" > \"$pipe\" 2>/dev/null < /dev/null & feed_pid=$!; "
                 + "pid_tmp=$(mktemp \"$dir/.gadget-$port.pid.XXXXXX\"); "
                 + "printf '%s\\n%s\\n%s\\n%s\\n%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli\" \"$pkg\" \"$port\" > \"$pid_tmp\"; "
                 + "chmod 600 \"$pid_tmp\"; mv -f \"$pid_tmp\" \"$pidfile\"; pid_tmp=; "
@@ -1869,8 +1869,8 @@ public final class FxDiaFridaActivity extends Activity {
                 + "case \\"$cmd\\" in *\\"$cli\\"*'127.0.0.1:" + port + "'*Gadget*) kill \\"$cli_pid\\";; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
                 + "if kill -0 \\"$feed_pid\\" 2>/dev/null; then "
                 + "feed_cmd=$(tr '\\\\000' ' ' < /proc/\\"$feed_pid\\"/cmdline 2>/dev/null || :); "
-                + "case \\"$feed_cmd\\" in *tail*'/dev/null'*) kill \\"$feed_pid\\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
-                + "rm -f \\"$pidfile\\"; [ ! -L \\"$pipe\\" ] && rm -f \\"$pipe\\"; echo FX_GADGET_SESSION_STOPPED";
+                + "case \"$feed_cmd\" in *\"fx-gadget-feed-" + port + "\"*\"$pipe\"*) kill \"$feed_pid\";; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
+                + "sleep 1; rm -f \\"$pidfile\\"; [ ! -L \\"$pipe\\" ] && rm -f \\"$pipe\\"; echo FX_GADGET_SESSION_STOPPED";
         runRoot(command, 12000L, result -> setStatus("Gadget 会话停止退出码 "
                 + result.exitCode + "\\n" + result.output));
     }
