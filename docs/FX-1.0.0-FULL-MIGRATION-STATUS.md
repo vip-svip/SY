@@ -481,3 +481,13 @@ After each implementation batch:
 - Yulong AdBlock 7.0.1 includes a separate native app whitelist. Its `[list:yulong_app_whitelist]` data is independent from `[list:vpn_app]` (proxy routing) and the per-app firewall list. The package workflow patches the restored module so these UIDs are excluded from FX sing-box TUN, legacy PGNAT/PGVPN/PGVPN6 redirects, and the FX-owned external-VPN Root DNS Proxy chains.
 - The whitelist manager is a native fourth-level Activity under Settings → 迁移应用 → 游龙广告插件 7.0.1 → 应用管理 → 应用白名单. Its backend writes atomically and runs the normal FX apply transaction; it is not a second VPN service.
 - All changes remain on `fx-v1.0.0-unified-hook-integration`. The KernelSU and Hook build workflows are manual-dispatch only while migration continues. No final package has been regenerated for these changes. These are source-level implementations, not real-device verification.
+
+
+### Dia 23.11 — Frida Gadget listen-mode migration (2026-11-03)
+
+- Added a native Frida Gadget Listen configuration editor to the Dia Frida page.
+- Preserves the original WAIT/RESUME semantics through Gadget's `interaction.type=listen` and `on_load=wait|resume` settings.
+- Writes the Android-compatible adjacent config filename (`<gadget-library-basename>.config.so`) and provides ADB loopback port-forward commands.
+- The Gadget listener is fixed to `127.0.0.1`; the UI does not expose an unauthenticated LAN listener.
+- This writes configuration only. The selected debuggable target must actually load the corresponding Frida Gadget library; this does not claim to patch or inject Gadget into a third-party APK.
+- The existing local frida-server and frida-inject path remains separate and unchanged.

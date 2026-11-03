@@ -69,3 +69,13 @@ No final package was generated for this checkpoint. The user explicitly requeste
 ## Verification wording
 
 Source integration is not a successful build. A future successful CI build is not real-device verification. Do not claim device validation unless it has actually been performed on a device.
+
+
+### Dia 23.11 — Frida Gadget listen-mode migration (2026-11-03)
+
+- Added a native Frida Gadget Listen configuration editor to the Dia Frida page.
+- Preserves the original WAIT/RESUME semantics through Gadget's `interaction.type=listen` and `on_load=wait|resume` settings.
+- Writes the Android-compatible adjacent config filename (`<gadget-library-basename>.config.so`) and provides ADB loopback port-forward commands.
+- The Gadget listener is fixed to `127.0.0.1`; the UI does not expose an unauthenticated LAN listener.
+- This writes configuration only. The selected debuggable target must actually load the corresponding Frida Gadget library; this does not claim to patch or inject Gadget into a third-party APK.
+- The existing local frida-server and frida-inject path remains separate and unchanged.
