@@ -68,15 +68,16 @@ public final class FxYulongAdTileService extends TileService {
             applyTile(Tile.STATE_UNAVAILABLE, "正在应用…");
             return;
         }
-        if (!FxYulongAdOperationGate.tryAcquire()) {
-            togglePending.set(false);
-            applyTile(Tile.STATE_UNAVAILABLE, "另一入口正在修改广告过滤");
-            return;
-        }
         applyTile(Tile.STATE_UNAVAILABLE, "正在应用…");
         try {
             worker.execute(() -> {
+                boolean gateAcquired = false;
                 try {
+                    gateAcquired = FxYulongAdOperationGate.tryAcquire();
+                    if (!gateAcquired) {
+                        main.post(() -> { if (!destroyed) applyTile(Tile.STATE_UNAVAILABLE, "另一入口正在修改广告过滤"); });
+                        return;
+                    }
                     int current = readState();
                     // Unknown Root/service state must never be interpreted as "off";
                     // doing so would turn a failed read into an unconditional enable.
@@ -99,12 +100,11 @@ public final class FxYulongAdTileService extends TileService {
                 } catch (Throwable failure) {
                     main.post(() -> { if (!destroyed) applyTile(Tile.STATE_UNAVAILABLE, "Root 操作失败"); });
                 } finally {
-                    FxYulongAdOperationGate.release();
+                    if (gateAcquired) FxYulongAdOperationGate.release();
                     togglePending.set(false);
                 }
             });
         } catch (RejectedExecutionException full) {
-            FxYulongAdOperationGate.release();
             togglePending.set(false);
             applyTile(Tile.STATE_UNAVAILABLE, "后台任务繁忙，请重试");
         }
