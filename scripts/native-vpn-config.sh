@@ -156,7 +156,15 @@ with_lock() {
     [ "$tries" -lt 20 ] || { echo "VPN settings are busy" >&2; return 10; }
     sleep 1
   done
-  trap 'rmdir "$LOCK" 2>/dev/null || :' EXIT HUP INT TERM
+  cleanup_lock() {
+    rmdir "$LOCK" 2>/dev/null || :
+  }
+  # Signal handlers must exit into EXIT cleanup; never unlock and then resume
+  # a config/firewall mutation without owning the transaction lock.
+  trap cleanup_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   "$@"
 }
 mutate() {
