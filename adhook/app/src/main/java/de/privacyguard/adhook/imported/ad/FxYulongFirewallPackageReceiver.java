@@ -50,14 +50,14 @@ public final class FxYulongFirewallPackageReceiver extends BroadcastReceiver {
                 || "android".equals(packageName)) return;
 
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        if (!prefs.getBoolean(PREF_MASTER, false)) return;
+        final boolean firewallEnabled = prefs.getBoolean(PREF_MASTER, false);
 
         final PendingResult pending = goAsync();
         try {
             EXECUTOR.execute(() -> {
                 try {
-                    RootAccess.Result result = RootAccess.execute(firewallApplyCommand(),
-                            8000L, 64 * 1024);
+                    RootAccess.Result result = RootAccess.execute(packageLifecycleCommand(firewallEnabled),
+                            15000L, 96 * 1024);
                     if (result.exitCode != 0) {
                         android.util.Log.w("FXYulongFirewall",
                                 "Package-change firewall reconcile failed (exit "
@@ -77,14 +77,19 @@ public final class FxYulongFirewallPackageReceiver extends BroadcastReceiver {
         }
     }
 
-    private static String firewallApplyCommand() {
+    private static String packageLifecycleCommand(boolean firewallEnabled) {
         return "MP=''; for d in /data/adb/modules/privacyguard "
                 + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
                 + "/data/adb/modules/pg; do "
                 + "if [ -s \"$d/module.prop\" ] && grep -qx 'id=privacyguard' \"$d/module.prop\"; "
                 + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; "
-                + "sh \"$MP/scripts/yulong-app-firewall.sh\" apply-event";
+                + "[ -n \"$MP\" ] || exit 20; _rc=0; "
+                + (firewallEnabled
+                    ? "sh \"$MP/scripts/yulong-app-firewall.sh\" apply-event || _rc=$?; "
+                    : "")
+                + "if [ -s /data/adb/privacyguard/yulong-root-proxy-active.meta ]; then "
+                + "sh \"$MP/scripts/yulong-root-proxy.sh\" reconcile || _rc=$?; fi; "
+                + "exit \"$_rc\"";
     }
 
     private static String safe(String value) {

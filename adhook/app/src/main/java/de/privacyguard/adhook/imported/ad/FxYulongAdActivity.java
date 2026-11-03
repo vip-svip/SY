@@ -3,6 +3,8 @@ package de.privacyguard.adhook.imported.ad;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.Editable;
@@ -20,8 +22,13 @@ import android.widget.Toast;
 
 import de.privacyguard.adhook.RootAccess;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -37,6 +44,14 @@ public final class FxYulongAdActivity extends Activity {
  private static final String STATE_PAGE="fx_yulong_ad_page";
  private static final String STATE_DRAFTS="fx_yulong_ad_drafts";
  private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();
+  private LinearLayout proxyWhitelistRows;
+  private TextView proxyWhitelistStatus;
+  private EditText proxyWhitelistSearch;
+  private final List<ApplicationInfo> proxyWhitelistApps=new ArrayList<>();
+  private final Map<String,String> proxyWhitelistLabels=new HashMap<>();
+  private final Set<String> proxyWhitelistSelected=new HashSet<>();
+  private int proxyWhitelistPage=1;
+  private long proxyWhitelistGeneration;
  private static final int BULK_DRAFT_MAX_CHARS=48*1024;
  private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
@@ -145,9 +160,166 @@ public final class FxYulongAdActivity extends Activity {
     btn("刷新 Root Proxy 运行状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})),
     btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));
   card("工作条件","仅当检测到唯一活动第三方 VPN、VPN 接口/所属 UID/出口路由可验证，Unbound 与 AdGuard Home 健康探测通过后才接管 DNS；任何验证失败都会撤销 FX 自有重定向规则并保留原 VPN DNS。");
-}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
+renderRootProxyWhitelist();}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
  private void open(String p){page=p;render();bind();}
- private void renderHome(){
+   private void renderRootProxyWhitelist(){
+   proxyWhitelistStatus=txt("正在读取 Root Proxy DNS 例外名单…",12,0xff617080,false);
+   proxyWhitelistSearch=new EditText(this);
+   proxyWhitelistSearch.setSingleLine(true);
+   proxyWhitelistSearch.setHint("搜索应用名称或包名");
+   proxyWhitelistRows=new LinearLayout(this);
+   proxyWhitelistRows.setOrientation(1);
+   card("应用 DNS 例外名单",
+       "被选中的应用及共享同一 Android UID 的应用，其明文 DNS 不会被 FX Root Proxy 重定向；不改变应用 VPN 路由。卸载后保留包名，重装时重新解析新 UID。",
+       proxyWhitelistStatus,proxyWhitelistSearch,
+       btn("刷新应用名单",()->loadRootProxyWhitelist()));
+   body.addView(proxyWhitelistRows);
+   proxyWhitelistSearch.addTextChangedListener(new TextWatcher(){
+    public void beforeTextChanged(CharSequence s,int st,int count,int after){}
+    public void onTextChanged(CharSequence s,int st,int before,int count){proxyWhitelistPage=1;renderRootProxyWhitelistRows();}
+    public void afterTextChanged(Editable e){}
+   });
+   loadRootProxyWhitelist();
+  }
+  private boolean isRootProxyPage(){
+   return "VPN 与 Root Proxy".equals(page)&&proxyWhitelistRows!=null&&!isFinishing()&&!isDestroyed();
+  }
+  private void loadRootProxyWhitelist(){
+   final long generation=++proxyWhitelistGeneration;
+   if(proxyWhitelistStatus!=null)proxyWhitelistStatus.setText("正在读取保存的包名名单…");
+   root("rootproxy-whitelist-list",result->{
+    if(!isRootProxyPage()||generation!=proxyWhitelistGeneration)return;
+    if(result.exitCode!=0){
+     proxyWhitelistStatus.setText("读取 Root Proxy 名单失败："+safe(result.output));
+     return;
+    }
+    Set<String> selected=new HashSet<>();
+    for(String line:(result.output==null?"":result.output).split("\\r?\\n")){
+     String[] p=line.split("\\|",-1);
+     if(p.length==2&&"PACKAGE".equals(p[0])&&isPackageName(p[1]))selected.add(p[1]);
+    }
+    try{
+     worker.execute(()->{
+      List<ApplicationInfo> loaded=new ArrayList<>();
+      Map<String,String> labels=new HashMap<>();
+      Throwable failure=null;
+      try{
+       PackageManager pm=getPackageManager();
+       loaded.addAll(pm.getInstalledApplications(0));
+       loaded.removeIf(info->info.packageName==null||info.packageName.equals(getPackageName()));
+       for(ApplicationInfo info:loaded){
+        String label;
+        try{label=String.valueOf(pm.getApplicationLabel(info));}
+        catch(Throwable ignored){label=info.packageName;}
+        labels.put(info.packageName,label);
+       }
+       loaded.sort(Comparator.comparing(info->
+           labels.getOrDefault(info.packageName,info.packageName).toLowerCase(Locale.ROOT)));
+      }catch(Throwable error){failure=error;}
+      final Throwable loadFailure=failure;
+      runOnUiThread(()->{
+       if(!isRootProxyPage()||generation!=proxyWhitelistGeneration)return;
+       if(loadFailure!=null){
+        proxyWhitelistStatus.setText("读取已安装应用失败："+loadFailure.getClass().getSimpleName());
+        return;
+       }
+       proxyWhitelistSelected.clear();
+       proxyWhitelistSelected.addAll(selected);
+       proxyWhitelistApps.clear();
+       proxyWhitelistApps.addAll(loaded);
+       proxyWhitelistLabels.clear();
+       proxyWhitelistLabels.putAll(labels);
+       int installedSelected=0;
+       for(ApplicationInfo info:loaded)
+        if(proxyWhitelistSelected.contains(info.packageName))installedSelected++;
+       int retained=proxyWhitelistSelected.size()-installedSelected;
+       proxyWhitelistStatus.setText("已读取 "+loaded.size()+" 个应用；已选 "+proxyWhitelistSelected.size()
+           +" 个包名"+(retained>0?"，其中 "+retained+" 个当前未安装，保留到重装后":"")
+           +"。这些应用只绕过 Root Proxy DNS 重定向，不会解除 VPN 路由。");
+       proxyWhitelistPage=1;
+       renderRootProxyWhitelistRows();
+      });
+     });
+    }catch(RejectedExecutionException full){
+     proxyWhitelistStatus.setText("后台任务繁忙，暂时无法读取应用名单。");
+    }
+   });
+  }
+  private boolean isPackageName(String value){
+   return value!=null&&value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
+  }
+  private void renderRootProxyWhitelistRows(){
+   if(!isRootProxyPage()||proxyWhitelistRows==null)return;
+   proxyWhitelistRows.removeAllViews();
+   String filter=proxyWhitelistSearch==null||proxyWhitelistSearch.getText()==null?""
+       :proxyWhitelistSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+   int shown=0,matched=0,limit=Math.max(1,proxyWhitelistPage)*50;
+   for(ApplicationInfo info:proxyWhitelistApps){
+    String pkg=info.packageName,label=proxyWhitelistLabels.getOrDefault(pkg,pkg);
+    if(!filter.isEmpty()&&!label.toLowerCase(Locale.ROOT).contains(filter)
+        &&!pkg.toLowerCase(Locale.ROOT).contains(filter))continue;
+    matched++;
+    if(shown>=limit)continue;
+    LinearLayout row=new LinearLayout(this);
+    row.setOrientation(1);
+    row.setPadding(dp(8),dp(5),dp(8),dp(5));
+    row.addView(txt(label,13,0xff17212b,true));
+    row.addView(txt(pkg+" · UID "+info.uid,10,0xff718091,false));
+    Switch allow=new Switch(this);
+    allow.setText("DNS 不经过 Root Proxy");
+    allow.setChecked(proxyWhitelistSelected.contains(pkg));
+    final boolean[] suppress={false};
+    allow.setOnCheckedChangeListener((button,checked)->{
+     if(suppress[0])return;
+     button.setEnabled(false);
+     root("rootproxy-whitelist-set "+q(pkg)+" "+(checked?"1":"0"),result->{
+      button.setEnabled(true);
+      if(result.exitCode==0){
+       if(checked)proxyWhitelistSelected.add(pkg);else proxyWhitelistSelected.remove(pkg);
+       proxyWhitelistStatus.setText((checked?"已加入":"已移出")+" Root Proxy DNS 例外名单："+pkg
+           +"。代理未启动时会在下次验证成功后生效。");
+       renderRootProxyWhitelistRows();
+      }else{
+       boolean saved=result.output!=null&&result.output.contains("saved=1");
+       if(saved){
+        if(checked)proxyWhitelistSelected.add(pkg);else proxyWhitelistSelected.remove(pkg);
+       }else{
+        suppress[0]=true;
+        button.setChecked(!checked);
+        suppress[0]=false;
+       }
+       proxyWhitelistStatus.setText(saved
+           ?"包名已保存，但 Root Proxy 重新验证失败；代理已 fail-open，不会使用旧 UID。下次启动/包事件会重新核对。"
+           :"白名单修改失败："+safe(result.output));
+       if(saved)renderRootProxyWhitelistRows();
+      }
+     });
+    });
+    row.addView(allow);
+    proxyWhitelistRows.addView(row);
+    shown++;
+   }
+   if(shown==0)proxyWhitelistRows.addView(txt("没有匹配的已安装应用。",12,0xff718091,false));
+   if(matched>limit)proxyWhitelistRows.addView(btn("加载更多（剩余 "+(matched-limit)+" 个）",()->{
+    proxyWhitelistPage++;renderRootProxyWhitelistRows();
+   }));
+   if(!proxyWhitelistSelected.isEmpty()){
+    Set<String> missing=new HashSet<>(proxyWhitelistSelected);
+    for(ApplicationInfo info:proxyWhitelistApps)missing.remove(info.packageName);
+    for(String pkg:missing){
+     LinearLayout row=new LinearLayout(this);
+     row.setOrientation(1);
+     row.addView(txt("未安装的已保存包名",12,0xff718091,true));
+     row.addView(txt(pkg,11,0xff718091,false));
+     row.addView(btn("移除已保存例外",()->root("rootproxy-whitelist-set "+q(pkg)+" 0",result->{
+      if(result.exitCode==0)loadRootProxyWhitelist();
+      else proxyWhitelistStatus.setText("移除失败："+safe(result.output));
+     })));
+     proxyWhitelistRows.addView(row);
+    }
+   }
+  }
+  private void renderHome(){
   Switch master=new Switch(this);master.setText("启用广告过滤主开关");master.setTag("ad-master");master.setEnabled(false);
   master.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("ad-master "+(on?"1":"0"),"广告过滤主开关");});
   card("广告过滤","总开关只控制 FX [list:rule] 中的过滤来源；白名单、黑名单、反诈规则和 VPN 路由保持独立。",master,btn("管理过滤列表",()->open("过滤列表")));
