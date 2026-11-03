@@ -61,10 +61,20 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
                             ? "发现高风险应用" : "发现可疑应用";
                     detail = matched.label + "\n" + packageName + "\n" + matched.reason;
                 } else {
-                    status = result.databaseEntries <= 0
-                            ? "扫描未形成安全结论：病毒库为空"
-                            : "未命中当前已加载的病毒名单";
-                    title = "新应用检测完成";
+                    // A package-install scan must not report "no hit" as a clean result
+                    // when PackageManager supplied only a partial inventory or the target
+                    // package could not be confirmed in that inventory.
+                    if (!result.inventoryComplete) {
+                        status = "扫描不完整：系统未能确认目标应用的完整扫描范围，不能据此判断安全";
+                    } else if (result.databaseEntries <= 0) {
+                        status = "扫描未形成安全结论：病毒库为空";
+                    } else if (result.scanned <= 0) {
+                        status = "扫描未形成安全结论：未能读取目标应用信息";
+                    } else {
+                        status = "未命中当前已加载的病毒名单（仅代表本次名单未命中）";
+                    }
+                    title = result.inventoryComplete && result.scanned > 0
+                            ? "新应用检测完成" : "新应用检测未完成";
                     detail = packageName + "\n" + status;
                 }
 
