@@ -126,4 +126,19 @@ grep -Fq 'mktemp "$ACTIVE_META.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root
 grep -Fq "failed to publish active chain marker" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
 grep -Fq "failed to publish validated VPN egress marker" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
 grep -Fq "failed to commit Root Proxy active state" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+python3 - "$ROOT/fx-module/scripts/yulong-root-proxy.sh" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("_activate_chains() {")
+end = source.index("\n}\n_ensure_locked()", start) + 2
+body = source[start:end]
+rollback_v4 = body.index('_clear_chain iptables "$_n4"')
+rollback_v6 = body.index('_clear_chain ip6tables "$_n6"')
+diagnostic = body.index('failed to publish active chain marker; rolled back dual-stack DNS redirects (fail-open)')
+failure_return = body.index("return 1", diagnostic)
+assert rollback_v4 < diagnostic and rollback_v6 < diagnostic < failure_return, (
+    "active-marker publication failure must clear both prepared chains before reporting fail-open"
+)
+PY
 echo "PASS: Unbound default mode, VPN-bound IPv4 egress, invalid-marker fail-closed behavior and idempotent Root Proxy patch"
