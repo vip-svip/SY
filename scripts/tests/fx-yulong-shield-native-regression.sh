@@ -48,10 +48,16 @@ assert install_receiver is not None, "Yulong install scan receiver is not regist
 assert install_receiver.attrib.get(A + "exported") == "false", "Install scan receiver must not be externally callable"
 merge_source = merge_source_path.read_text(encoding="utf-8")
 assert "FxYulongInstallScanReceiver" in merge_source
-for kind in ("ACTIVITIES", "SERVICES", "RECEIVERS", "PROVIDERS"):
-    marker = "FX_PRESERVED_MIGRATED_" + kind
-    assert marker in merge_source, f"Unified APK merger has no {kind.lower()} preservation slot"
-    assert "retained_" + kind.lower() in merge_source, f"Unified APK merger does not collect retained {kind.lower()} components"
+assert "ET.fromstring(manifest_text)" in merge_source, "Unified APK merger must parse the original Manifest tree"
+assert 'application_node.attrib[ANDROID_LABEL] = "FX Hook"' in merge_source
+assert "set_application_metadata(" in merge_source, "LSPosed metadata must be added without reconstructing application nodes"
+for tag, variable in (("activity", "retained_activities"), ("service", "retained_services"),
+                     ("receiver", "retained_receivers"), ("provider", "retained_providers")):
+    assert variable + " = component_names(" in merge_source and '"' + tag + '"' in merge_source, \
+        f"Unified APK merger does not retain original {tag} components"
+assert "ET.tostring(manifest_root" in merge_source, "Unified APK merger must serialize the preserved XML tree"
+assert "app_match = re.search" not in merge_source and 'app = """' not in merge_source, \
+    "Manifest migration must not reconstruct and discard existing application nodes"
 for tag in ("activity", "service", "receiver", "provider"):
     names = [
         node.attrib.get(A + "name", "")
