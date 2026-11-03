@@ -39,7 +39,7 @@
         <activity android:name=".imported.shield.FxYulongVirusDatabaseActivity" android:exported="false" />
         <activity android:name=".imported.shield.FxYulongScanActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongFirewallActivity" android:exported="false" />
-        <receiver android:name=".imported.shield.FxYulongInstallScanReceiver" android:enabled="true" android:exported="true">
+        <receiver android:name=".imported.shield.FxYulongInstallScanReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
                 <action android:name="android.intent.action.PACKAGE_REPLACED" />

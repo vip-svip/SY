@@ -80,6 +80,23 @@ public final class FxYulongScanEngine {
     }
 
     public static void scan(Context context, boolean enableContentScan, Callback callback) {
+        scanInternal(context, null, enableContentScan, callback);
+    }
+
+    /** Scan one package after an install/update event without reading every installed APK. */
+    public static void scanPackage(Context context, String packageName,
+                                   boolean enableContentScan, Callback callback) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            if (callback != null) callback.onResult(new Result(0, 0,
+                    Collections.emptyList(), 0, 0, "目标包名为空。", enableContentScan,
+                    false, 0, false));
+            return;
+        }
+        scanInternal(context, packageName.trim(), enableContentScan, callback);
+    }
+
+    private static void scanInternal(Context context, String onlyPackage,
+                                     boolean enableContentScan, Callback callback) {
         Context app = context.getApplicationContext();
         WORKER.execute(() -> {
             List<Finding> findings = new ArrayList<>();
@@ -107,6 +124,7 @@ public final class FxYulongScanEngine {
                 PackageManager pm = app.getPackageManager();
                 for (ApplicationInfo info : installed.values()) {
                     String pkg = info.packageName == null ? "" : info.packageName.trim();
+                    if (onlyPackage != null && !onlyPackage.equals(pkg)) continue;
                     if (pkg.isEmpty() || pkg.equals(app.getPackageName())
                             || "com.youlong.zoo".equals(pkg) || "com.youlong.tool".equals(pkg)) continue;
                     boolean pureSystem = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0

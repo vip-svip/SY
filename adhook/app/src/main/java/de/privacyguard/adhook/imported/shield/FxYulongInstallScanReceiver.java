@@ -40,7 +40,7 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
         final PendingResult pending = goAsync();
         final Context app = context.getApplicationContext();
         final boolean contentScan = prefs.getBoolean("automatic_content_scan_enabled", false);
-        FxYulongScanEngine.scan(app, contentScan, result -> {
+        FxYulongScanEngine.scanPackage(app, packageName, contentScan, result -> {
             try {
                 FxYulongScanEngine.Finding matched = null;
                 for (FxYulongScanEngine.Finding finding : result.findings) {
