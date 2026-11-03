@@ -168,31 +168,32 @@ gradle.write_text(g, encoding="utf-8")
 
 manifest = modern / "AndroidManifest.xml"
 m = manifest.read_text(encoding="utf-8")
-# Preserve all non-launcher Activities already contributed by FX migrations.
-# The unified Hook manifest is rebuilt below, so omitting these silently removes
-# migrated pages from the final APK even though their Java sources still compile.
-retained_activities = re.findall(
-    r'(?s)<activity\b[^>]*?(?:/>|>.*?</activity>)',
-    m
-)
+# Preserve all non-launcher Android components contributed by FX migrations.
+def retained_components(tag):
+    pattern = re.compile(
+        rf'(?s)<{tag}\b[^>]*?(?:/>|>.*?</{tag}>)'
+    )
+    return pattern.findall(m)
+
 retained_activities = [
-    activity for activity in retained_activities
+    component for component in retained_components("activity")
     if not re.search(
         r"""android:name=["'](?:\.MainActivity|de\.privacyguard\.adhook\.MainActivity)["']""",
-        activity
+        component
     )
 ]
-
-# Keep the FX-owned install-scan receiver. Source APK receivers stay excluded.
-retained_receivers = re.findall(
-    r'(?s)<receiver\b[^>]*?(?:/>|>.*?</receiver>)',
-    m
-)
-retained_receivers = [
-    receiver for receiver in retained_receivers
-    if 'android:name=".imported.shield.FxYulongInstallScanReceiver"' in receiver
+retained_services = [
+    component for component in retained_components("service")
+    if not re.search(
+        r"""android:name=["'](?:\.FxAccessibilityService|de\.privacyguard\.adhook\.FxAccessibilityService)["']""",
+        component
+    )
 ]
-
+retained_receivers = retained_components("receiver")
+retained_providers = retained_components("provider")
+retained_components_xml = (
+    retained_activities + retained_services + retained_receivers + retained_providers
+)
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
 # incorrect once the launcher activity contains a self-closing child element.
@@ -233,12 +234,12 @@ app = """<application
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
-        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->
+        <!-- FX_PRESERVED_MIGRATED_COMPONENTS -->
         <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->
     </application>"""
 app = app.replace(
     "        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->",
-    "\n".join(retained_activities)
+    "\n".join(retained_components_xml)
 )
 app = app.replace(
     "        <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->",
