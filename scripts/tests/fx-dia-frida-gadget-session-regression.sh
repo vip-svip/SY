@@ -138,7 +138,6 @@ printf 'com.example.debuggable:remote\000' > "$T/proc/12346/cmdline"
 printf 'Name: com.example.debuggable:spoof\nUid: 10099 10099 10099 10099\n' > "$T/proc/12347/status"
 printf 'com.example.debuggable:spoof\000' > "$T/proc/12347/cmdline"
 export FX_GADGET_TEST_PROC_ROOT="$T/proc"
-export FX_GADGET_TEST_READY="$T/ignore-term.ready"
 PATH="$T/bin:$PATH"
 export PATH
 
@@ -155,15 +154,18 @@ fi
 [ -f "$6" ] && [ ! -L "$6" ]
 [ "$(stat -c %a "$6")" = "600" ]
 printf 'mock-send-message\nmock-console-log\n'
-if [ "${FX_GADGET_TEST_IGNORE_TERM:-0}" = "1" ]; then
+IGNORE_TERM=0
+if [ "$IGNORE_TERM" = "1" ]; then
   trap '' TERM
-  [ -n "${FX_GADGET_TEST_READY:-}" ] && : > "$FX_GADGET_TEST_READY"
+  printf 'mock-ignore-term-ready\\n'
 fi
 # Keep the CLI alive with TERM explicitly ignored; the stop path must preserve
 # its PID record after the bounded wait instead of pretending it stopped.
 while :; do sleep 1; done
 MOCK
 chmod 700 "$T/frida"
+sed 's/^IGNORE_TERM=0$/IGNORE_TERM=1/' "$T/frida" > "$T/frida-ignore-term"
+chmod 700 "$T/frida-ignore-term"
 
 cat > "$T/start.sh" <<'START'
 #!/bin/sh
@@ -329,19 +331,19 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
   exit 1
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
-FX_GADGET_TEST_IGNORE_TERM=1 "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
+"$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
 grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2
 grep -Fq "mock-send-message" "$T/logs/gadget-27043.log"
 grep -Fq "mock-console-log" "$T/logs/gadget-27043.log"
-[ -s "$T/ignore-term.ready" ] || { echo "FAIL: mock CLI did not confirm that TERM is ignored" >&2; exit 1; }
+grep -Fq "mock-ignore-term-ready" "$T/logs/gadget-27043.log" || { echo "FAIL: mock CLI did not confirm that TERM is ignored" >&2; exit 1; }
 [ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ]
 [ ! -d "$T/logs/.gadget-27043.start-lock" ]
 
 # Stop and attach share one per-port lock. A concurrent start must block stop
 # without killing either owned process or deleting the session record.
 mkdir "$T/logs/.gadget-27043.start-lock"
-if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/busy-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/busy-stop.result" 2>&1; then
   echo "FAIL: Gadget stop did not respect an active per-port start lock" >&2
   exit 1
 fi
@@ -356,26 +358,26 @@ kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
 }
 rmdir "$T/logs/.gadget-27043.start-lock"
 
-if "$T/start.sh" "$T/frida" "com.example.other" "$T/logs" "com.example.debuggable:remote" > "$T/wrong-target-start.result" 2>&1; then
+if "$T/start.sh" "$T/frida-ignore-term" "com.example.other" "$T/logs" "com.example.debuggable:remote" > "$T/wrong-target-start.result" 2>&1; then
   echo "FAIL: Gadget reconnect accepted a different target package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-start.result"
-if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable" > "$T/wrong-process-start.result" 2>&1; then
+if "$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable" > "$T/wrong-process-start.result" 2>&1; then
   echo "FAIL: Gadget reconnect accepted a different process in the same package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-process-start.result"
-"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/reconnect.result"
+"$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/reconnect.result"
 grep -Fq FX_GADGET_SESSION_ALREADY_RUNNING "$T/reconnect.result"
 kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")"
 
-if "$T/stop.sh" "$T/logs" "com.example.other" "$T/frida" "com.example.debuggable:remote" > "$T/wrong-target-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.other" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/wrong-target-stop.result" 2>&1; then
   echo "FAIL: Gadget stop accepted a different target package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-stop.result"
-if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable" > "$T/wrong-process-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable" > "$T/wrong-process-stop.result" 2>&1; then
   echo "FAIL: Gadget stop accepted a different process in the same package" >&2
   exit 1
 fi
@@ -390,7 +392,7 @@ kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
   exit 1
 }
 cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
-if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/timeout-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/timeout-stop.result" 2>&1; then
   echo "FAIL: Gadget stop discarded its record while the owned CLI ignored TERM" >&2
   exit 1
 fi
@@ -400,7 +402,7 @@ grep -Fq FX_GADGET_STOP_TIMEOUT "$T/timeout-stop.result"
   exit 1
 }
 kill -KILL "$cli_pid" 2>/dev/null || :
-"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/stop.result"
+"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
 [ ! -e "$T/logs/gadget-27043.pid" ] && [ ! -e "$T/logs/gadget-27043.stdin" ]
 [ -z "$(find "$T/logs" -maxdepth 1 -name '.gadget-27043.*' -print -quit)" ] || {

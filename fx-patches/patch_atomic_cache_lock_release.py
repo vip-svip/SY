@@ -530,6 +530,24 @@ else:
         "expected a known legacy marker or the complete current lock/concurrency checks"
     )
 
+# Normalize a malformed PID fixture in older restored Release archives.
+# The test must record this shell's real PID so a concurrent stop sees a live owner,
+# rather than an empty string that is always treated as stale.
+root_proxy_test_text = root_proxy_test.read_text(encoding="utf-8")
+root_proxy_test_text = root_proxy_test_text.replace(
+    "printf '%s\\n' \"$\" > \"$LOCK\"",
+    "printf '%s\\n' \"$\" > \"$LOCK\"",
+)
+root_proxy_test_text = root_proxy_test_text.replace(
+    '[ "$(cat "$LOCK")" = "$" ]',
+    '[ "$(cat "$LOCK")" = "$" ]',
+)
+if 'printf \'%s\\n\' "$" > "$LOCK"' in root_proxy_test_text:
+    raise SystemExit(f"{root_proxy_test}: live lock fixture still uses an empty PID")
+if '[ "$(cat "$LOCK")" = "$" ]' in root_proxy_test_text:
+    raise SystemExit(f"{root_proxy_test}: live lock assertion still expects an empty PID")
+root_proxy_test.write_text(root_proxy_test_text, encoding="utf-8")
+
 for path in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test):
     path.chmod(0o755)
 print("PASS: Hosts/subscription cache locks and Root Proxy atomic file-lock validation")
