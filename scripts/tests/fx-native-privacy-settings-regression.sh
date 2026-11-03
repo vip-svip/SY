@@ -31,11 +31,14 @@ assert set(keys) <= defaults, "native privacy schema contains non-top-level or n
 assert all(item["title"] and item["key"] for panel in panels for item in panel["items"])
 print("PASS: generated 13 native VPN/privacy panels with",len(keys),"top-level boolean settings")
 PY
-python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$MODULE/scripts/native-vpn-config.sh" <<'PY'
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$ROOT/scripts/native-vpn-config.sh" "$MODULE/scripts/native-vpn-config.sh" <<'PY'
 import pathlib, re, sys
-source_path, helper_path = map(pathlib.Path, sys.argv[1:])
+source_path, canonical_helper_path, module_helper_path = map(pathlib.Path, sys.argv[1:])
 source = source_path.read_text(encoding="utf-8")
-helper = helper_path.read_text(encoding="utf-8")
+assert canonical_helper_path.is_file(), "canonical native VPN config writer missing"
+assert module_helper_path.is_file(), "staged native VPN config writer missing from module"
+assert canonical_helper_path.read_bytes() == module_helper_path.read_bytes(), "staged native VPN config writer differs from canonical source"
+helper = canonical_helper_path.read_text(encoding="utf-8")
 start = source.find("private void showNativeSettingsGroup(String panelId, String title)")
 render = source.find("private void renderNativePrivacySettingsGroup", start)
 edit_bridge = source.find("private void loadNativePrivacyEditEntries", render)
