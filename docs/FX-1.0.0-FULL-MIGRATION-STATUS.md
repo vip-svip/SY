@@ -709,3 +709,16 @@ After each implementation batch:
   installation state before opening the system uninstaller, and continues only
   through explicit user actions. FX still never confirms, force-stops, freezes or
   silently uninstalls a target application.
+
+
+### Yulong Security Shield 9.9.60 — keep-alive permission degradation
+
+- The 15-minute recovery receiver now handles overlay permission revocation the
+  same way as boot restoration: it disables only the now-unavailable overlay
+  rescue option, records the reason, and recalculates the alarm schedule.
+- When the overlay permission is still granted and the service start request is
+  accepted, stale overlay-restore errors are cleared. If this was the last enabled
+  Shield feature, the next schedule refresh cancels the idle recovery alarm.
+- Foreground-service behavior and permission revocation still require Android
+  device verification; this change prevents a known repeated wake-up loop but does
+  not claim OEM-wide background-survival parity.
