@@ -199,7 +199,7 @@ if not app_match:
     raise SystemExit("modern manifest application element missing or unbalanced")
 # Preserve the APK's native launcher UI while adding the LSPosed metadata.
 if 'android.permission.QUERY_ALL_PACKAGES' not in m:
-    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\\n    <application', 1)
+    m = m.replace('<application', '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />\n    <application', 1)
 app = """<application
         android:label="FX Hook"
         android:allowBackup="false"
@@ -261,7 +261,7 @@ for tag, components in (
         if (match := re.search(r"""android:name=["']([^"']+)["']""", component))
     ]
     merged_names = re.findall(
-        rf"""<{tag}\\b[^>]*?android:name=["']([^"']+)["']""",
+        rf"""<{tag}\b[^>]*?android:name=["']([^"']+)["']""",
         merged_manifest,
         re.S,
     )
