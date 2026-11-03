@@ -170,10 +170,10 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
 
         section("提示显示");
         addStoredSwitch("显示 Xposed 激活提示",
-                "保存原始 digXposed/active_tip 偏好。FX 的原版 EMessage 提示事件总线尚未迁移；当前保存状态不会单独触发原版提示。",
+                "对应原版 Dia 首页的模块激活版本不一致警告条显示开关。FX 尚未迁入 Dia 原首页及其激活版本比较逻辑；当前仅保存原始偏好，不会声称已控制 FX 主界面的提示显示。",
                 "active_tip", true);
         addStoredSwitch("显示原生模块激活提示",
-                "保存原始 digXposed/native_active_tip 偏好。原版对应的 native 模块激活提示消费端尚未迁入。",
+                "保留原始 digXposed/native_active_tip 偏好。原始 APK 资源包含原生模块提示布局和文案，但当前反编译 Smali 未发现对应消费路径；FX 不伪称该提示已接入。",
                 "native_active_tip", true);
 
         section("框架与作用域");
