@@ -11,9 +11,14 @@ sub_test = module / "scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
     source = path.read_text(encoding="utf-8")
-    if new in source:
-        return
     count = source.count(old)
+    if count == 0:
+        # The same expression may legitimately occur in both the unlock trap
+        # and the waiter loop. A patched unlock must not make the waiter patch
+        # silently skip its still-unpatched occurrence.
+        if new in source:
+            return
+        raise SystemExit(f"{path}: {label}: original and patched anchors are both missing")
     if count != 1:
         raise SystemExit(f"{path}: {label}: expected one original anchor, found {count}")
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
