@@ -32,7 +32,7 @@ for label, needle in {
 # The deploy shell is emitted from Java string literals. Normalize escaped
 # double quotes so assertions compare the generated shell contract, not Java
 # source-code escaping.
-deploy_contract = deploy.replace(r'\\"', '"')
+deploy_contract = deploy.replace(chr(92) + '"', '"')
 
 for label, needle in {
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
