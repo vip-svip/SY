@@ -19,8 +19,17 @@ python3 "$PATCHER" "$MODULE" || fail "second atomic-lock patch application faile
 
 grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$APPLY" || fail "Hosts lock release does not atomically rename the owner directory"
 grep -Fq 'mv "$LOCK" "$_sl_release"' "$SUBFETCH" || fail "subscription lock release does not atomically rename the owner directory"
-grep -Fq 'cat "$_hf_lock/pid" 2>/dev/null || :' "$APPLY" || fail "Hosts waiter does not tolerate lock disappearance"
-grep -Fq 'cat "$LOCK/pid" 2>/dev/null || :' "$SUBFETCH" || fail "subscription waiter does not tolerate lock disappearance"
+python3 - "$APPLY" "$SUBFETCH" <<'PY'
+from pathlib import Path
+import sys
+apply = Path(sys.argv[1]).read_text(encoding="utf-8")
+subfetch = Path(sys.argv[2]).read_text(encoding="utf-8")
+assert '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n' not in apply, "Hosts waiter still has an unguarded owner read"
+assert '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\\n' not in apply, "Hosts stale-owner recheck still has an unguarded read"
+assert '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\\n' not in subfetch, "subscription waiter still has an unguarded owner read"
+assert '_sl_again=$(cat "$LOCK/pid" 2>/dev/null)\\n' not in subfetch, "subscription stale-owner recheck still has an unguarded read"
+assert '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null)\\n' not in subfetch, "subscription quarantine read still has an unguarded owner read"
+PY
 if grep -Fq 'rm -f "$_hf_lock/pid" 2>/dev/null; rmdir "$_hf_lock"' "$APPLY"; then
   fail "Hosts lock still exposes a pid-less directory before rmdir"
 fi
