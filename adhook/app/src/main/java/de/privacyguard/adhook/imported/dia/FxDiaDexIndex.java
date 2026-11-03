@@ -20,7 +20,8 @@ public final class FxDiaDexIndex {
     private static final int MAX_DEX_BYTES = 96 * 1024 * 1024;
     private static final int MAX_CLASSES = 100000;
     private static final int MAX_MEMBERS_PER_CLASS = 20000;
-    private static final int MAX_CALLS_PER_CLASS = 50000;
+    private static final int MAX_CALLS_PER_CLASS = 512;
+    private static final int MAX_CALLS_PER_DEX = 150000;
     private static final int MAX_CODE_UNITS_PER_METHOD = 2 * 1024 * 1024;
 
     public static final class Member {
@@ -69,6 +70,7 @@ public final class FxDiaDexIndex {
         }
     }
 
+    private int parsedCallEdges;
     private final byte[] data;
     private final int stringsSize, stringsOff, typesSize, typesOff;
     private final int protosSize, protosOff, fieldsSize, fieldsOff;
@@ -226,7 +228,8 @@ public final class FxDiaDexIndex {
         if (units <= 0 || units > MAX_CODE_UNITS_PER_METHOD) return;
         int instructions = codeOffset + 16;
         checkRange(instructions, units * 2);
-        for (int pc = 0; pc < units && item.calls.size() < MAX_CALLS_PER_CLASS;) {
+        for (int pc = 0; pc < units && item.calls.size() < MAX_CALLS_PER_CLASS
+                && parsedCallEdges < MAX_CALLS_PER_DEX;) {
             int first = u16(instructions + pc * 2);
             int opcode = first & 0xff;
             if (opcode == 0x00) {
@@ -238,7 +241,10 @@ public final class FxDiaDexIndex {
             if (isMethodInvoke(opcode) && pc + 1 < units) {
                 int referencedMethod = u16(instructions + (pc + 1) * 2);
                 String callee = methodReference(referencedMethod);
-                if (callee != null) item.calls.add(new CallSite(caller, callee, opcodeName(opcode)));
+                if (callee != null) {
+                    item.calls.add(new CallSite(caller, callee, opcodeName(opcode)));
+                    parsedCallEdges++;
+                }
             }
             int width = instructionWidth(opcode);
             if (width < 1 || pc + width > units) break;
@@ -282,7 +288,7 @@ public final class FxDiaDexIndex {
         if ((opcode >= 0x02 && opcode <= 0x02)
                 || opcode == 0x05 || opcode == 0x08
                 || opcode == 0x13 || opcode == 0x15 || opcode == 0x16
-                || opcode == 0x19 || opcode == 0x1a || opcode == 0x1c
+                || opcode == 0x18 || opcode == 0x19 || opcode == 0x1a || opcode == 0x1c
                 || opcode == 0x1f || opcode == 0x20 || opcode == 0x22 || opcode == 0x23
                 || opcode == 0x29
                 || (opcode >= 0x2d && opcode <= 0x3d)
@@ -290,7 +296,7 @@ public final class FxDiaDexIndex {
                 || (opcode >= 0xd0 && opcode <= 0xe2)
                 || opcode == 0xfe || opcode == 0xff) return 2;
         if (opcode == 0x03 || opcode == 0x06 || opcode == 0x09
-                || opcode == 0x14 || opcode == 0x17 || opcode == 0x18
+                || opcode == 0x14 || opcode == 0x17
                 || opcode == 0x1b || opcode == 0x24 || opcode == 0x25 || opcode == 0x26
                 || opcode == 0x2a || opcode == 0x2b || opcode == 0x2c
                 || (opcode >= 0x6e && opcode <= 0x72)
