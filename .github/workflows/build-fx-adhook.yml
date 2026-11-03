@@ -103,6 +103,8 @@ jobs:
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
           python3 fx-patches/patch_native_script_store.py fx-module
+          python3 fx-patches/patch_quickjs_http_limits.py fx-module
+          sh scripts/tests/fx-jsruntime-http-limits-regression.sh fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
           sh scripts/tests/fx-native-script-local-run-regression.sh
           python3 fx-patches/patch_remote_config_parser.py fx-module
