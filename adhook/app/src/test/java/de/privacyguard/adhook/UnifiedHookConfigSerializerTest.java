@@ -27,6 +27,22 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsDebugOnlyVoidNoOpAction() {
+        String rawRule = "stop|Lcom/example/vpn/Worker;->refresh(Ljava/lang/String;)V|NO_OP_VOID|25";
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                rawRule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
+                "com.example.vpn,dev_hook_enabled=1,dev_rule_b64_1=" + encoded + "\n");
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, input.targets);
+        UnifiedHookConfigParser.Result output = UnifiedHookConfigParser.parse(serialized);
+        assertTrue(output.targets.get("com.example.vpn").developerHooksEnabled);
+        assertEquals(DeveloperHookRule.Action.NO_OP_VOID,
+                output.targets.get("com.example.vpn").developerRules.get(0).action);
+        assertTrue(serialized.contains("dev_rule_b64_1="));
+    }
+
+    @Test
     public void serializerRoundTripsMultipleDeveloperRules() {
         UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +

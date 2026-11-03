@@ -4661,7 +4661,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(scopeNotice);
         TextView targetBuildState = new TextView(this);
         targetBuildState.setText(targetDebuggable
-                ? "目标应用：可调试版本（dev_hook_enabled 开启后：OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture）。"
+                ? "目标应用：可调试版本（OBSERVE 只记元数据；RETURN_* 为本地测试替换；NO_OP_VOID 仅跳过精确 void 方法）。"
                 : "目标应用：非调试版本（自定义 Hook 不执行；配置仅保留，返回值替换不会应用）。");
         targetBuildState.setTextColor(0xff697681);
         targetBuildState.setPadding(dp(18),0,dp(18),dp(12));
@@ -5138,7 +5138,7 @@ public final class MainActivity extends ComponentActivity {
         EditText action = new EditText(this);
         action.setSingleLine(true);
         action.setText("OBSERVE");
-        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING");
+        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING / NO_OP_VOID");
         EditText group = new EditText(this);
         group.setSingleLine(true);
         group.setText("默认");
@@ -5154,6 +5154,7 @@ public final class MainActivity extends ComponentActivity {
         help.setText("支持 Java 精确签名、Smali/JVM 描述符和旧式零参数 boolean 签名。"
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
                 + "RETURN_ZERO 仅支持数值原语；RETURN_EMPTY_STRING 仅支持 String。"
+                + "NO_OP_VOID 只接受精确 void 方法，会跳过方法主体，可能破坏应用逻辑。"
                 + "所有替换动作只对 debuggable 目标生效；观察日志不记录参数值、返回值、口令或令牌。");
         help.setTextSize(12);
         help.setTextColor(0xff687681);
@@ -5180,8 +5181,9 @@ public final class MainActivity extends ComponentActivity {
                     }
                     if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
                             && !"RETURN_FALSE".equals(actionText) && !"RETURN_NULL".equals(actionText)
-                            && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO 或 RETURN_EMPTY_STRING。")
+                            && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)
+                            && !"NO_OP_VOID".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING 或 NO_OP_VOID。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -5197,7 +5199,7 @@ public final class MainActivity extends ComponentActivity {
                             ruleId + "|" + method + "|" + actionText + "|" + priorityText, selectedPackage);
                     if (rule == null) {
                         new AlertDialog.Builder(this)
-                                .setMessage("规则无效：检查目标包名、方法签名、动作类型和优先级。替换动作只接受零参数 boolean 方法。")
+                                .setMessage("规则无效：检查目标包名、完整方法签名、动作类型和优先级；NO_OP_VOID 必须是返回 void 的真实方法，不能用于构造器。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }

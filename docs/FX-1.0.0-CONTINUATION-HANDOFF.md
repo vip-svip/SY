@@ -181,3 +181,10 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The decoder now writes unsupported raw terminals to `Yulong_AdBlock_Review.jsonl`, keyed by the source Trie; this file is not connected to AdGuard Home or Android Hosts. Cosmetic selectors remain in the separate cosmetic file.
 - Local inspection of the original four TRIE/BLOOM pairs validated all headers and node/terminal counts. The four assets contain 28 caret-terminated host-shaped terminals; the safe recovery yields 21 additional unique hostnames after de-duplication. 81 other non-cosmetic entries remain review-only, and 3,476 mobile cosmetic selectors remain separate. These are source-data counts, not device traffic measurements.
 - Focused local synthetic verification passed the allow/reject matrix and TRIE v2 encode/decode round-trip. The checked-in regression is also wired into the manual KernelSU source-import pipeline; no KernelSU ZIP was built.
+
+
+## 2026-11-04 continuation — Dia MethodActivity safe void method suppression
+
+- Compared the original MethodActivity.smali and Module.smali: the original per-target method_empty preference feeds a ClassLoader observer that replaces configured methods with XC_MethodReplacement.DO_NOTHING when its separate method master is on.
+- FX adds NO_OP_VOID to the unified custom Hook rule model. It requires an exact Java/JVM signature with return type void; constructors and other return types are rejected. The runtime re-resolves the method and independently checks target package scope, developer opt-in, FLAG_DEBUGGABLE, non-abstract and non-native method status before skipping the original body.
+- This is a safer subset, not full parity with the legacy class.method-only selector or its future ClassLoader observer. It does not act on release targets. Regression coverage: parser rejection/acceptance, serializer round-trip, native UI/runtime source contracts and the static migration workflow. OnePlus 12 LSPosed runtime testing remains outstanding.

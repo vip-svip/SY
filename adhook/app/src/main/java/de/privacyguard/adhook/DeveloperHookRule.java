@@ -12,7 +12,7 @@ import java.util.Set;
  * Legacy owner#method()Z descriptors remain accepted for boolean Debug fixtures.
  */
 public final class DeveloperHookRule {
-    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, OBSERVE, DISABLED }
+    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, NO_OP_VOID, OBSERVE, DISABLED }
     public final String id;
     public final String descriptor;
     public final boolean replacement;
@@ -25,7 +25,7 @@ public final class DeveloperHookRule {
         this.action = action;
         this.replacement = action == Action.RETURN_TRUE || action == Action.RETURN_FALSE
                 || action == Action.RETURN_NULL || action == Action.RETURN_ZERO
-                || action == Action.RETURN_EMPTY_STRING;
+                || action == Action.RETURN_EMPTY_STRING || action == Action.NO_OP_VOID;
         this.priority = priority;
     }
 
@@ -44,9 +44,16 @@ public final class DeveloperHookRule {
         else if ("NULL".equals(actionText) || "RETURN_NULL".equals(actionText)) action = Action.RETURN_NULL;
         else if ("ZERO".equals(actionText) || "RETURN_ZERO".equals(actionText)) action = Action.RETURN_ZERO;
         else if ("EMPTY_STRING".equals(actionText) || "RETURN_EMPTY_STRING".equals(actionText)) action = Action.RETURN_EMPTY_STRING;
+        else if ("NO_OP_VOID".equals(actionText) || "DO_NOTHING".equals(actionText)) action = Action.NO_OP_VOID;
         else if ("OBSERVE".equals(actionText) || "OBSERVE_ONLY".equals(actionText)) action = Action.OBSERVE;
         else if ("OFF".equals(actionText) || "DISABLED".equals(actionText)) action = Action.DISABLED;
         else return null;
+        if (action == Action.NO_OP_VOID) {
+            // The old method_empty behavior could corrupt non-void call sites.
+            if (!descriptor.startsWith("L")) return null;
+            DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name) || !"V".equals(parsed.returnDescriptor)) return null;
+        }
         if (action == Action.RETURN_TRUE || action == Action.RETURN_FALSE
                 || action == Action.RETURN_NULL || action == Action.RETURN_ZERO
                 || action == Action.RETURN_EMPTY_STRING) {

@@ -107,3 +107,12 @@ At branch checkpoint `ef1dcad78d6be573beb2e7cdc590ec53dd00c970`, the earlier gap
 ## Yulong precompiled Trie edge-case finding (2026-11-04)
 
 The original Go API `CheckDomainInTrieFile(filePath, domain)` loads the Trie and calls `ContainsOrParent(domain)` directly. That matcher splits raw dot labels; it does not strip ABP delimiters. Consequently, a terminal such as `adonweb.ru^` in the legacy Yulong precompiled asset cannot match a normal DNS query as a raw trie label. FX now treats a complete host plus a single ABP separator as an explicit migration-recovery case and records the behavior difference; it does not claim byte-identical parity. Prefix-only anchors, URL-start anchors, modifiers, paths, wildcards and IP literals remain outside active DNS/Hosts output.
+
+
+## 2026-11-04 follow-up — Dia MethodActivity method_empty behavior
+
+The original MethodActivity stores a per-target method_empty set. Module checks its separate method master, observes application ClassLoader attachment, and installs XC_MethodReplacement.DO_NOTHING for selected class/method names. This is an active method-body replacement feature, not merely a method list or metadata observer.
+
+FX now exposes the narrower NO_OP_VOID action through the unified per-app custom Hook editor. It accepts exact Java/JVM executable descriptors and is gated by per-target developer opt-in plus the target app's debuggable flag. The modern runtime resolves the exact method again and rejects constructors, non-void methods, abstract methods and native methods before installing a no-original-body interceptor. This avoids the original UI's ambiguous class.method-only selection and prevents a null no-op result from being applied to primitive/object-returning methods.
+
+This is not full parity with the original global method switch or its dynamic ClassLoader observer for future secondary loaders. It is a deliberately bounded, verifiable subset for developer-owned Debug apps. Release targets remain fail-open. Host/unit/CI verification is required; Android LSPosed runtime is device-pending.

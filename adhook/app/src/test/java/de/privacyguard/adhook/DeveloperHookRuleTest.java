@@ -119,6 +119,27 @@ public class DeveloperHookRuleTest {
         assertEquals("high", selected.get(0).id);
     }
 
+    @Test public void acceptsNoOpOnlyForExactVoidMethods() {
+        DeveloperHookRule noArg = DeveloperHookRule.parse(
+                "stop|Lcom/example/vpn/Worker;->refresh()V|NO_OP_VOID|25", "com.example.vpn");
+        DeveloperHookRule withArgs = DeveloperHookRule.parse(
+                "stopArgs|Lcom/example/vpn/Worker;->refresh(Ljava/lang/String;I)V|DO_NOTHING|10", "com.example.vpn");
+        DeveloperHookRule javaSource = DeveloperHookRule.parse(
+                "stopJava|com.example.vpn.Worker#refresh(java.lang.String)void|NO_OP_VOID|5", "com.example.vpn");
+        assertNotNull(noArg);
+        assertNotNull(withArgs);
+        assertNotNull(javaSource);
+        assertTrue(noArg.replacement);
+        assertEquals(DeveloperHookRule.Action.NO_OP_VOID, withArgs.action);
+        assertEquals("Lcom/example/vpn/Worker;->refresh(Ljava/lang/String;)V", javaSource.descriptor);
+    }
+
+    @Test public void rejectsNoOpForNonVoidConstructorsAndLegacyAmbiguousSignatures() {
+        assertNull(DeveloperHookRule.parse("unsafe|Lcom/example/vpn/Worker;->refresh()Z|NO_OP_VOID|1", "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse("unsafe|Lcom/example/vpn/Worker;-><init>()V|NO_OP_VOID|1", "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse("unsafe|com.example.vpn.Worker#refresh()Z|NO_OP_VOID|1", "com.example.vpn"));
+    }
+
     @Test public void acceptsDottedJavaSourceSignature() {
         DeveloperHookRule rule = DeveloperHookRule.parse(
                 "trace|com.example.vpn.Trace.dispatch(String,int[])Object|OBSERVE|5",

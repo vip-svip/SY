@@ -174,6 +174,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> advertisingIdHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
+    private final Set<java.lang.reflect.Executable> developerVoidNoOpHookedExecutables = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
@@ -338,6 +339,9 @@ public final class AdVisibilityHook extends XposedModule {
                         || rule.action == DeveloperHookRule.Action.RETURN_EMPTY_STRING) {
                     installDeveloperTypedReturnHook(param.getClassLoader(), pkg,
                             debuggableTarget, rule.descriptor, rule.action, rule.id);
+                } else if (rule.action == DeveloperHookRule.Action.NO_OP_VOID) {
+                    installDeveloperVoidNoOpHook(param.getClassLoader(), pkg, debuggableTarget,
+                            rule.descriptor, rule.id);
                 }
             }
         }
@@ -483,6 +487,38 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
+    /** Dia MethodActivity replacement, restricted to exact non-native void methods. */
+    private void installDeveloperVoidNoOpHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, String label) {
+        if (descriptor == null || !MemberTestGate.isEnabled(
+                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
+        try {
+            DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name) || !"V".equals(parsed.returnDescriptor)) return;
+            java.lang.reflect.Executable executable = parsed.resolve(loader);
+            if (!(executable instanceof Method)) return;
+            Method method = (Method) executable;
+            if (method.getReturnType() != void.class || Modifier.isAbstract(method.getModifiers())
+                    || Modifier.isNative(method.getModifiers())
+                    || !developerVoidNoOpHookedExecutables.add(executable)) return;
+            try {
+                final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
+                hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            long count = hits.incrementAndGet();
+                            if (count == 1L || count % 100L == 0L)
+                                logFx(Log.INFO, "developer void no-op hit=" + label + " package=" + packageName + " count=" + count);
+                            return null;
+                        });
+            } catch (Throwable hookFailure) {
+                developerVoidNoOpHookedExecutables.remove(executable);
+                throw hookFailure;
+            }
+            logFx(Log.INFO, "developer void no-op installed=" + label + " package=" + packageName + " method=" + method.getName());
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "developer void no-op failed open=" + label + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
+        }
+    }
     private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
             boolean debuggableBuild, String descriptor, boolean replacement, String label) {
         installDeveloperBooleanTestHook(loader, packageName, debuggableBuild, descriptor,
