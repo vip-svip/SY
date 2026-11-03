@@ -9,6 +9,10 @@ else
     *) ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd); MODULE="$ROOT/fx-module" ;;
   esac
 fi
+case "$SCRIPT_DIR" in
+  */fx-module/scripts/tests) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd) ;;
+  *) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) ;;
+esac
 SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Yulong firewall implementation missing"
@@ -162,4 +166,36 @@ fi
 
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
-echo "PASS: Yulong app firewall isolates temp files, rejects symlinks, rolls back dual-stack failure and cleans up its own chains"
+
+# Restore-from-Release layouts already include a schedule-stop block between
+# STATE_DIR and REMOVER. The patcher must still insert firewall cleanup safely.
+RESTORE="$TMP/release-layout"
+mkdir -p "$RESTORE/scripts"
+printf 'id=privacyguard\\n' > "$RESTORE/module.prop"
+cat > "$RESTORE/service.sh" <<'SERVICE'
+#!/system/bin/sh
+sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
+_rc=$?
+SERVICE
+cat > "$RESTORE/uninstall.sh" <<'UNINSTALL'
+#!/system/bin/sh
+MODDIR=/data/adb/modules/privacyguard
+STATE_DIR=/data/adb/privacyguard
+if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+  sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
+fi
+REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
+UNINSTALL
+[ -s "$REPO/fx-patches/patch_yulong_app_firewall.py" ] || fail "firewall source restore patcher missing"
+python3 "$REPO/fx-patches/patch_yulong_app_firewall.py" "$RESTORE" "$REPO" || fail "Release-layout firewall patch failed"
+grep -Fq 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh" || fail "service hook was not inserted"
+grep -Fq 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh" || fail "schedule start was not inserted"
+grep -Fq 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh" || fail "schedule stop was removed"
+grep -Fq 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh" || fail "firewall uninstall cleanup was not inserted"
+python3 "$REPO/fx-patches/patch_yulong_app_firewall.py" "$RESTORE" "$REPO" || fail "second Release-layout firewall patch failed"
+[ "$(grep -Fc 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall boot hook is not idempotent"
+[ "$(grep -Fc 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh")" -eq 1 ] || fail "schedule start hook is not idempotent"
+[ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
+[ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"
+
+echo "PASS: Yulong app firewall isolates temp files, rejects symlinks, rolls back dual-stack failure, and restores Release lifecycle hooks idempotently"
