@@ -130,6 +130,7 @@ jobs:
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
+          sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
