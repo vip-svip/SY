@@ -153,6 +153,7 @@ public final class AdVisibilityHook extends XposedModule {
     // Settings.Secure.getString is process-global. Register one interceptor per process;
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
+    private volatile boolean telephonyIdentifierHooksInstalled;
     private volatile boolean clipboardReadHooksInstalled;
     private volatile boolean clipboardIsolationHooksInstalled;
     private static volatile Object processClipboardShadow;
@@ -1482,8 +1483,9 @@ public final class AdVisibilityHook extends XposedModule {
                     return original;
                 }
             });
+            installTelephonyIdentifierPrivacyHooks(pkg);
             privacyIdentifierHookInstalled = true;
-            logFx(Log.INFO, "process-scoped Android ID privacy hook installed for " + pkg);
+            logFx(Log.INFO, "process-scoped Android ID and telephony identifier privacy hooks installed for " + pkg);
             return true;
         } catch (Throwable t) {
             logFx(Log.WARN, "Android ID privacy hook unavailable for " + pkg +
@@ -1492,6 +1494,49 @@ public final class AdVisibilityHook extends XposedModule {
         }
     }
 
+
+    /**
+     * Mask carrier/SIM subscriber identifiers for an opted-in target app.
+     * Null mirrors Android's ordinary unavailable/permission-denied result.
+     */
+    private synchronized boolean installTelephonyIdentifierPrivacyHooks(final String pkg) {
+        if (telephonyIdentifierHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName("android.telephony.TelephonyManager", false, null);
+            final Set<String> identifierMethods = new HashSet<>(Arrays.asList(
+                    "getDeviceId", "getImei", "getMeid", "getSubscriberId",
+                    "getSimSerialNumber", "getLine1Number", "getNai", "getGroupIdLevel1"));
+            for (final Method method : type.getDeclaredMethods()) {
+                if (!identifierMethods.contains(method.getName())
+                        || method.getReturnType() != String.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object original = chain.proceed();
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (active == null || NEVER.contains(activePackage)
+                                        || !privacyEnabled || !active.privacy) return original;
+                                return null;
+                            });
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "telephony identifier privacy hook unavailable: "
+                            + method.toGenericString());
+                }
+            }
+            telephonyIdentifierHooksInstalled = installed > 0;
+            logFx(installed > 0 ? Log.INFO : Log.WARN,
+                    "telephony subscriber/device identifier privacy hooks installed="
+                            + installed + " for " + pkg);
+            return telephonyIdentifierHooksInstalled;
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "TelephonyManager identifier privacy hooks unavailable for " + pkg
+                    + ": " + failure.getClass().getSimpleName());
+            return false;
+        }
+    }
 
     /** Install process-global framework observers once; resolve app scope per callback. */
     private synchronized void installAdViewHooks() {
