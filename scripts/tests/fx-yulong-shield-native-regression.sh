@@ -101,5 +101,25 @@ for source, label in ((white, "WhitelistActivity"), (picker, "WhitelistPickerAct
     assert '"fx_yulong_shield_prefs"' in source, f"{label} preference namespace missing"
     assert "com.youlong.hd" not in source, f"{label} still references source package"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
-print("PASS: Shield native UI, database, caches, opt-in APK content scan, timeout, safe removal, no second VPN and local list management")
+
+# Whitelist label/icon refresh must not spawn overlapping unbounded raw threads.
+assert "ThreadPoolExecutor(1, 1, 30L" in white
+assert "new ArrayBlockingQueue<>(1)" in white
+assert "labelLoadGeneration.incrementAndGet()" in white
+assert "generation != labelLoadGeneration.get()" in white
+assert "labelWorker.shutdownNow();" in white
+assert "activityDestroyed = true;" in white
+assert white.count("new Thread(") == 1, "WhitelistActivity must only create its named executor worker"
+
+# App enumeration and lazy icons must use independent bounded pools; queue saturation
+# must not crash ListView.getView and stale callbacks must not update a destroyed Activity.
+assert "ThreadPoolExecutor(1, 1, 30L" in picker
+assert "new ArrayBlockingQueue<>(1)" in picker
+assert "ThreadPoolExecutor(2, 2, 30L" in picker
+assert "new ArrayBlockingQueue<>(32)" in picker
+assert "appLoader.shutdownNow();" in picker and "iconExecutor.shutdownNow();" in picker
+assert "catch (RejectedExecutionException full)" in picker
+assert "activityDestroyed || isFinishing() || isDestroyed()" in picker
+assert picker.count("new Thread(") == 2, "WhitelistPickerActivity should only create its two named executor workers"
+print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup")
 PY
