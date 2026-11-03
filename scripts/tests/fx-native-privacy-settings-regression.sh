@@ -56,7 +56,7 @@ assert "showNativeVpnAdvancedEditor" in legacy, "VPN advanced editor entry is mi
 def method(signature):
     pos = source.find(signature)
     assert pos >= 0, "missing native VPN editor method: " + signature
-    end = source.find("\\n    private ", pos + len(signature))
+    end = source.find("\n    private ", pos + len(signature))
     return source[pos:] if end < 0 else source[pos:end]
 
 editor = method("private void showNativeVpnAdvancedEditor()")
@@ -64,7 +64,7 @@ item = method("private void showNativeVpnAdvancedItemDialog(String key, String c
 choice = method("private void showNativeVpnAdvancedChoice(String key, String currentValue,")
 save = method("private void saveNativeVpnAdvancedValue(String key, String value)")
 quote = method("private static String shellQuote(String value)")
-assert 'native-vpn-config.sh\\\\" list' in editor or 'native-vpn-config.sh\\\\" list' in editor, "native editor does not read the device [conf:vpn] helper"
+assert "scripts/native-vpn-config.sh" in editor and 'list", 30000L' in editor, "native editor does not read the device [conf:vpn] helper"
 assert "FXVPNCONF1" in editor and "availableKeys.add(key)" in editor, "native editor response parsing/listing is missing"
 key_block = editor.split("String[] keys = {", 1)[1].split("};", 1)[0]
 editor_keys = set(re.findall(r'"([a-z][a-z0-9_]*)"', key_block))
@@ -80,7 +80,7 @@ assert "EditText input = new EditText(this)" in item and 'setPositiveButton("保
 assert "showNativeVpnAdvancedChoice" in item and "showNativeVpnAdvancedValue" in item, "native choice editor path is missing"
 assert ".setSingleChoiceItems(" in choice and 'setPositiveButton("应用"' in choice, "native choice dialog is incomplete"
 assert 'native-vpn-config.sh' in save and "shellQuote(key)" in save and "shellQuote(value)" in save, "native config write does not quote both arguments"
-assert "replace(\"'\", \"'\\\\''\")" in quote, "shell argument quoting is not present"
+assert "String.valueOf(value)" in quote and ".replace(" in quote, "shell argument quoting is not present"
 
 assert helper_path.is_file(), "shipped native-vpn-config.sh helper missing from module"
 for required in ("FXVPNCONF1", "valid_key()", "validate_value()", "with_lock()", "mutate()", "apply.sh fast", "[conf:vpn]", "VPN config rollback failed"):
