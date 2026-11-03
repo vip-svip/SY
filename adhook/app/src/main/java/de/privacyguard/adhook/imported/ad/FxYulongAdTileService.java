@@ -38,6 +38,7 @@ public final class FxYulongAdTileService extends TileService {
             int next=readState()==Tile.STATE_ACTIVE?0:1;
             RootAccess.Result r=RootAccess.execute(command("ad-master "+next),90000L,128*1024);
             int state=r.exitCode==0?readState():Tile.STATE_UNAVAILABLE;
+            if (r.exitCode == 0) FxYulongAdWidgetProvider.refreshAll(this);
             main.post(()->applyTile(state,r.exitCode==0?(state==Tile.STATE_ACTIVE?"已开启":"已关闭"):"Root 应用失败"));
         });
     }
