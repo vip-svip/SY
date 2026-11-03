@@ -2555,6 +2555,7 @@ public final class MainActivity extends ComponentActivity {
 
     private String importedSuiteTitle(String suite) {
         if ("dia".equals(suite)) return "Dia 23.11";
+        if ("yulong-shield".equals(suite)) return "游龙安全护盾 9.9.60";
         return "游龙广告插件 7.0.1";
     }
 
@@ -2566,6 +2567,13 @@ public final class MainActivity extends ComponentActivity {
             {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
             {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
             {"规则与数据", "规则组", "规则列表", "运行日志", "本地备份", "GitHub 备份", "WebDAV 备份", "全局设置"}
+        };
+        if ("yulong-shield".equals(suite)) return new String[][] {
+            {"安全中心", "安全护盾首页", "防护级别", "防护状态", "实时守护", "每日安全总结"},
+            {"病毒库与名单", "病毒库管理", "病毒库同步", "白名单管理", "管控应用列表"},
+            {"应用扫描", "已安装应用扫描", "安装后自动检测", "APK 内容特征扫描", "扫描结果"},
+            {"Stellar 金龙", "Stellar 特权管理", "应用授权", "能力作用域", "始终允许命令"},
+            {"救援与恢复", "悬浮救援入口", "音量键触发", "摇动触发", "开机恢复", "守护运行状态"}
         };
         return new String[][] {
             {"首页与防护", "广告拦截开关", "防护级别", "防护状态", "统计", "每日防护总结"},
@@ -2639,6 +2647,43 @@ public final class MainActivity extends ComponentActivity {
             startActivity(new Intent(this,
                     de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
             return;
+        }
+        if ("yulong-shield".equals(suite)) {
+            switch (page) {
+                case "安全护盾首页": case "防护级别": case "防护状态":
+                case "实时守护": case "每日安全总结": case "悬浮救援入口":
+                case "音量键触发": case "摇动触发": case "开机恢复":
+                case "守护运行状态":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                    return;
+                case "病毒库管理": case "病毒库同步":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongVirusDatabaseActivity.class));
+                    return;
+                case "白名单管理":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.WhitelistActivity.class));
+                    return;
+                case "管控应用列表":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.BlacklistActivity.class));
+                    return;
+                case "已安装应用扫描": case "安装后自动检测":
+                case "APK 内容特征扫描": case "扫描结果":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongScanActivity.class));
+                    return;
+                case "Stellar 特权管理": case "应用授权":
+                case "能力作用域": case "始终允许命令":
+                    startActivity(new Intent(this,
+                            roro.stellar.manager.authorization.FxStellarManagerActivity.class));
+                    return;
+                default:
+                    showImportedSuitePendingPage(suite, category, page,
+                            "该安全护盾原功能已登记；尚无对应独立四级实现。不会显示无效开关或伪造运行状态。");
+                    return;
+            }
         }
         if ("dia".equals(suite)) {
             switch (page) {
