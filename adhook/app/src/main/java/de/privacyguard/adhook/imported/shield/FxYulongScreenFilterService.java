@@ -5,8 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -33,9 +35,35 @@ public final class FxYulongScreenFilterService extends Service {
     private WindowManager windowManager;
     private FilterOverlay overlay;
 
+    private boolean volumeReceiverRegistered;
+    private final BroadcastReceiver volumeKeyReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            if (!prefs.getBoolean("screen_filter_enabled", false)
+                    || !prefs.getBoolean("screen_filter_volume_adjust_enabled", false)) return;
+            int direction = intent.getIntExtra("direction", 0);
+            if (direction != 1 && direction != -1) return;
+            int brightness = prefs.getInt("screen_filter_brightness", 100);
+            brightness = Math.max(0, Math.min(200, brightness + direction * 5));
+            prefs.edit().putInt("screen_filter_brightness", brightness).apply();
+            applySettings();
+        }
+    };
+
     @Override public void onCreate() {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        IntentFilter volumeFilter = new IntentFilter(
+                de.privacyguard.adhook.FxAccessibilityService.ACTION_VOLUME_KEY);
+        try {
+            if (Build.VERSION.SDK_INT >= 33)
+                registerReceiver(volumeKeyReceiver, volumeFilter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(volumeKeyReceiver, volumeFilter);
+            volumeReceiverRegistered = true;
+        } catch (Throwable ignored) {
+            volumeReceiverRegistered = false;
+        }
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (manager != null) {
@@ -138,6 +166,10 @@ public final class FxYulongScreenFilterService extends Service {
 
     @Override public void onDestroy() {
         removeOverlay();
+        if (volumeReceiverRegistered) {
+            try { unregisterReceiver(volumeKeyReceiver); } catch (Throwable ignored) { }
+            volumeReceiverRegistered = false;
+        }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("screen_filter_enabled", false).apply();
         stopForeground(true);
