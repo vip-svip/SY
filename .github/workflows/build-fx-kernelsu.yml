@@ -128,6 +128,7 @@ jobs:
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
           install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
+          install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 fx-patches/patch_yulong_ad_control.py fx-module .
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
