@@ -29,6 +29,8 @@ PG=/data/adb/privacyguard
 XDIR=/data/local/tmp/privacyguard
 EOF
 python3 "$PATCHER" "$TMP"
+# Re-applying the build patch must preserve the same values and hooks.
+python3 "$PATCHER" "$TMP"
 python3 - "$TMP/scripts/default.conf" "$TMP/uninstall.sh" "$TMP/service.sh" "$TMP/scripts/yulong-ad-schedule.sh" <<'PY'
 from pathlib import Path
 import sys
