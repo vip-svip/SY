@@ -74,7 +74,7 @@ watch() { log "watcher started"; while :; do evaluate || :; sleep 60; done; }
 start() {
   # A disabled schedule must not keep a 60-second background poller alive.
   if [ "$(read_value enabled)" != 1 ]; then
-    stop
+    stop || return 1
     echo "schedule-disabled"
     return 0
   fi
@@ -135,7 +135,10 @@ stop() {
     echo stopped
     return 0
   fi
-  pg_set yulong_ad_schedule_active 1 >/dev/null 2>&1 || :
+  if ! pg_set yulong_ad_schedule_active 1 >/dev/null 2>&1; then
+    log "watcher stopped but could not restore active=1"
+    return 1
+  fi
   if ! sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1; then
     log "watcher stopped but failed to re-apply manual Yulong rule state"
     return 1
