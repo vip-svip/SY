@@ -83,8 +83,11 @@ published during this migration phase.
 - The command backend accepts only fixed permission, AppOps operation and mode
   allowlists; arbitrary Shell execution remains disabled. Changes are logged under
   the original Stellar guard data directory.
-- The generic secure-settings write scope is not exposed as a UI toggle until a
-  specific safe key/value surface is implemented.
+- Added the missing explicit `SECURE_SETTINGS_WRITE` scope switch alongside the
+  existing three-key safe writer (`show_ime_with_hard_keyboard`,
+  `screensaver_enabled`, `long_press_timeout`); enabling it requires a separate
+  high-privilege confirmation. The helper rejects all other secure-setting keys
+  and validates the permitted value ranges before writing and read-back verification.
 
 ### Yulong Security Shield 9.9.60 — additional integrated work
 

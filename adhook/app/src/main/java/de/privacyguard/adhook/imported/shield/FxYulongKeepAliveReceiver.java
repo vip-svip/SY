@@ -59,27 +59,16 @@ public final class FxYulongKeepAliveReceiver extends BroadcastReceiver {
                                 failure.getClass().getSimpleName()).apply();
             }
         }
-        if (prefs.getBoolean("overlay_rescue_on", false)) {
-            if (!Settings.canDrawOverlays(app)) {
-                // Permission revocation is a terminal state for this opt-in feature:
-                // turn off only the overlay rescue toggle instead of waking forever.
-                prefs.edit().putBoolean("overlay_rescue_on", false)
-                        .putString("overlay_restore_error", "overlay permission revoked")
-                        .apply();
-            } else {
-                try {
-                    Intent overlay = new Intent(app, FxYulongRescueOverlayService.class);
-                    if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(overlay);
-                    else app.startService(overlay);
-                    prefs.edit().remove("overlay_restore_error").apply();
-                } catch (Throwable failure) {
-                    prefs.edit().putString("overlay_restore_error",
-                            failure.getClass().getSimpleName()).apply();
-                }
+        if (prefs.getBoolean("overlay_rescue_on", false) && Settings.canDrawOverlays(app)) {
+            try {
+                Intent overlay = new Intent(app, FxYulongRescueOverlayService.class);
+                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(overlay);
+                else app.startService(overlay);
+            } catch (Throwable failure) {
+                prefs.edit().putString("overlay_restore_error",
+                        failure.getClass().getSimpleName()).apply();
             }
         }
-        // Re-evaluate after permission degradation so the alarm is cancelled when
-        // this was the last enabled Shield feature.
         refreshSchedule(app);
     }
 }
