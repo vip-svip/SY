@@ -1555,6 +1555,8 @@ public final class MainActivity extends ComponentActivity {
                 buildNativeVpnControls();
                 content.addView(nativeVpnControls, new LinearLayout.LayoutParams(-1, -2));
                 section("VPN / DNS / 分流策略");
+                content.addView(nativeAction("高级文本 / 列表 / 选项编辑器",
+                        this::showNativeVpnAdvancedEditor));
                 addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel");
                 buildNativeVpnSubscriptionPanel();
                 addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
@@ -1574,6 +1576,182 @@ public final class MainActivity extends ComponentActivity {
                 content.addView(title("FX", 22));
                 break;
         }
+    }
+
+    private void showNativeVpnAdvancedEditor() {
+        runNativeModuleCommand("sh \"$MP/scripts/native-vpn-config.sh\" list", 30000L, result -> {
+            if (result.exitCode != 0) {
+                new AlertDialog.Builder(this).setTitle("VPN 高级设置读取失败")
+                        .setMessage(result.output == null ? "无法读取设备端 [conf:vpn]。" : result.output.trim())
+                        .setPositiveButton("重试", (d, w) -> showNativeVpnAdvancedEditor())
+                        .setNegativeButton("关闭", null).show();
+                return;
+            }
+            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
+            if (lines.length == 0 || !"FXVPNCONF1".equals(lines[0])) {
+                new AlertDialog.Builder(this).setTitle("VPN 高级设置读取失败")
+                        .setMessage("设备端配置响应格式错误。")
+                        .setPositiveButton("重试", (d, w) -> showNativeVpnAdvancedEditor())
+                        .setNegativeButton("关闭", null).show();
+                return;
+            }
+            Map<String, String> values = new HashMap<>();
+            for (int i = 1; i < lines.length; i++) {
+                String[] parts = lines[i].split("\\\\|", 2);
+                if (parts.length == 2) values.put(parts[0], parts[1]);
+            }
+            String[] keys = {
+                    "local_ip", "local_port", "mixed_port", "remote_dns", "cn_dns",
+                    "test_url", "auto_update_h", "chnroute_url", "app_mode",
+                    "core_ver", "core_auto", "core_bin", "log_level", "hosts_cache_min",
+                    "pick_min_ms", "pick_test_timeout", "pick_max_nodes", "hide_level",
+                    "hide_mtu_clamp", "hide_udp_block_all", "hide_icmp_block_all", "hide_dot_block"
+            };
+            List<String> availableKeys = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+            for (String key : keys) {
+                if (!values.containsKey(key)) continue;
+                availableKeys.add(key);
+                String value = values.get(key);
+                String shown = value.isEmpty() ? "（自动 / 空）" : value;
+                labels.add(nativeVpnAdvancedLabel(key) + "\n" + shown);
+            }
+            String[] rows = labels.toArray(new String[0]);
+            new AlertDialog.Builder(this).setTitle("VPN 高级参数")
+                    .setItems(rows, (dialog, which) ->
+                            showNativeVpnAdvancedItemDialog(availableKeys.get(which), values.get(availableKeys.get(which))))
+                    .setPositiveButton("刷新", (dialog, which) -> showNativeVpnAdvancedEditor())
+                    .setNegativeButton("关闭", null).show();
+        });
+    }
+
+    private String nativeVpnAdvancedLabel(String key) {
+        switch (key) {
+            case "local_ip": return "本地监听地址";
+            case "local_port": return "本地代理端口";
+            case "mixed_port": return "HTTP / SOCKS 混合端口";
+            case "remote_dns": return "远端 DNS";
+            case "cn_dns": return "国内直连 DNS";
+            case "test_url": return "节点延迟测试 URL";
+            case "auto_update_h": return "订阅自动更新间隔（小时）";
+            case "chnroute_url": return "中国大陆 IP 段源";
+            case "app_mode": return "分应用代理模式";
+            case "core_ver": return "sing-box 核心版本";
+            case "core_auto": return "核心自动下载";
+            case "core_bin": return "自定义核心路径";
+            case "log_level": return "核心日志级别";
+            case "hosts_cache_min": return "Hosts / 规则缓存有效期（分钟）";
+            case "pick_min_ms": return "自动选优最低延迟（毫秒）";
+            case "pick_test_timeout": return "节点测速超时（秒）";
+            case "pick_max_nodes": return "自动选优最大节点数";
+            case "hide_level": return "隐藏强度";
+            case "hide_mtu_clamp": return "MTU / MSS Clamp";
+            case "hide_udp_block_all": return "阻断全部 UDP";
+            case "hide_icmp_block_all": return "阻断 ICMP";
+            case "hide_dot_block": return "阻断 DNS-over-TLS";
+            default: return key;
+        }
+    }
+
+    private void showNativeVpnAdvancedItemDialog(String key, String currentValue) {
+        if ("app_mode".equals(key)) {
+            showNativeVpnAdvancedChoice(key, currentValue,
+                    new String[]{"仅列表应用走代理", "列表应用直连"},
+                    new String[]{"only", "bypass"});
+            return;
+        }
+        if ("core_auto".equals(key) || "hide_mtu_clamp".equals(key)
+                || "hide_udp_block_all".equals(key) || "hide_icmp_block_all".equals(key)
+                || "hide_dot_block".equals(key)) {
+            showNativeVpnAdvancedChoice(key, currentValue, new String[]{"关闭", "开启"}, new String[]{"0", "1"});
+            return;
+        }
+        if ("log_level".equals(key)) {
+            showNativeVpnAdvancedChoice(key, currentValue,
+                    new String[]{"trace", "debug", "info", "warn", "error", "fatal", "panic"},
+                    new String[]{"trace", "debug", "info", "warn", "error", "fatal", "panic"});
+            return;
+        }
+        if ("hide_level".equals(key)) {
+            showNativeVpnAdvancedChoice(key, currentValue,
+                    new String[]{"L0 基础", "L1 默认", "L2 增强"},
+                    new String[]{"0", "1", "2"});
+            return;
+        }
+
+        EditText input = new EditText(this);
+        input.setText(currentValue);
+        input.setSingleLine(false);
+        input.setMinLines(1);
+        input.setSelectAllOnFocus(true);
+        if ("local_port".equals(key) || "mixed_port".equals(key) || "auto_update_h".equals(key)
+                || "hosts_cache_min".equals(key) || "pick_min_ms".equals(key)
+                || "pick_test_timeout".equals(key) || "pick_max_nodes".equals(key)) {
+            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        }
+        input.setHint(nativeVpnAdvancedHint(key));
+        new AlertDialog.Builder(this).setTitle(nativeVpnAdvancedLabel(key))
+                .setMessage(nativeVpnAdvancedDescription(key))
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setNeutralButton(("core_bin".equals(key) || "mixed_port".equals(key)) ? "清空" : null,
+                        (dialog, which) -> saveNativeVpnAdvancedValue(key, ""))
+                .setPositiveButton("保存", (dialog, which) ->
+                        saveNativeVpnAdvancedValue(key, input.getText().toString().trim()))
+                .show();
+    }
+
+    private String nativeVpnAdvancedHint(String key) {
+        if ("local_port".equals(key)) return "1–65535";
+        if ("mixed_port".equals(key)) return "留空表示本地端口 + 1";
+        if ("auto_update_h".equals(key)) return "1–720 小时";
+        if ("hosts_cache_min".equals(key)) return "0–10080 分钟";
+        if ("pick_min_ms".equals(key)) return "1–2000 毫秒";
+        if ("pick_test_timeout".equals(key)) return "1–60 秒";
+        if ("pick_max_nodes".equals(key)) return "1–200";
+        if ("core_bin".equals(key)) return "绝对路径；留空使用自动下载核心";
+        return "";
+    }
+
+    private String nativeVpnAdvancedDescription(String key) {
+        if ("local_port".equals(key) || "mixed_port".equals(key))
+            return "两个端口必须不同，避免 redirect 与 mixed 入站冲突。保存后会重新生成核心配置。";
+        if ("app_mode".equals(key))
+            return "此模式控制分应用代理名单，不等同于广告过滤应用白名单。";
+        if ("hide_level".equals(key))
+            return "L0 基础、L1 默认、L2 增强。更高强度可能影响部分应用网络连接。";
+        if ("core_bin".equals(key))
+            return "指定可执行核心的绝对路径。路径必须由你在设备上预先放置并授权。";
+        return "修改会写入 FX 的 [conf:vpn]，并触发模块重新应用；保存成功不代表 VPN 核心已经运行。";
+    }
+
+    private void showNativeVpnAdvancedChoice(String key, String currentValue,
+                                              String[] labels, String[] values) {
+        int selected = 0;
+        for (int i = 0; i < values.length; i++) if (values[i].equals(currentValue)) selected = i;
+        final int[] choice = {selected};
+        new AlertDialog.Builder(this).setTitle(nativeVpnAdvancedLabel(key))
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> choice[0] = which)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("应用", (dialog, which) ->
+                        saveNativeVpnAdvancedValue(key, values[choice[0]]))
+                .show();
+    }
+
+    private void saveNativeVpnAdvancedValue(String key, String value) {
+        String command = "sh \"$MP/scripts/native-vpn-config.sh\" set "
+                + shellQuote(key) + " " + shellQuote(value);
+        runNativeModuleCommand(command, 120000L, result -> {
+            if (result.exitCode == 0) {
+                Toast.makeText(this, "VPN 参数已保存并应用。", Toast.LENGTH_LONG).show();
+                showNativeVpnAdvancedEditor();
+                syncNativeVpnControls();
+            } else {
+                new AlertDialog.Builder(this).setTitle("VPN 参数保存失败")
+                        .setMessage(result.output == null ? "设备端拒绝了本次修改。" : result.output.trim())
+                        .setPositiveButton("知道了", null).show();
+            }
+        });
     }
 
     private void refreshNativeModuleStatus(TextView target, int pageIndex) {
