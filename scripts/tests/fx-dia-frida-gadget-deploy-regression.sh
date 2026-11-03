@@ -26,9 +26,14 @@ for label, needle in {
     "restart after Gadget deployment": "完全停止并重启目标应用",
     "re-deploy after app update": "需要重新部署",
 }.items():
-    haystack = activity if label.endswith("UI") else deploy
+    haystack = activity if label.endswith("UI") else deploy_contract
     if needle not in haystack:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+# The deploy shell is emitted from Java string literals. Normalize escaped
+# double quotes so assertions compare the generated shell contract, not Java
+# source-code escaping.
+deploy_contract = deploy.replace(r'\\"', '"')
+
 for label, needle in {
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
     "system-app exclusion": "ApplicationInfo.FLAG_SYSTEM",
@@ -56,14 +61,14 @@ for label, needle in {
     "remove verifies current library/config hashes": 'FX_GADGET_HASH_CONFLICT',
     "remove rejects symlinked Gadget files": '[ -f "$dest/$gadget" ] && [ ! -L "$dest/$gadget" ]',
 }.items():
-    if needle not in deploy:
+    if needle not in deploy_contract:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
-if 'owner=$(stat -c \'%u:%g\' "$dest")' not in deploy:
+if 'owner=$(stat -c \'%u:%g\' "$dest")' not in deploy_contract:
     raise SystemExit("FAIL: deployment does not match staged files to app UID/GID")
-lib_commit = deploy.find('mv "$stage/$gadget" "$dest/$gadget"; new_g=1')
-config_commit = deploy.find('mv "$stage/$conf" "$dest/$conf"; new_c=1')
-marker_commit = deploy.find('mv "$stage/$marker" "$dest/$marker"; new_m=1')
-commit_flag = deploy.find('committed=1; echo FX_GADGET_DEPLOYED')
+lib_commit = deploy_contract.find('mv "$stage/$gadget" "$dest/$gadget"; new_g=1')
+config_commit = deploy_contract.find('mv "$stage/$conf" "$dest/$conf"; new_c=1')
+marker_commit = deploy_contract.find('mv "$stage/$marker" "$dest/$marker"; new_m=1')
+commit_flag = deploy_contract.find('committed=1; echo FX_GADGET_DEPLOYED')
 if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
     raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
 for label, needle in {
