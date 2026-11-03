@@ -26,9 +26,9 @@ _maybe_refresh_anchor() { :; }
 UNBOUND
 cat > "$MOD/scripts/apply.sh" <<'APPLY'
 #!/system/bin/sh
-if sh "$MODDIR/scripts/adguardhome.sh" ensure "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1; then
-  :
-fi
+    if sh "$MODDIR/scripts/adguardhome.sh" ensure "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1; then
+      :
+    fi
   sh "$MODDIR/scripts/adguardhome.sh" stop "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || :
   if [ "$_PG_EXT_VPN_PROBE_UNKNOWN" = "1" ]; then
     :
