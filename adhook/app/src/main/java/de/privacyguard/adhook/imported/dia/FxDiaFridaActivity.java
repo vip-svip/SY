@@ -1790,52 +1790,61 @@ public final class FxDiaFridaActivity extends Activity {
                 + "cli=" + quote(cli) + "; pkg=" + quote(targetPackage) + "; "
                 + "log=" + quote(logPath) + "; script=" + quote(scriptPath) + "; "
                 + "pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; port=" + port + "; "
-                + "test -x \\"$cli\\" && test ! -L \\"$cli\\"; "
-                + "cli_version=$(\\"$cli\\" --version 2>&1) || { echo FX_GADGET_CLI_UNAVAILABLE; exit 20; }; "
-                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\\"$pkg\\" "
-                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \\":\\")==1) {print $1}'); "
-                + "[ -n \\"$pids\\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
-                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \\"$dir\\"; "
-                + "test -d \\"$dir\\" && test ! -L \\"$dir\\"; chmod 700 \\"$dir\\"; "
-                + "[ ! -L \\"$log\\" ] && [ ! -L \\"$pidfile\\" ] && [ ! -L \\"$pipe\\" ] && [ ! -L \\"$script\\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
-                + "if [ -s \\"$pidfile\\" ]; then old_cli=$(sed -n '1p' \\"$pidfile\\"); old_feed=$(sed -n '2p' \\"$pidfile\\"); old_path=$(sed -n '3p' \\"$pidfile\\"); "
-                + "case \\"$old_cli:$old_feed\\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
-                + "if kill -0 \\"$old_cli\\" 2>/dev/null; then "
-                + "old_cmd=$(tr '\\\\000' ' ' < /proc/\\"$old_cli\\"/cmdline 2>/dev/null || :); "
-                + "case \\"$old_cmd\\" in *\\"$old_path\\"*\\"127.0.0.1:$port\\"*Gadget*) echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
+                + "test -x \"$cli\" && test ! -L \"$cli\"; "
+                + "cli_version=$(\"$cli\" --version 2>&1) || { echo FX_GADGET_CLI_UNAVAILABLE; exit 20; }; "
+                + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1}'); "
+                + "[ -n \"$pids\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
+                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \"$dir\"; "
+                + "test -d \"$dir\" && test ! -L \"$dir\"; chmod 700 \"$dir\"; "
+                + "[ ! -L \"$log\" ] && [ ! -L \"$pidfile\" ] && [ ! -L \"$pipe\" ] && [ ! -L \"$script\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
+                + "start_lock=\"$dir/.gadget-$port.start-lock\"; "
+                + "[ ! -L \"$start_lock\" ] || { echo FX_GADGET_UNSAFE_START_LOCK; exit 29; }; "
+                + "mkdir \"$start_lock\" 2>/dev/null || { echo FX_GADGET_START_IN_PROGRESS; exit 26; }; "
+                + "lock_held=1; tmp=; pid_tmp=; "
+                + "cleanup_start() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; [ -z \"$pid_tmp\" ] || rm -f \"$pid_tmp\"; "
+                + "[ \"$lock_held\" != 1 ] || rmdir \"$start_lock\" 2>/dev/null || :; }; "
+                + "trap cleanup_start 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
+                + "if [ -s \"$pidfile\" ]; then old_cli=$(sed -n '1p' \"$pidfile\"); old_feed=$(sed -n '2p' \"$pidfile\"); old_path=$(sed -n '3p' \"$pidfile\"); "
+                + "case \"$old_cli:$old_feed\" in *[!0-9:]*|:*) echo FX_GADGET_INVALID_PID_RECORD; exit 22;; esac; "
+                + "if kill -0 \"$old_cli\" 2>/dev/null; then "
+                + "old_cmd=$(tr '\\000' ' ' < /proc/\"$old_cli\"/cmdline 2>/dev/null || :); "
+                + "case \"$old_cmd\" in *\"$old_path\"*\"127.0.0.1:$port\"*Gadget*) echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
                 + "*) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;; esac; fi; "
-                + "if [ -n \\"$old_feed\\" ] && kill -0 \\"$old_feed\\" 2>/dev/null; then "
-                + "feed_cmd=$(tr '\\\\000' ' ' < /proc/\\"$old_feed\\"/cmdline 2>/dev/null || :); "
-                + "case \\"$feed_cmd\\" in *tail*'/dev/null'*) kill \\"$old_feed\\" 2>/dev/null || :;; "
+                + "if [ -n \"$old_feed\" ] && kill -0 \"$old_feed\" 2>/dev/null; then "
+                + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$old_feed\"/cmdline 2>/dev/null || :); "
+                + "case \"$feed_cmd\" in *tail*'/dev/null'*) kill \"$old_feed\" 2>/dev/null || :;; "
                 + "*) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
-                + "rm -f \\"$pidfile\\"; fi; "
-                + "tmp=$(mktemp \\"$dir/.gadget-$port.XXXXXX\\"); "
-                + "[ -f \\"$tmp\\" ] && [ ! -L \\"$tmp\\" ]; "
-                + "cleanup_tmp() { [ -z \\"$tmp\\" ] || rm -f \\"$tmp\\"; }; "
-                + "trap cleanup_tmp 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > \\"$tmp\\"; chmod 600 \\"$tmp\\"; "
-                + "mv -f \\"$tmp\\" \\"$script\\"; tmp=; chmod 600 \\"$script\\"; "
-                + ": >> \\"$log\\"; chmod 600 \\"$log\\"; rm -f \\"$pipe\\"; mkfifo -m 600 \\"$pipe\\"; "
-                + "\\"$cli\\" -H \\"127.0.0.1:$port\\" -n Gadget -l \\"$script\\" < \\"$pipe\\" >> \\"$log\\" 2>&1 & cli_pid=$!; "
-                + "tail -f /dev/null > \\"$pipe\\" 2>/dev/null < /dev/null & feed_pid=$!; "
-                + "printf '%s\\\\n%s\\\\n%s\\\\n%s\\\\n%s\\\\n' \\"$cli_pid\\" \\"$feed_pid\\" \\"$cli\\" \\"$pkg\\" \\"$port\\" > \\"$pidfile\\"; "
-                + "chmod 600 \\"$pidfile\\"; "
+                + "rm -f \"$pidfile\"; "
+                + "if [ -e \"$pipe\" ]; then [ -p \"$pipe\" ] || { echo FX_GADGET_UNSAFE_STALE_PIPE; exit 27; }; rm -f \"$pipe\"; fi; "
+                + "elif [ -e \"$pipe\" ]; then echo FX_GADGET_ORPHAN_PIPE_NEEDS_CLEANUP; exit 28; fi; "
+                + "tmp=$(mktemp \"$dir/.gadget-$port.XXXXXX\"); "
+                + "[ -f \"$tmp\" ] && [ ! -L \"$tmp\" ]; "
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; chmod 600 \"$tmp\"; "
+                + "mv -f \"$tmp\" \"$script\"; tmp=; chmod 600 \"$script\"; "
+                + ": >> \"$log\"; chmod 600 \"$log\"; mkfifo -m 600 \"$pipe\"; "
+                + "nohup \"$cli\" -H \"127.0.0.1:$port\" -n Gadget -l \"$script\" < \"$pipe\" >> \"$log\" 2>&1 & cli_pid=$!; "
+                + "nohup tail -f /dev/null > \"$pipe\" 2>/dev/null < /dev/null & feed_pid=$!; "
+                + "pid_tmp=$(mktemp \"$dir/.gadget-$port.pid.XXXXXX\"); "
+                + "printf '%s\\n%s\\n%s\\n%s\\n%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli\" \"$pkg\" \"$port\" > \"$pid_tmp\"; "
+                + "chmod 600 \"$pid_tmp\"; mv -f \"$pid_tmp\" \"$pidfile\"; pid_tmp=; "
                 + "sleep 1; "
-                + "if ! kill -0 \\"$cli_pid\\" 2>/dev/null || ! kill -0 \\"$feed_pid\\" 2>/dev/null; then "
-                + "tail -n 40 \\"$log\\"; kill \\"$feed_pid\\" 2>/dev/null || :; rm -f \\"$pidfile\\" \\"$pipe\\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
-                + "printf 'FX_GADGET_SESSION_STARTED\\\\ncli_pid=%s\\\\nfeeder_pid=%s\\\\ncli_version=%s\\\\n' \\"$cli_pid\\" \\"$feed_pid\\" \\"$cli_version\\"";
+                + "if ! kill -0 \"$cli_pid\" 2>/dev/null || ! kill -0 \"$feed_pid\" 2>/dev/null; then "
+                + "tail -n 40 \"$log\"; kill \"$cli_pid\" \"$feed_pid\" 2>/dev/null || :; rm -f \"$pidfile\" \"$pipe\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
+                + "lock_held=0; rmdir \"$start_lock\"; "
+                + "printf 'FX_GADGET_SESSION_STARTED\\ncli_pid=%s\\nfeeder_pid=%s\\ncli_version=%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli_version\"";
         runRoot(command, 20000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && (result.output.contains("FX_GADGET_SESSION_STARTED")
                         || result.output.contains("FX_GADGET_SESSION_ALREADY_RUNNING"))) {
                 setStatus("Frida CLI Gadget 会话已连接/正在运行。Gadget WAIT 将由远程 attach 释放；持续 send()/console 输出会记录到："
-                        + "\\n" + logPath + "\\n" + result.output);
+                        + "\n" + logPath + "\n" + result.output);
             } else if (result.output != null && result.output.contains("FX_GADGET_TARGET_NOT_RUNNING")) {
                 setStatus("目标应用当前没有运行进程；请先启动目标应用并确认 Gadget 已加载。");
             } else if (result.output != null && result.output.contains("FX_GADGET_CLI_UNAVAILABLE")) {
-                setStatus("Frida CLI 不可执行或 Python 依赖不完整；请检查 frida-tools 安装及其 shebang 运行环境。\\n" + result.output);
+                setStatus("Frida CLI 不可执行或 Python 依赖不完整；请检查 frida-tools 安装及其 shebang 运行环境。\n" + result.output);
             } else {
-                setStatus("Frida CLI Gadget 会话启动失败（退出码 " + result.exitCode + "）。\\n请确认 CLI 与 Gadget 版本匹配、目标已加载相同端口。\\n日志：" + logPath + "\\n" + result.output);
+                setStatus("Frida CLI Gadget 会话启动失败（退出码 " + result.exitCode + "）。\n请确认 CLI 与 Gadget 版本匹配、目标已加载相同端口。\n日志：" + logPath + "\n" + result.output);
             }
         });
     }
