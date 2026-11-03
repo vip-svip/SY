@@ -286,48 +286,50 @@ android.widget.Switch volumeTrigger = new android.widget.Switch(this);
             }
         });
         String initialVolumeKey = shieldPrefs.getString("volume_trigger_key", "down");
-        android.widget.Button volumeKeyButton = action(
-                "触发按键：" + ("up".equalsIgnoreCase(initialVolumeKey) ? "音量上键" : "音量下键"),
-                () -> {
-                    String storedKey = shieldPrefs.getString("volume_trigger_key", "down");
-                    int checked = "up".equalsIgnoreCase(storedKey) ? 1 : 0;
-                    new android.app.AlertDialog.Builder(this)
-                            .setTitle("选择救援触发按键")
-                            .setSingleChoiceItems(new String[]{"音量下键", "音量上键"}, checked,
-                                    (dialog, which) -> {
-                                        String selected = which == 1 ? "up" : "down";
-                                        shieldPrefs.edit().putString("volume_trigger_key", selected).apply();
-                                        volumeKeyButton.setText("触发按键：" + (which == 1 ? "音量上键" : "音量下键"));
-                                        dialog.dismiss();
-                                    })
-                            .setNegativeButton("取消", null).show();
-                });
+        android.widget.Button volumeKeyButton = new android.widget.Button(this);
+        volumeKeyButton.setAllCaps(false);
+        volumeKeyButton.setText("触发按键：" + ("up".equalsIgnoreCase(initialVolumeKey) ? "音量上键" : "音量下键"));
+        volumeKeyButton.setOnClickListener(v -> {
+            String storedKey = shieldPrefs.getString("volume_trigger_key", "down");
+            int checked = "up".equalsIgnoreCase(storedKey) ? 1 : 0;
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("选择救援触发按键")
+                    .setSingleChoiceItems(new String[]{"音量下键", "音量上键"}, checked,
+                            (dialog, which) -> {
+                                String selected = which == 1 ? "up" : "down";
+                                shieldPrefs.edit().putString("volume_trigger_key", selected).apply();
+                                volumeKeyButton.setText("触发按键：" + (which == 1 ? "音量上键" : "音量下键"));
+                                dialog.dismiss();
+                            })
+                    .setNegativeButton("取消", null).show();
+        });
         int initialVolumeCount = de.privacyguard.adhook.imported.shield
                 .FxYulongVolumeTriggerSequence.normalizeCount(
                         shieldPrefs.getInt("volume_trigger_count", 3));
-        android.widget.Button volumeCountButton = action(
-                "连续触发次数：" + initialVolumeCount + " 次",
-                () -> {
-                    android.widget.NumberPicker picker = new android.widget.NumberPicker(this);
-                    picker.setMinValue(de.privacyguard.adhook.imported.shield
-                            .FxYulongVolumeTriggerSequence.MIN_COUNT);
-                    picker.setMaxValue(de.privacyguard.adhook.imported.shield
-                            .FxYulongVolumeTriggerSequence.MAX_COUNT);
-                    picker.setWrapSelectorWheel(false);
-                    picker.setValue(de.privacyguard.adhook.imported.shield
-                            .FxYulongVolumeTriggerSequence.normalizeCount(
-                                    shieldPrefs.getInt("volume_trigger_count", 3)));
-                    new android.app.AlertDialog.Builder(this)
-                            .setTitle("连续按键次数（2–10 次）")
-                            .setView(picker)
-                            .setNegativeButton("取消", null)
-                            .setPositiveButton("保存", (dialog, which) -> {
-                                int selected = de.privacyguard.adhook.imported.shield
-                                        .FxYulongVolumeTriggerSequence.normalizeCount(picker.getValue());
-                                shieldPrefs.edit().putInt("volume_trigger_count", selected).apply();
-                                volumeCountButton.setText("连续触发次数：" + selected + " 次");
-                            }).show();
-                });
+        android.widget.Button volumeCountButton = new android.widget.Button(this);
+        volumeCountButton.setAllCaps(false);
+        volumeCountButton.setText("连续触发次数：" + initialVolumeCount + " 次");
+        volumeCountButton.setOnClickListener(v -> {
+            android.widget.NumberPicker picker = new android.widget.NumberPicker(this);
+            picker.setMinValue(de.privacyguard.adhook.imported.shield
+                    .FxYulongVolumeTriggerSequence.MIN_COUNT);
+            picker.setMaxValue(de.privacyguard.adhook.imported.shield
+                    .FxYulongVolumeTriggerSequence.MAX_COUNT);
+            picker.setWrapSelectorWheel(false);
+            picker.setValue(de.privacyguard.adhook.imported.shield
+                    .FxYulongVolumeTriggerSequence.normalizeCount(
+                            shieldPrefs.getInt("volume_trigger_count", 3)));
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("连续按键次数（2–10 次）")
+                    .setView(picker)
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("保存", (dialog, which) -> {
+                        int selected = de.privacyguard.adhook.imported.shield
+                                .FxYulongVolumeTriggerSequence.normalizeCount(picker.getValue());
+                        shieldPrefs.edit().putInt("volume_trigger_count", selected).apply();
+                        volumeCountButton.setText("连续触发次数：" + selected + " 次");
+                    }).show();
+        });
         android.widget.Switch shakeTrigger = new android.widget.Switch(this);
         shakeTrigger.setText("摇动设备触发救援提醒");
         shakeTrigger.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
