@@ -128,4 +128,55 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-bloom-") as temp:
         else:
             fail("symlinked Bloom asset was accepted")
 
+
+    # Output paths must never follow a pre-planted symlink.
+    bloom_path.unlink()
+    bloom_path.write_bytes(valid_bloom())
+    sentinel = tmp / "output-sentinel.txt"
+    sentinel.write_text("do-not-overwrite\n", encoding="utf-8")
+    symlink_output = tmp / "symlink-output.txt"
+    try:
+        symlink_output.symlink_to(sentinel)
+    except OSError:
+        pass
+    else:
+        blocked = subprocess.run(
+            [sys.executable, str(DECODER), str(assets), str(symlink_output),
+             "--cosmetic-output", str(tmp / "blocked-cosmetic.txt"),
+             "--report", str(tmp / "blocked-report.json")],
+            capture_output=True, text=True, check=False,
+        )
+        if blocked.returncode == 0:
+            fail("decoder accepted a symlink output destination")
+        if sentinel.read_text(encoding="utf-8") != "do-not-overwrite\n":
+            fail("symlink output destination modified its target")
+        if not symlink_output.is_symlink():
+            fail("decoder replaced or removed the output symlink")
+
+    # Legacy deterministic .tmp links must be neither followed nor modified.
+    safe_output = tmp / "safe-output.txt"
+    legacy_tmp = tmp / "safe-output.txt.tmp"
+    try:
+        legacy_tmp.symlink_to(sentinel)
+    except OSError:
+        pass
+    completed = subprocess.run(
+        [sys.executable, str(DECODER), str(assets), str(safe_output),
+         "--cosmetic-output", str(tmp / "safe-cosmetic.txt"),
+         "--report", str(tmp / "safe-report.json")],
+        capture_output=True, text=True, check=False,
+    )
+    if completed.returncode != 0:
+        fail("decoder failed with legacy .tmp symlink present: " + completed.stderr)
+    if sentinel.read_text(encoding="utf-8") != "do-not-overwrite\n":
+        fail("legacy .tmp symlink target was modified")
+    if legacy_tmp.is_symlink() is False:
+        fail("legacy .tmp symlink was unexpectedly replaced")
+    if not safe_output.is_file() or safe_output.is_symlink():
+        fail("decoder did not install a regular output file")
+    if list(tmp.glob(".safe-output.txt.fx-*.tmp")):
+        fail("random same-directory output temp leaked after replace")
+    if list(tmp.glob(".safe-cosmetic.txt.fx-*.tmp")) or list(tmp.glob(".safe-report.json.fx-*.tmp")):
+        fail("cosmetic/report temporary files leaked after replace")
+
 print("PASS: Yulong TRIE v2 and paired BLOOM v1 headers, missing assets, corruption and symlink rejection")

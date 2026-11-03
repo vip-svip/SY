@@ -7,8 +7,10 @@ exceptions are preserved separately and are not enabled by the DNS importer.
 from __future__ import annotations
 import argparse
 import json
+import os
 import re
 import struct
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -36,6 +38,67 @@ LICENSE = """# Bundled source: Yulong Ad Plugin 7.0.1 built-in rule tries.
 # (CC BY-SA 3.0 / GPL-3.0), ADgk (GPL-3.0), and AdGuard Chinese filter (GPL-3.0).
 # Domain-only export: ABP cosmetic selectors and exceptions are not widened.
 """
+
+def reject_symlink_components(path: Path) -> Path:
+    """Return an absolute lexical path after rejecting symlinked components."""
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    current = absolute
+    while True:
+        if current.is_symlink():
+            raise ValueError(f"{path}: symlinked path component rejected: {current}")
+        if current.parent == current:
+            break
+        current = current.parent
+    return absolute
+
+
+def validate_output_target(path: Path) -> Path:
+    target = reject_symlink_components(path)
+    parent = target.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    target = reject_symlink_components(target)
+    if target.exists() and not target.is_file():
+        raise ValueError(f"{target}: output exists but is not a regular file")
+    return target
+
+
+def atomic_write_text(path: Path, writer) -> None:
+    """Write UTF-8 output through a random same-directory file and atomic replace."""
+    target = validate_output_target(path)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{target.name}.fx-", suffix=".tmp", dir=os.fspath(target.parent)
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            writer(stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        # The temporary file is unique and exclusive. Re-check the destination
+        # path immediately before replace; os.replace replaces a link itself but
+        # never writes through its target.
+        reject_symlink_components(target.parent)
+        if target.is_symlink():
+            raise ValueError(f"{target}: output became a symlink during generation")
+        if target.exists() and not target.is_file():
+            raise ValueError(f"{target}: output changed to a non-regular file")
+        os.chmod(temp_path, 0o644)
+        os.replace(temp_path, target)
+        try:
+            dir_fd = os.open(target.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            # Some host filesystems do not support directory fsync.
+            pass
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+
 
 def decode_trie(path: Path):
     data = path.read_bytes()
@@ -186,24 +249,36 @@ def main():
             "cosmetic_and_exception_rules": len(file_cosmetic),
         }
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    tmp = args.output.with_suffix(args.output.suffix + ".tmp")
-    with tmp.open("w", encoding="utf-8", newline="\n") as f:
-        f.write(LICENSE)
-        f.write(f"# Decoded terminals: {total}; unique validated DNS domains: {len(hosts)}.\n")
-        f.write("# DNS-safe hosts entries only; no cosmetic selectors widened into host blocks.\n")
-        for domain in sorted(hosts):
-            f.write(f"0.0.0.0 {domain}\n")
-    tmp.replace(args.output)
+    output_paths = [args.output, args.cosmetic_output, args.report]
+    absolute_outputs = [Path(os.path.abspath(os.fspath(path))) for path in output_paths]
+    if len(set(absolute_outputs)) != len(absolute_outputs):
+        raise SystemExit("DNS, cosmetic and report output paths must be distinct")
+    source_assets = set()
+    for name in TRIE_FILES:
+        trie_path = args.assets / name
+        source_assets.add(Path(os.path.abspath(os.fspath(trie_path))))
+        source_assets.add(Path(os.path.abspath(os.fspath(trie_path.with_suffix(".bloom")))))
+    if set(absolute_outputs) & source_assets:
+        raise SystemExit("decoder output must not overwrite a source TRIE/BLOOM asset")
+    try:
+        output_path = validate_output_target(args.output)
+        cosmetic_path = validate_output_target(args.cosmetic_output)
+        report_path = validate_output_target(args.report)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
 
-    args.cosmetic_output.parent.mkdir(parents=True, exist_ok=True)
-    ctmp = args.cosmetic_output.with_suffix(args.cosmetic_output.suffix + ".tmp")
-    with ctmp.open("w", encoding="utf-8", newline="\n") as f:
-        f.write("! Preserved rules from Yulong Ad Plugin 7.0.1 / AdGuard Mobile trie.\n")
-        f.write("! Not activated by DNS/hosts importer; use only after a reviewed cosmetic parser.\n")
+    def write_rules(stream):
+        stream.write(LICENSE)
+        stream.write(f"# Decoded terminals: {total}; unique validated DNS domains: {len(hosts)}.\n")
+        stream.write("# DNS-safe hosts entries only; no cosmetic selectors widened into host blocks.\n")
+        for domain in sorted(hosts):
+            stream.write(f"0.0.0.0 {domain}\n")
+
+    def write_cosmetic(stream):
+        stream.write("! Preserved rules from Yulong Ad Plugin 7.0.1 / AdGuard Mobile trie.\n")
+        stream.write("! Not activated by DNS/hosts importer; use only after a reviewed cosmetic parser.\n")
         for rule in sorted(cosmetic):
-            f.write(rule + "\n")
-    ctmp.replace(args.cosmetic_output)
+            stream.write(rule + "\n")
 
     report = {
         "format": "TRIE v2 + BLOOM v1",
@@ -217,8 +292,13 @@ def main():
         "output": str(args.output),
         "cosmetic_output": str(args.cosmetic_output),
     }
-    args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    atomic_write_text(output_path, write_rules)
+    atomic_write_text(cosmetic_path, write_cosmetic)
+    atomic_write_text(
+        report_path,
+        lambda stream: stream.write(json.dumps(report, ensure_ascii=False, indent=2) + "\n"),
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
