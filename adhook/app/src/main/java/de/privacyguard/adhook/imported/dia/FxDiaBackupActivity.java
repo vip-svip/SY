@@ -18,6 +18,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -49,13 +50,71 @@ public final class FxDiaBackupActivity extends Activity {
     private static final int REQUEST_IMPORT = 7302;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private byte[] pendingBackup;
+    private static final String STATE_PENDING_EXPORT_FILE = "fx_dia_pending_export_file";
+    private static final String PENDING_EXPORT_PREFIX = "fx-dia-export-";
+    private String pendingBackupFileName;
     private TextView status;
     private EditText backupPassword;
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
     private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
     private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
+
+    private static boolean isSafePendingExportName(String name) {
+        return name != null && name.matches("fx-dia-export-[A-Za-z0-9]+\\.tmp");
+    }
+    private File stagePendingBackup(byte[] payload) throws Exception {
+        if (payload == null || payload.length == 0 || payload.length > MAX_BACKUP_BYTES)
+            throw new IllegalArgumentException("待导出备份为空或超过 1 MiB。");
+        File staged = File.createTempFile(PENDING_EXPORT_PREFIX, ".tmp", getCacheDir());
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(staged, false)) {
+            out.write(payload);
+            out.flush();
+            out.getFD().sync();
+            return staged;
+        } catch (Exception error) {
+            //noinspection ResultOfMethodCallIgnored
+            staged.delete();
+            throw error;
+        }
+    }
+    private File resolvePendingBackupFile(String name) throws Exception {
+        if (!isSafePendingExportName(name))
+            throw new IllegalArgumentException("待导出备份文件名无效。");
+        File cacheRoot = getCacheDir().getCanonicalFile();
+        File candidate = new File(cacheRoot, name);
+        if (java.nio.file.Files.isSymbolicLink(candidate.toPath()))
+            throw new IllegalArgumentException("待导出备份不能是符号链接。");
+        File canonical = candidate.getCanonicalFile();
+        if (!cacheRoot.equals(canonical.getParentFile()) || !canonical.isFile() || !canonical.canRead())
+            throw new IllegalArgumentException("待导出备份文件不存在或路径无效。");
+        return canonical;
+    }
+    private void deletePendingBackupFile(String name) {
+        if (!isSafePendingExportName(name)) return;
+        try {
+            File cacheRoot = getCacheDir().getCanonicalFile();
+            File candidate = new File(cacheRoot, name);
+            if (java.nio.file.Files.isSymbolicLink(candidate.toPath())) return;
+            File canonical = candidate.getCanonicalFile();
+            if (cacheRoot.equals(canonical.getParentFile())) {
+                //noinspection ResultOfMethodCallIgnored
+                canonical.delete();
+            }
+        } catch (Exception ignored) { }
+    }
+    private void cleanupStalePendingExports(String keepName) {
+        File[] files = getCacheDir().listFiles((dir, name) ->
+                name.startsWith(PENDING_EXPORT_PREFIX) && name.endsWith(".tmp"));
+        if (files == null) return;
+        for (File file : files) {
+            if (!file.getName().equals(keepName)) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
+    }
+
     private static String sha(byte[] data)throws Exception{
         byte[] d=MessageDigest.getInstance("SHA-256").digest(data);StringBuilder s=new StringBuilder();
         for(byte b:d)s.append(String.format(Locale.ROOT,"%02x",b&255));return s.toString();
@@ -248,13 +307,27 @@ public final class FxDiaBackupActivity extends Activity {
                 JSONObject backup=buildBackup(config.output.trim(),stellar.output);
                 byte[] plaintext=backup.toString(2).getBytes(StandardCharsets.UTF_8);
                 byte[] payload=encryptBackupPayload(plaintext,encryptionPassword);
+                File staged=stagePendingBackup(payload);
+                Arrays.fill(payload,(byte)0);
                 runOnUiThread(()->{
-                    pendingBackup=payload;
+                    if(isFinishing()||isDestroyed()){
+                        //noinspection ResultOfMethodCallIgnored
+                        staged.delete();
+                        return;
+                    }
+                    pendingBackupFileName=staged.getName();
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/json");
                     String stamp=new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date());
                     intent.putExtra(Intent.EXTRA_TITLE,"FX-Dia-Backup-"+stamp+".json");
-                    startActivityForResult(intent,REQUEST_EXPORT);
+                    try {
+                        startActivityForResult(intent,REQUEST_EXPORT);
+                    } catch(Exception launchError) {
+                        String failedName=pendingBackupFileName;
+                        pendingBackupFileName=null;
+                        deletePendingBackupFile(failedName);
+                        status.setText("无法打开系统文件选择器："+launchError.getMessage());
+                    }
                 });
             }catch(Exception e){runOnUiThread(()->status.setText("生成备份失败："+e.getMessage()));}
         });
@@ -627,6 +700,11 @@ public final class FxDiaBackupActivity extends Activity {
     private String safe(String s){return s==null||s.trim().isEmpty()?"Root 后端没有返回错误详情。":s.trim();}
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);
+        if (state != null) {
+            String savedName = state.getString(STATE_PENDING_EXPORT_FILE);
+            if (isSafePendingExportName(savedName)) pendingBackupFileName = savedName;
+        }
+        cleanupStalePendingExports(pendingBackupFileName);
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this);header.setPadding(dp(10),dp(6),dp(10),dp(6));
         header.addView(button("‹ 返回 Dia",this::finish));header.addView(text("Dia · 数据备份与恢复",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(header);
@@ -681,17 +759,70 @@ public final class FxDiaBackupActivity extends Activity {
                 .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->webdavDownload(u,n,p,enteredBackupPassword())).show();
         }));
         status=text("尚未执行备份或恢复。",12,0xff526170,false);body.addView(status);
+        if (pendingBackupFileName != null) {
+            try {
+                resolvePendingBackupFile(pendingBackupFileName);
+                status.setText("加密备份已暂存；等待系统文件选择器完成导出。");
+            } catch (Exception invalidPending) {
+                String invalidName=pendingBackupFileName;
+                pendingBackupFileName=null;
+                deletePendingBackupFile(invalidName);
+                status.setText("待导出备份暂存文件已失效，请重新导出。");
+            }
+        }
+    }
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (isSafePendingExportName(pendingBackupFileName)) {
+            outState.putString(STATE_PENDING_EXPORT_FILE, pendingBackupFileName);
+        }
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
-        if(result!=RESULT_OK||data==null||data.getData()==null)return;
         if(request==REQUEST_EXPORT){
-            Uri uri=data.getData();byte[] payload=pendingBackup;pendingBackup=null;
-            worker.execute(()->{try(OutputStream out=getContentResolver().openOutputStream(uri,"w")){
-                if(out==null)throw new IllegalStateException("无法写入所选文件。");out.write(payload);out.flush();
-                runOnUiThread(()->status.setText("本地 JSON 备份已导出。"));
-            }catch(Exception e){runOnUiThread(()->status.setText("导出失败："+e.getMessage()));}});
-        }else if(request==REQUEST_IMPORT){
+            String stagedName=pendingBackupFileName;
+            pendingBackupFileName=null;
+            if(result!=RESULT_OK||data==null||data.getData()==null){
+                deletePendingBackupFile(stagedName);
+                if(status!=null&&!isFinishing()&&!isDestroyed())status.setText("已取消备份导出。");
+                return;
+            }
+            final Uri uri=data.getData();
+            final File staged;
+            try {
+                staged=resolvePendingBackupFile(stagedName);
+            } catch(Exception invalidPending) {
+                deletePendingBackupFile(stagedName);
+                if(status!=null)status.setText("导出失败：待导出备份暂存文件不存在或路径无效。");
+                return;
+            }
+            worker.execute(()->{
+                String message;
+                try(java.io.InputStream in=new java.io.FileInputStream(staged);
+                    OutputStream out=getContentResolver().openOutputStream(uri,"w")){
+                    if(out==null)throw new IllegalStateException("无法写入所选文件。");
+                    byte[] buffer=new byte[8192];int count;long total=0;
+                    while((count=in.read(buffer))!=-1){
+                        total+=count;
+                        if(total>MAX_BACKUP_BYTES)throw new IllegalStateException("待导出备份超过 1 MiB。");
+                        out.write(buffer,0,count);
+                    }
+                    out.flush();
+                    message="本地 JSON 备份已导出。";
+                }catch(Exception e){message="导出失败："+e.getMessage();}
+                finally {
+                    //noinspection ResultOfMethodCallIgnored
+                    staged.delete();
+                }
+                String resultMessage=message;
+                runOnUiThread(()->{
+                    if(!isFinishing()&&!isDestroyed()&&status!=null)status.setText(resultMessage);
+                });
+            });
+            return;
+        }
+        if(result!=RESULT_OK||data==null||data.getData()==null)return;
+        if(request==REQUEST_IMPORT){
             new AlertDialog.Builder(this).setTitle("恢复 FX 备份")
                     .setMessage("恢复会解密并替换设备当前模块 settings.conf，以及 Hook、护盾和 Stellar 本地偏好设置。新备份需要上方密码；旧版未加密备份无需密码。SHA-256/GCM 完整性校验失败时拒绝恢复。")
                     .setNegativeButton("取消",null).setPositiveButton("继续恢复",(d,w)->restoreBackup(data.getData(),enteredBackupPassword())).show();
