@@ -78,4 +78,5 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             reply.putExtra("exit_code",exitCode);
             context.sendBroadcast(reply);
         }catch(RuntimeException ignored){}
-    }}
+    }
+}
