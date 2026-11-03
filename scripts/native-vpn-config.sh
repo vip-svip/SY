@@ -1,16 +1,16 @@
 #!/system/bin/sh
 # Native editor for the canonical [conf:vpn] section.
 set -eu
-MP=\${MP:-}
+MP=${MP:-}
 if [ -z "$MP" ]; then
   for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do
     if [ -s "$d/module.prop" ] && grep -q '^id=privacyguard$' "$d/module.prop" 2>/dev/null; then MP="$d"; break; fi
   done
 fi
 [ -n "$MP" ] && [ -s "$MP/module.prop" ] || { echo "FX module is not installed" >&2; exit 20; }
-PG=\${PG:-/data/adb/privacyguard}
-CONF=\${CONF:-$PG/settings.conf}
-LOCK=\${LOCK:-$PG/native-vpn-config.lock}
+PG=${PG:-/data/adb/privacyguard}
+CONF=${CONF:-$PG/settings.conf}
+LOCK=${LOCK:-$PG/native-vpn-config.lock}
 mkdir -p "$PG"
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 
@@ -46,18 +46,30 @@ range() {
   is_uint "$2" || return 1
   [ "$2" -ge "$3" ] && [ "$2" -le "$4" ]
 }
+valid_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF != 4 { bad=1 }
+    NF == 4 {
+      for (i=1; i<=4; i++) {
+        if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255) bad=1
+      }
+    }
+    END { exit bad ? 1 : 0 }
+  '
+}
 validate_value() {
   key="$1"; value="$2"
-  [ "\${#value}" -le 1024 ] || return 1
-  case "$value" in *'
-'*) return 1 ;; esac
+  [ "${#value}" -le 1024 ] || return 1
+  if printf '%s' "$value" | grep -q '[[:cntrl:]]'; then return 1; fi
   case "$value" in *'|'*) return 1 ;; esac
   case "$key" in
     local_ip)
-      case "$value" in 127.0.0.1|0.0.0.0|[0-9]*.[0-9]*.[0-9]*.[0-9]*|*:* ) : ;; *) return 1 ;; esac
+      valid_ipv4 "$value" || return 1
       ;;
     local_port)
       range "$key" "$value" 1 65535 || return 1
+      _mixed=$(get_value mixed_port)
+      [ -z "$_mixed" ] || [ "$value" != "$_mixed" ] || return 1
       ;;
     mixed_port)
       [ -z "$value" ] || range "$key" "$value" 1 65535 || return 1
@@ -77,13 +89,16 @@ validate_value() {
       case "$value" in only|bypass) : ;; *) return 1 ;; esac
       ;;
     core_ver)
-      case "$value" in latest|[0-9]*.[0-9]*.[0-9]*) : ;; *) return 1 ;; esac
+      printf '%s\n' "$value" | grep -Eq '^(latest|[0-9]+([.][0-9]+){2})$' || return 1
       ;;
     core_auto|hide_mtu_clamp|hide_udp_block_all|hide_icmp_block_all|hide_dot_block)
       case "$value" in 0|1) : ;; *) return 1 ;; esac
       ;;
     core_bin)
-      [ -z "$value" ] || case "$value" in /*) case "$value" in *[!A-Za-z0-9_./-]*) return 1 ;; esac ;; *) return 1 ;; esac
+      [ -z "$value" ] || case "$value" in
+        /*) case "$value" in *[!A-Za-z0-9_./-]*) return 1 ;; esac ;;
+        *) return 1 ;;
+      esac
       ;;
     log_level)
       case "$value" in trace|debug|info|warn|error|fatal|panic) : ;; *) return 1 ;; esac
@@ -108,6 +123,7 @@ validate_value() {
       ;;
   esac
 }
+
 write_value() {
   key="$1"; value="$2"; tmp="$CONF.native-vpn.$$"
   awk -v key="$key" -v value="$value" '
@@ -163,7 +179,7 @@ mutate() {
   echo "apply failed; previous VPN config restored" >&2
   return 1
 }
-cmd=\${1:-list}
+cmd=${1:-list}
 case "$cmd" in
   list)
     echo FXVPNCONF1
