@@ -36,6 +36,9 @@ required = {
     "stop record validates package": "stored_pkg=$(sed -n '4p' \\\"$pidfile\\\")",
     "stop record validates port": "stored_port=$(sed -n '5p' \\\"$pidfile\\\")",
     "start lock is acquired atomically": 'mkdir \\"$start_lock\\"',
+    "stop acquires the same per-port lock": 'start_lock=" + quote(startLockPath)',
+    "stop refuses an active Gadget lifecycle operation": "FX_GADGET_START_IN_PROGRESS",
+    "stop releases only its own lock": "cleanup_stop()",
     "session script is passed to Frida CLI": '-n Gadget -l',
     "remote endpoint is loopback only": '127.0.0.1:$port',
     "persistent stdin FIFO exists": 'mkfifo -m 600',
@@ -69,6 +72,8 @@ if "FX_GADGET_CLI_PID_CONFLICT" not in stop or "FX_GADGET_FEEDER_PID_CONFLICT" n
     raise SystemExit("FAIL: stop path must refuse unrelated PID owners")
 if "final String expectedCli = currentFridaCliPath();" not in stop:
     raise SystemExit("FAIL: stop path must bind to the currently configured Frida CLI")
+if 'start_lock=" + quote(startLockPath)' not in stop or "trap cleanup_stop 0" not in stop:
+    raise SystemExit("FAIL: stop path must hold the same per-port lock as attach")
 if '[ \\"$cli\\" = \\"$expected_cli\\" ]' not in stop:
     raise SystemExit("FAIL: stop path must compare the recorded CLI path, not the Gadget JS path")
 print("PASS: Frida CLI Gadget session validates target/port/CLI identity, owns a persistent process, captures logs and provides a PID-checked stop action")
@@ -209,6 +214,17 @@ expected_process=$4
 port=27043
 pidfile="$dir/gadget-$port.pid"
 pipe="$dir/gadget-$port.stdin"
+start_lock="$dir/.gadget-$port.start-lock"
+[ ! -L "$start_lock" ] || { echo FX_GADGET_UNSAFE_START_LOCK; exit 29; }
+mkdir "$start_lock" 2>/dev/null || { echo FX_GADGET_START_IN_PROGRESS; exit 26; }
+lock_held=1
+cleanup_stop() {
+  [ "$lock_held" != 1 ] || rmdir "$start_lock" 2>/dev/null || :
+}
+trap cleanup_stop 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 [ ! -L "$pidfile" ] && [ ! -L "$pipe" ]
 [ -s "$pidfile" ] || { echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; }
 cli_pid=$(sed -n '1p' "$pidfile")
@@ -237,6 +253,8 @@ if kill -0 "$feed_pid" 2>/dev/null; then
 fi
 rm -f "$pidfile"
 [ ! -L "$pipe" ] && rm -f "$pipe"
+lock_held=0
+rmdir "$start_lock"
 echo FX_GADGET_SESSION_STOPPED
 STOP
 chmod 700 "$T/stop.sh"
@@ -253,6 +271,24 @@ grep -Fq "mock-send-message" "$T/logs/gadget-27043.log"
 grep -Fq "mock-console-log" "$T/logs/gadget-27043.log"
 [ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ]
 [ ! -d "$T/logs/.gadget-27043.start-lock" ]
+
+# Stop and attach share one per-port lock. A concurrent start must block stop
+# without killing either owned process or deleting the session record.
+mkdir "$T/logs/.gadget-27043.start-lock"
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/busy-stop.result" 2>&1; then
+  echo "FAIL: Gadget stop did not respect an active per-port start lock" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_START_IN_PROGRESS "$T/busy-stop.result"
+kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
+  echo "FAIL: busy stop terminated the active Gadget CLI" >&2
+  exit 1
+}
+[ -s "$T/logs/gadget-27043.pid" ] || {
+  echo "FAIL: busy stop deleted the active session record" >&2
+  exit 1
+}
+rmdir "$T/logs/.gadget-27043.start-lock"
 
 if "$T/start.sh" "$T/frida" "com.example.other" "$T/logs" "com.example.debuggable:remote" > "$T/wrong-target-start.result" 2>&1; then
   echo "FAIL: Gadget reconnect accepted a different target package" >&2
