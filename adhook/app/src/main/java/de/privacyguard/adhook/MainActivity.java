@@ -2886,8 +2886,12 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         if (category.equals("应用管理")) {
-            if (page.equals("应用白名单") || page.equals("用户应用")
-                    || page.equals("系统应用") || page.equals("按应用设置")) {
+            if (page.equals("应用白名单")) {
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class));
+                return;
+            }
+            if (page.equals("用户应用") || page.equals("系统应用") || page.equals("按应用设置")) {
                 showImportedVpnAppManager();
                 return;
             }
