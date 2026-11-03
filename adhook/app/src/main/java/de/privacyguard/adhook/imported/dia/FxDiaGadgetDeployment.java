@@ -132,6 +132,31 @@ public final class FxDiaGadgetDeployment {
         return pkg != null && pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
     }
 
+    /**
+     * Accept only absolute, normalized paths. Canonical equality also rejects
+     * traversal and symlinked parent components, not merely a symlink at the
+     * final path element.
+     */
+    private static boolean canonicalAbsolutePath(String path, String allowedPattern) {
+        if (path == null || path.contains("..") || !path.matches(allowedPattern)) return false;
+        try {
+            File raw = new File(path);
+            return !Files.isSymbolicLink(raw.toPath())
+                    && path.equals(raw.getCanonicalPath());
+        } catch (Exception invalid) {
+            return false;
+        }
+    }
+
+    private static boolean validNativeLibraryDirArgument(String path) {
+        return path != null && path.startsWith("/data/app/")
+                && canonicalAbsolutePath(path, "/data/app/[A-Za-z0-9_./~=+-]+");
+    }
+
+    private static boolean validGadgetInputPath(String path) {
+        return canonicalAbsolutePath(path, "/[A-Za-z0-9_./-]+");
+    }
+
     private static String q(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
@@ -141,6 +166,10 @@ public final class FxDiaGadgetDeployment {
                                             int port) {
         if (!isValidListenPort(port)) {
             throw new IllegalArgumentException("Gadget listener port must be within 1024–65535 and must not be 27042");
+        }
+        if (!validPackage(packageName) || !validNativeLibraryDirArgument(nativeDir)
+                || !validGadgetInputPath(library) || !validGadgetInputPath(config)) {
+            throw new IllegalArgumentException("Gadget source/config/package/nativeLibraryDir path is invalid or non-canonical");
         }
         StringBuilder c = new StringBuilder();
         c.append("set -eu\numask 077\n");
@@ -187,8 +216,7 @@ public final class FxDiaGadgetDeployment {
     }
 
     public static String buildRemoveCommand(String nativeDir, String packageName) {
-        if (!validPackage(packageName) || nativeDir == null
-                || !nativeDir.startsWith("/data/app/") || nativeDir.contains("..")) {
+        if (!validPackage(packageName) || !validNativeLibraryDirArgument(nativeDir)) {
             throw new IllegalArgumentException("Unsupported target package/native library path");
         }
         StringBuilder c = new StringBuilder();

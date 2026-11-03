@@ -43,6 +43,51 @@ public final class FxDiaGadgetDeploymentTest {
         }
     }
 
+    @Test public void deployBuilderRejectsTargetPathTraversalAndInvalidPackage() {
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildDeployCommand(
+                        "/data/local/tmp/libfrida-gadget.so",
+                        "/data/local/tmp/libfrida-gadget.config.so",
+                        "/data/app/../../data/adb/modules/privacyguard",
+                        "com.example.debuggable",
+                        27043));
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildDeployCommand(
+                        "/data/local/tmp/libfrida-gadget.so",
+                        "/data/local/tmp/libfrida-gadget.config.so",
+                        "/data/app/com.example.debuggable/lib/arm64",
+                        "com.example;touch /data/adb/pwn",
+                        27043));
+    }
+
+    @Test public void deployBuilderRejectsTraversalAndNonCanonicalSourcePaths() {
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildDeployCommand(
+                        "/data/local/tmp/../etc/passwd",
+                        "/data/local/tmp/libfrida-gadget.config.so",
+                        "/data/app/com.example.debuggable/lib/arm64",
+                        "com.example.debuggable",
+                        27043));
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildDeployCommand(
+                        "/data/local/tmp/libfrida-gadget.so",
+                        "/data/local/tmp/./libfrida-gadget.config.so",
+                        "/data/app/com.example.debuggable/lib/arm64",
+                        "com.example.debuggable",
+                        27043));
+    }
+
+    @Test public void removeBuilderRejectsTargetPathTraversalAndInvalidPackage() {
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildRemoveCommand(
+                        "/data/app/../../data/adb/modules/privacyguard",
+                        "com.example.debuggable"));
+        assertThrows(IllegalArgumentException.class, () ->
+                FxDiaGadgetDeployment.buildRemoveCommand(
+                        "/data/app/com.example.debuggable/lib/arm64",
+                        "com.example;touch /data/adb/pwn"));
+    }
+
     @Test public void rootCommandBuilderRetainsValidatedPort() {
         String command = FxDiaGadgetDeployment.buildDeployCommand(
                 "/data/local/tmp/libfrida-gadget.so",
