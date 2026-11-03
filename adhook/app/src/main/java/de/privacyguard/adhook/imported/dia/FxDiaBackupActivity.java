@@ -111,6 +111,7 @@ public final class FxDiaBackupActivity extends Activity {
         prefs.put("shield_prefs",prefsJson("shield_prefs"));
         prefs.put("stellar_command_whitelist",prefsJson("stellar_command_whitelist"));
         prefs.put("fx_hook_publish",prefsJson("fx_hook_publish"));
+        prefs.put("fx_dia_launcher_hidden",prefsJson("fx_dia_launcher_hidden"));
         out.put("preferences",prefs);
         return out;
     }
@@ -221,7 +222,7 @@ public final class FxDiaBackupActivity extends Activity {
             for(String name:names)RootAccess.execute("rm -f "+quote("/data/local/tmp/stellar_guard/"+name+".fx-dia-rollback"),10000L,4096);
         }
         JSONObject prefs=backup.getJSONObject("preferences");
-        for(String name:new String[]{"MainActivity","shield_prefs","stellar_command_whitelist","fx_hook_publish"})
+        for(String name:new String[]{"MainActivity","shield_prefs","stellar_command_whitelist","fx_hook_publish","fx_dia_launcher_hidden"})
             if(prefs.has(name))restorePrefs(name,prefs.getJSONObject(name));
     }
 
