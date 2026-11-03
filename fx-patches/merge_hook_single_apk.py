@@ -219,7 +219,7 @@ if missing_migrated:
 # before replacing it; matching only the first self-closing child would truncate
 # the migrated Activity/Service/Receiver declarations.
 m = m.replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
-app_match = re.search(r"<application\\b[^>]*>.*?</application>", m, re.S)
+app_match = re.search(r"<application\b[^>]*>.*?</application>", m, re.S)
 if not app_match:
     raise SystemExit("modern manifest application element missing or unbalanced")
 
@@ -238,7 +238,7 @@ for tag, components in (
         if (match := re.search(r"""android:name=["']([^"']+)["']""", component))
     ]
     merged_names = re.findall(
-        rf"""<{tag}\b[^>]*?android:name=["']([^"']+)["']""",
+                rf"""<{tag}\b[^>]*?android:name=["']([^"']+)["']""",
         merged_manifest,
         re.S,
     )
