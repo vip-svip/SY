@@ -62,9 +62,18 @@ if "unbound-vpn-egress-ip" not in fn:
     if "  do-ip6: yes\n" not in fn:
         raise SystemExit("unbound.sh do-ip6 setting anchor missing")
     fn = fn.replace("  do-ip6: yes\n", "  do-ip6: $_FX_DO_IP6\n", 1)
-    if "EOF_CFG\n" not in fn:
+    cat_anchor = "  cat <<EOF_CFG\n"
+    cat_start = fn.find(cat_anchor)
+    if cat_start < 0:
+        raise SystemExit("unbound.sh config heredoc opener missing")
+    terminator = fn.find("\nEOF_CFG\n", cat_start + len(cat_anchor))
+    if terminator < 0:
         raise SystemExit("unbound.sh config heredoc terminator missing")
-    fn = fn.replace(
+    # Insert shell code after the closing delimiter, not after the opener.
+    # A plain replace("EOF_CFG\n", ...) matches the opener first and leaks
+    # shell source into the generated Unbound config on every run.
+    closing_token = terminator + 1
+    fn = fn[:closing_token] + fn[closing_token:].replace(
         "EOF_CFG\n",
         """EOF_CFG
   if [ -n "$_FX_OUT_IP" ]; then
