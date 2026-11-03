@@ -48,6 +48,8 @@ while [ "$#" -gt 0 ]; do
 done
 [ -n "$url" ] || { echo "mock curl did not receive a URL" >&2; exit 64; }
 countfile="$TEST_ROOT/count"
+events="$TEST_ROOT/curl-events"
+printf 'START|%s|%s\n' "$" "$(date +%s 2>/dev/null || echo 0)" >> "$events"
 n=0
 [ ! -f "$countfile" ] || n=$(cat "$countfile")
 n=$((n + 1))
@@ -64,6 +66,7 @@ if [ "$out" = '-' ]; then
 else
   printf '%s\n' "$body" > "$out"
 fi
+printf 'END|%s|%s\n' "$" "$(date +%s 2>/dev/null || echo 0)" >> "$events"
 CURL
 chmod 0755 "$T/bin/curl"
 export TEST_ROOT="$T/state"
@@ -118,6 +121,11 @@ meta_lines=$(sed -n 's/^lines=//p' "$meta" | head -1)
 count=$(cat "$T/state/count" 2>/dev/null || echo missing)
 [ "$count" = 2 ] || {
   echo "FAIL: expected exactly two serialized network requests, got $count" >&2
+  echo "curl event timeline (START/END must alternate by PID):" >&2
+  cat "$T/state/curl-events" >&2 || :
+  echo "worker 1 stdout/stderr:" >&2; cat "$T/out1" "$T/err1" >&2 || :
+  echo "worker 2 stdout/stderr:" >&2; cat "$T/out2" "$T/err2" >&2 || :
+  find "$T/state/subs" -maxdepth 2 -print >&2 || :
   exit 1
 }
 grep -Fq 'edge-two.example' "$body" || {
