@@ -1,14 +1,5 @@
 name: FX 1.0.0 KernelSU package
 on:
-  push:
-    branches: [fx-v1.0.0-unified-hook-integration]
-    paths:
-      - 'fx-module/**'
-      - 'adhook/**'
-      - 'scripts/**'
-      - 'fx-patches/**'
-      - 'scripts/tests/**'
-      - '.github/workflows/build-fx-kernelsu.yml'
   workflow_dispatch:
 permissions:
   contents: read
