@@ -43,6 +43,10 @@ public final class FxYulongDailySummaryActivity extends Activity {
         int warnings=sameWarn?p.getInt("protect_warn_count_today",0):0;
         int scans=sameScan?p.getInt("automatic_scan_count_today",0):0;
         int findings=sameScan?p.getInt("automatic_scan_findings_today",0):0;
+        boolean sameRescue=today.equals(p.getString("rescue_trigger_day",""));
+        int rescueCount=sameRescue?p.getInt("rescue_trigger_count_today",0):0;
+        boolean sameOverlay=today.equals(p.getString("overlay_open_day",""));
+        int overlayCount=sameOverlay?p.getInt("overlay_open_count_today",0):0;
 
         LinearLayout root=new LinearLayout(this); root.setOrientation(1);
         root.setBackgroundColor(0xfff7f8fa);
@@ -61,6 +65,11 @@ public final class FxYulongDailySummaryActivity extends Activity {
         card(body,"前台管控提醒","今日 "+warnings+" 次 · 累计 "
                 +p.getInt("protect_warn_count",0)+" 次");
         card(body,"新安装应用扫描","今日 "+scans+" 次 · 风险名单命中 "+findings+" 次");
+        card(body,"救援触发与悬浮入口","今日音量键/摇动触发提醒 "+rescueCount
+                +" 次 · 悬浮入口打开 "+overlayCount+" 次"
+                +"\n最近触发："+p.getString("rescue_trigger_last_time","暂无记录")
+                +"\n"+p.getString("rescue_trigger_last_message","暂无救援触发记录。")
+                +"\n悬浮入口最近打开："+p.getString("overlay_last_open_time","暂无记录"));
         card(body,"最近一次管控提醒",
                 p.getString("protect_last_warn_time","暂无记录")+"\n"
                 +p.getString("protect_last_warn_message","尚未触发管控提醒。"));
