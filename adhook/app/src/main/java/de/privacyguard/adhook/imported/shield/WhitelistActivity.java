@@ -34,6 +34,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 白名单管理（2026-10-30 重做）。
@@ -71,6 +76,13 @@ public class WhitelistActivity extends Activity {
     private TextView sectionTitle;
     private EditText searchInput;
     private String query = "";
+
+    private final ThreadPoolExecutor labelWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-shield-whitelist-labels"),
+            new ThreadPoolExecutor.DiscardOldestPolicy());
+    private final AtomicLong labelLoadGeneration = new AtomicLong();
+    private volatile boolean activityDestroyed;
 
     private static class AppItem {
         String packageName;
@@ -115,28 +127,50 @@ public class WhitelistActivity extends Activity {
     /** 后台只加载白名单内的应用名称；数量很小，不进主线程。 */
     private void loadLabelsAsync() {
         final List<String> pkgs = new ArrayList<>(currentWhitelist);
-        if (pkgs.isEmpty()) return;
-        new Thread(() -> {
-            final Map<String, String> loadedLabels = new HashMap<>();
-            final Map<String, Drawable> loadedIcons = new HashMap<>();
-            for (String pkg : pkgs) {
-                try {
-                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-                    loadedLabels.put(pkg, ai.loadLabel(pm).toString());
+        final long generation = labelLoadGeneration.incrementAndGet();
+        if (pkgs.isEmpty()) {
+            labelCache.clear();
+            iconCache.clear();
+            return;
+        }
+        try {
+            labelWorker.execute(() -> {
+                final Map<String, String> loadedLabels = new HashMap<>();
+                final Map<String, Drawable> loadedIcons = new HashMap<>();
+                for (String pkg : pkgs) {
+                    if (Thread.currentThread().isInterrupted()
+                            || generation != labelLoadGeneration.get()) return;
                     try {
-                        loadedIcons.put(pkg, ai.loadIcon(pm));
+                        ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                        loadedLabels.put(pkg, ai.loadLabel(pm).toString());
+                        try {
+                            loadedIcons.put(pkg, ai.loadIcon(pm));
+                        } catch (Throwable ignored) {
+                        }
                     } catch (Throwable ignored) {
                     }
-                } catch (Throwable ignored) {
                 }
-            }
-            runOnUiThread(() -> {
-                if (isFinishing()) return;
-                labelCache.putAll(loadedLabels);
-                iconCache.putAll(loadedIcons);
-                refreshWhitelistUI();
+                runOnUiThread(() -> {
+                    if (activityDestroyed || isFinishing() || isDestroyed()
+                            || generation != labelLoadGeneration.get()) return;
+                    labelCache.clear();
+                    labelCache.putAll(loadedLabels);
+                    iconCache.clear();
+                    iconCache.putAll(loadedIcons);
+                    refreshWhitelistUI();
+                });
             });
-        }, "Whitelist-Labels").start();
+        } catch (RejectedExecutionException ignored) {
+            // The page is closing or its one-slot refresh queue is being replaced.
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        activityDestroyed = true;
+        labelLoadGeneration.incrementAndGet();
+        labelWorker.shutdownNow();
+        super.onDestroy();
     }
 
     // ============================================================
