@@ -195,6 +195,28 @@ published during this migration phase.
 
 ---
 
+### Dia 23.11 — monitor page and rule-group integration
+
+- The fourth-level Dia menu now exposes separate Intent, Socket, Shell/Process,
+  method-stack, View click, ViewGroup, Fragment lifecycle, Thread startup,
+  ClassLoader, SQL and algorithm monitor pages. Each mapped page opens its
+  corresponding Frida template; it does not claim a built-in monitor daemon.
+- Added a Java Socket connection observer for Socket.connect(SocketAddress[, timeout]).
+  It records host/port, timeout, duration and exception class, not socket payloads.
+- Dia Custom Hook rules now have per-target named groups, group creation/deletion,
+  per-rule reassignment and group-preserving JSON import/export. Group membership
+  is local UI metadata; the four-field runtime rule protocol is unchanged.
+- The source still requires the selected user-installed debuggable target and an
+  explicitly available Frida runtime for these monitor templates.
+
+### Yulong Security Shield / Stellar source cleanup
+
+- Removed a duplicated obsolete implementation tail appended after the closing
+  brace of `FxStellarManagerActivity`. The retained class contains the current
+  package-scoped authorization manager, read-only command scopes, and separately
+  confirmed runtime-permission/AppOps controls.
+- This is a source repair only; no build or device behavior is claimed here.
+
 ## 2026-11-03 migration continuation checkpoint
 
 Source of truth: branch `fx-v1.0.0-unified-hook-integration`.
