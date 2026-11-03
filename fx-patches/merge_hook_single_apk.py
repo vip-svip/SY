@@ -154,6 +154,23 @@ shutil.copy2(target, module_main)
 (modern / "assets").mkdir(parents=True, exist_ok=True)
 (modern / "res/values").mkdir(parents=True, exist_ok=True)
 shutil.copy2(legacy / "assets/xposed_init", modern / "assets/xposed_init")
+# Dia's Gadget loader is a separate, scoped LSPosed entrypoint in the same APK.
+# Keep MainHook's existing privacy/ad entry intact and append the target loader.
+xposed_init = modern / "assets/xposed_init"
+xposed_entries = [
+    line.strip()
+    for line in xposed_init.read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+dia_frida_entry = "de.privacyguard.hook.DiaFridaTargetHook"
+if dia_frida_entry not in xposed_entries:
+    xposed_entries.append(dia_frida_entry)
+xposed_init.write_text("\n".join(xposed_entries) + "\n", encoding="utf-8")
+dia_frida_source = modern / "java/de/privacyguard/hook/DiaFridaTargetHook.java"
+if not dia_frida_source.is_file() or dia_frida_source.stat().st_size < 5000:
+    raise SystemExit("native Dia Frida target loader source missing or unexpectedly small")
+if dia_frida_entry not in xposed_init.read_text(encoding="utf-8"):
+    raise SystemExit("Dia Frida target loader entrypoint missing from unified xposed_init")
 shutil.copy2(legacy / "res/values/arrays.xml", modern / "res/values/arrays.xml")
 
 gradle = repo / "adhook/app/build.gradle"
