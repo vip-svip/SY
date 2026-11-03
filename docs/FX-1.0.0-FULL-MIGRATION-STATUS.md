@@ -628,3 +628,12 @@ After each implementation batch:
 - Options persist in the FX Dia Frida preference namespace and apply to the next generated/attached script.
 - Source change is committed on `fx-v1.0.0-unified-hook-integration`. No intermediate APK/KernelSU ZIP was generated; this is not device verification.
 
+
+
+## Yulong AdBlock 7.0.1 — bulk domain-list import (2026-11-03)
+
+- The native domain-list page now supports multiline import for both allowlist and blocklist entries, with optional `domain|note` rows.
+- The Root backend validates every domain and note before the first write, accepts at most 2,000 rows / 64 KiB per batch, and applies the changes through one existing FX transaction. A failed write or failed apply causes the transaction to restore the previous settings.
+- Blank lines and comment lines beginning with `#` are ignored. Duplicate domains update their note instead of creating duplicate entries.
+- The source updates are committed on `fx-v1.0.0-unified-hook-integration`; no package was produced. Per the current migration instruction, no test workflow was run in this batch.
+
