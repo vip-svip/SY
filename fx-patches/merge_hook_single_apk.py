@@ -215,6 +215,14 @@ if missing_migrated:
     raise SystemExit("Source manifest is missing migrated Yulong Shield Activities: "
                      + ", ".join(sorted(missing_migrated)))
 
+# Keep the existing compatibility floor and locate the whole application node
+# before replacing it; matching only the first self-closing child would truncate
+# the migrated Activity/Service/Receiver declarations.
+m = m.replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
+app_match = re.search(r"<application\\b[^>]*>.*?</application>", m, re.S)
+if not app_match:
+    raise SystemExit("modern manifest application element missing or unbalanced")
+
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
 merged_manifest = manifest.read_text(encoding="utf-8")
