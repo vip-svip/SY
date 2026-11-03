@@ -493,10 +493,9 @@ After each implementation batch:
 - The existing local frida-server and frida-inject path remains separate and unchanged.
 
 
-### Yulong AdBlock control backend restored (2026-11-03)
+### Yulong AdBlock backend staging re-audit (2026-11-03)
 
-- Added the previously missing `fx-module/scripts/yulong-ad-control.sh` used by the native Yulong Ad activity.
-- The KernelSU packaging workflow now stages this script into the restored FX Release module via `patch_yulong_ad_control.py`.
-- Implemented the native UI's command contract: ad-filter master switch, rule list add/enable/remove, custom allow/block domain CRUD, DNS switch state, custom/global DNS server sections, VPN remote/CN DNS values, cache engine restart, weekly schedule get/set, Root Proxy status and apply-log view.
-- Config edits use the existing FX `util.sh` helpers or atomic section/list rewrites and call the existing FX apply path. The script does not start or register another Android VpnService.
-- Final ZIP generation remains deferred until all three application migrations are complete.
+- The full canonical backend already exists at `scripts/yulong-ad-control.sh` (approximately 14 KB), and `.github/workflows/build-fx-kernelsu.yml` already stages it into the restored module with `install -D`.
+- A shorter duplicate backend and a redundant patcher were briefly added during this continuation, then removed because they would have overridden the more complete existing implementation.
+- The build workflow continues to use the original full backend, including DNS query-log tail/clear, allow/block lists, rule CRUD, DNS settings, schedule, cache refresh, Root Proxy status and logs.
+- No intermediate package was generated.
