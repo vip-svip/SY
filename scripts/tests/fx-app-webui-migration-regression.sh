@@ -158,7 +158,6 @@ grep -Fq 'DeveloperHookRule.parse(' "$ACTIVITY" || fail "native custom Hook UI m
 grep -Fq 'ruleId + "|" + method + "|" + actionText + "|" + priorityText' "$ACTIVITY" || fail "native custom Hook UI must preserve selected action and priority"
 grep -Fq 'if (!debuggable && !"OBSERVE".equals(actionText))' "$ACTIVITY" || fail "custom Hook replacements must be limited to debuggable apps"
 grep -Fq 'dev_hook_enabled=1' "$ACTIVITY" || fail "custom Hook publisher must serialize explicit per-app opt-in"
-grep -Fq 'append(",dev_rule_")' "$ACTIVITY" || fail "custom Hook publisher must serialize each custom rule into Remote Files"
 grep -Fq 'row.append(",dev_rule_b64_")' "$ACTIVITY" || fail "custom Hook publisher must encode rule descriptors containing commas"
 grep -Fq 'dev_rule_b64_' "$PARSER" || fail "custom Hook parser must accept comma-safe encoded rule fields"
 grep -Fq 'Base64.getUrlDecoder()' "$PARSER" || fail "custom Hook parser must decode URL-safe rule payloads"
