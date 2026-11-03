@@ -159,7 +159,12 @@ public final class FxDiaFridaActivity extends Activity {
                 + "  console.log('[FX Dia] Frida script attached');\\n"
                 + "});");
         card(body, "Frida JavaScript", "输入目标应用内的调试脚本；建议只观察应用自有代码和测试接口。",
-                script, button("向当前调试目标注入", () -> injectScript()));
+                script,
+                button("载入 Dia 原版 Frida 示例", () -> loadOriginalExamples()),
+                button("载入 FX 示例脚本", () -> loadDiaScriptTemplate()),
+                button("查看监听模式说明", () -> showDiaHelp("dia/frida_listen_help.md", "Frida 监听模式")),
+                button("查看方法观察/内存快照说明", () -> showDiaHelp("dia/rewrite_rule_help.md", "方法观察与内存快照")),
+                button("向当前调试目标注入", () -> injectScript()));
 
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
         warning.setPadding(dp(16), dp(6), dp(16), dp(14));
@@ -266,6 +271,73 @@ public final class FxDiaFridaActivity extends Activity {
                     targetName = targets.get(which).label;
                     targetLabel.setText(targetName + "\\n" + targetPackage);
                 }).setNegativeButton("取消", null).show();
+    }
+
+    private void loadOriginalExamples() {
+        try {
+            List<String> labels = new ArrayList<>();
+            List<String> sources = new ArrayList<>();
+            try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(
+                    getAssets().open("dia/fridaJsExample.zip"))) {
+                java.util.zip.ZipEntry entry;
+                byte[] buffer = new byte[8192];
+                while ((entry = zip.getNextEntry()) != null) {
+                    if (entry.isDirectory()) continue;
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    int count;
+                    while ((count = zip.read(buffer)) != -1) {
+                        out.write(buffer, 0, count);
+                        if (out.size() > 128 * 1024) throw new IllegalStateException("单个示例超过 128 KiB。");
+                    }
+                    if (sources.size() >= 32) break;
+                    String name = entry.getName();
+                    labels.add("Dia 原版示例 " + (sources.size() + 1) + " · " + name);
+                    sources.add(new String(out.toByteArray(), StandardCharsets.UTF_8));
+                }
+            }
+            if (sources.isEmpty()) {
+                setStatus("原版 Frida 示例包为空或资源损坏。");
+                return;
+            }
+            new AlertDialog.Builder(this).setTitle("选择 Dia 原版 Frida 示例")
+                    .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                        script.setText(sources.get(which));
+                        setStatus("示例已载入编辑器；尚未对目标应用执行注入。");
+                    }).setNegativeButton("取消", null).show();
+        } catch (Exception error) {
+            setStatus("读取原版 Frida 示例失败：" + error.getMessage());
+        }
+    }
+
+    private void loadDiaScriptTemplate() {
+        try (InputStream in = getAssets().open("dia/my-script.js")) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            script.setText(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            setStatus("Dia JS 示例模板已载入；该模板属于普通页面脚本，不是 Frida 注入脚本。");
+        } catch (Exception error) {
+            setStatus("读取 Dia 示例模板失败：" + error.getMessage());
+        }
+    }
+
+    private void showDiaHelp(String asset, String title) {
+        try (InputStream in = getAssets().open(asset)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            TextView content = new TextView(this);
+            content.setText(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            content.setTextSize(13);
+            content.setTextColor(0xff334155);
+            content.setPadding(dp(18), dp(12), dp(18), dp(12));
+            new AlertDialog.Builder(this).setTitle(title).setView(content)
+                    .setPositiveButton("关闭", null).show();
+        } catch (Exception error) {
+            setStatus("读取帮助文档失败：" + error.getMessage());
+        }
     }
 
     private void injectScript() {
