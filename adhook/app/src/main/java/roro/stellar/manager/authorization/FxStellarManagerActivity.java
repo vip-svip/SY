@@ -30,7 +30,7 @@ public final class FxStellarManagerActivity extends Activity {
  private final Set<String> packages=new HashSet<>(), scopes=new HashSet<>(), always=new HashSet<>();
  private String target="";
  private LinearLayout body;
- private TextView state;
+ private TextView state, selectedLabel;
  private boolean syncing;
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
@@ -54,8 +54,23 @@ public final class FxStellarManagerActivity extends Activity {
   state=text("正在读取授权策略…",12,0xff617080,false);body.addView(state);
   body.addView(button("选择授权目标应用",this::chooseTarget));
   addSwitch("允许该应用请求 Stellar 授权","PKG");
-  addSwitch("基础 Shell 查询能力","shell_basic");
-  addSwitch("安全设置读取能力","settings_secure");
+  selectedLabel=text("当前目标应用：未选择",13,0xff334155,true);body.addView(selectedLabel);
+  addSwitch("读取 Shell 身份","SHELL_ID_COMMAND",false);
+  addSwitch("读取已安装包列表","PACKAGE_LIST_COMMAND",false);
+  addSwitch("读取进程信息","PROCESS_LIST_COMMAND",false);
+  addSwitch("读取系统属性","PROPERTY_READ_COMMAND",false);
+  addSwitch("读取系统设置","SETTINGS_READ_COMMAND",false);
+  addSwitch("读取 SELinux 状态","SELINUX_STATUS_COMMAND",false);
+  addSwitch("只读文件访问","FILESYSTEM_READ_COMMAND",false);
+  addSwitch("读取系统服务列表","SERVICE_LIST_COMMAND",false);
+  addSwitch("写入安全设置（高权限）","SECURE_SETTINGS_WRITE",true);
+  addSwitch("管理 AppOps（高权限）","APPOPS_MANAGE",true);
+  addSwitch("管理运行时权限（高权限）","RUNTIME_PERMISSION_MANAGE",true);
+  body.addView(button("撤销终端命令作用域",()->{
+    if(target.isEmpty())return;
+    new AlertDialog.Builder(this).setTitle("撤销终端命令权限").setMessage("移除当前应用的 TERMINAL_COMMAND 作用域？")
+      .setNegativeButton("取消",null).setPositiveButton("撤销",(d,w)->apply("scope-set "+quote(target)+" TERMINAL_COMMAND 0","撤销终端命令权限")).show();
+  }));
   EditText cmd=new EditText(this);cmd.setSingleLine(true);cmd.setHint("只读命令：getprop / pm list packages / dumpsys package / settings get");
   addCard("始终允许的命令","只接受只读查询；不接受分号、管道、重定向、脚本或写入类命令。",cmd,button("添加当前应用命令",( )->{
     String c=cmd.getText().toString().trim();if(target.isEmpty()||c.isEmpty())return;
@@ -74,18 +89,26 @@ public final class FxStellarManagerActivity extends Activity {
   p.addView(text(title,14,0xff17212b,true));p.addView(text(detail,12,0xff617080,false));for(View v:children)p.addView(v);
   LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(4),0,dp(4));body.addView(p,lp);
  }
- private void addSwitch(String label,String key){
-  Switch s=new Switch(this);s.setText(label);s.setTag(key);s.setEnabled(false);
-  s.setOnCheckedChangeListener((b,on)->{if(syncing||target.isEmpty())return;
-    String op="PKG".equals(key)?"pkg-set "+quote(target)+" "+(on?"1":"0"):"scope-set "+quote(target)+" "+key+" "+(on?"1":"0");
-    apply(op,label);
-  });body.addView(s);
+ private void addSwitch(String label,String key,boolean sensitive){
+  Switch sw=new Switch(this);sw.setText(label);sw.setTag(key);sw.setEnabled(false);
+  sw.setOnCheckedChangeListener((button,on)->{
+    if(syncing||target.isEmpty())return;
+    if(sensitive&&on){
+      new AlertDialog.Builder(this).setTitle("高权限 Stellar 作用域")
+        .setMessage("此权限可能修改系统设置或其他应用权限。仅对你完全信任的测试应用授权。")
+        .setNegativeButton("取消",(d,w)->{syncing=true;button.setChecked(false);syncing=false;})
+        .setPositiveButton("明确授权",(d,w)->apply("scope-set "+quote(target)+" "+key+" 1",label)).show();
+      return;
+    }
+    apply("scope-set "+quote(target)+" "+key+" "+(on?"1":"0"),label);
+  });
+  body.addView(sw);
  }
  private void chooseTarget(){
   if(apps.isEmpty())return;
   String[] labels=new String[apps.size()];int selected=0;
   for(int i=0;i<apps.size();i++){labels[i]=appLabel(apps.get(i).packageName)+"\n"+apps.get(i).packageName;if(apps.get(i).packageName.equals(target))selected=i;}
-  new AlertDialog.Builder(this).setTitle("选择 Stellar 目标应用").setSingleChoiceItems(labels,selected,(d,w)->{target=apps.get(w).packageName;d.dismiss();bind();}).setNegativeButton("关闭",null).show();
+  new AlertDialog.Builder(this).setTitle("选择 Stellar 目标应用").setSingleChoiceItems(labels,selected,(d,w)->{target=apps.get(w).packageName;d.dismiss();if(selectedLabel!=null)selectedLabel.setText("当前目标应用："+appLabel(target)+" · "+target);bind();}).setNegativeButton("关闭",null).show();
  }
  private void bind(){
   syncing=true;

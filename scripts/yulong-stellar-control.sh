@@ -10,7 +10,7 @@ mkdir -p "$DIR"
 touch "$PKGS" "$ALWAYS" "$SCOPES"
 chmod 0600 "$PKGS" "$ALWAYS" "$SCOPES"
 valid_pkg(){ printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$'; }
-valid_scope(){ case "$1" in shell_basic|settings_secure) return 0 ;; *) return 1 ;; esac; }
+valid_scope(){ case "$1" in SHELL_ID_COMMAND|PACKAGE_LIST_COMMAND|PROCESS_LIST_COMMAND|PROPERTY_READ_COMMAND|SETTINGS_READ_COMMAND|SELINUX_STATUS_COMMAND|FILESYSTEM_READ_COMMAND|SERVICE_LIST_COMMAND|SECURE_SETTINGS_WRITE|APPOPS_MANAGE|RUNTIME_PERMISSION_MANAGE|TERMINAL_COMMAND) return 0 ;; *) return 1 ;; esac; }
 valid_command(){
   tick=$(printf '\140')
   case "$1" in *';'*|*'|'*|*'&'*|*'>'*|*'<'*|*'$'*|*"$tick"*|*'('*|*')'*|*'\\'*|*'
@@ -71,7 +71,7 @@ case "$cmd" in
     with_lock set_pkg "$2" "$3"
     ;;
   scope-set)
-    [ "$#" -eq 4 ] && valid_pkg "$2" && valid_scope "$3" && { [ "$4" = 0 ] || [ "$4" = 1 ]; } || exit 2
+    [ "$#" -eq 4 ] && valid_pkg "$2" && valid_scope "$3" && { [ "$4" = 0 ] || { [ "$4" = 1 ] && [ "$3" != "TERMINAL_COMMAND" ]; }; } || exit 2
     with_lock mutate_file "$SCOPES" "$([ "$4" = 1 ] && echo add || echo remove)" "$2" "$3"
     ;;
   always-set)
