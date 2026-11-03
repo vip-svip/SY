@@ -167,6 +167,18 @@ if "de.robv.android.xposed:api:82" not in g:
 gradle.write_text(g, encoding="utf-8")
 
 manifest = modern / "AndroidManifest.xml"
+m = manifest.read_text(encoding="utf-8")
+# Preserve all non-launcher Activities already contributed by FX migrations.
+# The unified Hook manifest is rebuilt below, so omitting these silently removes
+# migrated pages from the final APK even though their Java sources still compile.
+retained_activities = re.findall(
+    r'(?s)<activity\\b(?:(?!/>).)*?/>|<activity\\b[^>]*>.*?</activity>',
+    m
+)
+retained_activities = [
+    activity for activity in retained_activities
+    if not re.search(r'android:name=["\\'](?:\\.MainActivity|de\\.privacyguard\\.adhook\\.MainActivity)["\\']', activity)
+]
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
 # incorrect once the launcher activity contains a self-closing child element.
@@ -207,6 +219,7 @@ app = """<application
         <meta-data android:name="xposedminversion" android:value="93" />
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+        {"".join(retained_activities)}
     </application>"""
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
