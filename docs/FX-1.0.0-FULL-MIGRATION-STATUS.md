@@ -499,3 +499,11 @@ After each implementation batch:
 - A shorter duplicate backend and a redundant patcher were briefly added during this continuation, then removed because they would have overridden the more complete existing implementation.
 - The build workflow continues to use the original full backend, including DNS query-log tail/clear, allow/block lists, rule CRUD, DNS settings, schedule, cache refresh, Root Proxy status and logs.
 - No intermediate package was generated.
+
+## Native Hosts and VPN editor cutover (2026-11-03)
+
+- `scripts/native-managed-lists.sh` is installed into the module at package-build time. It maps the app's native list IDs to `[list:rule]`, `[list:domain]` and `[list:block]`, preserves row order/notes/enabled state, and uses atomic update + apply + rollback.
+- `MainActivity.showNativeManagedListDialog()`, add/edit/toggle/delete flows now call the Root backend. The main Activity no longer contains the legacy `pgListArr()`, `pgPersistNow()` or `pgQueueAutoApply()` calls.
+- `scripts/native-vpn-config.sh` is installed into the module and exposes an allowlisted reader/writer for canonical `[conf:vpn]` keys. The native VPN editor exposes local/mixed ports, DNS, URLs, update interval, routing mode, core version/path/auto-download, log level, cache lifetime, auto-selection thresholds and hide options.
+- `MainActivity.loadNativePrivacyEditEntries()` now opens that native VPN editor. The unused `VPN_EDIT` / `secVal()` / `secSet()` WebView editor and save/poll methods have been removed from `MainActivity`.
+- Both build workflows remain manual-dispatch only during migration. The above are source-level changes only; no final ZIP/APK has been rebuilt for this state and no device verification is claimed.
