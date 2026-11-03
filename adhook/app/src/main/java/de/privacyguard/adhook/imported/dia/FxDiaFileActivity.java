@@ -348,7 +348,7 @@ public final class FxDiaFileActivity extends Activity {
                     out.write(buffer, 0, count);
                 }
                 String content = new String(out.toByteArray(), StandardCharsets.UTF_8);
-                if (content.indexOf('\\uFFFD') >= 0) {
+                if (content.indexOf('\uFFFD') >= 0) {
                     content = "该文件可能不是 UTF-8 文本；字节数：" + out.size();
                 }
                 final String shown = content;
@@ -395,7 +395,7 @@ public final class FxDiaFileActivity extends Activity {
 
     private void confirmDelete(Entry entry) {
         new AlertDialog.Builder(this).setTitle("删除文件")
-                .setMessage("仅删除所选授权目录中的文件：\\n" + entry.name)
+                .setMessage("仅删除所选授权目录中的文件：\n" + entry.name)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", (d, w) -> {
                     final Uri selected = docUri(entry);
@@ -430,7 +430,7 @@ public final class FxDiaFileActivity extends Activity {
                 final List<ApplicationInfo> targets = new ArrayList<>(apps);
                 final String[] labels = new String[targets.size()];
                 for (int i = 0; i < targets.size(); i++) {
-                    labels[i] = String.valueOf(pm.getApplicationLabel(targets.get(i))) + "\\n"
+                    labels[i] = String.valueOf(pm.getApplicationLabel(targets.get(i))) + "\n"
                             + targets.get(i).packageName;
                 }
                 postUi(() -> {
@@ -449,9 +449,9 @@ public final class FxDiaFileActivity extends Activity {
         soStatus.setText("正在后台检查 APK/SO 目录…");
         submitIo("检查 APK/SO", () -> {
             StringBuilder out = new StringBuilder();
-            out.append("应用：").append(app.packageName).append('\\n')
-                    .append("APK：").append(app.sourceDir).append('\\n')
-                    .append("Native Library Dir：").append(app.nativeLibraryDir).append("\\n\\n");
+            out.append("应用：").append(app.packageName).append('\n')
+                    .append("APK：").append(app.sourceDir).append('\n')
+                    .append("Native Library Dir：").append(app.nativeLibraryDir).append("\n\n");
             int count = 0;
             List<String> apks = new ArrayList<>();
             apks.add(app.sourceDir);
@@ -464,20 +464,20 @@ public final class FxDiaFileActivity extends Activity {
                         if (!entry.isDirectory() && entry.getName().startsWith("lib/")
                                 && entry.getName().endsWith(".so")) {
                             out.append(entry.getName()).append(" · ")
-                                    .append(entry.getSize() < 0 ? "大小未知" : bytes(entry.getSize())).append('\\n');
+                                    .append(entry.getSize() < 0 ? "大小未知" : bytes(entry.getSize())).append('\n');
                             count++;
                         }
                     }
                 } catch (Throwable error) {
-                    out.append("APK 库目录不可读取：").append(apk).append('\\n');
+                    out.append("APK 库目录不可读取：").append(apk).append('\n');
                 }
             }
-            out.append("\\n已安装 Native 目录：\\n");
+            out.append("\n已安装 Native 目录：\n");
             File dir = app.nativeLibraryDir == null ? null : new File(app.nativeLibraryDir);
             File[] libs = dir == null ? null : dir.listFiles((d, name) -> name.endsWith(".so"));
-            if (libs == null) out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\\n");
+            if (libs == null) out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\n");
             else for (File lib : libs) {
-                out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\\n');
+                out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\n');
                 count++;
             }
             final String report = out.toString();
