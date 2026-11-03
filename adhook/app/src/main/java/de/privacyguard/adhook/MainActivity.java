@@ -4200,6 +4200,15 @@ public final class MainActivity extends ComponentActivity {
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
         Button addRule=new Button(this); addRule.setText("添加只读观察规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
+        LinearLayout ruleTools = new LinearLayout(this);
+        ruleTools.setOrientation(LinearLayout.HORIZONTAL);
+        Button importRules = new Button(this); importRules.setText("批量导入 JSON");
+        importRules.setOnClickListener(v -> showCustomRuleImportDialog());
+        Button exportRules = new Button(this); exportRules.setText("导出 JSON");
+        exportRules.setOnClickListener(v -> showCustomRuleExportDialog());
+        ruleTools.addView(importRules, new LinearLayout.LayoutParams(0, -2, 1));
+        ruleTools.addView(exportRules, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(ruleTools);
         renderCustomRules();
         Button save=new Button(this); save.setText("保存并发布 Hook 配置");
         save.setOnClickListener(v -> {
@@ -4233,43 +4242,174 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showCustomRuleDialog() {
-        LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(20),dp(8),dp(20),0);
-        EditText id=new EditText(this); id.setSingleLine(true); id.setHint("规则 ID，例如 observe1");
-        EditText descriptor=new EditText(this); descriptor.setSingleLine(true);
-        descriptor.setHint("类名#方法()Z 或 L类路径;->方法()返回类型");
-        form.addView(id); form.addView(descriptor);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+
+        EditText id = new EditText(this);
+        id.setSingleLine(true);
+        id.setHint("规则 ID，例如 observe1");
+        EditText descriptor = new EditText(this);
+        descriptor.setSingleLine(false);
+        descriptor.setMinLines(2);
+        descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[])java.lang.Object\n"
+                + "Smali：Lcom/example/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;\n"
+                + "旧式：com.example.Foo#isReady()Z");
+        EditText priority = new EditText(this);
+        priority.setSingleLine(true);
+        priority.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        priority.setText("0");
+        priority.setHint("优先级（-1000 至 1000）");
+
+        TextView help = new TextView(this);
+        help.setText("支持 Java 精确签名、Smali/JVM 描述符和旧式零参数 boolean 签名。"
+                + "只允许当前目标应用包名下的方法；规则只记录调用元数据，不读取参数/返回值，不改写方法行为。");
+        help.setTextSize(12);
+        help.setTextColor(0xff687681);
+        help.setPadding(0, dp(6), 0, dp(8));
+        form.addView(id);
+        form.addView(descriptor);
+        form.addView(priority);
+        form.addView(help);
+
         new AlertDialog.Builder(this).setTitle("新增只读 Hook 规则").setView(form)
-            .setNegativeButton("取消",null).setPositiveButton("保存",(d,w)->{
-                String ruleId=id.getText().toString().trim();
-                String method=descriptor.getText().toString().trim();
-                DeveloperHookRule rule=DeveloperHookRule.parse(ruleId+"|"+method+"|OBSERVE|0",selectedPackage);
-                if(rule==null) {
-                    new AlertDialog.Builder(this).setMessage("规则无效：方法必须属于当前应用包名下的类，且描述符格式正确。")
-                        .setPositiveButton("知道了",null).show(); return;
-                }
-                for(int n=1;n<=64;n++) {
-                    String existing=getPreferences(0).getString(selectedPackage+":dev_rule_"+n,null);
-                    if(existing!=null && existing.startsWith(rule.id+"|")) {
-                        new AlertDialog.Builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
-                            .setPositiveButton("知道了",null).show(); return;
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (dialog, which) -> {
+                    String ruleId = id.getText().toString().trim();
+                    String method = descriptor.getText().toString().trim();
+                    String priorityText = priority.getText().toString().trim();
+                    DeveloperHookRule rule = DeveloperHookRule.parse(
+                            ruleId + "|" + method + "|OBSERVE|" + priorityText, selectedPackage);
+                    if (rule == null) {
+                        new AlertDialog.Builder(this)
+                                .setMessage("规则无效：请检查目标包名、Java/Smali 方法签名及优先级。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
                     }
-                }
-                int slot=1;
-                while(slot<=64 && getPreferences(0).contains(selectedPackage+":dev_rule_"+slot)) slot++;
-                if(slot>64) {
-                    new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。").setPositiveButton("知道了",null).show(); return;
-                }
-                getPreferences(0).edit().putString(selectedPackage+":dev_rule_"+slot,
-                    rule.id+"|"+rule.descriptor+"|OBSERVE|0").putBoolean(selectedPackage+":dev_hook_enabled",true).apply();
-                ApplicationInfo currentTarget = findApp(selectedPackage);
-                if (currentTarget == null) {
-                    new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
-                            .setPositiveButton("知道了", null).show();
-                    return;
-                }
-                showTarget(currentTarget);
-            }).show();
+                    for (int n = 1; n <= 64; n++) {
+                        String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
+                        if (existing != null && existing.startsWith(rule.id + "|")) {
+                            new AlertDialog.Builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
+                                    .setPositiveButton("知道了", null).show();
+                            return;
+                        }
+                    }
+                    int slot = 1;
+                    while (slot <= 64 && getPreferences(0).contains(selectedPackage + ":dev_rule_" + slot)) slot++;
+                    if (slot > 64) {
+                        new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    getPreferences(0).edit()
+                            .putString(selectedPackage + ":dev_rule_" + slot,
+                                    rule.id + "|" + rule.descriptor + "|OBSERVE|" + rule.priority)
+                            .putBoolean(selectedPackage + ":dev_hook_enabled", true)
+                            .apply();
+                    ApplicationInfo currentTarget = findApp(selectedPackage);
+                    if (currentTarget == null) {
+                        new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    showTarget(currentTarget);
+                }).show();
+    }
+
+    private void showCustomRuleExportDialog() {
+        try {
+            org.json.JSONArray exported = new org.json.JSONArray();
+            for (int n = 1; n <= 64; n++) {
+                String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
+                if (value == null) continue;
+                String[] parts = value.split("\\|", -1);
+                if (parts.length != 4) continue;
+                org.json.JSONObject item = new org.json.JSONObject();
+                item.put("id", parts[0]);
+                item.put("descriptor", parts[1]);
+                item.put("action", parts[2]);
+                item.put("priority", Integer.parseInt(parts[3]));
+                exported.put(item);
+            }
+            EditText output = new EditText(this);
+            output.setText(exported.toString(2));
+            output.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+            output.setMinLines(8);
+            output.setSelectAllOnFocus(true);
+            new AlertDialog.Builder(this).setTitle("导出只读 Hook 规则")
+                    .setView(output)
+                    .setNegativeButton("关闭", null)
+                    .setPositiveButton("复制", (dialog, which) -> {
+                        android.content.ClipboardManager clipboard =
+                                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                        if (clipboard != null) {
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                                    "FX Hook rules", output.getText().toString()));
+                            Toast.makeText(this, "规则 JSON 已复制。", Toast.LENGTH_SHORT).show();
+                        }
+                    }).show();
+        } catch (Exception error) {
+            new AlertDialog.Builder(this).setMessage("导出失败：" + error.getMessage())
+                    .setPositiveButton("知道了", null).show();
+        }
+    }
+
+    private void showCustomRuleImportDialog() {
+        EditText input = new EditText(this);
+        input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        input.setMinLines(8);
+        input.setHint("[{\\"id\\":\\"observe1\\",\\"descriptor\\":\\"com.example.Foo#run()Z\\",\\"action\\":\\"OBSERVE\\",\\"priority\\":0}]");
+        new AlertDialog.Builder(this).setTitle("批量导入只读 Hook 规则")
+                .setMessage("仅接受 OBSERVE/OFF 规则；规则必须限定在当前目标应用包名内。导入会与现有规则合并，不覆盖同 ID 规则。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("验证并导入", (dialog, which) -> {
+                    try {
+                        org.json.JSONArray array = new org.json.JSONArray(input.getText().toString());
+                        if (array.length() > 64) throw new IllegalArgumentException("单次导入最多 64 条规则。");
+                        java.util.Set<String> ids = new java.util.HashSet<>();
+                        java.util.List<String> candidates = new java.util.ArrayList<>();
+                        for (int n = 1; n <= 64; n++) {
+                            String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
+                            if (existing != null) {
+                                String[] parts = existing.split("\\|", -1);
+                                if (parts.length == 4) ids.add(parts[0]);
+                                candidates.add(existing);
+                            }
+                        }
+                        for (int i = 0; i < array.length(); i++) {
+                            org.json.JSONObject item = array.optJSONObject(i);
+                            if (item == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则不是对象。");
+                            String id = item.optString("id", "");
+                            String descriptor = item.optString("descriptor", "");
+                            String action = item.optString("action", "OBSERVE").toUpperCase(java.util.Locale.ROOT);
+                            int priority = item.optInt("priority", 0);
+                            if (!"OBSERVE".equals(action) && !"OFF".equals(action)
+                                    && !"DISABLED".equals(action))
+                                throw new IllegalArgumentException("只支持 OBSERVE/OFF，拒绝导入行为替换规则。");
+                            String storedAction = ("OFF".equals(action) || "DISABLED".equals(action)) ? "OFF" : "OBSERVE";
+                            DeveloperHookRule parsed = DeveloperHookRule.parse(
+                                    id + "|" + descriptor + "|" + storedAction + "|" + priority, selectedPackage);
+                            if (parsed == null) throw new IllegalArgumentException("第 " + (i + 1) + " 条规则签名无效或不属于当前目标包。");
+                            if (!ids.add(parsed.id)) throw new IllegalArgumentException("规则 ID 重复：" + parsed.id);
+                            candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction + "|" + parsed.priority);
+                        }
+                        if (candidates.size() > 64) throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
+                        android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
+                        for (int n = 1; n <= 64; n++) editor.remove(selectedPackage + ":dev_rule_" + n);
+                        for (int i = 0; i < candidates.size(); i++)
+                            editor.putString(selectedPackage + ":dev_rule_" + (i + 1), candidates.get(i));
+                        editor.putBoolean(selectedPackage + ":dev_hook_enabled", !candidates.isEmpty()).apply();
+                        ApplicationInfo currentTarget = findApp(selectedPackage);
+                        if (currentTarget != null) showTarget(currentTarget);
+                        Toast.makeText(this, "已导入 " + array.length() + " 条规则。", Toast.LENGTH_SHORT).show();
+                    } catch (Exception invalid) {
+                        new AlertDialog.Builder(this).setTitle("导入失败")
+                                .setMessage(invalid.getMessage() == null ? "JSON 格式或规则数据无效。" : invalid.getMessage())
+                                .setPositiveButton("知道了", null).show();
+                    }
+                }).show();
     }
 
     private ApplicationInfo findApp(String pkg) {
@@ -4278,18 +4418,43 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderCustomRules() {
-        for(int i=1;i<=64;i++) {
-            String value=getPreferences(0).getString(selectedPackage+":dev_rule_"+i,null);
-            if(value==null) continue;
-            TextView item=new TextView(this); item.setText(value); item.setTextSize(12);
-            item.setTextColor(0xff596775); item.setPadding(dp(18),dp(6),dp(18),dp(6));
-            content.addView(item);
-            Button remove=new Button(this); remove.setText("删除 "+value.substring(0,value.indexOf('|')));
-            final int slot=i; remove.setOnClickListener(v->{
-                getPreferences(0).edit().remove(selectedPackage+":dev_rule_"+slot).apply();
-                ApplicationInfo ai=findApp(selectedPackage); if(ai!=null) showTarget(ai);
+        for (int i = 1; i <= 64; i++) {
+            String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + i, null);
+            if (value == null) continue;
+            String[] parts = value.split("\\|", -1);
+            if (parts.length != 4) continue;
+            final int slot = i;
+            boolean active = "OBSERVE".equalsIgnoreCase(parts[2]);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12), dp(6), dp(12), dp(6));
+            row.setBackground(uiPanelDrawable());
+            TextView item = new TextView(this);
+            item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + parts[2] + " · 优先级：" + parts[3]);
+            item.setTextSize(12);
+            item.setTextColor(0xff596775);
+            row.addView(item);
+            Switch enabled = new Switch(this);
+            enabled.setText("启用只读观察");
+            enabled.setChecked(active);
+            enabled.setOnCheckedChangeListener((button, checked) -> {
+                String[] current = getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_" + slot, "").split("\\|", -1);
+                if (current.length != 4) return;
+                current[2] = checked ? "OBSERVE" : "OFF";
+                getPreferences(0).edit().putString(selectedPackage + ":dev_rule_" + slot,
+                        current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3]).apply();
             });
-            content.addView(remove);
+            row.addView(enabled);
+            Button remove = new Button(this);
+            remove.setText("删除 " + parts[0]);
+            remove.setOnClickListener(v -> {
+                getPreferences(0).edit().remove(selectedPackage + ":dev_rule_" + slot).apply();
+                ApplicationInfo ai = findApp(selectedPackage);
+                if (ai != null) showTarget(ai);
+            });
+            row.addView(remove);
+            content.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
     }
 
