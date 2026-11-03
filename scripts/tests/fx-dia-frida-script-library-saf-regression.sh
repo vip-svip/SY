@@ -40,7 +40,7 @@ if "exportFridaScriptLibrary() {\n        try {\n            org.json.JSONObject
     raise SystemExit("FAIL: script library export still bypasses the SAF file picker")
 if "pendingFridaLibraryExport;" in source or "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport)" in source:
     raise SystemExit("FAIL: script library JSON payload is stored directly in Activity state Bundle")
-if not re.search(r"pendingFridaLibraryExportFileName = staged.getName\(\)", source):
+if "pendingFridaLibraryExportFileName = staged.getName()" not in source:
     raise SystemExit("FAIL: staged export file name is not tracked for Activity restoration")
 if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
