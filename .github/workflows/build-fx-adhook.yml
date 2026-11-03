@@ -2,6 +2,15 @@ name: Validate FX APP migration and build Hook APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - 'adhook/app/src/main/**'
+      - 'scripts/tests/**'
+      - 'fx-patches/**'
+      - 'fx-module/scripts/tests/**'
+      - '.github/workflows/build-fx-adhook.yml'
 permissions:
   actions: read
   contents: read
