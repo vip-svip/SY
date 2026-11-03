@@ -165,6 +165,14 @@ schedule_get() {
   echo "end=$end"
   echo "days=$days"
   echo "active=$(pg_get yulong_ad_schedule_active 1)"
+  watcher=0
+  pidfile="$PG/yulong-ad-schedule.pid"
+  if [ -s "$pidfile" ]; then
+    pid=$(cat "$pidfile" 2>/dev/null)
+    case "$pid" in ''|*[!0-9]*) pid= ;; esac
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then watcher=1; fi
+  fi
+  echo "watcher=$watcher"
 }
 schedule_set() {
   enabled=$1; start=$2; end=$3; days=$4
