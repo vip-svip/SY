@@ -2,7 +2,10 @@ package de.privacyguard.adhook;
 
 import androidx.activity.ComponentActivity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceError;
@@ -24,6 +27,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -129,6 +133,38 @@ public final class MainActivity extends ComponentActivity {
     private volatile Thread appLoaderThread;
     private int appLoadGeneration;
     private boolean appsLoaded;
+    private boolean packageChangeReceiverRegistered;
+    private final BroadcastReceiver packageChangeReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            String action = intent.getAction();
+            Uri data = intent.getData();
+            String packageName = data == null ? null : data.getSchemeSpecificPart();
+            if (packageName == null || packageName.trim().isEmpty()
+                    || packageName.equals(getPackageName()) || "android".equals(packageName)) return;
+
+            boolean added = Intent.ACTION_PACKAGE_ADDED.equals(action);
+            boolean removed = Intent.ACTION_PACKAGE_REMOVED.equals(action)
+                    || Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action);
+            boolean replaced = Intent.ACTION_PACKAGE_REPLACED.equals(action);
+            if (!added && !removed && !replaced) return;
+
+            // An update is announced as remove/add with EXTRA_REPLACING, followed by
+            // PACKAGE_REPLACED. Ignore the intermediate events and refresh exactly
+            // when the package manager has installed the replacement.
+            boolean replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false);
+            if (replacing && (added || removed)) return;
+
+            if (hookTargetVisible && packageName.equals(selectedPackage) && removed) {
+                Toast.makeText(MainActivity.this,
+                        "当前 Hook 目标应用已卸载，已保留其配置并返回应用列表。",
+                        Toast.LENGTH_LONG).show();
+                showAppList(activePrivacySection);
+                return;
+            }
+            if (isHookAppListVisible()) refreshHookAppList();
+        }
+    };
     private static final int REQUEST_FILE_PICKER = 4101;
     private static final int REQUEST_DIA_GPS_PICKER = 4110;
     private String pendingDiaGpsTargetPackage;
@@ -235,14 +271,30 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        registerPackageChangeReceiver();
         if (webView != null && !hookUiVisible && !settingsUiVisible) {
             webView.onResume();
             webView.resumeTimers();
         }
         if (!hookUiVisible && !settingsUiVisible) startNativeVpnPolling();
+        // Package broadcasts are not delivered while this Activity is paused.
+        // Revalidate a selected target and refresh a previously loaded app list
+        // when returning from system settings or another Activity.
+        if (hookTargetVisible && selectedPackage != null) {
+            try {
+                getPackageManager().getApplicationInfo(selectedPackage, 0);
+            } catch (PackageManager.NameNotFoundException removed) {
+                Toast.makeText(this, "目标应用已卸载，已返回应用列表并保留原配置。",
+                        Toast.LENGTH_LONG).show();
+                showAppList(activePrivacySection);
+            }
+        } else if (isHookAppListVisible() && appsLoaded && appLoaderThread == null) {
+            refreshHookAppList();
+        }
     }
 
     @Override protected void onPause() {
+        unregisterPackageChangeReceiver();
         stopNativeVpnPolling();
         if (webView != null) {
             webView.onPause();
@@ -4012,6 +4064,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onDestroy() {
+        unregisterPackageChangeReceiver();
         nativeVpnHandler.removeCallbacksAndMessages(null);
         nativeVpnExecutor.shutdownNow();
         nativeVpnModeButtons.clear();
@@ -4324,6 +4377,50 @@ public final class MainActivity extends ComponentActivity {
         });
         loadAppsAsync();
     }
+    private boolean isHookAppListVisible() {
+        return hookUiVisible && !hookHubVisible && !hookTargetVisible
+                && search != null && content != null;
+    }
+
+    private void refreshHookAppList() {
+        if (!isHookAppListVisible() || isFinishing() || isDestroyed()) return;
+        // loadAppsAsync rebuilds the sorted package snapshot off the UI thread and
+        // reapplies the user's current search query before rendering the rows.
+        loadAppsAsync();
+    }
+
+    private void registerPackageChangeReceiver() {
+        if (packageChangeReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        filter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        filter.addDataScheme("package");
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(packageChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(packageChangeReceiver, filter);
+            }
+            packageChangeReceiverRegistered = true;
+        } catch (RuntimeException error) {
+            // onResume also revalidates the app list, so receiver registration
+            // failures do not turn into a crash or a fabricated sync-success state.
+            android.util.Log.w("FXHook", "Unable to observe package changes", error);
+        }
+    }
+
+    private void unregisterPackageChangeReceiver() {
+        if (!packageChangeReceiverRegistered) return;
+        packageChangeReceiverRegistered = false;
+        try {
+            unregisterReceiver(packageChangeReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // The Activity may already have been detached by the framework.
+        }
+    }
+
     private void loadAppsAsync() {
         Thread previous = appLoaderThread;
         if (previous != null) previous.interrupt();
