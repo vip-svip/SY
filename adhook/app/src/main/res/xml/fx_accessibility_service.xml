@@ -5,4 +5,6 @@
     android:notificationTimeout="250"
     android:canRetrieveWindowContent="false"
     android:canPerformGestures="false"
+    android:canRequestFilterKeyEvents="true"
+    android:accessibilityFlags="flagRequestFilterKeyEvents"
     android:description="@string/fx_accessibility_description" />

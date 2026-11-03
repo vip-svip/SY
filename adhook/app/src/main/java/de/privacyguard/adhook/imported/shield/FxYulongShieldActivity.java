@@ -191,7 +191,28 @@ public final class FxYulongShieldActivity extends Activity {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
                     catch (Throwable ignored) { }
                 }));
-        card("原版高级守护功能",
-                "原版音量/摇动触发、覆盖层救援流程和 Stellar 金龙特权命令仍需单独迁移；当前实时守护已接入前台应用检测、黑名单和白名单规则及提醒通知。");
+        android.widget.Switch volumeTrigger = new android.widget.Switch(this);
+        volumeTrigger.setText("音量上键连续触发救援提醒（需启用 FX 无障碍服务）");
+        volumeTrigger.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
+        volumeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+            shieldPrefs.edit().putBoolean("volume_trigger_on", enabled).apply();
+            if (enabled && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
+                new android.app.AlertDialog.Builder(this).setTitle("需要 FX 无障碍服务")
+                        .setMessage("音量键触发只监听连续六次音量上键，不读取屏幕内容，也不吞掉按键事件。请到系统无障碍设置手动启用 FX。")
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("打开设置", (d, w) -> {
+                            try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+                            catch (Throwable ignored) { }
+                        }).show();
+            }
+        });
+        android.widget.Switch shakeTrigger = new android.widget.Switch(this);
+        shakeTrigger.setText("摇动设备触发救援提醒");
+        shakeTrigger.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
+        shakeTrigger.setOnCheckedChangeListener((button, enabled) ->
+                shieldPrefs.edit().putBoolean("shake_trigger_on", enabled).apply());
+        card("原版救援触发迁移",
+                "支持用户主动开启的音量键序列和加速度传感器摇动触发。触发后只显示提醒，不会擅自强停、卸载应用或修改无障碍权限。",
+                volumeTrigger, shakeTrigger);
     }
 }

@@ -17,6 +17,12 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Process;
+import android.os.SystemClock;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+
 
 import java.text.DateFormat;
 import java.util.Date;
@@ -31,7 +37,7 @@ import java.util.Set;
  * force-stops, disables, freezes, uninstalls apps, changes accessibility
  * settings, or restarts itself.
  */
-public final class FxYulongProtectionService extends Service {
+public final class FxYulongProtectionService extends Service implements SensorEventListener {
     public static final String ACTION_START = "de.privacyguard.adhook.shield.START";
     public static final String ACTION_STOP = "de.privacyguard.adhook.shield.STOP";
     private static final String PREFS = "shield_prefs";
@@ -44,6 +50,9 @@ public final class FxYulongProtectionService extends Service {
     private HandlerThread thread;
     private Handler handler;
     private UsageStatsManager usage;
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastShakeAlert;
     private volatile boolean running;
 
     private final Runnable poll = new Runnable() {
@@ -65,6 +74,7 @@ public final class FxYulongProtectionService extends Service {
             } catch (Throwable ignored) {
                 // One Usage Access/PackageManager failure must not crash the service.
             }
+            syncShakeSensor();
             if (running && handler != null) handler.postDelayed(this, POLL_MS);
         }
     };
@@ -75,6 +85,8 @@ public final class FxYulongProtectionService extends Service {
         thread.start();
         handler = new Handler(thread.getLooper());
         usage = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        accelerometer = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         createChannels();
     }
 
@@ -97,9 +109,65 @@ public final class FxYulongProtectionService extends Service {
                 .putBoolean("protect_service_running", true)
                 .putString("protect_service_started_at", DateFormat.getDateTimeInstance().format(new Date()))
                 .apply();
+        syncShakeSensor();
         handler.removeCallbacks(poll);
         handler.post(poll);
         return START_NOT_STICKY;
+    }
+
+    private void syncShakeSensor() {
+        if (sensorManager == null || accelerometer == null) return;
+        boolean enabled = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getBoolean("protect_on", false)
+                && getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getBoolean("shake_trigger_on", false);
+        if (enabled) sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler);
+        else sensorManager.unregisterListener(this);
+    }
+
+    @Override public void onSensorChanged(SensorEvent event) {
+        if (event == null || event.values == null || event.values.length < 3) return;
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (!prefs.getBoolean("protect_on", false)
+                || !prefs.getBoolean("shake_trigger_on", false)) return;
+        float x = event.values[0], y = event.values[1], z = event.values[2];
+        double magnitude = Math.sqrt(x * x + y * y + z * z);
+        long now = SystemClock.elapsedRealtime();
+        if (magnitude > 22.5d && now - lastShakeAlert > 12000L) {
+            lastShakeAlert = now;
+            notifyRescue(this, "检测到强烈摇动，已触发安全护盾提醒。");
+        }
+    }
+
+    @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+    public static void notifyRescue(Context context, String message) {
+        if (context == null) return;
+        if (Build.VERSION.SDK_INT >= 33
+                && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) return;
+        NotificationManager manager = (NotificationManager)
+                context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        String channelId = "fx_yulong_protection_alert";
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId, "游龙安全护盾救援提醒", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("由用户手动开启的音量键/摇动触发提醒");
+            manager.createNotificationChannel(channel);
+        }
+        Intent open = new Intent(context, FxYulongShieldActivity.class);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent content = PendingIntent.getActivity(context, 9025, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23
+                        ? PendingIntent.FLAG_IMMUTABLE : 0));
+        Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
+        manager.notify(0x5960, builder.setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setContentTitle("FX 安全护盾救援提醒")
+                .setContentText(message)
+                .setContentIntent(content)
+                .setAutoCancel(true).build());
     }
 
     private boolean hasUsageAccess() {
@@ -230,6 +298,7 @@ public final class FxYulongProtectionService extends Service {
     @Override public void onDestroy() {
         running = false;
         if (handler != null) handler.removeCallbacksAndMessages(null);
+        if (sensorManager != null) sensorManager.unregisterListener(this);
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putBoolean("protect_service_running", false).apply();
         if (thread != null) thread.quitSafely();

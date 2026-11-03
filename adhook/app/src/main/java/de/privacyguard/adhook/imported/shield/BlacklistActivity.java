@@ -312,7 +312,7 @@ public class BlacklistActivity extends Activity {
 
         new AlertDialog.Builder(this)
                 .setTitle("确认清空")
-                .setMessage("确定要清空所有管控吗？\n所有应用将不再被拦截。")
+                .setMessage("确定要清空所有管控吗？\n所有应用将不再触发管控提醒。")
                 .setPositiveButton("确定清空", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {

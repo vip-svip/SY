@@ -180,7 +180,7 @@ public class WhitelistActivity extends Activity {
         titleCol.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("只放行你真正信任的应用");
+        sub.setText("不对这些应用触发管控名单提醒");
         sub.setTextColor(0xCCFFFFFF);
         sub.setTextSize(12);
         sub.setPadding(0, dp(2), 0, 0);
