@@ -94,5 +94,16 @@ assert "FxYulongAdOperationGate.release();" in ad_activity
 assert "FxYulongAdOperationGate.tryAcquire()" in general_activity
 assert "FxYulongAdOperationGate.release();" in general_activity
 assert "finally {" in general_activity and "导入未开始" in general_activity
+# Queueable Activities must acquire the global gate only after their worker starts;
+# otherwise onDestroy()+shutdownNow() can drop a queued task while leaking BUSY forever.
+restore_worker = general_activity.find("worker.execute(() -> {", general_activity.find("private void applyImport(JSONObject json)"))
+restore_gate = general_activity.find("gateAcquired = FxYulongAdOperationGate.tryAcquire();", restore_worker)
+restore_release = general_activity.find("if (gateAcquired) FxYulongAdOperationGate.release();", restore_gate)
+assert restore_worker >= 0 and restore_gate > restore_worker and restore_release > restore_gate
+assert general_activity.find("FxYulongAdOperationGate.tryAcquire();", general_activity.find("private void applyImport(JSONObject json)")) >= restore_worker
+ad_worker = ad_activity.find("worker.execute(()->{", ad_activity.find("private void apply(String args,String label)"))
+ad_gate = ad_activity.find("gateAcquired=FxYulongAdOperationGate.tryAcquire();", ad_worker)
+ad_release = ad_activity.find("if(gateAcquired)FxYulongAdOperationGate.release();", ad_gate)
+assert ad_worker >= 0 and ad_gate > ad_worker and ad_release > ad_gate
 print("PASS: Tasker, widget and Quick Settings Root toggles are bounded, serialized and fail closed")
 PY
