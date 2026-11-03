@@ -50,7 +50,7 @@ public class FxYulongVolumeTriggerSequenceTest {
         assertFalse(sequence.recordPress(down, down, 4, 1000L));
         assertFalse(sequence.recordPress(down, down, 4, 1900L));
         assertFalse(sequence.recordPress(down, down, 4, 2800L));
-        assertFalse(sequence.recordPress(down, down, 4, 3701L)); // previous 2.8s window expired
+        assertFalse(sequence.recordPress(down, down, 4, 3801L)); // previous 2.8s window expired
         assertFalse(sequence.recordPress(down, down, 4, 4300L));
         assertFalse(sequence.recordPress(down, down, 4, 4900L));
         assertTrue(sequence.recordPress(down, down, 4, 5500L));
