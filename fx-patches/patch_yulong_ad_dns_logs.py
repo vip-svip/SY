@@ -14,13 +14,13 @@ anchor = "  _rules_file=\"$MODDIR/fxrules/anti_fraud_96110.txt\"\n"
 if anchor not in source:
     raise SystemExit("AdGuard Home rule render anchor missing")
 insert = """  # DNS query logging is off by default. When explicitly enabled, AdGuard
-  # keeps its own local querylog file for seven days; no external upload path
+  # retains its local query log for thirty days; no external upload path
   # is configured. settings.conf is root-owned and atomically updated by FX.
   _dns_querylog_enabled=$(awk -F= '
     $1==\"dns_querylog_enabled\" {v=$2}
-    END {if(v==\"1\") print 1; else print 0}
+    END {if(v==\"1\") print "true"; else print "false"}
   ' \"$PG/settings.conf\" 2>/dev/null)
-  case \"$_dns_querylog_enabled\" in 1) : ;; *) _dns_querylog_enabled=0 ;; esac
+  case \"$_dns_querylog_enabled\" in true) : ;; *) _dns_querylog_enabled=false ;; esac
 """
 if "_dns_querylog_enabled=$(awk -F=" not in source:
     source = source.replace(anchor, insert + anchor, 1)
