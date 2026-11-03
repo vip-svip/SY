@@ -9,8 +9,9 @@ SUB_TEST="$MODULE/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
 PATCHER="$ROOT/fx-patches/patch_atomic_cache_lock_release.py"
 HOST_FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_hosts_file_lock.py"
 FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_subfetch_file_lock.py"
+LEGACY_TEST_PATCHER="$ROOT/fx-patches/patch_subfetch_legacy_lock_tests.py"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for f in "$APPLY" "$SUBFETCH" "$HOST_TEST" "$SUB_TEST" "$PATCHER" "$HOST_FILE_LOCK_PATCHER" "$FILE_LOCK_PATCHER"; do
+for f in "$APPLY" "$SUBFETCH" "$HOST_TEST" "$SUB_TEST" "$PATCHER" "$HOST_FILE_LOCK_PATCHER" "$FILE_LOCK_PATCHER" "$LEGACY_TEST_PATCHER"; do
   [ -s "$f" ] || fail "required cache lock source/test missing: $f"
 done
 
@@ -22,6 +23,8 @@ python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "first Hosts file-lock patch
 python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "second Hosts file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "first subscription file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "second subscription file-lock patch application failed"
+python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "first stale-lock compatibility test patch application failed"
+python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "second stale-lock compatibility test patch application failed"
 
 # Run the canonical concurrency fixture, not an older copy embedded in the
 # published module. The source fixture contains the deterministic transfer gate.
@@ -34,6 +37,8 @@ grep -Fq 'FX_SUBFETCH_FILE_LOCK_V2' "$SUBFETCH" || fail "subscription cache does
 grep -Fq 'set -C' "$SUBFETCH" || fail "subscription lock does not use noclobber atomic file creation"
 grep -Fq 'mv "$LOCK" "$_sl_release"' "$SUBFETCH" || fail "subscription file lock release does not atomically rename the owner file"
 grep -Fq '_sl_read_lock_owner "$LOCK"' "$SUBFETCH" || fail "subscription lock owner validation missing"
+grep -Fq 'FX_SUBFETCH_LEGACY_DIR_COMPAT_V1' "$MODULE/scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh" || fail "legacy lock ownership regression was not migrated"
+grep -Fq 'FX_SUBFETCH_LEGACY_DIR_COMPAT_V1' "$MODULE/scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh" || fail "legacy lock reclaim regression was not migrated"
 if grep -Fq 'while ! mkdir "$LOCK"' "$SUBFETCH"; then
   fail "subscription lock still uses the flaky mkdir acquisition loop"
 fi
