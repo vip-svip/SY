@@ -390,36 +390,38 @@ public final class FxDiaBackupActivity extends Activity {
         final String[] names = {"command_whitelist.txt", "command_always_allow.txt", "scope_grants.txt"};
         StringBuilder command = new StringBuilder();
         command.append("set -e; PG=/data/adb/privacyguard; DIR=/data/local/tmp/stellar_guard; ")
-                .append("CONF=\\\"$PG/settings.conf\\\"; TXN=\\\"$PG/.fx-dia-restore.$$\\\"; ")
-                .append("STXN=\\\"$DIR/.fx-dia-restore.$$\\\"; ")
+                .append("CONF=\"$PG/settings.conf\"; TXN=\"$PG/.fx-dia-restore.$$\"; ")
+                .append("STXN=\"$DIR/.fx-dia-restore.$$\"; ")
                 .append("_fx_mutating=0; _fx_committed=0; _fx_config_swapped=0; _fx_recovery_failed=0; ")
                 .append("rollback(){ _fx_rc=$?; ")
-                .append("if [ \\\"$_fx_committed\\\" -ne 1 ] && [ \\\"$_fx_mutating\\\" -eq 1 ]; then ")
-                .append("if [ -f \\\"$TXN/settings.old\\\" ]; then mv -f \\\"$TXN/settings.old\\\" \\\"$CONF\\\" || _fx_recovery_failed=1; ")
+                .append("if [ \"$_fx_committed\" -ne 1 ] && [ \"$_fx_mutating\" -eq 1 ]; then ")
+                .append("if [ -f \"$TXN/settings.old\" ]; then mv -f \"$TXN/settings.old\" \"$CONF\" || _fx_recovery_failed=1; ")
                 .append("else _fx_recovery_failed=1; fi; ");
         for (String name : names) {
+            // Only roll back files that are part of this backup. Older backups can
+            // omit a Stellar file; an unrelated existing file must never be deleted.
             if (!stellarFiles.containsKey(name)) continue;
-            command.append("if [ -f \\\"$STXN/").append(name).append(".existed\\\" ]; then ")
-                    .append("if [ -f \\\"$STXN/").append(name).append(".old\\\" ]; then ")
-                    .append("mv -f \\\"$STXN/").append(name).append(".old\\\" \\\"$DIR/")
-                    .append(name).append("\\\" || _fx_recovery_failed=1; ")
+            command.append("if [ -f \"$STXN/").append(name).append(".existed\" ]; then ")
+                    .append("if [ -f \"$STXN/").append(name).append(".old\" ]; then ")
+                    .append("mv -f \"$STXN/").append(name).append(".old\" \"$DIR/")
+                    .append(name).append("\" || _fx_recovery_failed=1; ")
                     .append("else _fx_recovery_failed=1; fi; ")
-                    .append("else rm -f \\\"$DIR/").append(name).append("\\\" || _fx_recovery_failed=1; fi; ");
+                    .append("else rm -f \"$DIR/").append(name).append("\" || _fx_recovery_failed=1; fi; ");
         }
-        command.append("if [ \\\"$_fx_config_swapped\\\" -eq 1 ]; then ")
+        command.append("if [ \"$_fx_config_swapped\" -eq 1 ]; then ")
                 .append("sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || _fx_recovery_failed=1; ")
-                .append("fi; fi; rm -rf \\\"$TXN\\\" \\\"$STXN\\\"; ")
-                .append("if [ \\\"$_fx_recovery_failed\\\" -ne 0 ]; then ")
-                .append("echo FX_DIA_RESTORE_ROLLBACK_FAILED; exit 90; fi; exit \\\"$_fx_rc\\\"; }; ")
+                .append("fi; fi; rm -rf \"$TXN\" \"$STXN\"; ")
+                .append("if [ \"$_fx_recovery_failed\" -ne 0 ]; then ")
+                .append("echo FX_DIA_RESTORE_ROLLBACK_FAILED; exit 90; fi; exit \"$_fx_rc\"; }; ")
                 .append("trap rollback EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; ")
-                .append("mkdir -p \\\"$DIR\\\"; [ ! -L \\\"$DIR\\\" ] || exit 40; ")
-                .append("[ -d \\\"$PG\\\" ] && [ ! -L \\\"$PG\\\" ] || exit 41; ")
-                .append("[ -f \\\"$CONF\\\" ] && [ ! -L \\\"$CONF\\\" ] || exit 42; ")
-                .append("mkdir \\\"$TXN\\\"; mkdir \\\"$STXN\\\"; ")
-                .append("cp -p \\\"$CONF\\\" \\\"$TXN/settings.old\\\"; ")
+                .append("mkdir -p \"$DIR\"; [ ! -L \"$DIR\" ] || exit 40; ")
+                .append("[ -d \"$PG\" ] && [ ! -L \"$PG\" ] || exit 41; ")
+                .append("[ -f \"$CONF\" ] && [ ! -L \"$CONF\" ] || exit 42; ")
+                .append("mkdir \"$TXN\"; mkdir \"$STXN\"; ")
+                .append("cp -p \"$CONF\" \"$TXN/settings.old\"; ")
                 .append("cp ").append(quote(moduleFile.getAbsolutePath()))
-                .append(" \\\"$TXN/settings.new\\\"; chmod 0600 \\\"$TXN/settings.new\\\"; ")
-                .append("actual=$(sha256sum \\\"$TXN/settings.new\\\" | cut -d ' ' -f1); test \\\"$actual\\\" = ")
+                .append(" \"$TXN/settings.new\"; chmod 0600 \"$TXN/settings.new\"; ")
+                .append("actual=$(sha256sum \"$TXN/settings.new\" | cut -d ' ' -f1); test \"$actual\" = ")
                 .append(quote(moduleHash)).append("; ");
         for (String name : names) {
             java.io.File cache = stellarFiles.get(name);
@@ -428,25 +430,25 @@ public final class FxDiaBackupActivity extends Activity {
             String expected = stellarHashes.getString(name);
             command.append("if [ -e ").append(quote(target)).append(" ] || [ -L ").append(quote(target)).append(" ]; then ")
                     .append("[ -f ").append(quote(target)).append(" ] && [ ! -L ").append(quote(target)).append(" ] || exit 43; ")
-                    .append("cp -p ").append(quote(target)).append(" \\\"$STXN/").append(name).append(".old\\\"; ")
-                    .append(": > \\\"$STXN/").append(name).append(".existed\\\"; fi; ")
-                    .append("cp ").append(quote(cache.getAbsolutePath())).append(" \\\"$STXN/")
-                    .append(name).append(".new\\\"; chmod 0600 \\\"$STXN/").append(name).append(".new\\\"; ")
-                    .append("actual=$(sha256sum \\\"$STXN/").append(name)
-                    .append(".new\\\" | cut -d ' ' -f1); test \\\"$actual\\\" = ")
+                    .append("cp -p ").append(quote(target)).append(" \"$STXN/").append(name).append(".old\"; ")
+                    .append(": > \"$STXN/").append(name).append(".existed\"; fi; ")
+                    .append("cp ").append(quote(cache.getAbsolutePath())).append(" \"$STXN/")
+                    .append(name).append(".new\"; chmod 0600 \"$STXN/").append(name).append(".new\"; ")
+                    .append("actual=$(sha256sum \"$STXN/").append(name)
+                    .append(".new\" | cut -d ' ' -f1); test \"$actual\" = ")
                     .append(quote(expected)).append("; ");
         }
-        command.append("_fx_mutating=1; mv -f \\\"$TXN/settings.new\\\" \\\"$CONF\\\"; ")
+        command.append("_fx_mutating=1; mv -f \"$TXN/settings.new\" \"$CONF\"; ")
                 .append("_fx_config_swapped=1; ");
         for (String name : names) {
             if (stellarFiles.containsKey(name)) {
-                command.append("mv -f \\\"$STXN/").append(name).append(".new\\\" \\\"$DIR/")
-                        .append(name).append("\\\"; ");
+                command.append("mv -f \"$STXN/").append(name).append(".new\" \"$DIR/")
+                        .append(name).append("\"; ");
             }
         }
         command.append("if sh /data/adb/modules/privacyguard/scripts/apply.sh fast; then :; else exit 31; fi; ")
                 .append("_fx_committed=1; trap - EXIT HUP INT TERM; ")
-                .append("rm -rf \\\"$TXN\\\" \\\"$STXN\\\" || :; echo FX_DIA_RESTORE_COMMITTED");
+                .append("rm -rf \"$TXN\" \"$STXN\" || :; echo FX_DIA_RESTORE_COMMITTED");
         return command.toString();
     }
 

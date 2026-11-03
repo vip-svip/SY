@@ -32,7 +32,7 @@ helper_end = source.index("private void validateBackupPreferences(", helper_star
 helper = source[helper_start:helper_end]
 for token in ("files.keys()", "hashes.keys()", "Base64.getDecoder().decode(encoded)",
               "expected.equalsIgnoreCase(sha(data))", "validated.put(name, data)", "File.createTempFile",
-              "staged.delete();", "totalBytes > MAX_BACKUP_BYTES"):
+              "cache.delete();", "totalBytes > MAX_BACKUP_BYTES"):
     assert token in helper, "Stellar preflight guard missing: " + token
 transaction_start = source.index("private String buildTransactionalRestoreCommand(")
 transaction_end = source.index("private void restoreBackupBytes(", transaction_start)
@@ -40,6 +40,12 @@ transaction = source[transaction_start:transaction_end]
 for token in ("rollback(){", "FX_DIA_RESTORE_ROLLBACK_FAILED", "settings.old", ".existed", "_fx_mutating=1", "_fx_committed=1", "trap rollback EXIT"):
     assert token in transaction, "transactional Root rollback contract missing: " + token
 assert transaction.count("RootAccess.execute") == 0, "Root transaction builder must only build a quoted shell command"
+assert r'CONF=\"$PG/settings.conf\"' in transaction, "generated shell variables must use shell quotes, not literal backslash-quote bytes"
+assert r'CONF=\\\"' not in transaction, "Java source must not over-escape generated shell quotes"
+rollback_loop_start = transaction.index("rollback(){")
+rollback_loop_end = transaction.index("if [ \\\"$_fx_config_swapped", rollback_loop_start)
+rollback_loop = transaction[rollback_loop_start:rollback_loop_end]
+assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from an older/partial backup"
 assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must never touch Stellar files absent from this backup"
 assert transaction.count("if (stellarFiles.containsKey(name))") >= 1, "commit loop must only replace staged Stellar files"
 assert "|| :; echo FX_DIA_RESTORE_COMMITTED" in transaction, "post-commit cache cleanup failure must not report an already-committed restore as failed"
