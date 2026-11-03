@@ -180,6 +180,17 @@ application_node = manifest_root.find("application")
 if application_node is None:
     raise SystemExit("modern manifest application element missing or malformed")
 
+# Snapshot every direct Android component before mutation so serialization can be
+# checked as a lossless transformation, not just for a small hand-picked subset.
+original_component_names = {
+    tag: {
+        node.get(ANDROID + "name", "")
+        for node in application_node.findall(tag)
+        if node.get(ANDROID + "name")
+    }
+    for tag in ("activity", "service", "receiver", "provider")
+}
+
 # Preserve app identity and security defaults while retaining every direct child.
 application_node.set(ANDROID + "label", "FX Hook")
 application_node.set(ANDROID + "allowBackup", "false")
@@ -276,6 +287,16 @@ ET.fromstring(manifest_text)  # Validate serialization before touching the manif
 manifest.write_text('<?xml version="1.0" encoding="utf-8"?>\n' + manifest_text + "\n", encoding="utf-8")
 merged_root = ET.parse(manifest).getroot()
 merged_application = merged_root.find("application")
+for tag, original_names in original_component_names.items():
+    merged_names = {
+        node.get(ANDROID + "name", "")
+        for node in merged_application.findall(tag)
+        if node.get(ANDROID + "name")
+    }
+    missing = original_names - merged_names
+    if missing:
+        raise SystemExit("Unified Hook manifest lost original " + tag + " components: "
+                         + ", ".join(sorted(missing)))
 for tag, required_names in (
     ("activity", required_migrated_activities),
     ("service", set()),
