@@ -133,6 +133,23 @@ grep -Fq 'ip6tables -t filter -A FXYUL_B -m owner --uid-owner 10123 -j REJECT' "
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
+# Removing the last selected app is a valid empty policy. It must commit the
+# config mutation and remove both active IPv4/IPv6 chains instead of rolling
+# back to a still-blocking policy.
+run remove com.example.blocked > "$TMP/remove-last.out"
+grep -Fq 'firewall=0' "$TMP/remove-last.out" || fail "removing the last app did not disable the firewall"
+[ ! -e "$ACTIVE" ] || fail "removing the last app left a stale active marker"
+if grep -Fq 'com.example.blocked|10123|1' "$CONF"; then
+  fail "removing the last app rolled back its config mutation"
+fi
+grep -Fq 'iptables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal did not clear IPv4 active chain"
+grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal did not clear IPv6 active chain"
+
+# Re-add once so uninstall is tested while the firewall is actually active.
+run set com.example.blocked 10123 1 > "$TMP/re-enable.out"
+grep -Fq 'firewall=1' "$TMP/re-enable.out" || fail "firewall did not reactivate after last-app removal"
+[ -s "$ACTIVE" ] || fail "re-enabled firewall has no active marker"
+
 run list > "$TMP/active.list"
 grep -qx 'master=1' "$TMP/active.list" || fail "enabled master state not visible"
 grep -Fq 'com.example.blocked|10123|1' "$TMP/active.list" || fail "enabled app row not visible"
@@ -164,8 +181,12 @@ if grep -Fq "trap 'rmdir \"\$LOCK\" 2>/dev/null || :' EXIT HUP INT TERM" "$SOURC
   fail "firewall lock is released directly by signal traps"
 fi
 
+# Uninstall uses the same lock as apply and mutation, so it cannot race an
+# in-flight chain swap and leave an orphaned active firewall rule.
+grep -Fq 'uninstall) with_lock clear_all ;;' "$SOURCE" || fail "uninstall bypasses the firewall operation lock"
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
+[ ! -d "$PG/yulong-firewall.lock" ] || fail "uninstall left the firewall operation lock behind"
 
 # Restore-from-Release layouts already include a schedule-stop block between
 # STATE_DIR and REMOVER. The patcher must still insert firewall cleanup safely.

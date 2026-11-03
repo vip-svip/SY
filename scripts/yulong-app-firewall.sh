@@ -149,7 +149,14 @@ apply_rules() {
   master="$(read_master)"
   if [ "$master" != 1 ]; then clear_all; echo "firewall=0"; return 0; fi
   rows="$(list_rows | awk -F'|' '$3=="1" {print}')"
-  [ -n "$rows" ] || { echo "no selected apps; firewall remains disabled" >&2; return 3; }
+  if [ -z "$rows" ]; then
+    # Removing the last selected application is a valid empty policy, not a
+    # failed transaction. Clear any previously active chains before commit.
+    clear_all
+    echo "firewall=0"
+    echo "no selected apps; per-app firewall is disabled"
+    return 0
+  fi
 
   ipt="$(command -v iptables 2>/dev/null || true)"
   ip6t="$(command -v ip6tables 2>/dev/null || true)"
@@ -271,6 +278,6 @@ case "$cmd" in
     with_lock mutate_transaction set_item_value "$2" 0 0
     ;;
   apply) with_lock apply_rules ;;
-  uninstall) clear_all ;;
+  uninstall) with_lock clear_all ;;
   *) echo "unknown command: $cmd" >&2; exit 2 ;;
 esac
