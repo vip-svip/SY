@@ -249,8 +249,8 @@ public final class FxDiaFridaActivity extends Activity {
         gadgetPort = new EditText(this);
         gadgetPort.setSingleLine(true);
         gadgetPort.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        gadgetPort.setHint("27042");
-        gadgetPort.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("gadget_port", "27042"));
+        gadgetPort.setHint("27043");
+        gadgetPort.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("gadget_port", "27043"));
         gadgetLoadMode = new android.widget.RadioGroup(this);
         gadgetLoadMode.setOrientation(android.widget.RadioGroup.HORIZONTAL);
         android.widget.RadioButton waitMode = new android.widget.RadioButton(this);
@@ -1551,7 +1551,7 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("端口必须在 1024–65535 范围内。");
             return;
         }
-        boolean wait = gadgetLoadMode != null
+        if (port == 27042) {\n            setStatus("端口 27042 已由 FX frida-server 保留；Gadget 请使用 27043 或其他未占用端口。");\n            return;\n        }\n        boolean wait = gadgetLoadMode != null
                 && gadgetLoadMode.getCheckedRadioButtonId()
                 == gadgetLoadMode.getChildAt(0).getId();
 
@@ -1606,11 +1606,11 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void copyGadgetConnectCommand() {
-        String portText = gadgetPort == null ? "27042" : gadgetPort.getText().toString().trim();
+        String portText = gadgetPort == null ? "27043" : gadgetPort.getText().toString().trim();
         int port;
         try { port = Integer.parseInt(portText); }
-        catch (NumberFormatException invalid) { port = 27042; }
-        if (port < 1024 || port > 65535) port = 27042;
+        catch (NumberFormatException invalid) { port = 27043; }
+        if (port < 1024 || port > 65535 || port == 27042) port = 27043;
         String command = "adb forward tcp:" + port + " tcp:" + port
                 + "\\nfrida-ps -H 127.0.0.1:" + port
                 + "\\nfrida -H 127.0.0.1:" + port + " -n Gadget";
