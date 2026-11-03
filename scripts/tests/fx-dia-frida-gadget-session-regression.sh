@@ -19,7 +19,9 @@ required = {
     "target process must be running": "FX_GADGET_TARGET_NOT_RUNNING",
     "Gadget target process validator is called": "validateProcessName(targetPackage, process)",
     "target UID is captured from PackageManager": "targetUid = targetInfo.uid",
-    "process enumeration matches one exact target process": "$2==proc",
+    "process enumeration uses a PID-only ps listing": "ps -A -o PID 2>/dev/null",
+    "process name is read from the full proc cmdline": r'\"$proc_root/$pid/cmdline\"',
+    "proc argv0 matches the selected process exactly": r'\"$proc_name\" = \"$process\"',
     "process enumeration verifies target app UID": r'\"$uid\" = \"$target_uid\"',
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
     "Frida script size is bounded": "sourceBytes.length > 48 * 1024",
@@ -59,6 +61,8 @@ attach = source[source.index("private void attachToGadgetAndResume()"):
                  source.index("private void stopGadgetSession()")]
 stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
+if "ps -A -o PID,NAME" in attach:
+    raise SystemExit("FAIL: Gadget process matching must not rely on the ps NAME column")
 if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach:
@@ -106,17 +110,21 @@ mkdir -m 700 "$T/logs"
 mkdir -p "$T/bin"
 cat > "$T/bin/ps" <<'PS'
 #!/bin/sh
-printf '  PID NAME\n'
-printf '12345 com.example.debuggable\n'
-printf '12346 com.example.debuggable:remote\n'
-printf '12347 com.example.debuggable:spoof\n'
+printf '  PID\n'
+printf '12345\n'
+printf '12346\n'
+printf '12347\n'
 PS
 chmod 700 "$T/bin/ps"
 mkdir -p "$T/proc/12345" "$T/proc/12346" "$T/proc/12347"
 printf 'Name: com.example.debuggable\nUid: 10002 10002 10002 10002\n' > "$T/proc/12345/status"
 printf 'Name: com.example.debuggable:remote\nUid: 10002 10002 10002 10002\n' > "$T/proc/12346/status"
-# Same process name shape, but a different app UID; name-only matching would accept it.
+# Keep the full process name in proc cmdline even though ps only returns PIDs.
+printf 'com.example.debuggable\000' > "$T/proc/12345/cmdline"
+printf 'com.example.debuggable:remote\000' > "$T/proc/12346/cmdline"
+# Same process name shape, but a different app UID; the UID check must reject it.
 printf 'Name: com.example.debuggable:spoof\nUid: 10099 10099 10099 10099\n' > "$T/proc/12347/status"
+printf 'com.example.debuggable:spoof\000' > "$T/proc/12347/cmdline"
 export FX_GADGET_TEST_PROC_ROOT="$T/proc"
 PATH="$T/bin:$PATH"
 export PATH
@@ -156,7 +164,9 @@ test -x "$cli" && test ! -L "$cli"
 version=$("$cli" --version)
 target_uid=10002
 proc_root="$FX_GADGET_TEST_PROC_ROOT"
-pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc="$proc" 'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}' | while IFS= read -r pid; do
+pids=$(ps -A -o PID 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}' | while IFS= read -r pid; do
+  proc_name=$(tr '\000' '\n' < "$proc_root/$pid/cmdline" 2>/dev/null | sed -n '1p')
+  [ "$proc_name" = "$proc" ] || continue
   uid=$(awk '$1=="Uid:" {print $2; exit}' "$proc_root/$pid/status" 2>/dev/null || :)
   [ "$uid" = "$target_uid" ] && printf '%s\n' "$pid" || :
 done)
