@@ -46,7 +46,7 @@ case "$1:$2" in
     [ "$#" -eq 4 ] || exit 2
     tmp="$SETTINGS_STORE.tmp.$"
     awk -F= -v key="$3" '$1!=key{print}' "$SETTINGS_STORE" > "$tmp"
-    printf '%s=%s\\n' "$3" "$4" >> "$tmp"
+    printf '%s=%s\n' "$3" "$4" >> "$tmp"
     mv "$tmp" "$SETTINGS_STORE"
     ;;
   get:secure)
