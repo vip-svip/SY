@@ -55,9 +55,10 @@ public final class FxYulongAdActivity extends Activity {
   card("DNS 设置","管理本地 AdGuard Home、DNS 转发与 QUIC/DoT 策略。",btn("DNS 设置",()->open("DNS 设置")));
   card("域名白/黑名单","白名单优先放行；黑名单只阻断明确域名。",btn("域名名单",()->open("域名名单")));
   card("应用网络拦截","与 VPN 路由分离的 IPv4/IPv6 OUTPUT 阻断。",btn("按应用管理",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));
-  card("Tasker 与自动化","发送广播 action：de.privacyguard.adhook.AD_FILTER_ENABLE / AD_FILTER_DISABLE。接收 action：de.privacyguard.adhook.AD_FILTER_RESULT。",
+  card("Tasker 与自动化","发送启用/停用广播，接收端会向系统广播成功状态、退出码和请求来源，不包含其他应用数据。",
     btn("复制启用 Action",()->copyAutomationAction("de.privacyguard.adhook.AD_FILTER_ENABLE")),
     btn("复制停用 Action",()->copyAutomationAction("de.privacyguard.adhook.AD_FILTER_DISABLE")),
+    btn("复制结果 Action",()->copyAutomationAction("de.privacyguard.adhook.AD_FILTER_RESULT")),
     btn("复制原版 Tasker 启用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_START")),
     btn("复制原版 Tasker 停用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_STOP")));
 }
