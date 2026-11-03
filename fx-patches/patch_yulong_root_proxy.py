@@ -62,9 +62,11 @@ if "unbound-vpn-egress-ip" not in fn:
         raise SystemExit("unbound.sh config heredoc terminator missing")
     fn = fn.replace(
         "EOF_CFG\n",
-        "EOF_CFG\n  if [ -n \\"$_FX_OUT_IP\\" ]; then\n"
-        "    printf '  outgoing-interface: %s\\\\n' \\"$_FX_OUT_IP\\"\n"
-        "  fi\n",
+        '''EOF_CFG
+  if [ -n "$_FX_OUT_IP" ]; then
+    printf '  outgoing-interface: %s\\n' "$_FX_OUT_IP"
+  fi
+''',
         1
     )
     unbound = unbound[:start] + fn + unbound[end + 2:]
