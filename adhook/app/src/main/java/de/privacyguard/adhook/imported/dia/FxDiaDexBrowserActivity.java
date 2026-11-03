@@ -267,7 +267,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
         StringBuilder detail = new StringBuilder();
         detail.append(item.descriptor).append("\\n");
         detail.append("字段：").append(item.fields.size()).append(" · 方法：")
-                .append(item.methods.size()).append("\\n\\n");
+                .append(item.methods.size()).append(" · 调用边：").append(item.calls.size())
+                .append("\\n\\n");
         List<FxDiaDexIndex.Member> source = new ArrayList<>();
         source.addAll(item.fields);
         source.addAll(item.methods);
@@ -283,6 +284,19 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 break;
             }
         }
+        detail.append("\\n直接调用关系（DEX invoke 指令）：\\n");
+        int callCount = 0;
+        for (FxDiaDexIndex.CallSite call : item.calls) {
+            String line = call.display();
+            if (!q.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(q)
+                    && !item.javaName().toLowerCase(Locale.ROOT).contains(q)) continue;
+            detail.append(line).append("\\n");
+            if (++callCount >= 200) {
+                detail.append("…调用边显示达到 200 条上限。\\n");
+                break;
+            }
+        }
+        if (item.calls.isEmpty()) detail.append("没有可解析的直接调用边；抽象/native/无代码方法不会产生调用边。\\n");
         EditText output = new EditText(this);
         output.setText(detail.toString());
         output.setSingleLine(false);

@@ -20,6 +20,8 @@ public final class FxDiaDexIndex {
     private static final int MAX_DEX_BYTES = 96 * 1024 * 1024;
     private static final int MAX_CLASSES = 100000;
     private static final int MAX_MEMBERS_PER_CLASS = 20000;
+    private static final int MAX_CALLS_PER_CLASS = 50000;
+    private static final int MAX_CODE_UNITS_PER_METHOD = 2 * 1024 * 1024;
 
     public static final class Member {
         public final boolean method;
@@ -40,10 +42,25 @@ public final class FxDiaDexIndex {
         }
     }
 
+    public static final class CallSite {
+        public final String caller;
+        public final String callee;
+        public final String opcode;
+
+        CallSite(String caller, String callee, String opcode) {
+            this.caller = caller;
+            this.callee = callee;
+            this.opcode = opcode;
+        }
+
+        public String display() { return caller + "  --" + opcode + "-->  " + callee; }
+    }
+
     public static final class DexClass {
         public final String descriptor;
         public final List<Member> fields = new ArrayList<>();
         public final List<Member> methods = new ArrayList<>();
+        public final List<CallSite> calls = new ArrayList<>();
 
         DexClass(String descriptor) { this.descriptor = descriptor; }
         public String javaName() {
@@ -182,17 +199,129 @@ public final class FxDiaDexIndex {
         for (int i = 0; i < count; i++) {
             methodIndex += readUleb(cursor);
             int access = readUleb(cursor);
-            readUleb(cursor); // code_off; inspect metadata only, never execute it
+            int codeOff = readUleb(cursor);
             if (methodIndex < 0 || methodIndex >= methodsSize) throw new IOException("bad method index");
             int p = methodsOff + methodIndex * 8;
             int protoIndex = u16(p + 2);
             int nameIndex = u32(p + 4);
             String name = string(nameIndex);
             String signature = proto(protoIndex);
-            if (name != null && signature != null) item.methods.add(
-                    new Member(true, name, signature, access));
+            if (name == null || signature == null) continue;
+            item.methods.add(new Member(true, name, signature, access));
+            if (codeOff != 0 && item.calls.size() < MAX_CALLS_PER_CLASS) {
+                String caller = item.descriptor + "->" + name + signature;
+                try { parseCodeCalls(codeOff, caller, item); }
+                catch (IOException malformedCode) {
+                    // Keep the class/member index useful even when an OEM or obfuscated
+                    // code_item is malformed; only its optional call edges are omitted.
+                }
+            }
         }
     }
+
+    private void parseCodeCalls(int codeOffset, String caller, DexClass item) throws IOException {
+        if ((codeOffset & 3) != 0) return;
+        checkRange(codeOffset, 16);
+        int units = u32(codeOffset + 12);
+        if (units <= 0 || units > MAX_CODE_UNITS_PER_METHOD) return;
+        int instructions = codeOffset + 16;
+        checkRange(instructions, units * 2);
+        for (int pc = 0; pc < units && item.calls.size() < MAX_CALLS_PER_CLASS;) {
+            int first = u16(instructions + pc * 2);
+            int opcode = first & 0xff;
+            if (opcode == 0x00) {
+                int payload = first;
+                int width = payloadWidth(payload, instructions, pc, units);
+                pc += width > 0 ? width : 1;
+                continue;
+            }
+            if (isMethodInvoke(opcode) && pc + 1 < units) {
+                int referencedMethod = u16(instructions + (pc + 1) * 2);
+                String callee = methodReference(referencedMethod);
+                if (callee != null) item.calls.add(new CallSite(caller, callee, opcodeName(opcode)));
+            }
+            int width = instructionWidth(opcode);
+            if (width < 1 || pc + width > units) break;
+            pc += width;
+        }
+    }
+
+    private int payloadWidth(int ident, int instructions, int pc, int totalUnits) throws IOException {
+        if (ident == 0x0100) {
+            if (pc + 2 > totalUnits) return 1;
+            int size = u16(instructions + (pc + 1) * 2);
+            long width = 4L + (long) size * 2L;
+            return width <= totalUnits - pc ? (int) width : 1;
+        }
+        if (ident == 0x0200) {
+            if (pc + 2 > totalUnits) return 1;
+            int size = u16(instructions + (pc + 1) * 2);
+            long width = 2L + (long) size * 4L;
+            return width <= totalUnits - pc ? (int) width : 1;
+        }
+        if (ident == 0x0300) {
+            if (pc + 4 > totalUnits) return 1;
+            int elementWidth = u16(instructions + (pc + 1) * 2);
+            long size = (u16(instructions + (pc + 2) * 2) & 0xffffL)
+                    | ((u16(instructions + (pc + 3) * 2) & 0xffffL) << 16);
+            if (elementWidth <= 0 || size > Integer.MAX_VALUE) return 1;
+            long dataUnits = (size * elementWidth + 1L) / 2L;
+            long width = 4L + dataUnits;
+            return width <= totalUnits - pc ? (int) width : 1;
+        }
+        return 1;
+    }
+
+    private boolean isMethodInvoke(int opcode) {
+        return (opcode >= 0x6e && opcode <= 0x72)
+                || (opcode >= 0x74 && opcode <= 0x78)
+                || opcode == 0xfa || opcode == 0xfb;
+    }
+
+    private int instructionWidth(int opcode) {
+        if ((opcode >= 0x02 && opcode <= 0x02)
+                || opcode == 0x05 || opcode == 0x08
+                || opcode == 0x13 || opcode == 0x15 || opcode == 0x16
+                || opcode == 0x19 || opcode == 0x1a || opcode == 0x1c
+                || opcode == 0x1f || opcode == 0x20 || opcode == 0x22 || opcode == 0x23
+                || opcode == 0x29
+                || (opcode >= 0x2d && opcode <= 0x3d)
+                || (opcode >= 0x44 && opcode <= 0x6d)
+                || (opcode >= 0xd0 && opcode <= 0xe2)
+                || opcode == 0xfe || opcode == 0xff) return 2;
+        if (opcode == 0x03 || opcode == 0x06 || opcode == 0x09
+                || opcode == 0x14 || opcode == 0x17 || opcode == 0x18
+                || opcode == 0x1b || opcode == 0x24 || opcode == 0x25 || opcode == 0x26
+                || opcode == 0x2a || opcode == 0x2b || opcode == 0x2c
+                || (opcode >= 0x6e && opcode <= 0x72)
+                || (opcode >= 0x74 && opcode <= 0x78)) return 3;
+        if (opcode == 0xfa || opcode == 0xfb) return 4;
+        return 1;
+    }
+
+    private String opcodeName(int opcode) {
+        switch (opcode) {
+            case 0x6e: case 0x74: return "invoke-virtual";
+            case 0x6f: case 0x75: return "invoke-super";
+            case 0x70: case 0x76: return "invoke-direct";
+            case 0x71: case 0x77: return "invoke-static";
+            case 0x72: case 0x78: return "invoke-interface";
+            case 0xfa: return "invoke-polymorphic";
+            case 0xfb: return "invoke-polymorphic/range";
+            default: return "invoke";
+        }
+    }
+
+    private String methodReference(int index) throws IOException {
+        if (index < 0 || index >= methodsSize) return null;
+        int p = methodsOff + index * 8;
+        String owner = type(u16(p));
+        String name = string(u32(p + 4));
+        String signature = proto(u16(p + 2));
+        if (owner == null || name == null || signature == null) return null;
+        return owner + "->" + name + signature;
+    }
+
 
     private String proto(int index) throws IOException {
         if (index < 0 || index >= protosSize) return null;
