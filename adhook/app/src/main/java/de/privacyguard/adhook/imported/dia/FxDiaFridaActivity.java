@@ -234,6 +234,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 SQLCipher/WCDB 调用监控", () -> loadDiaMonitorTemplate("sqlcipher")),
                 button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
                 button("载入 Intent 调用观察", () -> loadDiaMonitorTemplate("intent")),
+                button("载入 Socket 连接观察", () -> loadDiaMonitorTemplate("socket")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
                 button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
                 button("载入 Fragment 生命周期观察", () -> loadDiaMonitorTemplate("fragment")),
@@ -258,6 +259,24 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("native");
         } else if ("按键控制".equals(title)) {
             loadDiaMonitorTemplate("key");
+        } else if ("Socket 监控".equals(title)) {
+            loadDiaMonitorTemplate("socket");
+        } else if ("Intent 监控".equals(title)) {
+            loadDiaMonitorTemplate("intent");
+        } else if ("Shell/Process 监控".equals(title)) {
+            loadDiaMonitorTemplate("runtime");
+        } else if ("方法堆栈".equals(title)) {
+            loadDiaMonitorTemplate("stack");
+        } else if ("View 点击监控".equals(title)) {
+            loadDiaMonitorTemplate("click");
+        } else if ("ViewGroup 层级监控".equals(title)) {
+            loadDiaMonitorTemplate("viewgroup");
+        } else if ("Fragment 生命周期".equals(title)) {
+            loadDiaMonitorTemplate("fragment");
+        } else if ("Thread 启动监控".equals(title)) {
+            loadDiaMonitorTemplate("thread");
+        } else if ("ClassLoader 监控".equals(title)) {
+            loadDiaMonitorTemplate("classloader");
         } else if ("JS 脚本列表".equals(title)) {
             body.post(this::showFridaScriptLibrary);
         }
@@ -891,6 +910,29 @@ public final class FxDiaFridaActivity extends Activity {
                         + "      });\\n"
                         + "    } catch (_) { send('[DIA_SQL] class unavailable ' + className); }\\n"
                         + "  });\\n"
+                        + "});";
+                break;
+            case "socket":
+                source = "Java.perform(function () {\\n"
+                        + "  var Socket = Java.use('java.net.Socket');\\n"
+                        + "  var InetSocketAddress = Java.use('java.net.InetSocketAddress');\\n"
+                        + "  function describe(address) {\\n"
+                        + "    try { var item = Java.cast(address, InetSocketAddress); return String(item.getHostString()) + ':' + String(item.getPort()); }\\n"
+                        + "    catch (_) { try { return String(address.getClass().getName()); } catch (_) { return 'unknown'; } }\\n"
+                        + "  }\\n"
+                        + "  try { var connect = Socket.connect.overload('java.net.SocketAddress', 'int');\\n"
+                        + "    connect.implementation = function (address, timeout) { var endpoint = describe(address); var started = Date.now();\\n"
+                        + "      try { var result = connect.call(this, address, timeout); send('[DIA_SOCKET] connect endpoint=' + endpoint + ' timeoutMs=' + timeout + ' elapsedMs=' + (Date.now()-started)); return result; }\\n"
+                        + "      catch (e) { send('[DIA_SOCKET] connect endpoint=' + endpoint + ' exception=' + e.$className + ' elapsedMs=' + (Date.now()-started)); throw e; }\\n"
+                        + "    };\\n"
+                        + "  } catch (e) { send('[DIA_SOCKET] timeout overload unavailable'); }\\n"
+                        + "  try { var connectDefault = Socket.connect.overload('java.net.SocketAddress');\\n"
+                        + "    connectDefault.implementation = function (address) { var endpoint = describe(address); var started = Date.now();\\n"
+                        + "      try { var result = connectDefault.call(this, address); send('[DIA_SOCKET] connect endpoint=' + endpoint + ' elapsedMs=' + (Date.now()-started)); return result; }\\n"
+                        + "      catch (e) { send('[DIA_SOCKET] connect endpoint=' + endpoint + ' exception=' + e.$className + ' elapsedMs=' + (Date.now()-started)); throw e; }\\n"
+                        + "    };\\n"
+                        + "  } catch (e) { send('[DIA_SOCKET] default overload unavailable'); }\\n"
+                        + "  send('[DIA_SOCKET] metadata observer installed; socket payloads are not read or logged.');\\n"
                         + "});";
                 break;
             case "intent":

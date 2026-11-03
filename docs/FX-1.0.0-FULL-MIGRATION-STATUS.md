@@ -109,6 +109,19 @@ published during this migration phase.
 - The UI copy now states the exact scope. No system-wide GNSS/provider setting,
   real hardware location, route, or other application's location is changed.
 
+### Dia 23.11 — original monitor Activity routing
+
+- Added distinct fourth-level routes for the original Intent, Socket, Shell/Process,
+  method-stack, View click, ViewGroup, Fragment lifecycle, Thread startup and
+  ClassLoader monitor screens. Each page opens the matching Frida template rather
+  than a generic menu or a dead-end placeholder.
+- Added a Socket observer template for Java `Socket.connect(SocketAddress[, timeout])`.
+  It records endpoint host/port, timeout, elapsed time and exception class only;
+  it never reads or records socket payload bytes.
+- These are Frida script templates and still require an explicitly selected
+  user-installed debuggable test target plus the local Frida runtime. They do not
+  claim a replacement for Dia's built-in monitor daemon or native socket tracing.
+
 ### Dia 23.11 — broader HTTP and algorithm observers
 
 - HTTP template now observes URLConnection, HttpURLConnection status, OkHttp
