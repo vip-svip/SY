@@ -166,8 +166,8 @@ grep -Fq 'edge-three.example' "$body" || {
   cat "$body" >&2
   exit 1
 }
-[ ! -d "$T/state/subs/.lock.$key" ] || {
-  echo "FAIL: per-subscription lock directory leaked after both workers exited" >&2
+[ ! -e "$T/state/subs/.lock.$key" ] && [ ! -L "$T/state/subs/.lock.$key" ] || {
+  echo "FAIL: per-subscription lock path leaked after both workers exited" >&2
   find "$T/state/subs/.lock.$key" -maxdepth 2 -print >&2
   exit 1
 }
