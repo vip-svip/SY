@@ -2808,7 +2808,8 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("网络类型模拟");
                     return;
                 case "文件与 so 库":
-                    showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFileActivity.class));
                     return;
                 case "位置与 GPS":
                     showAppList("位置隐私");
