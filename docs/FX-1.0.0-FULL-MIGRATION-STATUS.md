@@ -60,6 +60,19 @@ published during this migration phase.
   vendor VPN implementation, and real-device route/packet-path verification.
   Do not claim universal VPN coexistence based only on host-side code.
 
+### Yulong Security Shield 9.9.60 — screen-filter service
+
+- Added a native fourth-level Screen Filter page inside the Shield suite.
+- The UI exposes standard/game presets and brightness, contrast, saturation and
+  temperature controls. Values persist under `shield_prefs`.
+- Added a user-authorized foreground service that owns one non-touchable
+  `TYPE_APPLICATION_OVERLAY` view, matching the original color-matrix/tint
+  overlay behavior. It has an explicit notification stop action and removes
+  only its own view on stop/destroy.
+- This service requires manual overlay permission and notification permission.
+  It is not an accessibility service and does not inspect or intercept screen
+  content or touch input.
+
 ### Yulong Security Shield 9.9.60 — scoped Stellar management
 
 - Removed a duplicated detached command-dialog fragment from the Stellar activity
