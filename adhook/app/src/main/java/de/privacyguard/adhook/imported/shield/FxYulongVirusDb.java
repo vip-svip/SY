@@ -396,6 +396,16 @@ public final class FxYulongVirusDb {
             return null;
         }
         Set<String> set = parse(body, isPkg);
+        boolean mergeFetched = false;
+        // If the primary name-list endpoint returns an empty/unusable body, try the
+        // legacy mirror before deciding that the update is invalid.
+        if (set.isEmpty() && st.mergeUrl != null) {
+            String fallbackBody = httpGet(st.mergeUrl);
+            if (fallbackBody != null) {
+                set.addAll(parse(fallbackBody, isPkg));
+                mergeFetched = true;
+            }
+        }
         // HTTP 200 with an empty or unusable body is not a valid database update.
         // Treat it like a failed fetch so a transient CDN/error-page response cannot
         // erase a previously cached protection list.
@@ -408,7 +418,7 @@ public final class FxYulongVirusDb {
             return null;
         }
         // 名称列表：mingcheng1/mingcheng2 与 mian1/mian2 合并（都是同一类「病毒名称」）
-        if (st.mergeUrl != null) {
+        if (st.mergeUrl != null && !mergeFetched) {
             String body2 = httpGet(st.mergeUrl);
             if (body2 != null) set.addAll(parse(body2, isPkg));
         }
