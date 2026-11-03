@@ -60,12 +60,24 @@ assert "clipboard.setPrimaryClip(" in export, "exported signatures must still re
 assert "for (FxDiaDexIndex.DexClass item : classes)" not in export, "DEX export must not scan the class graph on the UI thread"
 assert "512 * 1024" in export and "12000" in export, "signature export size/count safeguards must remain"
 
+assert 'new Thread(r, "fx-dia-dex-export")' in source, "DEX export worker must have a stable name"
+assert 'new Thread(r, "fx-dia-dex-detail")' in source, "DEX detail worker must have a stable name"
+detail = section("private void showClassMembers(", "private String buildClassDetail(")
+assert "detailWorker.execute(() -> {" in detail, "member/call detail construction must run off the UI thread"
+assert "runOnUiThread(() -> {" in detail, "member dialog must be displayed on the UI thread"
+assert "buildClassDetail(item, q)" in detail
+assert "for (FxDiaDexIndex.Member" not in detail, "the UI click handler must not scan class members"
+builder = section("private String buildClassDetail(", "@Override protected void onDestroy()")
+assert "Thread.currentThread().isInterrupted()" in builder, "superseded detail work must stop early"
+assert "count >= 400" in builder and "callCount >= 200" in builder, "member/call detail limits must remain"
+assert "append('\\n')" in builder, "member detail output must use actual line breaks, not literal backslash-n text"
+
 destroy_start = source.find("@Override protected void onDestroy()")
 assert destroy_start >= 0, "Activity cleanup method is missing"
 destroy = source[destroy_start:]
 assert "destroyed = true;" in destroy
 assert "searchGeneration++;" in destroy and "exportGeneration++;" in destroy and "dexGeneration++;" in destroy
-assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy
+assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy and "detailWorker.shutdownNow();" in destroy
 assert "Executors.newSingleThreadExecutor" not in source, "unbounded DEX executor must not return"
 print("PASS: Dia DEX inventory and filtering run on bounded workers; stale searches are dropped and Activity teardown cancels workers")
 PY
