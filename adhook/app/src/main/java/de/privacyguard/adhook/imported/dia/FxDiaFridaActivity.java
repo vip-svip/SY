@@ -164,6 +164,8 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 FX 示例脚本", () -> loadDiaScriptTemplate()),
                 button("查看监听模式说明", () -> showDiaHelp("dia/frida_listen_help.md", "Frida 监听模式")),
                 button("查看方法观察/内存快照说明", () -> showDiaHelp("dia/rewrite_rule_help.md", "方法观察与内存快照")),
+                button("查看当前目标注入日志", () -> showSessionLog()),
+                button("清空当前目标注入日志", () -> clearSessionLog()),
                 button("向当前调试目标注入", () -> injectScript()));
 
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
@@ -532,15 +534,61 @@ public final class FxDiaFridaActivity extends Activity {
         String encoded = android.util.Base64.encodeToString(
                 source.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         String scriptPath = "/data/adb/privacyguard/dia-frida/" + targetPackage + ".js";
+        String logPath = sessionLogPath();
         String command = "set -e; test -x " + quote(injector) + "; "
-                + "mkdir -p /data/adb/privacyguard/dia-frida; "
+                + "mkdir -p /data/adb/privacyguard/dia-frida/logs; "
                 + "printf '%s' " + quote(encoded) + " | base64 -d > " + quote(scriptPath) + "; "
                 + "chmod 600 " + quote(scriptPath) + "; "
+                + ": >> " + quote(logPath) + "; chmod 600 " + quote(logPath) + "; "
+                + "printf '\\n[FX Dia] injection start %s target=%s\\n' \"$(date '+%F %T')\" "
+                + quote(targetPackage) + " >> " + quote(logPath) + "; "
                 + "pid=$(pidof " + quote(targetPackage) + " | awk '{print $1}'); "
                 + "case \"$pid\" in ''|*[!0-9]*) echo target-not-running; exit 4;; esac; "
-                + quote(injector) + " -p \"$pid\" -s " + quote(scriptPath);
+                + quote(injector) + " -p \"$pid\" -s " + quote(scriptPath)
+                + " >> " + quote(logPath) + " 2>&1";
         runRoot(command, 45000L, result ->
-                setStatus("注入退出码 " + result.exitCode + "\\n" + result.output));
+                setStatus("注入退出码 " + result.exitCode + "\\n日志文件：" + logPath + "\\n" + result.output));
+    }
+
+    private String sessionLogPath() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) return "";
+        return "/data/adb/privacyguard/dia-frida/logs/" + targetPackage + ".log";
+    }
+
+    private void showSessionLog() {
+        String log = sessionLogPath();
+        if (log.isEmpty()) {
+            setStatus("请先选择 debuggable 目标应用。");
+            return;
+        }
+        runRoot("if [ -s " + quote(log) + " ]; then tail -n 500 " + quote(log)
+                + "; else echo '当前目标暂无注入日志。'; fi", 12000L, result -> {
+            TextView viewer = text(result.output, 12, 0xff334155, false);
+            viewer.setTextIsSelectable(true);
+            viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
+            ScrollView scroll = new ScrollView(this);
+            scroll.addView(viewer);
+            new AlertDialog.Builder(this).setTitle("Frida 会话日志 · " + targetName)
+                    .setView(scroll).setPositiveButton("关闭", null).show();
+            setStatus("日志读取退出码 " + result.exitCode);
+        });
+    }
+
+    private void clearSessionLog() {
+        String log = sessionLogPath();
+        if (log.isEmpty()) {
+            setStatus("请先选择 debuggable 目标应用。");
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("清空 Frida 会话日志")
+                .setMessage("只清空 FX 为当前目标创建的会话日志，不会删除脚本或 Frida 服务。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清空", (dialog, which) ->
+                        runRoot("if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
+                                + " ]; then : > " + quote(log) + " && chmod 600 " + quote(log)
+                                + "; fi; echo log-cleared", 12000L,
+                                result -> setStatus("日志清理退出码 " + result.exitCode
+                                        + "\\n" + result.output))).show();
     }
 
     @Override protected void onDestroy() {
