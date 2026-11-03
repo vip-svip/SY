@@ -412,9 +412,11 @@ public final class FxDiaBackupActivity extends Activity {
         }
         command.append("if [ \"$_fx_config_swapped\" -eq 1 ]; then ")
                 .append("sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || _fx_recovery_failed=1; ")
-                .append("fi; fi; rm -rf \"$TXN\" \"$STXN\"; ")
+                .append("fi; fi; ")
                 .append("if [ \"$_fx_recovery_failed\" -ne 0 ]; then ")
-                .append("echo FX_DIA_RESTORE_ROLLBACK_FAILED; exit 90; fi; exit \"$_fx_rc\"; }; ")
+                .append("echo FX_DIA_RESTORE_ROLLBACK_FAILED TXN=\"$TXN\" STXN=\"$STXN\"; exit 90; fi; ")
+                .append("rm -rf \"$TXN\" \"$STXN\" || echo FX_DIA_RESTORE_CLEANUP_PENDING TXN=\"$TXN\" STXN=\"$STXN\"; ")
+                .append("exit \"$_fx_rc\"; }; ")
                 .append("trap rollback EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; ")
                 .append("mkdir -p \"$DIR\"; [ ! -L \"$DIR\" ] || exit 40; ")
                 .append("[ -d \"$PG\" ] && [ ! -L \"$PG\" ] || exit 41; ")

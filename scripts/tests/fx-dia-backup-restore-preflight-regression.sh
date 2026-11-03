@@ -50,6 +50,10 @@ rollback_loop_start = transaction.index("rollback(){")
 rollback_loop_end = transaction.index("$_fx_config_swapped", rollback_loop_start)
 rollback_loop = transaction[rollback_loop_start:rollback_loop_end]
 assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from an older/partial backup"
+assert "FX_DIA_RESTORE_ROLLBACK_FAILED TXN=" in transaction, "rollback failures must preserve recovery snapshots and report their paths"
+assert r'rm -rf \"$TXN\" \"$STXN\" || echo FX_DIA_RESTORE_CLEANUP_PENDING' in transaction, "snapshot cleanup must happen only after rollback succeeds"
+assert r'rm -rf \"$TXN\" \"$STXN\"; ' not in transaction, "rollback must not unconditionally delete recovery snapshots"
+
 assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must never touch Stellar files absent from this backup"
 assert transaction.count("if (stellarFiles.containsKey(name))") >= 1, "commit loop must only replace staged Stellar files"
 assert "|| :; echo FX_DIA_RESTORE_COMMITTED" in transaction, "post-commit cache cleanup failure must not report an already-committed restore as failed"
