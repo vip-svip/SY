@@ -281,6 +281,8 @@ public final class FxDiaFridaActivity extends Activity {
                 text("监听 TCP 端口（1024–65535）", 12, 0xff617080, true),
                 gadgetPort, gadgetLoadMode,
                 button("生成并写入 Gadget 配置", () -> saveGadgetListenConfig()),
+                button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget()),
+                button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget()),
                 button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume()),
                 button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog()),
                 button("停止 Gadget 会话", () -> stopGadgetSession()),
@@ -1645,6 +1647,96 @@ public final class FxDiaFridaActivity extends Activity {
     private String gadgetConfigTarget(String libraryPath) {
         if (libraryPath == null || !libraryPath.endsWith(".so")) return null;
         return libraryPath.substring(0, libraryPath.length() - 3) + ".config.so";
+    }
+
+
+    private void confirmDeployGadgetToTarget() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择一个用户安装且 debuggable 的目标应用。");
+            return;
+        }
+        String library = gadgetPath == null ? "" : gadgetPath.getText().toString().trim();
+        String config = gadgetConfigTarget(library);
+        int port;
+        try {
+            port = selectedGadgetPort();
+        } catch (IllegalArgumentException invalid) {
+            setStatus(invalid.getMessage());
+            return;
+        }
+        String problem = FxDiaGadgetDeployment.validateSources(
+                this, targetPackage, library, config, port);
+        if (problem != null) {
+            setStatus(problem + " 请先导入 Gadget 动态库并生成对应监听配置。");
+            return;
+        }
+        final String destination;
+        try {
+            destination = FxDiaGadgetDeployment.targetNativeLibraryDir(this, targetPackage);
+        } catch (Exception error) {
+            setStatus("目标应用原生库目录不可用：" + error.getMessage());
+            return;
+        }
+        String name = targetName == null ? targetPackage : targetName;
+        new AlertDialog.Builder(this)
+                .setTitle("部署 Frida Gadget")
+                .setMessage("即将在目标应用的 nativeLibraryDir 中部署官方 Gadget、回环监听配置和哈希标记：\n\n"
+                        + name + "\n" + targetPackage + "\n" + destination
+                        + "\n\n不会修改或重打包 APK。部署后需要完全停止并重新启动目标应用；还必须在 LSPosed 中确认 FX 模块作用域包含该目标。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("部署", (dialog, which) -> deployGadgetToTarget(library, config, destination, port))
+                .show();
+    }
+
+    private void deployGadgetToTarget(String library, String config,
+                                      String destination, int port) {
+        String command = FxDiaGadgetDeployment.buildDeployCommand(
+                library, config, destination, targetPackage, port);
+        runRoot(command, 45000L, result -> {
+            if (result.exitCode == 0 && result.output != null
+                    && result.output.contains("FX_GADGET_DEPLOYED")) {
+                setStatus("Gadget 已部署到目标应用原生库目录。请在 LSPosed 中启用目标作用域，然后完全停止并重新启动目标应用。"
+                        + "\n" + result.output);
+            } else {
+                setStatus("Gadget 部署失败（退出码 " + result.exitCode + "）：\n" + result.output);
+            }
+        });
+    }
+
+    private void confirmRemoveGadgetFromTarget() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择部署过 Gadget 的目标应用。");
+            return;
+        }
+        final String destination;
+        try {
+            destination = FxDiaGadgetDeployment.targetNativeLibraryDir(this, targetPackage);
+        } catch (Exception error) {
+            setStatus("目标应用原生库目录不可用：" + error.getMessage());
+            return;
+        }
+        String name = targetName == null ? targetPackage : targetName;
+        new AlertDialog.Builder(this)
+                .setTitle("移除 FX Gadget 部署")
+                .setMessage("仅删除目标目录中带有 FX 标记且 SHA-256 仍与标记一致的 Gadget 文件，不触碰其他原生库：\n\n"
+                        + name + "\n" + targetPackage + "\n" + destination)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("移除", (dialog, which) -> removeGadgetFromTarget(destination))
+                .show();
+    }
+
+    private void removeGadgetFromTarget(String destination) {
+        String command = FxDiaGadgetDeployment.buildRemoveCommand(destination, targetPackage);
+        runRoot(command, 30000L, result -> {
+            if (result.exitCode == 0 && result.output != null
+                    && (result.output.contains("FX_GADGET_REMOVED")
+                        || result.output.contains("FX_GADGET_NOT_DEPLOYED"))) {
+                setStatus("目标应用的 FX Gadget 部署清理结果：\n" + result.output
+                        + "\n如目标进程已加载 Gadget，需完全停止并重新启动该应用后才会卸载已加载的库。");
+            } else {
+                setStatus("Gadget 移除失败（退出码 " + result.exitCode + "）：\n" + result.output);
+            }
+        });
     }
 
     private void saveGadgetListenConfig() {
