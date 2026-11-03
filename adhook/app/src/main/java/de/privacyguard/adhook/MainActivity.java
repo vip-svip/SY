@@ -3509,63 +3509,25 @@ public final class MainActivity extends ComponentActivity {
     // their metadata/value/save path remains a compatibility bridge for now.
     private void loadNativePrivacyEditEntries(String panelId, LinearLayout panel) {
         if (!"vpnPanel".equals(panelId)) return;
-        if (webView == null || !webUiReady) {
-            TextView unavailable = new TextView(this);
-            unavailable.setText("文本、列表和组合参数暂时需要配置兼容桥；本分组的布尔开关仍可独立使用。");
-            unavailable.setTextColor(0xff9a6b24);
-            unavailable.setPadding(dp(8), dp(10), dp(8), dp(10));
-            panel.addView(unavailable);
-            return;
-        }
-        String js = "(function(){var p=document.getElementById(" + JSONObject.quote(panelId) + ");"
-                + "if(!p)return JSON.stringify({ready:false});var out=[];"
-                + "p.querySelectorAll('.setrow').forEach(function(row){var edit=row.getAttribute('data-vpn-edit');"
-                + "if(!edit||!window.VPN_EDIT||!VPN_EDIT[edit])return;var cfg=VPN_EDIT[edit],v='';"
-                + "if(cfg.list){v=((VPN.model.lists[cfg.list]||[]).filter(function(x){return x.on!==false}).map(function(x){return x.v})||[]).join('\\n')}"
-                + "else if(cfg.keys){var defs={pick_min_ms:'80',pick_test_timeout:'5',pick_max_nodes:'60',core_ver:'1.14.3',hide_level:'1'};"
-                + "v=cfg.keys.map(function(k){return secVal(cfg.sec,k,defs[k]||'')}).join('\\n')}"
-                + "else if(cfg.key)v=secVal(cfg.sec,cfg.key,'');"
-                + "out.push({edit:edit,title:cfg.t||edit,description:cfg.d||'',value:v});});"
-                + "return JSON.stringify({ready:true,items:out});})()";
-        webView.evaluateJavascript(js, value -> {
-            try {
-                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
-                if (!(decoded instanceof String)) throw new IllegalStateException("参数列表响应格式错误");
-                JSONObject snapshot = new JSONObject((String) decoded);
-                if (!snapshot.optBoolean("ready", false)) return;
-                org.json.JSONArray items = snapshot.optJSONArray("items");
-                if (items == null || items.length() == 0) return;
-                TextView heading = new TextView(this);
-                heading.setText("文本、列表与组合参数（兼容编辑）");
-                heading.setTextColor(0xff718091);
-                heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-                heading.setPadding(dp(8), dp(14), dp(8), dp(4));
-                panel.addView(heading);
-                for (int i = 0; i < items.length(); i++) {
-                    JSONObject item = items.optJSONObject(i);
-                    if (item == null) continue;
-                    String editId = item.optString("edit", "");
-                    if (editId.isEmpty()) continue;
-                    String label = item.optString("title", editId);
-                    String description = item.optString("description", "");
-                    String initial = item.optString("value", "");
-                    String preview = initial.replace('\n', ' ').trim();
-                    if (preview.length() > 44) preview = preview.substring(0, 41) + "…";
-                    Button edit = nativeAction(label + (preview.isEmpty() ? "" : " · " + preview),
-                            () -> showNativeSettingsEditDialog(editId, label, description, initial));
-                    panel.addView(edit, new LinearLayout.LayoutParams(-1, dp(48)));
-                }
-                panel.requestLayout();
-            } catch (Exception error) {
-                TextView failed = new TextView(this);
-                failed.setText("高级参数读取失败：" + error.getMessage());
-                failed.setTextColor(0xffb45309);
-                failed.setPadding(dp(8), dp(8), dp(8), dp(8));
-                panel.addView(failed);
-            }
-        });
-    }
+        TextView heading = new TextView(this);
+        heading.setText("文本、列表与组合参数");
+        heading.setTextColor(0xff718091);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        heading.setPadding(dp(8), dp(14), dp(8), dp(4));
+        panel.addView(heading);
 
+        TextView note = new TextView(this);
+        note.setText("高级参数现在由原生编辑器直接读写 [conf:vpn]，包括监听端口、DNS、核心、测速、缓存、自动选优与隐藏强度。");
+        note.setTextColor(0xff718091);
+        note.setPadding(dp(8), dp(2), dp(8), dp(8));
+        panel.addView(note);
+
+        Button open = new Button(this);
+        open.setAllCaps(false);
+        open.setText("打开原生 VPN 高级参数编辑器");
+        open.setOnClickListener(v -> showNativeVpnAdvancedEditor());
+        panel.addView(open, new LinearLayout.LayoutParams(-1, -2));
+    }
     private void setNativePrivacySetting(String key, boolean enabled, boolean previous,
                                          android.widget.CompoundButton control) {
         if (control == null) return;
