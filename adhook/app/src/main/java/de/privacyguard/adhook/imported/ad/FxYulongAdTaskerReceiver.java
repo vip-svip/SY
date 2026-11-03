@@ -29,6 +29,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                         +"[ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" ad-master "+enabled;
                 RootAccess.Result result=RootAccess.execute(command,90000L,128*1024);
                 code=result.exitCode;
+                if (code == 0) FxYulongAdWidgetProvider.refreshAll(context);
             }catch(Throwable ignored){}
             Intent reply=new Intent(ACTION_RESULT);
             reply.setPackage(context.getPackageName());

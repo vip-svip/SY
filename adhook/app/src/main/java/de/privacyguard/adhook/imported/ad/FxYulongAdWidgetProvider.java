@@ -74,9 +74,9 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
                         ? PendingIntent.FLAG_IMMUTABLE : 0));
         views.setOnClickPendingIntent(R.id.fx_yulong_widget_toggle, togglePending);
 
-        Intent open = new Intent(context, MainActivity.class);
+        Intent open = new Intent(context, FxYulongAdActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        open.putExtra("fx_open_imported_suite", "yulong-ad");
+        open.putExtra("suite_page", "首页与防护");
         PendingIntent openPending = PendingIntent.getActivity(context, 5102, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23
                         ? PendingIntent.FLAG_IMMUTABLE : 0));
