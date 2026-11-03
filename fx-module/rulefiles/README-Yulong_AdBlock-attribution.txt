@@ -36,9 +36,12 @@ Yulong_AdBlock_Cosmetic.txt, and are not applied by the DNS/Hosts pipeline.
 
 
 Decoder output contract:
-- `Yulong_AdBlock.txt`: DNS-safe host rules. A complete hostname written as
-  `domain^` or `||domain^` is normalized to the exact hostname because the
-  original DNS trie matches that domain and its subdomains.
+- `Yulong_AdBlock.txt`: DNS-safe host rules. Complete host terminals written
+  as `domain^` or `||domain^` are recovered to the exact hostname. This is a
+  deliberate migration repair for ABP separator syntax left in the precompiled
+  Trie; the original Go Trie matcher compares raw labels and does not strip `^`.
+  Prefix-only `||domain` forms are not converted because they lack a proven
+  DNS end-boundary.
 - `Yulong_AdBlock_Cosmetic.txt`: preserved cosmetic selectors/exceptions;
   not activated by the DNS-only import path.
 - `Yulong_AdBlock_Review.jsonl`: exact unsupported terminals paired with their

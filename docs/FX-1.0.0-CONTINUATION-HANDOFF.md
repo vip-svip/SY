@@ -172,3 +172,12 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 2. Continue Stellar Binder request/confirmation/response transport and compare the original Shield receiver/service lifecycle with FX's safe equivalents.
 3. Reconcile the original Dia page/resource/method inventory with actual FX operations; prioritize method/class/field editing, JS runtime page behavior, and missing monitor event forwarding.
 4. Keep final APK/KernelSU packaging blocked until every migration gate closes; real-device verification is a separate required gate.
+
+
+## 2026-11-04 Yulong Trie terminal recovery — commit b85e961
+
+- Reviewed the original Go matcher call path: `CheckDomainInTrieFile` passes the query unchanged to `MmapTrie.ContainsOrParent`; the matcher reverses raw dot labels and does not strip ABP `^` syntax. Therefore the 28 terminal strings ending in a single caret in the legacy 7.0.1 bundle are not byte-for-byte matchable as DNS labels in that precompiled Trie. FX's conversion is documented as a **migration repair/recovery of intended ABP domain-boundary syntax**, not as exact legacy runtime parity.
+- Recovery is restricted to complete `domain^` and `||domain^` tokens. Prefix-only `||domain`, single-pipe URL anchors, modifiers, paths, wildcard forms, IP literals and malformed tokens are not promoted into DNS host rules.
+- The decoder now writes unsupported raw terminals to `Yulong_AdBlock_Review.jsonl`, keyed by the source Trie; this file is not connected to AdGuard Home or Android Hosts. Cosmetic selectors remain in the separate cosmetic file.
+- Local inspection of the original four TRIE/BLOOM pairs validated all headers and node/terminal counts. The four assets contain 28 caret-terminated host-shaped terminals; the safe recovery yields 21 additional unique hostnames after de-duplication. 81 other non-cosmetic entries remain review-only, and 3,476 mobile cosmetic selectors remain separate. These are source-data counts, not device traffic measurements.
+- Focused local synthetic verification passed the allow/reject matrix and TRIE v2 encode/decode round-trip. The checked-in regression is also wired into the manual KernelSU source-import pipeline; no KernelSU ZIP was built.

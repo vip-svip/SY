@@ -23,6 +23,15 @@ def fail(message: str) -> None:
     raise SystemExit("FAIL: " + message)
 
 
+# Recover only explicit DNS boundary forms; never promote a prefix-only anchor.
+assert DECODER_MODULE.normalize_dns_terminal("example.com^") == ("example.com", True)
+assert DECODER_MODULE.normalize_dns_terminal("||example.com^") == ("example.com", True)
+assert DECODER_MODULE.normalize_dns_terminal("||example.com") is None
+assert DECODER_MODULE.normalize_dns_terminal("|example.com^") is None
+assert DECODER_MODULE.normalize_dns_terminal("||*.example.com^") is None
+assert DECODER_MODULE.normalize_dns_terminal("||example.com^$third-party") is None
+
+
 def minimal_trie() -> bytes:
     """Build a valid TRIE v2 fixture with DNS, cosmetic and review-only terms."""
     terminals = (

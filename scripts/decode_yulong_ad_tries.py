@@ -215,12 +215,17 @@ def normalize_dns_terminal(value: str):
     if not token:
         return None
 
-    if token.startswith("||"):
+    is_domain_anchor = token.startswith("||")
+    if is_domain_anchor:
         token = token[2:]
     elif token.startswith("|"):
         return None
 
     had_separator = token.endswith("^")
+    # ||host without a terminating separator can also match non-host suffixes;
+    # do not broaden it to a whole DNS suffix.
+    if is_domain_anchor and not had_separator:
+        return None
     if had_separator:
         token = token[:-1]
 
