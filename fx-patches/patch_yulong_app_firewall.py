@@ -6,8 +6,8 @@ import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module").resolve()
 repo = Path(sys.argv[2] if len(sys.argv) > 2 else ".").resolve()
-source_script = repo / "fx-module/scripts/yulong-app-firewall.sh"
-source_test = repo / "fx-module/scripts/tests/v1.0.0-yulong-app-firewall-regression.sh"
+source_script = repo / "scripts/yulong-app-firewall.sh"
+source_test = repo / "scripts/tests/fx-yulong-app-firewall-regression.sh"
 schedule_source = repo / "scripts/yulong-ad-schedule.sh"
 schedule_target = module / "scripts/yulong-ad-schedule.sh"
 target_script = module / "scripts/yulong-app-firewall.sh"
