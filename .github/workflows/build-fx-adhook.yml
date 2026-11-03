@@ -180,6 +180,7 @@ jobs:
           sh scripts/tests/fx-dia-file-browser-io-regression.sh
           sh scripts/tests/fx-dia-dex-browser-performance-regression.sh
           sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
+          sh scripts/tests/fx-dia-global-settings-registration-regression.sh
           sh scripts/tests/fx-stellar-control-shell-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-reality-yaml-regression.sh
