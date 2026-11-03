@@ -30,7 +30,7 @@ public final class FxDiaDexIndexTest {
     @Test public void decodesAsciiAndModifiedNull() throws Exception {
         assertEquals("Dia", FxDiaDexIndex.decodeMutf8(
                 new byte[] {'D', 'i', 'a', 0}, 0, 3));
-        assertEquals("\\u0000", FxDiaDexIndex.decodeMutf8(
+        assertEquals(Character.toString((char) 0), FxDiaDexIndex.decodeMutf8(
                 new byte[] {(byte) 0xc0, (byte) 0x80, 0}, 0, 1));
     }
 
