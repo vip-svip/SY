@@ -2644,7 +2644,11 @@ public final class MainActivity extends ComponentActivity {
     private void openImportedSuitePage(String suite, String category, String page) {
         if ("yulong-ad".equals(suite)) {
             switch (page) {
-                case "统计": case "每日防护总结": case "应用统计":
+                case "统计": case "每日防护总结":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class));
+                    return;
+                case "应用统计":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
                     return;
