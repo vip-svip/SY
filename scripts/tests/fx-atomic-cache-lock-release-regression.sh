@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-MODULE=\${1:-"$ROOT/fx-module"}
+MODULE=${1:-"$ROOT/fx-module"}
 APPLY="$MODULE/scripts/apply.sh"
 SUBFETCH="$MODULE/scripts/subfetch.sh"
 HOST_TEST="$MODULE/scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh"
