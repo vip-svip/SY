@@ -168,12 +168,11 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
     }
 
     private static boolean matchesProcess(String allowed, String process) {
-        if (allowed == null || process == null) return false;
-        if ("*".equals(allowed)) return true;
-        for (String candidate : allowed.split(",", -1)) {
-            if (process.equals(candidate)) return true;
-        }
-        return false;
+        // Each Gadget listener is scoped to one exact process. Do not retain the
+        // legacy wildcard/comma-list semantics: a stale broad marker could load
+        // Gadget into sibling processes and let them contend for the same port.
+        return allowed != null && !allowed.isEmpty()
+                && process != null && allowed.equals(process);
     }
 
     private static String sha256(File file) throws Exception {
