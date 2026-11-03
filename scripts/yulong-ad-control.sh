@@ -80,6 +80,7 @@ cmd="$1"
 case "$cmd" in
  list)
   echo FXYULONGAD1
+  echo "AD_MASTER|$(pg_get yulong_ad_filter_enabled 1)"
   pg_list rule|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=3{print "RULE|"$1"|"$2"|"($3=="1"?"1":"0")}'
   pg_list domain|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "ALLOW|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
   pg_list block|awk -F'|' '$1!=""&&$0!~/^[[:space:]]*#/&&NF>=2{print "BLOCK|"$1"|"$2"|" (NF<3||$3=="1"?"1":"0")}'
@@ -115,5 +116,8 @@ case "$cmd" in
   with_lock transaction m_dns "$2" "$3" ;;
  logs)
   [ -s "$PG/boot.log" ] && tail -n 180 "$PG/boot.log" || echo "暂无日志" ;;
+ ad-master)
+   [ "$#" -eq 2 ] && { [ "$2" = 0 ] || [ "$2" = 1 ]; } || exit 2
+   with_lock transaction m_dns yulong_ad_filter_enabled "$2" ;;
  *) exit 2 ;;
 esac
