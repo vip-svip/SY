@@ -68,7 +68,7 @@ grep -Fq 'action.setText("OBSERVE")' "$HOOK_ACTIVITY" || fail "new custom Hook r
 grep -Fq 'DeveloperHookRule.parse(' "$HOOK_ACTIVITY" || fail "native custom Hook UI does not validate rules with the shared parser"
 grep -Fq 'ruleId + "|" + method + "|" + actionText + "|" + priorityText' "$HOOK_ACTIVITY" || fail "native custom Hook UI drops the selected action or priority"
 grep -Fq 'if (!debuggable && !"OBSERVE".equals(actionText))' "$HOOK_ACTIVITY" || fail "behavior replacement is not restricted to debuggable targets"
-grep -Fq 'OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture' "$HOOK_ACTIVITY" || fail "Hook target status does not distinguish metadata observation from Debug fixtures"
+grep -Fq 'dev_hook_enabled 开启后：OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture' "$HOOK_ACTIVITY" || fail "Hook target status does not distinguish per-app opt-in from Debug fixtures"
 ! grep -Fq '自定义只读 Hook 可执行' "$HOOK_ACTIVITY" || fail "Hook target status still overstates all actions as read-only"
 grep -Fq 'target != null && target.developerHooksEnabled && debuggableTarget' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" || fail "runtime custom rules are not gated by explicit per-app opt-in and FLAG_DEBUGGABLE"
 grep -Fq 'MemberTestGate.isEnabled' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java" || fail "Debug fixture runtime lacks the exact package/debug gate"
