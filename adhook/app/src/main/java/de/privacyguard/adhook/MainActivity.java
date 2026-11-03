@@ -778,51 +778,59 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeManagedListDialog(String listId, String title) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
-            return;
-        }
-        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return JSON.stringify({ready:false});"
-                + "var a=pgListArr(" + JSONObject.quote(listId) + ")||[];"
-                + "return JSON.stringify({ready:true,items:a.map(function(x,i){return {i:i,v:String(x.v||''),note:String(x.note||''),on:x.on!==false};})});})()";
-        webView.evaluateJavascript(js, value -> {
-            try {
-                Object decoded = new org.json.JSONTokener(value == null ? "null" : value).nextValue();
-                if (!(decoded instanceof String)) throw new IllegalStateException("规则列表响应格式错误");
-                JSONObject snapshot = new JSONObject((String) decoded);
-                if (!snapshot.optBoolean("ready", false)) throw new IllegalStateException("模块设置尚未加载");
-                org.json.JSONArray items = snapshot.optJSONArray("items");
-                int count = items == null ? 0 : items.length();
-                String[] labels = new String[count];
-                for (int i = 0; i < count; i++) {
-                    JSONObject item = items.optJSONObject(i);
-                    String note = item == null ? "" : item.optString("note", "");
-                    String source = item == null ? "" : item.optString("v", "");
-                    boolean enabled = item != null && item.optBoolean("on", true);
-                    labels[i] = (enabled ? "● " : "○ ") + (note.isEmpty() ? source : note)
-                            + (source.isEmpty() || source.equals(note) ? "" : "\\n" + source);
-                }
-                new AlertDialog.Builder(this).setTitle(title)
-                        .setItems(labels, (d, which) -> {
-                            JSONObject item = items.optJSONObject(which);
-                            if (item != null) showNativeManagedListItemActions(listId, title,
-                                    item.optInt("i", which), item.optString("v", ""),
-                                    item.optString("note", ""), item.optBoolean("on", true));
-                        })
-                        .setPositiveButton("添加", (d, w) ->
-                                showNativeManagedListAddDialog(listId, title, "ruleList".equals(listId)))
-                        .setNegativeButton("关闭", null).show();
-                if (count == 0) Toast.makeText(this, "当前列表为空，可点击“添加”创建条目", Toast.LENGTH_SHORT).show();
-            } catch (Exception error) {
+        runNativeModuleCommand("sh \"$MP/scripts/native-managed-lists.sh\" list " + shellQuote(listId),
+                30000L, result -> {
+            if (result.exitCode != 0) {
                 new AlertDialog.Builder(this).setTitle(title + "读取失败")
-                        .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
-                                showNativeManagedListDialog(listId, title))
+                        .setMessage(result.output == null ? "无法读取设备端列表。" : result.output.trim())
+                        .setPositiveButton("重试", (d, w) -> showNativeManagedListDialog(listId, title))
                         .setNegativeButton("关闭", null).show();
+                return;
+            }
+            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
+            if (lines.length == 0 || !"FXLIST1".equals(lines[0])) {
+                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                        .setMessage("设备端列表响应格式错误。")
+                        .setPositiveButton("重试", (d, w) -> showNativeManagedListDialog(listId, title))
+                        .setNegativeButton("关闭", null).show();
+                return;
+            }
+            List<Integer> rowIndices = new ArrayList<>();
+            List<String> rowValues = new ArrayList<>();
+            List<String> rowNotes = new ArrayList<>();
+            List<Boolean> rowEnabled = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i];
+                if (line.trim().isEmpty()) continue;
+                String[] parts = line.split("\\\\|", 4);
+                if (parts.length != 4) continue;
+                try {
+                    int rowIndex = Integer.parseInt(parts[0]);
+                    String value = parts[1];
+                    String note = parts[2];
+                    boolean enabled = "1".equals(parts[3]);
+                    rowIndices.add(rowIndex);
+                    rowValues.add(value);
+                    rowNotes.add(note);
+                    rowEnabled.add(enabled);
+                    labels.add((enabled ? "● " : "○ ") + (note.isEmpty() ? value : note)
+                            + (value.isEmpty() || value.equals(note) ? "" : "\\n" + value));
+                } catch (NumberFormatException ignored) { }
+            }
+            String[] items = labels.toArray(new String[0]);
+            new AlertDialog.Builder(this).setTitle(title)
+                    .setItems(items, (dialog, which) -> showNativeManagedListItemActions(
+                            listId, title, rowIndices.get(which), rowValues.get(which),
+                            rowNotes.get(which), rowEnabled.get(which)))
+                    .setPositiveButton("添加", (dialog, which) ->
+                            showNativeManagedListAddDialog(listId, title, "ruleList".equals(listId)))
+                    .setNegativeButton("关闭", null).show();
+            if (items.length == 0) {
+                Toast.makeText(this, "当前列表为空，可点击“添加”创建条目", Toast.LENGTH_SHORT).show();
             }
         });
-    }
-
-    private void showNativeManagedListItemActions(String listId, String title, int index,
+    }    private void showNativeManagedListItemActions(String listId, String title, int index,
                                                    String value, String note, boolean enabled) {
         String[] actions = {enabled ? "停用" : "启用", "编辑", "删除"};
         new AlertDialog.Builder(this).setTitle(note.isEmpty() ? title : note)
@@ -837,10 +845,6 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showNativeManagedListAddDialog(String listId, String title, boolean subscription) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
-            return;
-        }
         EditText value = new EditText(this);
         value.setSingleLine(false);
         value.setMinLines(subscription ? 2 : 1);
@@ -855,7 +859,7 @@ public final class MainActivity extends ComponentActivity {
         panel.addView(note);
         new AlertDialog.Builder(this).setTitle(title)
                 .setView(panel).setNegativeButton("取消", null)
-                .setPositiveButton("添加", (d, w) -> {
+                .setPositiveButton("添加", (dialog, which) -> {
                     String v = value.getText().toString().trim();
                     if (v.isEmpty()) {
                         Toast.makeText(this, "内容不能为空", Toast.LENGTH_SHORT).show();
@@ -866,21 +870,9 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     String n = note.getText().toString().trim();
-                    String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgAddMany!=='function')return false;"
-                            + "return pgAddMany(" + JSONObject.quote(listId) + ",[{v:" + JSONObject.quote(v)
-                            + ",note:" + JSONObject.quote(n.isEmpty() ? v : n) + ",on:true}],{});})()";
-                    webView.evaluateJavascript(js, result -> {
-                        boolean added = false;
-                        try { added = Integer.parseInt(result == null ? "0" : result) > 0; }
-                        catch (NumberFormatException ignored) { }
-                        Toast.makeText(this, added ? "条目已添加" : "未添加：可能重复、列表不可用或存储尚未就绪",
-                                Toast.LENGTH_LONG).show();
-                        nativeVpnHandler.postDelayed(() -> showNativeManagedListDialog(listId, title), 900L);
-                    });
+                    mutateNativeManagedList(listId, -1, "add", v, true, title, n.isEmpty() ? v : n);
                 }).show();
-    }
-
-    private void showNativeManagedListEditDialog(String listId, String title, int index,
+    }    private void showNativeManagedListEditDialog(String listId, String title, int index,
                                                   String oldValue, String oldNote) {
         EditText value = new EditText(this);
         value.setText(oldValue);
@@ -914,31 +906,40 @@ public final class MainActivity extends ComponentActivity {
 
     private void mutateNativeManagedList(String listId, int index, String operation,
                                           String newValue, boolean enabled, String title, String newNote) {
-        if (webView == null || !webUiReady) {
-            Toast.makeText(this, "规则管理桥尚未就绪，请稍后重试", Toast.LENGTH_LONG).show();
-            return;
+        String command = "sh \"$MP/scripts/native-managed-lists.sh\" "
+                + shellQuote(operation) + " " + shellQuote(listId);
+        switch (operation) {
+            case "add":
+                command += " " + shellQuote(newValue) + " " + shellQuote(newNote);
+                break;
+            case "edit":
+                command += " " + index + " " + shellQuote(newValue) + " "
+                        + shellQuote(newNote) + " " + (enabled ? "1" : "0");
+                break;
+            case "toggle":
+                command += " " + index + " " + (enabled ? "1" : "0");
+                break;
+            case "delete":
+                command += " " + index;
+                break;
+            default:
+                Toast.makeText(this, "未知列表操作：" + operation, Toast.LENGTH_SHORT).show();
+                return;
         }
-        String js = "(function(){if(!window.PGB||!PGB.loaded||typeof pgListArr!=='function')return false;"
-                + "var a=pgListArr(" + JSONObject.quote(listId) + ");if(!a||!a[" + index + "])return false;"
-                + ("toggle".equals(operation) ? "a[" + index + "].on=" + (enabled ? "true" : "false") + ";"
-                : "delete".equals(operation) ? "a.splice(" + index + ",1);"
-                : "a[" + index + "].v=" + JSONObject.quote(newValue) + ";a[" + index + "].note="
-                    + JSONObject.quote(newNote.isEmpty() ? newValue : newNote) + ";")
-                + "window.__fxNativeRuleMutationOk=false;pgPersistNow().then(function(ok){"
-                + "window.__fxNativeRuleMutationOk=!!ok;if(ok){if(typeof pgRenderLists==='function')pgRenderLists();"
-                + "if(typeof pgQueueAutoApply==='function')pgQueueAutoApply('规则列表已更新，正在应用…',true);}});return true;})()";
-        webView.evaluateJavascript(js, value -> nativeVpnHandler.postDelayed(() -> {
-            if (webView == null || isFinishing() || isDestroyed()) return;
-            webView.evaluateJavascript("!!window.__fxNativeRuleMutationOk", saved -> {
-                boolean ok = "true".equals(saved);
-                Toast.makeText(this, ok ? "列表已保存并提交应用" : "列表保存失败，请检查模块设置与 Root 状态",
-                        Toast.LENGTH_LONG).show();
-                if (ok) showNativeManagedListDialog(listId, title);
-            });
-        }, 1000L));
-    }
-
-    private void showNativeListDialog(String listName, String title) {
+        runNativeModuleCommand(command, 180000L, result -> {
+            if (result.exitCode == 0) {
+                Toast.makeText(this, "列表已保存并应用。", Toast.LENGTH_LONG).show();
+                showNativeManagedListDialog(listId, title);
+            } else {
+                String detail = result.output == null ? "设备端保存或应用失败。" : result.output.trim();
+                new AlertDialog.Builder(this).setTitle("列表更新失败")
+                        .setMessage(detail)
+                        .setPositiveButton("重试", (d, w) ->
+                                mutateNativeManagedList(listId, index, operation, newValue, enabled, title, newNote))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }    private void showNativeListDialog(String listName, String title) {
         runNativeModuleCommand(". \"$MP/scripts/util.sh\"; pg_list " + shellQuote(listName),
                 30000L, result -> {
             if (result.exitCode != 0) {
