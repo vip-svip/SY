@@ -139,11 +139,21 @@ public final class FxYulongDnsActivity extends Activity {
             try {
                 JSONObject item = new JSONObject(trimmed);
                 JSONObject result = item.optJSONObject("Result");
+                JSONObject question = item.optJSONObject("question");
                 boolean isBlocked = result != null && result.optBoolean("IsFiltered", false);
-                String reason = result == null ? "" : result.optString("Reason", "");
+                if (item.optBoolean("IsFiltered", false)) isBlocked = true;
+                String reason = result == null ? item.optString("reason", "")
+                        : result.optString("Reason", item.optString("reason", ""));
+                String statusValue = item.optString("status", "").toLowerCase(Locale.ROOT);
+                if (statusValue.contains("block") || statusValue.contains("filter")) isBlocked = true;
+                if (!isBlocked && reason.toLowerCase(Locale.ROOT).startsWith("filtered")) isBlocked = true;
                 String domain = item.optString("QH", "").trim();
                 String type = item.optString("QT", "").trim();
-                String time = item.optString("T", "");
+                String time = item.optString("T", item.optString("time", ""));
+                if (question != null) {
+                    if (domain.isEmpty()) domain = question.optString("host", "").trim();
+                    if (type.isEmpty()) type = question.optString("type", "").trim();
+                }
                 if (domain.isEmpty()) continue;
                 data.add(new Entry(time, domain, type, isBlocked, reason));
                 total++;
