@@ -281,26 +281,24 @@ case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
   echo FX_GADGET_SESSION_TARGET_CONFLICT
   exit 30
 }
-if kill -0 "$cli_pid" 2>/dev/null; then
-  cmd=$(tr '\000' ' ' < /proc/"$cli_pid"/cmdline 2>/dev/null || :)
-  case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*"$dir/gadget-$port.js"*) kill "$cli_pid";;
-    *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;;
-  esac
-fi
-if kill -0 "$feed_pid" 2>/dev/null; then
-  feed_cmd=$(tr '\000' ' ' < /proc/"$feed_pid"/cmdline 2>/dev/null || :)
-  case "$feed_cmd" in *"fx-gadget-feed-27043"*"$pipe"*) kill "$feed_pid";;
-    *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
-  esac
-fi
-# Match production stop semantics: never drop ownership while an owned process
-# is alive. Treat zombies as exited, but retain PID/FIFO state on timeout.
 pid_active() {
   case "$1" in ''|*[!0-9]*) return 1;; esac
   state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d ' ' -f1)
   case "$state" in Z|X) return 1;; esac
   kill -0 "$1" 2>/dev/null
 }
+if pid_active "$cli_pid"; then
+  cmd=$(tr '\000' ' ' < /proc/"$cli_pid"/cmdline 2>/dev/null || :)
+  case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*"$dir/gadget-27043.js"*) kill "$cli_pid";;
+    *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;;
+  esac
+fi
+if pid_active "$feed_pid"; then
+  feed_cmd=$(tr '\000' ' ' < /proc/"$feed_pid"/cmdline 2>/dev/null || :)
+  case "$feed_cmd" in *"fx-gadget-feed-27043"*"$pipe"*) kill "$feed_pid";;
+    *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
+  esac
+fi
 _stop_wait=0
 while pid_active "$cli_pid" || pid_active "$feed_pid"; do
   [ "$_stop_wait" -lt 5 ] || { echo FX_GADGET_STOP_TIMEOUT; exit 31; }
