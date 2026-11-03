@@ -180,21 +180,59 @@ schedule_set() {
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {
     echo "invalid schedule: use HH:MM and unique weekdays 1..7" >&2; return 2;
   }
+
   file="$PG/yulong-ad-schedule.conf"
-  tmp="$file.tmp.$"
+  lock="$PG/yulong-ad-schedule.lock"
+  tmp="$file.tmp.$$"
+  backup="$file.rollback.$$"
+  if ! mkdir "$lock" 2>/dev/null; then
+    echo "schedule update is busy" >&2
+    return 30
+  fi
+  trap 'rm -f "$tmp" "$backup"; rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
+
+  existed=0
+  if [ -f "$file" ] && [ ! -L "$file" ]; then
+    cp -p "$file" "$backup" || { echo "unable to preserve previous schedule" >&2; return 31; }
+    existed=1
+  fi
+
   umask 077
   {
     printf 'enabled=%s\n' "$enabled"
     printf 'start=%s\n' "$start"
     printf 'end=%s\n' "$end"
     printf 'days=%s\n' "$days"
-  } > "$tmp" || { rm -f "$tmp"; return 1; }
-  chmod 600 "$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; return 1; }
-  if [ -x "$MP/scripts/yulong-ad-schedule.sh" ]; then
-    MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate
+  } > "$tmp" || { echo "unable to write schedule candidate" >&2; return 32; }
+  chmod 600 "$tmp" && mv -f "$tmp" "$file" || {
+    echo "unable to commit schedule candidate" >&2
+    return 33
+  }
+  sync
+
+  if [ ! -x "$MP/scripts/yulong-ad-schedule.sh" ]; then
+    echo "Yulong schedule runtime is not installed" >&2
   else
-    echo "schedule saved; runtime scheduler will apply it after module update/restart"
+    if MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate \
+        && MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" start; then
+      rm -f "$backup"
+      echo "schedule=committed"
+      return 0
+    fi
+    echo "schedule apply or watcher start failed; restoring previous schedule" >&2
   fi
+
+  if [ "$existed" = 1 ] && [ -f "$backup" ]; then
+    cp -p "$backup" "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$file" || {
+      echo "schedule rollback failed; previous copy remains at $backup" >&2
+      return 34
+    }
+  else
+    rm -f "$file"
+  fi
+  sync
+  MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate >/dev/null 2>&1 || :
+  return 35
 }
 cache_flush() {
   lock="$PG/yulong-cache-flush.lock"
