@@ -18,7 +18,10 @@ required = {
     "system packages are excluded": "ApplicationInfo.FLAG_SYSTEM",
     "target process must be running": "FX_GADGET_TARGET_NOT_RUNNING",
     "Gadget target process validator is called": "validateProcessName(targetPackage, process)",
+    "target UID is captured from PackageManager": "targetUid = targetInfo.uid",
     "process enumeration matches one exact target process": "$2==proc",
+    "process enumeration verifies target app UID": '"$uid" = "$target_uid"',
+    "process UID comes from proc status": '"/$pid/status"',
     "Frida script size is bounded": "sourceBytes.length > 48 * 1024",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',
@@ -101,8 +104,15 @@ cat > "$T/bin/ps" <<'PS'
 printf '  PID NAME\n'
 printf '12345 com.example.debuggable\n'
 printf '12346 com.example.debuggable:remote\n'
+printf '12347 com.example.debuggable:spoof\n'
 PS
 chmod 700 "$T/bin/ps"
+mkdir -p "$T/proc/12345" "$T/proc/12346" "$T/proc/12347"
+printf 'Name: com.example.debuggable\nUid: 10002 10002 10002 10002\n' > "$T/proc/12345/status"
+printf 'Name: com.example.debuggable:remote\nUid: 10002 10002 10002 10002\n' > "$T/proc/12346/status"
+# Same process name shape, but a different app UID; name-only matching would accept it.
+printf 'Name: com.example.debuggable:spoof\nUid: 10099 10099 10099 10099\n' > "$T/proc/12347/status"
+export FX_GADGET_TEST_PROC_ROOT="$T/proc"
 PATH="$T/bin:$PATH"
 export PATH
 
@@ -139,8 +149,13 @@ pipe="$dir/gadget-$port.stdin"
 lock="$dir/.gadget-$port.start-lock"
 test -x "$cli" && test ! -L "$cli"
 version=$("$cli" --version)
-pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc="$proc" 'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}')
-[ -n "$pids" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }
+target_uid=10002
+proc_root="$FX_GADGET_TEST_PROC_ROOT"
+pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc="$proc" 'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}' | while IFS= read -r pid; do
+  uid=$(awk '$1=="Uid:" {print $2; exit}' "$proc_root/$pid/status" 2>/dev/null || :)
+  [ "$uid" = "$target_uid" ] && printf '%s\n' "$pid" || :
+done)
+[ -n "$pids" ] || { echo FX_GADGET_TARGET_PROCESS_NOT_RUNNING; exit 4; }
 mkdir "$lock"
 lock_held=1
 tmp=
@@ -264,6 +279,11 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
   exit 1
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/missing-process.result"
+if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:spoof" > "$T/foreign-uid-process.result" 2>&1; then
+  echo "FAIL: Gadget start accepted a same-name process owned by another UID" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
 "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
 grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2

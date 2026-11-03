@@ -1878,6 +1878,7 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("请先选择已经运行的 debuggable 目标应用；Gadget 必须由该应用实际加载。");
             return;
         }
+        final int targetUid;
         try {
             ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
             if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
@@ -1885,6 +1886,7 @@ public final class FxDiaFridaActivity extends Activity {
                 setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝连接。");
                 return;
             }
+            targetUid = targetInfo.uid;
         } catch (Throwable missing) {
             setStatus("目标应用已卸载或不可用，拒绝连接 Gadget。");
             return;
@@ -1930,8 +1932,11 @@ public final class FxDiaFridaActivity extends Activity {
                 + "pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; port=" + port + "; "
                 + "test -x \"$cli\" && test ! -L \"$cli\"; "
                 + "cli_version=$(\"$cli\" --version 2>&1) || { echo FX_GADGET_CLI_UNAVAILABLE; exit 20; }; "
+                + "target_uid=" + targetUid + "; proc_root=/proc; "
                 + "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc=\"$process\" "
-                + "'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}'); "
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}' | while IFS= read -r pid; do "
+                + "uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"$proc_root/$pid/status\" 2>/dev/null || :); "
+                + "[ \"$uid\" = \"$target_uid\" ] && printf '%s\\n' \"$pid\" || :; done); "
                 + "[ -n \"$pids\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
                 + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \"$dir\"; "
                 + "test -d \"$dir\" && test ! -L \"$dir\"; chmod 700 \"$dir\"; "
