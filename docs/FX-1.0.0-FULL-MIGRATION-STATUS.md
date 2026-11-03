@@ -52,10 +52,19 @@ replace it with a package-only summary or revert to empty menu scaffolding.
   priority; per-rule OBSERVE/OFF; 64-rule limit; JSON bulk import/export.
 - All custom rules remain exact-package scoped and read-only. The runtime does not
   rewrite production app authorization, account, login or membership decisions.
-- Remaining: Frida server/client and injection UI, Activity/method rewrite runtime,
-  device-property/location/network simulation, HTTP/SQL/database/algorithm monitors,
-  DEX/memory inspection, backup adapters and the remaining Dia-specific UI screens.
-  QuickJS is not a Frida replacement and must not be presented as one.
+- Added an internal Frida manager that can start/stop an already-installed
+  `frida-server` on loopback only and use an already-installed `frida-inject` to
+  attach scripts to user-installed debuggable apps. It does not bundle/download
+  Frida binaries and verifies its own PID file before stopping a process.
+- Added a read-only DEX class-name browser for installed APK/split-APK files. It
+  enumerates class names without loading target classes or reading app-private data.
+- Added an Activity component browser for user-installed non-system apps, with
+  explicit confirmation and Root-backed enable/disable actions for declared Activity
+  components.
+- Remaining: Dia device-property/location/network simulation, complete HTTP/SQL/
+  database/algorithm monitor implementations, memory snapshots, backup adapters,
+  full Activity/method rewrite parity and the remaining Dia-specific screens.
+  QuickJS remains separate from Frida and is not presented as its replacement.
 
 ### Build / packaging policy
 - Automatic push-triggered runs in both `.github/workflows/build-fx-adhook.yml` and
