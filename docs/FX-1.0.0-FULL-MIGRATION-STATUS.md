@@ -109,6 +109,12 @@ published during this migration phase.
 - The UI copy now states the exact scope. No system-wide GNSS/provider setting,
   real hardware location, route, or other application's location is changed.
 
+- The native Dia Custom Hook editor now has per-target rule groups. Users can
+  create groups, move individual rules, remove an unused group without deleting
+  its rules, and round-trip group membership through JSON import/export. The
+  runtime config remains the same four-field rule format; group metadata is
+  local UI organization and does not change target-hook semantics.
+
 ### Dia 23.11 — original monitor Activity routing
 
 - Added distinct fourth-level routes for the original Intent, Socket, Shell/Process,

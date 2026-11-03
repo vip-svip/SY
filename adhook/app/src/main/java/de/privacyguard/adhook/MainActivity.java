@@ -5022,60 +5022,77 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderCustomRules() {
-        for (int i = 1; i <= 64; i++) {
-            String key = selectedPackage + ":dev_rule_" + i;
-            String value = getPreferences(0).getString(key, null);
-            if (value == null) continue;
-            String[] parts = value.split("\\|", -1);
-            if (parts.length != 4) continue;
-            final int slot = i;
-            String baseAction = getPreferences(0).getString(
-                    selectedPackage + ":dev_rule_base_" + slot,
-                    "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]);
-            boolean active = !"OFF".equalsIgnoreCase(parts[2]);
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(12), dp(6), dp(12), dp(6));
-            row.setBackground(uiPanelDrawable());
-            TextView item = new TextView(this);
-            String groupName = getPreferences(0).getString(
-                    selectedPackage + ":dev_rule_group_" + slot, "默认");
-            item.setText("[" + groupName + "] " + parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
-                    + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
-            item.setTextSize(12);
-            item.setTextColor(0xff596775);
-            row.addView(item);
-            Switch enabled = new Switch(this);
-            enabled.setText("启用规则");
-            enabled.setChecked(active);
-            enabled.setOnCheckedChangeListener((button, checked) -> {
-                String[] current = getPreferences(0).getString(key, "").split("\\|", -1);
-                if (current.length != 4) return;
-                String currentBase = getPreferences(0).getString(
+        for (String groupName : getCustomRuleGroups()) {
+            LinearLayout groupRows = new LinearLayout(this);
+            groupRows.setOrientation(LinearLayout.VERTICAL);
+            int groupCount = 0;
+            for (int i = 1; i <= 64; i++) {
+                String key = selectedPackage + ":dev_rule_" + i;
+                String value = getPreferences(0).getString(key, null);
+                if (value == null) continue;
+                String ruleGroup = getPreferences(0).getString(
+                        selectedPackage + ":dev_rule_group_" + i, "默认");
+                if (!groupName.equals(ruleGroup)) continue;
+                String[] parts = value.split("\\\\|", -1);
+                if (parts.length != 4) continue;
+
+                final int slot = i;
+                String baseAction = getPreferences(0).getString(
                         selectedPackage + ":dev_rule_base_" + slot,
-                        "OFF".equals(current[2]) ? "OBSERVE" : current[2]);
-                current[2] = checked ? currentBase : "OFF";
-                getPreferences(0).edit()
-                        .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3])
-                        .putString(selectedPackage + ":dev_rule_base_" + slot, currentBase)
-                        .apply();
-            });
-            row.addView(enabled);
-            Button moveGroup = new Button(this);
-            moveGroup.setText("移动到分组");
-            moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(slot));
-            row.addView(moveGroup);
-            Button remove = new Button(this);
-            remove.setText("删除 " + parts[0]);
-            remove.setOnClickListener(v -> {
-                getPreferences(0).edit().remove(key)
-                        .remove(selectedPackage + ":dev_rule_base_" + slot)
-                        .remove(selectedPackage + ":dev_rule_group_" + slot).apply();
-                ApplicationInfo ai = findApp(selectedPackage);
-                if (ai != null) showTarget(ai);
-            });
-            row.addView(remove);
-            content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                        "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]);
+                boolean active = !"OFF".equalsIgnoreCase(parts[2]);
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.VERTICAL);
+                row.setPadding(dp(12), dp(6), dp(12), dp(6));
+                row.setBackground(uiPanelDrawable());
+                TextView item = new TextView(this);
+                item.setText(parts[0] + " · " + parts[1] + "\\\\n动作：" + baseAction
+                        + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
+                item.setTextSize(12);
+                item.setTextColor(0xff596775);
+                row.addView(item);
+
+                Switch enabled = new Switch(this);
+                enabled.setText("启用规则");
+                enabled.setChecked(active);
+                enabled.setOnCheckedChangeListener((button, checked) -> {
+                    String[] current = getPreferences(0).getString(key, "").split("\\\\|", -1);
+                    if (current.length != 4) return;
+                    String currentBase = getPreferences(0).getString(
+                            selectedPackage + ":dev_rule_base_" + slot,
+                            "OFF".equals(current[2]) ? "OBSERVE" : current[2]);
+                    current[2] = checked ? currentBase : "OFF";
+                    getPreferences(0).edit()
+                            .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3])
+                            .putString(selectedPackage + ":dev_rule_base_" + slot, currentBase)
+                            .apply();
+                });
+                row.addView(enabled);
+
+                Button moveGroup = new Button(this);
+                moveGroup.setText("移动到分组");
+                moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(slot));
+                row.addView(moveGroup);
+
+                Button remove = new Button(this);
+                remove.setText("删除 " + parts[0]);
+                remove.setOnClickListener(v -> {
+                    getPreferences(0).edit().remove(key)
+                            .remove(selectedPackage + ":dev_rule_base_" + slot)
+                            .remove(selectedPackage + ":dev_rule_group_" + slot).apply();
+                    ApplicationInfo ai = findApp(selectedPackage);
+                    if (ai != null) showTarget(ai);
+                });
+                row.addView(remove);
+                groupRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                groupCount++;
+            }
+            if (groupCount > 0) {
+                TextView heading = title(groupName + " · " + groupCount + " 条规则", 14);
+                heading.setPadding(dp(18), dp(8), dp(18), dp(4));
+                content.addView(heading);
+                content.addView(groupRows, new LinearLayout.LayoutParams(-1, -2));
+            }
         }
     }
 
