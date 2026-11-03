@@ -172,7 +172,8 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> advertisingIdHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();\n    private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
+    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
