@@ -2648,19 +2648,20 @@ public final class MainActivity extends ComponentActivity {
                 case "传感器":
                     showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
                     return;
-                case "网络与代理": case "Wi-Fi 模拟": case "网络类型模拟":
-                case "HTTP 监控": case "HTTP 代理":
+                case "网络与代理": case "HTTP 监控": case "HTTP 代理":
                     showNativeSettingsGroup("netPanel", "Dia · " + page);
                     return;
-                case "按键控制": case "设备属性": case "时间与时区":
-                case "应用版本": case "签名信息":
-                    showNativeSettingsGroup("devicePanel", "Dia · " + page);
+                case "设备属性":
+                    showNativeSettingsGroup("devicePanel", "Dia · 设备属性");
                     return;
                 case "文件与 so 库":
                     showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
                     return;
                 case "位置与 GPS":
                     showNativeSettingsGroup("locationPanel", "Dia · 位置与 GPS");
+                    return;
+                case "时间与时区":
+                    showNativeSettingsGroup("miscPanel", "Dia · 时间与时区");
                     return;
                 case "JS 脚本列表": case "脚本编辑器": case "JSON 操作":
                     openImportedNativeTab(3);
