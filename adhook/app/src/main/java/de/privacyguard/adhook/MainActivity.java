@@ -5520,7 +5520,9 @@ public final class MainActivity extends ComponentActivity {
                     String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
                     if(rule!=null) {
                         if(!customEnabled) { row.append(",dev_hook_enabled=1"); customEnabled=true; }
-                        row.append(",dev_rule_").append(n).append('=').append(rule);
+                        String encodedRule = java.util.Base64.getUrlEncoder().withoutPadding()
+                                .encodeToString(rule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        row.append(",dev_rule_b64_").append(n).append('=').append(encodedRule);
                         has=true;
                     }
                 }
