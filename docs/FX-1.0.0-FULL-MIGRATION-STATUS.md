@@ -652,3 +652,10 @@ After each implementation batch:
 - The native Dia DEX browser now indexes this standalone framework DEX as well as installed application APK/split DEX files. It uses the same bounded, read-only parser and displays framework classes, fields and methods without defining or executing inspected code.
 - The Framework DEX is shipped inside the single FX Hook APK under `assets/dia/android_framework.dex`; no second APK or external entry is introduced.
 - Both the Hook APK and paired KernelSU workflow stage the same source asset. Workflow dispatch remains manual-only during migration; no package was generated for this source change.
+
+## Yulong Shield 9.9.60 — read-only FX module integrity check
+
+- The fourth-level integrity page now supplements the current FX APK signer fingerprint with a Root-backed, read-only inspection of the installed KernelSU module.
+- It verifies module identity/version/enabled markers, presence of core FX and migrated Yulong scripts, shell syntax, and the ARM64 QuickJS executable bit.
+- The page reports missing or malformed files but does not auto-repair, restart services, force-stop/freeze apps, re-enable the app, or restore accessibility permissions. These invasive legacy SelfDefense actions remain intentionally outside the FX migration.
+- Source-only change on the unified branch; no build or device test was run.
