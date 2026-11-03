@@ -112,13 +112,14 @@ new_sub_unlock = '''subfetch_unlock() {
 replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
 
 
+pid_literal = "$" + "$"
 old_root_proxy_lock = '''with_lock() {
   _tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
     _owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
     case "$_owner" in
       ''|*[!0-9]*)
-        # Allow the owner to publish its PID immediately after mkdir.
+        # Allow the owner to publish a PID immediately after mkdir.
         if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
           rmdir "$LOCK" 2>/dev/null || :
         fi
@@ -134,7 +135,7 @@ old_root_proxy_lock = '''with_lock() {
     [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
     sleep 1
   done
-  if ! printf '%s\\n' "$" > "$LOCK/pid"; then
+  if ! printf '%s\\n' "__PID__" > "$LOCK/pid"; then
     rmdir "$LOCK" 2>/dev/null || :
     echo "cannot record root DNS proxy lock owner" >&2
     return 10
@@ -149,7 +150,8 @@ old_root_proxy_lock = '''with_lock() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
   "$@"
-}'''
+}'''.replace("__PID__", pid_literal)
+
 new_root_proxy_lock = '''with_lock() {
   _tries=0
   _lock_held=0
@@ -166,7 +168,7 @@ new_root_proxy_lock = '''with_lock() {
         # Give a newly-created owner a short PID publication window. If it
         # remains empty, atomically quarantine the complete directory.
         if [ ! -e "$LOCK/pid" ] && [ "$_tries" -ge 3 ]; then
-          _stale="$LOCK.stale.$.$_tries"
+          _stale="$LOCK.stale.__PID__.$_tries"
           if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
             _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
             if [ -z "$_moved_owner" ]; then
@@ -181,7 +183,7 @@ new_root_proxy_lock = '''with_lock() {
         if ! kill -0 "$_owner" 2>/dev/null; then
           _owner_again=$(cat "$LOCK/pid" 2>/dev/null || :)
           if [ "$_owner_again" = "$_owner" ] && ! kill -0 "$_owner_again" 2>/dev/null; then
-            _stale="$LOCK.stale.$.$_tries"
+            _stale="$LOCK.stale.__PID__.$_tries"
             if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] && mv "$LOCK" "$_stale" 2>/dev/null; then
               _moved_owner=$(cat "$_stale/pid" 2>/dev/null || :)
               if [ "$_moved_owner" = "$_owner" ] && ! kill -0 "$_moved_owner" 2>/dev/null; then
@@ -198,8 +200,8 @@ new_root_proxy_lock = '''with_lock() {
     [ "$_tries" -lt 20 ] || { echo "root DNS proxy update is busy" >&2; return 10; }
     sleep 1
   done
-  if ! (umask 077; set -C; printf '%s\\\\n' "$" > "$LOCK/pid") 2>/dev/null; then
-    _release="$LOCK.failed.$"
+  if ! (umask 077; set -C; printf '%s\\n' "__PID__" > "$LOCK/pid") 2>/dev/null; then
+    _release="$LOCK.failed.__PID__"
     if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
       rm -rf "$_release" 2>/dev/null || :
     fi
@@ -210,16 +212,16 @@ new_root_proxy_lock = '''with_lock() {
   cleanup_lock() {
     [ "$_lock_held" = 1 ] || return 0
     _owner=$(cat "$LOCK/pid" 2>/dev/null || :)
-    if [ "$_owner" = "$" ]; then
-      _release="$LOCK.release.$"
+    if [ "$_owner" = "__PID__" ]; then
+      _release="$LOCK.release.__PID__"
       _release_try=0
       while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_release_try" -lt 20 ]; do
         _release_try=$((_release_try+1))
-        _release="$LOCK.release.$.$_release_try"
+        _release="$LOCK.release.__PID__.$_release_try"
       done
       if [ ! -e "$_release" ] && [ ! -L "$_release" ] && mv "$LOCK" "$_release" 2>/dev/null; then
         _release_owner=$(cat "$_release/pid" 2>/dev/null || :)
-        if [ "$_release_owner" = "$" ]; then rm -rf "$_release" 2>/dev/null || :; fi
+        if [ "$_release_owner" = "__PID__" ]; then rm -rf "$_release" 2>/dev/null || :; fi
       fi
     fi
     _lock_held=0
@@ -231,8 +233,9 @@ new_root_proxy_lock = '''with_lock() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
   "$@"
-}'''
+}'''.replace("__PID__", pid_literal)
 replace_once(root_proxy, old_root_proxy_lock, new_root_proxy_lock, "Root Proxy lock must use atomic directory rename")
+
 replace_once(
     subfetch_file,
     '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
