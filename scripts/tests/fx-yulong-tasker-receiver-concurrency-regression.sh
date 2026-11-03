@@ -56,7 +56,10 @@ assert "new ArrayBlockingQueue<>(2)" in widget_source
 assert "REFRESH_PENDING.compareAndSet(false, true)" in widget_source
 assert "TOGGLE_PENDING.compareAndSet(false, true)" in widget_source
 assert "catch (RejectedExecutionException full)" in widget_source
-assert "finally {\n                    TOGGLE_PENDING.set(false);\n                    pending.finish();" in widget_source
+toggle_finally = widget_source[widget_source.find("TOGGLE_PENDING.compareAndSet(false, true)"):widget_source.find("private static int readEnabled")]
+assert "finally {" in toggle_finally and "pending.finish();" in toggle_finally, "widget Root toggle must always finish its asynchronous broadcast"
+assert toggle_finally.find("FxYulongAdOperationGate.release();") < toggle_finally.find("TOGGLE_PENDING.set(false);") < toggle_finally.find("pending.finish();"), "widget must release the shared gate, clear its pending flag, then finish";
+
 assert "Executors.newSingleThreadExecutor" not in widget_source
 widget = next((x for x in manifest.findall("./application/receiver")
                if x.attrib.get(ns + "name", "").endswith("FxYulongAdWidgetProvider")), None)
