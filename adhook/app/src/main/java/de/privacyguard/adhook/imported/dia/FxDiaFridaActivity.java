@@ -1666,9 +1666,10 @@ public final class FxDiaFridaActivity extends Activity {
         }
         String library = gadgetPath == null ? "" : gadgetPath.getText().toString().trim();
         String config = gadgetConfigTarget(library);
-        String processName = gadgetProcess == null || gadgetProcess.getText() == null
-                ? targetPackage : gadgetProcess.getText().toString().trim();
-        if (processName.isEmpty()) processName = targetPackage;
+        String requestedProcessName = gadgetProcess == null || gadgetProcess.getText() == null
+                ? "" : gadgetProcess.getText().toString().trim();
+        final String processName = requestedProcessName.isEmpty()
+                ? targetPackage : requestedProcessName;
         String processError = FxDiaGadgetDeployment.validateProcessName(targetPackage, processName);
         if (processError != null) {
             setStatus(processError);
