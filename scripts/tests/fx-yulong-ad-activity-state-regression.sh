@@ -46,10 +46,10 @@ assert "saved.containsKey(entry.getKey())" in s and \
        'entry.getValue().setText(saved.getString(entry.getKey(),""))' in s, \
     "restoration must reapply saved text after the page controls are rebuilt"
 create = s.index("@Override protected void onCreate")
-render = s.index("private void render()")
+render_call = s.index("render();", create)
 restore = s.index("restoreDrafts(pendingRestoredDrafts)", create)
 load = s.index("load();", create)
-assert create < render < restore < load, \
-    "page controls must be rebuilt before draft restore and asynchronous data refresh"
+assert create < render_call < restore < load, \
+    "onCreate must build page controls before restoring drafts and refreshing data"
 print("PASS: Yulong Ad page and 16 editable field drafts survive Activity recreation")
 PY
