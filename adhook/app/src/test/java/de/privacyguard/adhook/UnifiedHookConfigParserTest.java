@@ -26,7 +26,7 @@ public class UnifiedHookConfigParserTest {
         String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
         UnifiedHookConfigParser.Result roundTrip = UnifiedHookConfigParser.parse(serialized);
         assertEquals(64, roundTrip.targets.get("com.example.owned").developerRules.size());
-        assertTrue(serialized.contains("dev_rule_64=r64|"));
+        assertTrue(serialized.contains("dev_rule_b64_64="));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -65,6 +65,58 @@ public class UnifiedHookConfigParserTest {
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
                 "com.example.owned,dev_hook_enabled=1,dev_rule_1=vip|com.example.owned.AuthRepo#isVip()Z|true|1\n");
         assertTrue(enabled.targets.get("com.example.owned").developerHooksEnabled);
+    }
+
+    @Test
+    public void roundTripsCommaDelimitedTypedMethodParametersThroughEncodedRuleField() {
+        String rawRule = "trace|com.example.owned.AuthRepo#dispatch(java.lang.String,int[])java.lang.Object|OBSERVE|25";
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                rawRule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String config = "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=" + encoded + "\\n";
+
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config);
+        UnifiedHookConfigParser.Target target = parsed.targets.get("com.example.owned");
+        assertTrue(target.developerHooksEnabled);
+        assertEquals(1, target.developerRules.size());
+        assertEquals("Lcom/example/owned/AuthRepo;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;",
+                target.developerRules.get(0).descriptor);
+        assertEquals(DeveloperHookRule.Action.OBSERVE, target.developerRules.get(0).action);
+
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        assertTrue(serialized.contains(",dev_rule_b64_1="));
+        assertFalse(serialized.contains(",dev_rule_1="));
+        UnifiedHookConfigParser.Result reparsed = UnifiedHookConfigParser.parse(serialized);
+        assertTrue(reparsed.targets.get("com.example.owned").developerHooksEnabled);
+        assertEquals(target.developerRules.get(0).descriptor,
+                reparsed.targets.get("com.example.owned").developerRules.get(0).descriptor);
+    }
+
+    @Test
+    public void retainsBackwardCompatibilityWithSimpleLegacyCustomRuleFields() {
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_1=observe|com.example.owned.AuthRepo#isVip()Z|OBSERVE|1\\n");
+        assertTrue(parsed.targets.get("com.example.owned").developerHooksEnabled);
+        assertEquals(1, parsed.targets.get("com.example.owned").developerRules.size());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMalformedEncodedCustomRuleField() {
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=not*base64\\n");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsTwoEncodingsForTheSameCustomRuleSlot() {
+        String rule = "observe|com.example.owned.AuthRepo#isVip()Z|OBSERVE|1";
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                rule.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.parse(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                + "com.example.owned,dev_hook_enabled=1,dev_rule_1=" + rule
+                + ",dev_rule_b64_1=" + encoded + "\\n");
     }
 
     @Test
