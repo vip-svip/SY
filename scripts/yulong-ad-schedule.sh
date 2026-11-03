@@ -72,6 +72,12 @@ evaluate() {
 }
 watch() { log "watcher started"; while :; do evaluate || :; sleep 60; done; }
 start() {
+  # A disabled schedule must not keep a 60-second background poller alive.
+  if [ "$(read_value enabled)" != 1 ]; then
+    stop
+    echo "schedule-disabled"
+    return 0
+  fi
   if [ -s "$PIDFILE" ]; then
     old=$(cat "$PIDFILE" 2>/dev/null); case "$old" in ''|*[!0-9]*) old= ;; esac
     if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then echo "already-running pid=$old"; return 0; fi

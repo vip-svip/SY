@@ -141,9 +141,13 @@ valid_time() {
 }
 valid_days() {
   printf '%s\n' "$1" | awk -F, '
-    NF<1 || NF>7 {exit 1}
-    {for(i=1;i<=NF;i++){if($i!~/^[1-7]$/ || seen[$i]++) exit 1}}
-    END{if(NF>=1 && NF<=7) exit 0; exit 1}
+    NF<1 || NF>7 {bad=1}
+    {
+      for(i=1;i<=NF;i++) {
+        if($i!~/^[1-7]$/ || seen[$i]++) bad=1
+      }
+    }
+    END {exit bad ? 1 : 0}
   '
 }
 schedule_get() {
