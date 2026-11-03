@@ -183,6 +183,7 @@ jobs:
           sh scripts/tests/fx-dia-global-settings-registration-regression.sh
           sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
+          sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
           sh scripts/tests/fx-dia-frida-binary-import-regression.sh
           sh scripts/tests/fx-stellar-control-shell-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
