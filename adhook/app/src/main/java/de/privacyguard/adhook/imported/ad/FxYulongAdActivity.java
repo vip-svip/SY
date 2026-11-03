@@ -39,14 +39,14 @@ public final class FxYulongAdActivity extends Activity {
  private String safe(String s){return s==null||s.trim().isEmpty()?"请确认 FX Hook Root 权限。":s.trim();}
  private void apply(String args,String label){root(args,r->{if(r.exitCode==0){status.setText(label+"：已保存并应用。");load();}else{status.setText(label+"失败："+safe(r.output));new AlertDialog.Builder(this).setTitle("配置未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();load();}});}
  @Override protected void onCreate(Bundle b){super.onCreate(b);page=getIntent().getStringExtra("suite_page");if(page==null)page="首页与防护";LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();load();}
- private void render(){body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
+ private void render(){body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
     dnsSwitch("第三方 VPN 兼容路由开关","vpn_external_compat"),
     btn("刷新 Root Proxy 运行状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})),
     btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));
   card("工作条件","仅当检测到唯一活动第三方 VPN、VPN 接口/所属 UID/出口路由可验证，Unbound 与 AdGuard Home 健康探测通过后才接管 DNS；任何验证失败都会撤销 FX 自有重定向规则并保留原 VPN DNS。");
-}else if("日志与诊断".equals(page))renderLogs();else renderHome();}
+}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
  private void open(String p){page=p;render();bind();}
  private void renderHome(){
   Switch master=new Switch(this);master.setText("启用广告过滤主开关");master.setTag("ad-master");master.setEnabled(false);
@@ -69,6 +69,65 @@ public final class FxYulongAdActivity extends Activity {
  private boolean syncing;
  private Switch dnsSwitch(String label,String key){Switch s=new Switch(this);s.setText(label);s.setTag(key);s.setEnabled(false);s.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("dns-set "+key+" "+(on?"1":"0"),label);});return s;}
  private void renderDomains(){EditText allow=new EditText(this);allow.setSingleLine(true);allow.setHint("白名单域名");EditText allowNote=new EditText(this);allowNote.setSingleLine(true);allowNote.setHint("备注");card("域名白名单","精确放行域名及其子域。",allow,allowNote,btn("添加白名单",()->{if(!allow.getText().toString().trim().isEmpty())apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");}));EditText block=new EditText(this);block.setSingleLine(true);block.setHint("黑名单域名");EditText blockNote=new EditText(this);blockNote.setSingleLine(true);blockNote.setHint("备注");card("域名黑名单","只添加明确需要阻断的域名。",block,blockNote,btn("添加黑名单",()->{if(!block.getText().toString().trim().isEmpty())apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");}));entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void renderSchedule(){
+  Switch enabled=new Switch(this);
+  enabled.setText("启用每周自动计划");
+  EditText start=new EditText(this);
+  start.setSingleLine(true);start.setHint("开始时间 HH:MM");start.setText("22:00");
+  EditText end=new EditText(this);
+  end.setSingleLine(true);end.setHint("结束时间 HH:MM");end.setText("07:00");
+  LinearLayout daysBox=new LinearLayout(this);daysBox.setOrientation(1);
+  String[] labels={"周一","周二","周三","周四","周五","周六","周日"};
+  android.widget.CheckBox[] days=new android.widget.CheckBox[7];
+  for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(labels[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
+  TextView state=txt("正在读取计划任务…",12,0xff526170,false);
+  card("每周自动计划",
+       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示所选日期全天。",
+       enabled,start,end,daysBox,
+       btn("保存计划",()->{
+         StringBuilder selected=new StringBuilder();
+         for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i+1);}
+         if(selected.length()==0){new AlertDialog.Builder(this).setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
+         String command="schedule-set "+(enabled.isChecked()?"1":"0")+" "+q(start.getText().toString().trim())+" "+q(end.getText().toString().trim())+" "+q(selected.toString());
+         root(command,r->{
+           if(r.exitCode==0){
+             state.setText("计划已保存并立即重新计算。\\n"+safe(r.output));
+           }else{
+             state.setText("计划保存/应用失败："+safe(r.output));
+             new AlertDialog.Builder(this).setTitle("计划未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+           }
+         });
+       }),
+       btn("重新读取计划",()->loadSchedule(enabled,start,end,days,state)));
+  card("当前计划状态",
+       "星期编号：周一=1 至周日=7。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
+       state);
+  loadSchedule(enabled,start,end,days,state);
+ }
+ private void loadSchedule(Switch enabled,EditText start,EditText end,
+       android.widget.CheckBox[] days,TextView state){
+  root("schedule-get",r->{
+    if(r.exitCode!=0){state.setText("读取失败："+safe(r.output));return;}
+    String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1";
+    for(String line:r.output.split("\\\\r?\\\\n")){
+      int pos=line.indexOf('=');if(pos<0)continue;
+      String key=line.substring(0,pos),value=line.substring(pos+1);
+      if("enabled".equals(key))en=value;
+      else if("start".equals(key))st=value;
+      else if("end".equals(key))ed=value;
+      else if("days".equals(key))ds=value;
+      else if("active".equals(key))active=value;
+    }
+    enabled.setChecked("1".equals(en));start.setText(st);end.setText(ed);
+    String[] selected=ds.split(",");
+    for(int i=0;i<7;i++){
+      days[i].setChecked(false);
+      for(String d:selected)if(String.valueOf(i+1).equals(d.trim()))days[i].setChecked(true);
+    }
+    state.setText("计划："+("1".equals(en)?"已启用":"已关闭")
+       +"；当前游龙过滤："+("1".equals(active)?"生效":"按计划暂停"));
+  });
+ }
  private void renderLogs(){card("运行日志","显示 FX 当前模块日志，不将全局日志冒充原版逐应用统计。");root("logs",r->card("FX 日志","本机启动与过滤记录",txt(safe(r.output),11,0xff526170,false)));}
  private void load(){root("list",r->{if(r.exitCode!=0){status.setText("读取失败："+safe(r.output));return;}snapshot=r.output==null?"":r.output;status.setText("已读取设备端 FX 配置。");bind();});}
  private List<Row> rows(String kind){List<Row> out=new ArrayList<>();for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length>=4&&kind.equals(p[0]))out.add(new Row(p[0],p[1],p[2],"1".equals(p[3])));}return out;}

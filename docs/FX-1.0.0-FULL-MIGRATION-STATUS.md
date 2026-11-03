@@ -4,6 +4,21 @@ Source branch: `fx-v1.0.0-unified-hook-integration`.
 All changes below are source-tree work only. No final APK/KernelSU package is being
 published during this migration phase.
 
+### Yulong Ad Plugin 7.0.1 — weekly schedule integration
+
+- Native Ad settings now include a weekly schedule editor: enable/disable, local
+  start/end times, and Monday-through-Sunday selection.
+- The schedule watcher is staged into the restored FX module by
+  `patch_yulong_ad_master.py`; the module boot service starts it and uninstall
+  stops it. The watcher reevaluates every 60 seconds and immediately after save.
+- Cross-midnight windows are supported. Equal start/end time means the full
+  selected weekday. Device local timezone is used.
+- Scheduling gates only the Yulong ad filter source in `[list:rule]`; it does
+  not change FX anti-fraud/96110 rules, Hosts allow/block lists, DNS upstreams,
+  or VPN/node routing.
+- All source changes are on the unified integration branch. Final package
+  generation remains deferred until the three source-app migrations are complete.
+
 ### Yulong Ad Plugin 7.0.1 — additional integrated work
 
 - Added a native per-app statistics screen using Android `TrafficStats` UID
