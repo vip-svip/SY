@@ -272,7 +272,8 @@ if vpn_services:
 
 ET.indent(manifest_root, space="    ")
 manifest_text = ET.tostring(manifest_root, encoding="unicode", xml_declaration=False)
-manifest.write_text('<?xml version="1.0" encoding="utf-8"?>\\n' + manifest_text + "\\n", encoding="utf-8")
+ET.fromstring(manifest_text)  # Validate serialization before touching the manifest file.
+manifest.write_text('<?xml version="1.0" encoding="utf-8"?>\n' + manifest_text + "\n", encoding="utf-8")
 merged_root = ET.parse(manifest).getroot()
 merged_application = merged_root.find("application")
 for tag, required_names in (
