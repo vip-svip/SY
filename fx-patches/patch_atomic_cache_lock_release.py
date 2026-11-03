@@ -139,23 +139,37 @@ wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" 
     "subscription concurrency test must explain worker failure",
 )
 
-# Record each mock network call separately from the deliberately unsynchronized
-# counter. If the counter says one but the event log has two overlapping starts,
-# the cache lock failed to serialize curl; if it has one start, force/cache mode
-# skipped the second download.
-replace_once(
-    sub_test,
-    'countfile="$TEST_ROOT/count"\n',
-    'countfile="$TEST_ROOT/count"\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\n" "$(date +%s)" "$$" >> "$events"\n',
-    "subscription mock must record each curl start",
-)
-replace_once(
-    sub_test,
-    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\n',
-    'if [ "$out" = \'-\' ]; then printf \'%s\\n\' "$body"; else printf \'%s\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\n" "$(date +%s)" "$$" >> "$events"\n',
-    "subscription mock must record each curl completion",
-)
+# Instrument the subscription concurrency fixture exactly once. The marker
+# prevents the patcher (run in more than one build stage) from appending duplicate
+# START/END events to the mock curl script.
+if "FX_SUBFETCH_CURL_TRACE_V1" not in sub_test.read_text(encoding="utf-8"):
+    replace_once(
+        sub_test,
+        'countfile="$TEST_ROOT/count"\n',
+        'countfile="$TEST_ROOT/count"\n# FX_SUBFETCH_CURL_TRACE_V1\nevents="$TEST_ROOT/curl-events"\nprintf "START|%s|%s\\\\n" "$(date +%s)" "$$" >> "$events"\n',
+        "subscription mock must record each curl start",
+    )
+    replace_once(
+        sub_test,
+        'if [ "$out" = \'-\' ]; then printf \'%s\\\\n\' "$body"; else printf \'%s\\\\n\' "$body" > "$out"; fi\n',
+        'if [ "$out" = \'-\' ]; then printf \'%s\\\\n\' "$body"; else printf \'%s\\\\n\' "$body" > "$out"; fi\nprintf "END|%s|%s\\\\n" "$(date +%s)" "$$" >> "$events"\n',
+        "subscription mock must record each curl completion",
+    )
 
+# Capture the two shell lock paths on failure. This shows whether both workers
+# acquire the per-URL mkdir lock or whether a waiter reclaims a live PID.
+replace_once(
+    sub_test,
+    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" & p1=$!\n',
+    'PS4=\'+[$$] \' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out1" 2> "$T/trace1" & p1=$!\n',
+    "subscription worker A must capture lock trace",
+)
+replace_once(
+    sub_test,
+    'PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" & p2=$!\n',
+    'PS4=\'+[$$] \' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" \'https://example.invalid/rules\' --force > "$T/out2" 2> "$T/trace2" & p2=$!\n',
+    "subscription worker B must capture lock trace",
+)
 # The legacy test uses set -e with bare assertions. When one metadata/lock
 # invariant fails it previously exited with an empty log, so add precise failure
 # output while keeping the same assertions and exit behavior.
@@ -180,7 +194,7 @@ replace_once(
 replace_once(
     sub_test,
     '[ "$(cat "$T/state/count")" -eq 2 ]\n',
-    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
+    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; echo "worker A lock trace:" >&2; cat "$T/trace1" >&2 || :; echo "worker B lock trace:" >&2; cat "$T/trace2" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
     "subscription concurrency test must explain lost or overlapping requests",
 )
 replace_once(
