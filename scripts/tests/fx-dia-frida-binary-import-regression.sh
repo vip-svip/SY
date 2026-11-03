@@ -18,6 +18,11 @@ required = {
     "Root destination directory symlink rejection": 'test -d \\"$d\\" && test ! -L \\"$d\\"',
     "Root source non-symlink validation": 'test -f \\"$src\\" && test ! -L \\"$src\\"',
     "Root destination symlink rejection": 'if [ -L \\"$dst\\" ]',
+    "per-destination import lock": 'lock=\\"$dst.fx-import.lock\\"',
+    "atomic private lock acquisition": 'set -C; printf \'%s\\\\n\' \\"$\\" > \\"$lock\\"',
+    "bounded lock wait": 'frida-import-lock-timeout',
+    "stale lock owner quarantine": 'stale=\\"$lock.stale.$.$lock_wait\\"',
+    "lock release on exit": 'trap cleanup_import 0',
     "hash before atomic replace": 'actual=$(sha256sum \\"$tmp\\"',
     "atomic install": 'mv -f \\"$tmp\\" \\"$dst\\"',
     "final destination non-symlink validation": 'test -f \\"$dst\\" && test ! -L \\"$dst\\"',
@@ -59,16 +64,64 @@ if [ -L "$dst" ] || { [ -e "$dst" ] && [ ! -f "$dst" ]; }; then
   echo unsafe-existing-destination >&2
   exit 73
 fi
-umask 077
-tmp=$(mktemp "$d/.fx-frida-import.XXXXXX")
-[ -n "$tmp" ] && [ -f "$tmp" ] && [ ! -L "$tmp" ]
-cleanup_tmp(){ [ -z "$tmp" ] || rm -f "$tmp"; }
-trap cleanup_tmp 0
+lock="$dst.fx-import.lock"
+lock_held=0
+tmp=
+cleanup_import(){
+  [ -z "$tmp" ] || rm -f "$tmp" 2>/dev/null || :
+  if [ "$lock_held" = 1 ]; then
+    owner=$(cat "$lock" 2>/dev/null || :)
+    if [ "$owner" = "$" ]; then
+      release="$lock.release.$"
+      if [ ! -e "$release" ] && [ ! -L "$release" ] && mv "$lock" "$release" 2>/dev/null; then
+        [ "$(cat "$release" 2>/dev/null || :)" = "$" ] && rm -f "$release" 2>/dev/null || :
+      fi
+    fi
+  fi
+}
+trap cleanup_import 0
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+waited=0
+while :; do
+  if [ ! -L "$lock" ] && [ ! -e "$lock" ]; then
+    if (umask 077; set -C; printf '%s\n' "$" > "$lock") 2>/dev/null; then
+      lock_held=1
+      break
+    fi
+  fi
+  [ ! -L "$lock" ] || exit 74
+  owner=$(cat "$lock" 2>/dev/null || :)
+  case "$owner" in
+    ''|*[!0-9]*) : ;;
+    *)
+      if ! kill -0 "$owner" 2>/dev/null; then
+        owner2=$(cat "$lock" 2>/dev/null || :)
+        if [ "$owner2" = "$owner" ] && ! kill -0 "$owner2" 2>/dev/null; then
+          stale="$lock.stale.$.$waited"
+          if [ ! -e "$stale" ] && [ ! -L "$stale" ] && mv "$lock" "$stale" 2>/dev/null; then
+            moved=$(cat "$stale" 2>/dev/null || :)
+            if [ "$moved" = "$owner" ] && ! kill -0 "$moved" 2>/dev/null; then
+              rm -f "$stale"
+            elif [ ! -e "$lock" ] && [ ! -L "$lock" ]; then
+              mv "$stale" "$lock" 2>/dev/null || :
+            fi
+          fi
+        fi
+      fi
+      ;;
+  esac
+  waited=$((waited+1))
+  [ "$waited" -lt 300 ] || exit 75
+  sleep 0.01
+done
+umask 077
+tmp=$(mktemp "$d/.fx-frida-import.XXXXXX")
+[ -n "$tmp" ] && [ -f "$tmp" ] && [ ! -L "$tmp" ]
 cp "$src" "$tmp"
 chmod 0700 "$tmp"
+sleep 0.2
 actual=$(sha256sum "$tmp" | awk '{print $1}')
 expected=$(sha256sum "$src" | awk '{print $1}')
 [ "$actual" = "$expected" ]
@@ -87,12 +140,13 @@ chmod 0755 "$T/install.sh"
 ln -s "$SENTINEL" "$D/frida-server.fx-import.tmp"
 "$T/install.sh" "$SOURCE_A" "$D/frida-server" & p1=$!
 "$T/install.sh" "$SOURCE_B" "$D/frida-server" & p2=$!
-wait "$p1"
-wait "$p2"
+wait "$p1" || { echo "FAIL: concurrent Frida server import A did not complete" >&2; exit 1; }
+wait "$p2" || { echo "FAIL: concurrent Frida server import B did not complete" >&2; exit 1; }
 if ! cmp -s "$SOURCE_A" "$D/frida-server" && ! cmp -s "$SOURCE_B" "$D/frida-server"; then
   echo "FAIL: concurrent Frida server imports left a partial/corrupted binary" >&2
   exit 1
 fi
+[ ! -e "$D/frida-server.fx-import.lock" ] || { echo "FAIL: per-target import lock leaked" >&2; exit 1; }
 "$T/install.sh" "$SOURCE_A" "$D/frida-inject"
 [ "$(cat "$SENTINEL")" = "keep-original-sentinel" ] || {
   echo "FAIL: predictable import-temp symlink target was modified" >&2
@@ -100,6 +154,11 @@ fi
 }
 cmp -s "$SOURCE_A" "$D/frida-inject" || { echo "FAIL: Frida inject import content mismatch" >&2; exit 1; }
 [ -x "$D/frida-server" ] && [ -x "$D/frida-inject" ] || { echo "FAIL: installed Frida binaries are not executable" >&2; exit 1; }
+# A dead owner PID must be quarantined before the next writer proceeds.
+printf '99999999\n' > "$D/stale-destination.fx-import.lock"
+"$T/install.sh" "$SOURCE_B" "$D/stale-destination"
+cmp -s "$SOURCE_B" "$D/stale-destination" || { echo "FAIL: stale-lock recovery import mismatch" >&2; exit 1; }
+[ ! -e "$D/stale-destination.fx-import.lock" ] || { echo "FAIL: stale per-target import lock was not removed" >&2; exit 1; }
 ln -s "$SENTINEL" "$D/unsafe-destination"
 if "$T/install.sh" "$SOURCE_B" "$D/unsafe-destination" 2>/dev/null; then
   echo "FAIL: Root import accepted a symlink destination" >&2
