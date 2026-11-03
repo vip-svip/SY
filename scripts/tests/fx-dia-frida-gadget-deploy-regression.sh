@@ -85,6 +85,11 @@ for label, needle in {
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
 for label, needle in {
+    "original Dia pre-attach Gadget loading timing": "protected void beforeHookedMethod(MethodHookParam param)",
+    "package-qualified process de-duplication key": 'expectedPackage + "|" + expectedProcess',
+    "process guard uses package-qualified key": "HOOKED_PROCESSES.contains(processKey)",
+    "process reservation uses package-qualified key": "HOOKED_PROCESSES.add(processKey)",
+    "failed load releases package-qualified key": "HOOKED_PROCESSES.remove(processKey)",
     "runtime target path captured before canonicalization": "String nativeLibraryPath = info.nativeLibraryDir;",
     "runtime symlink-component rejection": "hasSymlinkComponent(rawNativeDir)",
     "runtime canonical target constrained to app install path": 'canonicalNativePath.startsWith("/data/app/")',

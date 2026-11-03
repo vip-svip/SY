@@ -259,15 +259,22 @@ public final class FxDiaBackupActivity extends Activity {
             runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())callback.accept(r);});});
     }
     private String rootModuleCommand(){
-        return "PG=/data/adb/privacyguard; test -s \\"$PG/settings.conf\\" || exit 20; "
-                +"base64 \\"$PG/settings.conf\\" | tr -d '\\\\n'";
+        return "PG=/data/adb/privacyguard; test -s \"$PG/settings.conf\" || exit 20; "
+                +"base64 \"$PG/settings.conf\" | tr -d '\\n'";
     }
-        private String rootStellarFilesCommand(){
-        return "DIR=/data/local/tmp/stellar_guard; mkdir -p \\"$DIR\\"; "
+
+    private String rootStellarFilesCommand(){
+        return "DIR=/data/local/tmp/stellar_guard; "
+                +"[ ! -L \"$DIR\" ] || exit 40; "
+                +"[ -d \"$DIR\" ] || exit 0; "
                 +"for f in command_whitelist.txt command_always_allow.txt scope_grants.txt; do "
-                +"touch \\"$DIR/$f\\"; chmod 0600 \\"$DIR/$f\\"; "
-                +"printf 'STELLARFILE|%s|' \\"$f\\"; base64 \\"$DIR/$f\\" | tr -d '\\\\n'; printf '\\n'; done";
+                +"[ ! -L \"$DIR/$f\" ] || exit 41; "
+                +"[ ! -e \"$DIR/$f\" ] || [ -f \"$DIR/$f\" ] || exit 42; "
+                +"if [ -f \"$DIR/$f\" ]; then "
+                +"printf 'STELLARFILE|%s|' \"$f\"; base64 \"$DIR/$f\" | tr -d '\\n'; printf '\\n'; "
+                +"fi; done";
     }
+
     private JSONObject buildBackup(String configBase64,String stellarDump)throws Exception{
         byte[] module=android.util.Base64.decode(configBase64,android.util.Base64.DEFAULT);
         if(module.length>MAX_BACKUP_BYTES/2)throw new IllegalStateException("模块配置超过本地备份大小上限。");

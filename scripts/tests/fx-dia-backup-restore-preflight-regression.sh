@@ -8,6 +8,18 @@ python3 - "$SOURCE" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+slash = chr(92)
+module_reader = source.split("private String rootModuleCommand()", 1)[1].split("private String rootStellarFilesCommand()", 1)[0]
+stellar_reader = source.split("private String rootStellarFilesCommand()", 1)[1].split("private JSONObject buildBackup()", 1)[0]
+for label, body in (("module settings reader", module_reader), ("Stellar state reader", stellar_reader)):
+    assert slash + '"' in body, label + " must use Java-escaped shell quote delimiters"
+    assert slash * 2 + '"' not in body, label + " contains over-escaped shell quotes that break Java compilation"
+    assert "tr -d '" + slash * 2 + "n'" in body, label + " must pass a single literal \\n pattern to tr"
+    assert "tr -d '" + slash * 4 + "n'" not in body, label + " contains an over-escaped newline pattern"
+assert "[ ! -L \\"$DIR\\" ]" in stellar_reader, "Stellar backup must reject a symlinked state directory"
+assert "[ ! -L \\"$DIR/$f\\" ]" in stellar_reader, "Stellar backup must reject symlinked state files"
+assert "[ -d \\"$DIR\\" ] || exit 0" in stellar_reader, "backup must not create empty Stellar state when no directory exists"
+
 assert r'line.split("\\|",3)' in source, "Stellar dump parser must split on a literal pipe delimiter"
 assert r'line.split("\\\\|",3)' not in source, "Stellar dump parser must not split on backslash/empty alternatives"
 assert "STATE_PENDING_EXPORT_FILE" in source, "pending export state key missing"

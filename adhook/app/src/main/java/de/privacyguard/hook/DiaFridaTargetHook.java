@@ -51,6 +51,7 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
         }
         final String expectedPackage = lpp.packageName;
         final String expectedProcess = lpp.processName == null ? expectedPackage : lpp.processName;
+        final String processKey = expectedPackage + "|" + expectedProcess;
         try {
             XposedHelpers.findAndHookMethod(
                     Application.class,
@@ -58,8 +59,8 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
                     Context.class,
                     new XC_MethodHook() {
                         @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            if (HOOKED_PROCESSES.contains(expectedProcess)) return;
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            if (HOOKED_PROCESSES.contains(processKey)) return;
                             if (param.args == null || param.args.length == 0
                                     || !(param.args[0] instanceof Context)) return;
                             Context context = (Context) param.args[0];
@@ -132,13 +133,13 @@ public final class DiaFridaTargetHook implements IXposedHookLoadPackage {
 
                                 // Mark before loading to avoid duplicate System.load attempts if
                                 // application attach callbacks are re-entered by vendor frameworks.
-                                if (!HOOKED_PROCESSES.add(expectedProcess)) return;
+                                if (!HOOKED_PROCESSES.add(processKey)) return;
                                 try {
                                     System.load(gadget.getAbsolutePath());
                                     log("Gadget loaded for " + expectedPackage + " process=" + expectedProcess
                                             + " port=" + record.get("port"));
                                 } catch (Throwable loadError) {
-                                    HOOKED_PROCESSES.remove(expectedProcess);
+                                    HOOKED_PROCESSES.remove(processKey);
                                     log("Gadget load failed for " + expectedPackage + ": " + loadError);
                                 }
                             } catch (Throwable error) {
