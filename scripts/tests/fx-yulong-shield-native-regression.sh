@@ -34,6 +34,15 @@ vpn_services = [
     if node.attrib.get(A + "permission") == "android.permission.BIND_VPN_SERVICE"
 ]
 assert not vpn_services, f"Migration added a second VpnService: {vpn_services}"
+receivers = manifest.findall("./application/receiver")
+install_receiver = next((node for node in receivers
+                         if node.attrib.get(A + "name", "").endswith("FxYulongInstallScanReceiver")), None)
+assert install_receiver is not None, "Yulong install scan receiver is not registered"
+assert install_receiver.attrib.get(A + "exported") == "false", "Install scan receiver must not be externally callable"
+merge_source = (Path(__file__).resolve().parents[2] / "fx-patches/merge_hook_single_apk.py").read_text(encoding="utf-8")
+assert "FX_PRESERVED_MIGRATED_RECEIVERS" in merge_source
+assert "FxYulongInstallScanReceiver" in merge_source
+
 assert not any(p in manifest_text for p in ("com.youlong.hd", "com.youlong.ad", "dialog.box")), \
     "A source APK/package was registered instead of an in-app Activity"
 

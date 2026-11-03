@@ -475,8 +475,11 @@ jobs:
             else
               test_shell="sh"
             fi
+            cp "$test_script" "$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").source.sh"
+            echo "RUN: $(basename "$test_script") (shell=$test_shell)"
             if timeout 35s "$test_shell" "$test_script" >"$log" 2>&1; then
               pass=$((pass + 1))
+              echo "PASS: $(basename "$test_script")"
             else
               rc=$?
               if [[ "$rc" -eq 124 ]]; then
@@ -484,6 +487,7 @@ jobs:
                 echo "::error file=$test_script::Regression timed out after 35 seconds"
               else
                 fail=$((fail + 1))
+                echo "FAIL: $(basename "$test_script") (exit code $rc)"
                 echo "::error file=$test_script::Regression failed with exit code $rc"
               fi
               tail -n 30 "$log" || true
@@ -493,6 +497,14 @@ jobs:
           echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
           echo "pass=$pass fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
           [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
+      - name: Upload host regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FX-host-regression-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/fx-regression-logs
+          if-no-files-found: warn
+          retention-days: 7
       - name: Remove KernelSU WebUI and manual action entrypoints
         shell: bash
         run: |

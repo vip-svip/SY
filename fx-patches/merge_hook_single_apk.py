@@ -182,6 +182,17 @@ retained_activities = [
         activity
     )
 ]
+
+# Keep the FX-owned install-scan receiver. Source APK receivers stay excluded.
+retained_receivers = re.findall(
+    r'(?s)<receiver\b[^>]*?(?:/>|>.*?</receiver>)',
+    m
+)
+retained_receivers = [
+    receiver for receiver in retained_receivers
+    if 'android:name=".imported.shield.FxYulongInstallScanReceiver"' in receiver
+]
+
 m = manifest.read_text(encoding="utf-8").replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"')
 # Replace the complete application element. Cutting at the first "/>" is
 # incorrect once the launcher activity contains a self-closing child element.
@@ -223,13 +234,22 @@ app = """<application
         <meta-data android:name="xposeddescription" android:value="FX unified privacy and ad filtering Hook" />
         <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
         <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->
+        <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->
     </application>"""
 app = app.replace(
     "        <!-- FX_PRESERVED_MIGRATED_ACTIVITIES -->",
     "\n".join(retained_activities)
 )
+app = app.replace(
+    "        <!-- FX_PRESERVED_MIGRATED_RECEIVERS -->",
+    "\n".join(retained_receivers)
+)
 m = m[:app_match.start()] + app + m[app_match.end():]
 manifest.write_text(m, encoding="utf-8")
+merged_manifest = manifest.read_text(encoding="utf-8")
+if 'android:name=".imported.shield.FxYulongInstallScanReceiver"' not in merged_manifest:
+    raise SystemExit("Unified Hook manifest dropped the migrated Yulong install-scan receiver")
+
 
 # Align the archived APK regression with the single app's explicit FX Hook label.
 apk_regression = fx / "scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh"
