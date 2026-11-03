@@ -45,8 +45,12 @@ stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
 if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
-if "Runtime.exec" in attach or "sh -c" in attach:
-    raise SystemExit("FAIL: Frida attach must use the bounded RootAccess command bridge")
+if "Runtime.exec" in attach:
+    raise SystemExit("FAIL: Frida attach must not bypass the bounded RootAccess command bridge")
+if "runRoot(command, 20000L" not in attach:
+    raise SystemExit("FAIL: persistent Gadget command must use the bounded RootAccess worker")
+if "nohup sh -c 'while kill -0 " not in attach or "fx-gadget-feed-$port" not in attach:
+    raise SystemExit("FAIL: FIFO feeder must be the fixed CLI-PID-bound helper, not a user-controlled shell payload")
 if 'kill "$cli_pid"' not in stop or 'kill "$feed_pid"' not in stop:
     raise SystemExit("FAIL: session stop must terminate both owned processes")
 if "FX_GADGET_CLI_PID_CONFLICT" not in stop or "FX_GADGET_FEEDER_PID_CONFLICT" not in stop:
