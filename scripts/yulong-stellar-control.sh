@@ -89,6 +89,17 @@ appops_action(){
   chmod 0600 "$DIR/action.log" 2>/dev/null || :
   echo "success=1 package=$pkg appop=$operation mode=$mode"
 }
+restore_secure_setting(){
+  _restore_key="$1"; _restore_value="$2"
+  if [ "$_restore_value" = "null" ]; then
+    settings delete secure "$_restore_key" >/dev/null 2>&1 || return 1
+  else
+    settings put secure "$_restore_key" "$_restore_value" >/dev/null 2>&1 || return 1
+  fi
+  _restored_value="$(settings get secure "$_restore_key" 2>/dev/null)" || return 1
+  [ -n "$_restored_value" ] || _restored_value=null
+  [ "$_restored_value" = "$_restore_value" ]
+}
 secure_setting_action(){
   pkg="$1"; key="$2"; value="$3"
   valid_pkg "$pkg" || { echo "invalid target package" >&2; return 2; }
@@ -107,9 +118,29 @@ secure_setting_action(){
       return 2
       ;;
   esac
-  settings put secure "$key" "$value" || return $?
+  if ! previous="$(settings get secure "$key" 2>/dev/null)"; then
+    echo "secure setting prior value could not be read; no write was attempted" >&2
+    return 5
+  fi
+  [ -n "$previous" ] || previous=null
+
+  if ! settings put secure "$key" "$value"; then
+    if restore_secure_setting "$key" "$previous"; then
+      echo "secure setting write failed; previous value was restored" >&2
+      return 6
+    fi
+    echo "secure setting write failed and previous value rollback could not be verified" >&2
+    return 8
+  fi
   actual="$(settings get secure "$key" 2>/dev/null || true)"
-  [ "$actual" = "$value" ] || { echo "secure setting write could not be confirmed" >&2; return 7; }
+  if [ "$actual" != "$value" ]; then
+    if restore_secure_setting "$key" "$previous"; then
+      echo "secure setting write could not be confirmed; previous value was restored" >&2
+      return 7
+    fi
+    echo "secure setting write could not be confirmed and rollback failed" >&2
+    return 8
+  fi
   printf '[%s] secure-setting %s=%s by %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$key" "$value" "$pkg" >> "$DIR/action.log"
   chmod 0600 "$DIR/action.log" 2>/dev/null || :
   echo "success=1 package=$pkg secure_setting=$key value=$actual"

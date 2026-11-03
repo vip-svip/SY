@@ -44,14 +44,29 @@ set -eu
 case "$1:$2" in
   put:secure)
     [ "$#" -eq 4 ] || exit 2
+    write_value="$4"
+    if [ -n "\${MOCK_SETTINGS_CORRUPT_REQUEST:-}" ] \
+        && [ "$4" = "$MOCK_SETTINGS_CORRUPT_REQUEST" ]; then
+      write_value=mock-corrupted
+    fi
     tmp="$SETTINGS_STORE.tmp.$"
     awk -F= -v key="$3" '$1!=key{print}' "$SETTINGS_STORE" > "$tmp"
-    printf '%s=%s\n' "$3" "$4" >> "$tmp"
+    printf '%s=%s\n' "$3" "$write_value" >> "$tmp"
     mv "$tmp" "$SETTINGS_STORE"
+    if [ -n "\${MOCK_SETTINGS_FAIL_AFTER_WRITE:-}" ] \
+        && [ "$4" = "$MOCK_SETTINGS_FAIL_AFTER_WRITE" ]; then
+      exit 9
+    fi
     ;;
   get:secure)
     [ "$#" -eq 3 ] || exit 2
     awk -F= -v key="$3" '$1==key{v=$2} END{if(v=="") print "null"; else print v}' "$SETTINGS_STORE"
+    ;;
+  delete:secure)
+    [ "$#" -eq 3 ] || exit 2
+    tmp="$SETTINGS_STORE.tmp.$"
+    awk -F= -v key="$3" '$1!=key{print}' "$SETTINGS_STORE" > "$tmp"
+    mv "$tmp" "$SETTINGS_STORE"
     ;;
   *) exit 2 ;;
 esac
@@ -66,6 +81,25 @@ run scope-set "$PKG" SECURE_SETTINGS_WRITE 1
 secure_result=$(run secure-setting "$PKG" show_ime_with_hard_keyboard 1)
 printf '%s\\n' "$secure_result" | grep -Fq 'success=1 package=com.example.stellarclient secure_setting=show_ime_with_hard_keyboard value=1' || fail "secure-setting write was not confirmed"
 [ "$(settings get secure show_ime_with_hard_keyboard)" = 1 ] || fail "mock Android setting did not retain the written value"
+
+# A backend command can mutate Android's setting and still return failure.
+# FX must restore the exact pre-write value rather than leave a half-applied change.
+if MOCK_SETTINGS_FAIL_AFTER_WRITE=0 sh "$TMP/control.sh" secure-setting "$PKG" show_ime_with_hard_keyboard 0 >/dev/null 2>&1; then
+  fail "Stellar accepted a settings put that returned failure after mutation"
+fi
+[ "$(settings get secure show_ime_with_hard_keyboard)" = 1 ] || fail "failed settings put did not restore the previous value"
+
+# A successful command with an incorrect read-back must also roll back.
+if MOCK_SETTINGS_CORRUPT_REQUEST=0 sh "$TMP/control.sh" secure-setting "$PKG" show_ime_with_hard_keyboard 0 >/dev/null 2>&1; then
+  fail "Stellar accepted a settings value that did not match the requested value"
+fi
+[ "$(settings get secure show_ime_with_hard_keyboard)" = 1 ] || fail "read-back mismatch did not restore the previous value"
+
+# A failed write to a previously absent setting must delete the partial value.
+if MOCK_SETTINGS_FAIL_AFTER_WRITE=1 sh "$TMP/control.sh" secure-setting "$PKG" screensaver_enabled 1 >/dev/null 2>&1; then
+  fail "Stellar accepted a failed write to a previously absent setting"
+fi
+[ "$(settings get secure screensaver_enabled)" = null ] || fail "rollback did not restore an initially absent setting"
 if run secure-setting "$PKG" adb_enabled 1 >/dev/null 2>&1; then
   fail "secure-setting key outside the fixed allowlist was accepted"
 fi
@@ -115,4 +149,4 @@ ln -s "$TMP/victim" "$TMP/file-target/command_whitelist.txt"
 sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/file-target|" "$SOURCE" > "$TMP/file-link.sh"
 if sh "$TMP/file-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar state file was accepted"; fi
 grep -Fxq preserve-me "$TMP/victim" || fail "symlink target content was changed"
-echo "PASS: Stellar package/scope storage, SECURE_SETTINGS_WRITE gate/readback, symlink rejection and rollback-safe locks"
+echo "PASS: Stellar package/scope storage, SECURE_SETTINGS_WRITE gate/readback/rollback, symlink rejection and rollback-safe locks"
