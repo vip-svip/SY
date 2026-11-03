@@ -169,10 +169,17 @@ public final class FxDiaFridaActivity extends Activity {
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
         warning.setPadding(dp(16), dp(6), dp(16), dp(14));
         card(body, "Dia 开发监控模板",
-                "仅对可调试测试应用启用。HTTP 模板只记录主机名，SQLite 模板只记录调用类型/长度/耗时；内存快照会包含进程私有内存，请只对自有测试应用使用。",
+                "仅对可调试测试应用启用。Intent/View/Fragment/线程模板只记录类型、类名、资源 ID 和耗时，不读取文本、参数值、Intent extras 或命令内容；内存快照会包含进程私有内存，请只对自有测试应用使用。",
                 button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
                 button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
                 button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
+                button("载入 Intent 调用观察", () -> loadDiaMonitorTemplate("intent")),
+                button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
+                button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
+                button("载入 Fragment 生命周期观察", () -> loadDiaMonitorTemplate("fragment")),
+                button("载入线程/启动调用栈观察", () -> loadDiaMonitorTemplate("thread")),
+                button("载入 Activity 调用栈观察", () -> loadDiaMonitorTemplate("stack")),
+                button("载入 Runtime/Process 启动观察", () -> loadDiaMonitorTemplate("runtime")),
                 button("载入 HPROF 内存快照模板", () -> loadDiaMonitorTemplate("memory")));
         body.addView(warning);
     }
@@ -390,6 +397,104 @@ public final class FxDiaFridaActivity extends Activity {
                         + "      return result;\\n"
                         + "    };\\n"
                         + "  });\\n"
+                        + "});";
+                break;
+            case "intent":
+                source = "Java.perform(function () {\\n"
+                        + "  var Activity = Java.use('android.app.Activity');\\n"
+                        + "  var start = Activity.startActivity.overload('android.content.Intent');\\n"
+                        + "  start.implementation = function (intent) {\\n"
+                        + "    var action = ''; var component = '';\\n"
+                        + "    try { action = String(intent.getAction() || ''); } catch (_) {}\\n"
+                        + "    try { var c = intent.getComponent(); if (c !== null) component = String(c.flattenToShortString()); } catch (_) {}\\n"
+                        + "    send('[DIA_INTENT] startActivity action=' + action + ' component=' + component);\\n"
+                        + "    return start.call(this, intent);\\n"
+                        + "  };\\n"
+                        + "  var startForResult = Activity.startActivityForResult.overload('android.content.Intent', 'int');\\n"
+                        + "  startForResult.implementation = function (intent, requestCode) {\\n"
+                        + "    var action = ''; try { action = String(intent.getAction() || ''); } catch (_) {}\\n"
+                        + "    send('[DIA_INTENT] startActivityForResult action=' + action + ' requestCode=' + requestCode);\\n"
+                        + "    return startForResult.call(this, intent, requestCode);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "click":
+                source = "Java.perform(function () {\\n"
+                        + "  var View = Java.use('android.view.View');\\n"
+                        + "  var click = View.performClick.overload();\\n"
+                        + "  click.implementation = function () {\\n"
+                        + "    var cls = ''; var id = -1;\\n"
+                        + "    try { cls = String(this.getClass().getName()); } catch (_) {}\\n"
+                        + "    try { id = this.getId(); } catch (_) {}\\n"
+                        + "    send('[DIA_CLICK] view=' + cls + ' id=' + id);\\n"
+                        + "    return click.call(this);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "viewgroup":
+                source = "Java.perform(function () {\\n"
+                        + "  var Group = Java.use('android.view.ViewGroup');\\n"
+                        + "  var add = Group.addView.overload('android.view.View');\\n"
+                        + "  add.implementation = function (child) {\\n"
+                        + "    var parentName = ''; var childName = ''; var id = -1;\\n"
+                        + "    try { parentName = String(this.getClass().getName()); } catch (_) {}\\n"
+                        + "    try { childName = String(child.getClass().getName()); id = child.getId(); } catch (_) {}\\n"
+                        + "    send('[DIA_VIEWGROUP] add parent=' + parentName + ' child=' + childName + ' id=' + id);\\n"
+                        + "    return add.call(this, child);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "fragment":
+                source = "Java.perform(function () {\\n"
+                        + "  function hookFragment(name) {\\n"
+                        + "    try { var F = Java.use(name); var resume = F.onResume.overload();\\n"
+                        + "      resume.implementation = function () { send('[DIA_FRAGMENT] onResume ' + name); return resume.call(this); };\\n"
+                        + "    } catch (e) { send('[DIA_FRAGMENT] unavailable ' + name); }\\n"
+                        + "  }\\n"
+                        + "  hookFragment('android.app.Fragment');\\n"
+                        + "  hookFragment('androidx.fragment.app.Fragment');\\n"
+                        + "  hookFragment('android.support.v4.app.Fragment');\\n"
+                        + "});";
+                break;
+            case "thread":
+                source = "Java.perform(function () {\\n"
+                        + "  var Thread = Java.use('java.lang.Thread');\\n"
+                        + "  var start = Thread.start.overload();\\n"
+                        + "  start.implementation = function () {\\n"
+                        + "    var name = ''; try { name = String(this.getName()); } catch (_) {}\\n"
+                        + "    send('[DIA_THREAD] start name=' + name + ' class=' + String(this.getClass().getName()));\\n"
+                        + "    return start.call(this);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "stack":
+                source = "Java.perform(function () {\\n"
+                        + "  var Activity = Java.use('android.app.Activity');\\n"
+                        + "  var resume = Activity.onResume.overload();\\n"
+                        + "  resume.implementation = function () {\\n"
+                        + "    var name = ''; try { name = String(this.getClass().getName()); } catch (_) {}\\n"
+                        + "    var frames = Java.use('java.lang.Thread').currentThread().getStackTrace();\\n"
+                        + "    var out = [];\\n"
+                        + "    for (var i = 0; i < frames.length && i < 8; i++) out.push(String(frames[i].getClassName()) + '.' + String(frames[i].getMethodName()));\\n"
+                        + "    send('[DIA_STACK] Activity.onResume ' + name + ' frames=' + out.join(' <- '));\\n"
+                        + "    return resume.call(this);\\n"
+                        + "  };\\n"
+                        + "});";
+                break;
+            case "runtime":
+                source = "Java.perform(function () {\\n"
+                        + "  var Runtime = Java.use('java.lang.Runtime');\\n"
+                        + "  var exec = Runtime.exec.overload('java.lang.String');\\n"
+                        + "  exec.implementation = function (command) {\\n"
+                        + "    send('[DIA_RUNTIME] Runtime.exec invoked; command content omitted');\\n"
+                        + "    return exec.call(this, command);\\n"
+                        + "  };\\n"
+                        + "  var Builder = Java.use('java.lang.ProcessBuilder');\\n"
+                        + "  var start = Builder.start.overload();\\n"
+                        + "  start.implementation = function () {\\n"
+                        + "    send('[DIA_RUNTIME] ProcessBuilder.start invoked; arguments omitted');\\n"
+                        + "    return start.call(this);\\n"
+                        + "  };\\n"
                         + "});";
                 break;
             case "memory":
