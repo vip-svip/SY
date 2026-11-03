@@ -20,7 +20,7 @@ public final class FxYulongAdTileService extends TileService {
     private int readState() {
         RootAccess.Result r=RootAccess.execute(command("list"),30000L,128*1024);
         if(r.exitCode!=0||r.output==null)return Tile.STATE_UNAVAILABLE;
-        for(String line:r.output.split("\\\\r?\\\\n"))
+        for(String line:r.output.split("\\r?\\n"))
             if(line.startsWith("AD_MASTER|"))return line.endsWith("|1")?Tile.STATE_ACTIVE:Tile.STATE_INACTIVE;
         return Tile.STATE_INACTIVE;
     }

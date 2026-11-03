@@ -119,8 +119,8 @@ private void loadDnsLists(EditText custom,EditText global,EditText remote,EditTe
     if(r.exitCode!=0){status.setText("DNS 地址读取失败："+safe(r.output));return;}
     List<String> a=new ArrayList<>(),b=new ArrayList<>();
     String remoteValue="1.1.1.1",cnValue="223.5.5.5";
-    for(String line:r.output.split("\\\\r?\\\\n")){
-      String[] p=line.split("\\\\|",-1);
+    for(String line:r.output.split("\\r?\\n")){
+      String[] p=line.split("\\|",-1);
       if(p.length==2&&"CUSTOM".equals(p[0]))a.add(p[1]);
       else if(p.length==2&&"GLOBAL".equals(p[0]))b.add(p[1]);
       else if(p.length==2&&"VPN_REMOTE".equals(p[0])&&!p[1].isEmpty())remoteValue=p[1];
@@ -188,7 +188,7 @@ private void saveVpnDns(String key,EditText input){
   root("schedule-get",r->{
     if(r.exitCode!=0){state.setText("读取失败："+safe(r.output));return;}
     String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1",watcher="0";
-    for(String line:r.output.split("\\\\r?\\\\n")){
+    for(String line:r.output.split("\\r?\\n")){
       int pos=line.indexOf('=');if(pos<0)continue;
       String key=line.substring(0,pos),value=line.substring(pos+1);
       if("enabled".equals(key))en=value;
@@ -231,7 +231,7 @@ private void saveVpnDns(String key,EditText input){
 }
 private boolean adMaster(){
   for(String line:snapshot.split("\\r?\\n")){
-   String[] p=line.split("\\\\|",-1);
+   String[] p=line.split("\\|",-1);
    if(p.length==2&&p[0].equals("AD_MASTER"))return p[1].equals("1");
   }
   return true;
