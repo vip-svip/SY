@@ -2683,9 +2683,13 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                             .putExtra("dia_page", page));
                     return;
-                case "本地备份": case "GitHub 备份": case "WebDAV 备份":
+                case "本地备份":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
+                    return;
+                case "GitHub 备份": case "WebDAV 备份":
                     showImportedSuitePendingPage(suite, category, page,
-                            "Dia 原版备份适配器尚未迁入；不会把 FX 的模块日志或设置导出冒充 GitHub/WebDAV 备份。");
+                            "当前已迁入本地完整 JSON 备份/恢复；GitHub 与 WebDAV 远程适配器仍待迁入，未伪装为已完成。");
                     return;
                 case "Dex 查找与解析":
                     startActivity(new Intent(this,
