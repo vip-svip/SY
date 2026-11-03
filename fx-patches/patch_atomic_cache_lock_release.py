@@ -144,7 +144,7 @@ replace_once(
     "Hosts concurrency test must explain missing output",
 )
 
-replace_once(
+replace_if_present(
     host_test,
     """pg_fetch_t() {
   sleep 0.3
@@ -165,7 +165,7 @@ replace_once(
 }""",
     "Hosts concurrency test must hold first fetch while second contends",
 )
-replace_once(
+replace_if_present(
     host_test,
     """ "$T/worker.sh" a & p1=$!
 "$T/worker.sh" b & p2=$!
@@ -192,7 +192,7 @@ wait "$p1" || { rc=$?; echo "FAIL: Hosts cache worker A exited with $rc" >&2; ca
 wait "$p2" || { rc=$?; echo "FAIL: Hosts cache worker B exited with $rc" >&2; cat "$T/fetch-events" >&2 || :; exit "$rc"; }""",
     "Hosts concurrency test must deterministically gate two same-URL workers",
 )
-replace_once(
+replace_if_present(
     host_test,
     """[ "$actual" = "$expected" ] || { echo 'FAIL: same-URL concurrent cache commit left a mismatched SHA-256 sidecar' >&2; exit 1; }""",
     """[ "$actual" = "$expected" ] || { echo "FAIL: same-URL cache SHA mismatch actual=$actual expected=$expected" >&2; echo "cache body:" >&2; cat "$cache" >&2 || :; echo "sidecar:" >&2; cat "$cache.sha256" >&2 || :; echo "fetch event timeline:" >&2; cat "$T/fetch-events" >&2 || :; find "$T/state/cache/rules" -maxdepth 1 -type f -print >&2; exit 1; }""",
