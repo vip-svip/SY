@@ -141,10 +141,10 @@ chmod 0755 "$T/install.sh"
 # same-directory mktemp path must not follow it or modify the target. Two writers
 # then race to install the same target; the final file must be one complete input.
 ln -s "$SENTINEL" "$D/frida-server.fx-import.tmp"
-"$T/install.sh" "$SOURCE_A" "$D/frida-server" & p1=$!
-"$T/install.sh" "$SOURCE_B" "$D/frida-server" & p2=$!
-wait "$p1" || { echo "FAIL: concurrent Frida server import A did not complete" >&2; exit 1; }
-wait "$p2" || { echo "FAIL: concurrent Frida server import B did not complete" >&2; exit 1; }
+"$T/install.sh" "$SOURCE_A" "$D/frida-server" >"$T/import-a.log" 2>&1 & p1=$!
+"$T/install.sh" "$SOURCE_B" "$D/frida-server" >"$T/import-b.log" 2>&1 & p2=$!
+wait "$p1" || { rc=$?; echo "FAIL: concurrent Frida server import A exited $rc" >&2; cat "$T/import-a.log" "$T/import-b.log" >&2; ls -la "$D" >&2; exit "$rc"; }
+wait "$p2" || { rc=$?; echo "FAIL: concurrent Frida server import B exited $rc" >&2; cat "$T/import-a.log" "$T/import-b.log" >&2; ls -la "$D" >&2; exit "$rc"; }
 if ! cmp -s "$SOURCE_A" "$D/frida-server" && ! cmp -s "$SOURCE_B" "$D/frida-server"; then
   echo "FAIL: concurrent Frida server imports left a partial/corrupted binary" >&2
   exit 1
