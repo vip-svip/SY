@@ -21,6 +21,11 @@ import android.widget.TextView;
  * can be migrated and verified.
  */
 public final class FxDiaSystemExpandActivity extends Activity {
+    // Original Dia 23.11 res/xml/system_expand_setting.xml keys.
+    private static final String[] ORIGINAL_SETTING_KEYS = {
+            "switchModule", "ro_debuggable", "wifi_proxy",
+            "allowed_install_from_unknown_source", "restart_package_installer"
+    };
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
