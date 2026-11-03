@@ -95,6 +95,10 @@ public final class FxYulongShieldActivity extends Activity {
         card("管控应用列表",
                 "保留原版应用选择、批量加入、移除与清空确认流程；后台自动拦截服务尚未迁入。",
                 action("打开管控列表", () -> startActivity(new Intent(this, BlacklistActivity.class))));
+        card("Stellar 金龙权限管理",
+                "保留原版 roro.stellar.manager 命令授权、逐应用能力作用域和始终允许清单；此页面属于安全护盾内部，不新增 FX 主导航标签。",
+                action("打开 Stellar 特权管理", () -> startActivity(new Intent(this,
+                        roro.stellar.manager.authorization.FxStellarManagerActivity.class))));
         android.content.SharedPreferences shieldPrefs =
                 getSharedPreferences("shield_prefs", MODE_PRIVATE);
         android.widget.Switch installScan = new android.widget.Switch(this);

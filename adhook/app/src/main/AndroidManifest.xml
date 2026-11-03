@@ -45,6 +45,7 @@
                 android:value="用户主动开启的前台应用管控名单提醒服务；仅读取前台应用包名并发出通知" />
         </service>
         <activity android:name=".imported.shield.FxYulongShieldActivity" android:exported="false" />
+        <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
         <activity android:name=".imported.shield.WhitelistActivity" android:exported="false" />
         <activity android:name=".imported.shield.WhitelistPickerActivity" android:exported="false" />
         <activity android:name=".imported.shield.BlacklistActivity" android:exported="false" />
