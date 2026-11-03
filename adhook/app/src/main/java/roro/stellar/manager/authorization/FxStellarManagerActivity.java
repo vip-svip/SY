@@ -17,17 +17,27 @@ import android.widget.TextView;
 import de.privacyguard.adhook.RootAccess;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Stellar authorization manager retained inside Yulong Shield in the single FX APK. */
 public final class FxStellarManagerActivity extends Activity {
- private final ExecutorService worker=Executors.newSingleThreadExecutor();
+ // Root operations are serialized, but a bounded queue prevents rapid UI actions
+ // from accumulating an unbounded number of long-running su processes.
+ private final ThreadPoolExecutor worker=new ThreadPoolExecutor(
+   1,1,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(16),r->{
+     Thread thread=new Thread(r,"fx-stellar-root");thread.setDaemon(true);return thread;
+   },new ThreadPoolExecutor.AbortPolicy());
  private final List<ApplicationInfo> apps=new ArrayList<>();
+ private final Map<String,String> appLabels=new HashMap<>();
  private final Set<String> packages=new HashSet<>(), scopes=new HashSet<>(), always=new HashSet<>();
  private String target="";
  private LinearLayout body;
@@ -43,16 +53,67 @@ public final class FxStellarManagerActivity extends Activity {
     + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
     + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-stellar-control.sh\" " + args;
  }
- private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){worker.execute(()->{RootAccess.Result r=RootAccess.execute(command(args),60000L,256*1024);runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())cb.accept(r);});});}
- private String appLabel(String pkg){try{return String.valueOf(getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)));}catch(Throwable ignored){return pkg;}}
+ private boolean activityAlive(){return !isFinishing()&&!isDestroyed();}
+ private void deliver(java.util.function.Consumer<RootAccess.Result> cb,RootAccess.Result result){
+  runOnUiThread(()->{if(activityAlive())cb.accept(result);});
+ }
+ private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
+  try{
+   worker.execute(()->deliver(cb,RootAccess.execute(command(args),60000L,256*1024)));
+  }catch(RejectedExecutionException full){
+   deliver(cb,RootAccess.failure(75,"Stellar 操作队列已满；本次操作未执行，请等待现有任务完成后重试。"));
+  }
+ }
+ private String appLabel(String pkg){String label=appLabels.get(pkg);return label==null||label.isEmpty()?pkg:label;}
+ private void loadApplications(){
+  try{
+   worker.execute(()->{
+    List<ApplicationInfo> loaded=new ArrayList<>();
+    Map<String,String> labels=new HashMap<>();
+    String error=null;
+    try{
+     PackageManager pm=getPackageManager();
+     loaded.addAll(pm.getInstalledApplications(0));
+     loaded.removeIf(a->a.packageName==null||a.packageName.equals(getPackageName()));
+     for(ApplicationInfo app:loaded){
+      try{labels.put(app.packageName,String.valueOf(pm.getApplicationLabel(app)));}
+      catch(RuntimeException ignored){labels.put(app.packageName,app.packageName);}
+     }
+     loaded.sort(Comparator.comparing(a->labels.getOrDefault(a.packageName,a.packageName).toLowerCase(Locale.ROOT)));
+    }catch(RuntimeException failure){error=failure.getClass().getSimpleName()+": "+failure.getMessage();}
+    final String loadError=error;
+    runOnUiThread(()->{
+     if(!activityAlive())return;
+     apps.clear();apps.addAll(loaded);appLabels.clear();appLabels.putAll(labels);
+     if(!target.isEmpty()&&!appLabels.containsKey(target))target="";
+     updateTargetLabel();
+     if(loadError!=null)state.setText("安装应用清单读取失败："+loadError);
+     else state.setText("应用清单已加载 · "+apps.size()+" 个可选应用");
+     bind();
+    });
+   });
+  }catch(RejectedExecutionException full){
+   if(activityAlive())state.setText("应用清单任务队列已满，暂时无法加载。");
+  }
+ }
+ private void updateTargetLabel(){
+  if(selectedLabel!=null)selectedLabel.setText(target.isEmpty()
+    ?"当前目标应用：未选择":"当前目标应用："+appLabel(target)+" · "+target);
+ }
  @Override protected void onCreate(Bundle saved){
   super.onCreate(saved);
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);
   LinearLayout head=new LinearLayout(this);head.setPadding(dp(10),dp(6),dp(10),dp(6));
   head.addView(button("‹ 返回安全护盾",this::finish));head.addView(text("Stellar 特权管理",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(head);
   ScrollView scroll=new ScrollView(this);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(20));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
-  try{apps.addAll(getPackageManager().getInstalledApplications(0));apps.removeIf(a->a.packageName==null||a.packageName.equals(getPackageName()));apps.sort(Comparator.comparing(a->appLabel(a.packageName).toLowerCase(Locale.ROOT)));}catch(Throwable ignored){}
-  render();refresh();
+  if(saved!=null)target=saved.getString("stellar_target_package","");
+  render();
+  loadApplications();
+  refresh();
+ }
+ @Override protected void onSaveInstanceState(Bundle out){
+  out.putString("stellar_target_package",target);
+  super.onSaveInstanceState(out);
  }
  private void render(){
   body.removeAllViews();
@@ -165,10 +226,15 @@ public final class FxStellarManagerActivity extends Activity {
   body.addView(sw);
  }
  private void chooseTarget(){
-  if(apps.isEmpty())return;
+  if(apps.isEmpty()){
+   if(state!=null)state.setText("应用清单仍在加载，或系统当前没有可授权的其他应用。");
+   return;
+  }
   String[] labels=new String[apps.size()];int selected=0;
   for(int i=0;i<apps.size();i++){labels[i]=appLabel(apps.get(i).packageName)+"\n"+apps.get(i).packageName;if(apps.get(i).packageName.equals(target))selected=i;}
-  new AlertDialog.Builder(this).setTitle("选择 Stellar 目标应用").setSingleChoiceItems(labels,selected,(d,w)->{target=apps.get(w).packageName;d.dismiss();if(selectedLabel!=null)selectedLabel.setText("当前目标应用："+appLabel(target)+" · "+target);bind();}).setNegativeButton("关闭",null).show();
+  new AlertDialog.Builder(this).setTitle("选择 Stellar 目标应用").setSingleChoiceItems(labels,selected,(d,w)->{
+    target=apps.get(w).packageName;d.dismiss();updateTargetLabel();bind();
+  }).setNegativeButton("关闭",null).show();
  }
  private void bind(){
   syncing=true;
