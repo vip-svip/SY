@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -34,6 +35,11 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/fx_accessibility_service" />
+        </service>
+        <service android:name=".imported.shield.FxYulongRescueOverlayService"
+            android:enabled="true" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="用户主动开启的 FX 安全护盾悬浮救援入口" />
         </service>
         <service
             android:name=".imported.shield.FxYulongProtectionService"

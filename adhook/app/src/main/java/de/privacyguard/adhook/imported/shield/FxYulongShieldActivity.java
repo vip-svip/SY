@@ -179,7 +179,39 @@ public final class FxYulongShieldActivity extends Activity {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
                     catch (Throwable ignored) { }
                 }));
-        android.widget.Switch volumeTrigger = new android.widget.Switch(this);
+                android.widget.Switch overlayRescue = new android.widget.Switch(this);
+        overlayRescue.setText("显示浮动救援入口");
+        overlayRescue.setChecked(shieldPrefs.getBoolean("overlay_rescue_on", false));
+        overlayRescue.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled && !android.provider.Settings.canDrawOverlays(this)) {
+                button.setChecked(false);
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("需要悬浮窗权限")
+                        .setMessage("FX 只显示可点击的救援入口；不会读取其他应用界面、自动点击或遮挡输入框。请手动授权。")
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("打开设置", (d, w) -> {
+                            try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:" + getPackageName()))); }
+                            catch (Throwable ignored) { }
+                        }).show();
+                return;
+            }
+            shieldPrefs.edit().putBoolean("overlay_rescue_on", enabled).apply();
+            Intent overlay = new Intent(this, FxYulongRescueOverlayService.class);
+            if (enabled) {
+                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(overlay);
+                else startService(overlay);
+            } else stopService(overlay);
+        });
+        card("悬浮救援入口",
+                "用户主动开启后在屏幕边缘显示小型 FX 入口；点击可返回安全护盾，不会自动操作其他应用。",
+                overlayRescue,
+                action("打开悬浮窗权限设置", () -> {
+                    try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:" + getPackageName()))); }
+                    catch (Throwable ignored) { }
+                }));
+android.widget.Switch volumeTrigger = new android.widget.Switch(this);
         volumeTrigger.setText("音量上键连续触发救援提醒（需启用 FX 无障碍服务）");
         volumeTrigger.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
         volumeTrigger.setOnCheckedChangeListener((button, enabled) -> {
