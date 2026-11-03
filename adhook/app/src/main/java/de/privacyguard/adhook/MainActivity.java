@@ -2688,8 +2688,8 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
                     return;
                 case "GitHub 备份": case "WebDAV 备份":
-                    showImportedSuitePendingPage(suite, category, page,
-                            "当前已迁入本地完整 JSON 备份/恢复；GitHub 与 WebDAV 远程适配器仍待迁入，未伪装为已完成。");
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
                     return;
                 case "Dex 查找与解析":
                     startActivity(new Intent(this,
