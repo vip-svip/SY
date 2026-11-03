@@ -1757,7 +1757,11 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("端口必须在 1024–65535 范围内。");
             return;
         }
-        if (port == 27042) {\n            setStatus("端口 27042 已由 FX frida-server 保留；Gadget 请使用 27043 或其他未占用端口。");\n            return;\n        }\n        boolean wait = gadgetLoadMode != null
+        if (port == 27042) {
+            setStatus("端口 27042 已由 FX frida-server 保留；Gadget 请使用 27043 或其他未占用端口。");
+            return;
+        }
+        boolean wait = gadgetLoadMode != null
                 && gadgetLoadMode.getCheckedRadioButtonId()
                 == gadgetLoadMode.getChildAt(0).getId();
 
