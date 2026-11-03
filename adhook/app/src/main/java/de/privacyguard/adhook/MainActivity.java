@@ -2749,7 +2749,7 @@ public final class MainActivity extends ComponentActivity {
             {"规则与数据", "规则组", "规则列表", "运行日志", "本地备份", "GitHub 备份", "WebDAV 备份", "全局设置"}
         };
         if ("yulong-shield".equals(suite)) return new String[][] {
-            {"安全中心", "安全护盾首页", "防护级别", "防护状态", "实时守护", "每日安全总结"},
+            {"安全中心", "安全护盾首页", "防护级别", "防护状态", "实时守护", "每日安全总结", "屏幕滤镜"},
             {"病毒库与名单", "病毒库管理", "病毒库同步", "白名单管理", "管控应用列表"},
             {"应用扫描", "已安装应用扫描", "安装后自动检测", "APK 内容特征扫描", "扫描结果"},
             {"Stellar 金龙", "Stellar 特权管理", "应用授权", "能力作用域", "始终允许命令"},
@@ -2893,6 +2893,10 @@ public final class MainActivity extends ComponentActivity {
         }
         if ("yulong-shield".equals(suite)) {
             switch (page) {
+                case "屏幕滤镜":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongScreenFilterActivity.class));
+                    return;
                 case "安全护盾首页": case "防护级别": case "防护状态":
                 case "实时守护": case "悬浮救援入口":
                 case "音量键触发": case "摇动触发": case "开机恢复":
