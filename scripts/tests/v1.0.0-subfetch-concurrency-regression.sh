@@ -54,7 +54,14 @@ n=0
 [ ! -f "$countfile" ] || n=$(cat "$countfile")
 n=$((n + 1))
 printf '%s\n' "$n" > "$countfile"
-sleep 1
+# Hold the first mock transfer open until the parent has checked whether a
+# second curl entered the same URL while the first transfer still owns the lock.
+_wait=0
+while [ ! -f "$TEST_ROOT/release-curl" ] && [ "$_wait" -lt 300 ]; do
+  _wait=$((_wait+1))
+  sleep 0.02
+done
+[ -f "$TEST_ROOT/release-curl" ] || { echo "mock curl release gate timed out" >&2; exit 70; }
 if [ "$n" -eq 1 ]; then
   body='vless://123e4567-e89b-12d3-a456-426614174000@edge-one.example:443?encryption=none#one'
 else
@@ -77,6 +84,25 @@ PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out1" 2> "$T
 p1=$!
 PG="$T/state" sh "$MODULE/scripts/subfetch.sh" "$URL" --force > "$T/out2" 2> "$T/err2" &
 p2=$!
+
+# Wait for the first request to enter the mock curl, then deliberately keep it
+# blocked. A correct per-URL lock permits exactly one START until release.
+_attempt=0
+while [ ! -s "$T/state/curl-events" ] && [ "$_attempt" -lt 100 ]; do
+  _attempt=$((_attempt+1))
+  sleep 0.02
+done
+sleep 0.25
+_starts_before_release=$(grep -c '^START|' "$T/state/curl-events" 2>/dev/null || echo 0)
+touch "$T/state/release-curl"
+if [ "$_starts_before_release" -ne 1 ]; then
+  echo "FAIL: second subscription download entered while first transfer was blocked (START count=$_starts_before_release)" >&2
+  cat "$T/state/curl-events" >&2 || :
+  cat "$T/err1" "$T/err2" >&2 || :
+  wait "$p1" || :
+  wait "$p2" || :
+  exit 1
+fi
 
 set +e
 wait "$p1"; rc1=$?
