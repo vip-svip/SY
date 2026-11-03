@@ -47,6 +47,16 @@ if 'yulong-app-firewall.sh" apply' not in service:
         raise SystemExit("service.sh startup apply anchor not found; refusing unsafe insertion")
     service = service.replace(service_anchor, service_insert, 1)
 
+firewall_watcher_block = '''if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
+  sh "$MODDIR/scripts/yulong-app-firewall.sh" start-watch >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] Yulong local-time firewall watcher failed to start" >> "$PG/boot.log"
+fi
+'''
+if 'yulong-app-firewall.sh" start-watch' not in service:
+    if schedule_anchor in service:
+        service = service.replace(schedule_anchor, schedule_anchor + "\n" + firewall_watcher_block, 1)
+    else:
+        raise SystemExit("service.sh firewall apply block is missing; refusing watcher insertion")
+
 schedule_anchor = '''if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
   sh "$MODDIR/scripts/yulong-app-firewall.sh" apply >> "$PG/boot.log" 2>&1 || \\
     echo "[$(date '+%m-%d %H:%M:%S')] Yulong per-app firewall deferred; FX main startup continues" >> "$PG/boot.log"

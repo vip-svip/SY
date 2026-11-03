@@ -1,6 +1,8 @@
 package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.TimePickerDialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
@@ -47,11 +49,108 @@ public final class FxYulongFirewallActivity extends Activity {
     private EditText query;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
-    private final Map<String, Boolean> selected = new HashMap<>();
+    private static final class FirewallRule {
+        boolean enabled;
+        boolean blockWifi = true;
+        boolean blockMobile = true;
+        boolean scheduleEnabled;
+        String startTime = "22:00";
+        String endTime = "06:00";
+        FirewallRule copy() {
+            FirewallRule value = new FirewallRule();
+            value.enabled = enabled; value.blockWifi = blockWifi;
+            value.blockMobile = blockMobile; value.scheduleEnabled = scheduleEnabled;
+            value.startTime = startTime; value.endTime = endTime;
+            return value;
+        }
+    }
+    private final Map<String, FirewallRule> rules = new HashMap<>();
     private boolean loading = true;
     private boolean suppressMaster;
     private String suitePage = "应用网络拦截";
     private int appFilterMode;
+
+    private boolean hasEnabledRules() {
+        for (FirewallRule rule : rules.values()) if (rule != null && rule.enabled) return true;
+        return false;
+    }
+    private static boolean validTime(String value) {
+        return value != null && value.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]");
+    }
+    private static String formatTime(int hour, int minute) {
+        return String.format(Locale.ROOT, "%02d:%02d", hour, minute);
+    }
+    private static int[] parseTime(String value) {
+        if (!validTime(value)) return new int[]{22, 0};
+        String[] parts = value.split(":", -1);
+        return new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
+    }
+    private FirewallRule ruleFor(String packageName) {
+        FirewallRule rule = rules.get(packageName);
+        if (rule == null) { rule = new FirewallRule(); rules.put(packageName, rule); }
+        return rule;
+    }
+    private void persistRule(String packageName, int uid, FirewallRule draft,
+                             java.util.function.Consumer<Boolean> completion) {
+        String command = "rule " + quote(packageName) + " " + uid
+                + " " + (draft.enabled ? "1" : "0")
+                + " " + (draft.blockWifi ? "1" : "0")
+                + " " + (draft.blockMobile ? "1" : "0")
+                + " " + (draft.scheduleEnabled ? "1" : "0")
+                + " " + draft.startTime + " " + draft.endTime;
+        runRoot(command, result -> {
+            boolean ok = result.exitCode == 0;
+            if (ok) { rules.put(packageName, draft.copy()); status.setText("已保存 " + packageName + " 的防火墙规则。"); }
+            else status.setText("规则保存失败：" + safeOutput(result.output));
+            if (completion != null) completion.accept(ok);
+        });
+    }
+    private void showTimePicker(TextView target, String prefix, String current) {
+        int[] time = parseTime(current);
+        new TimePickerDialog(this, (picker, hour, minute) ->
+                target.setText(prefix + " · " + formatTime(hour, minute)),
+                time[0], time[1], true).show();
+    }
+    private void showRuleDialog(String packageName, int uid) {
+        FirewallRule draft = ruleFor(packageName).copy();
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(18), dp(8), dp(18), dp(8));
+        Switch wifi = new Switch(this); wifi.setText("阻断 Wi-Fi 网络"); wifi.setChecked(draft.blockWifi);
+        Switch mobile = new Switch(this); mobile.setText("阻断移动数据"); mobile.setChecked(draft.blockMobile);
+        Switch schedule = new Switch(this); schedule.setText("启用每日时间计划"); schedule.setChecked(draft.scheduleEnabled);
+        TextView start = text("每日开始 · " + draft.startTime, 14, 0xff17212b, false);
+        TextView end = text("每日结束 · " + draft.endTime, 14, 0xff17212b, false);
+        panel.addView(wifi); panel.addView(mobile); panel.addView(schedule);
+        panel.addView(button("选择每日开始时间", () -> showTimePicker(start, "每日开始", draft.startTime)));
+        panel.addView(start);
+        panel.addView(button("选择每日结束时间", () -> showTimePicker(end, "每日结束", draft.endTime)));
+        panel.addView(end);
+        panel.addView(text("时间采用设备本地时间；开始和结束分钟均包含，支持跨午夜。两端相同表示仅该分钟生效。", 11, 0xff718091, false));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("应用网络类型与每日计划")
+                .setView(panel).setNegativeButton("取消", null).setPositiveButton("保存", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            draft.blockWifi = wifi.isChecked(); draft.blockMobile = mobile.isChecked();
+            draft.scheduleEnabled = schedule.isChecked();
+            String a = start.getText().toString(), b = end.getText().toString();
+            draft.startTime = a.substring(a.lastIndexOf("·") + 1).trim();
+            draft.endTime = b.substring(b.lastIndexOf("·") + 1).trim();
+            if (!validTime(draft.startTime) || !validTime(draft.endTime)) {
+                status.setText("时间格式无效，请重新选择。"); return;
+            }
+            dialog.dismiss();
+            persistRule(packageName, uid, draft, ok -> { if (ok) renderRows(); });
+        }));
+        dialog.show();
+    }
+    private String ruleSummary(FirewallRule rule) {
+        StringBuilder value = new StringBuilder(rule.enabled ? "已启用 · " : "未启用 · ");
+        if (rule.blockWifi) value.append("Wi-Fi");
+        if (rule.blockWifi && rule.blockMobile) value.append(" / ");
+        if (rule.blockMobile) value.append("移动数据");
+        if (!rule.blockWifi && !rule.blockMobile) value.append("未选网络类型");
+        value.append(rule.scheduleEnabled ? " · 每日 " + rule.startTime + "–" + rule.endTime : " · 全天");
+        return value.toString();
+    }
 
     private int dp(float n) {
         return (int)(n * getResources().getDisplayMetrics().density + 0.5f);
@@ -133,19 +232,19 @@ public final class FxYulongFirewallActivity extends Activity {
         rows.setPadding(0, dp(4), 0, dp(20)); scroll.addView(rows);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
 
-        TextView intro = text("按应用 UID 在系统 OUTPUT 链同时阻断 IPv4/IPv6 外连。它独立于 FX 分应用 VPN 路由，不启动第二个 VpnService；默认关闭，只有手动选择应用并启用后才生效。", 13, 0xff617080, false);
+        TextView intro = text("按应用 UID 分别限制 Wi-Fi 与移动数据，可为每个应用设置每日时间段。规则覆盖 IPv4/IPv6，并独立于 FX 分应用 VPN 路由；不启动第二个 VpnService。", 13, 0xff617080, false);
         card("防火墙说明", "系统级应用网络限制", intro);
         status = text("正在读取设备端防火墙设置…", 13, 0xff526170, false);
         card("当前状态", "Root 与 IPv4/IPv6 规则应用结果", status);
         master = new Switch(this); master.setText("启用已选择应用的网络拦截");
         master.setEnabled(false);
-        card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用的规则。", master);
+        card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用规则。已启用但不在每日计划内的应用不会被阻断。", master);
         query = new EditText(this); query.setSingleLine(true); query.setHint("搜索应用名称或包名");
         query.setPadding(dp(14), dp(8), dp(14), dp(8));
-        card("应用列表", "选择要完全阻断网络的应用；每个 UID 的收发计数由 Android TrafficStats 提供，按刷新时刻读取。", query, button("刷新流量统计", this::renderRows));
+        card("应用列表", "每个应用独立配置 Wi-Fi、移动数据与每日计划；UID 收发字节不是 DNS 查询次数。", query, button("刷新流量统计", this::renderRows));
         master.setOnCheckedChangeListener((button, checked) -> {
             if (loading || suppressMaster) return;
-            if (checked && !selected.containsValue(Boolean.TRUE)) {
+            if (checked && !hasEnabledRules()) {
                 suppressMaster = true; master.setChecked(false); suppressMaster = false;
                 status.setText("启用前至少选择一个应用。"); return;
             }
@@ -183,19 +282,27 @@ public final class FxYulongFirewallActivity extends Activity {
         return value == null || value.trim().isEmpty() ? "请确认 FX Hook 已获得 Root 权限。" : value.trim();
     }
     private void parseList(String output) {
-        selected.clear();
+        rules.clear();
         boolean masterEnabled = false;
         for (String line : (output == null ? "" : output).split("\\r?\\n")) {
             if (line.startsWith("master=")) {
                 masterEnabled = "1".equals(line.substring(7).trim());
                 suppressMaster = true; master.setChecked(masterEnabled); suppressMaster = false;
-            } else if (line.startsWith("FXYULONGFW1")) {
-                // header
-            } else {
-                String[] p = line.split("\\|", -1);
-                if (p.length == 3 && p[0].contains(".") && ("0".equals(p[2]) || "1".equals(p[2])))
-                    selected.put(p[0], "1".equals(p[2]));
+                continue;
             }
+            if (line.startsWith("FXYULONGFW")) continue;
+            String[] p = line.split("\\|", -1);
+            if (p.length < 3 || !p[0].contains(".") || !("0".equals(p[2]) || "1".equals(p[2]))) continue;
+            FirewallRule rule = new FirewallRule();
+            rule.enabled = "1".equals(p[2]);
+            if (p.length == 8 && ("0".equals(p[3]) || "1".equals(p[3]))
+                    && ("0".equals(p[4]) || "1".equals(p[4]))
+                    && ("0".equals(p[5]) || "1".equals(p[5]))
+                    && validTime(p[6]) && validTime(p[7])) {
+                rule.blockWifi = "1".equals(p[3]); rule.blockMobile = "1".equals(p[4]);
+                rule.scheduleEnabled = "1".equals(p[5]); rule.startTime = p[6]; rule.endTime = p[7];
+            }
+            rules.put(p[0], rule);
         }
         getSharedPreferences("yulong_app_firewall", MODE_PRIVATE).edit()
                 .putBoolean("master_enabled", masterEnabled).apply();
@@ -246,7 +353,7 @@ public final class FxYulongFirewallActivity extends Activity {
                     labels.clear();
                     labels.putAll(loadedLabels);
                     for (ApplicationInfo info : loaded) {
-                        if (!selected.containsKey(info.packageName)) selected.put(info.packageName, false);
+                        if (!rules.containsKey(info.packageName)) rules.put(info.packageName, new FirewallRule());
                     }
                     loading = false;
                     master.setEnabled(true);
@@ -275,56 +382,47 @@ public final class FxYulongFirewallActivity extends Activity {
 
     private void renderRows() {
         if (rows == null || isFinishing() || destroyed) return;
-        // The first four children are the fixed intro/status/master/app-list cards.
         rows.removeViews(4, Math.max(0, rows.getChildCount() - 4));
         String filter = query.getText() == null ? "" : query.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int matched = 0;
-        int shown = 0;
-        int limit = Math.max(1, appPage) * APP_PAGE_SIZE;
+        int matched = 0, shown = 0, limit = Math.max(1, appPage) * APP_PAGE_SIZE;
         for (ApplicationInfo info : apps) {
-            String pkg = info.packageName; String label = labels.getOrDefault(pkg, pkg);
+            String pkg = info.packageName, label = labels.getOrDefault(pkg, pkg);
             if (!filter.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(filter)
                     && !pkg.toLowerCase(Locale.ROOT).contains(filter)) continue;
             matched++;
             if (shown >= limit) continue;
+            FirewallRule existing = ruleFor(pkg);
             LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL);
             item.setPadding(dp(12), dp(7), dp(12), dp(7));
             TextView name = text(label, 14, 0xff17212b, true);
             TextView packageText = text(pkg + " · UID " + info.uid, 10, 0xff718091, false);
-            long received = TrafficStats.getUidRxBytes(info.uid);
-            long transmitted = TrafficStats.getUidTxBytes(info.uid);
-            TextView traffic = text("本次系统 UID 计数 · 接收 " + formatBytes(received)
+            long received = TrafficStats.getUidRxBytes(info.uid), transmitted = TrafficStats.getUidTxBytes(info.uid);
+            TextView traffic = text("系统 UID 计数 · 接收 " + formatBytes(received)
                     + " · 发送 " + formatBytes(transmitted), 10, 0xff526170, false);
-            Switch blocked = new Switch(this); blocked.setText("阻断该应用的全部网络");
-            blocked.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
+            TextView detail = text(ruleSummary(existing), 11, 0xff526170, false);
+            Switch enabled = new Switch(this); enabled.setText("启用该应用的网络拦截规则");
+            enabled.setChecked(existing.enabled);
             final boolean[] suppressRow = {false};
-            blocked.setOnCheckedChangeListener((button, enabled) -> {
+            enabled.setOnCheckedChangeListener((button, checked) -> {
                 if (suppressRow[0]) return;
-                button.setEnabled(false);
-                runRoot("set " + quote(pkg) + " " + info.uid + " " + (enabled ? "1" : "0"), result -> {
+                FirewallRule draft = ruleFor(pkg).copy();
+                boolean previous = draft.enabled; draft.enabled = checked; button.setEnabled(false);
+                persistRule(pkg, info.uid, draft, ok -> {
                     button.setEnabled(true);
-                    if (result.exitCode != 0) {
-                        suppressRow[0] = true;
-                        button.setChecked(!enabled);
-                        suppressRow[0] = false;
-                        status.setText("应用防火墙更新失败：" + safeOutput(result.output));
-                    } else {
-                        selected.put(pkg, enabled);
-                        status.setText(enabled ? "已加入网络拦截名单。" : "已从网络拦截名单移除。");
-                    }
+                    if (!ok) {
+                        suppressRow[0] = true; button.setChecked(previous); suppressRow[0] = false;
+                    } else renderRows();
                 });
             });
-            item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(blocked);
+            item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(detail); item.addView(enabled);
+            item.addView(button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid)));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
         }
         if (shown == 0) rows.addView(text("没有匹配的应用。", 13, 0xff617080, false));
-        if (matched > limit) {
-            rows.addView(button("加载更多（剩余 " + (matched - limit) + " 个）", () -> {
-                appPage++;
-                renderRows();
-            }), new LinearLayout.LayoutParams(-1, -2));
-        }
+        if (matched > limit) rows.addView(button("加载更多（剩余 " + (matched - limit) + " 个）", () -> {
+            appPage++; renderRows();
+        }), new LinearLayout.LayoutParams(-1, -2));
     }
     @Override protected void onDestroy() {
         destroyed = true;

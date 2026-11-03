@@ -112,6 +112,9 @@ if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
   sh "$MODDIR/scripts/yulong-app-firewall.sh" apply >> "$PG/boot.log" 2>&1 || \
     echo "[$(date '+%m-%d %H:%M:%S')] Yulong per-app firewall deferred; FX main startup continues" >> "$PG/boot.log"
 fi
+if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
+  sh "$MODDIR/scripts/yulong-app-firewall.sh" start-watch >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] Yulong local-time firewall watcher failed to start" >> "$PG/boot.log"
+fi
 # The Yulong 7.0.1 schedule is a module-owned watcher. It only toggles the
 # Yulong ad-filter master bit and is safe to start after FX apply reconciles.
 if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
