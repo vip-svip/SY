@@ -39,6 +39,7 @@ public class UnifiedHookConfigSerializerTest {
         assertTrue(output.targets.get("com.example.vpn").developerHooksEnabled);
         assertEquals(DeveloperHookRule.Action.NO_OP_VOID,
                 output.targets.get("com.example.vpn").developerRules.get(0).action);
+        assertFalse(output.targets.get("com.example.vpn").developerRules.get(0).replacement);
         assertTrue(serialized.contains("dev_rule_b64_1="));
     }
 

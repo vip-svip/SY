@@ -9,7 +9,9 @@ def read(path):
 rule = read("adhook/app/src/main/java/de/privacyguard/adhook/DeveloperHookRule.java")
 assert "NO_OP_VOID" in rule and '"DO_NOTHING".equals(actionText)' in rule
 assert '!"V".equals(parsed.returnDescriptor)' in rule and '"<init>".equals(parsed.name)' in rule
-assert "action == Action.NO_OP_VOID" in rule and "|| action == Action.NO_OP_VOID;" in rule
+assert "this.replacement = action == Action.RETURN_TRUE;" in rule
+assert "this.replacement = action == Action.NO_OP_VOID" not in rule
+assert "rule.action == DeveloperHookRule.Action.NO_OP_VOID" in read("adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java")
 runtime = read("adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java")
 assert "rule.action == DeveloperHookRule.Action.NO_OP_VOID" in runtime
 assert "installDeveloperVoidNoOpHook(param.getClassLoader(), pkg" in runtime

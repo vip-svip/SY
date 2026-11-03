@@ -129,7 +129,12 @@ public class DeveloperHookRuleTest {
         assertNotNull(noArg);
         assertNotNull(withArgs);
         assertNotNull(javaSource);
-        assertTrue(noArg.replacement);
+        // replacement is a legacy boolean compatibility flag, not the action selector.
+        // NO_OP_VOID executes through Action and must never masquerade as RETURN_TRUE.
+        assertFalse(noArg.replacement);
+        assertFalse(withArgs.replacement);
+        assertFalse(javaSource.replacement);
+        assertEquals(DeveloperHookRule.Action.NO_OP_VOID, noArg.action);
         assertEquals(DeveloperHookRule.Action.NO_OP_VOID, withArgs.action);
         assertEquals("Lcom/example/vpn/Worker;->refresh(Ljava/lang/String;)V", javaSource.descriptor);
     }
