@@ -8,6 +8,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 trap 'rm -rf "$ASSETS" "$TMP"' EXIT HUP INT TERM
 [ -s "$MODULE/webroot/index.html" ] || fail "complete module WebUI source missing"
 [ -s "$MODULE/scripts/default.conf" ] || fail "module default.conf missing"
+[ -s "$ROOT/scripts/native-vpn-config.sh" ] || fail "canonical native VPN config writer missing"
+install -D -m 0755 "$ROOT/scripts/native-vpn-config.sh" "$MODULE/scripts/native-vpn-config.sh"
 python3 "$ROOT/fx-patches/patch_native_privacy_settings.py" "$MODULE" "$ASSETS"
 python3 - "$ASSETS/native-privacy-settings.json" "$MODULE/scripts/default.conf" <<'PY'
 import json, re, sys
