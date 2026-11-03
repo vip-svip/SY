@@ -15,6 +15,12 @@ permissions:
   actions: read
   contents: read
 
+# Pushes are cumulative on this integration branch; validate only the newest tree.
+# Cancel superseded runs so rapid commits do not queue redundant 300-test suites.
+concurrency:
+  group: fx-app-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-migration:
     runs-on: ubuntu-latest
