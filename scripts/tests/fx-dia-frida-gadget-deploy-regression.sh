@@ -79,6 +79,18 @@ marker_commit = deploy_contract.find('mv "$stage/$marker" "$dest/$marker"; new_m
 commit_flag = deploy_contract.find('committed=1; echo FX_GADGET_DEPLOYED')
 if min(lib_commit, config_commit, marker_commit, commit_flag) < 0 or not (lib_commit < config_commit < marker_commit < commit_flag):
     raise SystemExit("FAIL: target marker must be published after the Gadget library and config")
+matcher_start = hook.find("private static boolean matchesProcess(")
+if matcher_start < 0:
+    raise SystemExit("FAIL: target loader exact process matcher is missing")
+matcher_end = hook.find("\\n    }", matcher_start)
+if matcher_end < 0:
+    raise SystemExit("FAIL: target loader process matcher body is incomplete")
+matcher = hook[matcher_start:matcher_end]
+if '"*".equals(allowed)' in matcher or 'allowed.split(' in matcher:
+    raise SystemExit("FAIL: target loader still accepts wildcard or multi-process Gadget markers")
+if "allowed.equals(process)" not in matcher:
+    raise SystemExit("FAIL: target loader does not require exact Gadget process identity")
+
 for label, needle in {
     "marker schema checked": 'MARKER_SCHEMA.equals(record.get("schema"))',
     "package identity checked": 'expectedPackage.equals(record.get("package"))',
