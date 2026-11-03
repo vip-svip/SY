@@ -39,7 +39,22 @@ public final class FxYulongAdActivity extends Activity {
  private void card(String title,String detail,View... views){LinearLayout p=new LinearLayout(this);p.setOrientation(1);p.setPadding(dp(14),dp(10),dp(14),dp(10));p.setBackgroundColor(0xfff0f3f7);p.addView(txt(title,15,0xff17212b,true));p.addView(txt(detail,12,0xff617080,false));for(View v:views)p.addView(v);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(p,lp);}
  private String q(String s){return "'"+(s==null?"":s.replace("'","'\\''"))+"'";}
  private String cmd(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \\"$d/module.prop\\" ] && grep -q '^id=privacyguard$' \\"$d/module.prop\\"; then MP=\\"$d\\"; break; fi; done; [ -n \\"$MP\\" ] || exit 20; sh \\"$MP/scripts/yulong-ad-control.sh\\" "+args;}
- private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){worker.execute(()->{RootAccess.Result r=RootAccess.execute(cmd(args),90000L,512*1024);runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())cb.accept(r);});});}
+ private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
+  Runnable task=()->{
+   RootAccess.Result result=RootAccess.execute(cmd(args),90000L,512*1024);
+   runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()&&cb!=null)cb.accept(result);});
+  };
+  try{
+   worker.execute(task);
+  }catch(RejectedExecutionException full){
+   RootAccess.Result busy=RootAccess.failure(125,"后台任务繁忙，请稍后重试。");
+   runOnUiThread(()->{
+    if(isFinishing()||isDestroyed())return;
+    status.setText("后台任务繁忙，请稍后重试。");
+    if(cb!=null)cb.accept(busy);
+   });
+  }
+ }
  private String safe(String s){return s==null||s.trim().isEmpty()?"请确认 FX Hook Root 权限。":s.trim();}
  private void apply(String args,String label){
   final boolean masterWrite = args != null && args.matches("^ad-master\\s+[01]$");

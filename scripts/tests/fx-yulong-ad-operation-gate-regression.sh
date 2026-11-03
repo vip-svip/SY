@@ -59,5 +59,19 @@ if widget_receive.count("FxYulongAdOperationGate.release()") < 3:
 if "BUSY.compareAndSet(false, true)" not in gate or "BUSY.set(false)" not in gate:
     raise SystemExit("FAIL: operation gate no longer implements atomic acquire/release")
 
+root_start = activity.find("private void root(")
+root_end = activity.find("private String safe(", root_start)
+if root_start < 0 or root_end < 0:
+    raise SystemExit("FAIL: Yulong read-only Root helper boundary missing")
+root = activity[root_start:root_end]
+root_submit = root.find("worker.execute(task)")
+root_catch = root.find("catch(RejectedExecutionException full)")
+if min(root_submit, root_catch) < 0 or not root_submit < root_catch:
+    raise SystemExit("FAIL: Yulong read-only Root helper does not guard bounded queue submission")
+if "RootAccess.failure(125" not in root or "后台任务繁忙，请稍后重试。" not in root:
+    raise SystemExit("FAIL: rejected read-only Root task does not surface an explicit busy result")
+if "if(cb!=null)cb.accept(busy)" not in root:
+    raise SystemExit("FAIL: rejected read-only Root task does not notify its operation callback")
+
 print("PASS: Activity queue rejection cannot clear another writer's gate; Tile and Widget retain ownership-balanced release paths")
 PY
