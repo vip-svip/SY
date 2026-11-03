@@ -90,6 +90,7 @@ cat > "$T/bin/ps" <<'PS'
 #!/bin/sh
 printf '  PID NAME\n'
 printf '12345 com.example.debuggable\n'
+printf '12346 com.example.debuggable:remote\n'
 PS
 chmod 700 "$T/bin/ps"
 PATH="$T/bin:$PATH"
@@ -119,6 +120,7 @@ set -eu
 cli=$1
 pkg=$2
 dir=$3
+proc=$4
 port=27043
 log="$dir/gadget-$port.log"
 script="$dir/gadget-$port.js"
@@ -127,6 +129,8 @@ pipe="$dir/gadget-$port.stdin"
 lock="$dir/.gadget-$port.start-lock"
 test -x "$cli" && test ! -L "$cli"
 version=$("$cli" --version)
+pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v proc="$proc" 'NR>1 && $1 ~ /^[0-9]+$/ && $2==proc {print $1}')
+[ -n "$pids" ] || { echo FX_GADGET_TARGET_PROCESS_NOT_RUNNING; exit 4; }
 mkdir "$lock"
 lock_held=1
 tmp=
@@ -146,9 +150,10 @@ if [ -s "$pidfile" ]; then
   old_cli_path=$(sed -n '3p' "$pidfile")
   old_pkg=$(sed -n '4p' "$pidfile")
   old_port=$(sed -n '5p' "$pidfile")
+  old_process=$(sed -n '6p' "$pidfile")
   case "$old_cli:$old_feed" in *[!0-9:]*|:*) exit 22;; esac
   case "$old_port" in ''|*[!0-9]*) exit 22;; esac
-  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_cli_path" = "$cli" ] || {
+  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_cli_path" = "$cli" ] && [ "$old_process" = "$proc" ] || {
     echo FX_GADGET_SESSION_TARGET_CONFLICT
     exit 30
   }
@@ -174,10 +179,11 @@ cli_pid=$!
 nohup sh -c 'while kill -0 "$1" 2>/dev/null; do sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
 feed_pid=$!
 pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
-printf '%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" > "$pid_tmp"
+printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" "$proc" > "$pid_tmp"
 chmod 600 "$pid_tmp"
 mv -f "$pid_tmp" "$pidfile"
 [ "$(sed -n '3p' "$pidfile")" = "$cli" ] || { echo "FAIL: PID record line 3 must store CLI executable path" >&2; exit 1; }
+[ "$(sed -n '6p' "$pidfile")" = "$proc" ] || { echo "FAIL: PID record line 6 must bind exact target process" >&2; exit 1; }
 pid_tmp=
 sleep 0.2
 kill -0 "$cli_pid"
@@ -192,6 +198,9 @@ cat > "$T/stop.sh" <<'STOP'
 #!/bin/sh
 set -eu
 dir=$1
+expected_pkg=$2
+expected_cli=$3
+expected_process=$4
 port=27043
 pidfile="$dir/gadget-$port.pid"
 pipe="$dir/gadget-$port.stdin"
@@ -202,11 +211,10 @@ feed_pid=$(sed -n '2p' "$pidfile")
 cli=$(sed -n '3p' "$pidfile")
 stored_pkg=$(sed -n '4p' "$pidfile")
 stored_port=$(sed -n '5p' "$pidfile")
-expected_pkg=$2
-expected_cli=$3
+stored_process=$(sed -n '6p' "$pidfile")
 case "$cli_pid:$feed_pid" in *[!0-9:]*|:*) exit 22;; esac
 case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
-[ "$stored_pkg" = "$expected_pkg" ] && [ "$stored_port" = "$port" ] && [ "$cli" = "$expected_cli" ] || {
+[ "$stored_pkg" = "$expected_pkg" ] && [ "$stored_port" = "$port" ] && [ "$stored_process" = "$expected_process" ] && [ "$cli" = "$expected_cli" ] || {
   echo FX_GADGET_SESSION_TARGET_CONFLICT
   exit 30
 }
@@ -228,7 +236,12 @@ echo FX_GADGET_SESSION_STOPPED
 STOP
 chmod 700 "$T/stop.sh"
 
-"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" > "$T/start.result"
+if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:missing" > "$T/missing-process.result" 2>&1; then
+  echo "FAIL: Gadget start accepted a process that is not running" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/missing-process.result"
+"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
 grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2
 grep -Fq "mock-send-message" "$T/logs/gadget-27043.log"
@@ -236,21 +249,31 @@ grep -Fq "mock-console-log" "$T/logs/gadget-27043.log"
 [ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ]
 [ ! -d "$T/logs/.gadget-27043.start-lock" ]
 
-if "$T/start.sh" "$T/frida" "com.example.other" "$T/logs" > "$T/wrong-target-start.result" 2>&1; then
+if "$T/start.sh" "$T/frida" "com.example.other" "$T/logs" "com.example.debuggable:remote" > "$T/wrong-target-start.result" 2>&1; then
   echo "FAIL: Gadget reconnect accepted a different target package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-start.result"
-"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" > "$T/reconnect.result"
+if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable" > "$T/wrong-process-start.result" 2>&1; then
+  echo "FAIL: Gadget reconnect accepted a different process in the same package" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-process-start.result"
+"$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/reconnect.result"
 grep -Fq FX_GADGET_SESSION_ALREADY_RUNNING "$T/reconnect.result"
 kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")"
 
-if "$T/stop.sh" "$T/logs" "com.example.other" "$T/frida" > "$T/wrong-target-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.other" "$T/frida" "com.example.debuggable:remote" > "$T/wrong-target-stop.result" 2>&1; then
   echo "FAIL: Gadget stop accepted a different target package" >&2
   exit 1
 fi
 grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-target-stop.result"
-if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/not-the-frida-cli" > "$T/wrong-cli-stop.result" 2>&1; then
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable" > "$T/wrong-process-stop.result" 2>&1; then
+  echo "FAIL: Gadget stop accepted a different process in the same package" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_SESSION_TARGET_CONFLICT "$T/wrong-process-stop.result"
+if "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/not-the-frida-cli" "com.example.debuggable:remote" > "$T/wrong-cli-stop.result" 2>&1; then
   echo "FAIL: Gadget stop accepted a different Frida CLI identity" >&2
   exit 1
 fi
@@ -259,7 +282,7 @@ kill -0 "$(sed -n '1p' "$T/logs/gadget-27043.pid")" || {
   echo "FAIL: wrong-target stop terminated the active session" >&2
   exit 1
 }
-"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" > "$T/stop.result"
+"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida" "com.example.debuggable:remote" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
 [ ! -e "$T/logs/gadget-27043.pid" ] && [ ! -e "$T/logs/gadget-27043.stdin" ]
 [ -z "$(find "$T/logs" -maxdepth 1 -name '.gadget-27043.*' -print -quit)" ] || {
