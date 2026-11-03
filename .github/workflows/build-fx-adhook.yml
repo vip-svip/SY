@@ -126,6 +126,7 @@ jobs:
           python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
+          python3 scripts/tests/fx-yulong-ad-master-patch-regression.py
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
