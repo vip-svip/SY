@@ -35,7 +35,7 @@ old = """querylog:
 new = """querylog:
   enabled: $_dns_querylog_enabled
   file_enabled: $_dns_querylog_enabled
-  interval: 7d
+  interval: 30d
   size_memory: 1000
   ignored: []
   ignored_enabled: false"""

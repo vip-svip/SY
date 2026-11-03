@@ -47,7 +47,7 @@ mv "$TMP/data/querylog.saved" "$TMP/data/querylog.json"
 ln -s "$TMP/data" "$TMP/data-link"
 if sh "$HELPER" "$TMP/data-link" >/dev/null 2>&1; then fail "helper followed a symlinked parent directory"; fi
 
-python3 - "$CONTROL" "$PATCHER" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java" <<'PY'
+python3 - "$CONTROL" "$PATCHER" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java" "$ROOT/.github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml" <<'PY'
 from pathlib import Path
 import sys
 control, patcher, activity = (Path(x).read_text(encoding="utf-8") for x in sys.argv[1:])
@@ -58,5 +58,18 @@ assert 'yulong-ad-dns-summary.sh' in patcher and 'copy2' in patcher, "Release pa
 assert 'root("dns-log-summary"' in activity, "native summary UI does not consume aggregate counts"
 assert 'ClientIP' not in activity and 'QH' not in activity, "native summary UI must not parse or display raw log fields"
 assert '最近 500 条日志样本' not in activity, "daily summary still reports the old 500-row sample instead of retained totals"
+metric_start = activity.index("private static long metric(")
+render_start = activity.index("private void renderSummary(", metric_start)
+metric = activity[metric_start:render_start]
+assert "catch (NumberFormatException invalid)" in metric, "metric parser must handle malformed counts"
+assert "return -1L;" in metric, "metric parser must reject malformed or absent counts"
+assert "private static long metric" in activity and "private void renderSummary" in activity
+assert "游龙广告插件 · 本机防护总结" in activity, "summary title must not imply a daily-only window"
+assert "最长保留期 30 天" in activity, "summary must match the documented 30-day retention"
+assert 'interval: 30d' in patcher, "runtime generator must retain the documented 30-day interval"
+assert 'interval: 30d' in Path(sys.argv[4]).read_text(encoding="utf-8"), "documented AdGuard Home config must match runtime retention"
+for fragment in ('append("\\\\n已启用规则源：', 'append("\\\\n白名单域名：', 'append("\\\\n黑名单域名：', '+ "\\\\n其中拦截：', '+ "\\\\n未拦截：'):
+    assert fragment not in activity, "UI renders a literal backslash-n instead of a line break: " + fragment
+
 PY
 echo "PASS: seven-day local DNS log summary returns numeric counts only, honors opt-in and rejects symlinked paths"

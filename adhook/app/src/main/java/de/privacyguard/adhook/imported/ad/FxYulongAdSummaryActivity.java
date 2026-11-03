@@ -57,7 +57,7 @@ public final class FxYulongAdSummaryActivity extends Activity {
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 · 每日防护总结", 18, 0xff17212b, true),
+        header.addView(text("游龙广告插件 · 本机防护总结", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -108,13 +108,20 @@ public final class FxYulongAdSummaryActivity extends Activity {
             try {
                 long value = Long.parseLong(line.substring(key.length() + 1).trim());
                 return value < 0 ? -1L : value;
-               private void renderSummary(Summary config, RootAccess.Result stats) {
+            } catch (NumberFormatException invalid) {
+                return -1L;
+            }
+        }
+        return -1L;
+    }
+
+    private void renderSummary(Summary config, RootAccess.Result stats) {
         if (isFinishing() || isDestroyed()) return;
         StringBuilder configuration = new StringBuilder();
         configuration.append("广告过滤主开关：").append(config.adMaster ? "已启用" : "已关闭")
-                .append("\\n已启用规则源：").append(config.enabledRules).append(" / ").append(config.totalRules)
-                .append("\\n白名单域名：").append(config.allowDomains)
-                .append("\\n黑名单域名：").append(config.blockDomains);
+                .append("\n已启用规则源：").append(config.enabledRules).append(" / ").append(config.totalRules)
+                .append("\n白名单域名：").append(config.allowDomains)
+                .append("\n黑名单域名：").append(config.blockDomains);
         card("广告过滤配置", "直接来自设备端 yulong-ad-control.sh list。", text(configuration.toString(), 13, 0xff334155, false));
 
         if (stats.exitCode != 0) {
@@ -131,7 +138,7 @@ public final class FxYulongAdSummaryActivity extends Activity {
         }
         if (raw.contains("FXDNSLOG_EMPTY")) {
             card("DNS 累计统计", "当前保留日志暂无有效查询记录。",
-                    text("日志开启后，统计会按本机当前保留的记录累计；最长保留期由 AdGuard Home 设置为 7 天。", 12, 0xff617080, false));
+                    text("日志开启后，统计会按本机当前保留的记录累计；最长保留期由 AdGuard Home 设置为 30 天。", 12, 0xff617080, false));
             status.setText("配置摘要已读取；本机暂无 DNS 累计记录。");
             return;
         }
@@ -146,10 +153,10 @@ public final class FxYulongAdSummaryActivity extends Activity {
             return;
         }
         String metrics = "当前保留日志内 DNS 查询： " + queries + " 条"
-                + "\\n其中拦截： " + blocked + " 条"
-                + "\\n未拦截： " + unblocked + " 条";
+                + "\n其中拦截： " + blocked + " 条"
+                + "\n未拦截： " + unblocked + " 条";
         card("DNS 累计统计",
-                "基于本机 AdGuard Home 当前保留日志流式汇总，最长保留期 7 天。统计接口只返回数字，不返回域名、客户端 IP 或原始查询记录；不代表逐应用查询次数。",
+                "基于本机 AdGuard Home 当前保留日志流式汇总，最长保留期 30 天。统计接口只返回数字，不返回域名、客户端 IP 或原始查询记录；不代表逐应用查询次数。",
                 text(metrics, 13, 0xff334155, false));
         status.setText("统计已更新；范围为当前本机保留日志，日志默认关闭，只有用户主动启用期间才累计。");
     }
