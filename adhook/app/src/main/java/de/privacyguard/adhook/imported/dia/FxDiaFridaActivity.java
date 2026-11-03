@@ -1762,15 +1762,15 @@ public final class FxDiaFridaActivity extends Activity {
             if (result.exitCode == 0 && result.output != null
                     && result.output.contains("FX_GADGET_ATTACHED_AND_WAIT_RELEASED")) {
                 setStatus("已通过 Frida Gadget Listen 接口附加目标进程；WAIT 目标已收到控制端 attach。"
-                        + "\\n消息/console 输出已写入：" + logPath
-                        + "\\n" + result.output);
+                        + "\n消息/console 输出已写入：" + logPath
+                        + "\n" + result.output);
             } else if (result.output != null
                     && result.output.contains("FX_GADGET_TARGET_NOT_RUNNING")) {
                 setStatus("目标应用当前没有运行进程；请先启动目标应用并确认 Gadget 已加载。");
             } else {
                 setStatus("Gadget 连接/脚本加载失败（退出码 " + result.exitCode + "）。"
                         + "\n请确认目标应用已加载相同端口的 Gadget，且 frida-inject 与 Gadget 版本匹配。"
-                        + "\\n日志：" + logPath + "\\n" + result.output);
+                        + "\n日志：" + logPath + "\n" + result.output);
             }
         });
     }
