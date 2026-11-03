@@ -3189,7 +3189,8 @@ public final class MainActivity extends ComponentActivity {
                     showNativeRuntimeLogs();
                     return;
                 case "全局设置":
-                    showSettings();
+                    showImportedSuitePendingPage(suite, category, page,
+                            "Dia 原始全局设置页尚未完成独立迁移；不会错误跳转到 FX 主应用设置页。");
                     return;
                 case "Frida 环境": case "Frida 注入": case "监听模式":
                     startActivity(new Intent(this,
