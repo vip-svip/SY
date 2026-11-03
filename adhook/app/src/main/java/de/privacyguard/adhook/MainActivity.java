@@ -2732,8 +2732,8 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             if (page.equals("应用统计")) {
-                showImportedSuitePendingPage(suite, category, page,
-                        "FX 已统一记录 DNS / 过滤日志，但游龙原版按应用累计的查询数、拦截数与排序统计尚未迁移；不会把全局统计冒充为单应用统计。");
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
                 return;
             }
             showImportedSuitePendingPage(suite, category, page,

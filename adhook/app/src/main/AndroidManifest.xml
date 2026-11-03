@@ -52,6 +52,7 @@
         <activity android:name=".imported.shield.FxYulongVirusDatabaseActivity" android:exported="false" />
         <activity android:name=".imported.shield.FxYulongScanActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongFirewallActivity" android:exported="false" />
+        <activity android:name=".imported.ad.FxYulongAppStatsActivity" android:exported="false" />
         <activity android:name=".imported.ad.FxYulongAdActivity" android:exported="false" />
         <service android:name=".imported.ad.FxYulongAdTileService"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
