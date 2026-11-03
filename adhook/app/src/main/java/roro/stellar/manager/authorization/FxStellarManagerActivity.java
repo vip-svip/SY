@@ -77,8 +77,27 @@ public final class FxStellarManagerActivity extends Activity {
     new AlertDialog.Builder(this).setTitle("撤销终端命令权限").setMessage("移除当前应用的 TERMINAL_COMMAND 作用域？")
       .setNegativeButton("取消",null).setPositiveButton("撤销",(d,w)->apply("scope-set "+quote(target)+" TERMINAL_COMMAND 0","撤销终端命令权限")).show();
   }));
-  EditText cmd=new EditText(this);cmd.setSingleLine(true);cmd.setHint("只读命令：getprop / pm list packages / dumpsys package / settings get");
-  addCard("始终允许的命令","只接受只读查询；不接受分号、管道、重定向、脚本或写入类命令。",cmd,button("添加当前应用命令",( )->{
+  String[] readScopes={"SHELL_ID_COMMAND","PACKAGE_LIST_COMMAND","PROCESS_LIST_COMMAND","PROPERTY_READ_COMMAND","SETTINGS_READ_COMMAND","SELINUX_STATUS_COMMAND","FILESYSTEM_READ_COMMAND","SERVICE_LIST_COMMAND"};
+  android.widget.Spinner commandScope=new android.widget.Spinner(this);
+  android.widget.ArrayAdapter<String> scopeAdapter=new android.widget.ArrayAdapter<>(this,android.R.layout.simple_spinner_item,readScopes);
+  scopeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);commandScope.setAdapter(scopeAdapter);
+  EditText cmd=new EditText(this);cmd.setSingleLine(true);cmd.setHint("只读命令：getprop / pm list packages / dumpsys package / settings get / ps");
+  addCard("始终允许的命令","命令必须属于当前应用已授予的只读能力；不接受脚本、管道、重定向或写入命令。",commandScope,cmd,
+    button("添加当前应用命令",()->{
+      String c=cmd.getText().toString().trim();if(target.isEmpty()||c.isEmpty())return;
+      new AlertDialog.Builder(this).setTitle("确认始终允许").setMessage(target+"\\n"+c)
+        .setNegativeButton("取消",null).setPositiveButton("确认",(d,w)->apply("always-set "+quote(target)+" "+quote(c)+" 1","添加始终允许命令")).show();
+    }),
+    button("执行已授权只读命令",()->{
+      String c=cmd.getText().toString().trim();String scope=String.valueOf(commandScope.getSelectedItem());
+      if(target.isEmpty()||c.isEmpty())return;
+      root("run "+quote(target)+" "+scope+" "+quote(c),result->{
+        TextView output=text(result.output==null?"":result.output,12,0xff334155,false);output.setTextIsSelectable(true);
+        ScrollView view=new ScrollView(this);view.addView(output);
+        new AlertDialog.Builder(this).setTitle("Stellar 只读命令 · 退出码 "+result.exitCode).setView(view).setPositiveButton("关闭",null).show();
+        state.setText(result.exitCode==0?"只读命令执行完成。":"只读命令未执行："+(result.output==null?"":result.output));
+      });
+    }));
     String c=cmd.getText().toString().trim();if(target.isEmpty()||c.isEmpty())return;
     new AlertDialog.Builder(this).setTitle("确认始终允许").setMessage(target+"\n"+c)
       .setNegativeButton("取消",null).setPositiveButton("确认",(d,w)->apply("always-set "+quote(target)+" "+quote(c)+" 1","添加始终允许命令")).show();
@@ -132,7 +151,7 @@ public final class FxStellarManagerActivity extends Activity {
  private void refresh(){
   root("list",r->{
     if(r.exitCode!=0){state.setText("Stellar 策略读取失败："+r.output);return;}
-    packages.clear();scopes.clear();always.clear();
+    packages.clear();scopes.clear();always.clear();if(alwaysRows!=null)alwaysRows.removeAllViews();
     for(String line:(r.output==null?"":r.output).split("\\r?\\n")){
       String[] p=line.split("\\|",3);if(p.length<2)continue;
       if("PKG".equals(p[0]))packages.add(p[1]);
