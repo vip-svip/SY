@@ -12,14 +12,11 @@ if not target.is_file():
     raise SystemExit(f"AdGuard Home lifecycle script is missing: {target}")
 
 source = target.read_text(encoding="utf-8")
-if "FX_YULONG_UPSTREAMS_BEGIN" in source:
-    print("Yulong DNS upstream renderer already patched")
-    raise SystemExit(0)
-
-old = """  upstream_dns:
+if "FX_YULONG_UPSTREAMS_BEGIN" not in source:
+    old = """  upstream_dns:
   - 127.0.0.1:5353
 """
-new = r'''  upstream_dns:
+    new = r'''  upstream_dns:
 EOF_CFG
   # FX_YULONG_UPSTREAMS_BEGIN
   # Use custom DoH/DoT/DoQ/plain endpoints only after explicit opt-in.
@@ -64,11 +61,42 @@ EOF_FALLBACK
   # FX_YULONG_UPSTREAMS_END
   cat <<EOF_CFG
 '''
-if source.count(old) != 1:
-    raise SystemExit(
-        "expected exactly one stock Unbound upstream block in adguardhome.sh; "
-        "refusing an ambiguous patch"
-    )
+    if source.count(old) != 1:
+        raise SystemExit(
+            "expected exactly one stock Unbound upstream block in adguardhome.sh; "
+            "refusing an ambiguous patch"
+        )
+    source = source.replace(old, new, 1)
 
-target.write_text(source.replace(old, new, 1), encoding="utf-8")
-print("Patched AdGuard Home to read FX custom DoH/DoT/DoQ/plain and fallback DNS")
+if "FX_YULONG_DNS_RESPONSE_BEGIN" not in source:
+    old_response = """  blocked_response_ttl: 10
+"""
+    new_response = r'''  blocked_response_ttl: 10
+EOF_CFG
+  # FX_YULONG_DNS_RESPONSE_BEGIN
+  _response_mode=$(awk -F= '
+    $0=="[conf:yulong_dns_response]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && $1=="mode" {value=$2}
+    END {print value}
+  ' "$PG/settings.conf" 2>/dev/null)
+  case "$_response_mode" in
+    refused|custom_ip) : ;;
+    *) _response_mode=nxdomain ;;
+  esac
+  printf '  blocking_mode: %s\n' "$_response_mode"
+  if [ "$_response_mode" = "custom_ip" ]; then
+    printf '  blocking_ipv4: "0.0.0.0"\n  blocking_ipv6: "::"\n'
+  fi
+  # FX_YULONG_DNS_RESPONSE_END
+  cat <<EOF_CFG
+'''
+    if source.count(old_response) != 1:
+        raise SystemExit(
+            "expected exactly one stock blocked_response_ttl line in adguardhome.sh; "
+            "refusing an ambiguous response-mode patch"
+        )
+    source = source.replace(old_response, new_response, 1)
+
+target.write_text(source, encoding="utf-8")
+print("Patched AdGuard Home custom DNS upstreams and blocking response mode")
