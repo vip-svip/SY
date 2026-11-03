@@ -2651,7 +2651,7 @@ public final class MainActivity extends ComponentActivity {
                 case "传感器":
                     showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
                     return;
-                case "HTTP 监控": case "数据库监控": case "算法监控": case "内存快照":
+                case "HTTP 监控": case "算法监控":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                             .putExtra("dia_page", page));
@@ -2661,6 +2661,12 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "设备属性":
                     showNativeSettingsGroup("devicePanel", "Dia · 设备属性");
+                    return;
+                case "Wi-Fi 模拟":
+                    showAppList("Wi-Fi 环境模拟");
+                    return;
+                case "网络类型模拟":
+                    showNativeSettingsGroup("netPanel", "Dia · 网络类型模拟");
                     return;
                 case "文件与 so 库":
                     showNativeSettingsGroup("filePanel", "Dia · 文件与 so 库");
@@ -2705,11 +2711,6 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaInspectorActivity.class)
                             .putExtra("dia_mode", "数据库监控".equals(page) ? "database" : "memory"));
                     return;
-                case "算法监控":
-                    showImportedSuitePendingPage(suite, category, page,
-                            "算法调用链自动识别和运行时追踪仍需迁移；当前不伪造调用结果。");
-                    return;
-
                 default:
                     showImportedSuitePendingPage(suite, category, page,
                             "该 Dia 页面已登记到迁移目录；对应运行逻辑尚未移植完成。当前不会创建无效开关，也不会修改目标应用或系统状态。");
