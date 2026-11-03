@@ -11,6 +11,30 @@ PG=/data/adb/privacyguard
 CONF=$PG/settings.conf
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 . "$MP/scripts/util.sh"
+
+# One exit/signal cleanup owner prevents nested helpers from replacing each other's traps.
+_yad_conf_tmp=
+_yad_transaction_backup=
+_yad_transaction_restore=
+_yad_schedule_lock=
+_yad_schedule_tmp=
+_yad_schedule_backup=
+_yad_control_lock=
+_yad_cache_lock=
+_yad_cleanup() {
+  [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
+  [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
+  [ -z "$_yad_transaction_restore" ] || rm -f "$_yad_transaction_restore" 2>/dev/null || :
+  [ -z "$_yad_schedule_tmp" ] || rm -f "$_yad_schedule_tmp" 2>/dev/null || :
+  [ -z "$_yad_schedule_backup" ] || rm -f "$_yad_schedule_backup" 2>/dev/null || :
+  [ -z "$_yad_control_lock" ] || rmdir "$_yad_control_lock" 2>/dev/null || :
+  [ -z "$_yad_schedule_lock" ] || rmdir "$_yad_schedule_lock" 2>/dev/null || :
+  [ -z "$_yad_cache_lock" ] || rmdir "$_yad_cache_lock" 2>/dev/null || :
+}
+trap '_yad_cleanup' 0
+trap '_yad_cleanup; exit 129' HUP
+trap '_yad_cleanup; exit 130' INT
+trap '_yad_cleanup; exit 143' TERM
 valid_domain() {
   d=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
   case "$d" in ''|.*|*.|*..*|*[!a-z0-9.-]*) return 1 ;; esac
@@ -33,11 +57,15 @@ valid_text() {
 with_lock() {
  lock=$PG/yulong-ad-control.lock; n=0
  while ! mkdir "$lock" 2>/dev/null; do n=$((n+1)); [ "$n" -lt 20 ] || return 30; sleep 1; done
- trap 'rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
- "$@"
+ _yad_control_lock=$lock
+ if "$@"; then rc=0; else rc=$?; fi
+ rmdir "$lock" 2>/dev/null || :
+ _yad_control_lock=
+ return "$rc"
 }
 write_rule() {
  src=$1; title=$2; state=$3; mode=$4; tmp=$(mktemp "$CONF.yulong-rule.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
  awk -F'|' -v OFS='|' -v src="$src" -v title="$title" -v state="$state" -v mode="$mode" '
  BEGIN{inside=0;found=0;done=0}
  $0=="[list:rule]"{inside=1;found=1;print;next}
@@ -46,12 +74,16 @@ write_rule() {
  {print}
  END{if(inside&&mode=="add"&&!done){print src,title,state;done=1}if(!found&&mode=="add"){print "";print "[list:rule]";print src,title,state}if(!done&&mode=="set")exit 3}
  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
- if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+ if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+ rm -f "$tmp"
+ _yad_conf_tmp=
+ return 1
   rm -f "$tmp"
   return 1
 }
 write_block() {
  domain=$1; note=$2; state=$3; mode=$4; tmp=$(mktemp "$CONF.yulong-block.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
  awk -F'|' -v OFS='|' -v domain="$domain" -v note="$note" -v state="$state" -v mode="$mode" '
  BEGIN{inside=0;found=0;done=0}
  $0=="[list:block]"{inside=1;found=1;print;next}
@@ -60,27 +92,30 @@ write_block() {
  {print}
  END{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}if(!found&&mode=="add"){print "";print "[list:block]";print domain,note,state}}
  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
- if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+ if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+ rm -f "$tmp"
+ _yad_conf_tmp=
+ return 1
   rm -f "$tmp"
   return 1
 }
 restore_transaction_backup() {
-  restore=$(mktemp "$CONF.yulong-ad-restore.XXXXXX") || return 1
+  _yad_transaction_restore=$(mktemp "$CONF.yulong-ad-restore.XXXXXX") || return 1
+  restore=$_yad_transaction_restore
   if cp -p "$backup" "$restore" && chmod 600 "$restore" && mv -f "$restore" "$CONF"; then
-    restore=
-    return 0
+    _yad_transaction_restore=; restore=; return 0
   fi
   rm -f "$restore"
-  restore=
+  _yad_transaction_restore=; restore=
   return 1
 }
 transaction() {
   op=$1; shift
-  backup=$(mktemp "$CONF.yulong-ad-rollback.XXXXXX") || return 1
-  restore=
+  _yad_transaction_backup=$(mktemp "$CONF.yulong-ad-rollback.XXXXXX") || return 1
+  backup=$_yad_transaction_backup
   if ! cp -p "$CONF" "$backup" || ! chmod 600 "$backup"; then
     rm -f "$backup"
-    backup=
+    _yad_transaction_backup=; backup=
     return 1
   fi
   if ! "$op" "$@"; then
@@ -88,29 +123,29 @@ transaction() {
       sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || \
         echo "mutation failed; previous config restored but runtime reconcile failed" >&2
       rm -f "$backup"
-      backup=
+      _yad_transaction_backup=; backup=
       echo "mutation failed; previous config restored" >&2
       return 1
     fi
     rm -f "$backup" "$restore"
-    backup=; restore=
+    _yad_transaction_backup=; _yad_transaction_restore=; backup=; restore=
     echo "mutation failed and config rollback failed" >&2
     return 31
   fi
   if sh "$MP/scripts/apply.sh" fast; then
     rm -f "$backup" "$restore"
-    backup=; restore=
+    _yad_transaction_backup=; _yad_transaction_restore=; backup=; restore=
     return 0
   fi
   if restore_transaction_backup; then
     sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
     rm -f "$backup"
-    backup=
+    _yad_transaction_backup=; backup=
     echo "apply failed; previous config restored" >&2
     return 1
   fi
   rm -f "$backup" "$restore"
-  backup=; restore=
+  _yad_transaction_backup=; _yad_transaction_restore=; backup=; restore=
   echo "apply failed and config rollback failed" >&2
   return 31
 }
@@ -181,6 +216,7 @@ valid_dns_csv() {
 }
 write_dns_section() {
   section=$1; servers=$2; tmp=$(mktemp "$CONF.yulong-dns.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
   awk -v section="$section" -v servers="$servers" '
     function emit(    n,a,i) {n=split(servers,a,",");for(i=1;i<=n;i++)print "nameserver " a[i]}
     BEGIN{inside=0;seen=0;written=0}
@@ -190,7 +226,10 @@ write_dns_section() {
     {print}
     END{if(inside&&!written){emit();written=1}if(!seen){print "";print "[conf:" section "]";emit()}}
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"
+  _yad_conf_tmp=
+  return 1
   rm -f "$tmp"
   return 1
 }
@@ -198,13 +237,17 @@ write_dns_section() {
 remove_dns_section() {
   section=$1
   tmp=$(mktemp "$CONF.yulong-dns-remove.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
   awk -v section="$section" '
     $0=="[conf:" section "]" {inside=1; next}
     /^\[/ {inside=0}
     !inside {print}
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
   [ -s "$tmp" ] || { rm -f "$tmp"; return 1; }
-  chmod 600 "$tmp" && mv -f "$tmp" "$CONF"
+  if chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"
+  _yad_conf_tmp=
+  return 1
 }
 m_dns_section_clear() { remove_dns_section "$1"; }
 
@@ -212,6 +255,7 @@ m_dns_section_clear() { remove_dns_section "$1"; }
 write_dns_response() {
   mode=$1
   tmp=$(mktemp "$CONF.yulong-dns-response.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
   awk -v mode="$mode" '
     BEGIN{inside=0;seen=0;written=0}
     $0=="[conf:yulong_dns_response]" {
@@ -232,7 +276,10 @@ write_dns_response() {
       if(!seen){print "";print "[conf:yulong_dns_response]";print "mode=" mode}
     }
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"
+  _yad_conf_tmp=
+  return 1
   rm -f "$tmp"
   return 1
 }
@@ -240,6 +287,7 @@ m_dns_response() { write_dns_response "$1"; }
 
 write_vpn_dns() {
   key=$1; value=$2; tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
   awk -v key="$key" -v value="$value" '
     BEGIN{inside=0;seen=0;written=0}
     $0=="[conf:vpn]"{if(inside&&!written){print key "=" value;written=1}inside=1;seen=1;print;next}
@@ -248,7 +296,10 @@ write_vpn_dns() {
     {print}
     END{if(inside&&!written)print key "=" value;if(!seen){print "";print "[conf:vpn]";print key "=" value}}
   ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then return 0; fi
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"
+  _yad_conf_tmp=
+  return 1
   rm -f "$tmp"
   return 1
 }
@@ -404,30 +455,26 @@ schedule_set() {
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {
     echo "invalid schedule: use HH:MM and unique weekdays 1..7" >&2; return 2;
   }
-
   file="$PG/yulong-ad-schedule.conf"
   lock="$PG/yulong-ad-schedule.lock"
   if ! mkdir "$lock" 2>/dev/null; then
     echo "schedule update is busy" >&2
     return 30
   fi
-  tmp=$(mktemp "$file.tmp.XXXXXX") || { rmdir "$lock" 2>/dev/null || :; return 31; }
-  backup=
-  trap '[ -z "$tmp" ] || rm -f "$tmp"; [ -z "$backup" ] || rm -f "$backup"; rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
-
+  _yad_schedule_lock=$lock
+  _yad_schedule_tmp=$(mktemp "$file.tmp.XXXXXX") || return 31
+  tmp=$_yad_schedule_tmp
+  _yad_schedule_backup=
   existed=0
   if [ -f "$file" ] && [ ! -L "$file" ]; then
-    backup=$(mktemp "$file.rollback.XXXXXX") || {
-      echo "unable to allocate schedule rollback file" >&2
-      return 31
-    }
+    _yad_schedule_backup=$(mktemp "$file.rollback.XXXXXX") || return 31
+    backup=$_yad_schedule_backup
     cp -p "$file" "$backup" && chmod 600 "$backup" || {
       echo "unable to preserve previous schedule" >&2
       return 31
     }
     existed=1
   fi
-
   {
     printf 'enabled=%s\n' "$enabled"
     printf 'start=%s\n' "$start"
@@ -438,35 +485,34 @@ schedule_set() {
     echo "unable to commit schedule candidate" >&2
     return 33
   }
-  tmp=
+  _yad_schedule_tmp=; tmp=
   sync
-
   if [ ! -x "$MP/scripts/yulong-ad-schedule.sh" ]; then
     echo "Yulong schedule runtime is not installed" >&2
   else
     if MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate \
         && MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" start; then
       rm -f "$backup"
-      backup=
+      backup=; _yad_schedule_backup=
       echo "schedule=committed"
       return 0
     fi
     echo "schedule apply or watcher start failed; restoring previous schedule" >&2
   fi
-
   if [ "$existed" = 1 ] && [ -f "$backup" ]; then
-    tmp=$(mktemp "$file.restore.XXXXXX") || {
+    _yad_schedule_tmp=$(mktemp "$file.restore.XXXXXX") || {
       echo "schedule rollback temp creation failed; previous copy remains at $backup" >&2
-      backup=
+      backup=; _yad_schedule_backup=
       return 34
     }
+    tmp=$_yad_schedule_tmp
     if cp -p "$backup" "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$file"; then
-      tmp=
+      tmp=; _yad_schedule_tmp=
     else
       rm -f "$tmp"
-      tmp=
+      tmp=; _yad_schedule_tmp=
       echo "schedule rollback failed; previous copy remains at $backup" >&2
-      backup=
+      backup=; _yad_schedule_backup=
       return 34
     fi
   else
@@ -479,7 +525,7 @@ schedule_set() {
 cache_flush() {
   lock="$PG/yulong-cache-flush.lock"
   if ! mkdir "$lock" 2>/dev/null; then echo "DNS cache refresh is already running" >&2; return 30; fi
-  trap 'rmdir "$lock" 2>/dev/null || :' EXIT HUP INT TERM
+  _yad_cache_lock=$lock
   agh_enabled=$(pg_get dns_engine_adguardhome 1 2>/dev/null)
   forward_enabled=$(pg_get dns_forward 1 2>/dev/null)
   if [ "$agh_enabled" != 1 ] && [ "$forward_enabled" != 1 ]; then echo "dns-engine-disabled"; return 0; fi
