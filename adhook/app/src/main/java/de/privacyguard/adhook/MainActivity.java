@@ -2642,6 +2642,12 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void openImportedSuitePage(String suite, String category, String page) {
+        if ("yulong-ad".equals(suite) && "计划任务".equals(page)) {
+            startActivity(new Intent(this,
+                    de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                    .putExtra("suite_page", "计划任务"));
+            return;
+        }
         if ("yulong-ad".equals(suite) && "DNS 日志".equals(page)) {
             startActivity(new Intent(this,
                     de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
