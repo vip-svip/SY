@@ -13,9 +13,9 @@ valid_pkg(){ printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$'; 
 valid_scope(){ case "$1" in SHELL_ID_COMMAND|PACKAGE_LIST_COMMAND|PROCESS_LIST_COMMAND|PROPERTY_READ_COMMAND|SETTINGS_READ_COMMAND|SELINUX_STATUS_COMMAND|FILESYSTEM_READ_COMMAND|SERVICE_LIST_COMMAND|SECURE_SETTINGS_WRITE|APPOPS_MANAGE|RUNTIME_PERMISSION_MANAGE|TERMINAL_COMMAND) return 0 ;; *) return 1 ;; esac; }
 valid_command(){
   case "$1" in
-    getprop|id|id\\ -u|whoami|ps|ps\\ -A|ps\\ -ef|getenforce|service\\ list) return 0 ;;
+    getprop|id|id\ -u|whoami|ps|ps\ -A|ps\ -ef|getenforce|service\ list) return 0 ;;
   esac
-  printf '%s\\n' "$1" | grep -Eq '^(getprop [A-Za-z0-9_.-]{1,128}|pm list packages( -3|-s|-f|-U)?|cmd package list packages( -3|-s|-f|-U)?|dumpsys package [A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+|settings get (secure|global|system) [A-Za-z0-9_.-]{1,128}|cat /proc/(version|uptime)|cat /sys/fs/selinux/enforce|ls (/system|/product|/vendor|/apex|/proc|/sys)(/[A-Za-z0-9_.-]+)*)$'
+  printf '%s\n' "$1" | grep -Eq '^(getprop [A-Za-z0-9_.-]{1,128}|pm list packages( -3|-s|-f|-U)?|cmd package list packages( -3|-s|-f|-U)?|dumpsys package [A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+|settings get (secure|global|system) [A-Za-z0-9_.-]{1,128}|cat /proc/(version|uptime)|cat /sys/fs/selinux/enforce|ls (/system|/product|/vendor|/apex|/proc|/sys)(/[A-Za-z0-9_.-]+)*)$'
 }
 with_lock(){
   n=0
@@ -24,8 +24,8 @@ with_lock(){
   "$@"
 }
 authorized_pkg(){ grep -Fxq "$1" "$PKGS"; }
-has_scope(){ awk -F '\\t' -v pkg="$1" -v scope="$2" '$1==pkg&&$2==scope{found=1} END{exit !found}' "$SCOPES"; }
-has_always(){ awk -F '\\t' -v pkg="$1" -v command="$2" '$1==pkg&&$2==command{found=1} END{exit !found}' "$ALWAYS"; }
+has_scope(){ awk -F '\t' -v pkg="$1" -v scope="$2" '$1==pkg&&$2==scope{found=1} END{exit !found}' "$SCOPES"; }
+has_always(){ awk -F '\t' -v pkg="$1" -v command="$2" '$1==pkg&&$2==command{found=1} END{exit !found}' "$ALWAYS"; }
 valid_runtime_permission(){
   case "$1" in
     android.permission.CAMERA|android.permission.RECORD_AUDIO|android.permission.ACCESS_FINE_LOCATION|android.permission.ACCESS_COARSE_LOCATION|android.permission.ACCESS_BACKGROUND_LOCATION|android.permission.READ_CONTACTS|android.permission.WRITE_CONTACTS|android.permission.GET_ACCOUNTS|android.permission.READ_CALENDAR|android.permission.WRITE_CALENDAR|android.permission.READ_CALL_LOG|android.permission.WRITE_CALL_LOG|android.permission.CALL_PHONE|android.permission.READ_PHONE_STATE|android.permission.READ_PHONE_NUMBERS|android.permission.ANSWER_PHONE_CALLS|android.permission.ADD_VOICEMAIL|android.permission.USE_SIP|android.permission.BODY_SENSORS|android.permission.BODY_SENSORS_BACKGROUND|android.permission.SEND_SMS|android.permission.RECEIVE_SMS|android.permission.READ_SMS|android.permission.RECEIVE_WAP_PUSH|android.permission.RECEIVE_MMS|android.permission.POST_NOTIFICATIONS|android.permission.READ_MEDIA_IMAGES|android.permission.READ_MEDIA_VIDEO|android.permission.READ_MEDIA_AUDIO|android.permission.READ_MEDIA_VISUAL_USER_SELECTED|android.permission.NEARBY_WIFI_DEVICES|android.permission.BLUETOOTH_SCAN|android.permission.BLUETOOTH_CONNECT|android.permission.BLUETOOTH_ADVERTISE|android.permission.ACTIVITY_RECOGNITION|android.permission.ACCESS_MEDIA_LOCATION) return 0 ;;

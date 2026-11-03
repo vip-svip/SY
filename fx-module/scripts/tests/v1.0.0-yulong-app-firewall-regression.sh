@@ -1,9 +1,9 @@
-#!/system/bin/sh
+#!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 MODULE="$ROOT/fx-module"
 SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
-TMP="\${TMPDIR:-/tmp}/fx-yulong-firewall-$$"
+TMP="${TMPDIR:-/tmp}/fx-yulong-firewall-$"
 mkdir -p "$TMP/module/scripts" "$TMP/pg" "$TMP/bin"
 cp "$SOURCE" "$TMP/module/scripts/yulong-app-firewall.sh"
 printf 'id=privacyguard\n' > "$TMP/module/module.prop"
@@ -14,7 +14,7 @@ enabled=0
 [list:yulong_app_firewall]
 EOF
 cat > "$TMP/bin/iptables" <<'EOF'
-#!/system/bin/sh
+#!/bin/sh
 echo "iptables $*" >> "$MOCK_LOG"
 case "$*" in
   *" -C OUTPUT -j "*) exit 1 ;;
@@ -22,7 +22,7 @@ case "$*" in
 esac
 EOF
 cat > "$TMP/bin/ip6tables" <<'EOF'
-#!/system/bin/sh
+#!/bin/sh
 echo "ip6tables $*" >> "$MOCK_LOG"
 case "$*" in
   *" -C OUTPUT -j "*) exit 1 ;;
@@ -30,7 +30,7 @@ case "$*" in
 esac
 EOF
 cat > "$TMP/bin/cmd" <<'EOF'
-#!/system/bin/sh
+#!/bin/sh
 if [ "$1" = package ] && [ "$2" = list ] && [ "$3" = packages ] && [ "$4" = -U ]; then
   echo "package:com.example.blocked uid:10123"
   echo "package:com.example.allowed uid:10124"
