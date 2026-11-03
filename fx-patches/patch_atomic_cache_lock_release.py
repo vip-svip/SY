@@ -23,6 +23,19 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
         raise SystemExit(f"{path}: {label}: expected one original anchor, found {count}")
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
 
+def replace_if_present(path: Path, old: str, new: str, label: str) -> bool:
+    """Optional diagnostic instrumentation for known release fixture variants."""
+    source = path.read_text(encoding="utf-8")
+    if new in source:
+        return True
+    count = source.count(old)
+    if count == 0:
+        return False
+    if count != 1:
+        raise SystemExit(f"{path}: {label}: expected one optional anchor, found {count}")
+    path.write_text(source.replace(old, new, 1), encoding="utf-8")
+    return True
+
 for required in (apply_file, subfetch_file, host_test, sub_test):
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
@@ -160,6 +173,28 @@ if "FX_SUBFETCH_CURL_TRACE_END_V1" not in sub_test.read_text(encoding="utf-8"):
 # Its worker launch syntax differs from the repository fixture, so do not force
 # a second, brittle rewrite of those commands; the count-failure assertion below
 # prints the event log and both worker responses for diagnosis.
+# Add shell xtrace to the two known restored-release worker forms. These are
+# optional diagnostic upgrades because root and release fixture launch syntax
+# have differed over time. The concurrency assertions stay unchanged.
+replace_if_present(
+    sub_test,
+    """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" & p1=$!
+""",
+    """# FX_SUBFETCH_WORKER_TRACE_A_V1
+PS4='FXSUB-A ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" 2> "$T/trace1" & p1=$!
+""",
+    "subscription worker A shell trace",
+)
+replace_if_present(
+    sub_test,
+    """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" & p2=$!
+""",
+    """# FX_SUBFETCH_WORKER_TRACE_B_V1
+PS4='FXSUB-B ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" 2> "$T/trace2" & p2=$!
+""",
+    "subscription worker B shell trace",
+)
+
 # The legacy test uses set -e with bare assertions. When one metadata/lock
 # invariant fails it previously exited with an empty log, so add precise failure
 # output while keeping the same assertions and exit behavior.
