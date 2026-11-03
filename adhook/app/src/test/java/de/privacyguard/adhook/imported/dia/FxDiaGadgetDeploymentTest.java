@@ -88,6 +88,39 @@ public final class FxDiaGadgetDeploymentTest {
                         "com.example;touch /data/adb/pwn"));
     }
 
+    @Test public void acceptsOnlyTheSelectedAppsMainOrNamedChildProcess() {
+        assertTrue(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.example.debuggable") == null);
+        assertTrue(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.example.debuggable:remote") == null);
+        assertTrue(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.example.debuggable:worker_2") == null);
+    }
+
+    @Test public void rejectsWildcardForeignAndMalformedProcessNames() {
+        assertFalse(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "*") == null);
+        assertFalse(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.other.app") == null);
+        assertFalse(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.example.debuggable:remote;id") == null);
+        assertFalse(FxDiaGadgetDeployment.validateProcessName(
+                "com.example.debuggable", "com.example.debuggable:") == null);
+    }
+
+    @Test public void markerBindsTheExactSelectedProcess() {
+        String command = FxDiaGadgetDeployment.buildDeployCommand(
+                "/data/local/tmp/libfrida-gadget.so",
+                "/data/local/tmp/libfrida-gadget.config.so",
+                "/data/app/com.example.debuggable/lib/arm64",
+                "com.example.debuggable",
+                27043,
+                "com.example.debuggable:remote");
+        assertTrue(command.contains("processes=%s"));
+        assertTrue(command.contains("com.example.debuggable:remote"));
+        assertFalse(command.contains("processes=*"));
+    }
+
     @Test public void rootCommandBuilderRetainsValidatedPort() {
         String command = FxDiaGadgetDeployment.buildDeployCommand(
                 "/data/local/tmp/libfrida-gadget.so",
