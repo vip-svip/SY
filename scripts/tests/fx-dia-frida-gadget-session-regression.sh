@@ -150,7 +150,7 @@ if [ -s "$pidfile" ]; then
   }
   if kill -0 "$old_cli" 2>/dev/null; then
     old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
-    case "$old_cmd" in *"$old_cli_path"*" -H "* "127.0.0.1:$port"* " -n "*Gadget*" -l "*"$script"*)
+    case "$old_cmd" in *"$old_cli_path"*"-H"*"127.0.0.1:$port"*"-n"*Gadget*"-l"*"$script"*)
       echo FX_GADGET_SESSION_ALREADY_RUNNING
       exit 0;;
       *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
