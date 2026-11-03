@@ -637,3 +637,12 @@ After each implementation batch:
 - Blank lines and comment lines beginning with `#` are ignored. Duplicate domains update their note instead of creating duplicate entries.
 - The source updates are committed on `fx-v1.0.0-unified-hook-integration`; no package was produced. Per the current migration instruction, no test workflow was run in this batch.
 
+
+
+## Yulong AdBlock 7.0.1 — batch domain import rollback (2026-11-03)
+
+- The Root control backend now supports `allow-import` and `block-import` for multiline domain entries. It validates every row before the first mutation and enforces the 2,000-row / 64 KiB batch limits.
+- The native fourth-level domain page exposes separate bulk import editors for the allowlist and blocklist. Rows may use `domain` or `domain|note`; blank lines and comment lines are ignored.
+- The shared Yulong Ad transaction now restores the previous settings file if either the mutation function or the FX apply step fails, then reconciles the restored runtime configuration. This closes the partial-write rollback hole that would otherwise matter during a batch import.
+- Source changes remain committed to the unified branch. No APK/KernelSU package or test workflow was run in this batch, as requested.
+
