@@ -2577,6 +2577,9 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 5;
             showSettings();
         } else if (index == 4) {
+            // Selecting the top-level Hook tab leaves the migration sub-flow.
+            // Imported Dia routes call showAppList() directly and keep their return context.
+            clearMigrationNavigation();
             selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
