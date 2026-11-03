@@ -605,4 +605,5 @@ After each implementation batch:
 - Yulong Shield screen-filter drawing now uses the configured Paint color matrix for the overlay itself. The UI explicitly describes the capability as a non-touch transparent overlay and does not claim pixel-level transformation of the underlying screen for contrast/saturation.
 - Dia component manager now resolves the active Android user rather than hard-coding user 0; its Intent import was restored.
 - Yulong schedule validation rejects duplicate/invalid weekdays, and disabled schedules stop their minute-polling watcher.
+- Yulong Ad DNS filtering response mode is now native-configurable: NXDOMAIN (default), REFUSED, or custom null-address response (0.0.0.0 / ::); the AdGuard Home runtime renderer reads this setting at startup.
 - No final KernelSU ZIP or APK was produced in this continuation batch. The build workflows remain manual-dispatch only, so subsequent source commits do not package prematurely. No real-device verification is claimed.
