@@ -39,6 +39,9 @@ for name in (
 
 for key in (
     "digXposed", "active_tip", "native_active_tip", "lsp_sync",
+    assert "console" in global_page, "original XML console preference is missing from the source inventory"
+assert "SettingsActivity removes" in global_page, "hidden original console preference visibility behavior is undocumented"
+assert "addStoredSwitch(\"显示控制台\"" not in global_page, "original SettingsActivity-hidden console preference must not be newly exposed"
     "language_setting", "fast_restart_system", "app_update",
     "data_backup", "system_expand", "internal_community",
 ):
