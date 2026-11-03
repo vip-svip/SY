@@ -17,6 +17,10 @@ deploy = Path(sys.argv[2]).read_text(encoding="utf-8")
 hook = Path(sys.argv[3]).read_text(encoding="utf-8")
 merger = Path(sys.argv[4]).read_text(encoding="utf-8")
 
+# Normalize escaped double quotes in Java command strings before checking the generated shell contract.
+deploy_contract = deploy.replace(chr(92) + '"', '"')
+
+
 for label, needle in {
     "deploy action UI": 'button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget())',
     "remove action UI": 'button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget())',
@@ -29,10 +33,6 @@ for label, needle in {
     haystack = activity if label.endswith("UI") else deploy_contract
     if needle not in haystack:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
-# The deploy shell is emitted from Java string literals. Normalize escaped
-# double quotes so assertions compare the generated shell contract, not Java
-# source-code escaping.
-deploy_contract = deploy.replace(chr(92) + '"', '"')
 
 for label, needle in {
     "user-install/debuggable gate": "ApplicationInfo.FLAG_DEBUGGABLE",
