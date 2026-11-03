@@ -2982,10 +2982,6 @@ public final class MainActivity extends ComponentActivity {
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.shield.FxYulongScanActivity.class));
                     return;
-                case "每日安全总结":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
-                    return;
                 case "病毒库管理": case "病毒库同步":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.shield.FxYulongVirusDatabaseActivity.class));
@@ -3098,9 +3094,6 @@ public final class MainActivity extends ComponentActivity {
                 case "JSON 操作":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaJsonActivity.class));
-                    return;
-                case "规则组": case "规则列表":
-                    showAppList("自定义 Hook");
                     return;
                 case "运行日志":
                     showNativeRuntimeLogs();
