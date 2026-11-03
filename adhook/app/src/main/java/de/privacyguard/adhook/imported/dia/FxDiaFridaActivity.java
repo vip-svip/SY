@@ -175,6 +175,8 @@ public final class FxDiaFridaActivity extends Activity {
                 button("查看方法观察/内存快照说明", () -> showDiaHelp("dia/rewrite_rule_help.md", "方法观察与内存快照")),
                 button("查看当前目标注入日志", () -> showSessionLog()),
                 button("清空当前目标注入日志", () -> clearSessionLog()),
+                button("从文件导入 JS 脚本", () -> pickScript()),
+                button("导出当前 JS 脚本", () -> saveScript()),
                 button("向当前调试目标注入", () -> injectScript()));
 
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
@@ -197,6 +199,73 @@ public final class FxDiaFridaActivity extends Activity {
         body.addView(warning);
     }
 
+    private void pickScript() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("text/*");
+        try { startActivityForResult(pick, 7103); }
+        catch (Throwable error) { setStatus("无法打开 JS 文件选择器：" + error.getClass().getSimpleName()); }
+    }
+
+    private void saveScript() {
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/javascript");
+        create.putExtra(Intent.EXTRA_TITLE, "dia-frida-script.js");
+        try { startActivityForResult(create, 7104); }
+        catch (Throwable error) { setStatus("无法创建 JS 文件：" + error.getClass().getSimpleName()); }
+    }
+
+    private void importScript(Uri uri) {
+        setStatus("正在导入 JS 脚本…");
+        worker.execute(() -> {
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("无法读取脚本文件。");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() > 512 * 1024 - count)
+                        throw new IllegalArgumentException("脚本超过 512 KiB 限制。");
+                    output.write(buffer, 0, count);
+                }
+                String source = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                if (source.trim().isEmpty()) throw new IllegalArgumentException("脚本内容为空。");
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    script.setText(source);
+                    setStatus("JS 脚本已导入；未自动执行。请检查目标应用和脚本内容后再手动注入。");
+                });
+            } catch (Throwable error) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed())
+                        setStatus("JS 脚本导入失败：" + error.getClass().getSimpleName()
+                                + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                });
+            }
+        });
+    }
+
+    private void exportScript(Uri uri) {
+        String source = script == null ? "" : script.getText().toString();
+        if (source.isEmpty()) { setStatus("当前没有可导出的 JS 脚本。"); return; }
+        if (source.getBytes(StandardCharsets.UTF_8).length > 512 * 1024) {
+            setStatus("脚本超过 512 KiB 限制，无法导出。");
+            return;
+        }
+        worker.execute(() -> {
+            try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
+                if (output == null) throw new IllegalStateException("无法创建目标文件。");
+                output.write(source.getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                runOnUiThread(() -> setStatus("当前 JS 脚本已导出。"));
+            } catch (Throwable error) {
+                runOnUiThread(() -> setStatus("JS 脚本导出失败：" + error.getClass().getSimpleName()
+                        + (error.getMessage() == null ? "" : "：" + error.getMessage())));
+            }
+        });
+    }
+
     private void pickBinary(int requestCode) {
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         pick.addCategory(Intent.CATEGORY_OPENABLE);
@@ -210,9 +279,14 @@ public final class FxDiaFridaActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if ((requestCode != 7101 && requestCode != 7102) || resultCode != RESULT_OK
-                || data == null || data.getData() == null) return;
-        importBinary(data.getData(), requestCode == 7101);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (requestCode == 7101 || requestCode == 7102) {
+            importBinary(data.getData(), requestCode == 7101);
+        } else if (requestCode == 7103) {
+            importScript(data.getData());
+        } else if (requestCode == 7104) {
+            exportScript(data.getData());
+        }
     }
 
     private void importBinary(Uri uri, boolean server) {
