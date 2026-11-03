@@ -215,10 +215,95 @@ dns_config_get() {
 m_rule_add(){ write_rule "$1" "$2" "$3" add; }
 m_rule_set(){ old=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $2;exit}'); [ -n "$old" ] || return 3; write_rule "$1" "$old" "$2" set; }
 m_rule_remove(){ write_rule "$1" "" 0 remove; }
+import_domains() {
+  _import_kind="$1"
+  _import_encoded="$2"
+  case "$_import_kind" in allow|block) ;; *) return 2 ;; esac
+  case "$_import_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain import" >&2; return 2 ;; esac
+  [ "\${#_import_encoded}" -le 87384 ] || { echo "domain import exceeds 64 KiB" >&2; return 2; }
+
+  _import_raw="$PG/yulong-domain-import.$"
+  _import_clean="$_import_raw.clean"
+  rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+  (umask 077; printf '%s' "$_import_encoded" | base64 -d > "$_import_raw") || {
+    rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+    echo "unable to decode domain import" >&2
+    return 2
+  }
+  _import_bytes=$(wc -c < "$_import_raw" | tr -d ' ')
+  [ "$_import_bytes" -le 65536 ] || {
+    rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+    echo "domain import exceeds 64 KiB" >&2
+    return 2
+  }
+
+  _import_count=0
+  while IFS='|' read -r _import_domain _import_note _import_extra || \
+        [ -n "$_import_domain$_import_note$_import_extra" ]; do
+    _import_domain=$(printf '%s' "$_import_domain" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    _import_note=$(printf '%s' "$_import_note" | tr -d '\r')
+    [ -n "$_import_domain" ] || continue
+    [ -z "$_import_extra" ] || {
+      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+      echo "invalid domain row: only domain|note is accepted" >&2
+      return 2
+    }
+    _import_domain=$(valid_domain "$_import_domain") || {
+      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+      echo "invalid domain in import" >&2
+      return 2
+    }
+    if [ -z "$_import_note" ]; then
+      if [ "$_import_kind" = allow ]; then _import_note="FX 批量白名单"; else _import_note="FX 批量黑名单"; fi
+    fi
+    valid_text "$_import_note" || {
+      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+      echo "invalid note for domain: $_import_domain" >&2
+      return 2
+    }
+    printf '%s|%s\n' "$_import_domain" "$_import_note" >> "$_import_clean" || {
+      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+      return 1
+    }
+    _import_count=$((_import_count + 1))
+    [ "$_import_count" -le 2000 ] || {
+      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+      echo "domain import is limited to 2000 rows" >&2
+      return 2
+    }
+  done < "$_import_raw"
+
+  [ "$_import_count" -gt 0 ] || {
+    rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+    echo "no domains to import" >&2
+    return 2
+  }
+
+  while IFS='|' read -r _import_domain _import_note; do
+    if [ "$_import_kind" = allow ]; then
+      sh "$MP/scripts/whitelist.sh" add "$_import_domain" "$_import_note" || {
+        rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+        echo "failed to add allow domain: $_import_domain" >&2
+        return 1
+      }
+    else
+      write_block "$_import_domain" "$_import_note" 1 add || {
+        rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+        echo "failed to add block domain: $_import_domain" >&2
+        return 1
+      }
+    fi
+  done < "$_import_clean"
+
+  rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
+  echo "imported=$_import_count"
+}
 m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
 m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
+m_allow_import(){ import_domains allow "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
+m_block_import(){ import_domains block "$1"; }
 valid_time() {
   printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'
 }
@@ -398,6 +483,12 @@ case "$cmd" in
  allow-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_allow_remove "$d" ;;
+ allow-import)
+  [ "$#" -eq 2 ] || { echo "usage: $0 allow-import base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_allow_import "$2" ;;
+ block-import)
+  [ "$#" -eq 2 ] || { echo "usage: $0 block-import base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_block_import "$2" ;;
  block-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 黑名单"; valid_text "$note" || exit 2

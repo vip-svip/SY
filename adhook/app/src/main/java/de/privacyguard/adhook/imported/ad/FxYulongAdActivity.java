@@ -200,7 +200,63 @@ private void saveVpnDns(String key,EditText input){
 }
  private boolean syncing;
  private Switch dnsSwitch(String label,String key){Switch s=new Switch(this);s.setText(label);s.setTag(key);s.setEnabled(false);s.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("dns-set "+key+" "+(on?"1":"0"),label);});return s;}
- private void renderDomains(){EditText allow=new EditText(this);allow.setSingleLine(true);allow.setHint("白名单域名");EditText allowNote=new EditText(this);allowNote.setSingleLine(true);allowNote.setHint("备注");card("域名白名单","精确放行域名及其子域。",allow,allowNote,btn("添加白名单",()->{if(!allow.getText().toString().trim().isEmpty())apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");}));EditText block=new EditText(this);block.setSingleLine(true);block.setHint("黑名单域名");EditText blockNote=new EditText(this);blockNote.setSingleLine(true);blockNote.setHint("备注");card("域名黑名单","只添加明确需要阻断的域名。",block,blockNote,btn("添加黑名单",()->{if(!block.getText().toString().trim().isEmpty())apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");}));entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void renderDomains(){
+  EditText allow=new EditText(this); allow.setSingleLine(true); allow.setHint("白名单域名");
+  EditText allowNote=new EditText(this); allowNote.setSingleLine(true); allowNote.setHint("备注");
+  card("域名白名单","精确放行域名及其子域。",
+      allow,allowNote,
+      btn("添加白名单",()->{
+        if(!allow.getText().toString().trim().isEmpty())
+          apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");
+      }));
+  EditText allowBulk=new EditText(this); allowBulk.setGravity(Gravity.TOP|Gravity.START);
+  allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
+  card("批量导入白名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
+      allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
+
+  EditText block=new EditText(this); block.setSingleLine(true); block.setHint("黑名单域名");
+  EditText blockNote=new EditText(this); blockNote.setSingleLine(true); blockNote.setHint("备注");
+  card("域名黑名单","只添加明确需要阻断的域名。",
+      block,blockNote,
+      btn("添加黑名单",()->{
+        if(!block.getText().toString().trim().isEmpty())
+          apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");
+      }));
+  EditText blockBulk=new EditText(this); blockBulk.setGravity(Gravity.TOP|Gravity.START);
+  blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
+  card("批量导入黑名单","最多 2000 条、64 KiB。整批验证并通过一次 FX apply 事务；失败会回滚。",
+      blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
+
+  entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
+ }
+
+ private void importDomains(String kind,EditText input){
+  String raw=input.getText()==null?"":input.getText().toString();
+  java.util.ArrayList<String> lines=new java.util.ArrayList<>();
+  for(String line:raw.split("\\r?\\n")){
+   String value=line.trim();
+   if(value.isEmpty()||value.startsWith("#")) continue;
+   String[] fields=value.split("\\\\|",-1);
+   if(fields.length>2 || fields[0].trim().isEmpty() || fields[0].trim().length()>253
+       || (fields.length==2 && fields[1].trim().length()>180)){
+    status.setText("导入格式错误：请使用 domain 或 domain|note，每行一条。");
+    return;
+   }
+   lines.add(fields.length==1?fields[0].trim():fields[0].trim()+"|"+fields[1].trim());
+   if(lines.size()>2000){status.setText("单次最多导入 2000 条域名。");return;}
+  }
+  if(lines.isEmpty()){status.setText("没有可导入的域名。");return;}
+  String payload=String.join("\\n",lines);
+  byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("批量域名数据超过 64 KiB，请分批导入。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  new AlertDialog.Builder(this).setTitle(kind.equals("allow")?"批量导入白名单":"批量导入黑名单")
+      .setMessage("共 "+lines.size()+" 条。后端会先验证所有域名，再原子写入配置并应用；任何失败都会回滚整批。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("导入", (dialog,which)->
+          apply(kind+"-import "+q(encoded),kind.equals("allow")?"批量白名单导入":"批量黑名单导入"))
+      .show();
+ }
  private void renderSchedule(){
   Switch enabled=new Switch(this);
   enabled.setText("启用每周自动计划");
