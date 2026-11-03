@@ -37,8 +37,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 全屏「添加白名单」页面（2026-10-30）。
@@ -65,7 +67,14 @@ public class WhitelistPickerActivity extends Activity {
     /** 只缓存已经滚动到过的图标；不预加载全部应用图标。 */
     private final Map<String, Drawable> iconCache = new ConcurrentHashMap<>();
     private final Set<String> loadingIcons = Collections.synchronizedSet(new HashSet<>());
-    private final ExecutorService iconExecutor = Executors.newFixedThreadPool(2);
+    private final ThreadPoolExecutor appLoader = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-shield-whitelist-apps"), new ThreadPoolExecutor.AbortPolicy());
+    private final ThreadPoolExecutor iconExecutor = new ThreadPoolExecutor(2, 2, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(32),
+            r -> new Thread(r, "fx-shield-whitelist-icons"), new ThreadPoolExecutor.AbortPolicy());
+    private volatile boolean activityDestroyed;
+    private volatile long appLoadGeneration;
 
     private ListView listView;
     private AppAdapter adapter;
@@ -257,17 +266,17 @@ public class WhitelistPickerActivity extends Activity {
     }
 
     private void loadAppsAsync() {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+        final long generation = ++appLoadGeneration;
+        try {
+            appLoader.execute(() -> {
                 final List<AppItem> loaded = new ArrayList<>();
                 try {
                     for (ApplicationInfo app : pm.getInstalledApplications(0)) {
+                        if (Thread.currentThread().isInterrupted()
+                                || generation != appLoadGeneration) return;
                         if (app.packageName.equals(getPackageName())) continue;
                         if ((app.flags & ApplicationInfo.FLAG_SYSTEM) != 0
-                                && (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
-                            continue;
-                        }
+                                && (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) continue;
                         AppItem item = new AppItem();
                         item.packageName = app.packageName;
                         item.label = app.loadLabel(pm).toString();
@@ -288,18 +297,21 @@ public class WhitelistPickerActivity extends Activity {
                         }
                     });
                 }
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (isFinishing()) return;
-                        loadFinished = true;
-                        allApps.clear();
-                        allApps.addAll(loaded);
-                        applyFilter();
-                    }
+                runOnUiThread(() -> {
+                    if (activityDestroyed || isFinishing() || isDestroyed()
+                            || generation != appLoadGeneration) return;
+                    loadFinished = true;
+                    allApps.clear();
+                    allApps.addAll(loaded);
+                    applyFilter();
                 });
+            });
+        } catch (RejectedExecutionException ignored) {
+            if (!activityDestroyed) {
+                loadFinished = true;
+                countView.setText("应用列表任务繁忙，请稍后重新打开。");
             }
-        }, "Whitelist-App-Loader").start();
+        }
     }
 
     /**
@@ -467,20 +479,24 @@ public class WhitelistPickerActivity extends Activity {
             h.avatar.setVisibility(View.VISIBLE);
             h.icon.setVisibility(View.GONE);
             if (!loadingIcons.add(pkg)) return;
-            iconExecutor.execute(() -> {
-                Drawable loaded = null;
-                try {
-                    loaded = pm.getApplicationIcon(pkg);
-                } catch (Throwable ignored) {
-                }
-                if (loaded != null) iconCache.put(pkg, loaded);
-                loadingIcons.remove(pkg);
-                final Drawable result = loaded;
-                runOnUiThread(() -> {
-                    if (isFinishing() || result == null) return;
-                    if (pkg.equals(h.iconWrap.getTag())) showIcon(h, result);
+            try {
+                iconExecutor.execute(() -> {
+                    Drawable loaded = null;
+                    try {
+                        loaded = pm.getApplicationIcon(pkg);
+                    } catch (Throwable ignored) {
+                    }
+                    if (loaded != null) iconCache.put(pkg, loaded);
+                    loadingIcons.remove(pkg);
+                    final Drawable result = loaded;
+                    runOnUiThread(() -> {
+                        if (activityDestroyed || isFinishing() || isDestroyed() || result == null) return;
+                        if (pkg.equals(h.iconWrap.getTag())) showIcon(h, result);
+                    });
                 });
-            });
+            } catch (RejectedExecutionException full) {
+                loadingIcons.remove(pkg);
+            }
         }
 
         private void showIcon(ViewHolder h, Drawable icon) {
@@ -559,8 +575,11 @@ public class WhitelistPickerActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        activityDestroyed = true;
+        appLoadGeneration++;
+        appLoader.shutdownNow();
         iconExecutor.shutdownNow();
+        super.onDestroy();
     }
 
     private int getStatusBarHeight() {
