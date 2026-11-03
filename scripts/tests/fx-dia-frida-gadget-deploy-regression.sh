@@ -60,7 +60,9 @@ for label, needle in {
     "Gadget file hash created": 'libhash=$(sha256sum "$stage/$gadget"',
     "config file hash created": 'confhash=$(sha256sum "$stage/$conf"',
     "marker binds exact package": "package=%s",
-    "marker restricts process set": "processes=*",
+    "marker process is bound to one named process": "processes=%s",
+    "process name validator is available": "validateProcessName",
+    "wildcard Gadget marker is forbidden": "processes=*",
     "marker binds port": "port=%s",
     "marker is committed after library and config": 'mv "$stage/$marker" "$dest/$marker"; new_m=1',
     "rollback trap": 'trap cleanup 0',
@@ -89,6 +91,8 @@ for label, needle in {
 }.items():
     if needle not in hook:
         raise SystemExit(f"FAIL: target loader {label}: missing {needle!r}")
+if "processes=*" in deploy_contract:
+    raise SystemExit("FAIL: Gadget marker must bind one explicit process per listener port")
 if "de.privacyguard.hook.DiaFridaTargetHook" not in merger:
     raise SystemExit("FAIL: unified Hook merge does not register the Dia target-side Gadget loader")
 print("PASS: Dia Gadget deploy/remove UI, package scope, ABI, hashes and target loader contracts are present")
