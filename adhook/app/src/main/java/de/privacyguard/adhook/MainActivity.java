@@ -2642,6 +2642,60 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void openImportedSuitePage(String suite, String category, String page) {
+        if ("yulong-ad".equals(suite)) {
+            switch (page) {
+                case "统计": case "每日防护总结": case "应用统计":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
+                    return;
+                case "白名单域名": case "黑名单域名": case "自定义规则": case "规则编辑":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "域名名单"));
+                    return;
+                case "过滤器设置": case "添加过滤列表":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "过滤列表"));
+                    return;
+                case "广告拦截开关": case "防护级别": case "防护状态":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "首页与防护"));
+                    return;
+                case "DNS 服务器": case "上游 DNS": case "备用 DNS":
+                case "自定义 DNS": case "DNS 协议": case "分离 DNS 区域":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "DNS 设置"));
+                    return;
+                case "VPN 保护": case "VPN 状态": case "自动重连":
+                case "信任的网络": case "Root 代理模式": case "iptables DNS 重定向":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "VPN 与 Root Proxy"));
+                    return;
+                case "HTTPS 过滤": case "根 CA 证书": case "保存证书":
+                case "安装证书": case "验证证书": case "过滤 HTTP/3 (QUIC)":
+                    showNativeCertificateManager();
+                    return;
+                case "DNS 查询日志":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
+                    return;
+                case "导出本地日志": case "分享日志": case "崩溃报告": case "隐私与诊断":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "日志与诊断"));
+                    return;
+                case "界面": case "主题色": case "网络切换延迟":
+                case "电池优化": case "设置导入": case "设置导出": case "关于":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "通用设置"));
+                    return;
+            }
+        }
         if ("yulong-ad".equals(suite) && "计划任务".equals(page)) {
             startActivity(new Intent(this,
                     de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
