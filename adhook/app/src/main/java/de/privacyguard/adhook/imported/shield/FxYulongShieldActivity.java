@@ -84,7 +84,36 @@ public final class FxYulongShieldActivity extends Activity {
         card("管控应用列表",
                 "保留原版应用选择、批量加入、移除与清空确认流程；后台自动拦截服务尚未迁入。",
                 action("打开管控列表", () -> startActivity(new Intent(this, BlacklistActivity.class))));
-        card("实时守护与自保服务",
-                "ProtectService、音量/摇动触发、守护通知、自保 watchdog、扫描自动拦截和 Stellar 金龙引擎仍在迁移队列中。为避免误导，这里暂不提供无效开关。");
+        android.content.SharedPreferences shieldPrefs =
+                getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE);
+        android.widget.Switch installScan = new android.widget.Switch(this);
+        installScan.setText("安装新应用时自动扫描");
+        installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", false));
+        installScan.setOnCheckedChangeListener((button, enabled) -> {
+            shieldPrefs.edit().putBoolean("automatic_install_scan_enabled", enabled).apply();
+            if (enabled && android.os.Build.VERSION.SDK_INT >= 33
+                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9021);
+            }
+        });
+        android.widget.Switch contentScan = new android.widget.Switch(this);
+        contentScan.setText("同时启用 APK 内容特征扫描");
+        contentScan.setChecked(shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
+        contentScan.setOnCheckedChangeListener((button, enabled) ->
+                shieldPrefs.edit().putBoolean("automatic_content_scan_enabled", enabled).apply());
+        card("安装后自动检测",
+                "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
+                installScan, contentScan);
+        String lastScan = shieldPrefs.getString("automatic_scan_last_result", "尚无自动扫描记录");
+        String lastPackage = shieldPrefs.getString("automatic_scan_last_package", "");
+        String lastTime = shieldPrefs.getString("automatic_scan_last_time", "");
+        card("最近自动检测",
+                lastScan + (lastPackage.isEmpty() ? "" : "\\n包名：" + lastPackage)
+                        + (lastTime.isEmpty() ? "" : "\\n时间：" + lastTime),
+                action("打开完整应用扫描", () -> startActivity(new Intent(this,
+                        FxYulongScanActivity.class))));
+        card("原版高级守护功能",
+                "原版音量/摇动触发、覆盖层交互、持续进程自保和 Stellar 金龙特权运行时仍需单独移植；本次已恢复安装后自动检测，不以普通包广播冒充完整 watchdog。");
     }
 }
