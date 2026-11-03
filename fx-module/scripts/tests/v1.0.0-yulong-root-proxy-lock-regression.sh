@@ -33,6 +33,48 @@ chmod 0755 "$BIN/sleep"
 export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"
 LOCK="$PG/yulong-root-proxy.lock"
 
+grep -Fq '( umask 077; set -C; printf ' "$SOURCE" || {
+  echo "FAIL: Root Proxy lock must use private noclobber file creation" >&2; exit 1;
+}
+grep -Fq 'mv "$LOCK" "$_release"' "$SOURCE" || {
+  echo "FAIL: Root Proxy lock release must atomically rename the owner file" >&2; exit 1;
+}
+if grep -Fq 'rm -f "$LOCK/pid" 2>/dev/null || :' "$SOURCE"; then
+  echo "FAIL: Root Proxy still removes PID before releasing the lock path" >&2; exit 1;
+fi
+if grep -Fq 'rmdir "$LOCK" 2>/dev/null || :' "$SOURCE"; then
+  echo "FAIL: Root Proxy still exposes a PID-less lock directory" >&2; exit 1;
+fi
+
+# A live operation holds a private regular lock file until EXIT cleanup.
+sh "$SOURCE" stop > "$TMP/normal-stop.log" 2>&1 &
+normal_pid=$!
+tries=0
+while kill -0 "$normal_pid" 2>/dev/null && [ ! -f "$LOCK" ] && [ "$tries" -lt 100 ]; do
+  tries=$((tries+1))
+  /bin/sleep 0.001
+done
+[ -f "$LOCK" ] && [ ! -d "$LOCK" ] && [ ! -L "$LOCK" ] || {
+  echo "FAIL: Root Proxy did not publish a regular non-symlink lock file while active" >&2; cat "$TMP/normal-stop.log" >&2 || :; exit 1;
+}
+[ "$(stat -c %a "$LOCK")" = "600" ] || {
+  echo "FAIL: Root Proxy lock file must have mode 0600" >&2; stat -c '%a %n' "$LOCK" >&2; exit 1;
+}
+wait "$normal_pid" || { echo "FAIL: normal Root Proxy stop failed" >&2; cat "$TMP/normal-stop.log" >&2; exit 1; }
+[ ! -e "$LOCK" ] || { echo "FAIL: normal Root Proxy operation leaked its lock" >&2; exit 1; }
+
+# Never follow or replace a symlink used as the canonical lock path.
+mkdir "$TMP/lock-target"
+printf 'keep-lock-target\n' > "$TMP/lock-target/sentinel"
+ln -s "$TMP/lock-target" "$LOCK"
+if sh "$SOURCE" stop >/dev/null 2>&1; then
+  echo "FAIL: Root Proxy accepted a symlink at its lock path" >&2; exit 1
+fi
+[ -L "$LOCK" ] && [ "$(cat "$TMP/lock-target/sentinel")" = "keep-lock-target" ] || {
+  echo "FAIL: Root Proxy followed or removed the lock symlink target" >&2; exit 1;
+}
+rm "$LOCK"
+
 # Normal ownership publishes a PID and removes the lock only at process exit.
 sh "$SOURCE" stop >/dev/null
 [ ! -e "$LOCK" ] || { echo "FAIL: normal Root Proxy operation leaked its lock" >&2; exit 1; }
