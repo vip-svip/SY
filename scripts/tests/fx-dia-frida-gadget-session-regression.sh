@@ -29,7 +29,7 @@ required = {
     "session script is passed to Frida CLI": '-n Gadget -l',
     "remote endpoint is loopback only": '127.0.0.1:$port',
     "persistent stdin FIFO exists": 'mkfifo -m 600',
-    "stdin feeder stays alive": "tail -f /dev/null",
+    "stdin feeder has a port-specific identity": "fx-gadget-feed-$port",
     "CLI session survives Activity return": "nohup",
     "PID record is staged before rename": '.gadget-$port.pid.XXXXXX',
     "session log viewer is bounded": "tail -n 500",
@@ -124,7 +124,7 @@ chmod 600 "$log"
 mkfifo -m 600 "$pipe"
 nohup "$cli" -H "127.0.0.1:$port" -n Gadget -l "$script" < "$pipe" >> "$log" 2>&1 &
 cli_pid=$!
-nohup tail -f /dev/null > "$pipe" 2>/dev/null < /dev/null &
+nohup sh -c 'while :; do sleep 3600; done' "fx-gadget-feed-$port" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
 feed_pid=$!
 pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
 printf '%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" > "$pid_tmp"
@@ -161,7 +161,7 @@ if kill -0 "$cli_pid" 2>/dev/null; then
 fi
 if kill -0 "$feed_pid" 2>/dev/null; then
   feed_cmd=$(tr '\000' ' ' < /proc/"$feed_pid"/cmdline 2>/dev/null || :)
-  case "$feed_cmd" in *tail*'/dev/null'*) kill "$feed_pid";;
+  case "$feed_cmd" in *"fx-gadget-feed-27043"*"$pipe"*) kill "$feed_pid";;
     *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
   esac
 fi
