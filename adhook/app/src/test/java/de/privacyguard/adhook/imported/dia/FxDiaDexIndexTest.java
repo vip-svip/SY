@@ -6,6 +6,21 @@ import static org.junit.Assert.assertEquals;
 
 /** Dalvik instruction-boundary regression tests for the read-only DEX indexer. */
 public final class FxDiaDexIndexTest {
+    @Test public void cancellationIsObservedBeforeReadingDexOrApk() throws Exception {
+        try {
+            FxDiaDexIndex.readDex(new java.io.ByteArrayInputStream(new byte[0]), () -> true);
+            throw new AssertionError("DEX parser ignored a cancelled read");
+        } catch (java.io.InterruptedIOException expected) {
+            // Expected: stale input is abandoned before parsing.
+        }
+        try {
+            FxDiaDexIndex.readApks(java.util.Collections.singletonList("unused.apk"), () -> true);
+            throw new AssertionError("APK parser opened a stale archive");
+        } catch (java.io.InterruptedIOException expected) {
+            // Expected: stale input is abandoned before opening ZIP.
+        }
+    }
+
     @Test public void constWideConsumesOpcodeAndFourLiteralCodeUnits() {
         assertEquals(5, FxDiaDexIndex.instructionWidth(0x18));
     }

@@ -2,12 +2,16 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SOURCE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java"
+INDEX="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexIndex.java"
+UNIT_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaDexIndexTest.java"
 [ -s "$SOURCE" ] || { echo "FAIL: Dia DEX browser Activity is missing" >&2; exit 1; }
-python3 - "$SOURCE" <<'PY'
+python3 - "$SOURCE" "$INDEX" "$UNIT_TEST" <<'PY'
 from pathlib import Path
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+index = Path(sys.argv[2]).read_text(encoding="utf-8")
+unit_test = Path(sys.argv[3]).read_text(encoding="utf-8")
 
 def section(start, end):
     first = source.find(start)
@@ -39,11 +43,20 @@ apk = section("private void loadDex()", "private void render()")
 for body in (framework, apk):
     assert "worker.execute(() -> {" in body, "DEX parsing must remain on the bounded I/O worker"
     assert "request != dexGeneration" in body, "stale DEX parse results must not replace a newer selection"
+assert "FxDiaDexIndex.readDex(input," in framework, "Framework DEX reads must pass a cancellation callback"
+assert "FxDiaDexIndex.readApks(paths," in apk, "APK/split APK reads must pass a cancellation callback"
+assert "Thread.currentThread().isInterrupted() || request != dexGeneration" in framework
+assert "Thread.currentThread().isInterrupted() || request != dexGeneration" in apk
     assert "RejectedExecutionException" in body, "DEX queue saturation must be reported"
 
 render = section("private void render()", "private void DexClassRow(")
 assert "searchWorker.execute(() -> {" in render, "class/member filtering must run off the UI thread"
 assert "new ArrayList<>(classes)" in render, "background search must use a stable UI-created snapshot"
+assert "private static void checkCancellation(BooleanSupplier cancelled)" in index, "DEX indexer lacks a cancellation gate"
+assert "checkCancellation(cancelled);" in index, "APK/DEX streams must check cancellation while reading"
+assert "checkCancellation();" in index, "class/member parsing loops must observe cancellation"
+assert "malformedCode instanceof InterruptedIOException" in index, "parser must not swallow cancellation as malformed code"
+assert "cancellationIsObservedBeforeReadingDexOrApk" in unit_test, "cancellation unit test is missing"
 assert "request != searchGeneration" in render, "stale search results must not replace the latest query"
 assert "Thread.currentThread().isInterrupted()" in render, "superseded search work must stop early"
 assert "request != searchGeneration) return;" in render, "running search must stop when a newer query is published"
@@ -90,5 +103,5 @@ assert "private volatile int dexGeneration;" in source, "DEX load generation mus
 assert "searchGeneration++;" in destroy and "exportGeneration++;" in destroy and "dexGeneration++;" in destroy
 assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy and "detailWorker.shutdownNow();" in destroy
 assert "Executors.newSingleThreadExecutor" not in source, "unbounded DEX executor must not return"
-print("PASS: Dia DEX inventory and filtering run on bounded workers; stale searches are dropped and Activity teardown cancels workers")
+print("PASS: Dia DEX parsing, search, export and detail work are bounded and generation-cancellable")
 PY

@@ -194,6 +194,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
                 .setItems(labels, (dialog, which) -> {
                     selected = apps.get(which);
+                    dexGeneration++;
                     exportGeneration++;
                     detailGeneration++;
                     target.setText(labels[which]);
@@ -212,7 +213,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
             final java.util.Map<String, FxDiaDexIndex.DexClass> found = new java.util.TreeMap<>();
             String error = null;
             try (java.io.InputStream input = getAssets().open("dia/android_framework.dex")) {
-                found.putAll(FxDiaDexIndex.readDex(input));
+                found.putAll(FxDiaDexIndex.readDex(input,
+                        () -> Thread.currentThread().isInterrupted() || request != dexGeneration));
             } catch (Throwable failure) {
                 error = failure.getClass().getSimpleName() + ": " + failure.getMessage();
             }
@@ -253,7 +255,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
             final java.util.Map<String, FxDiaDexIndex.DexClass> found = new java.util.TreeMap<>();
             String error = null;
             try {
-                found.putAll(FxDiaDexIndex.readApks(paths));
+                found.putAll(FxDiaDexIndex.readApks(paths,
+                        () -> Thread.currentThread().isInterrupted() || request != dexGeneration));
             } catch (Throwable failure) {
                 error = failure.getClass().getSimpleName() + ": " + failure.getMessage();
             }

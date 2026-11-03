@@ -3,12 +3,14 @@ package de.privacyguard.adhook.imported.dia;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -79,9 +81,11 @@ public final class FxDiaDexIndex {
     private final int methodsSize, methodsOff, classesSize, classesOff;
     private final String[] stringCache;
     private final String[] typeCache;
+    private final BooleanSupplier cancelled;
 
-    private FxDiaDexIndex(byte[] data) throws IOException {
+    private FxDiaDexIndex(byte[] data, BooleanSupplier cancelled) throws IOException {
         this.data = data;
+        this.cancelled = cancelled;
         if (data.length < 112 || data[0] != 'd' || data[1] != 'e'
                 || data[2] != 'x' || data[3] != '\n')
             throw new IOException("not a DEX file");
@@ -103,23 +107,37 @@ public final class FxDiaDexIndex {
 
     /** Parse one standalone DEX stream, such as Dia's bundled Android framework index. */
     public static Map<String, DexClass> readDex(InputStream input) throws IOException {
-        byte[] bytes = readBounded(input, MAX_DEX_BYTES);
-        FxDiaDexIndex index = new FxDiaDexIndex(bytes);
+        return readDex(input, () -> false);
+    }
+
+    /** Cancellation-aware overload used by the Activity when the user changes targets. */
+    public static Map<String, DexClass> readDex(InputStream input, BooleanSupplier cancelled)
+            throws IOException {
+        checkCancellation(cancelled);
+        byte[] bytes = readBounded(input, MAX_DEX_BYTES, cancelled);
+        FxDiaDexIndex index = new FxDiaDexIndex(bytes, cancelled);
         LinkedHashMap<String, DexClass> classes = new LinkedHashMap<>();
         index.appendClasses(classes);
         return classes;
     }
 
     public static Map<String, DexClass> readApks(List<String> apkPaths) throws IOException {
+        return readApks(apkPaths, () -> false);
+    }
+
+    /** Cancellation-aware APK/split APK parser. */
+    public static Map<String, DexClass> readApks(List<String> apkPaths, BooleanSupplier cancelled)
+            throws IOException {
         LinkedHashMap<String, DexClass> all = new LinkedHashMap<>();
         if (apkPaths == null) return all;
         for (String path : apkPaths) {
+            checkCancellation(cancelled);
             if (path == null || path.isEmpty()) continue;
             try (ZipFile zip = new ZipFile(path)) {
-                List<? extends ZipEntry> dexEntries = new ArrayList<>();
                 Enumeration<? extends ZipEntry> entries = zip.entries();
                 List<ZipEntry> ordered = new ArrayList<>();
                 while (entries.hasMoreElements()) {
+                    checkCancellation(cancelled);
                     ZipEntry entry = entries.nextElement();
                     if (entry.isDirectory()) continue;
                     String name = entry.getName();
@@ -127,17 +145,28 @@ public final class FxDiaDexIndex {
                 }
                 ordered.sort(java.util.Comparator.comparingInt(entry -> dexOrder(entry.getName())));
                 for (ZipEntry entry : ordered) {
+                    checkCancellation(cancelled);
                     byte[] bytes;
                     try (InputStream input = zip.getInputStream(entry)) {
-                        bytes = readBounded(input, MAX_DEX_BYTES);
+                        bytes = readBounded(input, MAX_DEX_BYTES, cancelled);
                     }
-                    FxDiaDexIndex index = new FxDiaDexIndex(bytes);
+                    FxDiaDexIndex index = new FxDiaDexIndex(bytes, cancelled);
                     index.appendClasses(all);
                     if (all.size() >= MAX_CLASSES) return all;
                 }
             }
         }
         return all;
+    }
+
+    private static void checkCancellation(BooleanSupplier cancelled) throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted() || (cancelled != null && cancelled.getAsBoolean())) {
+            throw new InterruptedIOException("DEX parsing cancelled because a newer request replaced it");
+        }
+    }
+
+    private void checkCancellation() throws InterruptedIOException {
+        checkCancellation(cancelled);
     }
 
     private static int dexOrder(String name) {
@@ -147,10 +176,18 @@ public final class FxDiaDexIndex {
     }
 
     private static byte[] readBounded(InputStream input, int max) throws IOException {
+        return readBounded(input, max, () -> false);
+    }
+
+    private static byte[] readBounded(InputStream input, int max, BooleanSupplier cancelled)
+            throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[16384];
         int n;
-        while ((n = input.read(buffer)) != -1) {
+        while (true) {
+            checkCancellation(cancelled);
+            n = input.read(buffer);
+            if (n == -1) break;
             if (output.size() > max - n) throw new IOException("DEX entry exceeds " + max + " bytes");
             output.write(buffer, 0, n);
         }
@@ -159,6 +196,7 @@ public final class FxDiaDexIndex {
 
     private void appendClasses(Map<String, DexClass> output) throws IOException {
         for (int i = 0; i < classesSize && output.size() < MAX_CLASSES; i++) {
+            checkCancellation();
             int base = classesOff + i * 32;
             int classIndex = u32(base);
             if (classIndex < 0 || classIndex >= typesSize) continue;
@@ -208,6 +246,7 @@ public final class FxDiaDexIndex {
     private void parseFieldList(int[] cursor, int count, DexClass item) throws IOException {
         int fieldIndex = 0;
         for (int i = 0; i < count; i++) {
+            checkCancellation();
             fieldIndex += readUleb(cursor);
             int access = readUleb(cursor);
             if (fieldIndex < 0 || fieldIndex >= fieldsSize) throw new IOException("bad field index");
@@ -224,6 +263,7 @@ public final class FxDiaDexIndex {
     private void parseMethodList(int[] cursor, int count, DexClass item) throws IOException {
         int methodIndex = 0;
         for (int i = 0; i < count; i++) {
+            checkCancellation();
             methodIndex += readUleb(cursor);
             int access = readUleb(cursor);
             int codeOff = readUleb(cursor);
@@ -239,8 +279,8 @@ public final class FxDiaDexIndex {
                 String caller = item.descriptor + "->" + name + signature;
                 try { parseCodeCalls(codeOff, caller, item); }
                 catch (IOException malformedCode) {
-                    // Keep the class/member index useful even when an OEM or obfuscated
-                    // code_item is malformed; only its optional call edges are omitted.
+                    if (malformedCode instanceof InterruptedIOException) throw malformedCode;
+                    // Keep the class/member index useful when only an optional code_item is malformed.
                 }
             }
         }
@@ -255,6 +295,7 @@ public final class FxDiaDexIndex {
         checkRange(instructions, units * 2);
         for (int pc = 0; pc < units && item.calls.size() < MAX_CALLS_PER_CLASS
                 && parsedCallEdges < MAX_CALLS_PER_DEX;) {
+            if ((pc & 0x3ff) == 0) checkCancellation();
             int first = u16(instructions + pc * 2);
             int opcode = first & 0xff;
             if (opcode == 0x00) {
