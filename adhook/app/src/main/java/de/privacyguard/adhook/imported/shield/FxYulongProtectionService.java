@@ -250,8 +250,14 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         } catch (Throwable ignored) { }
 
         String message = "检测到管控名单应用正在前台：" + label + "（" + packageName + "）。请确认是否为预期操作。";
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd",
+                java.util.Locale.ROOT).format(new Date());
+        int dailyWarnings = today.equals(prefs.getString("protect_warn_day", ""))
+                ? prefs.getInt("protect_warn_count_today", 0) : 0;
         prefs.edit().putLong(key, now)
                 .putInt("protect_warn_count", prefs.getInt("protect_warn_count", 0) + 1)
+                .putString("protect_warn_day", today)
+                .putInt("protect_warn_count_today", dailyWarnings + 1)
                 .putString("protect_last_warn_package", packageName)
                 .putString("protect_last_warn_time", DateFormat.getDateTimeInstance().format(new Date()))
                 .putString("protect_last_warn_message", message)

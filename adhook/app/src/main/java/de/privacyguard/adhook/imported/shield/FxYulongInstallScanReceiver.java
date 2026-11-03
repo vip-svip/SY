@@ -68,7 +68,16 @@ public final class FxYulongInstallScanReceiver extends BroadcastReceiver {
                     detail = packageName + "\n" + status;
                 }
 
+                String today = new java.text.SimpleDateFormat("yyyy-MM-dd",
+                        java.util.Locale.ROOT).format(new Date());
+                int scansToday = today.equals(prefs.getString("automatic_scan_day", ""))
+                        ? prefs.getInt("automatic_scan_count_today", 0) : 0;
+                int findingsToday = today.equals(prefs.getString("automatic_scan_day", ""))
+                        ? prefs.getInt("automatic_scan_findings_today", 0) : 0;
                 prefs.edit()
+                        .putString("automatic_scan_day", today)
+                        .putInt("automatic_scan_count_today", scansToday + 1)
+                        .putInt("automatic_scan_findings_today", findingsToday + (matched == null ? 0 : 1))
                         .putString("automatic_scan_last_result", status)
                         .putString("automatic_scan_last_package", packageName)
                         .putString("automatic_scan_last_time",

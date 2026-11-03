@@ -2650,11 +2650,15 @@ public final class MainActivity extends ComponentActivity {
         if ("yulong-shield".equals(suite)) {
             switch (page) {
                 case "安全护盾首页": case "防护级别": case "防护状态":
-                case "实时守护": case "每日安全总结": case "悬浮救援入口":
+                case "实时守护": case "悬浮救援入口":
                 case "音量键触发": case "摇动触发": case "开机恢复":
                 case "守护运行状态":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                    return;
+                case "每日安全总结":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
                     return;
                 case "病毒库管理": case "病毒库同步":
                     startActivity(new Intent(this,

@@ -145,6 +145,10 @@ public final class FxYulongShieldActivity extends Activity {
                 protectionState + "\\n累计提醒：" + warningCount
                         + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
                         + "\\n" + warning);
+        card("每日安全总结",
+                "汇总当日管控名单提醒、新安装应用扫描数量与风险命中情况。",
+                action("打开每日安全总结", () -> startActivity(new Intent(this,
+                        FxYulongDailySummaryActivity.class))));
         String lastScan = shieldPrefs.getString("automatic_scan_last_result", "尚无自动扫描记录");
         String lastPackage = shieldPrefs.getString("automatic_scan_last_package", "");
         String lastTime = shieldPrefs.getString("automatic_scan_last_time", "");
