@@ -164,7 +164,7 @@ renderRootProxyWhitelist();}else if("计划任务".equals(page))renderSchedule()
  private void open(String p){page=p;render();bind();}
    private void renderRootProxyWhitelist(){
    proxyWhitelistStatus=txt("正在读取 Root Proxy DNS 例外名单…",12,0xff617080,false);
-   proxyWhitelistSearch=new EditText(this);
+   proxyWhitelistSearch=draftField("rootproxy_whitelist_search");
    proxyWhitelistSearch.setSingleLine(true);
    proxyWhitelistSearch.setHint("搜索应用名称或包名");
    proxyWhitelistRows=new LinearLayout(this);
