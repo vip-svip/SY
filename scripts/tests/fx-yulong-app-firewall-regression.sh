@@ -13,7 +13,7 @@ SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Yulong firewall implementation missing"
 sh -n "$SOURCE" || fail "Yulong firewall implementation has invalid POSIX shell syntax"
-TMP=$(mktemp -d "\${TMPDIR:-/tmp}/fx-yulong-firewall.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-firewall.XXXXXX")
 cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT HUP INT TERM
 mkdir -p "$TMP/module/scripts" "$TMP/pg" "$TMP/bin"
@@ -40,7 +40,7 @@ echo "ip6tables $*" >> "$MOCK_LOG"
 case "$*" in
   *" -C OUTPUT -j "*) exit 1 ;;
   *" -I OUTPUT 1 -j "*)
-    if [ -n "\${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
+    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
       rm -f "$MOCK_FAIL_IPV6_ONCE"
       exit 1
     fi
