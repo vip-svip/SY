@@ -49,6 +49,9 @@ public final class FxDiaFridaActivity extends Activity {
 
     private EditText serverPath;
     private EditText injectorPath;
+    private EditText gadgetPath;
+    private EditText gadgetPort;
+    private android.widget.RadioGroup gadgetLoadMode;
     private EditText script;
     private TextView status;
     private TextView targetLabel;
@@ -156,6 +159,45 @@ public final class FxDiaFridaActivity extends Activity {
                 button("检测工具与服务", () -> checkRuntime()),
                 button("启动本地 Frida 服务", () -> startServer()),
                 button("停止 FX 启动的 Frida 服务", () -> stopServer()));
+
+        card(body, "Frida Gadget 监听模式",
+                "按 Dia 23.11 原始配置语义生成 Frida Gadget Listen 配置。WAIT：Gadget 加载后等待控制端连接并调用 resume；RESUME：Gadget 加载后立即继续应用启动。此配置只作用于加载该 Gadget 的目标进程，不会把 frida-server/frida-inject 误当作 Gadget。",
+                text("Frida Gadget 动态库绝对路径", 12, 0xff617080, true));
+        gadgetPath = new EditText(this);
+        gadgetPath.setSingleLine(true);
+        gadgetPath.setHint("/data/local/tmp/fx-frida/libgadget.so");
+        gadgetPath.setText(getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getString("gadget_path", "/data/local/tmp/fx-frida/libgadget.so"));
+        gadgetPort = new EditText(this);
+        gadgetPort.setSingleLine(true);
+        gadgetPort.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        gadgetPort.setHint("27042");
+        gadgetPort.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString("gadget_port", "27042"));
+        gadgetLoadMode = new android.widget.RadioGroup(this);
+        gadgetLoadMode.setOrientation(android.widget.RadioGroup.HORIZONTAL);
+        android.widget.RadioButton waitMode = new android.widget.RadioButton(this);
+        waitMode.setText("WAIT · 等待远程恢复");
+        waitMode.setId(android.view.View.generateViewId());
+        android.widget.RadioButton resumeMode = new android.widget.RadioButton(this);
+        resumeMode.setText("RESUME · 立即启动");
+        resumeMode.setId(android.view.View.generateViewId());
+        gadgetLoadMode.addView(waitMode);
+        gadgetLoadMode.addView(resumeMode);
+        boolean waitSelected = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getBoolean("gadget_on_load_wait", true);
+        gadgetLoadMode.check(waitSelected ? waitMode.getId() : resumeMode.getId());
+        card(body, "监听参数",
+                "为了避免把调试端口暴露到局域网，此管理页固定绑定 127.0.0.1。跨设备调试请使用 ADB 端口转发；不要把未经认证的 Frida 端口绑定到 0.0.0.0。",
+                text("监听 TCP 端口（1024–65535）", 12, 0xff617080, true),
+                gadgetPort, gadgetLoadMode,
+                button("生成并写入 Gadget 配置", () -> saveGadgetListenConfig()),
+                button("复制 ADB 连接命令", () -> copyGadgetConnectCommand()));
+        TextView gadgetNote = text(
+                "重要：目标应用必须实际加载这份 Frida Gadget 动态库。此功能只生成官方 Gadget 配置，不会修改或重打包第三方 APK，也不会声称已注入未加载 Gadget 的目标。",
+                12, 0xff7a5b20, false);
+        gadgetNote.setPadding(dp(16), dp(4), dp(16), dp(10));
+        body.addView(gadgetNote);
+
 
         targetLabel = text("尚未选择目标应用。", 13, 0xff334155, false);
         card(body, "目标应用", "仅显示用户安装且可调试的应用。非调试版本不会出现在目标列表中。",
@@ -810,6 +852,96 @@ public final class FxDiaFridaActivity extends Activity {
         }
         script.setText(source);
         setStatus("监控模板已载入；请先检查目标类/方法，再手动执行注入。");
+    }
+
+    private String gadgetConfigTarget(String libraryPath) {
+        if (libraryPath == null || !libraryPath.endsWith(".so")) return null;
+        return libraryPath.substring(0, libraryPath.length() - 3) + ".config.so";
+    }
+
+    private void saveGadgetListenConfig() {
+        String library = gadgetPath == null ? "" : gadgetPath.getText().toString().trim();
+        String portText = gadgetPort == null ? "" : gadgetPort.getText().toString().trim();
+        String configPath = gadgetConfigTarget(library);
+        if (!validPath(library) || configPath == null) {
+            setStatus("Gadget 路径无效：必须是 .so 结尾的绝对路径。");
+            return;
+        }
+        int port;
+        try { port = Integer.parseInt(portText); }
+        catch (NumberFormatException invalid) {
+            setStatus("端口必须是 1024–65535 的数字。");
+            return;
+        }
+        if (port < 1024 || port > 65535) {
+            setStatus("端口必须在 1024–65535 范围内。");
+            return;
+        }
+        boolean wait = gadgetLoadMode != null
+                && gadgetLoadMode.getCheckedRadioButtonId()
+                == gadgetLoadMode.getChildAt(0).getId();
+
+        final String config;
+        try {
+            org.json.JSONObject interaction = new org.json.JSONObject();
+            interaction.put("type", "listen");
+            interaction.put("address", "127.0.0.1");
+            interaction.put("port", port);
+            interaction.put("on_port_conflict", "fail");
+            interaction.put("on_load", wait ? "wait" : "resume");
+            org.json.JSONObject root = new org.json.JSONObject();
+            root.put("interaction", interaction);
+            config = root.toString(2);
+        } catch (Exception error) {
+            setStatus("生成 Gadget JSON 失败：" + error.getClass().getSimpleName());
+            return;
+        }
+
+        String encoded = android.util.Base64.encodeToString(
+                config.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+        String command = "set -e; gadget=" + quote(library) + "; config=" + quote(configPath) + "; "
+                + "test -f \"$gadget\" && test ! -L \"$gadget\"; "
+                + "dir=$(dirname \"$config\"); mkdir -p \"$dir\"; "
+                + "tmp=\"$config.tmp.$\"; "
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; "
+                + "chmod 0644 \"$tmp\"; "
+                + "chown 0:0 \"$tmp\" 2>/dev/null || :; "
+                + "mv -f \"$tmp\" \"$config\"; "
+                + "printf 'config=%s\\non_load=%s\\nport=%s\\n' "
+                + quote(configPath) + " " + quote(wait ? "wait" : "resume") + " " + port + "; "
+                + "cat \"$config\"";
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString("gadget_path", library)
+                .putString("gadget_port", Integer.toString(port))
+                .putBoolean("gadget_on_load_wait", wait)
+                .apply();
+        runRoot(command, 20000L, result -> {
+            if (result.exitCode == 0) {
+                setStatus("Frida Gadget 监听配置已写入。\\n" + result.output
+                        + "\\n需由目标 debuggable 应用加载对应 Gadget 动态库后才会生效。");
+            } else {
+                setStatus("Gadget 配置写入失败（退出码 " + result.exitCode + "）：\\n" + result.output);
+            }
+        });
+    }
+
+    private void copyGadgetConnectCommand() {
+        String portText = gadgetPort == null ? "27042" : gadgetPort.getText().toString().trim();
+        int port;
+        try { port = Integer.parseInt(portText); }
+        catch (NumberFormatException invalid) { port = 27042; }
+        if (port < 1024 || port > 65535) port = 27042;
+        String command = "adb forward tcp:" + port + " tcp:" + port
+                + "\\nfrida-ps -H 127.0.0.1:" + port
+                + "\\nfrida -H 127.0.0.1:" + port + " -n Gadget";
+        android.content.ClipboardManager clipboard =
+                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Frida Gadget", command));
+            setStatus("ADB 端口转发及 Frida Gadget 连接命令已复制：\\n" + command);
+        } else {
+            setStatus(command);
+        }
     }
 
     private void injectScript() {
