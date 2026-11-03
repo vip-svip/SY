@@ -166,6 +166,7 @@ jobs:
           sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
           sh scripts/tests/fx-yulong-firewall-activity-regression.sh
           sh scripts/tests/fx-yulong-app-whitelist-activity-regression.sh
+          sh scripts/tests/fx-yulong-app-whitelist-runtime-regression.sh
           sh scripts/tests/fx-dia-file-browser-io-regression.sh
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
           sh fx-module/scripts/tests/v1.0.0-clash-reality-yaml-regression.sh
