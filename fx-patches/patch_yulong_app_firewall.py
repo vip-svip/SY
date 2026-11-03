@@ -64,7 +64,7 @@ if 'yulong-ad-schedule.sh" start' not in service:
 
 # Release ZIP layouts may already contain the schedule stop hook between
 # STATE_DIR and REMOVER. Insert by stable component anchors, not adjacency.
-state_dir_line = "STATE_DIR=/data/adb/privacyguard\\n"
+state_dir_line = "STATE_DIR=/data/adb/privacyguard\n"
 remover_line = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"'
 schedule_stop_block = '''if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
