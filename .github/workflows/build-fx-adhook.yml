@@ -386,3 +386,7 @@ jobs:
             fx-module/uninstall.sh
             fx-module/scripts/
             fx-module/webroot/index.html
+            fx-module/lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
+            fx-module/lsposed/app/src/main/assets/xposed_init
+            adhook/app/src/main/java/de/privacyguard/hook/MainHook.java
+            adhook/app/src/main/assets/xposed_init
