@@ -102,4 +102,28 @@ grep -Fq 'invalid external VPN egress marker' "$T/invalid.err" || {
   echo "FAIL: invalid marker did not produce a clear fail-closed error" >&2; cat "$T/invalid.err" >&2; exit 1;
 }
 
+# Validate the exact route-interface parser using the function extracted from the module source.
+# A dot in an interface name must not act as a regular-expression wildcard.
+ROUTE_HELPER="$T/route-helper.sh"
+sed -n '/^_route_uses_if() {/,/^}/p' "$ROOT/fx-module/scripts/yulong-root-proxy.sh" > "$ROUTE_HELPER"
+[ -s "$ROUTE_HELPER" ] || { echo "FAIL: exact route-interface helper missing" >&2; exit 1; }
+. "$ROUTE_HELPER"
+_route_uses_if "198.41.0.4 from 10.23.4.5 dev tun.0 src 10.23.4.5" "tun.0" || {
+  echo "FAIL: exact route parser rejected the requested tunnel interface" >&2; exit 1;
+}
+if _route_uses_if "198.41.0.4 from 10.23.4.5 dev tunX0 src 10.23.4.5" "tun.0"; then
+  echo "FAIL: route parser treated a regex-like near-match as the requested tunnel" >&2; exit 1;
+fi
+if _route_uses_if "198.41.0.4 from 10.23.4.5 src 10.23.4.5" "tun.0"; then
+  echo "FAIL: route parser accepted output with no dev field" >&2; exit 1;
+fi
+if _route_uses_if "198.41.0.4 dev tun.0 dev tun1" "tun.0"; then
+  echo "FAIL: route parser accepted ambiguous duplicate dev fields" >&2; exit 1;
+fi
+grep -Fq 'mktemp "$ACTIVE.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+grep -Fq 'mktemp "$EGRESS.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+grep -Fq 'mktemp "$ACTIVE_META.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+grep -Fq "failed to publish active chain marker" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+grep -Fq "failed to publish validated VPN egress marker" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
+grep -Fq "failed to commit Root Proxy active state" "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
 echo "PASS: Unbound default mode, VPN-bound IPv4 egress, invalid-marker fail-closed behavior and idempotent Root Proxy patch"

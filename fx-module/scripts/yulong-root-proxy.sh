@@ -66,6 +66,24 @@ _stop_locked() {
   _stop_engines
   _log "stopped; removed only FX-owned DNS redirection chains"
 }
+_route_uses_if() {
+  _route_text="$1"
+  _expected_if="$2"
+  printf '%s\n' "$_route_text" | awk -v expected="$_expected_if" '
+    {
+      for (i=1; i<NF; i++) {
+        if ($i == "dev") {
+          dev_count++
+          actual=$(i+1)
+        }
+      }
+    }
+    END {
+      if (dev_count == 1 && actual == expected) exit 0
+      exit 1
+    }
+  '
+}
 _resolve_vpn_egress() {
   _if="$1"
   _valid_if "$_if" || { _log "invalid tunnel interface"; return 1; }
@@ -83,7 +101,7 @@ _resolve_vpn_egress() {
     _route=$(ip route get "$_dest" from "$_ip" 2>/dev/null) || {
       _log "route lookup failed through tunnel source $_ip for $_dest"; return 1;
     }
-    printf '%s\n' "$_route" | grep -Eq "(^|[[:space:]])dev[[:space:]]+${_if}([[:space:]]|$)" || {
+    _route_uses_if "$_route" "$_if" || {
       _log "route for $_dest from $_ip does not use $_if: $_route"; return 1;
     }
   done
@@ -131,8 +149,30 @@ _activate_chains() {
   _remove_hook ip6tables "$_o6"
   _clear_chain iptables "$_o4"
   _clear_chain ip6tables "$_o6"
-  printf '%s\n%s\n' "$_n4" "$_n6" > "$ACTIVE.tmp.$$"
-  chmod 600 "$ACTIVE.tmp.$$" && mv -f "$ACTIVE.tmp.$$" "$ACTIVE"
+  _active_tmp=$(mktemp "$ACTIVE.tmp.XXXXXX") || {
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "unable to create active marker temp; removed new DNS redirect hooks"
+    return 1
+  }
+  if [ ! -f "$_active_tmp" ] || [ -L "$_active_tmp" ]; then
+    rm -f "$_active_tmp" 2>/dev/null || :
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "unsafe active marker temp; removed new DNS redirect hooks"
+    return 1
+  fi
+  if ! {
+    printf '%s\n%s\n' "$_n4" "$_n6" > "$_active_tmp" &&
+    chmod 600 "$_active_tmp" &&
+    mv -f "$_active_tmp" "$ACTIVE"
+  }; then
+    rm -f "$_active_tmp" 2>/dev/null || :
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "failed to publish active chain marker; removed new DNS redirect hooks"
+    return 1
+  fi
 }
 _ensure_locked() {
   _iface="$1"; _uid="$2"
@@ -147,8 +187,27 @@ _ensure_locked() {
   _egress=$(_resolve_vpn_egress "$_iface") || {
     _stop_locked; _log "VPN egress route could not be proven; fail-open"; return 1;
   }
-  printf '%s\n' "$_egress" > "$EGRESS.tmp.$$" || return 1
-  chmod 600 "$EGRESS.tmp.$$" && mv -f "$EGRESS.tmp.$$" "$EGRESS" || return 1
+  _egress_tmp=$(mktemp "$EGRESS.tmp.XXXXXX") || {
+    _stop_locked
+    _log "unable to create VPN egress marker temp; fail-open"
+    return 1
+  }
+  if [ ! -f "$_egress_tmp" ] || [ -L "$_egress_tmp" ]; then
+    rm -f "$_egress_tmp" 2>/dev/null || :
+    _stop_locked
+    _log "unsafe VPN egress marker temp; fail-open"
+    return 1
+  fi
+  if ! {
+    printf '%s\n' "$_egress" > "$_egress_tmp" &&
+    chmod 600 "$_egress_tmp" &&
+    mv -f "$_egress_tmp" "$EGRESS"
+  }; then
+    rm -f "$_egress_tmp" 2>/dev/null || :
+    _stop_locked
+    _log "failed to publish validated VPN egress marker; fail-open"
+    return 1
+  fi
 
   if ! sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
     _stop_locked; _log "Unbound failed to bind through the external VPN; fail-open"; return 1;
@@ -164,8 +223,27 @@ _ensure_locked() {
   _activate_chains "$_uid" || {
     _stop_locked; _log "dual-stack DNS NAT setup failed; fail-open"; return 1;
   }
-  printf '%s\n%s\n%s\n%s\n' "$_iface" "$_uid" "$_egress" "$(date '+%s')" > "$ACTIVE_META.tmp.$$"
-  chmod 600 "$ACTIVE_META.tmp.$$" && mv -f "$ACTIVE_META.tmp.$$" "$ACTIVE_META"
+  _meta_tmp=$(mktemp "$ACTIVE_META.tmp.XXXXXX") || {
+    _stop_locked
+    _log "unable to create Root Proxy active metadata temp; fail-open"
+    return 1
+  }
+  if [ ! -f "$_meta_tmp" ] || [ -L "$_meta_tmp" ]; then
+    rm -f "$_meta_tmp" 2>/dev/null || :
+    _stop_locked
+    _log "unsafe Root Proxy active metadata temp; fail-open"
+    return 1
+  fi
+  if ! {
+    printf '%s\n%s\n%s\n%s\n' "$_iface" "$_uid" "$_egress" "$(date '+%s')" > "$_meta_tmp" &&
+    chmod 600 "$_meta_tmp" &&
+    mv -f "$_meta_tmp" "$ACTIVE_META"
+  }; then
+    rm -f "$_meta_tmp" 2>/dev/null || :
+    _stop_locked
+    _log "failed to commit Root Proxy active state; rolled back DNS redirects (fail-open)"
+    return 1
+  fi
   _log "active: AdGuard DNS filtering is local; Unbound egress is pinned to $_egress on $_iface; VPN owner UID $_uid bypasses redirect"
   echo "active=1"
   echo "interface=$_iface"
