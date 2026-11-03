@@ -173,6 +173,13 @@ remove_hook() {
     "$bin" -t filter -D OUTPUT -j "$chain" >/dev/null 2>&1 || break
   done
 }
+install_hook() {
+  bin="$1"; chain="$2"
+  if "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1; then return 0; fi
+  "$bin" -t filter -I OUTPUT 1 -j "$chain" >/dev/null 2>&1 || return 1
+  "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1
+}
+
 clear_chain() {
   bin="$1"; chain="$2"
   remove_hook "$bin" "$chain" || :
@@ -204,14 +211,29 @@ build_chain() {
     time_is_active "$schedule" "$start" "$end" "$now" || continue
     [ "$block_wifi" = 1 ] || [ "$block_mobile" = 1 ] || continue
     rule_added=0
+    if [ "$block_wifi" = 1 ]; then
+      for iface in wlan+ wifi+ swlan+ p2p+ ap+; do
+        "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
+      done
+      rule_added=1
+    fi
+    if [ "$block_mobile" = 1 ]; then
+      for iface in rmnet+ v4-rmnet+ ccmni+ ccemni+ ccmn+ pdp+ wwan+; do
+        "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
+      done
+      rule_added=1
+    fi
+    # For Ethernet, VPN, USB and other transports the original manager uses
+    # the "either Wi-Fi or mobile restriction" fallback.
+    for iface in eth+ en+ usb+ rndis+ tun+ wg+ ppp+ tap+ ipsec+; do
+      "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
+    done
+    # Catch vendor-specific interfaces present in the current sysfs snapshot.
     for iface_path in "$NET_CLASS"/*; do
       [ -e "$iface_path" ] || continue
       iface=${iface_path##*/}
-      case "$iface" in ''|lo|dummy*|ifb*) continue ;; esac
       case "$iface" in
-        wlan*|wifi*|swlan*|p2p*|ap*) [ "$block_wifi" = 1 ] || continue ;;
-        rmnet*|v4-rmnet*|ccmni*|ccemni*|ccmn*|pdp*|wwan*) [ "$block_mobile" = 1 ] || continue ;;
-        *) [ "$block_wifi" = 1 ] || [ "$block_mobile" = 1 ] || continue ;;
+        ''|lo|dummy*|ifb*|wlan*|wifi*|swlan*|p2p*|ap*|rmnet*|v4-rmnet*|ccmni*|ccemni*|ccmn*|pdp*|wwan*|eth*|en*|usb*|rndis*|tun*|wg*|ppp*|tap*|ipsec*) continue ;;
       esac
       "$bin" -t filter -A "$chain" -o "$iface" -m owner --uid-owner "$uid" -j REJECT >/dev/null 2>&1 || return 1
       rule_added=1
@@ -253,16 +275,56 @@ EOF
     echo "no selected package is currently installed; saved selections retained"
     return 0
   fi
-  build_chain "$ipt" "$next" "$resolved" "$now" || { clear_chain "$ipt" "$next"; echo "IPv4 firewall chain build failed; old firewall kept" >&2; return 6; }
+  build_chain "$ipt" "$next" "$resolved" "$now" || {
+    clear_chain "$ipt" "$next"
+    echo "IPv4 firewall chain build failed; old firewall kept" >&2
+    return 6
+  }
   blocked_count=$_FW_BLOCKED_COUNT
-  build_chain "$ip6t" "$next" "$resolved" "$now" || { clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"; echo "IPv6 firewall chain build failed; old firewall kept" >&2; return 7; }
+  build_chain "$ip6t" "$next" "$resolved" "$now" || {
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "IPv6 firewall chain build failed; old firewall kept" >&2
+    return 7
+  }
+
+  # Stage the marker before changing OUTPUT. Keep the old chain attached until
+  # both protocol families have accepted the new chain.
+  _FW_TEMP=$(mktemp "$ACTIVE.XXXXXX") || {
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to create private firewall active marker; old firewall kept" >&2
+    return 10
+  }
+  if ! printf '%s\n' "$next" > "$_FW_TEMP" || ! chmod 600 "$_FW_TEMP"; then
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to prepare firewall active marker; old firewall kept" >&2
+    return 10
+  fi
+
+  if ! install_hook "$ipt" "$next"; then
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "IPv4 OUTPUT activation failed; old firewall kept" >&2
+    return 8
+  fi
+  if ! install_hook "$ip6t" "$next"; then
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "IPv6 OUTPUT activation failed; IPv4 activation rolled back; old firewall kept" >&2
+    return 9
+  fi
+
+  if [ ! -L "$ACTIVE" ] && mv -f "$_FW_TEMP" "$ACTIVE"; then
+    _FW_TEMP=
+  else
+    rm -f "$_FW_TEMP"; _FW_TEMP=
+    clear_chain "$ipt" "$next"; clear_chain "$ip6t" "$next"
+    echo "unable to install firewall active marker; new OUTPUT hooks rolled back" >&2
+    return 10
+  fi
+
   remove_hook "$ipt" "$old"; remove_hook "$ip6t" "$old"
   clear_chain "$ipt" "$old"; clear_chain "$ip6t" "$old"
-  _FW_TEMP=$(mktemp "$ACTIVE.XXXXXX") || { echo "unable to create private firewall active marker" >&2; return 10; }
-  printf '%s\n' "$next" > "$_FW_TEMP" || { rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to write firewall active marker" >&2; return 10; }
-  if [ ! -L "$ACTIVE" ] && chmod 600 "$_FW_TEMP" && mv -f "$_FW_TEMP" "$ACTIVE"; then _FW_TEMP=
-  else rm -f "$_FW_TEMP"; _FW_TEMP=; echo "unable to install firewall active marker" >&2; return 10
-  fi
   echo "firewall=1"; echo "blocked_packages=$blocked_count"; echo "evaluated_at=$now"
 }
 with_lock() {
@@ -321,52 +383,90 @@ mutate_transaction() {
 WATCH_PIDFILE="$PG/yulong-app-firewall.pid"
 WATCH_LOG="$PG/yulong-app-firewall.log"
 SCRIPT_PATH="$MP/scripts/yulong-app-firewall.sh"
+WATCH_INTERVAL=${WATCH_INTERVAL:-10}
+case "$WATCH_INTERVAL" in ''|*[!0-9]*) WATCH_INTERVAL=10 ;; esac
+[ "$WATCH_INTERVAL" -gt 0 ] || WATCH_INTERVAL=10
+interface_snapshot() {
+  [ -d "$NET_CLASS" ] || return 1
+  for iface_path in "$NET_CLASS"/*; do
+    [ -e "$iface_path" ] || continue
+    iface=${iface_path##*/}
+    case "$iface" in ''|lo|dummy*|ifb*) continue ;; esac
+    printf '%s\n' "$iface"
+  done | sort
+}
+has_enabled_rules() {
+  list_rows | awk -F'|' '$3=="1" {found=1; exit} END {exit !found}'
+}
+has_scheduled_rules() {
+  list_rows | awk -F'|' '$3=="1" && $6=="1" {found=1; exit} END {exit !found}'
+}
 watch_is_ours() {
   _watch_pid=$1
   [ -r "/proc/$_watch_pid/cmdline" ] || return 1
-  _watch_cmd=$(tr '\\000' ' ' < "/proc/$_watch_pid/cmdline" 2>/dev/null) || return 1
+  _watch_cmd=$(tr '\000' ' ' < "/proc/$_watch_pid/cmdline" 2>/dev/null) || return 1
   case "$_watch_cmd" in *"$SCRIPT_PATH"*' watch-loop'*) return 0 ;; esac
   return 1
 }
 watch_loop() {
   _watch_sleep_pid=
-  cleanup_watch_loop() { [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :; exit 0; }
+  last_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
+  last_minute=$(date '+%H:%M' 2>/dev/null || true)
+  cleanup_watch_loop() {
+    [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :
+    if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
+        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then
+      rm -f "$WATCH_PIDFILE"
+    fi
+    exit 0
+  }
   trap cleanup_watch_loop HUP INT TERM
   while :; do
-    sleep 10 & _watch_sleep_pid=$!
+    sleep "$WATCH_INTERVAL" & _watch_sleep_pid=$!
     wait "$_watch_sleep_pid" || :; _watch_sleep_pid=
     [ ! -e "$MP/disable" ] && [ ! -e "$MP/remove" ] || exit 0
-    [ "$(read_master)" = 1 ] || continue
-    if list_rows | awk -F'|' '$3=="1" && $6=="1" {found=1; exit} END {exit !found}'; then
-      sh "$SCRIPT_PATH" apply-event >> "$WATCH_LOG" 2>&1 || :
+    [ "$(read_master)" = 1 ] || exit 0
+    has_enabled_rules || exit 0
+    current_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
+    current_minute=$(date '+%H:%M' 2>/dev/null || true)
+    reapply=0
+    [ "$current_interfaces" = "$last_interfaces" ] || reapply=1
+    if has_scheduled_rules && [ "$current_minute" != "$last_minute" ]; then reapply=1; fi
+    if [ "$reapply" = 1 ]; then
+      if sh "$SCRIPT_PATH" apply-event >> "$WATCH_LOG" 2>&1; then
+        last_interfaces=$current_interfaces
+        last_minute=$current_minute
+      fi
     fi
   done
 }
 start_watch() {
+  [ "$(read_master)" = 1 ] && has_enabled_rules || {
+    echo "no enabled per-app firewall rules; watcher not started"
+    return 0
+  }
   [ ! -L "$WATCH_PIDFILE" ] || { echo "firewall watcher PID file is unsafe" >&2; return 1; }
   if [ -s "$WATCH_PIDFILE" ]; then
     old=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
     case "$old" in ''|*[!0-9]*) old= ;; esac
     if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
       watch_is_ours "$old" || { echo "firewall watcher PID belongs to another process" >&2; return 1; }
-      echo "already-running pid=$old"; return 0
+      echo "already-running pid=$old"
+      return 0
     fi
     rm -f "$WATCH_PIDFILE"
-  fi
-  if ! list_rows | awk -F'|' '$3=="1" && $6=="1" {found=1; exit} END {exit !found}'; then
-    echo "no enabled scheduled rules"; return 0
   fi
   nohup sh "$SCRIPT_PATH" watch-loop </dev/null >> "$WATCH_LOG" 2>&1 &
   pid=$!
   tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || { kill "$pid" 2>/dev/null || :; return 1; }
-  printf '%s
-' "$pid" > "$tmp"
+  printf '%s\n' "$pid" > "$tmp"
   if [ ! -f "$tmp" ] || [ -L "$tmp" ] || ! chmod 600 "$tmp" || ! mv -f "$tmp" "$WATCH_PIDFILE"; then
     rm -f "$tmp"; kill "$pid" 2>/dev/null || :; return 1
   fi
   sleep 0.1
   if ! kill -0 "$pid" 2>/dev/null || ! watch_is_ours "$pid"; then
-    rm -f "$WATCH_PIDFILE"; kill "$pid" 2>/dev/null || :; echo "watcher failed to start" >&2; return 1
+    rm -f "$WATCH_PIDFILE"; kill "$pid" 2>/dev/null || :
+    echo "watcher failed to start" >&2; return 1
   fi
   echo "started pid=$pid"
 }
@@ -389,7 +489,15 @@ stop_watch() {
       kill -0 "$pid" 2>/dev/null && { echo "could not confirm watcher stopped" >&2; return 1; }
     fi
   fi
-  rm -f "$WATCH_PIDFILE"; echo "stopped"
+  rm -f "$WATCH_PIDFILE"
+  echo "stopped"
+}
+reconcile_watch_lifecycle() {
+  if [ "$(read_master)" = 1 ] && has_enabled_rules; then
+    start_watch || echo "firewall watcher did not start; re-evaluation is pending" >&2
+  else
+    stop_watch || echo "firewall watcher stop is pending" >&2
+  fi
 }
 cmd="${1:-list}"
 case "$cmd" in
@@ -401,11 +509,13 @@ case "$cmd" in
   master)
     [ "$#" -eq 2 ] && valid_state "$2" || { echo "usage: $0 master 0|1" >&2; exit 2; }
     with_lock mutate_transaction set_master_value "$2"
+    reconcile_watch_lifecycle
     ;;
   set)
     [ "$#" -eq 4 ] && valid_package "$2" && [ "$3" -gt 0 ] 2>/dev/null && valid_state "$4" \
       || { echo "usage: $0 set package uid 0|1" >&2; exit 2; }
     with_lock mutate_transaction set_item_value "$2" "$3" "$4"
+    reconcile_watch_lifecycle
     ;;
   rule)
     [ "$#" -eq 9 ] && valid_package "$2" && [ "$3" -gt 0 ] 2>/dev/null \
@@ -413,10 +523,12 @@ case "$cmd" in
       && valid_time "$8" && valid_time "$9" \
       || { echo "usage: $0 rule package uid enabled block_wifi block_mobile schedule_enabled HH:MM HH:MM" >&2; exit 2; }
     with_lock mutate_transaction set_rule_value "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+    reconcile_watch_lifecycle
     ;;
   remove)
     [ "$#" -eq 2 ] && valid_package "$2" || { echo "usage: $0 remove package" >&2; exit 2; }
     with_lock mutate_transaction remove_item_value "$2"
+    reconcile_watch_lifecycle
     ;;
   apply) with_lock apply_rules ;;
   apply-event) with_lock --event apply_rules ;;

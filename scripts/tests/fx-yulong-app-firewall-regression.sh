@@ -292,12 +292,12 @@ v2run rule com.example.none 20004 0 1 1 0 22:00 06:00 > "$V2/disabled-save.out"
 export MOCK_TIME=23:00
 v2run master 1 > "$V2/enable.out"
 grep -Fq 'firewall=1' "$V2/enable.out" || fail "v2 firewall did not enable"
-grep -Fq 'iptables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi-only rule did not block Wi-Fi"
-grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "IPv6 Wi-Fi-only rule missing"
-if grep -Fq ' -o rmnet_data0 -m owner --uid-owner 20001 ' "$V2/iptables.log"; then fail "Wi-Fi-only rule blocked mobile data"; fi
-grep -Fq 'iptables -t filter -A FXYUL_B -o rmnet_data0 -m owner --uid-owner 20002 -j REJECT' "$V2/iptables.log" || fail "mobile-only rule did not block mobile data"
-if grep -Fq ' -o wlan0 -m owner --uid-owner 20002 ' "$V2/iptables.log"; then fail "mobile-only rule blocked Wi-Fi"; fi
-grep -Fq 'iptables -t filter -A FXYUL_B -o eth0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "other-transport fallback did not apply"
+grep -Fq 'iptables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi wildcard rule missing"
+grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "IPv6 Wi-Fi wildcard rule missing"
+if grep -Fq ' -o rmnet+ -m owner --uid-owner 20001 ' "$V2/iptables.log"; then fail "Wi-Fi-only rule blocked mobile data"; fi
+grep -Fq 'iptables -t filter -A FXYUL_B -o rmnet+ -m owner --uid-owner 20002 -j REJECT' "$V2/iptables.log" || fail "mobile-only wildcard rule missing"
+if grep -Fq ' -o wlan+ -m owner --uid-owner 20002 ' "$V2/iptables.log"; then fail "mobile-only rule blocked Wi-Fi"; fi
+grep -Fq 'iptables -t filter -A FXYUL_B -o eth+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "other-transport fallback wildcard missing"
 if grep -Fq 'uid-owner 20004' "$V2/iptables.log"; then fail "disabled rule generated packet matches"; fi
 v2run list > "$V2/list"
 grep -Fq 'com.example.wifi|20001|1|1|0|0|22:00|06:00' "$V2/list" || fail "Wi-Fi-only rule was not persisted"
@@ -313,6 +313,7 @@ v2run apply-event > "$V2/after-end.out"
 if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003'; then fail "cross-midnight rule remained active after its end minute"; fi
 
 export MOCK_TIME=23:00
+export WATCH_INTERVAL=1
 v2run start-watch > "$V2/watch-start.out"
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing"
@@ -321,6 +322,11 @@ case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
 v2run start-watch > "$V2/watch-start-again.out"
 grep -Fq 'already-running' "$V2/watch-start-again.out" || fail "second start created duplicate watcher"
+mkdir -p "$V2/net/vendor0"
+sleep 2
+if ! grep -Eq 'iptables -t filter -A FXYUL_[AB] -o vendor0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log"; then
+  fail "watcher did not re-apply after a new vendor network interface appeared"
+fi
 v2run stop-watch > "$V2/watch-stop.out"
 [ ! -e "$WATCH_PIDFILE" ] || fail "watcher PID file remained after stop"
 v2run uninstall > "$V2/uninstall.out"
@@ -357,8 +363,12 @@ cmp -s "$RESTORE/scripts/yulong-app-firewall.sh" "$REPO/scripts/yulong-app-firew
 cmp -s "$RESTORE/scripts/tests/v1.0.0-yulong-app-firewall-regression.sh" "$REPO/scripts/tests/fx-yulong-app-firewall-regression.sh" || fail "Release patcher staged a stale firewall regression"
 grep -Fq 'apply-event) with_lock --event apply_rules ;;' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored module script has no package-event path"
 grep -Fq 'start-watch) start_watch ;;' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored firewall has no schedule watcher"
+grep -Fq 'interface_snapshot' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored firewall has no interface inventory watcher"
+grep -Fq 'reconcile_watch_lifecycle' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "app rule mutations do not reconcile watcher lifecycle"
+
 
 [ "$(grep -Fc 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall boot hook is not idempotent"
+[ "$(grep -Fc 'yulong-app-firewall.sh" start-watch' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall watcher boot hook is not idempotent"
 [ "$(grep -Fc 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh")" -eq 1 ] || fail "schedule start hook is not idempotent"
 [ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
 [ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"

@@ -33,22 +33,23 @@ EOF
 cat > "$TMP/bin/iptables" <<'IPTABLES'
 #!/bin/sh
 echo "iptables $*" >> "$MOCK_LOG"
-case "$*" in
-  *" -C OUTPUT -j "*) exit 1 ;;
+case "${3:-}" in
+  -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS4"; exit $? ;;
+  -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
+  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS4.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
 IPTABLES
 cat > "$TMP/bin/ip6tables" <<'IP6TABLES'
 #!/bin/sh
 echo "ip6tables $*" >> "$MOCK_LOG"
-case "$*" in
-  *" -C OUTPUT -j "*) exit 1 ;;
-  *" -I OUTPUT 1 -j "*)
-    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
-      rm -f "$MOCK_FAIL_IPV6_ONCE"
-      exit 1
-    fi
-    ;;
+case "${3:-}" in
+  -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS6"; exit $? ;;
+  -I)
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1
+    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then rm -f "$MOCK_FAIL_IPV6_ONCE"; exit 1; fi
+    printf '%s\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
+  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS6.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0
 IP6TABLES
@@ -80,6 +81,10 @@ else
 fi
 DATE
 chmod 0755 "$TMP/bin/date"
+MOCK_HOOKS4="$TMP/iptables.hooks"
+MOCK_HOOKS6="$TMP/ip6tables.hooks"
+: > "$MOCK_HOOKS4"; : > "$MOCK_HOOKS6"
+export MOCK_HOOKS4 MOCK_HOOKS6
 export MP="$TMP/module" PG="$TMP/pg" MOCK_LOG="$TMP/iptables.log"
 export MOCK_PACKAGE_LIST="$PACKAGE_LIST" NET_CLASS MOCK_TIME=12:00
 export PATH="$TMP/bin:$PATH"
@@ -143,13 +148,25 @@ unset MOCK_FAIL_IPV6_ONCE
 [ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "firewall rollback followed a predictable temp symlink"
 grep -qx 'enabled=0' "$CONF" || fail "failed dual-stack activation did not restore previous config"
 [ ! -e "$ACTIVE" ] || fail "failed activation left an active-chain marker"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 new OUTPUT hook was not rolled back after IPv6 activation failure"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "failed IPv6 hook became active"
+grep -Fq 'iptables -t filter -D OUTPUT -j FXYUL_B' "$MOCK_LOG" || fail "IPv4 hook rollback command was not issued"
+[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "failed IPv6 activation left an IPv4 OUTPUT jump"
+[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "failed IPv6 activation left an IPv6 OUTPUT jump"
 
-# Verify both protocol families receive the selected UID rule.
+# Verify both protocol families receive the selected UID rule and a real
+# OUTPUT jump that makes the populated chains reachable by device traffic.
 run master 1 > "$TMP/enable.out"
 grep -Fq 'firewall=1' "$TMP/enable.out" || fail "firewall did not enable"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 new chain was not attached to OUTPUT"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "IPv6 new chain was not attached to OUTPUT"
+grep -Fq 'iptables -t filter -I OUTPUT 1 -j FXYUL_B' "$MOCK_LOG" || fail "IPv4 OUTPUT hook insertion missing"
+grep -Fq 'ip6tables -t filter -I OUTPUT 1 -j FXYUL_B' "$MOCK_LOG" || fail "IPv6 OUTPUT hook insertion missing"
 grep -Fq 'iptables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv4 Wi-Fi rule missing"
 grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv6 Wi-Fi rule missing"
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
+[ -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "IPv4 OUTPUT jump was not installed"
+[ -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "IPv6 OUTPUT jump was not installed"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
 # Removing the last selected app is a valid empty policy. It must commit the
@@ -158,6 +175,8 @@ grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 run remove com.example.blocked > "$TMP/remove-last.out"
 grep -Fq 'firewall=0' "$TMP/remove-last.out" || fail "removing the last app did not disable the firewall"
 [ ! -e "$ACTIVE" ] || fail "removing the last app left a stale active marker"
+[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "last-app removal left an IPv4 OUTPUT jump"
+[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "last-app removal left an IPv6 OUTPUT jump"
 if grep -Fq 'com.example.blocked|10123|1' "$CONF"; then
   fail "removing the last app rolled back its config mutation"
 fi
@@ -168,6 +187,8 @@ grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal 
 run set com.example.blocked 10123 1 > "$TMP/re-enable.out"
 grep -Fq 'firewall=1' "$TMP/re-enable.out" || fail "firewall did not reactivate after last-app removal"
 [ -s "$ACTIVE" ] || fail "re-enabled firewall has no active marker"
+[ -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "re-enabled firewall has no IPv4 OUTPUT jump"
+[ -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "re-enabled firewall has no IPv6 OUTPUT jump"
 
 run list > "$TMP/active.list"
 grep -qx 'master=1' "$TMP/active.list" || fail "enabled master state not visible"
@@ -235,6 +256,8 @@ fi
 grep -Fq 'uninstall) stop_watch || :; with_lock clear_all ;;' "$SOURCE" || fail "uninstall does not stop the owned watcher under the firewall lock"
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
+[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "uninstall left an IPv4 OUTPUT jump"
+[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "uninstall left an IPv6 OUTPUT jump"
 [ ! -d "$PG/yulong-firewall.lock" ] || fail "uninstall left the firewall operation lock behind"
 
 
@@ -269,12 +292,12 @@ v2run rule com.example.none 20004 0 1 1 0 22:00 06:00 > "$V2/disabled-save.out"
 export MOCK_TIME=23:00
 v2run master 1 > "$V2/enable.out"
 grep -Fq 'firewall=1' "$V2/enable.out" || fail "v2 firewall did not enable"
-grep -Fq 'iptables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi-only rule did not block Wi-Fi"
-grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "IPv6 Wi-Fi-only rule missing"
-if grep -Fq ' -o rmnet_data0 -m owner --uid-owner 20001 ' "$V2/iptables.log"; then fail "Wi-Fi-only rule blocked mobile data"; fi
-grep -Fq 'iptables -t filter -A FXYUL_B -o rmnet_data0 -m owner --uid-owner 20002 -j REJECT' "$V2/iptables.log" || fail "mobile-only rule did not block mobile data"
-if grep -Fq ' -o wlan0 -m owner --uid-owner 20002 ' "$V2/iptables.log"; then fail "mobile-only rule blocked Wi-Fi"; fi
-grep -Fq 'iptables -t filter -A FXYUL_B -o eth0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "other-transport fallback did not apply"
+grep -Fq 'iptables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "Wi-Fi wildcard rule missing"
+grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "IPv6 Wi-Fi wildcard rule missing"
+if grep -Fq ' -o rmnet+ -m owner --uid-owner 20001 ' "$V2/iptables.log"; then fail "Wi-Fi-only rule blocked mobile data"; fi
+grep -Fq 'iptables -t filter -A FXYUL_B -o rmnet+ -m owner --uid-owner 20002 -j REJECT' "$V2/iptables.log" || fail "mobile-only wildcard rule missing"
+if grep -Fq ' -o wlan+ -m owner --uid-owner 20002 ' "$V2/iptables.log"; then fail "mobile-only rule blocked Wi-Fi"; fi
+grep -Fq 'iptables -t filter -A FXYUL_B -o eth+ -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log" || fail "other-transport fallback wildcard missing"
 if grep -Fq 'uid-owner 20004' "$V2/iptables.log"; then fail "disabled rule generated packet matches"; fi
 v2run list > "$V2/list"
 grep -Fq 'com.example.wifi|20001|1|1|0|0|22:00|06:00' "$V2/list" || fail "Wi-Fi-only rule was not persisted"
@@ -290,6 +313,7 @@ v2run apply-event > "$V2/after-end.out"
 if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003'; then fail "cross-midnight rule remained active after its end minute"; fi
 
 export MOCK_TIME=23:00
+export WATCH_INTERVAL=1
 v2run start-watch > "$V2/watch-start.out"
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing"
@@ -298,6 +322,11 @@ case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
 v2run start-watch > "$V2/watch-start-again.out"
 grep -Fq 'already-running' "$V2/watch-start-again.out" || fail "second start created duplicate watcher"
+mkdir -p "$V2/net/vendor0"
+sleep 2
+if ! grep -Eq 'iptables -t filter -A FXYUL_[AB] -o vendor0 -m owner --uid-owner 20001 -j REJECT' "$V2/iptables.log"; then
+  fail "watcher did not re-apply after a new vendor network interface appeared"
+fi
 v2run stop-watch > "$V2/watch-stop.out"
 [ ! -e "$WATCH_PIDFILE" ] || fail "watcher PID file remained after stop"
 v2run uninstall > "$V2/uninstall.out"
@@ -334,8 +363,12 @@ cmp -s "$RESTORE/scripts/yulong-app-firewall.sh" "$REPO/scripts/yulong-app-firew
 cmp -s "$RESTORE/scripts/tests/v1.0.0-yulong-app-firewall-regression.sh" "$REPO/scripts/tests/fx-yulong-app-firewall-regression.sh" || fail "Release patcher staged a stale firewall regression"
 grep -Fq 'apply-event) with_lock --event apply_rules ;;' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored module script has no package-event path"
 grep -Fq 'start-watch) start_watch ;;' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored firewall has no schedule watcher"
+grep -Fq 'interface_snapshot' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "restored firewall has no interface inventory watcher"
+grep -Fq 'reconcile_watch_lifecycle' "$RESTORE/scripts/yulong-app-firewall.sh" || fail "app rule mutations do not reconcile watcher lifecycle"
+
 
 [ "$(grep -Fc 'yulong-app-firewall.sh" apply' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall boot hook is not idempotent"
+[ "$(grep -Fc 'yulong-app-firewall.sh" start-watch' "$RESTORE/service.sh")" -eq 1 ] || fail "firewall watcher boot hook is not idempotent"
 [ "$(grep -Fc 'yulong-ad-schedule.sh" start' "$RESTORE/service.sh")" -eq 1 ] || fail "schedule start hook is not idempotent"
 [ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
 [ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"
