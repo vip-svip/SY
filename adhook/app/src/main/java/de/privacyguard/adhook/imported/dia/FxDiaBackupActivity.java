@@ -84,11 +84,28 @@ public final class FxDiaBackupActivity extends Activity {
         return "PG=/data/adb/privacyguard; test -s \\"$PG/settings.conf\\" || exit 20; "
                 +"base64 \\"$PG/settings.conf\\" | tr -d '\\\\n'";
     }
-    private JSONObject buildBackup(String configBase64)throws Exception{
+        private String rootStellarFilesCommand(){
+        return "DIR=/data/local/tmp/stellar_guard; mkdir -p \\"$DIR\\"; "
+                +"for f in command_whitelist.txt command_always_allow.txt scope_grants.txt; do "
+                +"touch \\"$DIR/$f\\"; chmod 0600 \\"$DIR/$f\\"; "
+                +"printf 'STELLARFILE|%s|' \\"$f\\"; base64 \\"$DIR/$f\\" | tr -d '\\\\n'; printf '\\n'; done";
+    }
+    private JSONObject buildBackup(String configBase64,String stellarDump)throws Exception{
         byte[] module=android.util.Base64.decode(configBase64,android.util.Base64.DEFAULT);
         if(module.length>MAX_BACKUP_BYTES/2)throw new IllegalStateException("模块配置超过本地备份大小上限。");
         JSONObject out=new JSONObject();out.put("schema","FX-DIA-BACKUP-1");out.put("created_at",System.currentTimeMillis());
         out.put("module_settings_b64",configBase64);out.put("module_settings_sha256",sha(module));
+        JSONObject stellarFiles=new JSONObject(),stellarHashes=new JSONObject();
+        for(String line:(stellarDump==null?"":stellarDump).split("\\r?\\n")){
+            if(!line.startsWith("STELLARFILE|"))continue;
+            String[] parts=line.split("\\\\|",3);
+            if(parts.length!=3)continue;
+            String name=parts[1];
+            if(!name.equals("command_whitelist.txt")&&!name.equals("command_always_allow.txt")&&!name.equals("scope_grants.txt"))continue;
+            byte[] data=android.util.Base64.decode(parts[2],android.util.Base64.DEFAULT);
+            stellarFiles.put(name,parts[2]);stellarHashes.put(name,sha(data));
+        }
+        out.put("stellar_files_b64",stellarFiles);out.put("stellar_files_sha256",stellarHashes);
         JSONObject prefs=new JSONObject();
         prefs.put("MainActivity",prefsJson("MainActivity"));
         prefs.put("shield_prefs",prefsJson("shield_prefs"));
@@ -99,18 +116,24 @@ public final class FxDiaBackupActivity extends Activity {
     }
     private void exportBackup(){
         status.setText("正在读取 Root 配置和应用内规则…");
-        root(rootModuleCommand(),r->{
-            if(r.exitCode!=0){status.setText("导出失败："+safe(r.output));return;}
+        worker.execute(()->{
             try{
-                JSONObject backup=buildBackup(r.output.trim());
-                pendingBackup=backup.toString(2).getBytes(StandardCharsets.UTF_8);
-                if(pendingBackup.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
-                Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/json");
-                String stamp=new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date());
-                intent.putExtra(Intent.EXTRA_TITLE,"FX-Dia-Backup-"+stamp+".json");
-                startActivityForResult(intent,REQUEST_EXPORT);
-            }catch(Exception e){status.setText("生成备份失败："+e.getMessage());}
+                RootAccess.Result config=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
+                if(config.exitCode!=0)throw new IllegalStateException("读取 FX 配置失败："+safe(config.output));
+                RootAccess.Result stellar=RootAccess.execute(rootStellarFilesCommand(),30000L,MAX_BACKUP_BYTES);
+                if(stellar.exitCode!=0)throw new IllegalStateException("读取 Stellar 授权文件失败："+safe(stellar.output));
+                JSONObject backup=buildBackup(config.output.trim(),stellar.output);
+                byte[] payload=backup.toString(2).getBytes(StandardCharsets.UTF_8);
+                if(payload.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
+                runOnUiThread(()->{
+                    pendingBackup=payload;
+                    Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/json");
+                    String stamp=new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date());
+                    intent.putExtra(Intent.EXTRA_TITLE,"FX-Dia-Backup-"+stamp+".json");
+                    startActivityForResult(intent,REQUEST_EXPORT);
+                });
+            }catch(Exception e){runOnUiThread(()->status.setText("生成备份失败："+e.getMessage()));}
         });
     }
     private void importBackup(){
@@ -136,7 +159,9 @@ public final class FxDiaBackupActivity extends Activity {
     private byte[] createBackupPayload() throws Exception {
         RootAccess.Result r=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
         if(r.exitCode!=0)throw new IllegalStateException("读取模块配置失败："+safe(r.output));
-        JSONObject backup=buildBackup(r.output.trim());
+        RootAccess.Result stellar=RootAccess.execute(rootStellarFilesCommand(),30000L,MAX_BACKUP_BYTES);
+        if(stellar.exitCode!=0)throw new IllegalStateException("读取 Stellar 授权文件失败："+safe(stellar.output));
+        JSONObject backup=buildBackup(r.output.trim(),stellar.output);
         byte[] payload=backup.toString(2).getBytes(StandardCharsets.UTF_8);
         if(payload.length>MAX_BACKUP_BYTES)throw new IllegalStateException("备份文件超过 1 MiB 限制。");
         return payload;
@@ -165,6 +190,36 @@ public final class FxDiaBackupActivity extends Activity {
                 +"else mv -f \\"$CONF.fx-dia-rollback\\" \\"$CONF\\"; sh /data/adb/modules/privacyguard/scripts/apply.sh fast >/dev/null 2>&1 || :; exit 31; fi";
         RootAccess.Result applied=RootAccess.execute(restoreCommand,120000L,MAX_BACKUP_BYTES);
         if(applied.exitCode!=0)throw new IllegalStateException("模块配置恢复/应用失败："+safe(applied.output));
+        if(backup.has("stellar_files_b64")){
+            JSONObject files=backup.getJSONObject("stellar_files_b64");
+            JSONObject hashes=backup.optJSONObject("stellar_files_sha256");
+            String[] names={"command_whitelist.txt","command_always_allow.txt","scope_grants.txt"};
+            StringBuilder command=new StringBuilder("set -e; DIR=/data/local/tmp/stellar_guard; mkdir -p \\"$DIR\\"; ");
+            java.util.Map<String,String> cachePaths=new java.util.LinkedHashMap<>();
+            for(String name:names){
+                if(!files.has(name))continue;
+                byte[] bytes=android.util.Base64.decode(files.getString(name),android.util.Base64.DEFAULT);
+                String expectedFileHash=hashes==null?"":hashes.optString(name,"");
+                if(expectedFileHash.isEmpty()||!expectedFileHash.equalsIgnoreCase(sha(bytes)))
+                    throw new IllegalArgumentException("Stellar 授权文件 SHA-256 不匹配："+name);
+                java.io.File cache=new java.io.File(getCacheDir(),"fx-dia-"+name);
+                try(OutputStream out=new java.io.FileOutputStream(cache)){out.write(bytes);out.flush();out.getFD().sync();}
+                String target="/data/local/tmp/stellar_guard/"+name;
+                String temp=target+".fx-new",rollback=target+".fx-dia-rollback";
+                command.append("if [ -f ").append(quote(target)).append(" ]; then cp -p ")
+                        .append(quote(target)).append(" ").append(quote(rollback)).append("; else rm -f ")
+                        .append(quote(rollback)).append("; fi; ");
+                command.append("cp ").append(quote(cache.getAbsolutePath())).append(" ").append(quote(temp))
+                        .append("; chmod 0600 ").append(quote(temp)).append("; ");
+                command.append("actual=$(sha256sum ").append(quote(temp)).append(" | cut -d ' ' -f1); test \\"$actual\\" = ")
+                        .append(quote(expectedFileHash)).append("; mv -f ").append(quote(temp)).append(" ").append(quote(target)).append("; ");
+                cachePaths.put(name,cache.getAbsolutePath());
+            }
+            command.append("true");
+            RootAccess.Result stellarRestore=RootAccess.execute(command.toString(),30000L,MAX_BACKUP_BYTES);
+            if(stellarRestore.exitCode!=0)throw new IllegalStateException("Stellar 授权文件恢复失败："+safe(stellarRestore.output));
+            for(String name:names)RootAccess.execute("rm -f "+quote("/data/local/tmp/stellar_guard/"+name+".fx-dia-rollback"),10000L,4096);
+        }
         JSONObject prefs=backup.getJSONObject("preferences");
         for(String name:new String[]{"MainActivity","shield_prefs","stellar_command_whitelist","fx_hook_publish"})
             if(prefs.has(name))restorePrefs(name,prefs.getJSONObject(name));
