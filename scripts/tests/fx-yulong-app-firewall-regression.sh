@@ -33,42 +33,23 @@ EOF
 cat > "$TMP/bin/iptables" <<'IPTABLES'
 #!/bin/sh
 echo "iptables $*" >> "$MOCK_LOG"
-case "$3" in
-  -C)
-    [ -e "$MOCK_LOG.hooks.ipv4.$6" ] && exit 0
-    exit 1
-    ;;
-  -I)
-    touch "$MOCK_LOG.hooks.ipv4.$7"
-    exit 0
-    ;;
-  -D)
-    rm -f "$MOCK_LOG.hooks.ipv4.$6"
-    exit 0
-    ;;
+case "${3:-}" in
+  -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS4"; exit $? ;;
+  -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
+  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS4.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
 IPTABLES
 cat > "$TMP/bin/ip6tables" <<'IP6TABLES'
 #!/bin/sh
 echo "ip6tables $*" >> "$MOCK_LOG"
-case "$3" in
-  -C)
-    [ -e "$MOCK_LOG.hooks.ipv6.$6" ] && exit 0
-    exit 1
-    ;;
+case "${3:-}" in
+  -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS6"; exit $? ;;
   -I)
-    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then
-      rm -f "$MOCK_FAIL_IPV6_ONCE"
-      exit 1
-    fi
-    touch "$MOCK_LOG.hooks.ipv6.$7"
-    exit 0
-    ;;
-  -D)
-    rm -f "$MOCK_LOG.hooks.ipv6.$6"
-    exit 0
-    ;;
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1
+    if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then rm -f "$MOCK_FAIL_IPV6_ONCE"; exit 1; fi
+    printf '%s\\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
+  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS6.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0
 IP6TABLES
@@ -100,6 +81,10 @@ else
 fi
 DATE
 chmod 0755 "$TMP/bin/date"
+MOCK_HOOKS4="$TMP/iptables.hooks"
+MOCK_HOOKS6="$TMP/ip6tables.hooks"
+: > "$MOCK_HOOKS4"; : > "$MOCK_HOOKS6"
+export MOCK_HOOKS4 MOCK_HOOKS6
 export MP="$TMP/module" PG="$TMP/pg" MOCK_LOG="$TMP/iptables.log"
 export MOCK_PACKAGE_LIST="$PACKAGE_LIST" NET_CLASS MOCK_TIME=12:00
 export PATH="$TMP/bin:$PATH"
@@ -163,6 +148,9 @@ unset MOCK_FAIL_IPV6_ONCE
 [ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "firewall rollback followed a predictable temp symlink"
 grep -qx 'enabled=0' "$CONF" || fail "failed dual-stack activation did not restore previous config"
 [ ! -e "$ACTIVE" ] || fail "failed activation left an active-chain marker"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 new OUTPUT hook was not rolled back after IPv6 activation failure"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "failed IPv6 hook became active"
+grep -Fq 'iptables -t filter -D OUTPUT -j FXYUL_B' "$MOCK_LOG" || fail "IPv4 hook rollback command was not issued"
 [ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "failed IPv6 activation left an IPv4 OUTPUT jump"
 [ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "failed IPv6 activation left an IPv6 OUTPUT jump"
 
@@ -170,6 +158,10 @@ grep -qx 'enabled=0' "$CONF" || fail "failed dual-stack activation did not resto
 # OUTPUT jump that makes the populated chains reachable by device traffic.
 run master 1 > "$TMP/enable.out"
 grep -Fq 'firewall=1' "$TMP/enable.out" || fail "firewall did not enable"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 new chain was not attached to OUTPUT"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "IPv6 new chain was not attached to OUTPUT"
+grep -Fq 'iptables -t filter -I OUTPUT 1 -j FXYUL_B' "$MOCK_LOG" || fail "IPv4 OUTPUT hook insertion missing"
+grep -Fq 'ip6tables -t filter -I OUTPUT 1 -j FXYUL_B' "$MOCK_LOG" || fail "IPv6 OUTPUT hook insertion missing"
 grep -Fq 'iptables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv4 Wi-Fi rule missing"
 grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv6 Wi-Fi rule missing"
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
