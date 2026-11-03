@@ -151,8 +151,8 @@ grep -qx 'enabled=0' "$CONF" || fail "failed dual-stack activation did not resto
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 new OUTPUT hook was not rolled back after IPv6 activation failure"
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "failed IPv6 hook became active"
 grep -Fq 'iptables -t filter -D OUTPUT -j FXYUL_B' "$MOCK_LOG" || fail "IPv4 hook rollback command was not issued"
-[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "failed IPv6 activation left an IPv4 OUTPUT jump"
-[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "failed IPv6 activation left an IPv6 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "failed IPv6 activation left an IPv4 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "failed IPv6 activation left an IPv6 OUTPUT jump"
 
 # Verify both protocol families receive the selected UID rule and a real
 # OUTPUT jump that makes the populated chains reachable by device traffic.
@@ -165,8 +165,8 @@ grep -Fq 'ip6tables -t filter -I OUTPUT 1 -j FXYUL_B' "$MOCK_LOG" || fail "IPv6 
 grep -Fq 'iptables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv4 Wi-Fi rule missing"
 grep -Fq 'ip6tables -t filter -A FXYUL_B -o wlan0 -m owner --uid-owner 10123 -j REJECT' "$MOCK_LOG" || fail "IPv6 Wi-Fi rule missing"
 grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
-[ -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "IPv4 OUTPUT jump was not installed"
-[ -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "IPv6 OUTPUT jump was not installed"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 OUTPUT jump was not installed"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "IPv6 OUTPUT jump was not installed"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
 # Removing the last selected app is a valid empty policy. It must commit the
@@ -175,8 +175,8 @@ grep -qx 'FXYUL_B' "$ACTIVE" || fail "active chain marker is incorrect"
 run remove com.example.blocked > "$TMP/remove-last.out"
 grep -Fq 'firewall=0' "$TMP/remove-last.out" || fail "removing the last app did not disable the firewall"
 [ ! -e "$ACTIVE" ] || fail "removing the last app left a stale active marker"
-[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "last-app removal left an IPv4 OUTPUT jump"
-[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "last-app removal left an IPv6 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "last-app removal left an IPv4 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "last-app removal left an IPv6 OUTPUT jump"
 if grep -Fq 'com.example.blocked|10123|1' "$CONF"; then
   fail "removing the last app rolled back its config mutation"
 fi
@@ -187,8 +187,8 @@ grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "last-app removal 
 run set com.example.blocked 10123 1 > "$TMP/re-enable.out"
 grep -Fq 'firewall=1' "$TMP/re-enable.out" || fail "firewall did not reactivate after last-app removal"
 [ -s "$ACTIVE" ] || fail "re-enabled firewall has no active marker"
-[ -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "re-enabled firewall has no IPv4 OUTPUT jump"
-[ -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "re-enabled firewall has no IPv6 OUTPUT jump"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "re-enabled firewall has no IPv4 OUTPUT jump"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "re-enabled firewall has no IPv6 OUTPUT jump"
 
 run list > "$TMP/active.list"
 grep -qx 'master=1' "$TMP/active.list" || fail "enabled master state not visible"
@@ -256,8 +256,8 @@ fi
 grep -Fq 'uninstall) stop_watch || :; with_lock clear_all ;;' "$SOURCE" || fail "uninstall does not stop the owned watcher under the firewall lock"
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
-[ ! -e "$MOCK_LOG.hooks.ipv4.FXYUL_B" ] || fail "uninstall left an IPv4 OUTPUT jump"
-[ ! -e "$MOCK_LOG.hooks.ipv6.FXYUL_B" ] || fail "uninstall left an IPv6 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "uninstall left an IPv4 OUTPUT jump"
+! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "uninstall left an IPv6 OUTPUT jump"
 [ ! -d "$PG/yulong-firewall.lock" ] || fail "uninstall left the firewall operation lock behind"
 
 
