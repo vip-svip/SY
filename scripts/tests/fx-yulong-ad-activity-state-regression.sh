@@ -3,10 +3,11 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Yulong Ad Activity source missing" >&2; exit 1; }
-python3 - "$ACTIVITY" <<'PY'
+python3 - "$ACTIVITY" "$ROOT" <<'PY'
 from pathlib import Path
 import sys
 s = Path(sys.argv[1]).read_text(encoding="utf-8")
+ROOT = Path(sys.argv[2])
 
 required = [
     'private static final String STATE_PAGE="fx_yulong_ad_page";',
