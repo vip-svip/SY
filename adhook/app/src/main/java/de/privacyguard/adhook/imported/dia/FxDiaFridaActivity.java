@@ -2313,7 +2313,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "[ -d \"$dir\" ] && [ ! -L \"$dir\" ] && [ -d \"$logs\" ] && [ ! -L \"$logs\" ] || exit 21; "
                 + "[ ! -L \"$script\" ] && [ ! -L \"$log\" ] || { echo unsafe-frida-session-file; exit 21; }; "
                 + "tmp=$(mktemp \"$dir/.inject-XXXXXX\"); "
-                + "trap 'rm -f \"$tmp\"' EXIT HUP INT TERM; "
+                + "trap '[ -z \"$tmp\" ] || rm -f \"$tmp\"' EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
                 + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; chmod 600 \"$tmp\"; "
                 + "mv -f \"$tmp\" \"$script\"; tmp=; "
                 + "if [ -e \"$log\" ] && [ ! -f \"$log\" ]; then echo unsafe-frida-log-path; exit 21; fi; "
