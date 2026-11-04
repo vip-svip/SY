@@ -15,6 +15,12 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ListView;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -166,14 +172,51 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                                 "当前未发现声明 REQUEST_INSTALL_PACKAGES 的应用。安装权限仍由 Android 系统控制。");
                         return;
                     }
-                    String[] labels = new String[sources.size()];
-                    for (int i = 0; i < sources.size(); i++) labels[i] = sources.get(i).toString();
-                    new AlertDialog.Builder(this)
+                    // Keep package identity visible and make large installer lists searchable.
+                    LinearLayout picker = new LinearLayout(this);
+                    picker.setOrientation(LinearLayout.VERTICAL);
+                    picker.setPadding(dp(16), dp(8), dp(16), dp(4));
+                    EditText search = new EditText(this);
+                    search.setSingleLine(true);
+                    search.setHint("搜索应用名称或包名");
+                    search.setTextSize(14);
+                    picker.addView(search, new LinearLayout.LayoutParams(-1, -2));
+                    FrameLayout listFrame = new FrameLayout(this);
+                    LinearLayout.LayoutParams frameParams =
+                            new LinearLayout.LayoutParams(-1, dp(320));
+                    frameParams.topMargin = dp(6);
+                    picker.addView(listFrame, frameParams);
+                    ListView list = new ListView(this);
+                    TextView empty = text("没有匹配的安装来源应用", 13, 0xff687583, false);
+                    empty.setGravity(Gravity.CENTER);
+                    listFrame.addView(list, new FrameLayout.LayoutParams(-1, -1));
+                    listFrame.addView(empty, new FrameLayout.LayoutParams(-1, -1));
+                    list.setEmptyView(empty);
+                    ArrayAdapter<InstallSource> adapter = new ArrayAdapter<>(
+                            this, android.R.layout.simple_list_item_1, new ArrayList<>(sources));
+                    list.setAdapter(adapter);
+                    search.addTextChangedListener(new TextWatcher() {
+                        @Override public void beforeTextChanged(CharSequence value,
+                                int start, int count, int after) { }
+                        @Override public void onTextChanged(CharSequence value,
+                                int start, int before, int count) {
+                            adapter.getFilter().filter(value == null ? "" : value.toString());
+                            list.setSelection(0);
+                        }
+                        @Override public void afterTextChanged(Editable value) { }
+                    });
+                    AlertDialog pickerDialog = new AlertDialog.Builder(this)
                             .setTitle("选择要授权的安装来源")
-                            .setItems(labels, (dialog, which) -> openInstallSourceSettings(
-                                    sources.get(which).packageName))
+                            .setView(picker)
                             .setNegativeButton("取消", null)
-                            .show();
+                            .create();
+                    list.setOnItemClickListener((parent, view, position, id) -> {
+                        InstallSource selected = adapter.getItem(position);
+                        if (selected == null) return;
+                        pickerDialog.dismiss();
+                        openInstallSourceSettings(selected.packageName);
+                    });
+                    pickerDialog.show();
                 });
             });
         } catch (RejectedExecutionException full) {
