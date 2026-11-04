@@ -1,4 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -31,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Dia 23.11 Frida runtime bridge, integrated into the single FX APK.
@@ -53,7 +55,22 @@ public final class FxDiaFridaActivity extends Activity {
     private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
     private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12),
+            r -> { Thread t = new Thread(r, "fx-dia-frida"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+            });
+        }
+    }
     private String pendingFridaLibraryExportFileName;
 
     private EditText serverPath;
@@ -106,7 +123,7 @@ public final class FxDiaFridaActivity extends Activity {
                 && !value.contains("..");
     }
     private void runRoot(String command, long timeout, java.util.function.Consumer<RootAccess.Result> done) {
-        worker.execute(() -> {
+        submitWorker(() -> {
             RootAccess.Result result = RootAccess.execute(command, timeout, 256 * 1024);
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed()) done.accept(result);
@@ -761,7 +778,7 @@ public final class FxDiaFridaActivity extends Activity {
 
     private void importFridaScriptLibraryFile(Uri uri) {
         setStatus("正在读取 Frida 脚本库 JSON…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (InputStream input = getContentResolver().openInputStream(uri);
                  java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
                 if (input == null) throw new IllegalStateException("无法读取所选 JSON 文件。");
@@ -835,7 +852,7 @@ public final class FxDiaFridaActivity extends Activity {
 
     private void importScript(Uri uri) {
         setStatus("正在导入 JS 脚本…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (InputStream input = getContentResolver().openInputStream(uri);
                  java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
                 if (input == null) throw new IllegalStateException("无法读取脚本文件。");
@@ -870,7 +887,7 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("脚本超过 512 KiB 限制，无法导出。");
             return;
         }
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
                 if (output == null) throw new IllegalStateException("无法创建目标文件。");
                 output.write(source.getBytes(StandardCharsets.UTF_8));
@@ -929,7 +946,7 @@ public final class FxDiaFridaActivity extends Activity {
                 return;
             }
             Uri destination = data.getData();
-            worker.execute(() -> {
+            submitWorker(() -> {
                 String resultMessage;
                 try (InputStream input = new java.io.FileInputStream(staged);
                      OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
@@ -980,7 +997,7 @@ public final class FxDiaFridaActivity extends Activity {
         final String label = server ? "Frida Server" : "Frida Inject";
         final long maxBytes = server ? 150L * 1024L * 1024L : 80L * 1024L * 1024L;
         setStatus("正在读取并校验 " + label + " 文件…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             File staging = new File(getFilesDir(), "frida-import");
             File source = null;
             try {

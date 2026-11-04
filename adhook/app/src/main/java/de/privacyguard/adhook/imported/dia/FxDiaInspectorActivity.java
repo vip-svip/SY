@@ -1,4 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -11,17 +15,31 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import de.privacyguard.adhook.RootAccess;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** Read-only database-schema and process-memory metadata inspector for debuggable apps. */
 public final class FxDiaInspectorActivity extends Activity {
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(4),
+            r -> { Thread t = new Thread(r, "fx-dia-inspector"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+            });
+        }
+    }
     private final List<ApplicationInfo> apps=new ArrayList<>();
     private String mode="database", targetPackage;
     private TextView target,status,output;
@@ -101,7 +119,7 @@ public final class FxDiaInspectorActivity extends Activity {
         }
         status.setText("正在读取…");output.setText("");
         final String commandToRun = command;
-        worker.execute(()->{RootAccess.Result result=RootAccess.execute(commandToRun,45000L,256*1024);
+        submitWorker(()->{RootAccess.Result result=RootAccess.execute(commandToRun,45000L,256*1024);
             runOnUiThread(()->{if(isFinishing()||isDestroyed())return;status.setText("读取完成，退出码："+result.exitCode);output.setText(result.output==null?"（无输出）":result.output);});});
     }
     private void copyResult(){

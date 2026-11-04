@@ -226,6 +226,7 @@ jobs:
           python3 scripts/tests/fx-yulong-app-whitelist-patcher-regression.py
           python3 scripts/tests/fx-yulong-app-stats-regression.py
           sh scripts/tests/fx-dia-file-browser-io-regression.sh
+          sh scripts/tests/fx-dia-bounded-background-workers-regression.sh
           sh scripts/tests/fx-dia-dex-browser-performance-regression.sh
           sh scripts/tests/fx-dia-dex-hook-picker-regression.sh
           sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh

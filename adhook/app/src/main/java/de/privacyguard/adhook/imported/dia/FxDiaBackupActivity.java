@@ -1,4 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -10,6 +14,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.graphics.Typeface;
 import android.view.Gravity;
 
@@ -30,7 +35,6 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -43,14 +47,28 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import android.widget.EditText;
-import java.util.concurrent.Executors;
 
 /** Dia 23.11 data-management migration into the unified FX app. */
 public final class FxDiaBackupActivity extends Activity {
     private static final int REQUEST_EXPORT = 7301;
     private static final int REQUEST_IMPORT = 7302;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> { Thread t = new Thread(r, "fx-dia-backup"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+            });
+        }
+    }
     private static final String STATE_PENDING_EXPORT_FILE = "fx_dia_pending_export_file";
     private static final String PENDING_EXPORT_PREFIX = "fx-dia-export-";
     private String pendingBackupFileName;
@@ -256,7 +274,7 @@ public final class FxDiaBackupActivity extends Activity {
         }
     }
     private void root(String command,java.util.function.Consumer<RootAccess.Result> callback){
-        worker.execute(()->{RootAccess.Result r=RootAccess.execute(command,90000L,MAX_BACKUP_BYTES);
+        submitWorker(()->{RootAccess.Result r=RootAccess.execute(command,90000L,MAX_BACKUP_BYTES);
             runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())callback.accept(r);});});
     }
     private String rootModuleCommand(){
@@ -307,7 +325,7 @@ public final class FxDiaBackupActivity extends Activity {
         String encryptionPassword = requireExportPassword();
         if (encryptionPassword == null) return;
         status.setText("正在读取 Root 配置并创建 AES-256-GCM 加密备份…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 RootAccess.Result config=RootAccess.execute(rootModuleCommand(),30000L,MAX_BACKUP_BYTES);
                 if(config.exitCode!=0)throw new IllegalStateException("读取 FX 配置失败："+safe(config.output));
@@ -347,7 +365,7 @@ public final class FxDiaBackupActivity extends Activity {
     }
     private void restoreBackup(Uri uri, String encryptionPassword){
         status.setText("正在读取并校验备份…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 ByteArrayOutputStream bytes=new ByteArrayOutputStream();
                 try(InputStream in=getContentResolver().openInputStream(uri)){
@@ -636,7 +654,7 @@ public final class FxDiaBackupActivity extends Activity {
 
     private void githubUpload(String owner,String repo,String path,String branch,String token,String encryptionPassword){
         status.setText("正在创建 AES-256-GCM 加密备份并上传 GitHub…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 byte[] payload=createBackupPayload(encryptionPassword);
                 String url=githubContentsUrl(owner,repo,path);
@@ -656,7 +674,7 @@ public final class FxDiaBackupActivity extends Activity {
 
     private void githubDownload(String owner,String repo,String path,String token,String encryptionPassword){
         status.setText("正在从 GitHub 下载备份…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 JSONObject response=githubRequest(githubContentsUrl(owner,repo,path),token,"GET",null);
                 String content=response.optString("content","").replace("\\n","");
@@ -678,7 +696,7 @@ public final class FxDiaBackupActivity extends Activity {
 
     private void webdavUpload(String url,String username,String password,String encryptionPassword){
         status.setText("正在上传 AES-256-GCM 加密 WebDAV 备份…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 byte[] payload=createBackupPayload(encryptionPassword);
                 HttpURLConnection c=webdavConnection(url,username,password,"PUT");
@@ -693,7 +711,7 @@ public final class FxDiaBackupActivity extends Activity {
 
     private void webdavDownload(String url,String username,String password,String encryptionPassword){
         status.setText("正在从 WebDAV 下载备份…");
-        worker.execute(()->{
+        submitWorker(()->{
             try{
                 HttpURLConnection c=webdavConnection(url,username,password,"GET");
                 int code=c.getResponseCode();
@@ -805,7 +823,7 @@ public final class FxDiaBackupActivity extends Activity {
                 if(status!=null)status.setText("导出失败：待导出备份暂存文件不存在或路径无效。");
                 return;
             }
-            worker.execute(()->{
+            submitWorker(()->{
                 String message;
                 try(java.io.InputStream in=new java.io.FileInputStream(staged);
                     OutputStream out=getContentResolver().openOutputStream(uri,"w")){

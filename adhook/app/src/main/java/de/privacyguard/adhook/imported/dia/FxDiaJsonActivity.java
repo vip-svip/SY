@@ -1,4 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.app.Activity;
 import android.content.ClipData;
@@ -24,15 +28,28 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** Native offline JSON editor migrated from Dia 23.11. */
 public final class FxDiaJsonActivity extends Activity {
     private static final int IMPORT_REQUEST = 7411;
     private static final int EXPORT_REQUEST = 7412;
     private static final int MAX_BYTES = 1024 * 1024;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> { Thread t = new Thread(r, "fx-dia-json"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+            });
+        }
+    }
     private EditText source, path;
     private TextView status, result;
 
@@ -105,7 +122,7 @@ public final class FxDiaJsonActivity extends Activity {
         final String input;
         try { input = readSource(); } catch (Exception e) { status.setText(e.getMessage()); return; }
         status.setText(pretty ? "正在格式化…" : "正在压缩…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try {
                 String output = serialize(parse(input), pretty ? 2 : 0);
                 runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) {
@@ -118,7 +135,7 @@ public final class FxDiaJsonActivity extends Activity {
         final String input;
         try { input = readSource(); } catch (Exception e) { status.setText(e.getMessage()); return; }
         status.setText("正在校验 JSON…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try {
                 Object parsed = parse(input);
                 String type = parsed instanceof JSONObject ? "Object" : parsed instanceof JSONArray ? "Array"
@@ -134,7 +151,7 @@ public final class FxDiaJsonActivity extends Activity {
             input = readSource(); expression = path.getText() == null ? "" : path.getText().toString().trim();
             if (expression.isEmpty()) throw new IllegalArgumentException("请输入 JSON 路径。");
         } catch (Exception e) { result.setText(e.getMessage()); return; }
-        worker.execute(() -> {
+        submitWorker(() -> {
             try {
                 Object current = parse(input); int p = 0;
                 while (p < expression.length()) {
@@ -191,7 +208,7 @@ public final class FxDiaJsonActivity extends Activity {
     }
     private void importFile(Uri uri) {
         status.setText("正在导入 JSON…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (InputStream input = getContentResolver().openInputStream(uri);
                  ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                 if (input == null) throw new IllegalStateException("无法读取所选文件。");
@@ -210,7 +227,7 @@ public final class FxDiaJsonActivity extends Activity {
     private void exportFile(Uri uri) {
         final String value;
         try { value = readSource(); } catch (Throwable error) { status.setText(error.getMessage()); return; }
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
                 if (output == null) throw new IllegalStateException("无法创建导出文件。");
                 output.write(value.getBytes(StandardCharsets.UTF_8)); output.flush();

@@ -1,4 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
@@ -9,13 +13,27 @@ import de.privacyguard.adhook.RootAccess;
 
 import java.net.IDN;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** Dia Wi-Fi proxy quick-settings toggle migrated into the single FX APK. */
 public final class FxDiaWifiProxyTileService extends TileService {
     private static final String PREFS = "fx_dia_wifi_proxy";
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
+            r -> { Thread t = new Thread(r, "fx-dia-wifi-proxy-tile"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            new android.os.Handler(getMainLooper()).post(() -> {
+                android.widget.Toast.makeText(this,
+                        "Dia 快速设置任务繁忙，本次操作未执行；请稍后重试。",
+                        android.widget.Toast.LENGTH_LONG).show();
+                refreshTile();
+            });
+        }
+    }
 
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -41,7 +59,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
 
     @Override public void onStartListening() {
         super.onStartListening();
-        worker.execute(() -> {
+        submitWorker(() -> {
             RootAccess.Result result = RootAccess.execute(
                     "settings get global http_proxy 2>/dev/null | tr -d '\\r'", 12000L, 4096);
             boolean active = false;
@@ -58,7 +76,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
 
     @Override public void onClick() {
         super.onClick();
-        unlockAndRun(() -> worker.execute(() -> toggleProxy()));
+        unlockAndRun(() -> submitWorker(() -> toggleProxy()));
     }
 
     private void toggleProxy() {
