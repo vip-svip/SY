@@ -1,8 +1,11 @@
 package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
+import android.appwidget.AppWidgetManager;
 import android.content.Intent;
 import android.content.ComponentName;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Bundle;
@@ -116,6 +119,19 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 button("添加“FX VPN”快捷开关", () ->
                         requestQuickSettingsTile(FxYulongVpnTileService.class, "FX VPN")));
 
+        card(body, "桌面小组件",
+                "将 FX 游龙广告过滤状态组件固定到支持的桌面启动器。组件会读取设备端真实 VPN/Root Proxy 状态；固定操作由桌面启动器确认。",
+                button("添加游龙广告过滤桌面小组件", this::requestHomeWidgetPin));
+
+        card(body, "Tasker / 自动化广播",
+                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。复制动作标识后，在 Tasker 的“发送意图”中将接收组件设为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤开关与 VPN 开关相互独立。结果广播为 de.privacyguard.adhook.AD_FILTER_RESULT。",
+                button("复制：开启广告过滤", () -> copyTaskerAction("开启广告过滤", FxYulongAdTaskerReceiver.ACTION_ENABLE)),
+                button("复制：关闭广告过滤", () -> copyTaskerAction("关闭广告过滤", FxYulongAdTaskerReceiver.ACTION_DISABLE)),
+                button("复制：启动 FX VPN", () -> copyTaskerAction("启动 FX VPN", FxYulongAdTaskerReceiver.ACTION_VPN_START)),
+                button("复制：停止 FX VPN", () -> copyTaskerAction("停止 FX VPN", FxYulongAdTaskerReceiver.ACTION_VPN_STOP)),
+                button("复制：原版 Tasker_START", () -> copyTaskerAction("原版 Tasker_START", FxYulongAdTaskerReceiver.LEGACY_ACTION_START)),
+                button("复制：原版 Tasker_STOP", () -> copyTaskerAction("原版 Tasker_STOP", FxYulongAdTaskerReceiver.LEGACY_ACTION_STOP)));
+
         card(body, "界面、主题与语言",
                 "FX 已合并为单一原生应用，界面主题、语言和强调色属于 FX 应用级偏好；不会再创建第二套游龙 Activity 主题配置。");
         card(body, "关于",
@@ -124,6 +140,35 @@ public final class FxYulongAdGeneralActivity extends Activity {
                         + "网络架构：FX 单一 VPN/TUN + Root DNS Proxy 回退；不安装游龙原版第二个 VpnService。\n"
                         + "配置和备份仅保存在本机，导入导出由用户通过 Android 文件选择器授权。");
         refreshBatteryStatus();
+    }
+
+    private void requestHomeWidgetPin() {
+        try {
+            AppWidgetManager manager = AppWidgetManager.getInstance(this);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                    || !manager.isRequestPinAppWidgetSupported()) {
+                Toast.makeText(this, "当前桌面启动器不支持应用内固定小组件；请长按桌面并从小组件列表添加 FX。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            boolean requested = manager.requestPinAppWidget(
+                    new ComponentName(this, FxYulongAdWidgetProvider.class), null, null);
+            Toast.makeText(this, requested
+                    ? "已向桌面请求添加小组件，请在桌面提示中确认。"
+                    : "桌面未接受添加请求；请从桌面小组件列表手动添加 FX。", Toast.LENGTH_LONG).show();
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "请求添加桌面小组件失败：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void copyTaskerAction(String label, String action) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) throw new IllegalStateException("系统剪贴板不可用");
+            clipboard.setPrimaryClip(ClipData.newPlainText("FX Tasker action", action));
+            Toast.makeText(this, label + "动作标识已复制。", Toast.LENGTH_SHORT).show();
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "复制自动化动作失败：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void requestQuickSettingsTile(Class<? extends TileService> serviceClass, String label) {
