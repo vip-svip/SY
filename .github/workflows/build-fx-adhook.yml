@@ -376,11 +376,11 @@ jobs:
       - name: Set up Gradle for FX Hook APK
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '9.3.1'
       - name: Set up Android SDK for FX Hook APK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-36 build-tools;34.0.0 build-tools;36.0.0
+          packages: platform-tools platforms;android-37 build-tools;36.0.0
       - name: Compile and verify the unified FX Hook APK
         shell: bash
         run: |
@@ -389,8 +389,8 @@ jobs:
           apk="adhook/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          "$SDK_ROOT/build-tools/34.0.0/apksigner" verify "$apk"
-          badging="$("$SDK_ROOT/build-tools/34.0.0/aapt" dump badging "$apk")"
+          "$SDK_ROOT/build-tools/36.0.0/apksigner" verify "$apk"
+          badging="$("$SDK_ROOT/build-tools/36.0.0/aapt" dump badging "$apk")"
           grep -Fq "package: name='de.privacyguard.adhook' versionCode='10000' versionName='1.0.0'" <<<"$badging"
           unzip -p "$apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-apk-webroot.html"
           grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-apk-webroot.html"
