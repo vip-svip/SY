@@ -22,6 +22,10 @@ checks = {
     "validate persisted target before reuse": 'ApplicationInfo.FLAG_DEBUGGABLE' in frida and 'ApplicationInfo.FLAG_SYSTEM' in frida,
     "clear stale target selection": 'remove("target_package").remove("target_name")' in frida,
     "restore target even on a fresh page launch": 'restoreTransientState(state);' in frida,
+    "retain Frida manager scroll container": 'pageScroll = scroll;' in frida,
+    "save Frida manager scroll position": 'outState.putInt(STATE_FRIDA_SCROLL_Y, Math.max(0, pageScroll.getScrollY()));' in frida,
+    "restore Frida manager scroll position after layout": 'scroll.scrollTo(0, restoreY);' in frida,
+    "guard stale scroll restoration": 'pageScroll == scroll && scroll.getParent() != null' in frida,
     "run log page opens target log": 'body.post(() -> {\n                if (targetPackage == null) chooseTarget();\n                else showSessionLog();\n            });' in frida,
     "script editor page opens full-screen editor": 'else if ("脚本编辑器".equals(title)) {\n            body.post(this::openFullScreenCodeEditor);' in frida,
 }
