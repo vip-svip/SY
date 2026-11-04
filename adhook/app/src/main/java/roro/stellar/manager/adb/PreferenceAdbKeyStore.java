@@ -19,9 +19,14 @@ public final class PreferenceAdbKeyStore implements AdbKeyStore {
         String encoded = preferences.getString(PREFERENCE_KEY, null);
         if (encoded == null) return null;
         try {
-            return Base64.decode(encoded, Base64.NO_WRAP);
+            byte[] decoded = Base64.decode(encoded, Base64.NO_WRAP);
+            if (decoded.length < 28 || decoded.length > 16384) {
+                java.util.Arrays.fill(decoded, (byte) 0);
+                throw new IllegalStateException("stored ADB key has an invalid encrypted length");
+            }
+            return decoded;
         } catch (IllegalArgumentException malformed) {
-            return null;
+            throw new IllegalStateException("stored ADB key is not valid Base64; refusing silent identity rotation", malformed);
         }
     }
 
