@@ -1851,3 +1851,25 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `d334b41dfc2a4a058e8396f3696776a02a531976` — `test(dia): cover Frida save-script dialog restoration`。
 - 验证等级：源码静态断言确认 Dialog pending/name Bundle 状态、恢复后重开、64 字符过滤和旋转期间取消保护；`fx-dia-frida-page-navigation-regression.sh` 增加对应断言。未运行 Shell/Python 回归、Gradle、模拟器或真机旋转/保存流程。
 - 下一步：完成 Frida 管理页与脚本库/全屏编辑器返回链的一次集中 Host 回归，随后优先推进 Dia 其余原生页面映射，不继续把主工时消耗在弹窗边缘问题。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — API-101 位置隐私专用控件迁移检查误报修复
+
+- 本批起始 HEAD：`67aaf8a13e76b358241c89d9752050aa83059dcc`；提交期间持续重读指定分支，未使用旧聊天 SHA 强推。
+- CI 真实失败：Actions run `41904329514` 在 “Restore module sources, merge Hook entrypoints, and stage WebUI” 阶段退出，错误为 `API-101 privacy migration incomplete; missing fields: location_access_block native UI toggle`。后续 run `41905085852`、`41905215804` 因分支继续推进被自动取消，不能当作成功验收。
+- 根因不是功能缺失，而是迁移脚本 `fx-patches/patch_hook_privacy_controls.py` 将位置访问控件硬编码成通用 `toggle(...)` 文本。实际 `MainActivity` 使用独立 `addLocationAccessBlockToggle(locationConflictStatus)`，它具备：
+  - “限制位置访问”原生 Switch；
+  - 目标包隔离的 `location_access_block` SharedPreferences 键；
+  - 同步 `commit()`，提交失败恢复 UI 原值；
+  - 打开位置阻断时拒绝已有 GPS 坐标/服务模拟；
+  - 保存 GPS 模拟时反向拒绝已启用的位置访问阻断。
+- 修复 `patch_hook_privacy_controls.py`：新增 `has_conflict_aware_location_control(source)`，按真实方法边界识别专用控件；在迁移完成判定和最终 postcondition 都接受此受保护控件，不再要求不适用的 generic `toggle()`。同时严格验证本地两个互斥方向、包级存储及同步提交。修复了 helper 方法边界查找的转义层级，避免把字面 `\\n` 当作代码换行。
+- 扩展 `scripts/tests/fx-app-webui-migration-regression.sh`：验证专用控件挂载、方法、标签、包级保存、同步提交、GPS 双向冲突保护、迁移器方法边界和识别契约。
+- 提交：
+  - `60399161c08e4c4f4c423865581c8b1af15f6deb` — 初次迁移识别调整；后续检查发现其 helper guard marker 过严，已继续修正，不作为最终实现。
+  - `c83802867775b1759bc018163f9704cfe7e4fb2e` — 修正方法边界查找。
+  - `c868250ad91c8bf7588b49d5287117d827287296` — 分开验证“位置开关拒绝 GPS 模拟”与“GPS 保存拒绝位置阻断”两个方向。
+  - `d25dbc4e4104570fc2265c11388a2e537aceb3fe`、`2056a66eb49c82c391f37c917f2c256e3d35b54f`、`9ba322ea7103d202e71c58cfd8f7a4a65554b37d` — 增加位置控件及双向互斥测试断言。
+- 最新源码静态复核（当前 HEAD `a709aa0d65f1d451542d2ad1825a51028250c863`）：专用控件挂载、helper 边界、开关侧冲突、GPS 保存侧冲突、目标包同步保存、迁移器接纳逻辑、回归测试契约共 7 项全部通过。未在本地完整 checkout 执行 Shell 测试（容器无法解析 github.com）；当前相关 Actions 尚无已完成且成功的迁移验证记录，不能宣称 CI/编译通过。
+- 并行接管：同一分支后续已完成 Hook 自定义规则编辑/删除/分组移动后继续停留在规则管理页（`bfa0d8f9b0b5320b4c62c934e8284e76468ae592`，测试 `5ea20984f647c86fd04987af29f0a9e28e58b63a`）；Dia Frida 脚本库新建对话框名称草稿在重建后恢复（`e3e973e70835ad4b21e3261cbcbe234c403e5de0`，测试 `9517b39b7fed6d09b5f44e66b74bd834061c62c7`）。均已读取并保留。
+- 下一步：检查现有 Actions run `41905243917` 是否已实际跑到 API-101 迁移 postcondition 和静态回归步骤；若它也被取消，则不重复触发整套 Actions，转向可独立运行的现有测试路径与其他 UI 页面批次。固定 FX 1.0.0，不发布或交付最终 APK / KernelSU ZIP。
