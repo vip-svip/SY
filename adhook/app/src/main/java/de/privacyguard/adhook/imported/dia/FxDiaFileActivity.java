@@ -130,6 +130,8 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
                 directoryQuery = value == null ? "" : value.toString().trim();
                 displayedEntries = 0;
+                pendingRestoreDisplayedEntries = -1;
+                pendingRestoreScrollY = 0;
                 if (files != null) files.removeAllViews();
                 loadMoreButton = null;
                 if (!directoryEntries.isEmpty()) appendDirectoryPage();
@@ -172,14 +174,17 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         } catch (Throwable e) { fileStatus.setText("保存目录授权失败：" + e.getClass().getSimpleName()); }
     }
     private void restoreTree(Bundle state) {
-        directoryQuery = state == null ? "" : state.getString(STATE_DIRECTORY_QUERY, "");
+        String restoredQuery = state == null ? "" : state.getString(STATE_DIRECTORY_QUERY, "");
+        if (directorySearch != null && !restoredQuery.equals(directorySearch.getText().toString())) {
+            // Let the TextWatcher clear stale search/page state first; then install the
+            // saved pagination and scroll values for the upcoming asynchronous load.
+            directorySearch.setText(restoredQuery);
+        }
+        directoryQuery = restoredQuery;
         pendingRestoreDisplayedEntries = state == null ? -1
                 : Math.max(0, state.getInt(STATE_DISPLAYED_ENTRIES, 0));
         pendingRestoreScrollY = state == null ? 0
                 : Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
-        if (directorySearch != null && !directoryQuery.isEmpty()) {
-            directorySearch.setText(directoryQuery);
-        }
         String saved = prefs().getString("tree_uri", "");
         if (saved.isEmpty()) {
             pendingRestoreDisplayedEntries = -1;
