@@ -90,6 +90,31 @@ list=$(run list ruleList)
 if printf '%s\n' "$list" | grep -Fq 'https://original.example/filter.txt'; then fail "delete did not remove selected row"; fi
 printf '%s\n' "$list" | grep -Fq '0|https://disabled.example/filter.txt|Disabled|1' || fail "post-delete indexes were not rebuilt"
 
+# A live owner must remain in place and must block writes without touching user data.
+printf '%s\\n' "$PPID" > "$LOCK"
+before_live=$(sha256sum "$CONF" | awk '{print $1}')
+if FX_MANAGED_LIST_LOCK_RETRIES=1 run add domainList live-lock.example 'Must wait' >/dev/null 2>&1; then
+  fail "live PID lock was accepted"
+else
+  rc=$?
+  [ "$rc" -eq 10 ] || fail "live PID lock returned unexpected status $rc"
+fi
+[ "$(cat "$LOCK")" = "$PPID" ] || fail "live PID lock was removed or changed"
+after_live=$(sha256sum "$CONF" | awk '{print $1}')
+[ "$before_live" = "$after_live" ] || fail "live PID lock rejection changed settings.conf"
+rm "$LOCK"
+
+# An ownerless legacy mkdir lock is ambiguous: preserve it rather than guessing it is stale.
+mkdir "$LOCK"
+if FX_MANAGED_LIST_LOCK_RETRIES=1 run add domainList legacy-lock.example 'Must wait' >/dev/null 2>&1; then
+  fail "ownerless legacy lock was accepted"
+else
+  rc=$?
+  [ "$rc" -eq 10 ] || fail "ownerless legacy lock returned unexpected status $rc"
+fi
+[ -d "$LOCK" ] || fail "ownerless legacy lock was removed"
+rmdir "$LOCK"
+
 # A lock-path symlink is rejected without touching its target or user data.
 outside_lock_target="$TMP/outside-lock-target"
 printf 'external lock data\n' > "$outside_lock_target"
@@ -128,12 +153,22 @@ run apply >/dev/null
 tail -n 1 "$APPLY_LOG" | grep -qx full || fail "default apply command did not select full mode"
 run apply fast >/dev/null
 tail -n 1 "$APPLY_LOG" | grep -qx fast || fail "explicit fast apply command did not select fast mode"
+# Competing writers must serialize; neither successful update may overwrite the other.
+run add domainList parallel-a.example 'Parallel A' &
+parallel_a_pid=$!
+run add blockList parallel-b.example 'Parallel B' &
+parallel_b_pid=$!
+if ! wait "$parallel_a_pid"; then fail "first concurrent managed-list writer failed"; fi
+if ! wait "$parallel_b_pid"; then fail "second concurrent managed-list writer failed"; fi
+printf '%s\\n' "$(run list domainList)" | grep -Fq 'parallel-a.example|Parallel A|1' || fail "first concurrent update was lost"
+printf '%s\\n' "$(run list blockList)" | grep -Fq 'parallel-b.example|Parallel B|1' || fail "second concurrent update was lost"
+
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
 for token in ('umask 077', 'set -C', '_nl_read_lock_owner()', '_nl_unlock()',
-              'IFS= read -r _nl_lock_pid _nl_rest < /proc/self/stat',
+              "IFS=' ' read -r _nl_lock_pid _nl_rest < /proc/self/stat",
               'printf \'%s\\n\' "$_nl_lock_pid" > "$LOCK"',
               '_nl_lock_pid', 'kill -0', '.stale.$_nl_lock_pid.', 'legacy ownerless managed-list lock',
               'refusing to follow it', 'trap cleanup EXIT',
