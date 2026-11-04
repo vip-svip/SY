@@ -9,9 +9,9 @@
 - 历史功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`（历史检查点，不是本轮最新 HEAD）。
 - 上一轮状态文档记录的 HEAD：`1b17e21e2ab1c3c355ab817a0c8711643d880d32`（历史检查点；本轮工作前已从分支文件重新核对）。
 - Hook OBSERVE 日志页代码检查点：`28cf54337bb86a1af9a9d102be959c9e036e283e`（随后分支继续前进；当前轮次最新代码提交见下文）。
-- 本轮 Tasker 功能代码提交的最新检查点：`96b486cb4fe57d4add7e1539d0f2137fac2da260`（状态文档本次提交将继续推进 HEAD）。
+- Tasker 回执 UI 的历史检查点：`96b486cb4fe57d4add7e1539d0f2137fac2da260`；其后已补充发送方 UID 与 APK signer 固定，详见本文件下方 2026-11-05 记录。
 - 本批脚本库 UI 首次提交：`7cdce9ae77d22986be39e40a2544d56099ec0005`（编辑器结果回调在后续修正提交中完成）
-- 当前工作主题：游龙广告 Tasker 回执 UI/权限边界已完成源码提交；下一批转向六 Tab 页面恢复和 Dia Frida 原生页模块构建验证，当前分支 HEAD 始终以 GitHub 实时 ref 为准。
+- 本轮最新工作主题：游龙 Tasker Root 广播发送方身份与 signer pin 已提交；Shield 白名单 parser/serializer 已统一接入三个真实消费路径和两个管理页面写入路径；当前分支 HEAD 始终以 GitHub 实时 ref 为准。
 - 固定目标：FX 1.0.0，versionCode 10000（改动前仍需核实 Gradle 实际配置）
 - 最终 APK / KernelSU ZIP：本状态生成时没有证据证明已完成最终构建、安装或真机验收；不得提前交付。
 - 状态来源：实时读取 GitHub 分支、最近提交、`MainActivity.java`、Manifest、现有 UI/迁移文档和 Actions 列表。
@@ -586,3 +586,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：GitHub 源码静态核对通过；未运行 Android/Kotlin 编译、Gradle、JUnit、UI 自动化、安装或真机服务状态测试。`ActivityManager.getRunningServices` 为 deprecated API，仅用于同应用服务检测，设备兼容性仍未验证。
 - 本批未改变扫描计数的写入行为、服务生命周期、权限申请或自动扫描调度；未触发完整 Actions。
 - 下一批：继续 Dia 页面迁移映射；先检查“对话框与通知/剪贴板”是否使用 per-app Hook 配置还是 FX 全局隐私设置，避免路由错位；随后核对 GPS/设备模拟页面保存与发布完整性。Dia 所有原始页面和业务逻辑仍未全量验收。
+
+
+## 2026-11-05 — Shield 用户白名单管理读写与三个运行时消费者统一
+
+- 本批代码提交：
+  - `db5adc459d64d33a4b427bf5eb070060327f22fe` — 扩展 `FxYulongWhitelistPolicy`，添加公开包名校验及 bounded CSV serializer；非法包名、超过 10,000 唯一条目或超过 1 MiB 原始字符一律返回拒绝写入。
+  - `90779ddd1a6ffa440355ae7b8dbc6e4f7b7a523b` — `WhitelistActivity` 使用中央 parser / serializer；移除单条保存失败恢复内存条目；超限时 UI 明确提示，不部分写入。
+  - `f2a5b9ed0d3298d3fce564103d75326fd5af8c87` — `WhitelistPickerActivity` 使用相同 parser / serializer；多选合并超限时拒绝整批写入，SharedPreferences 提交失败保持原配置。
+  - `e122edd5b322255cbafc2fd503838ca7522c2359` — 新增序列化测试：重复项去重/往返、非法包名整批拒绝、超过条数拒绝、超过原始字符限制拒绝。
+  - `ea235c13fa28e5c8c415c938c844e7b910a62d27` — 实时 `FxYulongProtectionService.evaluateForeground()` 读取用户白名单改用中央 policy，不再自行 CSV split。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWhitelistPolicy.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistPickerActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongProtectionService.java`
+  - `adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongWhitelistPolicyTest.java`
+- 当前三个运行时入口统一：手动全量/单应用扫描 (`FxYulongScanEngine`)、自动前台/安装风险通知 (`FxYulongRiskScanDispatcher`)、实时黑名单前台守护 (`FxYulongProtectionService`) 都调用 `FxYulongWhitelistPolicy.load/isWhitelisted`；管理页与全屏 picker 从同一 parser 读取并从同一 serializer 写入 `shield_prefs/whitelist_pkgs`。
+- 解析规则：去空格、去重、仅接受合法 Android 包名；超过 1 MiB 原始字符或超过 10,000 个唯一合法包名时，解析返回空名单，扫描不会部分忽略风险应用。恰好 10,000 条仍然有效。
+- 写入规则：`serialize()` 对非法包名、条数超限、字符数超限均返回 null；两个页面都拒绝写入任何部分数据。单项移除操作如提交失败，会把该应用恢复回 UI 列表；picker 的合并保存用同步 commit 读取结果，失败时不关闭页面或报告成功。
+- UI 处理：管理页读取超限/全无效数据时显示警告；picker 显示原名单未能完整信任提示；只有用户选择新有效应用并完成 commit 后，旧无效配置才会被覆盖。
+- 定向验证：本地独立 JDK harness 使用 Android Context/SharedPreferences/Log 与 JUnit 最小 stub 编译策略及测试逻辑，运行 11 项断言全部通过：合法包/去重、非法项过滤、空/null、原始输入上限、超过条数 fail-open、恰好 10,000、序列化往返、非法写入拒绝、超过条数写入拒绝、超过 1 MiB 写入拒绝、非法包查询。此 harness 不是 Android Gradle/JUnit task，也不代表 Activity/Service 已编译。
+- GitHub 静态复核：重新读取 policy、两管理页面、实时 ProtectionService、测试源码；确认三个运行时消费点和两个 UI 写入点均指向同一 policy/serializer；确认 Gradle 仍为 `versionCode 10000` / `versionName 1.0.0`。
+- 未执行 Android 编译、Gradle 构建、仓库 JUnit task、UI 自动化、模拟器/真机手动扫描/自动通知/前台守护流程。未触发整套 Actions。
+- 未完成项：原始 Shield 9.9.60 的其他第四级页面仍需对照原应用逐页查漏；尤其风险详情、管控规则、日报与实时状态页面还需目标 ROM 验证。
+- 下一批直接任务：① Dia 页面目录与 Manifest 原生路由映射，找出尚未独立迁移的 1–3 个原始四级页面；② 检查 Dia 页面返回链和权限状态；③ 构建环境可用时跑 targeted Android compile。
