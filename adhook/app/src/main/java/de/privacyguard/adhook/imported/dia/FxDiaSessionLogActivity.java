@@ -31,6 +31,9 @@ public final class FxDiaSessionLogActivity extends Activity {
     private static final String BASE_DIR = "/data/adb/privacyguard";
     private static final String DIA_DIR = BASE_DIR + "/dia-frida";
     private static final String LOG_DIR = DIA_DIR + "/logs";
+    private static final int MAX_RESTORED_SEARCH_CHARS = 256;
+    private static final String STATE_SEARCH = "fx_dia_session_log_search";
+    private static final String STATE_SCROLL_Y = "fx_dia_session_log_scroll_y";
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "fx-dia-session-log");
@@ -47,6 +50,10 @@ public final class FxDiaSessionLogActivity extends Activity {
     private TextView status;
     private TextView outputView;
     private EditText search;
+    private ScrollView logScroll;
+    private boolean logLoaded;
+    private boolean pendingScrollRestore;
+    private int restoredScrollY;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -83,6 +90,7 @@ public final class FxDiaSessionLogActivity extends Activity {
         if (targetName == null || targetName.trim().isEmpty()) targetName = targetPackage;
         logPath = LOG_DIR + "/" + targetPackage + ".log";
         buildPage();
+        restoreUiState(state);
         refreshLog();
     }
 
@@ -145,14 +153,14 @@ public final class FxDiaSessionLogActivity extends Activity {
         controls.addView(actions);
         root.addView(controls);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        logScroll = new ScrollView(this);
+        logScroll.setFillViewport(true);
         outputView = text("正在读取…", 11, 0xff263443, false);
         outputView.setTypeface(android.graphics.Typeface.MONOSPACE);
         outputView.setTextIsSelectable(true);
         outputView.setPadding(dp(12), dp(8), dp(12), dp(18));
-        scroll.addView(outputView);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        logScroll.addView(outputView);
+        root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
 
         search.addTextChangedListener(new TextWatcher() {
@@ -184,6 +192,7 @@ public final class FxDiaSessionLogActivity extends Activity {
                     if (detail.length() > 240) detail = detail.substring(0, 240);
                     logContent = "";
                     status.setText("读取日志失败：" + (detail.isEmpty() ? "没有错误详情。" : detail));
+                    logLoaded = true;
                     renderLog();
                     return;
                 }
@@ -200,6 +209,7 @@ public final class FxDiaSessionLogActivity extends Activity {
                     String time = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
                     status.setText("最近读取：" + time + " · 返回 " + lines + " 行（最多 500 行）。");
                 }
+                logLoaded = true;
                 renderLog();
             });
         });
@@ -211,6 +221,7 @@ public final class FxDiaSessionLogActivity extends Activity {
                 : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         if (logContent.isEmpty()) {
             outputView.setText("暂无可显示的运行日志。");
+            restorePendingScrollPosition();
             return;
         }
         StringBuilder filtered = new StringBuilder();
@@ -221,6 +232,41 @@ public final class FxDiaSessionLogActivity extends Activity {
             filtered.append(line);
         }
         outputView.setText(total == 0 ? "没有符合条件的日志行。" : filtered.toString());
+        restorePendingScrollPosition();
+    }
+
+    private void restoreUiState(Bundle state) {
+        if (state == null) return;
+        String query = state.getString(STATE_SEARCH, "");
+        if (query == null) query = "";
+        if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
+            query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
+        }
+        search.setText(query);
+        search.setSelection(search.getText().length());
+        restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+        pendingScrollRestore = true;
+    }
+
+    private void restorePendingScrollPosition() {
+        if (!logLoaded || !pendingScrollRestore || logScroll == null) return;
+        final int scrollY = restoredScrollY;
+        pendingScrollRestore = false;
+        logScroll.post(() -> {
+            if (!destroyed && logScroll != null) logScroll.scrollTo(0, scrollY);
+        });
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (search != null) {
+            String query = search.getText() == null ? "" : search.getText().toString();
+            if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
+                query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
+            }
+            outState.putString(STATE_SEARCH, query);
+        }
+        if (logScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, logScroll.getScrollY()));
     }
 
     private void confirmClearLog() {
@@ -266,6 +312,8 @@ public final class FxDiaSessionLogActivity extends Activity {
             worker.execute(task);
         } catch (RejectedExecutionException full) {
             status.setText("后台队列繁忙，本次操作未执行，请稍后重试。");
+            logLoaded = true;
+            renderLog();
         }
     }
 
