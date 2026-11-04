@@ -650,6 +650,11 @@ watch_lock_release() {
   fi
   WATCH_LOCK_OWNED=0
 }
+watch_lock_signal_exit() {
+  _watch_signal_status=$1
+  watch_lock_release
+  exit "$_watch_signal_status"
+}
 watch_lock_run() {
   watch_lock_acquire || return $?
   if "$@"; then
