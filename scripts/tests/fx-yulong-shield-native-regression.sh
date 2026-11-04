@@ -299,7 +299,7 @@ for token in (
     "status.lastAttemptAt = sp.getLong(prefix + \"last_attempt_at\", 0L)",
     'System.currentTimeMillis() - lastAttempt < MIN_FETCH_INTERVAL_MS',
     "lastFetchTime = lastSuccess;",
-    'editor.putString(K_LAST_ERROR, lastError)',
+    '.putString(K_LAST_ERROR, lastError);',
     'if (!t.matches("[A-Za-z0-9_]+(',
     'return new LinkedHashSet<>();',
     'lower.contains("<html")',
