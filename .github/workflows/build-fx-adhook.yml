@@ -130,6 +130,9 @@ jobs:
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
           python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
+          install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
+          sh scripts/tests/fx-native-managed-lists-regression.sh
+          sh -n fx-module/scripts/native-managed-lists.sh
           sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
           sh scripts/tests/fx-yulong-dns-cache-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module
