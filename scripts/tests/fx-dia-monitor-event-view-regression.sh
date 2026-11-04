@@ -2,17 +2,20 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
+EVENTS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java"
+MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParser.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParserTest.java"
 HOST_TEST="$ROOT/scripts/tests/FxDiaMonitorEventParserHostTest.java"
 AUTO_CLICK="$ROOT/adhook/app/src/main/assets/dia/fx_auto_click_template.js"
 DIALOG_REMOVE="$ROOT/adhook/app/src/main/assets/dia/fx_dialog_remove_template.js"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-[ -s "$ACTIVITY" ] && [ -s "$PARSER" ] && [ -s "$UNIT" ] || fail "Dia monitor-event sources missing"
+[ -s "$ACTIVITY" ] && [ -s "$EVENTS" ] && [ -s "$PARSER" ] && [ -s "$UNIT" ] || fail "Dia monitor-event sources missing"
 [ -s "$AUTO_CLICK" ] || fail "Dia automatic-click template asset missing"
 [ -s "$DIALOG_REMOVE" ] || fail "Dia dialog-removal template asset missing"
 grep -Fq 'button("查看结构化监控事件", () -> showMonitorEvents())' "$ACTIVITY" || fail "Frida screen has no native monitor-event browser"
-grep -Fq 'tail -n 800' "$ACTIVITY" || fail "monitor-event reader is not bounded at the source"
+grep -Fq 'new Intent(this, FxDiaMonitorEventsActivity.class)' "$ACTIVITY" || fail "Frida page does not route to the native event Activity"
+grep -Fq 'tail -n 800' "$EVENTS" || fail "monitor-event reader is not bounded at the source"
 grep -Fq 'MAX_EVENTS = 300' "$PARSER" || fail "monitor-event parser has no event-count bound"
 grep -Fq 'MAX_LOG_CHARS = 256 * 1024' "$PARSER" || fail "monitor-event parser has no input-size bound"
 grep -Fq 'case "SQL":' "$PARSER" || fail "SQL monitor family is not supported"
@@ -58,13 +61,30 @@ node --check "$DIALOG_REMOVE" || fail "dialog-removal template JavaScript syntax
 command -v node >/dev/null 2>&1 || fail "Node.js is required to syntax-check Dia Frida templates"
 node --check "$AUTO_CLICK" || fail "auto-click template JavaScript syntax invalid"
 [ -s "$HOST_TEST" ] || fail "standalone Activity-entry parser host test is missing"
-grep -Fq 'SQL 文本' "$ACTIVITY" || fail "event view does not explain content redaction"
-grep -Fq 'private void showMonitorEvents()' "$ACTIVITY" || fail "event filtering UI is missing"
-grep -Fq 'matched > shown' "$ACTIVITY" || fail "event view has no render-row cap"
-grep -Fq 'private int monitorEventGeneration;' "$ACTIVITY" || fail "event requests have no generation guard"
-grep -Fq 'final String requestedPackage = targetPackage;' "$ACTIVITY" || fail "event reader does not snapshot the requested target"
-grep -Fq '!requestedPackage.equals(targetPackage)' "$ACTIVITY" || fail "late event results can be shown for a newly selected target"
-grep -Fq 'monitorEventGeneration++;' "$ACTIVITY" || fail "target changes and Activity teardown do not invalidate stale event reads"
+grep -Fq 'SQL 文本' "$EVENTS" || fail "event view does not explain content redaction"
+grep -Fq 'private void showMonitorEvents()' "$ACTIVITY" || fail "Frida page event route missing"
+grep -Fq 'new Intent(this, FxDiaMonitorEventsActivity.class)' "$ACTIVITY" || fail "Frida event route target mismatch"
+grep -Fq 'matched > shown' "$EVENTS" || fail "event view row cap missing"
+grep -Fq 'private int loadGeneration;' "$EVENTS" || fail "event generation guard missing"
+grep -Fq 'final int request = ++loadGeneration;' "$EVENTS" || fail "event request generation missing"
+grep -Fq 'request != loadGeneration' "$EVENTS" || fail "late event results are not discarded"
+grep -Fq 'loadGeneration++;' "$EVENTS" || fail "Activity teardown generation invalidation missing"
+grep -Fq 'isSafePackageName(targetPackage)' "$EVENTS" || fail "target package validation missing"
+grep -Fq '[ ! -L ' "$EVENTS" || fail "symlink log path guard missing"
+grep -Fq 'dia-frida/logs/' "$ACTIVITY" || fail "Frida log directory contract missing"
+grep -Fq 'dia-frida/logs/' "$EVENTS" || fail "native event page log directory mismatch"
+python3 - "$MANIFEST" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+android = "{http://schemas.android.com/apk/res/android}"
+entries = [node for node in root.findall("./application/activity")
+           if node.attrib.get(android + "name") == ".imported.dia.FxDiaMonitorEventsActivity"]
+assert len(entries) == 1, "monitor Activity missing or duplicated"
+assert entries[0].attrib.get(android + "exported") == "false", "monitor Activity must be private"
+PY
+grep -Fq 'isSafeAuthority(value)' "$PARSER" || fail "host/endpoint authority validation missing"
+grep -Fq 'URL credentials/path must not be displayed as host' "$HOST_TEST" || fail "network privacy Host test missing"
 if ! command -v javac >/dev/null 2>&1 || ! command -v java >/dev/null 2>&1; then
     fail "JDK is required to execute the standalone monitor parser regression"
 fi
