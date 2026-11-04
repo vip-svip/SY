@@ -2984,18 +2984,9 @@ public final class MainActivity extends ComponentActivity {
         Runnable refresh = () -> {
             if (isFinishing() || isDestroyed()) return;
             if (FxLsposedScopeBridge.isConnected()) {
-                FxLsposedScopeBridge.Snapshot snapshot =
-                        FxLsposedScopeBridge.snapshot("com.example.fx.activation.probe");
-                // A synthetic package is deliberately not used as a scope query:
-                // this banner reports only the official service connection.
-                state.setText("已收到 LSPosed 官方服务 Binder。"
-                        + (snapshot.connected ? " 服务 API 可读取。" : "")
-                        + "\\n这不代表 FX Hook 已注入到当前进程或任一目标应用。"
-                        + "请在 LSPosed Manager 单独确认模块启用和目标应用作用域，并重新启动目标进程。");
+                state.setText("已收到 LSPosed 官方服务 Binder。此状态仅证明框架服务可回应，不代表 FX Hook 已注入到当前进程或任一目标应用。请在 LSPosed Manager 单独确认模块启用和目标应用作用域，并重新启动目标进程。");
             } else {
-                state.setText("尚未收到 LSPosed 官方服务 Binder。请在 LSPosed Manager 启用 FX Hook，"
-                        + "确认作用域后重新打开 FX Hook 再刷新。"
-                        + "\\n服务连接状态不等同于目标进程注入状态。");
+                state.setText("尚未收到 LSPosed 官方服务 Binder。请在 LSPosed Manager 启用 FX Hook，确认作用域后重新打开 FX Hook 再刷新。服务连接状态不等同于目标进程注入状态。");
             }
         };
         refresh.run();
