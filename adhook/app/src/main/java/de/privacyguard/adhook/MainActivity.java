@@ -1015,6 +1015,26 @@ public final class MainActivity extends ComponentActivity {
         ruleActions.addView(nativeAction("查看 Hosts 本地条目", () -> showNativeListDialog("hosts_local", "本地 Hosts 条目")));
         ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
         content.addView(ruleActions);
+
+        section("广告过滤完整功能");
+        TextView yulongIntro = new TextView(this);
+        yulongIntro.setText("已将游龙广告插件的原生功能页接入 FX 的 Ad 业务域。以下页面属于 FX 内部功能，不再作为独立迁移应用入口。");
+        yulongIntro.setTextColor(0xff718091);
+        yulongIntro.setPadding(dp(18), dp(4), dp(18), dp(8));
+        content.addView(yulongIntro);
+        LinearLayout yulongActions = new LinearLayout(this);
+        yulongActions.setOrientation(LinearLayout.VERTICAL);
+        yulongActions.addView(nativeAction("广告过滤控制中心", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class))));
+        yulongActions.addView(nativeAction("广告过滤通用设置与备份恢复", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class))));
+        yulongActions.addView(nativeAction("广告拦截统计与每日摘要", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class))));
+        yulongActions.addView(nativeAction("应用网络防火墙", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class))));
+        yulongActions.addView(nativeAction("应用广告过滤白名单", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class))));
+        content.addView(yulongActions);
     }
 
     private void refreshHostsStatus(TextView target) {
