@@ -706,5 +706,44 @@ public class UnifiedHookConfigParserTest {
     }
 
 
+    @Test
+    public void parsesPerAppToastFilterRules() {
+        String terms = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "签到成功\nPlease update".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String config = String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.toast,toast_filter=1,toast_text_terms_b64=" + terms, "");
+        UnifiedHookConfigParser.Target target =
+                UnifiedHookConfigParser.parse(config).targets.get("com.example.toast");
+        assertTrue(target.toastFilterEnabled);
+        assertEquals(java.util.Arrays.asList("签到成功", "Please update"), target.toastTextTerms);
+    }
+
+    @Test
+    public void legacyTargetsDoNotEnableToastFiltering() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.legacy,splash=1\n")
+                .targets.get("com.example.legacy");
+        assertFalse(target.toastFilterEnabled);
+        assertTrue(target.toastTextTerms.isEmpty());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsToastFilterWithoutExplicitTerms() {
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]", "com.example.toast,toast_filter=1", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsToastTermsWhenFilteringIsDisabled() {
+        String terms = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "promotion".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.toast,toast_text_terms_b64=" + terms, ""));
+    }
+
+
 }
 
