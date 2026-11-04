@@ -93,9 +93,15 @@ public final class AdbKey {
         return AdbAuthSignature.sign(privateKey, token);
     }
 
-    /** ADB peer-info record contains Base64(524-byte adb_rsa_pubkey) + comment + NUL. */
+    /** ADB AUTH(RSAPUBLICKEY) requires the comment-terminated line including its NUL byte. */
     public byte[] getAdbPublicKey() {
         return AdbPublicKeyEncoder.encode(publicKey, identity);
+    }
+
+    /** ADB pairing PeerInfo carries the same public-key line without a NUL;
+     * its fixed 8192-byte zero padding supplies the terminator. */
+    public byte[] getAdbPublicKeyLine() {
+        return AdbPublicKeyEncoder.encodeLine(publicKey, identity);
     }
 
 }
