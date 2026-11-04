@@ -68,6 +68,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private static final int BULK_DRAFT_MAX_CHARS=48*1024;
  private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
+ private Bundle retainedDrafts=new Bundle();
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView txt(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
@@ -152,6 +153,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   if(b!=null){
    page=b.getString(STATE_PAGE,"首页与防护");
    pendingRestoredDrafts=b.getBundle(STATE_DRAFTS);
+   if(pendingRestoredDrafts!=null)retainedDrafts=new Bundle(pendingRestoredDrafts);
    pendingPageScrollY=Math.max(0,b.getInt(STATE_SCROLL_Y,0));
    pendingPageScrollRestore=true;
   }else{
@@ -160,7 +162,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   }
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));pageScroll.addView(body);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
  private Bundle captureDrafts(){
-  Bundle drafts=new Bundle();
+  Bundle drafts=new Bundle(retainedDrafts);
   for(java.util.Map.Entry<String,EditText> entry:draftFields.entrySet()){
    EditText field=entry.getValue();
    drafts.putString(entry.getKey(),field.getText()==null?"":field.getText().toString());
@@ -169,7 +171,8 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  }
  @Override protected void onSaveInstanceState(Bundle out){
   out.putString(STATE_PAGE,page);
-  out.putBundle(STATE_DRAFTS,captureDrafts());
+  retainedDrafts=captureDrafts();
+  out.putBundle(STATE_DRAFTS,retainedDrafts);
   if(pageScroll!=null)out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));
   super.onSaveInstanceState(out);
  }
@@ -940,7 +943,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   });
  }
 
- private void open(String p){Bundle drafts=captureDrafts();page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();restoreDrafts(drafts);bind();}
+ private void open(String p){retainedDrafts=captureDrafts();page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();restoreDrafts(retainedDrafts);bind();}
   private boolean isTrustedNetworkPageCurrent(TextView target) {
     return target != null && target == trustedNetworkStatus
             && "信任的网络".equals(page) && !isFinishing() && !isDestroyed();
