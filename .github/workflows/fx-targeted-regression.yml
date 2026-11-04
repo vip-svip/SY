@@ -120,7 +120,11 @@ jobs:
             run_py scripts/tests/fx-dia-wifi-proxy-regression.py
             run_py scripts/tests/fx-dia-lsposed-scope-regression.py
             run_py scripts/tests/fx-dia-lsposed-auto-scope-regression.py
-            run_sh scripts/tests/fx-native-privacy-settings-regression.sh
+            if [[ -s fx-module/webroot/index.html && -s fx-module/scripts/default.conf ]]; then
+              run_sh scripts/tests/fx-native-privacy-settings-regression.sh
+            else
+              echo "SKIP: fx-native-privacy-settings-regression.sh requires the restored FX module archive; the complete module-backed check runs in build-fx-adhook.yml after Release staging."
+            fi
             run_sh scripts/tests/fx-native-vpn-api-regression.sh
             run_sh scripts/tests/fx-native-vpn-config-lock-regression.sh
             run_sh scripts/tests/fx-vpn-transparent-toggle-regression.sh
