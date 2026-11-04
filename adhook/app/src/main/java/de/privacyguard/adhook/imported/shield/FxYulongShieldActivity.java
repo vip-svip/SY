@@ -140,7 +140,7 @@ public final class FxYulongShieldActivity extends Activity {
                 getSharedPreferences("shield_prefs", MODE_PRIVATE);
         android.widget.Switch installScan = new android.widget.Switch(this);
         installScan.setText("安装新应用时自动扫描");
-        installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", false));
+        installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", true));
         installScan.setOnCheckedChangeListener((button, enabled) -> {
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
@@ -156,6 +156,47 @@ public final class FxYulongShieldActivity extends Activity {
         card("安装后自动检测",
                 "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
                 installScan, contentScan);
+        android.widget.Switch autoRiskScan = new android.widget.Switch(this);
+        autoRiskScan.setText("自动前台风险扫描");
+        autoRiskScan.setChecked(shieldPrefs.getBoolean("auto_block_on", true));
+        autoRiskScan.setOnCheckedChangeListener((button, enabled) -> {
+            if (enabled && !ensureNotificationPermission()) {
+                button.setChecked(false);
+                return;
+            }
+            shieldPrefs.edit().putBoolean("auto_block_on", enabled).apply();
+            if (enabled && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("需要启用 FX 无障碍服务")
+                        .setMessage("前台自动扫描只使用系统提供的前台应用包名事件，不读取界面文字或点击控件。请在 Android 无障碍设置中手动启用 FX。")
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("打开设置", (dialog, which) -> {
+                            try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+                            catch (Throwable ignored) { }
+                        }).show();
+            }
+        });
+        android.widget.RadioGroup riskMode = new android.widget.RadioGroup(this);
+        android.widget.RadioButton directMode = new android.widget.RadioButton(this);
+        directMode.setText("直接打开 Android 系统卸载确认（你仍需确认）");
+        directMode.setId(android.view.View.generateViewId());
+        android.widget.RadioButton confirmMode = new android.widget.RadioButton(this);
+        confirmMode.setText("先查看 FX 风险详情，再决定处理");
+        confirmMode.setId(android.view.View.generateViewId());
+        riskMode.addView(directMode);
+        riskMode.addView(confirmMode);
+        String storedRiskMode = shieldPrefs.getString("auto_block_mode", "direct");
+        riskMode.check("confirm".equalsIgnoreCase(storedRiskMode) ? confirmMode.getId() : directMode.getId());
+        riskMode.setOnCheckedChangeListener((group, checkedId) ->
+                shieldPrefs.edit().putString("auto_block_mode",
+                        checkedId == confirmMode.getId() ? "confirm" : "direct").apply());
+        card("原版自动风险管控",
+                "保留原版前台自动风险扫描和 direct/confirm 两种处理路径。direct 只会在你点击通知后打开 Android 系统卸载确认；FX 不会静默卸载、强停或冻结应用。前台扫描需要你主动启用 FX 无障碍服务。",
+                autoRiskScan, directMode, confirmMode,
+                action("打开无障碍服务设置", () -> {
+                    try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
+                    catch (Throwable ignored) { }
+                }));
         String protectionState = shieldPrefs.getBoolean("protect_service_running", false)
                 ? "实时守护服务正在运行"
                 : (shieldPrefs.getBoolean("protect_on", false) ? "守护开关已保存，服务当前未运行" : "实时守护未开启");
