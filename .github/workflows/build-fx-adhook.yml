@@ -216,6 +216,10 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+          # fileedit.sh is restored from the stable module ZIP. Patch that source
+          # before tests/build so simultaneous page and line saves cannot be lost.
+          python3 fx-patches/patch_fileedit_transaction_lock.py fx-module
+          sh scripts/tests/fx-fileedit-concurrency-regression.sh fx-module/scripts/fileedit.sh
           python3 fx-patches/patch_vpn_apps.py fx-module
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_native_script_store.py fx-module
