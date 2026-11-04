@@ -85,6 +85,12 @@ printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|strict|' || fail "original Str
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|family|' || fail "original Family preset missing"
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|gaming|' || fail "original Gaming preset missing"
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|strict_family|' || fail "original Strict Family preset missing"
+# Default profile snapshots remote HTTPS list state only; FX local sources remain independent.
+default_profile_row=$(awk -F'|' '$1=="default" {print; exit}' "$PROFILE_PG/yulong-profiles.tsv")
+default_urls=$(printf '%s' "$default_profile_row" | cut -d'|' -f4 | base64 -d)
+printf '%s\n' "$default_urls" | grep -Fq 'https://alpha.example/filter.txt' || fail "Default profile omitted the currently enabled HTTPS source"
+if printf '%s\n' "$default_urls" | grep -Eq '^(builtin|fxfile)://'; then fail "Default profile incorrectly captured FX-owned local sources"; fi
+grep -Fq 'builtin://fx-native|FX native rules|1' "$PROFILE_PG/settings.conf" || fail "profile initialization changed FX-native rules"
 
 # Built-in profile switching installs the original remote source rows into FX's
 # existing [list:rule], instead of only counting unavailable URLs.
@@ -109,6 +115,9 @@ sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
 created=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-create "Study profile" 1 1)
 custom_id=${created#created=}
 case "$custom_id" in custom_*) : ;; *) fail "custom profile ID not returned: $created" ;; esac
+custom_profile_row=$(awk -F'|' -v id="$custom_id" '$1==id {print; exit}' "$PROFILE_PG/yulong-profiles.tsv")
+custom_urls=$(printf '%s' "$custom_profile_row" | cut -d'|' -f4 | base64 -d)
+if printf '%s\n' "$custom_urls" | grep -Eq '^(builtin|fxfile)://'; then fail "Custom profile incorrectly captured FX-owned local sources"; fi
 # Change the currently selected sources, then verify that switching restores
 # the profile's saved filter set and both original protection flags.
 python3 - "$PROFILE_PG/settings.conf" <<'PY'
@@ -228,6 +237,40 @@ sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$early_id" >/dev/n
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$midnight_id" >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$date_schedule_id" >/dev/null
 
+
+# Profile and attached weekly schedules must be removed as one logical transaction.
+transaction_profile=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-create "Delete transaction" 0 0)
+transaction_id=${transaction_profile#created=}
+transaction_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$transaction_id" 10:00 11:00 1)
+transaction_schedule_id=${transaction_schedule#created=}
+mkdir -p "$T/delete-bin"
+cat > "$T/delete-bin/mv" <<'MV'
+#!/bin/sh
+src=
+dst=
+for arg in "$@"; do
+  [ -z "$dst" ] || src=$dst
+  dst=$arg
+done
+case "$dst" in
+  */yulong-profile-schedules.tsv)
+    case "$src" in
+      *.delete-candidate.*) [ "${FX_FAIL_PROFILE_SCHEDULE_RENAME:-0}" != 1 ] || exit 73 ;;
+    esac
+    ;;
+esac
+exec /bin/mv "$@"
+MV
+chmod 0755 "$T/delete-bin/mv"
+if PATH="$T/delete-bin:$PATH" FX_FAIL_PROFILE_SCHEDULE_RENAME=1 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$transaction_id" > "$T/delete-rollback.log" 2>&1; then
+  fail "profile delete succeeded when the attached schedule replacement failed"
+fi
+grep -Fq "$transaction_id" "$PROFILE_PG/yulong-profiles.tsv" || fail "failed profile delete did not restore the profile record"
+grep -Fq "$transaction_schedule_id" "$PROFILE_PG/yulong-profile-schedules.tsv" || fail "failed profile delete did not retain the attached schedule"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$transaction_id" >/dev/null
+if grep -Fq "$transaction_id" "$PROFILE_PG/yulong-profiles.tsv"; then fail "successful profile delete left the profile record"; fi
+if grep -Fq "$transaction_schedule_id" "$PROFILE_PG/yulong-profile-schedules.tsv"; then fail "successful profile delete left an orphan schedule"; fi
+if sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove missing_schedule_id >/dev/null 2>&1; then fail "schedule removal reported success for an unknown schedule"; fi
 
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$custom_id" >/dev/null
