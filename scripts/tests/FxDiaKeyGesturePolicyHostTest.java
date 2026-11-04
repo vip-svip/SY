@@ -55,7 +55,7 @@ public final class FxDiaKeyGesturePolicyHostTest {
 
         policy.reset();
         event(policy, 25, 1000L);
-        check(event(policy, 24, 1300L).equals(Arrays.asList(4, 6)),
+        check(event(policy, 24, 1300L).equals(Collections.singletonList(6)),
                 "volume-down/up chord emits trigger 6");
         policy.reset();
         event(policy, 24, 1000L);
