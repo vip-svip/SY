@@ -212,7 +212,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         try {
             selected = getPackageManager().getApplicationInfo(packageName, 0);
             CharSequence label = getPackageManager().getApplicationLabel(selected);
-            target.setText(String.valueOf(label) + "\\n" + packageName);
+            target.setText(String.valueOf(label) + "\n" + packageName);
             if ("installed-loaded".equals(sourceKind)) loadDex();
             else summary.setText("已恢复目标应用。点击“读取 DEX 类名”重新建立只读索引。");
         } catch (PackageManager.NameNotFoundException missing) {
