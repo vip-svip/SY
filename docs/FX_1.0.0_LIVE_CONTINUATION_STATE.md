@@ -2376,3 +2376,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仍需完成：真机测试 99/100/101 项选择边界、搜索切换和翻页时暂存不丢、取消不写入、确认一次性写入；检查白名单/黑名单数据异常时 fail-closed 策略一致。
 - 本次读取到的 GitHub 分支 HEAD：`bbd261b7c3abae65b3d65dcccfe5e643f0b28f94`。实时状态文件在本条提交后将更新到新 HEAD。
 - 下一步：继续安全护盾告警与名单编辑返回链；然后检查六 Tab 固定导航在 Dia / 游龙原生 Activity 之间的选中态和返回恢复。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 四个原生主页面独立滚动位置真正恢复
+
+- 本批起始 HEAD：`b010f60b7f21be1beb1c4ac20fa7520c5f54fd5d`。
+- 并行提交 `47b7b2e63a00b33ae46059619ebac27bff0de302` 已加入四个原生主页面的滚动位置保存与切换时捕获，但源码复核发现 `renderNativePage()` 尚未读取数组并恢复位置；因此原实现只有保存、没有恢复。
+- 修复 `MainActivity.renderNativePage()`：
+  - 每次渲染新 Tab 先把 ScrollView 归零，防止继承上一个 Tab 的滚动位置；
+  - 新页面布局完成后读取 `nativeTabScrollPositions[pageIndex]` 并 post 恢复；
+  - 用 render generation、当前 page index 和 content-parent 三重检查拒绝过期页面回调。
+- 修改 `fx-dia-native-tab-regression.sh`：覆盖四页独立位置、Bundle 保存、切换捕获、切换前归零、页面重建后恢复和旧回调失效。
+- 提交：`bbd261b7c3abae65b3d65dcccfe5e643f0b28f94`（实现）；`b010f60b7f21be1beb1c4ac20fa7520c5f54fd5d`（回归断言）。
+- 验证等级：源码静态检查；未运行 Shell 回归、Gradle、UI 自动化或真机四个主 Tab 长页面切换/旋转测试。
+- 下一步：继续对四个原生主 Tab 的页面恢复与滚动锚点做一次成组回归；随后核对 Hook/Settings 与主 Tab 互相切换时是否错误保留/清除子页面状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
