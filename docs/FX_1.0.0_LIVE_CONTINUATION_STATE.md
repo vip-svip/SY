@@ -1486,3 +1486,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`f9f4b15365938afbe723e3b7eb645683eed6ca04`（草稿恢复和原子保存）；`2aa9bc0a8eeff1e857020ec39bd63b6b6d1fee8b` 与 `5a17af62ba990b9c00cf8921c52b2b89c6e824ec`（回归脚本覆盖草稿恢复、输入监听、成功清理及失败处理）。
 - 静态验证：当前 HEAD 重新读取 MainActivity 与回归脚本，确认三类草稿字段、实时监听、恢复、成功清理、失败不发布路径全部存在。尚未运行完整 Host/Shell 测试、Gradle、模拟器或真机旋转测试。
 - 下一步：检查 GPS Picker / GPS 配对、Wi-Fi Proxy、备份/恢复页面的 Activity Result 与未提交表单恢复；再统一执行可用 Host 回归及跨页面六 Tab 返回链静态验证。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia 系统 HTTP 代理表单草稿与失败回滚保护
+
+- 本批起始实时 HEAD：`aa66b718cee4eab8b4c8899237835fce9c925cbc`。
+- `FxDiaWifiProxyActivity` 的代理主机/端口现在独立保存非敏感草稿，重建后优先恢复；未保存的草稿不会被误当成当前已生效代理。密码/令牌不在该页持久化。
+- 应用系统代理成功后，FX 本地所有权状态以同步 `commit()` 写入并清理草稿；若本地提交失败，执行条件回滚：仅当系统当前值仍等于 FX 刚写入的目标值时，才恢复此前系统代理，并核对回滚结果；检测到外部更改时不覆盖。
+- 提交：`0aff802f3931276f0d6b08963f7ded25805f031c`（表单草稿与本地状态同步提交）；`526da0a1ea32e02027461b085e56a87da1ffbc7d`（本地状态提交失败时条件回滚）；`46af965d01f97d36d5093c139c40e3940a6b665d`（代理回归脚本增加草稿恢复、清理和失败回滚断言）。
+- 静态验证：当前 HEAD 源码确认草稿恢复、输入监听、成功提交清理、条件回滚与冲突保护均存在；回归脚本包含对应断言。未执行 `fx-dia-wifi-proxy-regression.py`、Java Host 测试、Gradle、模拟器或 Root 真机验证。
+- 下一步：继续审计备份页 SAF Activity Result 重建与临时文件清理，GPS Picker 状态恢复已存在 `onSaveInstanceState`，还需验证调用方 result contract；随后做一次可运行的 Dia Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
