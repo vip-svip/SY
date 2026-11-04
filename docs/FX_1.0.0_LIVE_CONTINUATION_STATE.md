@@ -3342,3 +3342,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Reinstated the missing historical records for Gadget log special-file rejection and File Browser/DNS stale search-scroll restoration so the live state remains a complete continuation log after a concurrent state-file rewrite.
 - File Browser/DNS changes remain committed in `b9eb001ecdc03fd299685866bb1fd080d3365e5c`, `836ff829d7891f0b948dd3c2d6281c64416e69af`, `b7c30f5fa66a79c878647c12ef286f353bd50b0f`, and `5bd0768644562c9747dedb6be8676551cbb156ad`.
+
+
+## 2026-11-05 — File Browser / DNS 搜索取消过期恢复值（续接补记）
+
+- 代码提交已在当前分支：File Browser `b9eb001ecdc03fd299685866bb1fd080d3365e5c`，回归 `836ff829d7891f0b948dd3c2d6281c64416e69af`；DNS `b7c30f5fa66a79c878647c12ef286f353bd50b0f`，回归 `5bd0768644562c9747dedb6be8676551cbb156ad`。
+- File Browser 用户修改搜索词时清除旧的 pending page/scroll restore；Activity 重建时先回填 query，再恢复分页深度和 scrollY。
+- DNS 日志用户修改搜索词时清除旧 scroll restore 标记并回到第一页。
+- DNS 定向回归 Actions `41917559211` SUCCESS；File Browser 回归 run `41917657584` 多次因分支并行 push 被 concurrency 取消，源码和测试断言均已提交，尚未获得该修复对应的 CI 成功结果。
+- 本状态条目用于恢复此前并行状态合并时未带入的续接记录；当前最新 HEAD 以分支实时 ref 为准：`1bb1c3557d99fcea95acef2903f8923f8b37a7d1`。
