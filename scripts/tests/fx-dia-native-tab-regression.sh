@@ -38,6 +38,17 @@ assert 'putExtra("fx_open_native_tab", index)' in base
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
 assert "handleImportedNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
 
+# Hook app list must preserve the selected category, search, paging and scroll across return/recreation.
+for key in ("STATE_HOOK_APP_LIST_QUERY", "STATE_HOOK_APP_LIST_SCROLL_Y",
+            "STATE_HOOK_APP_LIST_VISIBLE_COUNT"):
+    assert key in main, f"Hook app-list state key missing: {key}"
+assert "nativeScroll = scroll;" in main, "native target pages must retain their ScrollView for category focus"
+assert "search.setText(hookAppListQuery);" in main, "restored app-list query must be applied before inventory rendering"
+assert "captureHookAppListState();" in main, "opening a target and Activity recreation must capture app-list state"
+assert "hookAppListVisibleCount = nextEnd;" in main, "Load more must retain the visible page count"
+assert "listScroll.scrollTo(0, restoreY);" in main, "app-list scroll position must restore after async inventory load"
+assert "if (isHookAppListVisible() && nativeScroll == listScroll)" in main, "stale restore callbacks must not scroll a newer screen"
+
 # Dia Hook category must expose the independently migrated Dialog, Notification and Toast screens.
 assert '{"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤",' in main
 assert 'case "对话框处理": case "对话框与通知":' in main
