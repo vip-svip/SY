@@ -1,5 +1,6 @@
 package de.privacyguard.adhook.imported.shield;
 
+import de.privacyguard.adhook.RootAccess;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -82,6 +83,12 @@ public class WhitelistActivity extends Activity {
             r -> new Thread(r, "fx-shield-whitelist-labels"),
             new ThreadPoolExecutor.DiscardOldestPolicy());
     private final AtomicLong labelLoadGeneration = new AtomicLong();
+    private final AtomicLong stellarSyncGeneration = new AtomicLong();
+    private final ThreadPoolExecutor stellarSyncWorker = new ThreadPoolExecutor(1, 1, 30L,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> new Thread(r, "fx-shield-stellar-whitelist-sync"),
+            new ThreadPoolExecutor.DiscardOldestPolicy());
+    private TextView stellarSyncStatus;
     private volatile boolean activityDestroyed;
 
     private static class AppItem {
@@ -111,6 +118,7 @@ public class WhitelistActivity extends Activity {
 
         refreshWhitelistUI();
         loadLabelsAsync();
+        syncStellarWhitelist();
     }
 
     @Override
@@ -121,6 +129,7 @@ public class WhitelistActivity extends Activity {
             loadWhitelist();
             refreshWhitelistUI();
             loadLabelsAsync();
+            syncStellarWhitelist();
         }
     }
 
@@ -169,7 +178,9 @@ public class WhitelistActivity extends Activity {
     protected void onDestroy() {
         activityDestroyed = true;
         labelLoadGeneration.incrementAndGet();
+        stellarSyncGeneration.incrementAndGet();
         labelWorker.shutdownNow();
+        stellarSyncWorker.shutdownNow();
         super.onDestroy();
     }
 
@@ -292,6 +303,15 @@ public class WhitelistActivity extends Activity {
         summaryDesc.setTextSize(12);
         summaryDesc.setPadding(0, dp(9), 0, 0);
         summary.addView(summaryDesc);
+
+        stellarSyncStatus = new TextView(this);
+        stellarSyncStatus.setText("Stellar 命令白名单：等待同步");
+        stellarSyncStatus.setTextColor(COLOR_SUB);
+        stellarSyncStatus.setTextSize(11);
+        stellarSyncStatus.setPadding(0, dp(8), 0, 0);
+        stellarSyncStatus.setClickable(true);
+        stellarSyncStatus.setOnClickListener(v -> syncStellarWhitelist());
+        summary.addView(stellarSyncStatus);
         content.addView(summary);
 
         // 搜索框
@@ -440,7 +460,260 @@ public class WhitelistActivity extends Activity {
             sb.append(p);
         }
         prefs.edit().putString("whitelist_pkgs", sb.toString()).apply();
+        syncStellarWhitelist();
+    }
 
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    private String buildStellarWhitelistSyncCommand(List<String> packages) {
+        StringBuilder command = new StringBuilder(
+                "MP=''; for d in /data/adb/modules/privacyguard "
+                + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
+                + "/data/adb/modules/pg; do "
+                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard
+    // ============================================================
+    private void refreshWhitelistUI() {
+        View focused = getCurrentFocus();
+        whitelistContainer.removeAllViews();
+
+        List<AppItem> all = new ArrayList<>();
+        for (String pkg : currentWhitelist) {
+            AppItem item = new AppItem();
+            item.packageName = pkg;
+            String cached = labelCache.get(pkg);
+            item.label = cached != null ? cached : pkg;
+            all.add(item);
+        }
+        Collections.sort(all, new Comparator<AppItem>() {
+            @Override
+            public int compare(AppItem a, AppItem b) {
+                return a.label.compareToIgnoreCase(b.label);
+            }
+        });
+
+        List<AppItem> visible = new ArrayList<>();
+        String q = query.toLowerCase(Locale.getDefault());
+        for (AppItem a : all) {
+            if (q.isEmpty()
+                    || a.label.toLowerCase(Locale.getDefault()).contains(q)
+                    || a.packageName.toLowerCase(Locale.getDefault()).contains(q)) {
+                visible.add(a);
+            }
+        }
+
+        countText.setText(String.valueOf(currentWhitelist.size()));
+        sectionTitle.setText("已加入白名单 (" + currentWhitelist.size() + ")");
+
+        if (visible.isEmpty()) {
+            emptyHint.setVisibility(View.VISIBLE);
+            whitelistContainer.setVisibility(View.GONE);
+            if (currentWhitelist.isEmpty()) {
+                emptyTitle.setText("还没有加入白名单应用");
+                emptySub.setText("点击右上角「添加」，可搜索并多选应用");
+            } else {
+                emptyTitle.setText("没有匹配的应用");
+                emptySub.setText("换个关键词试试");
+            }
+        } else {
+            emptyHint.setVisibility(View.GONE);
+            whitelistContainer.setVisibility(View.VISIBLE);
+            for (AppItem item : visible) {
+                whitelistContainer.addView(buildWhitelistRow(item));
+            }
+        }
+
+        if (focused == searchInput) {
+            searchInput.requestFocus();
+        }
+    }
+
+    private View buildWhitelistRow(final AppItem item) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        row.setBackground(roundRect(Color.WHITE, 16, COLOR_LINE, 1));
+        row.setElevation(dp(1));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin = dp(9);
+        row.setLayoutParams(rp);
+
+        FrameLayout iconWrap = new FrameLayout(this);
+        int avatarSize = dp(42);
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(avatarSize, avatarSize);
+        ip.rightMargin = dp(12);
+        iconWrap.setLayoutParams(ip);
+
+        TextView avatar = new TextView(this);
+        String letter = item.label == null || item.label.isEmpty()
+                ? "?" : item.label.substring(0, 1).toUpperCase(Locale.getDefault());
+        avatar.setText(letter);
+        avatar.setTextColor(Color.WHITE);
+        avatar.setTextSize(16);
+        avatar.setTypeface(null, Typeface.BOLD);
+        avatar.setGravity(Gravity.CENTER);
+        GradientDrawable avatarBg = new GradientDrawable();
+        avatarBg.setShape(GradientDrawable.OVAL);
+        avatarBg.setColor(avatarColor(Math.abs(item.packageName.hashCode()) % 8));
+        avatar.setBackground(avatarBg);
+        iconWrap.addView(avatar, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        ImageView icon = new ImageView(this);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        icon.setVisibility(View.GONE);
+        iconWrap.addView(icon, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        Drawable cachedIcon = iconCache.get(item.packageName);
+        if (cachedIcon != null) {
+            icon.setImageDrawable(cachedIcon);
+            icon.setVisibility(View.VISIBLE);
+            avatar.setVisibility(View.GONE);
+        }
+        row.addView(iconWrap);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView name = new TextView(this);
+        name.setText(item.label);
+        name.setTextColor(COLOR_TEXT);
+        name.setTextSize(15);
+        name.setTypeface(null, Typeface.BOLD);
+        name.setSingleLine(true);
+        textCol.addView(name);
+
+        TextView pkg = new TextView(this);
+        pkg.setText(item.packageName);
+        pkg.setTextColor(COLOR_SUB);
+        pkg.setTextSize(11);
+        pkg.setSingleLine(true);
+        pkg.setPadding(0, dp(2), 0, 0);
+        textCol.addView(pkg);
+        row.addView(textCol);
+
+        TextView remove = new TextView(this);
+        remove.setText("移除");
+        remove.setTextColor(0xFFE53935);
+        remove.setTextSize(12);
+        remove.setTypeface(null, Typeface.BOLD);
+        remove.setGravity(Gravity.CENTER);
+        remove.setPadding(dp(14), dp(8), dp(14), dp(8));
+        GradientDrawable removeBg = new GradientDrawable();
+        removeBg.setShape(GradientDrawable.RECTANGLE);
+        removeBg.setCornerRadius(dp(18));
+        removeBg.setColor(0xFFFFEBEE);
+        remove.setBackground(removeBg);
+        remove.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                currentWhitelist.remove(item.packageName);
+                saveWhitelist();
+                refreshWhitelistUI();
+            }
+        });
+        row.addView(remove);
+
+        return row;
+    }
+
+    // ============================================================
+    // 应用选择器：搜索 + 全选
+    // ============================================================
+    /** 2026-10-30：改为全屏选择页，不再使用难看的弹窗。 */
+    private void showAppPicker() {
+        startActivity(new android.content.Intent(this, WhitelistPickerActivity.class));
+    }
+
+
+    private int avatarColor(int idx) {
+        int[] colors = {
+                0xFF1565C0, 0xFF2E7D32, 0xFFC62828, 0xFF6A1B9A,
+                0xFFE65100, 0xFF00838F, 0xFF4E342E, 0xFF37474F
+        };
+        return colors[idx];
+    }
+}
+ \"$d/module.prop\"; "
+                + "then MP=\"$d\"; break; fi; done; "
+                + "[ -n \"$MP\" ] || exit 20; "
+                + "sh \"$MP/scripts/yulong-stellar-control.sh\" pkg-sync");
+        for (String pkg : packages) command.append(" ").append(shellQuote(pkg));
+        return command.toString();
+    }
+
+    /** Sync the original Shield whitelist into Stellar's guarded package policy. */
+    private void syncStellarWhitelist() {
+        final long generation = stellarSyncGeneration.incrementAndGet();
+        final List<String> packages = new ArrayList<>();
+        for (String pkg : currentWhitelist) {
+            if (pkg != null && pkg.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) {
+                packages.add(pkg);
+            }
+        }
+        Collections.sort(packages);
+        if (packages.size() > 1000) {
+            setStellarSyncStatus(generation,
+                    "本地白名单已保存；Stellar 同步超过 1000 个应用的安全上限，点击重试前请精简列表。");
+            return;
+        }
+
+        StringBuilder legacy = new StringBuilder();
+        for (String pkg : packages) {
+            if (legacy.length() > 0) legacy.append(",");
+            legacy.append(pkg);
+        }
+        boolean legacySaved = getSharedPreferences("stellar_command_whitelist", MODE_PRIVATE)
+                .edit().putString("pkgs", legacy.toString()).commit();
+        if (!legacySaved) {
+            setStellarSyncStatus(generation,
+                    "本地白名单已保存；Stellar 兼容缓存写入失败，点击重试。");
+            return;
+        }
+
+        final String command = buildStellarWhitelistSyncCommand(packages);
+        if (command.length() > 90000) {
+            setStellarSyncStatus(generation,
+                    "本地白名单已保存；Stellar 同步命令超过安全长度限制，点击重试前请精简列表。");
+            return;
+        }
+        setStellarSyncStatus(generation, "Stellar 命令白名单：正在同步 " + packages.size() + " 个应用…");
+        try {
+            stellarSyncWorker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(command, 45000L, 32768);
+                runOnUiThread(() -> {
+                    if (activityDestroyed || generation != stellarSyncGeneration.get()
+                            || stellarSyncStatus == null) return;
+                    if (result.exitCode == 0 && result.output != null
+                            && result.output.contains("success=1 package_count=" + packages.size())) {
+                        stellarSyncStatus.setText("Stellar 命令白名单：已同步 " + packages.size()
+                                + " 个应用 · 点击重新同步");
+                        stellarSyncStatus.setTextColor(0xff2e7d32);
+                    } else {
+                        String detail = result.output == null ? "" : result.output.trim();
+                        if (detail.length() > 120) detail = detail.substring(0, 120) + "…";
+                        stellarSyncStatus.setText("本地白名单已保存；Stellar 同步失败（Root "
+                                + result.exitCode + "）" + (detail.isEmpty() ? "" : "：" + detail)
+                                + " · 点击重试");
+                        stellarSyncStatus.setTextColor(0xffc62828);
+                    }
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            setStellarSyncStatus(generation,
+                    "本地白名单已保存；Stellar 同步队列繁忙，点击重试。");
+        }
+    }
+
+    private void setStellarSyncStatus(long generation, String message) {
+        if (stellarSyncStatus == null) return;
+        stellarSyncStatus.setText(message);
+        stellarSyncStatus.setTextColor(COLOR_SUB);
     }
 
     // ============================================================
