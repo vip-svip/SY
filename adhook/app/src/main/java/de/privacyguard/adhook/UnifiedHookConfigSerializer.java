@@ -105,6 +105,26 @@ public final class UnifiedHookConfigSerializer {
                 throw new IllegalArgumentException("network type requires network_type_simulate=1");
             }
 
+            if (target.dialogMatchEnabled) {
+                if (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())
+                    throw new IllegalArgumentException("dialog monitoring requires explicit rules");
+                out.append(",dialog_match=1");
+                if (!target.dialogTextTerms.isEmpty()) {
+                    String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(String.join("\\n", target.dialogTextTerms)
+                                    .getBytes(StandardCharsets.UTF_8));
+                    out.append(",dialog_text_terms_b64=").append(encoded);
+                }
+                if (!target.dialogIdTerms.isEmpty()) {
+                    String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(String.join("\\n", target.dialogIdTerms)
+                                    .getBytes(StandardCharsets.UTF_8));
+                    out.append(",dialog_id_terms_b64=").append(encoded);
+                }
+            } else if (!target.dialogTextTerms.isEmpty() || !target.dialogIdTerms.isEmpty()) {
+                throw new IllegalArgumentException("dialog rules require dialogMatchEnabled");
+            }
+
             if (target.locationSimulation) {
                 if (Double.isNaN(target.simulatedLatitude) || Double.isInfinite(target.simulatedLatitude)
                         || target.simulatedLatitude < -90d || target.simulatedLatitude > 90d
