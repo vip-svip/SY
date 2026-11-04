@@ -6,8 +6,13 @@ VAULT="$SRC/AdbPrivateKeyVault.java"
 STORE="$SRC/AdbKeyStore.java"
 ENCODER="$SRC/AdbPublicKeyEncoder.java"
 ANDROID_KEY="$SRC/AndroidAdbEncryptionKey.java"
+CERT="$SRC/AdbClientCertificate.java"
+TLS_MANAGER="$SRC/AdbTlsKeyManager.java"
+TRUST_MANAGER="$SRC/AdbPairingTrustManager.java"
+TLS_CONTEXT="$SRC/AdbTlsContext.java"
+TLS_EXPORTER="$SRC/AdbTlsKeyingMaterial.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$VAULT" "$STORE" "$ENCODER" "$ANDROID_KEY"; do
+for file in "$VAULT" "$STORE" "$ENCODER" "$ANDROID_KEY" "$CERT" "$TLS_MANAGER" "$TRUST_MANAGER" "$TLS_CONTEXT" "$TLS_EXPORTER"; do
     [ -s "$file" ] || fail "missing Stellar key component: $file"
 done
 
@@ -123,13 +128,37 @@ public final class AdbKeyVaultSmoke {
                 .modPow(BigInteger.valueOf(2), modulus);
         check(rr.equals(expectedRr), "ADB Montgomery RR field does not match 2^4096 mod n");
 
-        System.out.println("PASS: original adbkey AAD, AES-256/GCM envelope, RSA-2048 persistence and 524-byte Android ADB public key encoding");
+        java.security.cert.X509Certificate certificate = AdbClientCertificate.create(
+                publicKey, persisted.getPrivate());
+        certificate.verify(publicKey);
+        check(certificate.getSerialNumber().equals(BigInteger.ONE),
+                "ADB client certificate serial must remain one");
+        check(certificate.getNotBefore().getTime() == 0L,
+                "ADB client certificate validity must start at Unix epoch");
+        check(certificate.getNotAfter().getTime() == 2461449600000L,
+                "ADB client certificate validity must end at 2048-01-01 UTC");
+        check(certificate.getSubjectX500Principal().getName().isEmpty(),
+                "ADB client certificate subject must preserve the original empty X500Name");
+        javax.net.ssl.SSLContext tls = AdbTlsContext.create(persisted);
+        check("TLSv1.3".equals(tls.getProtocol()), "ADB TLS context must use TLSv1.3");
+
+        AdbTlsKeyManager keyManager = new AdbTlsKeyManager(certificate, persisted.getPrivate());
+        check("key".equals(keyManager.chooseClientAlias(new String[]{"RSA"}, null, null)),
+                "ADB TLS key manager must select the original key alias");
+        check(keyManager.getCertificateChain("key").length == 1,
+                "ADB TLS key manager must return the original client certificate");
+        check(keyManager.getPrivateKey("key").equals(persisted.getPrivate()),
+                "ADB TLS key manager must return the persisted RSA private key");
+        check(keyManager.chooseServerAlias("RSA", null, null) == null,
+                "ADB client key manager must never be selected as a server identity");
+
+        System.out.println("PASS: original adbkey AAD, AES-256/GCM envelope, RSA-2048, ADB public-key encoding, self-signed client certificate and TLSv1.3 key manager");
     }
 }
 JAVA
 
 javac -d "$TMP/classes" \
-    "$STORE" "$VAULT" "$ENCODER" \
+    "$STORE" "$VAULT" "$ENCODER" "$CERT" "$TLS_MANAGER" "$TRUST_MANAGER" "$TLS_CONTEXT" \
     "$TMP/src/roro/stellar/manager/adb/AdbKeyVaultSmoke.java" \
     || fail "ADB key vault/public encoder Java sources do not compile on the host"
 java -cp "$TMP/classes" roro.stellar.manager.adb.AdbKeyVaultSmoke \
@@ -141,4 +170,8 @@ grep -Fq 'KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT' "$ANDRO
 grep -Fq 'KeyProperties.BLOCK_MODE_GCM' "$ANDROID_KEY" || fail "AndroidKeyStore key must use GCM"
 grep -Fq 'KeyProperties.ENCRYPTION_PADDING_NONE' "$ANDROID_KEY" || fail "AndroidKeyStore key must use NoPadding"
 grep -Fq '"adbkey"' "$ROOT/adhook/app/src/main/java/roro/stellar/manager/adb/PreferenceAdbKeyStore.java" || fail "original SharedPreferences key name changed"
-echo "PASS: AndroidKeyStore alias/purposes and original adbkey preference key"
+grep -Fq 'Build.VERSION.SDK_INT < 31' "$TLS_EXPORTER" || fail "TLS exporter must fail closed below public API 31"
+grep -Fq 'SSLSockets.exportKeyingMaterial' "$TLS_EXPORTER" || fail "TLS exporter must use the public Android SDK API"
+grep -Fq '"adb-label\\u0000"' "$TLS_EXPORTER" || fail "original TLS exporter label changed"
+grep -Fq 'LENGTH_BYTES = 64' "$TLS_EXPORTER" || fail "original TLS exporter length changed"
+echo "PASS: AndroidKeyStore alias/purposes, adbkey preference and public SDK TLS exporter contract"
