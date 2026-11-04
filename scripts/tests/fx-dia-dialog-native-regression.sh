@@ -127,8 +127,8 @@ assert 'case "按键控制":' in ui and 'showAppList("按键控制")' in ui
 assert "showDiaKeyControlTarget(ai)" in ui
 assert "动作一：关闭当前 Activity" in ui and "动作二：暂停 / 恢复当前应用的 Dialog 规则" in ui
 assert "key_finish_trigger" in ui and "key_dialog_toggle_trigger" in ui
-assert "hasOverlappingTriggers(finishTrigger, dialogTrigger)" in ui
-assert "Dialog 切换动作需要先配置有效的 debuggable Dialog 规则。" in ui
+assert ".hasOverlappingTriggers(finishTrigger, dialogTrigger)" in ui, "ActivityKey page must reject overlapping gestures through the shared policy"
+assert "Dialog 切换动作需要先有有效的 debuggable Dialog 规则" in ui
 assert "FLAG_UPDATED_SYSTEM_APP" in ui and "不会强制停止进程" in ui
 assert "key_finish_trigger" in parser and "key_dialog_toggle_trigger" in parser
 assert "trigger < -1 || trigger > 6" in parser
