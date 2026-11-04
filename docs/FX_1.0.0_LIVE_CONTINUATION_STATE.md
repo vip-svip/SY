@@ -1161,3 +1161,32 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 下一批：优先将管控应用选择 AlertDialog 的暂存勾选/搜索/分页状态纳入 Activity 重建恢复；随后对 Dia ActivityKey 逐项核验触发策略与目标包边界，再继续 Shield 病毒库、扫描、救援页面返回链。
 - 未生成 APK / KernelSU ZIP，未改变六 Tab 顺序与 FX 1.0.0 版本。
 
+## 2026-11-05 — 游龙广告通用设置与安全护盾核心页统一六 Tab 导航；Dia ActivityKey 包隔离
+
+- 本节开始前实时分支 HEAD：1ddbbdcdc1d3f12662bdf9dad4bbaa60fa1d2141。
+- 本批新增三个独立 Activity 的六 Tab 接线：
+  - `FxYulongAdGeneralActivity.java` — 649a3b491211e7e3e53ab490fe4d94c13ab2434d。
+  - `FxYulongShieldActivity.java` — 3ff7164c61ce420f99ac1d911bc3b43576bdfc22。
+  - `FxYulongScanActivity.java` — 280bfd5f9cf78668402bfe8fe1f277c63df3a928。
+  - 复用 `FxNativeTabActivity` 与 `setContentViewWithNativeTabs(root, 5)`；保留 General 原生设置/导入导出/Root 逻辑、Shield Hub scrollY 恢复、Scan 扫描状态/结果/选中项目 Bundle 状态。
+- 并行 Shield 页面接线：
+  - `257e0955d5b3cf4b3b85bd99102845742ca7e81e` — Virus Database。
+  - `d3bdba1fcd938c4eaffc1c1e63bb272718274309` — Rescue Center。
+  - `afa7a1e679ea61ce1d747804776701e240270b42` — Integrity。
+  - `70863a9ca71ffd574835c1ed5b7c22e96e60dab7`、`8d9a2738b9a5aedd94c1b56826e5b7c9b0d9e46b`、`ded04cea3d0c49d0a4a5fe85006282e9e2ea6915` — Whitelist Manager / Picker / Blacklist Manager。
+  - `a21864178c71b97458ef1e09fd3fc9e00e726093`、`931c3953bf08504a4ab860b303b67129ea652f24` — Shield 页面六 Tab 接线测试覆盖。
+  - `a04630b0ec1cd000784fd024bf0df6b7ab59e005`、`e5181c4262fd52d53d55cf675932d000ce6ce9d9`、`9f6d52a07ae7ffe8bf835dbe79c4793dd0189624`、`8a0657128f53c4d50b064342dc90e22cb6c21911`、`d7bd8a1f0bdf62efcf160a2e3a8d4cd8fb606588`、`f610a5379b3eea7882097a4a3046f9b550c7e3d7`、`e62dec847a6761fe4ed8fdb6a88036c02832231e`、`9048fe0f05634a8f82af5a266b224c6afc6bd6d7`、`7994c04103190bf248ef96b5284bc59cc6200f5f` — 白名单/管控列表查询、分页、暂存多选、滚动、选择器恢复与关闭清理逐步补齐。
+- 六 Tab 独立 Activity 当前覆盖 Yulong Stats / Whitelist / Firewall / Ad Controls / DNS Logs / Daily Summary / General Settings / Shield Hub / Scanner / Virus Database / Rescue Center / Integrity / Whitelist Manager / Whitelist Picker / Blacklist Manager；仍有 Dia Browser / Frida / Script Library / Inspector、Shield Batch Cleanup / Screen Filter 未覆盖。
+- Dia ActivityKey 按包隔离修复：
+  - 原 `AdVisibilityHook` 所有目标包共享一个 `FxDiaKeyGesturePolicy`，多包共享进程时按键时间戳会跨包污染。
+  - 新增 `FxDiaKeyGesturePolicyRegistry.java`，按包名创建独立策略实例；目标包移除 ActivityKey 规则时清理对应对象。
+  - `AdVisibilityHook.java` 的 dispatchKeyEvent / onKeyLongPress 按当前 Activity 包名取策略，保留 `chain.proceed()` 与异常 fail-open。
+  - 提交：`ebf7ee32c650c5f6856e7e7acbff8eb8076a57f1`（Registry）、`b0d45ad13db3f6c45b9d73e7b145adb8b1a81594`（运行时接线）、`acc41a616ad53b1484ea9c0f0050f5b3063cb5d8`（交错包测试）、`b752832e0dbb47a77bc6910dafc09f99538e0b75`（定向回归脚本）。
+  - 本地 JDK `javac -Xlint:all -Werror` 编译 policy、Registry、Host 测试；运行输出 `PASS: 21 Dia key gesture host assertions`。这验证纯 Java 手势与按包隔离，不代表 LSPosed 真机。
+- ActivityKey 完整配置链并行进展：
+  - `2a58a386752fcc560e0677b51889b19fb73adafe` 手势策略；`f22b012b8763bd827074e354ff03781e00bb8f02` Parser；`6c0b5974330296e5d9c52c812f83e6db4e1e8320` Serializer；`c2d2725ba1da4df678f15c0c91f60ad6eecdba08` 原生逐应用 UI；`424b1edb836c4b635f7b95c4ea4e019e5f7fea6a` 发布配置；`a2254ac15d4ed3660d02c824d37c666b5fd503d4` 目标 Activity Hook。
+  - `5a4757722b294b02d9e70e7f1692193add6636aa` / `fa29f7112ab9c3740112866570d28f04633f9a7e` 修复两个动作 trigger 冲突；`f359c1538a03de532742cb451cbea757a50ac3a6` 与 `d0fa825d3510620070bc2b1c016ee7c5ab58fd34` 补充 Parser/Serializer 验证、默认值和往返测试。
+  - 仍待真机验证音量/返回手势触发、目标应用行为与 Dialog toggle 反馈。
+- 验证边界：本批 Activity shell 仅做源码接线断言；未运行六 Tab 脚本、Android 编译、模拟器或设备导航。ActivityKey 21 项纯 Java Host 测试已运行；未运行 LSPosed 设备测试。Firewall 纯 Java Host 测试 11 项另已在前批通过。
+- 下一批：接入 Dia Activity Browser / Frida / Script Library 中 1–3 个核心 Activity；审查 ActivityKey 触发时间窗与原版一致性、Dialog toggle 状态是否同步；继续接入 Shield Batch Cleanup / Screen Filter。
+- 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
