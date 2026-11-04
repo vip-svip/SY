@@ -890,3 +890,11 @@ After each implementation batch:
 - The per-package in-flight guard now stores a monotonic request token rather than a permanent set membership. A request without a Binder callback expires after 30 seconds and can be retried when the target page is opened again.
 - Every success, failure, preflight exit and queue-rejection path removes the marker with an atomic key+token compare. A late callback from an expired request cannot erase the newer retry marker.
 - Added source regression for the 30-second monotonic expiry, compare-and-replace of stale tokens and token-specific completion cleanup. Manager approval and actual target injection remain device-pending.
+
+## 2026-11-04 — Dia OBSERVE method monitor visible log path
+
+- The API-101 `OBSERVE` interceptor already records exact method identity, argument types, result type, instance type, duration and exception class. It deliberately does not serialize argument values, return values, tokens or credentials.
+- Previously these records only reached the Xposed module logger; the selected per-app Hook page had no dedicated view.
+- OBSERVE hit/exception events now also emit the same metadata-only message through Android `Log.println`, while preserving the existing framework module log.
+- The per-target custom Hook page now exposes `查看 OBSERVE 方法日志`. The viewer reads a bounded recent logcat window, filters the exact selected package's `dev-observe` events, limits to 300 lines and caps displayed output. It reuses the existing Root command channel and does not alter Hook configuration.
+- Source/host regression only. Target-side logcat visibility, LSPosed runtime and OEM log policy remain device-pending.

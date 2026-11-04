@@ -5197,6 +5197,10 @@ public final class MainActivity extends ComponentActivity {
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
         Button addRule=new Button(this); addRule.setText("添加自定义 Hook 规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
+        Button observeLogs = new Button(this);
+        observeLogs.setText("查看 OBSERVE 方法日志");
+        observeLogs.setOnClickListener(v -> showCustomHookObservationLogs());
+        content.addView(observeLogs);
         Button ruleGroups = new Button(this); ruleGroups.setText("管理规则分组");
         ruleGroups.setOnClickListener(v -> showCustomRuleGroupsDialog());
         content.addView(ruleGroups);
@@ -5961,6 +5965,39 @@ public final class MainActivity extends ComponentActivity {
     private ApplicationInfo findApp(String pkg) {
         for(ApplicationInfo ai:apps) if(ai.packageName.equals(pkg)) return ai;
         return null;
+    }
+
+    private void showCustomHookObservationLogs() {
+        final String packageName = selectedPackage;
+        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+            Toast.makeText(this, "请先选择有效的 Hook 目标应用。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String command = "command -v logcat >/dev/null 2>&1 || { echo LOGCAT_UNAVAILABLE; exit 22; }; "
+                + "logcat -d -v threadtime -t 5000 2>/dev/null | grep -F 'FX Hook' | grep -F 'dev-observe' | grep -F "
+                + shellQuote("package=" + packageName + " executable=") + " | tail -n 300 || true";
+        runNativeModuleCommand(command, 20000L, result -> {
+            String output = result.output == null ? "" : result.output.trim();
+            if (result.exitCode != 0 && output.isEmpty())
+                output = "读取方法观察日志失败（退出码 " + result.exitCode + "）。";
+            if (output.isEmpty())
+                output = "当前目标暂无 OBSERVE 记录。请确认已发布配置、目标应用为 debuggable 构建，并在目标应用中触发已观察的方法。";
+            if (output.length() > 24000)
+                output = output.substring(0, 24000) + "\\n…（已截断）";
+            ScrollView scroll = new ScrollView(this);
+            TextView logView = new TextView(this);
+            logView.setText(output);
+            logView.setTextIsSelectable(true);
+            logView.setTypeface(Typeface.MONOSPACE);
+            logView.setTextSize(11);
+            logView.setPadding(dp(14), dp(12), dp(14), dp(12));
+            scroll.addView(logView);
+            new AlertDialog.Builder(this)
+                    .setTitle("方法观察日志 · " + selectedLabel)
+                    .setView(scroll)
+                    .setPositiveButton("关闭", null)
+                    .show();
+        });
     }
 
     private void renderCustomRules() {

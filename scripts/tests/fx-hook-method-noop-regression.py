@@ -42,4 +42,29 @@ assert "acceptsNoOpOnlyForExactVoidMethods" in tests
 assert "rejectsNoOpForNonVoidConstructorsAndLegacyAmbiguousSignatures" in tests
 serializer = read("adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java")
 assert "serializerRoundTripsDebugOnlyVoidNoOpAction" in serializer
+runtime = read("adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java")
+observe_start = runtime.index("private void installDeveloperObservationHook(")
+observe_end = runtime.index("private void logDeveloperObservation(", observe_start)
+observe = runtime[observe_start:observe_end]
+assert "logDeveloperObservation(Log.INFO" in observe and "logDeveloperObservation(Log.WARN" in observe, \
+    "OBSERVE hit and exception metadata must reach Android logcat"
+logger_start = runtime.index("private void logDeveloperObservation(")
+logger_end = runtime.index("private boolean targetDeveloperOptIn(", logger_start)
+logger = runtime[logger_start:logger_end]
+assert "Log.println(priority, TAG, message)" in logger and "logFx(priority, message)" in logger, \
+    "OBSERVE events must retain module logging and also reach logcat"
+for token in ("arg.getClass().getName()", "result.getClass().getName()", "durationUs=", "exception="):
+    assert token in observe, f"OBSERVE metadata field missing: {token}"
+assert "arg.toString()" not in observe and "result.toString()" not in observe, \
+    "OBSERVE must not serialize argument or result values"
+main = read("adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java")
+assert 'observeLogs.setText("查看 OBSERVE 方法日志")' in main, \
+    "per-target Hook page must expose the OBSERVE log viewer"
+viewer_start = main.index("private void showCustomHookObservationLogs()")
+viewer_end = main.index("private void renderCustomRules()", viewer_start)
+viewer = main[viewer_start:viewer_end]
+for token in ("logcat -d -v threadtime -t 5000", "'dev-observe'",
+              'shellQuote("package=" + packageName + " executable=")',
+              "tail -n 300", "output.length() > 24000"):
+    assert token in viewer, f"bounded package-scoped OBSERVE log reader missing: {token}"
 print("PASS: Dia MethodActivity safe NO_OP_VOID source, UI gate, parser and serializer contracts")

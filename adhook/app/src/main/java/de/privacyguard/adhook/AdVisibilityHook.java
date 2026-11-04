@@ -419,7 +419,7 @@ public final class AdVisibilityHook extends XposedModule {
                             Object result = chain.proceed();
                             long elapsedMicros = (System.nanoTime() - started) / 1000L;
                             if (hits <= 20L || hits % 100L == 0L) {
-                                logFx(Log.INFO, "dev-observe rule=" + label + " package=" + packageName
+                                logDeveloperObservation(Log.INFO, "dev-observe rule=" + label + " package=" + packageName
                                         + " executable=" + executableName + " args=[" + argTypes
                                         + "] resultType=" + (result == null ? "null" : result.getClass().getName())
                                         + " instanceType=" + (chain.getThisObject() == null ? "null" : chain.getThisObject().getClass().getName())
@@ -428,7 +428,7 @@ public final class AdVisibilityHook extends XposedModule {
                             return result;
                         } catch (Throwable failure) {
                             long elapsedMicros = (System.nanoTime() - started) / 1000L;
-                            logFx(Log.WARN, "dev-observe exception rule=" + label + " package="
+                            logDeveloperObservation(Log.WARN, "dev-observe exception rule=" + label + " package="
                                     + packageName + " executable=" + executableName + " exception="
                                     + failure.getClass().getName() + " durationUs=" + elapsedMicros);
                             throw failure;
@@ -448,7 +448,14 @@ public final class AdVisibilityHook extends XposedModule {
      * The exact package must be debuggable; descriptors are exact zero-arg boolean methods.
      * These fixtures are never enabled in release builds and are not an authorization credential.
      */
-    private boolean targetDeveloperOptIn(String packageName) {
+        private void logDeveloperObservation(int priority, String message) {
+        // Keep the framework module log and expose the same metadata-only event
+        // through logcat so the selected target's native monitor page can read it.
+        try { Log.println(priority, TAG, message); } catch (Throwable ignored) { }
+        logFx(priority, message);
+    }
+
+private boolean targetDeveloperOptIn(String packageName) {
         UnifiedHookConfigParser.Target target = targets.get(packageName);
         return target != null && target.developerHooksEnabled;
     }
