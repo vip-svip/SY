@@ -183,6 +183,17 @@ public final class FxYulongVirusDb {
     // ======================================================================
     // 数据模型
     // ======================================================================
+    public static final class MatchEvidence {
+        public final String sourceLabel;
+        public final String matchedEntry;
+        public final String reason;
+        MatchEvidence(String sourceLabel, String matchedEntry, String reason) {
+            this.sourceLabel = sourceLabel == null ? "" : sourceLabel;
+            this.matchedEntry = matchedEntry == null ? "" : matchedEntry;
+            this.reason = reason == null ? "" : reason;
+        }
+    }
+
     public static final class Data {
         public static final Data EMPTY = new Data(new HashSet<String>(), new HashSet<String>(),
                 new HashSet<String>(), new HashSet<String>(), new HashSet<String>());
@@ -224,32 +235,62 @@ public final class FxYulongVirusDb {
                     && suspectPkgs.isEmpty() && suspectNames.isEmpty() && keys.isEmpty();
         }
 
-        /** 是否命中 100% 病毒库（①包名 或 ③应用名称） */
-        public boolean isCertain(String pkg, String label) {
-            if (pkg != null && !pkg.isEmpty() && certainPkgs.contains(pkg)) return true;
-            String l = label == null ? "" : label.trim();
-            if (l.isEmpty()) return false;
-            return certainNames.contains(l) || certainNamesLower.contains(l.toLowerCase(Locale.ROOT));
-        }
-
-        /** 是否命中可能病毒库（②包名 / ④名称 / ⑤关键字），命中返回原因，未命中返回 null */
-        public String matchSuspect(String pkg, String label) {
-            String l = label == null ? "" : label.trim();
-            String ll = l.toLowerCase(Locale.ROOT);
-            if (pkg != null && !pkg.isEmpty()) {
-                if (suspectPkgs.contains(pkg)) return "包名命中可疑库";
-                String pl = pkg.toLowerCase(Locale.ROOT);
-                for (int i = 0; i < keysLower.size(); i++) {
-                    if (pl.contains(keysLower.get(i))) return "包名含关键字";
-                }
+        /** Exact source evidence for a match; no synthetic rule IDs or DB versions are invented. */
+        public MatchEvidence matchCertain(String pkg, String label) {
+            if (pkg != null && !pkg.isEmpty() && certainPkgs.contains(pkg)) {
+                return new MatchEvidence("确定风险包名列表（safe1.json）", pkg,
+                        "命中 100% 病毒包名或名称列表");
             }
-            if (!l.isEmpty()) {
-                if (suspectNames.contains(l) || suspectNamesLower.contains(ll)) return "应用名称命中可疑库";
-                for (int i = 0; i < keysLower.size(); i++) {
-                    if (ll.contains(keysLower.get(i))) return "名称含关键字";
+            String name = label == null ? "" : label.trim();
+            if (name.isEmpty()) return null;
+            for (String entry : certainNames) {
+                if (entry.equalsIgnoreCase(name)) {
+                    return new MatchEvidence("确定风险名称列表（mingcheng1.json / mian1.json 合并）",
+                            entry, "命中 100% 病毒包名或名称列表");
                 }
             }
             return null;
+        }
+
+        public MatchEvidence matchSuspectEvidence(String pkg, String label) {
+            String name = label == null ? "" : label.trim();
+            String lowerName = name.toLowerCase(Locale.ROOT);
+            if (pkg != null && !pkg.isEmpty()) {
+                if (suspectPkgs.contains(pkg)) {
+                    return new MatchEvidence("可能风险包名列表（safe2.json）", pkg, "包名命中可疑库");
+                }
+                String lowerPackage = pkg.toLowerCase(Locale.ROOT);
+                for (String key : keys) {
+                    String token = key == null ? "" : key.trim();
+                    if (!token.isEmpty() && lowerPackage.contains(token.toLowerCase(Locale.ROOT))) {
+                        return new MatchEvidence("可能风险关键字列表（key.json）", token, "包名含关键字");
+                    }
+                }
+            }
+            if (!name.isEmpty()) {
+                for (String entry : suspectNames) {
+                    if (entry.equalsIgnoreCase(name)) {
+                        return new MatchEvidence("可能风险名称列表（mingcheng2.json / mian2.json 合并）",
+                                entry, "应用名称命中可疑库");
+                    }
+                }
+                for (String key : keys) {
+                    String token = key == null ? "" : key.trim();
+                    if (!token.isEmpty() && lowerName.contains(token.toLowerCase(Locale.ROOT))) {
+                        return new MatchEvidence("可能风险关键字列表（key.json）", token, "名称含关键字");
+                    }
+                }
+            }
+            return null;
+        }
+
+        public boolean isCertain(String pkg, String label) {
+            return matchCertain(pkg, label) != null;
+        }
+
+        public String matchSuspect(String pkg, String label) {
+            MatchEvidence evidence = matchSuspectEvidence(pkg, label);
+            return evidence == null ? null : evidence.reason;
         }
 
         /**

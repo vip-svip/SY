@@ -2866,3 +2866,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `62c70f64dc496cb7ea3309f5846219c76a283e4a`。
 - 验证：已读取 `FxYulongBlacklistPolicy.java` 全文件，确认 1 MiB/10,000 条限制、包名校验、原子拒绝和不可变 parse 返回均存在；尚未得到本修复 Actions 结果。
 - 下一步：继续定位 Shield 定向回归下一条失败；待脚本通过后转实际扫描详情与名单页面 UI 功能。
+
+
+## 2026-11-05 — Shield 扫描风险证据贯通至详情页
+
+- 基于分支 HEAD：`f3f94bf43ec8aa1035b549a92a0d0fc274f0c461`。
+- 页面批次：游龙安全护盾 → 已安装应用扫描 → 风险结果卡片 → 风险警告详情。
+- 核实发现：旧 Finding 只保存 severity/reason；病毒库真实列表可辨认包名、名称、关键字匹配来源，但扫描卡片和详情页没有展示来源或实际命中条目。旧格式没有稳定 rule ID/DB 版本字段，不应编造。
+- 修改：病毒库新增 MatchEvidence，返回真实列表来源和实际匹配值；扫描 Finding 保留 sourceLabel/matchedEntry；确定/可疑包名、名称、关键字命中分别标明 safe1/safe2/mingcheng+mian 合并/key；APK 内容特征命中标明本地内容库及 family。扫描列表和风险详情展示证据；Activity 重建时同步保存/恢复来源和匹配值。
+- 安全约束：不改变匹配优先级、白名单、风险等级、卸载确认或批量清理限制；不伪造规则 ID 或数据库版本。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDb.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`、`adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`。
+- 验证：新增 VirusDb JUnit 证据断言和 Shield targeted 静态回归断言；尚未运行 Gradle/JUnit、Actions、模拟器或真机。
+- 下一步：执行 Shield 定向回归；核对名单编辑页搜索/筛选状态与分页恢复；处理 Hook Host regression 静默退出。

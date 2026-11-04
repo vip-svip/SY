@@ -31,6 +31,27 @@ public final class FxYulongVirusDbTest {
         assertNull(db.matchSuspect("com.good.app", "ordinary"));
     }
 
+    @Test public void certainMatchesExposeTheirRealListAndMatchedEntry() {
+        FxYulongVirusDb.MatchEvidence pkg = sample().matchCertain("com.bad.certain", "ordinary");
+        assertNotNull(pkg);
+        assertEquals("确定风险包名列表（safe1.json）", pkg.sourceLabel);
+        assertEquals("com.bad.certain", pkg.matchedEntry);
+        FxYulongVirusDb.MatchEvidence name = sample().matchCertain("com.good.app", "dAnGeR aPp");
+        assertNotNull(name);
+        assertTrue(name.sourceLabel.contains("mingcheng1.json"));
+        assertEquals("Danger App", name.matchedEntry);
+    }
+
+    @Test public void suspectMatchesExposePackageNameAndKeywordSources() {
+        FxYulongVirusDb.MatchEvidence pkg = sample().matchSuspectEvidence("com.bad.suspect", "ordinary");
+        assertNotNull(pkg);
+        assertEquals("可能风险包名列表（safe2.json）", pkg.sourceLabel);
+        FxYulongVirusDb.MatchEvidence keyword = sample().matchSuspectEvidence("org.trojan.client", "ordinary");
+        assertNotNull(keyword);
+        assertEquals("可能风险关键字列表（key.json）", keyword.sourceLabel);
+        assertEquals("trojan", keyword.matchedEntry);
+    }
+
     @Test public void blacklistCombinesCertainAndSuspectListsButNotKeywords() {
         FxYulongVirusDb.Data db = sample();
         assertTrue(db.isBlacklisted("com.bad.certain", "ordinary"));

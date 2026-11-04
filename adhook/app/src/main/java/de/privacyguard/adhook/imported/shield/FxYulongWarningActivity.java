@@ -31,6 +31,8 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
     private String appLabel = "";
     private String reason = "";
     private String severity = "UNKNOWN";
+    private String sourceLabel = "";
+    private String matchedEntry = "";
     private TextView packageState;
     private Button addWhitelistButton;
     private Button uninstallButton;
@@ -70,6 +72,8 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         if ("CERTAIN".equals(incomingSeverity) || "SUSPECT".equals(incomingSeverity)) {
             severity = incomingSeverity;
         }
+        sourceLabel = safe(intent == null ? null : intent.getStringExtra("source_label"), 256);
+        matchedEntry = safe(intent == null ? null : intent.getStringExtra("matched_entry"), 512);
         if (appLabel.isEmpty()) appLabel = packageName.isEmpty() ? "未知应用" : packageName;
 
         LinearLayout root = new LinearLayout(this);
@@ -117,6 +121,13 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         body.addView(text("风险原因", 14, 0xff17212b, true));
         body.addView(text(reason.isEmpty() ? "未提供详细命中原因。" : reason,
                 14, 0xff334155, false));
+        body.addView(text("命中来源：" + (sourceLabel.isEmpty() ? "未提供" : sourceLabel),
+                12, 0xff526273, false));
+        if (!matchedEntry.isEmpty()) {
+            body.addView(text("匹配条目 / 特征族：" + matchedEntry, 12, 0xff526273, false));
+        }
+        body.addView(text("当前名单格式不提供稳定规则 ID 或数据库版本号；此处展示可核实的列表来源与实际匹配条目，不虚构规则编号。",
+                11, 0xff75808a, false));
         body.addView(text(advice, 12, 0xff8a5b12, false));
 
         addWhitelistButton = button("加入白名单并停止后续提醒", this::trust);

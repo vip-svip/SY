@@ -31,12 +31,21 @@ public final class FxYulongScanEngine {
         public final String label;
         public final Severity severity;
         public final String reason;
+        public final String sourceLabel;
+        public final String matchedEntry;
 
         Finding(String packageName, String label, Severity severity, String reason) {
+            this(packageName, label, severity, reason, "", "");
+        }
+
+        Finding(String packageName, String label, Severity severity, String reason,
+                String sourceLabel, String matchedEntry) {
             this.packageName = packageName;
             this.label = label;
             this.severity = severity;
             this.reason = reason;
+            this.sourceLabel = sourceLabel == null ? "" : sourceLabel;
+            this.matchedEntry = matchedEntry == null ? "" : matchedEntry;
         }
     }
 
@@ -171,15 +180,19 @@ public final class FxYulongScanEngine {
                     try { label = String.valueOf(pm.getApplicationLabel(info)); }
                     catch (Throwable ignored) { label = pkg; }
 
-                    if (database.isCertain(pkg, label)) {
+                    FxYulongVirusDb.MatchEvidence certainEvidence = database.matchCertain(pkg, label);
+                    if (certainEvidence != null) {
                         certain++;
-                        findings.add(new Finding(pkg, label, Severity.CERTAIN, "命中 100% 病毒包名或名称列表"));
+                        findings.add(new Finding(pkg, label, Severity.CERTAIN, certainEvidence.reason,
+                                certainEvidence.sourceLabel, certainEvidence.matchedEntry));
                         continue;
                     }
-                    String reason = database.matchSuspect(pkg, label);
-                    if (reason != null) {
+                    FxYulongVirusDb.MatchEvidence suspectEvidence =
+                            database.matchSuspectEvidence(pkg, label);
+                    if (suspectEvidence != null) {
                         suspect++;
-                        findings.add(new Finding(pkg, label, Severity.SUSPECT, reason));
+                        findings.add(new Finding(pkg, label, Severity.SUSPECT, suspectEvidence.reason,
+                                suspectEvidence.sourceLabel, suspectEvidence.matchedEntry));
                         continue;
                     }
 
@@ -200,11 +213,13 @@ public final class FxYulongScanEngine {
                                 if (verdict.level == FxYulongVirusContentDb.BLOCK) {
                                     certain++;
                                     findings.add(new Finding(pkg, label, Severity.CERTAIN,
-                                            "内容特征命中：" + verdict.reason));
+                                            "内容特征命中：" + verdict.reason,
+                                            "本地 APK 内容特征库", verdict.family));
                                 } else if (verdict.level == FxYulongVirusContentDb.WARN) {
                                     suspect++;
                                     findings.add(new Finding(pkg, label, Severity.SUSPECT,
-                                            "内容特征告警：" + verdict.reason));
+                                            "内容特征告警：" + verdict.reason,
+                                            "本地 APK 内容特征库", verdict.family));
                                 }
                             } catch (Throwable itemError) {
                                 // Continue with other apps, but never report an unreadable APK as clean.

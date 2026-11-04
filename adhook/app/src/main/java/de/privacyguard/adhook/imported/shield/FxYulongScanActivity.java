@@ -32,6 +32,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
     private static final String STATE_FINDING_LABELS = "fx_shield_finding_labels";
     private static final String STATE_FINDING_SEVERITIES = "fx_shield_finding_severities";
     private static final String STATE_FINDING_REASONS = "fx_shield_finding_reasons";
+    private static final String STATE_FINDING_SOURCES = "fx_shield_finding_sources";
+    private static final String STATE_FINDING_MATCHES = "fx_shield_finding_matches";
     private static final String STATE_SELECTED_PACKAGES = "fx_shield_selected_packages";
 
     private LinearLayout body;
@@ -149,7 +151,11 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         java.util.ArrayList<String> labels = state.getStringArrayList(STATE_FINDING_LABELS);
         java.util.ArrayList<String> severities = state.getStringArrayList(STATE_FINDING_SEVERITIES);
         java.util.ArrayList<String> reasons = state.getStringArrayList(STATE_FINDING_REASONS);
+        java.util.ArrayList<String> sources = state.getStringArrayList(STATE_FINDING_SOURCES);
+        java.util.ArrayList<String> matches = state.getStringArrayList(STATE_FINDING_MATCHES);
         java.util.ArrayList<String> selected = state.getStringArrayList(STATE_SELECTED_PACKAGES);
+        if (sources == null) sources = new java.util.ArrayList<>();
+        if (matches == null) matches = new java.util.ArrayList<>();
         java.util.HashSet<String> selectedPackages = new java.util.HashSet<>();
         if (selected != null && selected.size() <= MAX_BATCH_SELECTION) {
             selectedPackages.addAll(selected);
@@ -158,6 +164,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         if (packages == null || labels == null || severities == null || reasons == null
                 || packages.size() != findingCount || labels.size() != findingCount
                 || severities.size() != findingCount || reasons.size() != findingCount
+                || (!sources.isEmpty() && sources.size() != findingCount)
+                || (!matches.isEmpty() && matches.size() != findingCount)
                 || packages.size() > MAX_SAVED_FINDINGS) {
             restoreRequiresRescan = true;
             status.setText(status.getText() + "\n上次扫描状态数据不完整，请重新扫描；旧结果不会用于批量处理。");
@@ -180,8 +188,11 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
                 restoreRequiresRescan = true;
                 continue;
             }
+            String source = i < sources.size() ? boundedStateText(sources.get(i)) : "";
+            String matched = i < matches.size() ? boundedStateText(matches.get(i)) : "";
             FxYulongScanEngine.Finding finding = new FxYulongScanEngine.Finding(
-                    pkg, boundedStateText(labels.get(i)), severity, boundedStateText(reasons.get(i)));
+                    pkg, boundedStateText(labels.get(i)), severity, boundedStateText(reasons.get(i)),
+                    source, matched);
             lastFindings.add(finding);
             addFinding(finding, selectedPackages.contains(pkg));
         }
@@ -222,16 +233,22 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         java.util.ArrayList<String> labels = new java.util.ArrayList<>();
         java.util.ArrayList<String> severities = new java.util.ArrayList<>();
         java.util.ArrayList<String> reasons = new java.util.ArrayList<>();
+        java.util.ArrayList<String> sources = new java.util.ArrayList<>();
+        java.util.ArrayList<String> matches = new java.util.ArrayList<>();
         for (FxYulongScanEngine.Finding finding : lastFindings) {
             packages.add(boundedStateText(finding.packageName));
             labels.add(boundedStateText(finding.label));
             severities.add(finding.severity.name());
             reasons.add(boundedStateText(finding.reason));
+            sources.add(boundedStateText(finding.sourceLabel));
+            matches.add(boundedStateText(finding.matchedEntry));
         }
         outState.putStringArrayList(STATE_FINDING_PACKAGES, packages);
         outState.putStringArrayList(STATE_FINDING_LABELS, labels);
         outState.putStringArrayList(STATE_FINDING_SEVERITIES, severities);
         outState.putStringArrayList(STATE_FINDING_REASONS, reasons);
+        outState.putStringArrayList(STATE_FINDING_SOURCES, sources);
+        outState.putStringArrayList(STATE_FINDING_MATCHES, matches);
         outState.putStringArrayList(STATE_SELECTED_PACKAGES,
                 new java.util.ArrayList<>(selectedForCleanup.keySet()));
     }
@@ -294,6 +311,10 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         item.addView(text((finding.severity==FxYulongScanEngine.Severity.CERTAIN?"确定风险 · ":"可能风险 · ")+finding.label,
                 14,finding.severity==FxYulongScanEngine.Severity.CERTAIN?0xffa32620:0xff8a5b12,true));
         item.addView(text(finding.packageName+"\n"+finding.reason,12,0xff617080,false));
+        String evidence = finding.sourceLabel.isEmpty() ? "来源：未提供（旧版扫描状态）"
+                : "来源：" + finding.sourceLabel;
+        if (!finding.matchedEntry.isEmpty()) evidence += "\n匹配条目/特征族：" + finding.matchedEntry;
+        item.addView(text(evidence,11,0xff75808a,false));
         android.widget.CheckBox check = new android.widget.CheckBox(this);
         check.setText("加入批量清理清单");
         check.setOnCheckedChangeListener((button, checked) -> {
@@ -319,6 +340,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
             warning.putExtra("app_label", finding.label);
             warning.putExtra("reason", finding.reason);
             warning.putExtra("severity", finding.severity.name());
+            warning.putExtra("source_label", finding.sourceLabel);
+            warning.putExtra("matched_entry", finding.matchedEntry);
             startActivity(warning);
         }));
         item.addView(action("核实后打开系统卸载确认",()->confirmUninstall(finding)));

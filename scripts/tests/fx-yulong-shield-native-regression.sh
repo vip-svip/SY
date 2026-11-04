@@ -536,5 +536,11 @@ assert "管控名单保存失败，原有配置保持不变" in blacklist_activi
     "Blacklist persistence failure must be surfaced to the user"
 assert "if (!saveBlacklist())" in blacklist_activity, \
     "Blacklist add/remove/clear flows must roll back in-memory state on failed writes"
+assert "public MatchEvidence matchCertain(String pkg, String label)" in virus_db, "certain match evidence missing"
+assert "matchSuspectEvidence(String pkg, String label)" in virus_db, "suspect match evidence missing"
+assert "STATE_FINDING_SOURCES" in scan_activity and "STATE_FINDING_MATCHES" in scan_activity, "scan evidence is not persisted across recreation"
+assert 'putExtra("matched_entry", finding.matchedEntry)' in scan_activity, "warning detail route drops match evidence"
+assert "匹配条目 / 特征族：" in warning_activity, "risk detail does not show evidence"
+assert "certainMatchesExposeTheirRealListAndMatchedEntry" in virus_db_test, "virus DB evidence tests missing"
 print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup and foreground/install risk scanning")
 PY
