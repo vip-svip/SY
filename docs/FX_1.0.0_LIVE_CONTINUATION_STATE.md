@@ -2200,3 +2200,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `1d68d0cb7198fd810695eaec42a6c54d40293390` — 回归脚本增加 Worker 状态归属断言。
 - 静态验证：最新 HEAD 源码与回归脚本检查 10 项均通过：SAF grant 获取/释放、Bundle 来源字段、四种来源恢复、非持久授权 fallback、滚动恢复及实例保护、切换来源/搜索清理旧滚动、DEX 索引不序列化、应用清单回调不覆盖 DEX 状态。未在完整 checkout 执行 Shell 回归脚本，未运行 Gradle、模拟器或真机 SAF/旋转测试。
 - 下一步：检查 Dex Hook picker 返回 MainActivity 时的目标包名/规则编辑器草稿在 MainActivity 重建期间是否归属稳定；之后集中运行 Dia DEX Browser / Hook picker 两条针对性回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook Hub 三类授权状态口径复核与 Dia DEX 浏览器状态恢复接管
+
+- 本批起始 HEAD：`0b870cce4b4a06755183aea50ed060c386136e92`。
+- Hook Hub 复核结果（无需改动产品逻辑）：
+  - Root：执行实际 `su -c` 命令读取 UID 0、FX KernelSU 模块 enable/disable/remove-pending/version-mismatch 状态和 KSU 工具存在状态；失败/拒绝/超时不显示已授权。
+  - LSPosed：分别显示 Manager 安装状态与 libXposed Binder 连接状态，并明确“作用域批准不等于目标进程注入”。
+  - Accessibility：分别读取 Android 系统启用状态、FX 服务 Binder 连接和当前进程 PID 标记；系统开关已开但服务未连接时显示等待连接。
+  - `onPause()` 对 Hook Hub 设置 `hookAuthorizationRefreshPending`，返回 `onResume()` 自动刷新 Root / LSPosed / Accessibility / Remote Files；无需额外增加重复刷新路径。
+- 并行 Dia DEX 页面改动已接管：
+  - `81161c1ea360456e8fcb33ba8f8d3778b405f8f0` — 切换查询/来源时清除旧结果滚动恢复状态，避免旧 DEX 页异步回调把新来源滚回旧位置。
+  - `120ff9cf95f06201893e0e8174ad312a3b4c8643` — Activity 重建时对未持久化的 SAF URI 授权先尝试重新读取；只有 URI 本身无效才立即清空来源。
+  - `e6c639436a8b4354d5557420e954a33f0fe32133` — DEX 页面 SAF 授权、来源/目标/查询/滚动恢复与异步解析回调回归断言。
+- 以上 Hook Hub 仅为源码行为复核；DEX 回归脚本为新增静态断言，未执行完整 Host 回归、Gradle、模拟器或真机 SAF 提供方授权撤销测试。
+- 本窗口本地实现提交：救援通知路由 `d4ee58b8be644037170a4467c4ebde0373aef4b7`；扫描滚动恢复 `cf39f274e81b1e853a70e27d6367ac0f06e5edd0`；扫描页清理队列返回后失效旧结果 `457526851701b46281533d9d50e393acd8adec01`；病毒库同步状态准确反馈 `4685a61500f20d68bd1c5c0a5a7a14f04310fd01`；病毒库页滚动恢复 `a54008ea5eae58823535a63f86a5e8b2e766fbfe`。对应测试/状态提交均已记录在本文件相邻条目。
+- 下一步：检查 Dia Frida SAF 文件 picker 与后台 Worker 的请求归属/取消生命周期；随后对游龙安全护盾风险详情、告警和名单编辑页面做一组集中 UI 状态闭环。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
