@@ -38,7 +38,7 @@ public final class AdbPairingClient implements Closeable {
 
     private final String host;
     private final int port;
-    private final String pairingCode;
+    private final byte[] pairingCodeUtf8;
     private final AdbKey key;
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -57,7 +57,7 @@ public final class AdbPairingClient implements Closeable {
         }
         if (key == null) throw new IllegalArgumentException("ADB host key is null");
         this.port = port;
-        this.pairingCode = pairingCode;
+        this.pairingCodeUtf8 = pairingCode.getBytes(StandardCharsets.UTF_8);
         this.key = key;
     }
 
@@ -90,9 +90,13 @@ public final class AdbPairingClient implements Closeable {
             if (!exchangePeerInfo()) {
                 throw new PairingException("ADB encrypted peer-info exchange was rejected");
             }
+            ensureOpen();
             return true;
         } catch (IOException | RuntimeException failure) {
-            close();
+            // A concurrent close may already have set the flag before a resource
+            // was assigned. Always sweep again after the start path unwinds.
+            closed.set(true);
+            closeQuietly();
             throw failure;
         } finally {
             // Do not retain the UI-supplied pairing code after the TLS exporter
@@ -126,7 +130,8 @@ public final class AdbPairingClient implements Closeable {
     }
 
     private void setupSpake2Context() throws IOException {
-        byte[] code = pairingCode.getBytes(StandardCharsets.UTF_8);
+        ensureOpen();
+        byte[] code = pairingCodeUtf8.clone();
         byte[] exporter = null;
         byte[] secret = null;
         try {
@@ -138,12 +143,23 @@ public final class AdbPairingClient implements Closeable {
             // Original Stellar order: UTF-8 pairing code followed by TLS exporter bytes.
             System.arraycopy(code, 0, secret, 0, code.length);
             System.arraycopy(exporter, 0, secret, code.length, exporter.length);
-            pairingContext = PairingContext.create(secret);
-            if (pairingContext == null) {
+            PairingContext created = PairingContext.create(secret);
+            if (created == null) {
                 throw new IOException("Original libadb SPAKE2 JNI context is unavailable");
+            }
+            if (closed.get()) {
+                created.destroy();
+                throw new IOException("ADB pairing was cancelled");
+            }
+            pairingContext = created;
+            if (closed.get()) {
+                pairingContext = null;
+                created.destroy();
+                throw new IOException("ADB pairing was cancelled");
             }
         } finally {
             Arrays.fill(code, (byte) 0);
+            Arrays.fill(pairingCodeUtf8, (byte) 0);
             if (exporter != null) Arrays.fill(exporter, (byte) 0);
             if (secret != null) Arrays.fill(secret, (byte) 0);
         }
@@ -282,6 +298,7 @@ public final class AdbPairingClient implements Closeable {
 
     private void closeQuietly() {
         // Close sockets first so another thread blocked in TLS read/write is released.
+        Arrays.fill(pairingCodeUtf8, (byte) 0);
         SSLSocket tls = tlsSocket;
         tlsSocket = null;
         if (tls != null) {
