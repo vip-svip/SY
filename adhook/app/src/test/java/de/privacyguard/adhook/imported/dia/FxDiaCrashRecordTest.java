@@ -33,10 +33,10 @@ public class FxDiaCrashRecordTest {
     }
 
     @Test public void copyShareRedactionCoversHeadersJsonQueryUrlAndJwt() {
-        String input = "Authorization: Bearer header-secret\\n"
-                + "\"access_token\": \"json-secret\", refresh_token=refresh-secret\\n"
-                + "https://user:pass@example.test/path?api_key=query-secret\\n"
-                + "cookie: session-cookie\\n"
+        String input = "Authorization: Bearer header-secret\n"
+                + "\"access_token\": \"json-secret\", refresh_token=refresh-secret\n"
+                + "https://user:pass@example.test/path?api_key=query-secret\n"
+                + "cookie: session-cookie\n"
                 + "Bearer loose-secret "
                 + "eyJabcdefghijk.abcdefghijk.abcdefghijk";
         String redacted = FxDiaCrashRedactor.redact(input);
@@ -53,7 +53,7 @@ public class FxDiaCrashRecordTest {
     }
 
     @Test public void redactionLeavesOrdinaryDiagnosticTextAlone() {
-        String input = "IllegalStateException: app database is closed\\n"
+        String input = "IllegalStateException: app database is closed\n"
                 + "at de.privacyguard.MainActivity.onCreate(MainActivity.java:42)";
         assertEquals(input, FxDiaCrashRedactor.redact(input));
     }

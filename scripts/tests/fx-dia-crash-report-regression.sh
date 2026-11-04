@@ -12,15 +12,16 @@ RECORD="$DIA/FxDiaCrashRecord.java"
 ACTIVITY="$DIA/FxDiaCrashReportActivity.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
 POLICY="$DIA/FxDiaCrashCapturePolicy.java"
+REDACTOR="$DIA/FxDiaCrashRedactor.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY"; do
+for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
 python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-main, manifest_path, application, store, record, activity, unit = [
+main, manifest_path, application, store, record, activity, unit, redactor = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -48,6 +49,10 @@ assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are n
 assert "schemaVersion == 0" in store and "file.getBaseFile().lastModified()" in store, "legacy unversioned Dia CrashInfo JSON must remain readable"
 assert 'getSharedPreferences("digXposed"' in store, "legacy Dia shared crash preferences must be preserved"
 assert "hexUtf8(" in record and "可逆，不是加密" in record, "HEX encoding must not be represented as encryption"
+assert "FxDiaCrashRedactor.redact(" in activity, "copy/share must export a redacted report"
+assert "reportView.setText(record.format(" in activity, "local crash report view must retain raw diagnostic detail"
+for token in ("Authorization", "KEY_VALUE", "QUERY_VALUE", "URL_USER_INFO", "BEARER", "JWT"):
+    assert token in redactor, f"crash export credential redaction missing: {token}"
 assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference must be preserved"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
               "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled",
