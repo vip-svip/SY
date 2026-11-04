@@ -104,7 +104,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         return prefix
                 + "command -v logcat >/dev/null 2>&1 || { echo LOGCAT_UNAVAILABLE; exit 22; }; "
                 + "logcat -d -v threadtime -t 5000 2>/dev/null "
-                + "| grep -F 'FX Hook' | grep -F 'dev-observe' | grep -F "
+                + "| grep -F 'FX Hook' | grep -E 'dev-observe|dia-dialog-match' | grep -F "
                 + filter + " | tail -n 300 || true";
     }
 
@@ -117,7 +117,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("FX Hook · OBSERVE 方法日志", 18, 0xff17212b, true),
+        header.addView(text("FX Hook · OBSERVE / Dialog 匹配日志", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
@@ -127,12 +127,12 @@ public final class FxHookObservationLogsActivity extends Activity {
         root.addView(target);
 
         TextView privacy = text(
-                "仅读取 FX Hook 标记的 dev-observe 记录，并按目标包名精确筛选；日志用于显示方法观察元数据，不读取方法参数或返回值。请勿将日志当作目标进程当前仍在运行的证明。",
+                "只读取 FX Hook 标记的 dev-observe 与 dia-dialog-match 记录，并按目标包名精确筛选。Dialog 记录仅包含匹配类型，不保存弹窗全文；方法观察记录不读取参数或返回值。请勿将日志当作目标进程当前仍在运行的证明。",
                 12, 0xff617080, false);
         privacy.setPadding(dp(16), dp(4), dp(16), dp(4));
         root.addView(privacy);
 
-        status = text("正在读取 OBSERVE 记录…", 12, 0xff526170, false);
+        status = text("正在读取 OBSERVE / Dialog 匹配记录…", 12, 0xff526170, false);
         status.setPadding(dp(16), dp(5), dp(16), dp(5));
         root.addView(status);
 
@@ -141,7 +141,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         controls.setPadding(dp(10), dp(2), dp(10), dp(4));
         search = new EditText(this);
         search.setSingleLine(true);
-        search.setHint("搜索类名、方法或日志字段");
+        search.setHint("搜索类名、方法或 Dialog 匹配类型");
         controls.addView(search);
 
         LinearLayout actions = new LinearLayout(this);
