@@ -18,6 +18,8 @@ $DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaFileActivity.java
 $DIA/FxDiaGpsPickerActivity.java
 $DIA/FxDiaSessionLogActivity.java
+$DIA/FxDiaSignatureActivity.java
+$DIA/FxDiaSystemExpandActivity.java
 "
 fail() { echo "FAIL: $*" >&2; exit 1; }
 for file in "$BASE" "$MAIN" $PAGES; do
@@ -51,6 +53,14 @@ session_page = next(p for p in pages if "class FxDiaSessionLogActivity" in p)
 for token in ("STATE_SEARCH", "STATE_SCROLL_Y", "onSaveInstanceState("):
     assert token in session_page, f"Session Log state missing: {token}"
 print("PASS: GPS picker and Session Log state restoration anchors remain")
+signature_page = next(p for p in pages if "class FxDiaSignatureActivity" in p)
+for token in ("SigningInfo", "MessageDigest", "getInstalledApplications", "chooseApp(", "inspect("):
+    assert token in signature_page, f"Signature viewer behavior missing: {token}"
+system_page = next(p for p in pages if "class FxDiaSystemExpandActivity" in p)
+for token in ("PackageInstaller", "allowed_install_from_unknown_source",
+              "restart_package_installer", "RootAccess", "setPositiveButton"):
+    assert token in system_page, f"System Expand guarded action missing: {token}"
+print("PASS: Signature viewer remains read-only and System Expand keeps guarded settings actions")
 print("PASS: Dia independent pages retain the shared six-tab shell")
 print("PASS: File/ELF SAF grant, import/export, directory and worker paths remain")
 PY
