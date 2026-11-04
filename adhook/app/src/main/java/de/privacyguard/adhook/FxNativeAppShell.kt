@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +73,9 @@ private fun FxNativeAppShell(
         Box(
             Modifier
                 .fillMaxSize()
+                // Keep the six-tab bar and the active page above the soft keyboard.
+                // Applying this to the shared host covers every migrated native page.
+                .imePadding()
                 .background(if (mode == "miuix") miuixColors.background else Color(0xFFF4F6F8))
         ) {
             // Record the real page beneath the translucent navigation surface.
