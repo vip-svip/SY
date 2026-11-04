@@ -19,9 +19,10 @@ import de.privacyguard.adhook.RootAccess;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Native viewer and guarded clear operation for the current Dia Frida session log. */
 public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNativeTabActivity {
@@ -35,11 +36,16 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     private static final String STATE_SEARCH = "fx_dia_session_log_search";
     private static final String STATE_SCROLL_Y = "fx_dia_session_log_scroll_y";
 
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "fx-dia-session-log");
-        thread.setDaemon(true);
-        return thread;
-    });
+    // Refresh/clear requests share one bounded worker. A rapid tap burst must
+    // not accumulate an unbounded queue of stale Root log reads.
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> {
+                Thread thread = new Thread(r, "fx-dia-session-log");
+                thread.setDaemon(true);
+                return thread;
+            },
+            new ThreadPoolExecutor.AbortPolicy());
     private String targetPackage;
     private String targetName;
     private String logPath;
