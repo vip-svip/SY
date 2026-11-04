@@ -120,6 +120,14 @@ wait
   echo "FAIL: runtime lock remained after concurrent evaluate calls" >&2
   exit 1
 }
+[ ! -e "$PG/yulong-ad-schedule.runtime.lock/owner" ] || {
+  echo "FAIL: canonical owner file remained after lock release" >&2
+  exit 1
+}
+find "$PG/yulong-ad-schedule.runtime.lock" -maxdepth 1 -type f -name 'owner.*' -print -quit 2>/dev/null | grep -q . && {
+  echo "FAIL: temporary owner publication file remained after release" >&2
+  exit 1
+} || :
 [ "$(pg_get yulong_ad_schedule_active 0)" = 1 ] || {
   echo "FAIL: schedule did not reconcile active state" >&2
   exit 1
@@ -187,6 +195,9 @@ assert "IFS= read -r _lock_self_stat < /proc/self/stat" in source, "lock must re
 assert "lock_self_pid=" + chr(36) + "{_lock_self_stat%% *}" in source, "current PID extraction must be valid shell parameter expansion"
 assert "lock_retry_limit=" + chr(36) + "{FX_YULONG_SCHEDULE_LOCK_RETRIES:-300}" in source, "retry override must be expanded by POSIX shell"
 assert '"$RUNTIME_LOCK/owner.$_lock_self_pid"' in source, "temporary lock owner must be scoped to current PID"
+assert 'mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"' in source, "owner PID/start identity must be atomically published to the canonical owner file"
+assert '_lock_published=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)' in source, "new lock owner must be read back before lock ownership is accepted"
+assert 'rm -f "$RUNTIME_OWNER" 2>/dev/null || :' in source, "failed owner publication must not leave an unowned lock directory"
 assert 'printf \'%s %s\\n\' "$_lock_self_pid"' in source, "owner record must store current PID"
 assert '"$_release_pid" = "$_lock_self_pid"' in source, "release must confirm owner PID and process start time"
 assert '$_lock_missing' not in source, "ownerless lock cleanup must not use a short time threshold"

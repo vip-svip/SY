@@ -77,13 +77,22 @@ acquire_runtime_lock() {
   done
 
   _lock_owner_tmp="$RUNTIME_LOCK/owner.$_lock_self_pid"
-  if (umask 077; printf '%s %s\n' "$_lock_self_pid" "$_lock_self_start" > "$_lock_owner_tmp" && chmod 600 "$_lock_owner_tmp"); then
-    RUNTIME_LOCK_HELD=1
-    RUNTIME_LOCK_START=$_lock_self_start
-    return 0
+  # Publish the owner record with a same-directory rename. Other starters
+  # keep waiting while only owner.$PID exists; they may trust the lock only
+  # after the complete PID + process-start identity becomes visible at owner.
+  if (umask 077; printf '%s %s\n' "$_lock_self_pid" "$_lock_self_start" > "$_lock_owner_tmp" &&
+      chmod 600 "$_lock_owner_tmp" && mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"); then
+    _lock_published=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
+    if [ ! -L "$RUNTIME_OWNER" ] &&
+       [ "$_lock_published" = "$_lock_self_pid $_lock_self_start" ]; then
+      RUNTIME_LOCK_HELD=1
+      RUNTIME_LOCK_START=$_lock_self_start
+      return 0
+    fi
   fi
-  rm -f "$_lock_owner_tmp" 2>/dev/null || :
+  rm -f "$_lock_owner_tmp" "$RUNTIME_OWNER" 2>/dev/null || :
   rmdir "$RUNTIME_LOCK" 2>/dev/null || :
+  log "could not atomically publish and verify scheduler lock owner"
   return 31
 }
 release_runtime_lock() {
