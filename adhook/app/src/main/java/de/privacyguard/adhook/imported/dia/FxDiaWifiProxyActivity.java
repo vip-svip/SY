@@ -258,8 +258,24 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
                     .putString("applied", target)
                     .remove("draft_host").remove("draft_port").commit();
             if (!saved) {
-                status.setText("系统代理已应用，但 FX 本地状态保存失败；请勿重复启用，先刷新状态并核对当前代理。");
-                refreshStatus();
+                // The OS setting has already changed. Roll it back only if it still
+                // equals the value FX just wrote; never overwrite a concurrent user change.
+                String rollback = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                        + "[ \"$current\" = " + quote(target) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
+                        + "if [ " + quote(newPrevious) + " = null ]; then settings delete global http_proxy; "
+                        + "else settings put global http_proxy " + quote(newPrevious) + "; fi; "
+                        + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                        + "[ \"$actual\" = " + quote(newPrevious) + " ] || { echo FX_PROXY_ROLLBACK_FAILED; exit 31; }";
+                runRoot(rollback, rollbackResult -> {
+                    if (rollbackResult.exitCode == 0) {
+                        status.setText("FX 本地状态保存失败；已安全恢复修改前的系统代理。");
+                    } else {
+                        status.setText(rollbackResult.output != null && rollbackResult.output.contains("FX_PROXY_CONFLICT")
+                                ? "FX 本地状态保存失败，且系统代理已被其他程序更改；未覆盖外部修改，请手动核对。"
+                                : "FX 本地状态保存失败，自动恢复未能确认；请立即刷新并核对系统代理：" + safe(rollbackResult.output));
+                    }
+                    refreshStatus();
+                });
                 return;
             }
             proxyStatus = FxDiaWifiProxyState.Status.ACTIVE;
