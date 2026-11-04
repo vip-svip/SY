@@ -9,6 +9,7 @@ import android.location.LocationManager;
 import android.app.Dialog;
 import android.app.Instrumentation;
 import android.app.Application;
+import de.privacyguard.hook.DiaFridaGadgetLoader;
 import android.content.pm.ApplicationInfo;
 import dalvik.system.DexFile;
 import android.content.ContentResolver;
@@ -245,6 +246,15 @@ public final class AdVisibilityHook extends XposedModule {
         currentPackage = pkg;
         processPackages.add(pkg);
         if (NEVER.contains(pkg)) return;
+        // Dia Gadget loading is independent of optional remote privacy/ad config.
+        // The registered modern libXposed entrypoint reaches the package/process-
+        // scoped loader directly; the legacy adapter delegates to the same utility.
+        try {
+            DiaFridaGadgetLoader.loadForPackage(param.getApplicationInfo(),
+                    pkg, Application.getProcessName());
+        } catch (Throwable gadgetError) {
+            Log.w(TAG, "Dia Frida Gadget loader failed for " + pkg, gadgetError);
+        }
         // Continue with automatic Ad recognition even when Remote Files are absent.
         // All optional per-app policy flags below remain false unless a valid config loaded.
         final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;

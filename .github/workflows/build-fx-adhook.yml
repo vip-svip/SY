@@ -226,6 +226,7 @@ jobs:
           sh scripts/tests/fx-dia-global-settings-registration-regression.sh
           sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
+          python3 scripts/tests/fx-dia-frida-libxposed-wiring-regression.py
           sh scripts/tests/fx-dia-code-editor-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
           python3 scripts/tests/fx-dia-wifi-proxy-regression.py
