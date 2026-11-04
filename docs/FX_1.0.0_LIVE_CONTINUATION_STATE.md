@@ -3067,3 +3067,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSystemExpandActivity.java`、`scripts/tests/fx-dia-system-expand-navigation-regression.sh`、本状态文件。
 - 验证：targeted 回归新增 7 个状态保存/恢复锚点；当前仅源码静态核对，尚未执行 Actions/Android 构建/设备旋转测试。
 - 下一步：读取本提交 Actions；随后继续 Dia 原生页面的 Activity 浏览器/系统扩展返回链，并复跑 Hook 原生 UI回归。
+
+
+## 2026-11-05 — Frida libXposed loader 回归断言对齐
+
+- 基于分支最新 HEAD：`d8774c8c55d19a77b9c684464225270a73b0ad1d`。
+- Actions `41915672051` 中 SAF 严格 UTF-8 新增断言及 Frida 脚本库页面回归均 PASS；二进制导入、Gadget 配置/部署/会话 mock 也已执行。随后 libXposed wiring 脚本因旧早退条件字符串不存在而失败。
+- 根因：当前 `AdVisibilityHook.onPackageReady()` 已将早退条件扩展为 Dialog、Toast、ActivityKey、隐私和自定义 Hook 多个功能开关；旧测试硬编码早期 `if (!adsForPackage && !memberDiagForPackage)`，不再对应当前结构。
+- 修复：测试改为验证 Gadget loader 调用早于读取可选 per-app remote config 的位置，继续保证 Gadget 独立于远程隐私配置加载；不修改产品运行逻辑。
+- 改动路径：`scripts/tests/fx-dia-frida-libxposed-wiring-regression.py`、本状态文件。
+- 验证：已对照当前源码 loader 调用位置早于 `UnifiedHookConfigParser.Target` 获取；等待 Actions 复跑 Frida 页面组。
+- 下一步：读取当前 Actions 后续首错；继续 Frida Server/Gadget 会话页的目标进程、取消、停止、错误与 Activity 重建返回链。

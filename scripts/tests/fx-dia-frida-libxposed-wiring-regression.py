@@ -17,8 +17,9 @@ assert entry == ["de.privacyguard.adhook.AdVisibilityHook"], (
 )
 call = "DiaFridaGadgetLoader.loadForPackage(param.getApplicationInfo()"
 assert call in hook, "registered libXposed entrypoint does not call the Dia Gadget loader"
-assert hook.index(call) < hook.index("if (!adsForPackage && !memberDiagForPackage"), (
-    "Dia Gadget loader must run independently of optional remote config"
+config_target = "final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;"
+assert hook.index(call) < hook.index(config_target), (
+    "Dia Gadget loader must run before optional per-app remote config is read"
 )
 assert "Application.getProcessName()" in hook, "loader must receive the actual isolated process name"
 assert "public static void loadForPackage(ApplicationInfo info" in loader
