@@ -841,3 +841,10 @@ After each implementation batch:
 - If the VPN interface goes down, its route changes to another interface, or its source IPv4 changes during service startup, the Root Proxy now stops both DNS engines, removes only FXYRP-owned rules/state and fails open instead of redirecting clients into a stale tunnel.
 - Extended the Root Proxy runtime regression with a route mock that passes the initial two destination checks, then switches the first route to Wi-Fi during DNS engine startup. The test asserts the second proof runs and that no active metadata, egress marker or NAT hook survives.
 - Host runtime simulation only; third-party VPN reconnect timing and Unbound egress still require physical-device validation.
+
+## 2026-11-04 — Dia Frida process identity revalidation
+
+- The Frida process picker resolves the currently installed target package UID and filters candidate PID/process-name rows against `/proc/PID/status` before presenting them.
+- The actual Frida-inject path resolves the package UID again immediately before injection and verifies each PID's live UID after checking its package/process name. A PID/name match with a different UID is skipped and recorded; the injector is not called for that process.
+- This preserves the existing user-installed + debuggable target boundary and closes the PID-reuse/name-only identity gap for both selected and auto-enumerated processes.
+- Added and registered `fx-dia-frida-process-identity-regression.py` to assert UID resolution and enforcement before the injector call. Host/source validation only; actual Frida attach and runtime behavior remain device-pending.
