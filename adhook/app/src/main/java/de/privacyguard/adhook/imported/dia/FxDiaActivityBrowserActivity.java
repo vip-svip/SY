@@ -13,10 +13,15 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -27,8 +32,12 @@ import de.privacyguard.adhook.RootAccess;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
+import android.widget.Filter;
+import android.widget.Filterable;
 
 /** Native Dia-style Activity entry browser and explicit user-app component toggles. */
 public final class FxDiaActivityBrowserActivity extends Activity {
@@ -37,23 +46,36 @@ public final class FxDiaActivityBrowserActivity extends Activity {
             r -> { Thread t = new Thread(r, "fx-dia-app-browser"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
 
-    private void submitWorker(Runnable task) {
+    private boolean submitWorker(Runnable task) {
         try {
             worker.execute(task);
+            return true;
         } catch (RejectedExecutionException full) {
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
-                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
-            });
+            if (!destroyed) {
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                    Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+                });
+            }
+            return false;
         }
     }
     private final List<ApplicationInfo> apps = new ArrayList<>();
+    private final Map<String, String> appLabels = new HashMap<>();
     private LinearLayout rows;
     private TextView target;
     private TextView status;
     private ApplicationInfo selected;
+    private String selectedLabel;
     private boolean launcherOnly;
+    private boolean appsLoaded;
+    private boolean appsLoading;
+    private volatile boolean destroyed;
+    private int appsGeneration;
+    private int activityGeneration;
+    private AlertDialog appPickerDialog;
+    private AppPickerAdapter appPickerAdapter;
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String value, int size, int color, boolean bold) {
@@ -84,14 +106,17 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
 
         target = text("尚未选择应用。", 13, 0xff334155, false);
-        status = text("选择用户应用以查看其声明的 Activity 入口。", 13, 0xff617080, false);
+        status = text("正在后台读取用户应用清单…", 13, 0xff617080, false);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
         card(body, "目标应用", launcherOnly
                         ? "仅列出用户应用的 MAIN/LAUNCHER 启动入口。禁用后图标会从启动器隐藏；可在此页重新启用。"
                         : "只显示非系统用户应用；组件禁用需要 Root 权限并逐项确认。",
-                target, button("选择应用", this::chooseApp), button("读取 Activity 入口", this::loadActivities));
-        card(body, "状态", "系统 PackageManager 实际返回值", status);
+                target,
+                button("选择应用（可搜索）", this::chooseApp),
+                button("刷新应用列表", this::loadApps),
+                button("读取 Activity 入口", this::loadActivities));
+        card(body, "状态", "组件状态来自 PackageManager；修改命令由 Root 执行并逐项确认。", status);
         body.addView(rows, rp);
         loadApps();
     }
@@ -107,51 +132,181 @@ public final class FxDiaActivityBrowserActivity extends Activity {
     }
 
     private void loadApps() {
-        apps.clear();
-        try {
-            apps.addAll(getPackageManager().getInstalledApplications(0));
-            apps.removeIf(app -> app.packageName == null || app.packageName.equals(getPackageName())
-                    || (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0
-                    || (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
-            apps.sort(Comparator.comparing(app -> {
-                try { return String.valueOf(getPackageManager().getApplicationLabel(app)).toLowerCase(Locale.ROOT); }
-                catch (Throwable ignored) { return app.packageName.toLowerCase(Locale.ROOT); }
-            }));
-        } catch (Throwable error) {
-            status.setText("无法读取应用列表：" + error.getClass().getSimpleName());
-        }
+        if (destroyed || appsLoading) return;
+        appsLoading = true;
+        appsLoaded = false;
+        final int request = ++appsGeneration;
+        status.setText("正在后台读取用户应用清单与显示名称…");
+        rows.removeAllViews();
+        boolean accepted = submitWorker(() -> {
+            List<ApplicationInfo> loaded = new ArrayList<>();
+            Map<String, String> loadedLabels = new HashMap<>();
+            String failure = null;
+            try {
+                PackageManager pm = getPackageManager();
+                for (ApplicationInfo app : pm.getInstalledApplications(0)) {
+                    if (Thread.currentThread().isInterrupted() || request != appsGeneration) return;
+                    if (app.packageName == null || app.packageName.equals(getPackageName())
+                            || (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                            || (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) continue;
+                    String label;
+                    try { label = String.valueOf(pm.getApplicationLabel(app)); }
+                    catch (Throwable ignored) { label = app.packageName; }
+                    loaded.add(app);
+                    loadedLabels.put(app.packageName, label);
+                }
+                loaded.sort(Comparator.comparing(app ->
+                        loadedLabels.getOrDefault(app.packageName, app.packageName)
+                                .toLowerCase(Locale.ROOT)));
+            } catch (Throwable error) {
+                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
+            }
+            final String loadFailure = failure;
+            runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed() || request != appsGeneration) return;
+                appsLoading = false;
+                if (loadFailure != null) {
+                    appsLoaded = false;
+                    status.setText("读取应用列表失败：" + loadFailure + "。可点击“刷新应用列表”重试。");
+                    return;
+                }
+                apps.clear();
+                apps.addAll(loaded);
+                appLabels.clear();
+                appLabels.putAll(loadedLabels);
+                appsLoaded = true;
+                status.setText("已读取 " + apps.size() + " 个非系统用户应用。可搜索名称或包名。");
+                if (appPickerAdapter != null) appPickerAdapter.notifyDataSetChanged();
+                if (apps.isEmpty()) status.setText("没有可管理的非系统用户应用。");
+            });
+        });
+        if (!accepted) appsLoading = false;
     }
 
     private void chooseApp() {
-        if (apps.isEmpty()) loadApps();
-        if (apps.isEmpty()) { status.setText("没有可管理的用户应用。"); return; }
-        String[] labels = new String[apps.size()];
-        for (int i = 0; i < apps.size(); i++) {
-            String label;
-            try { label = String.valueOf(getPackageManager().getApplicationLabel(apps.get(i))); }
-            catch (Throwable ignored) { label = apps.get(i).packageName; }
-            labels[i] = label + "\n" + apps.get(i).packageName;
+        if (appsLoading) {
+            status.setText("应用清单仍在后台读取，请稍候；不会阻塞当前页面。");
+            return;
         }
-        new AlertDialog.Builder(this).setTitle("选择应用")
-                .setItems(labels, (dialog, which) -> {
-                    selected = apps.get(which);
-                    target.setText(labels[which]);
-                    rows.removeAllViews();
-                    status.setText("已选择目标应用。");
-                }).setNegativeButton("取消", null).show();
+        if (!appsLoaded) {
+            loadApps();
+            return;
+        }
+        if (apps.isEmpty()) {
+            status.setText("没有可管理的用户应用；可点击“刷新应用列表”重试。");
+            return;
+        }
+
+        LinearLayout picker = new LinearLayout(this);
+        picker.setOrientation(LinearLayout.VERTICAL);
+        picker.setPadding(dp(16), dp(8), dp(16), dp(4));
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("搜索应用名称或包名");
+        picker.addView(search);
+        ListView list = new ListView(this);
+        list.setDividerHeight(dp(1));
+        appPickerAdapter = new AppPickerAdapter();
+        list.setAdapter(appPickerAdapter);
+        picker.addView(list, new LinearLayout.LayoutParams(-1, dp(420)));
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("选择应用")
+                .setView(picker)
+                .setNegativeButton("关闭", null)
+                .create();
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            ApplicationInfo choice = appPickerAdapter.getItem(position);
+            if (choice == null) return;
+            selected = choice;
+            selectedLabel = appLabels.getOrDefault(choice.packageName, choice.packageName);
+            target.setText(selectedLabel + "\n" + choice.packageName);
+            rows.removeAllViews();
+            status.setText("已选择目标应用：" + selectedLabel);
+            dialog.dismiss();
+        });
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                appPickerAdapter.getFilter().filter(s);
+            }
+            @Override public void afterTextChanged(Editable editable) { }
+        });
+        appPickerDialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            if (appPickerDialog == dialog) appPickerDialog = null;
+            if (appPickerAdapter != null) appPickerAdapter = null;
+        });
+        dialog.show();
+    }
+
+    private final class AppPickerAdapter extends BaseAdapter implements Filterable {
+        private final List<ApplicationInfo> visible = new ArrayList<>(apps);
+
+        @Override public int getCount() { return visible.size(); }
+        @Override public ApplicationInfo getItem(int position) {
+            return position < 0 || position >= visible.size() ? null : visible.get(position);
+        }
+        @Override public long getItemId(int position) {
+            ApplicationInfo item = getItem(position);
+            return item == null ? position : item.packageName.hashCode();
+        }
+        @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            TextView itemView = convertView instanceof TextView
+                    ? (TextView) convertView : new TextView(FxDiaActivityBrowserActivity.this);
+            ApplicationInfo app = getItem(position);
+            if (app != null) {
+                itemView.setText(appLabels.getOrDefault(app.packageName, app.packageName)
+                        + "\n" + app.packageName);
+            }
+            itemView.setTextSize(14);
+            itemView.setTextColor(0xff17212b);
+            itemView.setPadding(dp(12), dp(10), dp(12), dp(10));
+            return itemView;
+        }
+        @Override public Filter getFilter() {
+            return new Filter() {
+                @Override protected FilterResults performFiltering(CharSequence constraint) {
+                    String query = constraint == null ? "" : constraint.toString().trim()
+                            .toLowerCase(Locale.ROOT);
+                    List<ApplicationInfo> matches = new ArrayList<>();
+                    for (ApplicationInfo app : apps) {
+                        String label = appLabels.getOrDefault(app.packageName, app.packageName);
+                        if (query.isEmpty() || label.toLowerCase(Locale.ROOT).contains(query)
+                                || app.packageName.toLowerCase(Locale.ROOT).contains(query)) {
+                            matches.add(app);
+                        }
+                    }
+                    FilterResults result = new FilterResults();
+                    result.values = matches;
+                    result.count = matches.size();
+                    return result;
+                }
+                @Override protected void publishResults(CharSequence constraint, FilterResults results) {
+                    visible.clear();
+                    if (results.values instanceof List<?>) {
+                        for (Object value : (List<?>) results.values) {
+                            if (value instanceof ApplicationInfo) visible.add((ApplicationInfo) value);
+                        }
+                    }
+                    notifyDataSetChanged();
+                }
+            };
+        }
     }
 
     private void loadActivities() {
         if (selected == null) { status.setText("请先选择应用。"); return; }
         ApplicationInfo app = selected;
+        final int request = ++activityGeneration;
+        final String targetPackage = app.packageName;
         rows.removeAllViews();
-        status.setText("正在读取 Activity 声明…");
-        submitWorker(() -> {
+        status.setText("正在读取 Activity 声明与组件状态…");
+        boolean accepted = submitWorker(() -> {
             List<ActivityInfo> result = new ArrayList<>();
             String error = null;
             try {
                 PackageManager pm = getPackageManager();
-                PackageInfo info = pm.getPackageInfo(app.packageName,
+                PackageInfo info = pm.getPackageInfo(targetPackage,
                         PackageManager.GET_ACTIVITIES | PackageManager.MATCH_DISABLED_COMPONENTS);
                 if (info.activities != null) {
                     java.util.Set<String> launcherNames = new java.util.HashSet<>();
@@ -160,14 +315,16 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                         launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
                         for (android.content.pm.ResolveInfo resolve :
                                 pm.queryIntentActivities(launcherIntent, PackageManager.MATCH_DISABLED_COMPONENTS)) {
+                            if (Thread.currentThread().isInterrupted()) return;
                             if (resolve.activityInfo != null
-                                    && app.packageName.equals(resolve.activityInfo.packageName)
+                                    && targetPackage.equals(resolve.activityInfo.packageName)
                                     && resolve.activityInfo.name != null) {
                                 launcherNames.add(resolve.activityInfo.name);
                             }
                         }
                     }
                     for (ActivityInfo item : info.activities) {
+                        if (Thread.currentThread().isInterrupted()) return;
                         if (item != null && (!launcherOnly || launcherNames.contains(item.name))) result.add(item);
                     }
                 }
@@ -178,13 +335,16 @@ public final class FxDiaActivityBrowserActivity extends Activity {
             final List<ActivityInfo> activities = result;
             final String failure = error;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed()
+                        || request != activityGeneration || selected == null
+                        || !targetPackage.equals(selected.packageName)) return;
                 if (failure != null) { status.setText("读取失败：" + failure); return; }
                 status.setText("已读取 " + activities.size() + " 个 Activity 声明。");
-                for (ActivityInfo info : activities) addActivityRow(app.packageName, info);
-                if (activities.isEmpty()) rows.addView(text("该应用没有声明 Activity。", 13, 0xff718091, false));
+                for (ActivityInfo info : activities) addActivityRow(targetPackage, info);
+                if (activities.isEmpty()) rows.addView(text("该应用没有声明符合当前视图的 Activity。", 13, 0xff718091, false));
             });
         });
+        if (!accepted) status.setText("后台任务未能启动；请重试读取 Activity 入口。");
     }
 
     private void addActivityRow(String packageName, ActivityInfo info) {
@@ -240,6 +400,14 @@ public final class FxDiaActivityBrowserActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        destroyed = true;
+        appsGeneration++;
+        activityGeneration++;
+        if (appPickerDialog != null) {
+            appPickerDialog.dismiss();
+            appPickerDialog = null;
+        }
+        appPickerAdapter = null;
         worker.shutdownNow();
         super.onDestroy();
     }
