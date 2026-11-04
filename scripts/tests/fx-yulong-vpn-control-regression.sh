@@ -51,11 +51,13 @@ printf 'direct\n' > "$PG/live-mode"
 sh "$SOURCE" "$MOD" "$PG" start > "$TMP/start.out" || fail "VPN start should succeed with a selected node"
 grep -q 'vpn_started=1' "$TMP/start.out" || fail "start confirmation missing"
 grep -q '^vpn_mode=global$' "$PG/settings.conf" || fail "direct start must choose FX's unified global route"
-grep -q '"vpn_on":true' "$(sh "$SOURCE" "$MOD" "$PG" status)" || fail "status must confirm live VPN after start"
+status_output=$(sh "$SOURCE" "$MOD" "$PG" status)
+printf '%s\n' "$status_output" | grep -q '"vpn_on":true' || fail "status must confirm live VPN after start"
 sh "$SOURCE" "$MOD" "$PG" stop > "$TMP/stop.out" || fail "VPN stop should succeed"
 grep -q 'vpn_stopped=1' "$TMP/stop.out" || fail "stop confirmation missing"
 grep -q '^vpn_mode=direct$' "$PG/settings.conf" || fail "stop must restore direct mode"
-grep -q '"vpn_on":false' "$(sh "$SOURCE" "$MOD" "$PG" status)" || fail "status must confirm direct/off after stop"
+status_output=$(sh "$SOURCE" "$MOD" "$PG" status)
+printf '%s\n' "$status_output" | grep -q '"vpn_on":false' || fail "status must confirm direct/off after stop"
 printf 'vpn_mode=direct\nvpn_node=\n' > "$PG/settings.conf"
 if sh "$SOURCE" "$MOD" "$PG" start > "$TMP/no-node.out" 2>&1; then
   fail "VPN start unexpectedly succeeded without a node"
