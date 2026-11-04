@@ -329,6 +329,16 @@ assert 'STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y"' in black
 assert "outState.putInt(STATE_PAGE" in black and "outState.putInt(STATE_SCROLL_Y" in black
 assert "savedInstanceState.getInt(STATE_PAGE, 1)" in black
 assert "blacklistScroll.scrollTo(0, restoreY)" in black
+picker = shield["WhitelistPickerActivity.java"]
+assert 'STATE_QUERY = "fx_shield_whitelist_picker_query"' in picker
+assert 'STATE_SELECTED = "fx_shield_whitelist_picker_selected"' in picker
+assert 'STATE_FIRST_POSITION = "fx_shield_whitelist_picker_first_position"' in picker
+assert 'STATE_FIRST_TOP = "fx_shield_whitelist_picker_first_top"' in picker
+assert "outState.putStringArrayList(STATE_SELECTED" in picker
+assert "outState.putString(STATE_QUERY" in picker
+assert "outState.putInt(STATE_FIRST_POSITION" in picker and "outState.putInt(STATE_FIRST_TOP" in picker
+assert "selected.addAll(restored)" in picker and "searchInput.setText(query)" in picker
+assert "listView.setSelectionFromTop(position, top)" in picker
 
 # Whitelist label/icon refresh must not spawn overlapping unbounded raw threads.
 assert "ThreadPoolExecutor(1, 1, 30L" in white
