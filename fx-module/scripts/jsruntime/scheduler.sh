@@ -152,7 +152,7 @@ acquire_owner() {
       rm -f "$STOPFILE" || return 1
     fi
 
-    _start=$(printf '%s\n' "$(pid_fields "$" 2>/dev/null)" | awk -F'|' '{print $2}')
+    _start=$(printf '%s\n' "$(pid_fields "$$" 2>/dev/null)" | awk -F'|' '{print $2}')
     case "$_start" in ''|*[!0-9]*) echo "unable to read scheduler process start time" >&2; return 1 ;; esac
     OWN_RECORD=$(printf '%s\n%s\n%s\n%s' "$$" FXSCHED1 "$SCRIPT_PATH" "$_start")
     _tmp=$(mktemp "$STATE_DIR/.scheduler.XXXXXX") || return 1
