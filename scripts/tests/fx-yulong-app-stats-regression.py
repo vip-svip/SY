@@ -20,6 +20,9 @@ assert "new ArrayBlockingQueue<>(1)" in source, "refresh queue must have a stric
 assert "new ThreadPoolExecutor.AbortPolicy()" in source, "refresh overload must reject rather than accumulate unbounded work"
 assert "RejectedExecutionException rejected" in refresh, "queue saturation must be surfaced"
 assert "Executors.newSingleThreadExecutor()" not in source, "unbounded executor remains"
+assert "private int scrollRestoreGeneration;" in source
+assert "generation != scrollRestoreGeneration" in source
+assert "scrollRestoreGeneration++;" in source
 assert 'private static String bytes(long v)' in source
 assert '"\\n累计接收（按唯一 UID）：" + bytes(totals.getRxBytes())' in source, \
     "summary must use a real newline and disclose unique-UID aggregation"
