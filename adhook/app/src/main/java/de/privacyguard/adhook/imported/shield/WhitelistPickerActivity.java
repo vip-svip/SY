@@ -83,6 +83,7 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
     private EditText searchInput;
     private String query = "";
     private String whitelistDataWarning = "";
+    private boolean whitelistDataCorrupt;
     private boolean loadFinished = false;
     private static final String STATE_QUERY = "fx_shield_whitelist_picker_query";
     private static final String STATE_SELECTED = "fx_shield_whitelist_picker_selected";
@@ -421,8 +422,9 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
         submitView.setText(selected.isEmpty()
                 ? "加入所选"
                 : "加入所选（" + selected.size() + "）");
+        submitView.setEnabled(!whitelistDataCorrupt);
         submitView.setBackground(roundRect(
-                selected.isEmpty() ? 0xFFB9C4D6 : COLOR_PRIMARY, 14, 0, 0));
+                (selected.isEmpty() || whitelistDataCorrupt) ? 0xFFB9C4D6 : COLOR_PRIMARY, 14, 0, 0));
     }
 
     private class AppAdapter extends BaseAdapter {
@@ -546,9 +548,10 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
         currentWhitelist.clear();
         String raw = prefs.getString("whitelist_pkgs", "");
         if (raw == null) raw = "";
+        whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWellFormed(raw);
         Set<String> parsed = FxYulongWhitelistPolicy.parse(raw);
-        whitelistDataWarning = !raw.trim().isEmpty() && parsed.isEmpty()
-                ? "原白名单无有效数据或超过安全上限；不会部分信任超限名单。"
+        whitelistDataWarning = whitelistDataCorrupt
+                ? "原白名单格式异常或超过安全上限；当前禁止覆盖旧配置。"
                 : "";
         boolean removedSystem = false;
         for (String packageName : parsed) {
@@ -591,6 +594,11 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
     }
 
     private void saveSelected() {
+        if (whitelistDataCorrupt) {
+            Toast.makeText(this, "原白名单数据异常，已阻止覆盖。请先核实并修复原始白名单数据。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
         if (selected.isEmpty()) {
             Toast.makeText(this, "请先选择要加入的应用", Toast.LENGTH_SHORT).show();
             return;
