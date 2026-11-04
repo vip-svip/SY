@@ -51,5 +51,16 @@ restore = s.index("restoreDrafts(pendingRestoredDrafts)", create)
 load = s.index("load();", create)
 assert create < render_call < restore < load, \
     "onCreate must build page controls before restoring drafts and refreshing data"
+general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
+dns = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java").read_text(encoding="utf-8")
+summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java").read_text(encoding="utf-8")
+for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"),
+                                ("DNS log", dns, "ArrayBlockingQueue<>(16)"),
+                                ("daily summary", summary, "ArrayBlockingQueue<>(8)")):
+    assert capacity in source, f"{label} worker queue must remain bounded"
+    assert "new ThreadPoolExecutor.AbortPolicy()" in source, f"{label} worker must fail closed on queue saturation"
+    assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
+    assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
+assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
 print("PASS: Yulong Ad page and 16 editable field drafts survive Activity recreation")
 PY

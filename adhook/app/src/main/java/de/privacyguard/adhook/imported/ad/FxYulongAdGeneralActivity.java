@@ -23,9 +23,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,9 +35,23 @@ public final class FxYulongAdGeneralActivity extends Activity {
     private static final int IMPORT_REQUEST = 7811;
     private static final int EXPORT_REQUEST = 7812;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> { Thread t = new Thread(r, "fx-yulong-ad-backup"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
     private TextView batteryStatus, operationStatus;
     private String pendingExport;
+
+    private void submitWorker(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed() && operationStatus != null)
+                    operationStatus.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+            });
+        }
+    }
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String s, int size, int color, boolean bold) {
@@ -202,7 +217,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
 
     private void exportSettings() {
         operationStatus.setText("正在读取 FX 设备端配置…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try {
                 JSONObject json = exportSnapshot();
                 String output = json.toString(2);
@@ -240,7 +255,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         pendingExport = null;
         if (output == null) return;
         operationStatus.setText("正在写入 JSON 备份…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (OutputStream stream = getContentResolver().openOutputStream(uri, "w")) {
                 if (stream == null) throw new IllegalStateException("无法创建导出文件。");
                 stream.write(output.getBytes(StandardCharsets.UTF_8)); stream.flush();
@@ -251,7 +266,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
 
     private void readImport(Uri uri) {
         operationStatus.setText("正在读取 JSON 备份…");
-        worker.execute(() -> {
+        submitWorker(() -> {
             try (InputStream input = getContentResolver().openInputStream(uri);
                  ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                 if (input == null) throw new IllegalStateException("无法读取所选文件。");

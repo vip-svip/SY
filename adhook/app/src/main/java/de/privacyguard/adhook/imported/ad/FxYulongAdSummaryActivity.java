@@ -12,12 +12,17 @@ import android.widget.TextView;
 
 import de.privacyguard.adhook.RootAccess;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Local Yulong AdBlock daily protection summary backed by FX's own config and DNS query log. */
 public final class FxYulongAdSummaryActivity extends Activity {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            r -> { Thread t = new Thread(r, "fx-yulong-ad-summary"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
     private LinearLayout body;
     private TextView status;
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
@@ -45,10 +50,14 @@ public final class FxYulongAdSummaryActivity extends Activity {
                 + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + scriptArgs;
     }
     private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
-        worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(moduleShell(args), 30000L, 1024 * 1024);
-            runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) callback.accept(result); });
-        });
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(moduleShell(args), 30000L, 1024 * 1024);
+                runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) callback.accept(result); });
+            });
+        } catch (RejectedExecutionException full) {
+            callback.accept(RootAccess.failure(75, "防护总结后台队列繁忙，本次读取未执行；请稍后重试。"));
+        }
     }
 
     @Override protected void onCreate(Bundle state) {

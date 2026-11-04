@@ -22,13 +22,18 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
 public final class FxYulongDnsActivity extends Activity {
     private static final String PREFS = "fx_dns_log";
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16),
+            r -> { Thread t = new Thread(r, "fx-yulong-dns-log"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
     private final List<Entry> data = new ArrayList<>();
     private LinearLayout rows;
     private TextView status;
@@ -67,10 +72,14 @@ public final class FxYulongDnsActivity extends Activity {
     }
     private void root(String command, long timeoutMs,
                       java.util.function.Consumer<RootAccess.Result> done) {
-        worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(command, timeoutMs, 768 * 1024);
-            runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) done.accept(result); });
-        });
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(command, timeoutMs, 768 * 1024);
+                runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) done.accept(result); });
+            });
+        } catch (RejectedExecutionException full) {
+            done.accept(RootAccess.failure(75, "DNS 日志后台队列繁忙，本次操作未执行；请稍后重试。"));
+        }
     }
     private void card(LinearLayout parent, String title, String desc, View... children) {
         LinearLayout c = new LinearLayout(this); c.setOrientation(1);
