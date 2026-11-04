@@ -265,9 +265,10 @@ public final class FxYulongShieldActivity extends Activity {
         contentScanSwitch = new android.widget.Switch(this);
         contentScanSwitch.setText("同时启用 APK 内容特征扫描");
         contentScanSwitch.setChecked(shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
-        contentScanSwitch.setOnCheckedChangeListener((button, enabled) ->
+        contentScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
             if (refreshingControls) return;
-                shieldPrefs.edit().putBoolean("automatic_content_scan_enabled", enabled).apply());
+            shieldPrefs.edit().putBoolean("automatic_content_scan_enabled", enabled).apply();
+        });
         card("安装后自动检测",
                 "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
                 installScanSwitch, contentScanSwitch);
@@ -303,10 +304,11 @@ public final class FxYulongShieldActivity extends Activity {
         riskModeGroup.addView(confirmModeButton);
         String storedRiskMode = shieldPrefs.getString("auto_block_mode", "direct");
         riskModeGroup.check("confirm".equalsIgnoreCase(storedRiskMode) ? confirmModeButton.getId() : directModeButton.getId());
-        riskModeGroup.setOnCheckedChangeListener((group, checkedId) ->
+        riskModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (refreshingControls) return;
-                shieldPrefs.edit().putString("auto_block_mode",
-                        checkedId == confirmModeButton.getId() ? "confirm" : "direct").apply());
+            shieldPrefs.edit().putString("auto_block_mode",
+                    checkedId == confirmModeButton.getId() ? "confirm" : "direct").apply();
+        });
         card("原版自动风险管控",
                 "保留原版前台自动风险扫描和 direct/confirm 两种处理路径。direct 只会在你点击通知后打开 Android 系统卸载确认；FX 不会静默卸载、强停或冻结应用。前台扫描需要你主动启用 FX 无障碍服务。",
                 autoRiskScanSwitch, directModeButton, confirmModeButton,
