@@ -111,5 +111,11 @@ assert "private volatile int dexGeneration;" in source, "DEX load generation mus
 assert "searchGeneration++;" in destroy and "exportGeneration++;" in destroy and "dexGeneration++;" in destroy
 assert "worker.shutdownNow();" in destroy and "searchWorker.shutdownNow();" in destroy and "exportWorker.shutdownNow();" in destroy and "detailWorker.shutdownNow();" in destroy
 assert "Executors.newSingleThreadExecutor" not in source, "unbounded DEX executor must not return"
-print("PASS: Dia DEX parsing, search, export and detail work are bounded and generation-cancellable")
+assert "REQUEST_DEX_DOCUMENT" in source, "standalone DEX document picker missing"
+assert "Intent.ACTION_OPEN_DOCUMENT" in source, "standalone DEX picker must use Android SAF"
+assert "FxDiaDexIndex.readDex(input," in source, "selected DEX must use the bounded read-only parser"
+assert "selected = null;" in source, "standalone DEX parsing must clear any stale target app"
+assert "MAX_DEX_BYTES = 96 * 1024 * 1024" in index, "standalone DEX parser must keep its 96 MiB bound"
+assert "DexClassLoader" not in source and "PathClassLoader" not in source, "DEX browser must not load external classes"
+print("PASS: Dia DEX parsing, search, export and detail work are bounded and generation-cancellable; standalone document import is bounded and read-only")
 PY

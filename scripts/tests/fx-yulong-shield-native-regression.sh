@@ -237,5 +237,11 @@ assert "appLoader.shutdownNow();" in picker and "iconExecutor.shutdownNow();" in
 assert "catch (RejectedExecutionException full)" in picker
 assert "activityDestroyed || isFinishing() || isDestroyed()" in picker
 assert picker.count("new Thread(") == 2, "WhitelistPickerActivity should only create its two named executor workers"
+scan_engine = shield["FxYulongScanEngine.java"]
+assert "new ArrayBlockingQueue<>(32)" in scan_engine, "install and manual scan backlog must be bounded"
+assert "new ThreadPoolExecutor.AbortPolicy()" in scan_engine, "queue saturation must be rejected explicitly"
+assert "catch (RejectedExecutionException full)" in scan_engine, "queue saturation failure must be handled"
+assert "扫描队列繁忙，本次请求未执行" in scan_engine, "queue saturation must be reported instead of silently dropping scans"
+assert "Executors.newSingleThreadExecutor" not in scan_engine, "unbounded scanner executor must not return"
 print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup")
 PY
