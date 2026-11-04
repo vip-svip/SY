@@ -1439,3 +1439,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `e421e9726559092cbf129171b586275fad115197` — 回归脚本覆盖返回语义、换行显示并清理重复映射键。
 - 验证：已重新读取修改前文件并对修改后源码执行本轮静态断言（返回动作、五处换行、唯一映射键、回归断言）；未执行完整仓库 Shell 脚本、Gradle 编译、模拟器或真机导航。
 - 下一步：继续检查 Shield 警告详情由服务/扫描打开时的任务栈与返回目标；随后核对三套迁移应用首页到深层页面的真实入口和取消/返回行为。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+## 2026-11-05 — 独立 Activity 六 Tab 回跳链静态契约补齐
+
+- 本节更新前实时 HEAD：c58667777b6681701c32fa7af0aeb09464ed19ba。
+- 核对共享宿主 FxNativeTabActivity：ComposeView 显式绑定 LifecycleOwner / ViewModelStoreOwner / SavedStateRegistryOwner；Tab 点击校验 0–5；通过 CLEAR_TOP | SINGLE_TOP 向 MainActivity 发送 fx_open_native_tab 后结束当前独立 Activity。
+- 核对 MainActivity：onNewIntent 消费 native tab intent；handleImportedNativeTabIntent 限定 0–5；handleNativeTabSelection 对 0–3 更新 lastWebTabIndex 并 renderNativePage，对 4 返回 Hook 应用列表，对 5 返回 Settings。
+- 更新 scripts/tests/fx-dia-native-tab-regression.sh：c58667777b6681701c32fa7af0aeb09464ed19ba，新增 MainActivity 六 Tab 分发和返回链断言，防止只检查底栏组件存在却遗漏真实路由。
+- 当前 HEAD 文件级静态核验 9 项全部通过：三类 Compose 生命周期 owner、Tab 范围、CLEAR_TOP/SINGLE_TOP intent、MainActivity onNewIntent、intent 0–5 限制、Settings=6、Hook=5、前四 Tab 更新与渲染、回归脚本包含相应断言。
+- 未运行 Shell 回归脚本、Gradle/JUnit、Android 编译、模拟器或真机点按；静态核验不等于实际返回栈验收。尚需真机验证：主 Activity 不在栈中时新建行为、深层 Activity 多次快速点 Tab、页面含未保存表单时切 Tab 的退出提示/草稿保存。
+- 下一批：检查 Backup / SAF / GPS Picker 的 Activity Result 在旋转重建后的状态恢复；然后进入 Hook 首页与应用详情 UI 的真实权限状态闭环。固定 FX 1.0.0，不打包。
