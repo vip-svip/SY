@@ -1353,3 +1353,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态核验：两页共享宿主与唯一根安装点、签名信息读取锚点、System Expand 安装来源/PackageInstaller/Root 确认锚点均通过源码断言。未运行 Shell 回归、Gradle/Android 编译、模拟器/真机权限与 Root 行为验收。
 - 仍未完成：Dia Wi-Fi Proxy 原生独立页六 Tab 接入与 Root 代理运行验收；全局返回链设备验收。Shield Batch Cleanup / Screen Filter 已由并行工作线接入，仍需执行设备验收。
 - 下一步：迁移 Dia Wi-Fi Proxy 页面并检查 Root 操作状态回执、失败回滚和页面销毁时后台任务行为；随后转入六 Tab 导航返回链和设备级验证。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Wi-Fi Proxy 六 Tab 与 Root 恢复安全回归
+
+- 本轮复核时，`FxDiaWifiProxyActivity` 已由并行工作线接入 `FxNativeTabActivity`；本轮未重复改页面实现。
+- 源码确认代理页保留 `FxDiaWifiProxyState.mayRestore/evaluate` 冲突保护、Root 命令结果处理、恢复确认弹窗、busy 状态门控，以及 `onDestroy()` 中 `worker.shutdownNow()`。
+- 提交 `6022096bc97ee368de26733a8a2ec5b28c4c740a` 扩展 Dia 原生页回归脚本，覆盖 Wi-Fi Proxy 六 Tab 页面与受保护恢复/后台线程销毁锚点。
+- 静态核验已完成；尚未运行 Shell 脚本、Gradle/Android 编译或真机 Root HTTP 代理写入/恢复验证。不得将静态锚点视为真实系统代理验收。
+- Dia 23.11 主要独立工具页面目前大部分已接入共享六 Tab；下一阶段重点转为六 Tab 返回栈、页面状态恢复、VPN/Root 真实行为和设备级验证。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
