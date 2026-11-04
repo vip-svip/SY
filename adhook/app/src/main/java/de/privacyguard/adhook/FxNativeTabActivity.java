@@ -18,11 +18,10 @@ public abstract class FxNativeTabActivity extends ComponentActivity {
         if (pageContent == null) {
             throw new IllegalArgumentException("pageContent must not be null");
         }
-        String mode = getSharedPreferences("fx_ui", MODE_PRIVATE)
-                .getString("mode", "classic");
-        if (!"classic".equals(mode) && !"glass".equals(mode) && !"miuix".equals(mode)) {
-            mode = "classic";
-        }
+        // All Activity hosts must resolve the same canonical mode model as
+        // MainActivity. Do not silently downgrade HUAWEI/iOS skins in imported
+        // feature pages or when legacy aliases are encountered.
+        String mode = FxUiMode.read(this).getStorageId();
 
         ComposeView shell = new ComposeView(this);
         androidx.lifecycle.ViewTreeLifecycleOwner.set(shell, this);
