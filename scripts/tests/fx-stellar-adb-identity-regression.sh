@@ -119,8 +119,13 @@ public final class AdbIdentitySmoke {
         rsa.initialize(2048);
         RSAPublicKey publicKey = (RSAPublicKey) rsa.generateKeyPair().getPublic();
         byte[] line = AdbPublicKeyEncoder.encode(publicKey, "youlong");
+        byte[] peerLine = AdbPublicKeyEncoder.encodeLine(publicKey, "youlong");
         int nul = line.length - 1;
-        check(line[nul] == 0, "ADB public-key suffix must be NUL terminated");
+        check(line[nul] == 0, "ADB AUTH public-key suffix must be NUL terminated");
+        check(peerLine.length == line.length - 1 && peerLine[peerLine.length - 1] != 0,
+                "ADB PeerInfo public-key line must omit the AUTH NUL terminator");
+        check(Arrays.equals(peerLine, Arrays.copyOf(line, line.length - 1)),
+                "ADB PeerInfo key line must otherwise exactly match the AUTH public-key line");
         String keyText = new String(line, 0, nul, StandardCharsets.UTF_8);
         check(keyText.endsWith(" youlong"), "ADB public-key comment must match original Stellar identity");
         String base64 = keyText.substring(0, keyText.indexOf(' '));
@@ -166,6 +171,7 @@ grep -Fq 'new PreferenceAdbKeyStore(preferences)' "$SRC/AdbKey.java" || fail "Ad
 grep -Fq 'AndroidAdbEncryptionKey.getOrCreate()' "$SRC/AdbKey.java" || fail "AdbKey no longer uses the AndroidKeyStore AES key"
 grep -Fq 'new AdbPrivateKeyVault(' "$SRC/AdbKey.java" || fail "AdbKey does not use the encrypted PKCS#8 vault"
 grep -Fq 'AdbPublicKeyEncoder.encode(publicKey, identity)' "$SRC/AdbKey.java" || fail "AdbKey does not use the tested ADB RSA wire encoder"
+grep -Fq 'AdbPublicKeyEncoder.encodeLine(publicKey, identity)' "$SRC/AdbKey.java" || fail "AdbKey does not expose the non-NUL PeerInfo key line"
 grep -Fq 'AdbAuthSignature.sign(privateKey, token)' "$SRC/AdbKey.java" || fail "ADB AUTH does not delegate to the tested prehashed SHA-1 signer"
 grep -Fq 'SHA1_DIGEST_INFO_PREFIX' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH is missing the SHA-1 DigestInfo DER prefix"
 grep -Fq 'paddingLength = MODULUS_BYTES - 3 - digestInfoLength' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH PKCS#1 v1.5 padding length is not derived from RSA-2048 block size"
