@@ -1924,3 +1924,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：最新 HEAD 确认 Bundle 归属标记、冷启动/无标记删除、恢复失败删除、超限/写入失败删除、AtomicFile 回滚和 finish 删除各项契约均通过；回归脚本增加三项孤儿清理断言。未在设备运行 48–512 KiB 脚本旋转、进程死亡、损坏缓存或并发 Activity 测试。
 - 并行接管：Frida“保存到脚本库”名称对话框已具备 Bundle pending 状态、草稿恢复、64 字符限制及配置变更取消保护；脚本库“新建脚本”同样具备名称草稿与弹窗恢复。未重复修改。
 - 下一步：检查 Frida 目标进程多选 PID 的恢复后过期状态处理和全屏编辑器结果返回；然后核对 SAF 文件 picker 与后台 Worker 并发结束时的请求归属/生命周期。固定 FX 1.0.0，不提前交付最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Root Proxy 旧版目录锁迁移与 CI 失败修复
+
+- 读取 Actions 失败日志后定位：`fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh` 明确验证旧版 PID 目录锁的安全迁移；但 `yulong-root-proxy.sh` 顶层预检只允许“缺失/普通文件”，在进入 `with_lock()` 的兼容迁移逻辑前就拒绝了真实旧版目录，导致 CI 报 `Root Proxy lock path is not a regular file`。
+- 修复 `fx-module/scripts/yulong-root-proxy.sh` 顶层预检：允许缺失、普通文件或真实目录；路径组件仍先经过 `_reject_symlink_components`，锁逻辑仍拒绝锁路径/ PID 符号链接。目录锁必须经过既有 owner PID 检查、存活状态复核和原子 quarantine rename，不能绕过锁所有权验证。
+- 不放宽 FIFO/设备节点等特殊文件；不允许符号链接；不改变新版本 noclobber 普通文件锁和原子 rename 释放流程。保留已有测试对过期 PID 目录、活跃 PID 目录、无 PID 目录、符号链接及并发 stop 的覆盖。
+- 改动路径：`fx-module/scripts/yulong-root-proxy.sh`；本状态文件。现有 `fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh` 是复现该问题的回归测试，无需放宽断言。
+- 提交：`16f41027ea2c7120853e57d0cf1149e7e202f114`。
+- 验证等级：源码静态确认预检允许目录进入迁移逻辑，同时保留路径组件 symlink guard 和 with_lock owner/rename 检查。CI 失败日志已定位到本行；修复后的自动 Actions 尚待完成，未声称回归通过。
+- 下一步：等待该提交触发的唯一 Actions 结果；若锁回归通过，继续 Frida 目标进程选择回调的代次/包名/UID 过期保护；若失败，读取具体新日志，不重跑无关 Actions。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
