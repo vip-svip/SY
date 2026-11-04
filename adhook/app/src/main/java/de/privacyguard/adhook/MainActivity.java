@@ -201,6 +201,9 @@ public final class MainActivity extends ComponentActivity {
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
     private String pendingNativeScriptExport;
+    private static final String NATIVE_SCRIPT_EXPORT_PREFS = "fx_pending_native_script_export";
+    private static final String NATIVE_SCRIPT_EXPORT_PAYLOAD = "payload";
+    private static final int MAX_NATIVE_SCRIPT_EXPORT_BYTES = 512 * 1024;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -222,6 +225,13 @@ public final class MainActivity extends ComponentActivity {
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
             pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");
+            String savedExport = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
+                    .getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null);
+            if (state.getBoolean("fx_pending_native_script_export", false) && savedExport != null) {
+                pendingNativeScriptExport = "pending";
+            } else {
+                clearPendingNativeScriptExport();
+            }
             restoreHookScreen = state.getBoolean("fx_hook_screen_visible", selectedBottomTab == 4);
             activePrivacySection = state.getString("fx_privacy_section");
             hookAppListQuery = state.getString(STATE_HOOK_APP_LIST_QUERY, "");
@@ -397,6 +407,7 @@ public final class MainActivity extends ComponentActivity {
         if (pendingDiaGpsTargetPackage != null) {
             outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);
         }
+        outState.putBoolean("fx_pending_native_script_export", "pending".equals(pendingNativeScriptExport));
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
         if (migrationSuite != null) outState.putString("fx_migration_suite", migrationSuite);
@@ -1717,6 +1728,12 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private void clearPendingNativeScriptExport() {
+        pendingNativeScriptExport = null;
+        getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE).edit()
+                .remove(NATIVE_SCRIPT_EXPORT_PAYLOAD).apply();
+    }
+
     private void exportNativeScripts() {
         runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, result -> {
             if (result.exitCode != 0) {
@@ -1744,13 +1761,26 @@ public final class MainActivity extends ComponentActivity {
                 document.put("format", "FX-SCRIPT-LIST");
                 document.put("version", 1);
                 document.put("scripts", entries);
-                pendingNativeScriptExport = document.toString(2);
+                String payload = document.toString(2);
+                if (payload.getBytes(StandardCharsets.UTF_8).length > MAX_NATIVE_SCRIPT_EXPORT_BYTES) {
+                    throw new IllegalStateException("脚本导出文件超过 512 KiB，已拒绝暂存。");
+                }
+                boolean staged = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
+                        .edit().putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit();
+                if (!staged) throw new IllegalStateException("无法持久化脚本导出暂存数据。");
+                pendingNativeScriptExport = "pending";
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("application/json");
                 intent.putExtra(Intent.EXTRA_TITLE, "fx-scripts.json");
-                startActivityForResult(intent, REQUEST_NATIVE_SCRIPT_EXPORT);
+                try {
+                    startActivityForResult(intent, REQUEST_NATIVE_SCRIPT_EXPORT);
+                } catch (Exception launchError) {
+                    clearPendingNativeScriptExport();
+                    throw launchError;
+                }
             } catch (Exception error) {
+                clearPendingNativeScriptExport();
                 Toast.makeText(this, "导出准备失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
@@ -4471,9 +4501,15 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         if (requestCode == REQUEST_NATIVE_SCRIPT_EXPORT) {
-            String payload = pendingNativeScriptExport;
+            String pending = pendingNativeScriptExport;
             pendingNativeScriptExport = null;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null || payload == null) return;
+            String payload = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
+                    .getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null);
+            if (resultCode != RESULT_OK || data == null || data.getData() == null
+                    || !"pending".equals(pending) || payload == null) {
+                clearPendingNativeScriptExport();
+                return;
+            }
             try (java.io.OutputStream output = getContentResolver().openOutputStream(data.getData())) {
                 if (output == null) throw new IllegalStateException("无法写入目标文件");
                 output.write(payload.getBytes(StandardCharsets.UTF_8));
@@ -4481,6 +4517,8 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "脚本配置已导出", Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
                 Toast.makeText(this, "导出失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            } finally {
+                clearPendingNativeScriptExport();
             }
             return;
         }
