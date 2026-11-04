@@ -135,3 +135,9 @@ This makes the current CI package build successful, but the build still depends 
 - Expanded the Dia regression to check loader/menu wiring, empty-by-default rules, direct-root scope, operation limits, main-thread mutation and Node syntax. The auto-click tree queue now has the same strict outstanding-node bound.
 - The Yulong widget regression's default “启动 VPN” caption belongs to the XML layout and is already checked there. The Provider replaces it with dynamic labels such as “启动防护”, “重试启动” and “停止 VPN” when refreshing live state; removed the stale assertion that incorrectly required the static default caption inside Java Provider code.
 - Verification scope: source changes committed; latest GitHub workflow must still pass. Android build, Frida injection and physical-device runtime remain unverified.
+
+## 2026-11-05 — Yulong schedule lock owner-publication grace
+
+- Concurrency regression on Actions observed two distinct watcher PIDs during eight simultaneous starts. The lock already uses atomic `mkdir` plus atomic owner-file publication, but its ownerless-directory recovery grace was only five 200 ms probes. Under CI scheduling pressure, a contender could mistake a just-created lock directory (whose winner had not yet published the owner record) for an abandoned lock and remove it while the winner still held it.
+- Increased only the ownerless-publication grace from 1 second to 12 seconds (60 probes). The overall lock acquisition timeout remains the existing bound; a genuinely orphaned ownerless lock is still reclaimable, but not during a short scheduler pause.
+- This is a production lock-behavior correction, not a test-count relaxation. Re-run the existing concurrent-start regression before claiming the race is resolved; Android device filesystem/process behavior still needs device validation.

@@ -57,7 +57,7 @@ acquire_runtime_lock() {
         _lock_missing=0
       else
         _lock_missing=$((_lock_missing + 1))
-        if [ "$_lock_missing" -ge 5 ] && [ ! -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+        if [ "$_lock_missing" -ge 60 ] && [ ! -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
           for _lock_tmp in "$RUNTIME_LOCK"/owner.*; do
             [ -f "$_lock_tmp" ] && [ ! -L "$_lock_tmp" ] || continue
             rm -f "$_lock_tmp" 2>/dev/null || :
