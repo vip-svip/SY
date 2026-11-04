@@ -10,18 +10,22 @@ APPLICATION="$JAVA/FxHookApplication.java"
 STORE="$DIA/FxDiaCrashStore.java"
 RECORD="$DIA/FxDiaCrashRecord.java"
 ACTIVITY="$DIA/FxDiaCrashReportActivity.java"
+NATIVE_CAPTURE="$DIA/FxDiaNativeCrashCapture.java"
+JNI_WRAPPER="$APP/java/com/babyte/breakpad/BaByteBreakpad.java"
+JNI_CALLBACK="$APP/java/com/babyte/breakpad/callback/NativeCrashCallback.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
+HOST_JNI_TEST="$ROOT/scripts/tests/DiaBreakpadJniContractHostTest.java"
 POLICY="$DIA/FxDiaCrashCapturePolicy.java"
 REDACTOR="$DIA/FxDiaCrashRedactor.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR"; do
+for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
-python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" <<'PY'
+python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-main, manifest_path, application, store, record, activity, unit, redactor = [
+main, manifest_path, application, store, record, activity, unit, redactor, native_capture, jni_wrapper, jni_callback, workflow = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -33,7 +37,8 @@ assert declared[name].attrib.get(ns + "exported") == "false", "crash report Acti
 assert '"崩溃报告"' in main, "Dia crash report page is missing from navigation"
 assert "FxDiaCrashReportActivity.class" in main, "Dia crash report menu does not route to native Activity"
 assert "FxDiaCrashStore.hasPendingReport(this)" in main, "next app launch does not surface a prior crash"
-assert "FxDiaCrashStore.install(this)" in application, "Application does not install the crash handler"
+assert "FxDiaCrashStore.install(this)" in application, "Application does not install Java crash capture"
+assert "FxDiaNativeCrashCapture.install(this)" in application, "Application does not install original Dia Breakpad native capture"
 assert "FxDiaCrashCapturePolicy.isEnabled" in store, "current and legacy capture switches must share one policy"
 assert "remove(\"disable_java_crash_capture\").commit()" in store, "explicit re-enable must clear the legacy opt-out"
 assert "button.setChecked(!enabled)" in activity, "capture UI must roll back when persistence fails"
@@ -44,6 +49,15 @@ for token in ("Thread.setDefaultUncaughtExceptionHandler", "delegate.uncaughtExc
               'getSharedPreferences("digXposed"', '"encrypt_stack"'):
     assert token in store, f"crash store invariant missing: {token}"
 assert "Process.killProcess(Process.myPid())" in store, "fallback fatal-exit path is missing"
+assert "recordNativeCrash(" in store and "NATIVE_HANDLING" in store, "native callback is not persisted"
+assert 'message.append("\\\\nMinidump: ")' in store, "minidump path is not saved"
+assert "FxDiaNativeCrashCapture.install(application)" in store, "re-enable path does not install native capture"
+assert 'System.loadLibrary("breakpad")' in jni_wrapper, "Breakpad JNI library is not loaded"
+assert "private static final native void initBreakpadNative" in jni_wrapper, "original JNI method descriptor changed"
+assert "onCrash(String minidumpPath, String nativeInfo" in jni_callback, "four-String JNI callback descriptor changed"
+assert "FxDiaCrashStore.recordNativeCrash(app" in native_capture, "native callback is not connected to crash store"
+assert "statusLine(this)" in activity, "native library availability is not shown"
+assert "Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative" in workflow, "workflow does not verify original JNI symbol"
 assert "getPackageName()" in store and "Build.MODEL" in store, "process/device metadata is missing"
 assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are not size-bounded"
 assert "schemaVersion == 0" in store and "file.getBaseFile().lastModified()" in store, "legacy unversioned Dia CrashInfo JSON must remain readable"
@@ -65,5 +79,20 @@ for token in ("hexEncodingIsByteAccurateAndReversible", "recordFieldsAreBounded"
               "rawAndHexReportsAreDistinctAndClearlyLabeled",
               "explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared"):
     assert token in unit, f"crash report unit coverage missing: {token}"
-print("PASS: Dia crash report UI, bounded private store, delegated fatal handler, HEX/copy/share behavior")
+print("PASS: Dia Java + original Breakpad Native capture, private persistence, JNI ABI and status UI")
 PY
+
+for abi in arm64-v8a armeabi-v7a; do
+  lib="$APP/jniLibs/$abi/libbreakpad.so"
+  [ -s "$lib" ] || fail "original Dia Breakpad library was not staged for $abi"
+  readelf -h "$lib" >/dev/null 2>&1 || fail "Breakpad library is not valid ELF for $abi"
+  readelf -Ws "$lib" | grep -Fq 'Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative' || fail "Breakpad JNI export missing for $abi"
+done
+if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+  javac -d "$tmp" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"
+  java -cp "$tmp" com.babyte.breakpad.DiaBreakpadJniContractHostTest
+else
+  echo "SKIP: host JVM JNI reflection check (JDK unavailable); Android/JUnit source tests still retain the descriptor."
+fi

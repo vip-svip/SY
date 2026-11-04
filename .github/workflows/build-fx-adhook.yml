@@ -135,7 +135,36 @@ jobs:
           stage_dia_asset rewrite_rule_help.md rewrite_rule_help.md
           # Dia's Java UI opens dia/my-script.js; the original file lives under assets/js/.
           stage_dia_asset js/my-script.js my-script.js
-          echo "Staged Dia Framework DEX, Frida examples, both original help files, and the script template into the single FX APK."
+          # Reuse Dia 23.11's original Breakpad JNI implementation and verify
+          # the exported symbol before staging it into the unified FX APK.
+          breakpad_symbol='Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative'
+          for abi in arm64-v8a armeabi-v7a; do
+            native_source="$dia_root/lib/$abi/libbreakpad.so"
+            native_target="adhook/app/src/main/jniLibs/$abi/libbreakpad.so"
+            [[ -s "$native_source" ]] || { echo "::error::Missing original Dia Breakpad JNI library: $native_source"; exit 1; }
+            install -D -m 0644 "$native_source" "$native_target"
+            case "$abi" in
+              arm64-v8a)
+                readelf -h "$native_target" | grep -Eq 'Class:[[:space:]]+ELF64'
+                readelf -h "$native_target" | grep -Eq 'Machine:[[:space:]]+AArch64'
+                ;;
+              armeabi-v7a)
+                readelf -h "$native_target" | grep -Eq 'Class:[[:space:]]+ELF32'
+                readelf -h "$native_target" | grep -Eq 'Machine:[[:space:]]+ARM'
+                ;;
+            esac
+            readelf -Ws "$native_target" | grep -Fq "$breakpad_symbol" || {
+              echo "::error::Original Dia Breakpad JNI symbol is missing for $abi"; exit 1;
+            }
+            for dependency in liblog.so libc.so libm.so libdl.so; do
+              readelf -d "$native_target" | grep -Fq "$dependency" || {
+                echo "::error::Missing original Dia Breakpad dependency $dependency for $abi"; exit 1;
+              }
+            done
+            printf 'PASS: original Dia libbreakpad.so %s sha256=%s size=%s\\n' "$abi" \
+              "$(sha256sum "$native_target" | awk '{print $1}')" "$(stat -c '%s' "$native_target")"
+          done
+          echo "Staged Dia assets and original ARM Breakpad JNI libraries into the single FX APK."
       - name: Restore module sources, merge Hook entrypoints, and stage WebUI (no compile)
         shell: bash
         env:

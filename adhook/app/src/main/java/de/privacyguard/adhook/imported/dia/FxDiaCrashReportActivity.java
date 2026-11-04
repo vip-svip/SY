@@ -23,6 +23,7 @@ public final class FxDiaCrashReportActivity extends Activity {
     private CheckBox hexStack;
     private TextView reportView;
     private TextView statusView;
+    private TextView nativeCaptureStatus;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -70,10 +71,10 @@ public final class FxDiaCrashReportActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         body.addView(text("崩溃捕获范围", 16, 0xff17212b, true));
         body.addView(text(
-                "只捕获 FX APK 当前应用进程的 Java 未捕获异常；不捕获 LSPosed 目标应用进程、原生 native crash、内核崩溃或其他应用的异常。记录保存在 FX 私有 files/crash.log。原系统异常处理器仍会收到并处理原始异常。",
+                "捕获范围：FX APK 当前应用进程内的 Java 未捕获异常，以及可用 ABI 上由 Dia 原版 Breakpad 捕获的 Native 崩溃。不会捕获 LSPosed 目标应用进程、内核崩溃或其他应用的异常。Native minidump 保存在 FX 私有 files/dia-native-crash/，报告保存在 FX 私有 files/crash.log。",
                 12, 0xff617080, false));
         Switch captureSwitch = new Switch(this);
-        captureSwitch.setText("启用 FX Java 崩溃捕获");
+        captureSwitch.setText("启用 FX Java + Native 崩溃捕获");
         captureSwitch.setChecked(FxDiaCrashStore.isCaptureEnabled(this));
         captureSwitch.setOnCheckedChangeListener((button, enabled) -> {
             if (!FxDiaCrashStore.setCaptureEnabled(this, enabled)) {
@@ -81,8 +82,11 @@ public final class FxDiaCrashReportActivity extends Activity {
                 Toast.makeText(this, "无法保存崩溃捕获设置，请检查应用存储空间。",
                         Toast.LENGTH_LONG).show();
             }
+            updateNativeCaptureStatus();
         });
         body.addView(captureSwitch);
+        nativeCaptureStatus = text("", 12, 0xff617080, false);
+        body.addView(nativeCaptureStatus);
         statusView = text("", 13, 0xff526170, false);
         body.addView(statusView);
         hexStack = new CheckBox(this);
@@ -116,7 +120,14 @@ public final class FxDiaCrashReportActivity extends Activity {
         body.addView(button("清除崩溃记录", this::confirmClear));
         body.addView(button("关闭", this::finish));
         setContentView(root);
+        updateNativeCaptureStatus();
         render();
+    }
+
+    private void updateNativeCaptureStatus() {
+        if (nativeCaptureStatus != null) {
+            nativeCaptureStatus.setText(FxDiaNativeCrashCapture.statusLine(this));
+        }
     }
 
     private void render() {

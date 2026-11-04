@@ -25,6 +25,7 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     private static final int SCHEMA_VERSION = 1;
     private static final int MAX_JSON_BYTES = 512 * 1024;
     private static final AtomicBoolean HANDLING = new AtomicBoolean(false);
+    private static final AtomicBoolean NATIVE_HANDLING = new AtomicBoolean(false);
     private final Context app;
     private final Thread.UncaughtExceptionHandler delegate;
 
@@ -77,7 +78,9 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         if (!saved) return false;
 
         if (context.getApplicationContext() instanceof Application) {
-            install((Application) context.getApplicationContext());
+            Application application = (Application) context.getApplicationContext();
+            install(application);
+            FxDiaNativeCrashCapture.install(application);
         }
         return true;
     }
@@ -135,15 +138,64 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
                 .remove("crash_timestamp").commit();
     }
 
+    /** Persist original Dia Breakpad callback data in the same FX-private crash.log. */
+    public static boolean recordNativeCrash(Context context, String minidumpPath,
+                                            String nativeInfo, String nativeThreadTrack,
+                                            String crashThreadName, String jvmThreadTrack) {
+        if (context == null || !isCaptureEnabled(context)
+                || !NATIVE_HANDLING.compareAndSet(false, true)) return false;
+        Context target = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+        try {
+            Thread callbackThread = Thread.currentThread();
+            String processName = target.getPackageName();
+            if (Build.VERSION.SDK_INT >= 28) {
+                try {
+                    String current = Application.getProcessName();
+                    if (current != null && !current.trim().isEmpty()) processName = current;
+                } catch (RuntimeException ignored) { }
+            }
+            String device = safe(Build.MANUFACTURER) + " " + safe(Build.MODEL)
+                    + " · Android " + safe(Build.VERSION.RELEASE) + " (SDK " + Build.VERSION.SDK_INT + ")";
+            String crashingThread = crashThreadName == null || crashThreadName.trim().isEmpty()
+                    ? callbackThread.getName() : crashThreadName.trim();
+            StringBuilder message = new StringBuilder("Native / Breakpad 崩溃");
+            if (minidumpPath != null && !minidumpPath.trim().isEmpty()) {
+                message.append("\\nMinidump: ").append(minidumpPath);
+            }
+            if (nativeInfo != null && !nativeInfo.trim().isEmpty()) {
+                message.append("\\n").append(FxDiaCrashRecord.bounded(nativeInfo, 4096));
+            }
+            String stack = "Native thread trace:\\n"
+                    + FxDiaCrashRecord.bounded(nativeThreadTrack, 48 * 1024)
+                    + "\\nJVM thread snapshot:\\n"
+                    + FxDiaCrashRecord.bounded(jvmThreadTrack, 48 * 1024);
+            FxDiaCrashRecord record = new FxDiaCrashRecord(
+                    System.currentTimeMillis(), callbackThread.getId(), processName,
+                    crashingThread, device, message.toString(), stack);
+            write(target, record);
+            markPending(target, record.timestampMs);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            NATIVE_HANDLING.set(false);
+        }
+    }
+
+    private static void markPending(Context context, long timestampMs) {
+        prefs(context).edit().putBoolean("has_crash", true)
+                .putLong("crash_timestamp", timestampMs).commit();
+        legacyPrefs(context).edit().putBoolean("has_crash", true)
+                .putLong("crash_timestamp", timestampMs).commit();
+    }
+
     @Override public void uncaughtException(Thread thread, Throwable error) {
         try {
             if (error != null && isCaptureEnabled(app) && HANDLING.compareAndSet(false, true)) {
                 FxDiaCrashRecord record = capture(thread, error);
-                write(record);
-                prefs(app).edit().putBoolean("has_crash", true)
-                        .putLong("crash_timestamp", record.timestampMs).commit();
-                legacyPrefs(app).edit().putBoolean("has_crash", true)
-                        .putLong("crash_timestamp", record.timestampMs).commit();
+                write(app, record);
+                markPending(app, record.timestampMs);
             }
         } catch (Throwable ignored) {
             // Reporting failure must never replace the original fatal exception.
@@ -176,6 +228,10 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     }
 
     private void write(FxDiaCrashRecord record) throws IOException {
+        write(app, record);
+    }
+
+    private static void write(Context context, FxDiaCrashRecord record) throws IOException {
         JSONObject json = new JSONObject();
         try {
             json.put("schemaVersion", SCHEMA_VERSION);
@@ -189,7 +245,7 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         } catch (JSONException impossible) {
             throw new IOException("Unable to serialize crash report", impossible);
         }
-        AtomicFile file = crashFile(app);
+        AtomicFile file = crashFile(context);
         FileOutputStream output = null;
         try {
             output = file.startWrite();

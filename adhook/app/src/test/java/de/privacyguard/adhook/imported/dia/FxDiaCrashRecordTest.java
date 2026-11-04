@@ -22,6 +22,18 @@ public class FxDiaCrashRecordTest {
         assertFalse(hex.contains("stack line one\nline two"));
     }
 
+    @Test public void nativeCrashCallbackDataIsIncludedInExistingReport() {
+        FxDiaCrashRecord record = new FxDiaCrashRecord(
+                1000L, 7L, "fx", "RenderThread", "Device",
+                "Native / Breakpad 崩溃\\nMinidump: private/minidump.dmp",
+                "Native thread trace:\\nlibnative.so!crash\\nJVM thread snapshot:\\nstack frame");
+        String raw = record.format(false);
+        assertTrue(raw.contains("Native / Breakpad 崩溃"));
+        assertTrue(raw.contains("private/minidump.dmp"));
+        assertTrue(raw.contains("libnative.so!crash"));
+        assertTrue(raw.contains("stack frame"));
+    }
+
     @Test public void recordFieldsAreBounded() {
         String huge = "x".repeat(FxDiaCrashRecord.MAX_STACK_CHARS + 100);
         FxDiaCrashRecord record = new FxDiaCrashRecord(1L, 1L, huge, huge, huge, huge, huge);
