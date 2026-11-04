@@ -139,6 +139,10 @@ public final class MainActivity extends ComponentActivity {
     private String customHookRulesTargetPackage;
     private Spinner customHookRuleGroupFilterView;
     private EditText customHookRuleSearchFilterView;
+    private boolean customRuleEditorDialogOpen;
+    private boolean customRuleEditorRestorePending;
+    private int customRuleEditorEditingSlot = -1;
+    private String customRuleEditorPresetDescriptor;
     private boolean hookHubVisible;
     private boolean settingsUiVisible;
     private boolean hookAuthorizationRefreshPending;
@@ -262,6 +266,18 @@ public final class MainActivity extends ComponentActivity {
             }
             if ("target_custom_rules".equals(restoreHookKind)) {
                 customHookRulesTargetPackage = state.getString("fx_selected_package");
+                customRuleEditorRestorePending = state.getBoolean("fx_custom_rule_editor_open", false);
+                customRuleEditorDialogOpen = customRuleEditorRestorePending;
+                customRuleEditorEditingSlot = Math.max(-1, Math.min(64,
+                        state.getInt("fx_custom_rule_editor_slot", -1)));
+                customRuleEditorPresetDescriptor = state.getString("fx_custom_rule_editor_preset");
+                if (customRuleEditorPresetDescriptor != null
+                        && customRuleEditorPresetDescriptor.length() > 4096) {
+                    customRuleEditorPresetDescriptor = null;
+                    customRuleEditorRestorePending = false;
+                    customRuleEditorDialogOpen = false;
+                    customRuleEditorEditingSlot = -1;
+                }
                 customHookRuleGroupFilter = state.getString(STATE_CUSTOM_HOOK_GROUP_FILTER, "");
                 if (customHookRuleGroupFilter.length() > 24)
                     customHookRuleGroupFilter = customHookRuleGroupFilter.substring(0, 24);
@@ -445,6 +461,14 @@ public final class MainActivity extends ComponentActivity {
             outState.putString("fx_hook_screen", hookScreen);
             outState.putBoolean("fx_hook_custom_return_to_target", customHookReturnToTarget);
             if (hookCustomRulesPageVisible) {
+                if (customRuleEditorDialogOpen || customRuleEditorRestorePending) {
+                    outState.putBoolean("fx_custom_rule_editor_open", true);
+                    outState.putInt("fx_custom_rule_editor_slot", customRuleEditorEditingSlot);
+                    if (customRuleEditorPresetDescriptor != null
+                            && customRuleEditorPresetDescriptor.length() <= 4096) {
+                        outState.putString("fx_custom_rule_editor_preset", customRuleEditorPresetDescriptor);
+                    }
+                }
                 captureCustomHookRuleFilters();
                 outState.putString(STATE_CUSTOM_HOOK_GROUP_FILTER, customHookRuleGroupFilter);
                 outState.putString(STATE_CUSTOM_HOOK_SEARCH,
@@ -6107,6 +6131,12 @@ public final class MainActivity extends ComponentActivity {
         back.setText(customHookReturnToTarget ? "返回应用 Hook 配置" : "返回 Hook 应用列表");
         back.setOnClickListener(v -> leaveCustomHookRulesPage());
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        if (customRuleEditorRestorePending) {
+            int restoreSlot = customRuleEditorEditingSlot;
+            String restorePreset = customRuleEditorPresetDescriptor;
+            customRuleEditorRestorePending = false;
+            showCustomRuleDialog(restorePreset, restoreSlot);
+        }
     }
 
     private void leaveCustomHookRulesPage() {
@@ -6341,7 +6371,18 @@ public final class MainActivity extends ComponentActivity {
         showCustomRuleDialog(stored, slot);
     }
 
+    private void clearCustomRuleEditorDialogState() {
+        customRuleEditorDialogOpen = false;
+        customRuleEditorRestorePending = false;
+        customRuleEditorEditingSlot = -1;
+        customRuleEditorPresetDescriptor = null;
+    }
+
     private void showCustomRuleDialog(String presetDescriptor, int editingSlot) {
+        customRuleEditorDialogOpen = true;
+        customRuleEditorRestorePending = false;
+        customRuleEditorEditingSlot = editingSlot;
+        customRuleEditorPresetDescriptor = presetDescriptor;
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(8), dp(20), 0);
@@ -6512,8 +6553,10 @@ public final class MainActivity extends ComponentActivity {
         new AlertDialog.Builder(this)
                 .setTitle(editingSlot > 0 ? "编辑自定义 Hook 规则" : "新增自定义 Hook 规则")
                 .setView(form)
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> clearCustomRuleEditorDialogState())
+                .setOnCancelListener(dialog -> clearCustomRuleEditorDialogState())
                 .setPositiveButton("保存", (dialog, which) -> {
+                    clearCustomRuleEditorDialogState();
                     String ruleId = id.getText().toString().trim();
                     String method = descriptor.getText().toString().trim();
                     String actionText = String.valueOf(action.getSelectedItem()).trim().toUpperCase(java.util.Locale.ROOT);
