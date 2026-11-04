@@ -45,6 +45,16 @@ public class FxYulongWhitelistPolicyTest {
         assertTrue(FxYulongWhitelistPolicy.parse(value.toString()).isEmpty());
     }
 
+    @Test public void acceptsExactlyTheDocumentedMaximumEntryCount() {
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < FxYulongWhitelistPolicy.MAX_ENTRIES; i++) {
+            if (value.length() > 0) value.append(',');
+            value.append("com.example.app").append(i);
+        }
+        assertEquals(FxYulongWhitelistPolicy.MAX_ENTRIES,
+                FxYulongWhitelistPolicy.parse(value.toString()).size());
+    }
+
     @Test public void packageLookupRejectsInvalidNamesBeforePreferenceRead() {
         assertFalse(FxYulongWhitelistPolicy.isWhitelisted(null, "../bad"));
         assertFalse(FxYulongWhitelistPolicy.isWhitelisted(null, "com..bad"));
