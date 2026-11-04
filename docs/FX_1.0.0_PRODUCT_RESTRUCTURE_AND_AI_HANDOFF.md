@@ -127,10 +127,19 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
    - 提供服务用途说明、最小权限、逐应用启用名单、立即停用和日志脱敏。
    - 不用于读取密码、验证码、私人消息或绕过应用安全验证。
 
-5. **TUN 代理层**
-   - 通过共享 VPN/TUN 入口承载 DNS/广告过滤和代理流量两条逻辑管线。
+5. **内核级代理层（FX 代理的主实现，不依赖 Android VpnService 抢占槽位）**
+   - FX 代理必须优先采用 Root/系统网络栈级数据面：在设备支持且经验证的环境中，通过 Linux policy routing、iptables/nftables、TPROXY/REDIRECT、受控 tun2socks 或等效内核网络机制接管流量；具体后端按 Android 内核版本、SELinux、厂商规则和 ABI 探测选择。
+   - 代理转发、DNS、规则分流和连接状态由 FX 内核级代理服务负责；不能把“启动一个 VpnService”包装成内核级代理。FX 自身 VpnService 仅作为无 Root/不支持内核级接管时的可选兼容后端，不是内核级代理的默认实现。
+   - 必须以“FX 代理与第三方应用 VPN 同时运行且互不争抢 VPN 槽”为核心验收目标。FX 不注册第二个 VpnService、不调用 VPN prepare 抢占第三方 VPN、不擅自停止或重置用户 VPN。
+   - 与应用 VPN 并行时，优先采用可验证的路由链/接口协作：识别当前 VPN 接口、路由表、策略规则和 UID 范围；只接管明确允许的流量，防止 FX 代理与第三方 VPN 形成回环、重复加密、DNS 泄漏或路由黑洞。
+   - 若第三方 VPN 提供官方代理链、上游代理、分流接口或可配置排除项，使用其受支持集成方式；若其 TUN/策略路由封闭，不能假称 Root 规则一定能看到 VPN 内层明文流量。此时明确标记该 VPN 的兼容等级和可用路径，不能破坏或绕过用户 VPN 的安全策略。
+   - 提供模式：内核级代理独立运行；与受支持应用 VPN 并行；第三方 VPN 接管全部流量时的兼容/链式模式；无 Root 时的单 VpnService 回退模式。各模式分别显示真实流量路径、能力、限制和状态。
+   - 任何规则变更前保存原有 iptables/nftables、ip rule、路由表和 DNS 状态；停止/崩溃/升级时只撤销 FX 自己创建的规则，恢复原状态；禁止 flush 全局规则或覆盖第三方 VPN 路由。
+   - 第三方 VPN 占用 Android VPN 槽时，FX 内核级代理不得因此自动关闭；必须先检测实际网络路径，报告“完全并行/链式兼容/仅部分兼容/不兼容”的真实结果。
+6. **备用 TUN 代理层**
+   - 仅在无 Root 或内核级后端不可用时，使用 FX 自己的共享 VpnService/TUN 入口承载 DNS/广告过滤和代理流量两条逻辑管线。
    - Android 同一用户/配置文件只能有一个活动 VpnService；不得让广告 VPN 与代理 VPN 相互抢占。
-   - 第三方 VPN 占槽时，清楚报告能力降级；可用 Root hosts/DNS 路线时才启用，不得谎报全量过滤。
+   - 第三方 VPN 已占槽时，备用 TUN 后端不得启动或抢占；明确提示改用内核级后端/受支持链式模式，不能谎报全量过滤。
 
 6. **游龙广告插件完整功能迁移**
    - 以已接管的游龙各版本源码为依据建立功能矩阵，逐项核对：Ad、General、Summary、Stats、App Whitelist、DNS、Firewall、订阅/规则详情、Tile、Widget、Tasker/自动化、计划任务、Root Proxy、配置导入导出及其原始设置项。
@@ -141,7 +150,8 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 
 目标：实现接近 Shadowrocket/小火箭的常用能力集合，而非声称复制其专有实现。
 
-1. **去广告协同**：与 Ad 规则共享 TUN ingress、DNS 解析和策略路由；VPN 关闭时仍可使用独立 Root hosts/DNS 能力（取决于系统环境）。
+1. **内核级代理与应用 VPN 共存**：FX 主代理必须是 Root/系统网络栈级数据面，不能依赖第二个 VpnService。以第三方应用 VPN 同时运行作为 P0 验收场景；检测路由/接口/UID 策略并防止回环、DNS 泄漏和路由黑洞。支持并行或官方链式集成；对封闭 VPN 的能力边界如实标注。无 Root 时才回退 FX 自身 VpnService，且不得抢占第三方 VPN。
+2. **去广告协同**：Ad 过滤与代理逻辑分离；能接入同一内核级流量路径时共享 DNS/策略决策。无 Root/内核级后端时才由 FX 备用 TUN 承载；VPN 关闭时仍可使用独立 Root hosts/DNS 能力（取决于系统环境）。
 2. **节点和配置**：节点管理、订阅更新、配置导入/导出、协议能力检测、延迟/连通性测试、分组、标签、排序、备份恢复。
 3. **代理协议与路由**：按项目依赖和许可逐项支持常见协议/传输；规则模式、全局模式、直连模式、域名/IP/CIDR/GeoIP/进程/应用分流（Android API 可行范围内）。
 4. **DNS**：本地 DNS、远程 DNS、DoH/DoT、Fake-IP/Real-IP（若实现）、DNS 分流、污染防护、缓存、IPv6 和防泄漏策略。
@@ -439,10 +449,11 @@ C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现�
 - Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle 三种 skin。
 - Domain：Ad、VPN、Privacy、Hook、Script、Migration。
 - Data：统一仓库、版本化 schema、迁移/备份/回滚。
-- Platform：唯一 VpnService/TUN、DNS、Root broker、Hosts writer、Accessibility、LSPosed bridge、证书管理。
+- Platform：Root broker、内核级代理数据面（policy routing/iptables/nftables/TPROXY 等受支持后端）、DNS、Hosts writer、可选备用 VpnService/TUN、Accessibility、LSPosed bridge、证书管理。
+- FX 内核级代理主路径不得占用 Android VPN 槽；备用 VpnService 只能在未有第三方 VPN 占槽时启动。
 - Runtime：QuickJS、规则引擎、受控 Hook/Frida 生命周期。
 - 业务状态与 Skin 解耦，切换主题不得重启或改变网络服务。
-- Android 同一用户/配置文件只有一个活动 VPN 槽；禁止多个 VpnService 互抢。
+- Android 同一用户/配置文件只有一个活动 VPN 槽；禁止多个 VpnService 互抢。FX 主代理走 Root/系统网络栈级数据面，与第三方应用 VPN 并行/链式兼容；不得把备用 VpnService 冒充内核级代理。
 - Root 命令固定白名单、路径规范化、拒绝符号链接、最小权限、超时、审计。
 - 本地 hosts 与订阅规则分开；Hosts 必须编辑真实系统文本文件并支持外部修改回读、原子写入和回滚。
 
