@@ -16,6 +16,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.text.Editable;
+import android.text.TextWatcher;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -41,10 +43,19 @@ import java.util.zip.ZipFile;
 public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int PICK_TREE = 7511, PICK_IMPORT = 7512, PICK_EXPORT = 7513;
     private static final int MAX_PREVIEW = 512 * 1024;
+    private static final String STATE_PATH_STACK = "fx_dia_file_path_stack";
+    private static final String STATE_DIRECTORY_QUERY = "fx_dia_file_query";
+    private static final String STATE_DISPLAYED_ENTRIES = "fx_dia_file_displayed_entries";
+    private static final String STATE_SCROLL_Y = "fx_dia_file_scroll_y";
     private Uri treeUri, exportSource;
     private String exportName = "export.bin";
     private final List<String> pathStack = new ArrayList<>();
     private LinearLayout files;
+    private EditText directorySearch;
+    private ScrollView pageScroll;
+    private String directoryQuery = "";
+    private int pendingRestoreDisplayedEntries = -1;
+    private int pendingRestoreScrollY;
     private TextView fileStatus, location, soStatus, soResults;
     private static final int DIRECTORY_PAGE_SIZE = 100;
     private static final int MAX_DIRECTORY_ENTRIES = 5000;
@@ -98,9 +109,9 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         header.addView(button("‹ 返回", this::finish));
         header.addView(text("Dia 23.11 · 文件与 so 库", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
-        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        pageScroll = new ScrollView(this); pageScroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        pageScroll.addView(body); root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         fileStatus = text("尚未授权文件目录。", 12, 0xff526170, false);
         location = text("未选择目录", 12, 0xff334155, false);
@@ -110,14 +121,31 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 location, fileStatus, button("选择目录", this::pickTree),
                 button("返回上一级", this::goUp), button("刷新目录", this::loadDirectory),
                 button("导入文件", this::pickImport), button("新建文件夹", this::createFolder));
-        card(body, "目录内容", "点击文件夹进入；小型文本文件可预览，文件可导出或删除。", files);
+        directorySearch = new EditText(this);
+        directorySearch.setSingleLine(true);
+        directorySearch.setTextSize(14);
+        directorySearch.setHint("搜索当前目录的文件名或类型");
+        directorySearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                directoryQuery = value == null ? "" : value.toString().trim();
+                displayedEntries = 0;
+                if (files != null) files.removeAllViews();
+                loadMoreButton = null;
+                if (!directoryEntries.isEmpty()) appendDirectoryPage();
+                if (pageScroll != null) pageScroll.scrollTo(0, 0);
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        card(body, "目录内容", "支持当前目录名称/类型搜索；每页最多显示 100 项，目录读取上限 5,000 项。",
+                directorySearch, files);
 
         soStatus = text("尚未选择 debuggable 目标。", 12, 0xff526170, false);
         soResults = text("", 11, 0xff334155, false);
         card(body, "APK 与 SO 库浏览",
                 "只读列出用户安装且带 DEBUGGABLE 标记的应用 APK 中 lib/<ABI>/*.so 和 nativeLibraryDir；不加载、执行或修改 SO。",
                 soStatus, button("选择 debuggable 应用并查看 SO", this::chooseDebugTarget), soResults);
-        restoreTree();
+        restoreTree(state);
     }
 
     private SharedPreferences prefs() { return getSharedPreferences("fx_dia_file_browser", MODE_PRIVATE); }
@@ -140,15 +168,40 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             prefs().edit().putString("tree_uri", uri.toString()).apply(); loadDirectory();
         } catch (Throwable e) { fileStatus.setText("保存目录授权失败：" + e.getClass().getSimpleName()); }
     }
-    private void restoreTree() {
+    private void restoreTree(Bundle state) {
+        directoryQuery = state == null ? "" : state.getString(STATE_DIRECTORY_QUERY, "");
+        pendingRestoreDisplayedEntries = state == null ? -1
+                : Math.max(0, state.getInt(STATE_DISPLAYED_ENTRIES, 0));
+        pendingRestoreScrollY = state == null ? 0
+                : Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+        if (directorySearch != null && !directoryQuery.isEmpty()) {
+            directorySearch.setText(directoryQuery);
+        }
         String saved = prefs().getString("tree_uri", "");
         if (saved.isEmpty()) return;
         try {
             treeUri = Uri.parse(saved);
             getContentResolver().takePersistableUriPermission(treeUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            pathStack.clear(); pathStack.add(DocumentsContract.getTreeDocumentId(treeUri)); loadDirectory();
-        } catch (Throwable e) { treeUri = null; fileStatus.setText("目录授权已失效，请重新选择。"); }
+            String rootId = DocumentsContract.getTreeDocumentId(treeUri);
+            pathStack.clear();
+            ArrayList<String> restored = state == null ? null
+                    : state.getStringArrayList(STATE_PATH_STACK);
+            boolean validPath = restored != null && !restored.isEmpty()
+                    && restored.size() <= 64 && rootId.equals(restored.get(0));
+            if (validPath) {
+                for (String id : restored) {
+                    if (id == null || id.isEmpty()) { validPath = false; break; }
+                }
+            }
+            if (validPath) pathStack.addAll(restored);
+            else pathStack.add(rootId);
+            loadDirectory();
+        } catch (Throwable e) {
+            treeUri = null;
+            pathStack.clear();
+            fileStatus.setText("目录授权已失效，请重新选择。");
+        }
     }
 
     private static final class Entry {
@@ -220,25 +273,46 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         });
     }
 
+    private List<Entry> filteredDirectoryEntries() {
+        String query = directoryQuery.toLowerCase(Locale.ROOT);
+        if (query.isEmpty()) return directoryEntries;
+        List<Entry> matches = new ArrayList<>();
+        for (Entry entry : directoryEntries) {
+            if (entry.name.toLowerCase(Locale.ROOT).contains(query)
+                    || entry.mime.toLowerCase(Locale.ROOT).contains(query)) {
+                matches.add(entry);
+            }
+        }
+        return matches;
+    }
+
     private void appendDirectoryPage() {
         if (loadMoreButton != null) {
             files.removeView(loadMoreButton);
             loadMoreButton = null;
         }
-        int end = Math.min(directoryEntries.size(), displayedEntries + DIRECTORY_PAGE_SIZE);
-        for (int i = displayedEntries; i < end; i++) addEntry(directoryEntries.get(i));
+        List<Entry> visible = filteredDirectoryEntries();
+        int end = Math.min(visible.size(), displayedEntries + DIRECTORY_PAGE_SIZE);
+        for (int i = displayedEntries; i < end; i++) addEntry(visible.get(i));
         displayedEntries = end;
-        if (displayedEntries < directoryEntries.size()) {
-            loadMoreButton = button("加载更多（剩余 " + (directoryEntries.size() - displayedEntries) + " 项）",
+        if (displayedEntries < visible.size()) {
+            loadMoreButton = button("加载更多（剩余 " + (visible.size() - displayedEntries) + " 项）",
                     this::appendDirectoryPage);
             files.addView(loadMoreButton);
         }
-        String summary = "已显示 " + displayedEntries + " / " + directoryEntries.size() + " 个项目。";
+        String summary = "匹配 " + visible.size() + " 项，已显示 " + displayedEntries + " 项。";
         if (directoryTruncated) {
             summary += " 目录超过 " + MAX_DIRECTORY_ENTRIES + " 项；为避免内存和界面卡顿，本次只读取前 "
                     + MAX_DIRECTORY_ENTRIES + " 项。";
         }
         fileStatus.setText(summary);
+        if (pendingRestoreScrollY > 0 && pageScroll != null) {
+            final int restoreY = pendingRestoreScrollY;
+            pendingRestoreScrollY = 0;
+            pageScroll.post(() -> {
+                if (!destroyed && pageScroll != null) pageScroll.scrollTo(0, restoreY);
+            });
+        }
     }
 
     private Uri docUri(Entry entry) {
@@ -251,7 +325,9 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         row.addView(text(e.directory()?"文件夹":e.mime+" · "+(e.size<0?"大小未知":bytes(e.size)),
                 10, 0xff718091, false));
         if (e.directory()) row.addView(button("进入文件夹", () -> {
-            pathStack.add(e.id); loadDirectory();
+            pathStack.add(e.id);
+            if (directorySearch != null) directorySearch.setText("");
+            loadDirectory();
         }));
         else {
             LinearLayout actions = new LinearLayout(this); actions.setOrientation(0);
@@ -266,7 +342,9 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
 
     private void goUp() {
         if (pathStack.size() <= 1) { fileStatus.setText("已经位于授权目录根部。"); return; }
-        pathStack.remove(pathStack.size()-1); loadDirectory();
+        pathStack.remove(pathStack.size()-1);
+        if (directorySearch != null) directorySearch.setText("");
+        loadDirectory();
     }
     private boolean validName(String n) {
         return n!=null && !n.trim().isEmpty() && n.length()<=120 && !n.contains("/") && !n.contains("\\")
@@ -511,10 +589,19 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         if(requestCode==PICK_TREE){
             try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                 treeUri=uri;pathStack.clear();pathStack.add(DocumentsContract.getTreeDocumentId(uri));
+                if (directorySearch != null) directorySearch.setText("");
                 prefs().edit().putString("tree_uri",uri.toString()).apply();loadDirectory();
             }catch(Throwable e){fileStatus.setText("保存目录授权失败："+e.getClass().getSimpleName());}
         }else if(requestCode==PICK_IMPORT)importFile(uri);
         else if(requestCode==PICK_EXPORT)exportFile(uri);
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putStringArrayList(STATE_PATH_STACK, new ArrayList<>(pathStack));
+        outState.putString(STATE_DIRECTORY_QUERY, directoryQuery);
+        outState.putInt(STATE_DISPLAYED_ENTRIES, displayedEntries);
+        outState.putInt(STATE_SCROLL_Y, pageScroll == null ? 0 : pageScroll.getScrollY());
     }
 
     @Override protected void onDestroy() {
