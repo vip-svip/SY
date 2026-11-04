@@ -69,8 +69,9 @@ cat > "$PROFILE_PG/settings.conf" <<'CONF'
 dns_engine_adguardhome=0
 yulong_ad_filter_enabled=1
 [list:rule]
-builtin://alpha|Alpha test list|1
-builtin://beta|Beta test list|0
+https://alpha.example/filter.txt|Alpha test list|1
+https://beta.example/filter.txt|Beta test list|0
+builtin://fx-native|FX native rules|1
 [list:fx]
 fxfile://anti_fraud_96110|FX anti-fraud source|1
 CONF
@@ -85,6 +86,26 @@ printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|family|' || fail "original Fam
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|gaming|' || fail "original Gaming preset missing"
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|strict_family|' || fail "original Strict Family preset missing"
 
+# Built-in profile switching installs the original remote source rows into FX's
+# existing [list:rule], instead of only counting unavailable URLs.
+strict_switch=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch strict)
+printf '%s\n' "$strict_switch" | grep -Fq 'missing_sources=7' || fail "Strict preset did not report seven missing original sources"
+[ "$(awk -F'|' '$1~/^https:\/\// && $3=="1" {n++} END{print n+0}' "$PROFILE_PG/settings.conf")" -eq 7 ] || fail "Strict preset did not add and enable seven remote sources"
+grep -Fq 'builtin://fx-native|FX native rules|1' "$PROFILE_PG/settings.conf" || fail "profile switch modified FX-native rule state"
+grep -Fq 'fxfile://anti_fraud_96110|FX anti-fraud source|1' "$PROFILE_PG/settings.conf" || fail "profile switch modified the separate 96110 list section"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+family_switch=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch family)
+[ "$(awk -F'|' '$1~/^https:\/\// && $3=="1" {n++} END{print n+0}' "$PROFILE_PG/settings.conf")" -eq 5 ] || fail "Family preset did not activate five original URLs"
+grep -Fq 'yulong_safe_search_enabled=1' "$PROFILE_PG/settings.conf" || fail "Family preset SafeSearch flag was not applied"
+grep -Fq 'yulong_youtube_restricted_mode=1' "$PROFILE_PG/settings.conf" || fail "Family preset YouTube flag was not applied"
+strict_family_switch=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch strict_family)
+[ "$(awk -F'|' '$1~/^https:\/\// && $3=="1" {n++} END{print n+0}' "$PROFILE_PG/settings.conf")" -eq 9 ] || fail "Strict Family preset did not activate the nine-source union"
+gaming_switch=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch gaming)
+[ "$(awk -F'|' '$1~/^https:\/\// && $3=="1" {n++} END{print n+0}' "$PROFILE_PG/settings.conf")" -eq 2 ] || fail "Gaming preset did not activate two original URLs"
+grep -Fq 'yulong_safe_search_enabled=0' "$PROFILE_PG/settings.conf" || fail "Gaming preset did not disable SafeSearch"
+grep -Fq 'yulong_youtube_restricted_mode=0' "$PROFILE_PG/settings.conf" || fail "Gaming preset did not disable YouTube restriction"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+
 created=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-create "Study profile" 1 1)
 custom_id=${created#created=}
 case "$custom_id" in custom_*) : ;; *) fail "custom profile ID not returned: $created" ;; esac
@@ -96,14 +117,15 @@ import sys
 import subprocess
 path=Path(sys.argv[1])
 s=path.read_text(encoding="utf-8")
-s=s.replace("builtin://alpha|Alpha test list|1","builtin://alpha|Alpha test list|0")
-s=s.replace("builtin://beta|Beta test list|0","builtin://beta|Beta test list|1")
+s=s.replace("https://alpha.example/filter.txt|Alpha test list|1","https://alpha.example/filter.txt|Alpha test list|0")
+s=s.replace("https://beta.example/filter.txt|Beta test list|0","https://beta.example/filter.txt|Beta test list|1")
 path.write_text(s,encoding="utf-8")
 PY
 switched=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id")
 printf '%s\n' "$switched" | grep -Fq "switched=$custom_id" || fail "profile switch was not applied"
-grep -Fq 'builtin://alpha|Alpha test list|1' "$PROFILE_PG/settings.conf" || fail "profile switch did not restore alpha source"
-grep -Fq 'builtin://beta|Beta test list|0' "$PROFILE_PG/settings.conf" || fail "profile switch did not restore beta source"
+grep -Fq 'https://alpha.example/filter.txt|Alpha test list|1' "$PROFILE_PG/settings.conf" || fail "profile switch did not restore alpha source"
+grep -Fq 'https://beta.example/filter.txt|Beta test list|0' "$PROFILE_PG/settings.conf" || fail "profile switch did not restore beta source"
+grep -Fq 'builtin://fx-native|FX native rules|1' "$PROFILE_PG/settings.conf" || fail "profile switch changed FX-native rule state"
 grep -Fq 'yulong_active_profile='"$custom_id" "$PROFILE_PG/settings.conf" || fail "active profile ID not persisted"
 grep -Fq 'yulong_safe_search_enabled=1' "$PROFILE_PG/settings.conf" || fail "SafeSearch flag not persisted"
 grep -Fq 'yulong_youtube_restricted_mode=1' "$PROFILE_PG/settings.conf" || fail "YouTube restriction flag not persisted"
@@ -116,20 +138,55 @@ if MOCK_APPLY_RC=9 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch d
 fi
 cmp -s "$T/settings.before" "$PROFILE_PG/settings.conf" || fail "failed profile switch did not restore settings.conf"
 cmp -s "$T/profiles.before" "$PROFILE_PG/yulong-profiles.tsv" || fail "failed profile switch did not restore profile table"
+find "$PROFILE_PG" -maxdepth 1 -type f -name 'settings.conf.profile-backup.*' | grep -q . || fail "failed runtime rollback did not retain settings.conf backup"
+find "$PROFILE_PG" -maxdepth 1 -type f -name 'yulong-profiles.tsv.profile-backup.*' | grep -q . || fail "failed runtime rollback did not retain profile-table backup"
 
 # Weekly profile schedules are stored independently of the ad-filter schedule.
-schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 00:00 00:00 1,2,3,4,5,6,7)
+schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 22:00 07:00 0)
 schedule_id=${schedule#created=}
 case "$schedule_id" in schedule_*) : ;; *) fail "profile schedule ID missing" ;; esac
-sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$schedule_id" 0 00:00 00:00 1,2,3,4,5,6,7
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$schedule_id" 0 22:00 07:00 0
 profile_list=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list)
-printf '%s\n' "$profile_list" | grep -Fq "SCHEDULE|$schedule_id|$custom_id|00:00|00:00|0|1,2,3,4,5,6,7" || fail "profile schedule update was not persisted"
+printf '%s\n' "$profile_list" | grep -Fq "SCHEDULE|$schedule_id|$custom_id|22:00|07:00|0|0" || fail "profile schedule update was not persisted"
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$schedule_id"
 profile_list=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list)
 ! printf '%s\n' "$profile_list" | grep -Fq "SCHEDULE|$schedule_id|" || fail "profile schedule removal failed"
 if sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$custom_id" >/dev/null 2>&1; then
   fail "active custom profile was deleted without switching away"
 fi
+# Test original Calendar weekday indexes (Sunday=0, Monday=1) and time semantics.
+mkdir -p "$T/bin"
+cat > "$T/bin/date" <<'DATE'
+#!/system/bin/sh
+case "$1" in
+  +%w) printf '%s\n' "${FX_PROFILE_TEST_DOW:-1}" ;;
+  +%H:%M) printf '%s\n' "${FX_PROFILE_TEST_TIME:-12:00}" ;;
+  +%s) printf '1700000000\n' ;;
+  *) exec /bin/date "$@" ;;
+esac
+DATE
+chmod 0755 "$T/bin/date"
+export PATH="$T/bin:$PATH"
+date_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 22:00 07:00 0)
+date_schedule_id=${date_schedule#created=}
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$date_schedule_id" 1 22:00 07:00 0 >/dev/null
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=22:30 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-evaluate.out"
+grep -Fq "switched=$custom_id" "$T/sunday-evaluate.out" || fail "Sunday=0 overnight schedule did not switch at 22:30"
+monday_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add default 09:00 17:00 1)
+monday_id=${monday_schedule#created=}
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id" >/dev/null
+FX_PROFILE_TEST_DOW=1 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/monday-evaluate.out"
+grep -Fq 'switched=default' "$T/monday-evaluate.out" || fail "Monday=1 schedule did not switch at noon"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id" >/dev/null
+FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-outside.out"
+grep -Fq 'no_matching_profile_schedule' "$T/sunday-outside.out" || fail "overnight schedule matched outside its window"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$date_schedule_id" 1 12:00 12:00 0 >/dev/null
+FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/equal-time.out"
+grep -Fq 'no_matching_profile_schedule' "$T/equal-time.out" || fail "equal start/end incorrectly matched as all-day"
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$monday_id" >/dev/null
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$date_schedule_id" >/dev/null
+
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$custom_id" >/dev/null
 profile_list=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list)
@@ -227,7 +284,7 @@ PROFILE_STUB
 chmod 0755 "$WATCH_MOD/scripts/"*
 cat > "$WATCH_PG/yulong-profile-schedules.tsv" <<'SCHEDULES'
 FXYULONGPROFILESCHEDULE1
-schedule_1|default|00:00|23:59|0|1,2,3,4,5,6,7
+schedule_1|default|00:00|23:59|0|0,1,2,3,4,5,6
 SCHEDULES
 export PG="$WATCH_PG" MP="$WATCH_MOD"
 disabled_output=$(sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" start "$WATCH_MOD" "$WATCH_PG")
@@ -235,7 +292,7 @@ printf '%s\n' "$disabled_output" | grep -Fq "no-profile-schedules" || fail "disa
 [ ! -e "$WATCH_PG/yulong-profile-schedule.pid" ] || fail "disabled-only profile schedule left a PID file"
 cat > "$WATCH_PG/yulong-profile-schedules.tsv" <<'SCHEDULES'
 FXYULONGPROFILESCHEDULE1
-schedule_1|default|00:00|23:59|1|1,2,3,4,5,6,7
+schedule_1|default|00:00|23:59|1|0,1,2,3,4,5,6
 SCHEDULES"
 i=0
 while [ "$i" -lt 6 ]; do

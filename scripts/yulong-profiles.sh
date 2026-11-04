@@ -29,7 +29,15 @@ valid_text(){
 '*) return 1 ;; esac
 }
 valid_time(){ printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'; }
-valid_days(){ printf '%s\n' "$1" | awk -F, 'NF<1 || NF>7 {bad=1} {for(i=1;i<=NF;i++)if($i!~/^[1-7]$/||seen[$i]++)bad=1} END{exit bad?1:0}'; }
+valid_days(){ printf '%s\n' "$1" | awk -F, 'NF<1 || NF>7 {bad=1} {for(i=1;i<=NF;i++)if($i!~/^[0-6]$/||seen[$i]++)bad=1} END{exit bad?1:0}'; }
+valid_profile_url(){
+  case "$1" in
+    https://*) printf '%s\n' "$1" | grep -Eq '^https://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$' ;;
+    builtin://*) printf '%s\n' "$1" | grep -Eq '^builtin://[A-Za-z0-9._-]+$' ;;
+    *) return 1 ;;
+  esac
+  [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -le 2048 ]
+}
 encode(){ printf '%s' "$1" | base64 | tr -d '\r\n'; }
 decode(){ printf '%s' "$1" | base64 -d 2>/dev/null; }
 to_minutes(){ _h=${1%:*}; _m=${1#*:}; printf '%s\n' "$((_h * 60 + _m))"; }
@@ -181,10 +189,15 @@ rollback_profile_state(){
   _restore_conf=$(mktemp "$CONF.profile-restore.XXXXXX") || { BACKUP_CONF=; BACKUP_PROFILES=; return 34; }
   _restore_profiles=$(mktemp "$PROFILES.profile-restore.XXXXXX") || { rm -f "$_restore_conf"; BACKUP_CONF=; BACKUP_PROFILES=; return 34; }
   if cp -p "$BACKUP_CONF" "$_restore_conf" && cp -p "$BACKUP_PROFILES" "$_restore_profiles" && mv -f "$_restore_conf" "$CONF" && mv -f "$_restore_profiles" "$PROFILES"; then
-    sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
-    rm -f "$BACKUP_CONF" "$BACKUP_PROFILES" "$TMP"
+    if sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1; then
+      rm -f "$BACKUP_CONF" "$BACKUP_PROFILES" "$TMP"
+      BACKUP_CONF=; BACKUP_PROFILES=; TMP=
+      return 0
+    fi
+    echo "profile rollback restored files but runtime re-apply failed; retained backups: $BACKUP_CONF $BACKUP_PROFILES" >&2
+    [ -z "$TMP" ] || rm -f "$TMP" 2>/dev/null || :
     BACKUP_CONF=; BACKUP_PROFILES=; TMP=
-    return 0
+    return 35
   fi
   rm -f "$_restore_conf" "$_restore_profiles" 2>/dev/null || :
   echo "profile rollback failed; preserved backup files: $BACKUP_CONF $BACKUP_PROFILES" >&2
@@ -211,6 +224,14 @@ apply_profile_locked(){
   cp -p "$CONF" "$BACKUP_CONF" && cp -p "$PROFILES" "$BACKUP_PROFILES" || return 1
   TMP=$(mktemp "$PG/profile-target-urls.XXXXXX") || return 1
   decode "$_target_urls_b64" > "$TMP" || { echo "profile URL data corrupt" >&2; return 31; }
+  _valid_urls=0
+  while IFS= read -r _url; do
+    [ -n "$_url" ] || continue
+    valid_profile_url "$_url" || { echo "profile contains an invalid filter source: $_url" >&2; return 31; }
+    _valid_urls=$((_valid_urls+1))
+  done < "$TMP"
+  sort -u "$TMP" > "$TMP.sorted" || return 1
+  mv -f "$TMP.sorted" "$TMP" || return 1
   _active=$(pg_get yulong_active_profile default)
   _active_row=$(profile_row "$_active")
   if [ -n "$_active_row" ]; then
@@ -229,17 +250,61 @@ apply_profile_locked(){
   _missing=0
   while IFS= read -r _url; do
     [ -n "$_url" ] || continue
-    grep -F -x "$_url" "$_existing" >/dev/null 2>&1 || _missing=$((_missing+1))
+    case "$_url" in
+      https://*)
+        if ! grep -F -x "$_url" "$_existing" >/dev/null 2>&1; then _missing=$((_missing+1)); fi
+        ;;
+      builtin://*)
+        grep -F -x "$_url" "$_existing" >/dev/null 2>&1 || {
+          echo "profile references an unavailable FX built-in source: $_url" >&2
+          rm -f "$_existing"
+          rollback_profile_state || :
+          return 31
+        }
+        ;;
+    esac
+  done < "$TMP"
+  _missing_file=$(mktemp "$PG/profile-missing-urls.XXXXXX") || { rm -f "$_existing"; rollback_profile_state || :; return 1; }
+  while IFS= read -r _url; do
+    [ -n "$_url" ] || continue
+    case "$_url" in
+      https://*)
+        grep -F -x "$_url" "$_existing" >/dev/null 2>&1 || printf '%s\n' "$_url" >> "$_missing_file"
+        ;;
+    esac
   done < "$TMP"
   rm -f "$_existing"
-  _rules_tmp=$(mktemp "$CONF.profile-rules.XXXXXX") || { rollback_profile_state || :; return 1; }
-  awk -F'|' -v OFS='|' -v wanted="$TMP" '
-    BEGIN{while((getline u < wanted)>0) selected[u]=1; close(wanted); inside=0}
-    $0=="[list:rule]"{inside=1;print;next}
-    /^\[/ {inside=0;print;next}
-    inside && $0 !~ /^[[:space:]]*#/ && NF>=3 && $1!="" {$3=($1 in selected)?"1":"0";print;next}
+  _rules_tmp=$(mktemp "$CONF.profile-rules.XXXXXX") || { rm -f "$_missing_file"; rollback_profile_state || :; return 1; }
+  awk -F'|' -v OFS='|' -v wanted="$TMP" -v missing="$_missing_file" '
+    function emit_missing(    u) {
+      while((getline u < missing)>0) if(u!="") print u,"Yulong ProtectionProfile source",1
+      close(missing); emitted=1
+    }
+    BEGIN {
+      while((getline u < wanted)>0) if(u!="") selected[u]=1
+      close(wanted); inside=0; found=0; emitted=0
+    }
+    $0=="[list:rule]" {
+      inside=1; found=1; print
+      emit_missing()
+      next
+    }
+    /^\[/ {
+      if(inside && !emitted) emit_missing()
+      inside=0; print; next
+    }
+    inside && $0 !~ /^[[:space:]]*#/ && NF>=3 && $1!="" {
+      # This profile owns remote filter-list URLs. Keep FX-native non-URL rows intact.
+      if($1 ~ /^https:\/\//) $3=($1 in selected)?"1":"0"
+      print; next
+    }
     {print}
-  ' "$CONF" > "$_rules_tmp" || { rm -f "$_rules_tmp"; rollback_profile_state || :; return 1; }
+    END {
+      if(inside && !emitted) emit_missing()
+      if(!found) {print ""; print "[list:rule]"; if(!emitted) emit_missing()}
+    }
+  ' "$CONF" > "$_rules_tmp" || { rm -f "$_rules_tmp" "$_missing_file"; rollback_profile_state || :; return 1; }
+  rm -f "$_missing_file"
   chmod 600 "$_rules_tmp" && mv -f "$_rules_tmp" "$CONF" || { rm -f "$_rules_tmp"; rollback_profile_state || :; return 1; }
   pg_set yulong_active_profile "$_target" || { rollback_profile_state || :; return 1; }
   pg_set yulong_safe_search_enabled "$_target_safe" || { rollback_profile_state || :; return 1; }
@@ -315,10 +380,11 @@ schedule_remove_locked(){
   awk -F'|' -v id="$_id" 'NR==1 || $1!=id {print}' "$SCHEDULES" > "$_tmp" || { rm -f "$_tmp"; return 1; }
   atomic_replace "$SCHEDULES" "$_tmp" || return 1
 }
-profile_evaluate(){
-  with_lock ensure_store || return 1
-  _day=$(date '+%u' 2>/dev/null); _now=$(date '+%H:%M' 2>/dev/null)
-  case "$_day" in 1|2|3|4|5|6|7) ;; *) return 0 ;; esac
+profile_evaluate_locked(){
+  ensure_store || return 1
+  # The original worker stores Calendar weekday minus one: Sunday=0 ... Saturday=6.
+  _day=$(date '+%w' 2>/dev/null); _now=$(date '+%H:%M' 2>/dev/null)
+  case "$_day" in 0|1|2|3|4|5|6) ;; *) return 0 ;; esac
   valid_time "$_now" || return 0
   _now_m=$(to_minutes "$_now")
   while IFS='|' read -r _sid _profile _start _end _enabled _days; do
@@ -327,14 +393,17 @@ profile_evaluate(){
     case ",$_days," in *,"$_day",*) ;; *) continue ;; esac
     valid_time "$_start" && valid_time "$_end" || continue
     _start_m=$(to_minutes "$_start"); _end_m=$(to_minutes "$_end")
-    if [ "$_start_m" -le "$_end_m" ]; then
+    if [ "$_start_m" -lt "$_end_m" ]; then
       [ "$_now_m" -ge "$_start_m" ] && [ "$_now_m" -lt "$_end_m" ] || continue
-    else
+    elif [ "$_start_m" -gt "$_end_m" ]; then
       [ "$_now_m" -lt "$_end_m" ] || [ "$_now_m" -ge "$_start_m" ] || continue
+    else
+      # Equal start/end is an empty interval in the original implementation.
+      continue
     fi
     _active=$(pg_get yulong_active_profile default)
     [ "$_active" = "$_profile" ] && { echo "already_active=$_profile schedule=$_sid"; return 0; }
-    with_lock apply_profile_locked "$_profile"
+    apply_profile_locked "$_profile"
     return $?
   done < "$SCHEDULES"
   echo "no_matching_profile_schedule"
@@ -347,6 +416,6 @@ case "$ACTION" in
   schedule-add) [ "$#" -eq 5 ] || fail "usage: $0 schedule-add PROFILE HH:MM HH:MM DAYS" 2; with_lock schedule_add_locked "$2" "$3" "$4" "$5"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
   schedule-set) [ "$#" -eq 6 ] || fail "usage: $0 schedule-set ID ENABLED HH:MM HH:MM DAYS" 2; with_lock schedule_set_locked "$2" "$3" "$4" "$5" "$6"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
   schedule-remove) [ "$#" -eq 2 ] || fail "usage: $0 schedule-remove ID" 2; with_lock schedule_remove_locked "$2"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
-  evaluate) profile_evaluate ;;
+  evaluate) with_lock profile_evaluate_locked ;;
   *) fail "unsupported profile operation" 2 ;;
 esac

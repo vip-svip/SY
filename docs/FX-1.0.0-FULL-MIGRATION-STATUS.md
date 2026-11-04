@@ -918,3 +918,10 @@ After each implementation batch:
 - The profile page is available in the native Yulong screen. It supports switching built-ins, creating/deleting custom profiles, setting SafeSearch/YouTube flags and adding/enabling/disabling/removing weekly profile schedules.
 - AdGuard Home configuration rendering now reads the two profile flags and enables provider-level SafeSearch/YouTube restrictions in the existing FX DNS engine; no second DNS service or VpnService was added.
 - Verification status: host regression and unified Hook APK compile are pending for this commit. One earlier run stopped at the initial patcher YAML anchor; the patcher is being changed to parse the actual restored YAML block before CI retry. Real device behavior and actual web/search provider response verification remain device-pending.
+
+
+## 2026-11-04 correction — original ProfileSchedule weekday index
+
+The original Yulong ProfileScheduleWorker converts Android Calendar weekday values by subtracting one before matching the stored weekday CSV. The persisted mapping is Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5 and Saturday=6. This differs from the separate Yulong ad-filter timer's Monday=1 through Sunday=7 convention. The worker uses half-open time windows; overnight intervals are supported; equal start/end is an empty interval and does not match.
+
+Profile switching now installs missing HTTPS filter-source rows into FX's existing [list:rule] before applying the selected source state. It leaves FX-native non-URL rows and the separate [list:fx] 96110 anti-fraud section unchanged. Host regression covers source installation, native-row preservation, Sunday/Monday schedule matching and equal-time behavior.

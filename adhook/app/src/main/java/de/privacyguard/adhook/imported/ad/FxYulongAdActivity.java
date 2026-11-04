@@ -831,7 +831,8 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   EditText scheduleEnd=draftField("profile_schedule_end");
   scheduleEnd.setSingleLine(true);scheduleEnd.setText("07:00");scheduleEnd.setHint("结束 HH:MM");
   LinearLayout daysBox=new LinearLayout(this);daysBox.setOrientation(1);
-  String[] dayNames={"周一","周二","周三","周四","周五","周六","周日"};
+  // Original ProfileSchedule stores Calendar weekday - 1: Sunday=0 through Saturday=6.
+  String[] dayNames={"周日","周一","周二","周三","周四","周五","周六"};
   android.widget.CheckBox[] days=new android.widget.CheckBox[7];
   for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(dayNames[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
   LinearLayout profileRows=new LinearLayout(this);profileRows.setOrientation(1);
@@ -846,8 +847,8 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
         loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
        });
       }),result);
-  card("原版 ProtectionProfile 配置档","切换时会先保存当前档，再原子修改规则列表与安全搜索选项；FX DNS 应用失败将恢复之前的设置。",profileRows);
-  card("原版 ProfileSchedule 周计划","星期编号与原版一致：周一=1…周日=7。开始晚于结束时表示跨午夜窗口；相同开始/结束时间不会命中。",scheduleStart,scheduleEnd,daysBox,scheduleRows);
+  card("原版 ProtectionProfile 配置档","切换时会先保存当前档，再补齐缺失的 HTTPS 来源并切换已有订阅；FX 本地规则和 96110 列表不受影响。SafeSearch 与 YouTube 限制通过 FX 本地 AdGuard Home 引擎应用；DNS 引擎未运行时不会宣称已生效。",profileRows);
+  card("原版 ProfileSchedule 周计划","星期编号与原版 Calendar 一致：周日=0、周一=1…周六=6。开始晚于结束时表示跨午夜窗口；相同开始/结束时间不会命中。",scheduleStart,scheduleEnd,daysBox,scheduleRows);
   loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
  }
  private void loadProfileState(LinearLayout profileRows,LinearLayout scheduleRows,TextView result,EditText scheduleStart,EditText scheduleEnd,android.widget.CheckBox[] days){
@@ -876,7 +877,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
     })));
     row.addView(btn("为此档添加每周计划",()->{
       StringBuilder selected=new StringBuilder();
-      for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i+1);}
+      for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i);}
       if(selected.length()==0){result.setText("至少选择一天。");return;}
       String start=scheduleStart.getText()==null?"":scheduleStart.getText().toString().trim();
       String end=scheduleEnd.getText()==null?"":scheduleEnd.getText().toString().trim();
@@ -897,6 +898,17 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
     LinearLayout row=new LinearLayout(this);row.setOrientation(1);row.setPadding(dp(8),dp(5),dp(8),dp(5));
     row.addView(txt(profile+" · "+start+"–"+end+" · 星期 "+week,12,0xff17212b,true));
     row.addView(txt("计划状态："+("1".equals(enabled)?"启用":"暂停"),11,0xff617080,false));
+    row.addView(btn("使用上方时间/星期更新",()->{
+      StringBuilder selected=new StringBuilder();
+      for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i);}
+      if(selected.length()==0){result.setText("至少选择一天。");return;}
+      String newStart=scheduleStart.getText()==null?"":scheduleStart.getText().toString().trim();
+      String newEnd=scheduleEnd.getText()==null?"":scheduleEnd.getText().toString().trim();
+      profileRoot("schedule-set "+q(id)+" "+enabled+" "+q(newStart)+" "+q(newEnd)+" "+q(selected.toString()),updated->{
+        result.setText(updated.exitCode==0?"周计划时间与星期已更新。":safe(updated.output));
+        loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
+      });
+    }));
     row.addView(btn("暂停/启用计划",()->profileRoot("schedule-set "+q(id)+" "+("1".equals(enabled)?"0":"1")+" "+q(start)+" "+q(end)+" "+q(week),updated->{
       result.setText(updated.exitCode==0?"周计划状态已更新。":safe(updated.output));
       loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
