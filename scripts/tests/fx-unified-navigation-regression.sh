@@ -15,6 +15,13 @@ settings = activity[settings_start:settings_end]
 for forbidden in ('section("迁移应用")', 'Dia 23.11', '游龙广告插件 7.0.1', '游龙安全护盾 9.9.60'):
     assert forbidden not in settings, f"obsolete source-app entry remains in Settings: {forbidden}"
 assert "Ad/Hosts" not in settings and "Ad / Hosts" not in settings
+ad_start = activity.index("    private void buildNativeHostsPage()")
+ad_end = activity.index("    private void refreshHostsStatus(", ad_start)
+ad_page = activity[ad_start:ad_end]
+for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
+                "FxYulongAdSummaryActivity.class", "FxYulongFirewallActivity.class",
+                "FxYulongAppWhitelistActivity.class"):
+    assert feature in ad_page, f"migrated Ad feature is not reachable from Ad tab: {feature}"
 assert "HUAWEI HarmonyStyle" in settings and "iOS CupertinoStyle" in settings
 assert "逐页组件适配仍在继续" in settings
 restore_start = activity.index("        if (restoreHookScreen)")
