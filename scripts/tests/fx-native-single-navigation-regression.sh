@@ -2,6 +2,8 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 JAVA="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+LISTS="$ROOT/scripts/native-managed-lists.sh"
+test -s "$LISTS"
 test -s "$JAVA"
 SHELL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 grep -Fq 'fontSize = 15.sp' "$SHELL"
@@ -43,16 +45,50 @@ grep -Fq 'showNativeManagedListDialog("blockList", "自定义黑名单")' "$JAVA
 grep -Fq 'private void showNativeManagedListDialog(String listId, String title)' "$JAVA"
 grep -Fq 'private void showNativeManagedListItemActions(String listId, String title, int index,' "$JAVA"
 grep -Fq 'private void showNativeManagedListAddDialog(String listId, String title, boolean subscription)' "$JAVA"
-grep -Fq '规则管理桥尚未就绪，请稍后重试' "$JAVA"
-grep -Fq 'Integer.parseInt(result == null ? "0" : result) > 0' "$JAVA"
-grep -Fq '未添加：可能重复、列表不可用或存储尚未就绪' "$JAVA"
-grep -Fq 'private void showNativeManagedListEditDialog(String listId, String title, int index,' "$JAVA"
-grep -Fq 'private void mutateNativeManagedList(String listId, int index, String operation,' "$JAVA"
-grep -Fq 'pgQueueAutoApply' "$JAVA"
-grep -Fq 'window.__fxNativeRuleMutationOk=false;pgPersistNow().then' "$JAVA"
-grep -Fq 'webView.evaluateJavascript("!!window.__fxNativeRuleMutationOk"' "$JAVA"
-grep -Fq '列表保存失败，请检查模块设置与 Root 状态' "$JAVA"
-grep -Fq '列表已保存并提交应用' "$JAVA"
+# Hosts/Ad list management is native Android UI backed by the module's
+# locked, transactional native-managed-lists.sh command. Do not regress to
+# the retired WebView JavaScript mutation bridge.
+python3 - "$JAVA" "$LISTS" <<'PY'
+from pathlib import Path
+import sys
+
+java = Path(sys.argv[1]).read_text(encoding="utf-8")
+script = Path(sys.argv[2]).read_text(encoding="utf-8")
+
+def section(source, start, end):
+    a = source.index(start)
+    b = source.index(end, a + len(start))
+    assert b > a, f"missing section boundary: {start}"
+    return source[a:b]
+
+ui = section(java, "private void showNativeManagedListDialog(",
+             "private void showNativeListDialog(")
+mutation = section(java, "private void mutateNativeManagedList(",
+                   "private void showNativeListDialog(")
+assert 'sh \\"$MP/scripts/native-managed-lists.sh\\"' in mutation,     "native list edits must call the module-side managed list script"
+assert 'shellQuote(operation)' in mutation and 'shellQuote(listId)' in mutation,     "operation and list identifier must be shell-quoted"
+for token in ('case "add":', 'case "edit":', 'case "toggle":', 'case "delete":'):
+    assert token in mutation, f"native list operation is missing: {token}"
+for token in ('shellQuote(newValue)', 'shellQuote(newNote)', 'runNativeModuleCommand(command, 180000L',
+              '列表已保存并应用。', '列表更新失败', 'showNativeManagedListDialog(listId, title)'):
+    assert token in mutation, f"native list mutation contract missing: {token}"
+assert "evaluateJavascript" not in ui and "webView" not in ui,     "Hosts/Ad managed lists must not use the retired WebView mutation bridge"
+assert '"FXLIST1".equals(lines[0])' in ui, "UI must validate the native list response envelope"
+assert 'line.split("\\\\|", 4)' in ui, "UI must parse row index/value/note/enabled as four fields"
+
+for token in (
+    'ruleList) echo rule', 'domainList) echo domain', 'blockList) echo block',
+    'valid_field()', 'valid_note()', 'list_rows()', 'append_row()', 'update_row()',
+    'mutate_transaction()', 'mkdir "$LOCK"', 'tries -lt 20',
+    'cp -p "$CONF" "$backup"', 'cp -p "$backup" "$CONF.restore.$$"',
+    'chmod 600 "$CONF.restore.$$"', 'apply_mode=full', 'apply_mode=fast',
+    'sh "$MP/scripts/apply.sh" "$apply_mode"', 'echo FXLIST1',
+):
+    assert token in script, f"managed list backend safety/transaction contract missing: {token}"
+assert 'http://*|https://*' in script, "subscription inputs must remain URL-limited"
+assert 'set -eu' in script and 'umask' not in script, "managed list script must fail closed"
+print("PASS: native Hosts/Ad lists use fixed allowlisted IDs, quoted inputs, locking, rollback and real apply")
+PY
 grep -Fq 'private void buildNativePrivacyPage()' "$JAVA"
 grep -Fq 'private void addNativeActionCard(String heading, String description, String actionLabel, Runnable action)' "$JAVA"
 grep -Fq 'addNativeActionCard("应用内广告标识"' "$JAVA"
@@ -152,7 +188,29 @@ grep -Fq 'native-privacy-settings.json' "$JAVA"
 grep -Fq 'settings.conf' "$JAVA"
 grep -Fq 'native-privacy-settings.sh' "$JAVA"
 grep -Fq 'private void setNativePrivacySetting(String key' "$JAVA"
-grep -Fq 'pgPersistNow().then(function(ok)' "$JAVA"
+# The privacy settings screen also uses its native Root/module writer, not the
+# retired WebView pgPersistNow() bridge.
+python3 - "$JAVA" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+def method(start, end):
+    a = source.index(start)
+    b = source.index(end, a + len(start))
+    return source[a:b]
+reader = method("private void renderNativePrivacySettingsGroup(",
+                "private void setNativePrivacySetting(")
+writer = method("private void setNativePrivacySetting(",
+                "private void finishNativePrivacySetting(")
+assert 'native-privacy-settings.sh\\" list' in reader
+assert 'runNativeModuleCommand(command, 120000L' in writer
+assert 'native-privacy-settings.sh\\" set' in writer
+assert 'finishNativePrivacySetting(control, enabled, true' in writer
+assert 'finishNativePrivacySetting(control, previous, false' in writer
+assert '配置已保存，但模块应用失败' in writer
+assert 'pgPersistNow' not in reader and 'webView' not in reader and 'evaluateJavascript' not in writer
+print("PASS: native privacy settings use the module writer and preserve failed-setting state")
+PY
 grep -Fq 'addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel")' "$JAVA"
 grep -Fq 'addNativeSettingsCategory("Root / 模块隐藏", "rootPanel")' "$JAVA"
 grep -Fq 'addNativeSettingsCategory("高级网络防护", "advPanel")' "$JAVA"
