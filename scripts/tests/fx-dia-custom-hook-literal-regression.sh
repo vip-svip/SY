@@ -127,8 +127,8 @@ assert '":dev_rule_group_rename_draft:" + oldName' in rename
 assert "input.addTextChangedListener(" in rename
 picker_start = source.index("private void showCustomRuleGroupPicker(int slot)")
 picker_end = source.index("\n    private ", picker_start + 20)
-assert '.putString(key, group).commit()' in source[picker_start:picker_end], \
-    "moving a rule between groups must report a synchronous persistence result"
+assert "commitCustomRuleGroupUpdate(" in source[picker_start:picker_end], \
+    "moving a rule between groups must use the checked atomic persistence path"
 PY
 echo "PASS: Hook add/rename/move group forms preserve drafts and commit group changes atomically"
 python3 - "$MAIN" <<'PY'
