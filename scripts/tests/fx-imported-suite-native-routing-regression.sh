@@ -9,6 +9,11 @@ grep -Fq 'if (tab >= 0 && tab <= 3) openImportedNativeTab(tab);' "$MAIN" || fail
 grep -Fq 'handleImportedNativeTabIntent(getIntent());' "$MAIN" || fail "cold-start native tab route missing"
 grep -Fq 'handleImportedNativeTabIntent(intent);' "$MAIN" || fail "singleTop native tab route missing"
 grep -Fq 'case "VPN 保护": case "VPN 状态": case "自动重连":' "$MAIN" || fail "Yulong VPN feature group not routed"
+grep -Fq 'case "信任的网络":' "$MAIN" || fail "Yulong trusted Wi-Fi source page is not mapped"
+trusted_block=$(sed -n '/case "信任的网络":/,/case "Root 代理模式":/p' "$MAIN")
+printf '%s\\n' "$trusted_block" | grep -Fq '"suite_page", "信任的网络"' || fail "trusted Wi-Fi does not open its dedicated native screen"
+printf '%s\\n' "$trusted_block" | grep -Fq 'VPN 与 Root Proxy' && fail "trusted Wi-Fi is still routed to Root Proxy"
+
 vpn_block=$(sed -n '/case "VPN 保护": case "VPN 状态": case "自动重连":/,/case "信任的网络":/p' "$MAIN")
 printf '%s\n' "$vpn_block" | grep -Fq '"fx_open_native_tab", 0' || fail "Yulong VPN controls do not open FX native VPN tab"
 printf '%s\n' "$vpn_block" | grep -Fq 'FLAG_ACTIVITY_CLEAR_TOP' || fail "native VPN route may create a duplicate MainActivity"
