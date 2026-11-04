@@ -14,9 +14,13 @@ required = [
     'private static final String STATE_DRAFTS="fx_yulong_ad_drafts";',
     'private static final String STATE_SCROLL_Y="fx_yulong_ad_scroll_y";',
     'private Bundle captureDrafts(){',
-    'out.putBundle(STATE_DRAFTS,captureDrafts());',
-    'private void open(String p){Bundle drafts=captureDrafts();page=p;',
-    'render();restoreDrafts(drafts);bind();}',
+    'private Bundle retainedDrafts=new Bundle();',
+    'Bundle drafts=new Bundle(retainedDrafts);',
+    'if(pendingRestoredDrafts!=null)retainedDrafts=new Bundle(pendingRestoredDrafts);',
+    'retainedDrafts=captureDrafts();',
+    'out.putBundle(STATE_DRAFTS,retainedDrafts);',
+    'private void open(String p){retainedDrafts=captureDrafts();page=p;',
+    'render();restoreDrafts(retainedDrafts);bind();}',
     'private ScrollView pageScroll;',
     'private int pendingPageScrollY;',
     'private boolean pendingPageScrollRestore;',
@@ -46,9 +50,9 @@ for token in required:
 open_start = s.index("private void open(String p)")
 open_end = s.index("\n  private ", open_start)
 open_method = s[open_start:open_end]
-assert open_method.index("captureDrafts()") < open_method.index("page=p;")
+assert open_method.index("retainedDrafts=captureDrafts()") < open_method.index("page=p;")
 assert "pendingPageScrollRestore=false" in open_method and "pendingPageScrollY=0" in open_method
-assert open_method.index("render();") < open_method.index("restoreDrafts(drafts)") < open_method.index("bind();"), \
+assert open_method.index("render();") < open_method.index("restoreDrafts(retainedDrafts)") < open_method.index("bind();"), \
     "page switching must reset scroll while restoring unsaved form drafts"
 
 keys = (
@@ -107,5 +111,5 @@ for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
-print("PASS: Yulong Ad drafts survive page switching and recreation; page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
+print("PASS: Yulong Ad drafts persist across multiple page switches and recreation; page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
 PY
