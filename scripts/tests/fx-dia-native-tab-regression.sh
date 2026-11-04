@@ -59,6 +59,22 @@ assert "searchFilter.setText(customHookRuleSearchQuery);" in main, "custom-rule 
 assert "customHookRuleGroupFilter = \"全部分组\".equals(value) ? \"\" : value;" in main
 assert "customHookRuleSearchQuery = s == null ? \"\" : s.toString();" in main
 assert "ruleScroll.scrollTo(0, restoreRuleY);" in main, "custom-rule list scroll must restore"
+
+# Per-app Hook target detail and its custom-rule return path preserve scroll state.
+assert 'STATE_HOOK_TARGET_SCROLL_Y = "fx_hook_target_scroll_y"' in main
+assert 'state.getInt(STATE_HOOK_TARGET_SCROLL_Y, 0)' in main
+assert 'outState.putInt(STATE_HOOK_TARGET_SCROLL_Y, Math.max(0, hookTargetScrollY));' in main
+assert "pendingPrivacySection = restoringTarget ? null : privacySection;" in main, "target recreation must not replay the initial category focus over its restored scroll"
+assert "final String requested = pendingPrivacySection;" in main, "category auto-focus must be a one-time navigation request"
+assert "private void restoreHookTargetScrollAfterBuild()" in main
+assert "targetScroll.scrollTo(0, restoreY);" in main
+assert "targetScroll != nativeScroll || packageName == null" in main, "stale target scroll callback must not affect a newer target"
+assert "hookTargetScrollY = Math.max(0, nativeScroll.getScrollY());" in main, "target position must be captured before entering custom rules"
+assert "if (hookTargetVisible && !hookCustomRulesPageVisible && !hookTargetScrollRestorePending" in main, "target rebuild must capture position but not the custom-rule list"
+for page_name in ("showDiaDialogTarget", "showDiaToastTarget", "showDiaKeyControlTarget"):
+    start = main.index("private void " + page_name)
+    end = main.index("\n    private ", start + 25)
+    assert "restoreHookTargetScrollAfterBuild();" in main[start:end], f"{page_name}: target scroll must restore"
 assert "nativeScroll == ruleScroll" in main, "stale custom-rule scroll callbacks must be ignored"
 
 # Successful rule CRUD/group operations must rebuild the custom-rule manager, not eject to the generic target page.
