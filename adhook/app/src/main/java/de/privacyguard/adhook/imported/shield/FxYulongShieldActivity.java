@@ -18,6 +18,21 @@ import android.widget.Toast;
  */
 public final class FxYulongShieldActivity extends Activity {
     private LinearLayout body;
+    private android.content.SharedPreferences shieldPrefs;
+    private TextView runtimeStatus;
+    private android.widget.Switch installScanSwitch;
+    private android.widget.Switch contentScanSwitch;
+    private android.widget.Switch autoRiskScanSwitch;
+    private android.widget.Switch protectionSwitch;
+    private android.widget.Switch overlayRescueSwitch;
+    private android.widget.Switch volumeTriggerSwitch;
+    private android.widget.Switch shakeTriggerSwitch;
+    private android.widget.RadioGroup riskModeGroup;
+    private android.widget.RadioButton directModeButton;
+    private android.widget.RadioButton confirmModeButton;
+    private android.widget.Button volumeKeyButton;
+    private android.widget.Button volumeCountButton;
+    private boolean refreshingControls;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -46,6 +61,97 @@ public final class FxYulongShieldActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(5), dp(12), dp(5));
         body.addView(panel, lp);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        refreshControlsFromSystem();
+    }
+
+    private boolean hasNotificationPermission() {
+        return android.os.Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        android.app.ActivityManager manager =
+                (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) return false;
+        try {
+            for (android.app.ActivityManager.RunningServiceInfo info
+                    : manager.getRunningServices(100)) {
+                if (info != null && serviceClass.getName().equals(info.service.getClassName())
+                        && getPackageName().equals(info.service.getPackageName())) return true;
+            }
+        } catch (RuntimeException ignored) { }
+        return false;
+    }
+
+    private void refreshControlsFromSystem() {
+        if (shieldPrefs == null) return;
+        refreshingControls = true;
+        if (installScanSwitch != null) installScanSwitch.setChecked(
+                shieldPrefs.getBoolean("automatic_install_scan_enabled", true));
+        if (contentScanSwitch != null) contentScanSwitch.setChecked(
+                shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
+        if (autoRiskScanSwitch != null) autoRiskScanSwitch.setChecked(
+                shieldPrefs.getBoolean("auto_block_on", true));
+        if (protectionSwitch != null) protectionSwitch.setChecked(
+                shieldPrefs.getBoolean("protect_on", false));
+        if (overlayRescueSwitch != null) overlayRescueSwitch.setChecked(
+                shieldPrefs.getBoolean("overlay_rescue_on", false));
+        if (volumeTriggerSwitch != null) volumeTriggerSwitch.setChecked(
+                shieldPrefs.getBoolean("volume_trigger_on", false));
+        if (shakeTriggerSwitch != null) shakeTriggerSwitch.setChecked(
+                shieldPrefs.getBoolean("shake_trigger_on", false));
+        if (riskModeGroup != null && directModeButton != null && confirmModeButton != null) {
+            riskModeGroup.check("confirm".equalsIgnoreCase(
+                    shieldPrefs.getString("auto_block_mode", "direct"))
+                    ? confirmModeButton.getId() : directModeButton.getId());
+        }
+        if (volumeKeyButton != null) {
+            volumeKeyButton.setText("触发按键：" + ("up".equalsIgnoreCase(
+                    shieldPrefs.getString("volume_trigger_key", "down")) ? "音量上键" : "音量下键"));
+        }
+        if (volumeCountButton != null) {
+            int count = de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence
+                    .normalizeCount(shieldPrefs.getInt("volume_trigger_count", 3));
+            volumeCountButton.setText("连续触发次数：" + count + " 次");
+        }
+        refreshingControls = false;
+
+        if (runtimeStatus != null) {
+            boolean usage = hasUsageAccess();
+            boolean notifications = hasNotificationPermission();
+            boolean accessibility = de.privacyguard.adhook.FxAccessibilityService.isConnected();
+            boolean overlay = android.provider.Settings.canDrawOverlays(this);
+            boolean protectionRunning = isServiceRunning(FxYulongProtectionService.class);
+            boolean rescueRunning = isServiceRunning(FxYulongRescueOverlayService.class);
+            StringBuilder state = new StringBuilder();
+            state.append("使用情况访问：").append(usage ? "已授权" : "未授权");
+            state.append("\n通知权限：").append(notifications ? "已授权" : "未授权");
+            state.append("\nFX 无障碍服务：").append(accessibility ? "已连接" : "未连接");
+            state.append("\n悬浮窗权限：").append(overlay ? "已授权" : "未授权");
+            state.append("\n实时守护服务：").append(protectionRunning ? "运行中" : "未运行");
+            state.append("（开关 ").append(shieldPrefs.getBoolean("protect_on", false) ? "开启" : "关闭").append("）");
+            state.append("\n悬浮救援服务：").append(rescueRunning ? "运行中" : "未运行");
+            if (!notifications && (shieldPrefs.getBoolean("protect_on", false)
+                    || shieldPrefs.getBoolean("shake_trigger_on", false))) {
+                state.append("\n警告：通知权限已撤销，后台服务无法正常维持提醒。");
+            }
+            if (!usage && shieldPrefs.getBoolean("protect_on", false)) {
+                state.append("\n警告：使用情况访问已撤销，前台守护不可工作；请关闭并重新授权。");
+            }
+            if (!accessibility && shieldPrefs.getBoolean("auto_block_on", true)) {
+                state.append("\n提示：前台自动扫描开关已保存，但 FX 无障碍服务未连接。");
+            }
+            if (!overlay && shieldPrefs.getBoolean("overlay_rescue_on", false)) {
+                state.append("\n提示：悬浮窗权限已撤销，已保存的救援入口无法显示。");
+            }
+            runtimeStatus.setText(state.toString());
+        }
     }
 
     private void syncProtectionService(android.content.SharedPreferences prefs) {
@@ -111,6 +217,8 @@ public final class FxYulongShieldActivity extends Activity {
 
         card("功能迁移状态",
                 "已迁入病毒名单、离线缓存、手动扫描、白名单/管控名单、安装后扫描、前台应用守护、Stellar 权限管理、开机恢复与 15 分钟低频恢复 Alarm。原版 2 分钟高频 watchdog、强制恢复无障碍权限和部分覆盖层自保护行为未照搬；FX 不会擅自修改系统权限或强停目标应用。");
+        card("实时权限与服务状态", "从系统权限和实际运行服务读取；开关保存状态不等同于服务正在运行。", 
+                runtimeStatus = text("正在读取系统权限与服务状态…", 12, 0xff617080, false));
         card("屏幕滤镜",
                 "迁入标准浅色/暖色覆盖预设及亮度、色温叠加调节。滤镜使用不接收触摸的透明悬浮层，不读取屏幕图像；普通悬浮层不能对下层应用画面执行像素级对比度/饱和度变换。",
                 action("打开屏幕滤镜设置", () -> startActivity(new Intent(this,
@@ -142,30 +250,32 @@ public final class FxYulongShieldActivity extends Activity {
         card("应用签名与完整性",
                 "展示 FX 当前安装包证书指纹；不复用原游龙 APK 固定证书强制退出校验。",
                 action("查看当前签名指纹", () -> startActivity(new Intent(this, FxYulongIntegrityActivity.class))));
-        android.content.SharedPreferences shieldPrefs =
-                getSharedPreferences("shield_prefs", MODE_PRIVATE);
-        android.widget.Switch installScan = new android.widget.Switch(this);
-        installScan.setText("安装新应用时自动扫描");
-        installScan.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", true));
-        installScan.setOnCheckedChangeListener((button, enabled) -> {
+        shieldPrefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
+        installScanSwitch = new android.widget.Switch(this);
+        installScanSwitch.setText("安装新应用时自动扫描");
+        installScanSwitch.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", true));
+        installScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
                 return;
             }
             shieldPrefs.edit().putBoolean("automatic_install_scan_enabled", enabled).apply();
         });
-        android.widget.Switch contentScan = new android.widget.Switch(this);
-        contentScan.setText("同时启用 APK 内容特征扫描");
-        contentScan.setChecked(shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
-        contentScan.setOnCheckedChangeListener((button, enabled) ->
+        contentScanSwitch = new android.widget.Switch(this);
+        contentScanSwitch.setText("同时启用 APK 内容特征扫描");
+        contentScanSwitch.setChecked(shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
+        contentScanSwitch.setOnCheckedChangeListener((button, enabled) ->
+            if (refreshingControls) return;
                 shieldPrefs.edit().putBoolean("automatic_content_scan_enabled", enabled).apply());
         card("安装后自动检测",
                 "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
-                installScan, contentScan);
-        android.widget.Switch autoRiskScan = new android.widget.Switch(this);
-        autoRiskScan.setText("自动前台风险扫描");
-        autoRiskScan.setChecked(shieldPrefs.getBoolean("auto_block_on", true));
-        autoRiskScan.setOnCheckedChangeListener((button, enabled) -> {
+                installScanSwitch, contentScanSwitch);
+        autoRiskScanSwitch = new android.widget.Switch(this);
+        autoRiskScanSwitch.setText("自动前台风险扫描");
+        autoRiskScanSwitch.setChecked(shieldPrefs.getBoolean("auto_block_on", true));
+        autoRiskScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
                 return;
@@ -182,23 +292,24 @@ public final class FxYulongShieldActivity extends Activity {
                         }).show();
             }
         });
-        android.widget.RadioGroup riskMode = new android.widget.RadioGroup(this);
-        android.widget.RadioButton directMode = new android.widget.RadioButton(this);
-        directMode.setText("直接打开 Android 系统卸载确认（你仍需确认）");
-        directMode.setId(android.view.View.generateViewId());
-        android.widget.RadioButton confirmMode = new android.widget.RadioButton(this);
-        confirmMode.setText("先查看 FX 风险详情，再决定处理");
-        confirmMode.setId(android.view.View.generateViewId());
-        riskMode.addView(directMode);
-        riskMode.addView(confirmMode);
+        riskModeGroup = new android.widget.RadioGroup(this);
+        directModeButton = new android.widget.RadioButton(this);
+        directModeButton.setText("直接打开 Android 系统卸载确认（你仍需确认）");
+        directModeButton.setId(android.view.View.generateViewId());
+        confirmModeButton = new android.widget.RadioButton(this);
+        confirmModeButton.setText("先查看 FX 风险详情，再决定处理");
+        confirmModeButton.setId(android.view.View.generateViewId());
+        riskModeGroup.addView(directModeButton);
+        riskModeGroup.addView(confirmModeButton);
         String storedRiskMode = shieldPrefs.getString("auto_block_mode", "direct");
-        riskMode.check("confirm".equalsIgnoreCase(storedRiskMode) ? confirmMode.getId() : directMode.getId());
-        riskMode.setOnCheckedChangeListener((group, checkedId) ->
+        riskModeGroup.check("confirm".equalsIgnoreCase(storedRiskMode) ? confirmModeButton.getId() : directModeButton.getId());
+        riskModeGroup.setOnCheckedChangeListener((group, checkedId) ->
+            if (refreshingControls) return;
                 shieldPrefs.edit().putString("auto_block_mode",
-                        checkedId == confirmMode.getId() ? "confirm" : "direct").apply());
+                        checkedId == confirmModeButton.getId() ? "confirm" : "direct").apply());
         card("原版自动风险管控",
                 "保留原版前台自动风险扫描和 direct/confirm 两种处理路径。direct 只会在你点击通知后打开 Android 系统卸载确认；FX 不会静默卸载、强停或冻结应用。前台扫描需要你主动启用 FX 无障碍服务。",
-                autoRiskScan, directMode, confirmMode,
+                autoRiskScanSwitch, directModeButton, confirmModeButton,
                 action("打开无障碍服务设置", () -> {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
                     catch (Throwable ignored) { }
@@ -236,10 +347,11 @@ public final class FxYulongShieldActivity extends Activity {
                         + (lastTime.isEmpty() ? "" : "\n时间：" + lastTime),
                 action("打开完整应用扫描", () -> startActivity(new Intent(this,
                         FxYulongScanActivity.class))));
-        android.widget.Switch protection = new android.widget.Switch(this);
-        protection.setText("实时应用守护（黑名单前台提醒）");
-        protection.setChecked(shieldPrefs.getBoolean("protect_on", false));
-        protection.setOnCheckedChangeListener((button, enabled) -> {
+        protectionSwitch = new android.widget.Switch(this);
+        protectionSwitch.setText("实时应用守护（黑名单前台提醒）");
+        protectionSwitch.setChecked(shieldPrefs.getBoolean("protect_on", false));
+        protectionSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled) {
                 if (!hasUsageAccess()) {
                     button.setChecked(false);
@@ -266,15 +378,16 @@ public final class FxYulongShieldActivity extends Activity {
         });
         card("实时应用守护",
                 "复用原版 blacklist_pkgs / whitelist_pkgs 规则，周期识别前台应用并向用户发出提醒。需要手动授予使用情况访问权限。为避免误操作，FX 不自动强停、冻结或卸载任何应用。",
-                protection,
+                protectionSwitch,
                 action("打开使用情况访问权限设置", () -> {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
                     catch (Throwable ignored) { }
                 }));
-                android.widget.Switch overlayRescue = new android.widget.Switch(this);
-        overlayRescue.setText("显示浮动救援入口");
-        overlayRescue.setChecked(shieldPrefs.getBoolean("overlay_rescue_on", false));
-        overlayRescue.setOnCheckedChangeListener((button, enabled) -> {
+                overlayRescueSwitch = new android.widget.Switch(this);
+        overlayRescueSwitch.setText("显示浮动救援入口");
+        overlayRescueSwitch.setChecked(shieldPrefs.getBoolean("overlay_rescue_on", false));
+        overlayRescueSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
                 return;
@@ -301,7 +414,7 @@ public final class FxYulongShieldActivity extends Activity {
         });
         card("悬浮救援入口",
                 "用户主动开启后在屏幕边缘显示小型 FX 入口；点击可返回安全护盾，不会自动操作其他应用。",
-                overlayRescue,
+                overlayRescueSwitch,
                 action("打开悬浮窗权限设置", () -> {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                             android.net.Uri.parse("package:" + getPackageName()))); }
@@ -311,10 +424,11 @@ public final class FxYulongShieldActivity extends Activity {
                 "保留独立救援操作：查看最近前台应用、打开应用信息或系统卸载确认、恢复名单和关闭错误启用的守护/悬浮入口。",
                 action("打开救援中心", () -> startActivity(new Intent(this,
                         FxYulongRescueActivity.class))));
-        android.widget.Switch volumeTrigger = new android.widget.Switch(this);
-        volumeTrigger.setText("音量键连续触发救援提醒（需启用 FX 无障碍服务）");
-        volumeTrigger.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
-        volumeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+        volumeTriggerSwitch = new android.widget.Switch(this);
+        volumeTriggerSwitch.setText("音量键连续触发救援提醒（需启用 FX 无障碍服务）");
+        volumeTriggerSwitch.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
+        volumeTriggerSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
                 return;
@@ -337,7 +451,7 @@ public final class FxYulongShieldActivity extends Activity {
             }
         });
         String initialVolumeKey = shieldPrefs.getString("volume_trigger_key", "down");
-        android.widget.Button volumeKeyButton = new android.widget.Button(this);
+        volumeKeyButton = new android.widget.Button(this);
         volumeKeyButton.setAllCaps(false);
         volumeKeyButton.setText("触发按键：" + ("up".equalsIgnoreCase(initialVolumeKey) ? "音量上键" : "音量下键"));
         volumeKeyButton.setOnClickListener(v -> {
@@ -357,7 +471,7 @@ public final class FxYulongShieldActivity extends Activity {
         int initialVolumeCount = de.privacyguard.adhook.imported.shield
                 .FxYulongVolumeTriggerSequence.normalizeCount(
                         shieldPrefs.getInt("volume_trigger_count", 3));
-        android.widget.Button volumeCountButton = new android.widget.Button(this);
+        volumeCountButton = new android.widget.Button(this);
         volumeCountButton.setAllCaps(false);
         volumeCountButton.setText("连续触发次数：" + initialVolumeCount + " 次");
         volumeCountButton.setOnClickListener(v -> {
@@ -381,10 +495,11 @@ public final class FxYulongShieldActivity extends Activity {
                         volumeCountButton.setText("连续触发次数：" + selected + " 次");
                     }).show();
         });
-        android.widget.Switch shakeTrigger = new android.widget.Switch(this);
-        shakeTrigger.setText("摇动设备触发救援提醒");
-        shakeTrigger.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
-        shakeTrigger.setOnCheckedChangeListener((button, enabled) -> {
+        shakeTriggerSwitch = new android.widget.Switch(this);
+        shakeTriggerSwitch.setText("摇动设备触发救援提醒");
+        shakeTriggerSwitch.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
+        shakeTriggerSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (refreshingControls) return;
             if (enabled && !ensureNotificationPermission()) {
                 button.setChecked(false);
                 return;
@@ -394,6 +509,6 @@ public final class FxYulongShieldActivity extends Activity {
         });
         card("原版救援触发迁移",
                 "音量键序列支持原版的音量上/下键选择与 2–10 次阈值（默认音量下键 3 次）；摇动触发使用加速度传感器。触发后只显示提醒，不会擅自强停、卸载应用或修改无障碍权限。",
-                volumeTrigger, volumeKeyButton, volumeCountButton, shakeTrigger);
+                volumeTriggerSwitch, volumeKeyButton, volumeCountButton, shakeTriggerSwitch);
     }
 }
