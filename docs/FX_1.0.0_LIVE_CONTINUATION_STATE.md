@@ -1426,3 +1426,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前最重要的未完成项仍是：六 Tab 全页面实际回跳/返回栈设备验收；Dia 原始页面与 Manifest 全量映射；Hook 页面实际权限/注入状态；VPN/DNS/Hosts/隐私/脚本真实后端闭环；Shield 服务权限状态与批量清理回执。
 - 下一批直接任务：核对 FxNativeTabActivity 对所有独立 Activity 的 Tab 回跳行为，确认 CLEAR_TOP | SINGLE_TOP 到 MainActivity 后实际选中请求 Tab；再核对 Activity Result/SAF 在旋转后的回传。优先源码可验证的导航状态，不启动整套 Actions。
 - 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器或真机导航；不生成 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Shield 每日摘要返回栈与状态文本修正
+
+- 本批前最新 HEAD：`a79e8798d335c9bb7578f0ffb89439576554b29b`；提交过程中未覆盖并行分支更新。
+- 修复 `FxYulongDailySummaryActivity` 的“返回安全护盾首页”动作：由重新启动一个新的 `FxYulongShieldActivity` 改为结束摘要页并返回原调用者，避免 Hub 重复入栈、再次按返回键又回到摘要页。
+- 修复后台服务、救援服务、名单监测、摇动/音量触发与通知权限状态之间的换行显示：将误写成字面 `\\n` 的分隔符改成实际换行转义 `\n`。
+- 清理 `fx-yulong-shield-six-tab-regression.sh` Activity 映射中的重复 DailySummary / Warning 键；新增返回栈语义与换行格式断言。
+- 提交：
+  - `d281089df32679a7fa3e3cdfbc7f30d88e18f925` — 修复摘要页返回栈与实际换行。
+  - `e421e9726559092cbf129171b586275fad115197` — 回归脚本覆盖返回语义、换行显示并清理重复映射键。
+- 验证：已重新读取修改前文件并对修改后源码执行本轮静态断言（返回动作、五处换行、唯一映射键、回归断言）；未执行完整仓库 Shell 脚本、Gradle 编译、模拟器或真机导航。
+- 下一步：继续检查 Shield 警告详情由服务/扫描打开时的任务栈与返回目标；随后核对三套迁移应用首页到深层页面的真实入口和取消/返回行为。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
