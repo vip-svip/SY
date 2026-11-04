@@ -2428,3 +2428,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仍需完成：确认白名单列表主页面对损坏数据同样不做部分写入；对黑名单现有 CSV 做同等级完整性审计；真机验证名单管理器从扫描详情返回后的刷新与提示。
 - 当前读取的分支 HEAD：`0b01cb741db766102f38c76ee8f0d32c631dfc75`。
 - 下一步：审计 `WhitelistActivity` 的“移除/清理系统应用”写入路径是否在原始数据损坏时 fail-closed，再检查黑名单数据写入路径。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 白名单管理主页面写入路径审计（无重复补丁）
+
+- 复核最新 `WhitelistActivity.java`：主页面使用中央 `FxYulongWhitelistPolicy.isWellFormed(raw)` 对整份旧数据校验；异常时设置 `whitelistDataCorrupt`，`saveWhitelist()` 拒绝覆盖；移除单项后若磁盘 commit 失败，会将该包恢复到内存集合。因此本轮没有重复修改已具备保护的代码。
+- 静态核验：损坏标记、保存前拒绝、删除失败回滚三项均存在。未执行运行时测试。
+- 关联白名单选择器已增加同样的异常源数据写入拦截，并在 `fx-yulong-shield-native-regression.sh` 增加回归断言（提交 `9a729f2ffd9477b495340b58c06defadc2b4690e`）。
+- 本次读取的分支 HEAD：`42527280ac17ecf4f4c280e9f33d00bcc8899706`；此后应继续以 GitHub 分支最新 HEAD 为准。
+- 下一步：审计黑名单 CSV 读取/写入是否存在超大数据、非法包名或部分写入风险；之后回到 Dia / 游龙广告插件原生页面批次。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
