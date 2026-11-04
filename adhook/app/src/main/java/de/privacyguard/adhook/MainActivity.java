@@ -5679,7 +5679,7 @@ public final class MainActivity extends ComponentActivity {
 
         TextView scope = new TextView(this);
         scope.setText(userTarget
-                ? "按键动作只绑定当前应用 Activity，不消费系统按键事件；未配置时完全不安装按键 Hook。"
+                ? "按键动作只绑定当前应用 Activity，不消费系统按键事件；未配置时完全不安装按键 Hook。返回键双击/三击取决于目标页面是否自行处理首次 Back，默认 Back 行为不会被 FX 延迟或吞掉。"
                 : "系统或更新系统应用不允许启用 FX 按键动作，以免影响系统导航、音量和辅助功能。");
         scope.setTextColor(0xff697681);
         scope.setPadding(dp(18), dp(4), dp(18), dp(12));
@@ -5758,7 +5758,7 @@ public final class MainActivity extends ComponentActivity {
             if (triggerValues[i] == storedDialog) { dialogSelection = i; break; }
         }
         dialogSpinner.setSelection(dialogSelection);
-        dialogSpinner.setEnabled(userTarget && debuggableTarget);
+        dialogSpinner.setEnabled(userTarget);
         content.addView(dialogSpinner, new LinearLayout.LayoutParams(-1, -2));
 
         finishSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
