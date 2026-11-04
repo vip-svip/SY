@@ -3227,3 +3227,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：回归顺序断言改为检查 `RootAccess.execute(command, 15000L)`，同时保留包身份读取必须先于 Root 进程扫描的约束。
 - 改动：`scripts/tests/fx-dia-frida-process-identity-regression.py`，提交 `7ce67b44201095adc4b290cda20874990e78a10e`。
 - 尚待新 Actions；未做真机 Root 进程枚举和 Frida 注入。
+
+
+## 2026-11-05 — Dia Frida Gadget 配置/部署偏好写入顺序修复
+
+- 页面：Dia 23.11 → Frida → Gadget 监听配置与目标部署。
+- 发现问题：`saveGadgetListenConfig()` 和 `deployGadgetToTarget()` 在 Root 命令执行前就写 SharedPreferences；Root 写配置/部署失败时，重开页面仍显示未生效的新值，造成 UI 配置与真实系统文件/部署状态不一致。
+- 修复：将 `gadget_path`、`gadget_port`、`gadget_on_load_wait` 与 `gadget_process` 的持久化移动到 Root 成功且确认输出标记之后；改为 `commit()` 并检查返回值。Root 失败不污染旧偏好；偏好写入失败时明确显示“系统文件/部署已成功，但本机 UI 索引保存失败”，不冒充完整成功。修正新状态提示的换行显示。
+- 产品提交：`11108db8a2fa840f5dcccf31a027f955414f5118`；状态文案修正：`c372bf22b71a41a2f3de51d2d9aec11332ecdcc3`。
+- 回归提交：`6d7cd760886d4b808e1fbebef295ea82bd6c0fc4`（检查 Root 与偏好写入顺序及 commit）；`d73cbed5da0e1332427e4acffcbcf2ae1614ed0c`（检查用户状态提示换行）。
+- 验证：源码顺序已复核；定向回归脚本已增加契约断言。Actions 尚待读取；Android Gradle/JUnit、设备真实 Root 写入/部署未验证。
+- 下一步：读取本批 Frida Gadget config/deploy/session Actions；继续 Frida 目标进程/会话 UI 的取消、停止和生命周期回显，不将 Root 文件写入成功等同于 LSPosed 已注入。
