@@ -869,3 +869,11 @@ After each implementation batch:
 - The session log viewer now reads only a regular non-symlink file. The command builder's Java escaping was checked so runtime shell quotes are actual quoting characters, not literal backslash-quote sequences.
 - Temp cleanup is idempotent after the successful rename clears the temp variable; HUP/INT/TERM exit into the single EXIT cleanup handler. The Frida process-identity regression now pins these staging, log-reader and cleanup contracts.
 - Source/host regression only. Frida injection and storage behavior must still be exercised on the Android device.
+
+## 2026-11-04 — Dia LSPosed scope auto-sync parity
+
+- Replaced the disabled `lsp_sync` placeholder in Dia global settings with a real opt-in preference backed by FX's existing official libXposed `XposedService` bridge.
+- On explicit selection of a target application's Hook configuration, auto-sync reads the current Manager scope first; if already in scope it does nothing, otherwise it submits a scope request through `XposedService.requestScope`. LSPosed Manager remains the approval authority.
+- The automatic path excludes FX itself, system apps and updated-system apps; those targets retain the existing explicit request flow with a warning. No Root command or direct config-file mutation is used to bypass Manager approval.
+- In-flight deduplication prevents repeated target-page refreshes from queueing repeated requests. Failed/unavailable requests clear the guard and can be retried when the target page is reopened.
+- Added a source regression for the opt-in, scope preflight, official API request, system-app exclusion, selection wiring and in-flight cleanup. Device verification of actual Manager approval dialogs and target-process injection remains pending.

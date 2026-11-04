@@ -162,8 +162,8 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
                 "native_active_tip", true);
 
         section("框架与作用域");
-        addUnavailableSwitch("自动同步到 LSPosed 作用域",
-                "原版依赖 dialog.box.lsp.LScope 与跨进程作用域 API。FX 尚未迁入该运行时，因此此项保持禁用，不会显示为已同步。",
+        addStoredSwitch("自动申请 LSPosed 作用域",
+                "开启后，进入用户应用的 Hook 配置页时，FX 会先读取 LSPosed 当前作用域；若尚未包含该应用，则通过官方 libXposed 服务向 LSPosed Manager 提交申请。系统应用不会自动申请，Manager 仍须批准；作用域批准不代表目标进程已注入。",
                 "lsp_sync", false);
         addAction("快速重启系统",
                 "原版实际是仅重启框架服务层，不是重启 Android 系统。FX 尚未迁入原版重启实现；点击只显示安全说明，不执行 Root 命令。",

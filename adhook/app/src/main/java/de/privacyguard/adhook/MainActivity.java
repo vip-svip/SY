@@ -56,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends ComponentActivity {
+    private static final java.util.Set<String> AUTO_SCOPE_REQUESTS_IN_FLIGHT =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     private LinearLayout root;
     private EditText search;
     private final List<ApplicationInfo> apps = new ArrayList<>();
@@ -4798,6 +4800,7 @@ public final class MainActivity extends ComponentActivity {
         hookTargetVisible = true;
         hookHubVisible = false;
         selectedPackage = ai.packageName;
+        maybeAutoRequestLsposedScope(ai);
         try {
             CharSequence label = getPackageManager().getApplicationLabel(ai);
             selectedLabel = label == null ? ai.packageName : label.toString();
@@ -5762,6 +5765,61 @@ public final class MainActivity extends ComponentActivity {
                 }).show();
     }
 
+
+    /**
+     * Optional Dia-compatible automatic LSPosed scope request. It uses only the
+     * official libXposed service; LSPosed Manager remains the approval authority.
+     * System and updated-system apps are kept on the explicit warning flow.
+     */
+    private void maybeAutoRequestLsposedScope(ApplicationInfo target) {
+        if (target == null || target.packageName == null
+                || !target.packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+                || target.packageName.equals(getPackageName())
+                || (target.flags & (ApplicationInfo.FLAG_SYSTEM
+                        | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) return;
+        if (!getSharedPreferences("digXposed", MODE_PRIVATE)
+                .getBoolean("lsp_sync", false)) return;
+        final String packageName = target.packageName;
+        if (!FxLsposedScopeBridge.isConnected()
+                || !AUTO_SCOPE_REQUESTS_IN_FLIGHT.add(packageName)) return;
+
+        Thread worker = new Thread(() -> {
+            try {
+                FxLsposedScopeBridge.Snapshot current =
+                        FxLsposedScopeBridge.snapshot(packageName);
+                if (!current.connected || current.targetInScope) {
+                    AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                    return;
+                }
+                FxLsposedScopeBridge.requestScope(packageName,
+                        new FxLsposedScopeBridge.RequestCallback() {
+                    @Override public void onApproved(java.util.List<String> approvedPackages) {
+                        AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                        if (approvedPackages == null || !approvedPackages.contains(packageName)) return;
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            Toast.makeText(MainActivity.this,
+                                    "LSPosed 已批准 " + packageName
+                                            + " 的作用域；目标进程仍需重新启动后验证注入。",
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    }
+
+                    @Override public void onFailed(String message) {
+                        AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                        android.util.Log.w("FX-LSPosed",
+                                "Automatic scope request failed for " + packageName + ": " + message);
+                    }
+                });
+            } catch (RuntimeException error) {
+                AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                android.util.Log.w("FX-LSPosed",
+                        "Automatic scope request unavailable for " + packageName, error);
+            }
+        }, "fx-lsposed-auto-scope");
+        worker.setDaemon(true);
+        worker.start();
+    }
 
     private void addLsposedScopeControls(String packageName, boolean systemPackage) {
         section("LSPosed 作用域授权");
