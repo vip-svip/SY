@@ -5541,7 +5541,8 @@ public final class MainActivity extends ComponentActivity {
         final String termsKey = packageNameKey + ":toast_text_terms";
         final String draftEnabledKey = packageNameKey + ":toast_filter_draft_enabled";
         final String draftTermsKey = packageNameKey + ":toast_filter_draft_terms";
-        final boolean userTarget = (target.flags & ApplicationInfo.FLAG_SYSTEM) == 0;
+        final boolean userTarget = (target.flags & (ApplicationInfo.FLAG_SYSTEM
+                | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0;
 
         TextView packageName = new TextView(this);
         packageName.setText(selectedPackage);
@@ -6992,7 +6993,8 @@ public final class MainActivity extends ComponentActivity {
                             .append(getPreferences(0).getBoolean(p + ":dialog_notify", false) ? '1' : '0');
                     has = true;
                 }
-                boolean toastFilterEnabled = (ai.flags & ApplicationInfo.FLAG_SYSTEM) == 0
+                boolean toastFilterEnabled = (ai.flags & (ApplicationInfo.FLAG_SYSTEM
+                        | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0
                         && getPreferences(0).getBoolean(p + ":toast_filter_enabled", false);
                 if (toastFilterEnabled) {
                     List<String> toastTerms = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
