@@ -23,6 +23,8 @@ pages = {
     "FxDiaCodeEditorActivity.java": ".imported.dia.FxDiaCodeEditorActivity",
     "FxDiaJsonActivity.java": ".imported.dia.FxDiaJsonActivity",
     "FxDiaMonitorEventsActivity.java": ".imported.dia.FxDiaMonitorEventsActivity",
+    "FxDiaBackupActivity.java": ".imported.dia.FxDiaBackupActivity",
+    "FxDiaGlobalSettingsActivity.java": ".imported.dia.FxDiaGlobalSettingsActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
