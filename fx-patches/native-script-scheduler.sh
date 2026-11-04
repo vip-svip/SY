@@ -1,6 +1,6 @@
 #!/system/bin/sh
 # Bounded hourly watcher for enabled QuickJS script subscriptions.
-# The scheduler owns one atomic PID record; stop/status never signal a reused PID.
+# The scheduler owns one atomic PID record; stop requests use a matching owner marker.
 set -u
 
 _d=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P)
@@ -10,6 +10,7 @@ MODDIR=$(CDPATH= cd -- "$_d/../.." 2>/dev/null && pwd -P)
 PG=${PG:-/data/adb/privacyguard}
 STATE_DIR="$PG/jsruntime"
 PIDFILE="$STATE_DIR/scheduler.pid"
+STOPFILE="$STATE_DIR/scheduler.stop"
 SCRIPT_PATH="$MODDIR/scripts/jsruntime/scheduler.sh"
 OWNED=0
 OWN_RECORD=
@@ -184,7 +185,7 @@ stop_scheduler() {
       return 0
       ;;
     2)
-      echo "QuickJS scheduler PID belongs to an unrelated or malformed process; refusing to signal it" >&2
+      echo "QuickJS scheduler PID belongs to an unrelated or malformed process; refusing to treat it as the scheduler owner" >&2
       return 10
       ;;
     0)
