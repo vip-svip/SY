@@ -20,7 +20,7 @@ assert "targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE" in picker
 assert "targetInfo.flags & ApplicationInfo.FLAG_SYSTEM" in picker
 assert '"; uid=" + targetUid' in picker, "process enumeration must be bound to the currently installed target UID"
 assert '/proc/$pid/status' in picker and 'Uid:' in picker and '{print $2; exit}' in picker, "process picker must reject PID/name matches whose current UID differs"
-assert picker.index("getApplicationInfo(requestedPackage, 0)") < picker.index("runRoot(command"), "current package identity must be captured before enumerating processes"
+assert picker.index("getApplicationInfo(requestedPackage, 0)") < picker.index("RootAccess.execute(command, 15000L"), "current package identity must be captured before enumerating processes"
 
 # A package may be uninstalled/reinstalled while Root enumerates processes.
 # The UI must re-resolve the package before presenting the captured PID snapshot.
