@@ -3369,3 +3369,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Actions `41917824964` 首错：CrashReport 测试错误要求 `FxDiaNativeCrashCapture` 内出现调用表达式 `clearMinidumps(context)`，实际类定义的是 `clearMinidumps(Context context)` API；同时有多处测试期望旧变量名/旧布尔表达式，与 `FxDiaCrashDumpDirectory` 现行 `directory.equals(...)` 和失败即返回 false 的实现不一致。已按当前实际 API/路径守卫重写断言，不改变产品代码。提交：`66b34177b24a5fa8ff8edca216d86c60f85bdf70`。
 - 未验证：两项测试修正均等待新 Actions；不宣称 CrashReport 或 Frida 回归通过。
 - 下一步：读取新 Actions 首错；若通过，再继续处理 Frida SessionLog bounded worker 和 Gadget/Server 偏好一致性。CI 中 `FxDiaSessionLogActivity` 路径断言来源矛盾仍需追踪。
+
+
+## 2026-11-05 — 最新 Frida CI 阻塞记录（非本轮 UI 页面回归）
+
+- Actions `41917868626` 在 Frida Gadget Session 回归处失败：`fx-dia-frida-gadget-session-regression.sh` 报 `Frida session log worker must use a single bounded worker`。Gadget config writer/deploy 检查此前通过；该失败发生在 Frida session log worker 契约，不是 DNS/File Browser/System Expand UI 断言。
+- Actions `41917824964` 的 Dia Crash Report 回归另有失败：`native dump directory has no explicit cleanup path`。需对照当前 `FxDiaNativeCrashCapture` 与 `FxDiaCrashDumpDirectory` 的实际职责，确认是产品缺口还是旧测试引用过期；不得删除安全清理检查来换绿灯。
+- 本轮 UI 证据：System Expand 安装来源搜索 Actions `41916108180` SUCCESS；File Browser 基础分页/SAF Host 回归 `41916426607` SUCCESS；DNS cache/log UI 定向回归 `41917559211` SUCCESS。File Browser 搜索与 DNS 旋转恢复竞态的后续回归多次被并行 push 的 concurrency 取消；Backup 表单状态回归也曾取消，已通过单 job rerun 继续执行，需核实最终结果。
+- 下一批：优先读取 File Browser/Backup rerun 结果；随后按真实代码核实 Frida session worker 和 Crash Report cleanup 两个 CI 阻塞。不要重复触发整套 Actions。
