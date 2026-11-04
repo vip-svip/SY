@@ -3098,3 +3098,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未完成：筛选查询在 Activity 重建后不恢复；System Expand 滚动恢复已由前一批补入，尚未做设备旋转验收。
 - 失败路线：不再使用不可搜索的固定 `setItems(labels,...)`；不绕过 Android 逐应用授权页面。
 - 下一批：补选择器查询状态恢复，并完成 System Expand / Wi-Fi Proxy 返回链交互检查；随后进入 Dia 原生文件/备份页面批次。固定 FX 1.0.0，不打最终包。
+
+
+## 2026-11-05 — SystemExpand 安装器安全回归改为检查实际事务链
+
+- 基于分支最新 HEAD：`6e1a57ac5d65faf6ce530b44c8781682142142de`。
+- Actions `41916036762` 在 SystemExpand 导航脚本通过 XML 文本解析后，失败于过时的固定文案断言 `不会强制停止或重启系统安装器`。
+- 源码核对：当前页面真实行为不是“永不重启”，而是先读取 PackageInstaller 全部会话，使用 `FxDiaInstallerRestartPolicy.isSafeToRestart()` 判断活动/已提交/staged 会话，再经二次确认并在执行前重读会话，最后才调用 Root force-stop。固定旧文案断言不符合现实现实。
+- 修复：回归改为检查“会话预检说明”、`getAllSessions()`、共享安全策略、二次确认入口和 Root 命令链；保留对风险控制行为的强断言，不修改产品代码。
+- 改动路径：`scripts/tests/fx-dia-system-expand-navigation-regression.sh`、本状态文件。
+- 验证：已对照 `FxDiaSystemExpandActivity` 中会话初检、确认回调前复检和 Root 命令执行顺序；等待 Actions。
+- 下一步：读取当前 Actions 后续首错；继续 Dia SystemExpand/Activity Browser 页面返回与状态恢复。设备安装、系统会话竞争场景未真机验收。

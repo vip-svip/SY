@@ -26,7 +26,9 @@ for token in ('"Wi-Fi Proxy"', '"允许从未知来源安装"', '"重启 Package
               '"ro.debuggable / 调试目标"', "Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES",
               "REQUEST_INSTALL_PACKAGES", "FxDiaWifiProxyActivity.class"):
     assert token in activity, f"SystemExpand real behavior missing: {token}"
-assert "不会强制停止或重启系统安装器" in activity, "SystemExpand must preserve installer-session safety"
+assert "先检查 Android 全部安装会话" in activity, "SystemExpand must explain the installer-session preflight"
+for token in ("getAllSessions()", "FxDiaInstallerRestartPolicy.isSafeToRestart(", "confirmPackageInstallerRestart(packageName)", 'RootAccess.execute(\n                        "am force-stop " + packageName'):
+    assert token in activity, f"SystemExpand installer-session/confirmed restart guard missing: {token}"
 assert "不会伪装成已启用的调试 Hook" in activity, "unsupported framework hook must not be presented as operational"
 for token in (
     'STATE_SCROLL_Y = "fx_dia_system_expand_scroll_y"',
