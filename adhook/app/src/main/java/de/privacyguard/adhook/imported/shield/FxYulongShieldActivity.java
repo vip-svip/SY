@@ -18,6 +18,8 @@ import android.widget.Toast;
  */
 public final class FxYulongShieldActivity extends Activity {
     private LinearLayout body;
+    private ScrollView shieldScroll;
+    private static final String STATE_SCROLL_Y = "fx_yulong_shield_scroll_y";
     private android.content.SharedPreferences shieldPrefs;
     private TextView runtimeStatus;
     private android.widget.Switch installScanSwitch;
@@ -115,6 +117,11 @@ public final class FxYulongShieldActivity extends Activity {
             }
         } catch (RuntimeException ignored) { }
         return false;
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        if (shieldScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, shieldScroll.getScrollY()));
+        super.onSaveInstanceState(outState);
     }
 
     private void refreshControlsFromSystem() {
@@ -246,14 +253,18 @@ public final class FxYulongShieldActivity extends Activity {
         header.addView(text("游龙安全护盾 9.9.60", 19, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        shieldScroll = new ScrollView(this);
+        shieldScroll.setFillViewport(true);
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        shieldScroll.addView(body);
+        root.addView(shieldScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+        if (state != null) {
+            final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            shieldScroll.post(() -> shieldScroll.scrollTo(0, restoreY));
+        }
 
         card("功能迁移状态",
                 "已迁入病毒名单、离线缓存、手动扫描、白名单/管控名单、安装后扫描、前台应用守护、Stellar 权限管理、开机恢复与 15 分钟低频恢复 Alarm。原版 2 分钟高频 watchdog、强制恢复无障碍权限和部分覆盖层自保护行为未照搬；FX 不会擅自修改系统权限或强停目标应用。");
