@@ -167,6 +167,7 @@ public final class MainActivity extends ComponentActivity {
     };
     private static final int REQUEST_FILE_PICKER = 4101;
     private static final int REQUEST_DIA_GPS_PICKER = 4110;
+    private static final int REQUEST_DIA_DEX_HOOK_PICKER = 4111;
     private String pendingDiaGpsTargetPackage;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
@@ -3276,8 +3277,10 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
                     return;
                 case "Dex 查找与解析":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class));
+                    Intent dexBrowser = new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
+                    dexBrowser.putExtra("allow_hook_method_pick", true);
+                    startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER);
                     return;
                 case "签名信息":
                     startActivity(new Intent(this,
@@ -4124,6 +4127,26 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_DIA_DEX_HOOK_PICKER) {
+            if (resultCode != RESULT_OK || data == null) return;
+            String targetPackage = data.getStringExtra("fx_dex_hook_package");
+            String descriptor = data.getStringExtra("fx_dex_hook_descriptor");
+            ApplicationInfo targetInfo = targetPackage == null ? null : findApp(targetPackage);
+            if (targetInfo == null || descriptor == null
+                    || (targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                    || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    || DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0", targetPackage) == null) {
+                Toast.makeText(this, "DEX 方法不能导入：目标必须是仍安装的 debuggable 用户应用，且必须是该包内的完整方法签名。",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            activePrivacySection = "自定义 Hook";
+            showTarget(targetInfo);
+            showCustomRuleDialog(descriptor);
+            Toast.makeText(this, "已将 DEX 方法签名带入自定义 Hook；确认规则后再保存并发布。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
         if (requestCode == REQUEST_DIA_GPS_PICKER) {
             String target = pendingDiaGpsTargetPackage;
             pendingDiaGpsTargetPackage = null;
@@ -5128,7 +5151,9 @@ public final class MainActivity extends ComponentActivity {
                 }).show();
     }
 
-    private void showCustomRuleDialog() {
+    private void showCustomRuleDialog() { showCustomRuleDialog(null); }
+
+    private void showCustomRuleDialog(String presetDescriptor) {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(8), dp(20), 0);
@@ -5139,6 +5164,10 @@ public final class MainActivity extends ComponentActivity {
         EditText descriptor = new EditText(this);
         descriptor.setSingleLine(false);
         descriptor.setMinLines(2);
+        if (presetDescriptor != null && !presetDescriptor.trim().isEmpty()) {
+            descriptor.setText(presetDescriptor);
+            id.setText("dexMethod" + (System.currentTimeMillis() % 1_000_000L));
+        }
         descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[]): java.lang.Object\n"
                 + "Frida：com.example.Foo.run.overload('java.lang.String','int[]') -> java.lang.Object\n"
                 + "Smali：Lcom/example/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;\n"

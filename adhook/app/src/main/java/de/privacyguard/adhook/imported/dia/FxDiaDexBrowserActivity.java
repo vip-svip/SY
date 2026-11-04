@@ -9,6 +9,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import de.privacyguard.adhook.DeveloperHookRule;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -454,7 +455,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
                     output.setMinLines(10);
                     output.setGravity(Gravity.TOP | Gravity.START);
                     output.setTextIsSelectable(true);
-                    new AlertDialog.Builder(this).setTitle("DEX 成员 · " + item.javaName())
+                    AlertDialog.Builder detailDialog = new AlertDialog.Builder(this)
+                            .setTitle("DEX 成员 · " + item.javaName())
                             .setView(output)
                             .setNegativeButton("关闭", null)
                             .setPositiveButton("复制签名", (dialog, which) -> {
@@ -464,12 +466,68 @@ public final class FxDiaDexBrowserActivity extends Activity {
                                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
                                             "DEX signatures", output.getText().toString()));
                                 }
-                            }).show();
+                            });
+                    if (getIntent().getBooleanExtra("allow_hook_method_pick", false)
+                            && selected != null
+                            && (selected.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                            && (selected.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+                        detailDialog.setNeutralButton("选择方法并添加 OBSERVE Hook",
+                                (dialog, which) -> chooseDexHookMethod(item));
+                    }
+                    detailDialog.show();
                 });
             });
         } catch (RejectedExecutionException full) {
             summary.setText("DEX 详情后台队列繁忙，请稍后重试。");
         }
+    }
+
+    private void chooseDexHookMethod(FxDiaDexIndex.DexClass owner) {
+        if (!getIntent().getBooleanExtra("allow_hook_method_pick", false)
+                || selected == null
+                || (selected.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                || (selected.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+            summary.setText("导入 Hook 只允许 debuggable 用户应用；Framework DEX 和系统应用保持只读。");
+            return;
+        }
+        String query = filter.getText() == null ? ""
+                : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<FxDiaDexIndex.Member> candidates = new ArrayList<>();
+        for (FxDiaDexIndex.Member member : owner.methods) {
+            if (member == null || !member.method || member.name == null
+                    || member.name.startsWith("<") || member.descriptor == null
+                    || (member.accessFlags & (0x0400 | 0x0100)) != 0) continue;
+            if (!query.isEmpty()
+                    && !member.display().toLowerCase(Locale.ROOT).contains(query)) continue;
+            String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
+            if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
+                    selected.packageName) == null) continue;
+            candidates.add(member);
+            if (candidates.size() >= 200) break;
+        }
+        if (candidates.isEmpty()) {
+            summary.setText("当前类没有符合条件的具体 Java 方法。请缩小搜索范围，或确认选择的是 debuggable 用户应用。");
+            return;
+        }
+        String[] labels = new String[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) labels[i] = candidates.get(i).display();
+        new AlertDialog.Builder(this).setTitle("选择精确方法 · " + candidates.size() + " 个")
+                .setItems(labels, (dialog, which) -> {
+                    FxDiaDexIndex.Member member = candidates.get(which);
+                    String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
+                    if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
+                            selected.packageName) == null) {
+                        summary.setText("所选方法签名未通过 FX 规则校验，未返回。");
+                        return;
+                    }
+                    Intent result = new Intent();
+                    result.putExtra("fx_dex_hook_package", selected.packageName);
+                    result.putExtra("fx_dex_hook_descriptor", descriptor);
+                    result.putExtra("fx_dex_hook_display", member.display());
+                    setResult(RESULT_OK, result);
+                    finish();
+                })
+                .setNegativeButton("取消", null).show();
     }
 
     private String buildClassDetail(FxDiaDexIndex.DexClass item, String q, int request) {

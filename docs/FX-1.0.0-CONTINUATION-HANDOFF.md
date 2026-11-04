@@ -263,3 +263,10 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - Existing user confirmation dialogs, target selection, package/scope controls, audit log UI and shell-side allowlists remain in place.
 - This is the FX in-app Binder transport layer, not binary/API parity with the original separate IStellarService/StellarProvider daemon. The original daemon protocol and full remediation/rescue parity remain open pending original interface sources and runtime evidence.
 - Source regression and Gradle compilation are required on this exact commit; no Android device / OnePlus 12 claim is made.
+
+
+## Dia DEX-to-Hook method picker
+
+- The DEX browser now offers a direct method-to-rule path when opened from the Dia settings page. It only lists concrete non-abstract, non-native methods from a debuggable user application, emits an exact owner/method/JVM-descriptor tuple, and validates it with the same DeveloperHookRule parser before returning to MainActivity.
+- MainActivity rechecks the target package, debuggable flag, system flag and descriptor, opens that package's native Custom Hook editor, and pre-fills an OBSERVE rule for explicit confirmation. Field signatures remain read-only/copyable; no arbitrary field write or class mutation is introduced.
+- Added a dedicated host source-contract regression and wired it into the migration workflow. Android LSPosed behavior remains subject to current build and target-device verification.
