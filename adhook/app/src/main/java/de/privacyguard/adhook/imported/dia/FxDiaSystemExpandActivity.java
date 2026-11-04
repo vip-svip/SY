@@ -5,6 +5,9 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageInstaller;
+import android.content.pm.ResolveInfo;
+import de.privacyguard.adhook.RootAccess;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -33,8 +36,8 @@ import java.util.concurrent.TimeUnit;
  * approval is adapted to Android's per-install-source permission screen.
  * The old ro.debuggable hook depended on framework/System UI injection and is
  * intentionally not represented as an operational toggle in the unified APK.
- * Package Installer management opens its resolved Android app-info screen;
- * it never force-stops an active installer session.
+ * Package Installer restart is guarded by the live PackageInstaller session list;
+ * unknown session state fails closed and a root force-stop always requires confirmation.
  */
 public final class FxDiaSystemExpandActivity extends Activity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
@@ -197,23 +200,131 @@ public final class FxDiaSystemExpandActivity extends Activity {
         }
     }
 
-    private void openPackageInstallerAppInfo() {
+    private String resolvePackageInstallerPackage() {
+        Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+        install.addCategory(Intent.CATEGORY_DEFAULT);
+        install.setType("application/vnd.android.package-archive");
+        ResolveInfo resolved = getPackageManager()
+                .resolveActivity(install, PackageManager.MATCH_DEFAULT_ONLY);
+        if (resolved == null || resolved.activityInfo == null
+                || resolved.activityInfo.packageName == null
+                || resolved.activityInfo.name == null) {
+            throw new IllegalStateException("找不到确定的系统安装处理程序");
+        }
+        String packageName = resolved.activityInfo.packageName;
+        String activityName = resolved.activityInfo.name.toLowerCase(java.util.Locale.ROOT);
+        // Never force-stop Android's generic resolver/chooser when there is no
+        // single default installer selected by the current user.
+        if ("android".equals(packageName)
+                || activityName.contains("resolver")
+                || activityName.contains("chooser")) {
+            throw new IllegalStateException("Android 当前返回的是通用选择器，无法确定唯一安装处理程序");
+        }
+        if (!packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+            throw new IllegalStateException("安装处理程序包名格式无效");
+        }
+        return packageName;
+    }
+
+    private void checkPackageInstallerBeforeRestart() {
+        Toast.makeText(this, "正在检查 Android 安装会话…", Toast.LENGTH_SHORT).show();
         try {
-            Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            install.addCategory(Intent.CATEGORY_DEFAULT);
-            install.setType("application/vnd.android.package-archive");
-            android.content.pm.ResolveInfo resolved = getPackageManager()
-                    .resolveActivity(install, PackageManager.MATCH_DEFAULT_ONLY);
-            if (resolved == null || resolved.activityInfo == null
-                    || resolved.activityInfo.packageName == null) {
-                unavailable("找不到系统安装处理程序", "请从 Android 设置中的应用列表管理安装服务。");
-                return;
-            }
-            String packageName = resolved.activityInfo.packageName;
+            worker.execute(() -> {
+                final String packageName;
+                final int active;
+                final int committed;
+                final int staged;
+                try {
+                    packageName = resolvePackageInstallerPackage();
+                    PackageInstaller installer = getPackageManager().getPackageInstaller();
+                    List<PackageInstaller.SessionInfo> sessions = installer.getAllSessions();
+                    if (sessions == null) throw new IllegalStateException("系统未返回安装会话清单");
+                    int activeCount = 0;
+                    int committedCount = 0;
+                    int stagedCount = 0;
+                    for (PackageInstaller.SessionInfo session : sessions) {
+                        if (session == null) throw new IllegalStateException("安装会话清单包含未知项目");
+                        if (session.isActive()) activeCount++;
+                        if (Build.VERSION.SDK_INT >= 29 && session.isCommitted()) committedCount++;
+                        if (Build.VERSION.SDK_INT >= 30 && session.isStagedSessionActive()) stagedCount++;
+                    }
+                    active = activeCount;
+                    committed = committedCount;
+                    staged = stagedCount;
+                } catch (Throwable error) {
+                    String detail = error.getClass().getSimpleName()
+                            + (error.getMessage() == null ? "" : ": " + error.getMessage());
+                    runOnUiThread(() -> unavailable("无法确认安装会话状态",
+                            "FX 为避免中断系统安装，会话信息读取失败后不会执行重启。\n" + detail));
+                    return;
+                }
+
+                boolean safe = FxDiaInstallerRestartPolicy.isSafeToRestart(
+                        true, active, committed, staged);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!safe) {
+                        unavailable("暂不允许重启 Package Installer",
+                                "检测到 Android 安装会话仍在使用或等待处理。\n"
+                                        + "活动会话：" + active + "；已提交会话：" + committed
+                                        + "；待应用 staged 会话：" + staged
+                                        + "。\n请等安装/卸载操作全部结束后再重试。");
+                        return;
+                    }
+                    confirmPackageInstallerRestart(packageName);
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void confirmPackageInstallerRestart(String packageName) {
+        new AlertDialog.Builder(this)
+                .setTitle("重启 Package Installer？")
+                .setMessage("已确认当前没有活动、已提交或待应用的安装会话。FX 将使用 Root 强制停止：\n"
+                        + packageName + "\nAndroid 会在下一次安装操作时重新启动该处理程序。")
+                .setNegativeButton("取消", null)
+                .setNeutralButton("打开应用信息", (dialog, which) ->
+                        openPackageInstallerAppInfo(packageName))
+                .setPositiveButton("确认重启", (dialog, which) ->
+                        forceStopPackageInstaller(packageName))
+                .show();
+    }
+
+    private void openPackageInstallerAppInfo(String packageName) {
+        try {
             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + packageName)));
         } catch (Throwable error) {
             unavailable("无法打开安装器应用信息", error.getClass().getSimpleName());
+        }
+    }
+
+    private void forceStopPackageInstaller(String packageName) {
+        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+            unavailable("拒绝执行", "安装处理程序包名无效。");
+            return;
+        }
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(
+                        "am force-stop " + packageName, 15000L, 8192);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (result.exitCode == 0) {
+                        Toast.makeText(this,
+                                "安装处理程序已停止；Android 会在下次安装操作时重新启动它。",
+                                Toast.LENGTH_LONG).show();
+                    } else {
+                        unavailable("Package Installer 重启失败",
+                                "Root 命令未成功（exit=" + result.exitCode + "）："
+                                        + (result.output == null ? "" : result.output));
+                    }
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            Toast.makeText(this, "后台任务繁忙，本次重启未执行。", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -262,8 +373,8 @@ public final class FxDiaSystemExpandActivity extends Activity {
                 button("选择来源应用", this::chooseInstallSource));
 
         row(body, "重启 Package Installer",
-                "不会强制停止或重启系统安装器（可能中断正在进行的安装会话）。可查看当前系统安装处理程序的应用信息，并由用户在 Android 设置中管理。",
-                button("打开安装器应用信息", this::openPackageInstallerAppInfo));
+                "先检查 Android 全部安装会话；只在无活动/已提交/staged 会话且用户二次确认后，才通过 KernelSU Root 强制停止默认安装处理程序。",
+                button("检查并重启", this::checkPackageInstallerBeforeRestart));
 
         setContentView(root);
     }
