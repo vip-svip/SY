@@ -57,6 +57,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
     private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
+    private static final String STATE_SCRIPT_DRAFT_FILE = "fx_frida_script_draft_file";
+    private static final String SCRIPT_DRAFT_CACHE_NAME = "fx-dia-frida-script-state.js";
+    private static final int MAX_FRIDA_DRAFT_BYTES = 512 * 1024;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12),
             r -> { Thread t = new Thread(r, "fx-dia-frida"); t.setDaemon(true); return t; },
@@ -233,6 +236,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (isSafePendingLibraryExportName(restoredPendingName))
             pendingFridaLibraryExportFileName = restoredPendingName;
         cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName);
+        if (state == null) deleteTransientFridaScriptDraft();
         String title = getIntent().getStringExtra("dia_page");
         if (title == null || title.trim().isEmpty()) title = "Frida 环境";
 
@@ -496,6 +500,53 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (restoreSaveScriptDialog) scroll.post(this::showSaveFridaScriptDialog);
     }
 
+    private android.util.AtomicFile transientFridaScriptDraftFile() {
+        return new android.util.AtomicFile(new File(getCacheDir(), SCRIPT_DRAFT_CACHE_NAME));
+    }
+
+    private boolean writeTransientFridaScriptDraft(String source) {
+        if (source == null) return false;
+        byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > MAX_FRIDA_DRAFT_BYTES) return false;
+        android.util.AtomicFile atomic = transientFridaScriptDraftFile();
+        FileOutputStream output = null;
+        try {
+            output = atomic.startWrite();
+            output.write(bytes);
+            output.flush();
+            atomic.finishWrite(output);
+            return true;
+        } catch (Exception error) {
+            if (output != null) atomic.failWrite(output);
+            setStatus("大型 Frida 脚本草稿暂存失败：" + error.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private String readTransientFridaScriptDraft() {
+        android.util.AtomicFile atomic = transientFridaScriptDraftFile();
+        try (InputStream input = atomic.openRead();
+             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (output.size() > MAX_FRIDA_DRAFT_BYTES - count)
+                    throw new IllegalArgumentException("暂存脚本超过 512 KiB 限制。");
+                output.write(buffer, 0, count);
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        } catch (java.io.FileNotFoundException missing) {
+            return null;
+        } catch (Exception error) {
+            setStatus("恢复大型 Frida 脚本草稿失败：" + error.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private void deleteTransientFridaScriptDraft() {
+        transientFridaScriptDraftFile().delete();
+    }
+
     private void restoreTransientState(Bundle state) {
         android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         if (state != null) {
@@ -511,7 +562,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     gadgetPort.getText().toString()));
             if (gadgetProcess != null) gadgetProcess.setText(state.getString("fx_frida_gadget_process",
                     gadgetProcess.getText().toString()));
-            if (script != null) script.setText(state.getString("fx_frida_script", script.getText().toString()));
+            if (script != null) {
+                String restoredSource = state.getString("fx_frida_script");
+                if (restoredSource == null && state.getBoolean(STATE_SCRIPT_DRAFT_FILE, false))
+                    restoredSource = readTransientFridaScriptDraft();
+                if (restoredSource != null) script.setText(restoredSource);
+            }
         }
 
         String savedPackage = state == null
@@ -593,9 +649,16 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (gadgetProcess != null) outState.putString("fx_frida_gadget_process", gadgetProcess.getText().toString());
         if (script != null) {
             String source = script.getText().toString();
-            // Frida editor content is intentionally capped to avoid oversized saved-state Bundles.
-            if (source.getBytes(StandardCharsets.UTF_8).length <= 48 * 1024)
+            int sourceBytes = source.getBytes(StandardCharsets.UTF_8).length;
+            if (sourceBytes <= MAX_FRIDA_SOURCE_BYTES) {
                 outState.putString("fx_frida_script", source);
+                deleteTransientFridaScriptDraft();
+            } else if (sourceBytes <= MAX_FRIDA_DRAFT_BYTES
+                    && writeTransientFridaScriptDraft(source)) {
+                outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true);
+            } else {
+                setStatus("脚本超过 512 KiB 或暂存失败；Activity 重建后可能无法恢复该草稿，请先导出/保存脚本。");
+            }
         }
         if (targetPackage != null) outState.putString("fx_frida_target_package", targetPackage);
         if (targetName != null) outState.putString("fx_frida_target_name", targetName);
@@ -2687,6 +2750,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         targetLoading = false;
         monitorEventGeneration++;
         worker.shutdownNow();
+        if (isFinishing()) deleteTransientFridaScriptDraft();
         super.onDestroy();
     }
 }
