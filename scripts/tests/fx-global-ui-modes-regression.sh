@@ -19,6 +19,8 @@ grep -Fq 'MiuixTheme(' "$shell" || { echo "FAIL: Miuix renderer missing"; exit 1
 grep -Fq 'mode == "glass"' "$shell" || { echo "FAIL: liquid mode branch missing"; exit 1; }
 grep -Fq 'mode == "miuix"' "$shell" || { echo "FAIL: Miuix mode branch missing"; exit 1; }
 grep -Fq 'mode == "classic"' "$shell" || { echo "FAIL: classic mode branch missing"; exit 1; }
+grep -Fq '"huawei".equals(uiMode)' "$activity" || { echo "FAIL: HUAWEI native page palette missing"; exit 1; }
+grep -Fq '"ios".equals(uiMode)' "$activity" || { echo "FAIL: iOS native page palette missing"; exit 1; }
 grep -Fq '"huawei" -> Color(0xFFF1F5FA)' "$shell" || { echo "FAIL: HUAWEI Harmony shell palette missing"; exit 1; }
 grep -Fq '"ios" -> Color(0xFFF2F2F7)' "$shell" || { echo "FAIL: iOS Cupertino shell palette missing"; exit 1; }
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
