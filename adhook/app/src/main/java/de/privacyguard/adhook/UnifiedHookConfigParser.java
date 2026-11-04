@@ -53,6 +53,9 @@ public final class UnifiedHookConfigParser {
         public double simulatedLatitude;
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
+        public boolean dialogMatchEnabled;
+        public final List<String> dialogTextTerms = new ArrayList<>();
+        public final List<String> dialogIdTerms = new ArrayList<>();
         public boolean androidIdSimulation;
         public String simulatedAndroidId;
         public boolean timeZoneSimulation;
@@ -292,6 +295,8 @@ public final class UnifiedHookConfigParser {
             boolean networkTypeSimulation=false;
             String simulatedNetworkType=null;
             boolean locationSimulation=false;
+            boolean dialogMatchEnabled=false;
+            String dialogTextTermsRaw=null, dialogIdTermsRaw=null;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
             boolean simulatedAccuracySpecified=false;
@@ -329,6 +334,19 @@ public final class UnifiedHookConfigParser {
                     if (!"wifi".equals(value) && !"cellular".equals(value))
                         throw new IllegalArgumentException("network_type must be wifi or cellular");
                     simulatedNetworkType=value;
+                    continue;
+                }
+                if ("dialog_match".equals(key)) {
+                    dialogMatchEnabled = "1".equals(value);
+                    if (!bit(value)) throw new IllegalArgumentException("invalid dialog match flag");
+                    continue;
+                }
+                if ("dialog_text_terms_b64".equals(key)) {
+                    dialogTextTermsRaw = decodeDeveloperRuleValue(value);
+                    continue;
+                }
+                if ("dialog_id_terms_b64".equals(key)) {
+                    dialogIdTermsRaw = decodeDeveloperRuleValue(value);
                     continue;
                 }
                 if ("location_lat".equals(key)) {
@@ -488,6 +506,13 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("network_type requires network_type_simulate=1");
             parsedTarget.networkTypeSimulation = networkTypeSimulation;
             parsedTarget.simulatedNetworkType = simulatedNetworkType;
+            List<String> dialogTextTerms = FxDiaDialogMatchPolicy.parseTerms(dialogTextTermsRaw);
+            List<String> dialogIdTerms = FxDiaDialogMatchPolicy.parseTerms(dialogIdTermsRaw);
+            boolean hasDialogTerms = !dialogTextTerms.isEmpty() || !dialogIdTerms.isEmpty();
+            if (dialogMatchEnabled && !hasDialogTerms)
+                throw new IllegalArgumentException("dialog match monitoring requires explicit text or ID rules");
+            if (!dialogMatchEnabled && hasDialogTerms)
+                throw new IllegalArgumentException("dialog match rules require dialog_match=1");
             if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
                 throw new IllegalArgumentException("location simulation requires latitude and longitude");
             if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null
@@ -497,6 +522,9 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("location simulation conflicts with location access blocking");
             if (locationProviderEnabledSimulation && locationAccessBlock)
                 throw new IllegalArgumentException("provider-enabled simulation conflicts with location access blocking");
+            parsedTarget.dialogMatchEnabled = dialogMatchEnabled;
+            parsedTarget.dialogTextTerms.addAll(dialogTextTerms);
+            parsedTarget.dialogIdTerms.addAll(dialogIdTerms);
             parsedTarget.locationSimulation = locationSimulation;
             parsedTarget.locationProviderEnabledSimulation = locationProviderEnabledSimulation;
             if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
