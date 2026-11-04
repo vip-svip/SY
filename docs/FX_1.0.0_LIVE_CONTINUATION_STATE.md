@@ -2533,7 +2533,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ## 2026-11-05 — 游龙广告通用设置 SAF 备份请求生命周期
 
-- 修改前分支 HEAD：`b39e57a1e0ffb6945d9569594f51166b5006df60`。
+- 状态文件追加前分支 HEAD：`b39e57a1e0ffb6945d9569594f51166b5006df60`。
 - 修复 `FxYulongAdGeneralActivity` 的 JSON 导入/导出文件选择器状态：保存/恢复 pendingExport（并限制恢复长度不超过 1 MiB）、分别保存导入/导出请求标记；拒绝没有对应未完成请求的迟到 Activity Result；选择器启动异常时回滚 pending 状态；用户取消时清理待导出数据并明确提示未写入/未修改配置。
 - 改动：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java`；`scripts/tests/fx-yulong-ad-general-import-regression.sh`。
 - 提交：`4617aabb31006bd215007240e984127ebd138851`（Activity 生命周期修复）；`3915ce2436521d7a58a4506d6518869cfcd23b0e`（回归断言）。
@@ -2550,3 +2550,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`c5bdbec5b81c7acfe1f7973a49762904b5a32896`（默认禁止未确认覆盖）；`b39e57a1e0ffb6945d9569594f51166b5006df60`（文件/剪贴板双路径预览确认）；`c1fe04977f622669d0fa4443ebbdeb8a51b22f1b`（更新 Store/Policy 回归断言）。
 - 静态验证：最新 HEAD 确认默认合并拒绝覆盖、确认名单二次校验、文件与剪贴板都走预览、UI 显示同名项；回归脚本所有新增关键断言与当前源码一致。修复后的 targeted Actions 结果待读取，未声称测试通过。
 - 下一步：确认 Frida SAF 回归通过；继续保存/恢复文件选择返回后的 pending import URI，避免 Activity 旋转取消后台导入后丢失本次选择。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 游龙广告原生页面底部导航选中项修正
+
+- 发现游龙广告套件的 7 个原生页面均调用 `setContentViewWithNativeTabs(root, 5)`，但 FX 六个主 Tab 的索引定义为 VPN=0、Ad=1、隐私=2、脚本=3、Hook=4、设置=5，导致用户进入广告过滤页面时错误高亮“设置”。
+- 已将以下 7 个页面统一改为选中 Ad（索引 1）：`FxYulongAdActivity.java`、`FxYulongAdGeneralActivity.java`、`FxYulongAdSummaryActivity.java`、`FxYulongAppStatsActivity.java`、`FxYulongAppWhitelistActivity.java`、`FxYulongDnsActivity.java`、`FxYulongFirewallActivity.java`。
+- 对应实现提交：`6dc3bbb6a7277ac12c6d259af8b3b846d23835db`、`d80fb0684f7425d89b22376f327739808bb6ada0`、`7f9528033fa9310b3c589e09f601006b4fdf318b`、`eaa2c2792da034424b63ccde900a7872bd5ffc3e`、`5fa94990e1c1d01d56977f692cee04526fb6782d`、`e3ed70055737dc48df4dc542167ccb38e0c296c6`、`5797f316836174f20d3882089d6ec87f7001cffb`；回归断言提交：`f7409a7e8237b67500fd722a51679ff39998e9cc`。
+- 更新 `scripts/tests/fx-imported-suite-native-routing-regression.sh`：逐一检查上述 7 个页面必须选择索引 1，并禁止仍使用索引 5。
+- 静态复读源码确认 7 个页面均已改为索引 1，回归脚本包含对应断言。尚未运行 Shell 回归、Gradle、模拟器或真机测试；不宣称测试通过。
+- 下一步：继续修复 FX 原生页面的导航/状态恢复问题，优先 Dia / 游龙插件实际页面体验；固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
