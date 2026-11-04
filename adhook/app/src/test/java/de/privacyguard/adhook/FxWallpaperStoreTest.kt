@@ -12,7 +12,7 @@ class FxWallpaperStoreTest {
 
     @Test
     fun scalesPortraitImagesWithoutChangingAspectRatio() {
-        assertEquals(1080 to 1920, FxWallpaperStore.scaledDimensions(1080, 3000, 1920))
+        assertEquals(691 to 1920, FxWallpaperStore.scaledDimensions(1080, 3000, 1920))
         assertEquals(720 to 1280, FxWallpaperStore.scaledDimensions(720, 1280, 1920))
     }
 
