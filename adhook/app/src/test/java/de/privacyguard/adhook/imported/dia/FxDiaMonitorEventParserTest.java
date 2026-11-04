@@ -51,6 +51,32 @@ public final class FxDiaMonitorEventParserTest {
         assertEquals("good.example", events.get(1).fields.get("host"));
     }
 
+    @Test public void rejectsNetworkSchemesUserInfoAndPaths() {
+        List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
+                "[DIA_HTTP] method=GET host=https://alice:secret@api.example.com/private "
+                + "status=200 endpoint=alice:secret@api.example.com:443\n"
+                + "[DIA_HTTP] method=GET host=api.example.com:8443 status=204\n"
+                + "[DIA_SOCKET] endpoint=socket.example.com:443 timeoutMs=1000");
+        assertEquals(3, events.size());
+        assertFalse(events.get(0).fields.containsKey("host"));
+        assertFalse(events.get(0).fields.containsKey("endpoint"));
+        assertEquals("api.example.com:8443", events.get(1).fields.get("host"));
+        assertEquals("socket.example.com:443", events.get(2).fields.get("endpoint"));
+    }
+
+    @Test public void rejectsMalformedAndOutOfRangeAuthorities() {
+        List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
+                "[DIA_HTTP] host=api.example.com:70000 status=200\n"
+                + "[DIA_HTTP] host=bad..example status=200\n"
+                + "[DIA_HTTP] host=192.168.1.999 status=200\n"
+                + "[DIA_HTTP] host=[2001:db8::1]:443 status=200");
+        assertEquals(4, events.size());
+        assertFalse(events.get(0).fields.containsKey("host"));
+        assertFalse(events.get(1).fields.containsKey("host"));
+        assertFalse(events.get(2).fields.containsKey("host"));
+        assertEquals("[2001:db8::1]:443", events.get(3).fields.get("host"));
+    }
+
     @Test public void parsesAppEntryMetadataWithoutIntentPayload() {
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
                 "[DIA_APPENTRY] stage=newActivity activity=com.example.MainActivity "
