@@ -2505,3 +2505,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：48ba69881d62a3b60d796e93024de6ff7f07a4ba（服务读取保护）；7d1a707bdd0e628fd7ce60b493fbe98ac5116eea（对应回归断言）。
 - 静态复核：当前 Service 使用 guarded helper；测试脚本断言与实现匹配。未运行 Shell/JUnit/Gradle/模拟器/真机故障注入。
 - 下一批按 UI 优先策略回到 Dia / 游龙广告原生页面批次；固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — CI 分层：推送只跑受影响 Host 回归，完整构建改为 PR/手动
+
+- 发现本分支短时间内连续提交会反复取消完整 Actions，完整测试与 Gradle APK 验证长期停留在准备/恢复步骤；这既没有形成有效验收，也与“每批只做必要针对性测试”冲突。
+- 调整 `build-fx-adhook.yml`：移除每次 push 自动执行的完整验证/构建；完整迁移验证保留 PR 与手动触发。原有 `migration_complete` 手动门控继续保留，默认 false；迁移/验收未完成时不会启用 APK 构建。
+- 新增 `fx-targeted-regression.yml`：推送只按改动路径运行对应 Host 回归，不运行 Gradle、不打包 APK/KernelSU ZIP。覆盖 Dia Frida/脚本库、Hook/六 Tab/自定义 Hook、VPN/DNS/隐私、GPS/备份/代理、DEX SAF、游龙 Shield/黑白名单/扫描，以及 Root Proxy 原子锁。对同一批次重叠命中的测试做路径去重；变更 Shell/Python 文件时先做语法检查。
+- 新工作流使用独立 concurrency group，只取消被更新提交替代的旧 targeted run；完整构建不再与每次小提交争抢。
+- 改动路径：`.github/workflows/build-fx-adhook.yml`、`.github/workflows/fx-targeted-regression.yml`、本状态文件。
+- 提交：`f3dd5c07a3a7f37f22c225d641ff9154f5246d96`（完整构建转 PR/手动）；`69a5ae3770ff0d04c9eb799e6ca5f0839157bc90`（新增 targeted Host workflow）；`4ff94da29318b24190a1537855f2e52c98ded63d`（回归去重）；`87ded6c3fb1d0cf1b70d50c4fd204c86bc878a92`（补齐 Dia 表单、VPN/DNS/隐私测试映射）。
+- 静态验证：最新 HEAD 确认完整 workflow 不再有 push trigger，PR/manual 保留；targeted workflow 有 push path filters、去重、Shell/Python 语法检查和对应页面测试映射。新增工作流的实际执行结果仍需读取 Actions；不把工作流文件静态检查当成测试通过。
+- 下一步：确认首个 targeted run 能完整执行；继续修复 Frida SAF 导入在 Activity 重建时丢失 URI/任务的问题，并补足 Shield Rescue 系统返回键回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
