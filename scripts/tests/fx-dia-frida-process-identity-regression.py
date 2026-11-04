@@ -41,4 +41,6 @@ assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
 viewer = body("private void showSessionLog()", "private void showMonitorEvents()")
 assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
     "session log viewer must refuse symlink and non-regular log targets"
+assert r'\\\"' not in inject, "Java command builder must emit shell quoting, not literal backslash-quote characters"
+assert r'[ ! -L \"$log\" ]' in inject, "session log symlink guard must keep a syntactically complete test bracket"
 print("PASS: Frida selection/injection revalidate package UID and use private, symlink-safe script/log paths")
