@@ -41,6 +41,9 @@ import java.util.concurrent.TimeUnit;
 /** Native Yulong 7.0.1 per-app firewall UI; separate from FX's per-app VPN route. */
 public final class FxYulongFirewallActivity extends Activity {
     private static final int APP_PAGE_SIZE = 50;
+    private static final String STATE_APP_PAGE = "fx_firewall_app_page";
+    private static final String STATE_QUERY = "fx_firewall_query";
+    private static final String STATE_SCROLL_Y = "fx_firewall_scroll_y";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> new Thread(r, "fx-yulong-firewall-root"), new ThreadPoolExecutor.AbortPolicy());
@@ -53,6 +56,9 @@ public final class FxYulongFirewallActivity extends Activity {
     private TextView status;
     private Switch master;
     private EditText query;
+    private ScrollView scroll;
+    private int pendingScrollY;
+    private boolean pendingScrollRestore;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
     private static final class FirewallRule {
@@ -288,6 +294,10 @@ public final class FxYulongFirewallActivity extends Activity {
             return;
         }
         loading = true;
+        if (scroll != null) {
+            pendingScrollY = Math.max(0, scroll.getScrollY());
+            pendingScrollRestore = true;
+        }
         master.setEnabled(false);
         status.setText("检测到应用安装状态变化，正在刷新防火墙应用列表…");
         runRoot("list", result -> {
@@ -320,7 +330,7 @@ public final class FxYulongFirewallActivity extends Activity {
         header.addView(text("游龙广告插件 · " + suitePage, 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
-        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        scroll = new ScrollView(this); scroll.setFillViewport(true);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
         rows.setPadding(0, dp(4), 0, dp(20)); scroll.addView(rows);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
@@ -334,6 +344,12 @@ public final class FxYulongFirewallActivity extends Activity {
         card("防火墙总开关", "关闭时只移除 FX 自己的防火墙链，不修改其他应用规则。已启用但不在每日计划内的应用不会被阻断。", master);
         query = new EditText(this); query.setSingleLine(true); query.setHint("搜索应用名称或包名");
         query.setPadding(dp(14), dp(8), dp(14), dp(8));
+        if (state != null) {
+            appPage = Math.max(1, state.getInt(STATE_APP_PAGE, 1));
+            query.setText(state.getString(STATE_QUERY, ""));
+            pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            pendingScrollRestore = true;
+        }
         card("应用列表", "每个应用独立配置 Wi-Fi、移动数据与每日计划；UID 收发字节不是 DNS 查询次数。", query, button("刷新流量统计", this::renderRows));
         master.setOnCheckedChangeListener((button, checked) -> {
             if (loading || suppressMaster) return;
@@ -358,7 +374,10 @@ public final class FxYulongFirewallActivity extends Activity {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 appPage = 1;
+                pendingScrollY = 0;
+                pendingScrollRestore = true;
                 renderRows();
+                restoreScrollIfNeeded();
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -453,8 +472,8 @@ public final class FxYulongFirewallActivity extends Activity {
                     appsLoaded = true;
                     master.setEnabled(true);
                     status.setText("已读取 " + apps.size() + " 个" + ("用户应用".equals(suitePage) ? "用户应用" : "系统应用".equals(suitePage) ? "系统应用" : "应用") + "；列表按需分页加载。");
-                    appPage = 1;
                     renderRows();
+                    restoreScrollIfNeeded();
                     if (refreshAfterLoad) {
                         refreshAfterLoad = false;
                         refreshPackageInventory();
@@ -466,6 +485,24 @@ public final class FxYulongFirewallActivity extends Activity {
             if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
         }
     }
+    private void restoreScrollIfNeeded() {
+        if (!pendingScrollRestore || scroll == null) return;
+        final int restoreY = pendingScrollY;
+        scroll.post(() -> {
+            if (destroyed || isFinishing() || isDestroyed() || scroll == null
+                    || !pendingScrollRestore) return;
+            scroll.scrollTo(0, restoreY);
+            pendingScrollRestore = false;
+        });
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putInt(STATE_APP_PAGE, Math.max(1, appPage));
+        if (query != null) outState.putString(STATE_QUERY, query.getText().toString());
+        if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
+        super.onSaveInstanceState(outState);
+    }
+
     private String formatBytes(long bytes) {
         if (bytes < 0) return "系统未提供";
         if (bytes < 1024) return bytes + " B";
