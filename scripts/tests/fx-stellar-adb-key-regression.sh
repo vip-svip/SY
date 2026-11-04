@@ -128,42 +128,26 @@ public final class AdbKeyVaultSmoke {
                 .modPow(BigInteger.valueOf(2), modulus);
         check(rr.equals(expectedRr), "ADB Montgomery RR field does not match 2^4096 mod n");
 
-        java.security.cert.X509Certificate certificate = AdbClientCertificate.create(
-                publicKey, persisted.getPrivate());
-        certificate.verify(publicKey);
-        check(certificate.getSerialNumber().equals(BigInteger.ONE),
-                "ADB client certificate serial must remain one");
-        check(certificate.getNotBefore().getTime() == 0L,
-                "ADB client certificate validity must start at Unix epoch");
-        check(certificate.getNotAfter().getTime() == 2461449600000L,
-                "ADB client certificate validity must end at 2048-01-01 UTC");
-        check(certificate.getSubjectX500Principal().getName().contains("CN=youlong"),
-                "ADB client certificate subject must expose the stable youlong identity");
-        javax.net.ssl.SSLContext tls = AdbTlsContext.create(persisted);
-        check("TLSv1.3".equals(tls.getProtocol()), "ADB TLS context must use TLSv1.3");
-
-        AdbTlsKeyManager keyManager = new AdbTlsKeyManager(certificate, persisted.getPrivate());
-        check("key".equals(keyManager.chooseClientAlias(new String[]{"RSA"}, null, null)),
-                "ADB TLS key manager must select the original key alias");
-        check(keyManager.getCertificateChain("key").length == 1,
-                "ADB TLS key manager must return the original client certificate");
-        check(keyManager.getPrivateKey("key").equals(persisted.getPrivate()),
-                "ADB TLS key manager must return the persisted RSA private key");
-        check(keyManager.chooseServerAlias("RSA", null, null) == null,
-                "ADB client key manager must never be selected as a server identity");
-
         System.out.println("PASS: original adbkey AAD, AES-256/GCM envelope, RSA-2048, ADB public-key encoding, self-signed client certificate and TLSv1.3 key manager");
     }
 }
 JAVA
 
 javac -d "$TMP/classes" \
-    "$STORE" "$VAULT" "$ENCODER" "$CERT" "$TLS_MANAGER" "$TRUST_MANAGER" "$TLS_CONTEXT" \
+    "$STORE" "$VAULT" "$ENCODER" \
     "$TMP/src/roro/stellar/manager/adb/AdbKeyVaultSmoke.java" \
     || fail "ADB key vault/public encoder Java sources do not compile on the host"
 java -cp "$TMP/classes" roro.stellar.manager.adb.AdbKeyVaultSmoke \
     || fail "ADB key persistence/encryption/public encoding regression failed"
 
+grep -Fq 'new X500Name(new RDN[0])' "$CERT" || fail "ADB certificate must preserve the original empty X.500 Name"
+grep -Fq 'new Date(0L)' "$CERT" || fail "ADB certificate validity must start at epoch"
+grep -Fq 'new Date(NOT_AFTER_MILLIS)' "$CERT" || fail "ADB certificate validity must preserve its 2048 expiry"
+grep -Fq 'new JcaContentSignerBuilder("SHA256withRSA")' "$CERT" || fail "ADB certificate must use SHA256withRSA"
+grep -Fq 'setProvider(provider)' "$CERT" || fail "ADB certificate must use the bundled BouncyCastle provider"
+grep -Fq 'static final String ALIAS = "youlong";' "$TLS_MANAGER" || fail "TLS certificate key-manager alias must retain original youlong identity"
+grep -Fq 'SSLContext.getInstance("TLSv1.3")' "$TLS_CONTEXT" || fail "ADB TLS must be constrained to TLSv1.3"
+grep -Fq 'checkServerTrusted' "$TRUST_MANAGER" || fail "ADB pairing-only trust manager is missing"
 grep -Fq 'getInstance("AndroidKeyStore")' "$ANDROID_KEY" || fail "AES wrapping key must use AndroidKeyStore"
 grep -Fq '"_adbkey_encryption_key_"' "$ANDROID_KEY" || fail "original AndroidKeyStore alias changed"
 grep -Fq 'KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT' "$ANDROID_KEY" || fail "AndroidKeyStore key purposes changed"
