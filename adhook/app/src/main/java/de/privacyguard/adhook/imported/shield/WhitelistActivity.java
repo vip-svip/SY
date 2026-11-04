@@ -74,6 +74,7 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private TextView countText;
     private TextView sectionTitle;
     private String whitelistDataWarning = "";
+    private boolean whitelistDataCorrupt;
     private EditText searchInput;
     private ScrollView whitelistScroll;
     private String query = "";
@@ -422,9 +423,10 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         // 避免 UI 展示的信任集合与风险扫描实际使用的集合不一致。
         String raw = prefs.getString("whitelist_pkgs", "");
         if (raw == null) raw = "";
+        whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWellFormed(raw);
         Set<String> parsed = FxYulongWhitelistPolicy.parse(raw);
-        whitelistDataWarning = !raw.trim().isEmpty() && parsed.isEmpty()
-                ? "原白名单为空、格式无效或超过安全上限；扫描侧不会信任超限名单。"
+        whitelistDataWarning = whitelistDataCorrupt
+                ? "原白名单格式异常或超过安全上限；为避免覆盖旧配置，当前禁止修改。"
                 : "";
         boolean removedSystem = false;
         for (String packageName : parsed) {
@@ -451,6 +453,10 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     }
 
     private boolean saveWhitelist() {
+        if (whitelistDataCorrupt) {
+            Toast.makeText(this, "原白名单数据异常，已阻止覆盖。请先核实并修复原始白名单数据。", Toast.LENGTH_LONG).show();
+            return false;
+        }
         String serialized = FxYulongWhitelistPolicy.serialize(currentWhitelist);
         if (serialized == null) {
             Toast.makeText(this, "白名单超过 " + FxYulongWhitelistPolicy.MAX_ENTRIES
