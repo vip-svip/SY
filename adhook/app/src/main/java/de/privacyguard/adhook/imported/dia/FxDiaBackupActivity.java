@@ -73,9 +73,19 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
     }
     private static final String STATE_PENDING_EXPORT_FILE = "fx_dia_pending_export_file";
     private static final String PENDING_EXPORT_PREFIX = "fx-dia-export-";
+    private static final String STATE_GH_OWNER = "fx_dia_backup_gh_owner";
+    private static final String STATE_GH_REPO = "fx_dia_backup_gh_repo";
+    private static final String STATE_GH_PATH = "fx_dia_backup_gh_path";
+    private static final String STATE_GH_BRANCH = "fx_dia_backup_gh_branch";
+    private static final String STATE_DAV_URL = "fx_dia_backup_dav_url";
+    private static final String STATE_DAV_USER = "fx_dia_backup_dav_user";
+    private static final String STATE_SCROLL_Y = "fx_dia_backup_scroll_y";
     private String pendingBackupFileName;
     private TextView status;
     private EditText backupPassword;
+    private EditText ghOwner, ghRepo, ghPath, ghBranch, ghToken;
+    private EditText davUrl, davUser, davPass;
+    private ScrollView backupScroll;
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
     private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
@@ -898,7 +908,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this);header.setPadding(dp(10),dp(6),dp(10),dp(6));
         header.addView(button("‹ 返回 Dia",this::finish));header.addView(text("Dia · 数据备份与恢复",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(header);
-        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(18));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
+        backupScroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(18));backupScroll.addView(body);root.addView(backupScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
         body.addView(text("本地备份覆盖 FX settings.conf、Dia 已迁入的 Hook 目标规则、护盾白/黑名单、Stellar 授权记录和 Hook 发布状态。",13,0xff526170,false));
         body.addView(text("注意：模块配置包含 VPN 节点凭据、DNS 和过滤设置。请将备份保存在可信位置，不要公开分享。",12,0xffb45309,true));
         backupPassword=new EditText(this);
@@ -910,11 +920,11 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         body.addView(text("新备份使用 PBKDF2-HMAC-SHA256 + AES-256-GCM；密码不会保存。旧版 FX-DIA-BACKUP-1 明文备份仍可导入。",12,0xff8a5b20,false));
         body.addView(button("导出本地加密 JSON 备份",this::exportBackup));
         body.addView(button("从 JSON 备份恢复",this::importBackup));
-        EditText ghOwner=new EditText(this);ghOwner.setSingleLine(true);ghOwner.setHint("GitHub 仓库 Owner");
-        EditText ghRepo=new EditText(this);ghRepo.setSingleLine(true);ghRepo.setHint("GitHub 仓库名");
-        EditText ghPath=new EditText(this);ghPath.setSingleLine(true);ghPath.setText("backups/fx-dia-backup.json");
-        EditText ghBranch=new EditText(this);ghBranch.setSingleLine(true);ghBranch.setText("main");
-        EditText ghToken=new EditText(this);ghToken.setSingleLine(true);ghToken.setHint("Fine-grained Token（Contents: Read/Write）");ghToken.setInputType(129);
+        ghOwner=new EditText(this);ghOwner.setSingleLine(true);ghOwner.setHint("GitHub 仓库 Owner");
+        ghRepo=new EditText(this);ghRepo.setSingleLine(true);ghRepo.setHint("GitHub 仓库名");
+        ghPath=new EditText(this);ghPath.setSingleLine(true);ghPath.setText("backups/fx-dia-backup.json");
+        ghBranch=new EditText(this);ghBranch.setSingleLine(true);ghBranch.setText("main");
+        ghToken=new EditText(this);ghToken.setSingleLine(true);ghToken.setHint("Fine-grained Token（Contents: Read/Write）");ghToken.setInputType(129);
         body.addView(text("GitHub Contents 远程备份",14,0xff17212b,true));
         body.addView(ghOwner);body.addView(ghRepo);body.addView(ghPath);body.addView(ghBranch);body.addView(ghToken);
         body.addView(button("上传到 GitHub",()->{
@@ -930,11 +940,24 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
             new AlertDialog.Builder(this).setTitle("确认 GitHub 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
                 .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->githubDownload(o,r,p,t,enteredBackupPassword())).show();
         }));
-        EditText davUrl=new EditText(this);davUrl.setSingleLine(true);davUrl.setHint("https://dav.example.com/path/fx-dia-backup.json");
-        EditText davUser=new EditText(this);davUser.setSingleLine(true);davUser.setHint("WebDAV 用户名");
-        EditText davPass=new EditText(this);davPass.setSingleLine(true);davPass.setHint("WebDAV 应用密码");davPass.setInputType(129);
+        davUrl=new EditText(this);davUrl.setSingleLine(true);davUrl.setHint("https://dav.example.com/path/fx-dia-backup.json");
+        davUser=new EditText(this);davUser.setSingleLine(true);davUser.setHint("WebDAV 用户名");
+        davPass=new EditText(this);davPass.setSingleLine(true);davPass.setHint("WebDAV 应用密码");davPass.setInputType(129);
+        body.addView(text("安全提示：备份密码、GitHub Token 和 WebDAV 密码不会写入页面恢复状态；旋转或重建后需要重新输入。",12,0xff8a5b20,false));
         body.addView(text("WebDAV 远程备份",14,0xff17212b,true));
         body.addView(davUrl);body.addView(davUser);body.addView(davPass);
+        if (state != null) {
+            ghOwner.setText(state.getString(STATE_GH_OWNER, ""));
+            ghRepo.setText(state.getString(STATE_GH_REPO, ""));
+            ghPath.setText(state.getString(STATE_GH_PATH, "backups/fx-dia-backup.json"));
+            ghBranch.setText(state.getString(STATE_GH_BRANCH, "main"));
+            davUrl.setText(state.getString(STATE_DAV_URL, ""));
+            davUser.setText(state.getString(STATE_DAV_USER, ""));
+            final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            if (restoreY > 0) backupScroll.post(() -> {
+                if (!isFinishing() && !isDestroyed() && backupScroll != null) backupScroll.scrollTo(0, restoreY);
+            });
+        }
         body.addView(button("上传到 WebDAV",()->{
             String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
             if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}
@@ -966,6 +989,14 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         if (isSafePendingExportName(pendingBackupFileName)) {
             outState.putString(STATE_PENDING_EXPORT_FILE, pendingBackupFileName);
         }
+        // Restore non-secret connection coordinates, never credentials or backup passwords.
+        if (ghOwner != null) outState.putString(STATE_GH_OWNER, ghOwner.getText().toString());
+        if (ghRepo != null) outState.putString(STATE_GH_REPO, ghRepo.getText().toString());
+        if (ghPath != null) outState.putString(STATE_GH_PATH, ghPath.getText().toString());
+        if (ghBranch != null) outState.putString(STATE_GH_BRANCH, ghBranch.getText().toString());
+        if (davUrl != null) outState.putString(STATE_DAV_URL, davUrl.getText().toString());
+        if (davUser != null) outState.putString(STATE_DAV_USER, davUser.getText().toString());
+        if (backupScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, backupScroll.getScrollY()));
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
