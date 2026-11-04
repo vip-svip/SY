@@ -3588,3 +3588,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本次仅更新产品方案与 AI 接管提示词，不代表 HUAWEI/iOS Skin 已有源码实现。现有 FxUiMode.kt、FxDesignModePanel.kt、FxNativeAppShell.kt 当前仍只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三模式，后续必须继续修改源码、测试和编译。
 - 产品方案提交：8c0ec08a52c1d54d9b1e5e4825c627c7a33ec835。
 - 验证：已从 GitHub 读取更新响应；尚未完成新增两种模式源码、Gradle 编译、截图/UI 自动化或设备验收。
+
+
+
+## 2026-11-05 — 跨 AI 接管提示词补齐 HUAWEI 与 iOS Skin 实施细则
+
+- 用户要求把 HUAWEI 和 iOS 界面模式及实现方法写进可复制给其他 AI 的接管提示词，而不只保留在产品概述正文。
+- 修正 `docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md` 的完整接管提示词：明确五种模式；新增 HarmonyStyle 与 CupertinoStyle 的独立 tokens、Compose renderer、组件覆盖、平台能力边界、资源许可约束、六 Tab 逐页适配、统一 storage ID、服务生命周期隔离和分层验收。
+- 同步修正实施阶段 P1、架构 Skin 清单和逐页验收要求，防止接管 AI 仍按“三 Skin”推进。
+- 当前实际源码状态不变：FxUiMode.kt、FxDesignModePanel.kt、FxNativeAppShell.kt 仍只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三种模式。HUAWEI/iOS 是提示词和需求基线，不代表已实现；下一步必须继续源码迁移、单测、编译和 UI/设备验收。
+- 本批只更新接管提示词和状态记录；不声称五种模式已完成，不声称 Gradle/设备验证通过。
