@@ -1906,3 +1906,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`43b9c74a8d9c22f3ab06826e30e0d6cf14d15a26`（AtomicFile 草稿保存/恢复）；`952863f0e82f8b932f5baf65df8a9176bd7dfb5a`（回归断言）。
 - 验证等级：源码静态确认 Bundle/AtomicFile 双路径、512 KiB 限制、原子写入失败回滚、恢复读取和 Activity finish 清理，以及回归断言。未运行 Shell/Python 回归、Gradle、模拟器或真机 48–512 KiB 脚本旋转测试。
 - 下一步：复核 Frida 页面状态恢复中的目标进程 PID 过期校验、编辑器返回与 SAF 并发请求；随后集中运行 Frida 页面组 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 大脚本暂存文件孤儿清理
+
+- 本批起始 HEAD：`9e3870ff4c8bc3b9a2c8285387f15a26779160dc`。
+- 已有大脚本恢复：48 KiB 以内使用 Bundle；48–512 KiB 使用应用私有 `AtomicFile`，Bundle 仅保存归属标记；正常 Activity finish 删除暂存。
+- 本批发现的边界：前一次重建可能留下 AtomicFile；如果后续脚本变为超过 512 KiB，或新的 AtomicFile 写入失败，Bundle 不再带文件标记，但旧缓存原先会留到下次正常退出。损坏/超限读取也可能反复尝试同一文件。
+- 修复 `FxDiaFridaActivity.java`：
+  - 仅当当前恢复 Bundle 明确包含 `STATE_SCRIPT_DRAFT_FILE` 时保留缓存；冷启动或无归属标记时删除孤儿文件。
+  - 读取缓存发生格式/长度/IO 异常时删除失效缓存，避免反复重试。
+  - 当前脚本超过 512 KiB或暂存失败时，删除可能由 AtomicFile 回滚留下的旧版本；不会把旧脚本误当成新脚本恢复。
+  - 继续保留 `AtomicFile.startWrite/finishWrite/failWrite` 原子写流程、512 KiB上限、Bundle 48 KiB阈值和 finish 清理。
+- 提交：
+  - `c185a21f6a9fc8dbfcb489673f49b519498c16a4` — `fix(dia): clear orphaned large Frida draft cache`。
+  - `7363392523239c13530ad1241292236b46b687c6` — `test(dia): cover orphaned large Frida draft cleanup`。
+- 静态验证：最新 HEAD 确认 Bundle 归属标记、冷启动/无标记删除、恢复失败删除、超限/写入失败删除、AtomicFile 回滚和 finish 删除各项契约均通过；回归脚本增加三项孤儿清理断言。未在设备运行 48–512 KiB 脚本旋转、进程死亡、损坏缓存或并发 Activity 测试。
+- 并行接管：Frida“保存到脚本库”名称对话框已具备 Bundle pending 状态、草稿恢复、64 字符限制及配置变更取消保护；脚本库“新建脚本”同样具备名称草稿与弹窗恢复。未重复修改。
+- 下一步：检查 Frida 目标进程多选 PID 的恢复后过期状态处理和全屏编辑器结果返回；然后核对 SAF 文件 picker 与后台 Worker 并发结束时的请求归属/生命周期。固定 FX 1.0.0，不提前交付最终 APK / KernelSU ZIP。
