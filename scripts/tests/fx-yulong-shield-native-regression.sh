@@ -270,6 +270,10 @@ assert '"病毒库部分同步（"' in db_page, "Virus list UI must report parti
 assert '"病毒库同步失败，原有缓存已保留"' in db_page, "Total list failure must state that cached data was retained"
 assert "int successfulLists = 0;" in db_page and "item.ok" in db_page, "Virus list outcome must use per-list success results"
 assert "contentSyncSucceeded = contentReady" in db_page, "Ready stale content cache must not be mistaken for a successful refresh"
+assert 'STATE_SCROLL_Y = "fx_shield_virus_db_scroll_y"' in db_page, "Virus database page must preserve its scroll state"
+assert "private ScrollView databaseScroll;" in db_page and "databaseScroll=scroll;" in db_page, "Virus database scroll state must reference the real container"
+assert "databaseScroll.getScrollY()" in db_page and "scroll.scrollTo(0, restoreY)" in db_page, "Virus database page must save and restore its scroll position"
+assert "databaseScroll == scroll && scroll.getParent() != null" in db_page, "Stale virus database scroll callbacks must not move a replacement page"
 assert "getLastSuccessAt() > previousContentSuccess" in db_page, "Content DB success must be based on this refresh attempt"
 assert "本次同步未成功；旧版 APK 特征缓存仍可用" in db_page, "Content DB failure with a usable old cache must be explicit"
 scan_page = shield["FxYulongScanActivity.java"]
