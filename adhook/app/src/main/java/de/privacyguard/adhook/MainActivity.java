@@ -244,6 +244,7 @@ public final class MainActivity extends ComponentActivity {
             String nextMode;
             String currentMode;
             String node;
+            boolean stopCurrentRouteWithController = false;
             try {
                 if (status.exitCode != 0) throw new IllegalStateException(status.output);
                 JSONObject state = new JSONObject(status.output.trim());
@@ -257,15 +258,27 @@ public final class MainActivity extends ComponentActivity {
                     getSharedPreferences("fx_vpn_shortcut", MODE_PRIVATE).edit()
                             .putString("last_non_direct_mode", currentMode).apply();
                     nextMode = "direct";
+                    stopCurrentRouteWithController = true;
                 } else {
                     String saved = getSharedPreferences("fx_vpn_shortcut", MODE_PRIVATE)
                             .getString("last_non_direct_mode", "global");
                     nextMode = "direct".equals(currentMode) ? saved : currentMode;
                     if (!java.util.Arrays.asList("global", "rule", "tun").contains(nextMode)) nextMode = "global";
                     if (node == null || node.trim().isEmpty()) {
-                        runOnUiThread(() -> Toast.makeText(this,
-                                "尚未选择 VPN 节点；请先在 FX VPN 页面选择节点。",
-                                Toast.LENGTH_LONG).show());
+                        RootAccess.Result fallbackStart = RootAccess.execute(
+                                nativeVpnRootCommand("start", ""), 120000L, 256 * 1024);
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            if (fallbackStart.exitCode == 0) {
+                                Toast.makeText(this, "已通过第三方 VPN / FX Root DNS 启用网络保护",
+                                        Toast.LENGTH_LONG).show();
+                                refreshWebUiAfterNativeVpn();
+                                syncNativeVpnControls();
+                            } else {
+                                Toast.makeText(this, "快捷启用失败：" + fallbackStart.output,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
                         return;
                     }
                 }
@@ -276,7 +289,10 @@ public final class MainActivity extends ComponentActivity {
             }
             final String wanted = nextMode;
             RootAccess.Result applied = RootAccess.execute(
-                    nativeVpnRootCommand("mode", wanted), 120000L, 256 * 1024);
+                    stopCurrentRouteWithController
+                            ? nativeVpnRootCommand("stop", "")
+                            : nativeVpnRootCommand("mode", wanted),
+                    120000L, 256 * 1024);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (applied.exitCode == 0) {
@@ -2402,6 +2418,8 @@ public final class MainActivity extends ComponentActivity {
         String util = ". \"$MP/scripts/util.sh\" || exit 21; ";
         if ("status".equals(action)) return module
                 + "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard status";
+        if ("start".equals(action) || "stop".equals(action))
+            return module + "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard " + action;
         if ("mode".equals(action)) {
             String mode = shellQuote(value);
             return module + util

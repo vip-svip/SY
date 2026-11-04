@@ -88,3 +88,9 @@ assert '"$MP/scripts/yulong-vpn-control.sh"' in main
 assert 'optBoolean("root_proxy_on", false)' in main
 assert 'optBoolean("root_proxy_known", false)' in main
 print("PASS: VPN tile, home widget, main dashboard and release restore patcher share VPN/Root Proxy state")
+
+assert 'nativeVpnRootCommand("start", "")' in main
+assert 'nativeVpnRootCommand("stop", "")' in main
+assert "已通过第三方 VPN / FX Root DNS 启用网络保护" in main
+assert "stopCurrentRouteWithController" in main
+print("PASS: legacy home shortcut uses common VPN/Root Proxy start/stop when required")
