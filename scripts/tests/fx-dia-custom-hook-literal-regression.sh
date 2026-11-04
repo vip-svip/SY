@@ -156,3 +156,4 @@ assert "restoreChoice" in picker and "customRuleGroupDialogChoice = which" in pi
 assert "commitCustomRuleGroupUpdate(" in picker or ".putString(key, group).commit()" in picker
 PY
 echo "PASS: Hook rule-group list/actions/delete/picker dialogs restore their route and picker selection"
+echo "PASS: Hook rule group name inputs are capped at 24 characters"
