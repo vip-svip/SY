@@ -14,7 +14,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * independently control only the Yulong ad-filter master switch.
  */
 public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
-    private static final AtomicBoolean REQUEST_PENDING = new AtomicBoolean(false);
+    private static final AtomicBoolean AD_REQUEST_PENDING = new AtomicBoolean(false);
+    private static final AtomicBoolean VPN_REQUEST_PENDING = new AtomicBoolean(false);
 
     public static final String ACTION_ENABLE = "de.privacyguard.adhook.AD_FILTER_ENABLE";
     public static final String ACTION_DISABLE = "de.privacyguard.adhook.AD_FILTER_DISABLE";
@@ -56,7 +57,12 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (!REQUEST_PENDING.compareAndSet(false, true)) {
+        // Serialize only within the same control plane. Ad-master writes also
+        // use the shared UI/tile transaction gate; VPN changes use their own
+        // module lifecycle lock and must not block independent ad-filter actions.
+        final AtomicBoolean requestPending =
+                adFilterAction ? AD_REQUEST_PENDING : VPN_REQUEST_PENDING;
+        if (!requestPending.compareAndSet(false, true)) {
             publishResult(context, action, adFilterAction, enabled, false, 75, "请求繁忙");
             return;
         }
@@ -65,7 +71,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
         // use the module-side yulong-vpn-control.sh lock.
         final long gateToken = adFilterAction ? FxYulongAdOperationGate.tryAcquire() : 0L;
         if (adFilterAction && gateToken == 0L) {
-            REQUEST_PENDING.set(false);
+            requestPending.set(false);
             publishResult(context, action, true, enabled, false, 75, "广告过滤正在被其他入口修改");
             return;
         }
@@ -75,7 +81,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             pending = goAsync();
         } catch (RuntimeException unavailable) {
             if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
-            REQUEST_PENDING.set(false);
+            requestPending.set(false);
             publishResult(context, action, adFilterAction, enabled, false, 127, "无法启动后台任务");
             return;
         }
@@ -102,13 +108,13 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                     publishResult(context, action, adFilterAction, enabled, code == 0, code, output);
                 } finally {
                     if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
-                    REQUEST_PENDING.set(false);
+                    requestPending.set(false);
                     pending.finish();
                 }
             }, "fx-yulong-tasker-command").start();
         } catch (RuntimeException startError) {
             if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
-            REQUEST_PENDING.set(false);
+            requestPending.set(false);
             try {
                 publishResult(context, action, adFilterAction, enabled, false, 127,
                         startError.getClass().getSimpleName());
