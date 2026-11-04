@@ -71,7 +71,7 @@ public final class FxDiaCrashReportActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         body.addView(text("崩溃捕获范围", 16, 0xff17212b, true));
         body.addView(text(
-                "捕获范围：FX APK 当前应用进程内的 Java 未捕获异常，以及可用 ABI 上由 Dia 原版 Breakpad 捕获的 Native 崩溃。不会捕获 LSPosed 目标应用进程、内核崩溃或其他应用的异常。Native minidump 保存在 FX 私有 files/dia-native-crash/，报告保存在 FX 私有 files/crash.log。",
+                "捕获范围：FX APK 当前应用进程内的 Java 未捕获异常，以及可用 ABI 上由 Dia 原版 Breakpad 捕获的 Native 崩溃。不会捕获 LSPosed 目标应用进程、内核崩溃或其他应用的异常。Native minidump 保存在 FX 私有 files/dia-native-crash/，报告保存在 FX 私有 files/crash.log。Breakpad 原生处理器在当前进程内不能卸载；关闭捕获后，后续回调不再生成报告，并会尝试只删除本次新产生且路径验证通过的 minidump。",
                 12, 0xff617080, false));
         Switch captureSwitch = new Switch(this);
         captureSwitch.setText("启用 FX Java + Native 崩溃捕获");

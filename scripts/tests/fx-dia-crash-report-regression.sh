@@ -61,6 +61,9 @@ assert 'System.loadLibrary("breakpad")' in jni_wrapper, "Breakpad JNI library is
 assert "private static final native void initBreakpadNative" in jni_wrapper, "original JNI method descriptor changed"
 assert "onCrash(String minidumpPath, String nativeInfo" in jni_callback, "four-String JNI callback descriptor changed"
 assert "FxDiaCrashStore.recordNativeCrash(app" in native_capture, "native callback is not connected to crash store"
+assert "FxDiaCrashDumpDirectory.deleteDirectDump(app.getFilesDir(), minidumpPath)" in native_capture, "disabled native capture must discard only its new minidump"
+assert "if (!FxDiaCrashStore.isCaptureEnabled(app))" in native_capture, "native callback must apply the unified Java/Native capture switch"
+assert "Breakpad 原生处理器在当前进程内不能卸载" in activity, "UI must explain native callback behavior after disable"
 assert "statusLine(this)" in activity, "native library availability is not shown"
 assert "clearMinidumps(context)" in native_capture, "native dump directory has no explicit cleanup path"
 assert "FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
@@ -72,7 +75,9 @@ assert "if (FxDiaCrashStore.clear(this))" in activity, "UI must only report a fu
 assert "可能已有部分文件被删除" in activity and "不会报告清除成功" in activity, "failed partial cleanup must not claim that the report was preserved or cleared"
 assert "符号链接或意外子目录" in activity, "clear confirmation must disclose path-safety refusal"
 for token in ("getCanonicalFile()", "entry.isFile()", "canonicalDirectory.equals(canonicalEntry.getParentFile())",
-              "if (!entry.delete()) return false", "return directory.delete()"):
+              "if (!entry.delete()) return false", "return target.delete() || !target.exists()",
+              "public static boolean deleteDirectDump(File filesRoot, String minidumpPath)",
+              "canonicalDirectory.equals(canonicalTarget.getParentFile())"):
     assert token in dump_directory, f"safe minidump deletion invariant missing: {token}"
 assert "Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative" in workflow, "workflow does not verify original JNI symbol"
 assert "getPackageName()" in store and "Build.MODEL" in store, "process/device metadata is missing"

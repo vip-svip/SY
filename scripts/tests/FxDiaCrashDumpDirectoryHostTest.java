@@ -37,7 +37,28 @@ public final class FxDiaCrashDumpDirectoryHostTest {
                 "future-crash".getBytes(StandardCharsets.UTF_8));
         require(new File(dumps, "after-clear.dmp").isFile(),
                 "future Breakpad minidump must be writable without restarting the FX process");
-        require(FxDiaCrashDumpDirectory.clear(root), "post-clear minidump should also be removable");
+
+        File previousDump = new File(dumps, "previous-report.dmp");
+        File callbackDump = new File(dumps, "disabled-callback.dmp");
+        Files.write(previousDump.toPath(), "previous".getBytes(StandardCharsets.UTF_8));
+        Files.write(callbackDump.toPath(), "new-disabled-dump".getBytes(StandardCharsets.UTF_8));
+        require(FxDiaCrashDumpDirectory.deleteDirectDump(root, callbackDump.getAbsolutePath()),
+                "disabled callback must discard its newly generated direct dump");
+        require(!callbackDump.exists(), "new disabled-capture dump must be removed");
+        require(previousDump.isFile(), "disabled callback must preserve older minidumps");
+        require(!FxDiaCrashDumpDirectory.deleteDirectDump(root, temp.resolve("outside.dmp").toString()),
+                "callback path outside the private dump directory must be rejected");
+        require(previousDump.isFile(), "outside-path rejection must preserve old dumps");
+
+        Path callbackExternal = temp.resolve("callback-external.dmp");
+        Files.write(callbackExternal, "external".getBytes(StandardCharsets.UTF_8));
+        File callbackLink = new File(dumps, "disabled-link.dmp");
+        Files.createSymbolicLink(callbackLink.toPath(), callbackExternal);
+        require(!FxDiaCrashDumpDirectory.deleteDirectDump(root, callbackLink.getAbsolutePath()),
+                "disabled callback must reject a symlinked dump path");
+        require(Files.exists(callbackExternal), "disabled callback must never delete a symlink target");
+        Files.delete(callbackLink.toPath());
+        require(FxDiaCrashDumpDirectory.clear(root), "all remaining reports should still be removable");
 
         Path externalFile = temp.resolve("external-secret.dmp");
         Files.write(externalFile, "do-not-delete".getBytes(StandardCharsets.UTF_8));

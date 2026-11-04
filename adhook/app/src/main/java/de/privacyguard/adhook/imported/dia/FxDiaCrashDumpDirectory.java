@@ -13,6 +13,45 @@ public final class FxDiaCrashDumpDirectory {
 
     private FxDiaCrashDumpDirectory() { }
 
+    /**
+     * Delete only the single minidump reported by a Breakpad callback.
+     * Breakpad's native handler remains registered for this process after
+     * capture is disabled, so its callback must discard only the new dump.
+     */
+    public static boolean deleteDirectDump(File filesRoot, String minidumpPath) {
+        if (filesRoot == null || minidumpPath == null || minidumpPath.trim().isEmpty()
+                || !filesRoot.isDirectory()) return false;
+        try {
+            File absoluteRoot = filesRoot.getAbsoluteFile();
+            File canonicalRoot = filesRoot.getCanonicalFile();
+            if (!absoluteRoot.equals(canonicalRoot)) return false;
+
+            File directory = new File(filesRoot, DIRECTORY_NAME);
+            if (!directory.exists()) return true;
+            if (!directory.isDirectory()
+                    || !directory.getAbsoluteFile().equals(directory.getCanonicalFile())) {
+                return false;
+            }
+            File canonicalDirectory = directory.getCanonicalFile();
+            File expectedDirectory = new File(canonicalRoot, DIRECTORY_NAME);
+            if (!canonicalDirectory.equals(expectedDirectory)) return false;
+
+            File target = new File(minidumpPath);
+            if (!target.isAbsolute()) return false;
+            File absoluteTarget = target.getAbsoluteFile();
+            File canonicalTarget = target.getCanonicalFile();
+            if (!absoluteTarget.equals(canonicalTarget)) return false;
+            if (!target.exists()) return true;
+            if (!target.isFile()
+                    || !canonicalDirectory.equals(canonicalTarget.getParentFile())) {
+                return false;
+            }
+            return target.delete() || !target.exists();
+        } catch (java.io.IOException | SecurityException unsafePath) {
+            return false;
+        }
+    }
+
     public static boolean clear(File filesRoot) {
         if (filesRoot == null || !filesRoot.isDirectory()) return false;
         try {

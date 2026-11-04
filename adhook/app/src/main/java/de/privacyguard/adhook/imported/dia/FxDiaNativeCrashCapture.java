@@ -47,7 +47,16 @@ public final class FxDiaNativeCrashCapture {
         pruneOldMinidumps(directory);
 
         NativeCrashCallback callback = (minidumpPath, nativeInfo, nativeThreadTrack, crashThreadName) -> {
-            if (!FxDiaCrashStore.isCaptureEnabled(app)) return;
+            if (!FxDiaCrashStore.isCaptureEnabled(app)) {
+                // Breakpad's native signal handler cannot be unregistered in this process.
+                // Discard only this callback's newly emitted dump while capture is disabled.
+                if (!FxDiaCrashDumpDirectory.deleteDirectDump(app.getFilesDir(), minidumpPath)) {
+                    android.util.Log.w("FXDiaNativeCrash",
+                            "capture disabled; refusing unsafe minidump deletion: "
+                                    + (minidumpPath == null ? "(null)" : minidumpPath));
+                }
+                return;
+            }
             FxDiaCrashStore.recordNativeCrash(app, minidumpPath, nativeInfo,
                     nativeThreadTrack, crashThreadName, findJvmThreadStack(crashThreadName));
             pruneOldMinidumps(directory);
