@@ -415,3 +415,13 @@ grep -Fq 'if (previous != null) previous.interrupt();' "$main_activity"
 grep -Fq 'if (requestGeneration != hookRootCheckGeneration' "$main_activity"
 grep -Fq 'hookRootCheckGeneration++;' "$main_activity"
 grep -Fq 'if (rootCheck != null) rootCheck.interrupt();' "$main_activity"
+
+# LSPosed scope request/removal callbacks are tied to the active target view and operation generation.
+grep -Fq 'private boolean isCurrentHookScopeOperation(TextView state, String packageName, int generation)' "$main_activity"
+grep -Fq 'generation == hookTargetScopeGeneration' "$main_activity"
+grep -Fq 'state == hookTargetScopeState' "$main_activity"
+grep -Fq 'packageName.equals(hookTargetScopePackage)' "$main_activity"
+grep -Fq 'packageName.equals(selectedPackage) && state.getParent() != null;' "$main_activity"
+grep -Fq 'final int operationGeneration = ++hookTargetScopeGeneration;' "$main_activity"
+[ "$(grep -Fc 'if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;' "$main_activity")" -ge 3 ] || fail "LSPosed async request/remove callbacks must reject stale target generations"
+grep -Fq 'worker.setDaemon(true);' "$main_activity"
