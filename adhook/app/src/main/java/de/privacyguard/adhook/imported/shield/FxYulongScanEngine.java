@@ -218,7 +218,8 @@ public final class FxYulongScanEngine {
                         .comparing((Finding f) -> f.severity.ordinal())
                         .thenComparing(f -> f.label.toLowerCase(Locale.ROOT)));
                 message = enableContentScan
-                        ? (contentReady ? "扫描完成。" : "名单扫描完成；内容特征库未就绪，未执行第二阶段。")
+                        ? (contentReady ? "扫描完成。" :
+                            "扫描未完成：内容特征库未就绪，第二阶段没有执行；不能按完整内容扫描结果判断。")
                         : "扫描完成。";
                 if (!inventoryComplete) {
                     message = "扫描不完整：系统未能提供完整的已安装应用清单。以下命中结果仅供参考，未扫描到的应用不能视为安全。";
