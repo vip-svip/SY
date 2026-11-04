@@ -112,6 +112,17 @@ for token in ("hexEncodingIsByteAccurateAndReversible", "recordFieldsAreBounded"
               "rawAndHexReportsAreDistinctAndClearlyLabeled",
               "explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared"):
     assert token in unit, f"crash report unit coverage missing: {token}"
+for token in (
+    'STATE_SCROLL_Y = "fx_dia_crash_report_scroll_y"',
+    'STATE_UNREADABLE_PENDING_REPORT = "fx_dia_crash_unreadable_pending_report"',
+    "state.getBoolean(STATE_UNREADABLE_PENDING_REPORT, hadPendingReport && record == null)",
+    "if (hadPendingReport && record != null) FxDiaCrashStore.clearPendingFlag(this);",
+    "crashReportScroll = scroll;",
+    "outState.putBoolean(STATE_UNREADABLE_PENDING_REPORT, unreadablePendingReport)",
+    "outState.putInt(STATE_SCROLL_Y",
+    "crashReportScroll == scroll && scroll.getParent() != null",
+    "scroll.scrollTo(0, restoreY);"):
+    assert token in activity, f"crash report recreation state missing: {token}"
 print("PASS: Dia Java + original Breakpad Native capture, private persistence, JNI ABI and status UI")
 PY
 
