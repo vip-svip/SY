@@ -57,6 +57,33 @@ jobs:
             [[ -s "$native_source" ]] || { echo "::error::Missing original Stellar JNI library: $native_source"; exit 1; }
             install -D -m 0644 "$native_source" "$native_target"
           done
+          # The original Starter executes nativeLibraryDir/libstellar.so as
+          # its daemon launcher; optional privilege drop invokes libchid.so
+          # before it. These are executable payloads, not JNI-only libraries.
+          for abi in arm64-v8a armeabi-v7a; do
+            for executable in libstellar.so libchid.so; do
+              native_source="$stellar_root/lib/$abi/$executable"
+              native_target="adhook/app/src/main/jniLibs/$abi/$executable"
+              [[ -s "$native_source" ]] || { echo "::error::Missing original Stellar launcher binary: $native_source"; exit 1; }
+              install -D -m 0755 "$native_source" "$native_target"
+              readelf -h "$native_target" >/dev/null 2>&1 || { echo "::error::Invalid Stellar native executable: $native_target"; exit 1; }
+              case "$abi" in
+                arm64-v8a)
+                  readelf -h "$native_target" | grep -Eq 'Class:[[:space:]]+ELF64'
+                  readelf -h "$native_target" | grep -Eq 'Machine:[[:space:]]+AArch64'
+                  ;;
+                armeabi-v7a)
+                  readelf -h "$native_target" | grep -Eq 'Class:[[:space:]]+ELF32'
+                  readelf -h "$native_target" | grep -Eq 'Machine:[[:space:]]+ARM'
+                  ;;
+              esac
+              chmod 0755 "$native_target"
+              printf '%s  %s  mode=%s\n' "$(sha256sum "$native_source" | awk '{print $1}')" "$abi/$executable" "$(stat -c '%a' "$native_target")"
+              readelf -h "$native_target" | grep -E 'Class:|Machine:|Type:|Entry point address:' || :
+              readelf -l "$native_target" | grep -F 'Requesting program interpreter' || :
+              readelf -d "$native_target" | grep -F '(NEEDED)' || :
+            done
+          done
           readelf -h adhook/app/src/main/jniLibs/arm64-v8a/libadb.so | grep -Eq 'Class:[[:space:]]+ELF64'
           readelf -h adhook/app/src/main/jniLibs/arm64-v8a/libadb.so | grep -Eq 'Machine:[[:space:]]+AArch64'
           readelf -h adhook/app/src/main/jniLibs/armeabi-v7a/libadb.so | grep -Eq 'Class:[[:space:]]+ELF32'
