@@ -680,7 +680,7 @@ assert '.putExtra("suite_page", page)' in route, "original page identifier must 
 assert "showImportedVpnAppManager();" not in route, "VPN route management must not impersonate the legacy Wi-Fi/mobile firewall"
 assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must read the original page identifier"
 assert '"用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0' in firewall
-assert 'appFilterMode == 1 ? systemApp : appFilterMode == 2 && !systemApp' in firewall, "user/system package classification must be applied before rendering"
+assert "FxYulongFirewallAppFilterPolicy.includes(appFilterMode, info.flags)" in firewall, "user/system package classification policy must be applied before rendering"
 assert "FLAG_SYSTEM" in firewall and "FLAG_UPDATED_SYSTEM_APP" in firewall
 assert '"游龙广告插件 · " + suitePage' in firewall, "native firewall page must preserve original menu title"
 print("PASS: Yulong 用户应用/系统应用/按应用设置 preserve original page identity and open the real Wi-Fi/mobile firewall filters")
