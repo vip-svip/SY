@@ -78,6 +78,7 @@ public final class FxYulongVirusDb {
     private static final String K_LAST_ATTEMPT = "last_attempt_time";
     private static final String K_LAST_SUCCESS = "last_success_time";
     private static final String K_SERVER_REACHABLE = "server_reachable";
+    private static final String K_LAST_ERROR = "last_error";
     private static final String K_LIST_META_PREFIX = "list_status_";
 
     /** 两次拉取之间的最小间隔（防止频繁请求服务器） */
@@ -146,6 +147,7 @@ public final class FxYulongVirusDb {
 
     /** 服务器是否可达（最近一轮至少有一个列表拉取成功） */
     private static volatile boolean serverReachable = false;
+    private static volatile boolean serverReachabilityKnown = false;
     /** 最近一次发起拉取的时间 */
     private static volatile long lastAttempt = 0L;
     /** 最近一次拉取成功的时间 */
@@ -162,6 +164,8 @@ public final class FxYulongVirusDb {
     }
 
     public static boolean isServerReachable() { return serverReachable; }
+
+    public static boolean isServerReachabilityKnown() { return serverReachabilityKnown; }
 
     public static long getLastAttempt() { return lastAttempt; }
 
@@ -301,9 +305,12 @@ public final class FxYulongVirusDb {
             cache = new Data(cp, cn, spk, sn, ks);
             lastSuccess = sp.getLong(K_LAST_SUCCESS, 0L);
             lastFetchTime = lastSuccess;
-            // Legacy K_TIME represented an attempt; retain it only for throttling.
-            lastAttempt = sp.getLong(K_LAST_ATTEMPT, sp.getLong(K_TIME, 0L));
-            serverReachable = sp.getBoolean(K_SERVER_REACHABLE, false);
+            // Old K_TIME did not distinguish attempts from successful cache updates.
+            // Do not display that legacy value as a verified success or live reachability.
+            lastAttempt = sp.getLong(K_LAST_ATTEMPT, 0L);
+            serverReachabilityKnown = sp.contains(K_LAST_ATTEMPT);
+            serverReachable = serverReachabilityKnown && sp.getBoolean(K_SERVER_REACHABLE, false);
+            lastError = sp.getString(K_LAST_ERROR, "");
             for (ListStatus status : ALL_LISTS) {
                 String prefix = K_LIST_META_PREFIX + status.key + "_";
                 status.count = sp.getInt(prefix + "count", cachedCount(status, cache));
@@ -349,6 +356,7 @@ public final class FxYulongVirusDb {
 
         refreshing = true;
         lastAttempt = System.currentTimeMillis();
+        serverReachabilityKnown = true;
         for (ListStatus status : ALL_LISTS) {
             status.ok = false;
             status.lastAttemptAt = lastAttempt;
@@ -413,7 +421,8 @@ public final class FxYulongVirusDb {
                     .putLong(K_TIME, lastFetchTime)
                     .putLong(K_LAST_ATTEMPT, lastAttempt)
                     .putLong(K_LAST_SUCCESS, lastSuccess)
-                    .putBoolean(K_SERVER_REACHABLE, serverReachable);
+                    .putBoolean(K_SERVER_REACHABLE, serverReachable)
+                    .putString(K_LAST_ERROR, lastError);
             for (ListStatus status : ALL_LISTS) {
                 String prefix = K_LIST_META_PREFIX + status.key + "_";
                 editor.putInt(prefix + "count", status.count)
@@ -509,8 +518,9 @@ public final class FxYulongVirusDb {
             String t = line.trim();
             if (t.isEmpty()) continue;
             if (isPkg) {
-                // Do not sanitize an error page into a plausible package identifier.
-                if (!t.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) continue;
+                // A mixed valid/garbage payload is not a trustworthy full list.
+                // Reject the entire response so fetchSet keeps the previous cache.
+                if (!t.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) return new LinkedHashSet<>();
                 t = cleanPkg(t);
             }
             if (t.isEmpty()) continue;
