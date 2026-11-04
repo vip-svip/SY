@@ -644,3 +644,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 这一节覆盖并完成前一节“WhitelistActivity / WhitelistPickerActivity 写入端尚未采用统一 policy”的待办；不改变之前的 fail-open 安全策略。
 - 未运行完整 Actions；未生成最终 APK 或 KernelSU ZIP。
 - 下一批直接任务：① Dia 目录/Manifest/Activity Browser 页面路由映射，对照当前原生页面找 1–3 个未独立迁移或通用占位页面；② 补页面的导航、编辑/详情和返回链，不只增加空按钮；③ 页面完成后按对应后端能力做 targeted 检查，再更新当前分支状态。
+
+
+## 2026-11-05 — Dia Activity Browser 异步应用清单、搜索与组件状态安全回滚
+
+- 本批开始时分支 HEAD：`8e973483d0bcfb70d01696882862cc66907de4ca`。代码提交：
+  - `8254414000312d6e580a5d9b8a29b42caf022385` — 应用枚举/显示名加载迁移到后台有界任务队列；应用选择器改为可按名称/包名搜索的 ListView；应用列表加入刷新入口；页面销毁时取消任务并丢弃过期回调。
+  - `479434809e8c1e10ba5097a0cdc764e176ce8f21` — Activity 组件状态查询移到后台；加入组件状态/应用整体启用状态展示；修复取消/失败/队列拒绝时开关回滚触发再次监听器的问题。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`。
+- 实际变化：
+  - `PackageManager.getInstalledApplications()`、应用标签读取和排序全部在后台执行；UI 显示读取/失败/空清单状态，支持手动刷新。
+  - 目标选择器不再弹出超长无搜索 `setItems` 列表，改为名称/包名模糊 contains 过滤；点击后记录准确 package 和 label。
+  - Activity 清单读取仍在后台，并在结果返回前验证请求代次和当前目标包名；用户快速切换目标或退出页面时旧回调不会覆盖新状态。
+  - 每个 Activity 的 PackageManager 组件启用状态和应用整体 enabled 状态在后台读取；UI 不再针对每个 Activity 在主线程调用 PackageManager。
+  - 启用/禁用仍保留 Root 命令和逐项确认；当前 Android user id 必须成功解析，组件参数 shell quote；取消、Root 返回非零、Root 抛错、未返回结果和任务队列满均恢复原开关状态。新增程序性回滚 guard，防止 `setChecked()` 再次触发监听器并发出相反 Root 命令。
+  - Root 命令返回 0 后仍重新读取 Activity 与组件状态；状态显示“命令已执行，正在重新读取”，不直接把命令执行当成 PackageManager 已确认生效。
+- 定向静态复核：重新读取 Activity、MainActivity 路由和 Manifest；确认页面仍以 `exported=false` 注册；检查异步应用枚举、label 后台读取、搜索过滤、刷新入口、Activity 读取 generation guard、组件状态后台读取、程序性 rollback guard、取消/失败/队列拒绝 rollback、当前 user id 校验、销毁取消回调共 14 项，14/14 通过。
+- 验证等级：GitHub 源码静态核对通过。未运行 Java/Android 编译、Gradle、UI 自动化、模拟器或真机组件启停；不能声称该页面已在 OnePlus 12/LSPosed 设备上验收。
+- 未改变原始“仅用户应用”边界、MAIN/LAUNCHER 过滤语义、Root 逐项确认或可恢复的组件启停能力；未改版本号、未打包最终 APK/KernelSU ZIP、未触发完整 Actions。
+- 后续风险：PackageManager 在不同 OEM / 多用户 / 企业工作资料环境下对 `MATCH_DISABLED_COMPONENTS`、component enabled state 与 `am get-current-user` 的返回可能存在差异；须真机核验。用户若禁用自身唯一 launcher Activity，可能需要从 FX 返回此页恢复。
+- 下一批直接任务：① Dia 设备属性/GPS 子页目前路由到 per-app Hook 表单；对照原 Dia 页面逐项核对 Android ID、时区、版本、GPS、provider enabled/Fused 返回位置是否有实际执行层支持，修复 UI/后端不一致；② 对话框/通知页仍只有 per-app 通知 Hook 配置映射，原版 Dialog 专用逻辑明确未迁移，继续对照旧页面/规则能力，不增加空壳开关；③ 之后审查 Dia 网络代理与 Frida 监听模式的页面级返回链。
