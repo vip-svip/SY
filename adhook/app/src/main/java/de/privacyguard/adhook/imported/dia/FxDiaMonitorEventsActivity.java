@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
@@ -36,7 +35,7 @@ import java.util.concurrent.RejectedExecutionException;
  * Native Dia monitor-event page. It reads only the FX-owned session log and
  * displays the allowlisted metadata produced by FxDiaMonitorEventParser.
  */
-public final class FxDiaMonitorEventsActivity extends Activity {
+public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     public static final String EXTRA_TARGET_PACKAGE = "fx_dia_monitor_target_package";
     public static final String EXTRA_TARGET_NAME = "fx_dia_monitor_target_name";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
@@ -207,7 +206,7 @@ public final class FxDiaMonitorEventsActivity extends Activity {
         rows.setPadding(dp(8), dp(3), dp(8), dp(12));
         logScroll.addView(rows);
         root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         category.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view,
