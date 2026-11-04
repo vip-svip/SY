@@ -12,7 +12,10 @@ EOF
 cp "$SOURCE_DIR/scripts/util.sh" "$T/module/scripts/util.sh"
 cat > "$T/module/scripts/apply.sh" <<'EOF'
 #!/system/bin/sh
-[ "${FX_TEST_APPLY_DELAY:-0}" = "1" ] && sleep 1
+if [ "${FX_TEST_APPLY_DELAY:-0}" = "1" ]; then
+  printf 'entered\n' >> "$FX_TEST_APPLY_LOG"
+  sleep 1
+fi
 [ "${FX_TEST_APPLY_FAIL:-0}" = "1" ] && exit 17
 exit 0
 EOF
@@ -64,13 +67,29 @@ if run master 1 >/dev/null 2>&1; then
 fi
 # Concurrent app-list writes must serialize through one transaction lock.
 run_delayed() {
-  env MP="$T/module" PG="$T/pg" CONF="$T/pg/settings.conf" FX_TEST_APPLY_DELAY=1 \
+  env MP="$T/module" PG="$T/pg" CONF="$T/pg/settings.conf" \
+    FX_TEST_APPLY_DELAY=1 FX_TEST_APPLY_LOG="$T/concurrent-apply.log" \
     sh "$SCRIPT" "$@"
 }
+: > "$T/concurrent-apply.log"
 run_delayed apply-item com.example.concurrent_a 1 > "$T/concurrent-a.log" 2>&1 &
 pid_a=$!
+# Force a real overlap: A must have entered the slow apply phase while its
+# transaction lock is held before B is started. This avoids scheduler flakiness.
+for attempt in $(seq 1 50); do
+  [ -s "$T/concurrent-apply.log" ] && break
+  sleep 0.05
+done
+[ -s "$T/concurrent-apply.log" ] || { echo "first VPN writer never entered the apply phase" >&2; exit 1; }
+[ -d "$T/pg/settings.conf.vpn-apps.lock" ] || { echo "first VPN writer released its lock before apply completed" >&2; exit 1; }
 run_delayed apply-item com.example.concurrent_b 1 > "$T/concurrent-b.log" 2>&1 &
 pid_b=$!
+sleep 0.2
+[ "$(wc -l < "$T/concurrent-apply.log" | tr -d ' ')" = 1 ] || {
+  echo "second VPN writer entered apply while writer A still owned the lock" >&2
+  cat "$T/concurrent-apply.log" >&2
+  exit 1
+}
 wait "$pid_a" || { echo "first concurrent VPN app update failed" >&2; cat "$T/concurrent-a.log" >&2; exit 1; }
 wait "$pid_b" || { echo "second concurrent VPN app update failed" >&2; cat "$T/concurrent-b.log" >&2; exit 1; }
 run list > "$T/concurrent-list"
