@@ -2517,3 +2517,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`f3dd5c07a3a7f37f22c225d641ff9154f5246d96`（完整构建转 PR/手动）；`69a5ae3770ff0d04c9eb799e6ca5f0839157bc90`（新增 targeted Host workflow）；`4ff94da29318b24190a1537855f2e52c98ded63d`（回归去重）；`87ded6c3fb1d0cf1b70d50c4fd204c86bc878a92`（补齐 Dia 表单、VPN/DNS/隐私测试映射）。
 - 静态验证：最新 HEAD 确认完整 workflow 不再有 push trigger，PR/manual 保留；targeted workflow 有 push path filters、去重、Shell/Python 语法检查和对应页面测试映射。新增工作流的实际执行结果仍需读取 Actions；不把工作流文件静态检查当成测试通过。
 - 下一步：确认首个 targeted run 能完整执行；继续修复 Frida SAF 导入在 Activity 重建时丢失 URI/任务的问题，并补足 Shield Rescue 系统返回键回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 主页面日志清空的父目录符号链接防护
+
+- 追加前实时分支 HEAD：d254787c86d005f785c16473dedc9a291907f6e5；实时状态文件 Blob：40614a4fb9385cb113e67590cc09d1a57e667f3b。并发更新时重新读取并追加，没有覆盖其他工作线记录。
+- 发现 Frida 管理页的“清空当前目标注入日志”操作只检查目标文件 `-f` / `! -L`，但没有检查 `/data/adb`、`privacyguard`、`dia-frida` 和 `logs` 父目录；父目录若被替换为符号链接，Root 截断操作可能偏离 FX 预期日志目录。独立 SessionLogActivity 已有更严格目录检查，两条入口不一致。
+- 修改 FxDiaFridaActivity：新增 `checkedSessionLogDirectoryPrefix()`，逐层要求上述目录存在且不是符号链接；目标文件必须存在、为普通文件且不是符号链接；截断后 chmod 600 并输出明确成功标记。命令退出失败、目录异常、文件缺失或无成功标记时，UI 显示未确认清空及截断后的错误详情，不再显示模糊退出码/假成功。
+- 修改 `fx-dia-monitor-event-view-regression.sh`：增加父目录逐层保护、实际命令使用 guard、缺失/符号链接拒绝、成功标记和失败 UI 回显断言。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java`、`scripts/tests/fx-dia-monitor-event-view-regression.sh`、本状态文件。
+- 提交：`1ff69f240be9df537041fbabefdf7afb29cfbb38`（实现）；`9d3291f0f467e97939fac36255fe49076c47d4bc`（回归断言）。
+- 静态复核：重新从分支读取 Frida Activity 与回归脚本，确认目录 guard、目标文件 no-symlink 条件、截断成功标记、仅成功后显示已清空、失败详情回显以及全部回归断言存在。未运行 Shell 回归、Root 故障注入、Gradle、UI 自动化或真机测试。
+- 后续：统一检查 Frida Gadget/Server 产生的其余日志写入路径是否采用同一目录安全契约；然后继续未完成的 Dia 原生页面与游龙广告插件页面。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
