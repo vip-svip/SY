@@ -296,6 +296,11 @@ assert 'getBoolean("content_scan_enabled", false)' in scan_page
 assert "Intent.ACTION_DELETE" in scan_page and 'setPositiveButton("打开系统确认"' in scan_page
 assert "pm uninstall" not in engine and "su -c" not in engine
 assert "private LinearLayout body" in scan_page and "private LinearLayout resultRows" in scan_page
+assert 'STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y"' in scan_page, "Shield scan result list must have an explicit scroll restoration key"
+assert "private ScrollView scanScroll;" in scan_page, "Shield scan must retain its actual ScrollView"
+assert "scanScroll=scroll;" in scan_page, "Shield scan scroll state must be tied to its page container"
+assert "scanScroll.getScrollY()" in scan_page and "scroll.scrollTo(0, restoreY)" in scan_page, "Shield scan page must save and restore the result-list position"
+assert "if (scanScroll == scroll && scroll.getParent() != null)" in scan_page, "Stale scan scroll callbacks must not move a replacement page"
 assert "resultRows.removeAllViews()" in scan_page and "resultRows.addView(item" in scan_page
 assert "findings.removeAllViews()" not in scan_page
 

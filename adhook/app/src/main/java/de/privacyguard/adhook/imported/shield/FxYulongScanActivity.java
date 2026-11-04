@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int MAX_SAVED_FINDINGS = 128;
     private static final int MAX_BATCH_SELECTION = 100;
+    private static final String STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y";
     private static final String STATE_SCAN_RUNNING = "fx_shield_scan_running";
     private static final String STATE_SCAN_HAS_RESULT = "fx_shield_scan_has_result";
     private static final String STATE_SCAN_STATUS = "fx_shield_scan_status";
@@ -34,6 +35,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
 
     private LinearLayout body;
     private LinearLayout resultRows;
+    private ScrollView scanScroll;
+    private int restoredScanScrollY;
     private TextView status;
     private Button scan;
     private Switch contentScan;
@@ -68,12 +71,13 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
 
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);
+        restoredScanScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_SCAN_SCROLL_Y, 0));
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(12),dp(8),dp(12),dp(8));
         header.addView(action("‹ 返回",this::finish));
         header.addView(text("已安装应用扫描",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
         root.addView(header);
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+        ScrollView scroll=new ScrollView(this);scanScroll=scroll;scroll.setFillViewport(true);
         body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(20));
         scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
         status=text("扫描只读取应用包名和名称，不会自动停用、冻结或卸载应用。",13,0xff5c6877,false);
@@ -96,6 +100,13 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         resultRows.addView(text("尚未扫描。请先在“病毒库管理”中同步名单。",13,0xff607080,false));
         body.addView(resultRows);
         if (state != null) restoreScanState(state);
+        if (restoredScanScrollY > 0) {
+            final int restoreY = restoredScanScrollY;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed() && scanScroll == scroll && scroll.getParent() != null)
+                    scroll.scrollTo(0, restoreY);
+            });
+        }
     }
 
     private void restoreScanState(Bundle state) {
@@ -192,6 +203,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean(STATE_SCAN_RUNNING, running.get());
+        outState.putInt(STATE_SCAN_SCROLL_Y,
+                scanScroll == null ? Math.max(0, restoredScanScrollY) : Math.max(0, scanScroll.getScrollY()));
         outState.putBoolean(STATE_SCAN_HAS_RESULT, hasScanResult);
         if (!hasScanResult) return;
 

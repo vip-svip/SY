@@ -2041,3 +2041,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 测试状态：本批未在完整 checkout 执行 Shell/Python 回归；未运行 Gradle、Android 编译、模拟器、UI 自动化、Root 权限注入故障或真机旋转/进程选择测试。GitHub Actions 最新自动运行 41906545883（Validate FX APP migration and build Hook APK，HEAD 397e5307...）状态为 pending，不能计为通过；同工作流前面的 push 运行多次被 concurrency 取消，也不计为通过。没有手动重新触发整套 Actions。
 - 失败/修正记录：本轮测试断言一度把 Java 源码换行匹配写成双重转义，静态检查发现无法按源码实际换行匹配，已改成单转义并提交 4730cd11d71a566d2467f57003f5f1b92ae3e2c2；未为通过测试而放宽产品逻辑。
 - 下一步：核对 FxDiaCodeEditorActivity 的 Activity Result 返回目标/脚本内容归属，确保全屏编辑器返回时不会覆盖用户切换后的 Frida 脚本；然后查 SAF 文件 picker 返回与后台 Worker 取消/Activity 销毁的请求归属。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾扫描结果列表滚动位置恢复
+
+- 本批起始 HEAD：`67bd883a0697d8f2477753a7b0b67bcb913e6a01`。
+- 扫描 Activity 已保存风险项、严重度、原因、完整性状态和批量选择，但未保存结果 ScrollView 的滚动位置；风险详情往返或 Activity 重建后会回到列表顶部。
+- 修改 `FxYulongScanActivity.java`：保存真实扫描 ScrollView 引用；Bundle 保存 `fx_shield_scan_scroll_y`（无结果时也保存）；恢复风险项/选择状态后通过 post 恢复滚动，并校验 Activity 未结束、ScrollView 仍是当前页面实例。
+- 修改 `fx-yulong-shield-native-regression.sh`：覆盖状态键、真实 ScrollView 绑定、保存/恢复、过期回调实例保护。
+- 验证等级：源码静态断言通过；未运行 Shell 回归、Gradle、UI 自动化或真机风险详情往返/旋转测试。
+- 最近并行提交：Frida 目标包/进程扫描后重新验证目标身份（`632a6dc9a8b4683cd769a0e1881e36207133fbf8`）、目标切换清理旧 PID（`4730cd11d71a566d2467f57003f5f1b92ae3e2c2`）、过期进程选择身份断言（`397e5307ae57b86a4bd13a6566f915689badbbea`），以及对应状态记录（`6c506066769547604157f7b0d9cad13af6823692`）。安全护盾通知来源直达救援页（`d4ee58b8be644037170a4467c4ebde0373aef4b7`）。
+- 下一步：核对扫描结果详情页与批量清理队列 Activity 的回退后状态回显/系统卸载结果回读；随后检查病毒库管理页错误/缓存回滚 UI。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
