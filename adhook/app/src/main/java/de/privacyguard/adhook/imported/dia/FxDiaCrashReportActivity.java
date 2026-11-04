@@ -24,6 +24,10 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
     private TextView reportView;
     private TextView statusView;
     private TextView nativeCaptureStatus;
+    private static final String STATE_SCROLL_Y = "fx_dia_crash_report_scroll_y";
+    private static final String STATE_UNREADABLE_PENDING_REPORT = "fx_dia_crash_unreadable_pending_report";
+    private ScrollView crashReportScroll;
+    private int restoredScrollY;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -51,8 +55,11 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
         super.onCreate(state);
         boolean hadPendingReport = FxDiaCrashStore.hasPendingReport(this);
         record = FxDiaCrashStore.read(this);
-        unreadablePendingReport = hadPendingReport && record == null;
-        if (hadPendingReport) FxDiaCrashStore.clearPendingFlag(this);
+        unreadablePendingReport = state != null
+                ? state.getBoolean(STATE_UNREADABLE_PENDING_REPORT, hadPendingReport && record == null)
+                : hadPendingReport && record == null;
+        if (hadPendingReport && record != null) FxDiaCrashStore.clearPendingFlag(this);
+        if (state != null) restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
@@ -64,6 +71,7 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this);
+        crashReportScroll = scroll;
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(14), dp(8), dp(14), dp(20));
@@ -120,8 +128,25 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
         body.addView(button("清除崩溃记录", this::confirmClear));
         body.addView(button("关闭", this::finish));
         setContentViewWithNativeTabs(root, 5);
+        if (restoredScrollY > 0) {
+            final int restoreY = restoredScrollY;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed()
+                        && crashReportScroll == scroll && scroll.getParent() != null) {
+                    scroll.scrollTo(0, restoreY);
+                }
+            });
+        }
         updateNativeCaptureStatus();
         render();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_UNREADABLE_PENDING_REPORT, unreadablePendingReport);
+        if (crashReportScroll != null) {
+            outState.putInt(STATE_SCROLL_Y, Math.max(0, crashReportScroll.getScrollY()));
+        }
     }
 
     private void updateNativeCaptureStatus() {
