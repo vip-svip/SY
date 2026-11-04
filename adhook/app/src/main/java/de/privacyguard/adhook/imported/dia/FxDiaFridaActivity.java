@@ -2591,7 +2591,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 boolean preferencesSaved = getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                         .putString("gadget_process", processName).commit();
                 if (!preferencesSaved) {
-                    setStatus("Gadget 已部署，但本机进程配置索引保存失败；请重新打开页面核对目标进程。\\n"
+                    setStatus("Gadget 已部署，但本机进程配置索引保存失败；请重新打开页面核对目标进程。\n"
                             + result.output);
                     return;
                 }
@@ -2708,14 +2708,14 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         .putBoolean("gadget_on_load_wait", wait)
                         .commit();
                 if (!preferencesSaved) {
-                    setStatus("Gadget 配置文件已写入，但本机 UI 配置索引保存失败；请重新打开页面核对配置路径和端口。\\n"
+                    setStatus("Gadget 配置文件已写入，但本机 UI 配置索引保存失败；请重新打开页面核对配置路径和端口。\n"
                             + result.output);
                     return;
                 }
-                setStatus("Frida Gadget 监听配置已写入。\\n" + result.output
-                        + "\\n需由目标 debuggable 应用加载对应 Gadget 动态库后才会生效。");
+                setStatus("Frida Gadget 监听配置已写入。\n" + result.output
+                        + "\n需由目标 debuggable 应用加载对应 Gadget 动态库后才会生效。");
             } else {
-                setStatus("Gadget 配置写入失败（退出码 " + result.exitCode + "）：\\n" + result.output);
+                setStatus("Gadget 配置写入失败（退出码 " + result.exitCode + "）：\n" + result.output);
             }
         });
     }
