@@ -919,3 +919,24 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 运行时边界：本节只核验上述 UI / 发布 / Parser / Serializer diff。当前读取的 AdVisibilityHook.java 仍仅有 Dialog 抑制提示和 Dialog 规则匹配路径，没有发现读取 toastFilterEnabled / toastTextTerms 并 Hook Toast.show() 的执行器证据。**Toast 过滤目前不得标为运行时完成**；用户可见设置和持久化不能代替目标进程内实际拦截。
 - 测试边界：本次未读取到对应 Toast Parser / Serializer 回归用例执行结果；未运行 Gradle、Hook 运行时或 Android 设备测试。
 - 下一步具体任务：实现独立 Toast 执行器，优先 Hook Toast.show() 并对可安全读取的 Toast View 文本做有界、不区分大小写字面匹配；保持默认关闭、逐应用作用域、系统/FX 自身 fail-open、异常 fail-open，不记录 Toast 正文；再补 Parser/Serializer 和执行器定向测试。不得复用 Dialog 的 dialogNotify。
+
+## 2026-11-05 — Toast 逐应用过滤运行时、系统应用保护与回归断言修复
+
+- 本节记录前实时分支 HEAD：98a5f0da207276361453589cbfa162703de9fbe8。
+- 本节更正上一节“尚未发现 Toast Hook 执行器”的结论：该结论只适用于读取时点，随后提交 7e2247fc7127739b24bcee4cbb62264e3b195632 已将 Toast 目标进程 Hook 接入；不能继续把 Toast 记为只有 UI/Parser/Serializer。
+- Toast 当前实现链：
+  - MainActivity 隐私页和 Dia 迁移页均有独立 Toast 入口；逐应用开关与多行关键词输入独立于 Dialog 匹配、Dialog 命中提示和 NotificationListener。
+  - UI 保存逐应用草稿与发布配置；Parser 消费 toast_filter / toast_text_terms_b64，Serializer 只在显式启用且规则非空时写入。
+  - AdVisibilityHook 在启用目标进程安装独立 Toast Hook：捕获 Toast.makeText / setText / setView 元数据，在 Toast.show 前按逐应用配置匹配；可读取 View 树受 512 节点 / 16 层限制，文本匹配复用有界字面匹配策略；捕获文本按 MAX_TEXT_CHARS 截断；异常与不可读取内容 fail-open；日志不写入 Toast 正文或规则值。
+  - Toast 元数据按 Toast 实例弱引用保存；自定义 View 替换会重建 payload，不沿用旧 TextView 文本。元数据改进提交：f6a692a12c454c352dbf983bf0503ce58c179abb、98a5f0da207276361453589cbfa162703de9fbe8。
+- 本轮额外安全收紧：
+  - Toast UI 目标选择和 publishConfig 对 FLAG_SYSTEM 与 FLAG_UPDATED_SYSTEM_APP 都不允许启用：3582c15897a7bce470f069f2f0b1e39351caaf69。
+  - LSPosed onPackageReady 再次检查系统/更新系统应用标志；即使 Remote Files 含陈旧或手工构造配置也不会为系统应用安装 Toast 过滤：eb88555bc6e926c2f8b3d90ddaf0202dcb14a2e9。
+- Toast 实现与测试提交：Parser 5fb50f236fbec88cea990c04610c053a7399703e；Serializer ca63fb1f1f11dd81d3bc6fed1d8ef59cd2308063；UI 8946cb888d49b9bd7320445675c2f2c4c16f83a5；LSPosed 执行器 7e2247fc7127739b24bcee4cbb62264e3b195632；静态接线断言 28e5ead494b2ed65b5b3db1b56c7ffb1f3a7185a。
+- 合并回归脚本曾包含损坏的 Parser 断言缩进/循环；已在 c77faa04aa84690c06eac9c274927c45da75b07b 修正为独立 Dialog 与 Toast 两组循环，并增加 FLAG_UPDATED_SYSTEM_APP 保护断言。当前脚本路径：scripts/tests/fx-dia-dialog-native-regression.sh。
+- 静态核验：最新读取确认 UI、发布器、运行时和回归脚本均包含 FLAG_UPDATED_SYSTEM_APP 防护；Parser / Serializer 测试源码包含 Toast 默认关闭、显式规则、无规则拒绝、关闭却带规则拒绝、往返序列化用例；运行时源码具有 Toast.show / makeText / setText / setView、逐应用配置、节点/深度限制、fail-open 和不记录正文路径。
+- 验证边界：本轮未实际运行完整脚本、Gradle/JUnit、Android 构建、模拟器或 LSPosed 真机测试。GitHub 对静态回归脚本修复提交 c77faa04aa84690c06eac9c274927c45da75b07b 未返回可核实的 PR 关联工作流记录。以上属于源码静态检查，不得表述为测试通过或设备验收。
+- 本轮 UI 批次代码：白名单页面状态恢复 41f601c53b9d1b85d80a3ff8df766ff2639e8991；应用统计每页 40 项分页和状态恢复 752497bc7d8e07e7d76272671c3c855e7d1e93de。两页均未更改其 Root/TrafficStats 业务语义；仍需 Android 生命周期和真实设备交互验收。
+- 本轮最新提交（本节写入前）：98a5f0da207276361453589cbfa162703de9fbe8。当前分支固定 FX 1.0.0，未生成最终 APK 或 KernelSU ZIP。
+- 尚未完成：Toast Hook 在不同 Android/OEM Toast 实现下的覆盖率和权限行为仍需设备实测；Firewall 用户/系统应用分类、原版页面链仍待逐项验收；Dia 原版 Toast/KeyEvent/Dialog 动态布局的其他行为及游龙安全护盾深层页面仍未全部迁移。
+- 下一批具体任务：对照 Toast 运行时边界写独立可执行的定向回归（避免只靠字符串 grep）；之后继续完成游龙 Firewall 页面组或 Dia 原生深层页面，每批覆盖真实交互和返回链；不得把当前静态核验当作真机验收。
