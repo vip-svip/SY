@@ -521,6 +521,12 @@ assert "outState.putString(STATE_QUERY" in picker
 assert "outState.putInt(STATE_FIRST_POSITION" in picker and "outState.putInt(STATE_FIRST_TOP" in picker
 assert "selected.addAll(restored)" in picker and "searchInput.setText(query)" in picker
 assert "listView.setSelectionFromTop(position, top)" in picker
+assert "private boolean isEligibleUserApp(String pkg)" in picker, "whitelist picker must revalidate staged packages at commit time"
+assert "pm.getApplicationInfo(pkg, 0)" in picker, "whitelist selection must verify the package is still installed"
+assert "if (!isEligibleUserApp(p))" in picker, "uninstalled or unavailable staged apps must not be persisted"
+assert "int added = 0;" in picker and '"已加入 " + added + " 个应用"' in picker, "success count must report actual newly persisted apps"
+assert "(ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0" in white, "updated system apps must follow the same eligibility policy as the picker"
+assert "(ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0" in picker, "updated system apps must follow the same eligibility policy as the manager"
 
 # Whitelist label/icon refresh must not spawn overlapping unbounded raw threads.
 assert "ThreadPoolExecutor(1, 1, 30L" in white
