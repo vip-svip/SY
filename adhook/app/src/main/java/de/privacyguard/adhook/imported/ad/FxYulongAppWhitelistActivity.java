@@ -37,6 +37,9 @@ import java.util.concurrent.TimeUnit;
 /** Yulong 7.0.1 app whitelist: excludes selected UIDs from FX ad/DNS filtering. */
 public final class FxYulongAppWhitelistActivity extends Activity {
     private static final int APP_PAGE_SIZE = 50;
+    private static final String STATE_APP_PAGE = "fx_yulong_whitelist_app_page";
+    private static final String STATE_QUERY = "fx_yulong_whitelist_query";
+    private static final String STATE_SCROLL_Y = "fx_yulong_whitelist_scroll_y";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> new Thread(r, "fx-yulong-whitelist-root"), new ThreadPoolExecutor.AbortPolicy());
@@ -49,6 +52,10 @@ public final class FxYulongAppWhitelistActivity extends Activity {
     private final Map<String, String> labels = new HashMap<>();
     private final Map<String, Boolean> selected = new HashMap<>();
     private LinearLayout list;
+    private ScrollView scroll;
+    private int pendingScrollY;
+    private boolean pendingScrollRestore;
+    private boolean restoringUiState;
     private TextView status;
     private EditText query;
     private boolean loading = true;
@@ -171,7 +178,7 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -189,6 +196,13 @@ public final class FxYulongAppWhitelistActivity extends Activity {
         query = new EditText(this);
         query.setSingleLine(true);
         query.setHint("搜索应用名称或包名");
+        if (state != null) {
+            appPage = Math.max(1, state.getInt(STATE_APP_PAGE, 1));
+            query.setText(state.getString(STATE_QUERY, ""));
+            pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            pendingScrollRestore = true;
+            restoringUiState = true;
+        }
         body.addView(query);
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -198,6 +212,7 @@ public final class FxYulongAppWhitelistActivity extends Activity {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 appPage = 1;
+                if (scroll != null) scroll.scrollTo(0, 0);
                 renderRows();
             }
             @Override public void afterTextChanged(Editable s) { }
@@ -283,9 +298,11 @@ public final class FxYulongAppWhitelistActivity extends Activity {
                     for (ApplicationInfo info : loaded) {
                         selected.putIfAbsent(info.packageName, false);
                     }
-                    appPage = 1;
+                    if (!restoringUiState) appPage = 1;
                     updateStatus();
                     renderRows();
+                    restoreScrollIfNeeded();
+                    restoringUiState = false;
                     if (appReloadPending) {
                         appReloadPending = false;
                         loadAppsAsync();
@@ -297,6 +314,24 @@ public final class FxYulongAppWhitelistActivity extends Activity {
             if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
         }
     }
+    private void restoreScrollIfNeeded() {
+        if (!pendingScrollRestore || scroll == null) return;
+        final int restoreY = pendingScrollY;
+        scroll.post(() -> {
+            if (destroyed || isFinishing() || isDestroyed()
+                    || !pendingScrollRestore || scroll == null) return;
+            scroll.scrollTo(0, restoreY);
+            pendingScrollRestore = false;
+        });
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putInt(STATE_APP_PAGE, Math.max(1, appPage));
+        if (query != null) outState.putString(STATE_QUERY, query.getText().toString());
+        if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
+        super.onSaveInstanceState(outState);
+    }
+
     private void updateStatus() {
         if (loading) {
             status.setText("正在读取设备端白名单…");
