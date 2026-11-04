@@ -1124,3 +1124,24 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   1. 检查白名单选择器 / 管控应用选择器在 Activity 重建、搜索后暂存勾选和滚动位置是否保留；继续修复 Shield 页面组的返回链和状态恢复。
   2. 核对病毒库页与扫描页的状态提示、后台任务旋转后回执及重复触发保护，避免 Activity 销毁后丢失任务结果。
   3. 继续接入 Dia 核心独立 Activity 的六 Tab 外壳；原版 `KeyEventHook` 没有可靠字节码证据前，不实现猜测版 `alert_auto`。
+
+## 2026-11-05 — 白名单选择器暂存勾选、搜索与列表位置恢复
+
+- 本节更新前实时 HEAD：`8d9a2738b9a5aedd94c1b56826e5b7c9b0d9e46b`；固定分支 `fx-v1.0.0-unified-hook-integration`，版本 FX 1.0.0。
+- 问题：白名单全屏选择器使用 ListView + 异步应用枚举，旋转或 Activity 重建会清空尚未提交的多选集合，并丢失搜索词和滚动位置；用户可能误以为选择已保存。
+- 已修复 `WhitelistPickerActivity`：
+  - 保存/恢复暂存选择包名集合（仅 Bundle 暂存，不提前写入正式白名单）。
+  - 保存/恢复搜索词，沿原有 TextWatcher / applyFilter 路径刷新。
+  - 保存首个可见行位置及 top offset；异步应用加载与筛选完成后恢复 ListView 位置。
+  - 保持正式白名单只在用户点击“加入所选”后写入，取消仍不会提交暂存选择。
+- 提交：
+  - `303b5db69ddf09b89d76af2df3f98657d58e723d` — 选择器暂存勾选、搜索与滚动状态恢复。
+  - `d7bd8a1f0bdf62efcf160a2e3a8d4cd8fb606588` — 安全护盾回归脚本增加选择器状态断言。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistPickerActivity.java`
+  - `scripts/tests/fx-yulong-shield-native-regression.sh`
+- 验证：从最新分支重新读取 WhitelistActivity、BlacklistActivity、WhitelistPickerActivity 和回归脚本，静态核对两列表页及选择器的查询/分页/勾选/滚动保存恢复断言 6 项全部通过。未运行完整 Shield Shell 回归、Gradle/JUnit、Android 编译或旋转/进程回收设备测试。
+- 管控应用添加流程目前仍使用 Activity 内 AlertDialog，暂存选择只存在弹窗闭包中；若系统在弹窗打开期间销毁 Activity，该草稿尚未持久化。本批未伪称这部分已解决。
+- 未更改名单格式、正式写入时机、六 Tab 顺序或 FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+- 下一批：将管控应用选择弹窗迁为可恢复的 DialogFragment 或等价 Activity 状态模型，保留搜索、分页、暂存多选和确认/取消语义；随后继续检查病毒库/扫描/救援页面返回链。
+
