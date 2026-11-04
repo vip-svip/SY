@@ -239,6 +239,7 @@ jobs:
           sh scripts/tests/fx-dia-bounded-background-workers-regression.sh
           sh scripts/tests/fx-dia-inspector-regression.sh
           python3 scripts/tests/fx-dia-frida-target-loader-regression.py
+          python3 scripts/tests/fx-dia-frida-process-identity-regression.py
           sh scripts/tests/fx-dia-dex-browser-performance-regression.sh
           sh scripts/tests/fx-dia-dex-hook-picker-regression.sh
           sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
