@@ -2461,7 +2461,8 @@ public final class MainActivity extends ComponentActivity {
                     if (isFinishing() || isDestroyed()) return;
                     Toast.makeText(this, "VPN 操作异常：" + failure.getMessage(),
                             Toast.LENGTH_LONG).show();
-                    syncNativeVpnControls();
+                    de.privacyguard.adhook.imported.ad.FxYulongAdWidgetProvider.refreshAll(this);
+                syncNativeVpnControls();
                 });
                 return;
             }

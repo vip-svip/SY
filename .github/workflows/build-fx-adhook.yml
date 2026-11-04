@@ -135,6 +135,7 @@ jobs:
           python3 fx-patches/patch_yulong_ad_master.py fx-module
           python3 scripts/tests/fx-yulong-trusted-network-patcher-regression.py
           sh scripts/tests/fx-yulong-vpn-control-regression.sh
+          sh scripts/tests/fx-yulong-ad-widget-regression.sh
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
           sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh fx-module

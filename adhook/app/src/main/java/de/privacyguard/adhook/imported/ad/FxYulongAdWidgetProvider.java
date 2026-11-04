@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Original Yulong home-screen VPN widget migrated to FX's one canonical route. */
 public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
     // Preserve the existing action so widgets created by older app versions remain functional.
-    public static final String ACTION_TOGGLE = "de.privacyguard.adhook.widget.YULONG_AD_TOGGLE";
+    public static final String ACTION_TOGGLE = "app.pwhs.blockads.widget.TOGGLE_VPN";
     public static final String ACTION_REFRESH = "de.privacyguard.adhook.widget.YULONG_AD_REFRESH";
 
     private static final ThreadPoolExecutor WORKER = new ThreadPoolExecutor(1, 1, 30L,
