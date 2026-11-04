@@ -192,7 +192,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         super.onPause();
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerTaskerResultReceiver() {
         if (taskerResultReceiverRegistered) return;
         IntentFilter filter = new IntentFilter(FxYulongAdTaskerReceiver.ACTION_RESULT);
@@ -240,13 +240,13 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 .format(new java.util.Date(timestamp));
         StringBuilder display = new StringBuilder();
         display.append("最近执行：").append(date)
-                .append("\\n控制目标：").append("vpn".equals(target) ? "FX VPN" : "广告过滤")
+                .append("\n控制目标：").append("vpn".equals(target) ? "FX VPN" : "广告过滤")
                 .append(" · 请求状态：").append(requested ? "开启" : "关闭")
-                .append("\\n动作：").append(action)
-                .append("\\n命令结果：").append(success ? "执行成功" : "执行失败")
+                .append("\n动作：").append(action)
+                .append("\n命令结果：").append(success ? "执行成功" : "执行失败")
                 .append(" · 退出码：").append(exitCode);
-        if (!detail.isEmpty()) display.append("\\n回执详情：").append(detail);
-        display.append("\\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
+        if (!detail.isEmpty()) display.append("\n回执详情：").append(detail);
+        display.append("\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
         taskerResultStatus.setText(display.toString());
     }
 
