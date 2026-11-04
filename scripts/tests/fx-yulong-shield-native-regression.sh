@@ -396,6 +396,10 @@ for source, label in ((white, "WhitelistActivity"), (picker, "WhitelistPickerAct
     assert "com.youlong.hd" not in source, f"{label} still references source package"
 assert '"whitelist_pkgs"' in white and '"whitelist_pkgs"' in picker, \
     "Whitelist manager and picker must share the original whitelist key"
+assert "whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWellFormed(raw)" in picker, \
+    "Whitelist picker must detect partially malformed source data atomically"
+assert "if (whitelistDataCorrupt)" in picker and "已阻止覆盖" in picker, \
+    "Whitelist picker must not overwrite malformed legacy data when adding selected apps"
 assert "RootAccess" not in white and "yulong-stellar-control.sh" not in white \
     and "pkg-sync" not in white, \
     "Shield risk-exemption whitelist must remain separate from Stellar Root privilege authorization"
