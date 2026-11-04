@@ -15,7 +15,8 @@ settings = activity[settings_start:settings_end]
 for forbidden in ('section("迁移应用")', 'Dia 23.11', '游龙广告插件 7.0.1', '游龙安全护盾 9.9.60'):
     assert forbidden not in settings, f"obsolete source-app entry remains in Settings: {forbidden}"
 assert "Ad/Hosts" not in settings and "Ad / Hosts" not in settings
-assert "当前可切换" in settings and "Renderer 尚未接入" in settings
+assert "HUAWEI HarmonyStyle" in settings and "iOS CupertinoStyle" in settings
+assert "逐页组件适配仍在继续" in settings
 restore_start = activity.index("        if (restoreHookScreen)")
 restore_end = activity.index("        handleImportedNativeTabIntent(getIntent());", restore_start)
 restore = activity[restore_start:restore_end]
