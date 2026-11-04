@@ -23,6 +23,7 @@ assert '"de.privacyguard.adhook".equals(packageName)' in BRIDGE, "FX must not ad
 assert 'packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")' in BRIDGE, "scope package identifier validation missing"
 assert "addLsposedScopeControls(selectedPackage" in MAIN, "per-target scope controls are not in the Hook target UI"
 assert "向 LSPosed 申请此应用的 Hook 作用域" in MAIN, "target scope request action missing"
+assert "LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager 中单独设置" in MAIN, "Hook UI must explain that LSPosed scope remains a separate Manager setting"
 assert "移除此应用的 LSPosed 作用域" in MAIN, "target scope revoke action missing"
 assert "系统应用作用域" in MAIN, "system-app scope request confirmation missing"
 assert "作用域只代表允许模块加载" in MAIN, "UI must distinguish approved scope from injected-process status"
