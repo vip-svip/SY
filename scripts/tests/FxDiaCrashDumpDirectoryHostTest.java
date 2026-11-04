@@ -47,14 +47,22 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(FxDiaCrashDumpDirectory.prune(root, 5, 1_000_000L, 20_000L),
                 "safe direct dump retention should complete");
         require(!new File(dumps, "retention-0.dmp").exists()
-                        && !new File(dumps, "retention-1.dmp").exists(),
-                "retention must remove only the two oldest files over the five-file limit");
-        for (int i = 2; i < 7; i++) {
+                        && !new File(dumps, "retention-1.dmp").exists()
+                        && !new File(dumps, "retention-2.dmp").exists(),
+                "retention must remove the three oldest entries because after-clear.dmp is newer");
+        for (int i = 3; i < 7; i++) {
             require(new File(dumps, "retention-" + i + ".dmp").isFile(),
-                    "retention must preserve one of the five newest files");
+                    "retention must preserve the four newest retention fixtures");
         }
         require(new File(dumps, "after-clear.dmp").isFile(),
-                "retention must preserve unrelated recent dump files");
+                "retention must preserve the newest unrelated dump");
+
+        File expiredDump = new File(dumps, "expired.dmp");
+        Files.write(expiredDump.toPath(), "expired".getBytes(StandardCharsets.UTF_8));
+        expiredDump.setLastModified(1L);
+        require(FxDiaCrashDumpDirectory.prune(root, 5, 1000L, 20_000L),
+                "expired dump cleanup should complete");
+        require(!expiredDump.exists(), "retention must remove files older than the configured age");
 
         File previousDump = new File(dumps, "previous-report.dmp");
         File callbackDump = new File(dumps, "disabled-callback.dmp");
