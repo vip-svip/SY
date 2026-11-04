@@ -940,3 +940,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本轮最新提交（本节写入前）：98a5f0da207276361453589cbfa162703de9fbe8。当前分支固定 FX 1.0.0，未生成最终 APK 或 KernelSU ZIP。
 - 尚未完成：Toast Hook 在不同 Android/OEM Toast 实现下的覆盖率和权限行为仍需设备实测；Firewall 用户/系统应用分类、原版页面链仍待逐项验收；Dia 原版 Toast/KeyEvent/Dialog 动态布局的其他行为及游龙安全护盾深层页面仍未全部迁移。
 - 下一批具体任务：对照 Toast 运行时边界写独立可执行的定向回归（避免只靠字符串 grep）；之后继续完成游龙 Firewall 页面组或 Dia 原生深层页面，每批覆盖真实交互和返回链；不得把当前静态核验当作真机验收。
+
+## 2026-11-05 — 游龙广告 Firewall 用户/系统应用筛选反向 Bug 修复
+
+- 本节记录前实时分支 HEAD：`41c78b4ee2ca0d65ac4def1de16d48890678a2b3`；固定分支 `fx-v1.0.0-unified-hook-integration`、版本 FX 1.0.0。
+- 核对原生路由后发现真实筛选逻辑反了：原实现 `appFilterMode == 1 ? systemApp : appFilterMode == 2 && !systemApp` 会让“用户应用”显示系统应用、让“系统应用”显示用户应用。不是单纯文案问题。
+- 已修复：`FxYulongFirewallActivity.loadAppsAsync()` 通过纯 Java `FxYulongFirewallAppFilterPolicy.includes(mode, flags)` 判断类别；ALL 显示两类，USER 排除 `FLAG_SYSTEM` 与 `FLAG_UPDATED_SYSTEM_APP`，SYSTEM 包含这两种系统标志，未知 mode fail-closed。
+- 新增 JUnit 用例 `FxYulongFirewallAppFilterPolicyTest` 与独立 JDK Host 用例 `scripts/tests/FxYulongFirewallAppFilterPolicyHostTest.java`。
+- 本批提交：
+  - `74d02c87f1c1f0e8ba8cc192a6ec2566e44b2533` — 修复 Firewall 用户/系统筛选方向。
+  - `bcf3635e34aff34df301d0d14e84b30fb2decf01` — 抽离纯 Java 应用分类策略。
+  - `7fc23618b9bc5508a9df856761737939641a4248` — 新增分类 JUnit 测试。
+  - `41c78b4ee2ca0d65ac4def1de16d48890678a2b3` — 新增无 Android SDK / JUnit 依赖的 Host 测试。
+- 验证：对策略与 Host 测试执行 `javac -Xlint:all -Werror`，再运行 Java 主类，11 项断言通过，覆盖 ALL/USER/SYSTEM、FLAG_SYSTEM、FLAG_UPDATED_SYSTEM_APP、双标志组合和未知 mode。尚未运行 Gradle/JUnit、Android 编译、Firewall Activity UI 或设备验收。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicy.java`
+  - `adhook/app/src/test/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicyTest.java`
+  - `scripts/tests/FxYulongFirewallAppFilterPolicyHostTest.java`
+- Dia 按键控制入口已核对：当前 `FxDiaFridaActivity` 的 `key` 模板只监听 `Activity.dispatchKeyEvent` 并记录 keyCode/action 后调用原方法，属于 Frida 观察模板，不是原版 `KeyEventHook` / `alert_auto` 拦截语义；不能据此冒充按键拦截迁移完成。下一步须定位原版 KeyEventHook 的实际源码或可核验字节码，再按真实条件迁移。
+- Toast 逐应用过滤已有后续并行提交与独立状态记录；当前分支 HEAD 已包括 Toast.show Hook、默认关闭逐应用配置、系统/更新系统应用保护及静态回归检查。仍未完成 Android/OEM Toast 真机覆盖验收。
+- 下一批具体任务：
+  1. 检查 Firewall 用户/系统/按应用设置三条导航入口、返回栈和刷新后的筛选模式；避免重复重写已有分页/搜索/滚动恢复。
+  2. 为 Firewall 分类策略补入现有定向回归入口，并检查 UID/包名过滤与系统应用标志是否在数据加载和规则保存两侧一致。
+  3. 继续 Dia 23.11 原生页面，定位 KeyEventHook 原始实现证据；若仓库缺失原始实现，先从已导入 APK/资源文件中检索，不能猜测 alert_auto 行为。
+- 本批未触发整套 Actions，未生成 APK / KernelSU ZIP，未更改六 Tab 顺序或 FX 1.0.0 版本号。
