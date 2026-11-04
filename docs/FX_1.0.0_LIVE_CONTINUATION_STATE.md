@@ -3665,3 +3665,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `a8887983951f2fbbd8f5e9d023ad8c8346bb5693` 设置状态与面板高度
   - `3eb168192fd4be9924eab55222ee8ecd0f0b009d` 五模式回归脚本
 - 当前边界：本批实现的是模式持久化、选择器和全局导航/表面 Skin，不等于六个 Tab 内所有页面已完成 HUAWEI/iOS 逐页视觉重构；尚未执行 Gradle 编译、单测或真机验证。不能报告构建通过。
+
+
+- 追加完成原生业务页面基础表面适配：`MainActivity.uiSurfaceColor()`、`roundedDrawable()`、`uiPanelDrawable()` 现在对 HUAWEI/iOS 使用独立表面色、圆角和细边框，不再回落到 Classic 的默认卡片外观。提交 `ffd27e991328043b4a46771d48b1c7aa57a909c0`。
+- 五模式回归脚本增加 MainActivity 页面表面断言，提交 `921a37d3f732b176c21caeb2d9205f825b9f80a0`。
