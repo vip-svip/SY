@@ -196,7 +196,7 @@ public final class FxDiaCrashReportActivity extends Activity {
                                 Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this,
-                                "清除未完成：检测到不安全路径、文件删除失败或偏好写入失败。崩溃报告仍保留，请检查 FX 私有目录后重试。",
+                                "未能确认全部清除：可能已有部分文件被删除。请检查 FX 私有目录和待显示状态后再重试；本次不会报告清除成功。",
                                 Toast.LENGTH_LONG).show();
                     }
                 })

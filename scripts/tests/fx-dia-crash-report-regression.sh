@@ -64,6 +64,7 @@ assert "clearMinidumps(context)" in native_capture, "native dump directory has n
 assert "FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
 assert "FxDiaNativeCrashCapture.clearMinidumps(context)" in store, "crash clear action does not remove native minidumps"
 assert "if (FxDiaCrashStore.clear(this))" in activity, "UI must only report a fully successful clear"
+assert "可能已有部分文件被删除" in activity and "不会报告清除成功" in activity, "failed partial cleanup must not claim that the report was preserved or cleared"
 assert "符号链接或意外子目录" in activity, "clear confirmation must disclose path-safety refusal"
 for token in ("getCanonicalFile()", "entry.isFile()", "canonicalDirectory.equals(canonicalEntry.getParentFile())",
               "if (!entry.delete()) return false", "return directory.delete()"):
