@@ -2483,3 +2483,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 剩余事项：检查黑名单数据从旧版迁移时的真实格式兼容；设备验证损坏名单 fail-open 的用户提示和恢复流程；测试 commit 失败故障注入与 10,000/10,001 条边界。
 - 本次读取时分支 HEAD：`c75e31229f4dd8cedd904ec0442f7b5cefb6410e`。
 - 下一批：回到 Dia / 游龙广告插件原生页面，优先修复页面导航、列表/表单状态恢复和真实交互闭环；固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Shield 黑名单数据完整性与原子保存
+
+- 追加前实时 HEAD：`48ba69881d62a3b60d796e93024de6ff7f07a4ba`；状态文件 Blob：`cdfac6c7aec812f0d36647ed94e5ad247b54167f`。
+- 复核更正：黑名单独立策略 `FxYulongBlacklistPolicy` 已存在，具备 1 MiB/10,000 项上限、整份 CSV 校验及拒绝坏条目序列化；扫描服务复用该策略。旧状态中“黑名单仍宽松解析”的描述已过时。
+- 本批修改：`BlacklistActivity` 对 SharedPreferences 类型/读取异常 fail-closed；原始 CSV 损坏时阻止新增、移出、清空；写入采用同步 `commit()` 并检查结果；失败时提示用户并回滚新增/移出/清空的内存状态。保持原 `shield_prefs/blacklist_pkgs` 数据兼容。
+- 路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/BlacklistActivity.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`、本文件。
+- 提交：`c75e31229f4dd8cedd904ec0442f7b5cefb6410e`（读取异常保护）；`49f2d1096d0c676c91944aee2422216ec4b9e004`（回归断言）。
+- 最新 Blob：Activity `c8b0ac25118aa1c906bc01b3771be7c58fa5a697`；Policy `ce5b5e50bd52317f295132138cff92d1d88cce8d`；Host tests `01f5ae7286f26f0bdfd714209aabaa7967dc12cb`；regression `7ecae19785738b95f2c5bf0c7ebbd226fbdbc3b9`。
+- 静态复核通过：整份校验、损坏门禁、commit 结果检查、失败提示和新增/移出/清空回滚、Host 测试及脚本断言均存在。未运行 Shell/JUnit/Gradle/设备测试，不宣称运行通过。
+- 未完成：黑白名单页面真实 Android 重建/返回刷新及持久化故障注入仍需设备验证。下一批检查 Dia 23.11 与游龙广告插件原生页面的导航、编辑器和状态恢复。固定 FX 1.0.0，不打包最终 APK/KernelSU ZIP。
