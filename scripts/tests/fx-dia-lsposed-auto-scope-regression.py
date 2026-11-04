@@ -19,8 +19,13 @@ assert "FxLsposedScopeBridge.snapshot(packageName)" in helper, "current scope mu
 assert "current.targetInScope" in helper, "already-authorized apps must not get duplicate requests"
 assert "FxLsposedScopeBridge.requestScope(packageName" in helper, "request must use official libXposed API"
 assert "FLAG_SYSTEM" in helper and "FLAG_UPDATED_SYSTEM_APP" in helper, "system apps must stay explicit-only"
-assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.add(packageName)" in helper
-assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName)" in helper, "pending guard must clear on every result"
+assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.putIfAbsent(packageName, requestToken)" in helper, "package request must acquire a unique in-flight token"
+assert "requestToken - pending < java.util.concurrent.TimeUnit.SECONDS.toNanos(30L)" in helper, \
+    "a request with a lost Binder callback must expire so the user can retry"
+assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.replace(packageName, pending, requestToken)" in helper, \
+    "stale request replacement must compare the old token atomically"
+assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken)" in helper, \
+    "late callbacks must remove only their own token, never a newer request"
 assert "AUTO_SCOPE_EXECUTOR.execute(() -> {" in helper and "new Thread(" not in helper, \
     "scope sync must use the shared bounded executor rather than one thread per target"
 assert "new ArrayBlockingQueue<>(8)" in main and "new ThreadPoolExecutor.AbortPolicy()" in main, \
