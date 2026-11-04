@@ -2320,3 +2320,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 并行 DEX Picker 修复：`7eedfc52a10064abef7de4a6a75bbd3f02f0fa1e` 在 Activity Result 启动失败时清除 pending picker 状态，避免下一次选择器结果被旧请求错误消费；`1e1ebd30fe75379b9865bb5ee37eb87ef71cb941` 覆盖 pending 请求恢复断言。
 - 当前验证限制：源码/脚本断言已提交，但最新 GitHub Actions 工作流运行 `41907967627` 当时为 pending；并发 push 触发的旧运行多次 cancelled，尚无本窗口改动对应的绿色完整 CI 结果。不得将 cancelled/pending 计为通过。
 - 下一步：继续游龙安全护盾风险详情/告警/白名单与黑名单编辑返回闭环；同时保留 Dia Frida SAF Worker 生命周期修复。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — DEX picker 异常回滚与安全护盾白名单写入保护
+
+- 按当前分支实时文件重新核对：MainActivity Blob `12c174208851a0a9314a995a0b92b609b89a819e`；WarningActivity Blob `981dfd56983b2268412f87f4e739e1c34b5e723d`。并发提交已更新 MainActivity，已确认本批 DEX 状态字段仍在最新版本中。
+- DEX picker：启动内部 Activity 若抛出 RuntimeException，立即清除 pending 标记并提示错误，防止残留请求状态；Bundle 保存/恢复及结果回调消费保护仍保留。
+- 安全护盾风险详情：旧逻辑会在写入白名单时跳过无法识别的非空旧条目，导致这些条目静默丢失；包信息查询也未覆盖 RuntimeException。
+- 修复：对非空非法旧条目 fail-closed，提示用户先核实原始内容并完全不写入；包查询运行时异常时显示明确错误并保持白名单不变。没有更改白名单存储键、系统应用排除规则或用户确认卸载流程。
+- 改动文件：`MainActivity.java`、`FxYulongWarningActivity.java`、`scripts/tests/fx-dia-dex-document-browser-regression.sh`、`scripts/tests/fx-yulong-shield-native-regression.sh`。
+- 提交：`7eedfc52a10064abef7de4a6a75bbd3f02f0fa1e`（DEX 启动失败回滚）；`28162c254edd12c9ea0eb662677ed98fdfa8ed7d`（DEX 回归断言）；`16a772632643d35ce699d47725d071f8a8847ca2`（白名单数据保护）；`1b9504b8147b0cc5b957a2e3869c0f7528cc3e1a`（Shield 回归断言）。
+- 静态核验：重新读取最新分支源码和两份测试脚本，确认启动失败回滚、Bundle 状态、非法条目保护、异常捕获及对应断言均存在。未执行 Shell/Python/Gradle、模拟器或真机测试；不计为运行测试通过。
+- 剩余事项：确认白名单管理器与风险详情页对历史非法条目的策略一致；验证大名单、权限可见性与旋转恢复；继续检查黑名单分页选择/暂存/取消/保存是否存在跨页丢选。
+- 下一步：检查安全护盾黑名单编辑器的分页选择与状态恢复，再推进六 Tab 原生页面导航。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
