@@ -3,14 +3,27 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook/imported/shield"
-python3 - "$APP/AndroidManifest.xml" "$JAVA" <<'PY'
+python3 - "$APP/AndroidManifest.xml" "$JAVA" "$APP/java/de/privacyguard/adhook/MainActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeTabActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeAppShell.kt" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, shield_dir = Path(sys.argv[1]), Path(sys.argv[2])
+manifest_path, shield_dir, main_path, tab_host_path, shell_path = map(Path, sys.argv[1:])
+main = main_path.read_text(encoding="utf-8")
+tab_host = tab_host_path.read_text(encoding="utf-8")
+shell = shell_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 android = "{http://schemas.android.com/apk/res/android}"
+# The six primary destinations are fixed and index-compatible across Web/native pages.
+labels = 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")'
+assert labels in shell, "Native app shell must expose exactly the six fixed FX tabs in order"
+assert "tabsCount = labels.size" in shell, "Glass navigation must use the same six-tab model"
+assert ".height(72.dp)" in shell, "Native six-tab bar height contract changed unexpectedly"
+assert "index < 0 || index > 5" in tab_host, "Native tab host must reject indices outside 0..5"
+assert "Math.max(0, Math.min(5, selectedIndex))" in tab_host, "Native tab host must clamp selected index to six destinations"
+assert "handleImportedNativeTabIntent" in main and "tab >= 0 && tab <= 5" in main, "Native pages must route back to the fixed six-tab MainActivity"
+for token in ("if (index == 5)", "else if (index == 4)", "else if (index >= 0 && index <= 3)"):
+    assert token in main, f"MainActivity top-level tab route missing: {token}"
 declared = {
     item.attrib.get(android + "name", "")
     for item in manifest.findall("./application/activity")
