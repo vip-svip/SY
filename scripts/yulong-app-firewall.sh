@@ -211,7 +211,7 @@ validate_package_uid() {
     echo "package UID changed; refresh the app list before saving: $pkg" >&2
     return 7
   }
-  printf '%s\\n' "$current_uid"
+  printf '%s\n' "$current_uid"
 }
 resolve_uid() {
   pkg="$1"
