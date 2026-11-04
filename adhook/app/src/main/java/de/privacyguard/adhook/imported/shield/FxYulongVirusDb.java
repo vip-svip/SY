@@ -73,7 +73,12 @@ public final class FxYulongVirusDb {
     private static final String K_SUSPECT_PKG = "suspect_pkgs";
     private static final String K_SUSPECT_NAME = "suspect_names";
     private static final String K_KEYS = "suspect_keys";
+    /** K_TIME is the last successful cache update; attempts are tracked separately. */
     private static final String K_TIME = "fetch_time";
+    private static final String K_LAST_ATTEMPT = "last_attempt_time";
+    private static final String K_LAST_SUCCESS = "last_success_time";
+    private static final String K_SERVER_REACHABLE = "server_reachable";
+    private static final String K_LIST_META_PREFIX = "list_status_";
 
     /** 两次拉取之间的最小间隔（防止频繁请求服务器） */
     private static final long MIN_FETCH_INTERVAL_MS = 30000L;
@@ -106,6 +111,16 @@ public final class FxYulongVirusDb {
         public volatile int count = 0;
         /** 最近一次成功时间（毫秒） */
         public volatile long updatedAt = 0L;
+        /** 最近一次尝试时间（毫秒），0 表示尚无可追溯的尝试记录。 */
+        public volatile long lastAttemptAt = 0L;
+
+        public String statusLabel() {
+            if (lastAttemptAt <= 0L) {
+                return count > 0 ? "本地缓存可用（更新时间未知）" : "尚无本地缓存";
+            }
+            if (ok) return "最近同步成功";
+            return count > 0 ? "最近同步失败，沿用旧缓存" : "最近同步失败，无可用缓存";
+        }
 
         ListStatus(String key, String label, String url) {
             this(key, label, url, null);
@@ -259,6 +274,15 @@ public final class FxYulongVirusDb {
     // 对外接口
     // ======================================================================
 
+    private static int cachedCount(ListStatus status, Data data) {
+        if ("certainPkg".equals(status.key)) return data.certainPkgs.size();
+        if ("certainName".equals(status.key)) return data.certainNames.size();
+        if ("suspectPkg".equals(status.key)) return data.suspectPkgs.size();
+        if ("suspectName".equals(status.key)) return data.suspectNames.size();
+        if ("keys".equals(status.key)) return data.keys.size();
+        return 0;
+    }
+
     /** 取当前病毒库（首次调用自动从本地缓存加载） */
     public static Data get(Context ctx) {
         if (!loadedFromDisk) loadFromCache(ctx);
@@ -275,7 +299,18 @@ public final class FxYulongVirusDb {
             Set<String> sn = splitToSet(sp.getString(K_SUSPECT_NAME, ""));
             Set<String> ks = splitToSet(sp.getString(K_KEYS, ""));
             cache = new Data(cp, cn, spk, sn, ks);
-            lastFetchTime = sp.getLong(K_TIME, 0L);
+            lastSuccess = sp.getLong(K_LAST_SUCCESS, 0L);
+            lastFetchTime = lastSuccess;
+            // Legacy K_TIME represented an attempt; retain it only for throttling.
+            lastAttempt = sp.getLong(K_LAST_ATTEMPT, sp.getLong(K_TIME, 0L));
+            serverReachable = sp.getBoolean(K_SERVER_REACHABLE, false);
+            for (ListStatus status : ALL_LISTS) {
+                String prefix = K_LIST_META_PREFIX + status.key + "_";
+                status.count = sp.getInt(prefix + "count", cachedCount(status, cache));
+                status.updatedAt = sp.getLong(prefix + "updated_at", 0L);
+                status.lastAttemptAt = sp.getLong(prefix + "last_attempt_at", 0L);
+                status.ok = sp.getBoolean(prefix + "ok", false);
+            }
             loadedFromDisk = true;
             Log.i(TAG, "病毒库本地缓存已加载: " + cache.total() + " 条");
         } catch (Exception e) {
@@ -290,7 +325,7 @@ public final class FxYulongVirusDb {
             Log.d(TAG, "病毒库正在拉取中，忽略本次请求");
             return;
         }
-        if (System.currentTimeMillis() - lastFetchTime < MIN_FETCH_INTERVAL_MS) {
+        if (System.currentTimeMillis() - lastAttempt < MIN_FETCH_INTERVAL_MS) {
             Log.d(TAG, "病毒库距上次拉取不足 30 秒，跳过");
             return;
         }
@@ -314,6 +349,10 @@ public final class FxYulongVirusDb {
 
         refreshing = true;
         lastAttempt = System.currentTimeMillis();
+        for (ListStatus status : ALL_LISTS) {
+            status.ok = false;
+            status.lastAttemptAt = lastAttempt;
+        }
         lastError = "";
         try {
             // 逐个拉取：某个文件 404/超时 → 保留旧数据（不清空）
@@ -331,13 +370,13 @@ public final class FxYulongVirusDb {
                     keys != null ? keys : old.keys);
 
             cache = nd;
-            lastFetchTime = System.currentTimeMillis();
 
             int okCount = 0;
             for (ListStatus ls : ALL_LISTS) if (ls.ok) okCount++;
             if (okCount > 0) {
                 serverReachable = true;
-                lastSuccess = lastFetchTime;
+                lastSuccess = lastAttempt;
+                lastFetchTime = lastSuccess;
             } else {
                 serverReachable = false;
                 if (lastError.isEmpty()) lastError = "所有列表均拉取失败";
@@ -365,14 +404,24 @@ public final class FxYulongVirusDb {
     private static void save(Context ctx, Data d) {
         try {
             SharedPreferences sp = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE);
-            sp.edit()
+            SharedPreferences.Editor editor = sp.edit()
                     .putString(K_CERTAIN_PKG, join(d.certainPkgs))
                     .putString(K_CERTAIN_NAME, join(d.certainNames))
                     .putString(K_SUSPECT_PKG, join(d.suspectPkgs))
                     .putString(K_SUSPECT_NAME, join(d.suspectNames))
-                    .putString(K_KEYS, join(d.keys))
+                     .putString(K_KEYS, join(d.keys))
                     .putLong(K_TIME, lastFetchTime)
-                    .apply();
+                    .putLong(K_LAST_ATTEMPT, lastAttempt)
+                    .putLong(K_LAST_SUCCESS, lastSuccess)
+                    .putBoolean(K_SERVER_REACHABLE, serverReachable);
+            for (ListStatus status : ALL_LISTS) {
+                String prefix = K_LIST_META_PREFIX + status.key + "_";
+                editor.putInt(prefix + "count", status.count)
+                        .putLong(prefix + "updated_at", status.updatedAt)
+                        .putLong(prefix + "last_attempt_at", status.lastAttemptAt)
+                        .putBoolean(prefix + "ok", status.ok);
+            }
+            editor.apply();
         } catch (Exception e) {
             Log.e(TAG, "写入病毒库缓存失败", e);
         }
