@@ -38,6 +38,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final int REQUEST_EXPORT = 0x3a13;
     private static final String STATE_EDITING_NAME = "fx_dia_script_library_editing_name";
     private static final String STATE_EDITOR_REQUEST_PENDING = "fx_dia_script_library_editor_request_pending";
+    private static final String STATE_IMPORT_REQUEST_PENDING = "fx_dia_script_library_import_request_pending";
+    private static final String STATE_EXPORT_REQUEST_PENDING = "fx_dia_script_library_export_request_pending";
     private static final String STATE_SEARCH = "fx_dia_script_library_search";
     private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
     private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
@@ -58,6 +60,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private JSONObject scripts = new JSONObject();
     private String editingName;
     private boolean editorRequestPending;
+    private boolean importRequestPending;
+    private boolean exportRequestPending;
     private boolean openingInitialEditor;
     private boolean createDialogRestorePending;
     private String createNameDraft = "";
@@ -115,6 +119,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         if (state != null) {
             editingName = state.getString(STATE_EDITING_NAME);
             editorRequestPending = state.getBoolean(STATE_EDITOR_REQUEST_PENDING, false);
+            importRequestPending = state.getBoolean(STATE_IMPORT_REQUEST_PENDING, false);
+            exportRequestPending = state.getBoolean(STATE_EXPORT_REQUEST_PENDING, false);
             restoredSearch = state.getString(STATE_SEARCH, "");
             restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             restoreScrollPending = true;
@@ -341,9 +347,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         pick.addCategory(Intent.CATEGORY_OPENABLE);
         pick.setType("application/json");
+        importRequestPending = true;
         try {
             startActivityForResult(pick, REQUEST_IMPORT);
         } catch (RuntimeException error) {
+            importRequestPending = false;
             setStatus("无法打开 JSON 文件选择器：" + detail(error));
         }
     }
@@ -353,9 +361,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         create.addCategory(Intent.CATEGORY_OPENABLE);
         create.setType("application/json");
         create.putExtra(Intent.EXTRA_TITLE, "FX-Dia-Frida-Scripts.json");
+        exportRequestPending = true;
         try {
             startActivityForResult(create, REQUEST_EXPORT);
         } catch (RuntimeException error) {
+            exportRequestPending = false;
             setStatus("无法打开 JSON 保存选择器：" + detail(error));
         }
     }
@@ -405,14 +415,29 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             return;
         }
 
+        if (requestCode == REQUEST_IMPORT) {
+            if (!importRequestPending) {
+                setStatus("忽略未关联到当前请求的导入结果。");
+                return;
+            }
+            importRequestPending = false;
+        } else if (requestCode == REQUEST_EXPORT) {
+            if (!exportRequestPending) {
+                setStatus("忽略未关联到当前请求的导出结果。");
+                return;
+            }
+            exportRequestPending = false;
+        } else {
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             if (requestCode == REQUEST_IMPORT) setStatus("已取消脚本库导入。");
-            else if (requestCode == REQUEST_EXPORT) setStatus("已取消脚本库导出。");
+            else setStatus("已取消脚本库导出。");
             return;
         }
         Uri uri = data.getData();
         if (requestCode == REQUEST_IMPORT) importFrom(uri);
-        else if (requestCode == REQUEST_EXPORT) exportTo(uri);
+        else exportTo(uri);
     }
 
     private void importFrom(Uri uri) {
@@ -501,6 +526,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     @Override protected void onSaveInstanceState(Bundle out) {
         if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
         out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);
+        out.putBoolean(STATE_IMPORT_REQUEST_PENDING, importRequestPending);
+        out.putBoolean(STATE_EXPORT_REQUEST_PENDING, exportRequestPending);
         if (createNameInput != null && createNameInput.getText() != null)
             createNameDraft = createNameInput.getText().toString();
         out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
