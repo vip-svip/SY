@@ -1788,3 +1788,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `bdf289305edea28d6d5c1eb370a85894abc08912` — `test(hook): cover stale LSPosed scope callbacks`。
 - 验证等级：从最新分支读取 MainActivity 和 Hook Native UI 回归脚本；静态断言确认请求/移除回调代次保护、目标包与 View 实例校验、daemon worker，以及测试脚本新增断言。未执行 Shell 回归、Gradle 编译、LSPosed Binder 真机批准/移除或页面切换竞态测试。
 - 未完成：仍需检查 Hook Hub 的 Remote Files 状态刷新和 Accessibility 状态刷新是否存在旧页面回调；随后优先进入 UI 页面覆盖率更高的 Dia Frida 管理主页面/编辑器批次，而不是继续无止境修边缘状态。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 管理页滚动位置恢复
+
+- 本批起始 HEAD：`d25dbc4e4104570fc2265c11388a2e537aceb3fe`。
+- Frida 管理页已经保存工具路径、脚本草稿、目标包和进程选择，但主页面 ScrollView 是局部变量，Activity 重建后滚动位置丢失；页面很长，用户在 Gadget/进程/脚本/监控模板区域操作时会被送回顶部。
+- 修改 `FxDiaFridaActivity.java`：
+  - 将 ScrollView 保存在 Activity 的 `pageScroll` 字段。
+  - Bundle 保存滚动 Y 值；创建完整页面并恢复瞬态表单状态后，再 post 恢复滚动位置。
+  - 恢复回调验证 Activity 未销毁、当前 ScrollView 实例仍一致且仍附着，避免过期回调影响其他页面。
+  - 保留目标包 debuggable/非系统校验、PID 重新校验、脚本 48 KiB 限制、导入/导出 SAF 与 Gadget 生命周期逻辑。
+- 提交：
+  - `2881ba552415b2b3a5da5550e34fb6fe28767aa0` — `fix(dia): restore Frida manager page scroll position`。
+  - `8bc15023fa5da276363e2d3d9efacb12dd126f49` — `test(dia): cover Frida manager scroll restoration`。
+- 验证等级：源码静态断言确认滚动容器引用、Bundle 保存、页面创建后恢复和实例/附着保护；`fx-dia-frida-page-navigation-regression.sh` 增加相应断言。未在完整工作树运行 Shell/Python 回归、Gradle、模拟器或真机旋转/滚动测试。
+- 并行已保留：同一阶段 Hook LSPosed 作用域申请/移除过期回调保护提交 `06a64f5fc5a06fbe52832e617bb61d0b332b23bf` 与测试 `bdf289305edea28d6d5c1eb370a85894abc08912`；状态文档此前记录提交 `b3d02e3a820ca08034a09ab2f4008fda3c3d8cc4`。
+- 下一批：检查 Dia Frida 脚本库与全屏编辑器之间的草稿/名称/取消返回闭环，以及 Frida 管理页当前脚本是否在打开脚本库、编辑器后按预期恢复；优先补完整用户可见编辑流程。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
