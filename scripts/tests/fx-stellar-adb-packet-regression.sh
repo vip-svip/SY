@@ -58,6 +58,12 @@ public final class AdbPacketCodecSmoke {
                 "AOSP device GUID PeerInfo type must be one");
 
         byte[] keyText = "AAAA user@host".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] authTerminatedKey = Arrays.copyOf(keyText, keyText.length + 1);
+        boolean embeddedNulRejected = false;
+        try { new PeerInfo(PeerInfo.Type.ADB_RSA_PUB_KEY.getValue(), authTerminatedKey); }
+        catch (IllegalArgumentException expectedFailure) { embeddedNulRejected = true; }
+        check(embeddedNulRejected,
+                "PeerInfo must reject the AUTH public-key line's extra NUL; zero padding supplies the terminator");
         PeerInfo hostKey = new PeerInfo(PeerInfo.Type.ADB_RSA_PUB_KEY.getValue(), keyText);
         ByteBuffer hostWire = ByteBuffer.allocate(PeerInfo.RECORD_LENGTH);
         hostKey.writeTo(hostWire);
