@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
 public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
+    private static final int ROW_PAGE_SIZE = 50;
     private static final String STATE_SEARCH = "fx_dns_search";
+    private static final String STATE_PAGE = "fx_dns_page";
     private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";
     private final AtomicInteger loadGeneration = new AtomicInteger();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
@@ -45,6 +47,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private Button refreshButton;
     private Button clearButton;
     private ScrollView scroll;
+    private int page = 1;
     private int pendingScrollY;
     private boolean pendingScrollRestore;
 
@@ -118,6 +121,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         status = text("正在读取本机查询日志…", 13, 0xff526170, false);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
         if (state != null) {
+            page = Math.max(1, state.getInt(STATE_PAGE, 1));
             search.setText(state.getString(STATE_SEARCH, ""));
             pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             pendingScrollRestore = true;
@@ -135,7 +139,11 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                page = 1;
+                render();
+                if (scroll != null) scroll.scrollTo(0, 0);
+            }
             @Override public void afterTextChanged(Editable e) {}
         });
         load();
@@ -216,9 +224,19 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         if (rows == null) return;
         rows.removeAllViews();
         String query = search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int count = 0;
+        int matched = 0;
+        for (Entry item : data) {
+            if (query.isEmpty() || item.searchable().contains(query)) matched++;
+        }
+        int maxPage = Math.max(1, (matched + ROW_PAGE_SIZE - 1) / ROW_PAGE_SIZE);
+        if (page > maxPage) page = maxPage;
+        int limit = page * ROW_PAGE_SIZE;
+        int shown = 0;
+        rows.addView(text("匹配 " + matched + " 条 · 已显示 " + Math.min(matched, limit) + " 条",
+                11, 0xff718091, false));
         for (Entry item : data) {
             if (!query.isEmpty() && !item.searchable().contains(query)) continue;
+            if (shown >= limit) continue;
             LinearLayout row = new LinearLayout(this); row.setOrientation(1);
             row.setPadding(dp(10), dp(6), dp(10), dp(6));
             row.setBackgroundColor(0xffffffff);
@@ -229,10 +247,20 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             if (!item.time.isEmpty()) row.addView(text(item.time, 10, 0xff718091, false));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(10), dp(2), dp(10), dp(2)); rows.addView(row, lp);
-            if (++count >= 200) break;
+            shown++;
         }
-        if (count == 0) rows.addView(text("没有匹配的 DNS 查询记录。", 13, 0xff718091, false));
-        else if (count >= 200) rows.addView(text("仅显示前 200 条匹配项。", 11, 0xff718091, false));
+        if (matched == 0) {
+            rows.addView(text("没有匹配的 DNS 查询记录。", 13, 0xff718091, false));
+        } else if (shown < matched) {
+            rows.addView(button("加载更多（剩余 " + (matched - shown) + " 条）", () -> {
+                int restoreY = scroll == null ? 0 : Math.max(0, scroll.getScrollY());
+                page++;
+                render();
+                if (scroll != null) scroll.post(() -> {
+                    if (!isFinishing() && !isDestroyed() && scroll != null) scroll.scrollTo(0, restoreY);
+                });
+            }));
+        }
     }
 
     private void confirmCacheFlush() {
@@ -278,6 +306,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         if (search != null) outState.putString(STATE_SEARCH, search.getText().toString());
+        outState.putInt(STATE_PAGE, Math.max(1, page));
         if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
