@@ -15,6 +15,12 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 assert 'button("重启本地 DNS 并清理缓存", this::confirmCacheFlush)' in source, \
     "DNS page has no native cache flush control"
 assert 'private void confirmCacheFlush()' in source, "cache flush has no explicit confirmation flow"
+assert "ROW_PAGE_SIZE = 50" in source, "DNS log list must use bounded 50-row pages"
+assert "STATE_PAGE = \"fx_dns_page\"" in source, "DNS log page state key missing"
+assert 'button("加载更多（剩余 "' in source, "DNS log list has no progressive pagination"
+assert "page = 1;" in source, "changing DNS search must reset to the first page"
+assert "outState.putInt(STATE_PAGE, Math.max(1, page))" in source, "DNS log page depth is not restored"
+assert "匹配 " in source and "已显示 " in source, "DNS list does not show filtered/visible counts"
 assert 'root(shell("cache-flush"), 120000L' in source, "cache flush does not use an adequate Root timeout"
 assert "DNS 可能短暂中断" in source, "the UI must disclose local DNS restart interruption"
 assert "不会清理 Android 系统 DNS 缓存" in source, "the UI must not imply system-wide cache clearing"
