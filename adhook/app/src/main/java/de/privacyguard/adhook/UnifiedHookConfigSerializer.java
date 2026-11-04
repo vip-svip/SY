@@ -127,6 +127,17 @@ public final class UnifiedHookConfigSerializer {
                 throw new IllegalArgumentException("dialog rules/feedback require dialogMatchEnabled");
             }
 
+            if (target.toastFilterEnabled) {
+                if (target.toastTextTerms.isEmpty())
+                    throw new IllegalArgumentException("toast filtering requires explicit text rules");
+                String encodedToastTerms = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(String.join("\n", target.toastTextTerms)
+                                .getBytes(StandardCharsets.UTF_8));
+                out.append(",toast_filter=1,toast_text_terms_b64=").append(encodedToastTerms);
+            } else if (!target.toastTextTerms.isEmpty()) {
+                throw new IllegalArgumentException("toast text rules require toastFilterEnabled");
+            }
+
             if (target.locationSimulation) {
                 if (Double.isNaN(target.simulatedLatitude) || Double.isInfinite(target.simulatedLatitude)
                         || target.simulatedLatitude < -90d || target.simulatedLatitude > 90d
