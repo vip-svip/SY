@@ -76,7 +76,7 @@ for _state_path in "$PG" "$CONF" "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$LOCK" "$LO
   }
 done
 [ -f "$CONF" ] || { echo "Root Proxy settings.conf missing or unsafe" >&2; exit 21; }
-[ ! -e "$LOCK" ] || [ -f "$LOCK" ] || { echo "Root Proxy lock path is not a regular file" >&2; exit 22; }
+[ ! -e "$LOCK" ] || [ -f "$LOCK" ] || [ -d "$LOCK" ] || { echo "Root Proxy lock path is not a regular file or legacy lock directory" >&2; exit 22; }
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
