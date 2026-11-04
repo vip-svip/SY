@@ -22,7 +22,7 @@ grep -Fq '[ "$LOCK" = "$PG/native-vpn-config.lock" ]' "$SOURCE" || fail "VPN LOC
 grep -Fq 'mktemp "$CONF.native-vpn.XXXXXX"' "$SOURCE" || fail "VPN config write temp is predictable"
 echo "PASS: native VPN config lock remains owned until process exit on HUP/INT/TERM"
 
-TMP=$(mktemp -d "\${TMPDIR:-/tmp}/fx-native-vpn-config.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-native-vpn-config.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOD="$TMP/module"
 STATE="$TMP/state"
@@ -37,10 +37,11 @@ CONF
 cat > "$MOD/scripts/apply.sh" <<'APPLY'
 #!/bin/sh
 printf '%s\n' "$*" >> "$MP/apply.log"
-exit "\${MOCK_APPLY_RC:-0}"
+exit "${MOCK_APPLY_RC:-0}"
 APPLY
 chmod 700 "$MOD/scripts/apply.sh"
 run(){ env MP="$MOD" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/native-vpn-config.lock" sh "$SOURCE" "$@"; }
+run_with_apply_rc(){ _rc=$1; shift; env MOCK_APPLY_RC="$_rc" MP="$MOD" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/native-vpn-config.lock" sh "$SOURCE" "$@"; }
 
 mkdir "$TMP/external-state"
 cp "$STATE/settings.conf" "$TMP/external-state/settings.conf"
@@ -86,5 +87,17 @@ run set local_port 5354 | grep -Fqx 'applied=1' || fail "validated VPN config tr
 grep -Fqx 'local_port=5354' "$STATE/settings.conf" || fail "VPN config write did not persist"
 [ "$(stat -c '%a' "$STATE/settings.conf")" = 600 ] || fail "VPN config permissions are not private"
 [ ! -e "$STATE/native-vpn-config.lock" ] || fail "VPN config mutation lock leaked"
-echo "PASS: native VPN config path isolation, symlink rejection, validated write and lock cleanup"
+
+# A failed runtime apply must restore the prior bytes and release its lock.
+before_rollback=$(sha256sum "$STATE/settings.conf" | awk '{print $1}')
+if run_with_apply_rc 1 set local_port 5355 >/dev/null 2>&1; then
+  fail "failed VPN runtime apply was reported as successful"
+fi
+after_rollback=$(sha256sum "$STATE/settings.conf" | awk '{print $1}')
+[ "$before_rollback" = "$after_rollback" ] || fail "failed VPN apply did not restore the previous settings.conf"
+grep -Fqx 'local_port=5354' "$STATE/settings.conf" || fail "VPN rollback left the rejected value active"
+[ ! -e "$STATE/native-vpn-config.lock" ] || fail "VPN lock leaked after rollback"
+leftover=$(find "$STATE" -maxdepth 1 -type f \( -name 'settings.conf.native-vpn.*' -o -name 'settings.conf.native-vpn-rollback.*' -o -name 'settings.conf.restore.*' \) -print -quit)
+[ -z "$leftover" ] || fail "VPN rollback left a temporary file: $leftover"
+echo "PASS: native VPN config path isolation, symlink rejection, apply rollback and lock cleanup"
 
