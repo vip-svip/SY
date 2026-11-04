@@ -664,3 +664,26 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未改变原始“仅用户应用”边界、MAIN/LAUNCHER 过滤语义、Root 逐项确认或可恢复的组件启停能力；未改版本号、未打包最终 APK/KernelSU ZIP、未触发完整 Actions。
 - 后续风险：PackageManager 在不同 OEM / 多用户 / 企业工作资料环境下对 `MATCH_DISABLED_COMPONENTS`、component enabled state 与 `am get-current-user` 的返回可能存在差异；须真机核验。用户若禁用自身唯一 launcher Activity，可能需要从 FX 返回此页恢复。
 - 下一批直接任务：① Dia 设备属性/GPS 子页目前路由到 per-app Hook 表单；对照原 Dia 页面逐项核对 Android ID、时区、版本、GPS、provider enabled/Fused 返回位置是否有实际执行层支持，修复 UI/后端不一致；② 对话框/通知页仍只有 per-app 通知 Hook 配置映射，原版 Dialog 专用逻辑明确未迁移，继续对照旧页面/规则能力，不增加空壳开关；③ 之后审查 Dia 网络代理与 Frida 监听模式的页面级返回链。
+
+## 2026-11-05 — Dia 结构化监控事件与 Frida 会话日志页状态恢复
+
+- 本批起始分支 HEAD：`585303b7bb0b09b95a141c501133e36b11d9818d`；代码提交完成后读取的分支 HEAD：`cb24ba204210fafc21da579c036a3cce77a02293`。
+- 本批代码提交：
+  - `9b0d8e21a56ca51bda420f2e70fd1076feb20f69` — `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`.
+  - `1eb27f788561db1db3e9ec1d32139f4beb04c3a5` — `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java`.
+  - `cb24ba204210fafc21da579c036a3cce77a02293` — `scripts/tests/fx-dia-monitor-event-view-regression.sh`.
+- 页面行为：
+  - 结构化事件页 Activity 重建后恢复搜索词、事件类型筛选、自动刷新开关和列表滚动位置。
+  - 原始会话日志页恢复搜索词与滚动位置；日志内容从当前目标的 FX 日志文件重新读取，不把旧 Bundle 文本当作实时日志。
+  - 搜索词恢复限制 256 字符；滚动位置只在本次有界日志读取完成后恢复，避免内容回填前被空列表截断。
+  - 保留日志读取上限、Root 路径符号链接检查、事件元数据脱敏解析、15 秒自动刷新及 request-generation 过期回调保护。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java`、`scripts/tests/fx-dia-monitor-event-view-regression.sh`。
+- 针对性回归：扩展 `fx-dia-monitor-event-view-regression.sh`，覆盖两个页面的搜索/筛选/自动刷新/滚动状态恢复契约；原有 Java Host 测试与 Frida 模板 Node 语法检查保留。
+- 验证：提交前对两份 Java 源码和回归脚本执行定向静态断言，全部通过。没有运行仓库 Shell 回归脚本、JDK Host 测试、Android/Gradle 编译、JUnit、UI 自动化、模拟器或真机旋转/进程回收测试；设备级页面恢复未验收。
+- 未改六 Tab 顺序、原始 Frida 目标/脚本/日志数据或固定版本；未触发完整 Actions；未生成 APK 或 KernelSU ZIP。
+- 失败路线：Git Data 写入接口第一次返回 GitHub 平台端错误，分支 ref 未更新；切换为 Contents API `update_file` 顺序写入，并在每个文件写入前核对 blob SHA，未覆盖并行变更。
+- 下一批直接任务：
+  1. Dia GPS / 设备属性模拟表单：对照目标应用配置键、数据校验和发布字段，找出 UI 与 API-101 consumer 不匹配项。
+  2. Dia 原始 Dialog 功能：对照原始 APK 交互语义，区分 per-app 通知 Hook 与 Dialog 自动处理工具，不复用错误的全局隐私开关。
+  3. 游龙广告 DNS / Firewall 原生页面：核对真实数据源、列表、表单及刷新/错误状态，再接通已有本地 DNS / Root Proxy 后端。
+- 并行工作线：Dia 模拟表单配置键/序列化映射可独立只读核对；共享 `MainActivity.java` / Manifest 的实际修改顺序整合。
