@@ -792,3 +792,8 @@ After each implementation batch:
 - The app picker now waits for asynchronous inventory completion, including when the user opens it while the initial load is already running. Application labels are cached with the result, so opening the picker no longer performs PackageManager calls on the UI thread.
 - Added generation checks and Activity-destroy invalidation so a late enumeration cannot update a destroyed screen. Queue saturation is surfaced rather than silently dropping the picker request.
 - Added and registered a targeted regression for background ordering, picker continuation, stale callback suppression and bounded worker behavior. Validation is pending the branch workflow; no device performance measurement is claimed.
+
+## 2026-11-04 — Watcher hard-link lock PID correction
+
+- The hard-link publication refactor initially changed the expected record and temporary payload to `$$` but left `watch_lock_pid_start_time` called with a literal `$`. This caused fresh lock acquisition to fail before the lifecycle operation. The lookup now uses the same current shell PID as the record.
+- Updated regression assertions to require `$$` at the start-time lookup and both record fields, and corrected the stale noclobber comment to describe hard-link publication.

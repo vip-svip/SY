@@ -749,7 +749,7 @@ watch_lock_acquire() {
       # Prepare the complete ownership record under a unique private name,
       # then publish it with one same-directory hard link. A contender can
       # never observe a truncated/partially-written lock record.
-      _watch_lock_start=$(watch_lock_pid_start_time "$") || {
+      _watch_lock_start=$(watch_lock_pid_start_time "$$") || {
         echo "unable to read current watcher lock owner start time" >&2
         return 1
       }
