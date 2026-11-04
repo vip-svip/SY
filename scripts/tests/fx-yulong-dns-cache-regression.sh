@@ -19,6 +19,8 @@ assert "ROW_PAGE_SIZE = 50" in source, "DNS log list must use bounded 50-row pag
 assert "STATE_PAGE = \"fx_dns_page\"" in source, "DNS log page state key missing"
 assert 'button("加载更多（剩余 "' in source, "DNS log list has no progressive pagination"
 assert "page = 1;" in source, "changing DNS search must reset to the first page"
+search_listener = source.split("search.addTextChangedListener", 1)[1].split("load();", 1)[0]
+assert "pendingScrollY = 0;" in search_listener and "pendingScrollRestore = false;" in search_listener, "user search must cancel a stale pre-rotation scroll restore"
 assert "outState.putInt(STATE_PAGE, Math.max(1, page))" in source, "DNS log page depth is not restored"
 assert "匹配 " in source and "已显示 " in source, "DNS list does not show filtered/visible counts"
 assert 'root(shell("cache-flush"), 120000L' in source, "cache flush does not use an adequate Root timeout"
