@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Local Yulong AdBlock daily protection summary backed by FX's own config and DNS query log. */
-public final class FxYulongAdSummaryActivity extends Activity {
+public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> { Thread t = new Thread(r, "fx-yulong-ad-summary"); t.setDaemon(true); return t; },
@@ -71,7 +71,7 @@ public final class FxYulongAdSummaryActivity extends Activity {
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         status = text("正在读取本机广告过滤配置与 DNS 查询日志…", 13, 0xff526170, false);
         card("本机数据口径",
