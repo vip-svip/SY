@@ -86,5 +86,5 @@ for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
-print("PASS: Yulong Ad page and 16 editable field drafts survive Activity recreation")
+print("PASS: Yulong Ad drafts and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
 PY
