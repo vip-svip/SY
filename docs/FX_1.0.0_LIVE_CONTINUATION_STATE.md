@@ -2591,3 +2591,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态复核已从 GitHub 重新读取源码与脚本，确认快照发生在 `render()` 之前、恢复发生在新控件创建之后，并确认滚动位置 Bundle 恢复仍保留。尚未实际运行回归脚本、Gradle、模拟器或真机测试。
 - 当前最新 HEAD（写入本记录前）：`b4ab67ec2618c03a25337e4507b3e984cbda5a68`。
 - 下一步：检查游龙原生 UI 其余可编辑页面的草稿/列表/返回行为，并开始 Hook 主页面与应用详情页面的端到端导航整合；不打最终包，不改变 FX 1.0.0 版本号。
+
+
+## 2026-11-05 — Hook OBSERVE 日志刷新单飞与队列保护
+
+- 修复前分支 HEAD：`50ffef52dc9d20e4fd96cf1994acf3ccbefe0c71`。
+- 修复 `FxHookObservationLogsActivity` 连续点击“刷新日志”可能向单线程 Executor 的无界队列累积多个 Root/logcat 任务的问题。新增 AtomicBoolean 单飞门闩；任务执行期间禁用刷新按钮，重复触发会明确提示等待；RootAccess RuntimeException 转为可见失败结果；完成、提交被拒绝、Activity 销毁均释放门闩；保留 generation 防止过期结果覆盖页面。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/FxHookObservationLogsActivity.java`；新增 `scripts/tests/fx-hook-observation-logs-regression.sh`。
+- 提交：`68dd9fbd4c930a4aabf3e4aa1ec462870faa9106`（刷新队列保护）；`d3a3fae410bf6fe1148363ecb02d98300a58a234`（回归脚本）。
+- 从 GitHub 重新读取 Activity 和脚本，静态确认单飞获取早于 worker.execute、完成/拒绝/销毁路径释放门闩、按钮状态恢复、RuntimeException 处理和 generation 保护均存在。尚未实际运行该脚本、Gradle、模拟器或真机测试。
+- 当前最新 HEAD（写入本记录前）：`d3a3fae410bf6fe1148363ecb02d98300a58a234`。
+- 下一步：继续 Hook 应用列表/详情/自定义规则页面的状态和交互闭环，优先修复可复现的数据丢失或导航错误；不打最终包，不改变 FX 1.0.0 版本号。
