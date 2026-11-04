@@ -133,35 +133,11 @@ from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
 for token in ('umask 077', 'set -C', '_nl_read_lock_owner()', '_nl_unlock()',
-              'kill -0', '.stale.$.', 'legacy ownerless managed-list lock',
+              'kill -0', '.stale.$$.', 'legacy ownerless managed-list lock',
               'refusing to follow it', 'trap cleanup EXIT',
               'normalize_domain()', 'normalize_value()', 'value_exists()'):
     assert token in s, f"managed list safety invariant missing: {token}"
-assert '$CONF.native-list.
-python3 - "$SCRIPT" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
-assert "grep -Eq" in normalize, "URL subscription validation is missing"
-assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
-assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
-print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
-PY
-echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
- not in s and '$CONF.restore.
-python3 - "$SCRIPT" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
-assert "grep -Eq" in normalize, "URL subscription validation is missing"
-assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
-assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
-print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
-PY
-echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
- not in s
+assert '$CONF.native-list.$' not in s and '$CONF.restore.$' not in s
 print("PASS: managed list backend uses atomic PID lock, stale-owner recovery and strict validators")
 PY
 python3 - "$SCRIPT" <<'PY'
