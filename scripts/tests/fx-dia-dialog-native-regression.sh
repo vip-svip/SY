@@ -45,6 +45,15 @@ assert "dialog_text_terms_b64=" in ui and "dialog_id_terms_b64=" in ui
 assert "文本规则与资源 ID 规则各最多 32 条" in ui
 assert "targetDebuggable &&" in ui, "publish path must re-check debuggable targets"
 
+# Wi-Fi identity simulation drafts survive recreation and publish atomically.
+for field in ("wifi_sim_draft_ssid", "wifi_sim_draft_bssid", "wifi_sim_draft_enabled"):
+    assert field in ui, f"missing Wi-Fi simulation draft field {field}"
+assert "simulatedSsid.addTextChangedListener" in ui and "simulatedBssid.addTextChangedListener" in ui
+assert '.remove(selectedPackage + ":wifi_sim_draft_enabled")' in ui
+assert '.remove(selectedPackage + ":wifi_sim_draft_ssid")' in ui
+assert '.remove(selectedPackage + ":wifi_sim_draft_bssid")' in ui
+assert "Wi-Fi 测试配置未能写入本地存储，未发布。" in ui
+
 # Toast filtering is a separate opt-in feature from Dialog feedback and NotificationListener.
 assert 'addNativeActionCard("Toast 文本过滤"' in ui, "Privacy page Toast card missing"
 assert 'showAppList("Toast过滤")' in ui, "Toast per-app target list missing"
