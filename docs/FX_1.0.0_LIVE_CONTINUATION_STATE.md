@@ -3418,3 +3418,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-yulong-app-stats-regression.py`: Actions `41918827421` SUCCESS.
 - `fx-yulong-firewall-activity-regression.sh`: Actions `41918758162` was cancelled by a later push before a final result; source/test changes are committed, but CI is not marked passed.
 - No Android rotation or real package install/remove device test has run.
+
+
+## 2026-11-05 — 六 Tab 原生页面底部导航栏适配 Android 系统导航区
+
+- 页面组：共享壳 `FxNativeAppShell.kt`，覆盖继承 `FxNativeTabActivity` 的 Dia/游龙广告/安全护盾页面。
+- 风险：AndroidView 页面与玻璃/经典/MIUIX 两种底栏直接贴齐 Box 底部，没有显式避让 Android 手势/三键导航 inset；edge-to-edge 或特定导航模式下可能压入系统导航区。
+- 修复：页面内容先应用 `navigationBarsPadding()` 再预留 72dp 底栏；玻璃底栏与经典/MIUIX 底栏分别应用 `navigationBarsPadding()` 后再设置 72dp 内容高度。六 Tab 数量、顺序、回调和样式不变。
+- 产品提交：`dea52536b27d265e0436d44def250884f37322ce`；回归提交：`5caa09cc96312d0a41f545f3219aec9d264fd67e`。
+- 验证：静态检查确认页面内容和两种底栏各有 inset 处理；Actions 尚待读取。未执行 Compose UI 截图、手势/三键导航设备测试或旋转测试。
+- 下一步：读取本批六 Tab/Shield 回归；继续检查 MainActivity 六 Tab 主壳的 edge-to-edge、软键盘和返回状态，再转回 Shield 风险详情/批量清理 UI。
