@@ -2834,3 +2834,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：源码与测试断言已提交；尚未执行 Shield 定向脚本、Android 单测、Gradle、模拟器或真机。
 - 不改变扫描白名单语义，不静默清空损坏数据，不执行卸载/强停。
 - 下一步：继续读取 Shield targeted Actions 的最新首错并完成名单/扫描 UI 页面组；然后切换 Dia Frida 脚本库/编辑器或 Hook 页面组，避免长期停留在同一测试脚本。
+
+
+## 2026-11-05 — Shield 病毒库 JSON 错误数组正则断言修复 Python 转义层
+
+- Actions：`41913246366` 通过链式 `last_error` 持久化断言后，失败于病毒库解析器 JSON 对象数组拒绝正则。
+- 根因：测试脚本由 Python 读取 Java 源码。普通 Python 字符串中的反斜杠被解释，导致测试 token 与 Java 源文件保留的双反斜杠字节文本不一致；实现中的 `lower.matches("(?s)^\\\\[\\\\s*\\\\{.*")` 已存在，并在解析入口拒绝对象数组。
+- 修复：测试脚本两处正则源码断言改用 Python raw string，确保比较 Java 源码原样文本；保留拒绝对象数组的安全门禁。
+- 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `65c953fbcef21bced0b39b30a48246a439a3ff50`；本状态文件待同步。
+- 验证：已对比 GitHub 返回的 Java 源码行和测试脚本字面量；raw string 能保留源码中的双反斜杠。尚未有本修复对应的 Actions 结果。
+- 失败路线：不修改解析器、不移除 JSON 错误对象拦截；不再用普通 Python 字符串表达含多层反斜杠的 Java 正则。
+- 下一步：继续读取 Shield 定向回归第一条失败；通过后检查 Finding 的可信命中证据映射和名单筛选状态恢复。
