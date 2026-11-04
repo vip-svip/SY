@@ -252,6 +252,26 @@ done
 grep -Fq '[ -f "$CONF" ] && [ ! -L "$CONF" ]' "$SOURCE" || fail "settings.conf symlink guard missing"
 grep -Fq '[ ! -L "$ACTIVE" ]' "$SOURCE" || fail "active marker symlink guard missing"
 
+# Watcher lifecycle PID ownership must use the real shell PID, never a literal "$".
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    'printf \'%s\\n\' "$" > "$WATCH_LOCK_PID"',
+    '[ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$" ]; then',
+    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$" ]; then',
+)
+for item in required:
+    if item not in source:
+        raise SystemExit("FAIL: watcher PID ownership contract missing: " + item)
+for line in source.splitlines():
+    if "WATCH_LOCK_PID" in line or "WATCH_PIDFILE" in line:
+        if '= "$"' in line or ' "$" > "$WATCH' in line:
+            raise SystemExit("FAIL: literal dollar sign remains in watcher PID ownership")
+print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
+PY
+
 # Signal handlers must exit into the sole EXIT cleanup handler.
 grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE" || fail "EXIT lock cleanup handler missing"
 grep -Fqx "  trap 'exit 129' HUP" "$SOURCE" || fail "HUP exit handler missing"
