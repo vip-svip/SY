@@ -36,10 +36,10 @@ grep -Fq 'exportRequestPending = true;' "$ACTIVITY" || fail "SAF export request 
 grep -Fq 'mergeImport' "$ACTIVITY" || fail "JSON library import is not connected"
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
-python3 - "$ACTIVITY" "$STORE" "$FRIDA" <<'PY'
+python3 - "$ACTIVITY" "$STORE" "$FRIDA" "$POLICY" "$HOST_TEST" <<'PY'
 from pathlib import Path
 import sys
-activity, store, frida = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+activity, store, frida, policy, host = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES - count" in activity, "import stream must have a hard byte limit"
 assert "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())" in activity, "JSON import must use strict UTF-8 decoding"
