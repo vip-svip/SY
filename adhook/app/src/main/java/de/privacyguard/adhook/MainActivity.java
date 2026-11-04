@@ -3190,7 +3190,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("五种全局模式：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）与 iOS CupertinoStyle（iOS 视觉风格）。新模式须在源码完成后才可启用；模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
+        note.setText("全局目标为五种界面模式。当前可切换：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）。HUAWEI HarmonyStyle 与 iOS CupertinoStyle 已纳入重构计划，独立 Renderer 尚未接入，完成前不会显示为可选项。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
