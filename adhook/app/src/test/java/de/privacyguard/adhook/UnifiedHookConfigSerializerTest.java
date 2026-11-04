@@ -479,12 +479,12 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void serializerRejectsTwoActivityKeyActionsUsingTheSameTrigger() {
+    public void serializerRejectsTwoActivityKeyActionsWithOverlappingGestures() {
         Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
         UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
                 false, false, false, false, false, false, false);
-        target.keyFinishTrigger = 5;
-        target.keyDialogToggleTrigger = 5;
+        target.keyFinishTrigger = 0;
+        target.keyDialogToggleTrigger = 2;
         target.dialogMatchEnabled = true;
         target.dialogTextTerms.add("blocked");
         targets.put("com.example.debug", target);
