@@ -599,6 +599,12 @@ watch_lock_process_is_ours() {
   # Some su/shell launchers preserve the script path inside a command argument
   # rather than exposing it as a standalone argv element.
   case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac
+  # Emit the live owner's identity at the point of rejection. The caller may
+  # observe an already-cleaned lock by the time a background race fails.
+  echo "watcher lock owner identity mismatch: pid=$_lock_pid expected_script=$SCRIPT_PATH cmdline=$_lock_cmdline" >&2
+  if [ -r "/proc/$_lock_pid/stat" ]; then
+    ps -o pid=,ppid=,args= -p "$_lock_pid" >&2 || :
+  fi
   return 1
 }
 watch_lock_acquire() {
