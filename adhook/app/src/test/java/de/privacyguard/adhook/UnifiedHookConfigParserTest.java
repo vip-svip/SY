@@ -745,5 +745,55 @@ public class UnifiedHookConfigParserTest {
     }
 
 
+    @Test
+    public void parsesPerAppActivityKeyActions() {
+        String terms = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "更新失败".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String config = String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,key_finish_trigger=5,key_dialog_toggle_trigger=6,"
+                        + "dialog_match=1,dialog_text_terms_b64=" + terms, "");
+        UnifiedHookConfigParser.Target target =
+                UnifiedHookConfigParser.parse(config).targets.get("com.example.debug");
+        assertEquals(5, target.keyFinishTrigger);
+        assertEquals(6, target.keyDialogToggleTrigger);
+        assertTrue(target.dialogMatchEnabled);
+    }
+
+    @Test
+    public void legacyTargetsKeepActivityKeyActionsDisabled() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.legacy,splash=1\n")
+                .targets.get("com.example.legacy");
+        assertEquals(-1, target.keyFinishTrigger);
+        assertEquals(-1, target.keyDialogToggleTrigger);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsActivityKeyTriggerOutOfRange() {
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,key_finish_trigger=7", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDialogKeyToggleWithoutDialogRules() {
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,key_dialog_toggle_trigger=6", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsTwoActivityKeyActionsUsingTheSameTrigger() {
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
+                "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,key_finish_trigger=5,key_dialog_toggle_trigger=5,"
+                        + "dialog_match=1,dialog_text_terms_b64="
+                        + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                                "blocked".getBytes(java.nio.charset.StandardCharsets.UTF_8)), ""));
+    }
+
+
 }
 
