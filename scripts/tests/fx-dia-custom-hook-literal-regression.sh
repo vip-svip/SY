@@ -7,8 +7,9 @@ RULE="$JAVA/DeveloperHookRule.java"
 ENGINE="$JAVA/AdVisibilityHook.java"
 SER="$JAVA/UnifiedHookConfigSerializer.java"
 PARSER="$JAVA/UnifiedHookConfigParser.java"
+LOGS="$JAVA/FxHookObservationLogsActivity.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for f in "$MAIN" "$RULE" "$ENGINE" "$SER" "$PARSER"; do [ -s "$f" ] || fail "missing Hook literal source: $f"; done
+for f in "$MAIN" "$RULE" "$ENGINE" "$SER" "$PARSER" "$LOGS"; do [ -s "$f" ] || fail "missing Hook literal source: $f"; done
 grep -Fq 'RETURN_LITERAL' "$RULE" || fail "rule model lacks typed literal action"
 grep -Fq 'parseLiteralValue' "$RULE" || fail "literal type/range validator is missing"
 grep -Fq 'literalValue.getText().toString()' "$MAIN" || fail "native editor does not collect a constant value"
@@ -55,3 +56,21 @@ for token in (
 assert "editor.apply()" not in importer, "rule import must not report success after an unchecked async write"
 PY
 echo "PASS: typed constant returns are validated; custom-rule editor/import drafts recover and import commits atomically"
+python3 - "$LOGS" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+for token in (
+    'state.getString("fx_hook_observe_search", "")',
+    'state.getInt("fx_hook_observe_scroll_y", 0)',
+    'search.setText(restoredSearch)',
+    'search.addTextChangedListener(',
+    'outState.putString("fx_hook_observe_search"',
+    'outState.putInt("fx_hook_observe_scroll_y"',
+    'restoreScrollPending ? restoredScrollY',
+    'logScroll.post(() -> logScroll.scrollTo(0, previousScrollY))',
+):
+    assert token in source, f"OBSERVE log state restoration missing {token}"
+assert "worker.shutdownNow()" in source and "generation++" in source, \
+    "log refresh worker must still be cancelled on Activity teardown"
+PY
+echo "PASS: Hook OBSERVE search filter and log scroll position survive Activity recreation"
