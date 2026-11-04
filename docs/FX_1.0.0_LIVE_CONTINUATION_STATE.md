@@ -2680,3 +2680,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：源码锚点唯一性检查；回归脚本新增实时校验回调、成功回显和编辑变更触发断言。尚未执行 Shell、JUnit、Gradle、模拟器或真机测试。
 - 固定 FX 1.0.0；不改变 Hook 动作白名单、Root 权限、目标包范围或运行时门禁；不生成最终 APK / KernelSU ZIP。
 - 下一步：Dia 原生脚本编辑器返回/覆盖链；游龙安全护盾名单和扫描详情；随后执行对应 targeted 回归脚本并修复失败项。
+
+
+## 2026-11-05 — Hook 应用列表分页回归契约更新
+
+- 失败 Actions：`41911585851`（HEAD `72fd49ce44be6fd98a20c4d2fa76057ec07c26e8`），失败步骤 `fx-hook-native-ui-regression.sh`，报错旧断言要求 `appendAppRows(0, Math.min(MAX_APP_ROWS_PER_PAGE, filtered.size()))`。
+- 根因：当前实现为保留用户展开数量/Activity 恢复状态，先将 `hookAppListVisibleCount` 限制在 40–10000，再用 `initialEnd = min(requestedCount, filtered.size())` 渲染首屏；后续“加载更多”每次追加最多 40 行。旧测试只匹配早期固定首屏表达式，未覆盖现有恢复分页行为，属于过期断言，不是取消分页。
+- 修复：回归脚本改为验证恢复后的可见数量边界、首屏 `appendAppRows(0, initialEnd)`、以及加载更多每次最多 40 行；保留原有分页、后台索引和图标异步检查。
+- 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：已对照当前 MainActivity 源码确认四个新断言表达式真实存在；尚未重跑 Actions，等待本提交触发的定向 Host 回归。不得把源码对照记为测试通过。
+- 失败路线：不再使用固定首屏表达式的旧 grep 断言；若修复后再次失败，读取新的失败步骤/源码证据，不重复放宽断言。

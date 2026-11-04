@@ -43,7 +43,11 @@ grep -q 'new Thread(() -> {' "$ROOT/adhook/app/src/main/java/de/privacyguard/adh
 grep -q '"fx-app-index"' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "background app-index worker missing"
 grep -q "generation != appLoadGeneration" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale app-index result can overwrite a newer screen"
 grep -q "appLoader.interrupt()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "app-index worker is not cancelled on Activity destruction"
-grep -q "appendAppRows(0, Math.min(MAX_APP_ROWS_PER_PAGE, filtered.size()))" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list eagerly renders all installed apps"
+# Initial rows honor the restored visible-count cap; subsequent batches remain 40 rows.
+grep -Fq "int requestedCount = Math.max(MAX_APP_ROWS_PER_PAGE," "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list does not restore its bounded visible row count"
+grep -Fq "int initialEnd = Math.min(requestedCount, filtered.size());" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list initial page is not bounded by the restored row count"
+grep -Fq "appendAppRows(0, initialEnd);" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list does not render only the initial page"
+grep -Fq "int nextEnd = Math.min(end + MAX_APP_ROWS_PER_PAGE, filtered.size());" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list load-more does not append bounded pages"
 grep -Fq 'while (content.getChildCount() > 5) content.removeViewAt(5);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app list rerender removes its fixed explanatory hint"
 [ "$(grep -Fc 'while (content.getChildCount() > 5) content.removeViewAt(5);' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java")" -eq 2 ] || fail "async app-loader cleanup and list rerender must both preserve fixed header/search/hint views"
 grep -q "appLabels.get(ai.packageName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app labels are not cached for search"
