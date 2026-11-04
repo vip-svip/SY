@@ -5053,11 +5053,19 @@ public final class MainActivity extends ComponentActivity {
         if (webView == null || !webUiReady) return;
         // Only the explicit legacy mode styles the WebView. Miuix and Liquid Glass
         // are native Compose renderers; do not imitate either with injected CSS.
-        String css = "classic".equals(uiMode)
-                ? "body{background:#f4f6f8!important;color:#17212b!important}" +
-                  ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:8px!important;box-shadow:none!important}" +
-                  "button,.btn,input,select,textarea{border-radius:6px!important}"
-                : "";
+        boolean wallpaperActive = FxWallpaperStore.currentPath(this) != null;
+        // Let the Compose host's wallpaper show through the classic WebUI too.
+        // Without a custom wallpaper, retain the classic neutral page background.
+        webView.setBackgroundColor(wallpaperActive
+                ? android.graphics.Color.TRANSPARENT : 0xfff4f6f8);
+        String css = wallpaperActive
+                ? "html,body{background:transparent!important;background-color:transparent!important}" +
+                  "body{color:#17212b!important}"
+                : "classic".equals(uiMode)
+                    ? "html,body{background:#f4f6f8!important;color:#17212b!important}" +
+                      ".card,.panel,.setting-card,.section,.list-item,.config-card{border-radius:8px!important;box-shadow:none!important}" +
+                      "button,.btn,input,select,textarea{border-radius:6px!important}"
+                    : "";
         String js = "(function(){var id='fx-interface-mode-style';var old=document.getElementById(id);if(old)old.remove();" +
                 (css.isEmpty() ? "" : "var s=document.createElement('style');s.id=id;s.textContent=" + JSONObject.quote(css) + ";document.head.appendChild(s);") + "})()";
         webView.evaluateJavascript(js, null);
