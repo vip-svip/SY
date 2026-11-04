@@ -29,6 +29,32 @@ public final class FxDiaKeyGesturePolicy {
     public static final long MULTI_PRESS_WINDOW_MS = 2000L;
     public static final long CHORD_WINDOW_MS = 400L;
 
+    /**
+     * Returns true when two independently configured actions could be emitted
+     * by one physical sequence. The original multi-press decoder can emit the
+     * double trigger on the third press as well as the triple trigger; volume
+     * chords can overlap with the corresponding single-key double press.
+     */
+    public static boolean hasOverlappingTriggers(int first, int second) {
+        if (first < 0 || second < 0) return false;
+        if (first == second) return true;
+        boolean firstBack = first == TRIGGER_BACK_DOUBLE || first == TRIGGER_BACK_TRIPLE;
+        boolean secondBack = second == TRIGGER_BACK_DOUBLE || second == TRIGGER_BACK_TRIPLE;
+        if (firstBack && secondBack) return true;
+        boolean firstVolumeDown = first == TRIGGER_VOLUME_DOWN_DOUBLE
+                || first == TRIGGER_VOLUME_DOWN_TRIPLE
+                || first == TRIGGER_VOLUME_DOWN_UP_CHORD;
+        boolean secondVolumeDown = second == TRIGGER_VOLUME_DOWN_DOUBLE
+                || second == TRIGGER_VOLUME_DOWN_TRIPLE
+                || second == TRIGGER_VOLUME_DOWN_UP_CHORD;
+        boolean firstVolumeUp = first == TRIGGER_VOLUME_UP_DOUBLE
+                || first == TRIGGER_VOLUME_DOWN_UP_CHORD;
+        boolean secondVolumeUp = second == TRIGGER_VOLUME_UP_DOUBLE
+                || second == TRIGGER_VOLUME_DOWN_UP_CHORD;
+        return (firstVolumeDown && secondVolumeDown)
+                || (firstVolumeUp && secondVolumeUp);
+    }
+
     private long lastVolumeDownDouble;
     private long lastVolumeDownTriple;
     private int volumeDownTripleCount;
