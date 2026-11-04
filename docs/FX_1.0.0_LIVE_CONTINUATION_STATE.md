@@ -2255,3 +2255,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`9317a8a61efc45da9d26ff79a6f0c98872050349`（实现）；`d866f72f93512257d96f67b3676f4a8ccf85a0e3`（回归断言）。
 - 验证等级：源码静态检查；未运行 Shell/Python、Gradle、UI 自动化或真实 SAF 提供方在 Activity 结束期间的写入测试。
 - 下一步：继续核对 Frida 二进制导入与脚本库导出 Worker 在 Activity 结束时的取消/暂存文件清理边界；随后完成游龙安全护盾风险详情/告警/名单页面组。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — LSPosed 手动作用域操作改为有界后台执行
+
+- 审计发现 Hook 目标详情的手动 `requestScope()` 直接在点击回调/UI 线程调用 libXposed Binder；虽然设置了 Handler 超时，但若 Binder 同步调用阻塞主线程，超时本身也无法执行。刷新/移除虽使用后台 Thread，却每次操作都创建新 Thread；若 Binder 长时间不响应，反复重试可能累积线程。
+- 修复：申请、刷新、移除统一经由 Activity 级单线程 `ThreadPoolExecutor(1,1)`，队列容量 1、AbortPolicy；请求 Binder 调用移出 UI 线程。当前操作以 FutureTask 记录，取消/超时会 cancel 并尝试从队列移除；队列繁忙明确提示“状态未确认”，不显示虚假成功。Activity 销毁时取消操作并 shutdown executor。
+- 保留原有 Manager 明确审批语义、系统应用二次确认、12/15/30 秒超时、目标包与 View generation 检查；不把“作用域已批准”误报为“进程已注入”。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-lsposed-scope-regression.py`；本状态文件。
+- 提交：`c3d7e52d6d1e966416fd07ee455c4852161c5c61`（有界后台执行）；`d5858a8bda3718aced02d7b643b760f10ad2f1f0`、`4b36849fead32ac0e1b2b34498497ece7c9e4e1b`（执行线程、队列、取消和移除路径回归断言）。
+- 验证等级：最新 HEAD 静态检查确认 request/refresh/remove 都通过有界 executor，Binder 申请不在 UI 线程执行，FutureTask 超时/取消、队列满处理和 onDestroy shutdown 存在；回归脚本断言同步更新。未运行 Python Host 测试、Gradle、LSPosed Manager 或真机 Binder 阻塞测试。
+- 下一步：等待当前 Actions；继续核对 DEX 文档 URI 权限释放与 Frida 导出 worker 销毁处理，随后做一次集中的 Dia/Hook/Shield Host 回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
