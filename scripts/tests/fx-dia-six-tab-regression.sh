@@ -3,12 +3,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook/imported/dia"
-python3 - "$APP/AndroidManifest.xml" "$JAVA" <<'PY'
+python3 - "$APP/AndroidManifest.xml" "$JAVA" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, dia_dir = Path(sys.argv[1]), Path(sys.argv[2])
+manifest_path, dia_dir, shell_path = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+shell = shell_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 android = "{http://schemas.android.com/apk/res/android}"
 declared = {
@@ -34,6 +35,11 @@ pages = {
     "FxDiaWifiProxyActivity.java": ".imported.dia.FxDiaWifiProxyActivity",
     "FxDiaGpsPickerActivity.java": ".imported.dia.FxDiaGpsPickerActivity",
 }
+assert "import androidx.compose.foundation.layout.navigationBarsPadding" in shell, "native tab shell must import Android navigation insets"
+assert shell.count(".navigationBarsPadding()") == 3, "page content and both bottom bar variants must account for navigation insets"
+assert shell.index(".navigationBarsPadding()") < shell.index(".padding(bottom = 72.dp)"), "native page viewport must reserve system navigation and tab bar"
+bar_section = shell[shell.index('if (mode == "glass")'):]
+assert bar_section.count(".navigationBarsPadding()") == 2, "glass and classic/Miuix bottom bars must both avoid the system gesture area"
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
         f"Manifest Activity missing: {component}"
