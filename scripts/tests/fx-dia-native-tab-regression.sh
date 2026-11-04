@@ -37,6 +37,15 @@ assert "ViewTreeSavedStateRegistryOwner.set(shell, this)" in base
 assert "index < 0 || index > 5" in base
 assert 'putExtra("fx_open_native_tab", index)' in base
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
+assert "handleImportedNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
+route_start = main.index("private void handleNativeTabSelection(int index)")
+route_end = main.index("private void styleBottomItem", route_start)
+route = main[route_start:route_end]
+assert "if (index < 0 || index > 5) return;" in route
+assert "selectedBottomTab = 5;" in route and "showSettings();" in route
+assert "selectedBottomTab = 4;" in route and "showAppList();" in route
+assert "lastWebTabIndex = index;" in route and "renderNativePage(index);" in route
+assert "Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP" in base
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
     assert "setContentViewWithNativeTabs(root, 5);" in page
