@@ -45,7 +45,8 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-trusted-patcher-") as tmp:
 
     assert service.count('if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then') == 1, "trusted watcher guard must be inserted once"
     assert service.count('sh "$MODDIR/scripts/yulong-trusted-network.sh" start') == 1, "trusted watcher start command must be inserted once"
-    assert service.count("yulong-ad-schedule.sh") == 1, "weekly scheduler must be inserted once"
+    assert service.count('if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then') == 1, "weekly schedule guard must be inserted once"
+    assert service.count('sh "$MODDIR/scripts/yulong-ad-schedule.sh" start "$MODDIR" "$PG"') == 1, "weekly schedule start command must be inserted once"
     assert service.index("yulong-trusted-network.sh") < service.index("yulong-ad-schedule.sh") < service.index("jsruntime/scheduler.sh"),         "Yulong watchers must start before the JS scheduler without replacing it"
     assert util.count("yulong_ad_schedule_active") == 1, "weekly schedule gate must be present exactly once"
     assert util.count("yulong_ad_trusted_active") == 1, "trusted Wi-Fi gate must be present exactly once"
