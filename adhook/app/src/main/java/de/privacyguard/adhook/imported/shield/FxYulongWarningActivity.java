@@ -30,6 +30,10 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
     private String appLabel = "";
     private String reason = "";
     private String severity = "UNKNOWN";
+    private TextView packageState;
+    private Button addWhitelistButton;
+    private Button uninstallButton;
+    private boolean targetInstalled;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -106,18 +110,49 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         body.addView(text(severityLabel, 18, severityColor, true));
         body.addView(text(appLabel, 17, 0xff17212b, true));
         body.addView(text(packageName, 12, 0xff617080, false));
+        packageState = text("正在核实应用安装状态…", 12, 0xff617080, false);
+        body.addView(packageState);
         body.addView(text("风险原因", 14, 0xff17212b, true));
         body.addView(text(reason.isEmpty() ? "未提供详细命中原因。" : reason,
                 14, 0xff334155, false));
         body.addView(text(advice, 12, 0xff8a5b12, false));
 
-        Button addWhitelist = button("加入白名单并停止后续提醒", this::trust);
-        addWhitelist.setEnabled(validPackageName());
-        body.addView(addWhitelist);
-        body.addView(button("打开 Android 系统卸载确认", this::uninstall));
+        addWhitelistButton = button("加入白名单并停止后续提醒", this::trust);
+        body.addView(addWhitelistButton);
+        uninstallButton = button("打开 Android 系统卸载确认", this::uninstall);
+        body.addView(uninstallButton);
         body.addView(button("稍后处理", this::finish));
 
         setContentViewWithNativeTabs(root, 5);
+        refreshTargetAvailability();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        refreshTargetAvailability();
+    }
+
+    private void refreshTargetAvailability() {
+        targetInstalled = false;
+        if (validPackageName()) {
+            try {
+                getPackageManager().getApplicationInfo(packageName, 0);
+                targetInstalled = true;
+            } catch (PackageManager.NameNotFoundException | SecurityException missingOrHidden) {
+                targetInstalled = false;
+            } catch (RuntimeException lookupFailure) {
+                targetInstalled = false;
+            }
+        }
+        if (packageState != null) {
+            packageState.setText(!validPackageName()
+                    ? "包名无效：已禁用白名单和卸载操作。"
+                    : targetInstalled ? "应用当前已安装。" : "应用当前不存在或系统不允许查询；请重新扫描。");
+            packageState.setTextColor(targetInstalled ? 0xff607080 : 0xffa32620);
+        }
+        boolean validRisk = "CERTAIN".equals(severity) || "SUSPECT".equals(severity);
+        if (addWhitelistButton != null) addWhitelistButton.setEnabled(validPackageName() && targetInstalled);
+        if (uninstallButton != null) uninstallButton.setEnabled(validPackageName() && validRisk && targetInstalled);
     }
 
     private String safe(String value, int maxChars) {
@@ -203,8 +238,13 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
     }
 
     private void uninstall() {
-        if (!validPackageName()) {
-            showMessage("无法打开卸载界面", "目标包名无效。");
+        if (!validPackageName() || !("CERTAIN".equals(severity) || "SUSPECT".equals(severity))) {
+            showMessage("无法打开卸载界面", "目标包名或风险等级无效。请返回扫描结果重新打开详情。");
+            return;
+        }
+        if (!targetInstalled) {
+            refreshTargetAvailability();
+            showMessage("目标应用不可用", "应用当前不存在或系统不允许查询；请重新扫描后再处理。");
             return;
         }
         new AlertDialog.Builder(this)
@@ -213,6 +253,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
                 .setNegativeButton("取消", null)
                 .setPositiveButton("继续", (dialog, which) -> {
                     try {
+                        getPackageManager().getApplicationInfo(packageName, 0);
                         startActivity(new Intent(Intent.ACTION_DELETE,
                                 Uri.parse("package:" + packageName)));
                     } catch (Throwable error) {
