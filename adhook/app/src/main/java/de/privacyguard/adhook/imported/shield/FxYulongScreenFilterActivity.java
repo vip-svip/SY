@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -20,7 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /** Native Yulong Shield screen-filter controls integrated into FX Hook. */
-public final class FxYulongScreenFilterActivity extends Activity {
+public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_NOTIFICATIONS = 8811;
     private static final String PREFS = "shield_prefs";
     private SharedPreferences prefs;
@@ -75,7 +74,7 @@ public final class FxYulongScreenFilterActivity extends Activity {
         body.setPadding(0, dp(4), 0, dp(20));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         enabled = new Switch(this);
         enabled.setText("启用全屏屏幕滤镜");
