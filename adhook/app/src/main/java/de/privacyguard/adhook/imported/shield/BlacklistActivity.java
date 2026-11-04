@@ -373,6 +373,10 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private void showAppPicker() { showAppPicker(false); }
 
     private void showAppPicker(boolean restoring) {
+        if (blacklistDataCorrupt) {
+            Toast.makeText(this, "原管控名单数据异常，已禁止修改；请先修复原始数据。", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (!restoring && appsLoading) {
             Toast.makeText(this, "正在读取应用列表，请稍后再试。", Toast.LENGTH_SHORT).show();
             return;
@@ -498,8 +502,11 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
                 .setOnClickListener(v -> {
                     currentBlacklist.addAll(staged);
+                    if (!saveBlacklist()) {
+                        currentBlacklist.removeAll(staged);
+                        return;
+                    }
                     blacklistPage = 1;
-                    saveBlacklist();
                     refreshBlacklistUI();
                     dialog.dismiss();
                 }));
@@ -523,6 +530,10 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
     /** "我都很信任" — 清空所有管控 */
     private void trustAll() {
+        if (blacklistDataCorrupt) {
+            Toast.makeText(this, "原管控名单数据异常，已禁止清空，避免覆盖旧配置。", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (currentBlacklist.isEmpty()) {
             new AlertDialog.Builder(this)
                     .setTitle("提示")
@@ -538,9 +549,14 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 .setPositiveButton("确定清空", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
+                        Set<String> previous = new HashSet<>(currentBlacklist);
                         currentBlacklist.clear();
+                        if (!saveBlacklist()) {
+                            currentBlacklist.addAll(previous);
+                            refreshBlacklistUI();
+                            return;
+                        }
                         blacklistPage = 1;
-                        saveBlacklist();
                         refreshBlacklistUI();
                     }
                 })
@@ -550,6 +566,11 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
     private void refreshBlacklistUI() {
         blacklistContainer.removeAllViews();
+        if (blacklistDataWarningView != null) {
+            blacklistDataWarningView.setText(blacklistDataWarning);
+            blacklistDataWarningView.setVisibility(blacklistDataWarning.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        if (trustAllBtn != null) trustAllBtn.setEnabled(!blacklistDataCorrupt);
 
         if (trustAllBtn != null) {
             trustAllBtn.setText("我都很信任" + (currentBlacklist.isEmpty()
@@ -682,9 +703,12 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         removeBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                currentBlacklist.remove(item.packageName);
+                if (!currentBlacklist.remove(item.packageName)) return;
+                if (!saveBlacklist()) {
+                    currentBlacklist.add(item.packageName);
+                    return;
+                }
                 blacklistPage = 1;
-                saveBlacklist();
                 refreshBlacklistUI();
             }
         });
