@@ -2777,3 +2777,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：测试断言按真实字段声明更新，不更改并发实现。
 - 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 下一步：继续 targeted Host 回归，检查下一个失败断言；本轮多次失败均是过期/不精确测试契约，不能记录为源码功能通过。
+
+
+## 2026-11-05 — 安全护盾风险详情页白名单写入上限保护
+
+- 修改前分支 HEAD：`e35e9f223b84ee53dd5f52a3a1b51a4d09950cc4`。
+- 页面组：游龙安全护盾 → 扫描风险详情 → 加入白名单。
+- 发现真实缺陷：`FxYulongWarningActivity.trust()` 先验证现有白名单格式，但新增条目后使用手写 StringBuilder 保存，没有调用共享 `FxYulongWhitelistPolicy.serialize()`。当旧名单已达到 10,000 条或接近 1 MiB 时，单次添加可能越过安全上限，导致后续解析器拒绝整份名单，原有白名单条目因此无法被正常读取。
+- 修复：风险详情页改用中央有界序列化器；若新增后超过条目数/字符数限制，显示明确原因并停止写入，旧配置不变。成功时只提交经过中央策略验证的规范字符串。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 提交：源码 `a1aafd5622deff31855a5df14b51027a0006854b`；定向回归断言 `1dc9343b2f2186a62f01272a9280d88ce3c065fb`；本状态文件由后续提交同步。
+- 验证：源码与测试锚点更新；尚未运行 Shield 回归脚本、Android 单测、Gradle、模拟器或真机。
+- 失败路线：不采用手写 CSV 拼接；以后白名单写入统一使用 `FxYulongWhitelistPolicy.serialize()`，不允许调用方绕过条目/长度上限。此前 create_blob/create_tree 接口连续出现 GitHub GraphQL 错误，改用 Contents API 逐文件提交；未强推或回滚分支。
+- 未完成：风险详情页尚未展示病毒库来源/版本/命中规则 ID（Finding 当前模型字段需先核实原始数据库结构）；扫描和批量清理的 Android 系统确认仍未真机验收。
+- 下一批：① 检查 `FxYulongScanEngine.Finding` 到风险详情页的字段映射并补齐可信命中证据展示；② 完成 Shield 名单编辑页搜索/筛选状态的定向交互回归；③ 定位 Hook 原生 UI Host 回归中的 `built Hook APK missing` 调用链，不重复修改产品断言。
