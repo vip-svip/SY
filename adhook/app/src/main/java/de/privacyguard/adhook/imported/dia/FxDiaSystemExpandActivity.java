@@ -51,8 +51,14 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
             new ThreadPoolExecutor.AbortPolicy());
 
     private static final String STATE_SCROLL_Y = "fx_dia_system_expand_scroll_y";
+    private static final String STATE_INSTALL_PICKER_OPEN = "fx_dia_install_source_picker_open";
+    private static final String STATE_INSTALL_PICKER_QUERY = "fx_dia_install_source_picker_query";
     private ScrollView systemExpandScroll;
     private int restoredScrollY;
+    private boolean restoreInstallSourcePicker;
+    private String restoredInstallSourceQuery = "";
+    private AlertDialog installSourcePickerDialog;
+    private EditText installSourceSearch;
 
     private static final class InstallSource {
         final String packageName;
@@ -132,6 +138,11 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
     }
 
     private void chooseInstallSource() {
+        chooseInstallSource("");
+    }
+
+    private void chooseInstallSource(String initialQuery) {
+        final String queryToRestore = initialQuery == null ? "" : initialQuery;
         Toast.makeText(this, "正在读取声明了安装请求权限的应用…", Toast.LENGTH_SHORT).show();
         try {
             worker.execute(() -> {
@@ -205,11 +216,20 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                         }
                         @Override public void afterTextChanged(Editable value) { }
                     });
+                    if (!queryToRestore.isEmpty()) search.setText(queryToRestore);
                     AlertDialog pickerDialog = new AlertDialog.Builder(this)
                             .setTitle("选择要授权的安装来源")
                             .setView(picker)
                             .setNegativeButton("取消", null)
                             .create();
+                    installSourcePickerDialog = pickerDialog;
+                    installSourceSearch = search;
+                    pickerDialog.setOnDismissListener(dialog -> {
+                        if (installSourcePickerDialog == pickerDialog) {
+                            installSourcePickerDialog = null;
+                            installSourceSearch = null;
+                        }
+                    });
                     list.setOnItemClickListener((parent, view, position, id) -> {
                         InstallSource selected = adapter.getItem(position);
                         if (selected == null) return;
@@ -408,7 +428,13 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        if (state != null) restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+        if (state != null) {
+            restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            restoreInstallSourcePicker = state.getBoolean(STATE_INSTALL_PICKER_OPEN, false);
+            String query = state.getString(STATE_INSTALL_PICKER_QUERY, "");
+            restoredInstallSourceQuery = query == null ? ""
+                    : query.substring(0, Math.min(query.length(), 256));
+        }
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
@@ -466,6 +492,12 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                 }
             });
         }
+        if (restoreInstallSourcePicker) {
+            final String query = restoredInstallSourceQuery;
+            restoreInstallSourcePicker = false;
+            restoredInstallSourceQuery = "";
+            chooseInstallSource(query);
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
@@ -473,9 +505,16 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
         if (systemExpandScroll != null) {
             outState.putInt(STATE_SCROLL_Y, Math.max(0, systemExpandScroll.getScrollY()));
         }
+        if (installSourcePickerDialog != null && installSourcePickerDialog.isShowing()) {
+            outState.putBoolean(STATE_INSTALL_PICKER_OPEN, true);
+            String query = installSourceSearch == null ? "" : installSourceSearch.getText().toString();
+            outState.putString(STATE_INSTALL_PICKER_QUERY,
+                    query.substring(0, Math.min(query.length(), 256)));
+        }
     }
 
     @Override protected void onDestroy() {
+        if (installSourcePickerDialog != null) installSourcePickerDialog.dismiss();
         worker.shutdownNow();
         super.onDestroy();
     }
