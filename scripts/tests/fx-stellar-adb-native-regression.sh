@@ -37,7 +37,8 @@ grep -Fq 'private native byte[] nativeEncrypt(long pointer, byte[] payload);' "$
 grep -Fq 'private native boolean nativeInitCipher(long pointer, byte[] peerMessage);' "$JAVA" || fail "SPAKE2 cipher-init JNI descriptor changed"
 grep -Fq 'private native byte[] nativeMsg(long pointer);' "$JAVA" || fail "SPAKE2 message JNI descriptor changed"
 grep -Fq 'Arrays.fill(secret, (byte) 0);' "$JAVA" || fail "pairing secret copy is not wiped after native context creation"
-grep -Fq 'if (nativePtr == 0L) return;' "$JAVA" || fail "native context destroy is not idempotent"
+grep -Fq 'long pointer = nativePtr;' "$JAVA" || fail "native context destroy must snapshot the live pointer"
+grep -Fq 'if (pointer == 0L) return;' "$JAVA" || fail "native context destroy is not idempotent"
 grep -Fq 'nativePtr = 0L;' "$JAVA" || fail "native pointer is not invalidated before destroy"
 
 # Compile the pure-Java JNI boundary and inspect JVM descriptors, without loading
