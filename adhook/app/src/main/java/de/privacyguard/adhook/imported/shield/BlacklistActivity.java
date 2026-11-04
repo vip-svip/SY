@@ -58,6 +58,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private volatile boolean activityDestroyed;
     private boolean appsLoading = true;
     private static final int BLACKLIST_PAGE_SIZE = 50;
+    private static final int MAX_PICKER_STAGED = 100;
     private int blacklistPage = 1;
     private LinearLayout blacklistContainer;
     private ScrollView blacklistScroll;
@@ -92,7 +93,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             pickerPage = Math.max(1, savedInstanceState.getInt(STATE_PICKER_PAGE, 1));
             pickerScrollY = Math.max(0, savedInstanceState.getInt(STATE_PICKER_SCROLL_Y, 0));
             ArrayList<String> staged = savedInstanceState.getStringArrayList(STATE_PICKER_STAGED);
-            if (staged != null && staged.size() <= 100) pickerStaged.addAll(staged);
+            if (staged != null && staged.size() <= MAX_PICKER_STAGED) pickerStaged.addAll(staged);
         }
 
         // ===== 根布局 =====
@@ -243,7 +244,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         outState.putString(STATE_PICKER_QUERY, pickerQuery.length() > 256 ? pickerQuery.substring(0, 256) : pickerQuery);
         outState.putInt(STATE_PICKER_PAGE, Math.max(1, Math.min(100, pickerPage)));
         if (pickerScroll != null) outState.putInt(STATE_PICKER_SCROLL_Y, Math.max(0, pickerScroll.getScrollY()));
-        if (pickerStaged.size() <= 100) outState.putStringArrayList(STATE_PICKER_STAGED, new ArrayList<>(pickerStaged));
+        if (pickerStaged.size() <= MAX_PICKER_STAGED) outState.putStringArrayList(STATE_PICKER_STAGED, new ArrayList<>(pickerStaged));
         if (blacklistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, blacklistScroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
@@ -439,13 +440,24 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 check.setTextSize(13);
                 check.setChecked(staged.contains(item.packageName));
                 check.setOnCheckedChangeListener((button, checked) -> {
-                    if (checked) staged.add(item.packageName);
-                    else staged.remove(item.packageName);
-                    count.setText("匹配 " + filtered.size() + " 个，已选择 " + staged.size() + " 个");
+                    if (checked && !staged.contains(item.packageName)) {
+                        if (staged.size() >= MAX_PICKER_STAGED) {
+                            button.setChecked(false);
+                            Toast.makeText(this, "单次最多选择 " + MAX_PICKER_STAGED
+                                    + " 个应用，已保留当前选择。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        staged.add(item.packageName);
+                    } else if (!checked) {
+                        staged.remove(item.packageName);
+                    }
+                    count.setText("匹配 " + filtered.size() + " 个，已选择 "
+                            + staged.size() + " / " + MAX_PICKER_STAGED + " 个");
                 });
                 rows.addView(check, new LinearLayout.LayoutParams(-1, -2));
             }
-            count.setText("匹配 " + filtered.size() + " 个，已选择 " + staged.size() + " 个");
+            count.setText("匹配 " + filtered.size() + " 个，已选择 " + staged.size()
+                    + " / " + MAX_PICKER_STAGED + " 个");
             more.setVisibility(filtered.size() > limit ? View.VISIBLE : View.GONE);
             more.setText("加载更多（剩余 " + Math.max(0, filtered.size() - limit) + " 个）");
         };
