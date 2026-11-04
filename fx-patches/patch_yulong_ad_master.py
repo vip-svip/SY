@@ -34,6 +34,12 @@ if "yulong_ad_filter_enabled=" not in d:
 # Stage the weekly scheduler into the restored module.
 repo_root = Path(__file__).resolve().parent.parent
 scheduler_source = repo_root / "scripts/yulong-ad-schedule.sh"
+trusted_source = repo_root / "scripts/yulong-trusted-network.sh"
+trusted_target = root / "scripts/yulong-trusted-network.sh"
+if not trusted_source.is_file():
+    raise SystemExit("Yulong trusted-network watcher source is missing")
+trusted_target.write_text(trusted_source.read_text(encoding="utf-8"), encoding="utf-8")
+trusted_target.chmod(0o755)
 scheduler_target = root / "scripts/yulong-ad-schedule.sh"
 if not scheduler_source.is_file():
     raise SystemExit("Yulong weekly schedule source is missing")
@@ -44,7 +50,8 @@ scheduler_target.chmod(0o755)
 u = util.read_text(encoding="utf-8")
 needle = '''  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_filter_enabled 1)" != "1" ]; then return 0; fi'''
 schedule_gate = needle + '''
-  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_schedule_active 1)" != "1" ]; then return 0; fi'''
+  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_schedule_active 1)" != "1" ]; then return 0; fi
+  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_trusted_active 1)" != "1" ]; then return 0; fi'''
 if "yulong_ad_schedule_active" not in u:
     if needle not in u:
         raise SystemExit("Yulong ad master gate anchor missing for schedule extension")
@@ -62,12 +69,23 @@ if schedule_anchor is None:
     raise SystemExit("Yulong ad master default key missing before schedule state insertion")
 schedule_default = (
     "\n# Weekly Yulong ad schedule runtime state (1=inside schedule, default enabled).\n"
-    "yulong_ad_schedule_active=1\n"
+    "yulong_ad_schedule_active=1\n"    "yulong_ad_trusted_active=1\n"
 )
 d = d[:schedule_anchor.end()] + schedule_default + d[schedule_anchor.end():]
 default.write_text(d, encoding="utf-8")
 
 service = root / "service.sh"
+service_trusted_insert = '''# Trusted Wi-Fi watcher gates only Yulong ad rules.
+if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
+  sh "$MODDIR/scripts/yulong-trusted-network.sh" start >> "$PG/boot.log" 2>&1 || :
+fi
+'''
+if "yulong-trusted-network.sh" not in service_text:
+    if service_marker not in service_text:
+        raise SystemExit("FX service trusted-network insertion anchor missing")
+    service_text = service_text.replace(service_marker, service_trusted_insert + service_marker, 1)
+    service.write_text(service_text, encoding="utf-8")
+    service.chmod(0o755)
 service_marker = 'if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then'
 service_insert = '''# Restore the Yulong weekly schedule after the main FX apply.
 if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
@@ -87,6 +105,19 @@ uninstall = root / "uninstall.sh"
 if not uninstall.is_file():
     raise SystemExit("restored FX uninstall.sh missing")
 uninstall_text = uninstall.read_text(encoding="utf-8")
+if "yulong-trusted-network.sh" not in uninstall_text:
+    remover_marker = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"\n'
+    if remover_marker not in uninstall_text:
+        raise SystemExit("FX uninstall Hook remover anchor missing")
+    trusted_stop = '''# Stop trusted Wi-Fi pause and restore its owned gate before uninstall.
+if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
+  sh "$MODDIR/scripts/yulong-trusted-network.sh" uninstall >/dev/null 2>&1 || :
+fi
+'''
+    uninstall_text = uninstall_text.replace(remover_marker, trusted_stop + remover_marker, 1)
+    uninstall.write_text(uninstall_text, encoding="utf-8")
+    uninstall.chmod(0o755)
+
 old_stop = 'if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" >/dev/null 2>&1 || :; fi\n'
 uninstall_text = uninstall_text.replace(old_stop, "")
 if "# Stop Yulong ad schedule before uninstall cleanup." not in uninstall_text:

@@ -128,6 +128,9 @@ fi
 if [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN watcher failed to start" >> "$PG/boot.log"
 fi
+if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
+  sh "$MODDIR/scripts/yulong-trusted-network.sh" start >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] Yulong trusted-network watcher failed to start" >> "$PG/boot.log"
+fi
 if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
   mkdir -p "$PG/jsruntime" 2>/dev/null
   nohup sh "$MODDIR/scripts/jsruntime/scheduler.sh" >> "$PG/jsruntime/scheduler.log" 2>&1 &

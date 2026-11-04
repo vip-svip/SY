@@ -735,6 +735,22 @@ case "$cmd" in
     echo "active=0"
     echo "status=not-installed"
   fi ;;
+
+ trusted-status)
+  sh "$MP/scripts/yulong-trusted-network.sh" status ;;
+ trusted-refresh)
+  sh "$MP/scripts/yulong-trusted-network.sh" evaluate >/dev/null
+  sh "$MP/scripts/yulong-trusted-network.sh" status ;;
+ trusted-ssid-add)
+  [ "$#" -eq 2 ] || exit 2
+  sh "$MP/scripts/yulong-trusted-network.sh" add "$2" ;;
+ trusted-ssid-remove)
+  [ "$#" -eq 2 ] || exit 2
+  sh "$MP/scripts/yulong-trusted-network.sh" remove "$2" ;;
+ trusted-pause-set)
+  [ "$#" -eq 2 ] && { [ "$2" = 0 ] || [ "$2" = 1 ]; } || exit 2
+  sh "$MP/scripts/yulong-trusted-network.sh" pause-set "$2" ;;
+
  logs)
   [ -s "$PG/boot.log" ] && tail -n 180 "$PG/boot.log" || echo "暂无日志" ;;
  ad-master)
