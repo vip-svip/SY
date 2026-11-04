@@ -1006,17 +1006,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         input.setMinLines(8);
         input.setHint("{\"schema\":\"FX-DIA-FRIDA-SCRIPTS-1\",\"scripts\":{\"demo\":\"console.log('hello')\"}}");
         new AlertDialog.Builder(this).setTitle("从剪贴板 JSON 导入 Frida 脚本库")
-                .setMessage("只导入 JSON 中的脚本源码，不会自动执行。重复名称将覆盖本机同名脚本。")
+                .setMessage("只导入 JSON 中的脚本源码，不会自动执行。验证后会列出同名脚本；只有再次确认才会覆盖。")
                 .setView(input)
                 .setNegativeButton("取消", null)
-                .setPositiveButton("验证并导入", (dialog, which) -> {
-                    try {
-                        mergeFridaScriptLibraryJson(input.getText().toString());
-                        showFridaScriptLibrary();
-                    } catch (Exception error) {
-                        setStatus("导入脚本库失败：" + error.getMessage());
-                    }
-                }).show();
+                .setPositiveButton("验证并预览", (dialog, which) ->
+                        previewAndImportFridaScriptLibraryJson(input.getText().toString()))
+                .show();
     }
 
     private void importFridaScriptLibraryFile(Uri uri) {
@@ -1036,13 +1031,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 String json = new String(output.toByteArray(), StandardCharsets.UTF_8);
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    try {
-                        int countScripts = mergeFridaScriptLibraryJson(json);
-                        setStatus("已从文件导入 " + countScripts + " 个 Frida 脚本。");
-                        showFridaScriptLibrary();
-                    } catch (Exception error) {
-                        setStatus("导入 Frida 脚本库文件失败：" + error.getMessage());
-                    }
+                    previewAndImportFridaScriptLibraryJson(json);
                 });
             } catch (Throwable error) {
                 runOnUiThread(() -> {
@@ -1054,8 +1043,44 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         });
     }
 
-    private int mergeFridaScriptLibraryJson(String json) throws Exception {
-        return FxDiaScriptLibraryStore.mergeImport(this, json);
+    private void previewAndImportFridaScriptLibraryJson(String json) {
+        try {
+            FxDiaScriptLibraryStore.ImportPreview preview =
+                    FxDiaScriptLibraryStore.previewImport(this, json);
+            StringBuilder message = new StringBuilder()
+                    .append("本次将导入 ").append(preview.count).append(" 个脚本。");
+            if (preview.overwrittenNames.isEmpty()) {
+                message.append("\\n不会覆盖现有脚本。");
+            } else {
+                message.append("\\n以下同名脚本将被覆盖：");
+                int shown = Math.min(8, preview.overwrittenNames.size());
+                for (int i = 0; i < shown; i++)
+                    message.append("\\n• ").append(preview.overwrittenNames.get(i));
+                if (preview.overwrittenNames.size() > shown)
+                    message.append("\\n另有 ").append(preview.overwrittenNames.size() - shown).append(" 个同名脚本。");
+            }
+            String positive = preview.overwrittenNames.isEmpty() ? "确认导入" : "确认覆盖并导入";
+            new AlertDialog.Builder(this)
+                    .setTitle("确认导入 Frida 脚本库")
+                    .setMessage(message.toString())
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton(positive, (dialog, which) -> {
+                        try {
+                            int countScripts = mergeFridaScriptLibraryJson(json, preview.overwrittenNames);
+                            setStatus("已导入 " + countScripts + " 个 Frida 脚本。");
+                            showFridaScriptLibrary();
+                        } catch (Exception error) {
+                            setStatus("导入未完成：" + error.getMessage());
+                        }
+                    })
+                    .show();
+        } catch (Exception error) {
+            setStatus("脚本库导入预览失败：" + error.getMessage());
+        }
+    }
+
+    private int mergeFridaScriptLibraryJson(String json, java.util.List<String> confirmedOverwrites) throws Exception {
+        return FxDiaScriptLibraryStore.mergeImport(this, json, confirmedOverwrites);
     }
 
     private void pickScript() {
