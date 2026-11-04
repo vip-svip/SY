@@ -2116,3 +2116,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 并行提交 `78a57d9831c7180e0803e88f2cc552b66cd52bc6`：Frida 全屏编辑器返回结果绑定目标包名与源脚本 SHA-256，避免旧编辑结果覆盖已变化的脚本/目标。
 - 最新 HEAD 静态复核：批量清理结果请求码与返回后扫描失效逻辑存在；Shield 回归脚本包含队列完整性断言；Hook LSPosed 超时/取消入口存在。未运行 Shell/Host 测试、Gradle、UI 自动化或真机测试。
 - 下一批：复核 Dia Frida 进程选择/编辑器的目标身份与请求归属边界；随后处理游龙广告 Tasker/Widget 动作回执 UI。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Frida 全屏编辑器返回结果绑定目标与源版本
+
+- 本批代码起始 HEAD：`a102de7565271c44c0cfcf468fa88b8d574ef963`；提交期间因并行工作导致状态文档先后推进至当前 HEAD `7b499d052809385335262deb514374803aef3ace`，已重读最新源码与测试后追加，不覆盖并行内容。
+- 原问题：Frida 主页面通过原有 `0x3039` Activity Result 打开全屏 Sora 编辑器；返回时只检查结果码和 48 KiB 长度，未验证当前目标包与打开编辑器时的目标相同，也未验证主页面脚本是否在编辑期间被其他动作更新。
+- 修改 `FxDiaFridaActivity`：
+  - 打开编辑器前冻结目标包名和当前源码 SHA-256 指纹，并拒绝同时打开第二个全屏编辑器请求。
+  - 将 pending 标记、目标包和指纹写入 Activity Bundle；旋转/重建后可继续接收原编辑器结果。
+  - 返回时消费并清理 pending 状态；若没有有效请求、目标包已改变、当前脚本指纹已改变、编辑器返回空值或超过 48 KiB，则不覆盖当前脚本。
+  - 只有请求仍归属于同一目标、脚本源版本未变化且结果合法时才写回编辑结果；不执行脚本、不自动注入。
+  - 保持原 Activity Result 常量 `REQUEST_CODE_FULL_EDITOR = 0x3039`、编辑器代码 extra、JavaScript 纯文本模式及保存/放弃交互。
+- 提交：
+  - `78a57d9831c7180e0803e88f2cc552b66cd52bc6` — `fix(dia): bind Frida editor result to source snapshot`。
+  - `bdd719d25df57404d71ce7be54bc791d236b8292` — `test(dia): cover Frida editor result ownership`。
+- 最新 HEAD 静态复核：SHA-256 源指纹、目标包快照、Bundle pending 恢复、返回时目标与源版本双重比较、pending 清理、0x3039 兼容及回归断言共 12 项通过。未运行 Sora Android UI、双窗口切换/进程重建、Gradle 编译或真机编辑返回测试。
+- 并行续接：已确认同一工作线后续修复批量清理返回后必须重新扫描、LSPosed 作用域读取/申请/移除增加超时与过期回调取消；保留并未覆盖。
+- 下一步：审计游龙安全护盾病毒库管理页的网络失败、空响应、校验失败是否会覆盖旧缓存，以及 UI 是否区分本地缓存可用、在线更新失败、数据库未就绪。随后检查 Frida SAF 导入/导出请求并发与文件暂存清理。固定 FX 1.0.0，不提前发布最终 APK / KernelSU ZIP。
