@@ -44,6 +44,10 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
             r -> { Thread t = new Thread(r, "fx-dia-install-source-picker"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
 
+    private static final String STATE_SCROLL_Y = "fx_dia_system_expand_scroll_y";
+    private ScrollView systemExpandScroll;
+    private int restoredScrollY;
+
     private static final class InstallSource {
         final String packageName;
         final String label;
@@ -361,6 +365,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
@@ -374,6 +379,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
+        systemExpandScroll = scroll;
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(4), 0, dp(24));
@@ -408,6 +414,22 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                 button("检查并重启", this::checkPackageInstallerBeforeRestart));
 
         setContentViewWithNativeTabs(root, 5);
+        if (restoredScrollY > 0) {
+            final int restoreY = restoredScrollY;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed()
+                        && systemExpandScroll == scroll && scroll.getParent() != null) {
+                    scroll.scrollTo(0, restoreY);
+                }
+            });
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (systemExpandScroll != null) {
+            outState.putInt(STATE_SCROLL_Y, Math.max(0, systemExpandScroll.getScrollY()));
+        }
     }
 
     @Override protected void onDestroy() {
