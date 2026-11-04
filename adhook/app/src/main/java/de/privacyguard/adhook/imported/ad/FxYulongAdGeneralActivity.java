@@ -3,6 +3,9 @@ package de.privacyguard.adhook.imported.ad;
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -18,6 +21,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -48,8 +52,18 @@ public final class FxYulongAdGeneralActivity extends Activity {
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> { Thread t = new Thread(r, "fx-yulong-ad-backup"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
-    private TextView batteryStatus, operationStatus;
+    private TextView batteryStatus, operationStatus, taskerResultStatus;
+    private Switch taskerExternalControl;
+    private boolean updatingTaskerControlSwitch;
+    private boolean taskerResultReceiverRegistered;
     private String pendingExport;
+
+    private final BroadcastReceiver taskerResultReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null || !FxYulongAdTaskerReceiver.ACTION_RESULT.equals(intent.getAction())) return;
+            refreshTaskerResultStatus();
+        }
+    };
 
     private void submitWorker(Runnable task) {
         try {
@@ -123,14 +137,38 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 "将 FX 游龙广告过滤状态组件固定到支持的桌面启动器。组件会读取设备端真实 VPN/Root Proxy 状态；固定操作由桌面启动器确认。",
                 button("添加游龙广告过滤桌面小组件", this::requestHomeWidgetPin));
 
+        android.content.SharedPreferences taskerPrefs =
+                getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        taskerExternalControl = new Switch(this);
+        taskerExternalControl.setText("允许外部自动化广播执行 Root 操作");
+        taskerExternalControl.setChecked(taskerPrefs.getBoolean(
+                FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false));
+        taskerExternalControl.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingTaskerControlSwitch) return;
+            boolean saved = taskerPrefs.edit()
+                    .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, checked)
+                    .commit();
+            if (!saved) {
+                updatingTaskerControlSwitch = true;
+                button.setChecked(!checked);
+                updatingTaskerControlSwitch = false;
+                Toast.makeText(this, "自动化授权设置保存失败，原状态保持不变。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            refreshTaskerResultStatus();
+        });
+        taskerResultStatus = text("尚无自动化执行回执。", 12, 0xff526170, false);
         card(body, "Tasker / 自动化广播",
-                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。复制动作标识后，在 Tasker 的“发送意图”中将接收组件设为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤开关与 VPN 开关相互独立。结果广播为 de.privacyguard.adhook.AD_FILTER_RESULT。",
+                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。接收组件为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤与 VPN 动作相互独立。由于该 Receiver 可触发 Root 命令，外部控制默认关闭；仅在信任已安装的自动化应用时手动开启。最近回执只说明命令执行结果，不等于服务当前仍在运行。",
+                taskerExternalControl,
                 button("复制：开启广告过滤", () -> copyTaskerAction("开启广告过滤", FxYulongAdTaskerReceiver.ACTION_ENABLE)),
                 button("复制：关闭广告过滤", () -> copyTaskerAction("关闭广告过滤", FxYulongAdTaskerReceiver.ACTION_DISABLE)),
                 button("复制：启动 FX VPN", () -> copyTaskerAction("启动 FX VPN", FxYulongAdTaskerReceiver.ACTION_VPN_START)),
                 button("复制：停止 FX VPN", () -> copyTaskerAction("停止 FX VPN", FxYulongAdTaskerReceiver.ACTION_VPN_STOP)),
                 button("复制：原版 Tasker_START", () -> copyTaskerAction("原版 Tasker_START", FxYulongAdTaskerReceiver.LEGACY_ACTION_START)),
-                button("复制：原版 Tasker_STOP", () -> copyTaskerAction("原版 Tasker_STOP", FxYulongAdTaskerReceiver.LEGACY_ACTION_STOP)));
+                button("复制：原版 Tasker_STOP", () -> copyTaskerAction("原版 Tasker_STOP", FxYulongAdTaskerReceiver.LEGACY_ACTION_STOP)),
+                button("刷新最近执行回执", this::refreshTaskerResultStatus),
+                taskerResultStatus);
 
         card(body, "界面、主题与语言",
                 "FX 已合并为单一原生应用，界面主题、语言和强调色属于 FX 应用级偏好；不会再创建第二套游龙 Activity 主题配置。");
@@ -140,6 +178,76 @@ public final class FxYulongAdGeneralActivity extends Activity {
                         + "网络架构：FX 单一 VPN/TUN + Root DNS Proxy 回退；不安装游龙原版第二个 VpnService。\n"
                         + "配置和备份仅保存在本机，导入导出由用户通过 Android 文件选择器授权。");
         refreshBatteryStatus();
+        refreshTaskerResultStatus();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        registerTaskerResultReceiver();
+        refreshTaskerResultStatus();
+    }
+
+    @Override protected void onPause() {
+        unregisterTaskerResultReceiver();
+        super.onPause();
+    }
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private void registerTaskerResultReceiver() {
+        if (taskerResultReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter(FxYulongAdTaskerReceiver.ACTION_RESULT);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(taskerResultReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(taskerResultReceiver, filter);
+            }
+            taskerResultReceiverRegistered = true;
+        } catch (RuntimeException error) {
+            if (taskerResultStatus != null)
+                taskerResultStatus.setText("无法监听自动化实时回执：" + error.getClass().getSimpleName());
+        }
+    }
+
+    private void unregisterTaskerResultReceiver() {
+        if (!taskerResultReceiverRegistered) return;
+        try {
+            unregisterReceiver(taskerResultReceiver);
+        } catch (IllegalArgumentException ignored) { }
+        taskerResultReceiverRegistered = false;
+    }
+
+    private void refreshTaskerResultStatus() {
+        if (taskerResultStatus == null || isFinishing() || isDestroyed()) return;
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
+            boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
+            taskerResultStatus.setText(allowed
+                    ? "已允许外部自动化控制；尚未收到执行回执。"
+                    : "外部自动化控制当前关闭；Tasker 广播不会执行 Root 操作。尚无最近执行回执。");
+            return;
+        }
+        String action = prefs.getString(FxYulongAdTaskerReceiver.PREF_LAST_ACTION, "未知动作");
+        String target = prefs.getString(FxYulongAdTaskerReceiver.PREF_LAST_TARGET, "未知目标");
+        boolean requested = prefs.getInt(FxYulongAdTaskerReceiver.PREF_LAST_ENABLED, -1) == 1;
+        boolean success = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_LAST_SUCCESS, false);
+        int exitCode = prefs.getInt(FxYulongAdTaskerReceiver.PREF_LAST_EXIT_CODE, -1);
+        String detail = prefs.getString(FxYulongAdTaskerReceiver.PREF_LAST_DETAIL, "");
+        long timestamp = prefs.getLong(FxYulongAdTaskerReceiver.PREF_LAST_AT, 0L);
+        String date = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.MEDIUM, java.text.DateFormat.MEDIUM)
+                .format(new java.util.Date(timestamp));
+        StringBuilder display = new StringBuilder();
+        display.append("最近执行：").append(date)
+                .append("\\n控制目标：").append("vpn".equals(target) ? "FX VPN" : "广告过滤")
+                .append(" · 请求状态：").append(requested ? "开启" : "关闭")
+                .append("\\n动作：").append(action)
+                .append("\\n命令结果：").append(success ? "执行成功" : "执行失败")
+                .append(" · 退出码：").append(exitCode);
+        if (!detail.isEmpty()) display.append("\\n回执详情：").append(detail);
+        display.append("\\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
+        taskerResultStatus.setText(display.toString());
     }
 
     private void requestHomeWidgetPin() {
@@ -628,5 +736,9 @@ public final class FxYulongAdGeneralActivity extends Activity {
         runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())operationStatus.setText(title+"："+message);});
     }
 
-    @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() {
+        unregisterTaskerResultReceiver();
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }
