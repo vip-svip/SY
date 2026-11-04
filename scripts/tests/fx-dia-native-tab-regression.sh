@@ -16,6 +16,8 @@ $DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaJsonActivity.java
 $DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaFileActivity.java
+$DIA/FxDiaGpsPickerActivity.java
+$DIA/FxDiaSessionLogActivity.java
 "
 fail() { echo "FAIL: $*" >&2; exit 1; }
 for file in "$BASE" "$MAIN" $PAGES; do
@@ -42,6 +44,13 @@ for token in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission",
               "DocumentsContract.createDocument", "onActivityResult(",
               "loadDirectory(", "submitIo("):
     assert token in file_page, f"File/ELF behavior missing: {token}"
+gps_page = next(p for p in pages if "class FxDiaGpsPickerActivity" in p)
+for token in ("STATE_PAIR", "STATE_LATITUDE", "STATE_LONGITUDE", "STATE_STATUS", "onSaveInstanceState("):
+    assert token in gps_page, f"GPS picker state missing: {token}"
+session_page = next(p for p in pages if "class FxDiaSessionLogActivity" in p)
+for token in ("STATE_SEARCH", "STATE_SCROLL_Y", "onSaveInstanceState("):
+    assert token in session_page, f"Session Log state missing: {token}"
+print("PASS: GPS picker and Session Log state restoration anchors remain")
 print("PASS: Dia independent pages retain the shared six-tab shell")
 print("PASS: File/ELF SAF grant, import/export, directory and worker paths remain")
 PY
