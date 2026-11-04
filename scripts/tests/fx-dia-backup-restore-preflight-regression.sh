@@ -29,6 +29,12 @@ assert r'line.split("\\|",3)' in source, "Stellar dump parser must split on a li
 assert r'line.split("\\\\|",3)' not in source, "Stellar dump parser must not split on backslash/empty alternatives"
 assert "STATE_PENDING_EXPORT_FILE" in source, "pending export state key missing"
 assert "outState.putString(STATE_PENDING_EXPORT_FILE, pendingBackupFileName)" in source, "pending export filename is not saved across recreation"
+for key in ("STATE_GH_OWNER", "STATE_GH_REPO", "STATE_GH_PATH", "STATE_GH_BRANCH", "STATE_DAV_URL", "STATE_DAV_USER"):
+    assert f"outState.putString({key}" in source, f"backup form state missing: {key}"
+assert "outState.putInt(STATE_SCROLL_Y" in source, "backup page scroll position is not restored"
+for secret in ("ghToken", "davPass", "backupPassword"):
+    assert f"outState.putString({secret}" not in source and f"outState.putCharSequence({secret}" not in source, f"secret must not be persisted: {secret}"
+assert "不会写入页面恢复状态" in source, "UI must explain that secret credentials are intentionally not restored"
 assert "state.getString(STATE_PENDING_EXPORT_FILE)" in source, "pending export filename is not restored after recreation"
 assert "File.createTempFile(PENDING_EXPORT_PREFIX, \".tmp\", getCacheDir())" in source, "encrypted export is not staged in private cache"
 assert "resolvePendingBackupFile(stagedName)" in source, "export result does not validate its staged cache file"
