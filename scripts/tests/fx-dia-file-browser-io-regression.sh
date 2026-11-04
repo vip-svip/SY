@@ -20,6 +20,15 @@ assert "new ArrayBlockingQueue<>(8)" in source, "file browser I/O queue must be 
 assert "new Thread(r, \"fx-dia-file-io\")" in source, "worker threads must be named"
 assert source.count("new Thread(") == 1, "raw per-action Threads must be removed"
 assert "private void submitIo(String operation, Runnable task)" in source
+assert "private List<Entry> filteredDirectoryEntries()" in source, "directory search filter is missing"
+assert "directorySearch.setHint(\"搜索当前目录的文件名或类型\")" in source, "directory search UI is missing"
+assert "entry.name.toLowerCase(Locale.ROOT).contains(query)" in source
+assert "entry.mime.toLowerCase(Locale.ROOT).contains(query)" in source
+assert "STATE_PATH_STACK" in source and "outState.putStringArrayList(STATE_PATH_STACK" in source, "nested directory path is not restored"
+assert "STATE_DIRECTORY_QUERY" in source and "outState.putString(STATE_DIRECTORY_QUERY" in source, "directory search query is not restored"
+assert "STATE_DISPLAYED_ENTRIES" in source and "outState.putInt(STATE_DISPLAYED_ENTRIES" in source, "visible pagination depth is not restored"
+assert "STATE_SCROLL_Y" in source and "outState.putInt(STATE_SCROLL_Y" in source, "file page scroll position is not restored"
+assert "restored.size() <= 64" in source and "rootId.equals(restored.get(0))" in source, "restored SAF path must be bounded and rooted in the granted tree"
 assert "private void postUi(Runnable action)" in source
 
 directory = section("private void loadDirectory()", "private void appendDirectoryPage()")
