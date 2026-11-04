@@ -446,7 +446,8 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("click");
         } else if ("按文本/ID 自动点击".equals(title)) {
             loadDiaMonitorTemplate("click-auto");
-        } else if ("按文本/ID 移除匹配弹窗".equals(title)) {
+        } else if ("Dialog 观察与规则".equals(title)
+                || "按文本/ID 移除匹配弹窗".equals(title)) {
             loadDiaMonitorTemplate("viewgroup-remove");
         } else if ("ViewGroup 层级监控".equals(title)) {
             loadDiaMonitorTemplate("viewgroup");
