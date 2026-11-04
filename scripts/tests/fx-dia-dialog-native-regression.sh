@@ -41,15 +41,16 @@ assert "showDiaToastTarget(ai)" in ui, "Toast native target page is not routed"
 for field in ("toast_filter_enabled", "toast_text_terms", "toast_filter_draft_enabled", "toast_filter_draft_terms"):
     assert field in ui, f"missing Toast preference/draft field {field}"
 assert "Toast 规则未能写入本地存储" in ui and "toast_filter=1,toast_text_terms_b64=" in ui
-assert "(ai.flags & ApplicationInfo.FLAG_SYSTEM) == 0" in ui, "system app Toast publishing must stay disabled"
+assert "FLAG_SYSTEM" in ui and "FLAG_UPDATED_SYSTEM_APP" in ui, "system and updated-system apps must not be Toast targets"
+assert "FLAG_UPDATED_SYSTEM_APP" in hook and "final boolean toastFilterForPackage = !systemTarget && target != null" in hook
 
 # Unified parser/serializer validation and bounded literal matching.
 for key in ("dialog_match", "dialog_notify", "dialog_text_terms_b64", "dialog_id_terms_b64"):
+    assert key in parser, f"parser does not consume {key}"
 for key in ("toast_filter", "toast_text_terms_b64"):
     assert key in parser, f"parser does not consume {key}"
 assert "toast filtering requires explicit text rules" in parser
 assert "toast text rules require toast_filter=1" in parser
-    assert key in parser, f"parser does not consume {key}"
 assert "dialogNotify && !dialogMatchEnabled" in parser
 assert "dialog_notify" in ser and "dialog rules/feedback require dialogMatchEnabled" in ser
 assert "MAX_TERMS = 32" in policy and "MAX_RAW_UTF8_BYTES = 1024" in policy
@@ -109,4 +110,4 @@ OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT HUP INT TERM
 javac -Xlint:all -Werror -d "$OUT" "$POLICY" "$HOST_TEST"
 java -cp "$OUT" de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicyHostTest
-echo "PASS: Dia native Dialog integration regression"
+echo "PASS: Dia Dialog and per-app Toast integration regression"
