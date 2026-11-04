@@ -44,7 +44,7 @@ assert "MAX_TEXT_CHARS = 4096" in policy
 assert "matchesResourceIdExactly" in policy_test
 
 # Real runtime path: package scope, WindowManager pre-attach and Dialog.show pre-check.
-assert "dialogMatchForPackage && debuggableTarget" in hook
+assert "target.dialogMatchEnabled && debuggableTarget" in hook
 assert "private UnifiedHookConfigParser.Target dialogRulesFor" in hook
 assert 'Class.forName("android.view.WindowManagerImpl"' in hook
 assert '"addView".equals(method.getName())' in hook
