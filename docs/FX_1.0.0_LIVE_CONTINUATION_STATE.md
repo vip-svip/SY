@@ -1496,3 +1496,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`0aff802f3931276f0d6b08963f7ded25805f031c`（表单草稿与本地状态同步提交）；`526da0a1ea32e02027461b085e56a87da1ffbc7d`（本地状态提交失败时条件回滚）；`46af965d01f97d36d5093c139c40e3940a6b665d`（代理回归脚本增加草稿恢复、清理和失败回滚断言）。
 - 静态验证：当前 HEAD 源码确认草稿恢复、输入监听、成功提交清理、条件回滚与冲突保护均存在；回归脚本包含对应断言。未执行 `fx-dia-wifi-proxy-regression.py`、Java Host 测试、Gradle、模拟器或 Root 真机验证。
 - 下一步：继续审计备份页 SAF Activity Result 重建与临时文件清理，GPS Picker 状态恢复已存在 `onSaveInstanceState`，还需验证调用方 result contract；随后做一次可运行的 Dia Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia GPS 选点 Activity Result 旋转恢复
+
+- 本批起始实时 HEAD：`32b0d5a5050a0db08bc550d9269f1e60c4212b51`。
+- 修复 `MainActivity` 在高德 GPS Picker 打开期间发生 Activity 重建后丢失 `pendingDiaGpsTargetPackage` 的问题：现在在 `onSaveInstanceState` 写入 `fx_pending_dia_gps_target`，在 `onCreate` 恢复；原有 Activity Result 包名一致性校验保持不变，坐标仍只回写原始目标应用。
+- 已核对 `FxDiaGpsPickerActivity` 自身保存/恢复配对输入、经纬度和状态文本；`FxDiaBackupActivity` 也已核对会在重建时恢复待导出暂存文件名，清理其他陈旧暂存文件，取消/失败时删除本次暂存文件。备份密码与 GitHub/WebDAV 凭据不写入状态或偏好，避免明文持久化。
+- 提交：`829326a84c235924c5ff6f66c1c58820abaef767`（保存/恢复 GPS 目标包名）；`6f06af1dbd9cc1058b8934359884b2dbe251750f`（Dia 六 Tab 回归脚本检查目标包名状态与返回结果归属）。
+- 静态验证：当前 HEAD 对主 Activity 的状态保存/恢复、Picker 状态字段、Activity Result 目标包名校验及回归断言全部通过。未运行 Shell/Python/Java Host 测试、Gradle、模拟器或真机旋转/SAF 结果验收。
+- 下一步：完成一次集中 Dia Host 回归可运行性检查；随后转到 Hook 自定义规则页的草稿、导入导出与页面返回状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
