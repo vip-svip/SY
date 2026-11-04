@@ -1359,9 +1359,25 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
-        String command = "pkg=" + quote(targetPackage)
+        final int targetUid;
+        try {
+            ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
+            if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                    || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝枚举进程。");
+                return;
+            }
+            targetUid = targetInfo.uid;
+        } catch (Throwable missing) {
+            setStatus("目标应用已卸载或不可用，拒绝枚举进程。");
+            return;
+        }
+        String command = "pkg=" + quote(targetPackage) + "; uid=" + targetUid
                 + "; ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
-                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1 \"|\" $2}'";
+                + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1 \"|\" $2}'"
+                + " | while IFS='|' read -r pid name; do "
+                + "proc_uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"/proc/$pid/status\" 2>/dev/null || :); "
+                + "[ \"$proc_uid\" = \"$uid\" ] && printf '%s|%s\\n' \"$pid\" \"$name\"; done";
         runRoot(command, 15000L, result -> {
             if (result.exitCode != 0 || result.output == null) {
                 setStatus("读取目标进程失败：" + result.output);
@@ -2256,6 +2272,7 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
+        final int targetUid;
         try {
             ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
             if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
@@ -2263,6 +2280,7 @@ public final class FxDiaFridaActivity extends Activity {
                 setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝注入。");
                 return;
             }
+            targetUid = targetInfo.uid;
         } catch (Throwable missing) {
             setStatus("目标应用已卸载或不可用，拒绝注入。");
             return;
@@ -2291,7 +2309,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "printf '%s' " + quote(encoded) + " | base64 -d > " + quote(scriptPath) + "; "
                 + "chmod 600 " + quote(scriptPath) + "; "
                 + ": >> " + quote(logPath) + "; chmod 600 " + quote(logPath) + "; "
-                + "pkg=" + quote(targetPackage) + "; "
+                + "pkg=" + quote(targetPackage) + "; target_uid=" + targetUid + "; "
                 + "printf '\\n[FX Dia] multi-process injection start %s target=%s\\n' \"$(date '+%F %T')\" "
                 + quote(targetPackage) + " >> " + quote(logPath) + "; "
                 + pidSource
@@ -2302,7 +2320,9 @@ public final class FxDiaFridaActivity extends Activity {
                 + "proc=$(ps -A -o PID,NAME 2>/dev/null | awk -v wanted=\"$pid\" '$1==wanted {print $2; exit}'); "
                 + "case \"$proc\" in \"$pkg\"|\"$pkg\":*) ;; *) "
                 + "echo skipped-stale-or-unmatched-pid=$pid >> " + quote(logPath) + "; continue;; esac; "
-                + "echo attach process=$proc pid=$pid >> " + quote(logPath) + "; "
+                + "proc_uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"/proc/$pid/status\" 2>/dev/null || :); "
+                + "[ \"$proc_uid\" = \"$target_uid\" ] || { echo skipped-uid-mismatch-pid=$pid >> " + quote(logPath) + "; continue; }; "
+                + "echo attach process=$proc uid=$proc_uid pid=$pid >> " + quote(logPath) + "; "
                 + "if " + quote(injector) + " -p \"$pid\" -s " + quote(scriptPath)
                 + " >> " + quote(logPath) + " 2>&1; then injected=$((injected+1)); "
                 + "else rc=$?; failed=1; echo attach-failed pid=$pid exit=$rc >> " + quote(logPath) + "; fi; "
