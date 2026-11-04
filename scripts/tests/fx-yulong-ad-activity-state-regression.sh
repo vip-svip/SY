@@ -55,6 +55,29 @@ assert create < render_call < restore < load, \
 general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
 dns = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java").read_text(encoding="utf-8")
 summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java").read_text(encoding="utf-8")
+dns_required = [
+    'private static final String STATE_SEARCH = "fx_dns_search";',
+    'private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";',
+    'outState.putString(STATE_SEARCH, search.getText().toString())',
+    'outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()))',
+    'state.getString(STATE_SEARCH, "")',
+    'state.getInt(STATE_SCROLL_Y, 0)',
+    'private final AtomicInteger loadGeneration = new AtomicInteger();',
+    'final int generation = loadGeneration.incrementAndGet();',
+    'if (generation != loadGeneration.get()) return;',
+    'private void restoreScrollIfNeeded()',
+    'pendingScrollRestore = true;',
+    'loadGeneration.incrementAndGet();',
+]
+for token in dns_required:
+    assert token in dns, f"missing DNS page state/lifecycle invariant: {token}"
+assert "loadGeneration.incrementAndGet();\\n        worker.shutdownNow();" in dns, \
+    "DNS log callbacks must be invalidated before the worker is shut down"
+assert "if (refreshButton != null) refreshButton.setEnabled(false);" in dns, \
+    "DNS refresh must prevent duplicate queued reads"
+assert "if (clearButton != null) clearButton.setEnabled(false);" in dns, \
+    "DNS log clear must prevent duplicate queued destructive operations"
+
 for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"),
                                 ("DNS log", dns, "ArrayBlockingQueue<>(16)"),
                                 ("daily summary", summary, "ArrayBlockingQueue<>(8)")):
