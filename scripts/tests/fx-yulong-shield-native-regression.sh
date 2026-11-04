@@ -400,6 +400,11 @@ assert 'STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y"' in black
 assert "outState.putInt(STATE_PAGE" in black and "outState.putInt(STATE_SCROLL_Y" in black
 assert "savedInstanceState.getInt(STATE_PAGE, 1)" in black
 assert "blacklistScroll.scrollTo(0, restoreY)" in black
+assert "MAX_PICKER_STAGED = 100" in black, "Blacklist picker must cap staged selections to the Bundle-restorable limit"
+assert "staged.size() >= MAX_PICKER_STAGED" in black, "Blacklist picker must reject selections beyond the saved-state cap"
+assert "单次最多选择 " in black, "Blacklist picker must explain its explicit selection limit"
+assert "outState.putStringArrayList(STATE_PICKER_STAGED" in black, "Blacklist staged selection must be persisted during Activity recreation"
+assert "if (pickerDialogOpen) showAppPicker(true);" in black, "Blacklist picker must reopen after asynchronous app inventory restoration"
 picker = shield["WhitelistPickerActivity.java"]
 assert 'STATE_QUERY = "fx_shield_whitelist_picker_query"' in picker
 assert 'STATE_SELECTED = "fx_shield_whitelist_picker_selected"' in picker
