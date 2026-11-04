@@ -259,12 +259,13 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 lock = source.split("watch_lock_acquire() {", 1)[1].split("watch_lock_release() {", 1)[0]
+matcher = source.split("watch_lock_process_is_ours() {", 1)[1].split("watch_lock_acquire() {", 1)[0]
 release = source.split("watch_lock_release() {", 1)[1].split("watch_lock_signal_exit() {", 1)[0]
 assert "set -C" in lock, "watcher lock is not created with noclobber"
 assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
-assert 'grep -Fqx "$SCRIPT_PATH"' in lock, "lock identity must match the script argv token, not assume a fixed argv position"
+assert 'grep -Fqx "$SCRIPT_PATH"' in matcher, "lock identity must match the script argv token, not assume a fixed argv position"
 assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
 assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
 assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
