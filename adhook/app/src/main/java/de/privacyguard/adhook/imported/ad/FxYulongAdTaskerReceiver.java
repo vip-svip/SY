@@ -3,6 +3,7 @@ package de.privacyguard.adhook.imported.ad;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 
 import de.privacyguard.adhook.RootAccess;
 
@@ -25,6 +26,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
 
     public static final String PREFS_NAME = "fx_yulong_tasker";
     public static final String PREF_ALLOW_EXTERNAL = "allow_external_actions";
+    public static final String PREF_ALLOWED_SENDER_PACKAGE = "allowed_sender_package";
     public static final String PREF_LAST_ACTION = "last_action";
     public static final String PREF_LAST_TARGET = "last_target";
     public static final String PREF_LAST_ENABLED = "last_requested_enabled";
@@ -82,13 +84,20 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             return;
         }
 
-        // The receiver is exported for Tasker compatibility. Because these
-        // broadcasts can invoke Root-backed operations, require an explicit
-        // opt-in from the FX General Settings screen before accepting any action.
-        if (!context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(PREF_ALLOW_EXTERNAL, false)) {
+        // The receiver is exported for automation compatibility but performs Root
+        // operations. Authenticate the actual sending app before reading the opt-in
+        // switch; arbitrary apps must not trigger Root or overwrite the user's receipt.
+        android.content.SharedPreferences automationPrefs =
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String allowedPackage = automationPrefs.getString(PREF_ALLOWED_SENDER_PACKAGE, "");
+        if (!isAuthorizedAutomationSender(context, allowedPackage)) {
+            android.util.Log.w("FX-Yulong-Tasker",
+                    "Rejected Root-backed automation from an unconfigured or unverifiable sender.");
+            return;
+        }
+        if (!automationPrefs.getBoolean(PREF_ALLOW_EXTERNAL, false)) {
             publishResult(context, action, adFilterAction, enabled, false, 13,
-                    "外部自动化控制尚未在 FX 通用设置中授权；请求未执行。");
+                    "已识别授权自动化应用，但外部自动化控制开关当前关闭；请求未执行。");
             return;
         }
 
@@ -156,6 +165,23 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             } finally {
                 pending.finish();
             }
+        }
+    }
+
+    @android.annotation.SuppressLint("NewApi")
+    private boolean isAuthorizedAutomationSender(Context context, String configuredPackage) {
+        if (Build.VERSION.SDK_INT < FxYulongTaskerCallerPolicy.MIN_VERIFIABLE_API) return false;
+        try {
+            String senderPackage = getSentFromPackage();
+            int senderUid = getSentFromUid();
+            String[] packagesForUid = senderUid < 0 ? null
+                    : context.getPackageManager().getPackagesForUid(senderUid);
+            return FxYulongTaskerCallerPolicy.isAuthorized(Build.VERSION.SDK_INT,
+                    senderPackage, senderUid, configuredPackage, packagesForUid);
+        } catch (RuntimeException unavailable) {
+            android.util.Log.w("FX-Yulong-Tasker",
+                    "Unable to authenticate Root-backed automation sender.", unavailable);
+            return false;
         }
     }
 
