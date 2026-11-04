@@ -29,7 +29,7 @@ assert 'skipped-uid-mismatch-pid=$pid' in inject, "UID mismatch must skip the PI
 uid_check = inject.index('proc_uid=$(awk')
 attach = inject.index(' -p \\"$pid\\" -s ')
 assert uid_check < attach, "current process UID must be verified before invoking frida-inject"
-assert 'case \"$proc\" in \"$pkg\"|\"$pkg\":*)' in inject, "package/process-name scope check must remain"
+assert r'case \"$proc\" in \"$pkg\"|\"$pkg\":*)' in inject, "package/process-name scope check must remain"
 assert "base=/data/adb/privacyguard" in inject and "for path in /data /data/adb /data/adb/privacyguard" in inject, \
     "Frida script staging must validate each parent state directory"
 assert "unsafe-frida-state-symlink=$path" in inject and "unsafe-frida-session-file" in inject, \
