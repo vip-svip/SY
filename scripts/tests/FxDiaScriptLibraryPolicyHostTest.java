@@ -28,6 +28,16 @@ public final class FxDiaScriptLibraryPolicyHostTest {
         java.util.Arrays.fill(oversizedSource, 'x');
         expect(FxDiaScriptLibraryPolicy.validateSource(new String(oversizedSource)) != null,
                 "oversized UTF-8 source rejected");
+        expect("中".equals(FxDiaScriptLibraryPolicy.decodeUtf8(
+                        new byte[]{(byte) 0xE4, (byte) 0xB8, (byte) 0xAD})),
+                "valid multibyte UTF-8 must be preserved");
+        boolean malformedRejected = false;
+        try {
+            FxDiaScriptLibraryPolicy.decodeUtf8(new byte[]{(byte) 0xC3, 0x28});
+        } catch (IllegalArgumentException expected) {
+            malformedRejected = true;
+        }
+        expect(malformedRejected, "malformed UTF-8 must be rejected instead of replacement-decoded");
         expect(FxDiaScriptLibraryPolicy.validateCount(64, true) == null,
                 "an existing entry can be replaced at the maximum");
         expect(FxDiaScriptLibraryPolicy.validateCount(64, false) != null,
