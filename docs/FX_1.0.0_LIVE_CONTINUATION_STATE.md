@@ -1835,3 +1835,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：静态核对五条 CRUD/分组刷新路径均回到自定义规则管理页；回归脚本增加分组/规则刷新、保存后停留、删除后停留、显式返回断言。尚未执行完整 Shell/Python 回归、Gradle 编译或 Android 真机操作。
 - 未完成/风险：JSON 导入成功后的页面停留、OBSERVE 日志 Activity 返回后的目标包/筛选上下文仍需单独实测；分组弹窗层级及编辑器验证失败时草稿保留仍需 UI 自动化/真机检查。
 - 下一步：检查 Hook 目标详情页的 Hook 开关、LSPosed 作用域/权限状态刷新是否丢失详情滚动位置；随后运行针对性回归。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 主页面“保存到脚本库”名称弹窗恢复
+
+- 本批起始 HEAD：`a709aa0d65f1d451542d2ad1825a51028250c863`。
+- 与脚本库新建弹窗相同，Frida 管理主页面的“保存到 Frida 脚本库”名称对话框此前没有草稿恢复；旋转会丢失输入名称。
+- 修改 `FxDiaFridaActivity.java`：
+  - Bundle 保存待恢复标记与脚本名称草稿；主页面创建并恢复原脚本后重新打开名称弹窗。
+  - 输入框增加 64 字符限制，和脚本库命名策略一致。
+  - 显式取消/保存后清除恢复标记；配置变更期间 Dialog cancel 不清除草稿。
+  - 保留脚本内容 128 KiB 限制、脚本库原子存储入口和“保存不自动注入”语义。
+- 提交：
+  - `33e05a8bbbe6998b9cd3a951c82a64698f6283a1` — `fix(dia): restore Frida save-script dialog draft`。
+  - `d334b41dfc2a4a058e8396f3696776a02a531976` — `test(dia): cover Frida save-script dialog restoration`。
+- 验证等级：源码静态断言确认 Dialog pending/name Bundle 状态、恢复后重开、64 字符过滤和旋转期间取消保护；`fx-dia-frida-page-navigation-regression.sh` 增加对应断言。未运行 Shell/Python 回归、Gradle、模拟器或真机旋转/保存流程。
+- 下一步：完成 Frida 管理页与脚本库/全屏编辑器返回链的一次集中 Host 回归，随后优先推进 Dia 其余原生页面映射，不继续把主工时消耗在弹窗边缘问题。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
