@@ -785,3 +785,34 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未完成：Dia Dialog 页面尚未有独立规则表单/状态保存，仍依赖 Frida 页现有模板编辑器；后续继续补独立配置体验，并核验原始 Dialog 的全部语义。
 - 下一步：继续 Hook 自定义规则语法和实际执行适配器核验，不把仅能编辑/保存的规则误报为已执行。
 
+## 2026-11-05 — Dia 23.11 原始 Dialog 功能取证（实现前置审计）
+
+- 核对分支 HEAD：`d05f7c34aa44751a80f39ce4e8ca86a803215815`；本节仅记录只读取证，不声称 Dialog 已迁移或已实现。
+- 原始 APK 资料来源：GitHub Actions 历史 Artifact `fx-apk-source-intake`，Artifact ID `13184309776`，SHA-256 `5e8328d9c940d961fb49073ac9be8b2d2aac793148bafff700eed80a97851a3a`。本次实际读取 `res/xml/mod_ex_dialog.xml` 与 `smali/com/mhook/dialog/task/hook/WindowManagerHook.smali`。
+- 原始页面字段：
+  - `alert_close_ex`：扩展对话框关闭开关（需继续追踪其调用点，暂不推断用途）。
+  - `alert`：Dialog 功能总开关。
+  - `alert_auto`：自动模式开关，默认 true。
+  - `disable_alert_mode`：禁用模式选项。
+  - `alert_enabled`：条件选择列表。
+  - `alert_keyword`：匹配关键字。
+  - `alert_id`：匹配 View ID。
+  - `toast`：拦截提示。
+- 原始执行器观察：
+  - Xposed `WindowManagerHook` 在 `WindowManager.addView` 前置拦截。
+  - 先检查 `ActivityKey` 的作用域，再通过 `ViewHelper` 对传入 View 做 ID/文本匹配；匹配后将 addView 结果设为 null 以阻止挂载。
+  - 当关键字和 ID 均为空时，原版存在按 WindowManager.LayoutParams 全屏宽高过滤的特殊路径；自动布局监听器也参与后续检查。
+  - 原始实现依赖应用级 `XSharedPreferences`（模块包名 `dialog.box`）读取配置。
+- 当前 FX 对照：
+  - Dia 菜单“对话框与通知”现已路由到 Frida 观察/规则页面；这不是原始 Dialog 原生设置页。
+  - FX 已有的 `Dialog.show()` observer 只在广告目标下触发广告 View 扫描，不会阻止对话框显示。
+  - NotificationListener 保护是独立隐私能力，不能充当 Dialog 功能。
+  - 现有 Frida ViewGroup 删除模板属于另一条执行路线，不能冒充 WindowManager.addView 的原生 Hook。
+- P0 安全约束：不得照搬原版“空匹配条件 + 全屏尺寸”全局拦截；不得在未指定目标包时全局 Hook/阻止系统窗口；不得默认启用；必须按单个目标应用配置、显式启用、关键字/ID 至少一项有效匹配，并在异常/配置缺失时 fail-open。拦截提示必须限频且不能在 Hook 回调里做阻塞 I/O。
+- 本批未提交代码：当前 UnifiedHookConfigParser.Target 与 Serializer 尚无独立 Dialog 规则字段；MainActivity 的现有页面配置发布接口与 Hook 配置模型需要同步扩展。直接只加 UI 将造成配置无法到达执行层，因此暂不提交空壳。
+- 下一批具体实现顺序：
+  1. 扩展统一配置模型：目标级 `dialog_block_enabled`、模式、条件、关键词列表、资源 ID 列表、提示开关；限制字段长度/条数并在 Parser/Serializer 做往返校验。
+  2. 新增独立 `WindowManager.addView` Hook 安装器：仅在已启用且明确目标包中安装；匹配 View 的文本/资源 ID；异常 fail-open；排除 FX 自身、系统 UI 与受保护包；覆盖 addView 重载并避免重复安装。
+  3. 新增 Dia 原生 Dialog 页面：按已选应用读写目标级配置；支持规则增删改、自动/手动条件、拦截提示和运行状态；不得复用 Notification 开关。
+  4. 加入 Parser/Serializer、匹配器纯 JVM 单测及 Shell 回归；先运行定向测试，再进行 Android 编译。
+- 失败路线记录：把“对话框与通知”直接路由到 Frida Dialog 页面无法覆盖原始 WindowManager Hook；仅靠现有 Dialog.show 广告扫描器也不具备拦截语义。下一批必须新增独立执行链，不再尝试重命名现有功能。
