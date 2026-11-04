@@ -30,7 +30,7 @@ import java.util.Locale;
  *
  * No Javascript bridge is exposed. Only HTTPS AMap pages may be navigated.
  */
-public final class FxDiaGpsPickerActivity extends Activity {
+public final class FxDiaGpsPickerActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PICKER_URL = "https://lbs.amap.com/console/show/picker";
     private WebView webView;
     private EditText pairInput;
@@ -130,7 +130,7 @@ public final class FxDiaGpsPickerActivity extends Activity {
         webView = new WebView(this);
         configureWebView(webView);
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         boolean restoredMap = false;
         if (state != null) {
