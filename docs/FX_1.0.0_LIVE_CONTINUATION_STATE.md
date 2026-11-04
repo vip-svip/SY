@@ -1751,3 +1751,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java`；`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`；本状态文件。
 - 验证等级：源码静态确认搜索/滚动保存恢复、异步重载后恢复位置、初始新建意图消费状态和编辑器回传名称均存在；回归脚本增加对应断言。未运行 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机 SAF/旋转交互。
 - 下一步：检查 Frida 管理主页面的脚本编辑器草稿、目标/脚本导航返回和多个 SAF request 的重建恢复；随后执行 Dia Frida 页面组针对性 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook Root 授权检查并发竞态保护
+
+- 本批开始时最新 HEAD：`651b4b1163c9dd1a74dd50698843af5003e460c1`。
+- 发现 Hook 授权首页的“刷新 Root 状态”“申请/重新检查 Root”和组合刷新都直接创建独立线程；快速连续刷新时，较慢的旧 `su` 结果可能在新结果之后抵达并覆盖界面，造成 Root/模块状态倒退。
+- 修复 `MainActivity.checkRoot`：
+  - 每次请求递增 `hookRootCheckGeneration`，记录当前 Root 检查线程。
+  - 新请求启动前中断前一个 Root 检查线程；`RootAccess.execute` 已处理 `InterruptedException` 并尽力终止/回收当前 `su` 客户端。
+  - UI 回调只有在请求代次仍是最新、Activity 未销毁、目标 TextView 仍附着时才能更新 Root 状态或调用后续回调。
+  - Activity 销毁时递增代次、清空线程引用并中断正在运行的 Root 检查，阻止旧页面回调。
+  - 不改变 Root UID、FX 模块路径与 id 校验、1.0.0 版本检查、disable/remove 标志、KSU 工具存在性判断和权限拒绝提示。
+- 提交：
+  - `e91e8cd18911b43b3fe0e38a3f6b1a656b7ed4d1` — `fix(hook): ignore stale Root authorization checks`。
+  - `2a53917ef0911a0528c9690d5cc47ff7424b55bb` — `test(hook): cover Root authorization request generations`。
+- 同批已落地移动规则选择器新增分组返回链修复：
+  - `efca312d39bb1505af2298f9212667cecb20995c` — 新分组成功后返回原选择器并选中新组，取消/旋转/重试保留槽位与选择上下文。
+  - `474749b65b61f96ebddf6a03664aadab17ec3397` — 回归断言。
+- 静态验证：最新 MainActivity 与 `fx-hook-native-ui-regression.sh` 确认 Root 请求代次、旧线程中断、过时代次丢弃、Activity 销毁取消和分组返回链锚点均存在。未执行完整 Shell/Python 回归、Gradle 编译、Android UI 自动化、模拟器、Root 权限/竞态故障注入或真机验证。
+- 下一步：检查逐应用 LSPosed 作用域刷新请求是否也存在过期回调覆盖、请求超时后状态悬挂；然后核对三种授权（Root/LSPosed/Accessibility）在 Hook Hub 与目标详情页的状态文案一致性。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
