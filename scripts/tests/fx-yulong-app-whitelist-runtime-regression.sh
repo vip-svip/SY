@@ -166,7 +166,7 @@ grep -Fq '"$$" > "$_YW_PID_TEMP"' "$SCRIPT" || {
 if grep -Fq 'cp -p "$CONF" "$backup"' "$SCRIPT" || grep -Fq 'cp -p "$backup" "$_YW_RESTORE"' "$SCRIPT"; then
   echo "FAIL: private rollback files inherit the source config mode" >&2; exit 1;
 fi
-if grep -Eq 'CONF\.yulong-white(-rollback)?\.\$\$|CONF\.restore\.\$\
+if grep -Eq 'CONF\.yulong-white(-rollback)?\.\$\$|CONF\.restore\.\$\$' "$SCRIPT"; then
   echo "FAIL: predictable whitelist temp names remain" >&2; exit 1
 fi
 for template in 'mktemp "$CONF.yulong-white.XXXXXX"' \
@@ -188,27 +188,4 @@ fi
   echo "FAIL: whitelist settings guard changed the sentinel target" >&2; exit 1;
 }
 
-echo "PASS: Yulong whitelist uses private atomic temp/rollback files, rejects symlink paths, preserves stale-lock recovery and stages identical Release source"
- "$SCRIPT"; then
-  echo "FAIL: predictable whitelist temp names remain" >&2; exit 1
-fi
-for template in 'mktemp "$CONF.yulong-white.XXXXXX"' \
-                'mktemp "$CONF.yulong-white-rollback.XXXXXX"' \
-                'mktemp "$CONF.restore.XXXXXX"'; do
-  grep -Fq "$template" "$SCRIPT" || {
-    echo "FAIL: missing randomized whitelist transaction file: $template" >&2; exit 1;
-  }
-done
-
-# Unsafe settings.conf symlink is rejected without following its target.
-mv "$CONF" "$STATE/settings.real"
-ln -s "$STATE/settings.real" "$CONF"
-if sh "$SCRIPT" list; then
-  echo "FAIL: whitelist accepted a symlink settings.conf" >&2
-  exit 1
-fi
-[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || {
-  echo "FAIL: whitelist settings guard changed the sentinel target" >&2; exit 1;
-}
-
-echo "PASS: Yulong whitelist uses private atomic temp/rollback files, rejects symlink paths, preserves stale-lock recovery and stages identical Release source"
+echo "PASS: Yulong whitelist lock PID, private rollback files, randomized temp paths, symlink guards and stale-lock recovery"
