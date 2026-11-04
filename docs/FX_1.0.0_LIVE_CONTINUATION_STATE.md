@@ -2148,3 +2148,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`4685a61500f20d68bd1c5c0a5a7a14f04310fd01`（实现）；`0de50f0bc9b08adc29baff03a14bf11f60fe57e7`（回归断言）。
 - 验证等级：源码静态检查；未运行 Shell/Python 回归、Gradle、UI 自动化、网络断开/HTTP 304/损坏响应实测。
 - 下一步：检查病毒库页面本身的滚动恢复与同步中断/Activity 销毁状态，随后回到 Dia Frida 编辑器结果归属和 SAF Worker 生命周期。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — LSPosed 作用域读取 / 申请 / 移除超时与离页取消
+
+- 当前目标分支 HEAD（本节开始时）：a54008ea5eae58823535a63f86a5e8b2e766fbfe。
+- 复核 FxLsposedScopeBridge.snapshot() 直接同步调用 libXposed Binder 的 getScope()；旧 UI 只把调用放到 daemon worker，没有超时。如果 Binder 不返回，目标页会一直显示“正在读取”。
+- 新增共享有界操作生命周期：
+  - LSPosed 作用域状态读取 12 秒超时；
+  - 作用域移除 15 秒超时；
+  - 向 LSPosed Manager 申请作用域等待 30 秒回执；
+  - 超时使本次 generation 失效、中断关联 worker 并显示“状态未确认”，不会把未知结果显示成批准/移除成功；
+  - 成功/失败回调清除对应 timeout；旧 generation 不能移除更新操作的 timeout 或覆盖新页面状态；
+  - 切换到应用列表、Hook Hub、自定义规则页或 Activity 销毁时取消超时回调并中断 worker；保留目标包、TextView 实例和 generation 三重校验。
+- 代码提交：8bc76b72aa33f05de692010c4fd390617a61ed93 — fix(hook): bound LSPosed scope operations and stale callbacks。
+- 回归提交：7b499d052809385335262deb514374803aef3ace — test(hook): cover bounded LSPosed scope operations，覆盖 12/15/30 秒界限、timeout handler、旧回调失效和离页/销毁取消。
+- 验证：当前 HEAD 静态复核确认三条路径使用同一 timeout/generation helper、对应 postDelayed、finish 清理、目标页面切换/Activity 销毁 cancel 及现有目标包/View 身份检查；测试脚本已增加同一契约的断言。未执行 Shell 回归、Gradle 编译、模拟器、Manager 审批回调或 Binder 故障注入。
+- 注意：Binder 调用可能在底层不响应中断；当前实现保证 UI 不会永久显示 Loading，超时状态说明结果未知。重复手动重试仍应以实际刷新状态核对结果，不能把超时视为操作未执行。
+- 下一步：核对 Hook Hub 的 Root / LSPosed / Accessibility 三种授权状态是否采用同一“配置状态与真实运行态分离”口径；随后按现有 Hook/Dia 测试入口执行能运行的 Host 与静态检查。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
