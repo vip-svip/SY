@@ -440,7 +440,7 @@ assert "StellarUtils" not in white and "syncToStellar" not in picker
 # Blacklist CSV is bounded and all-or-nothing; the live service and UI share the policy.
 assert "MAX_RAW_CHARS = 1024 * 1024" in blacklist_policy
 assert "MAX_ENTRIES = 10000" in blacklist_policy
-assert "isWellFormed(String raw)" in blacklist_policy
+assert "public static boolean isWellFormed(String raw)" in blacklist_policy, "Blacklist policy must expose its full-input validator"
 assert "if (!isWellFormed(raw)) return Collections.emptySet();" in blacklist_policy
 assert "serialize(Iterable<String> packageNames)" in blacklist_policy
 assert 'Set<String> blacklist = split(prefs);' in protection_service, "Protection service must load blacklist through guarded preference access"
