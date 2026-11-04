@@ -396,3 +396,13 @@ grep -Fq 'showCustomRuleGroupPicker(customRuleGroupDialogSlot, customRuleGroupDi
 grep -Fq 'if ("actions".equals(mode) && value != null)' "$main_activity"
 grep -Fq 'if ("delete".equals(mode) && value != null)' "$main_activity"
 grep -Fq 'showRenameCustomRuleGroupDialog(value)' "$main_activity"
+
+# Adding a group from the Move Rule picker must return to that exact picker and select the new group.
+grep -Fq 'private boolean customRuleGroupReturnToPicker;' "$main_activity"
+grep -Fq 'state.getBoolean("fx_custom_rule_group_return_to_picker", false)' "$main_activity"
+grep -Fq 'outState.putBoolean("fx_custom_rule_group_return_to_picker",' "$main_activity"
+grep -Fq 'customRuleGroupReturnToPicker = true;' "$main_activity"
+grep -Fq 'private void cancelCustomRuleGroupAddDialog()' "$main_activity"
+grep -Fq 'if (returnToPicker && slot > 0) showCustomRuleGroupPicker(slot, choice);' "$main_activity"
+grep -Fq 'showCustomRuleGroupPicker(pickerSlot, preferredIndex);' "$main_activity"
+grep -Fq 'retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice)' "$main_activity"
