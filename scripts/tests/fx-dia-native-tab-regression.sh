@@ -76,6 +76,13 @@ assert "REQUEST_DIA_GPS_PICKER" in main and "pendingDiaGpsTargetPackage = select
 assert "target.equals(selectedPackage)" in main, "GPS result must remain scoped to the original selected app"
 assert "target.equals(pendingRestorePackage)" in main, "GPS result must survive while the selected app is still restoring"
 assert "if (!targetEditorRestoring)" in main, "GPS result must defer opening the target until asynchronous app-list restoration completes"
+# SAF script export must persist its payload outside the Activity instance and clean up on every result path.
+for token in ("NATIVE_SCRIPT_EXPORT_PREFS", "NATIVE_SCRIPT_EXPORT_PAYLOAD", "MAX_NATIVE_SCRIPT_EXPORT_BYTES", "fx_pending_native_script_export"):
+    assert token in main, f"missing SAF export persistence contract: {token}"
+assert "putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit()" in main
+assert "getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null)" in main
+assert "finally {\n                clearPendingNativeScriptExport();\n            }" in main
+assert "clearPendingNativeScriptExport();" in main, "cancel/launch failure must clear staged export payload"
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
     assert "setContentViewWithNativeTabs(root, 5);" in page
