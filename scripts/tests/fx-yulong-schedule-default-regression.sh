@@ -62,3 +62,15 @@ PY
 sh -n "$TMP/service.sh"
 sh -n "$TMP/uninstall.sh"
 sh -n "$TMP/scripts/yulong-ad-schedule.sh"
+
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert r'state.setText("计划已保存并立即重新计算。\\n"+safe(r.output));' not in source, \
+    "schedule success output must not display a literal backslash-n"
+assert r'state.setText("计划已保存并立即重新计算。\n"+safe(r.output));' in source, \
+    "schedule success output must contain a real Java newline escape"
+print("PASS: Yulong schedule success output renders a real line break")
+PY
+
