@@ -32,6 +32,10 @@ assert "outState.putString(STATE_PENDING_EXPORT_FILE, pendingBackupFileName)" in
 for key in ("STATE_GH_OWNER", "STATE_GH_REPO", "STATE_GH_PATH", "STATE_GH_BRANCH", "STATE_DAV_URL", "STATE_DAV_USER"):
     assert f"outState.putString({key}" in source, f"backup form state missing: {key}"
 assert "outState.putInt(STATE_SCROLL_Y" in source, "backup page scroll position is not restored"
+for key, field in (("STATE_GH_OWNER", "ghOwner"), ("STATE_GH_REPO", "ghRepo"),
+                   ("STATE_GH_PATH", "ghPath"), ("STATE_GH_BRANCH", "ghBranch"),
+                   ("STATE_DAV_URL", "davUrl"), ("STATE_DAV_USER", "davUser")):
+    assert f'{field}.setText(state.getString({key}' in source, f"backup form does not restore {field}"
 for secret in ("ghToken", "davPass", "backupPassword"):
     assert f"outState.putString({secret}" not in source and f"outState.putCharSequence({secret}" not in source, f"secret must not be persisted: {secret}"
 assert "不会写入页面恢复状态" in source, "UI must explain that secret credentials are intentionally not restored"
