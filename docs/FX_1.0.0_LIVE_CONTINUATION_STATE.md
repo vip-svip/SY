@@ -2803,3 +2803,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：已从当前 MainActivity 确认三条路由均存在；更新后的 Actions 尚未完成。不得将源码对照视为回归通过。
 - 下一步：读取新 Actions 首个失败；若通过，继续 Shield 风险详情证据字段与名单搜索/筛选状态恢复。Hook Host 回归仍需独立追踪，不能把 APK-only 检查的 SKIP 记为 APK 验收。
 - 固定 FX 1.0.0；不生成最终 APK 或 KernelSU ZIP。
+
+
+## 2026-11-05 — Shield 原生回归修正最近提醒文案断言
+
+- Actions：`41913036376` 通过此前 Dia 通知路由检查，随后失败于 Shield Hub 文案断言 `Shield status must retain a Java newline escape`。
+- 核对：当前 `FxYulongShieldActivity` 的累计提醒首行是 `"累计提醒：" + warningCount`，其后时间戳才以 `"\n最近提醒："` 开始新行；并不存在 `"\n累计提醒："`。因此原断言要求了并不存在的前导换行。
+- 修正：保留累计提醒标签断言，改为核验最近提醒时间戳确实使用 Java 换行转义；未修改产品文案或布局。
+- 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `e7feee9401b1cedebcaef5fb5f070ed1d69b10a9`。
+- 验证：已对照 Shield Hub 当前源码逐行确认字符串布局；等待本次 Actions 结果。未执行 Gradle/Android 单测/真机。
+- 失败路线：不要求累计提醒首行添加空白换行；后续如调整文案，断言应检查实际信息层级而非旧字符串字面形态。
