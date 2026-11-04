@@ -19,7 +19,6 @@ public final class FxYulongBootReceiver extends BroadcastReceiver {
                 && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) return;
 
         final Context app = context.getApplicationContext();
-        FxYulongKeepAliveReceiver.refreshSchedule(app);
         android.content.SharedPreferences prefs =
                 app.getSharedPreferences("shield_prefs", Context.MODE_PRIVATE);
 
@@ -52,5 +51,9 @@ public final class FxYulongBootReceiver extends BroadcastReceiver {
                         .putString("overlay_restore_error", "overlay permission revoked").apply();
             }
         }
+
+        // Recompute only after permission degradation has updated the persisted
+        // feature flags; otherwise a revoked overlay permission leaves a stale alarm.
+        FxYulongKeepAliveReceiver.refreshSchedule(app);
     }
 }

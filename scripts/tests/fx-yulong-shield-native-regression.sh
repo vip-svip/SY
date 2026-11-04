@@ -53,6 +53,31 @@ assert uninstall_receiver is not None, "Original Shield notification uninstall r
 assert uninstall_receiver.attrib.get(A + "exported") == "false", "Uninstall receiver must remain private"
 uninstall_source = shield["FxYulongUninstallReceiver.java"]
 protection_service = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongProtectionService.java").read_text(encoding="utf-8")
+boot_receiver = shield["FxYulongBootReceiver.java"]
+keepalive_receiver = shield["FxYulongKeepAliveReceiver.java"]
+overlay_service = shield["FxYulongRescueOverlayService.java"]
+boot_manifest = next((node for node in receivers
+                      if node.attrib.get(A + "name", "").endswith("FxYulongBootReceiver")), None)
+keepalive_manifest = next((node for node in receivers
+                           if node.attrib.get(A + "name", "").endswith("FxYulongKeepAliveReceiver")), None)
+assert boot_manifest is not None and boot_manifest.attrib.get(A + "exported") == "false", \
+    "Boot restore receiver must remain private"
+assert keepalive_manifest is not None and keepalive_manifest.attrib.get(A + "exported") == "false", \
+    "KeepAlive receiver must remain private"
+assert "android.intent.action.BOOT_COMPLETED" in manifest_text and "android.permission.RECEIVE_BOOT_COMPLETED" in manifest_text
+assert "ACTION_KEEPALIVE" in keepalive_receiver and "setAndAllowWhileIdle" in keepalive_receiver
+assert boot_receiver.rfind("FxYulongKeepAliveReceiver.refreshSchedule(app)") > boot_receiver.find('if (prefs.getBoolean("overlay_rescue_on", false))'), \
+    "Boot receiver must recalculate alarm after permission flags are reconciled"
+assert 'if (!Settings.canDrawOverlays(app))' in keepalive_receiver, \
+    "KeepAlive must detect an overlay permission revoked after boot"
+assert 'putBoolean("overlay_rescue_on", false)' in keepalive_receiver and 'overlay permission revoked' in keepalive_receiver, \
+    "KeepAlive must disable only the revoked overlay option and record why"
+assert keepalive_receiver.rfind("refreshSchedule(app)") > keepalive_receiver.find('if (prefs.getBoolean("overlay_rescue_on", false))'), \
+    "KeepAlive must reschedule after permission degradation"
+assert overlay_service.count("FxYulongKeepAliveReceiver.refreshSchedule(this)") >= 3, \
+    "Overlay service must cancel/update the alarm after disable, revoked permission and attach failure"
+assert 'putString("overlay_restore_error", "overlay permission revoked")' in overlay_service, \
+    "Overlay service must report why it disabled the rescue shortcut"
 for token in ("Intent.ACTION_UNINSTALL_PACKAGE", "Intent.EXTRA_RETURN_RESULT",
               "PackageManager.NameNotFoundException", "FLAG_SYSTEM",
               "FLAG_UPDATED_SYSTEM_APP", "Settings.ACTION_APPLICATION_DETAILS_SETTINGS"):

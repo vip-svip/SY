@@ -757,3 +757,10 @@ After each implementation batch:
 - The CLI `apply [full|fast]` branch is now reachable before managed-list ID resolution; the default remains full.
 - The regression now asserts the checked-in module backend matches the source backend, covers LF inside notes and trailing-LF values, rejects backslash-based AWK escape payloads and invalid subscription edits, and checks rollback/apply mode behavior.
 - The current module-tree backend is synchronized from the source implementation. CI must still complete successfully after this repair. No APK/KernelSU ZIP or real-device test is claimed.
+
+## 2026-11-04 — Shield KeepAlive permission-degradation recovery
+
+- Boot recovery now refreshes the alarm only after all permission checks and preference updates, preventing a stale 15-minute alarm when overlay permission was revoked and overlay rescue was the only enabled feature.
+- KeepAlive now detects overlay permission revocation, disables only `overlay_rescue_on`, records the permission reason, and then recalculates the schedule. A still-authorized overlay start clears a stale restore error; transient foreground-service start failures keep the user's opt-in so the bounded retry can recover.
+- The rescue overlay service now reconciles the KeepAlive alarm when its persisted feature flag is already off, when Android overlay permission has been revoked, and when WindowManager refuses to attach the bubble. Runtime attach failures are recorded rather than silently disabling the feature.
+- Extended the Shield native regression to verify private receiver registration, boot/KeepAlive permission ordering, post-degradation schedule recalculation, and overlay-service failure cleanup. This remains host/static verification; OEM background restrictions and actual permission revocation must still be checked on a device.

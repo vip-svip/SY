@@ -59,14 +59,22 @@ public final class FxYulongKeepAliveReceiver extends BroadcastReceiver {
                                 failure.getClass().getSimpleName()).apply();
             }
         }
-        if (prefs.getBoolean("overlay_rescue_on", false) && Settings.canDrawOverlays(app)) {
-            try {
-                Intent overlay = new Intent(app, FxYulongRescueOverlayService.class);
-                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(overlay);
-                else app.startService(overlay);
-            } catch (Throwable failure) {
-                prefs.edit().putString("overlay_restore_error",
-                        failure.getClass().getSimpleName()).apply();
+        if (prefs.getBoolean("overlay_rescue_on", false)) {
+            if (!Settings.canDrawOverlays(app)) {
+                // Revoke only this optional feature; never loop an alarm for a
+                // permission the user has removed from Android Settings.
+                prefs.edit().putBoolean("overlay_rescue_on", false)
+                        .putString("overlay_restore_error", "overlay permission revoked").apply();
+            } else {
+                try {
+                    Intent overlay = new Intent(app, FxYulongRescueOverlayService.class);
+                    if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(overlay);
+                    else app.startService(overlay);
+                    prefs.edit().remove("overlay_restore_error").apply();
+                } catch (Throwable failure) {
+                    prefs.edit().putString("overlay_restore_error",
+                            failure.getClass().getSimpleName()).apply();
+                }
             }
         }
         refreshSchedule(app);
