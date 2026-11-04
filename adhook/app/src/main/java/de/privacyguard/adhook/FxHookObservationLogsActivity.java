@@ -206,7 +206,7 @@ public final class FxHookObservationLogsActivity extends Activity {
                         String detail = output.length() > 180 ? output.substring(0, 180) : output;
                         status.setText("读取 OBSERVE 日志失败（退出码 " + result.exitCode
                                 + (result.denied ? "，Root 权限被拒绝" : "")
-                                + (detail.isEmpty() ? "。" : "）：" + detail));
+                                + (detail.isEmpty() ? "）。" : "）：" + detail));
                     } else {
                         rawOutput = output;
                         int records = countLines(output);
