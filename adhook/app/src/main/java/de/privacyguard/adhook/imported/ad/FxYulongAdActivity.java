@@ -159,14 +159,17 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
    if(page==null)page="首页与防护";
   }
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));pageScroll.addView(body);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
- @Override protected void onSaveInstanceState(Bundle out){
-  out.putString(STATE_PAGE,page);
+ private Bundle captureDrafts(){
   Bundle drafts=new Bundle();
   for(java.util.Map.Entry<String,EditText> entry:draftFields.entrySet()){
    EditText field=entry.getValue();
    drafts.putString(entry.getKey(),field.getText()==null?"":field.getText().toString());
   }
-  out.putBundle(STATE_DRAFTS,drafts);
+  return drafts;
+ }
+ @Override protected void onSaveInstanceState(Bundle out){
+  out.putString(STATE_PAGE,page);
+  out.putBundle(STATE_DRAFTS,captureDrafts());
   if(pageScroll!=null)out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));
   super.onSaveInstanceState(out);
  }
@@ -937,7 +940,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   });
  }
 
- private void open(String p){page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();bind();}
+ private void open(String p){Bundle drafts=captureDrafts();page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();restoreDrafts(drafts);bind();}
   private boolean isTrustedNetworkPageCurrent(TextView target) {
     return target != null && target == trustedNetworkStatus
             && "信任的网络".equals(page) && !isFinishing() && !isDestroyed();
