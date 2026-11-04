@@ -5332,7 +5332,10 @@ public final class MainActivity extends ComponentActivity {
         android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
         for (int slot = 1; slot <= 64; slot++) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
-            if (oldName.equals(getPreferences(0).getString(key, "默认")))
+            String assigned = getPreferences(0).getString(key, "默认");
+            // Older releases could persist surrounding whitespace even though
+            // the displayed group index is normalized by getCustomRuleGroups().
+            if (assigned != null && oldName.equals(assigned.trim()))
                 edit.putString(key, normalized);
         }
         edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
@@ -5372,7 +5375,8 @@ public final class MainActivity extends ComponentActivity {
         android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
         for (int slot = 1; slot <= 64; slot++) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
-            if (groupName.equals(getPreferences(0).getString(key, "默认")))
+            String assigned = getPreferences(0).getString(key, "默认");
+            if (assigned != null && groupName.equals(assigned.trim()))
                 edit.putString(key, "默认");
         }
         edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
