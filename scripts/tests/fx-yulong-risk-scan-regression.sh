@@ -12,6 +12,8 @@ grep -Fq 'onPackageInstalled' "$INSTALL" || fail "package install/update event p
 grep -Fq 'onVirusDatabaseUpdated' "$DISPATCH" || fail "virus database updates must trigger a full installed-app scan"
 grep -Fq 'FULL_SCAN_RUNNING' "$DISPATCH" || fail "full installed-app scan must be serialized"
 grep -Fq 'FxYulongRiskScanDispatcher.onVirusDatabaseUpdated' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDatabaseActivity.java" || fail "database screen does not trigger post-update full scan"
+grep -Fq 'getLastSuccessAt() > previousContentSuccess' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDatabaseActivity.java" || fail "content DB scan trigger must require a successful new/304 fetch"
+grep -Fq 'FxYulongVirusDb.isServerReachable()' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDatabaseActivity.java" || fail "list DB scan trigger must require a successful list fetch"
 grep -Fq 'PACKAGE_COOLDOWN_MS' "$DISPATCH" || fail "per-package scan cooldown is missing"
 grep -Fq 'auto_block_on' "$DISPATCH" || fail "original automatic risk master switch is not honored"
 grep -Fq 'auto_block_mode' "$DISPATCH" || fail "original direct/confirm mode is not honored"
