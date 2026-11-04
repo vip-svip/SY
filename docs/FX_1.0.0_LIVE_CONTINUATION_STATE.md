@@ -1644,3 +1644,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 同期并行工作线：`9be657d5cf736069af94c391d94233b0eb9faf8a` 修复 JSON 导入提交失败时恢复原规则；`42b27efbded2aac1182e41e77d8b21b2591c91b0` 在 `fx-hook-native-ui-regression.sh` 加入快照/回滚检查。
 - 静态核验：最新源码确认日志页继承共享宿主、选中索引 4、保留返回动作和 Root 日志通路；确认导入前规则状态快照和失败回滚提交；两套回归脚本分别覆盖日志宿主/状态恢复与导入回滚。未在完整 checkout 运行脚本，未运行 Gradle/Android 编译、模拟器、UI 自动化或真机日志/故障注入验证。
 - 下一步：继续检查自定义 Hook 规则分组新增/重命名/删除/移动后筛选与滚动恢复；随后集中评估 Hook/Dia Host 回归脚本能否在当前仓库测试链路直接运行。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook JSON 导入草稿生命周期与输入上限
+
+- 本批起始 HEAD：`00c68b31361886fb174aaceec04a924080a9d0b2`。重新读取后确认 JSON 导入弹窗的打开状态/草稿恢复已由并行工作线实现：Activity state 保存打开标记；自定义规则页恢复后重开导入弹窗；文本草稿使用目标包隔离的 SharedPreferences 键，明确取消不导入，成功提交后清除草稿。
+- 本批针对发现的无界输入问题补齐限制：
+  - 导入多行文本框限制最多 16,384 个 UTF-16 字符，避免任意大粘贴内容被每次输入变更复制进 SharedPreferences。
+  - JSON 验证入口再检查 UTF-8 编码长度，超过 64 KiB 时明确拒绝，提示用户拆分导入。
+  - 保留原有 JSON 格式版本、来源包校验、目标包描述符重映射、规则 ID 唯一性、动作 allowlist、最大 64 条规则、原子提交与失败回滚。
+- 提交：
+  - `574a9863b6ccd51def47f5a962033ac076ab32ac` — `fix(hook): bound custom rule JSON import drafts`。
+  - `d4fdcfeef552f2805fcb63db6d3dd80ea9098e92` — `test(hook): cover bounded custom rule JSON drafts`。
+- 静态验证：确认文本长度过滤、UTF-8 字节数拒绝路径、目标包隔离草稿写入及回归断言；未运行 Shell/Java Host 测试、Gradle、模拟器或真机输入/旋转测试。
+- 下一步：复核 Hook 规则编辑器与 JSON 导入恢复合并后的状态路径；然后尝试运行集中 Host 回归（只运行本批所需测试，不重复整套 Actions）。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
