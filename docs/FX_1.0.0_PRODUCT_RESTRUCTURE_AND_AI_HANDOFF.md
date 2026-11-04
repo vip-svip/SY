@@ -424,7 +424,7 @@ C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现�
 2. VPN：与 Ad 共用单个 VpnService/TUN ingress，但有独立 pipeline；实现常见 Shadowrocket 类能力：节点/订阅、代理协议、直连/全局/规则、应用分流、DNS、规则集、日志、连接控制、导入导出、自动重连；防泄漏验收包括 DNS/IPv4/IPv6/WebRTC/断线，并把 https://who.1ms.dog/zh-cn/ 纳入人工测试。优化 Always-on 和待机耗电，不得承诺 iOS 同等生命周期或零耗电。MITM/HTTPS CA 必须有生成、安装、信任检查、轮换、撤销、卸载、回滚；脚本支持 MITM request/response。不得承诺所有应用都信任系统/用户 CA，证书锁定和自定义信任库必须如实处理。
 3. 隐私：迁移现有 FX 隐私功能和游龙安全护盾所有页面/功能；Root、模块、LSPosed 隐藏/兼容按应用配置、真实状态回读、可撤销；不保证绝对隐身，不破坏系统安全。
 4. Hook：广告 Hook、Dia 功能、GKD-XA 功能、应用更新 Hook、VPN/隐私检测、开屏广告、用户授权的位置模拟和自定义规则；所有执行通道 Root/LSPosed/Accessibility 分开报告真实状态。VIP 只实现合法会员功能和用户自有应用测试，不得伪造付费资格或绕过授权。
-5. 脚本：Loon/Shadowrocket 脚本真实执行，建立 QuickJS runtime + API adapter + 兼容矩阵；MITM 脚本接入网络管线；浏览器 UserScript/扩展按浏览器真实支持的 API 实现，不得宣称所有浏览器全局生效；提供沙箱、权限、超时、取消、日志、导入导出。
+5. 脚本与规则：多生态真实执行，目标包括 Surge、Quantumult X、Loon、Shadowrocket、Stash、Egern、Clash/Mihomo、sing-box 及未来可插拔格式；建立 QuickJS 等 runtime、平台 API adapter、解析/序列化器和逐版本兼容矩阵。6. 网络内核：必须内置至少一个经过测试的默认内核，并支持知名内核适配（如 sing-box、Mihomo、Xray-core）及用户上传/自定义内核导入、校验、能力探测、切换、更新、回滚；网络内核 Provider 与脚本 Runtime 分离。MITM 脚本接入所选内核真实 TLS hook；浏览器 UserScript/扩展按浏览器真实 API 实现；提供沙箱、权限、超时、取消、日志、导入导出。
 
 【架构要求】
 - Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle 三种 skin。
