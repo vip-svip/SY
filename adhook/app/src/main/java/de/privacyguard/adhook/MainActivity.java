@@ -5418,7 +5418,7 @@ public final class MainActivity extends ComponentActivity {
 
         section("按目标应用匹配 Dialog");
         TextView details = new TextView(this);
-        details.setText("只处理明确命中的普通 Dialog / Window。文本为不区分大小写的字面包含匹配（不是正则）；资源 ID 为精确匹配，支持完整名称、entry name、十进制或十六进制 ID。每行一条，最多 32 条，单条最多 96 字符，总量最多 1 KiB。空规则绝不全拦截；全屏窗口会跳过。");
+        details.setText("只处理明确命中的普通 Dialog / Window。文本为不区分大小写的字面包含匹配（不是正则）；资源 ID 为精确匹配，支持完整名称、entry name、十进制或十六进制 ID。每行一条；文本规则与资源 ID 规则各最多 32 条，单条最多 96 字符，每个输入框最多 1 KiB。空规则绝不全拦截；全屏窗口会跳过。");
         details.setTextColor(0xff697681);
         details.setPadding(dp(18), dp(2), dp(18), dp(12));
         content.addView(details);
