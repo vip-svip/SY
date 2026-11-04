@@ -175,9 +175,25 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
     private void runRoot(String command, long timeout, java.util.function.Consumer<RootAccess.Result> done) {
         submitWorker(() -> {
-            RootAccess.Result result = RootAccess.execute(command, timeout, 256 * 1024);
+            final RootAccess.Result result;
+            try {
+                result = RootAccess.execute(command, timeout, 256 * 1024);
+            } catch (RuntimeException error) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        setStatus("Root 命令执行异常：" + error.getClass().getSimpleName()
+                                + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                    }
+                });
+                return;
+            }
             runOnUiThread(() -> {
-                if (!isFinishing() && !isDestroyed()) done.accept(result);
+                if (isFinishing() || isDestroyed()) return;
+                if (result == null) {
+                    setStatus("Root broker 未返回执行结果；页面不会把本次操作标记为成功。");
+                    return;
+                }
+                done.accept(result);
             });
         });
     }
