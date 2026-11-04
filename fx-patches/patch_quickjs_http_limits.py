@@ -127,4 +127,42 @@ elif old in readme:
     readme_path.write_text(readme.replace(old, new, 1), encoding="utf-8")
 else:
     raise SystemExit("QuickJS README HTTP limits documentation anchor missing")
+
+# The stable Release still contains two legacy compatibility tests which assert
+# the pre-normalization timeout expression. Keep those tests synchronized with
+# the bounded implementation whenever the Release source overlay is restored.
+compat_test_paths = [
+    module / "scripts/tests/v1.0.0-jsruntime-utils-regression.sh",
+    module / "scripts/tests/v1.0.0-third-party-api-compat-regression.sh",
+]
+old_timeout = "Math.min(20,Number(options.timeout||globalThis.$httpClient.timeout||10))"
+new_timeout = "Number.isFinite(requestedTimeout)?Math.max(1,Math.min(20,requestedTimeout)):10"
+extra_checks = [
+    "grep -Fq '_FX_HTTP_MAX_URL_CHARS = 4096' \"$H\" || { echo 'FAIL: HTTP URL limit missing'; exit 1; }",
+    "grep -Fq 'HTTP request body exceeds 1 MiB' \"$H\" || { echo 'FAIL: HTTP body limit missing'; exit 1; }",
+    "grep -Fq 'HTTP request headers exceed 16 KiB' \"$H\" || { echo 'FAIL: HTTP header limit missing'; exit 1; }",
+]
+for compat_path in compat_test_paths:
+    if not compat_path.is_file():
+        raise SystemExit(f"QuickJS compatibility regression is missing: {compat_path}")
+    compat_source = compat_path.read_text(encoding="utf-8")
+    old_count = compat_source.count(old_timeout)
+    new_count = compat_source.count(new_timeout)
+    if old_count:
+        if old_count != 1 or new_count:
+            raise SystemExit(f"QuickJS timeout assertion is duplicated or inconsistent: {compat_path}")
+        compat_source = compat_source.replace(old_timeout, new_timeout, 1)
+    elif new_count != 1:
+        raise SystemExit(f"QuickJS timeout compatibility assertion is missing or ambiguous: {compat_path}")
+    changed = old_count == 1
+    for check in extra_checks:
+        count = compat_source.count(check)
+        if count > 1:
+            raise SystemExit(f"QuickJS HTTP-bound assertion is duplicated: {compat_path}")
+        if count == 0:
+            compat_source += ("" if compat_source.endswith("\n") else "\n") + check + "\n"
+            changed = True
+    if changed:
+        compat_path.write_text(compat_source, encoding="utf-8")
+
 print("Applied FX QuickJS HTTP URL/header/body limits and synchronized runtime documentation.")

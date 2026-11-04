@@ -7,7 +7,7 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 python3 -m py_compile "$PATCHER" || fail "QuickJS HTTP hardening patcher has invalid Python syntax"
 T=$(mktemp -d "${TMPDIR:-/tmp}/fx-qjs-http-limits.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
-mkdir -p "$T/module/scripts/jsruntime"
+mkdir -p "$T/module/scripts/jsruntime" "$T/module/scripts/tests"
 cat > "$T/module/scripts/jsruntime/host.js" <<'HOST'
 (function () {
   const _fxSTD = std, _fxOS = os;
@@ -31,6 +31,12 @@ cat > "$T/module/scripts/jsruntime/host.js" <<'HOST'
   }
 })();
 HOST
+
+for name in v1.0.0-jsruntime-utils-regression.sh v1.0.0-third-party-api-compat-regression.sh; do
+  cat > "$T/module/scripts/tests/$name" <<'COMPAT'
+grep -Fq 'Math.min(20,Number(options.timeout||globalThis.$httpClient.timeout||10))' "$H"
+COMPAT
+done
 python3 - "$T/module/scripts/jsruntime/host.js" <<'PY'
 from pathlib import Path
 import sys
@@ -49,6 +55,14 @@ Path(sys.argv[1]).write_text(
 )
 PY
 python3 "$PATCHER" "$T/module" >/dev/null || fail "HTTP hardening patch failed on a known host fixture"
+
+for name in v1.0.0-jsruntime-utils-regression.sh v1.0.0-third-party-api-compat-regression.sh; do
+  compat="$T/module/scripts/tests/$name"
+  grep -Fq 'Number.isFinite(requestedTimeout)?Math.max(1,Math.min(20,requestedTimeout)):10' "$compat" || fail "$name still asserts the obsolete timeout expression"
+  grep -Fq '_FX_HTTP_MAX_URL_CHARS = 4096' "$compat" || fail "$name does not assert the URL bound"
+  grep -Fq 'HTTP request body exceeds 1 MiB' "$compat" || fail "$name does not assert the body bound"
+  grep -Fq 'HTTP request headers exceed 16 KiB' "$compat" || fail "$name does not assert the header bound"
+done
 HOST_FILE="$T/module/scripts/jsruntime/host.js"
 README_FILE="$T/module/scripts/jsruntime/README-zh-CN.md"
 grep -Fq 'FX_HTTP_REQUEST_LIMITS_V1_BEGIN' "$HOST_FILE" || fail "HTTP limit helpers were not installed"
@@ -61,9 +75,13 @@ grep -Fq 'Number.isFinite(requestedTimeout)' "$HOST_FILE" || fail "invalid timeo
 grep -Fq '请求体最多 1 MiB' "$README_FILE" || fail "HTTP request bounds are not documented"
 before_host=$(sha256sum "$HOST_FILE" | awk '{print $1}')
 before_readme=$(sha256sum "$README_FILE" | awk '{print $1}')
+before_utils=$(sha256sum "$T/module/scripts/tests/v1.0.0-jsruntime-utils-regression.sh" | awk '{print $1}')
+before_compat=$(sha256sum "$T/module/scripts/tests/v1.0.0-third-party-api-compat-regression.sh" | awk '{print $1}')
 python3 "$PATCHER" "$T/module" >/dev/null || fail "second HTTP hardening patch was not idempotent"
 [ "$before_host" = "$(sha256sum "$HOST_FILE" | awk '{print $1}')" ] || fail "second patch changed host.js"
 [ "$before_readme" = "$(sha256sum "$README_FILE" | awk '{print $1}')" ] || fail "second patch changed README"
+[ "$before_utils" = "$(sha256sum "$T/module/scripts/tests/v1.0.0-jsruntime-utils-regression.sh" | awk '{print $1}')" ] || fail "second patch changed compatibility utils regression"
+[ "$before_compat" = "$(sha256sum "$T/module/scripts/tests/v1.0.0-third-party-api-compat-regression.sh" | awk '{print $1}')" ] || fail "second patch changed third-party compatibility regression"
 if [ -n "${1:-}" ]; then
   MODULE=$(CDPATH= cd -- "$1" && pwd)
   ACTUAL="$MODULE/scripts/jsruntime/host.js"
@@ -73,5 +91,11 @@ if [ -n "${1:-}" ]; then
   grep -Fq 'FX_HTTP_REQUEST_LIMITS_V1_BEGIN' "$ACTUAL" || fail "restored host lacks HTTP input limits"
   grep -Fq '请求头合计最多 16 KiB' "$DOC" || fail "restored runtime documentation is stale"
   sh -n "$MODULE/scripts/jsruntime/http.sh" || fail "restored HTTP bridge shell syntax invalid"
+  for name in v1.0.0-jsruntime-utils-regression.sh v1.0.0-third-party-api-compat-regression.sh; do
+    compat="$MODULE/scripts/tests/$name"
+    [ -s "$compat" ] || fail "restored QuickJS compatibility test missing: $name"
+    grep -Fq 'Number.isFinite(requestedTimeout)?Math.max(1,Math.min(20,requestedTimeout)):10' "$compat" || fail "restored $name keeps the obsolete timeout expression"
+    grep -Fq 'HTTP request headers exceed 16 KiB' "$compat" || fail "restored $name lacks the header size assertion"
+  done
 fi
 echo "PASS: QuickJS host caps URL, request body and headers; rejects control characters, normalizes timeout and patches idempotently"
