@@ -8,17 +8,9 @@ on:
         required: true
         type: boolean
         default: false
-  push:
+  pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
-    paths:
-      - 'adhook/app/src/main/**'
-      - 'adhook/app/src/test/**'
-      - 'scripts/tests/**'
-      - 'fx-patches/**'
-      - 'fx-module/scripts/tests/**'
-      - 'fx-module/scripts/**'
-      - '.github/workflows/build-fx-adhook.yml'
 permissions:
   actions: read
   contents: read
