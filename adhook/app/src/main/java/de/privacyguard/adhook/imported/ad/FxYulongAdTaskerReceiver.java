@@ -3,6 +3,9 @@ package de.privacyguard.adhook.imported.ad;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Build;
 
 import de.privacyguard.adhook.RootAccess;
@@ -27,6 +30,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
     public static final String PREFS_NAME = "fx_yulong_tasker";
     public static final String PREF_ALLOW_EXTERNAL = "allow_external_actions";
     public static final String PREF_ALLOWED_SENDER_PACKAGE = "allowed_sender_package";
+    public static final String PREF_ALLOWED_SENDER_CERT_SHA256 = "allowed_sender_cert_sha256";
     public static final String PREF_LAST_ACTION = "last_action";
     public static final String PREF_LAST_TARGET = "last_target";
     public static final String PREF_LAST_ENABLED = "last_requested_enabled";
@@ -90,7 +94,8 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
         android.content.SharedPreferences automationPrefs =
                 context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String allowedPackage = automationPrefs.getString(PREF_ALLOWED_SENDER_PACKAGE, "");
-        if (!isAuthorizedAutomationSender(context, allowedPackage)) {
+        String allowedCertificate = automationPrefs.getString(PREF_ALLOWED_SENDER_CERT_SHA256, "");
+        if (!isAuthorizedAutomationSender(context, allowedPackage, allowedCertificate)) {
             android.util.Log.w("FX-Yulong-Tasker",
                     "Rejected Root-backed automation from an unconfigured or unverifiable sender.");
             return;
@@ -169,19 +174,40 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
     }
 
     @android.annotation.SuppressLint("NewApi")
-    private boolean isAuthorizedAutomationSender(Context context, String configuredPackage) {
+    private boolean isAuthorizedAutomationSender(Context context, String configuredPackage,
+                                                   String configuredSignerDigest) {
         if (Build.VERSION.SDK_INT < FxYulongTaskerCallerPolicy.MIN_VERIFIABLE_API) return false;
         try {
             String senderPackage = getSentFromPackage();
             int senderUid = getSentFromUid();
             String[] packagesForUid = senderUid < 0 ? null
                     : context.getPackageManager().getPackagesForUid(senderUid);
+            String senderSignerDigest = installedSignerDigest(context, senderPackage);
             return FxYulongTaskerCallerPolicy.isAuthorized(Build.VERSION.SDK_INT,
-                    senderPackage, senderUid, configuredPackage, packagesForUid);
+                    senderPackage, senderUid, configuredPackage, packagesForUid,
+                    configuredSignerDigest, senderSignerDigest);
         } catch (RuntimeException unavailable) {
             android.util.Log.w("FX-Yulong-Tasker",
                     "Unable to authenticate Root-backed automation sender.", unavailable);
             return false;
+        }
+    }
+
+    private static String installedSignerDigest(Context context, String packageName) {
+        if (!FxYulongTaskerCallerPolicy.isValidPackageName(packageName)) return "";
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            if (info.signingInfo == null) return "";
+            Signature[] signers = info.signingInfo.getApkContentsSigners();
+            if (signers == null || signers.length == 0) return "";
+            byte[][] certificates = new byte[signers.length][];
+            for (int i = 0; i < signers.length; i++) {
+                certificates[i] = signers[i] == null ? null : signers[i].toByteArray();
+            }
+            return FxYulongTaskerCallerPolicy.signerDigest(certificates);
+        } catch (PackageManager.NameNotFoundException | RuntimeException unavailable) {
+            return "";
         }
     }
 
