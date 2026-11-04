@@ -687,3 +687,25 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   2. Dia 原始 Dialog 功能：对照原始 APK 交互语义，区分 per-app 通知 Hook 与 Dialog 自动处理工具，不复用错误的全局隐私开关。
   3. 游龙广告 DNS / Firewall 原生页面：核对真实数据源、列表、表单及刷新/错误状态，再接通已有本地 DNS / Root Proxy 后端。
 - 并行工作线：Dia 模拟表单配置键/序列化映射可独立只读核对；共享 `MainActivity.java` / Manifest 的实际修改顺序整合。
+
+
+## 2026-11-05 — Dia Activity Browser / Hidden Apps 页面分页、搜索与恢复加强
+
+- 本批开始时最新分支 HEAD：585303b7bb0b09b95a141c501133e36b11d9818d；本批后续修正提交：82bbc762d172b553c6fc085e5207c7718b68cfff。
+- 改动路径：adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java。
+- 本批是在既有 Activity Browser 异步枚举版本上进一步统一原生页面交互，不是新增第二套浏览器：
+  - 用户应用选择器在原有后台 PackageManager 枚举基础上，增加名称/包名本地搜索和每页 50 个应用的分页控件。
+  - Activity/隐藏应用组件列表增加类名、权限、导出状态和组件状态搜索，每页最多 80 项，列表不再一次创建所有组件行。
+  - 页面 Bundle 保存并恢复目标包名、应用搜索、Activity 搜索、两个分页索引；恢复时重新通过 PackageManager 读取安装状态和组件状态，不用 Bundle 假造系统当前状态。
+  - Activity onResume 后刷新用户应用清单；已选目标仍存在时重新读取 Activity/launcher 组件元数据与实际启用状态；若目标已卸载，保留原配置但清空当前失效目标。
+  - 保留 MAIN/LAUNCHER 查询语义、仅列用户应用、launcher_only 过滤、Root 命令当前 user id 检查、shell quote 和逐组件二次确认。
+  - PackageManager 组件状态正确区分 ENABLED、DEFAULT、DISABLED、DISABLED_USER、DISABLED_UNTIL_USED；Root 命令成功后仍重新查询系统状态，不将退出码 0 直接显示成已验证生效。
+  - 组件查询和应用清单后台任务带 generation/目标包名校验；旧目标或页面销毁后的回调不写回新 UI。
+- 本批提交：
+  - 585303b7bb0b09b95a141c501133e36b11d9818d — 可搜索分页的 Activity/Hidden Apps 原生浏览器改造。
+  - 82bbc762d172b553c6fc085e5207c7718b68cfff — 修正同方法重复实现、保留刷新前 Activity 页码并补齐 disabled-until-used UI 状态。
+- 定向源码静态核验：搜索/分页、Bundle 目标与页码恢复、onResume 刷新、后台枚举、launcher 过滤、组件状态枚举、Root 二次确认、当前用户校验、shell package/class 验证、过期回调保护、方法唯一性和括号平衡均通过；MainActivity 原路由和 Manifest 注册未变。
+- 验证等级：GitHub 源码静态核对通过；未运行 Java/Android 编译、Gradle、JUnit、UI 自动化、模拟器/真机组件启停或旋转/进程重建验收。不能声称视觉或设备验收通过。
+- 原有 Activity Browser 功能和权限边界保留；未更改固定版本 1.0.0、未触发完整 Actions、未生成 APK/KernelSU ZIP。
+- 下一批直接任务：① Dia 设备属性 / GPS 页面组，对照 per-app 表单保存键、Root/Remote Files 发布字段和 API-101 consumer，重点检查 Android ID、时区、应用版本、GPS 坐标/accuracy、provider enabled 与 Fused Location 回调是否一一对应；② 随后核对 Dialog 专用工具，不能把通知读取/阻断 Hook 当作 Dialog 自动处理；③ 对照原页面与现有 Activity，只补确实尚未实现的表单/详情/返回链。
+- 并行工作线：设备模拟字段和 Hook config serializer/runtime consumer 可以独立只读检查；涉及 MainActivity 统一按当前 blob 顺序整合。
