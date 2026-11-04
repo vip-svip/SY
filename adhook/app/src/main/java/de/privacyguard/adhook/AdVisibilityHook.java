@@ -30,7 +30,6 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
-import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
