@@ -283,8 +283,8 @@ required = (
     'chmod 600 "$_watch_pid_tmp"',
     'mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"',
     'while [ "$_watch_start_wait" -lt 50 ]; do',
-    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ]',
-    '&& kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then',
+    'if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \\',
+    '&& watch_is_ours "$_watch_child_pid"; then',
 )
 for item in required:
     if item not in source:
