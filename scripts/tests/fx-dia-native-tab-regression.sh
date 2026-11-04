@@ -61,6 +61,19 @@ assert "customHookRuleSearchQuery = s == null ? \"\" : s.toString();" in main
 assert "ruleScroll.scrollTo(0, restoreRuleY);" in main, "custom-rule list scroll must restore"
 assert "nativeScroll == ruleScroll" in main, "stale custom-rule scroll callbacks must be ignored"
 
+# A rule editor dialog that was open during recreation reopens with its existing persisted draft.
+assert 'state.getBoolean("fx_custom_rule_editor_open", false)' in main
+assert 'state.getInt("fx_custom_rule_editor_slot", -1)' in main
+assert 'state.getString("fx_custom_rule_editor_preset")' in main
+assert 'outState.putBoolean("fx_custom_rule_editor_open", true)' in main
+assert "if (customRuleEditorRestorePending)" in main
+assert "showCustomRuleDialog(restorePreset, restoreSlot);" in main
+assert "clearCustomRuleEditorDialogState();" in main
+assert '.setNegativeButton("取消", (dialog, which) -> clearCustomRuleEditorDialogState())' in main
+assert '.setOnCancelListener(dialog -> clearCustomRuleEditorDialogState())' in main
+assert 'draftIdentity.equals(getPreferences(0).getString(' in main
+assert 'draftPrefix + "identity"' in main
+
 # Dia Hook category must expose the independently migrated Dialog, Notification and Toast screens.
 assert '{"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤",' in main
 assert 'case "对话框处理": case "对话框与通知":' in main
