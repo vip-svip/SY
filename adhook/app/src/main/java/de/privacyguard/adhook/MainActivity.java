@@ -5275,6 +5275,14 @@ public final class MainActivity extends ComponentActivity {
         saveLocation.setOnClickListener(v -> {
             boolean enabled = simulateLocation.isChecked();
             boolean providerEnabled = providerEnabledSimulation.isChecked();
+            boolean locationAccessBlocked = getPreferences(0).getBoolean(
+                    selectedPackage + ":location_access_block", false);
+            if (locationAccessBlocked && (enabled || providerEnabled)) {
+                new AlertDialog.Builder(this).setTitle("GPS 设置冲突")
+                        .setMessage("当前已启用“限制位置访问”。GPS 坐标/服务状态模拟与位置访问阻断互斥；请先关闭位置访问阻断，或关闭两项 GPS 模拟后再保存。")
+                        .setPositiveButton("知道了", null).show();
+                return;
+            }
             String latitudeText = gpsLatitude.getText().toString().trim();
             String longitudeText = gpsLongitude.getText().toString().trim();
             String accuracyText = gpsAccuracy.getText().toString().trim();
@@ -5322,7 +5330,13 @@ public final class MainActivity extends ComponentActivity {
         content.addView(simulateLocation);
         content.addView(providerEnabledSimulation);
         content.addView(saveLocation);
-        toggle("限制位置访问", "location_access_block", false);
+        TextView locationConflictStatus = new TextView(this);
+        locationConflictStatus.setTextColor(0xffa32620);
+        locationConflictStatus.setTextSize(12);
+        locationConflictStatus.setPadding(dp(18), dp(4), dp(18), dp(6));
+        content.addView(locationConflictStatus);
+        refreshLocationSimulationConflictStatus(locationConflictStatus);
+        addLocationAccessBlockToggle(locationConflictStatus);
         section("设备访问");
         toggle("限制摄像头访问", "camera_access_block", false);
         section("媒体隐私");
@@ -6829,6 +6843,63 @@ public final class MainActivity extends ComponentActivity {
         t.setTag("fx-section:" + s);
         content.addView(t,lp);
     }
+    private void refreshLocationSimulationConflictStatus(TextView status) {
+        if (status == null) return;
+        boolean blocked = getPreferences(0).getBoolean(
+                selectedPackage + ":location_access_block", false);
+        boolean coordinates = getPreferences(0).getBoolean(
+                selectedPackage + ":location_simulate", false);
+        boolean provider = getPreferences(0).getBoolean(
+                selectedPackage + ":location_provider_enabled_simulate", false);
+        boolean conflict = blocked && (coordinates || provider);
+        status.setText(conflict
+                ? "配置冲突：位置访问阻断与 GPS 模拟不能同时发布。请关闭其中一组设置后再保存 Hook 配置。"
+                : "");
+        status.setVisibility(conflict ? View.VISIBLE : View.GONE);
+    }
+
+    private void addLocationAccessBlockToggle(TextView conflictStatus) {
+        Switch sw = new Switch(this);
+        sw.setText("限制位置访问");
+        sw.setTextSize(15);
+        sw.setPadding(dp(18), dp(12), dp(18), dp(12));
+        sw.setBackground(uiPanelDrawable());
+        sw.setChecked(getPreferences(0).getBoolean(
+                selectedPackage + ":location_access_block", false));
+        final boolean[] restoring = { false };
+        sw.setOnCheckedChangeListener((button, checked) -> {
+            if (restoring[0]) return;
+            if (checked) {
+                boolean coordinates = getPreferences(0).getBoolean(
+                        selectedPackage + ":location_simulate", false);
+                boolean provider = getPreferences(0).getBoolean(
+                        selectedPackage + ":location_provider_enabled_simulate", false);
+                if (coordinates || provider) {
+                    restoring[0] = true;
+                    button.setChecked(false);
+                    restoring[0] = false;
+                    Toast.makeText(this,
+                            "GPS 坐标/服务模拟与位置访问阻断互斥。请先关闭并保存 GPS 模拟。",
+                            Toast.LENGTH_LONG).show();
+                    refreshLocationSimulationConflictStatus(conflictStatus);
+                    return;
+                }
+            }
+            boolean saved = getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":location_access_block", checked)
+                    .commit();
+            if (!saved) {
+                restoring[0] = true;
+                button.setChecked(!checked);
+                restoring[0] = false;
+                Toast.makeText(this, "位置访问设置保存失败，原状态保持不变。",
+                        Toast.LENGTH_LONG).show();
+            }
+            refreshLocationSimulationConflictStatus(conflictStatus);
+        });
+        content.addView(sw, new LinearLayout.LayoutParams(-1, -2));
+    }
+
     private void toggle(String label,String feature,boolean def) {
         Switch sw=new Switch(this); sw.setText(label); sw.setTextSize(15); sw.setPadding(dp(18),dp(12),dp(18),dp(12));
         sw.setBackground(uiPanelDrawable()); sw.setChecked(getPreferences(0).getBoolean(key(feature),def));
