@@ -1605,6 +1605,31 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         setStatus("读取目标进程失败：" + result.output);
                         return;
                     }
+                    // A package may be removed/reinstalled while Root enumerates its
+                    // processes. Re-resolve identity before showing the old PID snapshot.
+                    final ApplicationInfo currentTarget;
+                    try {
+                        currentTarget = getPackageManager().getApplicationInfo(requestedPackage, 0);
+                    } catch (PackageManager.NameNotFoundException removed) {
+                        processPickerOpen = false;
+                        selectedProcessPids.clear();
+                        clearPendingProcessPickerState();
+                        targetLabel.setText(requestedName + "\n" + requestedPackage
+                                + "\n目标应用已卸载，请重新选择。");
+                        setStatus("目标应用在进程扫描期间已卸载，已丢弃旧 PID 快照。");
+                        return;
+                    }
+                    if (currentTarget.uid != targetUid
+                            || (currentTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                            || (currentTarget.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                        processPickerOpen = false;
+                        selectedProcessPids.clear();
+                        clearPendingProcessPickerState();
+                        targetLabel.setText(requestedName + "\n" + requestedPackage
+                                + "\n目标身份/调试状态已变化，请重新选择。");
+                        setStatus("目标应用 UID 或调试状态在进程扫描期间发生变化，已丢弃旧 PID 快照。");
+                        return;
+                    }
                     List<String> pids = new ArrayList<>();
                     List<String> labels = new ArrayList<>();
                     for (String line : result.output.split("\\r?\\n")) {
