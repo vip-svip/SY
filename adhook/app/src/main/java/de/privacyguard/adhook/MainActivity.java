@@ -5788,8 +5788,10 @@ public final class MainActivity extends ComponentActivity {
                     Math.min(triggerValues.length - 1, finishSpinner.getSelectedItemPosition()))];
             int dialogTrigger = triggerValues[Math.max(0,
                     Math.min(triggerValues.length - 1, dialogSpinner.getSelectedItemPosition()))];
-            if (finishTrigger >= 0 && finishTrigger == dialogTrigger) {
-                Toast.makeText(this, "两个独立动作不能使用同一个触发器，请分别选择。", Toast.LENGTH_LONG).show();
+            if (de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy
+                    .hasOverlappingTriggers(finishTrigger, dialogTrigger)) {
+                Toast.makeText(this, "两个动作的按键序列可能重叠，请选择不会同时触发的组合。",
+                        Toast.LENGTH_LONG).show();
                 return;
             }
             if (dialogTrigger >= 0 && (!dialogConfigured || !debuggableTarget)) {
