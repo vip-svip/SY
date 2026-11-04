@@ -85,6 +85,8 @@ public final class FxDiaFridaActivity extends Activity {
     private TextView targetLabel;
     private String targetPackage;
     private String targetName;
+    private boolean targetLoading;
+    private int targetLoadGeneration;
     private int monitorEventGeneration;
     private final java.util.LinkedHashSet<String> selectedProcessPids = new java.util.LinkedHashSet<>();
 
@@ -1280,19 +1282,55 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void chooseTarget() {
-        List<Target> targets = new ArrayList<>();
-        PackageManager pm = getPackageManager();
-        for (ApplicationInfo info : pm.getInstalledApplications(0)) {
-            if (info.packageName == null || info.packageName.equals(getPackageName())) continue;
-            if ((info.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) continue;
-            if ((info.flags & ApplicationInfo.FLAG_SYSTEM) != 0) continue;
-            String label;
-            try { label = String.valueOf(pm.getApplicationLabel(info)); }
-            catch (Throwable ignored) { label = info.packageName; }
-            targets.add(new Target(info.packageName, label));
+        if (targetLoading) {
+            setStatus("正在后台读取可调试应用列表…");
+            return;
         }
-        targets.sort(Comparator.comparing(item -> item.label.toLowerCase(Locale.ROOT)));
-        if (targets.isEmpty()) {
+        targetLoading = true;
+        final int request = ++targetLoadGeneration;
+        setStatus("正在后台读取可调试应用列表…");
+        final PackageManager pm = getPackageManager();
+        final String ownPackage = getPackageName();
+        try {
+            worker.execute(() -> {
+                List<Target> targets = new ArrayList<>();
+                String failure = null;
+                try {
+                    for (ApplicationInfo info : pm.getInstalledApplications(0)) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (info.packageName == null || info.packageName.equals(ownPackage)) continue;
+                        if ((info.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) continue;
+                        if ((info.flags & ApplicationInfo.FLAG_SYSTEM) != 0) continue;
+                        String label;
+                        try { label = String.valueOf(pm.getApplicationLabel(info)); }
+                        catch (RuntimeException ignored) { label = info.packageName; }
+                        targets.add(new Target(info.packageName, label));
+                    }
+                    targets.sort(Comparator.comparing(item -> item.label.toLowerCase(Locale.ROOT)));
+                } catch (RuntimeException error) {
+                    failure = error.getClass().getSimpleName();
+                }
+                if (Thread.currentThread().isInterrupted()) return;
+                final String loadFailure = failure;
+                final List<Target> result = targets;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || request != targetLoadGeneration) return;
+                    targetLoading = false;
+                    if (loadFailure != null) {
+                        setStatus("读取可调试应用失败：" + loadFailure);
+                        return;
+                    }
+                    showTargetPicker(result);
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            targetLoading = false;
+            setStatus("后台任务队列繁忙，应用列表未读取；请稍后重试。");
+        }
+    }
+
+    private void showTargetPicker(List<Target> targets) {
+        if (targets == null || targets.isEmpty()) {
             setStatus("没有可调试的用户应用。请使用自己构建的 debuggable 测试目标。");
             return;
         }
@@ -2428,6 +2466,8 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        targetLoadGeneration++;
+        targetLoading = false;
         monitorEventGeneration++;
         worker.shutdownNow();
         super.onDestroy();
