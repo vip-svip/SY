@@ -374,7 +374,7 @@ public final class MainActivity extends ComponentActivity {
             outState.putBoolean("fx_hook_custom_return_to_target", customHookReturnToTarget);
             String targetPackage = pendingRestorePackage != null
                     ? pendingRestorePackage : selectedPackage;
-            if ("target".equals(hookScreen) && targetPackage != null) {
+            if (("target".equals(hookScreen) || "target_custom_rules".equals(hookScreen)) && targetPackage != null) {
                 outState.putString("fx_selected_package", targetPackage);
             }
         }
@@ -4854,6 +4854,8 @@ public final class MainActivity extends ComponentActivity {
             // The package may have been uninstalled after the background app index was built.
             ai = getPackageManager().getApplicationInfo(ai.packageName, 0);
         } catch (PackageManager.NameNotFoundException removed) {
+            hookCustomRulesPageVisible = false;
+            customHookReturnToTarget = false;
             Toast.makeText(this, "该应用已卸载，正在刷新应用列表。", Toast.LENGTH_LONG).show();
             showAppList(activePrivacySection);
             return;
@@ -5289,8 +5291,8 @@ public final class MainActivity extends ComponentActivity {
         base("自定义 Hook 规则 · " + selectedLabel);
 
         TextView targetInfo = new TextView(this);
-        targetInfo.setText("目标应用：" + selectedLabel + "\\n包名：" + selectedPackage
-                + "\\n构建类型：" + (targetDebuggable ? "debuggable 测试构建" : "非 debuggable"));
+        targetInfo.setText("目标应用：" + selectedLabel + "\n包名：" + selectedPackage
+                + "\n构建类型：" + (targetDebuggable ? "debuggable 测试构建" : "非 debuggable"));
         targetInfo.setTextColor(0xff526170);
         targetInfo.setPadding(dp(18), dp(2), dp(18), dp(8));
         content.addView(targetInfo);
@@ -6320,9 +6322,9 @@ public final class MainActivity extends ComponentActivity {
 
                     TextView item = new TextView(this);
                     item.setText(parts[0] + " · " + baseAction
-                            + "\\n" + parts[1]
-                            + (parts.length == 5 ? "\\n常量：" + parts[4] : "")
-                            + "\\n分组：" + ruleGroup + " · 优先级：" + parts[3]
+                            + "\n" + parts[1]
+                            + (parts.length == 5 ? "\n常量：" + parts[4] : "")
+                            + "\n分组：" + ruleGroup + " · 优先级：" + parts[3]
                             + (active ? " · 已启用" : " · 已暂停")
                             + (valid ? "" : " · 签名/动作无效"));
                     item.setTextSize(12);
