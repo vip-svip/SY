@@ -18,6 +18,7 @@ grep -Fq 'STATE_DOCUMENT_PERSISTED' "$DEX" || fail "persistable SAF grant state 
 grep -Fq 'STATE_QUERY' "$DEX" || fail "DEX search query is not saved across Activity recreation"
 grep -Fq 'STATE_SCROLL_Y' "$DEX" || fail "DEX results scroll position is not saved across Activity recreation"
 grep -Fq 'restoreSourceAfterRecreation(state)' "$DEX" || fail "DEX source is not reloaded after Activity recreation"
+grep -Fq 'target.setText(String.valueOf(label) + "\n" + packageName);' "$DEX" || fail "restored application label must use an actual line break"
 grep -Fq 'loadDexDocument(documentUri, documentName)' "$DEX" || fail "restored standalone DEX URI is not re-parsed"
 grep -Fq 'loadFrameworkDex();' "$DEX" || fail "Framework DEX source is not restored"
 grep -Fq 'loadDex();' "$DEX" || fail "selected APK DEX source is not restored"
