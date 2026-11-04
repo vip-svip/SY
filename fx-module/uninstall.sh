@@ -2,6 +2,11 @@
 # KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=/data/adb/privacyguard
+_mitm_warn() {
+  _msg="PrivacyGuard uninstall warning: $*"
+  echo "$_msg" >&2
+  if command -v log >/dev/null 2>&1; then log -p w -t PrivacyGuardUninstall "$_msg" 2>/dev/null; fi
+}
 # FX_QUICKJS_SCHEDULER_STOP_BEGIN
 _FX_SCHEDULER_STATE_DIR=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
 if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
