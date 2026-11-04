@@ -110,15 +110,15 @@ assert 'case "按键控制":' in ui and 'showAppList("按键控制")' in ui
 assert "showDiaKeyControlTarget(ai)" in ui
 assert "动作一：关闭当前 Activity" in ui and "动作二：暂停 / 恢复当前应用的 Dialog 规则" in ui
 assert "key_finish_trigger" in ui and "key_dialog_toggle_trigger" in ui
-assert "keyFinishTrigger == keyDialogToggleTrigger" in ui
+assert "hasOverlappingTriggers(finishTrigger, dialogTrigger)" in ui
 assert "Dialog 切换动作需要先有有效的 debuggable Dialog 规则" in ui
 assert "FLAG_UPDATED_SYSTEM_APP" in ui and "不会强制停止进程" in ui
 assert "key_finish_trigger" in parser and "key_dialog_toggle_trigger" in parser
 assert "trigger < -1 || trigger > 6" in parser
 assert "keyDialogToggleTrigger >= 0 && !dialogMatchEnabled" in parser
-assert "Dia key actions must use distinct triggers" in parser
+assert "Dia key actions have overlapping gesture triggers" in parser
 assert "key_finish_trigger" in ser and "key_dialog_toggle_trigger" in ser
-assert "target.keyFinishTrigger == target.keyDialogToggleTrigger" in ser
+assert "hasOverlappingTriggers(" in ser
 assert "Dialog key toggle requires enabled Dialog rules" in ser
 assert 'Activity.class.getDeclaredMethod("dispatchKeyEvent", KeyEvent.class)' in hook
 assert 'Activity.class.getDeclaredMethod("onKeyLongPress"' in hook
@@ -131,24 +131,32 @@ assert "computeIfAbsent(packageName" in key_registry
 assert "TRIGGER_VOLUME_DOWN_UP_CHORD" in key_policy
 assert "MIN_DOUBLE_PRESS_GAP_MS = 200L" in key_policy
 assert "CHORD_WINDOW_MS = 400L" in key_policy
+assert "hasOverlappingTriggers(int first, int second)" in key_policy
+assert "if (firstBack && secondBack) return true" in key_policy
 for case in (
     "parsesPerAppActivityKeyActions",
     "legacyTargetsKeepActivityKeyActionsDisabled",
     "rejectsActivityKeyTriggerOutOfRange",
     "rejectsDialogKeyToggleWithoutDialogRules",
-    "rejectsTwoActivityKeyActionsUsingTheSameTrigger"):
+    "rejectsTwoActivityKeyActionsWithOverlappingGestures"):
     assert case in parser_test, f"missing ActivityKey Parser test: {case}"
 for case in (
     "serializerRoundTripsPerAppActivityKeyActions",
     "serializerRejectsDialogKeyToggleWithoutDialogRules",
-    "serializerRejectsTwoActivityKeyActionsUsingTheSameTrigger"):
+    "serializerRejectsTwoActivityKeyActionsWithOverlappingGestures"):
     assert case in ser_test, f"missing ActivityKey Serializer test: {case}"
 for marker in (
     "Back long press emits trigger 5",
     "volume-down/up chord emits trigger 6",
     "repeat key-down event is ignored",
     "registry allocates independent gesture state per package",
-    "removing a package resets its previous gesture timestamps"):
+    "removing a package resets its previous gesture timestamps",
+    "volume-down double and triple gestures overlap",
+    "Back double and triple gestures overlap",
+    "volume-down double can overlap with volume chord",
+    "volume-up double can overlap with volume chord",
+    "different volume-key double gestures do not overlap",
+    "disabled actions do not conflict"):
     assert marker in key_host_test, f"missing key Host case: {marker}"
 print("PASS: Dialog, Toast and ActivityKey UI/config/runtime source contracts")
 PY
