@@ -2762,9 +2762,13 @@ public final class MainActivity extends ComponentActivity {
         checkRoot(rootState, false);
         section("LSPosed");
         TextView ls = new TextView(this);
-        ls.setText(isLsposedManagerInstalled()
-                ? "已检测到 LSPosed Manager。注意：这只证明管理器已安装；框架是否运行、FX 模块是否启用、目标应用作用域及进程注入状态均无法由 FX 独立可靠读取，当前均标记为“未知”，请在 Manager 中逐项确认。"
-                : "未检测到 LSPosed Manager。框架运行状态、FX 模块启用状态、目标应用作用域及进程注入状态均为未知；请先安装并配置兼容的 LSPosed 框架。");
+        ls.setText((isLsposedManagerInstalled()
+                ? "已检测到 LSPosed Manager。"
+                : "未检测到 LSPosed Manager。")
+                + (FxLsposedScopeBridge.isConnected()
+                    ? "\nlibXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
+                    : "\nlibXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
+                + "\n作用域批准不等于目标进程已经注入。");
         ls.setPadding(dp(18), dp(12), dp(18), dp(12));
         content.addView(ls);
         Button manager = new Button(this);
@@ -4657,7 +4661,7 @@ public final class MainActivity extends ComponentActivity {
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
         boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         TextView scopeNotice = new TextView(this);
-        scopeNotice.setText("LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager 中单独设置。本页只发布 FX Hook 规则，不会自动授予或修改 LSPosed 作用域。");
+        scopeNotice.setText("FX 通过 libXposed 服务申请此目标的 LSPosed 作用域；最终批准仍由 LSPosed 框架/Manager 决定。若服务未连接，先在 LSPosed Manager 启用 FX Hook，再刷新。此状态不代表目标进程已注入。");
         scopeNotice.setTextColor(0xff697681);
         scopeNotice.setPadding(dp(18), dp(4), dp(18), dp(12));
         content.addView(scopeNotice);
@@ -4668,6 +4672,7 @@ public final class MainActivity extends ComponentActivity {
         targetBuildState.setTextColor(0xff697681);
         targetBuildState.setPadding(dp(18),0,dp(18),dp(12));
         content.addView(targetBuildState);
+        addLsposedScopeControls(selectedPackage, (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
         section("广告识别");
         TextView adNote=new TextView(this);
         adNote.setText("广告类型由内置识别引擎自动判断，无需按应用配置启动页、信息流或弹窗开关。");
@@ -5447,6 +5452,115 @@ public final class MainActivity extends ComponentActivity {
                 }).show();
     }
 
+
+    private void addLsposedScopeControls(String packageName, boolean systemPackage) {
+        section("LSPosed 作用域授权");
+        TextView state = new TextView(this);
+        state.setPadding(dp(18), dp(8), dp(18), dp(10));
+        state.setText("正在读取 LSPosed 服务和当前目标作用域…");
+        content.addView(state);
+
+        Button refresh = new Button(this);
+        refresh.setAllCaps(false);
+        refresh.setText("刷新 LSPosed 作用域状态");
+        refresh.setOnClickListener(v -> refreshLsposedScopeStatus(state, packageName));
+        content.addView(refresh);
+
+        Button request = new Button(this);
+        request.setAllCaps(false);
+        request.setText("向 LSPosed 申请此应用的 Hook 作用域");
+        request.setOnClickListener(v -> {
+            Runnable action = () -> {
+                state.setText("已向 LSPosed Manager 发送作用域申请；等待用户批准…");
+                try {
+                    FxLsposedScopeBridge.requestScope(packageName, new FxLsposedScopeBridge.RequestCallback() {
+                        @Override public void onApproved(java.util.List<String> approved) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                if (approved != null && approved.contains(packageName)) {
+                                    state.setText("LSPosed 已批准此应用作用域。是否已经注入仍需以目标进程运行状态为准。");
+                                } else {
+                                    state.setText("LSPosed 请求已返回，但批准列表未包含此应用；请检查 Manager 提示后刷新。");
+                                }
+                                refreshLsposedScopeStatus(state, packageName);
+                            });
+                        }
+
+                        @Override public void onFailed(String message) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                state.setText("LSPosed 作用域申请失败：" + message);
+                            });
+                        }
+                    });
+                } catch (RuntimeException error) {
+                    state.setText("无法提交作用域申请：" + error.getMessage());
+                }
+            };
+            if (systemPackage) {
+                new AlertDialog.Builder(this)
+                        .setTitle("系统应用作用域")
+                        .setMessage("该目标属于系统应用。启用作用域可能让 FX Hook 进入系统组件；请只在明确需要且了解影响时继续。最终仍由 LSPosed Manager 审批。")
+                        .setPositiveButton("继续申请", (dialog, which) -> action.run())
+                        .setNegativeButton("取消", null)
+                        .show();
+            } else {
+                action.run();
+            }
+        });
+        content.addView(request);
+
+        Button remove = new Button(this);
+        remove.setAllCaps(false);
+        remove.setText("移除此应用的 LSPosed 作用域");
+        remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("移除 LSPosed 作用域")
+                .setMessage("移除后，LSPosed 将不再向此应用进程加载 FX Hook。是否继续？")
+                .setPositiveButton("移除", (dialog, which) -> removeLsposedScope(packageName, state))
+                .setNegativeButton("取消", null)
+                .show());
+        content.addView(remove);
+        refreshLsposedScopeStatus(state, packageName);
+    }
+
+    private void refreshLsposedScopeStatus(TextView state, String packageName) {
+        state.setText("正在读取 LSPosed 服务和当前目标作用域…");
+        Thread worker = new Thread(() -> {
+            FxLsposedScopeBridge.Snapshot snapshot = FxLsposedScopeBridge.snapshot(packageName);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (!snapshot.connected) {
+                    state.setText(snapshot.error);
+                    return;
+                }
+                state.setText("框架：" + snapshot.frameworkName + " " + snapshot.frameworkVersion
+                        + " · Service API " + snapshot.apiVersion
+                        + "\n当前作用域：" + (snapshot.targetInScope ? "已包含此应用" : "尚未包含此应用")
+                        + "\n已授权包数量：" + snapshot.scopeCount
+                        + "\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
+            });
+        }, "fx-lsposed-scope-status");
+        worker.start();
+    }
+
+    private void removeLsposedScope(String packageName, TextView state) {
+        state.setText("正在向 LSPosed 移除此应用作用域…");
+        Thread worker = new Thread(() -> {
+            String failure = null;
+            try {
+                FxLsposedScopeBridge.removeScope(packageName);
+            } catch (RuntimeException error) {
+                failure = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            }
+            final String result = failure;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                state.setText(result == null ? "已提交作用域移除。" : "移除失败：" + result);
+                refreshLsposedScopeStatus(state, packageName);
+            });
+        }, "fx-lsposed-scope-remove");
+        worker.start();
+    }
 
     private ApplicationInfo findApp(String pkg) {
         for(ApplicationInfo ai:apps) if(ai.packageName.equals(pkg)) return ai;
