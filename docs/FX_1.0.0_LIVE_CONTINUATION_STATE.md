@@ -2580,3 +2580,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`31aefc8bd9a5bcc1584fd02edb5dae3883e831d5`。
 - 验证等级：静态核对 MainActivity 的 0..5 边界、统一路由与测试断言一致；修复后的 targeted run 待读取。
 - 下一步：确认六 Tab/Shield/Frida targeted Host 回归完成；继续 Frida SAF 导入 URI 重建恢复。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 游龙广告子页面切换时保留未保存编辑草稿
+
+- 修复前分支 HEAD：`887475ac5eaff7c5cd21ee83aee679e476e1c549`。
+- 发现并修复一个 UI 数据丢失问题：游龙广告子页面通过 `open()` 重建视图时会清空 `draftFields`，导致用户在过滤列表、DNS、域名名单、计划任务或配置档等页面输入但尚未提交的内容，在切换子页面后丢失。新增统一 `captureDrafts()`，页面切换前先快照当前 EditText，再重建目标页面并按稳定字段 key 恢复草稿；Activity 保存状态也复用同一快照方法。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`；`scripts/tests/fx-yulong-ad-activity-state-regression.sh`。
+- 提交：`0d8decfd3514ed4e91feeb5e221c1d05e275ec9d`（页面切换保留草稿）；`b4ab67ec2618c03a25337e4507b3e984cbda5a68`（回归断言）。
+- 静态复核已从 GitHub 重新读取源码与脚本，确认快照发生在 `render()` 之前、恢复发生在新控件创建之后，并确认滚动位置 Bundle 恢复仍保留。尚未实际运行回归脚本、Gradle、模拟器或真机测试。
+- 当前最新 HEAD（写入本记录前）：`b4ab67ec2618c03a25337e4507b3e984cbda5a68`。
+- 下一步：检查游龙原生 UI 其余可编辑页面的草稿/列表/返回行为，并开始 Hook 主页面与应用详情页面的端到端导航整合；不打最终包，不改变 FX 1.0.0 版本号。
