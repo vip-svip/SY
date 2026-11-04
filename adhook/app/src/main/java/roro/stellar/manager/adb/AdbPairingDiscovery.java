@@ -3,6 +3,7 @@ package roro.stellar.manager.adb;
 import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -45,7 +46,9 @@ public final class AdbPairingDiscovery implements AutoCloseable {
     }
 
     private final NsdManager manager;
+    private final WifiManager wifiManager;
     private final Listener listener;
+    private WifiManager.MulticastLock multicastLock;
     private final String serviceType;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ArrayDeque<NsdServiceInfo> resolveQueue = new ArrayDeque<>();
@@ -76,6 +79,8 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             throw new IllegalStateException("Android Network Service Discovery is unavailable");
         }
         manager = (NsdManager) service;
+        Object wifi = context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        wifiManager = wifi instanceof WifiManager ? (WifiManager) wifi : null;
         this.listener = listener;
         this.serviceType = normalized;
     }
@@ -86,9 +91,12 @@ public final class AdbPairingDiscovery implements AutoCloseable {
         started = true;
         discoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                WifiManager.MulticastLock lock;
                 synchronized (AdbPairingDiscovery.this) {
                     started = false;
+                    lock = takeMulticastLockLocked();
                 }
+                releaseMulticastLock(lock);
                 fail("无法启动 ADB 无线配对服务发现", errorCode);
             }
 
@@ -101,6 +109,12 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             }
 
             @Override public void onDiscoveryStopped(String serviceType) {
+                WifiManager.MulticastLock lock;
+                synchronized (AdbPairingDiscovery.this) {
+                    started = false;
+                    lock = takeMulticastLockLocked();
+                }
+                releaseMulticastLock(lock);
                 post(() -> listener.onStopped());
             }
 
@@ -130,6 +144,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             @Override public void onServiceLost(NsdServiceInfo serviceInfo) {
                 if (serviceInfo == null) return;
                 String name = serviceInfo.getServiceName();
+                if (name == null || name.isEmpty()) return;
                 synchronized (AdbPairingDiscovery.this) {
                     knownNames.remove(name);
                     resolvedNames.remove(name);
@@ -140,10 +155,37 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             }
         };
         try {
+            acquireMulticastLock();
             manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
         } catch (RuntimeException failure) {
-            started = false;
+            WifiManager.MulticastLock lock;
+            synchronized (this) {
+                started = false;
+                lock = takeMulticastLockLocked();
+            }
+            releaseMulticastLock(lock);
             fail("ADB 无线配对服务发现启动失败：" + failure.getClass().getSimpleName(), -1);
+        }
+    }
+
+    /** Hold Wi-Fi multicast reception only while this mDNS browse is active. */
+    private synchronized void acquireMulticastLock() {
+        if (wifiManager == null || multicastLock != null) return;
+        WifiManager.MulticastLock lock = wifiManager.createMulticastLock("fx-adb-mdns-discovery");
+        lock.setReferenceCounted(false);
+        lock.acquire();
+        multicastLock = lock;
+    }
+
+    private WifiManager.MulticastLock takeMulticastLockLocked() {
+        WifiManager.MulticastLock lock = multicastLock;
+        multicastLock = null;
+        return lock;
+    }
+
+    private static void releaseMulticastLock(WifiManager.MulticastLock lock) {
+        if (lock != null && lock.isHeld()) {
+            try { lock.release(); } catch (RuntimeException ignored) { }
         }
     }
 
@@ -235,6 +277,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
     @Override
     public void close() {
         NsdManager.DiscoveryListener current;
+        WifiManager.MulticastLock lock;
         synchronized (this) {
             if (closed) return;
             closed = true;
@@ -245,6 +288,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             resolveQueue.clear();
             knownNames.clear();
             resolvedNames.clear();
+            lock = takeMulticastLockLocked();
         }
         if (current != null) {
             try {
@@ -253,5 +297,6 @@ public final class AdbPairingDiscovery implements AutoCloseable {
                 // Discovery may have failed before NsdManager registered its listener.
             }
         }
+        releaseMulticastLock(lock);
     }
 }
