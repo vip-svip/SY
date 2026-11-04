@@ -2244,3 +2244,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：已读取提交后的源码与测试脚本并核对目标字符串；未在完整 checkout 执行 Shell 回归脚本，未运行 Gradle、UI 自动化、模拟器或真机旋转/进程重建测试。不得标记为运行测试通过。
 - 未完成：DEX picker 返回主界面时，目标包名/规则编辑器草稿在 MainActivity 重建期间的请求归属稳定性；SAF 提供方授权恢复仍需设备验证。
 - 下一步直接任务：① 检查 Dia DEX picker 与 MainActivity 的 Activity Result 目标归属；② 检查游龙 Tasker/Widget 操作回执页面的状态呈现；③ 继续推进六 Tab 主壳与剩余原生页面批次。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida JS 脚本 SAF 导出回调生命周期保护
+
+- 本批起始 HEAD：`d5858a8bda3718aced02d7b643b760f10ad2f1f0`。
+- `exportScript(Uri)` 的文件写入成功/失败回调此前直接调用 `setStatus()`，未检查 Activity 是否已结束；用户在系统文件选择器返回后关闭页面，或导出后台任务晚于 Activity 生命周期结束时，旧 Activity 仍可能更新已脱离页面的 View。
+- 修改：成功和失败两个 UI 回调均检查 `isFinishing()` / `isDestroyed()`，页面结束后不再触碰旧状态 View；不改变 SAF 写入、512 KiB 限制和用户选定文件行为。
+- 修改 `fx-dia-frida-script-library-saf-regression.sh`：新增成功/失败两个回调的 Activity 生命周期断言。
+- 提交：`9317a8a61efc45da9d26ff79a6f0c98872050349`（实现）；`d866f72f93512257d96f67b3676f4a8ccf85a0e3`（回归断言）。
+- 验证等级：源码静态检查；未运行 Shell/Python、Gradle、UI 自动化或真实 SAF 提供方在 Activity 结束期间的写入测试。
+- 下一步：继续核对 Frida 二进制导入与脚本库导出 Worker 在 Activity 结束时的取消/暂存文件清理边界；随后完成游龙安全护盾风险详情/告警/名单页面组。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
