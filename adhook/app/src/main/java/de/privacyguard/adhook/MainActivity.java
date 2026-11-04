@@ -4684,7 +4684,7 @@ public final class MainActivity extends ComponentActivity {
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
         boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         TextView scopeNotice = new TextView(this);
-        scopeNotice.setText("FX 通过 libXposed 服务申请此目标的 LSPosed 作用域；最终批准仍由 LSPosed 框架/Manager 决定。若服务未连接，先在 LSPosed Manager 启用 FX Hook，再刷新。此状态不代表目标进程已注入。");
+        scopeNotice.setText("LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager 中单独设置；FX 可通过 libXposed 服务提交此应用的作用域申请或移除请求，但最终批准仍由 LSPosed Manager 决定。若服务未连接，先在 LSPosed Manager 启用 FX Hook，再刷新。作用域批准不代表目标进程已经注入。");
         scopeNotice.setTextColor(0xff697681);
         scopeNotice.setPadding(dp(18), dp(4), dp(18), dp(12));
         content.addView(scopeNotice);
