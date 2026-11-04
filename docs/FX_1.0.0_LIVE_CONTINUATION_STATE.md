@@ -1880,3 +1880,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Hook 自定义规则管理导航修复：`bfa0d8f9b0b5320b4c62c934e8284e76468ae592`；回归断言：`5ea20984f647c86fd04987af29f0a9e28e58b63a`。Hook 列表状态恢复：`2a9f9a1eb36952678476247cc3fac4c132243ee0` / `aa3462f0b44b0ba1ab367297d58ba993cebac1bf`。Dia Dialog/通知/Toast 分流：`b0a7490e296c81dd0c4662d1db783b85f83b6886` / `1bfc59b45dc0d67f1f76d9a2ff5599e2787cd3a4`。
 - 验证仅为源码静态检查与回归断言审阅；Shell/Python、Gradle、UI 自动化、安装和真机均未执行。
 - 固定 FX 1.0.0；三套应用与六 Tab 完整验收前不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — API-101 位置访问保护 UI 与迁移检查器修复核验
+
+- 追查 Actions 运行 `41904387432`：该运行基于旧提交 `474749b65b61f96ebddf6a03664aadab17ec3397`，在 workflow 的“Restore module sources, merge Hook entrypoints, and stage WebUI”步骤失败；错误为 `API-101 privacy migration incomplete; missing fields: location_access_block native UI toggle`。静态迁移检查、完整 Host 回归和 APK 编译均被跳过，不能作为构建/测试通过证据。
+- 后续运行 `41904923257` 基于 `c83802867775b1759bc018163f9704cfe7e4fb2e`，同一阶段仍失败。读取原始 Actions job log 后确认：该提交上的 `patch_hook_privacy_controls.py` 在 helper 检查中错误要求 `if (locationAccessBlocked && (enabled || provider)`，但实际专用开关使用局部变量 `coordinates` / `provider`，因此把已有控件误判为缺失。
+- 当前分支 UI 已有专用 `addLocationAccessBlockToggle(locationConflictStatus)`，位于所选应用的“位置隐私”区：
+  - 读取并写入 `selectedPackage + ":location_access_block"`；
+  - 禁止与 `location_simulate` 或 `location_provider_enabled_simulate` 同时启用；
+  - 使用同步 `commit()`，失败时恢复 Switch 原状态并提示；
+  - 随后的 `publishConfig()` 将字段写进目标配置；Parser、Serializer 和 `AdVisibilityHook` 运行时均已有对应字段及消费逻辑。
+- 当前分支 `patch_hook_privacy_controls.py` 已修正检查锚点为 helper 实际使用的 `if (coordinates || provider)`，并保留对保存、回滚、UI 安装点及 GPS 模拟互斥的检查。当前 HEAD 静态复算确认 helper 所有 marker、目标页调用、发布字段、Parser/Serializer、Hook 消费链存在。
+- 相关提交：`60399161c08e4c4f4c423865581c8b1af15f6deb`（接受冲突感知位置控件）；`c83802867775b1759bc018163f9704cfe7e4fb2e`（迁移检查器 helper 边界调整）；`9ba322ea7103d202e71c58cfd8f7a4a65554b37d`（双向 GPS/位置互斥回归覆盖）。后续当前分支检查器已把错误变量名改为真实变量名。
+- 最新可见自动运行：`41905358248` 对当前 HEAD `95f53f94f81dfa7b4158cfca42b53ec62bbd6fe9` 仍处于 pending；`41905243917` 对稍早提交处于 in_progress；更早运行因 `concurrency.cancel-in-progress: true` 被取消。当前没有证据证明最新 HEAD 的 Host 回归或 Android 编译已通过。
+- 下一步：等待/读取当前自动运行的结果；若该步骤通过，再确认静态迁移与 Host 回归阶段是否真正执行。随后将位置保护控件的同一契约加入 `fx-hook-native-ui-regression.sh`，与下一批 Hook UI 测试一起提交，避免单独触发重复的 300 项 workflow。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
