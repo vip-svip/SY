@@ -3,6 +3,7 @@ package roro.stellar.manager.adb;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.graphics.Typeface;
@@ -147,6 +148,10 @@ public final class AdbPairingActivity extends Activity {
 
     private void startDiscovery() {
         if (destroyed || pairing) return;
+        if (Build.VERSION.SDK_INT < 31) {
+            status.setText("当前 Android 版本低于 12/API 31，系统公开 TLS exporter 不可用。系统设置中的手动配对只登记系统 ADB 客户端密钥，不会登记 FX 的独立主机密钥；本页不会启动一个注定无法完成的 FX 配对。");
+            return;
+        }
         stopDiscovery();
         connectDiscoveryMode = false;
         pairButton.setText("配对所选设备");
@@ -306,6 +311,10 @@ public final class AdbPairingActivity extends Activity {
 
     private void startPairing(AdbPairingDiscovery.Device target, String code) {
         if (destroyed || pairing) return;
+        if (Build.VERSION.SDK_INT < 31) {
+            status.setText("FX 自动 ADB 配对需要 Android 12/API 31+ 的 TLS exporter；本次未连接设备，也未发送配对码。");
+            return;
+        }
         pairing = true;
         pairingCode.setText("");
         final long generation = operationGeneration.incrementAndGet();
