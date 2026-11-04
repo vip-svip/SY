@@ -437,6 +437,18 @@ fi
 
 # Stop while a start is delayed before publishing its PID. The serialized stop
 # must wait for publication, then terminate that exact watcher instead of missing it.
+# Removing only the marker must not permit another watcher to spawn.
+# The running process is rediscovered through /proc and its marker is restored.
+: > "$MOCK_WATCH_SPAWN_LOG"
+v2run start-watch > "$V2/watch-recover-base.out"
+_recover_pid=$(cat "$WATCH_PIDFILE")
+_recover_count=$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')
+rm -f "$WATCH_PIDFILE"
+v2run start-watch > "$V2/watch-recover-marker.out"
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq "$_recover_count" ] || fail "lost watcher marker caused a duplicate spawn"
+[ "$(cat "$WATCH_PIDFILE")" = "$_recover_pid" ] || fail "live watcher marker was not restored to the existing process"
+kill -0 "$_recover_pid" 2>/dev/null || fail "existing watcher died during marker recovery"
+
 v2run stop-watch > "$V2/watch-stop-before-overlap.out"
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run start-watch > "$V2/watch-start-race.out" 2>&1 &
