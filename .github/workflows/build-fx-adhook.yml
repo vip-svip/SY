@@ -75,15 +75,27 @@ jobs:
           [[ -n "$original_manifest" ]] || { echo "::error::Original 9.9.60 AndroidManifest.xml is missing."; exit 1; }
           install -m 0644 "$original_manifest" "$stellar_audit/AndroidManifest.xml"
           find "$stellar_root" -type f -path '*/roro/stellar/manager/*' -name '*.smali' -print0 > "$stellar_audit/smali-files.nul"
-          tr '\\0' '\\n' < "$stellar_audit/smali-files.nul" | sed "s|^$stellar_root/||" > "$stellar_audit/smali-paths.txt"
+          : > "$stellar_audit/smali-paths.txt"
           while IFS= read -r -d '' original_smali; do
             relative="${original_smali#"$stellar_root"/}"
+            printf '%s\n' "$relative" >> "$stellar_audit/smali-paths.txt"
             mkdir -p "$stellar_audit/$(dirname "$relative")"
             install -m 0644 "$original_smali" "$stellar_audit/$relative"
           done < "$stellar_audit/smali-files.nul"
           printf 'Original Stellar smali files copied: '
           find "$stellar_audit" -type f -name '*.smali' | wc -l
 
+          # Index original native payloads without copying proprietary binaries
+          # into the audit artifact. Starter.smali references nativeLibraryDir/libstellar.so.
+          : > "$stellar_audit/native-libraries.txt"
+          find "$stellar_root" -type f -name '*.so' -print0 > "$stellar_audit/native-libraries.nul"
+          while IFS= read -r -d '' native_file; do
+            relative="${native_file#"$stellar_root"/}"
+            digest="$(sha256sum "$native_file" | awk '{print $1}')"
+            printf '%s  %s\n' "$digest" "$relative" >> "$stellar_audit/native-libraries.txt"
+          done < "$stellar_audit/native-libraries.nul"
+          grep -F 'libstellar.so' "$stellar_audit/native-libraries.txt" || echo "Original intake contains no file named libstellar.so."
+          echo "Original native library count: $(wc -l < "$stellar_audit/native-libraries.txt")"
           stage_dia_asset() {
             local source_rel="$1" target_rel="$2" source_file
             source_file="$dia_root/assets/$source_rel"
