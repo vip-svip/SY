@@ -43,12 +43,12 @@ def has_conflict_aware_location_control(source):
         'sw.setText("限制位置访问")',
         'selectedPackage + ":location_access_block"',
         '.putBoolean(selectedPackage + ":location_access_block", checked)',
-        'if (locationAccessBlocked && (enabled || provider)',
+        'if (coordinates || provider)',
         'location_simulate',
         'location_provider_enabled_simulate',
         '.commit()',
         'content.addView(sw',
-    ))
+    )) and 'if (locationAccessBlocked && (enabled || providerEnabled))' in source
 
 already_complete = (
     'else if (key == "camera_access_block") camera_access=val' in gen_text
