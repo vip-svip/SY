@@ -2991,7 +2991,7 @@ public final class MainActivity extends ComponentActivity {
 
     private String[][] importedSuiteSections(String suite) {
         if ("dia".equals(suite)) return new String[][] {
-            {"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "Activity 入口与禁用", "隐藏应用"},
+            {"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "系统扩展", "Activity 入口与禁用", "隐藏应用"},
             {"Hook 功能", "方法 Hook", "对话框与通知", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
             {"设备模拟", "设备属性", "位置与 GPS", "Wi-Fi 模拟", "网络类型模拟", "时间与时区", "应用版本", "签名信息"},
             {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
@@ -3282,6 +3282,10 @@ public final class MainActivity extends ComponentActivity {
         }
         if ("dia".equals(suite)) {
             switch (page) {
+                case "系统扩展":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaSystemExpandActivity.class));
+                    return;
                 case "Activity 入口与禁用":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class)
