@@ -279,7 +279,7 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
-    'printf \'%s\\n\' "$" > "$_watch_pid_tmp"',
+    'printf \'%s\\n\' "' + chr(36) * 2 + '" > "$_watch_pid_tmp"',
     'chmod 600 "$_watch_pid_tmp"',
     'mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"',
     'while [ "$_watch_start_wait" -lt 50 ]; do',
