@@ -3385,9 +3385,16 @@ public final class MainActivity extends ComponentActivity {
                     markMigrationChild(suite, category, page);
                     showAppList();
                     return;
-                case "对话框与通知": case "剪贴板":
+                case "对话框与通知":
                     markMigrationChild(suite, category, page);
-                    showNativeSettingsGroup("notifyPanel", "Dia · " + page);
+                    // The Dia page is target-app scoped. Use the existing per-app
+                    // notification Hook controls, not the global Privacy settings panel.
+                    showAppList("通知保护");
+                    return;
+                case "剪贴板":
+                    markMigrationChild(suite, category, page);
+                    // Preserve the independent per-app clipboard read/isolation rules.
+                    showAppList("剪贴板保护");
                     return;
                 case "传感器":
                     markMigrationChild(suite, category, page);
