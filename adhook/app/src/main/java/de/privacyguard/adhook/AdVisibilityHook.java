@@ -28,6 +28,9 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
+import android.widget.Toast;
+import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
@@ -183,6 +186,9 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
+    private volatile boolean dialogWindowAddViewHooksInstalled;
+    private final Set<String> dialogWindowAddViewMethods = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> dialogNotifyLastShown = new ConcurrentHashMap<>();
     private volatile boolean popupObserversInstalled;
     private volatile boolean dynamicChildObserversInstalled;
     private volatile boolean dynamicMemberDiscoveryInstalled;
@@ -309,11 +315,13 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        final boolean dialogMatchForPackage = target != null && target.dialogMatchEnabled;
+        final boolean dialogMatchForPackage = target != null
+                && target.dialogMatchEnabled && debuggableTarget;
         if (!adsForPackage && !dialogMatchForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage || dialogMatchForPackage) installAdViewHooks();
+        if (dialogMatchForPackage) installDiaDialogWindowHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
         if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
@@ -1847,6 +1855,103 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     /** Install process-global framework observers once; resolve app scope per callback. */
+    private UnifiedHookConfigParser.Target dialogRulesFor(String packageName) {
+        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
+                || !debuggablePackages.contains(packageName)) return null;
+        UnifiedHookConfigParser.Target target = targets.get(packageName);
+        if (target == null || !target.dialogMatchEnabled
+                || (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())) return null;
+        return target;
+    }
+
+    /** Install bounded pre-addView checks for every WindowManagerImpl overload that accepts a View and LayoutParams. */
+    private synchronized void installDiaDialogWindowHooks() {
+        try {
+            Class<?> windowManagerImpl = Class.forName("android.view.WindowManagerImpl",
+                    false, View.class.getClassLoader());
+            int eligible = 0;
+            int installed = 0;
+            for (Method method : windowManagerImpl.getDeclaredMethods()) {
+                if (!"addView".equals(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
+                Class<?>[] types = method.getParameterTypes();
+                if (types.length < 2 || !View.class.isAssignableFrom(types[0])
+                        || !types[1].isAssignableFrom(WindowManager.LayoutParams.class)) continue;
+                eligible++;
+                String key = method.toGenericString();
+                if (dialogWindowAddViewMethods.contains(key)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        try {
+                            if (chain.getArgs().size() >= 2
+                                    && chain.getArgs().get(0) instanceof View
+                                    && chain.getArgs().get(1) instanceof ViewGroup.LayoutParams) {
+                                View root = (View) chain.getArgs().get(0);
+                                ViewGroup.LayoutParams params =
+                                        (ViewGroup.LayoutParams) chain.getArgs().get(1);
+                                // Never remove an Activity-sized root. This guard also avoids
+                                // mistaking a full-screen app window for a transient Dialog.
+                                if (!(params.width == ViewGroup.LayoutParams.MATCH_PARENT
+                                        && params.height == ViewGroup.LayoutParams.MATCH_PARENT)) {
+                                    String pkg = root.getContext().getPackageName();
+                                    UnifiedHookConfigParser.Target target = dialogRulesFor(pkg);
+                                    String matched = target == null ? null
+                                            : findDialogRuleMatch(root, target, new int[]{512}, 0);
+                                    if (matched != null) {
+                                        logFx(Log.INFO, "dia-dialog-window-block package=" + pkg
+                                                + " kind=" + matched);
+                                        if (target.dialogNotify) showDialogSuppressionToast(root.getContext(), pkg);
+                                        return null;
+                                    }
+                                }
+                            }
+                        } catch (Throwable failure) {
+                            // Fail open: framework/layout inspection errors cannot break app windows.
+                            logFx(Log.DEBUG, "WindowManager.addView Dialog check failed open: "
+                                    + failure.getClass().getSimpleName());
+                        }
+                        return chain.proceed();
+                    });
+                    dialogWindowAddViewMethods.add(key);
+                    installed++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "WindowManager.addView overload unavailable: "
+                            + failure.getClass().getSimpleName());
+                }
+            }
+            dialogWindowAddViewHooksInstalled = eligible > 0
+                    && dialogWindowAddViewMethods.size() >= eligible;
+            logFx(Log.INFO, "Dia Dialog WindowManager hooks installed=" + installed
+                    + ", complete=" + dialogWindowAddViewHooksInstalled);
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "Dia Dialog WindowManager hook unavailable: "
+                    + failure.getClass().getSimpleName());
+            dialogWindowAddViewHooksInstalled = false;
+        }
+    }
+
+    private void showDialogSuppressionToast(final android.content.Context context,
+                                            final String packageName) {
+        if (context == null || packageName == null) return;
+        long now = System.currentTimeMillis();
+        Long previous = dialogNotifyLastShown.put(packageName, now);
+        if (previous != null && now - previous < 3000L) return;
+        Runnable display = () -> {
+            try {
+                Toast.makeText(context, "FX 已按 Dialog 规则拦截", Toast.LENGTH_SHORT).show();
+            } catch (Throwable failure) {
+                logFx(Log.DEBUG, "Dialog feedback toast unavailable: "
+                        + failure.getClass().getSimpleName());
+            }
+        };
+        try {
+            if (Looper.myLooper() == Looper.getMainLooper()) display.run();
+            else new Handler(Looper.getMainLooper()).post(display);
+        } catch (Throwable failure) {
+            logFx(Log.DEBUG, "Dialog feedback dispatch unavailable: "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
     private void scheduleDialogMatchScan(final Dialog dialog,
                                          final UnifiedHookConfigParser.Target target,
                                          final String packageName) {
@@ -1922,16 +2027,40 @@ private boolean targetDeveloperOptIn(String packageName) {
         if (!dialogObserverInstalled) try {
             Method show = Dialog.class.getDeclaredMethod("show");
             hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object object = chain.getThisObject();
+                Dialog dialog = object instanceof Dialog ? (Dialog) object : null;
+                String dialogPackage = null;
+                Window dialogWindow = null;
+                try {
+                    if (dialog != null) {
+                        dialogPackage = dialog.getContext().getPackageName();
+                        UnifiedHookConfigParser.Target dialogRules = dialogRulesFor(dialogPackage);
+                        dialogWindow = dialog.getWindow();
+                        View decor = dialogWindow == null ? null : dialogWindow.getDecorView();
+                        String matched = dialogRules == null ? null
+                                : findDialogRuleMatch(decor, dialogRules, new int[]{512}, 0);
+                        if (matched != null) {
+                            logFx(Log.INFO, "dia-dialog-block package=" + dialogPackage
+                                    + " kind=" + matched);
+                            if (dialogRules.dialogNotify) showDialogSuppressionToast(
+                                    dialog.getContext(), dialogPackage);
+                            return null;
+                        }
+                    }
+                } catch (Throwable failure) {
+                    // A malformed or inaccessible view tree must never block normal app UI.
+                    logFx(Log.DEBUG, "dialog pre-display match failed open: "
+                            + failure.getClass().getSimpleName());
+                }
                 Object result = chain.proceed();
                 try {
-                    Object object = chain.getThisObject();
-                    if (object instanceof Dialog) {
-                        Dialog dialog = (Dialog) object;
-                        String pkg = dialog.getContext().getPackageName();
+                    if (dialog != null) {
+                        String pkg = dialogPackage == null
+                                ? dialog.getContext().getPackageName() : dialogPackage;
                         UnifiedHookConfigParser.Target target = adTargetFor(pkg);
-                        Window window = dialog.getWindow();
-                        UnifiedHookConfigParser.Target dialogRules = targets.get(pkg);
-                        if (dialogRules != null && dialogRules.dialogMatchEnabled && window != null) {
+                        Window window = dialogWindow == null ? dialog.getWindow() : dialogWindow;
+                        UnifiedHookConfigParser.Target dialogRules = dialogRulesFor(pkg);
+                        if (dialogRules != null && window != null) {
                             scheduleDialogMatchScan(dialog, dialogRules, pkg);
                         }
                         if (target != null && window != null) scheduleRootScans(window.getDecorView(), target, pkg);
