@@ -29,10 +29,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Dia 23.11 SystemExpandActivity migration.
  *
- * Only the original Wi-Fi/HTTP proxy destination currently has a real FX
- * implementation. The original ro.debuggable and package-installer controls
- * remain visible but disabled until their source behavior and security impact
- * can be migrated and verified.
+ * Wi-Fi/HTTP proxy uses the dedicated FX system-proxy page. Unknown-source
+ * approval is adapted to Android's per-install-source permission screen.
+ * The old ro.debuggable hook depended on framework/System UI injection and is
+ * intentionally not represented as an operational toggle in the unified APK.
+ * Package Installer management opens its resolved Android app-info screen;
+ * it never force-stops an active installer session.
  */
 public final class FxDiaSystemExpandActivity extends Activity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
