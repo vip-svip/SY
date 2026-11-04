@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
@@ -21,7 +20,7 @@ import java.util.Set;
  * Yulong Shield. Queue position survives configuration/process recreation.
  * The app never presses the Android uninstall confirmation on the user's behalf.
  */
-public final class FxYulongBatchCleanupActivity extends Activity {
+public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_UNINSTALL = 0x59b1;
     private static final int MAX_QUEUE_ITEMS = 100;
 
@@ -107,7 +106,7 @@ public final class FxYulongBatchCleanupActivity extends Activity {
         body.addView(next);
         body.addView(button("结束批量处理", this::finish));
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         render();
     }
 
