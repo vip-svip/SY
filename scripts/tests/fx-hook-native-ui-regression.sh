@@ -459,6 +459,8 @@ grep -Fq '移除作用域超时（15 秒）' "$main_activity"
 grep -Fq 'LSPosed Manager 30 秒内未返回作用域申请结果' "$main_activity"
 grep -Fq 'if (worker != null) worker.interrupt();' "$main_activity"
 grep -Fq 'private void showAppList(String privacySection) {' "$main_activity"
+# Opening the authorization hub from the app list must preserve its search, page count and viewport.
+grep -Fq 'if (isHookAppListVisible()) captureHookAppListState();' "$main_activity" || fail "Hook authorization hub drops the app-list viewport"
 grep -Fq 'cancelHookTargetScopeOperation();' "$main_activity"
 [ "$(grep -Fc 'if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;' "$main_activity")" -ge 3 ] || fail "LSPosed async request/remove callbacks must reject stale target generations"
 grep -Fq 'worker.setDaemon(true);' "$main_activity"
