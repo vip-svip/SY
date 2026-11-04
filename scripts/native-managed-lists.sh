@@ -260,7 +260,7 @@ _nl_acquire_lock() {
     fi
 
     if [ ! -e "$LOCK" ]; then
-      if ( umask 077; set -C; printf '%s\\n' "$_nl_lock_pid" > "$LOCK" ) 2>/dev/null; then
+      if ( umask 077; set -C; printf '%s\n' "$_nl_lock_pid" > "$LOCK" ) 2>/dev/null; then
         LOCK_HELD=1
         return 0
       fi
