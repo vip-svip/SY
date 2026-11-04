@@ -39,7 +39,7 @@ assert "button.setChecked(!enabled)" in activity, "capture UI must roll back whe
 for token in ("Thread.setDefaultUncaughtExceptionHandler", "delegate.uncaughtException(thread, error)",
               "AtomicFile", "startWrite()", "finishWrite(output)", "failWrite(output)",
               "FILE_NAME", "MAX_JSON_BYTES", "has_crash", "getFD().sync()",
-              'json.has("schemaVersion")', 'json.has("processName")', 'json.optString("stack", "")',
+              'json.optInt("schemaVersion", 0)', 'json.has("processName")', 'json.optString("stack", "")',
               'getSharedPreferences("digXposed"', '"encrypt_stack"'):
     assert token in store, f"crash store invariant missing: {token}"
 assert "Process.killProcess(Process.myPid())" in store, "fallback fatal-exit path is missing"
