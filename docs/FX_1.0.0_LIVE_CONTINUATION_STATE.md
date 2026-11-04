@@ -3218,3 +3218,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：回归断言改为匹配 `requestedPackage` 快照；保留 UID 绑定、`/proc/<pid>/status` 核验、目标重装后 UID 变化丢弃旧 PID、generation 取消保护等全部门禁。
 - 改动：`scripts/tests/fx-dia-frida-process-identity-regression.py`，提交 `17268d7dc6a19494057e750f3ed636905b1acaad`。
 - 尚待：新 Actions 结果；未执行设备上的真实 Root 进程枚举或注入。
+
+
+## 2026-11-05 — Frida 进程扫描回归匹配实际异步 Root 执行路径
+
+- Actions `41916867551`：libXposed wiring 与 Gadget session mock 已通过；进程身份回归继续失败于测试期待 `runRoot(command)`。
+- 核对实现：`chooseTargetProcesses()` 先读取 `requestedPackage` 对应 ApplicationInfo/UID，再把 `RootAccess.execute(command, 15000L, 256 * 1024)` 放入 worker，结果回主线程后重新读取包信息并核验 UID、debuggable 和非系统标记。该异步路径是实际实现，不使用 `runRoot()`。
+- 修复：回归顺序断言改为检查 `RootAccess.execute(command, 15000L)`，同时保留包身份读取必须先于 Root 进程扫描的约束。
+- 改动：`scripts/tests/fx-dia-frida-process-identity-regression.py`，提交 `7ce67b44201095adc4b290cda20874990e78a10e`。
+- 尚待新 Actions；未做真机 Root 进程枚举和 Frida 注入。
