@@ -45,7 +45,7 @@ import java.util.Locale;
  * The server is bound to loopback only; injection is never attempted against
  * production/non-debuggable packages.
  */
-public final class FxDiaFridaActivity extends Activity {
+public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PREFS = "fx_dia_frida";
     private static final String DEFAULT_SERVER = "/data/local/tmp/fx-frida/fx-frida-server";
     private static final String DEFAULT_INJECTOR = "/data/local/tmp/fx-frida/fx-frida-inject";
@@ -243,7 +243,7 @@ public final class FxDiaFridaActivity extends Activity {
         body.setPadding(0, dp(4), 0, dp(16));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         card(body, "运行边界",
                 "这是 FX 内部 Frida 管理器，不会启动第二个 APK。只接受本机已安装的 frida-server / frida-inject，服务只绑定 127.0.0.1:27042；注入目标限定为用户安装且带 DEBUGGABLE 标记的应用。FX QuickJS 脚本页仍是独立运行时，不会被当作 Frida。");
