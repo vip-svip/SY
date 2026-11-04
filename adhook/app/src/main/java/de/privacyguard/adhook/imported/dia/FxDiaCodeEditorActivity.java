@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
@@ -26,7 +25,7 @@ import io.github.rosemoe.sora.widget.CodeEditor;
  * The editor is local-only. Saving returns text to the caller; it never runs
  * Frida, Java, shell, or DEX code by itself.
  */
-public final class FxDiaCodeEditorActivity extends Activity {
+public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     public static final int RESULT_CODE_EDITOR = 0x3039;
     public static final String EXTRA_CODE = "code";
     public static final String EXTRA_LANGUAGE = "language";
@@ -117,7 +116,7 @@ public final class FxDiaCodeEditorActivity extends Activity {
         // instead of applying the Java tokenizer to a different language.
         if (!javascriptMode) editor.setEditorLanguage(new JavaLanguage());
         root.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
