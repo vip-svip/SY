@@ -4860,17 +4860,26 @@ public final class MainActivity extends ComponentActivity {
     private int uiSurfaceColor() {
         if ("miuix".equals(uiMode)) return 0xffeaf0fb;
         if ("glass".equals(uiMode)) return 0xddefffff;
+        if ("huawei".equals(uiMode)) return 0xfff8fbff;
+        if ("ios".equals(uiMode)) return 0xffffffff;
         return 0xffffffff;
     }
     private GradientDrawable roundedDrawable(int color, int strokeColor) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
-        d.setCornerRadius(dp("glass".equals(uiMode) ? 24 : "miuix".equals(uiMode) ? 20 : 8));
+        int radius = "glass".equals(uiMode) ? 24
+                : "miuix".equals(uiMode) ? 20
+                : "huawei".equals(uiMode) ? 16
+                : "ios".equals(uiMode) ? 18 : 8;
+        d.setCornerRadius(dp(radius));
         if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
         return d;
     }
     private android.graphics.drawable.Drawable uiPanelDrawable() {
-        return roundedDrawable(uiSurfaceColor(), "glass".equals(uiMode) ? 0x66ffffff : 0);
+        int stroke = "glass".equals(uiMode) ? 0x66ffffff
+                : "huawei".equals(uiMode) ? 0x222878d0
+                : "ios".equals(uiMode) ? 0x1f8e8e93 : 0;
+        return roundedDrawable(uiSurfaceColor(), stroke);
     }
     private void applyWebUiMode() {
         if (webView == null || !webUiReady) return;
