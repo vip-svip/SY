@@ -358,3 +358,9 @@ grep -Fq 'private static String nativeScriptSha256(String value)' "$main_activit
 grep -Fq 'nativeScriptSha256(source)' "$main_activity"
 grep -Fq 'private void runNativeLocalScript(int index, String expectedSha256' "$main_activity"
 grep -Fq 'local-run.sh' "$main_activity"
+# Custom Hook JSON import must restore the prior in-memory rule set if SharedPreferences commit fails.
+grep -Fq 'previousRuleState' "$main_activity"
+grep -Fq 'hadHookEnabled' "$main_activity"
+grep -Fq 'previousGroupSet' "$main_activity"
+grep -Fq 'boolean rollbackSaved = rollback.commit();' "$main_activity"
+grep -Fq '原有规则已恢复' "$main_activity"
