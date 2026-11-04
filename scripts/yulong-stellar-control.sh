@@ -6,6 +6,7 @@ PKGS=$DIR/command_whitelist.txt
 ALWAYS=$DIR/command_always_allow.txt
 SCOPES=$DIR/scope_grants.txt
 LOCK=$DIR/fx-stellar.lock
+_STELLAR_TEMP=
 if [ -e "$DIR" ] || [ -L "$DIR" ]; then
   [ -d "$DIR" ] && [ ! -L "$DIR" ] || { echo "Stellar data directory is not a safe directory" >&2; exit 40; }
 else
@@ -40,7 +41,11 @@ valid_command(){
 with_lock(){
   n=0
   while ! mkdir "$LOCK" 2>/dev/null; do n=$((n+1)); [ "$n" -lt 20 ] || return 30; sleep 1; done
-  cleanup_lock(){ rmdir "$LOCK" 2>/dev/null || :; }
+  cleanup_lock(){
+    [ -z "$_STELLAR_TEMP" ] || rm -f "$_STELLAR_TEMP" 2>/dev/null || :
+    _STELLAR_TEMP=
+    rmdir "$LOCK" 2>/dev/null || :
+  }
   # A signal must terminate into EXIT cleanup; do not release the lock and resume.
   trap cleanup_lock EXIT
   trap 'exit 129' HUP
@@ -182,8 +187,37 @@ run_readonly(){
   has_always "$pkg" "$command" || { echo "command is not in this app's always-allow list" >&2; return 6; }
   sh -c "$command"
 }
+# Create an unpredictable same-directory file and retain it for the lock's
+# EXIT cleanup. Re-check both paths immediately before the atomic rename.
+begin_state_temp(){
+  file=$1
+  [ -f "$file" ] && [ ! -L "$file" ] || {
+    echo "Stellar state file changed or became unsafe: $file" >&2
+    return 1
+  }
+  _STELLAR_TEMP=$(mktemp "$file.fx.XXXXXX") || { _STELLAR_TEMP=; return 1; }
+  [ -f "$_STELLAR_TEMP" ] && [ ! -L "$_STELLAR_TEMP" ] || {
+    rm -f "$_STELLAR_TEMP"; _STELLAR_TEMP=; return 1;
+  }
+  chmod 0600 "$_STELLAR_TEMP" || {
+    rm -f "$_STELLAR_TEMP"; _STELLAR_TEMP=; return 1;
+  }
+}
+commit_state_temp(){
+  file=$1
+  tmp=$_STELLAR_TEMP
+  [ -n "$tmp" ] && [ -f "$tmp" ] && [ ! -L "$tmp" ] \
+    && [ -f "$file" ] && [ ! -L "$file" ] \
+    && chmod 0600 "$tmp" && mv -f "$tmp" "$file" || {
+      echo "Stellar atomic state replacement failed: $file" >&2
+      return 1
+    }
+  _STELLAR_TEMP=
+  return 0
+}
 mutate_file(){
-  file=$1; mode=$2; pkg=$3; value=$4; tmp=$file.tmp.$$
+  file=$1; mode=$2; pkg=$3; value=$4
+  begin_state_temp "$file" || return 1
   awk -F '\t' -v OFS='\t' -v mode="$mode" -v pkg="$pkg" -v value="$value" '
     BEGIN{done=0}
     $1==pkg && (NF==1 || $2==value) {
@@ -193,21 +227,30 @@ mutate_file(){
     }
     {print}
     END{if(mode=="add"&&!done)print pkg,value}
-  ' "$file" > "$tmp" || { rm -f "$tmp"; return 1; }
-  chmod 0600 "$tmp" && mv -f "$tmp" "$file"
+  ' "$file" > "$_STELLAR_TEMP" || return 1
+  commit_state_temp "$file"
 }
 set_pkg(){
-  pkg=$1; on=$2; tmp=$PKGS.tmp.$$
+  pkg=$1; on=$2
   if [ "$on" = 1 ]; then
-    grep -Fxq "$pkg" "$PKGS" || { cat "$PKGS" > "$tmp"; printf '%s\n' "$pkg" >> "$tmp"; chmod 0600 "$tmp"; mv -f "$tmp" "$PKGS"; }
+    if ! grep -Fxq "$pkg" "$PKGS"; then
+      begin_state_temp "$PKGS" || return 1
+      cat "$PKGS" > "$_STELLAR_TEMP" || return 1
+      printf '%s\n' "$pkg" >> "$_STELLAR_TEMP" || return 1
+      commit_state_temp "$PKGS" || return 1
+    fi
   else
-    grep -Fxv "$pkg" "$PKGS" > "$tmp" || :
-    chmod 0600 "$tmp"; mv -f "$tmp" "$PKGS"
+    # Drop dependent grants before removing package authorization. If an
+    # intermediate write fails, the target is left with fewer privileges,
+    # never with an authorized package whose old scopes can be revived later.
     for file in "$ALWAYS" "$SCOPES"; do
-      tmp2=$file.tmp.$$
-      awk -F '\t' -v pkg="$pkg" '$1!=pkg{print}' "$file" > "$tmp2"
-      chmod 0600 "$tmp2"; mv -f "$tmp2" "$file"
+      begin_state_temp "$file" || return 1
+      awk -F '\t' -v pkg="$pkg" '$1!=pkg{print}' "$file" > "$_STELLAR_TEMP" || return 1
+      commit_state_temp "$file" || return 1
     done
+    begin_state_temp "$PKGS" || return 1
+    awk -v pkg="$pkg" '$0!=pkg{print}' "$PKGS" > "$_STELLAR_TEMP" || return 1
+    commit_state_temp "$PKGS"
   fi
 }
 cmd="$1"

@@ -23,6 +23,10 @@ validator = source.split("valid_command(){", 1)[1].split("\nwith_lock(){", 1)[0]
 assert "grep -Eq '" in validator and validator.rstrip().endswith("}"), "valid_command must retain its complete bounded grammar and close before with_lock"
 
 assert "trap cleanup_lock EXIT" in source, "lock cleanup must happen from EXIT only"
+assert 'mktemp "$file.fx.XXXXXX"' in source, "Stellar mutations must use unique same-directory temporary files"
+assert 'mv -f "$tmp" "$file"' in source, "Stellar mutation must atomically replace the state file"
+assert '$file.tmp.$' not in source and '$PKGS.tmp.$' not in source, "predictable Stellar temporary paths remain"
+assert 'for file in "$ALWAYS" "$SCOPES"; do' in source, "package revocation must remove dependent grants"
 for signal, code in (("HUP",129),("INT",130),("TERM",143)):
     assert "trap 'exit " + str(code) + "' " + signal in source, signal + " must exit into the cleanup trap"
 print("PASS: Stellar POSIX shell syntax, delimiter escaping and signal-safe locking")
@@ -130,6 +134,39 @@ if run secure-setting "$PKG" show_ime_with_hard_keyboard 0 >/dev/null 2>&1; then
 fi
 run scope-set "$PKG" SHELL_ID_COMMAND 1
 run always-set "$PKG" 'id -u' 1
+
+# Old PID-predictable temp paths are planted as symlinks to an unrelated
+# sentinel. Mutations must use unique temporary files and leave it unchanged.
+SENTINEL="$TMP/stellar-sentinel"
+printf 'do-not-overwrite\n' > "$SENTINEL"
+WRAPPER_PID="$TMP/stellar-wrapper.pid"
+run_with_legacy_temp_symlinks(){
+  sh -c '
+    root=$1; sentinel=$2; control=$3; shift 3
+    pid=$
+    for name in command_whitelist.txt command_always_allow.txt scope_grants.txt; do
+      ln -s "$sentinel" "$root/stellar_guard/$name.tmp.$pid"
+    done
+    printf "%s\n" "$pid" > "$root/stellar-wrapper.pid"
+    exec sh "$control" "$@"
+  ' sh "$TMP" "$SENTINEL" "$TMP/control.sh" "$@"
+  pid=$(cat "$WRAPPER_PID")
+  for name in command_whitelist.txt command_always_allow.txt scope_grants.txt; do
+    rm -f "$TMP/stellar_guard/$name.tmp.$pid"
+  done
+  rm -f "$WRAPPER_PID"
+  [ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "Stellar mutation followed a legacy predictable temp symlink"
+}
+run_with_legacy_temp_symlinks scope-set "$PKG" FILESYSTEM_READ_COMMAND 1
+grep -Fq "$(printf 'SCOPE|%s|FILESYSTEM_READ_COMMAND' "$PKG")" "$TMP/stellar_guard/scope_grants.txt" || fail "scope update did not commit with a planted temp symlink"
+run_with_legacy_temp_symlinks always-set "$PKG" 'ps' 1
+grep -Fq "$(printf '%s\t%s' "$PKG" ps)" "$TMP/stellar_guard/command_always_allow.txt" || fail "always-allow update did not commit with a planted temp symlink"
+run_with_legacy_temp_symlinks pkg-set "$PKG" 0
+[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "package revoke changed the sentinel target"
+for name in command_whitelist.txt command_always_allow.txt scope_grants.txt; do
+  ! find "$TMP/stellar_guard" -maxdepth 1 -name "$name.fx.*" -print -quit | grep -q . || fail "Stellar temporary state file leaked: $name"
+done
+
 listing=$(run list)
 printf '%s\n' "$listing" | grep -Fqx "PKG|$PKG" || fail "authorized package missing from list"
 printf '%s\n' "$listing" | grep -Fqx "SCOPE|$PKG|SHELL_ID_COMMAND" || fail "tab-delimited scope lookup did not round-trip"
@@ -167,4 +204,4 @@ ln -s "$TMP/victim" "$TMP/file-target/command_whitelist.txt"
 sed "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/file-target|" "$SOURCE" > "$TMP/file-link.sh"
 if sh "$TMP/file-link.sh" list >/dev/null 2>&1; then fail "symlinked Stellar state file was accepted"; fi
 grep -Fxq preserve-me "$TMP/victim" || fail "symlink target content was changed"
-echo "PASS: Stellar package/scope storage, SECURE_SETTINGS_WRITE gate/readback/rollback, symlink rejection and rollback-safe locks"
+echo "PASS: Stellar package/scope storage, secure-setting rollback, unpredictable atomic writes, legacy-temp symlink resistance and signal-safe locks"
