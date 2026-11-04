@@ -533,7 +533,7 @@ public class UnifiedHookConfigParserTest {
         String versionName = "9.9.9-test, Tokyo | debug";
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 versionName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        String config = String.join("\\n",
+        String config = String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.owned,app_version_simulate=1,app_version_name_b64="
                         + encoded + ",app_version_code=2147483647", "");
@@ -554,7 +554,7 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void legacyConfigNeverEnablesApplicationVersionSimulation() {
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
-                String.join("\\n", "hook_ads_enabled=1", "[list:hook_targets]",
+                String.join("\n", "hook_ads_enabled=1", "[list:hook_targets]",
                         "com.example.app,splash=1", ""));
         assertFalse(parsed.targets.get("com.example.app").appVersionSimulation);
     }
@@ -563,7 +563,7 @@ public class UnifiedHookConfigParserTest {
     public void rejectsApplicationVersionValuesWithoutExplicitOptIn() {
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 "1.0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.owned,app_version_name_b64=" + encoded + ",app_version_code=1", ""));
     }
@@ -572,7 +572,7 @@ public class UnifiedHookConfigParserTest {
     public void rejectsApplicationVersionCodeOutsideAndroidIntRange() {
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 "1.0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.owned,app_version_simulate=1,app_version_name_b64="
                         + encoded + ",app_version_code=2147483648", ""));
@@ -580,7 +580,7 @@ public class UnifiedHookConfigParserTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsApplicationVersionSimulationWithoutNameOrCode() {
-        UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.owned,app_version_simulate=1", ""));
     }
