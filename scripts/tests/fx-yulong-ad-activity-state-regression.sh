@@ -93,6 +93,10 @@ dns_required = [
     'private void restoreScrollIfNeeded()',
     'pendingScrollRestore = true;',
     'loadGeneration.incrementAndGet();',
+    'int total = 0, blocked = 0, malformed = 0;',
+    'if (domain.isEmpty()) { malformed++; continue; }',
+    '} catch (Exception ignored) { malformed++; }',
+    '无法解析/缺少域名 ',
 ]
 for token in dns_required:
     assert token in dns, f"missing DNS page state/lifecycle invariant: {token}"
