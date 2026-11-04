@@ -3622,3 +3622,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未运行 Gradle 编译、Host 回归、UI 自动化或真机测试；不能声称构建/设备验证通过。
 - 功能完整性说明：游龙广告插件、Dia、游龙安全护盾/GKD 的所有原始功能并未因此自动完成迁移。仍需逐项核对来源源码、对应 FX 业务页、真实后端和验收记录；不得把保留的旧功能目录当成已整合完成。
 - 下一批：检查 Ad 页面原功能目录与规则/统计/计划任务真实后端差异；将仍可用的来源功能逐项归并到 Ad/隐私/Hook/脚本页面，避免出现来源应用启动器。
+
+
+## 2026-11-05 — 实际移除设置页“迁移应用”入口并固定 Ad 主导航
+
+- 用户再次指出设置下仍显示“迁移应用”，且主 Tab 名称必须是 Ad。
+- 已修改 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：
+  - 从 `showSettings()` 删除 Dia 23.11、游龙广告插件 7.0.1、游龙安全护盾 9.9.60 三张来源应用卡片和“迁移应用”分组。
+  - 设置说明文案改为外观/壁纸/主题/授权/备份恢复/诊断等全局配置。
+  - 旧版 Activity 状态若仍保存了迁移应用页面，恢复时现在回到设置页，不再恢复来源套件页面。
+  - 不再向新 Activity state 保存旧迁移套件导航字段。
+- 新增 `scripts/tests/fx-unified-navigation-regression.sh`，检查设置页不含迁移应用入口/来源应用卡片、旧状态恢复回设置、原生六 Tab 标签精确为 VPN、Ad、隐私、脚本、Hook、设置。
+- 已将该回归脚本接入 `.github/workflows/build-fx-adhook.yml` 的静态迁移检查。
+- 提交：
+  - MainActivity：`6392d8ffd95f7b14d97fdc81a6b73235dc57b78e`
+  - 回归脚本：`f78b40162f903c35c326dd005ba24cbb77fcec6d`
+  - CI 接入：`62eea8ed6b37906b2616f05790de2ba5db870e6f`
+- 验证边界：本轮完成源码写入和 CI 接入；当前会话没有执行本地 Gradle/Android 构建，也没有 GitHub Actions run 结果，不能宣称回归已通过。
+- 尚未完成：来源应用功能仍有内部迁移页面/导航代码，必须逐项接入 Ad/VPN/隐私/脚本/Hook 对应业务页后再退役；本轮只移除了设置中的来源应用入口，不代表来源功能已全部迁移。五种 Skin 中 HUAWEI/iOS 的真实 renderer 仍未完成。
