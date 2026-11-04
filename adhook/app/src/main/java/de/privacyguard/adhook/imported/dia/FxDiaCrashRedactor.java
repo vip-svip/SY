@@ -11,8 +11,10 @@ import java.util.regex.Pattern;
  */
 public final class FxDiaCrashRedactor {
     private static final String SENSITIVE_KEYS =
-            "(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|" +
-            "api[_-]?key|password|passwd|secret|cookie|set-cookie)";
+            "(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|client[_-]?secret|" +
+            "app[_-]?secret|private[_-]?key|signing[_-]?key|access[_-]?key(?:[_-]?id)?|" +
+            "aws[_-]?secret[_-]?access[_-]?key|api[_-]?key|password|passwd|secret|" +
+            "cookie|set-cookie|session[_-]?(?:id|key))";
     private static final Pattern HEADER = Pattern.compile(
             "(?im)(\\b(?:authorization|proxy-authorization)\\s*[:=]\\s*)[^\\r\\n]+");
     private static final Pattern KEY_VALUE = Pattern.compile(
@@ -25,6 +27,8 @@ public final class FxDiaCrashRedactor {
             "(?i)\\bBearer\\s+[A-Za-z0-9._~+/-]+=*");
     private static final Pattern JWT = Pattern.compile(
             "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b");
+    private static final Pattern PEM_PRIVATE_KEY = Pattern.compile(
+            "(?s)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----");
 
     private FxDiaCrashRedactor() { }
 
@@ -36,6 +40,7 @@ public final class FxDiaCrashRedactor {
         result = URL_USER_INFO.matcher(result).replaceAll("$1[REDACTED]@");
         result = BEARER.matcher(result).replaceAll("Bearer [REDACTED]");
         result = JWT.matcher(result).replaceAll("[REDACTED_JWT]");
+        result = PEM_PRIVATE_KEY.matcher(result).replaceAll("[REDACTED_PRIVATE_KEY]");
         return result;
     }
 

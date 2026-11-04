@@ -146,8 +146,8 @@ public final class FxDiaCrashReportActivity extends Activity {
     }
 
     private String reportText() {
-        return record == null ? "" : FxDiaCrashRedactor.redact(
-                record.format(hexStack != null && hexStack.isChecked()));
+        return FxDiaCrashExportFormatter.format(
+                record, hexStack != null && hexStack.isChecked());
     }
 
     private void copyReport() {

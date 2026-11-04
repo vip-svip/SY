@@ -64,6 +64,28 @@ public class FxDiaCrashRecordTest {
         assertTrue(redacted.contains("[REDACTED_JWT]"));
     }
 
+    @Test public void hexExportRedactsOriginalStackBeforeEncoding() {
+        String stack = "Authorization: Bearer stack-header-secret\n"
+                + "https://user:pass@example.test/path?api_key=query-stack-secret\n"
+                + "token=plain-stack-secret\n"
+                + "-----BEGIN PRIVATE KEY-----\nprivate-key-material\n-----END PRIVATE KEY-----";
+        FxDiaCrashRecord record = new FxDiaCrashRecord(
+                1000L, 1L, "fx", "main", "Device",
+                "IllegalStateException: password=message-secret", stack);
+        String hex = FxDiaCrashExportFormatter.format(record, true);
+        String raw = FxDiaCrashExportFormatter.format(record, false);
+        for (String secret : new String[] {
+                "stack-header-secret", "user:pass", "query-stack-secret",
+                "plain-stack-secret", "private-key-material", "message-secret"
+        }) {
+            assertFalse("HEX export leaked encoded secret: " + secret,
+                    hex.contains(FxDiaCrashRecord.hexUtf8(secret)));
+            assertFalse("raw export leaked secret: " + secret, raw.contains(secret));
+        }
+        assertTrue(hex.contains("堆栈（HEX 编码；可逆，不是加密）:"));
+        assertTrue(hex.contains(FxDiaCrashRecord.hexUtf8("[REDACTED_PRIVATE_KEY]")));
+    }
+
     @Test public void redactionLeavesOrdinaryDiagnosticTextAlone() {
         String input = "IllegalStateException: app database is closed\n"
                 + "at de.privacyguard.MainActivity.onCreate(MainActivity.java:42)";

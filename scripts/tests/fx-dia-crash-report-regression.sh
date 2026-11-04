@@ -17,18 +17,20 @@ JNI_WRAPPER="$APP/java/com/babyte/breakpad/BaByteBreakpad.java"
 JNI_CALLBACK="$APP/java/com/babyte/breakpad/callback/NativeCrashCallback.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
 HOST_JNI_TEST="$ROOT/scripts/tests/DiaBreakpadJniContractHostTest.java"
+HOST_EXPORT_TEST="$ROOT/scripts/tests/DiaCrashExportFormatterHostTest.java"
 WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
 POLICY="$DIA/FxDiaCrashCapturePolicy.java"
 REDACTOR="$DIA/FxDiaCrashRedactor.java"
+FORMATTER="$DIA/FxDiaCrashExportFormatter.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$NATIVE_CAPTURE" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"; do
+for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$FORMATTER" "$NATIVE_CAPTURE" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$HOST_EXPORT_TEST"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
-python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$DUMP_DIRECTORY" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
+python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$FORMATTER" "$DUMP_DIRECTORY" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" "$HOST_EXPORT_TEST" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-main, manifest_path, application, store, record, activity, unit, redactor, dump_directory, native_capture, jni_wrapper, jni_callback, workflow = [
+main, manifest_path, application, store, record, activity, unit, redactor, formatter, dump_directory, native_capture, jni_wrapper, jni_callback, workflow, host_export_test = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -75,9 +77,13 @@ assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are n
 assert "schemaVersion == 0" in store and "file.getBaseFile().lastModified()" in store, "legacy unversioned Dia CrashInfo JSON must remain readable"
 assert 'getSharedPreferences("digXposed"' in store, "legacy Dia shared crash preferences must be preserved"
 assert "hexUtf8(" in record and "可逆，不是加密" in record, "HEX encoding must not be represented as encryption"
-assert "FxDiaCrashRedactor.redact(" in activity, "copy/share must export a redacted report"
+assert "FxDiaCrashExportFormatter.format(" in activity, "copy/share must use safe export formatter"
+assert "FxDiaCrashRedactor.redact(record.format(false))" in formatter, "redact must run before optional HEX encoding"
+assert "FxDiaCrashRecord.hexUtf8(safeStack)" in formatter, "HEX mode must encode only redacted stack content"
+assert "hexExportRedactsOriginalStackBeforeEncoding" in unit, "JUnit must cover HEX stack secret redaction"
+assert "hexUtf8(secret)" in host_export_test, "host test must detect reversible-HEX secret leaks"
 assert "reportView.setText(record.format(" in activity, "local crash report view must retain raw diagnostic detail"
-for token in ("Authorization", "KEY_VALUE", "QUERY_VALUE", "URL_USER_INFO", "BEARER", "JWT"):
+for token in ("Authorization", "KEY_VALUE", "QUERY_VALUE", "URL_USER_INFO", "BEARER", "JWT", "PEM_PRIVATE_KEY"):
     assert token in redactor, f"crash export credential redaction missing: {token}"
 assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference must be preserved"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
@@ -103,9 +109,10 @@ done
 if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-  javac -d "$tmp" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST"
+  javac -d "$tmp" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$RECORD" "$REDACTOR" "$FORMATTER" "$HOST_EXPORT_TEST"
   java -cp "$tmp" com.babyte.breakpad.DiaBreakpadJniContractHostTest
   java -cp "$tmp" FxDiaCrashDumpDirectoryHostTest
+  java -cp "$tmp" DiaCrashExportFormatterHostTest
 else
   echo "SKIP: host JVM JNI reflection check (JDK unavailable); Android/JUnit source tests still retain the descriptor."
 fi
