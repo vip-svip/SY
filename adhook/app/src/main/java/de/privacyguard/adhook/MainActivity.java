@@ -251,6 +251,8 @@ public final class MainActivity extends ComponentActivity {
             if ("target".equals(restoreHookKind) || "target_custom_rules".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
             }
+        } else {
+            clearPendingNativeScriptExport();
         }
         if (restoreHookScreen) {
             if ("hub".equals(restoreHookKind)) showHookHub();
