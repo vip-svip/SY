@@ -25,6 +25,10 @@ shield = {p.name: p.read_text(encoding="utf-8") for p in shield_dir.glob("*.java
 blacklist_activity = shield["BlacklistActivity.java"]
 blacklist_policy = shield["FxYulongBlacklistPolicy.java"]
 protection_service = shield["FxYulongProtectionService.java"]
+virus_db = shield["FxYulongVirusDb.java"]
+scan_activity = shield["FxYulongScanActivity.java"]
+warning_activity = shield["FxYulongWarningActivity.java"]
+virus_db_test = (repo_root / "adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java").read_text(encoding="utf-8")
 A = "{http://schemas.android.com/apk/res/android}"
 
 declared = {node.attrib.get(A + "name", "") for node in manifest.findall("./application/activity")}
