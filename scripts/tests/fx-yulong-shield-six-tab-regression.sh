@@ -27,8 +27,6 @@ pages = {
     "WhitelistActivity.java": ".imported.shield.WhitelistActivity",
     "WhitelistPickerActivity.java": ".imported.shield.WhitelistPickerActivity",
     "BlacklistActivity.java": ".imported.shield.BlacklistActivity",
-    "FxYulongDailySummaryActivity.java": ".imported.shield.FxYulongDailySummaryActivity",
-    "FxYulongWarningActivity.java": ".imported.shield.FxYulongWarningActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
@@ -71,6 +69,10 @@ assert "FxYulongScanActivity.class" in hub
 daily = (shield_dir / "FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
 for token in ("shield_prefs", "automatic_scan_last_result", "FxYulongProtectionService", "FxYulongRescueOverlayService"):
     assert token in daily, f"daily summary data source missing: {token}"
+assert 'body.addView(button("返回安全护盾首页",this::finish));' in daily
+assert 'body.addView(button("返回安全护盾首页",()->startActivity(new Intent(this,FxYulongShieldActivity.class))));' not in daily
+assert r'+"\\n"' not in daily, "daily summary must render real line breaks, not literal \\n"
+assert r'+"\n"' in daily, "daily summary service/permission lines must use newline separators"
 warning = (shield_dir / "FxYulongWarningActivity.java").read_text(encoding="utf-8")
 for token in ("MAX_PACKAGE_NAME", "MAX_WHITELIST_CHARS", "Intent.ACTION_DELETE",
               "WHITELIST_KEY", "AlertDialog", "package:"):
