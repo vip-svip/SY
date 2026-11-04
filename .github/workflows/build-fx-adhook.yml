@@ -236,6 +236,7 @@ jobs:
           sh scripts/tests/fx-dia-dex-hook-picker-regression.sh
           sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
           sh scripts/tests/fx-dia-global-settings-registration-regression.sh
+          sh scripts/tests/fx-android-build-toolchain-regression.sh
           sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
           python3 scripts/tests/fx-dia-frida-libxposed-wiring-regression.py
