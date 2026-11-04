@@ -1404,3 +1404,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `0785f9ccae93bace2d2d4b2c326ef17cbc58a2b2` — 扩展 `scripts/tests/fx-yulong-shield-six-tab-regression.sh`，增加两页 Manifest/宿主/数据源/确认卸载锚点断言。
 - 静态验证：两个类共享壳安装点与旧根视图移除通过；每日摘要本地数据与后台服务状态锚点、告警页输入边界/白名单/用户确认/系统卸载锚点通过。未运行脚本、Gradle 编译、模拟器或真机权限/卸载验收。
 - 下一步：审计其余 Shield/Ad 独立页是否全部从真实入口可达、返回栈是否回到正确父页；然后对六 Tab 与状态恢复做一次完整可运行测试。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 最新 HEAD 同步与 Shield / Ad 页面宿主抽查
+
+- 本次复核时 GitHub 最新 HEAD：`78c0a84ef523153767ea55f42727c46457077409`。最近提交包含并行工作线的 Dia ActivityKey validation policy 修复（`d52a2e19b0e921588da3d6a26d4bdab2a25f5b81`）；未覆盖该改动。
+- 按当前 HEAD 对 Shield 12 个 Activity 与 Ad 7 个 Activity 做源码宿主抽查：全部均继承 `FxNativeTabActivity` 并调用 `setContentViewWithNativeTabs(root, 5)`；未发现仍裸用 Activity 根视图的页面。Shield 12 页包括 Hub、Scan、Integrity、Rescue、Batch Cleanup、Screen Filter、Virus Database、Daily Summary、Warning、Whitelist、Whitelist Picker、Blacklist；Ad 7 页包括主页、General、Summary、Stats、App Whitelist、DNS、Firewall。
+- 本轮仅为源码静态核验，不能据此认定页面视觉、返回栈、业务后端或真机交互已验收。
+- 本地资料库检查：当前 `/FX` 目录内实际存在并已完整读取《FX_1.0.0_UI优先自主推进与中断续接执行总指令.md》及《FX_1.0.0_UI优先提速与自主开工提示词.md》；用户指令中另两份《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》《FX_1.0.0_快速推进与主动修复执行档.md》在当前 `/FX` 目录清单中不存在，故无法读取，不以旧聊天内容冒充文件读取。
+- 下一步：继续核对 Dia 页面实际路由/父子返回链与原始 Manifest 组件映射；优先处理跨 Activity 六 Tab 点击后的回跳一致性与页面恢复。之后进入 Hook UI 与主 Tab 的实际交互验收。固定 FX 1.0.0，不生成最终包。
