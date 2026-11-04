@@ -1,16 +1,226 @@
 package de.privacyguard.adhook.imported.shield;
-import android.app.Activity;import android.app.AlertDialog;import android.content.Intent;import android.content.SharedPreferences;import android.net.Uri;import android.os.Bundle;import android.view.Gravity;import android.widget.*;import java.util.LinkedHashSet;import java.util.Set;
-/** User-confirmed Shield warning page; no automatic stop or uninstall. */
-public final class FxYulongWarningActivity extends Activity{
- private String pkg="",label="",reason="";private int dp(float n){return(int)(n*getResources().getDisplayMetrics().density+0.5f);}
- private TextView t(String s,int z,int c,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);if(bold)v.setTypeface(null,android.graphics.Typeface.BOLD);v.setPadding(dp(4),dp(6),dp(4),dp(6));return v;}
- private Button b(String s,Runnable r){Button x=new Button(this);x.setAllCaps(false);x.setText(s);x.setOnClickListener(v->r.run());return x;}
- @Override protected void onCreate(Bundle state){super.onCreate(state);Intent in=getIntent();pkg=safe(in==null?null:in.getStringExtra("package_name"));label=safe(in==null?null:in.getStringExtra("app_label"));reason=safe(in==null?null:in.getStringExtra("reason"));if(label.isEmpty())label=pkg.isEmpty()?"未知应用":pkg;
- LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(12),dp(8),dp(12),dp(8));h.addView(b("‹ 返回安全护盾",this::finish));h.addView(t("风险应用提醒",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);
- ScrollView sc=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(14),dp(8),dp(14),dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
- body.addView(t("检测到需要你确认的应用",19,0xffa32620,true));body.addView(t(label,16,0xff17212b,true));body.addView(t(pkg,12,0xff617080,false));body.addView(t(reason.isEmpty()?"命中安全名单或用户管控规则。":reason,14,0xff334155,false));
- body.addView(t("原版告警会定时强制停止或自动卸载。FX 不复刻这些自动化动作；所有处置由你确认并交给 Android 系统处理。",12,0xff8a5b12,false));body.addView(b("加入白名单并停止提醒",this::trust));body.addView(b("打开 Android 系统卸载确认",this::uninstall));body.addView(b("稍后处理",this::finish));setContentView(root);}
- private String safe(String s){return s==null?"":s.trim();}private boolean valid(){return pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");}
- private void trust(){if(!valid()){finish();return;}SharedPreferences p=getSharedPreferences("shield_prefs",MODE_PRIVATE);Set<String> set=new LinkedHashSet<>();String raw=p.getString("whitelist_pkgs","");if(raw!=null)for(String x:raw.split(",")){x=x.trim();if(x.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))set.add(x);}set.add(pkg);StringBuilder s=new StringBuilder();for(String x:set){if(s.length()>0)s.append(',');s.append(x);}p.edit().putString("whitelist_pkgs",s.toString()).apply();new AlertDialog.Builder(this).setTitle("已加入白名单").setMessage(label+" 不再触发管控提醒。").setPositiveButton("知道了",(d,w)->finish()).show();}
- private void uninstall(){if(!valid())return;new AlertDialog.Builder(this).setTitle("再次确认").setMessage("将打开 Android 系统卸载界面。FX 不会自动确认卸载。").setNegativeButton("取消",null).setPositiveButton("继续",(d,w)->{try{startActivity(new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)));}catch(Throwable e){new AlertDialog.Builder(this).setMessage("无法打开系统卸载界面："+e.getClass().getSimpleName()).setPositiveButton("关闭",null).show();}}).show();}
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/**
+ * User-confirmed Shield warning page.
+ * It never automatically stops, disables, freezes, or uninstalls the target app.
+ */
+public final class FxYulongWarningActivity extends Activity {
+    private static final String PREFS = "shield_prefs";
+    private static final String WHITELIST_KEY = "whitelist_pkgs";
+    private static final int MAX_PACKAGE_NAME = 255;
+    private static final int MAX_WHITELIST_CHARS = 1024 * 1024;
+
+    private String packageName = "";
+    private String appLabel = "";
+    private String reason = "";
+    private String severity = "UNKNOWN";
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        if (bold) view.setTypeface(null, android.graphics.Typeface.BOLD);
+        view.setPadding(dp(4), dp(6), dp(4), dp(6));
+        return view;
+    }
+
+    private Button button(String label, Runnable action) {
+        Button view = new Button(this);
+        view.setAllCaps(false);
+        view.setText(label);
+        view.setOnClickListener(v -> action.run());
+        return view;
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        Intent intent = getIntent();
+        packageName = safe(intent == null ? null : intent.getStringExtra("package_name"), MAX_PACKAGE_NAME);
+        appLabel = safe(intent == null ? null : intent.getStringExtra("app_label"), 256);
+        reason = safe(intent == null ? null : intent.getStringExtra("reason"), 1024);
+        String incomingSeverity = safe(intent == null ? null : intent.getStringExtra("severity"), 24)
+                .toUpperCase(java.util.Locale.ROOT);
+        if ("CERTAIN".equals(incomingSeverity) || "SUSPECT".equals(incomingSeverity)) {
+            severity = incomingSeverity;
+        }
+        if (appLabel.isEmpty()) appLabel = packageName.isEmpty() ? "未知应用" : packageName;
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff7f8fa);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(12), dp(8), dp(12), dp(8));
+        header.addView(button("‹ 返回安全护盾", this::finish));
+        header.addView(text("风险应用详情", 19, 0xff17212b, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(14), dp(8), dp(14), dp(20));
+        scroll.addView(body);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        String severityLabel;
+        int severityColor;
+        String advice;
+        if ("CERTAIN".equals(severity)) {
+            severityLabel = "确定风险命中";
+            severityColor = 0xffa32620;
+            advice = "本地病毒库将此应用归类为确定风险命中。仍请检查命中原因、应用来源和版本；卸载操作只会打开 Android 系统确认界面，不会自动执行。";
+        } else if ("SUSPECT".equals(severity)) {
+            severityLabel = "可能风险 / 可疑命中";
+            severityColor = 0xff8a5b12;
+            advice = "该结果属于可疑匹配，不代表已确认恶意。不要仅凭应用名称或单条规则自动卸载；请先核实应用来源和命中原因。";
+        } else {
+            severityLabel = "风险级别未提供";
+            severityColor = 0xff66727e;
+            advice = "本页面没有收到有效风险等级。请返回扫描结果重新打开详情；在确认来源前，不要仅凭此提醒卸载应用。";
+        }
+
+        body.addView(text(severityLabel, 18, severityColor, true));
+        body.addView(text(appLabel, 17, 0xff17212b, true));
+        body.addView(text(packageName, 12, 0xff617080, false));
+        body.addView(text("风险原因", 14, 0xff17212b, true));
+        body.addView(text(reason.isEmpty() ? "未提供详细命中原因。" : reason,
+                14, 0xff334155, false));
+        body.addView(text(advice, 12, 0xff8a5b12, false));
+
+        Button addWhitelist = button("加入白名单并停止后续提醒", this::trust);
+        addWhitelist.setEnabled(validPackageName());
+        body.addView(addWhitelist);
+        body.addView(button("打开 Android 系统卸载确认", this::uninstall));
+        body.addView(button("稍后处理", this::finish));
+
+        setContentView(root);
+    }
+
+    private String safe(String value, int maxChars) {
+        if (value == null) return "";
+        String trimmed = value.trim();
+        return trimmed.length() > maxChars ? trimmed.substring(0, maxChars) : trimmed;
+    }
+
+    private boolean validPackageName() {
+        return packageName != null && packageName.length() <= MAX_PACKAGE_NAME
+                && packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
+    }
+
+    private void showMessage(String title, String message) {
+        if (isFinishing() || isDestroyed()) return;
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("知道了", null)
+                .show();
+    }
+
+    private void trust() {
+        if (!validPackageName()) {
+            showMessage("无法加入白名单", "目标包名无效，未更改白名单。");
+            return;
+        }
+
+        try {
+            ApplicationInfo application = getPackageManager().getApplicationInfo(packageName, 0);
+            // The original whitelist manager deliberately excludes system apps.
+            // Match that rule here so the detail page cannot report a save that
+            // the whitelist screen will remove on its next refresh.
+            if ((application.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                showMessage("系统应用不加入用户白名单",
+                        "当前白名单只维护用户应用。该应用被 Android 标记为系统应用，未修改白名单。");
+                return;
+            }
+        } catch (PackageManager.NameNotFoundException removed) {
+            showMessage("目标应用已不存在", "应用可能已卸载或更新；请重新扫描后再处理。");
+            return;
+        }
+
+        SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        String raw = preferences.getString(WHITELIST_KEY, "");
+        if (raw == null) raw = "";
+        if (raw.length() > MAX_WHITELIST_CHARS) {
+            showMessage("白名单数据异常", "现有白名单超过安全读取上限。为避免覆盖数据，本次没有修改。");
+            return;
+        }
+
+        Set<String> packages = new LinkedHashSet<>();
+        for (String entry : raw.split(",")) {
+            String value = entry == null ? "" : entry.trim();
+            if (value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+                packages.add(value);
+            }
+        }
+        if (packages.contains(packageName)) {
+            showMessage("已在白名单中", appLabel + " 已经在用户白名单里，无需重复添加。");
+            return;
+        }
+        packages.add(packageName);
+
+        StringBuilder serialized = new StringBuilder();
+        for (String value : packages) {
+            if (serialized.length() > 0) serialized.append(',');
+            serialized.append(value);
+        }
+        boolean saved = preferences.edit()
+                .putString(WHITELIST_KEY, serialized.toString())
+                .commit();
+        if (!saved) {
+            showMessage("保存失败", "白名单没有确认写入磁盘；原配置保持不变，请稍后重试。");
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("已加入白名单")
+                .setMessage(appLabel + " 已保存到本机用户白名单，后续扫描将按白名单规则处理。")
+                .setPositiveButton("知道了", (dialog, which) -> finish())
+                .show();
+    }
+
+    private void uninstall() {
+        if (!validPackageName()) {
+            showMessage("无法打开卸载界面", "目标包名无效。");
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("再次确认")
+                .setMessage("将打开 Android 系统卸载界面。FX 不会自动确认卸载，也不会在后台静默删除应用。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("继续", (dialog, which) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_DELETE,
+                                Uri.parse("package:" + packageName)));
+                    } catch (Throwable error) {
+                        showMessage("无法打开系统卸载界面",
+                                "系统返回错误：" + error.getClass().getSimpleName());
+                    }
+                })
+                .show();
+    }
 }
