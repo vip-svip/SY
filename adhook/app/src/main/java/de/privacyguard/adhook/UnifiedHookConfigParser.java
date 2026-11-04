@@ -596,7 +596,7 @@ public final class UnifiedHookConfigParser {
     private static int developerRulesCount(List<DeveloperHookRule> rules) { return rules.size(); }
 
     private static String decodeDeveloperRuleValue(String value) {
-        if (value == null || value.isEmpty() || value.length() > 1024
+        if (value == null || value.isEmpty() || value.length() > 1400
                 || !value.matches("[A-Za-z0-9_-]+"))
             throw new IllegalArgumentException("invalid encoded developer rule");
         final byte[] decoded;
@@ -605,7 +605,7 @@ public final class UnifiedHookConfigParser {
         } catch (IllegalArgumentException malformed) {
             throw new IllegalArgumentException("invalid encoded developer rule");
         }
-        if (decoded.length == 0 || decoded.length > 768)
+        if (decoded.length == 0 || decoded.length > 1024)
             throw new IllegalArgumentException("encoded developer rule exceeds size limit");
         String rule = new String(decoded, StandardCharsets.UTF_8);
         if (!Arrays.equals(decoded, rule.getBytes(StandardCharsets.UTF_8)))

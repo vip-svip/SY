@@ -354,6 +354,9 @@ public final class AdVisibilityHook extends XposedModule {
                         || rule.action == DeveloperHookRule.Action.RETURN_EMPTY_STRING) {
                     installDeveloperTypedReturnHook(param.getClassLoader(), pkg,
                             debuggableTarget, rule.descriptor, rule.action, rule.id);
+                } else if (rule.action == DeveloperHookRule.Action.RETURN_LITERAL) {
+                    installDeveloperLiteralReturnHook(param.getClassLoader(), pkg,
+                            debuggableTarget, rule.descriptor, rule.literalValue, rule.id);
                 } else if (rule.action == DeveloperHookRule.Action.NO_OP_VOID) {
                     installDeveloperVoidNoOpHook(param.getClassLoader(), pkg, debuggableTarget,
                             rule.descriptor, rule.id);
@@ -538,6 +541,31 @@ public final class AdVisibilityHook extends XposedModule {
             logFx(Log.WARN, "developer void no-op failed open=" + label + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
         }
     }
+    /** Exact immutable constant return for opted-in debuggable target methods. */
+    private void installDeveloperLiteralReturnHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, String literalValue, String label) {
+        if (descriptor == null || literalValue == null || !MemberTestGate.isEnabled(
+                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
+        try {
+            DeveloperExecutableDescriptor parsed =
+                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)) return;
+            java.lang.reflect.Executable executable = parsed.resolve(loader);
+            if (!(executable instanceof Method)
+                    || developerTypedReturnHookedExecutables.contains(executable)) return;
+            Object fixed = DeveloperHookRule.parseLiteralValue(parsed.returnDescriptor, literalValue);
+            if (fixed == null) return;
+            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> fixed);
+            developerTypedReturnHookedExecutables.add(executable);
+            logFx(Log.INFO, "developer literal fixture installed=" + label
+                    + " package=" + packageName + " method=" + parsed.name);
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "developer literal fixture failed open=" + label
+                    + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
+        }
+    }
+
     /**
      * Debug-only, type-exact passthrough hooks for developer-owned test builds.
      * RETURN_ARGUMENT_0 returns the first argument only when its JVM descriptor

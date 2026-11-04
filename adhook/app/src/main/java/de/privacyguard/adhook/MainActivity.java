@@ -5349,6 +5349,9 @@ public final class MainActivity extends ComponentActivity {
         action.setSingleLine(true);
         action.setText("OBSERVE");
         action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING / RETURN_ARGUMENT_0 / RETURN_ARG0 / RETURN_THIS / NO_OP_VOID");
+        EditText literalValue = new EditText(this);
+        literalValue.setSingleLine(true);
+        literalValue.setHint("RETURN_LITERAL：String 文本、boolean/byte/short/int/long/float/double；char 填 0–65535 数值码");
         EditText group = new EditText(this);
         group.setSingleLine(true);
         group.setText("默认");
@@ -5364,6 +5367,7 @@ public final class MainActivity extends ComponentActivity {
         help.setText("支持 Java 精确签名（返回类型可用冒号或箭头分隔）、Frida .overload() 精确重载写法（必须显式补返回类型）、Smali/JVM 描述符和旧式零参数 boolean 签名。"
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
                 + "RETURN_ZERO 仅支持数值原语；RETURN_EMPTY_STRING 仅支持 String。"
+                + "RETURN_LITERAL 仅支持 boolean、数值原语、char 数值码和 String 常量；不接受对象实例、数组、表达式或方法调用。"
                 + "NO_OP_VOID 只接受精确 void 方法，会跳过方法主体，可能破坏应用逻辑。"
                 + "RETURN_ARGUMENT_0 要求首参数和返回类型的 JVM 描述符完全一致；RETURN_THIS 只允许非静态方法且返回类型可接收当前对象。所有替换动作只对 debuggable 目标生效；观察日志不记录参数值、返回值、口令或令牌。");
         help.setTextSize(12);
@@ -5372,6 +5376,7 @@ public final class MainActivity extends ComponentActivity {
         form.addView(id);
         form.addView(descriptor);
         form.addView(action);
+        form.addView(literalValue);
         form.addView(group);
         form.addView(priority);
         form.addView(help);
@@ -5392,9 +5397,10 @@ public final class MainActivity extends ComponentActivity {
                     if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
                             && !"RETURN_FALSE".equals(actionText) && !"RETURN_NULL".equals(actionText)
                             && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)
-                            && !"RETURN_ARGUMENT_0".equals(actionText) && !"RETURN_ARG0".equals(actionText)
-                            && !"RETURN_THIS".equals(actionText) && !"NO_OP_VOID".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING、RETURN_ARGUMENT_0、RETURN_THIS 或 NO_OP_VOID。")
+                            && !"RETURN_LITERAL".equals(actionText) && !"RETURN_ARGUMENT_0".equals(actionText)
+                            && !"RETURN_ARG0".equals(actionText) && !"RETURN_THIS".equals(actionText)
+                            && !"NO_OP_VOID".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING、RETURN_LITERAL、RETURN_ARGUMENT_0、RETURN_THIS 或 NO_OP_VOID。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -5406,8 +5412,10 @@ public final class MainActivity extends ComponentActivity {
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    DeveloperHookRule rule = DeveloperHookRule.parse(
-                            ruleId + "|" + method + "|" + actionText + "|" + priorityText, selectedPackage);
+                    String literalText = literalValue.getText().toString();
+                    String encodedRule = ruleId + "|" + method + "|" + actionText + "|" + priorityText
+                            + ("RETURN_LITERAL".equals(actionText) ? "|" + literalText : "");
+                    DeveloperHookRule rule = DeveloperHookRule.parse(encodedRule, selectedPackage);
                     if (rule == null) {
                         String reason = DeveloperHookRule.isUnsupportedMutationAction(actionText)
                                 ? DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE
@@ -5433,7 +5441,7 @@ public final class MainActivity extends ComponentActivity {
                     }
                     getPreferences(0).edit()
                             .putString(selectedPackage + ":dev_rule_" + slot,
-                                    rule.id + "|" + rule.descriptor + "|" + rule.action.name() + "|" + rule.priority)
+                                    rule.toEncodedString())
                             .putString(selectedPackage + ":dev_rule_base_" + slot, rule.action.name())
                             .putString(selectedPackage + ":dev_rule_group_" + slot, groupName)
                             .putBoolean(selectedPackage + ":dev_hook_enabled", true)
@@ -5477,7 +5485,7 @@ public final class MainActivity extends ComponentActivity {
                 String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                 if (value == null) continue;
                 String[] parts = value.split("\\|", -1);
-                if (parts.length != 4) continue;
+                if (parts.length != 4 && parts.length != 5) continue;
                 org.json.JSONObject item = new org.json.JSONObject();
                 item.put("id", parts[0]);
                 item.put("descriptor", parts[1]);
@@ -5487,6 +5495,7 @@ public final class MainActivity extends ComponentActivity {
                 item.put("action", baseAction);
                 item.put("enabled", !"OFF".equals(parts[2]));
                 item.put("priority", Integer.parseInt(parts[3]));
+                if (parts.length == 5) item.put("value", parts[4]);
                 String group = getPreferences(0).getString(
                         selectedPackage + ":dev_rule_group_" + n, "默认");
                 item.put("group", group);
@@ -5571,7 +5580,7 @@ public final class MainActivity extends ComponentActivity {
                             String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                             if (existing != null) {
                                 String[] parts = existing.split("\\|", -1);
-                                if (parts.length == 4) {
+                                if (parts.length == 4 || parts.length == 5) {
                                     ids.add(parts[0]);
                                     baseActions.add(getPreferences(0).getString(
                                             selectedPackage + ":dev_rule_base_" + n,
@@ -5592,6 +5601,15 @@ public final class MainActivity extends ComponentActivity {
                                 descriptor = remapCustomRuleDescriptor(descriptor, sourcePackage, selectedPackage);
                             String action = item.optString("action", "OBSERVE")
                                     .toUpperCase(java.util.Locale.ROOT);
+                            String literal = null;
+                            if ("RETURN_LITERAL".equals(action)) {
+                                Object rawLiteral = item.opt("value");
+                                if (!(rawLiteral instanceof String))
+                                    throw new IllegalArgumentException("RETURN_LITERAL 必须提供字符串 value。");
+                                literal = (String) rawLiteral;
+                            } else if (item.has("value")) {
+                                throw new IllegalArgumentException("只有 RETURN_LITERAL 规则允许 value 字段。");
+                            }
                             int priority = item.optInt("priority", 0);
                             String groupName = item.optString("group", "默认").trim();
                             boolean enabled = item.optBoolean("enabled", true);
@@ -5600,6 +5618,8 @@ public final class MainActivity extends ComponentActivity {
                             if (!"OBSERVE".equals(action) && !"RETURN_TRUE".equals(action)
                                     && !"RETURN_FALSE".equals(action) && !"RETURN_NULL".equals(action)
                                     && !"RETURN_ZERO".equals(action) && !"RETURN_EMPTY_STRING".equals(action)
+                                    && !"RETURN_LITERAL".equals(action) && !"RETURN_ARGUMENT_0".equals(action)
+                                    && !"RETURN_ARG0".equals(action) && !"RETURN_THIS".equals(action)
                                     && !"NO_OP_VOID".equals(action))
                                 throw new IllegalArgumentException("不支持该规则动作。");
                             ApplicationInfo currentTarget = findApp(selectedPackage);
@@ -5607,8 +5627,9 @@ public final class MainActivity extends ComponentActivity {
                                     && (currentTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
                             if (!debugBuild && !"OBSERVE".equals(action))
                                 throw new IllegalArgumentException("RETURN_* 规则仅能导入 debuggable 目标。");
-                            DeveloperHookRule parsed = DeveloperHookRule.parse(
-                                    id + "|" + descriptor + "|" + action + "|" + priority, selectedPackage);
+                            String encodedRule = id + "|" + descriptor + "|" + action + "|" + priority
+                                    + ("RETURN_LITERAL".equals(action) ? "|" + literal : "");
+                            DeveloperHookRule parsed = DeveloperHookRule.parse(encodedRule, selectedPackage);
                             if (parsed == null)
                                 throw new IllegalArgumentException("第 " + (i + 1)
                                         + " 条规则签名/动作无效或不属于当前目标包。");
@@ -5616,7 +5637,8 @@ public final class MainActivity extends ComponentActivity {
                                 throw new IllegalArgumentException("规则 ID 重复：" + parsed.id);
                             String storedAction = enabled ? action : "OFF";
                             candidates.add(parsed.id + "|" + parsed.descriptor + "|" + storedAction
-                                    + "|" + parsed.priority);
+                                    + "|" + parsed.priority
+                                    + (parsed.literalValue == null ? "" : "|" + parsed.literalValue));
                             baseActions.add(action);
                             baseGroups.add(groupName);
                         }
@@ -5782,8 +5804,8 @@ public final class MainActivity extends ComponentActivity {
                 String ruleGroup = getPreferences(0).getString(
                         selectedPackage + ":dev_rule_group_" + i, "默认");
                 if (!groupName.equals(ruleGroup)) continue;
-                String[] parts = value.split("\\\\|", -1);
-                if (parts.length != 4) continue;
+                String[] parts = value.split("\\|", -1);
+                if (parts.length != 4 && parts.length != 5) continue;
 
                 final int slot = i;
                 String baseAction = getPreferences(0).getString(
@@ -5795,7 +5817,8 @@ public final class MainActivity extends ComponentActivity {
                 row.setPadding(dp(12), dp(6), dp(12), dp(6));
                 row.setBackground(uiPanelDrawable());
                 TextView item = new TextView(this);
-                item.setText(parts[0] + " · " + parts[1] + "\\\\n动作：" + baseAction
+                item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
+                        + (parts.length == 5 ? " · 常量：" + parts[4] : "")
                         + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
                 item.setTextSize(12);
                 item.setTextColor(0xff596775);
@@ -5805,14 +5828,15 @@ public final class MainActivity extends ComponentActivity {
                 enabled.setText("启用规则");
                 enabled.setChecked(active);
                 enabled.setOnCheckedChangeListener((button, checked) -> {
-                    String[] current = getPreferences(0).getString(key, "").split("\\\\|", -1);
-                    if (current.length != 4) return;
+                    String[] current = getPreferences(0).getString(key, "").split("\\|", -1);
+                    if (current.length != 4 && current.length != 5) return;
                     String currentBase = getPreferences(0).getString(
                             selectedPackage + ":dev_rule_base_" + slot,
                             "OFF".equals(current[2]) ? "OBSERVE" : current[2]);
                     current[2] = checked ? currentBase : "OFF";
                     getPreferences(0).edit()
-                            .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3])
+                            .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3]
+                                    + (current.length == 5 ? "|" + current[4] : ""))
                             .putString(selectedPackage + ":dev_rule_base_" + slot, currentBase)
                             .apply();
                 });

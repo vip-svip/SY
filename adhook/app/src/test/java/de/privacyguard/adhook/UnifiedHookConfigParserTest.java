@@ -93,6 +93,23 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parsesBase64TypedLiteralAndRetainsValueAtRuntimeConfigBoundary() {
+        String raw = "name|Lcom/example/owned/DebugState;->name()Ljava/lang/String;|RETURN_LITERAL|7|local-debug";
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.owned,dev_hook_enabled=1,dev_rule_b64_1=" + encoded + "\n");
+        DeveloperHookRule rule = parsed.targets.get("com.example.owned").developerRules.get(0);
+        assertEquals(DeveloperHookRule.Action.RETURN_LITERAL, rule.action);
+        assertEquals("local-debug", rule.literalValue);
+        String republished = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        DeveloperHookRule roundTrip = UnifiedHookConfigParser.parse(republished)
+                .targets.get("com.example.owned").developerRules.get(0);
+        assertEquals("local-debug", roundTrip.literalValue);
+    }
+
+    @Test
     public void retainsBackwardCompatibilityWithSimpleLegacyCustomRuleFields() {
         UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"

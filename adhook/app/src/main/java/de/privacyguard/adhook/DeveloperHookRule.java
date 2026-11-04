@@ -5,6 +5,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A bounded, package-scoped Debug fixture rule for a developer-owned application.
@@ -12,7 +15,7 @@ import java.util.Set;
  * Legacy owner#method()Z descriptors remain accepted for boolean Debug fixtures.
  */
 public final class DeveloperHookRule {
-    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, RETURN_ARGUMENT_0, RETURN_THIS, NO_OP_VOID, OBSERVE, DISABLED }
+    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, RETURN_LITERAL, RETURN_ARGUMENT_0, RETURN_THIS, NO_OP_VOID, OBSERVE, DISABLED }
 
     public static final String UNSUPPORTED_MUTATION_ACTION_MESSAGE =
             "自定义 Hook 写入型动作不支持（mutation actions are not supported）。除 OBSERVE、RETURN_*、NO_OP_VOID 外，RETURN_ARGUMENT_0（首参数与返回类型必须完全相同）和 RETURN_THIS（仅非静态且返回类型可接收当前对象）也仅用于 debuggable 本地测试；不支持字段写入或任意方法调用。";
@@ -40,11 +43,14 @@ public final class DeveloperHookRule {
     public final boolean replacement;
     public final Action action;
     public final int priority;
+    /** Optional exact immutable constant, present only for RETURN_LITERAL and paused copies. */
+    public final String literalValue;
 
-    private DeveloperHookRule(String id, String descriptor, Action action, int priority) {
+    private DeveloperHookRule(String id, String descriptor, Action action, int priority, String literalValue) {
         this.id = id;
         this.descriptor = descriptor;
         this.action = action;
+        this.literalValue = literalValue;
         // Legacy boolean compatibility flag: true means RETURN_TRUE.
         // The Action enum remains authoritative for every other return/no-op action.
         this.replacement = action == Action.RETURN_TRUE;
@@ -52,9 +58,9 @@ public final class DeveloperHookRule {
     }
 
     public static DeveloperHookRule parse(String encoded, String packageName) {
-        if (encoded == null || packageName == null || encoded.length() > 768) return null;
+        if (encoded == null || packageName == null || encoded.length() > 1024) return null;
         String[] fields = encoded.split("\\|", -1);
-        if (fields.length != 4) return null;
+        if (fields.length != 4 && fields.length != 5) return null;
         String id = fields[0].trim();
         if (!id.matches("[A-Za-z][A-Za-z0-9_-]{0,31}")) return null;
         String descriptor = normalizeDescriptor(fields[1].trim(), packageName);
@@ -66,21 +72,31 @@ public final class DeveloperHookRule {
         else if ("NULL".equals(actionText) || "RETURN_NULL".equals(actionText)) action = Action.RETURN_NULL;
         else if ("ZERO".equals(actionText) || "RETURN_ZERO".equals(actionText)) action = Action.RETURN_ZERO;
         else if ("EMPTY_STRING".equals(actionText) || "RETURN_EMPTY_STRING".equals(actionText)) action = Action.RETURN_EMPTY_STRING;
+        else if ("RETURN_LITERAL".equals(actionText)) action = Action.RETURN_LITERAL;
         else if ("RETURN_ARGUMENT_0".equals(actionText) || "RETURN_ARG0".equals(actionText)) action = Action.RETURN_ARGUMENT_0;
         else if ("RETURN_THIS".equals(actionText)) action = Action.RETURN_THIS;
         else if ("NO_OP_VOID".equals(actionText) || "DO_NOTHING".equals(actionText)) action = Action.NO_OP_VOID;
         else if ("OBSERVE".equals(actionText) || "OBSERVE_ONLY".equals(actionText)) action = Action.OBSERVE;
         else if ("OFF".equals(actionText) || "DISABLED".equals(actionText)) action = Action.DISABLED;
         else return null;
+
+        final String literalValue = fields.length == 5 ? fields[4] : null;
+        if (action == Action.RETURN_LITERAL || (action == Action.DISABLED && literalValue != null)) {
+            if (literalValue == null) return null;
+            DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)
+                    || parseLiteralValue(parsed.returnDescriptor, literalValue) == null) return null;
+        } else if (literalValue != null) {
+            return null;
+        }
+
         if (action == Action.NO_OP_VOID) {
-            // The old method_empty behavior could corrupt non-void call sites.
             if (!descriptor.startsWith("L")) return null;
             DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
             if (parsed == null || "<init>".equals(parsed.name) || !"V".equals(parsed.returnDescriptor)) return null;
         }
         if (action == Action.RETURN_ARGUMENT_0 || action == Action.RETURN_THIS) {
-            // Passthrough actions require a complete JVM descriptor. Legacy
-            // owner#method()Z syntax cannot prove parameter/receiver compatibility.
+            // Passthrough actions require a complete JVM descriptor.
             if (!descriptor.startsWith("L")) return null;
             DeveloperExecutableDescriptor parsed =
                     DeveloperExecutableDescriptor.parse(descriptor, packageName);
@@ -88,10 +104,8 @@ public final class DeveloperHookRule {
             String result = parsed.returnDescriptor;
             if (action == Action.RETURN_ARGUMENT_0) {
                 if (parsed.parameterDescriptors.isEmpty()
-                        || !result.equals(parsed.parameterDescriptors.get(0))
-                        || "V".equals(result)) return null;
+                        || !result.equals(parsed.parameterDescriptors.get(0)) || "V".equals(result)) return null;
             } else if (!result.startsWith("L") || !result.endsWith(";")) {
-                // Arrays and primitive results cannot represent the receiver object.
                 return null;
             }
         }
@@ -115,7 +129,65 @@ public final class DeveloperHookRule {
         try { priority = Integer.parseInt(fields[3].trim()); }
         catch (NumberFormatException e) { return null; }
         if (priority < -1000 || priority > 1000) return null;
-        return new DeveloperHookRule(id, descriptor, action, priority);
+        return new DeveloperHookRule(id, descriptor, action, priority, literalValue);
+    }
+
+    /** Exact immutable JVM value parser: primitive wrappers or String only. */
+    public static Object parseLiteralValue(String returnDescriptor, String value) {
+        if (returnDescriptor == null || value == null || value.length() > 256) return null;
+        if ("Ljava/lang/String;".equals(returnDescriptor)) {
+            if (value.indexOf('|') >= 0 || value.getBytes(StandardCharsets.UTF_8).length > 256) return null;
+            for (int i = 0; i < value.length(); i++) {
+                if (Character.isISOControl(value.charAt(i))) return null;
+            }
+            return value;
+        }
+        String numeric = value.trim();
+        if (numeric.isEmpty() || numeric.length() > 64) return null;
+        try {
+            switch (returnDescriptor) {
+                case "Z":
+                    if ("true".equalsIgnoreCase(numeric)) return Boolean.TRUE;
+                    if ("false".equalsIgnoreCase(numeric)) return Boolean.FALSE;
+                    return null;
+                case "B": {
+                    BigInteger n = new BigInteger(numeric);
+                    if (n.compareTo(BigInteger.valueOf(Byte.MIN_VALUE)) < 0
+                            || n.compareTo(BigInteger.valueOf(Byte.MAX_VALUE)) > 0) return null;
+                    return Byte.valueOf(n.byteValue());
+                }
+                case "C": {
+                    BigInteger n = new BigInteger(numeric);
+                    if (n.signum() < 0 || n.compareTo(BigInteger.valueOf(Character.MAX_VALUE)) > 0) return null;
+                    return Character.valueOf((char) n.intValue());
+                }
+                case "S": {
+                    BigInteger n = new BigInteger(numeric);
+                    if (n.compareTo(BigInteger.valueOf(Short.MIN_VALUE)) < 0
+                            || n.compareTo(BigInteger.valueOf(Short.MAX_VALUE)) > 0) return null;
+                    return Short.valueOf(n.shortValue());
+                }
+                case "I": return Integer.valueOf(new BigInteger(numeric).intValueExact());
+                case "J": return Long.valueOf(new BigInteger(numeric).longValueExact());
+                case "F": {
+                    float n = new BigDecimal(numeric).floatValue();
+                    return Float.isNaN(n) || Float.isInfinite(n) ? null : Float.valueOf(n);
+                }
+                case "D": {
+                    double n = new BigDecimal(numeric).doubleValue();
+                    return Double.isNaN(n) || Double.isInfinite(n) ? null : Double.valueOf(n);
+                }
+                default:
+                    return null; // No arbitrary object/array values, expressions or method calls.
+            }
+        } catch (ArithmeticException | NumberFormatException invalid) {
+            return null;
+        }
+    }
+
+    public String toEncodedString() {
+        String value = id + "|" + descriptor + "|" + action.name() + "|" + priority;
+        return literalValue == null ? value : value + "|" + literalValue;
     }
 
     /** Highest-priority active rule wins for each exact method descriptor. */

@@ -92,8 +92,7 @@ public final class UnifiedHookConfigSerializer {
             for (DeveloperHookRule rule : target.developerRules) {
                 if (rule == null || ruleIndex > UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET)
                     throw new IllegalArgumentException("invalid developer rule list");
-                String ruleValue = rule.id + "|" + rule.descriptor + "|"
-                        + rule.action.name() + "|" + rule.priority;
+                String ruleValue = rule.toEncodedString();
                 String encodedRule = java.util.Base64.getUrlEncoder().withoutPadding()
                         .encodeToString(ruleValue.getBytes(StandardCharsets.UTF_8));
                 out.append(",dev_rule_b64_").append(ruleIndex++).append('=').append(encodedRule);

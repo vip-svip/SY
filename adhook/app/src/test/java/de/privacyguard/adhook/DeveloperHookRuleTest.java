@@ -238,6 +238,70 @@ public class DeveloperHookRuleTest {
                 "com.example.vpn"));
     }
 
+    @Test public void acceptsTypedLiteralForSupportedReturnTypes() {
+        DeveloperHookRule stringRule = DeveloperHookRule.parse(
+                "label|Lcom/example/vpn/DebugState;->label()Ljava/lang/String;|RETURN_LITERAL|10|build-preview",
+                "com.example.vpn");
+        DeveloperHookRule intRule = DeveloperHookRule.parse(
+                "code|Lcom/example/vpn/DebugState;->code()I|RETURN_LITERAL|10|37",
+                "com.example.vpn");
+        DeveloperHookRule booleanRule = DeveloperHookRule.parse(
+                "ready|Lcom/example/vpn/DebugState;->ready()Z|RETURN_LITERAL|10|true",
+                "com.example.vpn");
+        DeveloperHookRule charRule = DeveloperHookRule.parse(
+                "marker|Lcom/example/vpn/DebugState;->marker()C|RETURN_LITERAL|10|65535",
+                "com.example.vpn");
+        DeveloperHookRule floatRule = DeveloperHookRule.parse(
+                "ratio|Lcom/example/vpn/DebugState;->ratio()F|RETURN_LITERAL|10|0.75",
+                "com.example.vpn");
+        assertNotNull(stringRule);
+        assertNotNull(intRule);
+        assertNotNull(booleanRule);
+        assertNotNull(charRule);
+        assertNotNull(floatRule);
+        assertEquals("build-preview", stringRule.literalValue);
+        assertEquals(Integer.valueOf(37), DeveloperHookRule.parseLiteralValue("I", intRule.literalValue));
+        assertEquals(Boolean.TRUE, DeveloperHookRule.parseLiteralValue("Z", booleanRule.literalValue));
+        assertEquals(Character.valueOf((char) 65535), DeveloperHookRule.parseLiteralValue("C", charRule.literalValue));
+        assertEquals(Float.valueOf(0.75f), DeveloperHookRule.parseLiteralValue("F", floatRule.literalValue));
+        assertTrue(stringRule.toEncodedString().endsWith("|build-preview"));
+    }
+
+    @Test public void rejectsUnsafeLiteralReturnTypesAndOutOfRangeValues() {
+        assertNull(DeveloperHookRule.parse(
+                "object|Lcom/example/vpn/DebugState;->object()Ljava/lang/Object;|RETURN_LITERAL|1|anything",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "array|Lcom/example/vpn/DebugState;->items()[I|RETURN_LITERAL|1|1",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "byte|Lcom/example/vpn/DebugState;->small()B|RETURN_LITERAL|1|128",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "char|Lcom/example/vpn/DebugState;->marker()C|RETURN_LITERAL|1|65536",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "bool|Lcom/example/vpn/DebugState;->ready()Z|RETURN_LITERAL|1|yes",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "float|Lcom/example/vpn/DebugState;->ratio()F|RETURN_LITERAL|1|NaN",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "string|Lcom/example/vpn/DebugState;->label()Ljava/lang/String;|RETURN_LITERAL|1|bad\\nvalue",
+                "com.example.vpn"));
+    }
+
+    @Test public void pausedLiteralRuleKeepsItsValueAndRemainsInert() {
+        DeveloperHookRule paused = DeveloperHookRule.parse(
+                "literal|Lcom/example/vpn/DebugState;->code()I|OFF|10|42",
+                "com.example.vpn");
+        assertNotNull(paused);
+        assertEquals(DeveloperHookRule.Action.DISABLED, paused.action);
+        assertEquals("42", paused.literalValue);
+        assertTrue(paused.toEncodedString().endsWith("|42"));
+        assertEquals(0, DeveloperHookRule.selectEffective(java.util.Collections.singletonList(paused)).size());
+    }
+
     @Test public void passthroughActionsAreNotClassifiedAsMutationCommands() {
         assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_ARGUMENT_0"));
         assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_ARG0"));
