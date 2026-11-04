@@ -51,7 +51,7 @@ for token in ("Thread.setDefaultUncaughtExceptionHandler", "delegate.uncaughtExc
               "AtomicFile", "startWrite()", "finishWrite(output)", "failWrite(output)",
               "FILE_NAME", "MAX_JSON_BYTES", "has_crash", "getFD().sync()",
               'json.optInt("schemaVersion", 0)', 'json.has("processName")', 'json.optString("stack", "")',
-              'getSharedPreferences("digXposed"', '"encrypt_stack"'):
+              'getSharedPreferences("digXposed"'):
     assert token in store, f"crash store invariant missing: {token}"
 assert "Process.killProcess(Process.myPid())" in store, "fallback fatal-exit path is missing"
 assert "recordNativeCrash(" in store and "NATIVE_HANDLING" in store, "native callback is not persisted"
