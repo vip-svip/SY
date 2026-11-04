@@ -52,15 +52,15 @@ public final class AdbPrivateKeyVault {
         byte[] stored = keyStore.get();
         if (stored != null) {
             try {
-                RSAPrivateKey privateKey = decodePrivateKey(decrypt(stored));
+                byte[] clear = decrypt(stored);
+                RSAPrivateKey privateKey = decodePrivateKey(clear);
+                if (privateKey.getModulus().bitLength() != PRIVATE_KEY_BITS) {
+                    throw new GeneralSecurityException("Stored ADB key is not a 2048-bit RSA key");
+                }
                 KeyFactory factory = KeyFactory.getInstance(RSA);
                 RSAPublicKey publicKey = (RSAPublicKey) factory.generatePublic(
                         new RSAPublicKeySpec(privateKey.getModulus(), RSAKeyGenParameterSpec.F4));
-                if (privateKey.getModulus().bitLength() == PRIVATE_KEY_BITS) {
-                    return new KeyPair(publicKey, privateKey);
-                }
-            } catch (GeneralSecurityException | RuntimeException invalidStoredKey) {
-                // Match the original behavior: an unreadable encrypted key is regenerated.
+                return new KeyPair(publicKey, privateKey);
             } finally {
                 Arrays.fill(stored, (byte) 0);
             }
