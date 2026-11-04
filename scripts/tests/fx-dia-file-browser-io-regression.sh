@@ -24,6 +24,9 @@ assert "private List<Entry> filteredDirectoryEntries()" in source, "directory se
 assert "directorySearch.setHint(\"搜索当前目录的文件名或类型\")" in source, "directory search UI is missing"
 assert "entry.name.toLowerCase(Locale.ROOT).contains(query)" in source
 assert "entry.mime.toLowerCase(Locale.ROOT).contains(query)" in source
+assert "restorePageScroll();" in source, "restored file page must apply scroll only after its rows are rebuilt"
+assert "while (displayedEntries < restoreCount) appendDirectoryPage();" in source, "restored pagination depth must be rebuilt before restoring scroll"
+assert "pendingRestoreDisplayedEntries = -1;" in source, "new or invalid SAF tree must discard stale pagination state"
 assert "STATE_PATH_STACK" in source and "outState.putStringArrayList(STATE_PATH_STACK" in source, "nested directory path is not restored"
 assert "STATE_DIRECTORY_QUERY" in source and "outState.putString(STATE_DIRECTORY_QUERY" in source, "directory search query is not restored"
 assert "STATE_DISPLAYED_ENTRIES" in source and "outState.putInt(STATE_DISPLAYED_ENTRIES" in source, "visible pagination depth is not restored"
