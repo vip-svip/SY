@@ -37,7 +37,11 @@ grep -Fq 'manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD' "$DI
 grep -Fq 'isExpectedService(String type)' "$DISCOVERY" || fail "NSD callbacks must reject results from a different service type"
 grep -Fq 'manager.resolveService(next' "$DISCOVERY" || fail "NSD service result is not resolved to an address/port"
 grep -Fq 'ArrayDeque<NsdServiceInfo>' "$DISCOVERY" || fail "mDNS resolution must use a bounded-in-flight queue"
-grep -Fq 'if (closed || !started || resolving || resolveQueue.isEmpty()) return;' "$DISCOVERY" || fail "NSD resolution is not serialized"
+grep -Fq 'private static final int MAX_DISCOVERED_SERVICES = 64;' "$DISCOVERY" || fail "NSD service discovery queue has no hard capacity limit"
+grep -Fq 'knownNames.size() >= MAX_DISCOVERED_SERVICES' "$DISCOVERY" || fail "NSD service intake does not enforce its capacity limit"
+grep -Fq 'if (closed || !started || resolving) return;' "$DISCOVERY" || fail "NSD resolver must allow only one in-flight resolve"
+grep -Fq 'resolveQueue.removeIf(pending' "$DISCOVERY" || fail "lost NSD entries remain queued for a stale resolve"
+grep -Fq 'while (!resolveQueue.isEmpty())' "$DISCOVERY" || fail "NSD resolver does not prune lost queue entries before resolving"
 grep -Fq 'manager.stopServiceDiscovery(current)' "$DISCOVERY" || fail "mDNS listener is not stopped on close"
 grep -Fq 'knownNames.contains(device.serviceName)' "$DISCOVERY" || fail "stale resolved devices can reappear after service loss"
 
