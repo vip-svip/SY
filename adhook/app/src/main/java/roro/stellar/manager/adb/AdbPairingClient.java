@@ -43,11 +43,11 @@ public final class AdbPairingClient implements Closeable {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private Socket rawSocket;
-    private SSLSocket tlsSocket;
-    private DataInputStream input;
-    private DataOutputStream output;
-    private PairingContext pairingContext;
+    private volatile Socket rawSocket;
+    private volatile SSLSocket tlsSocket;
+    private volatile DataInputStream input;
+    private volatile DataOutputStream output;
+    private volatile PairingContext pairingContext;
 
     public AdbPairingClient(String host, int port, String pairingCode, AdbKey key) {
         this.host = validateHost(host);
@@ -92,7 +92,7 @@ public final class AdbPairingClient implements Closeable {
             }
             return true;
         } catch (IOException | RuntimeException failure) {
-            closeQuietly();
+            close();
             throw failure;
         } finally {
             // Do not retain the UI-supplied pairing code after the TLS exporter
@@ -102,19 +102,27 @@ public final class AdbPairingClient implements Closeable {
     }
 
     private void setupTlsConnection() throws IOException {
-        rawSocket = new Socket();
-        rawSocket.setTcpNoDelay(true);
-        rawSocket.setSoTimeout(READ_TIMEOUT_MS);
-        rawSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+        ensureOpen();
+        Socket connecting = new Socket();
+        rawSocket = connecting;
+        ensureOpen();
+        connecting.setTcpNoDelay(true);
+        connecting.setSoTimeout(READ_TIMEOUT_MS);
+        connecting.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+        ensureOpen();
 
         SSLSocketFactory factory = key.getSslContext().getSocketFactory();
-        tlsSocket = (SSLSocket) factory.createSocket(rawSocket, host, port, true);
-        tlsSocket.setSoTimeout(READ_TIMEOUT_MS);
-        tlsSocket.setEnabledProtocols(new String[]{"TLSv1.3"});
-        tlsSocket.startHandshake();
+        SSLSocket secure = (SSLSocket) factory.createSocket(connecting, host, port, true);
+        tlsSocket = secure;
+        ensureOpen();
+        secure.setSoTimeout(READ_TIMEOUT_MS);
+        secure.setEnabledProtocols(new String[]{"TLSv1.3"});
+        secure.startHandshake();
+        ensureOpen();
 
-        input = new DataInputStream(tlsSocket.getInputStream());
-        output = new DataOutputStream(tlsSocket.getOutputStream());
+        input = new DataInputStream(secure.getInputStream());
+        output = new DataOutputStream(secure.getOutputStream());
+        ensureOpen();
     }
 
     private void setupSpake2Context() throws IOException {
@@ -261,17 +269,28 @@ public final class AdbPairingClient implements Closeable {
         }
     }
 
+    /** Close is deliberately not synchronized with start(): another thread must be able to abort a blocked read. */
     @Override
-    public synchronized void close() {
+    public void close() {
         if (!closed.compareAndSet(false, true)) return;
         closeQuietly();
     }
 
+    private void ensureOpen() throws IOException {
+        if (closed.get()) throw new IOException("ADB pairing was cancelled");
+    }
+
     private void closeQuietly() {
-        PairingContext context = pairingContext;
-        pairingContext = null;
-        if (context != null) {
-            try { context.destroy(); } catch (RuntimeException | LinkageError ignored) { }
+        // Close sockets first so another thread blocked in TLS read/write is released.
+        SSLSocket tls = tlsSocket;
+        tlsSocket = null;
+        if (tls != null) {
+            try { tls.close(); } catch (IOException ignored) { }
+        }
+        Socket raw = rawSocket;
+        rawSocket = null;
+        if (raw != null) {
+            try { raw.close(); } catch (IOException ignored) { }
         }
         DataInputStream in = input;
         input = null;
@@ -283,15 +302,10 @@ public final class AdbPairingClient implements Closeable {
         if (out != null) {
             try { out.close(); } catch (IOException ignored) { }
         }
-        SSLSocket tls = tlsSocket;
-        tlsSocket = null;
-        if (tls != null) {
-            try { tls.close(); } catch (IOException ignored) { }
-        }
-        Socket raw = rawSocket;
-        rawSocket = null;
-        if (raw != null) {
-            try { raw.close(); } catch (IOException ignored) { }
+        PairingContext context = pairingContext;
+        pairingContext = null;
+        if (context != null) {
+            try { context.destroy(); } catch (RuntimeException | LinkageError ignored) { }
         }
     }
 
