@@ -38,6 +38,19 @@ assert 'putExtra("fx_open_native_tab", index)' in base
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
 assert "handleImportedNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
 
+# Dia Activity Browser preserves the page viewport across Activity recreation.
+activity_browser = next(p for p in pages if "class FxDiaActivityBrowserActivity" in p)
+for token in (
+    'STATE_SCROLL_Y = "fx_dia_browser_scroll_y"',
+    "private ScrollView pageScroll;",
+    "restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));",
+    "pageScroll = scroll;",
+    "outState.putInt(STATE_SCROLL_Y",
+    "scroll.scrollTo(0, restoreY);",
+    "pageScroll == scroll && scroll.getParent() != null",
+):
+    assert token in activity_browser, f"Activity Browser viewport restoration missing: {token}"
+
 # Hook app list must preserve the selected category, search, paging and scroll across return/recreation.
 for key in ("STATE_HOOK_APP_LIST_QUERY", "STATE_HOOK_APP_LIST_SCROLL_Y",
             "STATE_HOOK_APP_LIST_VISIBLE_COUNT"):
