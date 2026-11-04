@@ -50,7 +50,7 @@ else:
     source = source.replace(helper_anchor, helper, 1)
 
     def replace_once(old: str, new: str, label: str) -> None:
-        nonlocal source
+        global source
         count = source.count(old)
         if count != 1:
             raise SystemExit(f"QuickJS {label} anchor expected once, found {count}")
