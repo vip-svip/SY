@@ -131,11 +131,24 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         }
     }
 
-    public static void clear(Context context) {
+    /**
+     * Clear crash metadata and native minidumps as one user-visible operation.
+     * Preserve the crash record and pending flags when the dump path is unsafe.
+     */
+    public static boolean clear(Context context) {
+        if (context == null || !FxDiaNativeCrashCapture.clearMinidumps(context)) return false;
+
         crashFile(context).delete();
-        prefs(context).edit().putBoolean("has_crash", false).remove("crash_timestamp").commit();
-        legacyPrefs(context).edit().putBoolean("has_crash", false)
-                .remove("crash_timestamp").commit();
+        File base = new File(context.getFilesDir(), FILE_NAME);
+        File backup = new File(context.getFilesDir(), FILE_NAME + ".bak");
+        File fresh = new File(context.getFilesDir(), FILE_NAME + ".new");
+        if (base.exists() || backup.exists() || fresh.exists()) return false;
+
+        boolean currentCleared = prefs(context).edit()
+                .putBoolean("has_crash", false).remove("crash_timestamp").commit();
+        boolean legacyCleared = legacyPrefs(context).edit()
+                .putBoolean("has_crash", false).remove("crash_timestamp").commit();
+        return currentCleared && legacyCleared;
     }
 
     /** Persist original Dia Breakpad callback data in the same FX-private crash.log. */

@@ -35,7 +35,7 @@ public final class FxDiaNativeCrashCapture {
             return false;
         }
 
-        File directory = new File(app.getFilesDir(), "dia-native-crash");
+        File directory = new File(app.getFilesDir(), FxDiaCrashDumpDirectory.DIRECTORY_NAME);
         if (!directory.isDirectory() && !directory.mkdirs()) {
             status = "Native 崩溃捕获不可用：无法创建私有 minidump 目录";
             return false;
@@ -70,6 +70,12 @@ public final class FxDiaNativeCrashCapture {
             return "Native 崩溃捕获未启用。";
         }
         return status + "。";
+    }
+
+    /** Clear only direct regular files under the app-private minidump directory. */
+    public static boolean clearMinidumps(Context context) {
+        if (context == null) return false;
+        return FxDiaCrashDumpDirectory.clear(context.getFilesDir());
     }
 
     private static void pruneOldMinidumps(File directory) {

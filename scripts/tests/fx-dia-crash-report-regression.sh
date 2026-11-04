@@ -11,6 +11,8 @@ STORE="$DIA/FxDiaCrashStore.java"
 RECORD="$DIA/FxDiaCrashRecord.java"
 ACTIVITY="$DIA/FxDiaCrashReportActivity.java"
 NATIVE_CAPTURE="$DIA/FxDiaNativeCrashCapture.java"
+DUMP_DIRECTORY="$DIA/FxDiaCrashDumpDirectory.java"
+DUMP_HOST_TEST="$ROOT/scripts/tests/FxDiaCrashDumpDirectoryHostTest.java"
 JNI_WRAPPER="$APP/java/com/babyte/breakpad/BaByteBreakpad.java"
 JNI_CALLBACK="$APP/java/com/babyte/breakpad/callback/NativeCrashCallback.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
@@ -19,14 +21,14 @@ WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
 POLICY="$DIA/FxDiaCrashCapturePolicy.java"
 REDACTOR="$DIA/FxDiaCrashRedactor.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"; do
+for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$NATIVE_CAPTURE" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
-python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
+python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$DUMP_DIRECTORY" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-main, manifest_path, application, store, record, activity, unit, redactor, native_capture, jni_wrapper, jni_callback, workflow = [
+main, manifest_path, application, store, record, activity, unit, redactor, dump_directory, native_capture, jni_wrapper, jni_callback, workflow = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -58,6 +60,14 @@ assert "private static final native void initBreakpadNative" in jni_wrapper, "or
 assert "onCrash(String minidumpPath, String nativeInfo" in jni_callback, "four-String JNI callback descriptor changed"
 assert "FxDiaCrashStore.recordNativeCrash(app" in native_capture, "native callback is not connected to crash store"
 assert "statusLine(this)" in activity, "native library availability is not shown"
+assert "clearMinidumps(context)" in native_capture, "native dump directory has no explicit cleanup path"
+assert "FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
+assert "FxDiaNativeCrashCapture.clearMinidumps(context)" in store, "crash clear action does not remove native minidumps"
+assert "if (FxDiaCrashStore.clear(this))" in activity, "UI must only report a fully successful clear"
+assert "符号链接或意外子目录" in activity, "clear confirmation must disclose path-safety refusal"
+for token in ("getCanonicalFile()", "entry.isFile()", "canonicalDirectory.equals(canonicalEntry.getParentFile())",
+              "if (!entry.delete()) return false", "return directory.delete()"):
+    assert token in dump_directory, f"safe minidump deletion invariant missing: {token}"
 assert "Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative" in workflow, "workflow does not verify original JNI symbol"
 assert "getPackageName()" in store and "Build.MODEL" in store, "process/device metadata is missing"
 assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are not size-bounded"
@@ -92,8 +102,9 @@ done
 if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-  javac -d "$tmp" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"
+  javac -d "$tmp" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST"
   java -cp "$tmp" com.babyte.breakpad.DiaBreakpadJniContractHostTest
+  java -cp "$tmp" FxDiaCrashDumpDirectoryHostTest
 else
   echo "SKIP: host JVM JNI reflection check (JDK unavailable); Android/JUnit source tests still retain the descriptor."
 fi

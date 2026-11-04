@@ -185,13 +185,20 @@ public final class FxDiaCrashReportActivity extends Activity {
     private void confirmClear() {
         new AlertDialog.Builder(this)
                 .setTitle("清除崩溃记录？")
-                .setMessage("将删除 FX 私有 crash.log 和待显示标记。此操作不可撤销。")
+                .setMessage("将删除 FX 私有 crash.log、待显示标记，以及 dia-native-crash/ 下的 Native minidump。若发现符号链接或意外子目录，将拒绝清理并保留崩溃报告。此操作不可撤销。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清除", (dialog, which) -> {
-                    FxDiaCrashStore.clear(this);
-                    record = null;
-                    render();
-                    Toast.makeText(this, "崩溃记录已清除。", Toast.LENGTH_SHORT).show();
+                    if (FxDiaCrashStore.clear(this)) {
+                        record = null;
+                        unreadablePendingReport = false;
+                        render();
+                        Toast.makeText(this, "崩溃记录与 Native minidump 已清除。",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this,
+                                "清除未完成：检测到不安全路径、文件删除失败或偏好写入失败。崩溃报告仍保留，请检查 FX 私有目录后重试。",
+                                Toast.LENGTH_LONG).show();
+                    }
                 })
                 .show();
     }

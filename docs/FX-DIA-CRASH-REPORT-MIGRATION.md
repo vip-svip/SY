@@ -17,3 +17,8 @@ The original optional stack control converts UTF-8 bytes into lowercase hexadeci
 ## Verification boundary
 
 FxDiaCrashRecordTest covers UTF-8 HEX output, raw versus HEX rendering, bounded fields and Native report formatting. The shell regression checks Java handler delegation, private AtomicFile persistence, original JNI descriptor/export, both shipped ABIs and native UI status. Android installation and physical-device crash/relaunch behavior remain pending.
+
+
+## Clearing crash data safely
+
+The report clear action removes the Java crash record and pending flags together with the direct regular-file contents of `files/dia-native-crash/`. It refuses symlinked paths and unexpected nested directories; it never recursively traverses that directory. A failed filesystem or preference operation is reported as a failed clear rather than a success message. The host regression covers normal deletion, symlink targets, nested folders and an already-absent dump directory.
