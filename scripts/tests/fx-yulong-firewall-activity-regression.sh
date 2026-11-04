@@ -54,6 +54,9 @@ require("state.getInt(STATE_APP_PAGE, 1)", "firewall pagination is not restored"
 require("state.getString(STATE_QUERY, \"\")", "firewall search query is not restored")
 require("state.getInt(STATE_SCROLL_Y, 0)", "firewall scroll position is not restored")
 require("private void restoreScrollIfNeeded()", "firewall scroll restoration helper is missing")
+require("private int scrollRestoreGeneration;", "firewall scroll restoration needs a stale-callback generation")
+require("generation != scrollRestoreGeneration", "older posted scroll callbacks must not override a newer search")
+require("pendingScrollRestore = false;", "new search must cancel the previous scroll restore")
 require("pendingScrollY = Math.max(0, scroll.getScrollY());", "package refresh does not preserve the current scroll position")
 load_apps = source[source.index("private void loadAppsAsync()"):source.index("private String formatBytes")]
 assert "appPage = 1;" not in load_apps, "package inventory refresh must not discard the current page"
