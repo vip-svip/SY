@@ -953,3 +953,10 @@ The import transaction now creates private same-directory temporary backups inst
 - FX now accepts both vendor quickboot actions in the receiver and manifest. It continues to restore only user-enabled protection/shake and overlay features, checks the user's current overlay permission, and refreshes only its own keepalive schedule.
 - Volume-key rescue remains handled by the explicitly enabled FX AccessibilityService key-event path; it does not start the Shield foreground monitor by itself. No Android permission or user switch is silently enabled.
 - Added a manifest/source host regression. Actual vendor firmware broadcast delivery remains device-pending.
+
+
+## 2026-11-04 — Dia AppEntryHook safe observer slice
+
+Original DEX inspection identified AppEntryHook intercepting Activity creation and potentially replacing the launcher Activity or finishing the original. The native Dia migration now exposes a fourth-level Activity 启动入口观察 page that preloads a Frida metadata observer for Instrumentation.newActivity and callActivityOnCreate. It records Activity class, Intent action and Intent package only; it does not read Intent extras/data, replace the Activity, start another Activity, or call finish(). It requires a user-selected installed debuggable target and manual injection. This is a safe observer slice, not full AppEntryHook redirect parity; original Activity replacement/finish semantics remain partial and are not silently enabled.
+
+The existing ClickBtnHook, FragmentHook and ViewGroupHook metadata templates were found in the same Frida editor. They observe click/ViewGroup/Fragment metadata but do not port ClickBtnHook automatic delayed/keyword clicking or ViewGroup dialog suppression/removal. Those behavior-changing functions remain separately unaudited/partial; no automatic click or dialog removal is enabled by this observer work.

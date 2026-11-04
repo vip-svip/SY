@@ -364,6 +364,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 SQLCipher/WCDB 调用监控", () -> loadDiaMonitorTemplate("sqlcipher")),
                 button("载入算法方法观察模板", () -> loadDiaMonitorTemplate("algorithm")),
                 button("载入 Intent 调用观察", () -> loadDiaMonitorTemplate("intent")),
+                button("载入 Activity 创建入口观察", () -> loadDiaMonitorTemplate("appentry")),
                 button("载入 Socket 连接观察", () -> loadDiaMonitorTemplate("socket")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
                 button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
@@ -432,6 +433,8 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("socket");
         } else if ("Intent 监控".equals(title)) {
             loadDiaMonitorTemplate("intent");
+        } else if ("Activity 启动入口观察".equals(title)) {
+            loadDiaMonitorTemplate("appentry");
         } else if ("Shell/Process 监控".equals(title)) {
             loadDiaMonitorTemplate("runtime");
         } else if ("方法堆栈".equals(title)) {
@@ -1723,6 +1726,27 @@ public final class FxDiaFridaActivity extends Activity {
                         + "    };\\n"
                         + "  } catch (e) { send('[DIA_SOCKET] default overload unavailable'); }\\n"
                         + "  send('[DIA_SOCKET] metadata observer installed; socket payloads are not read or logged.');\\n"
+                        + "});";
+                break;
+            case "appentry":
+                source = "Java.perform(function () {\\n"
+                        + "  var Instrumentation = Java.use('android.app.Instrumentation');\\n"
+                        + "  function emitCreate(className, intent, stage) {\\n"
+                        + "    var action = ''; var pkg = '';\\n"
+                        + "    try { if (intent !== null) action = String(intent.getAction() || ''); } catch (_) {}\\n"
+                        + "    try { if (intent !== null) pkg = String(intent.getPackage() || ''); } catch (_) {}\\n"
+                        + "    send('[DIA_APPENTRY] stage=' + stage + ' activity=' + className + ' action=' + action + ' intentPackage=' + pkg);\\n"
+                        + "  }\\n"
+                        + "  try { var create3 = Instrumentation.newActivity.overload('java.lang.ClassLoader', 'java.lang.String', 'android.content.Intent');\\n"
+                        + "    create3.implementation = function (loader, className, intent) { emitCreate(String(className), intent, 'newActivity'); return create3.call(this, loader, className, intent); };\\n"
+                        + "  } catch (e) { send('[DIA_APPENTRY] three-argument newActivity overload unavailable'); }\\n"
+                        + "  try { var create4 = Instrumentation.newActivity.overload('java.lang.ClassLoader', 'java.lang.String', 'android.content.Context', 'android.content.Intent');\\n"
+                        + "    create4.implementation = function (loader, className, context, intent) { emitCreate(String(className), intent, 'newActivity'); return create4.call(this, loader, className, context, intent); };\\n"
+                        + "  } catch (e) { send('[DIA_APPENTRY] context newActivity overload unavailable'); }\\n"
+                        + "  try { var onCreate = Instrumentation.callActivityOnCreate.overload('android.app.Activity', 'android.os.Bundle');\\n"
+                        + "    onCreate.implementation = function (activity, bundle) { var name = ''; try { name = String(activity.getClass().getName()); } catch (_) {} emitCreate(name, null, 'callActivityOnCreate'); return onCreate.call(this, activity, bundle); };\\n"
+                        + "  } catch (e) { send('[DIA_APPENTRY] callActivityOnCreate overload unavailable'); }\\n"
+                        + "  send('[DIA_APPENTRY] metadata-only observer installed; no Activity replacement, finish or Intent extras/data access.');\\n"
                         + "});";
                 break;
             case "intent":

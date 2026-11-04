@@ -28,5 +28,23 @@ checks = {
 for label, ok in checks.items():
     if not ok:
         raise SystemExit(f"FAIL: {label}")
-print("PASS: Dia Frida pages retain a validated debug target and open the correct script/log tools")
+if "Activity 启动入口观察" not in main:
+    raise SystemExit("FAIL: AppEntry observer page is missing from Dia migration menu")
+if 'case "Activity 启动入口观察":' not in main:
+    raise SystemExit("FAIL: AppEntry observer page is not routed to its native Frida screen")
+if 'button("载入 Activity 创建入口观察", () -> loadDiaMonitorTemplate("appentry"))' not in frida:
+    raise SystemExit("FAIL: AppEntry observer cannot be loaded manually")
+if 'else if ("Activity 启动入口观察".equals(title))' not in frida:
+    raise SystemExit("FAIL: AppEntry page does not preload its matching template")
+for marker in ("Instrumentation.newActivity.overload", "Instrumentation.callActivityOnCreate.overload",
+               "[DIA_APPENTRY]", "no Activity replacement", "Intent extras/data access"):
+    if marker not in frida:
+        raise SystemExit(f"FAIL: AppEntry observer contract missing {marker}")
+start = frida.index('            case "appentry":')
+end = frida.index('            case "intent":', start)
+appentry = frida[start:end]
+for forbidden in ("setClass(", "finish()", "startActivity(", "replace success", "getExtras(", "getData("):
+    if forbidden in appentry:
+        raise SystemExit(f"FAIL: observer has side-effect or payload access: {forbidden}")
+print("PASS: Dia Frida pages retain a validated debug target, route AppEntry observer and keep Activity creation metadata-only")
 PY
