@@ -3474,3 +3474,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   2. 继续 Hook 编辑器、Dia 脚本编辑器的键盘遮挡/滚动/保存状态恢复页面级核对。
   3. 若上述共享 UI 回归无缺陷，转入安全护盾扫描结果/风险详情的原始页面映射差异。
 - 失败路线：本批未遇到失败路线；下一轮不要重复全量盘点或重跑整套 Actions。
+
+
+## 2026-11-05 — Gadget session regression script duplicate-tail repair
+
+- Actions `41919397802` and `41919533754` failed before completing the Gadget session regression because a duplicated Python assertion block had been appended after the first complete shell fixture; the duplicate contained malformed shell syntax.
+- Restored the original full source-contract checks and local process/UID/FIFO lifecycle fixture, retaining a single copy. No fixture behavior or product code was removed.
+- Repair commit: `b9b130309ee808533dd47e15c58db268618269de`. Targeted Actions pending.
