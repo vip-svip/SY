@@ -88,9 +88,13 @@ public final class FxAccessibilityService extends AccessibilityService {
         return false; // Preserve normal Android volume behavior.
     }
 
-    @Override public void onInterrupt() { }
+    @Override public void onInterrupt() {
+        // Do not carry a partial volume-key sequence across service interruptions.
+        volumeTriggerSequence.resetSequence();
+    }
 
     @Override public boolean onUnbind(Intent intent) {
+        volumeTriggerSequence.resetSequence();
         connected = false;
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
                 .edit().putBoolean("service_connected", false).remove("service_pid").apply();
@@ -98,6 +102,7 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override protected void onServiceConnected() {
+        volumeTriggerSequence.resetSequence();
         super.onServiceConnected();
         connected = true;
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
@@ -106,6 +111,7 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onDestroy() {
+        volumeTriggerSequence.resetSequence();
         connected = false;
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
                 .edit().putBoolean("service_connected", false).remove("service_pid").apply();

@@ -220,6 +220,9 @@ assert "pm uninstall" not in risk_dispatcher and "su -c" not in risk_dispatcher,
        "automatic risk handling must never uninstall without Android's confirmation UI"
 volume_sequence = shield["FxYulongVolumeTriggerSequence.java"]
 volume_sequence_test = (repo_root / "adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVolumeTriggerSequenceTest.java").read_text(encoding="utf-8")
+accessibility_xml = (repo_root / "adhook/app/src/main/res/xml/fx_accessibility_service.xml").read_text(encoding="utf-8")
+assert 'android:canRequestFilterKeyEvents="true"' in accessibility_xml, "AccessibilityService XML must request key filtering"
+assert "flagRequestFilterKeyEvents" in accessibility_xml, "AccessibilityService key filtering flag is missing"
 assert "volume_trigger_key" in accessibility and "volume_trigger_count" in accessibility
 assert "volumeTriggerSequence.recordPress" in accessibility
 assert "event.getAction() == KeyEvent.ACTION_UP" in accessibility
@@ -233,6 +236,11 @@ for token in ("triggersOnlyAfterConfiguredVolumeDownCount",
               "countControlsWindowUsingLegacyMinimumAndPerPressTiming",
               "completedSequenceHasCooldownAndThenCanTriggerAgain"):
     assert token in volume_sequence_test, f"Volume trigger unit test missing {token}"
+for method in ("onInterrupt()", "onUnbind(Intent intent)", "onServiceConnected()", "onDestroy()"):
+    block = accessibility.split(method, 1)[1].split("@Override", 1)[0]
+    assert "volumeTriggerSequence.resetSequence()" in block, f"partial volume sequence must reset on {method}"
+assert "return false; // Preserve normal Android volume behavior." in accessibility, "volume trigger must not consume system volume keys"
+
 volume_ui = shield["FxYulongShieldActivity.java"]
 assert "volume_trigger_key" in volume_ui and "volume_trigger_count" in volume_ui
 assert "选择救援触发按键" in volume_ui and "连续按键次数（2–10 次）" in volume_ui
