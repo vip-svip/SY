@@ -414,7 +414,7 @@ watch_loop() {
   cleanup_watch_loop() {
     [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :
     if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
-        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$" ]; then
+        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then
       rm -f "$WATCH_PIDFILE"
     fi
   }
@@ -504,7 +504,7 @@ watch_lock_release() {
   [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
   if [ -d "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
       && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
-      && [ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$" ]; then
+      && [ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$$" ]; then
     rm -f "$WATCH_LOCK_PID"
     rmdir "$WATCH_LOCK" 2>/dev/null || :
   fi
@@ -568,7 +568,7 @@ watch_lock_acquire() {
     sleep 0.1
   done
   WATCH_LOCK_OWNED=1
-  if (umask 077; printf '%s\n' "$" > "$WATCH_LOCK_PID") \
+  if (umask 077; printf '%s\n' "$$" > "$WATCH_LOCK_PID") \
       && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
       && chmod 600 "$WATCH_LOCK_PID"; then
     trap 'watch_lock_signal_exit 129' HUP

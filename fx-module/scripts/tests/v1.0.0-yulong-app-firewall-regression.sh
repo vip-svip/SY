@@ -258,9 +258,9 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
-    'printf \'%s\\n\' "$" > "$WATCH_LOCK_PID"',
-    '[ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$" ]; then',
-    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$" ]; then',
+    'printf \'%s\\n\' "$$" > "$WATCH_LOCK_PID"',
+    '[ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$$" ]; then',
+    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then',
 )
 for item in required:
     if item not in source:
