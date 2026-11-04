@@ -983,3 +983,37 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 防火墙更新采用双链 staging：先构建 IPv4/IPv6 新链、再安装两侧 OUTPUT 跳转、最后切换活动标记并清理旧链；中间步骤失败会清理新链并保留旧链。刷新 Root 列表失败时 UI 保留上次应用列表，并按 appsLoaded 状态恢复总开关可用性；不将失败响应当作空规则覆盖。
 - Dia 原始按键实现溯源：在当前仓库代码搜索 `KeyEventHook alert_auto`、`disable_alert_mode alert_enabled`、`ToastDisableHook`、`alert_close_ex` 未找到可核验的原始实现文件。现有 `FxDiaFridaActivity` 的 `key` 模板只是 Frida 的 `Activity.dispatchKeyEvent` 观察器，日志后继续调用原方法，不能等同于拦截 Hook。没有 APK / 字节码证据前不实现猜测版 alert_auto。
 - 下一批：优先从已导入 Dia APK / 资源 / DEX 中找到原始 KeyEventHook、ToastDisableHook 和 alert 规则实现证据；若仓库当前没有对应二进制文件，标记为外部源缺失并继续做其它可完成的 Dia 原生页面，不重复对 KeyEvent 语义猜测。Firewall 这批筛选方向 Bug 与 11 项 Host 断言已完成；真实设备仍需验收用户/系统应用分类、Root 规则切换及 IPv4/IPv6 流量行为。
+
+## 2026-11-05 — Firewall 包名/UID 写入校验与过期应用列表只读保护
+
+- 本节更新前实时 HEAD：`59565158641e29885e1dbb5cd5a48976a269a225`；分支 `fx-v1.0.0-unified-hook-integration`，版本固定 FX 1.0.0。
+- 根因：防火墙最终应用规则时原本会通过 `cmd package list packages -U` 按包名重新解析 UID，因此卸载后旧 UID 不会直接继续进入 iptables；但 UI 的 `rule` / `set` 写入入口仍接受调用方传来的任意正整数 UID。若列表快照过期，旧 UID 仍可能覆盖该包名的持久化行，造成错误状态和不可预期的重装继承行为。
+- 已修复 Root 写入边界：
+  - 新增 `validate_package_uid()`，写入前重新读取 PackageManager UID 快照。
+  - 包已卸载、UID 快照读取失败/为空、包名当前 UID 与调用 UID 不一致时，拒绝写入并返回明确错误；不改配置、不触发规则重应用。
+  - `set` 与 `rule` 两个入口都调用校验。实际 iptables 规则仍在 apply 阶段再次按当前包名解析 UID，保留重装后使用新 UID 的既有语义。
+- 已修复 Activity 过期快照行为：
+  - 新增 `inventoryReady` 状态；只有 Root 配置列表读取和 PackageManager 应用列表读取均成功后才设为 true。
+  - 刷新开始即进入只读状态；Root 列表刷新失败不再使用 `appsLoaded` 重新启用总开关。
+  - 刷新失败仍保留上次应用列表供查看，但总开关、逐应用启停和 Wi-Fi/移动数据/计划编辑均禁用；规则保存入口也有二次 UI 状态保护。
+  - 成功完成两侧刷新后恢复操作能力。旧列表不清空、不用空列表覆盖，避免刷新故障造成页面数据丢失。
+- 提交：
+  - `e52a8ad1ed1cbec55b72cb68614905be1d737550` — Root rule 写入前校验当前 package UID。
+  - `349884740d4fe7debd2bf00bfa2e36c17599555f` — 增加 UID 不匹配、应用已卸载、PackageManager 快照失败的回归场景。
+  - `4b4236036a99d1313d7c8dc1b077617d39880e23`、`ddc53d482aa7ade372124cf7d7f6b76d8151e7be` — Activity 过期应用列表只读保护及编辑按钮状态。
+  - `3fe1e9a18ceb8b0b75fd97d12c9320e8a664f8e9` — 增加 Root / Activity 静态接线断言。
+  - `7fc7994e0255a560e422602c2a6c503ac35ea279`、`59565158641e29885e1dbb5cd5a48976a269a225` — 修正回归测试 fixture 与 UID 输出换行。
+- 改动路径：
+  - `scripts/yulong-app-firewall.sh`
+  - `scripts/tests/fx-yulong-app-firewall-regression.sh`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java`
+  - `scripts/tests/fx-yulong-firewall-filter-regression.sh`
+- 验证边界：
+  - 已重新读取最新 HEAD 中上述四个文件，静态核对 Root 两个写入入口均执行 UID 校验；Activity 在刷新失败路径保持只读，成功后才恢复编辑；静态回归入口包含相应断言。
+  - 本批未实际执行完整 Shell 集成回归：当前执行环境无法解析 github.com，Git clone 失败；也未触发整套 Actions。最近可见的自动工作流尝试集中在更早提交且已取消，不能作为本批测试通过证据。
+  - 因此 UID mismatch / missing package / failed snapshot 的运行时测试仍标记为待执行；Android UI 生命周期及设备行为也未验收。
+- 本批未生成 APK / KernelSU ZIP，未改变六 Tab 或 FX 1.0.0 版本号。
+- 下一批：
+  1. 在可执行仓库工作树中运行 `sh scripts/tests/fx-yulong-app-firewall-regression.sh` 和 `sh scripts/tests/fx-yulong-firewall-filter-regression.sh`；若失败先定位本批断言/Root mock 环境，不触发全量 Actions。
+  2. 对照 Dia 23.11 导入 APK / 资源继续查找原版 `KeyEventHook` 的真实字节码或源码；当前 Frida key 模板只是观察器，不能猜测 `alert_auto` / `disable_alert_mode`。
+  3. 回到 UI 主线继续完成游龙安全护盾原生深层页面与导航返回链。
