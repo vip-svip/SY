@@ -171,7 +171,7 @@ object FxWallpaperStore {
             val root = context.filesDir.canonicalFile
             val file = File(path).canonicalFile
             if (file.parentFile == root && file.name.startsWith("native_wallpaper_")
-                && (file.name.endsWith(".jpg") || file.name.endsWith(".jpg.tmp"))) file
+                && (file.name.endsWith(".jpg") || file.name.endsWith(".jpeg") || file.name.endsWith(".jpg.tmp") || file.name.endsWith(".jpeg.tmp"))) file
             else null
         } catch (_: IOException) {
             null
