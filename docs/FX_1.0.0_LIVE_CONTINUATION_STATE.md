@@ -1658,3 +1658,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `d4fdcfeef552f2805fcb63db6d3dd80ea9098e92` — `test(hook): cover bounded custom rule JSON drafts`。
 - 静态验证：确认文本长度过滤、UTF-8 字节数拒绝路径、目标包隔离草稿写入及回归断言；未运行 Shell/Java Host 测试、Gradle、模拟器或真机输入/旋转测试。
 - 下一步：复核 Hook 规则编辑器与 JSON 导入恢复合并后的状态路径；然后尝试运行集中 Host 回归（只运行本批所需测试，不重复整套 Actions）。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 规则分组新增/重命名/移动的草稿与持久化
+
+- 本批实时起点：`574a9863b6ccd51def47f5a962033ac076ab32ac`；以最新 HEAD/blob SHA 写入，保留同期 JSON 导入 16,384 字符草稿上限和 64 KiB UTF-8 校验提交。
+- 规则分组新增、重命名输入分别按当前目标包保存草稿；Activity 重建时根据 Bundle 恢复正在编辑的分组对话框，并从偏好恢复文本。取消/返回取消只清除弹窗恢复标记，不误清除用户尚未保存的文字。
+- 分组新增从异步 `apply()` 改为同步 `commit()` 并检查结果；只有提交成功才提示创建成功。分组重命名沿用原子 `commit()`；规则移动到其他分组也改为同步提交，失败时提示且不重建页面。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-custom-hook-literal-regression.sh`；本状态文件。
+- 提交：`1e1fdf3c9053ed1b60b45cc9db840d14a91a1ac7`（分组草稿/同步保存）；`79a10d0842ba966b769031cf10fc0a5ebccfefe8`（新增/重命名/移动回归断言）。
+- 验证等级：从最新 HEAD 重新读取 MainActivity 与回归脚本，静态确认新增/重命名状态保存恢复、输入草稿、同步新增提交、重命名提交、移动提交和测试断言存在；未运行完整 Shell/Python 脚本、Gradle、模拟器或真机旋转/存储故障测试。
+- 未完成：规则组列表/动作/删除确认/移动选择器自身尚未完整保存弹窗层级与选中项；新增/重命名文本输入过滤尚未做 UI 交互验证。下一批继续完成剩余分组弹窗恢复，再做 Hook/Dia Host 回归可运行性检查。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
