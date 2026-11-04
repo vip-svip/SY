@@ -351,8 +351,21 @@ assert 'if (!validPackageName() || !("CERTAIN".equals(severity) || "SUSPECT".equ
     "Invalid severity must not open the system uninstall confirmation"
 assert "catch (RuntimeException lookupFailure)" in warning_page, \
     "Whitelist action must handle package visibility/runtime lookup failures without crashing"
-assert "包含无法识别的条目" in warning_page and "本次没有修改任何白名单数据" in warning_page, \
+assert "FxYulongWhitelistPolicy.isWellFormed(raw)" in warning_page, \
+    "Risk detail whitelist action must reject malformed original data through the shared parser"
+assert "本次没有修改任何白名单数据" in warning_page, \
     "Risk detail whitelist action must not silently discard malformed existing entries"
+whitelist_policy = shield["FxYulongWhitelistPolicy.java"]
+assert "public static boolean isWellFormed(String raw)" in whitelist_policy, \
+    "Shared whitelist parser must expose whole-payload validation"
+assert "if (!isValidPackageName(candidate)) return false;" in whitelist_policy, \
+    "Shared whitelist parser must reject the entire CSV on an invalid token"
+assert "if (whitelistDataCorrupt)" in white and "原白名单数据异常" in white, \
+    "Whitelist manager must refuse writes when the original list is malformed"
+assert "whitelistDataCorrupt" in picker and "原白名单数据异常" in picker, \
+    "Whitelist picker must refuse to overwrite malformed original data"
+assert "whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWellFormed(raw);" in white
+assert "whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWellFormed(raw);" in picker
 
 # Batch cleanup must reject malformed or truncated queue payloads atomically.
 for token in (
