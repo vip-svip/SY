@@ -3158,3 +3158,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：从 Store 的 token 列表移除 `encrypt_stack`，保留 `digXposed` 旧偏好读取断言及 Activity 对 `encrypt_stack` 的实际读写断言。
 - 改动路径：`scripts/tests/fx-dia-crash-report-regression.sh`。
 - 验证：已对照 Activity 和 Store 的职责边界；下一次 Actions 将继续执行 CrashReport Host/JNI/导出格式测试。
+
+
+## 2026-11-05 — Dia 备份/恢复表单旋转状态与凭据隔离
+
+- 页面：Dia 23.11 → 数据备份与恢复。
+- UI 问题：Activity 重建后 GitHub Owner/Repo/路径/分支、WebDAV 地址/用户名等非敏感配置会丢失，用户需要重新填写；远程表单较长，滚动位置也不保留。
+- 实现：把远程端点非敏感字段提升为 Activity 字段，保存/恢复 GitHub Owner、Repo、文件路径、分支、WebDAV URL/用户名与页面滚动位置；继续沿用现有 pending encrypted export 临时文件状态。
+- 凭据保护：备份密码、GitHub Token、WebDAV 密码不写入 Bundle/恢复状态；页面新增明确提示，重建后需重新输入。未把秘密写入 SharedPreferences 或其他持久化存储。
+- 改动：`FxDiaBackupActivity.java`、`fx-dia-backup-restore-preflight-regression.sh`。提交：`ace0a2e06b80c74e9643d1026c43604b6c6c001f`、`00aa62e44f7d06fc50f219619ad1b38d3ea24172`。
+- 验证：源码静态检查确认非敏感字段与滚动状态保存/恢复，且没有凭据 Bundle 写入；定向 Actions `41916691767` 已触发/排队，结果待确认。Android UI 自动化、旋转与进程重建真机测试未执行。
+- 相关页面组：Dia 文件浏览器搜索/路径/分页/滚动恢复的 Host Actions `41916426607` SUCCESS；System Expand 安装来源搜索回归 `41916108180` SUCCESS。
+- 下一批：读取备份页 Actions；检查 GitHub/WebDAV 表单字段在旋转后的恢复顺序与键盘遮挡；继续推进 Dia 文件/备份与 Frida 原生页面，不提前最终打包。
