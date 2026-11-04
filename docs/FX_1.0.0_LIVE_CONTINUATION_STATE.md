@@ -3189,3 +3189,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 产品提交：`c058c64a5918e3e25aebb56f4dbb482a692e851b`；回归提交：`17f9d94001c7a802e06164d8ac52bba408a430f1`。
 - 验证：源码及定向断言已提交；Actions 尚待读取。Android Gradle/JUnit、旋转 UI 自动化和真机授权流程未验证。
 - 下一步：检查本批 Actions；继续 Dia Activity Browser 搜索/详情/返回链及 Frida Server/Gadget 会话状态恢复。
+
+
+## 2026-11-05 — Dia Frida 进程身份回归断言适配 package snapshot
+
+- Actions `41916591419` 在 `fx-dia-frida-process-identity-regression.py` 失败，断言要求 `getApplicationInfo(targetPackage, 0)`。
+- 根因：Frida 进程选择器先将目标包名快照为 `requestedPackage`，再读取 ApplicationInfo/UID；这是避免异步 UI 期间目标包名变化的正确做法。旧测试仍要求直接读取可变字段 `targetPackage`。
+- 修复：初始身份检查改为断言 `getApplicationInfo(requestedPackage, 0)` 与 `targetUid = targetInfo.uid`，保留回调时再次校验 requestedPackage/UID 的断言。
+- 改动路径：`scripts/tests/fx-dia-frida-process-identity-regression.py`。
+- 验证：已对照当前 `chooseTargetProcesses()` 真实实现；Actions 重跑结果待读取。
