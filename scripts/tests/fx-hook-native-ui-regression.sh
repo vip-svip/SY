@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+main_activity="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 APK="${1:-$ROOT/adhook/app/build/outputs/apk/debug/app-debug.apk}"
 SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
 AAPT="$SDK_ROOT/build-tools/34.0.0/aapt"

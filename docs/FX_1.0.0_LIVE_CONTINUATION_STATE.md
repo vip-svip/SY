@@ -2690,3 +2690,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 验证：已对照当前 MainActivity 源码确认四个新断言表达式真实存在；尚未重跑 Actions，等待本提交触发的定向 Host 回归。不得把源码对照记为测试通过。
 - 失败路线：不再使用固定首屏表达式的旧 grep 断言；若修复后再次失败，读取新的失败步骤/源码证据，不重复放宽断言。
+
+
+## 2026-11-05 — Hook 原生 UI 回归脚本变量初始化修复
+
+- 失败 Actions：`41911812059`（HEAD `1aab5145f518e66c5f83015b1ac31f2a8019f62c`），`fx-hook-native-ui-regression.sh` 已通过更新后的分页断言，随后在第 70 行失败：`main_activity: unbound variable`。
+- 根因：脚本在第 70 行开始使用 `$main_activity`，却直到第 346 行才赋值；`set -u` 会在首次引用时直接终止。属于回归脚本自身的变量初始化顺序错误，与应用源码无关。
+- 修复：将 MainActivity 源码路径变量初始化移到脚本顶部 `ROOT` 计算之后，后续所有断言复用同一路径；保留分页恢复断言修复。
+- 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：源码静态确认变量赋值现在早于首次引用；尚未重跑 Actions。下一次定向运行将继续执行该脚本余下断言，不能预先记为通过。
+- 失败路线：不要在脚本中再次把变量定义留在首次使用之后；不需要修改 MainActivity 来绕过此错误。
