@@ -3327,6 +3327,27 @@ public final class MainActivity extends ComponentActivity {
             }
         }
 
+        if (category.equals("过滤列表与规则")) {
+            if (page.equals("计划任务")) {
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                        .putExtra("suite_page", "计划任务"));
+                return;
+            }
+            if (page.equals("白名单域名") || page.equals("黑名单域名")
+                    || page.equals("自定义规则") || page.equals("规则编辑")) {
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                        .putExtra("suite_page", "域名名单")
+                        .putExtra("yulong_source_page", page));
+                return;
+            }
+        }
+        if (category.equals("DNS 设置") && page.equals("DNS 日志")) {
+            startActivity(new Intent(this,
+                    de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
+            return;
+        }
         if (category.equals("首页与防护")
                 && (page.equals("统计") || page.equals("每日防护总结"))) {
             startActivity(new Intent(this,
