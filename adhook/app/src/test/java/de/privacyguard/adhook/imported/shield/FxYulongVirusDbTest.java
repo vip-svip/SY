@@ -54,7 +54,7 @@ public final class FxYulongVirusDbTest {
     @Test public void packageParserAcceptsOnlyCompleteDottedIdentifiers() {
         assertEquals(new HashSet<>(Arrays.asList("com.example.good", "org.sample.client")),
                 FxYulongVirusDb.parse("[\\"com.example.good\\",\\"org.sample.client\\"]", true));
-        assertTrue(FxYulongVirusDb.parse("com.example.good\\ninvalid package token", true).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("com.example.good\ninvalid package token", true).isEmpty());
         assertTrue(FxYulongVirusDb.parse("https://cdn.example.com/error.html", true).isEmpty());
     }
 
