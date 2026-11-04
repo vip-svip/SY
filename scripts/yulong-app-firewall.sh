@@ -753,10 +753,10 @@ watch_lock_acquire() {
         echo "unable to read current watcher lock owner start time" >&2
         return 1
       }
-      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
+      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
       _watch_lock_tmp=$(mktemp "$WATCH_LOCK.tmp.XXXXXX") || return 1
       if ! {
-        printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp" &&
+        printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp" &&
         chmod 600 "$_watch_lock_tmp"
       }; then
         rm -f "$_watch_lock_tmp"
@@ -772,6 +772,10 @@ watch_lock_acquire() {
           trap 'watch_lock_signal_exit 130' INT
           trap 'watch_lock_signal_exit 143' TERM
           return 0
+        fi
+        if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
+          rm -f "$WATCH_LOCK"
         fi
         WATCH_LOCK_OWNED=0
         WATCH_LOCK_START=

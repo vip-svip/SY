@@ -267,6 +267,7 @@ assert "ln \"$_watch_lock_tmp\" \"$WATCH_LOCK\"" in lock, \
 assert "set -C" not in lock, "partially-written noclobber lock publication must not return"
 assert "printf" in lock and '"$"' in lock and '"$_watch_lock_tmp"' in lock, \
     "exclusive lock does not publish the real shell PID into the prepared record"
+assert 'watch_lock_pid_start_time "$"' in source, "lock owner start time must be read for the current shell PID"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
 owner = source.split("watch_lock_owner_is_ours() {", 1)[1].split("\n}", 1)[0]

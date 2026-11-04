@@ -778,3 +778,10 @@ After each implementation batch:
 - Contending starts/stops can no longer read an intermediate one-line PID record and misclassify the active starter as an unrelated process. The existing PID + script path + kernel start-time checks remain unchanged after publication.
 - The regression now asserts complete-record-before-link publication and forbids the old `set -C` partial-write approach. The real start/start and start/stop process race remains in the integration test.
 - Validation is pending the next GitHub Actions run; no real Android-device run is claimed.
+
+## 2026-11-04 — Atomic watcher lock PID verification
+
+- Corrected hard-link lock publication to use the current shell PID (`$$`) consistently in the process start-time lookup, expected lock record and staged payload. A literal dollar sign is not a valid PID and caused lock acquisition to reject itself.
+- Regression assertions now check all PID-bearing expressions, not merely the presence of a lock file and hard-link operation.
+- If post-publication verification fails, the publisher removes only the lock whose bytes still exactly match its own expected record, avoiding a stranded self-owned lock without deleting another owner's lock.
+- The currently running Actions attempt predates this correction; the next branch run must verify the lifecycle race end-to-end.
