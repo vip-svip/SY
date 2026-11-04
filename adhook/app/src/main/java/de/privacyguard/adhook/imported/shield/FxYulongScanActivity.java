@@ -116,6 +116,7 @@ public final class FxYulongScanActivity extends Activity {
         lastScanComplete = state.getBoolean(STATE_SCAN_COMPLETE, false);
         lastScanStatus = boundedStateText(state.getString(STATE_SCAN_STATUS, ""));
         status.setText(lastScanStatus.isEmpty() ? "已恢复上次扫描状态。" : lastScanStatus);
+        status.setTextColor(lastScanComplete ? 0xff5c6877 : 0xffa32620);
         resultRows.removeAllViews();
         selectedForCleanup.clear();
         lastFindings.clear();
@@ -253,8 +254,9 @@ public final class FxYulongScanActivity extends Activity {
                     ? (result.contentDatabaseReady ? ("已检查 " + result.contentScanned + " 个 APK"
                         + (result.contentReadFailures > 0 ? "；读取失败 " + result.contentReadFailures + " 个" : "")
                         + (result.contentTruncated ? "；达到预算上限，扫描未完成" : ""))
-                        : "已启用但内容特征库未就绪")
+                        : "已启用但内容特征库未就绪；第二阶段未执行")
                     : "未启用（默认关闭）"));
+            status.setTextColor(result.scanComplete ? 0xff5c6877 : 0xffa32620);
             lastScanStatus = status.getText().toString();
             for (FxYulongScanEngine.Finding finding : result.findings) addFinding(finding, false);
             if (result.findings.isEmpty()) {
