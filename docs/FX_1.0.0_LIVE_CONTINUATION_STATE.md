@@ -1391,3 +1391,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证边界：未实际运行 Shell 脚本、Gradle/JUnit、Android 编译、模拟器/真机六 Tab 点击与返回栈验收；本节仅记录最新 GitHub 源码静态核验。
 - 下一批继续：核对独立 Activity 的 Tab 点击回跳与 CLEAR_TOP 返回链是否对所有页面一致；检查 Backup / SAF / GPS Picker 的 Activity Result 在重建后的状态恢复；随后处理 Shield 的服务状态与权限真实性。
 - 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Shield 每日摘要 / 安全告警原生页六 Tab 接入
+
+- 本批起始目标分支 HEAD：`6022096bc97ee368de26733a8a2ec5b28c4c740a`。
+- 将 `FxYulongDailySummaryActivity` 与 `FxYulongWarningActivity` 接入现有 `FxNativeTabActivity`，根视图使用 `setContentViewWithNativeTabs(root, 5)`；未更改页面业务布局与数据/操作流程。
+- 每日摘要仍读取本机 `shield_prefs` 的扫描/事件计数、后台服务运行态与通知权限状态；告警页仍保留包名长度/格式校验、风险说明、白名单写入、AlertDialog 用户确认及 Android 系统卸载确认 Intent。
+- 提交：
+  - `d2c0aecaec9e34df43512826a58fddd2eeb4fed0` — 每日摘要页接入六 Tab。
+  - `79c731cfba23304bcc8bd34418d56155c27759b6` — 安全告警页接入六 Tab。
+  - `0785f9ccae93bace2d2d4b2c326ef17cbc58a2b2` — 扩展 `scripts/tests/fx-yulong-shield-six-tab-regression.sh`，增加两页 Manifest/宿主/数据源/确认卸载锚点断言。
+- 静态验证：两个类共享壳安装点与旧根视图移除通过；每日摘要本地数据与后台服务状态锚点、告警页输入边界/白名单/用户确认/系统卸载锚点通过。未运行脚本、Gradle 编译、模拟器或真机权限/卸载验收。
+- 下一步：审计其余 Shield/Ad 独立页是否全部从真实入口可达、返回栈是否回到正确父页；然后对六 Tab 与状态恢复做一次完整可运行测试。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
