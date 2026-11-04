@@ -2529,3 +2529,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`1ff69f240be9df537041fbabefdf7afb29cfbb38`（实现）；`9d3291f0f467e97939fac36255fe49076c47d4bc`（回归断言）。
 - 静态复核：重新从分支读取 Frida Activity 与回归脚本，确认目录 guard、目标文件 no-symlink 条件、截断成功标记、仅成功后显示已清空、失败详情回显以及全部回归断言存在。未运行 Shell 回归、Root 故障注入、Gradle、UI 自动化或真机测试。
 - 后续：统一检查 Frida Gadget/Server 产生的其余日志写入路径是否采用同一目录安全契约；然后继续未完成的 Dia 原生页面与游龙广告插件页面。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 游龙广告通用设置 SAF 备份请求生命周期
+
+- 修改前分支 HEAD：`b39e57a1e0ffb6945d9569594f51166b5006df60`。
+- 修复 `FxYulongAdGeneralActivity` 的 JSON 导入/导出文件选择器状态：保存/恢复 pendingExport（并限制恢复长度不超过 1 MiB）、分别保存导入/导出请求标记；拒绝没有对应未完成请求的迟到 Activity Result；选择器启动异常时回滚 pending 状态；用户取消时清理待导出数据并明确提示未写入/未修改配置。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java`；`scripts/tests/fx-yulong-ad-general-import-regression.sh`。
+- 提交：`4617aabb31006bd215007240e984127ebd138851`（Activity 生命周期修复）；`3915ce2436521d7a58a4506d6518869cfcd23b0e`（回归断言）。
+- 回归脚本增加 pending 标记、Bundle 保存/恢复、迟到结果拒绝、启动失败/取消清理断言，并保留既有 JSON 字段验证断言。尚未执行该脚本、javac/Java、Gradle、模拟器或真机验证；不能宣称测试通过。
+- 下一步：继续游龙广告原生页面与 Dia 原生页面导航/状态闭环；先查同类 SAF 生命周期问题，再做页面交互回归。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
