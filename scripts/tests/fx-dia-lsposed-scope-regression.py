@@ -10,7 +10,7 @@ MAIN = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.jav
 MODULE = (ROOT / "adhook/app/src/main/resources/META-INF/xposed/module.prop").read_text(encoding="utf-8")
 SCOPE = (ROOT / "adhook/app/src/main/resources/META-INF/xposed/scope.list").read_text(encoding="utf-8")
 
-assert "implementation 'io.github.libxposed:service:102.0.1'" in GRADLE, "libXposed Service implementation dependency missing"
+assert "implementation 'io.github.libxposed:service:102.0.0'" in GRADLE, "libXposed Service implementation dependency missing (published Maven Central version)"
 assert 'android:name=".FxHookApplication"' in MANIFEST, "FX Application class is not registered"
 assert "FxLsposedScopeBridge.initialize();" in APP, "service listener is not initialized at app startup"
 assert "XposedServiceHelper.registerListener(SERVICE_LISTENER)" in BRIDGE, "official Xposed service listener missing"
