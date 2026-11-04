@@ -172,6 +172,8 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(MainActivity.this,
                         "当前 Hook 目标应用已卸载，已保留其配置并返回应用列表。",
                         Toast.LENGTH_LONG).show();
+                hookCustomRulesPageVisible = false;
+                customHookReturnToTarget = false;
                 showAppList(activePrivacySection);
                 return;
             }
@@ -5342,30 +5344,6 @@ public final class MainActivity extends ComponentActivity {
         observeLogs.setOnClickListener(v -> showCustomHookObservationLogs());
         content.addView(observeLogs);
 
-        int totalRules = 0, enabledRules = 0, invalidRules = 0;
-        for (int slot = 1; slot <= 64; slot++) {
-            String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
-            if (stored == null) continue;
-            totalRules++;
-            String[] fields = stored.split("\\|", -1);
-            if (fields.length != 4 && fields.length != 5) {
-                invalidRules++;
-                continue;
-            }
-            String action = getPreferences(0).getString(selectedPackage + ":dev_rule_base_" + slot,
-                    "OFF".equalsIgnoreCase(fields[2]) ? "OBSERVE" : fields[2]);
-            String encoded = fields[0] + "|" + fields[1] + "|" + action + "|" + fields[3]
-                    + (fields.length == 5 ? "|" + fields[4] : "");
-            if (DeveloperHookRule.parse(encoded, selectedPackage) == null) invalidRules++;
-            if (!"OFF".equalsIgnoreCase(fields[2])) enabledRules++;
-        }
-        TextView summary = new TextView(this);
-        summary.setText("规则总数：" + totalRules + " / 64"
-                + "\\n已启用：" + enabledRules + " · 已暂停：" + (totalRules - enabledRules)
-                + " · 格式异常：" + invalidRules);
-        summary.setTextColor(invalidRules == 0 ? 0xff526170 : 0xff9b2c2c);
-        summary.setPadding(dp(18), dp(8), dp(18), dp(8));
-        content.addView(summary);
         renderCustomRules(targetDebuggable);
 
         Button publish = new Button(this);
@@ -5639,9 +5617,14 @@ public final class MainActivity extends ComponentActivity {
                 android.R.layout.simple_spinner_item, syntaxLabels);
         syntaxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         syntax.setAdapter(syntaxAdapter);
-        int initialSyntax = presetDescriptor != null && presetDescriptor.startsWith("L") ? 2
-                : presetDescriptor != null && presetDescriptor.contains(".overload(") ? 1
-                : presetDescriptor != null && presetDescriptor.matches(".*\\(\\)Z$") ? 3 : 0;
+        String syntaxDescriptor = presetDescriptor;
+        if (editingSlot > 0 && presetDescriptor != null) {
+            String[] presetFields = presetDescriptor.split("\\|", -1);
+            if (presetFields.length == 4 || presetFields.length == 5) syntaxDescriptor = presetFields[1];
+        }
+        int initialSyntax = syntaxDescriptor != null && syntaxDescriptor.startsWith("L") ? 2
+                : syntaxDescriptor != null && syntaxDescriptor.contains(".overload(") ? 1
+                : syntaxDescriptor != null && syntaxDescriptor.matches(".*\\(\\)Z$") ? 3 : 0;
         syntax.setSelection(initialSyntax);
         descriptor.setHint(syntaxHints[initialSyntax]);
         syntax.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
@@ -6301,7 +6284,7 @@ public final class MainActivity extends ComponentActivity {
                     if (value == null) continue;
                     String[] parts = value.split("\\|", -1);
                     if (parts.length != 4 && parts.length != 5) {
-                        if (selectedGroup.isEmpty() || "默认".equals(groupName)) {
+                        if ("默认".equals(groupName)) {
                             total++;
                             invalidCount++;
                         }
@@ -6347,7 +6330,7 @@ public final class MainActivity extends ComponentActivity {
                     row.addView(item);
 
                     Switch enabled = new Switch(this);
-                    enabled.setText(valid ? "启用规则（保存后发布）" : "规则无效，禁止启用");
+                    enabled.setText(valid ? "启用规则（本地草稿，需发布）" : "规则无效，禁止启用");
                     enabled.setChecked(active);
                     enabled.setEnabled(valid && (targetDebuggable || active));
                     enabled.setOnCheckedChangeListener((button, checked) -> {
