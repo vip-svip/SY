@@ -22,6 +22,24 @@ assert '"; uid=" + targetUid' in picker, "process enumeration must be bound to t
 assert '/proc/$pid/status' in picker and 'Uid:' in picker and '{print $2; exit}' in picker, "process picker must reject PID/name matches whose current UID differs"
 assert picker.index("getApplicationInfo(targetPackage, 0)") < picker.index("runRoot(command"), "current package identity must be captured before enumerating processes"
 
+# A package may be uninstalled/reinstalled while Root enumerates processes.
+# The UI must re-resolve the package before presenting the captured PID snapshot.
+callback_guard = picker.index("if (result.exitCode != 0 || result.output == null)")
+identity_recheck = picker.index("getApplicationInfo(requestedPackage, 0)", callback_guard)
+assert callback_guard >= 0 and identity_recheck > callback_guard, \
+    "process scan callback must re-resolve the installed target before showing PIDs"
+assert "currentTarget.uid != targetUid" in picker, \
+    "reinstalled target with a different UID must discard the old PID snapshot"
+assert "(currentTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0" in picker
+assert "(currentTarget.flags & ApplicationInfo.FLAG_SYSTEM) != 0" in picker
+assert "processPickerGeneration" in picker and "operationGeneration != processPickerGeneration" in picker, \
+    "late process scan callbacks must be discarded after target selection changes"
+target_picker = body("private void showTargetPicker(List<Target> targets)", "private void clearPendingProcessPickerState()")
+assert "processPickerGeneration++;" in target_picker, \
+    "selecting a new package must invalidate any in-flight process picker request"
+assert "processPickerOpen = false;" in target_picker and "clearPendingProcessPickerState();" in target_picker, \
+    "switching target must clear staged process selection from the previous target"
+
 assert "targetUid = targetInfo.uid" in inject
 assert '"; target_uid=" + targetUid' in inject, "injection command must carry the freshly resolved package UID"
 assert 'proc_uid=$(awk' in inject and '/proc/$pid/status' in inject
