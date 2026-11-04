@@ -930,3 +930,11 @@ Profile switching now installs missing HTTPS filter-source rows into FX's existi
 ## 2026-11-04 — explicit overnight end-boundary regression
 
 Added direct Sunday 06:59 and 07:00 checks to ensure the original half-open overnight interval remains active before its end and is inactive at the exact end. This complements the already-added 08:05–08:45 and 00:05–00:10 decimal parsing cases. The source conversion passed a local POSIX dash smoke check; no Actions run has yet validated the newest test tree.
+
+
+## 2026-11-04 — Yulong Quick Settings network-protection mapping
+
+- The original Yulong Quick Settings control starts or stops its network-protection service according to the saved routing mode. FX does not restore the original second `AdBlockVpnService` or `RootProxyService`; the network route remains owned by FX's single VPN controller.
+- Added an independent `FxYulongVpnTileService` that reads the verified `status.sh` JSON (`vpn_on` / `vpn_mode`), invokes the existing `yulong-vpn-control.sh start|stop` lifecycle and verifies the resulting state. Unknown Root status fails closed; missing-node and Root failures are surfaced in the tile subtitle; its worker queue is bounded.
+- Kept `FxYulongAdTileService` as a separate ad-filter master tile. The VPN tile does not alter the ad-master flag, rule lists, DNS configuration or subscriptions. This preserves the distinct VPN and filtering responsibilities without a second VpnService.
+- Added manifest registration and a host static migration regression. Quick Settings panel rendering and actual device-side VPN start/stop remain device-pending; no device verification is claimed.

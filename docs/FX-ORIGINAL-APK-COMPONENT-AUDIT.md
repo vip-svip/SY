@@ -139,3 +139,8 @@ FX now has a native profile store, profile CRUD/switch operations, an independen
 ## 2026-11-04 — exact ProfileSchedule weekday storage mapping
 
 Smali inspection of ProfileScheduleWorker shows the original worker maps Calendar.DAY_OF_WEEK minus one. Therefore stored weekdays are Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5 and Saturday=6. The worker checks the current weekday before applying a half-open local-time interval. For start < end it matches start <= now < end; for start > end it matches now < end or now >= start; for start == end it does not match any time. The separate Yulong ad-filter schedule's Monday=1 through Sunday=7 convention is not the ProtectionProfile schedule format.
+
+
+## 2026-11-04 — Yulong Quick Settings service-toggle adaptation
+
+The original `AdBlockTileService` detects whether `AdBlockVpnService` or `RootProxyService` is active and toggles the selected protection service. FX does not reintroduce either competing legacy network service. Instead, the original network-protection shortcut is mapped to `FxYulongVpnTileService`, which controls the one canonical FX VPN route through `yulong-vpn-control.sh` and confirms `status.sh` state. The already-migrated `FxYulongAdTileService` remains a distinct ad-filter master switch. Static source regression is added; actual QS rendering and Android device networking still require device verification.

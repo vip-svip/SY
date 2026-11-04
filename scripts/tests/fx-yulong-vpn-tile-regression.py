@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Static migration contract for Yulong's network-protection Quick Settings tile."""
+from pathlib import Path
+import re
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = ROOT / "adhook/app/src/main/AndroidManifest.xml"
+VPN_TILE = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongVpnTileService.java"
+AD_TILE = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java"
+
+ANDROID = "{http://schemas.android.com/apk/res/android}"
+manifest = ET.parse(MANIFEST).getroot()
+vpn_service = None
+ad_service = None
+for service in manifest.findall("./application/service"):
+    name = service.get(ANDROID + "name", "")
+    if name.endswith("FxYulongVpnTileService"):
+        vpn_service = service
+    elif name.endswith("FxYulongAdTileService"):
+        ad_service = service
+
+assert vpn_service is not None, "FX VPN Quick Settings tile is not registered"
+assert vpn_service.get(ANDROID + "permission") == "android.permission.BIND_QUICK_SETTINGS_TILE"
+assert vpn_service.get(ANDROID + "exported") == "true"
+assert any(
+    action.get(ANDROID + "name") == "android.service.quicksettings.action.QS_TILE"
+    for action in vpn_service.findall("./intent-filter/action")
+), "VPN tile intent filter missing"
+assert ad_service is not None, "independent Yulong ad-filter tile must remain registered"
+
+source = VPN_TILE.read_text(encoding="utf-8")
+for token in (
+    "yulong-vpn-control.sh",
+    'vpnCommand("status")',
+    'vpnCommand(action)',
+    '"vpn_on"',
+    '"vpn_mode"',
+    "Tile.STATE_ACTIVE",
+    "Tile.STATE_INACTIVE",
+    "Tile.STATE_UNAVAILABLE",
+    "RootAccess.execute",
+    "ArrayBlockingQueue<>(1)",
+    "togglePending.compareAndSet(false, true)",
+    "VPN_NO_NODE_SELECTED",
+    "worker.shutdownNow()",
+):
+    assert token in source, f"VPN tile contract missing: {token}"
+
+assert not re.search(r"\.\s*start(?:Foreground)?Service\s*\(", source), \
+    "VPN tile must use the canonical FX controller, not start a legacy Android service"
+assert not re.search(r"new\s+Intent\s*\([^;]*(?:AdBlockVpnService|RootProxyService)", source), \
+    "VPN tile must not create intents for legacy network services"
+
+ad_source = AD_TILE.read_text(encoding="utf-8")
+assert 'command("list")' in ad_source and 'command("ad-master " + next)' in ad_source
+assert 'tile.setLabel("FX 广告过滤")' in ad_source
+print("PASS: Yulong Quick Settings maps to FX's single VPN controller; independent ad-master tile remains separate")
