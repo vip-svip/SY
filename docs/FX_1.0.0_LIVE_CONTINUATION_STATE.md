@@ -3401,3 +3401,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回归提交：`60ce61cd2d041968c86b876593c50754f4512fae`，覆盖 PackageManager 复核、失效项拒写、真实新增计数和更新系统应用策略。
 - 验证：源码与静态回归断言已提交；Actions 尚待读取。未执行 Android Gradle/JUnit、应用卸载并旋转的 UI 自动化或真机。
 - 下一步：读取安全护盾名单/扫描定向回归；继续风险详情、批量清理和扫描不完整状态 UI 的真实错误回显。
+
+
+
+## 2026-11-05 — Yulong app list scroll restore update
+
+- Firewall, App Whitelist and App Stats now invalidate older posted scroll callbacks when a search changes and when an Activity is destroyed. A newer scroll restore is applied only when its generation is still current.
+- Product commits: `ce2d7caccaecaca1a7919065b4b0717491daea69`, `1973aa04c83131fc0da656d08062781550eede03`, `bfacd24b4e7d51076c3b61bd579fe784d6eada4c`.
+- Regression commits: `6c63c5e56762efd965faccf4c0071ca0ef99aaed`, `b73aee4ea771c81dd3d7fc20255576dabf07396e`, `2e40c1e25bb0f990fb9b411bd535ae6cd3e53687`.
+- Actions and device UI/rotation tests pending.
