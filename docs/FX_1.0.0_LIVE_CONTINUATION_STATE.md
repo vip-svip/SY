@@ -1288,3 +1288,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：类继承、共享壳唯一安装点、移除旧 `setContentView(root)`、DEX/File 回归条目及 SAF/worker 关键锚点均通过源码断言。未在完整工作树执行 Shell 脚本，未执行 Gradle 编译、模拟器/真机 Activity Result 与旋转验收。
 - 仍未完成：Dia Global Settings / GPS Picker / Wi-Fi Proxy / Session Log 等独立页面；Shield Batch Cleanup / Screen Filter；六 Tab 全局返回栈与实际设备验收。
 - 下一步：继续迁移 Dia Global Settings / GPS Picker 中最常用的 1–2 页；随后处理 Shield Batch Cleanup / Screen Filter。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
+
+## 2026-11-05 — Dia GPS Picker 与 Session Log 统一六 Tab
+
+- 本批开始前分支 HEAD：0bec1ffaca6a3aa9a1ed0a1d5df2db7522ded04d。
+- 两个独立 Activity 接入现有 `FxNativeTabActivity`：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGpsPickerActivity.java` — `4bf46f5ad58379ca69c6021e272e59f8a69fcfe2`。
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java` — `6aaf833a613ec3e9aa060ccd71d98fe3c6a6d90c`。
+- 仅修改 Activity 宿主和根布局安装点：使用 `setContentViewWithNativeTabs(root, 5)`；GPS Picker 原有经纬度输入、AMap HTTPS WebView、禁止 JS bridge、状态 Bundle 保存/恢复未改；Session Log 的搜索/分类/自动刷新/滚动状态与原日志读取未改。
+- 同批复核：Dia File/ELF 页面已由并行提交 `fda4b980504f514998f02dbea443eaa90dc6a255` 接入六 Tab，Backup 与 Global Settings 也已在最新分支继承共享宿主，未重复修改。
+- 本轮并行 Shield 页面也接入六 Tab：
+  - `9e634c561d492a93874b11209ac9676d5d085b63` — Batch Cleanup。
+  - `239b1e6358147cb1159b6e7b717cdd4d5920dbb1` — Screen Filter。
+- 文件访问边界复核：Dia File 通过用户显式选择 SAF 目录，调用 `takePersistableUriPermission` 保存读/写授权；Backup 的 ACTION_CREATE_DOCUMENT / ACTION_OPEN_DOCUMENT 结果链仍存在；本批没有扩大存储权限或更改授权范围。
+- 静态核验：GPS Picker 与 Session Log 均继承 FxNativeTabActivity、安装共享壳、无旧 `setContentView(root)`；Bundle 状态键和页面根视图仍存在。未运行 Android/Gradle、SAF/AMap 设备测试。
+- 当前 Dia 六 Tab 覆盖进一步包括 Activity Browser / Frida / Script Library / Inspector / Code Editor / Crash Report / Monitor Events / DEX Browser / JSON Editor / File & ELF / Backup / Global Settings / GPS Picker / Session Log。Wi-Fi Proxy Activity 当前不使用常规 setContentView，需单独检查其弹窗/启动器型 UI 形态后再决定是否需要容器，不得直接强行套壳。
+- 当前 Shield 独立页覆盖已扩展到 Batch Cleanup / Screen Filter；仍需确认所有这些新页面的 Tab 点击回跳、返回栈和授权对话框在设备上正常。
+- 验证边界：本批只有源码级接线与保留标记核对；未执行六 Tab Shell 回归脚本、Android 编译、GPS WebView、SAF 文件选择器、模拟器或真机测试。
+- 本节写入前 HEAD：7d4d136d964a7ba4aea9ae40010159540d8d546d。最近提交：7d4d136d964a7ba4aea9ae40010159540d8d546d test(dia): cover overlapping ActivityKey gesture conflicts；239b1e6358147cb1159b6e7b717cdd4d5920dbb1 feat(shield): add six-tab shell to screen filter；6aaf833a613ec3e9aa060ccd71d98fe3c6a6d90c feat(ui): keep six-tab shell on Dia session logs；4bf46f5ad58379ca69c6021e272e59f8a69fcfe2 feat(ui): keep six-tab shell on Dia GPS picker；9e634c561d492a93874b11209ac9676d5d085b63 feat(shield): add six-tab shell to batch cleanup；65821e8c007fdd44917154b38c09e6c134e53336 test(dia): cover overlapping ActivityKey gestures in Serializer；0bec1ffaca6a3aa9a1ed0a1d5df2db7522ded04d docs(fx): record Dia File six-tab integration；8733d6d6b1f74817ccf7620dedf8893cf662b261 test(dia): cover File and ELF six-tab integration；b82e8933636b3fabb652d5e391e9f3337ff0ec38 test(dia): cover overlapping ActivityKey gestures in Parser；fda4b980504f514998f02dbea443eaa90dc6a255 feat(dia): keep File and ELF page in six-tab shell；149ea8cd08bbe2a412ebb9c8a67f3cc33f12c2a2 docs(dia): record nine core pages on six tabs；e2f3fb4a0bf9e8f8e85db764f31d7796263c63bf fix(dia): prevent overlapping ActivityKey assignments in UI。
+- 下一批：检查 Dia Wi-Fi Proxy 的 UI 启动方式与系统代理恢复链，决定如何挂载导航；然后核对 Dia Crash Capture/Session/Monitor 页面所有按钮实际后端动作，以及 Shield Batch Cleanup/Screen Filter 的服务与权限状态真实性。
+- 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
