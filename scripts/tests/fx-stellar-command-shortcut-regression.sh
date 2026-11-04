@@ -42,8 +42,8 @@ node = next((n for n in root.findall("./application/activity")
 assert node is not None, "pinned shortcut Activity is not registered"
 assert node.attrib.get(ns+"exported") == "false", "shortcut executor must not be callable by arbitrary apps"
 
-assert "has_scope()" in control and "has_always()" in control
-assert "valid_command()" in control and "run_readonly()" in control
+assert "has_scope(){" in control and "has_always(){" in control
+assert "valid_command(){" in control and "run_readonly(){" in control
 assert 'has_always \"$pkg\" \"$command\"' in control
 assert "required Stellar capability is not granted" in control
 print("PASS: Stellar pinned shortcuts bind only granted read-only commands, require per-run confirmation and retain server-side permission checks")
