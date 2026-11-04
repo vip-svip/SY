@@ -3290,3 +3290,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Added searchable multi-select UI and query/selection restoration.
 - The pending PID set is retained across filters; Root UID/debuggable checks remain unchanged.
 - Host regression and device validation are pending.
+
+
+## 2026-11-05 — 本轮 UI 定向回归状态补记
+
+- DNS 日志分页及搜索状态竞态回归：Actions `41917559211` SUCCESS；执行脚本 `fx-yulong-dns-cache-regression.sh`，DNS cache flush 的已有后端契约也一并通过。
+- File Browser 搜索取消过期路径/分页/滚动恢复：源码修复和测试断言已提交；为确保测试精确覆盖 TextWatcher 代码块，新增 `cb19c4f30f4de94bd14384e1e484b58cd351cc59`，等待本次 Actions。
+- Backup 表单非敏感字段/滚动恢复：产品与测试断言已提交，但之前对应 Actions 因 Frida 并行提交被取消；目前仅静态源码断言，不标记为 CI 通过。下一轮需单独触发其测试脚本。
+- 仍未执行 Android Gradle 构建、模拟器 UI、真实 SAF/旋转/进程重建或真机网络验收。
