@@ -504,5 +504,19 @@ assert "new ThreadPoolExecutor.AbortPolicy()" in scan_engine, "queue saturation 
 assert "catch (RejectedExecutionException full)" in scan_engine, "queue saturation failure must be handled"
 assert "扫描队列繁忙，本次请求未执行" in scan_engine, "queue saturation must be reported instead of silently dropping scans"
 assert "Executors.newSingleThreadExecutor" not in scan_engine, "unbounded scanner executor must not return"
+assert "public static boolean isWellFormed(String raw)" in blacklist_policy, \
+    "Blacklist policy must validate the complete original CSV"
+assert "if (!isValidPackageName(candidate)) return false;" in blacklist_policy, \
+    "Blacklist policy must reject malformed entries atomically"
+assert "if (blacklistDataCorrupt)" in blacklist_activity, \
+    "Blacklist UI must block all mutations when stored data is malformed"
+assert "catch (RuntimeException wrongTypeOrReadFailure)" in blacklist_activity, \
+    "Blacklist UI must not overwrite preferences that cannot be read as strings"
+assert 'prefs.edit().putString("blacklist_pkgs", serialized).commit()' in blacklist_activity, \
+    "Blacklist updates must synchronously confirm persistence"
+assert "管控名单保存失败，原有配置保持不变" in blacklist_activity, \
+    "Blacklist persistence failure must be surfaced to the user"
+assert "if (!saveBlacklist())" in blacklist_activity, \
+    "Blacklist add/remove/clear flows must roll back in-memory state on failed writes"
 print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup and foreground/install risk scanning")
 PY
