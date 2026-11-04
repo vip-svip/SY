@@ -101,6 +101,9 @@ public final class MainActivity extends ComponentActivity {
     private LinearLayout nativeVpnControls;
     private ScrollView nativePageScroll;
     private LinearLayout nativePageContent;
+    private final int[] nativeTabScrollPositions = new int[4];
+    private int nativeRenderedPageIndex = -1;
+    private int nativePageRenderGeneration;
     private LinearLayout nativeScriptRows;
     private TextView nativeScriptStatus;
     private TextView nativeDashboardStatus;
@@ -266,6 +269,12 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = Math.max(0, Math.min(5,
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+            int[] restoredNativeScroll = state.getIntArray("fx_native_tab_scroll_positions");
+            if (restoredNativeScroll != null) {
+                for (int i = 0; i < Math.min(nativeTabScrollPositions.length, restoredNativeScroll.length); i++) {
+                    nativeTabScrollPositions[i] = Math.max(0, Math.min(5000000, restoredNativeScroll[i]));
+                }
+            }
             pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");
             pendingDiaDexHookPicker = state.getBoolean("fx_pending_dia_dex_hook_picker", false);
             String savedExport = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
@@ -481,6 +490,8 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
+        if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
+        outState.putIntArray("fx_native_tab_scroll_positions", nativeTabScrollPositions.clone());
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
         if (pendingDiaGpsTargetPackage != null) {
@@ -1952,8 +1963,18 @@ public final class MainActivity extends ComponentActivity {
      * is kept off-screen solely as a compatibility bridge while feature backends
      * are migrated; it is never mounted as page content.
      */
+    private void captureNativePageScrollPosition() {
+        int page = nativeRenderedPageIndex;
+        ScrollView scroll = nativePageScroll;
+        if (page < 0 || page >= nativeTabScrollPositions.length || scroll == null) return;
+        nativeTabScrollPositions[page] = Math.max(0, Math.min(5000000, scroll.getScrollY()));
+    }
+
     private void renderNativePage(int index) {
-        if (nativePageContent == null) return;
+        if (nativePageContent == null || nativePageScroll == null) return;
+        final int pageIndex = Math.max(0, Math.min(3, index));
+        final int renderGeneration = ++nativePageRenderGeneration;
+        nativeRenderedPageIndex = pageIndex;
         nativePageContent.removeAllViews();
         content = nativePageContent;
         nativeVpnControls = null;
@@ -2872,6 +2893,18 @@ public final class MainActivity extends ComponentActivity {
                     return kotlin.Unit.INSTANCE;
                 });
         setContentView(shell);
+        final ScrollView targetScroll = nativePageScroll;
+        final int restoreY = nativeTabScrollPositions[pageIndex];
+        if (restoreY > 0) {
+            targetScroll.post(() -> {
+                if (renderGeneration != nativePageRenderGeneration
+                        || nativeRenderedPageIndex != pageIndex
+                        || nativePageScroll != targetScroll
+                        || selectedBottomTab != pageIndex
+                        || hookUiVisible || settingsUiVisible) return;
+                targetScroll.scrollTo(0, restoreY);
+            });
+        }
     }
 
     private void handleNativeTabSelection(int index) {
@@ -2890,6 +2923,9 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
+            if (!hookUiVisible && !settingsUiVisible && nativePageContent != null) {
+                captureNativePageScrollPosition();
+            }
             selectedBottomTab = index;
             lastWebTabIndex = index;
             if (hookUiVisible || settingsUiVisible || nativePageContent == null) showWebDashboard();
@@ -2958,6 +2994,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showHookHub() {
+        if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
         cancelHookTargetScopeOperation();
         cancelAppIconLoad();
         // Do not resurrect a stale target if the user leaves the restored app list.
@@ -3103,6 +3140,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showSettings() {
+        if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
         clearMigrationNavigation();
         cancelHookStatusRefresh();
         cancelAppIconLoad();
@@ -4872,6 +4910,7 @@ public final class MainActivity extends ComponentActivity {
     private void showAppList() { showAppList(null); }
 
     private void showAppList(String privacySection) {
+        if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
         cancelHookTargetScopeOperation();
         // Category focus is a one-time navigation request. Restoration of an existing
         // target must keep its saved detail scroll instead of jumping back to the category.
