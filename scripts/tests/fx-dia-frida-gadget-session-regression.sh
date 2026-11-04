@@ -89,7 +89,9 @@ for label, needle in (
     ("read/stop guard validates the logs directory", 'String logDir = diaDir + "/logs";'),
     ("read/stop guard checks the /data/adb parent", "if [ -L '/data/adb' ]"),
     ("read/stop guard emits explicit failure marker", "FX_DIA_LOG_PATH_UNAVAILABLE"),
-    ("read/stop guard quotes all checked directories", "quote(baseDir)") ,
+    ("read/stop guard quotes the base directory", "quote(baseDir)"),
+    ("read/stop guard quotes the Dia directory", "quote(diaDir)"),
+    ("read/stop guard quotes the logs directory", "quote(logDir)"),
 ):
     if needle not in existing_guard:
         raise SystemExit(f"FAIL: {label}")
