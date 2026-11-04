@@ -663,10 +663,10 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesExplicitDialogTextAndResourceRulesWithOptionalFeedback() {
         String text = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
-                "更新失败\\nPlease sign in".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                "更新失败\nPlease sign in".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         String ids = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
-                "com.example:id/alert_close\\nbtn_cancel".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        String config = String.join("\\n", "schema_version=1", "ads_enabled=0",
+                "com.example:id/alert_close\nbtn_cancel".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String config = String.join("\n", "schema_version=1", "ads_enabled=0",
                 "privacy_enabled=0", "[list:targets]",
                 "com.example.dialog,dialog_match=1,dialog_notify=1,dialog_text_terms_b64="
                         + text + ",dialog_id_terms_b64=" + ids, "");
@@ -682,8 +682,8 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void legacyTargetsDoNotEnableDialogHandlingOrFeedback() {
         UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
-                        + "com.example.legacy,splash=1\\n")
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.legacy,splash=1\n")
                 .targets.get("com.example.legacy");
         assertFalse(target.dialogMatchEnabled);
         assertFalse(target.dialogNotify);
@@ -693,14 +693,14 @@ public class UnifiedHookConfigParserTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDialogMatchWithoutExplicitRules() {
-        UnifiedHookConfigParser.parse(String.join("\\n", "schema_version=1", "ads_enabled=0",
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
                 "privacy_enabled=0", "[list:targets]",
                 "com.example.dialog,dialog_match=1", ""));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDialogFeedbackWhenMatchingIsDisabled() {
-        UnifiedHookConfigParser.parse(String.join("\\n", "schema_version=1", "ads_enabled=0",
+        UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
                 "privacy_enabled=0", "[list:targets]",
                 "com.example.dialog,dialog_notify=1", ""));
     }
