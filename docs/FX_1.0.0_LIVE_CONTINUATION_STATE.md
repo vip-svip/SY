@@ -1342,3 +1342,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：最新分支源码确认两页均使用共享六 Tab 宿主；回归脚本文本断言已加入。尚未在完整 checkout 环境实际运行脚本，未运行 Gradle、模拟器或真机测试。
 - 并行冲突记录：旧文件 SHA 更新返回 409；重新读取最新分支后确认两页已由并行工作线完成，因此不覆盖页面实现。
 - 下一步：检查 Dia Global Settings 与剩余独立页面导航；随后处理 Shield Batch Cleanup / Screen Filter，并做统一六 Tab 返回链与恢复验收。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Signature / System Expand 原生页统一六 Tab
+
+- 本批最新目标分支 HEAD（追加前）：`b65381d6406d997d95328cad545e04ad0ea5a685`。
+- 将 `FxDiaSignatureActivity` 与 `FxDiaSystemExpandActivity` 接入既有 `FxNativeTabActivity`，两页根布局均通过 `setContentViewWithNativeTabs(root, 5)` 安装六 Tab；不改签名读取或系统设置业务逻辑。
+- 保留签名页只读 PackageManager 签名信息、SigningInfo / SHA 摘要与应用选择；保留 System Expand 的 PackageInstaller 会话检查、安装来源设置入口、Root 操作及确认弹窗。
+- 提交：`876901027c99025a637c989b87b15eeb14adffbe`（Signature Viewer）；`ea67992db756c77c4eb481208023e515b181f89d`（System Expand）；`45c0cb122fbe087c1ae723a9e86ddcb72b871a30`（回归脚本覆盖）。
+- 静态核验：两页共享宿主与唯一根安装点、签名信息读取锚点、System Expand 安装来源/PackageInstaller/Root 确认锚点均通过源码断言。未运行 Shell 回归、Gradle/Android 编译、模拟器/真机权限与 Root 行为验收。
+- 仍未完成：Dia Wi-Fi Proxy 原生独立页六 Tab 接入与 Root 代理运行验收；全局返回链设备验收。Shield Batch Cleanup / Screen Filter 已由并行工作线接入，仍需执行设备验收。
+- 下一步：迁移 Dia Wi-Fi Proxy 页面并检查 Root 操作状态回执、失败回滚和页面销毁时后台任务行为；随后转入六 Tab 导航返回链和设备级验证。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
