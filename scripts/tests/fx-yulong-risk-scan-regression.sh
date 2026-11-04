@@ -9,6 +9,9 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 for file in "$ACCESS" "$DISPATCH" "$INSTALL" "$UI"; do [ -s "$file" ] || fail "auto-risk source missing: $file"; done
 grep -Fq 'onForegroundPackageChanged(this, pkg)' "$ACCESS" || fail "foreground package events are not scanned"
 grep -Fq 'onPackageInstalled' "$INSTALL" || fail "package install/update event path is missing"
+grep -Fq 'onVirusDatabaseUpdated' "$DISPATCH" || fail "virus database updates must trigger a full installed-app scan"
+grep -Fq 'FULL_SCAN_RUNNING' "$DISPATCH" || fail "full installed-app scan must be serialized"
+grep -Fq 'FxYulongRiskScanDispatcher.onVirusDatabaseUpdated' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDatabaseActivity.java" || fail "database screen does not trigger post-update full scan"
 grep -Fq 'PACKAGE_COOLDOWN_MS' "$DISPATCH" || fail "per-package scan cooldown is missing"
 grep -Fq 'auto_block_on' "$DISPATCH" || fail "original automatic risk master switch is not honored"
 grep -Fq 'auto_block_mode' "$DISPATCH" || fail "original direct/confirm mode is not honored"
