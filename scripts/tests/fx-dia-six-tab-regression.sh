@@ -36,6 +36,11 @@ pages = {
     "FxDiaGpsPickerActivity.java": ".imported.dia.FxDiaGpsPickerActivity",
 }
 assert "import androidx.compose.foundation.layout.navigationBarsPadding" in shell, "native tab shell must import Android navigation insets"
+assert "import androidx.compose.foundation.layout.imePadding" in shell, "native tab shell must import IME insets"
+assert shell.count(".imePadding()") == 1, "shared native host must apply IME avoidance exactly once"
+root_box = shell[shell.index("Box(\n            Modifier"):shell.index("            // Record the real page")]
+assert ".fillMaxSize()" in root_box and ".imePadding()" in root_box, "page and six-tab bar must move above the soft keyboard"
+assert root_box.index(".imePadding()") < root_box.index(".background("), "IME inset must constrain the shared host, not only decorate the background"
 assert 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' in shell, "native shell must keep the fixed six primary tabs in the required order"
 assert "selectedIndex.coerceIn(0, 5)" in shell, "native shell must clamp tab selection to the six-tab range"
 assert shell.count(".navigationBarsPadding()") == 3, "page content and both bottom bar variants must account for navigation insets"
