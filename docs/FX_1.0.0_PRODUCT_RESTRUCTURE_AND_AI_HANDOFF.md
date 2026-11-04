@@ -12,13 +12,15 @@
 
 FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具套件。目标不是把多个旧 APK 简单放在一个启动器里，而是把可合法迁移的 UI、业务能力和数据流程整合到 FX 原生应用中。
 
-本次产品重构新增三种可切换的全局界面模式：
+本次产品重构定义五种可切换的全局界面模式：
 
 1. **老版本界面（网页界面）**：保留游龙工具 10.0.2 APK 的旧版 Web UI 风格、导航和操作习惯，作为兼容/经典模式。
 2. **原生界面（液态玻璃风格）**：FX 默认主界面。使用 Android 原生控件和统一组件，半透明材质、层次模糊、柔和高光、圆角卡片和动态层级；低性能设备自动降级。
 3. **Miuix 界面（小米澎湃风格）**：采用 Miuix/HyperOS 风格的布局、组件密度、色彩、图标与动效；不得把小米系统私有 API 当作所有 Android 设备的必需依赖。
+4. **HUAWEI 界面（HarmonyOS/鸿蒙风格）**：采用华为 HarmonyOS 的视觉语言，包括清晰的信息层级、卡片式服务入口、和谐留白、统一图标网格、轻量转场、强调内容与状态的布局。它是 Android APK 内的鸿蒙风格 Skin，不是 HarmonyOS 原生应用，也不得依赖华为私有系统服务才能运行。
+5. **iOS 界面（Cupertino 风格）**：采用 iOS 人机界面指南中的导航栏、标签栏、分组列表、表单、Sheet、开关、圆角和层级模糊等视觉与交互语言。它是 Android APK 内的 iOS 风格 Skin，不是 iOS 客户端，也不能调用 Apple 私有 API 或声称具备 iOS 系统能力。
 
-**界面模式是表现层切换，不是三套独立应用。** 三种模式必须共用同一业务层、状态模型、权限、数据库、服务、配置和路由。切换模式不能清除数据、重启过滤规则或改变 VPN 实际路由。
+**界面模式是表现层切换，不是五套独立应用。** 五种模式必须共用同一业务层、状态模型、权限、数据库、服务、配置和路由。切换模式不能清除数据、重启过滤规则或改变 VPN 实际路由。
 
 其他不可变原则：
 
@@ -30,13 +32,13 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 - 优先补齐页面和真实交互，再按页面批次接后端；断网、数据丢失、权限越界、VPN/DNS 错路由等 P0 风险可并行优先修复。
 - 不生成编号备份；不覆盖未读取的最新分支状态；不提前交付未完成的最终 APK/KernelSU ZIP。
 
-## 1. 三种界面模式与壁纸系统
+## 1. 五种界面模式与壁纸系统
 
 ### 1.1 模式选择入口
 
 设置 → 外观与个性化：
 
-- 界面模式：经典网页 / 原生液态玻璃 / Miuix。
+- 界面模式：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle。
 - 壁纸：系统壁纸、从相册选择、恢复默认、模糊强度、遮罩强度、壁纸明暗适配。
 - 动效：跟随系统 / 减少动效 / 关闭背景模糊。
 - 主题：跟随系统、浅色、深色、自动。
@@ -66,7 +68,35 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 - 在非小米设备上必须完整运行；不能依赖 MIUI/HyperOS 私有服务。
 - 统一控件语义、可访问性、字号缩放和深色模式。
 
-### 1.5 壁纸功能
+### 1.5 HUAWEI / HarmonyOS 风格模式（新增）
+
+- 产品定位：在 Android 版本 FX 中提供 HarmonyOS 视觉风格适配，不将其包装成 HarmonyOS 原生应用。必须能在非华为 Android 设备上运行。
+- 设计规范：采用清晰卡片层级、服务卡片式信息组织、较宽松的内容留白、统一图标与字号网格、明确的主次操作、轻量连续动效；避免照搬华为系统私有图标、品牌资产或未授权资源。
+- Android 实现：继续使用现有 Kotlin + Jetpack Compose 页面体系，新增 HUAWEI_HARMONY Skin token/renderer；建立 HarmonyColorTokens、HarmonyShapeTokens、HarmonyTypographyTokens、HarmonySpacingTokens 和组件适配层，统一覆盖 TopBar、BottomBar、Card、ListItem、Dialog、Sheet、Switch、Search 与空/加载/错误状态。
+- 系统能力：优先使用 Android 公共 API。若设备确实提供可选华为能力，可通过独立 capability adapter 探测后启用；缺失时无缝回退，不允许把 HMS、HarmonyOS 私有 API 或华为设备作为基础运行前提。
+- 适配边界：状态栏/导航栏颜色与图标对比度、手势返回、字体缩放、深色模式、横屏、折叠屏/大屏和系统显示尺寸必须遵循 Android WindowInsets 与 WindowSizeClass；不伪造鸿蒙系统设置页或系统级卡片能力。
+- 验收：华为设备与非华为 Android 设备均可启动；切换 Skin 不重建业务服务；各主 Tab 的列表、表单、弹窗、键盘、返回栈和无障碍语义一致。
+
+### 1.6 iOS / Cupertino 风格模式（新增）
+
+- 产品定位：在 Android APK 内模拟 iOS 的视觉与交互风格，不代表 FX 已有 iOS 原生版本，也不承诺获得 iOS 系统权限、后台生命周期或 Network Extension 能力。
+- 设计规范：采用 Cupertino 风格导航栏、分组设置列表、底部标签栏、圆角 Sheet、简洁表单、开关控件、层级模糊、轻量转场和克制的强调色；交互细节参考公开的 Apple Human Interface Guidelines。
+- Android 实现：新增 IOS_CUPERTINO Skin token/renderer；建立 CupertinoColorTokens、CupertinoShapeTokens、CupertinoTypographyTokens、CupertinoSpacingTokens 和组件适配层。Compose 中使用 FX 自有组件实现 Cupertino 风格 NavigationBar、TabBar、InsetGroupedList、FormRow、Toggle、Alert、ActionSheet 与 BottomSheet，不将 Android Material 默认控件仅换色后称为 iOS 风格。
+- 图标与字体：优先使用合法授权的 SF Symbols 使用范围或采用语义一致的开源/自绘图标；不得打包或分发未经许可的 Apple 字体、图标、壁纸和系统资源。系统字体采用 Android 可用字体栈近似呈现，允许用户调整字号。
+- 手势与系统栏：用 Android 公共 WindowInsets、BackHandler 和 Compose 手势实现页面内交互；不得拦截系统返回/辅助功能手势，不伪造 iOS 状态栏、控制中心或系统弹窗。
+- 验收：在 Android 设备上逐页检查导航栏、标签栏、列表分组、Sheet、键盘、深浅色、字号缩放和 TalkBack；所有控件仍调用同一 FX 业务状态与真实操作。
+
+### 1.7 五种 Skin 的统一源码实现方法
+
+- 统一模型：扩展 FxUiMode，为新增模式分配稳定 ID（建议 huawei、ios），保留既有 classic、glass、miuix ID；未知值安全回退，不覆盖已有用户设置。
+- Renderer：将模式到页面的映射集中在 FxNativeAppShell/统一 Skin Host，不允许各 Activity 私自读取偏好或各自维护不同的模式 ID。
+- Design tokens：新增独立 HarmonyOS 与 Cupertino token 集，禁止把所有模式写成散落的 if (mode == ...) 色值；共用语义组件接口，模式仅替换 token 和 renderer。
+- 页面迁移：先完成六个 Tab 的共享组件，再逐页覆盖主页面、列表、表单、编辑器、弹窗、空状态、错误状态；旧页面无法适配时明确记录兼容边界。
+- 状态与服务：模式切换只更新 Presentation 层；不得停止/重建 VPN、内核级代理、DNS、Hook、脚本或定时任务，不清空页面状态、滚动位置和编辑草稿。
+- 测试：为五种模式建立枚举/存储迁移单测、Skin token 单测、六 Tab renderer 回归、截图基线、无障碍语义、字体缩放、深浅色、横竖屏、窗口尺寸和服务运行中换肤测试。截图测试不得代替功能测试。
+- 兼容策略：ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle 是同一个 Android APK 的五套 Presentation Skin；未来如开发真正 iOS 客户端，应单独建立 iOS 工程并复用协议/业务契约，不能把 Android Compose Skin 视作 iOS 原生实现。
+
+### 1.8 壁纸功能
 
 - 支持从系统照片选择器选取图片，优先使用系统 Photo Picker/SAF，不索取不必要的全盘存储权限。
 - 支持应用内壁纸预览、裁剪/缩放、位置调整、模糊、暗色遮罩、透明度、重置。
@@ -279,16 +309,16 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 ### 4.1 分层
 
-- **Presentation**：三套 UI Skin（ClassicWebCompat、FXLiquidNative、MiuixStyle），共享路由和页面状态。
+- **Presentation**：五套 UI Skin（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
 - **Domain**：Ad、VPN、Privacy、Hook、Script、Migration 等业务接口和用例。
 - **Data**：Room/现有配置存储适配器、规则仓库、节点仓库、脚本仓库、壁纸仓库；保留旧配置迁移器。
 - **Platform**：VpnService/TUN、DNS、Root broker、Hosts writer、Accessibility、LSPosed bridge、PackageManager、证书管理、通知/Tile/Widget。
 - **Runtime**：QuickJS 脚本执行、Frida 会话（若已实现并许可）、规则引擎。
 - **Observability**：结构化状态、脱敏日志、诊断导出、运行健康状态。
 
-### 4.2 三种全局界面模式的实现与源码约束
+### 4.2 五种全局界面模式的实现与源码约束
 
-**三种模式是同一个 APK 的全局 Skin，不是三个应用，也不是网络运行模式。**
+**五种模式是同一个 APK 的全局 Skin，不是五个应用，也不是网络运行模式。**
 
 | 模式 | 内部存储 ID（兼容 1.0.0） | 页面渲染实现 |
 |---|---|---|
@@ -298,7 +328,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 **本轮代码落点（必须保留并继续完善）：**
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、稳定存储 ID、旧值迁移（`web` → `classic`）、模式读取/保存入口和 Renderer 类型。
-- `adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt`：设置页三模式原生选择器；展示统一名称、当前选中态和模式说明。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt`：设置页五模式原生选择器；展示统一名称、当前选中态和模式说明。
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：六 Tab 原生外壳；Liquid/Miuix/Classic 的导航皮肤由同一组件根据模式选择。
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：全局模式路由；ClassicWebCompat 将内置 WebView 作为可见页面，两个 Native 模式隐藏 WebView 并挂载原生页面；模式变化只重建 UI，不调用网络/Hook/脚本服务启停接口。
 - `adhook/app/build.gradle`：Compose、Miuix、Kyant Backdrop 和 Capsule 依赖；新增 Skin 依赖必须核对许可证并更新第三方声明。
@@ -308,14 +338,14 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和迁移子页面返回上下文。
 3. ClassicWebCompat 的四个业务页由 WebView 显示 APK 内置 AssetLoader 资源；Hook 与设置使用同一 Classic 外观的原生宿主。禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
 4. FXLiquidNative 使用 Compose 原生导航与液态背景效果；MiuixStyle 使用 Miuix 主题组件。两者共享同一 Domain/Repository/状态源，不复制业务逻辑。
-5. 三种模式共享相同六个 Tab：VPN、Ad/Hosts、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
+5. 五种模式共享相同六个 Tab：VPN、Ad/Hosts、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
 6. 切换过程中不得 stop/start/reconfigure VPN、内核级代理、DNS、Root 规则、LSPosed、Accessibility 或脚本任务。UI 观察状态变化，不拥有服务生命周期。
 7. 动画/Backdrop 不可用或低内存时允许降级为静态背景，但不得切换业务模式或丢失页面功能。
 
 **验收矩阵：**
-- 三模式冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
+- 五模式冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
 - 在每个模式中逐个进入六个 Tab，页面、返回栈和功能权限一致；ClassicWebCompat WebView 无越权导航。
-- 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换三种模式；服务 PID/连接状态/配置哈希不因换肤改变。
+- 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换五种模式；服务 PID/连接状态/配置哈希不因换肤改变。
 - 每种模式分别测试底部栏点击/手势、无障碍语义、键盘弹出、滚动恢复、Hook 列表和迁移页面。
 - 不能只凭模式选择器显示选中就判定完成；必须有构建日志、UI 自动化/截图对照和设备实测记录。
 
@@ -361,7 +391,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 未授权或不兼容项显示原因，不允许静默显示开启。
 
 ### 设置 Tab
-- 外观与个性化（三模式、壁纸、主题、动效）。
+- 外观与个性化（五模式、壁纸、主题、动效）。
 - 权限中心、备份恢复、迁移应用、网络诊断、关于。
 - 迁移来源应用各自保留独立三级入口。
 
@@ -374,7 +404,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 对 10.0.2 APK、游龙 10.10.62 源码、7.0.1/9.9.60 源码做差异映射；10.0.2 UI/壁纸以 APK 资源为依据。
 - 产出页面映射表、功能矩阵、协议/权限矩阵；不在证据缺失时宣称完整迁移。
 
-### P1 — UI 基础与三模式框架
+### P1 — UI 基础与五模式框架
 - 固定六 Tab 和返回栈；建立 Skin interface/design tokens。
 - 实现模式切换、设置入口、壁纸选择/预览/回退和低性能降级。
 - 先迁移主壳和最常用页面；旧 Web 兼容模式保留。
@@ -402,7 +432,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 应用更新、VPN/隐私检测、开屏、位置模拟按合法且可验证的系统能力实现。
 
 ### P6 — 整合验收
-- 三套 UI 模式下六 Tab 页面巡检。
+- 五套 UI 模式下六 Tab 页面巡检。
 - 配置迁移、升级、回滚、权限撤销、进程重建。
 - 网络防泄漏和耗电实测。
 - 静态检查、单测、Android 构建、UI 自动化、安装、真机分级记录。
@@ -461,11 +491,11 @@ Version: FX 1.0.0；versionName=1.0.0、versionCode=10000（先读取 Gradle 核
 6. 所有外部源码/依赖先核对许可、来源、签名和安全性；不复制未知来源的二进制或私有资源。
 
 【产品目标】
-把 FX 做成单 APK、单入口、统一业务层的 Android 工具套件。三种全局 UI 模式：
+把 FX 做成单 APK、单入口、统一业务层的 Android 工具套件。五种全局 UI 模式：
 A. 老版本网页界面：以游龙工具_10.0.2.apk 的实际 UI 为依据，保留经典交互和兼容桥接；
 B. 原生液态玻璃：FX 默认原生设计，半透明、背景模糊、高光、层次卡片，低性能设备可降级；
 C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现，非小米设备也必须可运行。
-三种模式只切换 Presentation，不复制业务逻辑、服务、数据、权限和配置。设置里提供模式切换、壁纸、主题、模糊、遮罩、动效和预览。
+五种模式只切换 Presentation，不复制业务逻辑、服务、数据、权限和配置。设置里提供模式切换、壁纸、主题、模糊、遮罩、动效和预览。
 
 壁纸：系统 Photo Picker/SAF 选图、预览裁剪、缩放定位、模糊/遮罩、浅深色适配、URI 持久授权、失效回退、重启升级恢复、本地清除。壁纸不能影响 VPN/过滤/证书/Hook 服务。
 
@@ -479,7 +509,7 @@ C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现�
 5. 脚本与规则：多生态真实执行，目标包括 Surge、Quantumult X、Loon、Shadowrocket、Stash、Egern、Surfboard、Clash/Mihomo、sing-box、Tampermonkey/Violentmonkey/Greasemonkey UserScript；过滤规则支持 AdGuard、uBlock Origin、Adblock Plus、Hosts、PAC、DNS blocklist、CIDR/IP/domain 和 URL Rewrite。建立 QuickJS 等 runtime、平台 API adapter、parser/validator/serializer 和逐版本兼容矩阵。6. 网络内核：必须内置至少一个经过测试的默认内核，并支持 sing-box、Mihomo、Xray-core、V2Fly/v2ray-core、dae、Leaf、Brook 等候选内核/引擎适配，以及用户上传/自定义内核导入、校验、能力探测、切换、更新、回滚。Hysteria 2、TUIC、VLESS/VMess、Trojan、Shadowsocks、SOCKS、HTTP(S) 等作为协议能力逐内核登记，不得误列为独立内核。网络内核 Provider 与脚本 Runtime 分离。MITM 脚本接入所选内核真实 TLS hook；浏览器 UserScript/扩展按浏览器真实 API 实现；提供沙箱、权限、超时、取消、日志、导入导出。
 
 【架构要求】
-- Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle 三种 skin。
+- Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle 五种 skin。
 - Domain：Ad、VPN、Privacy、Hook、Script、Migration。
 - Data：统一仓库、版本化 schema、迁移/备份/回滚。
 - Platform：Root broker、内核级代理数据面（policy routing/iptables/nftables/TPROXY 等受支持后端）、DNS、Hosts writer、可选备用 VpnService/TUN、Accessibility、LSPosed bridge、证书管理。
@@ -526,7 +556,7 @@ P6：整合验收、耗电/防泄漏/升级/回滚/真机验证。
 - 每批代码提交同步更新 `docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`。
 
 
-## 三种全局界面模式：源码落地约定
+## 五种全局界面模式：源码落地约定
 
 FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不同的主题状态：
 
@@ -538,10 +568,10 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 
 源码入口：
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、旧 ID 迁移、读取/持久化。
-- `FxDesignModePanel.kt`：设置页三模式选择面板。
-- `FxNativeAppShell.kt`：全局六 Tab Shell、三套导航外观与背景配色。
+- `FxDesignModePanel.kt`：设置页五模式选择面板。
+- `FxNativeAppShell.kt`：全局六 Tab Shell、五套导航外观与背景配色。
 - `MainActivity.java`：启动时读取统一模式；切换时同步保存并重建当前界面，不调用 VPN/DNS/代理/Hook/脚本服务启停接口。
 
-切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换三种模式，服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix` ID 必须兼容。
+切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换五种模式，服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix` ID 必须兼容。
 
-注意：本次源码已建立统一模式模型、选择面板、全局 Shell 的三种差异化视觉和持久化切换；这不等于三个模式所有页面均已完成逐页视觉验收。ClassicWebCompat 当前仍沿用现有 native 页面容器与兼容样式，若要求恢复完整旧 WebUI 的逐页行为，必须另做页面级迁移/回归，不能仅凭模式名称宣称完成。
+注意：当前源码已建立统一模式模型、选择面板、全局 Shell 的三种差异化视觉；HUAWEI 与 iOS 两种 Skin 仍是待实现扩展和持久化切换；这不等于三个模式所有页面均已完成逐页视觉验收。ClassicWebCompat 当前仍沿用现有 native 页面容器与兼容样式，若要求恢复完整旧 WebUI 的逐页行为，必须另做页面级迁移/回归，不能仅凭模式名称宣称完成。
