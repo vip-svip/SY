@@ -26,6 +26,8 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     private static final int MAX_JSON_BYTES = 512 * 1024;
     private static final AtomicBoolean HANDLING = new AtomicBoolean(false);
     private static final AtomicBoolean NATIVE_HANDLING = new AtomicBoolean(false);
+    /** Serializes AtomicFile reads, Java/Breakpad writes, pending flags and user clear. */
+    private static final Object STORAGE_LOCK = new Object();
     private final Context app;
     private final Thread.UncaughtExceptionHandler delegate;
 
@@ -96,6 +98,13 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     }
 
     public static FxDiaCrashRecord read(Context context) {
+        if (context == null) return null;
+        synchronized (STORAGE_LOCK) {
+            return readLocked(context);
+        }
+    }
+
+    private static FxDiaCrashRecord readLocked(Context context) {
         AtomicFile file = crashFile(context);
         try (FileInputStream input = file.openRead();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -136,19 +145,21 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
      * Preserve the crash record and pending flags when the dump path is unsafe.
      */
     public static boolean clear(Context context) {
-        if (context == null || !FxDiaNativeCrashCapture.clearMinidumps(context)) return false;
+        synchronized (STORAGE_LOCK) {
+            if (context == null || !FxDiaNativeCrashCapture.clearMinidumps(context)) return false;
 
-        crashFile(context).delete();
-        File base = new File(context.getFilesDir(), FILE_NAME);
-        File backup = new File(context.getFilesDir(), FILE_NAME + ".bak");
-        File fresh = new File(context.getFilesDir(), FILE_NAME + ".new");
-        if (base.exists() || backup.exists() || fresh.exists()) return false;
+            crashFile(context).delete();
+            File base = new File(context.getFilesDir(), FILE_NAME);
+            File backup = new File(context.getFilesDir(), FILE_NAME + ".bak");
+            File fresh = new File(context.getFilesDir(), FILE_NAME + ".new");
+            if (base.exists() || backup.exists() || fresh.exists()) return false;
 
-        boolean currentCleared = prefs(context).edit()
-                .putBoolean("has_crash", false).remove("crash_timestamp").commit();
-        boolean legacyCleared = legacyPrefs(context).edit()
-                .putBoolean("has_crash", false).remove("crash_timestamp").commit();
-        return currentCleared && legacyCleared;
+            boolean currentCleared = prefs(context).edit()
+                    .putBoolean("has_crash", false).remove("crash_timestamp").commit();
+            boolean legacyCleared = legacyPrefs(context).edit()
+                    .putBoolean("has_crash", false).remove("crash_timestamp").commit();
+            return currentCleared && legacyCleared;
+        }
     }
 
     /** Persist original Dia Breakpad callback data in the same FX-private crash.log. */
@@ -186,8 +197,10 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
             FxDiaCrashRecord record = new FxDiaCrashRecord(
                     System.currentTimeMillis(), callbackThread.getId(), processName,
                     crashingThread, device, message.toString(), stack);
-            write(target, record);
-            markPending(target, record.timestampMs);
+            synchronized (STORAGE_LOCK) {
+                write(target, record);
+                markPending(target, record.timestampMs);
+            }
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -207,8 +220,10 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         try {
             if (error != null && isCaptureEnabled(app) && HANDLING.compareAndSet(false, true)) {
                 FxDiaCrashRecord record = capture(thread, error);
-                write(app, record);
-                markPending(app, record.timestampMs);
+                synchronized (STORAGE_LOCK) {
+                    write(app, record);
+                    markPending(app, record.timestampMs);
+                }
             }
         } catch (Throwable ignored) {
             // Reporting failure must never replace the original fatal exception.

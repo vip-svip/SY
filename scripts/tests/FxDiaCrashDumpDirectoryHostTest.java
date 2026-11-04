@@ -38,6 +38,24 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(new File(dumps, "after-clear.dmp").isFile(),
                 "future Breakpad minidump must be writable without restarting the FX process");
 
+        // Retention removes expired and over-limit files, preserving the five newest.
+        for (int i = 0; i < 7; i++) {
+            File candidate = new File(dumps, "retention-" + i + ".dmp");
+            Files.write(candidate.toPath(), ("dump-" + i).getBytes(StandardCharsets.UTF_8));
+            candidate.setLastModified(10_000L + i);
+        }
+        require(FxDiaCrashDumpDirectory.prune(root, 5, 1_000_000L, 20_000L),
+                "safe direct dump retention should complete");
+        require(!new File(dumps, "retention-0.dmp").exists()
+                        && !new File(dumps, "retention-1.dmp").exists(),
+                "retention must remove only the two oldest files over the five-file limit");
+        for (int i = 2; i < 7; i++) {
+            require(new File(dumps, "retention-" + i + ".dmp").isFile(),
+                    "retention must preserve one of the five newest files");
+        }
+        require(new File(dumps, "after-clear.dmp").isFile(),
+                "retention must preserve unrelated recent dump files");
+
         File previousDump = new File(dumps, "previous-report.dmp");
         File callbackDump = new File(dumps, "disabled-callback.dmp");
         Files.write(previousDump.toPath(), "previous".getBytes(StandardCharsets.UTF_8));
@@ -65,6 +83,8 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(dumps.isDirectory(), "symlink-entry fixture must reuse the preserved output directory");
         Files.createSymbolicLink(new File(dumps, "linked.dmp").toPath(), externalFile);
         require(!FxDiaCrashDumpDirectory.clear(root), "symlinked dump entry must be rejected");
+        require(!FxDiaCrashDumpDirectory.prune(root, 5, 1000L, System.currentTimeMillis()),
+                "retention must refuse a directory containing a symlink");
         require(Files.exists(externalFile), "symlink target must remain untouched");
         require(dumps.isDirectory(), "directory must remain when validation fails");
 
@@ -83,6 +103,9 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         Path externalKeep = externalDirectory.resolve("keep.dmp");
         Files.write(externalKeep, "outside".getBytes(StandardCharsets.UTF_8));
         Files.createSymbolicLink(dumps.toPath(), externalDirectory);
+        require(!FxDiaCrashDumpDirectory.prepare(root), "initialization must reject a symlinked minidump directory");
+        require(!FxDiaCrashDumpDirectory.prune(root, 5, 1000L, System.currentTimeMillis()),
+                "retention must reject a symlinked minidump directory");
         require(!FxDiaCrashDumpDirectory.clear(root), "symlinked minidump directory must be rejected");
         require(Files.exists(externalKeep), "external minidump must remain untouched");
 
@@ -90,6 +113,6 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(FxDiaCrashDumpDirectory.clear(root), "missing minidump directory should be recreated");
         require(dumps.isDirectory() && dumps.canWrite(),
                 "recreated minidump directory must be writable after a prior path removal");
-        System.out.println("PASS: private minidump clear preserves or recreates writable Breakpad path, rejects symlinks and nested directories");
+        System.out.println("PASS: private minidump prepare/prune/clear preserve the Breakpad path and reject symlinks/nested directories");
     }
 }

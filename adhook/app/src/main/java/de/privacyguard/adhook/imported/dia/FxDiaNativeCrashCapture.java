@@ -6,8 +6,6 @@ import com.babyte.breakpad.BaByteBreakpad;
 import com.babyte.breakpad.callback.NativeCrashCallback;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Map;
 
 /** Installs the original Dia Breakpad handler only in the FX application process. */
@@ -36,15 +34,14 @@ public final class FxDiaNativeCrashCapture {
         }
 
         File directory = new File(app.getFilesDir(), FxDiaCrashDumpDirectory.DIRECTORY_NAME);
-        if (!directory.isDirectory() && !directory.mkdirs()) {
-            status = "Native 崩溃捕获不可用：无法创建私有 minidump 目录";
+        if (!FxDiaCrashDumpDirectory.prepare(app.getFilesDir())) {
+            status = "Native 崩溃捕获不可用：私有 minidump 目录路径不安全或不可写";
             return false;
         }
-        if (!directory.isDirectory() || !directory.canWrite()) {
-            status = "Native 崩溃捕获不可用：私有 minidump 目录不可写";
+        if (!pruneOldMinidumps(app.getFilesDir())) {
+            status = "Native 崩溃捕获不可用：minidump 目录含有不安全条目，拒绝注册";
             return false;
         }
-        pruneOldMinidumps(directory);
 
         NativeCrashCallback callback = (minidumpPath, nativeInfo, nativeThreadTrack, crashThreadName) -> {
             if (!FxDiaCrashStore.isCaptureEnabled(app)) {
@@ -59,7 +56,7 @@ public final class FxDiaNativeCrashCapture {
             }
             FxDiaCrashStore.recordNativeCrash(app, minidumpPath, nativeInfo,
                     nativeThreadTrack, crashThreadName, findJvmThreadStack(crashThreadName));
-            pruneOldMinidumps(directory);
+            pruneOldMinidumps(app.getFilesDir());
         };
         try {
             registeredCallback = callback;
@@ -87,20 +84,14 @@ public final class FxDiaNativeCrashCapture {
         return FxDiaCrashDumpDirectory.clear(context.getFilesDir());
     }
 
-    private static void pruneOldMinidumps(File directory) {
-        File[] files = directory.listFiles();
-        if (files == null || files.length == 0) return;
-        Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
-        long cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L;
-        int kept = 0;
-        for (File candidate : files) {
-            if (!candidate.isFile()) continue;
-            if (candidate.lastModified() < cutoff || kept >= 5) {
-                try { candidate.delete(); } catch (SecurityException ignored) { }
-            } else {
-                kept++;
-            }
+    private static boolean pruneOldMinidumps(File filesRoot) {
+        boolean pruned = FxDiaCrashDumpDirectory.prune(filesRoot, 5,
+                30L * 24L * 60L * 60L * 1000L, System.currentTimeMillis());
+        if (!pruned) {
+            android.util.Log.w("FXDiaNativeCrash",
+                    "minidump retention skipped: output path contains an unsafe entry or is unavailable");
         }
+        return pruned;
     }
 
     static String findJvmThreadStack(String threadName) {

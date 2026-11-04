@@ -1,99 +1,144 @@
 package de.privacyguard.adhook.imported.dia;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
- * Deletes only direct regular-file contents of the FX-private minidump folder.
- * Keeps the empty directory in place because the registered Breakpad handler
- * holds this path for the lifetime of the current process.
- * Refuses symbolic links, nested folders and paths resolving outside filesDir.
+ * Safe owner of FX-private Breakpad minidump files.
+ *
+ * Every operation rejects a symlinked files root, output directory, or child,
+ * and refuses unexpected subdirectories before deleting or pruning anything.
+ * The output directory is deliberately retained for Breakpad's process-long path.
  */
 public final class FxDiaCrashDumpDirectory {
     public static final String DIRECTORY_NAME = "dia-native-crash";
+    private static final Object LOCK = new Object();
 
     private FxDiaCrashDumpDirectory() { }
 
-    /**
-     * Delete only the single minidump reported by a Breakpad callback.
-     * Breakpad's native handler remains registered for this process after
-     * capture is disabled, so its callback must discard only the new dump.
-     */
-    public static boolean deleteDirectDump(File filesRoot, String minidumpPath) {
-        if (filesRoot == null || minidumpPath == null || minidumpPath.trim().isEmpty()
-                || !filesRoot.isDirectory()) return false;
-        try {
-            File absoluteRoot = filesRoot.getAbsoluteFile();
-            File canonicalRoot = filesRoot.getCanonicalFile();
-            if (!absoluteRoot.equals(canonicalRoot)) return false;
-
-            File directory = new File(filesRoot, DIRECTORY_NAME);
-            if (!directory.exists()) return true;
-            if (!directory.isDirectory()
-                    || !directory.getAbsoluteFile().equals(directory.getCanonicalFile())) {
-                return false;
-            }
-            File canonicalDirectory = directory.getCanonicalFile();
-            File expectedDirectory = new File(canonicalRoot, DIRECTORY_NAME);
-            if (!canonicalDirectory.equals(expectedDirectory)) return false;
-
-            File target = new File(minidumpPath);
-            if (!target.isAbsolute()) return false;
-            File absoluteTarget = target.getAbsoluteFile();
-            File canonicalTarget = target.getCanonicalFile();
-            if (!absoluteTarget.equals(canonicalTarget)) return false;
-            // Validate containment even when the callback's file no longer exists;
-            // a missing external path is not an owned Breakpad output path.
-            if (!canonicalDirectory.equals(canonicalTarget.getParentFile())) return false;
-            if (!target.exists()) return true;
-            if (!target.isFile()) return false;
-            return target.delete() || !target.exists();
-        } catch (java.io.IOException | SecurityException unsafePath) {
-            return false;
+    public static boolean prepare(File filesRoot) {
+        synchronized (LOCK) {
+            File directory = checkedDirectory(filesRoot, true);
+            return directory != null && directory.canWrite();
         }
     }
 
-    public static boolean clear(File filesRoot) {
-        if (filesRoot == null || !filesRoot.isDirectory()) return false;
-        try {
-            File absoluteRoot = filesRoot.getAbsoluteFile();
-            File canonicalRoot = filesRoot.getCanonicalFile();
-            if (!absoluteRoot.equals(canonicalRoot)) return false;
-
-            File directory = new File(filesRoot, DIRECTORY_NAME);
-            // Breakpad is already initialized with this exact output path. A
-            // successful clear must leave the directory writable, not remove
-            // it and silently disable future native minidump creation.
-            if (!directory.exists() && !directory.mkdir() && !directory.isDirectory()) {
-                return false;
-            }
-            if (!directory.isDirectory()) return false;
-
-            File canonicalDirectory = directory.getCanonicalFile();
-            File expectedDirectory = new File(canonicalRoot, DIRECTORY_NAME);
-            if (!canonicalDirectory.equals(expectedDirectory)) return false;
-
+    /**
+     * Retain at most maxFiles newest direct regular files and remove expired
+     * files. No entry is removed until every child has passed validation.
+     */
+    public static boolean prune(File filesRoot, int maxFiles, long maxAgeMs, long nowMs) {
+        synchronized (LOCK) {
+            if (maxFiles < 0 || maxAgeMs < 0L) return false;
+            File directory = checkedDirectory(filesRoot, true);
+            if (directory == null || !directory.canWrite()) return false;
             File[] entries = directory.listFiles();
             if (entries == null) return false;
 
-            // Validate all children before deleting any of them.
             for (File entry : entries) {
-                File canonicalEntry = entry.getCanonicalFile();
-                if (!entry.isFile()
-                        || !entry.getAbsoluteFile().equals(canonicalEntry)
-                        || !canonicalDirectory.equals(canonicalEntry.getParentFile())) {
-                    return false;
+                if (!isDirectRegularFile(directory, entry)) return false;
+            }
+            Arrays.sort(entries, Comparator.comparingLong(File::lastModified).reversed());
+            long cutoff = nowMs - maxAgeMs;
+            int kept = 0;
+            for (File entry : entries) {
+                boolean expired = entry.lastModified() < cutoff;
+                boolean overLimit = !expired && kept >= maxFiles;
+                if (expired || overLimit) {
+                    if (!isDirectRegularFile(directory, entry)
+                            || checkedDirectory(filesRoot, false) == null
+                            || !entry.delete()) return false;
+                } else {
+                    kept++;
                 }
             }
+            File[] remaining = directory.listFiles();
+            if (remaining == null) return false;
+            for (File entry : remaining) {
+                if (!isDirectRegularFile(directory, entry)) return false;
+            }
+            return remaining.length <= maxFiles
+                    && directory.equals(checkedDirectory(filesRoot, false));
+        }
+    }
 
+    /** Delete only the single minidump reported by a Breakpad callback. */
+    public static boolean deleteDirectDump(File filesRoot, String minidumpPath) {
+        synchronized (LOCK) {
+            if (filesRoot == null || minidumpPath == null || minidumpPath.trim().isEmpty()) {
+                return false;
+            }
+            try {
+                File directory = checkedDirectory(filesRoot, false);
+                if (directory == null) return false;
+                File target = new File(minidumpPath);
+                if (!target.isAbsolute() || !target.getAbsoluteFile().equals(target.getCanonicalFile())) {
+                    return false;
+                }
+                if (!directory.equals(target.getCanonicalFile().getParentFile())) return false;
+                if (!target.exists()) return true;
+                if (!isDirectRegularFile(directory, target)) return false;
+                return target.delete() || !target.exists();
+            } catch (IOException | SecurityException unsafePath) {
+                return false;
+            }
+        }
+    }
+
+    /** Clear direct regular files while preserving a writable output directory. */
+    public static boolean clear(File filesRoot) {
+        synchronized (LOCK) {
+            File directory = checkedDirectory(filesRoot, true);
+            if (directory == null || !directory.canWrite()) return false;
+            File[] entries = directory.listFiles();
+            if (entries == null) return false;
+
+            // Validate every entry before deleting any, so a nested directory or
+            // symlink cannot cause a partial walk into user-controlled paths.
             for (File entry : entries) {
-                if (!entry.delete()) return false;
+                if (!isDirectRegularFile(directory, entry)) return false;
+            }
+            for (File entry : entries) {
+                if (!isDirectRegularFile(directory, entry)
+                        || checkedDirectory(filesRoot, false) == null
+                        || !entry.delete()) return false;
             }
             File[] remaining = directory.listFiles();
-            return directory.isDirectory()
-                    && directory.getCanonicalFile().equals(expectedDirectory)
-                    && directory.canWrite()
-                    && remaining != null && remaining.length == 0;
-        } catch (java.io.IOException | SecurityException unsafePath) {
+            if (remaining == null || remaining.length != 0) return false;
+            return directory.isDirectory() && directory.canWrite()
+                    && directory.equals(checkedDirectory(filesRoot, false));
+        }
+    }
+
+    private static File checkedDirectory(File filesRoot, boolean create) {
+        if (filesRoot == null || !filesRoot.isDirectory()) return null;
+        try {
+            File rootAbsolute = filesRoot.getAbsoluteFile();
+            File rootCanonical = filesRoot.getCanonicalFile();
+            if (!rootAbsolute.equals(rootCanonical)) return null;
+            File directory = new File(filesRoot, DIRECTORY_NAME);
+            if (!directory.exists() && create && !directory.mkdir() && !directory.isDirectory()) {
+                return null;
+            }
+            if (!directory.exists() || !directory.isDirectory()
+                    || !directory.getAbsoluteFile().equals(directory.getCanonicalFile())) return null;
+            File expected = new File(rootCanonical, DIRECTORY_NAME);
+            File canonicalDirectory = directory.getCanonicalFile();
+            return expected.equals(canonicalDirectory) ? canonicalDirectory : null;
+        } catch (IOException | SecurityException unsafePath) {
+            return null;
+        }
+    }
+
+    private static boolean isDirectRegularFile(File directory, File entry) {
+        if (directory == null || entry == null || !entry.isFile()) return false;
+        try {
+            File absolute = entry.getAbsoluteFile();
+            File canonical = entry.getCanonicalFile();
+            return absolute.equals(canonical) && directory.equals(canonical.getParentFile());
+        } catch (IOException | SecurityException unsafePath) {
             return false;
         }
     }
