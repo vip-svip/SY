@@ -17,7 +17,7 @@ import android.widget.Toast;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Original Yulong Shield manual scan page; scan is read-only and removal is user-confirmed. */
-public final class FxYulongScanActivity extends Activity {
+public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int MAX_SAVED_FINDINGS = 128;
     private static final int MAX_BATCH_SELECTION = 100;
     private static final String STATE_SCAN_RUNNING = "fx_shield_scan_running";
@@ -75,7 +75,7 @@ public final class FxYulongScanActivity extends Activity {
         root.addView(header);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
         body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(20));
-        scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+        scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
         status=text("扫描只读取应用包名和名称，不会自动停用、冻结或卸载应用。",13,0xff5c6877,false);
         contentScan = new Switch(this);
         contentScan.setText("启用 APK 内容特征扫描（第二阶段）");
