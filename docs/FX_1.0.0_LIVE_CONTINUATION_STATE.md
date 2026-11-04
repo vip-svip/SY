@@ -3119,3 +3119,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同期确认 libXposed wiring regression 已改为稳定检查 Gadget loader 在读取 per-app remote config 前运行；未更改产品逻辑。
 - 未验证：Android Gradle、真实 SAF DocumentsProvider、设备旋转/视觉效果和真机。
 - 下一批：继续 Dia Frida installer source picker 搜索/选择状态与安装来源校验；再检查 Frida JS 编辑器保存返回和会话状态。Host 静态回归不等于真实 Frida 注入验收。
+
+
+## 2026-11-05 — Dia 崩溃报告页旋转恢复与损坏记录保留
+
+- 基于 FX 分支当前状态，补齐 `FxDiaCrashReportActivity` 的页面恢复。
+- 修复一：保存/恢复崩溃报告 ScrollView 位置；恢复回调要求 Activity 仍有效且 ScrollView 仍是当前页面实例。
+- 修复二：此前 `hadPendingReport` 为 true 但 `record == null` 时仍立即清除 pending flag，旋转/进程重建后会把损坏报告误显示为“没有崩溃记录”。现在仅在成功读取 record 时清除 pending flag，并把 `unreadablePendingReport` 写入/恢复 Bundle，损坏提示在重建后保留。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCrashReportActivity.java`、`scripts/tests/fx-dia-crash-report-regression.sh`、本状态文件。
+- 验证：回归新增 scrollY、pending unreadable marker、仅成功读取后清标记、旧 ScrollView 回调防护等断言；尚未运行新 Actions/Gradle/JUnit/模拟器/真机。
+- 下一步：读取本提交 Actions；随后检查 Dia CrashReport 清理确认/分享返回链，以及 Frida SAF 导入旋转/进程恢复；固定 FX 1.0.0，不打最终包。
