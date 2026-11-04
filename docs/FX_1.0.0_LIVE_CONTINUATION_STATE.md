@@ -3561,3 +3561,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 方案文档提交：`892c2b8b626061d94315db78a32fb05e32a52053`。
 
 当前边界：已落地统一模式模型、设置面板、Shell 差异化外观和持久化入口；尚未完成 Gradle 编译、安装运行、所有页面逐页视觉验收及服务运行期间换肤测试。ClassicWebCompat 目前采用现有 native 页面容器与兼容外观，尚不能宣称已完整恢复旧 WebUI 的全部页面行为。下一步先编译并修正 Kotlin/Java/Compose 集成错误，再补全各页面的模式差异与运行中无中断验收。
+
+- 补充修正：ClassicWebCompat 的实际可见 WebUI 页面范围明确为 VPN、Ad/Hosts、隐私、脚本四个业务页；Hook 与设置由同一原生宿主承载并采用 Classic 外观，避免文档夸大为六页全部来自旧 WebUI。
+- 新增单元测试 `adhook/app/src/test/java/de/privacyguard/adhook/FxUiModeTest.kt`，覆盖三种枚举、稳定存储 ID、旧 `web` 别名迁移、未知值回退和显示名称映射。
+- 单元测试源码已提交：`7c31f43e7086eccc7b0587f38578d81d50275e8b`；文档准确性修订提交：`b0c85901437b2a7e4144958efbbc76c87b877534`。
