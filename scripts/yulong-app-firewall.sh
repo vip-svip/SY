@@ -468,12 +468,29 @@ start_watch_locked() {
   if [ ! -f "$tmp" ] || [ -L "$tmp" ] || ! chmod 600 "$tmp" || ! mv -f "$tmp" "$WATCH_PIDFILE"; then
     rm -f "$tmp"; kill "$pid" 2>/dev/null || :; return 1
   fi
-  sleep 0.1
-  if ! kill -0 "$pid" 2>/dev/null || ! watch_is_ours "$pid"; then
-    rm -f "$WATCH_PIDFILE"; kill "$pid" 2>/dev/null || :
-    echo "watcher failed to start" >&2; return 1
-  fi
-  echo "started pid=$pid"
+  # Keep the lifecycle lock until the spawned PID has become the exact
+  # watcher process. A fixed 100 ms delay can release the lock while nohup or
+  # a slow shell startup is still in flight, allowing the next starter to miss
+  # the transitional PID and launch a duplicate watcher.
+  _watch_start_wait=0
+  while [ "$_watch_start_wait" -lt 30 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$WATCH_PIDFILE"
+      echo "watcher exited before startup was confirmed" >&2
+      return 1
+    fi
+    if watch_is_ours "$pid"; then
+      echo "started pid=$pid"
+      return 0
+    fi
+    sleep 0.1
+    _watch_start_wait=$((_watch_start_wait + 1))
+  done
+  # Retain the PID record on an identity-ambiguous live process. This prevents
+  # a subsequent start from spawning another copy; it will fail closed until
+  # the process is inspected instead of signaling an unverified PID.
+  echo "watcher startup identity was not confirmed; retaining PID record" >&2
+  return 1
 }
 stop_watch_locked() {
   [ ! -L "$WATCH_PIDFILE" ] || { echo "firewall watcher PID file is unsafe" >&2; return 1; }
