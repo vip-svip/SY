@@ -2304,11 +2304,20 @@ public final class FxDiaFridaActivity extends Activity {
                 ? "pids=$(ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
                     + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1}'); "
                 : "pids=" + quote(selected) + "; ";
-        String command = "set -e; test -x " + quote(injector) + "; "
-                + "mkdir -p /data/adb/privacyguard/dia-frida/logs; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > " + quote(scriptPath) + "; "
-                + "chmod 600 " + quote(scriptPath) + "; "
-                + ": >> " + quote(logPath) + "; chmod 600 " + quote(logPath) + "; "
+        String command = "set -eu; umask 077; test -x " + quote(injector) + "; "
+                + "base=/data/adb/privacyguard; dir=\\\"$base/dia-frida\\\"; logs=\\\"$dir/logs\\\"; "
+                + "script=" + quote(scriptPath) + "; log=" + quote(logPath) + "; "
+                + "for path in /data /data/adb /data/adb/privacyguard /data/adb/privacyguard/dia-frida /data/adb/privacyguard/dia-frida/logs; do "
+                + "[ ! -L \\\"$path\\\" ] || { echo unsafe-frida-state-symlink=$path; exit 21; }; done; "
+                + "mkdir -p \\\"$dir\\\" \\\"$logs\\\"; "
+                + "[ -d \\\"$dir\\\" ] && [ ! -L \\\"$dir\\\" ] && [ -d \\\"$logs\\\" ] && [ ! -L \\\"$logs\\\" ] || exit 21; "
+                + "[ ! -L \\\"$script\\\" ] && [ ! -L \\\"$log\\\" ] || { echo unsafe-frida-session-file; exit 21; }; "
+                + "tmp=$(mktemp \\\"$dir/.inject-XXXXXX\\\"); "
+                + "trap 'rm -f \\\"$tmp\\\"' EXIT HUP INT TERM; "
+                + "printf '%s' " + quote(encoded) + " | base64 -d > \\\"$tmp\\\"; chmod 600 \\\"$tmp\\\"; "
+                + "mv -f \\\"$tmp\\\" \\\"$script\\\"; tmp=; "
+                + "if [ -e \\\"$log\\\" ] && [ ! -f \\\"$log\\\" ]; then echo unsafe-frida-log-path; exit 21; fi; "
+                + "[ ! -L \\\"$log\\\"]; : >> \\\"$log\\\"; chmod 600 \\\"$log\\\"; "
                 + "pkg=" + quote(targetPackage) + "; target_uid=" + targetUid + "; "
                 + "printf '\\n[FX Dia] multi-process injection start %s target=%s\\n' \"$(date '+%F %T')\" "
                 + quote(targetPackage) + " >> " + quote(logPath) + "; "
@@ -2345,8 +2354,9 @@ public final class FxDiaFridaActivity extends Activity {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
-        runRoot("if [ -s " + quote(log) + " ]; then tail -n 500 " + quote(log)
-                + "; else echo '当前目标暂无注入日志。'; fi", 12000L, result -> {
+        runRoot("if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
+                + " ] && [ -s " + quote(log) + " ]; then tail -n 500 " + quote(log)
+                + "; else echo '当前目标暂无安全可读的注入日志。'; fi", 12000L, result -> {
             TextView viewer = text(result.output, 12, 0xff334155, false);
             viewer.setTextIsSelectable(true);
             viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
