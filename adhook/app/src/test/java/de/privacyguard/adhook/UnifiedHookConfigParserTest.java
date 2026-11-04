@@ -604,6 +604,55 @@ public class UnifiedHookConfigParserTest {
                 "com.example.owned,app_version_simulate=1", ""));
     }
 
+    @Test
+    public void parsesAndRoundTripsCoordinateAndGpsProviderStateSimulation() {
+        String config = String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,location_simulate=1,location_lat=31.2304,"
+                        + "location_lon=121.4737,location_accuracy=8.5,"
+                        + "location_provider_enabled_simulate=1", "");
+        UnifiedHookConfigParser.Target target =
+                UnifiedHookConfigParser.parse(config).targets.get("com.example.debug");
+        assertTrue(target.locationSimulation);
+        assertTrue(target.locationProviderEnabledSimulation);
+        assertEquals(31.2304d, target.simulatedLatitude, 0.000001d);
+        assertEquals(121.4737d, target.simulatedLongitude, 0.000001d);
+        assertEquals(8.5f, target.simulatedAccuracy, 0.0001f);
+
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false,
+                UnifiedHookConfigParser.parse(config).targets);
+        UnifiedHookConfigParser.Target restored =
+                UnifiedHookConfigParser.parse(serialized).targets.get("com.example.debug");
+        assertTrue(restored.locationSimulation);
+        assertTrue(restored.locationProviderEnabledSimulation);
+        assertEquals(8.5f, restored.simulatedAccuracy, 0.0001f);
+    }
+
+    @Test
+    public void acceptsGpsProviderStateSimulationWithoutCoordinateOverride() {
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,location_provider_enabled_simulate=1", ""))
+                .targets.get("com.example.debug");
+        assertFalse(target.locationSimulation);
+        assertTrue(target.locationProviderEnabledSimulation);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsCoordinateSimulationWhenLocationAccessIsBlocked() {
+        UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,location_simulate=1,location_lat=31.2,"
+                        + "location_lon=121.4,location_access_block=1", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsGpsProviderEnabledSimulationWhenLocationAccessIsBlocked() {
+        UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.debug,location_provider_enabled_simulate=1,location_access_block=1", ""));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsPackageSegmentsBeginningWithDigits() {
         UnifiedHookConfigParser.parse(
