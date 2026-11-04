@@ -47,8 +47,15 @@ for token in (
 assert 'ad-master " + enabled' in receiver, "new AD_FILTER actions must only change the ad-filter master"
 assert '" /data/adb/privacyguard "' in receiver, "VPN helper must receive the canonical module and state directories"
 assert "adFilterAction ? 90000L : 150000L" in receiver, "Tasker Root work must use bounded action-specific timeouts"
-assert "AtomicBoolean REQUEST_PENDING" in receiver
-assert "REQUEST_PENDING.compareAndSet(false, true)" in receiver
+assert "AtomicBoolean AD_REQUEST_PENDING" in receiver
+assert "AtomicBoolean VPN_REQUEST_PENDING" in receiver
+assert "final AtomicBoolean requestPending" in receiver
+assert "adFilterAction ? AD_REQUEST_PENDING : VPN_REQUEST_PENDING" in receiver
+assert "requestPending.compareAndSet(false, true)" in receiver
+assert receiver.count("requestPending.set(false)") == 4, \
+    "each Tasker exit path must release the selected control-plane gate"
+assert "REQUEST_PENDING.compareAndSet" not in receiver and "REQUEST_PENDING.set(" not in receiver, \
+    "ad-filter and VPN Tasker actions must not share a global pending gate"
 assert "FxYulongAdOperationGate.tryAcquire()" in receiver
 assert receiver.count("FxYulongAdOperationGate.release(gateToken)") == 3, "ad-master transaction gate must be released on every exit path"
 assert "pending.finish();" in receiver
