@@ -47,7 +47,7 @@ public final class FxDiaSystemExpandActivity extends Activity {
             this.packageName = packageName;
             this.label = label;
         }
-        @Override public String toString() { return label + "\\n" + packageName; }
+        @Override public String toString() { return label + "\n" + packageName; }
     }
     // Original Dia 23.11 res/xml/system_expand_setting.xml keys.
     private static final String[] ORIGINAL_SETTING_KEYS = {
