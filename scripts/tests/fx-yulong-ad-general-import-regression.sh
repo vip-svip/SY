@@ -67,6 +67,20 @@ from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
 required=[
+    "STATE_PENDING_EXPORT",
+    "STATE_IMPORT_PENDING",
+    "STATE_EXPORT_PENDING",
+    "out.putString(STATE_PENDING_EXPORT, pendingExport)",
+    "out.putBoolean(STATE_IMPORT_PENDING, importRequestPending)",
+    "out.putBoolean(STATE_EXPORT_PENDING, exportRequestPending)",
+    "pendingExport = state.getString(STATE_PENDING_EXPORT)",
+    "if (!exportRequestPending) return;",
+    "if (!importRequestPending) return;",
+    "exportRequestPending = false;",
+    "importRequestPending = false;",
+    "pendingExport = null;",
+    "导出已取消，未写入文件。",
+    "导入已取消，设备配置未更改。",
     "FxYulongAdBackupValidation.isValidSource(source)",
     "validateDomainRows(allow, \"白名单\")",
     "validateDomainRows(block, \"黑名单\")",
