@@ -149,6 +149,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 fx-patches/patch_native_script_scheduler.py fx-module
+          sh scripts/tests/fx-native-script-scheduler-regression.sh fx-module
           install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
           install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
           sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
