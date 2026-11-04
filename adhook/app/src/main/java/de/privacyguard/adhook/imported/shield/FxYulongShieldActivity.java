@@ -301,7 +301,11 @@ public final class FxYulongShieldActivity extends Activity {
                             android.net.Uri.parse("package:" + getPackageName()))); }
                     catch (Throwable ignored) { }
                 }));
-android.widget.Switch volumeTrigger = new android.widget.Switch(this);
+        card("救援中心",
+                "保留独立救援操作：查看最近前台应用、打开应用信息或系统卸载确认、恢复名单和关闭错误启用的守护/悬浮入口。",
+                action("打开救援中心", () -> startActivity(new Intent(this,
+                        FxYulongRescueActivity.class))));
+        android.widget.Switch volumeTrigger = new android.widget.Switch(this);
         volumeTrigger.setText("音量键连续触发救援提醒（需启用 FX 无障碍服务）");
         volumeTrigger.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
         volumeTrigger.setOnCheckedChangeListener((button, enabled) -> {
