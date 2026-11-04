@@ -122,6 +122,13 @@ assert "if (index < 0 || index > 5) return;" in route
 assert "selectedBottomTab = 5;" in route and "showSettings();" in route
 assert "selectedBottomTab = 4;" in route and "showAppList();" in route
 assert "lastWebTabIndex = index;" in route and "renderNativePage(index);" in route
+assert "private final int[] nativeTabScrollPositions = new int[4];" in main, "Four native primary pages must have independent scroll positions"
+assert 'outState.putIntArray("fx_native_tab_scroll_positions", nativeTabScrollPositions.clone());' in main, "Native tab scroll positions must survive Activity recreation"
+assert "captureNativePageScrollPosition();" in main, "Switching tabs must capture the outgoing native page position"
+assert "nativePageScroll.scrollTo(0, 0);" in main, "New native pages must not inherit the previous page viewport"
+assert "final int restoreY = nativeTabScrollPositions[pageIndex];" in main, "Native page must load its own saved scroll position"
+assert "nativePageScroll.scrollTo(0, restoreY);" in main, "Native page must restore its saved scroll position after layout"
+assert "renderGeneration != nativePageRenderGeneration" in main and "nativePageContent.getParent() != nativePageScroll" in main, "Stale native page restore callbacks must not move a newer tab"
 assert "Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP" in base
 assert 'pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");' in main
 assert 'outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);' in main
