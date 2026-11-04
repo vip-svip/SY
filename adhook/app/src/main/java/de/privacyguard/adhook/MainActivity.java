@@ -5470,9 +5470,25 @@ public final class MainActivity extends ComponentActivity {
                 }).show();
     }
 
-    private void showCustomRuleDialog() { showCustomRuleDialog(null); }
+    private void showCustomRuleDialog() { showCustomRuleDialog(null, -1); }
 
     private void showCustomRuleDialog(String presetDescriptor) {
+        showCustomRuleDialog(presetDescriptor, -1);
+    }
+
+    private void showEditCustomRuleDialog(int slot) {
+        if (slot < 1 || slot > 64) return;
+        String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
+        String[] parts = stored == null ? new String[0] : stored.split("\\|", -1);
+        if (parts.length != 4 && parts.length != 5) {
+            new AlertDialog.Builder(this).setMessage("该规则已不存在或格式损坏，请刷新规则列表后重试。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        showCustomRuleDialog(stored, slot);
+    }
+
+    private void showCustomRuleDialog(String presetDescriptor, int editingSlot) {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(8), dp(20), 0);
@@ -5509,6 +5525,19 @@ public final class MainActivity extends ComponentActivity {
         priority.setText("0");
         priority.setHint("优先级（-1000 至 1000）");
 
+        if (editingSlot > 0) {
+            String[] existing = presetDescriptor.split("\\|", -1);
+            id.setText(existing[0]);
+            descriptor.setText(existing[1]);
+            action.setText(getPreferences(0).getString(
+                    selectedPackage + ":dev_rule_base_" + editingSlot,
+                    "OFF".equalsIgnoreCase(existing[2]) ? "OBSERVE" : existing[2]));
+            if (existing.length == 5) literalValue.setText(existing[4]);
+            group.setText(getPreferences(0).getString(
+                    selectedPackage + ":dev_rule_group_" + editingSlot, "默认"));
+            priority.setText(existing[3]);
+        }
+
         TextView help = new TextView(this);
         help.setText("支持 Java 精确签名（返回类型可用冒号或箭头分隔）、Frida .overload() 精确重载写法（必须显式补返回类型）、Smali/JVM 描述符和旧式零参数 boolean 签名。"
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
@@ -5527,7 +5556,9 @@ public final class MainActivity extends ComponentActivity {
         form.addView(priority);
         form.addView(help);
 
-        new AlertDialog.Builder(this).setTitle("新增自定义 Hook 规则").setView(form)
+        new AlertDialog.Builder(this)
+                .setTitle(editingSlot > 0 ? "编辑自定义 Hook 规则" : "新增自定义 Hook 规则")
+                .setView(form)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("保存", (dialog, which) -> {
                     String ruleId = id.getText().toString().trim();
@@ -5551,8 +5582,12 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     ApplicationInfo target = findApp(selectedPackage);
-                    boolean debuggable = target != null
-                            && (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                    if (target == null) {
+                        new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    boolean debuggable = (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
                     if (!debuggable && !"OBSERVE".equals(actionText)) {
                         new AlertDialog.Builder(this).setMessage("行为替换仅对 debuggable 目标开放。")
                                 .setPositiveButton("知道了", null).show();
@@ -5572,34 +5607,60 @@ public final class MainActivity extends ComponentActivity {
                     }
                     for (int n = 1; n <= 64; n++) {
                         String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
-                        if (existing != null && existing.startsWith(rule.id + "|")) {
+                        if (n != editingSlot && existing != null
+                                && existing.startsWith(rule.id + "|")) {
                             new AlertDialog.Builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
                     }
-                    int slot = 1;
-                    while (slot <= 64 && getPreferences(0).contains(selectedPackage + ":dev_rule_" + slot)) slot++;
-                    if (slot > 64) {
-                        new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
-                                .setPositiveButton("知道了", null).show();
-                        return;
+                    int slot = editingSlot;
+                    String previousStored = editingSlot > 0
+                            ? getPreferences(0).getString(selectedPackage + ":dev_rule_" + editingSlot, null)
+                            : null;
+                    boolean previouslyEnabled = true;
+                    if (editingSlot > 0) {
+                        String[] previous = previousStored == null
+                                ? new String[0] : previousStored.split("\\|", -1);
+                        if (previous.length != 4 && previous.length != 5) {
+                            new AlertDialog.Builder(this).setMessage("该规则在编辑期间已被删除或修改，请刷新后重试。")
+                                    .setPositiveButton("知道了", null).show();
+                            return;
+                        }
+                        previouslyEnabled = !"OFF".equalsIgnoreCase(previous[2]);
+                    } else {
+                        slot = 1;
+                        while (slot <= 64
+                                && getPreferences(0).contains(selectedPackage + ":dev_rule_" + slot)) slot++;
+                        if (slot > 64) {
+                            new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
+                                    .setPositiveButton("知道了", null).show();
+                            return;
+                        }
                     }
-                    getPreferences(0).edit()
+
+                    java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+                    groups.add(groupName);
+                    String storedAction = editingSlot > 0 && !previouslyEnabled
+                            ? "OFF" : rule.action.name();
+                    android.content.SharedPreferences.Editor editor = getPreferences(0).edit()
                             .putString(selectedPackage + ":dev_rule_" + slot,
-                                    rule.toEncodedString())
+                                    rule.id + "|" + rule.descriptor + "|" + storedAction
+                                            + "|" + rule.priority
+                                            + (rule.literalValue == null ? "" : "|" + rule.literalValue))
                             .putString(selectedPackage + ":dev_rule_base_" + slot, rule.action.name())
                             .putString(selectedPackage + ":dev_rule_group_" + slot, groupName)
-                            .putBoolean(selectedPackage + ":dev_hook_enabled", true)
-                            .apply();
-                    ensureCustomRuleGroup(groupName);
-                    ApplicationInfo currentTarget = findApp(selectedPackage);
-                    if (currentTarget == null) {
-                        new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
+                            .putStringSet(selectedPackage + ":dev_rule_groups",
+                                    new java.util.HashSet<>(groups));
+                    if (editingSlot <= 0) {
+                        editor.putBoolean(selectedPackage + ":dev_hook_enabled", true);
+                    }
+                    if (!editor.commit()) {
+                        new AlertDialog.Builder(this).setMessage("规则保存失败：本地配置未能提交，请重试。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    showTarget(currentTarget);
+                    showTarget(target);
                 }).show();
     }
 
@@ -6099,6 +6160,12 @@ public final class MainActivity extends ComponentActivity {
                 moveGroup.setText("移动到分组");
                 moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(slot));
                 row.addView(moveGroup);
+
+                Button editRule = new Button(this);
+                editRule.setAllCaps(false);
+                editRule.setText("编辑规则");
+                editRule.setOnClickListener(v -> showEditCustomRuleDialog(slot));
+                row.addView(editRule);
 
                 Button remove = new Button(this);
                 remove.setText("删除 " + parts[0]);
