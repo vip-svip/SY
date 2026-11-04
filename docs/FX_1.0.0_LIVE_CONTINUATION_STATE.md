@@ -1728,3 +1728,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `8a01389a36ec22c8408ecdf6bc36297c59ed41e6` — `test(hook): enforce custom rule editor input bounds`。
 - 最新 HEAD 静态复核：五项 InputFilter 上限、编辑器草稿保存/清理及原规则解析调用均通过源码断言；回归脚本包含五项上限断言。未运行 `fx-dia-custom-hook-literal-regression.sh`、Gradle/Android 编译或设备旋转/输入测试。当前容器无法解析 github.com，因此未在本地完整 checkout 执行脚本。
 - 下一步：继续核对自定义规则新增/编辑提交后分组筛选与滚动定位是否稳定，之后检查日志页返回后 Hook 目标页的实例/视图状态；尝试通过已有仓库 CI 状态读取可用的测试结果，但不触发整套 Actions。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook 移动规则选择器新增分组后的返回链修复
+
+- 本批代码提交基于最新 MainActivity blob SHA；期间实时文档发生并行更新，第一次文档写入因 expected SHA 过期返回 409，已重新读取最新文档后仅追加本批记录，未覆盖并行内容。
+- 修复四级交互断链：在规则“移动分组”选择器中点击“新增分组”后，原逻辑会转去普通分组管理消息页，导致用户丢失当前目标规则槽位和选择器上下文。
+- 新增目标包内存状态标记 `customRuleGroupReturnToPicker`，并写入/恢复 Bundle。通过移动选择器打开“新增分组”时保留原规则槽位与当前选择索引；新增成功后重新打开原移动选择器，并优先选中新建分组；取消/外部关闭也回到原选择器；名称无效或写入失败时，重试入口保留原选择器上下文与草稿。
+- 普通分组管理列表打开新增分组时仍使用原管理流程，不误导向移动选择器。分组提交继续沿用既有同步提交/失败回滚事务，不改变规则 schema 或发布协议。
+- 提交：
+  - `efca312d39bb1505af2298f9212667cecb20995c` — `fix(hook): return to rule picker after adding a group`。
+  - `474749b65b61f96ebddf6a03664aadab17ec3397` — `test(hook): cover new group return to move picker`。
+- 源码静态验证：重新读取当前 HEAD 后确认返回标记声明、Bundle 保存/恢复、选择器新增入口、取消回跳、新分组索引选择、失败重试上下文均存在；`scripts/tests/fx-hook-native-ui-regression.sh` 包含对应断言。未在完整 checkout 执行 Shell 脚本，未运行 Gradle、模拟器、UI 自动化或真机旋转/写盘故障注入。
+- 下一步：运行可用的 Hook Native UI 回归（若当前没有完整 checkout，则先核对 Host 测试依赖与可运行入口）；随后进入 Hook 目标页 Root/LSPosed/Accessibility 实际状态显示和授权回读闭环。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
