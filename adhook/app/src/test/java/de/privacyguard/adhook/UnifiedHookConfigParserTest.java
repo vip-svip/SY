@@ -527,6 +527,64 @@ public class UnifiedHookConfigParserTest {
                 "hook_ads_enabled=1\n[list:hook_targets]\ncom.example.app,splash=1\n");
         assertFalse(result.targets.get("com.example.app").microphoneSilence);
     }
+
+    @Test
+    public void parsesAndRoundTripsPerTargetApplicationVersionSimulation() {
+        String versionName = "9.9.9-test, Tokyo | debug";
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                versionName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String config = String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.owned,app_version_simulate=1,app_version_name_b64="
+                        + encoded + ",app_version_code=2147483647", "");
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config);
+        UnifiedHookConfigParser.Target target = parsed.targets.get("com.example.owned");
+        assertTrue(target.appVersionSimulation);
+        assertEquals(versionName, target.simulatedVersionName);
+        assertEquals(2147483647L, target.simulatedVersionCode);
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        UnifiedHookConfigParser.Target roundTrip =
+                UnifiedHookConfigParser.parse(serialized).targets.get("com.example.owned");
+        assertTrue(roundTrip.appVersionSimulation);
+        assertEquals(versionName, roundTrip.simulatedVersionName);
+        assertEquals(2147483647L, roundTrip.simulatedVersionCode);
+        assertTrue(serialized.contains("app_version_name_b64="));
+    }
+
+    @Test
+    public void legacyConfigNeverEnablesApplicationVersionSimulation() {
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(
+                String.join("\\n", "hook_ads_enabled=1", "[list:hook_targets]",
+                        "com.example.app,splash=1", ""));
+        assertFalse(parsed.targets.get("com.example.app").appVersionSimulation);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsApplicationVersionValuesWithoutExplicitOptIn() {
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "1.0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.owned,app_version_name_b64=" + encoded + ",app_version_code=1", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsApplicationVersionCodeOutsideAndroidIntRange() {
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                "1.0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.owned,app_version_simulate=1,app_version_name_b64="
+                        + encoded + ",app_version_code=2147483648", ""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsApplicationVersionSimulationWithoutNameOrCode() {
+        UnifiedHookConfigParser.parse(String.join("\\n",
+                "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
+                "com.example.owned,app_version_simulate=1", ""));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsPackageSegmentsBeginningWithDigits() {
         UnifiedHookConfigParser.parse(
