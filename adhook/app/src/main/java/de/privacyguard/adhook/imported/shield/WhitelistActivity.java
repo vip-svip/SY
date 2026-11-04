@@ -452,7 +452,8 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         if (pkg == null || pkg.isEmpty() || pm == null) return false;
         try {
             ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-            return (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+            return (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    && (ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
         } catch (Throwable ignored) {
             return false;
         }
