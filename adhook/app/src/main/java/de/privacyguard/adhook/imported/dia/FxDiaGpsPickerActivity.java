@@ -186,22 +186,13 @@ public final class FxDiaGpsPickerActivity extends Activity {
     }
 
     private void parsePair() {
-        String raw = pairInput.getText() == null ? "" : pairInput.getText().toString().trim();
-        String[] parts = raw.split("[,，\\\\s]+");
-        if (parts.length != 2) {
-            status.setText("格式应为：经度,纬度，例如 121.473658,31.230378。");
-            return;
-        }
+        String raw = pairInput.getText() == null ? "" : pairInput.getText().toString();
         try {
-            double lon = Double.parseDouble(parts[0]);
-            double lat = Double.parseDouble(parts[1]);
-            if (!Double.isFinite(lat) || !Double.isFinite(lon)
-                    || lat < -90d || lat > 90d || lon < -180d || lon > 180d) {
-                throw new IllegalArgumentException("纬度必须在 -90 至 90，经度必须在 -180 至 180。");
-            }
-            setCoordinates(lat, lon);
+            FxDiaGpsCoordinateParser.Coordinates coordinates =
+                    FxDiaGpsCoordinateParser.parseAmapPair(raw);
+            setCoordinates(coordinates.latitude, coordinates.longitude);
             status.setText("已解析高德坐标（经度,纬度）。");
-        } catch (Exception invalid) {
+        } catch (IllegalArgumentException invalid) {
             status.setText("坐标无效：" + invalid.getMessage());
         }
     }
@@ -213,18 +204,16 @@ public final class FxDiaGpsPickerActivity extends Activity {
 
     private void returnCoordinates() {
         try {
-            double lat = Double.parseDouble(latitudeInput.getText().toString().trim());
-            double lon = Double.parseDouble(longitudeInput.getText().toString().trim());
-            if (!Double.isFinite(lat) || !Double.isFinite(lon)
-                    || lat < -90d || lat > 90d || lon < -180d || lon > 180d) {
-                throw new IllegalArgumentException("纬度必须在 -90 至 90，经度必须在 -180 至 180。");
-            }
+            FxDiaGpsCoordinateParser.Coordinates coordinates =
+                    FxDiaGpsCoordinateParser.parseSeparate(
+                            latitudeInput.getText().toString(),
+                            longitudeInput.getText().toString());
             Intent result = new Intent();
-            result.putExtra("latitude", Double.toString(lat));
-            result.putExtra("longitude", Double.toString(lon));
+            result.putExtra("latitude", Double.toString(coordinates.latitude));
+            result.putExtra("longitude", Double.toString(coordinates.longitude));
             setResult(RESULT_OK, result);
             finish();
-        } catch (Exception invalid) {
+        } catch (IllegalArgumentException invalid) {
             status.setText(invalid.getMessage() == null ? "请输入有效坐标。" : invalid.getMessage());
         }
     }
