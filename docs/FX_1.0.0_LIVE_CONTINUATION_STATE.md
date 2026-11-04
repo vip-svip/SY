@@ -2856,3 +2856,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：对照 `FxYulongScanActivity` 第 104–108 行确认恢复 Runnable 的实际条件；本次 Actions 尚待执行。
 - 失败路线：不删生命周期保护，不弱化为仅检查容器引用；测试按当前更严格的实现契约精确匹配。
 - 下一步：继续追踪 Shield 定向脚本下一条失败；后续切换实际页面功能，不无限停留在测试断言。
+
+
+## 2026-11-05 — Shield 黑名单策略公开校验方法签名断言修正
+
+- Actions：`41913466096` 已通过扫描页滚动回调、病毒库解析器和白名单读取相关断言，随后在黑名单策略检查第 443 行失败。
+- 根因：测试要求 `isWellFormed(String raw)`，源码真实声明为 `public static boolean isWellFormed(String raw)`；方法及其全量输入校验实现均存在。
+- 修复：测试精确匹配公开静态布尔方法签名，并添加明确失败原因；不修改黑名单校验实现。
+- 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `62c70f64dc496cb7ea3309f5846219c76a283e4a`。
+- 验证：已读取 `FxYulongBlacklistPolicy.java` 全文件，确认 1 MiB/10,000 条限制、包名校验、原子拒绝和不可变 parse 返回均存在；尚未得到本修复 Actions 结果。
+- 下一步：继续定位 Shield 定向回归下一条失败；待脚本通过后转实际扫描详情与名单页面 UI 功能。
