@@ -196,9 +196,16 @@ PROFILE_STUB
 chmod 0755 "$WATCH_MOD/scripts/"*
 cat > "$WATCH_PG/yulong-profile-schedules.tsv" <<'SCHEDULES'
 FXYULONGPROFILESCHEDULE1
-schedule_1|default|00:00|23:59|1|1,2,3,4,5,6,7
+schedule_1|default|00:00|23:59|0|1,2,3,4,5,6,7
 SCHEDULES
 export PG="$WATCH_PG" MP="$WATCH_MOD"
+disabled_output=$(sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" start "$WATCH_MOD" "$WATCH_PG")
+printf '%s\n' "$disabled_output" | grep -Fq "no-profile-schedules" || fail "disabled-only profile schedules must not start a polling watcher"
+[ ! -e "$WATCH_PG/yulong-profile-schedule.pid" ] || fail "disabled-only profile schedule left a PID file"
+cat > "$WATCH_PG/yulong-profile-schedules.tsv" <<'SCHEDULES'
+FXYULONGPROFILESCHEDULE1
+schedule_1|default|00:00|23:59|1|1,2,3,4,5,6,7
+SCHEDULES"
 i=0
 while [ "$i" -lt 6 ]; do
   (sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" start "$WATCH_MOD" "$WATCH_PG" > "$T/start.$i.log" 2>&1) &
