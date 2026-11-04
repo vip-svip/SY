@@ -15,7 +15,7 @@ def body(signature, next_signature):
 picker = body("private void chooseTargetProcesses()", "private void loadOriginalExamples()")
 inject = body("private void injectScript()", "private String sessionLogPath()")
 
-assert "getApplicationInfo(targetPackage, 0)" in picker and "targetUid = targetInfo.uid" in picker
+assert "getApplicationInfo(requestedPackage, 0)" in picker and "targetUid = targetInfo.uid" in picker
 assert "targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE" in picker
 assert "targetInfo.flags & ApplicationInfo.FLAG_SYSTEM" in picker
 assert '"; uid=" + targetUid' in picker, "process enumeration must be bound to the currently installed target UID"
