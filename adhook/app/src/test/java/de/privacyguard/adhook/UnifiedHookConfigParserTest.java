@@ -606,7 +606,7 @@ public class UnifiedHookConfigParserTest {
 
     @Test
     public void parsesAndRoundTripsCoordinateAndGpsProviderStateSimulation() {
-        String config = String.join("\\n",
+        String config = String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.debug,location_simulate=1,location_lat=31.2304,"
                         + "location_lon=121.4737,location_accuracy=8.5,"
@@ -630,7 +630,7 @@ public class UnifiedHookConfigParserTest {
 
     @Test
     public void acceptsGpsProviderStateSimulationWithoutCoordinateOverride() {
-        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.Target target = UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.debug,location_provider_enabled_simulate=1", ""))
                 .targets.get("com.example.debug");
@@ -640,7 +640,7 @@ public class UnifiedHookConfigParserTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsCoordinateSimulationWhenLocationAccessIsBlocked() {
-        UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.debug,location_simulate=1,location_lat=31.2,"
                         + "location_lon=121.4,location_access_block=1", ""));
@@ -648,7 +648,7 @@ public class UnifiedHookConfigParserTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsGpsProviderEnabledSimulationWhenLocationAccessIsBlocked() {
-        UnifiedHookConfigParser.parse(String.join("\\n",
+        UnifiedHookConfigParser.parse(String.join("\n",
                 "schema_version=1", "ads_enabled=0", "privacy_enabled=0", "[list:targets]",
                 "com.example.debug,location_provider_enabled_simulate=1,location_access_block=1", ""));
     }
