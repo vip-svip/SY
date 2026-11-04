@@ -68,9 +68,15 @@ assert "CheckUpdateActivity" not in global_page, "old standalone Dia updater mus
 assert "FxDiaWifiProxyActivity.class" in expand_page, "migrated system HTTP proxy must remain reachable"
 assert "ro_debuggable" in expand_page, "original ro.debuggable option must remain listed"
 assert "restart_package_installer" in expand_page, "original package installer option must remain listed"
-assert "不会更改系统属性" in expand_page, "unmigrated system property control must be disabled transparently"
-assert "不会强制停止或重启系统 Package Installer" in expand_page, "package installer restart must not be faked"
-assert "RootAccess.execute" not in expand_page, "unmigrated system expansion must not issue unchecked Root commands"
+assert "不向 Android framework/System UI 注入此类全局钩子" in expand_page, "ro_debuggable must disclose the missing framework-wide runtime scope"
+assert "Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS" in expand_page, "debug settings must open Android developer options"
+assert "REQUEST_INSTALL_PACKAGES" in expand_page, "unknown-source management must enumerate actual install-source callers"
+assert "PackageManager.GET_PERMISSIONS" in expand_page, "install-source discovery must read declared package permissions"
+assert "Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES" in expand_page, "selected source app must open Android's per-app install permission page"
+assert "PackageManager.MATCH_DEFAULT_ONLY" in expand_page and "Settings.ACTION_APPLICATION_DETAILS_SETTINGS" in expand_page, "Package Installer management must open its real app-info page"
+assert "worker.shutdownNow()" in expand_page and "RejectedExecutionException" in expand_page, "install-source inventory worker must be bounded and lifecycle-safe"
+assert "不会绕过PackageInstaller" in expand_page and "不会强制停止或重启" in expand_page, "system install security and active installer sessions must remain protected"
+assert "RootAccess.execute" not in expand_page and "pm uninstall" not in expand_page, "SystemExpand must not issue destructive or unchecked Root commands"
 
 print("PASS: Dia global preferences, private navigation, backup route and honest SystemExpand feature boundaries")
 PY
