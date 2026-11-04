@@ -144,8 +144,9 @@ jobs:
             run_sh scripts/tests/fx-hook-observation-logs-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (FxNativeTabActivity|FxDiaActivityBrowserActivity|FxDiaCrashReportActivity|FxDiaFileActivity|FxDiaGlobalSettingsActivity|FxDiaInspectorActivity|FxDiaJsonActivity|FxDiaMonitorEventsActivity|FxDiaSessionLogActivity|FxDiaSignatureActivity|FxDiaSystemExpandActivity) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxNativeTabActivity|FxNativeAppShell|FxDiaActivityBrowserActivity|FxDiaCrashReportActivity|FxDiaFileActivity|FxDiaGlobalSettingsActivity|FxDiaInspectorActivity|FxDiaJsonActivity|FxDiaMonitorEventsActivity|FxDiaSessionLogActivity|FxDiaSignatureActivity|FxDiaSystemExpandActivity) ]]; then
             run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_sh scripts/tests/fx-dia-six-tab-regression.sh
             run_sh scripts/tests/fx-dia-crash-report-regression.sh
             run_sh scripts/tests/fx-dia-file-browser-io-regression.sh
             run_sh scripts/tests/fx-dia-global-settings-registration-regression.sh
