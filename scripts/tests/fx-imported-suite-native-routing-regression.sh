@@ -34,8 +34,9 @@ shield_status=$(sed -n '/case "守护运行状态":/,/case "每日安全总结":
 printf '%s\n' "$shield_status" | grep -Fq 'FxYulongShieldActivity.class' || fail "live guardian status must open Shield hub/status"
 daily_summary=$(sed -n '/case "每日安全总结":/,/case "完整性校验":/p' "$MAIN")
 printf '%s\n' "$daily_summary" | grep -Fq 'FxYulongDailySummaryActivity.class' || fail "daily summary lost its dedicated native page"
-rescue=$(sed -n '/case "悬浮救援入口":/,/case "守护运行状态":/p' "$MAIN")
-printf '%s\n' "$rescue" | grep -Fq 'FxYulongShieldActivity.class' || fail "floating rescue settings must open the page with the real enable switch"
+rescue=$(awk '/case "悬浮救援入口":/{capture=1} capture{print} capture && /return;/{exit}' "$MAIN")
+[ -n "$rescue" ] || fail "floating rescue route block is missing"
+printf '%s\n' "$rescue" | grep -Fq 'FxYulongShieldActivity.class' || fail "floating rescue settings must open the hub page with the real enable switch"
 grep -Fq 'FxYulongRescueActivity.class' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java" || fail "Shield rescue center is no longer reachable from the hub"
 grep -Fq '打开救援中心' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java" || fail "hub no longer exposes the original rescue center entry"
 echo "PASS: Yulong VPN, QUIC, Shield rescue and live-status routes use the matching native feature pages"
