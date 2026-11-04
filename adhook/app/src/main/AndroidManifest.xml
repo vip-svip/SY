@@ -112,6 +112,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <activity android:name="roro.stellar.manager.authorization.FxStellarCommandShortcutActivity" android:exported="false" android:excludeFromRecents="true" />
         <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
         <service
             android:name="roro.stellar.manager.authorization.StellarAuthorizationService"
