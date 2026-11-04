@@ -2437,3 +2437,34 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 关联白名单选择器已增加同样的异常源数据写入拦截，并在 `fx-yulong-shield-native-regression.sh` 增加回归断言（提交 `9a729f2ffd9477b495340b58c06defadc2b4690e`）。
 - 本次读取的分支 HEAD：`42527280ac17ecf4f4c280e9f33d00bcc8899706`；此后应继续以 GitHub 分支最新 HEAD 为准。
 - 下一步：审计黑名单 CSV 读取/写入是否存在超大数据、非法包名或部分写入风险；之后回到 Dia / 游龙广告插件原生页面批次。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia DEX picker 请求回滚与 Shield 白名单损坏数据保护
+
+- 本批状态追加时实时分支 HEAD：`0885b7e3089a47ed8f660b77860c33006df4f206`；实时状态文件 Blob：`0f134018727d1ea36f691c006d7d42bd63d68c39`。并发推进时重新读取后追加，未覆盖此前记录。
+- Dia DEX picker：MainActivity 新增待处理请求状态；启动时登记、Activity Bundle 保存/恢复、结果返回时先消费请求标记；若启动 Activity 抛出运行时异常则回滚待处理状态并显示错误。只有真实待处理请求的成功结果才进入原有目标包、debuggable 用户应用与完整方法签名校验。
+- Shield 白名单：共享 `FxYulongWhitelistPolicy` 新增整份 CSV 格式校验；存在非法包名、空字段、超条数或超原始文本上限时整体拒绝，而不是丢弃坏条目后继续信任剩余部分。扫描端因解析返回空集合继续 fail-open，不用损坏白名单压制风险结果。
+- 名单管理器、全屏选择器、风险详情页均接入同一完整性判断；原白名单数据损坏时阻止增删/新增写入，避免将旧数据静默覆盖成局部列表。Picker 同时禁用最终提交入口并显示警告。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`
+  - `scripts/tests/fx-dia-dex-document-browser-regression.sh`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWhitelistPolicy.java`
+  - `adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongWhitelistPolicyTest.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistPickerActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`
+  - `scripts/tests/fx-yulong-shield-native-regression.sh`
+  - 本状态文件。
+- 提交：
+  - `8c1ea1269fea15631a09930a5cdea8592bce41a1` — DEX picker 请求生命周期保存/恢复/消费。
+  - `7eedfc52a10064abef7de4a6a75bbd3f02f0fa1e` — DEX picker 启动失败回滚。
+  - `1e1ebd30fe75379b9865bb5ee37eb87ef71cb941` — DEX picker 请求生命周期断言。
+  - `ed9e8901ce04bfa1af2b68b51166e802de1e250a` — 白名单 CSV 整体格式校验。
+  - `efaf477726704a125dbefe64a1b8fb1aea4fabc8` — Policy Host 测试覆盖任意非法条目与空 CSV 项。
+  - `4df4163c57cc693fce978b1fce1ef97be4cd10e6` — 白名单管理页损坏数据写入保护。
+  - `b05a40016fb1e9881e50fb3062c84fa9ac41c56c` — 白名单 Picker 损坏数据写入门禁。
+  - `e85605d790900f2e860065b9b1246e6e332749b2` — 风险详情页共用 Policy 完整性校验。
+  - `816ea665e874237a80d000e92db03f88aeb940d6` — Shield 回归脚本保护上述完整性门禁。
+- 静态复核：从最新分支重新读取 MainActivity、DEX 回归脚本、Policy、Policy Host 测试、WhitelistActivity、WhitelistPickerActivity、WarningActivity 和 Shield 回归脚本；请求标记/恢复/消费/异常回滚、CSV 整体校验、损坏标记、写入拒绝和回归断言全部匹配。未运行 Shell/Host JUnit/Gradle/UI 自动化/设备测试；不声称运行测试通过。
+- 未完成：黑名单 CSV 仍使用宽松分割与异步 `apply()`，需检查原始数据损坏时的覆盖风险；白名单/黑名单页面的真实 Android 返回链与重建流程仍需设备验证。
+- 下一批直接任务：① 为黑名单增加有界完整性解析与写入失败回显，防止损坏条目被静默覆盖；② 检查安全护盾名单页面在切换/返回后的数据刷新；③ 继续未迁移的 Dia/游龙广告原生页面批次。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
