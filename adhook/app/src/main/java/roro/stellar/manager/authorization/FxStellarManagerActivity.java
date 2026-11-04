@@ -61,6 +61,8 @@ public final class FxStellarManagerActivity extends Activity {
  private TextView state, selectedLabel, auditOutput, bootScriptStatus;
  private LinearLayout alwaysRows;
  private Switch bootScriptSwitch;
+ private Switch dropPrivilegesSwitch;
+ private boolean dropPrivilegesUpdating;
  private android.content.SharedPreferences stellarSettings;
  private boolean syncing;
  private boolean bootScriptUpdating;
@@ -487,10 +489,45 @@ public final class FxStellarManagerActivity extends Activity {
      }).show();
   });
 
+  dropPrivilegesSwitch=new Switch(this);
+  dropPrivilegesSwitch.setText("降权运行 Stellar（Shell UID 2000）");
+  dropPrivilegesSwitch.setChecked(stellarSettings().getBoolean("drop_privileges",false));
+  dropPrivilegesSwitch.setOnCheckedChangeListener((button,enabled)->{
+   if(dropPrivilegesUpdating)return;
+   boolean previous=stellarSettings().getBoolean("drop_privileges",false);
+   new AlertDialog.Builder(this)
+     .setTitle(enabled?"启用 Stellar 降权启动":"关闭 Stellar 降权启动")
+     .setMessage(enabled
+       ?"下次 SCRIPT 启动时使用原版 libchid.so 以 UID 2000（Shell）运行 libstellar.so。若 helper 缺失，启动会失败关闭，不会退回 Root。"
+       :"下次 SCRIPT 启动时将以 Root 运行 libstellar.so。此选择会扩大守护进程权限，只有明确需要时才关闭降权。")
+     .setNegativeButton("取消",(dialog,which)->{
+       dropPrivilegesUpdating=true;
+       button.setChecked(previous);
+       dropPrivilegesUpdating=false;
+     })
+     .setPositiveButton(enabled?"启用降权":"确认以 Root 运行",(dialog,which)->{
+       boolean saved=stellarSettings().edit().putBoolean("drop_privileges",enabled).commit();
+       if(!saved){
+         dropPrivilegesUpdating=true;
+         button.setChecked(previous);
+         dropPrivilegesUpdating=false;
+         bootScriptStatus.setText("无法保存 drop_privileges；原启动权限设置保持不变。");
+         return;
+       }
+       refreshBootScriptStatus();
+       if(!enabled)bootScriptStatus.setText("已保存 Root 启动设置；下次 SCRIPT 启动将使用 Root 身份。");
+     }).setOnCancelListener(dialog->{
+       dropPrivilegesUpdating=true;
+       button.setChecked(previous);
+       dropPrivilegesUpdating=false;
+     }).show();
+  });
+
   bootScriptStatus=text("正在读取开机脚本状态…",12,0xff617080,false);
   LinearLayout panel=new LinearLayout(this);
   panel.setOrientation(1);
   panel.addView(bootScriptSwitch);
+  panel.addView(dropPrivilegesSwitch);
   panel.addView(bootScriptStatus);
   panel.addView(button("查询开机脚本状态",this::refreshBootScriptStatus));
   if(!supportedMode){
@@ -573,12 +610,14 @@ public final class FxStellarManagerActivity extends Activity {
     return;
    }
    String mode=stellarSettings().getString("boot_mode","NONE");
+   String identity=stellarSettings().getBoolean("drop_privileges",false)
+       ?"Shell UID 2000（libchid）":"Root";
    if(result.output.contains("boot_script=installed")){
-    bootScriptStatus.setText("磁盘脚本：FX 已安装并可执行 · BootMode="+mode);
+    bootScriptStatus.setText("磁盘脚本：FX 已安装并可执行 · BootMode="+mode+" · 启动身份="+identity);
    }else if(result.output.contains("boot_script=legacy")){
     bootScriptStatus.setText("磁盘脚本：检测到原版 Stellar 脚本；打开开关可迁移到 FX 包名和启动器。");
    }else if(result.output.contains("boot_script=absent")){
-    bootScriptStatus.setText("磁盘脚本：未安装 · BootMode="+mode);
+    bootScriptStatus.setText("磁盘脚本：未安装 · BootMode="+mode+" · 下次启动身份="+identity);
    }else{
     bootScriptStatus.setText("磁盘脚本存在但不属于 FX 管理，已拒绝自动替换或删除。");
    }

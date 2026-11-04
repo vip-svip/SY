@@ -8,7 +8,7 @@ sh -n "$SOURCE" || fail "Stellar control source shell syntax invalid"
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-stellar-boot-script.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-mkdir -p "$TMP/data/adb" "$TMP/bin" "$TMP/app/lib/arm64-v8a"
+mkdir -p "$TMP/data/adb" "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs" "$TMP/bin" "$TMP/app/lib/arm64-v8a"
 : > "$TMP/app/base.apk"
 cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
@@ -40,6 +40,7 @@ sed \
   -e "s|^DIR=/data/local/tmp/stellar_guard$|DIR=$TMP/stellar_guard|" \
   -e "s|/data/adb|$TMP/data/adb|g" \
   -e "s|/data/local/tmp/fx_stellar_boot.log|$TMP/fx_stellar_boot.log|g" \
+  -e "s|^DROP_PREFS_FILE=.*$|DROP_PREFS_FILE=$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml|" \
   "$SOURCE" > "$TMP/control.sh"
 sh -n "$TMP/control.sh" || fail "isolated control script shell syntax invalid"
 run(){ sh "$TMP/control.sh" "$@"; }
@@ -59,16 +60,67 @@ grep -Fq 'com.youlong.hd' "$SCRIPT" && fail "boot script still resolves the orig
 status=$(run boot-script status)
 printf '%s\n' "$status" | grep -Fq 'boot_script=installed' || fail "status must detect the installed FX boot script"
 
+cat > "$TMP/app/lib/arm64-v8a/libchid.so" <<CHID
+#!/bin/sh
+printf '%s|%s\\n' "$1" "$2" > "$TMP/chid.args"
+"$2"
+CHID
+chmod 0755 "$TMP/app/lib/arm64-v8a/libchid.so"
 # Run the generated boot script against mock Android commands and a fake
 # executable payload: this verifies the installed script actually resolves
 # and executes the selected ABI launcher rather than only existing on disk.
 sh "$SCRIPT" || fail "generated boot script failed with a ready boot property"
+# Original Starter.getInternalCommand() uses libchid.so 2000 libstellar.so
+# when drop_privileges=true. The FX boot script must preserve that mode.
+cat > "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml" <<PREFS
+<map><boolean name="drop_privileges" value="true" /></map>
+PREFS
+rm -f "$TMP/launched.marker" "$TMP/chid.args"
+sh "$SCRIPT" || fail "boot script rejected a valid drop_privileges preference"
+grep -Fq "2000|$TMP/app/lib/arm64-v8a/libstellar.so" "$TMP/chid.args" || fail "boot script did not call libchid with UID 2000 and libstellar path"
+[ "$(cat "$TMP/launched.marker")" = "FX_STELLAR_LAUNCHER_EXECUTED" ] || fail "libchid did not launch libstellar"
+
+# Missing helper must never silently fall back to root.
+rm -f "$TMP/app/lib/arm64-v8a/libchid.so" "$TMP/launched.marker" "$TMP/chid.args"
+if sh "$SCRIPT"; then fail "drop_privileges silently fell back to root without libchid"; fi
+[ ! -e "$TMP/launched.marker" ] || fail "root launcher ran after libchid was missing"
+cat > "$TMP/app/lib/arm64-v8a/libchid.so" <<CHID
+#!/bin/sh
+printf '%s|%s\\n' "$1" "$2" > "$TMP/chid.args"
+"$2"
+CHID
+chmod 0755 "$TMP/app/lib/arm64-v8a/libchid.so"
+
+status=$(run boot-script status)
+printf '%s\\n' "$status" | grep -Fq 'drop_privileges=1' || fail "status omitted the active drop_privileges setting"
+
+# A preference symlink is never followed or interpreted as a request for root launch.
+mv "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml" "$TMP/settings.saved"
+ln -s "$TMP/settings.saved" "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml"
+if sh "$SCRIPT"; then fail "boot script followed a symlinked drop_privileges preference"; fi
+rm "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml"
+mv "$TMP/settings.saved" "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml"
+
 [ "$(cat "$TMP/launched.marker")" = "FX_STELLAR_LAUNCHER_EXECUTED" ] || fail "generated boot script did not execute the located launcher"
 [ -s "$TMP/fx_stellar_boot.log" ] || fail "boot script did not record its launch result"
 
 # The installer must fail closed when the package or executable payload is
 # missing, without replacing a previously installed working script.
 cp "$SCRIPT" "$TMP/known-good-script"
+rm "$TMP/app/lib/arm64-v8a/libchid.so"
+if run boot-script install >/dev/null 2>&1; then fail "installer accepted drop_privileges without libchid.so"; fi
+cmp -s "$SCRIPT" "$TMP/known-good-script" || fail "missing libchid replaced the known-good boot script"
+cat > "$TMP/app/lib/arm64-v8a/libchid.so" <<CHID
+#!/bin/sh
+printf '%s|%s\\n' "$1" "$2" > "$TMP/chid.args"
+"$2"
+CHID
+chmod 0755 "$TMP/app/lib/arm64-v8a/libchid.so"
+
+# Switch back to the default Root preference for the following legacy-install checks.
+cat > "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml" <<PREFS
+<map><boolean name="drop_privileges" value="false" /></map>
+PREFS
 rm -rf "$TMP/app/lib"
 if run boot-script install >/dev/null 2>&1; then fail "installer accepted an app package without libstellar.so"; fi
 cmp -s "$SCRIPT" "$TMP/known-good-script" || fail "failed reinstall replaced the known-good boot script"
@@ -112,4 +164,4 @@ printf '%s\n' "$status" | grep -Fq 'boot_script=absent' || fail "remove did not 
 if run boot-script 'install;id' >/dev/null 2>&1; then fail "boot script dispatcher accepted shell syntax as an action"; fi
 if run boot-script execute >/dev/null 2>&1; then fail "boot script dispatcher accepted an unsupported operation"; fi
 ! find "$TMP/data/adb/service.d" -maxdepth 1 -name '.stellar.sh.fx.*' -print -quit | grep -q . || fail "boot script temporary file leaked"
-echo "PASS: Stellar SCRIPT boot manager install/status/remove, launcher resolution, bounded boot wait, legacy migration and symlink/overwrite protection"
+echo "PASS: Stellar SCRIPT boot manager, Shell UID 2000 drop_privileges, fail-closed helper/read protection, legacy migration and symlink/overwrite protection"

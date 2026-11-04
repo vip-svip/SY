@@ -34,6 +34,11 @@ assert 'boolean supportedMode="NONE".equals(savedMode)||scriptSelected;' in mana
     "only NONE and the migrated SCRIPT mode may enable the boot switch"
 assert 'bootScriptSwitch.setEnabled(supportedMode);' in manager, \
     "unmigrated BROADCAST/TCPIP_PREWARM modes must lock the SCRIPT switch"
+assert 'dropPrivilegesSwitch=new Switch(this)' in manager, "drop_privileges control is missing"
+assert 'getBoolean("drop_privileges",false)' in manager, "drop_privileges default is not preserved"
+assert 'putBoolean("drop_privileges",enabled).commit()' in manager, "drop_privileges preference must be committed"
+assert 'Shell UID 2000' in manager, "UI must disclose downgraded execution identity"
+assert '不会退回 Root' in manager, "UI must disclose fail-closed helper behavior"
 assert '检测到保存的原版 BootMode="+savedMode+' in manager, \
     "the saved original boot mode must be identified and disclosed dynamically"
 assert 'BROADCAST 和 TCPIP_PREWARM' in manager, "UI must explain the two deferred original boot modes"
