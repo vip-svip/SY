@@ -329,3 +329,14 @@ Branch checkpoint: `4d56a6810303f7b4a168de16f9ddfeb61af1e0c4`.
 2. The checked-in `fx-module/scripts/jsruntime/sync-subs.sh` path returned 404 during source inspection, although the scheduler invokes it and `native-script-list.sh` documents it as the subscription consumer. Verify the restored Release module source contains it. If absent there too, implement and test the real HTTPS subscription synchronization path before claiming remote script auto-update works.
 3. Continue the larger migration backlog: Dia Frida listener/message forwarding and remaining editors/pages; Yulong Ad trie/bloom runtime and genuine DNS query counters; Shield Stellar Binder transport and remaining self-defense semantics. Keep all device-only claims unverified until target-device tests exist.
 
+
+
+## Follow-up continuation — QuickJS runtime dependency gate
+
+Checkpoint: `e63e59773093b49bd62d1e05445df87536710e23`.
+
+The recursive Git tree for this branch contains only `fx-module/scripts/jsruntime/scheduler.sh` under the module's JS runtime directory. The scheduler invokes `sync-subs.sh`, while the native local-script runner expects `runner.sh` and the HTTP host bridge `host.js`; these files are not present in the checked-in module snapshot. The build workflows restore the full module from the published `FX-v1.0.0.zip` Release archive when the checkout is incomplete, so their presence in that archive still needs confirmation.
+
+To prevent packaging a watcher that silently cannot perform its job, `patch_native_script_scheduler.py` now refuses to stage the scheduler unless the restored module contains non-empty `sync-subs.sh`, `runner.sh`, and `host.js`. The scheduler regression fixture now supplies explicit minimal dependency fixtures, and checks that the patcher enforces all three dependencies.
+
+This is a fail-fast integration guard, **not** an implementation of remote subscription synchronization. No claim is made that subscription updates are working until the real synchronizer source is inspected and its end-to-end tests pass. The regression has been updated but was not executed in this session; CI and device verification remain outstanding.
