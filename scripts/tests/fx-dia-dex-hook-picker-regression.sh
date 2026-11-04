@@ -22,12 +22,13 @@ assert "FLAG_DEBUGGABLE" in main and "FLAG_SYSTEM" in main
 assert "showCustomRuleDialog(descriptor)" in main
 assert "private void showCustomRuleDialog(String presetDescriptor)" in main
 assert 'putExtra("fx_dex_hook_descriptor", descriptor)' in dex
-assert 'putExtra("fx_dex_hook_package", selected.packageName)' in dex
+assert 'putExtra("fx_dex_hook_package", targetPackage)' in dex
 assert 'owner.descriptor + "->" + member.name + member.descriptor' in dex
 assert "chooseDexHookMethod(item)" in dex
 picker = dex[dex.index("private void chooseDexHookMethod("):dex.index("private String buildClassDetail(")]
 assert "detailWorker.execute(() -> {" in picker, "DEX Hook picker must filter methods off the UI thread"
 assert "collectDexHookCandidates(owner, query, targetPackage)" in picker
+assert "final String targetPackage = selected.packageName;" in picker, "picker must snapshot the selected target before worker dispatch"
 assert "for (FxDiaDexIndex.Member" not in picker
 
 assert "(member.accessFlags & (0x0400 | 0x0100)) != 0" in dex
