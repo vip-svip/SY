@@ -2929,3 +2929,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `fx-yulong-shield-worker-bounds-regression.sh`：病毒库和完整性工作线程有界、过载拒绝及 Activity 生命周期回调保护。
 - 这属于 GitHub Host 静态/脚本回归通过；不代表 Android Gradle 编译、JUnit、设备安装或真机操作已验收。
 - 下一步：检查 WhitelistActivity / WhitelistPickerActivity / BlacklistActivity 的搜索、筛选、分页、选择状态与返回恢复；之后回到 Hook Host 回归，确认剩余静默失败是否已随最新断言修正。
+
+
+## 2026-11-05 — Hook 自定义规则筛选与签名预览回归覆盖
+
+- 本批基于分支 HEAD：`2f7d3ff50447a13fa117f88412ce583da916598a`。
+- 将本轮已提交的两个 Hook UI 改动纳入 `fx-hook-native-ui-regression.sh`：筛选重置、分组/搜索清空、RETURN_LITERAL 常量值搜索、搜索提示、复用共享 parser 的实时签名校验、有效 JVM 描述符预览及无效签名反馈。
+- 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：已从同一分支 MainActivity 逐条核对 8 个断言目标全部存在；此提交用于触发 targeted Hook Host 回归，尚未把静态对照记为通过。
+- 下一步：读取 Actions 首个失败并按真实源码修正；通过后转到 Dia 页面导航/返回链，之后完成 Shield 列表页搜索/筛选状态回归。
