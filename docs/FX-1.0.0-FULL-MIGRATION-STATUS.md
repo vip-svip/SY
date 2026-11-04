@@ -884,3 +884,9 @@ After each implementation batch:
 - Queue saturation clears the package's in-flight marker and records a retryable warning. Request success/failure and already-authorized targets also release the marker.
 - The asynchronous approval callback holds only a weak reference to MainActivity, so a pending Manager request does not keep a destroyed Activity alive merely to display its completion toast.
 - Expanded the registered LSPosed auto-scope regression to pin the bounded queue, AbortPolicy, overload cleanup and weak-reference lifecycle contract. Actual LSPosed Manager dialog approval and target-process injection remain device-pending.
+
+## 2026-11-04 — Dia LSPosed scope request expiry and retry
+
+- The per-package in-flight guard now stores a monotonic request token rather than a permanent set membership. A request without a Binder callback expires after 30 seconds and can be retried when the target page is opened again.
+- Every success, failure, preflight exit and queue-rejection path removes the marker with an atomic key+token compare. A late callback from an expired request cannot erase the newer retry marker.
+- Added source regression for the 30-second monotonic expiry, compare-and-replace of stale tokens and token-specific completion cleanup. Manager approval and actual target injection remain device-pending.
