@@ -32,7 +32,7 @@ public final class AdbPairingClient implements Closeable {
     private static final int READ_TIMEOUT_MS = 30_000;
     private static final int EXPORTER_LENGTH = 64;
     private static final String EXPORTER_LABEL = "adb-label\0";
-    private static final int MAX_PAIRING_FRAME = PairingPacketHeader.MAX_PAYLOAD - 1;
+    private static final int MAX_PAIRING_FRAME = PairingPacketHeader.MAX_PAYLOAD;
 
     private final String host;
     private final int port;
@@ -46,6 +46,7 @@ public final class AdbPairingClient implements Closeable {
     private volatile DataInputStream input;
     private volatile DataOutputStream output;
     private volatile PairingContext pairingContext;
+    private volatile String deviceGuid;
 
     public AdbPairingClient(String host, int port, String pairingCode, AdbKey key) {
         this.host = validateHost(host);
@@ -199,6 +200,15 @@ public final class AdbPairingClient implements Closeable {
         }
     }
 
+    /** Returns the GUID authenticated in the device's encrypted PeerInfo record. */
+    public String getDeviceGuid() {
+        String guid = deviceGuid;
+        if (guid == null || !started.get()) {
+            throw new IllegalStateException("ADB device GUID is unavailable before a successful pairing");
+        }
+        return guid;
+    }
+
     private boolean exchangePeerInfo() throws IOException {
         byte[] publicKeyLine = key.getAdbPublicKey();
         byte[] plainRecord = null;
@@ -228,7 +238,20 @@ public final class AdbPairingClient implements Closeable {
                 throw new PairingException("ADB peer-info authentication failed (invalid pairing code)");
             }
             ByteBuffer remoteBuffer = ByteBuffer.wrap(remotePlain).order(ByteOrder.BIG_ENDIAN);
-            PeerInfo.readFrom(remoteBuffer);
+            PeerInfo remotePeer = PeerInfo.readFrom(remoteBuffer);
+            if (remotePeer.getType() != PeerInfo.Type.ADB_DEVICE_GUID.getValue()) {
+                throw new PairingException("ADB device answered with a non-GUID PeerInfo record");
+            }
+            String guid;
+            try {
+                guid = remotePeer.getTextPayload();
+            } catch (IllegalArgumentException malformed) {
+                throw new PairingException("ADB device GUID is not valid NUL-terminated UTF-8");
+            }
+            if (guid.isEmpty()) {
+                throw new PairingException("ADB device returned an empty GUID");
+            }
+            deviceGuid = guid;
             return true;
         } finally {
             Arrays.fill(publicKeyLine, (byte) 0);
