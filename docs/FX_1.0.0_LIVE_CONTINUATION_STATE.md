@@ -965,3 +965,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   2. 为 Firewall 分类策略补入现有定向回归入口，并检查 UID/包名过滤与系统应用标志是否在数据加载和规则保存两侧一致。
   3. 继续 Dia 23.11 原生页面，定位 KeyEventHook 原始实现证据；若仓库缺失原始实现，先从已导入 APK/资源文件中检索，不能猜测 alert_auto 行为。
 - 本批未触发整套 Actions，未生成 APK / KernelSU ZIP，未更改六 Tab 顺序或 FX 1.0.0 版本号。
+
+## 2026-11-05 — Firewall 筛选回归入口与导航复核
+
+- 本节开始时实时 HEAD：`17c9609edac22c8cbc97d30f3c270733aebee5d8`。
+- 复核三条主导航：`用户应用`、`系统应用`、`按应用设置` 均通过 `suite_page` 传入 `FxYulongFirewallActivity`；`应用网络拦截` 走默认页。Activity 顶部返回调用 `finish()`，回到发起它的 MainActivity；Activity 重建继续使用 Intent 中的 suite_page，搜索/页码/滚动位置按现有 Bundle 状态恢复。
+- 已新增独立定向入口 `scripts/tests/fx-yulong-firewall-filter-regression.sh`（提交 `17c9609edac22c8cbc97d30f3c270733aebee5d8`），同时检查导航、状态恢复与策略接线，并编译运行 Firewall Host 测试；不触发整套 Actions。
+- 当前已执行 Host 测试 11/11 通过。脚本本身刚提交，尚未在完整仓库工作树执行；其静态导航断言仍需实际跑脚本确认。
+- Firewall 数据刷新仍按当前 `appFilterMode` 过滤，不会把用户应用页和系统应用页混在一起；包变化时重新读取 Root 防火墙规则，再异步刷新应用列表。没有改动 Root 规则格式、UID 流量统计口径、每应用计划任务或 VPN 路由。
+- 相关提交仍以本节前一节列出的 74d02c8 / bcf3635 / 7fc2361 / 41c78b4 为准；本节新增脚本提交如上。未生成 APK/ZIP。
+- 下一批：检查 `persistRule(packageName, uid, ...)` 的 UID 与包名绑定是否在写入脚本和 Root 端再次核验，避免应用卸载/重装后旧 UID 规则误套到新包；再检查列表刷新失败时是否保留旧列表且不错误恢复总开关。然后继续 Dia 原生页面原始 KeyEventHook 溯源，不以 Frida 观察模板替代。
