@@ -11,7 +11,7 @@ for file in "$WIRE" "$CLIENT" "$ACTIVITY" "$WORKFLOW"; do
     [ -s "$file" ] || fail "ADB shell probe migration source missing: $file"
 done
 
-TMP=$(mktemp -d "\${TMPDIR:-/tmp}/fx-adb-shell-probe.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-adb-shell-probe.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 mkdir -p "$TMP/stub/roro/stellar/manager/adb" "$TMP/test/roro/stellar/manager/adb" "$TMP/classes"
 cat > "$TMP/stub/roro/stellar/manager/adb/AdbKey.java" <<'JAVA'
