@@ -21,20 +21,28 @@ public final class FxYulongWhitelistPolicy {
                 && value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
     }
 
+    public static boolean isWellFormed(String raw) {
+        if (raw == null || raw.isEmpty()) return true;
+        if (raw.length() > MAX_RAW_CHARS) return false;
+        LinkedHashSet<String> packages = new LinkedHashSet<>();
+        for (String item : raw.split(",", -1)) {
+            String candidate = item == null ? "" : item.trim();
+            if (!isValidPackageName(candidate)) return false;
+            packages.add(candidate);
+            if (packages.size() > MAX_ENTRIES) return false;
+        }
+        return true;
+    }
+
     public static Set<String> parse(String raw) {
-        if (raw == null || raw.isEmpty() || raw.length() > MAX_RAW_CHARS) {
+        if (raw == null || raw.isEmpty() || !isWellFormed(raw)) {
+            // Never partially trust or display a malformed list. Scanning fails open,
+            // and management UIs must block writes until the source is repaired.
             return Collections.emptySet();
         }
         LinkedHashSet<String> packages = new LinkedHashSet<>();
         for (String item : raw.split(",", -1)) {
-            String candidate = item == null ? "" : item.trim();
-            if (candidate.isEmpty() || !isValidPackageName(candidate)) continue;
-            packages.add(candidate);
-            if (packages.size() > MAX_ENTRIES) {
-                // An oversized/corrupt list must not be partially trusted to suppress
-                // risk findings. Fail open so scanning still checks all installed apps.
-                return Collections.emptySet();
-            }
+            packages.add(item.trim());
         }
         return Collections.unmodifiableSet(packages);
     }
