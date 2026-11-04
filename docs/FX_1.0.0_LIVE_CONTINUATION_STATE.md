@@ -2998,10 +2998,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：已对照 `MainActivity.showDiaKeyControlTarget()` 确认该文案在无有效 Debug Dialog 规则时触发；等待下一次 Actions。
 
 
-## 2026-11-05 — 修复 Dia 备份回滚预检脚本的 Python 字符串语法
+## 2026-11-05 — Dia 备份恢复回滚路径回归脚本 Python 转义修复
 
-- Actions：`41915000056` 通过 Hook 原生页面和 Hook 分组回归，随后在 `fx-dia-backup-restore-preflight-regression.sh` 的 Python heredoc 出现 `SyntaxError`。
-- 根因：回滚路径断言使用双引号包裹含 `\\"` 的 shell 文本，反斜杠层级导致 Python 字符串提前结束。不是备份/回滚产品代码运行失败。
-- 修复：将两条 PG/Stellar 路径断言改为单引号外层，保留 shell 双引号的逐字匹配；不删除目录 symlink 防护断言。
-- 改动：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
-- 下一步：重新运行 Hook/Dia targeted Host 回归；首个实际断言失败再修产品代码或更新过期测试契约。
+- Actions：`41915034668` 已通过 Hook 原生 UI、Dia 六 Tab、Hook 分组操作和 Dialog/Toast/ActivityKey 规则检查，随后执行 `fx-dia-backup-restore-preflight-regression.sh` 时在 Python heredoc 第 95 行发生 SyntaxError。
+- 根因：Python 双引号字符串中使用了双反斜杠再接内嵌双引号，Python 将反斜杠对解析成字面反斜杠，导致字符串提前结束；不是 Java 事务回滚实现失败。
+- 修复：对 PG 与 Stellar 目录替换保护断言使用 Python raw 单引号字符串，按 Java 源码中实际的反斜杠转义引号匹配：`if [ ! -d \\"$PG\\" ]` 与 `if [ ! -d \\"$DIR\\" ]`。保留两项防止回滚穿越被替换目录的安全断言。
+- 改动：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`。
+- 验证：已核对 Java 事务生成器第 519–520 行的实际 shell 检查及 Actions 报错位置；修复后 Actions 待执行。尚未做设备级恢复/回滚测试。
+- 下一步：检查新 Actions 是否越过备份预检脚本；继续执行 Dia Frida SAF 严格 UTF-8 导入回归，并优先验证恢复中断/目录符号链接拒绝行为。不得把 Host 断言当作数据恢复真机验收。

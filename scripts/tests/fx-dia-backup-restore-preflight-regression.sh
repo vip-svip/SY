@@ -100,8 +100,8 @@ rollback_loop_end = transaction.index("$_fx_config_swapped", rollback_loop_start
 rollback_loop = transaction[rollback_loop_start:rollback_loop_end]
 assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from this backup"
 assert "FX_DIA_RESTORE_ROLLBACK_FAILED TXN=" in transaction, "rollback failures must preserve recovery snapshots and report their paths"
-assert 'if [ ! -d \\"$PG\\" ] || [ -L \\"$PG\\" ]' in transaction, "rollback must refuse to traverse a replaced PG directory"
-assert 'if [ ! -d \\"$DIR\\" ] || [ -L \\"$DIR\\" ]' in transaction, "rollback must refuse to traverse a replaced Stellar directory"
+assert r'if [ ! -d \"$PG\" ] || [ -L \"$PG\" ]' in transaction, "rollback must refuse to traverse a replaced PG directory"
+assert r'if [ ! -d \"$DIR\" ] || [ -L \"$DIR\" ]' in transaction, "rollback must refuse to traverse a replaced Stellar directory"
 assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new java.io.FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
 # Remote GitHub backups must preserve the 1 MiB product limit without
 # misreporting successful uploads or forwarding tokens to untrusted download hosts.
