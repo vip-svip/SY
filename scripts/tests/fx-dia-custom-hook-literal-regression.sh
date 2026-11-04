@@ -116,7 +116,7 @@ ensure_start = source.index("private boolean ensureCustomRuleGroup(")
 ensure_end = source.index("\n    private ", ensure_start + 20)
 assert "commitCustomRuleGroupUpdate(" in source[ensure_start:ensure_end], "group creation must use the checked atomic update path"
 helper_start = source.index("private boolean commitCustomRuleGroupUpdate(")
-helper_end = source.index("\\n    private ", helper_start + 20)
+helper_end = source.index("\n    private ", helper_start + 20)
 helper = source[helper_start:helper_end]
 assert "if (update.commit())" in helper and "lastCustomRuleGroupRollbackSaved = rollback.commit()" in helper, \\
     "group updates must synchronously commit and verify rollback on storage failure"
