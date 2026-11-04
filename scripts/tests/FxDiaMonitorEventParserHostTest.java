@@ -37,6 +37,23 @@ public final class FxDiaMonitorEventParserHostTest {
 
         require(FxDiaMonitorEventParser.parse("[DIA_UNTRUSTED] token=secret").isEmpty(),
                 "unknown event tags must remain ignored");
-        System.out.println("PASS: Activity entry observer events render as safe metadata");
+        List<FxDiaMonitorEventParser.Event> network = FxDiaMonitorEventParser.parse(
+                "[DIA_HTTP] method=GET host=https://alice:secret@api.example.com/private status=200 "
+                        + "endpoint=alice:secret@api.example.com:443\n"
+                        + "[DIA_HTTP] method=GET host=api.example.com:8443 status=204\n"
+                        + "[DIA_SOCKET] endpoint=socket.example.com:443 timeoutMs=1000");
+        require(network.size() == 3, "network metadata rows should be retained");
+        require(!network.get(0).fields.containsKey("host"), "URL credentials/path must not be displayed as host");
+        require(!network.get(0).fields.containsKey("endpoint"), "URL credentials must not be displayed as endpoint");
+        require("api.example.com:8443".equals(network.get(1).fields.get("host")),
+                "valid host:port must be retained");
+        require("socket.example.com:443".equals(network.get(2).fields.get("endpoint")),
+                "valid endpoint must be retained");
+        List<FxDiaMonitorEventParser.Event> invalid = FxDiaMonitorEventParser.parse(
+                "[DIA_HTTP] host=api.example.com:70000 status=200\n"
+                        + "[DIA_HTTP] host=192.168.1.999 status=200");
+        require(!invalid.get(0).fields.containsKey("host"), "out-of-range port must be rejected");
+        require(!invalid.get(1).fields.containsKey("host"), "invalid IPv4 must be rejected");
+        System.out.println("PASS: Dia monitor parser hides network URL credentials and paths");
     }
 }
