@@ -21,10 +21,10 @@ check = body("private void checkRuntime()", "private String serverProcessGuards(
 
 required_guards = {
     "PID liveness rejects zombies": "Z|X|x",
-    "PID liveness checks the process": r'''kill -0 "$fx_server_pid"''',
-    "executable path is matched exactly": r'''sed -n '1p')" = "$server"''',
-    "listen argument is matched exactly": r'''sed -n '2p')" = "-l"''',
-    "loopback endpoint is matched exactly": r'''sed -n '3p')" = "127.0.0.1:27042"''',
+    "PID liveness checks the process": r'''kill -0 \"$fx_server_pid\"''',
+    "executable path is matched exactly": r'''sed -n '1p')\" = \"$server\"''',
+    "listen argument is matched exactly": r'''sed -n '2p')\" = \"-l\"''',
+    "loopback endpoint is matched exactly": r'''sed -n '3p')\" = \"127.0.0.1:27042\"''',
     "full command line is read from proc": "/proc/$fx_server_pid/cmdline",
 }
 for label, needle in required_guards.items():
