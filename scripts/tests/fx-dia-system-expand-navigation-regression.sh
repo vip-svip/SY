@@ -16,7 +16,7 @@ start = main.index('case "系统扩展":')
 route = main[start:start + 300]
 assert "FxDiaSystemExpandActivity.class" in route, "SystemExpand menu item must open its native Activity"
 assert 'case "系统扩展":' in route and "return;" in route
-manifest = ET.parse(manifest_path).getroot()
+manifest = ET.fromstring(manifest_path)
 ns = "{http://schemas.android.com/apk/res/android}"
 nodes = [x for x in manifest.findall("./application/activity")
          if x.attrib.get(ns + "name") == ".imported.dia.FxDiaSystemExpandActivity"]
