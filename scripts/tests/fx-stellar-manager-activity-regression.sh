@@ -81,7 +81,9 @@ assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in a
 
 assert "android:name=\"roro.stellar.manager.authorization.StellarAuthorizationService\"" in manifest, "Binder service must be registered"
 svc = manifest.split('android:name="roro.stellar.manager.authorization.StellarAuthorizationService"',1)[1].split("/>",1)[0]
-assert 'android:exported="false"' in svc, "Root broker must be private to the FX APK"
+assert 'android:exported="true"' in svc, "Root broker must expose its signature-protected Messenger endpoint"
+assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in svc, \
+       "exported Stellar broker must remain protected by the Android signature permission"
 assert "public Result(int code, String text, boolean wasDenied)" in root_access, "Binder response result must be publicly constructible"
 
 guard = Path(sys.argv[1]).with_name("FxStellarCommandGuardActivity.java").read_text(encoding="utf-8")

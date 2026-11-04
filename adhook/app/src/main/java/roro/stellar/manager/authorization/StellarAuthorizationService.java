@@ -24,9 +24,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Private asynchronous Binder transport for the migrated Stellar authorization UI.
- * It brokers the allowlisted FX command backend; it does not impersonate the
- * original separate IStellarService/StellarProvider daemon.
+ * Signature-protected Messenger transport for FX Stellar authorization requests.
+ * It brokers the allowlisted FX command backend and permission prompts; it does
+ * not impersonate the original separate IStellarService/StellarProvider daemon.
  */
 public final class StellarAuthorizationService extends Service {
     public static final int PROTOCOL_VERSION = 1;
