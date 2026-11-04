@@ -4,7 +4,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
@@ -30,7 +29,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 /** Native offline JSON editor migrated from Dia 23.11. */
-public final class FxDiaJsonActivity extends Activity {
+public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int IMPORT_REQUEST = 7411;
     private static final int EXPORT_REQUEST = 7412;
     private static final int MAX_BYTES = 1024 * 1024;
@@ -81,7 +80,7 @@ public final class FxDiaJsonActivity extends Activity {
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         source = new EditText(this); source.setGravity(Gravity.TOP | Gravity.START);
         source.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
