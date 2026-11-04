@@ -877,3 +877,10 @@ After each implementation batch:
 - The automatic path excludes FX itself, system apps and updated-system apps; those targets retain the existing explicit request flow with a warning. No Root command or direct config-file mutation is used to bypass Manager approval.
 - In-flight deduplication prevents repeated target-page refreshes from queueing repeated requests. Failed/unavailable requests clear the guard and can be retried when the target page is reopened.
 - Added a source regression for the opt-in, scope preflight, official API request, system-app exclusion, selection wiring and in-flight cleanup. Device verification of actual Manager approval dialogs and target-process injection remains pending.
+
+## 2026-11-04 — Dia LSPosed auto-scope worker bounds
+
+- The optional automatic scope-request path now uses one process-wide daemon worker with an eight-entry bounded queue and explicit rejection handling instead of creating one new thread for every selected target.
+- Queue saturation clears the package's in-flight marker and records a retryable warning. Request success/failure and already-authorized targets also release the marker.
+- The asynchronous approval callback holds only a weak reference to MainActivity, so a pending Manager request does not keep a destroyed Activity alive merely to display its completion toast.
+- Expanded the registered LSPosed auto-scope regression to pin the bounded queue, AbortPolicy, overload cleanup and weak-reference lifecycle contract. Actual LSPosed Manager dialog approval and target-process injection remain device-pending.
