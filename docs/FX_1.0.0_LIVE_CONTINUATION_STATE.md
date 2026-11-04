@@ -1047,3 +1047,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - a48755dda21c0f2400509e99e8c63a40895ba1e0：同步记录上述 Firewall UID / stale inventory 防护。
 - 未完成：其他独立 Activity（Yulong Ad 主页、DNS、证书/日志页、Dia 编辑器/Frida/Inspector、Shield 扫描/救援等）仍需按主入口优先级接入相同六 Tab 外壳；本批只覆盖三个高频广告应用管理页。外层六 Tab 固定结构仍需全页面验收。
 - 下一批具体任务：继续接入游龙广告主功能 Activity（FxYulongAdActivity、FxYulongDnsActivity、FxYulongAdSummaryActivity 或 General Activity）中优先的 1–3 个页面；随后为 Dia 与 Shield 的核心页面复用同一基类。逐个验证 Tab 点击回跳、Activity 返回和滚动/编辑状态，不改 FX 1.0.0 版本，不提前打包。
+
+## 2026-11-05 — 游龙安全护盾主 Hub 页面滚动状态恢复
+
+- 本节更新前实时 HEAD：`d026623bdf019d7595d58ec8a62528911f9b1857`；固定分支 `fx-v1.0.0-unified-hook-integration`、版本 FX 1.0.0。
+- UI 问题：安全护盾 Hub 是长列表，进入四级页面后返回正常保留 Activity 实例，但系统回收/旋转导致 Activity 重建时会回到列表顶部，丢失用户所在功能区位置。
+- 已修复：`FxYulongShieldActivity` 将 ScrollView 提升为 Activity 字段，新增 `fx_yulong_shield_scroll_y` 状态键；`onSaveInstanceState` 保存当前纵向位置，`onCreate` 在视图布局后通过 `post()` 恢复位置。没有重建页面或更改任何安全功能开关默认值。
+- 提交：
+  - `c99ee9a7158b469002348281ab65c01c258a3641` — 安全护盾 Hub 滚动位置保存与恢复。
+  - `9658496e1d68fbe8cc4af09c4a6380950e897ee4` — 安全护盾原生回归脚本增加滚动状态断言。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java`
+  - `scripts/tests/fx-yulong-shield-native-regression.sh`
+- 验证：从当前分支重新读取两个文件，静态核对 ScrollView 字段、状态键、保存、恢复以及回归断言全部存在。尚未运行完整 Shell 回归、Gradle/JUnit、Android 编译、旋转/进程回收模拟器测试或真机验收；不可将源码断言等同于运行测试。
+- 本批未改变六 Tab、原生页面功能、FX 1.0.0 版本号，未生成 APK / KernelSU ZIP。
+- 下一批继续安全护盾原生 UI：逐项核对病毒库管理、扫描结果、白名单/管控列表、救援中心之间的返回链和筛选/搜索状态恢复；然后继续补全 Dia 23.11 按键原始实现证据，不凭 Frida 观察模板推断 KeyEventHook。
+
