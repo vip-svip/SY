@@ -6,7 +6,7 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Stellar control source missing"
 sh -n "$SOURCE" || fail "Stellar control source shell syntax invalid"
 
-TMP=$(mktemp -d "\${TMPDIR:-/tmp}/fx-stellar-boot-script.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-stellar-boot-script.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 mkdir -p "$TMP/data/adb" "$TMP/bin" "$TMP/app/lib/arm64-v8a"
 : > "$TMP/app/base.apk"
@@ -18,7 +18,7 @@ printf 'package:%s\n' "$MOCK_FX_APK"
 PM
 cat > "$TMP/bin/getprop" <<'GETPROP'
 #!/bin/sh
-[ "\${1:-}" = sys.boot_completed ] && { echo 1; exit 0; }
+[ "${1:-}" = sys.boot_completed ] && { echo 1; exit 0; }
 exit 1
 GETPROP
 cat > "$TMP/bin/sleep" <<'SLEEP'
