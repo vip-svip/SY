@@ -130,7 +130,8 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
                 + "\n风险关键字：" + data.keys.size()
                 + "\n最近同步尝试：" + attemptDate
                 + "\n最近成功更新：" + successDate
-                + "\n最近一次尝试可达：" + (attemptTime <= 0 ? "未知" : (FxYulongVirusDb.isServerReachable() ? "是" : "否"))
+                + "\n最近一次尝试可达：" + (attemptTime <= 0 || !FxYulongVirusDb.isServerReachabilityKnown()
+                        ? "未知" : (FxYulongVirusDb.isServerReachable() ? "是" : "否"))
                 + (FxYulongVirusDb.getLastError().isEmpty() ? "" : "\n最近错误：" + FxYulongVirusDb.getLastError()));
         listRows.removeAllViews();
         List<FxYulongVirusDb.ListStatus> items = FxYulongVirusDb.getListStatus();
