@@ -3017,3 +3017,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
 - 验证：尚待 Actions；静态核对 Java 源码生成片段为 `[ ! -d \"$PG\" ] || [ -L \"$PG\" ]` 和 `[ ! -d \"$DIR\" ] || [ -L \"$DIR\" ]`。不宣称产品回滚已真机验证。
 - 下一步：读取新 Actions 首错；通过后继续 Dia SAF/Frida 页面批次，不再把测试脚本修复作为产品功能完成。
+
+
+## 2026-11-05 — Dia Frida 共享脚本库导入回归断言对齐
+- 当前 FridaActivity 的导入路径先调用 previewImport，再通过用户确认的 confirmedOverwrites 调用三参数 mergeImport；测试原先匹配旧的二参数重载，错误报告为未走共享校验。
+- 修正脚本断言匹配当前带确认覆盖名单的真实调用，不更改产品行为。
+- 改动：scripts/tests/fx-dia-script-library-regression.sh；提交 5a773e952d952a7066fc83c462208b858a308829。
+- 验证：等待本提交 Actions；不代表 Android Gradle/JUnit/真机已验证。
