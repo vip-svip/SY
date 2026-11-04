@@ -17,6 +17,7 @@ on:
       - 'scripts/tests/**'
       - 'fx-patches/**'
       - 'fx-module/scripts/tests/**'
+      - 'fx-module/scripts/**'
       - '.github/workflows/build-fx-adhook.yml'
 permissions:
   actions: read
