@@ -299,11 +299,12 @@ for token in (
     'return new LinkedHashSet<>();',
     'lower.contains("<html")',
     'lower.contains("bad gateway")',
-    'lower.startsWith("[{")',
+    'lower.matches("(?s)^\\[\\s*\\{.*")',
 ):
     assert token in db, f"Virus DB cache/parser safety contract missing: {token}"
 assert "serverReachabilityKnown && sp.getBoolean(K_SERVER_REACHABLE, false)" in db, \
     "Legacy cache without explicit reachability metadata must not claim online state"
+assert 'lower.matches("(?s)^\\[\\s*\\{.*")' in db, "Virus DB must reject JSON object arrays even with whitespace after '['"
 assert "item.statusLabel()" in db_page, "Per-list cache status must survive Activity recreation"
 assert "getLastAttempt()" in db_page and "getLastSuccess()" in db_page
 assert "isServerReachabilityKnown()" in db_page, "Legacy server reachability must display as unknown"
