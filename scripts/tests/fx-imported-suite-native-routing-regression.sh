@@ -9,6 +9,9 @@ grep -Fq 'if (tab >= 0 && tab <= 3) openImportedNativeTab(tab);' "$MAIN" || fail
 grep -Fq 'handleImportedNativeTabIntent(getIntent());' "$MAIN" || fail "cold-start native tab route missing"
 grep -Fq 'handleImportedNativeTabIntent(intent);' "$MAIN" || fail "singleTop native tab route missing"
 grep -Fq 'case "VPN 保护": case "VPN 状态": case "自动重连":' "$MAIN" || fail "Yulong VPN feature group not routed"
+grep -Fq 'FxYulongAdGeneralActivity.class' "$MAIN" || fail "Yulong general settings do not open their native page"
+grep -Fq 'FxYulongAdSummaryActivity.class' "$MAIN" || fail "Yulong summary/statistics do not open their native page"
+grep -Fq 'FxYulongDnsActivity.class' "$MAIN" || fail "Yulong DNS query log does not open its native page"
 grep -Fq 'case "信任的网络":' "$MAIN" || fail "Yulong trusted Wi-Fi source page is not mapped"
 trusted_block=$(sed -n '/case "信任的网络":/,/case "Root 代理模式":/p' "$MAIN")
 printf '%s\\n' "$trusted_block" | grep -Fq '"suite_page", "信任的网络"' || fail "trusted Wi-Fi does not open its dedicated native screen"
