@@ -6,7 +6,7 @@
 
 - Repository：`vip-svip/SY`
 - Branch：`fx-v1.0.0-unified-hook-integration`
-- 本轮最新 HEAD：`587d6be585b7b7436c7960043c76b73ecdf3fdfa`（`docs(fx): record Dia Host regression success`）。
+- 本次续接读取时最新 HEAD：`775de347ec98c98c0b58428c1fa8627164ba5ff1`（随后状态文档提交会继续推进 HEAD；新窗口必须重新读取分支 ref）。
 - 最近 Dia Host 回归：run `41915416366`，HEAD `6a99665a29b18406360a5e5df4e1d2e795d1d030`，SUCCESS；不是当前 HEAD 的 Gradle/设备验证。
 - 历史功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`（历史检查点，不是本轮最新 HEAD）。
 - 上一轮状态文档记录的 HEAD：`1b17e21e2ab1c3c355ab817a0c8711643d880d32`（历史检查点；本轮工作前已从分支文件重新核对）。
@@ -3308,3 +3308,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 产品提交：`775de347ec98c98c0b58428c1fa8627164ba5ff1`；回归提交：`50bbd21d9bb0e18e550ac8340df828bbd823ac40`。
 - 验证：源码与回归脚本已提交；Actions 尚待读取。未运行 Android Gradle/JUnit/Root 真机故障注入。
 - 下一步：检查最新 Frida server/Gadget Actions；继续页面级运行状态回读与会话停止后的 UI 同步。不能将 Root 命令发出或配置写入等同于目标进程已注入。
+
+
+## 2026-11-05 — 本轮续接增量记录
+
+- 本轮开始时按实时分支读取的 HEAD：`775de347ec98c98c0b58428c1fa8627164ba5ff1`；后续分支有并行提交，不能把该 SHA 当作当前最终 HEAD。
+- Dia SAF JSON/JS 导入改为严格 UTF-8 解码：`efef72b3f947a088c57cfe38dc796153e612f951`；该提交 Actions 的 SAF 脚本库回归 PASS，后续在 libXposed 旧测试契约处失败，已记录对应测试对齐。
+- Dia Activity Browser 新增 scrollY 状态恢复：产品 `c83a92d2d0ce0c885dac66aa73cda43a7e85d4bb`、回归 `28c5d3a8ed7eec3fec603eccaf1e7da437e59182`；对应 Actions 被并行提交取消，当前只记录源码/回归静态核对，不标记 CI PASS。
+- 游龙广告 DNS 查询日志新增 malformed 计数与诊断文案：产品 `a7e1170318ebe63a901213d57f047be4ae602cd0`，格式修正 `b8eb881cd1828bbdcce9befb1553ad50e4da6081`，回归 `ef9a5aa898f2b73d1821cdf0c0f40b045b60fa11`；相关回归提交被并行 Actions 取消，未做真实 querylog 注入验收。
+- 本轮确认的回归路线：不要再使用旧 EditText 的 OBSERVE setText 断言、旧 privacy 局部变量断言、旧 libXposed early-return 字符串、旧 SystemExpand 文案、把已读取 XML 文本交给 ET.parse()，或要求 Activity Browser 测试不存在的 scroll key；这些分别已按现有控件/路由/实现契约处理或记录。
+- 下一批 UI：继续游龙广告 Firewall/Whitelist 包更新/UID 关联的真实回读；随后安全护盾名单/风险详情与 Dia 文件/备份页面。P0 检查优先，但不得用 UI 状态或静态测试替代 Root/真机验收。
