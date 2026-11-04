@@ -249,6 +249,7 @@ jobs:
           sh scripts/tests/fx-dia-app-version-simulation-regression.sh
           python3 scripts/tests/fx-java-shell-command-escape-regression.py
           python3 scripts/tests/fx-hook-method-noop-regression.py
+          sh scripts/tests/fx-custom-hook-passthrough-regression.sh
           sh scripts/tests/fx-hook-package-change-sync-regression.sh
           sh scripts/tests/fx-dia-frida-binary-import-regression.sh
           sh scripts/tests/fx-stellar-control-shell-regression.sh
