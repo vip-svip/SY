@@ -216,7 +216,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             } catch (Exception ignored) { malformed++; }
         }
         status.setText("本次解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
-                + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed\
+                + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed
                 + " 条。数据仅来自本地查询日志尾部；若异常数大于 0，请检查本地日志格式。");
         render();
     }
