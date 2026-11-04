@@ -53,6 +53,9 @@ public final class FxDiaBackupActivity extends Activity {
     private static final int REQUEST_EXPORT = 7301;
     private static final int REQUEST_IMPORT = 7302;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
+    private static final int MAX_GITHUB_API_RESPONSE_BYTES = 2 * MAX_BACKUP_BYTES + 65536;
+    private static final int MAX_GITHUB_REQUEST_BYTES = 2 * MAX_BACKUP_BYTES;
+    private static final int MAX_GITHUB_ERROR_BYTES = 65536;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> { Thread t = new Thread(r, "fx-dia-backup"); t.setDaemon(true); return t; },
@@ -659,23 +662,121 @@ public final class FxDiaBackupActivity extends Activity {
         return "https://api.github.com/repos/"+owner+"/"+repo+"/contents/"+encoded;
     }
 
-    private JSONObject githubRequest(String url,String token,String method,JSONObject body) throws Exception {
-        HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
-        c.setRequestMethod(method);c.setConnectTimeout(15000);c.setReadTimeout(25000);
-        c.setRequestProperty("Accept","application/vnd.github+json");
-        c.setRequestProperty("X-GitHub-Api-Version","2022-11-28");
-        c.setRequestProperty("Authorization","Bearer "+token);
-        if(body!=null){
-            c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");
-            try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}
+    private JSONObject githubRequest(String url, String token, String method, JSONObject body)
+            throws Exception {
+        return githubRequest(url, token, method, body, true);
+    }
+
+    /**
+     * Contents API PUT responses can echo the entire Base64 file. The caller only
+     * needs the HTTP status for upload, so successful PUT bodies are deliberately
+     * not buffered. GET metadata is allowed enough room for a 1 MiB backup after
+     * Base64 expansion; error bodies stay tightly bounded.
+     */
+    private JSONObject githubRequest(String url, String token, String method,
+                                     JSONObject body, boolean includeSuccessBody) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        try {
+            c.setRequestMethod(method);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(25000);
+            c.setInstanceFollowRedirects(false);
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+            c.setRequestProperty("Authorization", "Bearer " + token);
+
+            if (body != null) {
+                byte[] requestBytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                if (requestBytes.length > MAX_GITHUB_REQUEST_BYTES) {
+                    throw new IllegalArgumentException("GitHub 备份请求超过允许大小。");
+                }
+                c.setDoOutput(true);
+                c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                c.setFixedLengthStreamingMode(requestBytes.length);
+                try (OutputStream out = c.getOutputStream()) {
+                    out.write(requestBytes);
+                    out.flush();
+                }
+            }
+
+            int code = c.getResponseCode();
+            boolean success = code >= 200 && code < 300;
+            byte[] data = new byte[0];
+            if (!success || includeSuccessBody) {
+                InputStream stream = success ? c.getInputStream() : c.getErrorStream();
+                if (stream != null) {
+                    long limit = success ? MAX_GITHUB_API_RESPONSE_BYTES : MAX_GITHUB_ERROR_BYTES;
+                    try (InputStream in = stream;
+                         ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[8192];
+                        int count;
+                        while ((count = in.read(buffer)) != -1) {
+                            long remaining = limit - bytes.size();
+                            if (count > remaining) {
+                                if (success) {
+                                    throw new IllegalStateException(
+                                            "GitHub API 元数据响应超过允许大小。");
+                                }
+                                if (remaining > 0) bytes.write(buffer, 0, (int) remaining);
+                                bytes.write("…(truncated)".getBytes(StandardCharsets.UTF_8));
+                                break;
+                            }
+                            bytes.write(buffer, 0, count);
+                        }
+                        data = bytes.toByteArray();
+                    }
+                }
+            }
+
+            if (!success) {
+                throw new IllegalStateException("GitHub API HTTP " + code + "："
+                        + new String(data, StandardCharsets.UTF_8));
+            }
+            if (!includeSuccessBody || data.length == 0) return new JSONObject();
+            return new JSONObject(new String(data, StandardCharsets.UTF_8));
+        } finally {
+            c.disconnect();
         }
-        int code=c.getResponseCode();
-        InputStream stream=code>=200&&code<300?c.getInputStream():c.getErrorStream();
-        byte[] data=new byte[0];
-        if(stream!=null)try(InputStream in=stream){ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("GitHub 响应超过 1 MiB。");}data=b.toByteArray();}
-        c.disconnect();
-        if(code<200||code>=300)throw new IllegalStateException("GitHub API HTTP "+code+"："+new String(data,StandardCharsets.UTF_8));
-        return data.length==0?new JSONObject():new JSONObject(new String(data,StandardCharsets.UTF_8));
+    }
+
+    private byte[] downloadRawGithubBackup(String downloadUrl, String token) throws Exception {
+        if (!FxDiaGithubBackupPolicy.isTrustedDownloadUrl(downloadUrl)) {
+            throw new IllegalArgumentException(
+                    "GitHub 未返回受信任的 raw.githubusercontent.com 下载地址；为避免泄露 Token，已拒绝请求。");
+        }
+        HttpURLConnection connection = (HttpURLConnection) new URL(downloadUrl).openConnection();
+        try {
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(25000);
+            // Never forward a private-repository token through an HTTP redirect.
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+            connection.setRequestProperty("Accept", "application/octet-stream");
+            int code = connection.getResponseCode();
+            if (code != HttpURLConnection.HTTP_OK) {
+                throw new IllegalStateException("GitHub raw 备份下载 HTTP " + code
+                        + "（不接受重定向，以保护 Token）。");
+            }
+            long declared = connection.getContentLengthLong();
+            if (declared > MAX_BACKUP_BYTES) {
+                throw new IllegalArgumentException("GitHub 备份文件超过 1 MiB。");
+            }
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (InputStream in = connection.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = in.read(buffer)) != -1) {
+                    if ((long) bytes.size() + count > MAX_BACKUP_BYTES) {
+                        throw new IllegalArgumentException("GitHub 备份文件超过 1 MiB。");
+                    }
+                    bytes.write(buffer, 0, count);
+                }
+            }
+            return bytes.toByteArray();
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private void githubUpload(String owner,String repo,String path,String branch,String token,String encryptionPassword){
@@ -692,22 +793,51 @@ public final class FxDiaBackupActivity extends Activity {
                 body.put("content",Base64.getEncoder().encodeToString(payload));
                 body.put("branch",branch);
                 if(sha!=null&&!sha.isEmpty())body.put("sha",sha);
-                githubRequest(url,token,"PUT",body);
+                // Do not parse the successful PUT response: GitHub may echo the
+                // Base64 file, making the response larger than the raw backup.
+                githubRequest(url, token, "PUT", body, false);
                 runOnUiThread(()->status.setText("GitHub 备份上传成功："+owner+"/"+repo+"/"+path));
             }catch(Exception e){runOnUiThread(()->status.setText("GitHub 上传失败："+e.getMessage()));}
         });
     }
 
-    private void githubDownload(String owner,String repo,String path,String token,String encryptionPassword){
+    private void githubDownload(String owner, String repo, String path,
+                                String token, String encryptionPassword) {
         status.setText("正在从 GitHub 下载备份…");
-        submitWorker(()->{
-            try{
-                JSONObject response=githubRequest(githubContentsUrl(owner,repo,path),token,"GET",null);
-                String content=response.optString("content","").replace("\\n","");
-                byte[] payload=Base64.getMimeDecoder().decode(content);
-                restoreBackupBytes(payload,encryptionPassword);
-                runOnUiThread(()->status.setText("GitHub 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
-            }catch(Exception e){runOnUiThread(()->status.setText("GitHub 下载/恢复失败："+e.getMessage()));}
+        submitWorker(() -> {
+            try {
+                JSONObject response = githubRequest(
+                        githubContentsUrl(owner, repo, path), token, "GET", null);
+                long declaredSize = response.optLong("size", -1L);
+                if (declaredSize > MAX_BACKUP_BYTES) {
+                    throw new IllegalArgumentException("GitHub 备份文件超过 1 MiB。");
+                }
+
+                String content = response.optString("content", "");
+                byte[] payload;
+                if (content == null || content.trim().isEmpty()) {
+                    // GitHub Contents API omits Base64 content for some larger files.
+                    // Use its raw URL, validated against an exact HTTPS host allowlist.
+                    payload = downloadRawGithubBackup(
+                            response.optString("download_url", ""), token);
+                } else {
+                    payload = Base64.getMimeDecoder().decode(content);
+                }
+                if (payload.length == 0 || payload.length > MAX_BACKUP_BYTES) {
+                    Arrays.fill(payload, (byte) 0);
+                    throw new IllegalArgumentException("GitHub 备份为空或超过 1 MiB。");
+                }
+                try {
+                    restoreBackupBytes(payload, encryptionPassword);
+                } finally {
+                    Arrays.fill(payload, (byte) 0);
+                }
+                runOnUiThread(() -> status.setText(
+                        "GitHub 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
+            } catch (Exception error) {
+                runOnUiThread(() -> status.setText(
+                        "GitHub 下载/恢复失败：" + error.getMessage()));
+            }
         });
     }
 

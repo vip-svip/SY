@@ -2,12 +2,14 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SOURCE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaBackupActivity.java"
+POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGithubBackupPolicy.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Dia backup Activity is missing"
-python3 - "$SOURCE" <<'PY'
+python3 - "$SOURCE" "$POLICY" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+policy = Path(sys.argv[2]).read_text(encoding="utf-8")
 slash = chr(92)
 module_reader = source.split("private String rootModuleCommand()", 1)[1].split("private String rootStellarFilesCommand()", 1)[0]
 stellar_reader = source.split("private String rootStellarFilesCommand()", 1)[1].split("private JSONObject buildBackup()", 1)[0]
@@ -101,5 +103,19 @@ assert "FX_DIA_RESTORE_ROLLBACK_FAILED TXN=" in transaction, "rollback failures 
 assert "if [ ! -d \\"$PG\\" ] || [ -L \\"$PG\\" ]" in transaction, "rollback must refuse to traverse a replaced PG directory"
 assert "if [ ! -d \\"$DIR\\" ] || [ -L \\"$DIR\\" ]" in transaction, "rollback must refuse to traverse a replaced Stellar directory"
 assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new java.io.FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
+# Remote GitHub backups must preserve the 1 MiB product limit without
+# misreporting successful uploads or forwarding tokens to untrusted download hosts.
+assert "MAX_GITHUB_API_RESPONSE_BYTES = 2 * MAX_BACKUP_BYTES + 65536" in source
+assert 'githubRequest(url, token, "PUT", body, false)' in source, \
+    "successful Contents API PUT must not buffer the Base64 echo response"
+assert "MAX_GITHUB_ERROR_BYTES = 65536" in source
+assert "downloadRawGithubBackup(" in source and "FxDiaGithubBackupPolicy.isTrustedDownloadUrl(downloadUrl)" in source
+assert "Base64.getMimeDecoder().decode(content)" in source
+assert "setInstanceFollowRedirects(false)" in source, \
+    "authenticated raw download must refuse redirects"
+assert "MAX_BACKUP_BYTES" in source[source.index("private byte[] downloadRawGithubBackup"):source.index("private void githubDownload")]
+assert '"raw.githubusercontent.com".equalsIgnoreCase(host)' in policy
+assert "uri.getRawUserInfo() == null" in policy
+assert "(port == -1 || port == 443)" in policy
 print("PASS: Dia backup restore stages private transactions, rejects symlinked parents and cleans only directories it created")
 PY
