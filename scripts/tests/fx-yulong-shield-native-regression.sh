@@ -297,6 +297,19 @@ assert "catch (Throwable itemError)" in engine
 assert 'getBoolean("content_scan_enabled", false)' in scan_page
 assert "Intent.ACTION_DELETE" in scan_page and 'setPositiveButton("打开系统确认"' in scan_page
 
+warning_page = shield["FxYulongWarningActivity.java"]
+for token in (
+    "private void refreshTargetAvailability()",
+    "@Override protected void onResume()",
+    'boolean validRisk = "CERTAIN".equals(severity) || "SUSPECT".equals(severity);',
+    "uninstallButton.setEnabled(validPackageName() && validRisk && targetInstalled);",
+    "getPackageManager().getApplicationInfo(packageName, 0);",
+    "应用当前不存在或系统不允许查询；请重新扫描。",
+):
+    assert token in warning_page, f"Warning page live-action guard missing: {token}"
+assert 'if (!validPackageName() || !("CERTAIN".equals(severity) || "SUSPECT".equals(severity)))' in warning_page, \
+    "Invalid severity must not open the system uninstall confirmation"
+
 # Batch cleanup must reject malformed or truncated queue payloads atomically.
 for token in (
     "inputPackages == null || inputLabels == null || inputReasons == null",
