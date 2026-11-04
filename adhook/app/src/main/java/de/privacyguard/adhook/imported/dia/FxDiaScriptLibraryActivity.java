@@ -304,17 +304,50 @@ public final class FxDiaScriptLibraryActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            if (requestCode == REQUEST_EDITOR && resultCode == FxDiaCodeEditorActivity.RESULT_CODE_EDITOR) {
-                // Editor results are intentionally handled below; this branch is only for cancelled SAF operations.
+
+        // The code editor returns its source in an Intent extra and uses Dia's
+        // custom result code. It does not return a SAF Uri; handle it first.
+        if (requestCode == REQUEST_EDITOR) {
+            if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
+                editingName = null;
+                setStatus("编辑器未保存，脚本库保持不变。");
                 return;
             }
+            final String name = editingName;
+            editingName = null;
+            final String source = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
+            if (name == null || name.trim().isEmpty()) {
+                setStatus("编辑器返回时没有有效的脚本名称，未保存。");
+                return;
+            }
+            String validation = FxDiaScriptLibraryPolicy.validateSource(source);
+            if (validation != null) {
+                setStatus(validation + " 脚本库保持不变。");
+                return;
+            }
+            submitIo(() -> {
+                try {
+                    FxDiaScriptLibraryStore.save(this, name, source);
+                    JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        scripts = loaded;
+                        renderRows();
+                        setStatus("已保存脚本：“" + name + "”。尚未执行或注入。");
+                    });
+                } catch (Throwable error) {
+                    runOnUiThread(() -> setStatus("保存脚本失败：" + detail(error)));
+                }
+            });
+            return;
+        }
+
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             if (requestCode == REQUEST_IMPORT) setStatus("已取消脚本库导入。");
             else if (requestCode == REQUEST_EXPORT) setStatus("已取消脚本库导出。");
             return;
         }
         Uri uri = data.getData();
-        if (requestCode == REQUEST_EDITOR) return;
         if (requestCode == REQUEST_IMPORT) importFrom(uri);
         else if (requestCode == REQUEST_EXPORT) exportTo(uri);
     }

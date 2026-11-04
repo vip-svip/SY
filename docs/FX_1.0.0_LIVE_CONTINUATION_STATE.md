@@ -6,8 +6,9 @@
 
 - Repository：`vip-svip/SY`
 - Branch：`fx-v1.0.0-unified-hook-integration`
-- 本状态更新时读取的 HEAD：`f2348cd9b9c32880fc2d259331c513a0eb90cbf1`
-- HEAD 提交：`fix(dia): recheck installer sessions before force-stop`
+- 本批功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`
+- 本批脚本库 UI 首次提交：`7cdce9ae77d22986be39e40a2544d56099ec0005`（编辑器结果回调在后续修正提交中完成）
+- 本状态更新时的工作主题：Dia 原生 Frida 脚本库独立页面；最新 HEAD 以实时 GitHub 分支为准。
 - 固定目标：FX 1.0.0，versionCode 10000（改动前仍需核实 Gradle 实际配置）
 - 最终 APK / KernelSU ZIP：本状态生成时没有证据证明已完成最终构建、安装或真机验收；不得提前交付。
 - 状态来源：实时读取 GitHub 分支、最近提交、`MainActivity.java`、Manifest、现有 UI/迁移文档和 Actions 列表。
@@ -103,3 +104,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未运行、未验证和已知阻塞
 - 下一批立即开工的 1–3 个页面/功能
 - 并行推进的独立工作线
+
+
+## 本轮新增批次 — Dia Frida 脚本库独立页面（2026-11-05，Asia/Tokyo）
+
+- 将 Dia“JS 脚本列表”路由改为独立的原生 `FxDiaScriptLibraryActivity`；“脚本编辑器”入口打开新建脚本流程。
+- 脚本库复用原 `fx_dia_frida/frida_script_library_v1` 私有 SharedPreferences 键和 `FX-DIA-FRIDA-SCRIPTS-1` JSON schema，不另建数据副本。
+- 页面提供名称搜索、新建、全屏 JavaScript 源码编辑、删除、JSON 文件导入/导出；导入时展示同名覆盖数量并要求用户确认。
+- 新增 64 个脚本、64 字符名称、单脚本 128 KiB、总 JSON 1 MiB 限制；校验失败不会覆盖现有脚本。读改写在进程内串行，保存使用 SharedPreferences commit 确认。
+- 编辑器回传使用 Dia 自定义 resultCode 和 `EXTRA_CODE`，不带 SAF Uri；回调必须先处理自定义编辑器协议，再检查导入/导出所需 Uri。
+- 验证：新增 host JVM 策略测试和模块静态回归脚本；真机编辑/导入/导出尚未验证。Android Gradle 构建尚未运行。
+- 改动路径：`MainActivity.java`、Manifest、`FxDiaScriptLibraryActivity.java`、`FxDiaScriptLibraryStore.java`、`FxDiaScriptLibraryPolicy.java`、脚本库回归测试与 Host test。
+- 下一批：Dia Frida 页的运行日志/monitor templates 独立页展示；游龙广告原生主页剩余统计/General/Tasker 与 Widget UI；随后接通对应后端。

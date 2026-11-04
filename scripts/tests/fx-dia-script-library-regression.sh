@@ -29,6 +29,13 @@ import sys
 activity, store = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES - count" in activity, "import stream must have a hard byte limit"
+editor_start = activity.index("if (requestCode == REQUEST_EDITOR)")
+saf_start = activity.index("if (resultCode != RESULT_OK || data == null || data.getData() == null)")
+editor_result = activity[editor_start:saf_start]
+assert editor_start < saf_start, "custom editor result must be handled before requiring a SAF Uri"
+assert "FxDiaCodeEditorActivity.RESULT_CODE_EDITOR" in editor_result, "custom editor result code is ignored"
+assert "getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE)" in editor_result, "edited source is not read from the result Intent"
+assert "FxDiaScriptLibraryStore.save(this, name, source)" in editor_result, "edited source is not persisted to the shared script library"
 assert "SharedPreferences.MODE_PRIVATE" in store, "script data must remain private to FX"
 assert "commit()" in store, "script writes must confirm persistence"
 assert "validateScripts" in store and "validateSource" in store, "reads and imports must reject invalid entries"
