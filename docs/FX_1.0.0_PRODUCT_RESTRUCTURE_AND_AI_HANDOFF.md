@@ -201,7 +201,12 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 - Egern：脚本、重写、规则和模块化配置。
 - Clash / Clash.Meta / Mihomo：配置、规则组、Rule Provider、Proxy Provider、脚本/覆写能力（按具体内核版本）。
 - sing-box：JSON 配置、路由规则、DNS、入站/出站、Rule Set（按版本）。
-- 其他公开格式、用户自定义 DSL、UserScript/Tampermonkey 风格脚本，以及未来新增生态。
+- Surfboard：配置、规则、脚本/覆写能力（按其实际公开格式和版本）。
+- AdGuard：过滤规则、DNS 过滤规则、订阅列表和例外规则。
+- uBlock Origin / Adblock Plus：静态过滤规则、过滤列表、例外规则；动态规则和扩展专属 API 需单独评估。
+- 通用规则生态：Hosts、域名/IP/CIDR 列表、PAC、DNS blocklist、Adblock Plus Filter Syntax、通用 URL Rewrite，以及用户自定义规则 DSL。
+- UserScript 生态：Tampermonkey、Violentmonkey、Greasemonkey 等公开 UserScript 元数据和 API 子集。
+- 其他公开格式、用户自定义 DSL，以及未来新增生态。
 
 上述是兼容目标，不代表每个平台每个 API 已实现。必须建立逐平台、逐版本、逐 API 兼容矩阵，标记完全兼容/部分兼容/仅解析/不支持；私有 API 必须报告差异，不得静默吞掉指令。
 
@@ -219,10 +224,13 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 **内核来源范围：**
 - FX 随应用内置的默认内核（至少一个），随 FX 版本锁定经过测试的版本。
-- 可选知名开源内核适配器，例如 sing-box、Mihomo（Clash.Meta 系）、Xray-core 等；纳入发行包前核对 ABI、许可证、构建可复现性、维护状态和安全性。
+- 可选知名开源网络内核/引擎适配器，候选包括 sing-box、Mihomo（Clash.Meta 系）、Xray-core、V2Fly/v2ray-core、dae、Leaf、Brook，以及可用于特定 TUN/tun2socks 场景的独立组件；纳入发行包前核对项目活跃度、Android/ARM64 支持、ABI、许可证、构建可复现性、维护状态和安全性。
+- 对 Hysteria 2、TUIC、VLESS/VMess、Trojan、Shadowsocks、SOCKS、HTTP(S) 等，应按“协议/传输能力”登记，而不是误称每一种协议都是独立内核；实际支持取决于所选内核版本。
+- 可将 hev-socks5-tunnel 等专用隧道组件作为受控数据面适配器评估，但必须纳入统一 TUN/VpnService 生命周期，不得形成第二个 VPN 槽位。
 - 用户从本地文件选择器导入的自定义可执行内核或受支持内核包。
 - 用户自行构建、组织内部或第三方仓库提供的内核；校验格式、架构、版本、哈希、签名（若有）、许可证和安全性。
 - 未来通过 provider/adapter 插件接入新内核，不把 UI/业务绑定到单一内核。
+- 内核目录还应区分“完整代理核心”“协议实现/传输插件”“TUN/tun2socks 组件”“规则/脚本运行时”，避免把客户端 App、协议名称、规则格式误列为可执行内核。
 
 **内核管理 UI：**
 - 内置内核、可选官方内核、用户导入内核分组展示。
@@ -244,7 +252,8 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 **内核与脚本引擎解耦：**
 - 网络内核负责 TUN、协议栈、DNS、路由、代理出站。
 - 脚本运行时负责脚本 API、任务调度和沙箱。
-- 规则解析器负责不同生态配置转换。
+- 规则解析器负责不同生态配置转换；除代理配置外，还要支持 AdGuard/ABP/uBlock 静态过滤列表、Hosts、DNS blocklist、PAC、CIDR/IP/domain 规则和 URL Rewrite 的独立 parser/validator。
+- 协议能力表应按内核版本列出 VLESS/VMess、Trojan、Shadowsocks、Hysteria 2、TUIC、SOCKS、HTTP(S)、WireGuard（若内核支持）等，不得将协议支持误认为脚本 API 兼容。
 - MITM 脚本必须同时满足所选内核有 TLS interception hook、证书管理可用、FX script adapter 可用；缺一项明确不可用。
 - Ad filter 与 Proxy router 共用唯一 Android VpnService/TUN ingress；切换内核不得创建多个互抢的 VpnService。
 
