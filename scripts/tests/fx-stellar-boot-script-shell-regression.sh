@@ -101,6 +101,9 @@ if sh "$SCRIPT"; then fail "boot script followed a symlinked drop_privileges pre
 rm "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml"
 mv "$TMP/settings.saved" "$TMP/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml"
 
+# Re-run after restoring the trusted setting file: the preceding negative tests
+# deliberately removed the launcher marker to prove they did not execute it.
+sh "$SCRIPT" || fail "boot script did not resume after restoring the trusted preference file"
 [ "$(cat "$TMP/launched.marker")" = "FX_STELLAR_LAUNCHER_EXECUTED" ] || fail "generated boot script did not execute the located launcher"
 [ -s "$TMP/fx_stellar_boot.log" ] || fail "boot script did not record its launch result"
 
