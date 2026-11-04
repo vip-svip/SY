@@ -3,7 +3,7 @@ package de.privacyguard.adhook
 import android.content.Context
 
 /**
- * The three app-wide visual skins. These are presentation modes only:
+ * The five app-wide visual skins. These are presentation modes only:
  * changing a skin must never start/stop VPN, DNS, proxy, Hook or script services.
  *
  * Legacy storage IDs are retained so existing 1.0.0 installations migrate in place.
@@ -31,9 +31,21 @@ enum class FxUiMode(
         "MiuixStyle",
         "Miuix 原生模式：使用 Miuix 组件、主题色和 HyperOS 风格布局。",
         Renderer.NATIVE_MIUIX
+    ),
+    HUAWEI_HARMONY_STYLE(
+        "huawei",
+        "HUAWEI HarmonyStyle",
+        "华为鸿蒙视觉风格：独立色彩、圆角、导航与卡片外观，运行于 Android 公共 API。",
+        Renderer.NATIVE_HARMONY
+    ),
+    IOS_CUPERTINO_STYLE(
+        "ios",
+        "iOS CupertinoStyle",
+        "iOS 风格：分组列表、轻量分隔线、圆角表面与 Cupertino 式底部导航；并非 iOS 客户端。",
+        Renderer.NATIVE_CUPERTINO
     );
 
-    enum class Renderer { WEB_COMPAT, NATIVE_LIQUID, NATIVE_MIUIX }
+    enum class Renderer { WEB_COMPAT, NATIVE_LIQUID, NATIVE_MIUIX, NATIVE_HARMONY, NATIVE_CUPERTINO }
 
     companion object {
         private const val PREFS = "fx_ui"
@@ -43,6 +55,8 @@ enum class FxUiMode(
         fun fromStorageId(value: String?): FxUiMode = when (value) {
             "glass", "FXLiquidNative", "fx_liquid_native" -> FX_LIQUID_NATIVE
             "miuix", "MiuixStyle", "miuix_style" -> MIUIX_STYLE
+            "huawei", "HarmonyStyle", "HUAWEI HarmonyStyle", "harmony", "harmony_style" -> HUAWEI_HARMONY_STYLE
+            "ios", "CupertinoStyle", "iOS CupertinoStyle", "cupertino", "cupertino_style" -> IOS_CUPERTINO_STYLE
             // "web" was an experimental alias; map it to the explicit compatibility mode.
             "classic", "web", "ClassicWebCompat", "classic_web_compat", null -> CLASSIC_WEB_COMPAT
             else -> CLASSIC_WEB_COMPAT
