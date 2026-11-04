@@ -85,6 +85,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private EditText script;
     private TextView status;
     private TextView targetLabel;
+    private static final String STATE_FRIDA_SCROLL_Y = "fx_frida_scroll_y";
+    private int restoredFridaScrollY;
+    private ScrollView pageScroll;
     private String targetPackage;
     private String targetName;
     private boolean targetLoading;
@@ -218,6 +221,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        restoredFridaScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_FRIDA_SCROLL_Y, 0));
         String restoredPendingName = state == null ? null : state.getString(STATE_PENDING_LIBRARY_EXPORT);
         if (isSafePendingLibraryExportName(restoredPendingName))
             pendingFridaLibraryExportFileName = restoredPendingName;
@@ -237,6 +241,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
+        pageScroll = scroll;
         scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -474,6 +479,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         // EditText widgets are created dynamically and have no stable view IDs, so
         // Android's automatic view-state restoration cannot preserve their contents.
         restoreTransientState(state);
+        if (restoredFridaScrollY > 0) {
+            final int restoreY = restoredFridaScrollY;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed() && pageScroll == scroll && scroll.getParent() != null)
+                    scroll.scrollTo(0, restoreY);
+            });
+        }
     }
 
     private void restoreTransientState(Bundle state) {
@@ -556,6 +568,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        if (pageScroll != null) outState.putInt(STATE_FRIDA_SCROLL_Y, Math.max(0, pageScroll.getScrollY()));
         if (isSafePendingLibraryExportName(pendingFridaLibraryExportFileName)) {
             outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName);
         }
