@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -129,6 +130,7 @@ public final class FxYulongScanEngine {
             int suspect = 0;
             int contentScanned = 0;
             int contentReadFailures = 0;
+            int whitelistSkipped = 0;
             boolean contentTruncated = false;
             boolean contentReady = false;
             boolean inventoryComplete = false;
@@ -150,6 +152,7 @@ public final class FxYulongScanEngine {
                 LinkedHashMap<String, ApplicationInfo> installed = inventory.apps;
                 inventoryComplete = inventory.complete;
                 PackageManager pm = app.getPackageManager();
+                Set<String> userWhitelist = FxYulongWhitelistPolicy.load(app);
                 for (ApplicationInfo info : installed.values()) {
                     String pkg = info.packageName == null ? "" : info.packageName.trim();
                     if (onlyPackage != null && !onlyPackage.equals(pkg)) continue;
@@ -158,6 +161,10 @@ public final class FxYulongScanEngine {
                     boolean pureSystem = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0
                             && (info.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
                     if (pureSystem) continue;
+                    if (userWhitelist.contains(pkg)) {
+                        whitelistSkipped++;
+                        continue;
+                    }
                     scanned++;
 
                     String label;
@@ -222,6 +229,9 @@ public final class FxYulongScanEngine {
                         && (contentTruncated || contentReadFailures > 0)) {
                     message = "扫描未完成：内容检查达到预算上限或有 "
                             + contentReadFailures + " 个 APK 无法完整读取；未完成的项目不能视为安全。";
+                }
+                if (whitelistSkipped > 0) {
+                    message += " 已按用户白名单排除 " + whitelistSkipped + " 个应用。";
                 }
             } catch (Throwable error) {
                 message = "扫描失败：" + error.getClass().getSimpleName()
