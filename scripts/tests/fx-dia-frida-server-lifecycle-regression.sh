@@ -34,8 +34,18 @@ for label, needle in required_guards.items():
     if needle not in guards:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
+state_parent_guard = body("private String checkedDiaServerStateDirectoryPrefix()", "private String prepareDiaLogsDirectoryPrefix()")
+for label, needle in (
+    ("server state parent guard requires real /data and /data/adb directories", "for path in /data /data/adb; do"),
+    ("server state parent guard rejects a symlinked state directory before creation", "[ ! -L '/data/adb/privacyguard' ]"),
+    ("server state parent guard reports unsafe paths explicitly", "FX_FRIDA_UNSAFE_STATE_PARENT"),
+):
+    if needle not in state_parent_guard:
+        raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+
 required_start = {
     "server path must be executable and not symlinked": r'''test -x \"$server\" && test ! -L \"$server\"''',
+    "startup invokes the parent-path guard before creating the state directory": "checkedDiaServerStateDirectoryPrefix()",
     "state, PID, lock and log paths reject symlinks": r'''[ ! -L \"$pidfile\" ] && [ ! -L \"$lock\" ] && [ ! -L \"$log\" ]''',
     "concurrent starts are serialized": r'''mkdir \"$lock\"''',
     "PID record uses a randomized same-directory temp": ".dia-frida-server.pid.XXXXXX",
@@ -69,6 +79,7 @@ if not (start.index(cleanup_pid_guard) < start.index(cleanup_start_guard) < star
 
 required_stop = {
     "stop validates the stored port": r'''[ \"$port\" = 27042 ]''',
+    "stop invokes the parent-path guard before creating the state directory": "checkedDiaServerStateDirectoryPrefix()",
     "stop reads the persisted process starttime": "expected_start=$(sed -n '4p' \\\"$pidfile\\\")",
     "stop refuses old PID-only records": "FX_FRIDA_PID_RECORD_LEGACY_UNVERIFIED",
     "stop verifies starttime before TERM": r'''[ \"$actual_start\" = \"$expected_start\" ]''',
