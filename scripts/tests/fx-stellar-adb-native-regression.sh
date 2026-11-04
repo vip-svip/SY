@@ -57,4 +57,73 @@ grep -Fq -- "-name '*_9.9.60_src'" "$WORKFLOW" || fail "workflow does not locate
 grep -Fq 'for abi in arm64-v8a armeabi-v7a; do' "$WORKFLOW" || fail "workflow does not stage both supported Android ABIs"
 grep -Fq 'native_source="$stellar_root/lib/$abi/libadb.so"' "$WORKFLOW" || fail "workflow does not read libadb.so from the original source tree"
 grep -Fq 'native_target="adhook/app/src/main/jniLibs/$abi/libadb.so"' "$WORKFLOW" || fail "workflow does not stage the source library into Android jniLibs"
+
+# Pairing header/peer-info codecs are byte-for-byte compatible with the original
+# 9.9.60 Kotlin implementation, including its inclusive 0x4000 payload bound.
+HEADER="$ROOT/adhook/app/src/main/java/roro/stellar/manager/adb/PairingPacketHeader.java"
+PEER="$ROOT/adhook/app/src/main/java/roro/stellar/manager/adb/PeerInfo.java"
+[ -s "$HEADER" ] && [ -s "$PEER" ] || fail "ADB pairing frame/peer-info codec sources missing"
+javac -d "$TMP/classes" "$HEADER" "$PEER" || fail "ADB pairing codec Java sources do not compile"
+cat > "$TMP/PairingCodecSmoke.java" <<'JAVA'
+package roro.stellar.manager.adb;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+public final class PairingCodecSmoke {
+    private static void require(boolean ok, String message) {
+        if (!ok) throw new AssertionError(message);
+    }
+    public static void main(String[] args) {
+        ByteBuffer valid = ByteBuffer.allocate(6).order(ByteOrder.BIG_ENDIAN);
+        valid.put((byte) 1).put((byte) 1).putInt(0x4000).flip();
+        PairingPacketHeader maximum = PairingPacketHeader.readFrom(valid);
+        require(maximum != null && maximum.getPayload() == 0x4000,
+                "original inclusive 0x4000 payload limit was rejected");
+        require(maximum.getType() == PairingPacketHeader.Type.PEER_INFO.getValue(),
+                "peer-info packet type changed");
+        ByteBuffer encoded = ByteBuffer.allocate(6);
+        maximum.writeTo(encoded);
+        require(Arrays.equals(valid.array(), encoded.array()),
+                "header encode/decode round trip changed the wire bytes");
+        for (byte version : new byte[]{0, 2}) {
+            ByteBuffer bad = ByteBuffer.allocate(6).put(version).put((byte) 0).putInt(1);
+            bad.flip();
+            require(PairingPacketHeader.readFrom(bad) == null,
+                    "unsupported pairing protocol version was accepted");
+        }
+        ByteBuffer badType = ByteBuffer.allocate(6).put((byte) 1).put((byte) 2).putInt(1);
+        badType.flip();
+        require(PairingPacketHeader.readFrom(badType) == null,
+                "unknown pairing frame type was accepted");
+        for (int length : new int[]{0, 0x4001, -1}) {
+            ByteBuffer bad = ByteBuffer.allocate(6).put((byte) 1).put((byte) 0).putInt(length);
+            bad.flip();
+            require(PairingPacketHeader.readFrom(bad) == null,
+                    "invalid pairing payload length was accepted: " + length);
+        }
+        byte[] rsa = new byte[]{1, 2, 3, 4, 5};
+        PeerInfo peer = new PeerInfo(PeerInfo.Type.ADB_RSA_PUB_KEY.getValue(), rsa);
+        ByteBuffer peerWire = ByteBuffer.allocate(PeerInfo.RECORD_LENGTH);
+        peer.writeTo(peerWire);
+        require(peerWire.position() == 8192, "peer info must occupy exactly 8192 bytes");
+        peerWire.flip();
+        PeerInfo decoded = PeerInfo.readFrom(peerWire);
+        require(decoded.getType() == 0, "original RSA peer-info type value changed");
+        require(Arrays.equals(rsa, Arrays.copyOf(decoded.getData(), rsa.length)),
+                "peer-info payload prefix did not survive round trip");
+        require(decoded.getData().length == 8191, "peer-info data width changed");
+        boolean shortRejected = false;
+        try { PeerInfo.readFrom(ByteBuffer.allocate(PeerInfo.RECORD_LENGTH - 1)); }
+        catch (IllegalArgumentException expected) { shortRejected = true; }
+        require(shortRejected, "truncated peer-info payload was accepted");
+        byte[] copy = decoded.getData();
+        copy[0] = 99;
+        require(decoded.getData()[0] == 1, "peer-info getter leaked its mutable backing array");
+        System.out.println("PASS: original ADB pairing frame boundaries and fixed-width 8192-byte peer-info codec");
+    }
+}
+JAVA
+javac -cp "$TMP/classes" -d "$TMP/classes" "$TMP/PairingCodecSmoke.java" || fail "ADB pairing codec smoke test does not compile"
+java -cp "$TMP/classes" roro.stellar.manager.adb.PairingCodecSmoke || fail "ADB pairing codec wire regression failed"
+
 echo "PASS: original Stellar libadb ABIs, JNI_OnLoad, PairingContext JVM descriptors and source-staging provenance"
