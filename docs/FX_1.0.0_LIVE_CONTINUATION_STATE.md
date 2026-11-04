@@ -1607,3 +1607,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `fff554492b88983e0616b7c18a2b283e8f8027aa` — `test(hook): cover custom rule dialog recreation`。
 - 验证：最新源码静态检查确认打开状态/槽位/快照 Bundle 保存与恢复、恢复后自动打开、取消/关闭/保存清除标记、既有草稿身份键仍保留；回归脚本已加入断言。未执行完整 Shell 回归、Gradle 编译、模拟器/真机旋转与输入实测。
 - 下一步：检查 JSON 导入弹窗是否也能保留未提交文本草稿；随后运行集中 Hook/Dia Host 回归并处理真实失败。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 自定义规则 JSON 导入失败回滚
+
+- 本批起始实时 HEAD：`f466c9ad774f4c5fce856d166e31b69e8a36c698`。
+- 修复 `showCustomRuleImportDialog` 的 SharedPreferences 提交失败处理：导入前快照当前目标包 64 个规则槽、base action、group、Hook 启用标志、分组集合及导入草稿；导入提交失败时先恢复原内存规则映射，再尝试同步回滚持久化。
+- 用户可见错误现在区分“原规则已恢复”和“回滚写盘也未确认成功”；后一种情况明确要求不要退出应用并重新核对，不再笼统声称原有规则未变。
+- 不改变规则语法、目标包映射、debuggable 替换限制、64 条上限、规则 ID 唯一性或发布协议。
+- 提交：`9be657d5cf736069af94c391d94233b0eb9faf8a`（导入失败时恢复规则快照）；`42b27efbded2aac1182e41e77d8b21b2591c91b0`（Hook 原生 UI 回归脚本覆盖快照/回滚锚点）。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-hook-native-ui-regression.sh`；本状态文件。
+- 静态验证：当前 HEAD 重新读取导入方法和回归脚本，确认规则槽/动作/分组/启用标记/导入草稿快照、失败回滚提交及用户提示均存在。未执行 Shell 回归、Gradle/JUnit、模拟器或真机存储故障注入。
+- 失败路线：一次 MainActivity 更新因并行提交返回 409；重新获取最新 HEAD/blob SHA 后重放成功，没有覆盖并行的 Hook 观察日志和编辑器恢复提交。
+- 下一步：核对自定义规则新增/编辑弹窗旋转时的草稿身份隔离与保存冲突；然后运行一次可执行的 Hook/Dia Host 回归（只读失败日志，不重复触发整套 Actions）。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
