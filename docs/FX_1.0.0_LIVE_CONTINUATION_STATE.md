@@ -2977,3 +2977,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-custom-hook-literal-regression.sh`。
 - 验证：已核对 MainActivity 的移动回调先构造 assignments，再检查 `commitCustomRuleGroupUpdate(...)` 返回值；测试只调整方法提取范围。下一轮 Actions 结果待读取。
 - 失败路线：不把原子提交调用移回仅作委托的单参数方法；按实际重载实现检查。
+
+
+## 2026-11-05 — Dia Dialog/按键控制回归文案契约对齐
+
+- 基于分支 HEAD：`a917c218e9d2f87956527ed9c539eaaac79b3c49`。
+- Actions：`41914822688` 已通过 Hook 原生 UI、Dia 六 Tab、Dialog/Toast 规则前置运行时与自定义 Hook 分组回归，随后在 `fx-dia-dialog-native-regression.sh` 的按键控制提示文案断言退出（Python heredoc 第 111 行）。
+- 根因：测试期望“需要先有有效的 debuggable Dialog 规则”，当前真实 UI 提示为“需要先配置有效的 debuggable Dialog 规则。”；页面已有真实 debuggable 检查和阻止发布路径，属于测试文案未随 UI 更新。
+- 修复：只将断言改为精确匹配当前 UI 文案；未更改产品逻辑、未删除检查或放宽功能门禁。
+- 改动路径：`scripts/tests/fx-dia-dialog-native-regression.sh`、本状态文件。
+- 验证：已从同一 HEAD 的 MainActivity 确认 UI 原文存在；Actions 运行已证明该脚本此前所有更早断言均通过。新提交的后续断言仍待执行。
+- 未验证：Android Gradle/JUnit、UI 自动化、安装和真机。
+- 下一批：先读本轮定向回归后续首错；随后切换实际 Dia Frida 脚本库/编辑器页面组，集中补齐导入、保存、编辑状态恢复和脚本文件安全写入，不继续无目的增加测试断言。
