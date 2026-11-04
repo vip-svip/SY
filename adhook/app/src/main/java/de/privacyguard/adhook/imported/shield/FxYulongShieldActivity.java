@@ -321,8 +321,8 @@ public final class FxYulongShieldActivity extends Activity {
         int warningCount = shieldPrefs.getInt("protect_warn_count", 0);
         card("最近守护提醒",
                 "累计提醒：" + warningCount
-                        + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
-                        + "\\n" + warning);
+                        + (warningTime.isEmpty() ? "" : "\n最近提醒：" + warningTime)
+                        + "\n" + warning);
         boolean recoveryEnabled = shieldPrefs.getBoolean("protect_on", false)
                 || shieldPrefs.getBoolean("shake_trigger_on", false);
         card("开机与低频后台恢复",
