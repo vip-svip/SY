@@ -6,6 +6,7 @@ import android.app.Application;
 public final class FxHookApplication extends Application {
     @Override public void onCreate() {
         super.onCreate();
+        de.privacyguard.adhook.imported.dia.FxDiaCrashStore.install(this);
         FxLsposedScopeBridge.initialize();
     }
 }
