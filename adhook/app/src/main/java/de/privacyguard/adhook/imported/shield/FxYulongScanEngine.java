@@ -12,8 +12,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Read-only installed-app scanner using the migrated Shield 9.9.60 database.
@@ -70,11 +72,15 @@ public final class FxYulongScanEngine {
 
     public interface Callback { void onResult(Result result); }
 
-    private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "fx-yulong-scan");
-        t.setDaemon(true);
-        return t;
-    });
+    // Install broadcasts and manual scans share one serialized worker. Keep the
+    // backlog bounded so a burst of PACKAGE_ADDED events cannot grow memory without limit.
+    private static final ThreadPoolExecutor WORKER = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(32),
+            r -> {
+                Thread t = new Thread(r, "fx-yulong-scan");
+                t.setDaemon(true);
+                return t;
+            }, new ThreadPoolExecutor.AbortPolicy());
 
     private FxYulongScanEngine() { }
 
@@ -101,7 +107,8 @@ public final class FxYulongScanEngine {
     private static void scanInternal(Context context, String onlyPackage,
                                      boolean enableContentScan, Callback callback) {
         Context app = context.getApplicationContext();
-        WORKER.execute(() -> {
+        try {
+            WORKER.execute(() -> {
             List<Finding> findings = new ArrayList<>();
             int scanned = 0;
             int certain = 0;
@@ -204,7 +211,13 @@ public final class FxYulongScanEngine {
                     new Result(scanned, entries, findings, certain, suspect, message,
                             enableContentScan, contentReady, contentScanned, contentTruncated,
                             inventoryComplete));
-        });
+            });
+        } catch (RejectedExecutionException full) {
+            if (callback != null) callback.onResult(new Result(0, 0,
+                    Collections.emptyList(), 0, 0,
+                    "扫描队列繁忙，本次请求未执行；请稍后重试。",
+                    enableContentScan, false, 0, false, false));
+        }
     }
 
     private static final class InstalledInventory {
