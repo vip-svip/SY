@@ -1548,3 +1548,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：从当前分支 HEAD 重新读取源码与回归脚本，静态确认编辑草稿身份/字段/监听/成功清理、导入草稿恢复/监听/同步提交及回归断言均存在。未在完整 checkout 执行该 Shell/Python 回归脚本，未运行 Gradle、UI 自动化、模拟器或真机旋转/导入操作。
 - 失败路线：一次 GitHub Contents API 409，原因是并行提交更新了同一 `MainActivity.java`；按流程重新读取最新分支 HEAD 与文件 blob SHA 后重放成功。不要复用旧 SHA。
 - 下一批：将 Hook 自定义规则编辑/导入对话框提升为可恢复的原生页面状态（含弹窗重建与返回链）；随后核对 OBSERVE 日志 Activity 的筛选/滚动状态与结果回跳。再集中运行 Dia/Hook Host 回归。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia 脚本 SAF 导出载荷跨 Activity 重建
+
+- 本批起始实时 HEAD：`17304ea5ec1b37c0763a3b3f2c584316f41adb0c`；提交期间有并行更新，均按最新 blob SHA 顺序重放，没有强推。
+- 修复 MainActivity 脚本 JSON SAF 导出：完整 JSON 不再只存在 Activity 内存字段；先通过同步 SharedPreferences `commit()` 暂存，再启动 `ACTION_CREATE_DOCUMENT`。载荷上限 512 KiB，超过上限明确拒绝。
+- `onSaveInstanceState` 保存待导出标记，`onCreate` 仅在标记与持久化载荷同时存在时恢复；没有有效恢复状态时清理孤立暂存数据。SAF 返回后从持久化载荷读取，成功写出后清理；取消、启动失败、写出失败也清理。避免把大 JSON 放进 Bundle。
+- GPS Picker 同步补强：Activity Result 可在目标应用仍由异步列表恢复时接收，并延迟打开目标，避免合法坐标被丢弃或重复导航。
+- 提交：`48e246ae2f557f51f971ebe241b797a62cce3144`（脚本 SAF 载荷持久化）；`8637887abb2288adcce7ac78467b27944a2d0dab`（清理孤立暂存）；`5b42462011cf119c2e4d8def4152c70209d3fffc`（回归断言）；`9e6c4937e68df9df1de92c7a4bcad5974f2b9e1f`（512 KiB 上限断言）。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-native-tab-regression.sh`；本状态文件。
+- 静态验证：当前 HEAD 重新读取源码和测试脚本，确认载荷同步持久化、512 KiB 上限、状态标记保存/恢复、取消/失败/成功清理、GPS 目标恢复竞态断言存在。未执行完整 Shell 脚本、Gradle/JUnit、模拟器或真机 SAF 交互。
+- 失败路线：两次基于过期 MainActivity blob SHA 更新时遇到 409；均重新读取最新 HEAD 与 blob SHA 后仅重放缺失改动，没有覆盖并行提交。一次静态核验把文件大小常量误限定在方法代码片段内，已改为检查类常量本身并补上回归断言。
+- 下一步：检查 Hook 自定义规则页的未提交编辑器草稿、导入/导出与返回链；随后执行 Dia 页面组 Host 测试可运行性检查。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
