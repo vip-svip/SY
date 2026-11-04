@@ -764,3 +764,10 @@ After each implementation batch:
 - KeepAlive now detects overlay permission revocation, disables only `overlay_rescue_on`, records the permission reason, and then recalculates the schedule. A still-authorized overlay start clears a stale restore error; transient foreground-service start failures keep the user's opt-in so the bounded retry can recover.
 - The rescue overlay service now reconciles the KeepAlive alarm when its persisted feature flag is already off, when Android overlay permission has been revoked, and when WindowManager refuses to attach the bubble. Runtime attach failures are recorded rather than silently disabling the feature.
 - Extended the Shield native regression to verify private receiver registration, boot/KeepAlive permission ordering, post-degradation schedule recalculation, and overlay-service failure cleanup. This remains host/static verification; OEM background restrictions and actual permission revocation must still be checked on a device.
+
+## 2026-11-04 — Yulong firewall watcher lock publication race
+
+- The exclusive lock path is visible before its four-line PID/protocol/script/start-time record is populated. A contending process can briefly observe a transitional snapshot.
+- Lock acquisition now waits briefly and re-reads a snapshot that initially failed identity validation. A changed snapshot is retried; a stable foreign record remains a hard conflict. Stale cleanup compares the settled record before unlinking.
+- Existing concurrent start/start and start/stop regression coverage remains the runtime host simulation; static assertions now pin the settle/re-read and compare-before-delete contract.
+- Android/OEM background execution still requires device validation. No APK/KernelSU archive is claimed.

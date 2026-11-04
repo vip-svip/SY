@@ -718,8 +718,29 @@ watch_lock_acquire() {
               fi
               ;;
             *)
-              echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
-              return 1
+              # The exclusive lock path is visible before its four-line
+              # ownership record is fully written. Settle an initially invalid
+              # snapshot before classifying a live owner as foreign.
+              sleep 0.02
+              _watch_lock_settled=$(cat "$WATCH_LOCK" 2>/dev/null || true)
+              if [ "$_watch_lock_settled" != "$_watch_lock_record" ]; then
+                :
+              else
+                _watch_owner_state=0
+                watch_lock_owner_is_ours "$_watch_lock_owner" || _watch_owner_state=$?
+                case "$_watch_owner_state" in
+                  0) : ;;
+                  1)
+                    if [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_settled" ]; then
+                      rm -f "$WATCH_LOCK"
+                    fi
+                    ;;
+                  *)
+                    echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
+                    return 1
+                    ;;
+                esac
+              fi
               ;;
           esac
           ;;

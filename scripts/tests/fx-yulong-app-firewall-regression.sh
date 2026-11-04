@@ -276,6 +276,13 @@ assert '[ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]' 
     "stale lock reclamation must compare the exact record before unlinking"
 assert "watch_lock_pid_start_time()" in source, "watcher lock must capture the kernel process start time"
 assert "watch_lock_owner_is_ours()" in source and "FXYWLOCK2" in source, "watcher lock owner must be verified using PID, script path and process start time"
+settle = lock.split('sleep 0.02', 1)
+assert len(settle) == 2 and '_watch_lock_settled=$(cat "$WATCH_LOCK"' in settle[1], \
+    "lock acquisition must settle and re-read transitional metadata before rejecting a live owner"
+assert '_watch_lock_settled" != "$_watch_lock_record"' in settle[1], \
+    "lock acquisition must retry if the owner record changed during publication"
+assert '$_watch_lock_settled' in settle[1] and 'rm -f "$WATCH_LOCK"' in settle[1], \
+    "stale cleanup must be tied to the settled lock snapshot"
 assert 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start"' in source, "watcher lock must publish full ownership metadata atomically"
 
 assert 'case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac' in matcher, "lock identity must recognize wrapped shell invocations containing the exact script path"
