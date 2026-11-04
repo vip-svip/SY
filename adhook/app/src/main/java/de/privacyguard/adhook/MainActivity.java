@@ -3376,10 +3376,14 @@ public final class MainActivity extends ComponentActivity {
                     markMigrationChild(suite, category, page);
                     showAppList("时间与时区模拟");
                     return;
-                case "JS 脚本列表": case "脚本编辑器":
+                case "JS 脚本列表":
                     startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
+                            de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class));
+                    return;
+                case "脚本编辑器":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class)
+                            .putExtra("open_new_script", true));
                     return;
                 case "JSON 操作":
                     startActivity(new Intent(this,
