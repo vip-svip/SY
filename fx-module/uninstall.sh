@@ -2,6 +2,11 @@
 # KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=/data/adb/privacyguard
+# FX_QUICKJS_SCHEDULER_STOP_BEGIN
+if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
+  sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$STATE_DIR/jsruntime/scheduler.log" 2>&1 || :
+fi
+# FX_QUICKJS_SCHEDULER_STOP_END
 if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
 fi
