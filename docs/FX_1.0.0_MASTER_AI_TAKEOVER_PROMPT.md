@@ -71,6 +71,7 @@
 - 已确认的 10.0.2 APK 证据：`/游龙工具_10.0.2.apk`，92,008,250 bytes，SHA-256 `c2d7bb1b8e688232888a927d5b81affcf5c28832f9e6420e27e800e54f5fee75`，package `com.youlong.tool`，versionName `10.0.2`，versionCode `1234567901`。
 - 原版壁纸对照：标题“壁纸随心换”；状态文案“当前已设置自定义壁纸”/“未设置自定义壁纸，当前为默认背景”；按钮“上传本地图片”“恢复默认壁纸”“关闭”；进度“处理中...”。
 - 原版设置键为 `native_wallpaper_prefs / wallpaper_path`；导入图复制到应用私有 files 目录，长边限制 1920 px，JPEG quality 85，文件名 `native_wallpaper_<timestamp>.jpg`。FX 首批移植须保留这些契约；扩展裁剪/模糊等功能须先验证 APK 证据，不能臆称原版已有。
+- 当前已接入的源码入口：`FxWallpaperStore.kt`（私有文件/1920px/JPEG 85/预览/默认恢复）、`MainActivity.java`（Settings 弹窗、ACTION_OPEN_DOCUMENT、后台保存）、`FxNativeAppShell.kt`（共享五 Skin 壁纸层）。对应单测 `FxWallpaperStoreTest.kt` 与 host 回归 `fx-wallpaper-regression.sh`；后续接管 AI 应先读这些源码并补验，不要重复重写已存在代码。
 
 ## 4. 功能大纲与必须整合的能力
 
