@@ -54,7 +54,7 @@ final class PairingPacketHeader {
         byte type = input.get();
         int payload = input.getInt();
         if (version != 1 || Type.fromValue(type) == null
-                || payload < MIN_PAYLOAD || payload >= MAX_PAYLOAD) {
+                || payload < MIN_PAYLOAD || payload > MAX_PAYLOAD) {
             return null;
         }
         return new PairingPacketHeader(version, type, payload);
