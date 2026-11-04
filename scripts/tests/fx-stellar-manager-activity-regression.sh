@@ -68,6 +68,8 @@ assert "MSG_PERMISSION_REQUEST = 5" in service and "MSG_PERMISSION_RESULT = 6" i
 assert "handlePermissionRequest(message)" in service
 assert "getPackagesForUid(uid)" in service and "packageBelongsToUid(sourcePackage, uid)" in service
 assert "POST_NOTIFICATIONS" in service and "NotificationManager.IMPORTANCE_HIGH" in service
+assert "Notification.CATEGORY_PERMISSION" not in service, "Android has no CATEGORY_PERMISSION constant; permission prompt must use supported notification metadata"
+assert '.setContentTitle("应用请求 Stellar 权限")' in service and ".setContentIntent(content)" in service, "permission request notification must retain its title and decision action"
 for key in ("REPLY_ALLOWED", "REPLY_ONE_TIME", "REPLY_PERMISSION"):
     assert key in service, f"original permission response Bundle key missing: {key}"
 assert 'android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"' in manifest

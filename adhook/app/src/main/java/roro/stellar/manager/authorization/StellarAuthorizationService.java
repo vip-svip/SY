@@ -179,7 +179,6 @@ public final class StellarAuthorizationService extends Service {
                                 + "\\n点击查看详情并决定是否允许。"))
                 .setContentIntent(content)
                 .setAutoCancel(true)
-                .setCategory(Notification.CATEGORY_PERMISSION)
                 .build();
         manager.notify(PERMISSION_NOTIFICATION_TAG, notificationId, notification);
     }
