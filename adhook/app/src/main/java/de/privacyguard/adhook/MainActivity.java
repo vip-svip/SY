@@ -141,6 +141,8 @@ public final class MainActivity extends ComponentActivity {
     private EditText customHookRuleSearchFilterView;
     private boolean customRuleEditorDialogOpen;
     private boolean customRuleEditorRestorePending;
+    private boolean customRuleImportDialogOpen;
+    private boolean customRuleImportRestorePending;
     private int customRuleEditorEditingSlot = -1;
     private String customRuleEditorPresetDescriptor;
     private boolean hookHubVisible;
@@ -271,6 +273,8 @@ public final class MainActivity extends ComponentActivity {
                 customRuleEditorEditingSlot = Math.max(-1, Math.min(64,
                         state.getInt("fx_custom_rule_editor_slot", -1)));
                 customRuleEditorPresetDescriptor = state.getString("fx_custom_rule_editor_preset");
+                customRuleImportRestorePending = state.getBoolean("fx_custom_rule_import_open", false);
+                customRuleImportDialogOpen = customRuleImportRestorePending;
                 if (customRuleEditorPresetDescriptor != null
                         && customRuleEditorPresetDescriptor.length() > 4096) {
                     customRuleEditorPresetDescriptor = null;
@@ -461,6 +465,9 @@ public final class MainActivity extends ComponentActivity {
             outState.putString("fx_hook_screen", hookScreen);
             outState.putBoolean("fx_hook_custom_return_to_target", customHookReturnToTarget);
             if (hookCustomRulesPageVisible) {
+                if (customRuleImportDialogOpen || customRuleImportRestorePending) {
+                    outState.putBoolean("fx_custom_rule_import_open", true);
+                }
                 if (customRuleEditorDialogOpen || customRuleEditorRestorePending) {
                     outState.putBoolean("fx_custom_rule_editor_open", true);
                     outState.putInt("fx_custom_rule_editor_slot", customRuleEditorEditingSlot);
@@ -6136,6 +6143,9 @@ public final class MainActivity extends ComponentActivity {
             String restorePreset = customRuleEditorPresetDescriptor;
             customRuleEditorRestorePending = false;
             showCustomRuleDialog(restorePreset, restoreSlot);
+        } else if (customRuleImportRestorePending) {
+            customRuleImportRestorePending = false;
+            showCustomRuleImportDialog();
         }
     }
 
@@ -6746,6 +6756,8 @@ public final class MainActivity extends ComponentActivity {
 
 
     private void showCustomRuleImportDialog() {
+        customRuleImportDialogOpen = true;
+        customRuleImportRestorePending = false;
         final String importDraftKey = selectedPackage + ":dev_rule_import_json_draft";
         EditText input = new EditText(this);
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
@@ -6763,8 +6775,17 @@ public final class MainActivity extends ComponentActivity {
         new AlertDialog.Builder(this).setTitle("导入自定义 Hook 规则组")
                 .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> {
+                    customRuleImportDialogOpen = false;
+                    customRuleImportRestorePending = false;
+                })
+                .setOnCancelListener(dialog -> {
+                    customRuleImportDialogOpen = false;
+                    customRuleImportRestorePending = false;
+                })
                 .setPositiveButton("验证并导入", (dialog, which) -> {
+                    customRuleImportDialogOpen = false;
+                    customRuleImportRestorePending = false;
                     try {
                         String raw = input.getText().toString().trim();
                         org.json.JSONArray array;
