@@ -52,6 +52,7 @@ public final class AdbPairingActivity extends Activity {
     private AdbPairingDiscovery discovery;
     private AdbPairingDiscovery.Device selectedDevice;
     private volatile AdbPairingClient activeClient;
+    private volatile AdbShellProbeClient activeProbe;
     private volatile boolean destroyed;
     private boolean pairing;
     private boolean connectDiscoveryMode;
@@ -261,9 +262,12 @@ public final class AdbPairingActivity extends Activity {
                             || selectedDevice == null
                             || !selectedDevice.serviceName.equals(target.serviceName)) return;
                     if (probeFailure == null) {
+                        pairButton.setText("ADB Shell 固定只读探测已通过");
                         status.setText("ADB TLS/AUTH 与 Shell 通道探测成功。固定命令返回："
-                                + probeOutput.trim());
+                                + probeOutput.trim()
+                                + "。这只验证最小只读通道，不代表通用 Shell 管理功能已全部迁入。");
                     } else {
+                        pairButton.setText("ADB Shell 固定只读探测尚未通过");
                         status.setText("ADB Shell 探测失败（不会修改设备状态）："
                                 + probeFailure + "。可重新扫描 connect 服务或重试。");
                     }
@@ -368,7 +372,7 @@ public final class AdbPairingActivity extends Activity {
         connectDiscoveryMode = true;
         selectedDevice = null;
         devices.clear();
-        pairButton.setText("ADB Shell 命令通道尚未验证");
+        pairButton.setText("ADB Shell 固定只读探测尚未通过");
         pairButton.setEnabled(false);
         if (connectTestButton != null) connectTestButton.setEnabled(false);
         scanButton.setText("重新扫描 ADB connect 服务");
@@ -408,6 +412,7 @@ public final class AdbPairingActivity extends Activity {
                             if (selectedDevice != null
                                     && selectedDevice.serviceName.equals(serviceName)) {
                                 selectedDevice = null;
+                                pairButton.setText("ADB Shell 固定只读探测尚未通过");
                                 probeGeneration.incrementAndGet();
                                 AdbShellProbeClient probing = activeProbe;
                                 activeProbe = null;
