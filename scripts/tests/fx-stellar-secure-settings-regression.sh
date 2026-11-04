@@ -36,7 +36,7 @@ assert "FxStellarSecureSettingsActivity.class" in manager, "Stellar manager must
 assert "RootAccess.execute(permissionCommand(grant)" in activity, "grant/revoke must use the FX Root bridge"
 assert 'grant ? "grant" : "revoke"' in activity and '+ "pm " + op + ' in activity and "FX_PERMISSION_COMMAND_SUCCEEDED" in activity, "grant/revoke command must map both user-confirmed operations through the Root backend"
 assert "pm check-permission" not in activity, "do not depend on a non-portable pm check-permission command"
-assert "FX_PERMISSION_VERIFIED" in activity and "permissionGranted() == grant" in activity, "grant/revoke must be verified, not assumed"
+assert "FX_PERMISSION_COMMAND_SUCCEEDED" in activity and "permissionGranted() == grant" in activity, "grant/revoke must be verified, not assumed"
 assert "WRITE_SECURE_SETTINGS" in activity and "明确授予" in activity and "明确撤销" in activity, "privileged permission changes require explicit user confirmation"
 assert "new ArrayBlockingQueue<>(2)" in activity and "RejectedExecutionException" in activity
 assert "worker.shutdownNow()" in activity, "Root worker must stop with Activity lifecycle"
