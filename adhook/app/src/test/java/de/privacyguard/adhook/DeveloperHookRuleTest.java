@@ -287,7 +287,7 @@ public class DeveloperHookRuleTest {
                 "float|Lcom/example/vpn/DebugState;->ratio()F|RETURN_LITERAL|1|NaN",
                 "com.example.vpn"));
         assertNull(DeveloperHookRule.parse(
-                "string|Lcom/example/vpn/DebugState;->label()Ljava/lang/String;|RETURN_LITERAL|1|bad\\nvalue",
+                "string|Lcom/example/vpn/DebugState;->label()Ljava/lang/String;|RETURN_LITERAL|1|bad\nvalue",
                 "com.example.vpn"));
     }
 
