@@ -55,8 +55,11 @@ for label, needle in required_start.items():
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
-if r'''if [ -n \"$spawned_pid\" ] && server_pid_matches \"$spawned_pid\"; then kill -TERM''' not in start:
-    raise SystemExit("FAIL: startup cleanup may signal only its exact process")
+cleanup_guard = r'''if [ -n \\"$spawned_pid\\" ] && [ -n \\"$spawned_start\\" ] && [ \\"$(server_pid_starttime \\"$spawned_pid\\" 2>/dev/null || :)\\" = \\"$spawned_start\\" ] && server_pid_matches \\"$spawned_pid\\"; then kill -TERM'''
+if cleanup_guard not in start:
+    raise SystemExit("FAIL: startup cleanup must verify both original starttime and exact executable before TERM")
+if start.index("spawned_start=$(server_pid_starttime") > start.index("kill -TERM"):
+    raise SystemExit("FAIL: startup cleanup can reach TERM before recording the original process starttime")
 
 required_stop = {
     "stop validates the stored port": r'''[ \"$port\" = 27042 ]''',
