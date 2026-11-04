@@ -83,15 +83,18 @@ assert "line.split(" in ui and "parts.length != 4" in ui, "UI must parse row ind
 
 for token in (
     'ruleList) echo rule', 'domainList) echo domain', 'blockList) echo block',
-    'valid_field()', 'valid_note()', 'list_rows()', 'append_row()', 'update_row()',
-    'mutate_transaction()', 'mkdir "$LOCK"', 'tries -lt 20',
-    'cp -p "$CONF" "$backup"', 'cp -p "$backup" "$CONF.restore.$$"',
-    'chmod 600 "$CONF.restore.$$"', 'apply_mode=full', 'apply_mode=fast',
-    'sh "$MP/scripts/apply.sh" "$apply_mode"', 'echo FXLIST1',
+    'valid_field()', 'valid_note()', 'normalize_domain()', 'normalize_value()',
+    'list_rows()', 'value_exists()', 'append_row()', 'update_row()', 'mutate_transaction()',
+    'mktemp "$CONF.native-list.XXXXXX"', 'mktemp "$CONF.native-list-rollback.XXXXXX"',
+    'mktemp "$CONF.restore.XXXXXX"', 'LOCK_HELD=1', 'tries -lt 20',
+    'cp -p "$CONF" "$BACKUP_FILE"', 'cp -p "$BACKUP_FILE" "$RESTORE_FILE"',
+    'chmod 600 "$RESTORE_FILE"', 'apply_mode=full', 'apply_mode=fast',
+    'sh "$MP/scripts/apply.sh" "$apply_mode"', 'echo FXLIST1', "trap cleanup EXIT",
 ):
     assert token in script, f"managed list backend safety/transaction contract missing: {token}"
-assert 'http://*|https://*' in script, "subscription inputs must remain URL-limited"
-assert 'set -eu' in script and 'umask' not in script, "managed list script must fail closed"
+assert "https?://" in script, "subscription inputs must be URL-limited"
+assert 'set -eu' in script and 'umask 077' in script, "managed list backend must use private files and fail closed"
+assert '$CONF.native-list.$' not in script and '$CONF.restore.$' not in script, "predictable temp file names must not return"
 print("PASS: native Hosts/Ad lists use fixed allowlisted IDs, quoted inputs, locking, rollback and real apply")
 PY
 grep -Fq 'private void buildNativePrivacyPage()' "$JAVA"

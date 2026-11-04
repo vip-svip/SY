@@ -83,4 +83,16 @@ fi
 after=$(sha256sum "$CONF" | awk '{print $1}')
 [ "$before" = "$after" ] || fail "failed apply did not restore prior settings.conf"
 [ ! -e "$LOCK" ] || fail "lock was not released after rollback"
+python3 - "$SCRIPT" <<'PY'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text(encoding="utf-8")
+for token in ('umask 077', 'mktemp "$CONF.native-list.XXXXXX"',
+              'mktemp "$CONF.native-list-rollback.XXXXXX"',
+              'mktemp "$CONF.restore.XXXXXX"', 'trap cleanup EXIT',
+              'normalize_domain()', 'normalize_value()', 'value_exists()'):
+    assert token in s, f"managed list safety invariant missing: {token}"
+assert '$CONF.native-list.$' not in s and '$CONF.restore.$' not in s
+print("PASS: managed list backend uses private random temp paths and strict validators")
+PY
 echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
