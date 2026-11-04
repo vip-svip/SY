@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -28,7 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 /** Read-only APK signing certificate and package metadata viewer migrated from Dia. */
-public final class FxDiaSignatureActivity extends Activity {
+public final class FxDiaSignatureActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private TextView target, output;
     private ApplicationInfo selected;
@@ -66,7 +65,7 @@ public final class FxDiaSignatureActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         target = text("尚未选择应用。", 13, 0xff334155, false);
         output = text("选择应用后读取 APK 签名证书。", 12, 0xff344054, false);
