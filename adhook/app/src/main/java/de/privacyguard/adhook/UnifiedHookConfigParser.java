@@ -59,6 +59,8 @@ public final class UnifiedHookConfigParser {
         public final List<String> toastTextTerms = new ArrayList<>();
         public final List<String> dialogTextTerms = new ArrayList<>();
         public final List<String> dialogIdTerms = new ArrayList<>();
+        public int keyFinishTrigger = -1;
+        public int keyDialogToggleTrigger = -1;
         public boolean androidIdSimulation;
         public String simulatedAndroidId;
         public boolean timeZoneSimulation;
@@ -299,6 +301,7 @@ public final class UnifiedHookConfigParser {
             String simulatedNetworkType=null;
             boolean locationSimulation=false;
             boolean dialogMatchEnabled=false, dialogNotify=false, toastFilterEnabled=false;
+            int keyFinishTrigger=-1, keyDialogToggleTrigger=-1;
             String dialogTextTermsRaw=null, dialogIdTermsRaw=null, toastTextTermsRaw=null;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
@@ -364,6 +367,18 @@ public final class UnifiedHookConfigParser {
                 }
                 if ("toast_text_terms_b64".equals(key)) {
                     toastTextTermsRaw = decodeDeveloperRuleValue(value);
+                    continue;
+                }
+                if ("key_finish_trigger".equals(key) || "key_dialog_toggle_trigger".equals(key)) {
+                    int trigger;
+                    try { trigger = Integer.parseInt(value); }
+                    catch (NumberFormatException invalid) {
+                        throw new IllegalArgumentException("invalid Dia key trigger");
+                    }
+                    if (trigger < -1 || trigger > 6)
+                        throw new IllegalArgumentException("Dia key trigger must be -1 or between 0 and 6");
+                    if ("key_finish_trigger".equals(key)) keyFinishTrigger = trigger;
+                    else keyDialogToggleTrigger = trigger;
                     continue;
                 }
                 if ("location_lat".equals(key)) {
@@ -532,6 +547,8 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("dialog match rules require dialog_match=1");
             if (dialogNotify && !dialogMatchEnabled)
                 throw new IllegalArgumentException("dialog notification requires dialog_match=1");
+            if (keyDialogToggleTrigger >= 0 && !dialogMatchEnabled)
+                throw new IllegalArgumentException("Dialog key toggle requires an enabled per-app Dialog rule set");
             List<String> toastTextTerms = FxDiaDialogMatchPolicy.parseTerms(toastTextTermsRaw);
             if (toastFilterEnabled && toastTextTerms.isEmpty())
                 throw new IllegalArgumentException("toast filtering requires explicit text rules");
@@ -550,6 +567,8 @@ public final class UnifiedHookConfigParser {
             parsedTarget.dialogNotify = dialogNotify;
             parsedTarget.dialogTextTerms.addAll(dialogTextTerms);
             parsedTarget.dialogIdTerms.addAll(dialogIdTerms);
+            parsedTarget.keyFinishTrigger = keyFinishTrigger;
+            parsedTarget.keyDialogToggleTrigger = keyDialogToggleTrigger;
             parsedTarget.toastFilterEnabled = toastFilterEnabled;
             parsedTarget.toastTextTerms.addAll(toastTextTerms);
             parsedTarget.locationSimulation = locationSimulation;
