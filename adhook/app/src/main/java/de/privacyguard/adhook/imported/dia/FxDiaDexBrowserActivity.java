@@ -410,7 +410,12 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                     apps.addAll(loaded);
                     appLabels.clear();
                     appLabels.putAll(loadedLabels);
-                    summary.setText("已读取 " + apps.size() + " 个应用；选择目标后读取 DEX。");
+                    // The APK/Framework/SAF source loader may have started while this
+                    // independent inventory request was still running. Never let its
+                    // late status text overwrite the active DEX parse/result status.
+                    if ("none".equals(sourceKind) || "installed-selected".equals(sourceKind)) {
+                        summary.setText("已读取 " + apps.size() + " 个应用；选择目标后读取 DEX。");
+                    }
                 });
             });
         } catch (RejectedExecutionException full) {
