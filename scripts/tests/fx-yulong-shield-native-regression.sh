@@ -334,6 +334,11 @@ assert 'STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y"' in scan_page, "Shield s
 assert "private ScrollView scanScroll;" in scan_page, "Shield scan must retain its actual ScrollView"
 assert "scanScroll=scroll;" in scan_page, "Shield scan scroll state must be tied to its page container"
 assert "scanScroll.getScrollY()" in scan_page and "scroll.scrollTo(0, restoreY)" in scan_page, "Shield scan page must save and restore the result-list position"
+assert "private static final int REQUEST_BATCH_CLEANUP = 0x59b2;" in scan_page, "Batch cleanup must return to the owning scan page"
+assert "startActivityForResult(intent, REQUEST_BATCH_CLEANUP);" in scan_page, "Scan page must receive batch cleanup completion"
+assert "if (requestCode != REQUEST_BATCH_CLEANUP) return;" in scan_page, "Only the cleanup queue result may invalidate the scan"
+assert "selectedForCleanup.clear();" in scan_page and "restoreRequiresRescan = true;" in scan_page, "Returning from cleanup must invalidate stale scan selections"
+assert "原扫描结果可能已过期。请重新扫描后再处理。" in scan_page, "Stale scan results must be explained to the user"
 assert "if (scanScroll == scroll && scroll.getParent() != null)" in scan_page, "Stale scan scroll callbacks must not move a replacement page"
 assert "resultRows.removeAllViews()" in scan_page and "resultRows.addView(item" in scan_page
 assert "findings.removeAllViews()" not in scan_page
