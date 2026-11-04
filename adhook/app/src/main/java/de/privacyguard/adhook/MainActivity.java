@@ -7707,11 +7707,20 @@ public final class MainActivity extends ComponentActivity {
 
         EditText searchFilter = new EditText(this);
         searchFilter.setSingleLine(true);
-        searchFilter.setHint("搜索规则 ID、方法签名、动作或分组");
+        searchFilter.setHint("搜索规则 ID、方法签名、动作、常量或分组");
         searchFilter.setText(customHookRuleSearchQuery);
         customHookRuleSearchFilterView = searchFilter;
         content.addView(groupFilter);
         content.addView(searchFilter);
+        Button clearFilters = new Button(this);
+        clearFilters.setAllCaps(false);
+        clearFilters.setText("清除分组和搜索筛选");
+        clearFilters.setOnClickListener(v -> {
+            customHookRuleGroupFilter = "";
+            searchFilter.setText("");
+            groupFilter.setSelection(0);
+        });
+        content.addView(clearFilters, new LinearLayout.LayoutParams(-1, -2));
 
         TextView summary = new TextView(this);
         summary.setTextColor(0xff617080);
@@ -7766,7 +7775,8 @@ public final class MainActivity extends ComponentActivity {
                     if (!valid) invalidCount++;
 
                     String searchable = parts[0] + " " + parts[1] + " " + baseAction
-                            + " " + ruleGroup + " " + parts[3];
+                            + " " + ruleGroup + " " + parts[3]
+                            + (parts.length == 5 ? " " + parts[4] : "");
                     if (!needle.isEmpty() && !searchable.toLowerCase(java.util.Locale.ROOT).contains(needle))
                         continue;
 

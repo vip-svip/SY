@@ -2645,3 +2645,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已从 GitHub 重新读取源码和测试脚本，静态确认 URI Bundle 保存/恢复、选择器持久授权请求、恢复后重新生成预览、取消/确认清理及授权释放断言均存在。尚未执行 Shell/Python/JVM 回归脚本、Gradle、模拟器或真机测试。
 - 当前 HEAD（本记录写入前）：`d968ce74b7f28234e3e108733c8ed7e00dd31caf`。
 - 下一步：继续检查 Dia 原生页面的 SAF/编辑器返回链及覆盖确认对话框重建；固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook 自定义规则页面筛选交互补齐
+
+- 本批开始时分支 HEAD：`b5064e83e649c3ed7b4306884708be1808628fdc`。
+- 页面组：Hook 第五 Tab → 应用详情 → 自定义 Hook 规则页。
+- 修改：新增“清除分组和搜索筛选”原生控件；同时清空分组与搜索条件，不删除规则或草稿；规则搜索现在包含 RETURN_LITERAL 常量值，搜索提示同步说明常量字段。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-custom-hook-passthrough-regression.sh`、`docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`。
+- 验证：源码静态核对；回归脚本新增筛选重置控件、分组重置和常量搜索断言。Shell 回归、Android 单元测试、Gradle 构建、UI 自动化、安装和真机测试尚未运行。
+- 不涉及 Root/权限/服务执行逻辑；固定 FX 1.0.0；未生成 APK 或 KernelSU ZIP。
+- 失败路线：此前首次提交遇到分支前进冲突，已重新读取 HEAD 与全部目标文件并基于新 HEAD 重放；不重复使用旧 SHA。
+- 下一批：① Hook 自定义规则编辑器多语法输入与验证回显；② Dia SAF/编辑器返回链；③ 六 Tab 页面返回链定向回归。
+- 可并行工作线：游龙广告 Tasker 回执状态回读；安全护盾名单/扫描详情 UI 核对。共享文件修改顺序整合。

@@ -18,4 +18,7 @@ grep -Fq 'installDeveloperPassthroughHook' "$HOOK" || fail "passthrough actions 
 grep -Fq 'RETURN_ARGUMENT_0' "$MAIN" && grep -Fq 'RETURN_THIS' "$MAIN" || fail "native Hook editor doesn't expose passthrough actions"
 grep -Fq 'acceptsReturnFirstArgumentOnlyForExactMatchingTypes' "$UNIT" || fail "argument passthrough unit tests missing"
 grep -Fq 'acceptsReturnThisOnlyForObjectReturningMethods' "$UNIT" || fail "receiver passthrough unit tests missing"
+grep -Fq '清除分组和搜索筛选' "$MAIN" || fail "custom Hook filter reset control missing"
+grep -Fq 'groupFilter.setSelection(0)' "$MAIN" || fail "custom Hook filter reset does not clear group selection"
+grep -Fq '(parts.length == 5 ? " " + parts[4] : "")' "$MAIN" || fail "custom Hook search omits literal values"
 echo "PASS: custom Hook passthrough actions are exact-type, debuggable-only, explicit-opt-in and fail-closed"
