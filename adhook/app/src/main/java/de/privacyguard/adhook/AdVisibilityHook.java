@@ -380,7 +380,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
-                " adDetection=automatic(splash/feed/overlay)" + " dialogMatchMonitor=" + dialogMatchForPackage + " memberDiagReadOnly=" + memberDiagForPackage +
+                " adDetection=automatic(splash/feed/overlay)" + " dialogMatchBlock=" + dialogMatchForPackage + " memberDiagReadOnly=" + memberDiagForPackage +
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
