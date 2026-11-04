@@ -86,7 +86,7 @@ for token in (
     'valid_field()', 'valid_note()', 'normalize_domain()', 'normalize_value()',
     'list_rows()', 'value_exists()', 'append_row()', 'update_row()', 'mutate_transaction()',
     'mktemp "$CONF.native-list.XXXXXX"', 'mktemp "$CONF.native-list-rollback.XXXXXX"',
-    'mktemp "$CONF.restore.XXXXXX"', 'LOCK_HELD=1', 'tries -lt 20',
+    'mktemp "$CONF.restore.XXXXXX"', 'LOCK_HELD=1', '[ "$tries" -lt 20 ]', 'sleep 1',
     'cp -p "$CONF" "$BACKUP_FILE"', 'cp -p "$BACKUP_FILE" "$RESTORE_FILE"',
     'chmod 600 "$RESTORE_FILE"', 'apply_mode=full', 'apply_mode=fast',
     'sh "$MP/scripts/apply.sh" "$apply_mode"', 'echo FXLIST1', "trap cleanup EXIT",
