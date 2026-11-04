@@ -3109,3 +3109,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-system-expand-navigation-regression.sh`、本状态文件。
 - 验证：已对照 `FxDiaSystemExpandActivity` 中会话初检、确认回调前复检和 Root 命令执行顺序；等待 Actions。
 - 下一步：读取当前 Actions 后续首错；继续 Dia SystemExpand/Activity Browser 页面返回与状态恢复。设备安装、系统会话竞争场景未真机验收。
+
+
+## 2026-11-05 — Dia Frida 脚本库导入冲突完整预览
+
+- 产品 UI 提交：`ab73418e35fd62780ce2720d4bc014f2741dbfae`；回归提交：`76e42fd1dac0b35c5c500478aa24962af2969498`。
+- 导入预览原先只展示最多 5 个同名脚本，其余仅显示“等”，但确认回调会授权本次预览发现的全部同名项。现在改为逐行展示全部冲突名称，再由用户确认；仍传入完整 `preview.overwrittenNames`，Store 在写入锁内重新校验并拒绝预览后新增的冲突。
+- 回归增加完整名单展示及不截断检查。脚本库导入确认闭环此前由 Actions `41915795756` SUCCESS；完整冲突名单 UI 对应回归提交被后续提交取消，待后续合并回归。
+- 同期确认 libXposed wiring regression 已改为稳定检查 Gadget loader 在读取 per-app remote config 前运行；未更改产品逻辑。
+- 未验证：Android Gradle、真实 SAF DocumentsProvider、设备旋转/视觉效果和真机。
+- 下一批：继续 Dia Frida installer source picker 搜索/选择状态与安装来源校验；再检查 Frida JS 编辑器保存返回和会话状态。Host 静态回归不等于真实 Frida 注入验收。
