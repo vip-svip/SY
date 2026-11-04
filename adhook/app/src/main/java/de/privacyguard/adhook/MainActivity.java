@@ -221,6 +221,7 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = Math.max(0, Math.min(5,
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+            pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");
             restoreHookScreen = state.getBoolean("fx_hook_screen_visible", selectedBottomTab == 4);
             activePrivacySection = state.getString("fx_privacy_section");
             hookAppListQuery = state.getString(STATE_HOOK_APP_LIST_QUERY, "");
@@ -393,6 +394,9 @@ public final class MainActivity extends ComponentActivity {
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
         outState.putInt("fx_selected_bottom_tab", selectedBottomTab);
+        if (pendingDiaGpsTargetPackage != null) {
+            outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);
+        }
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
         if (migrationSuite != null) outState.putString("fx_migration_suite", migrationSuite);
