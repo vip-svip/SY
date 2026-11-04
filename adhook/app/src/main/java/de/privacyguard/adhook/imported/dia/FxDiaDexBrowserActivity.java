@@ -490,44 +490,63 @@ public final class FxDiaDexBrowserActivity extends Activity {
             summary.setText("导入 Hook 只允许 debuggable 用户应用；Framework DEX 和系统应用保持只读。");
             return;
         }
-        String query = filter.getText() == null ? ""
+        final String targetPackage = selected.packageName;
+        final String query = filter.getText() == null ? ""
                 : filter.getText().toString().trim().toLowerCase(Locale.ROOT);
-        List<FxDiaDexIndex.Member> candidates = new ArrayList<>();
-        for (FxDiaDexIndex.Member member : owner.methods) {
-            if (member == null || !member.method || member.name == null
-                    || member.name.startsWith("<") || member.descriptor == null
-                    || (member.accessFlags & (0x0400 | 0x0100)) != 0) continue;
-            if (!query.isEmpty()
-                    && !member.display().toLowerCase(Locale.ROOT).contains(query)) continue;
-            String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
-            if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
-                    selected.packageName) == null) continue;
-            candidates.add(member);
-            if (candidates.size() >= 200) break;
-        }
-        if (candidates.isEmpty()) {
-            summary.setText("当前类没有符合条件的具体 Java 方法。请缩小搜索范围，或确认选择的是 debuggable 用户应用。");
-            return;
-        }
-        String[] labels = new String[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) labels[i] = candidates.get(i).display();
-        new AlertDialog.Builder(this).setTitle("选择精确方法 · " + candidates.size() + " 个")
-                .setItems(labels, (dialog, which) -> {
-                    FxDiaDexIndex.Member member = candidates.get(which);
-                    String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
-                    if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
-                            selected.packageName) == null) {
-                        summary.setText("所选方法签名未通过 FX 规则校验，未返回。");
-                        return;
+        final int request = ++detailGeneration;
+        summary.setText("正在后台筛选可导入的具体方法…");
+        try {
+            detailWorker.execute(() -> {
+                try {
+                    final List<FxDiaDexIndex.Member> candidates =
+                            collectDexHookCandidates(owner, query, targetPackage);
+                    final String[] labels = new String[candidates.size()];
+                    for (int i = 0; i < candidates.size(); i++) {
+                        labels[i] = candidates.get(i).display();
                     }
-                    Intent result = new Intent();
-                    result.putExtra("fx_dex_hook_package", selected.packageName);
-                    result.putExtra("fx_dex_hook_descriptor", descriptor);
-                    result.putExtra("fx_dex_hook_display", member.display());
-                    setResult(RESULT_OK, result);
-                    finish();
-                })
-                .setNegativeButton("取消", null).show();
+                    runOnUiThread(() -> {
+                        if (destroyed || isFinishing() || isDestroyed()
+                                || request != detailGeneration || selected == null
+                                || !targetPackage.equals(selected.packageName)) return;
+                        if (candidates.isEmpty()) {
+                            summary.setText("当前类没有符合条件的具体 Java 方法。请缩小搜索范围，或确认选择的是 debuggable 用户应用。");
+                            return;
+                        }
+                        new AlertDialog.Builder(this).setTitle("选择精确方法 · " + candidates.size() + " 个")
+                                .setItems(labels, (dialog, which) -> {
+                                    if (request != detailGeneration || selected == null
+                                            || !targetPackage.equals(selected.packageName)) {
+                                        summary.setText("目标应用或搜索条件已变化，请重新选择方法。");
+                                        return;
+                                    }
+                                    FxDiaDexIndex.Member member = candidates.get(which);
+                                    String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
+                                    if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
+                                            targetPackage) == null) {
+                                        summary.setText("所选方法签名未通过 FX 规则校验，未返回。");
+                                        return;
+                                    }
+                                    Intent result = new Intent();
+                                    result.putExtra("fx_dex_hook_package", targetPackage);
+                                    result.putExtra("fx_dex_hook_descriptor", descriptor);
+                                    result.putExtra("fx_dex_hook_display", member.display());
+                                    setResult(RESULT_OK, result);
+                                    finish();
+                                })
+                                .setNegativeButton("取消", null).show();
+                    });
+                } catch (Throwable error) {
+                    runOnUiThread(() -> {
+                        if (!destroyed && !isFinishing() && !isDestroyed()
+                                && request == detailGeneration) {
+                            summary.setText("方法筛选失败：" + error.getClass().getSimpleName());
+                        }
+                    });
+                }
+            });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 方法筛选后台队列繁忙，请稍后重试。");
+        }
     }
 
     private String buildClassDetail(FxDiaDexIndex.DexClass item, String q, int request) {
@@ -577,6 +596,24 @@ public final class FxDiaDexBrowserActivity extends Activity {
         }
         if (item.calls.isEmpty()) detail.append("没有可解析的直接调用边；抽象/native/无代码方法不会产生调用边。\n");
         return detail.toString();
+    }
+
+    private static List<FxDiaDexIndex.Member> collectDexHookCandidates(
+            FxDiaDexIndex.DexClass owner, String query, String targetPackage) {
+        List<FxDiaDexIndex.Member> candidates = new ArrayList<>();
+        for (FxDiaDexIndex.Member member : owner.methods) {
+            if (member == null || !member.method || member.name == null
+                    || member.name.startsWith("<") || member.descriptor == null
+                    || (member.accessFlags & (0x0400 | 0x0100)) != 0) continue;
+            if (!query.isEmpty()
+                    && !member.display().toLowerCase(Locale.ROOT).contains(query)) continue;
+            String descriptor = owner.descriptor + "->" + member.name + member.descriptor;
+            if (DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0",
+                    targetPackage) == null) continue;
+            candidates.add(member);
+            if (candidates.size() >= 200) break;
+        }
+        return candidates;
     }
 
     @Override protected void onDestroy() {

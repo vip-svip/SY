@@ -87,6 +87,14 @@ assert "runOnUiThread(() -> {" in detail, "member dialog must be displayed on th
 assert "buildClassDetail(item, q, request)" in detail
 assert "request != detailGeneration" in detail, "class detail must pass its generation into the worker"
 assert "for (FxDiaDexIndex.Member" not in detail, "the UI click handler must not scan class members"
+picker = section("private void chooseDexHookMethod(", "private String buildClassDetail(")
+assert "detailWorker.execute(() -> {" in picker, "method candidate filtering must run on a background worker"
+assert "collectDexHookCandidates(owner, query, targetPackage)" in picker
+assert "for (FxDiaDexIndex.Member" not in picker, "the method-picker click callback must not scan the class graph"
+candidate_builder = section("private static List<FxDiaDexIndex.Member> collectDexHookCandidates(", "@Override protected void onDestroy()")
+assert "for (FxDiaDexIndex.Member member : owner.methods)" in candidate_builder
+assert "candidates.size() >= 200" in candidate_builder, "method candidate scan must stay capped"
+
 builder = section("private String buildClassDetail(", "@Override protected void onDestroy()")
 assert "Thread.currentThread().isInterrupted()" in builder, "superseded detail work must stop early"
 assert "request != detailGeneration) return null;" in builder, "class detail must stop on a newer detail/query request"
