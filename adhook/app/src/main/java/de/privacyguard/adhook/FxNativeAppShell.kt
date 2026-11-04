@@ -16,10 +16,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +57,12 @@ fun installFxNativeAppShell(
     onTabSelected: (Int) -> Unit
 ) {
     val wallpaperPath = FxWallpaperStore.currentPath(view.context)
+    if (wallpaperPath != null) {
+        // Imported native Activities may use opaque root containers. Make only
+        // that host surface transparent so the shared wallpaper layer is visible;
+        // child cards and dialogs keep their own foreground surfaces.
+        pageContent.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+    }
     view.setContent {
         FxNativeAppShell(pageContent, selectedIndex, mode, wallpaperPath, onTabSelected)
     }
@@ -78,6 +86,13 @@ private fun FxNativeAppShell(
         }
     }
     val wallpaperImage = remember(wallpaperBitmap) { wallpaperBitmap?.asImageBitmap() }
+    DisposableEffect(wallpaperBitmap) {
+        onDispose {
+            wallpaperBitmap?.let { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+        }
+    }
     var selected by remember { mutableIntStateOf(selectedIndex.coerceIn(0, 5)) }
     // Keep this provider stable across recompositions. LiquidBottomTabs keys its
     // gesture/callback effects by this function; an inline lambda resets them on
