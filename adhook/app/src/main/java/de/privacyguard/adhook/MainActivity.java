@@ -2961,6 +2961,55 @@ public final class MainActivity extends ComponentActivity {
         };
     }
 
+    private void addDiaActivationBanner() {
+        if (!getSharedPreferences("digXposed", MODE_PRIVATE).getBoolean("active_tip", true)) return;
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(10), dp(14), dp(10));
+        panel.setBackgroundColor(0xfffff6e8);
+        TextView title = new TextView(this);
+        title.setText("FX Hook · LSPosed 激活状态");
+        title.setTextColor(0xff7a4b13);
+        title.setTextSize(14);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        panel.addView(title);
+
+        TextView state = new TextView(this);
+        state.setTextColor(0xff79552b);
+        state.setTextSize(12);
+        state.setPadding(0, dp(4), 0, dp(6));
+        panel.addView(state);
+
+        Runnable refresh = () -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (FxLsposedScopeBridge.isConnected()) {
+                FxLsposedScopeBridge.Snapshot snapshot =
+                        FxLsposedScopeBridge.snapshot("com.example.fx.activation.probe");
+                // A synthetic package is deliberately not used as a scope query:
+                // this banner reports only the official service connection.
+                state.setText("已收到 LSPosed 官方服务 Binder。"
+                        + (snapshot.connected ? " 服务 API 可读取。" : "")
+                        + "\\n这不代表 FX Hook 已注入到当前进程或任一目标应用。"
+                        + "请在 LSPosed Manager 单独确认模块启用和目标应用作用域，并重新启动目标进程。");
+            } else {
+                state.setText("尚未收到 LSPosed 官方服务 Binder。请在 LSPosed Manager 启用 FX Hook，"
+                        + "确认作用域后重新打开 FX Hook 再刷新。"
+                        + "\\n服务连接状态不等同于目标进程注入状态。");
+            }
+        };
+        refresh.run();
+        Button refreshButton = new Button(this);
+        refreshButton.setAllCaps(false);
+        refreshButton.setText("刷新 LSPosed 服务状态");
+        refreshButton.setOnClickListener(v -> refresh.run());
+        panel.addView(refreshButton);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(4), dp(12), dp(10));
+        content.addView(panel, lp);
+    }
+
     private void showImportedSuite(String suite) {
         migrationSuite = suite;
         migrationCategory = null;
@@ -2982,6 +3031,7 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(16), dp(8), dp(16), dp(12));
         content.addView(intro);
+        if ("dia".equals(suite)) addDiaActivationBanner();
         for (String[] section : importedSuiteSections(suite)) {
             String category = section[0];
             addNativeActionCard(category, (section.length - 1) + " 个原始功能页面",
