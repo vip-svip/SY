@@ -2403,3 +2403,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仍需完成：设备上验证风险详情长内容滚动恢复；黑名单选择器 99/100/101 项边界、搜索/翻页/取消/确认操作；名单管理器与扫描页返回后的刷新一致性。
 - 本批读取时分支 HEAD：`6010d23759d4698ffc82678a611043cc700eee43`。状态文件提交后将更新分支 HEAD。
 - 下一步：检查白名单选择器和黑名单选择器是否在列表内容变化后保留无效暂存项，接着检查六 Tab 选中态与 Activity 返回链。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 六个主 Tab 固定契约与原生页面返回路由回归保护
+
+- 复核实时实现：`FxNativeAppShell.kt` 的主标签固定为 VPN、Ad、隐私、脚本、Hook、设置，玻璃模式使用相同 `labels.size`；`FxNativeTabActivity` 将选中索引限制在 0..5；原生页面通过 CLEAR_TOP/SINGLE_TOP 返回 MainActivity，并由 `handleImportedNativeTabIntent` 分派到对应主 Tab。
+- 复核 MainActivity 路由：索引 0..3 回到对应功能页面，4 打开 Hook，5 打开设置；直接选择顶层 Tab 会清理嵌套 Hook 编辑路由，避免错误保留旧详情页。
+- 本批没有改动运行时代码，避免对已正确的六 Tab 行为制造重复补丁；新增测试保护，防止未来页面迁移改变六个标签顺序、玻璃模式数量、原生返回索引或 MainActivity 分派范围。
+- 改动路径：`scripts/tests/fx-yulong-shield-six-tab-regression.sh`。
+- 提交：`a399034c2ee22d77da69d9f36a629c9171b9191f` — 固定六 Tab 标签/索引/返回路由断言。
+- 同批已完成的 Shield UI 修复：黑名单 picker 最多暂存 100 项（`ec7ac4610fb7c21c879a1f46c192b470c5489d18`）；风险详情页滚动恢复（`2d3de0cff52d550103e268dc4503a1c8095d94ae`）；对应回归测试分别为 `802f759ff271582a82af82aa530b7ba0e1367830` 与 `6010d23759d4698ffc82678a611043cc700eee43`。
+- 静态核验：重新读取 MainActivity、FxNativeTabActivity、FxNativeAppShell.kt 和新测试脚本，核对标签顺序、数量、索引边界和返回路由，均匹配。未执行 Shell/Gradle/Compose UI 自动化或真机六 Tab 点击/返回测试。
+- 当前分支 HEAD（状态文件提交前）：`a399034c2ee22d77da69d9f36a629c9171b9191f`。
+- 下一步：检查 Dia 与游龙原生页面在系统返回键、顶部返回按钮和主 Tab 切换时的返回栈一致性；然后继续原生页面 UI 批次，优先未完成的 Dia / 游龙广告插件页面。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
