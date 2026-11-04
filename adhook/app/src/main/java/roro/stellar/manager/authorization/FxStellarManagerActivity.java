@@ -8,6 +8,10 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
+import android.os.Build;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
@@ -39,6 +43,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 
 /** Stellar authorization manager retained inside Yulong Shield in the single FX APK. */
 public final class FxStellarManagerActivity extends Activity {
@@ -60,6 +65,96 @@ public final class FxStellarManagerActivity extends Activity {
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
  private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
+ private static final String COMMAND_SHORTCUT_ACTION =
+   "roro.stellar.manager.action.EXECUTE_COMMAND_SHORTCUT";
+ private static final String COMMAND_SHORTCUT_PREFS = "fx_stellar_command_shortcuts";
+ private static final int MAX_COMMAND_SHORTCUTS = 24;
+
+ private boolean isReadOnlyScope(String scope){
+  return "SHELL_ID_COMMAND".equals(scope)
+      || "PACKAGE_LIST_COMMAND".equals(scope)
+      || "PROCESS_LIST_COMMAND".equals(scope)
+      || "PROPERTY_READ_COMMAND".equals(scope)
+      || "SETTINGS_READ_COMMAND".equals(scope)
+      || "SELINUX_STATUS_COMMAND".equals(scope)
+      || "FILESYSTEM_READ_COMMAND".equals(scope)
+      || "SERVICE_LIST_COMMAND".equals(scope);
+ }
+ private boolean isReadOnlyCommand(String command){
+  if(command==null||command.isEmpty()||command.length()>512)return false;
+  for(int i=0;i<command.length();i++){
+   char ch=command.charAt(i);
+   if(ch<0x20||ch==0x7f)return false;
+  }
+  if("getprop".equals(command)||"id".equals(command)||"id -u".equals(command)
+      ||"whoami".equals(command)||"ps".equals(command)||"ps -A".equals(command)
+      ||"ps -ef".equals(command)||"getenforce".equals(command)
+      ||"service list".equals(command))return true;
+  return command.matches("getprop [A-Za-z0-9_.-]{1,128}")
+      ||command.matches("pm list packages( -3|-s|-f|-U)?")
+      ||command.matches("cmd package list packages( -3|-s|-f|-U)?")
+      ||command.matches("dumpsys package [A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+      ||command.matches("settings get (secure|global|system) [A-Za-z0-9_.-]{1,128}")
+      ||command.matches("cat /proc/(version|uptime)")
+      ||command.matches("cat /sys/fs/selinux/enforce")
+      ||command.matches("ls (/system|/product|/vendor|/apex|/proc|/sys)(/[A-Za-z0-9_.-]+)*");
+ }
+ private void pinReadOnlyCommandShortcut(String packageName,String scope,String command){
+  if(Build.VERSION.SDK_INT<26){
+   state.setText("Android 8.0 之前不支持桌面快捷方式。");return;
+  }
+  if(packageName==null||!packageName.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+      ||!packages.contains(packageName)){
+   state.setText("请先选择已授权的目标应用。");return;
+  }
+  if(!isReadOnlyScope(scope)||!scopes.contains(packageName+"|"+scope)){
+   state.setText("目标应用尚未获得对应只读能力作用域，不能创建快捷方式。");return;
+  }
+  if(!isReadOnlyCommand(command)||!always.contains(packageName+"|"+command)){
+   state.setText("快捷方式只能绑定已加入“始终允许命令”的只读命令；请先添加并刷新授权状态。");return;
+  }
+  ShortcutManager shortcutManager=getSystemService(ShortcutManager.class);
+  if(shortcutManager==null||!shortcutManager.isRequestPinShortcutSupported()){
+   state.setText("当前桌面不支持固定应用快捷方式。");return;
+  }
+  android.content.SharedPreferences prefs=getSharedPreferences(COMMAND_SHORTCUT_PREFS,MODE_PRIVATE);
+  int existing=0;
+  for(String key:prefs.getAll().keySet())if(key.endsWith(".package"))existing++;
+  if(existing>=MAX_COMMAND_SHORTCUTS){
+   state.setText("已达到 "+MAX_COMMAND_SHORTCUTS+" 个命令快捷方式的本地保存上限。");
+   return;
+  }
+  String id=UUID.randomUUID().toString().replace("-","");
+  prefs.edit().putString(id+".package",packageName)
+      .putString(id+".scope",scope)
+      .putString(id+".command",command)
+      .putLong(id+".created",System.currentTimeMillis())
+      .apply();
+  String shortLabel=command.length()>24?command.substring(0,23)+"…":command;
+  Intent launch=new Intent(this,FxStellarCommandShortcutActivity.class);
+  launch.setAction(COMMAND_SHORTCUT_ACTION);
+  launch.putExtra("command_id",id);
+  launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
+  ShortcutInfo shortcut=new ShortcutInfo.Builder(this,"fx-stellar-"+id)
+      .setShortLabel(shortLabel)
+      .setLongLabel("FX Stellar · "+shortLabel)
+      .setIcon(Icon.createWithResource(this,android.R.drawable.ic_menu_info_details))
+      .setIntent(launch)
+      .build();
+  try{
+   if(shortcutManager.requestPinShortcut(shortcut,null)){
+    state.setText("已向 Android 桌面提交固定快捷方式请求。桌面确认后即可使用；每次启动仍需确认执行。");
+   }else{
+    prefs.edit().remove(id+".package").remove(id+".scope")
+        .remove(id+".command").remove(id+".created").apply();
+    state.setText("桌面拒绝快捷方式请求；未保存可执行入口。");
+   }
+  }catch(RuntimeException failure){
+   prefs.edit().remove(id+".package").remove(id+".scope")
+       .remove(id+".command").remove(id+".created").apply();
+   state.setText("快捷方式创建失败："+failure.getClass().getSimpleName());
+  }
+ }
  private boolean activityAlive(){return !isFinishing()&&!isDestroyed();}
  private void deliver(java.util.function.Consumer<RootAccess.Result> cb,RootAccess.Result result){
   runOnUiThread(()->{if(activityAlive())cb.accept(result);});
@@ -286,6 +381,11 @@ public final class FxStellarManagerActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Stellar 只读命令 · 退出码 "+result.exitCode).setView(view).setPositiveButton("关闭",null).show();
         state.setText(result.exitCode==0?"只读命令执行完成。":"只读命令未执行："+(result.output==null?"":result.output));
       });
+    }),
+    button("创建桌面命令快捷方式",()->{
+      String c=cmd.getText().toString().trim();
+      String scope=String.valueOf(commandScope.getSelectedItem());
+      pinReadOnlyCommandShortcut(target,scope,c);
     }));
       EditText permissionName=new EditText(this);
   permissionName.setSingleLine(true);
