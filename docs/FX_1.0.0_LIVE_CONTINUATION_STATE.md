@@ -909,3 +909,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最近提交：8946cb888d49b9bd7320445675c2f2c4c16f83a5 feat(privacy): add native per-app Toast filtering page；752497bc7d8e07e7d76272671c3c855e7d1e93de feat(ui): paginate Yulong per-app traffic statistics；bb843fb3ec14d054b636c3b53fda697d14d58e06 docs(fx): record Yulong whitelist UI restoration；f93aafda36277583e727c244b1ab7851fe40d4ad feat(privacy): serialize per-app Toast filter rules；1725569d71e01afb7daacdf591a96eb59cc50328 feat(privacy): parse per-app Toast filtering rules；41f601c53b9d1b85d80a3ff8df766ff2639e8991 fix(ui): restore Yulong app whitelist list state；4fed76d48d0f1c6b1b9a4935085d43dada1566e4 docs(fx): record Dialog addView runtime and regression status；78cdea7fba9f3a5c5c960b25df524683668ec558 fix(test): use real newlines in GPS config parser fixtures。
 - 未完成事项：游龙广告应用管理组的应用统计和白名单页已补分页/状态恢复；Firewall 页面已有相近的分页、搜索和滚动恢复，但其用户应用/系统应用/按应用设置入口需进一步验证筛选一致性与原版导航。Dia / 游龙安全护盾深层页面仍有 pending 入口，尚未逐项完成原版对照。
 - 下一批具体任务：核对 Firewall 页面按“用户应用 / 系统应用 / 按应用设置”路由是否实际过滤正确、返回栈是否完整；随后转向 Dia 原生页面，不重复改已经具备恢复链的白名单和统计页面。
+
+## 2026-11-05 — Toast 逐应用原生配置页接入（并行批次核验）
+
+- 本节更新前实时分支 HEAD：e66a043003bf2dd0ff21139c029b3275e8ae87c2。
+- 对应并行代码提交：1725569d71e01afb7daacdf591a96eb59cc50328（Parser）、f93aafda36277583e727c244b1ab7851fe40d4ad（Serializer）、8946cb888d49b9bd7320445675c2f2c4c16f83a5（原生 UI 和 MainActivity 路由）。
+- 已核验的 UI：隐私页有独立“Toast 文本过滤”入口；Dia「对话框与通知」迁移目录也有 Toast 过滤入口；目标页逐应用显示开关、关键词多行编辑器、规则限制与草稿持久化，保存后发布独立 toast_filter / toast_text_terms_b64 配置字段。系统应用页面只读，避免默认影响系统提示。
+- 已核验的配置链：UnifiedHookConfigParser 解析 toast_filter 和 toast_text_terms_b64；UnifiedHookConfigSerializer 仅在启用且规则非空时写出配置，关闭但携带规则会拒绝序列化。
+- 运行时边界：本节只核验上述 UI / 发布 / Parser / Serializer diff。当前读取的 AdVisibilityHook.java 仍仅有 Dialog 抑制提示和 Dialog 规则匹配路径，没有发现读取 toastFilterEnabled / toastTextTerms 并 Hook Toast.show() 的执行器证据。**Toast 过滤目前不得标为运行时完成**；用户可见设置和持久化不能代替目标进程内实际拦截。
+- 测试边界：本次未读取到对应 Toast Parser / Serializer 回归用例执行结果；未运行 Gradle、Hook 运行时或 Android 设备测试。
+- 下一步具体任务：实现独立 Toast 执行器，优先 Hook Toast.show() 并对可安全读取的 Toast View 文本做有界、不区分大小写字面匹配；保持默认关闭、逐应用作用域、系统/FX 自身 fail-open、异常 fail-open，不记录 Toast 正文；再补 Parser/Serializer 和执行器定向测试。不得复用 Dialog 的 dialogNotify。
