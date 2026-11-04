@@ -68,6 +68,8 @@ assert "pendingPrivacySection = restoringTarget ? null : privacySection;" in mai
 assert "final String requested = pendingPrivacySection;" in main, "category auto-focus must be a one-time navigation request"
 assert "private void restoreHookTargetScrollAfterBuild()" in main
 assert "targetScroll.scrollTo(0, restoreY);" in main
+assert "hookTargetScrollRestorePending = false;" in main, "stale target scroll restore must be cleared when its app was uninstalled"
+assert 'if (target != null) {' in main and 'hookTargetScrollY = 0;' in main, "missing-target restoration must not leak the old position into a different app"
 assert "targetScroll != nativeScroll || packageName == null" in main, "stale target scroll callback must not affect a newer target"
 assert "hookTargetScrollY = Math.max(0, nativeScroll.getScrollY());" in main, "target position must be captured before entering custom rules"
 assert "if (hookTargetVisible && !hookCustomRulesPageVisible && !hookTargetScrollRestorePending" in main, "target rebuild must capture position but not the custom-rule list"
