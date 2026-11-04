@@ -5072,7 +5072,10 @@ public final class MainActivity extends ComponentActivity {
     }
     private TextView title(String value, int size) {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size);
-        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor("glass".equals(uiMode) ? 0xff24394c : "miuix".equals(uiMode) ? 0xff202b3c : 0xff17212b);
+        int textColor = "glass".equals(uiMode) ? 0xff24394c
+                : "miuix".equals(uiMode) ? 0xff202b3c
+                : "ios".equals(uiMode) ? 0xff1c1c1e : 0xff17212b;
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(textColor);
         t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
     }
     private void base(String heading) {
@@ -8522,8 +8525,14 @@ public final class MainActivity extends ComponentActivity {
 
     private void section(String s) {
         TextView t=title(s,16);
-        t.setBackground(roundedDrawable("miuix".equals(uiMode) ? 0xffe5ecf8 : "glass".equals(uiMode) ? 0xccefffff : 0xffe9eef3,
-                "glass".equals(uiMode) ? 0x66ffffff : 0));
+        int surface = "miuix".equals(uiMode) ? 0xffe5ecf8
+                : "glass".equals(uiMode) ? 0xccefffff
+                : "huawei".equals(uiMode) ? 0xffeaf2fc
+                : "ios".equals(uiMode) ? 0xffe5e5ea : 0xffe9eef3;
+        int stroke = "glass".equals(uiMode) ? 0x66ffffff
+                : "huawei".equals(uiMode) ? 0x332878d0
+                : "ios".equals(uiMode) ? 0x1f8e8e93 : 0;
+        t.setBackground(roundedDrawable(surface, stroke));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12), dp(10), dp(12), dp(4));
         t.setTag("fx-section:" + s);
