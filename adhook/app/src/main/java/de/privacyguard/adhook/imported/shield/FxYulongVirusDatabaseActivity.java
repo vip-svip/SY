@@ -114,30 +114,41 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
     }
 
     private void updateStatus() {
-        FxYulongVirusDb.Data data=FxYulongVirusDb.get(this);
-        long time=FxYulongVirusDb.getCachedFetchTime();
-        String date=time>0?DateFormat.getDateTimeInstance().format(new Date(time)):"尚无缓存时间";
-        summary.setText("缓存条目："+data.total()
-                +"\n确定风险包名："+data.certainPkgs.size()
-                +"\n确定风险名称："+data.certainNames.size()
-                +"\n可能风险包名："+data.suspectPkgs.size()
-                +"\n可能风险名称："+data.suspectNames.size()
-                +"\n风险关键字："+data.keys.size()
-                +"\n服务器最近可达："+(FxYulongVirusDb.isServerReachable()?"是":"未知/否")
-                +"\n最近缓存时间："+date
-                +(FxYulongVirusDb.getLastError().isEmpty()?"":"\n最近错误："+FxYulongVirusDb.getLastError()));
+        FxYulongVirusDb.Data data = FxYulongVirusDb.get(this);
+        long attemptTime = FxYulongVirusDb.getLastAttempt();
+        long successTime = FxYulongVirusDb.getLastSuccess();
+        String attemptDate = attemptTime > 0
+                ? DateFormat.getDateTimeInstance().format(new Date(attemptTime)) : "尚未尝试";
+        String successDate = successTime > 0
+                ? DateFormat.getDateTimeInstance().format(new Date(successTime)) : "尚无成功同步记录";
+        summary.setText("本地名单缓存：" + (data.total() > 0 ? "可用（至少部分名单）" : "尚无有效名单缓存")
+                + "\n缓存条目：" + data.total()
+                + "\n确定风险包名：" + data.certainPkgs.size()
+                + "\n确定风险名称：" + data.certainNames.size()
+                + "\n可能风险包名：" + data.suspectPkgs.size()
+                + "\n可能风险名称：" + data.suspectNames.size()
+                + "\n风险关键字：" + data.keys.size()
+                + "\n最近同步尝试：" + attemptDate
+                + "\n最近成功更新：" + successDate
+                + "\n最近一次尝试可达：" + (attemptTime <= 0 ? "未知" : (FxYulongVirusDb.isServerReachable() ? "是" : "否"))
+                + (FxYulongVirusDb.getLastError().isEmpty() ? "" : "\n最近错误：" + FxYulongVirusDb.getLastError()));
         listRows.removeAllViews();
-        List<FxYulongVirusDb.ListStatus> items=FxYulongVirusDb.getListStatus();
-        for(FxYulongVirusDb.ListStatus item:items) {
-            String updated=item.updatedAt>0?DateFormat.getDateTimeInstance().format(new Date(item.updatedAt)):"尚未成功";
-            String detail=item.url+(item.mergeUrl==null?"":"\n合并源："+item.mergeUrl);
-            String state=(item.ok?"最近成功 · ":"尚未成功 · ")+item.count+" 条 · "+updated;
-            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(8),dp(5),dp(8),dp(5));
-            row.addView(text(item.label,14,0xff263746,true));
-            row.addView(text(state,12,0xff607080,false));
-            row.addView(text(detail,11,0xff778493,false));
-            listRows.addView(row,new LinearLayout.LayoutParams(-1,-2));
+        List<FxYulongVirusDb.ListStatus> items = FxYulongVirusDb.getListStatus();
+        for (FxYulongVirusDb.ListStatus item : items) {
+            String updated = item.updatedAt > 0
+                    ? DateFormat.getDateTimeInstance().format(new Date(item.updatedAt)) : "更新时间未知";
+            String attempted = item.lastAttemptAt > 0
+                    ? DateFormat.getDateTimeInstance().format(new Date(item.lastAttemptAt)) : "";
+            String detail = item.url + (item.mergeUrl == null ? "" : "\n合并源：" + item.mergeUrl);
+            String state = item.statusLabel() + " · " + item.count + " 条 · 最近成功更新：" + updated
+                    + (attempted.isEmpty() ? "" : " · 最近尝试：" + attempted);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(8), dp(5), dp(8), dp(5));
+            row.addView(text(item.label, 14, 0xff263746, true));
+            row.addView(text(state, 12, 0xff607080, false));
+            row.addView(text(detail, 11, 0xff778493, false));
+            listRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
     }
 
