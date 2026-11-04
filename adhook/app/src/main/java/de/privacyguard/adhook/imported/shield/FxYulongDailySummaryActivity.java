@@ -34,6 +34,22 @@ public final class FxYulongDailySummaryActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12),dp(5),dp(12),dp(5)); body.addView(c,lp);
     }
+    @SuppressWarnings("deprecation")
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        android.app.ActivityManager manager =
+                (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) return false;
+        try {
+            for (android.app.ActivityManager.RunningServiceInfo info
+                    : manager.getRunningServices(100)) {
+                if (info != null && info.service != null
+                        && serviceClass.getName().equals(info.service.getClassName())
+                        && getPackageName().equals(info.service.getPackageName())) return true;
+            }
+        } catch (RuntimeException ignored) { }
+        return false;
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         SharedPreferences p=getSharedPreferences(PREFS,MODE_PRIVATE);
@@ -64,7 +80,9 @@ public final class FxYulongDailySummaryActivity extends Activity {
         card(body,"统计日期",today);
         card(body,"前台管控提醒","今日 "+warnings+" 次 · 累计 "
                 +p.getInt("protect_warn_count",0)+" 次");
-        card(body,"新安装应用扫描","今日 "+scans+" 次 · 风险名单命中 "+findings+" 次");
+        card(body,"自动风险扫描应用数",
+                "今日检查应用 " + scans + " 个 · 风险名单命中 " + findings
+                        + " 项（统计包含前台、安装/更新与病毒库更新后的扫描）");
         card(body,"救援触发与悬浮入口","今日音量键/摇动触发提醒 "+rescueCount
                 +" 次 · 悬浮入口打开 "+overlayCount+" 次"
                 +"\n最近触发："+p.getString("rescue_trigger_last_time","暂无记录")
@@ -77,11 +95,18 @@ public final class FxYulongDailySummaryActivity extends Activity {
                 p.getString("automatic_scan_last_time","暂无记录")+"\n"
                 +p.getString("automatic_scan_last_package","")
                 +"\n"+p.getString("automatic_scan_last_result","尚无扫描结果。"));
-        card(body,"后台守护状态",
-                (p.getBoolean("protect_service_running",false)?"前台守护服务运行中":"前台守护服务未运行")
-                +"\n"+(p.getBoolean("protect_on",false)?"名单监测已开启":"名单监测已关闭")
-                +"\n"+(p.getBoolean("shake_trigger_on",false)?"摇动触发已开启":"摇动触发已关闭")
-                +"\n"+(p.getBoolean("volume_trigger_on",false)?"音量触发已开启":"音量触发已关闭"));
+        boolean protectionServiceRunning = isServiceRunning(FxYulongProtectionService.class);
+        boolean rescueOverlayRunning = isServiceRunning(FxYulongRescueOverlayService.class);
+        boolean notificationPermission = android.os.Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        card(body,"后台守护实际状态",
+                (protectionServiceRunning ? "安全守护/救援前台服务：当前运行中" : "安全守护/救援前台服务：当前未运行")
+                +"\\n"+(rescueOverlayRunning?"悬浮救援服务：当前运行中":"悬浮救援服务：当前未运行")
+                +"\\n"+(p.getBoolean("protect_on",false)?"名单监测配置：已开启":"名单监测配置：已关闭")
+                +"\\n"+(p.getBoolean("shake_trigger_on",false)?"摇动触发配置：已开启":"摇动触发配置：已关闭")
+                +"\\n"+(p.getBoolean("volume_trigger_on",false)?"音量触发配置：已开启":"音量触发配置：已关闭")
+                +"\\n"+(notificationPermission?"通知权限：已授予":"通知权限：未授予，通知不可显示"));
         card(body,"统计口径",
                 "计数仅来自 FX 已迁入的本机扫描和管控提醒事件。没有记录到的事件不会推算；本页不访问第三方统计服务器。");
         body.addView(button("打开完整应用扫描",()->startActivity(new Intent(this,FxYulongScanActivity.class))));
