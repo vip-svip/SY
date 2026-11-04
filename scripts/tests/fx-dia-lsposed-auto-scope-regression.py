@@ -21,6 +21,13 @@ assert "FxLsposedScopeBridge.requestScope(packageName" in helper, "request must 
 assert "FLAG_SYSTEM" in helper and "FLAG_UPDATED_SYSTEM_APP" in helper, "system apps must stay explicit-only"
 assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.add(packageName)" in helper
 assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName)" in helper, "pending guard must clear on every result"
+assert "AUTO_SCOPE_EXECUTOR.execute(() -> {" in helper and "new Thread(" not in helper, \
+    "scope sync must use the shared bounded executor rather than one thread per target"
+assert "new ArrayBlockingQueue<>(8)" in main and "new ThreadPoolExecutor.AbortPolicy()" in main, \
+    "scope sync executor must have a bounded queue and reject overload"
+assert "RejectedExecutionException full" in helper and "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName)" in helper, \
+    "queue rejection must release the per-package pending guard for retry"
+assert "WeakReference<MainActivity>" in helper, "asynchronous Manager callback must not keep a destroyed Activity alive"
 assert "maybeAutoRequestLsposedScope(ai)" in target, "automatic request must be wired to explicit target selection"
 assert 'addStoredSwitch("自动申请 LSPosed 作用域"' in settings
 assert '"lsp_sync", false' in settings
