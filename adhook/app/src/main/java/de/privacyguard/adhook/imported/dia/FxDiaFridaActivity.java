@@ -12,7 +12,9 @@ import android.net.Uri;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -1511,7 +1513,7 @@ public final class FxDiaFridaActivity extends Activity {
         form.setPadding(dp(18), dp(6), dp(18), dp(4));
 
         TextView note = text(
-                "仅检查目标应用新增到窗口根容器的 ViewGroup 子项。可使用 TextView 文本正则和资源 ID 匹配；规则为空时不生成可执行规则。每次最多 5 次移除、最多 1,500 个节点、深度 28、最多 64 个待检查根节点。",
+                "仅检查目标应用新增到窗口根容器的 ViewGroup 子项。可使用 TextView 文本正则和资源 ID 匹配；规则为空时不生成可执行规则。每次最多 5 次移除、最多 1,500 个节点、深度 28、最多 64 个待检查根节点。编辑内容自动保存为草稿；旋转或重建后重新打开此表单可恢复。",
                 12, 0xff64748b, false);
         form.addView(note);
 
@@ -1522,7 +1524,8 @@ public final class FxDiaFridaActivity extends Activity {
         keywords.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         keywords.setHint("每行一个 Java 正则，匹配 TextView 文本；最多 12 条\n例如：^(立即\u786e认|确定退出)$");
-        keywords.setText(prefs.getString("dialog_remove_regex_rules", ""));
+        keywords.setText(prefs.getString("dialog_remove_regex_draft",
+                prefs.getString("dialog_remove_regex_rules", "")));
         form.addView(text("关键词正则", 13, 0xff334155, true));
         form.addView(keywords);
 
@@ -1532,7 +1535,8 @@ public final class FxDiaFridaActivity extends Activity {
         ids.setMaxLines(6);
         ids.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         ids.setHint("每行一个 resourceEntryName 或十进制资源 ID；最多 12 条\n例如：dialog_confirm");
-        ids.setText(prefs.getString("dialog_remove_resource_ids", ""));
+        ids.setText(prefs.getString("dialog_remove_ids_draft",
+                prefs.getString("dialog_remove_resource_ids", "")));
         form.addView(text("资源 ID", 13, 0xff334155, true));
         form.addView(ids);
 
@@ -1540,13 +1544,31 @@ public final class FxDiaFridaActivity extends Activity {
         broadScope.setText("允许检查任意 ViewGroup 父容器（高风险）");
         // Restore the last chosen scope for review; the wider scope still requires
         // a fresh confirmation each time the user generates a script.
-        broadScope.setChecked(prefs.getBoolean("dialog_remove_any_parent", false));
+        broadScope.setChecked(prefs.getBoolean("dialog_remove_any_parent_draft",
+                prefs.getBoolean("dialog_remove_any_parent", false)));
         broadScope.setPadding(0, dp(4), 0, dp(4));
         form.addView(broadScope);
         TextView scopeWarning = text(
                 "默认只移除 DecorView / android.R.id.content 的直接子项。开启任意父容器会扩大删除范围，可能误删普通业务 UI；仅在隔离测试应用中使用。",
                 12, 0xff9a3412, false);
         form.addView(scopeWarning);
+
+        keywords.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                prefs.edit().putString("dialog_remove_regex_draft", s.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable editable) { }
+        });
+        ids.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                prefs.edit().putString("dialog_remove_ids_draft", s.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable editable) { }
+        });
+        broadScope.setOnCheckedChangeListener((button, checked) ->
+                prefs.edit().putBoolean("dialog_remove_any_parent_draft", checked).apply());
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Dia · 配置匹配弹窗移除")
@@ -1613,6 +1635,9 @@ public final class FxDiaFridaActivity extends Activity {
                                     .putString("dialog_remove_regex_rules", String.join("\n", regexRules))
                                     .putString("dialog_remove_resource_ids", String.join("\n", resourceRules))
                                     .putBoolean("dialog_remove_any_parent", broadScope.isChecked())
+                                    .putString("dialog_remove_regex_draft", String.join("\n", regexRules))
+                                    .putString("dialog_remove_ids_draft", String.join("\n", resourceRules))
+                                    .putBoolean("dialog_remove_any_parent_draft", broadScope.isChecked())
                                     .commit();
                             if (!saved) {
                                 setStatus("规则本地保存失败；脚本未载入。");
