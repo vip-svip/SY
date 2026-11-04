@@ -4442,8 +4442,9 @@ public final class MainActivity extends ComponentActivity {
         if (requestCode == REQUEST_DIA_GPS_PICKER) {
             String target = pendingDiaGpsTargetPackage;
             pendingDiaGpsTargetPackage = null;
+            boolean targetEditorRestoring = target != null && target.equals(pendingRestorePackage);
             if (resultCode != RESULT_OK || data == null || target == null
-                    || !target.equals(selectedPackage)) return;
+                    || (!target.equals(selectedPackage) && !targetEditorRestoring)) return;
             String latitude = data.getStringExtra("latitude");
             String longitude = data.getStringExtra("longitude");
             if (latitude == null || longitude == null) return;
@@ -4457,8 +4458,11 @@ public final class MainActivity extends ComponentActivity {
                         .putString(target + ":location_lat", Double.toString(lat))
                         .putString(target + ":location_lon", Double.toString(lon))
                         .apply();
-                ApplicationInfo targetInfo = findApp(target);
-                if (targetInfo != null) showTarget(targetInfo);
+                // The restored app list opens this target when its asynchronous load completes.
+                if (!targetEditorRestoring) {
+                    ApplicationInfo targetInfo = findApp(target);
+                    if (targetInfo != null) showTarget(targetInfo);
+                }
                 Toast.makeText(this, "地图坐标已填入，点击“保存并发布 GPS 测试位置”后生效。",
                         Toast.LENGTH_LONG).show();
             } catch (Exception invalid) {
