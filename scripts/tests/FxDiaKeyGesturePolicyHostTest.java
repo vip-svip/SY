@@ -76,6 +76,25 @@ public final class FxDiaKeyGesturePolicyHostTest {
         check(event(policy, 4, 1400L).isEmpty(),
                 "reset clears previous gesture timestamps");
 
+        // A process can host multiple packages. Interleaved presses must remain
+        // independent instead of combining one package's timestamps with another.
+        FxDiaKeyGesturePolicyRegistry registry = new FxDiaKeyGesturePolicyRegistry();
+        FxDiaKeyGesturePolicy firstPackage = registry.forPackage("com.example.first");
+        FxDiaKeyGesturePolicy secondPackage = registry.forPackage("com.example.second");
+        check(firstPackage != null && secondPackage != null && firstPackage != secondPackage,
+                "registry allocates independent gesture state per package");
+        check(firstPackage.onKeyDown(25, 1000L, 0).isEmpty(),
+                "first package first press starts its own sequence");
+        check(secondPackage.onKeyDown(25, 1400L, 0).isEmpty(),
+                "second package press does not join first package sequence");
+        check(firstPackage.onKeyDown(25, 1500L, 0).equals(Arrays.asList(0)),
+                "first package double press survives interleaved second package event");
+        check(secondPackage.onKeyDown(25, 1900L, 0).equals(Arrays.asList(0)),
+                "second package completes only its own double press");
+        registry.remove("com.example.first");
+        check(registry.forPackage("com.example.first") != firstPackage,
+                "removing a package resets its previous gesture timestamps");
+
         System.out.println("PASS: " + passed + " Dia key gesture host assertions");
     }
 }
