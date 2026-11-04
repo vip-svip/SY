@@ -11,8 +11,35 @@ fi
 PG=${PG:-/data/adb/privacyguard}
 CONF=${CONF:-$PG/settings.conf}
 LOCK=${LOCK:-$PG/native-vpn-config.lock}
-mkdir -p "$PG"
+
+_nvc_validate_parent_chain() {
+  _nvc_candidate=$1
+  case "$_nvc_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_nvc_candidate" in /|*/|*//* ) return 1 ;; esac
+  _nvc_final=${_nvc_candidate##*/}
+  case "$_nvc_final" in ''|.|..) return 1 ;; esac
+  _nvc_parent=${_nvc_candidate%/*}
+  [ -n "$_nvc_parent" ] || _nvc_parent=/
+  _nvc_rest=${_nvc_parent#/}
+  _nvc_walk=
+  while [ -n "$_nvc_rest" ]; do
+    case "$_nvc_rest" in
+      */*) _nvc_component=${_nvc_rest%%/*}; _nvc_rest=${_nvc_rest#*/} ;;
+      *) _nvc_component=$_nvc_rest; _nvc_rest= ;;
+    esac
+    case "$_nvc_component" in ''|.|..) return 1 ;; esac
+    _nvc_walk="$_nvc_walk/$_nvc_component"
+    [ -d "$_nvc_walk" ] && [ ! -L "$_nvc_walk" ] || return 1
+  done
+  return 0
+}
+_nvc_validate_parent_chain "$PG" || { echo "FX VPN config state parent is unsafe" >&2; exit 21; }
+[ -d "$PG" ] && [ ! -L "$PG" ] || exit 21
+[ "$CONF" = "$PG/settings.conf" ] || { echo "FX VPN settings path is outside PG" >&2; exit 21; }
+[ "$LOCK" = "$PG/native-vpn-config.lock" ] || { echo "FX VPN lock path is outside PG" >&2; exit 22; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
+[ ! -L "$LOCK" ] || { echo "FX VPN lock path is a symbolic link" >&2; exit 22; }
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "FX VPN lock path is not a directory" >&2; exit 22; }
 
 valid_key() {
   case "$1" in
@@ -125,7 +152,7 @@ validate_value() {
 }
 
 write_value() {
-  key="$1"; value="$2"; tmp="$CONF.native-vpn.$$"
+  key="$1"; value="$2"; tmp=$(mktemp "$CONF.native-vpn.XXXXXX") || return 1
   awk -v key="$key" -v value="$value" '
     BEGIN {insec=0; seen=0; written=0}
     $0=="[conf:vpn]" {
@@ -170,16 +197,20 @@ with_lock() {
 mutate() {
   key="$1"; value="$2"
   validate_value "$key" "$value" || { echo "invalid value for $key" >&2; return 2; }
-  backup="$CONF.native-vpn-rollback.$$"
-  cp -p "$CONF" "$backup" || return 1
+  backup=$(mktemp "$CONF.native-vpn-rollback.XXXXXX") || return 1
+  cp -p "$CONF" "$backup" || { rm -f "$backup"; return 1; }
   write_value "$key" "$value" || { rm -f "$backup"; return 1; }
   if sh "$MP/scripts/apply.sh" fast; then
     rm -f "$backup"
     echo "applied=1"
     return 0
   fi
-  cp -p "$backup" "$CONF.restore.$$" && chmod 600 "$CONF.restore.$$" \
-    && mv -f "$CONF.restore.$$" "$CONF" || {
+  restore=$(mktemp "$CONF.restore.XXXXXX") || {
+    rm -f "$backup"; echo "VPN config rollback staging failed" >&2; return 11;
+  }
+  cp -p "$backup" "$restore" && chmod 600 "$restore" \
+    && mv -f "$restore" "$CONF" || {
+    rm -f "$restore"
       rm -f "$backup"; echo "VPN config rollback failed" >&2; return 11;
     }
   sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || echo "previous VPN config restored; runtime reconcile failed" >&2
