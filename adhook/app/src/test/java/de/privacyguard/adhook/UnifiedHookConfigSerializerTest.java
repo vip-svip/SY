@@ -383,4 +383,39 @@ public class UnifiedHookConfigSerializerTest {
         assertTrue(parsed.microphoneSilence);
         assertTrue(text.contains("mic_silence=1"));
     }
+    @Test
+    public void serializerRoundTripsDialogRulesAndFeedbackPerTarget() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.dialogMatchEnabled = true;
+        target.dialogNotify = true;
+        target.dialogTextTerms.add("更新失败");
+        target.dialogTextTerms.add("Please sign in");
+        target.dialogIdTerms.add("com.example:id/alert_close");
+        target.dialogIdTerms.add("btn_cancel");
+        targets.put("com.example.dialog", target);
+
+        String encoded = UnifiedHookConfigSerializer.serialize(false, false, targets);
+        assertTrue(encoded.contains("dialog_match=1"));
+        assertTrue(encoded.contains("dialog_notify=1"));
+        UnifiedHookConfigParser.Target restored =
+                UnifiedHookConfigParser.parse(encoded).targets.get("com.example.dialog");
+        assertTrue(restored.dialogMatchEnabled);
+        assertTrue(restored.dialogNotify);
+        assertEquals(target.dialogTextTerms, restored.dialogTextTerms);
+        assertEquals(target.dialogIdTerms, restored.dialogIdTerms);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsDialogFeedbackWithoutEnabledMatcher() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.dialogNotify = true;
+        targets.put("com.example.dialog", target);
+        UnifiedHookConfigSerializer.serialize(false, false, targets);
+    }
+
+
 }
