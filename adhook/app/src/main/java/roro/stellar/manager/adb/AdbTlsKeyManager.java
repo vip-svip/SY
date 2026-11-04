@@ -10,7 +10,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 
 /** Supplies the single client RSA identity used by ADB wireless pairing. */
 final class AdbTlsKeyManager extends X509ExtendedKeyManager {
-    static final String ALIAS = "key";
+    static final String ALIAS = "youlong";
     private final X509Certificate certificate;
     private final PrivateKey privateKey;
     private final X509Certificate[] chain;
