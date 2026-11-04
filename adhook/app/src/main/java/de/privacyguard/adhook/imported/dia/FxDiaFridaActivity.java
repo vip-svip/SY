@@ -98,8 +98,22 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private EditText saveScriptNameInput;
     private String targetPackage;
     private String targetName;
+    private static final String STATE_TARGET_PICKER_OPEN = "fx_frida_target_picker_open";
+    private static final String STATE_PROCESS_PICKER_OPEN = "fx_frida_process_picker_open";
+    private static final String STATE_PROCESS_PICKER_HAS_STAGED_SELECTION =
+            "fx_frida_process_picker_has_staged_selection";
+    private static final String STATE_PROCESS_PICKER_STAGED_PIDS =
+            "fx_frida_process_picker_staged_pids";
     private boolean targetLoading;
+    private boolean targetPickerOpen;
+    private boolean restoreTargetPickerPending;
     private int targetLoadGeneration;
+    private boolean processPickerOpen;
+    private boolean restoreProcessPickerPending;
+    private boolean hasPendingProcessPickerSelection;
+    private int processPickerGeneration;
+    private final java.util.LinkedHashSet<String> pendingProcessPickerPids =
+            new java.util.LinkedHashSet<>();
     private int monitorEventGeneration;
     private final java.util.LinkedHashSet<String> selectedProcessPids = new java.util.LinkedHashSet<>();
 
@@ -232,6 +246,23 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         restoredFridaScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_FRIDA_SCROLL_Y, 0));
         restoreSaveScriptDialog = state != null && state.getBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, false);
         saveScriptNameDraft = state == null ? "" : state.getString(STATE_SAVE_SCRIPT_NAME_DRAFT, "");
+        restoreTargetPickerPending = state != null
+                && state.getBoolean(STATE_TARGET_PICKER_OPEN, false);
+        restoreProcessPickerPending = state != null
+                && state.getBoolean(STATE_PROCESS_PICKER_OPEN, false);
+        hasPendingProcessPickerSelection = state != null
+                && state.getBoolean(STATE_PROCESS_PICKER_HAS_STAGED_SELECTION, false);
+        pendingProcessPickerPids.clear();
+        if (state != null) {
+            ArrayList<String> stagedPids = state.getStringArrayList(STATE_PROCESS_PICKER_STAGED_PIDS);
+            if (stagedPids != null) {
+                for (String pid : stagedPids) {
+                    if (pid != null && pid.matches("[0-9]{1,10}"))
+                        pendingProcessPickerPids.add(pid);
+                    if (pendingProcessPickerPids.size() >= 256) break;
+                }
+            }
+        }
         String restoredPendingName = state == null ? null : state.getString(STATE_PENDING_LIBRARY_EXPORT);
         if (isSafePendingLibraryExportName(restoredPendingName))
             pendingFridaLibraryExportFileName = restoredPendingName;
@@ -482,7 +513,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             body.post(this::showFridaScriptLibrary);
         } else if ("脚本编辑器".equals(title)) {
             body.post(this::openFullScreenCodeEditor);
-        } else if ("运行日志".equals(title)) {
+        } else if ("运行日志".equals(title)
+                && !restoreTargetPickerPending && !restoreProcessPickerPending) {
             body.post(() -> {
                 if (targetPackage == null) chooseTarget();
                 else showSessionLog();
@@ -501,6 +533,17 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             });
         }
         if (restoreSaveScriptDialog) scroll.post(this::showSaveFridaScriptDialog);
+        if (restoreTargetPickerPending) {
+            restoreTargetPickerPending = false;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed()) chooseTarget();
+            });
+        } else if (restoreProcessPickerPending) {
+            restoreProcessPickerPending = false;
+            scroll.post(() -> {
+                if (!isFinishing() && !isDestroyed()) chooseTargetProcesses();
+            });
+        }
     }
 
     private android.util.AtomicFile transientFridaScriptDraftFile() {
@@ -643,6 +686,14 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         outState.putBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, restoreSaveScriptDialog);
         outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64
                 ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
+        outState.putBoolean(STATE_TARGET_PICKER_OPEN, targetPickerOpen || targetLoading);
+        outState.putBoolean(STATE_PROCESS_PICKER_OPEN, processPickerOpen);
+        outState.putBoolean(STATE_PROCESS_PICKER_HAS_STAGED_SELECTION,
+                processPickerOpen && hasPendingProcessPickerSelection);
+        if (processPickerOpen && hasPendingProcessPickerSelection) {
+            outState.putStringArrayList(STATE_PROCESS_PICKER_STAGED_PIDS,
+                    new ArrayList<>(pendingProcessPickerPids));
+        }
         if (isSafePendingLibraryExportName(pendingFridaLibraryExportFileName)) {
             outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName);
         }
@@ -823,6 +874,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
 
     private void exportFridaScriptLibrary() {
+        if (pendingFridaLibraryExportFileName != null) {
+            setStatus("已有脚本库导出请求等待系统文件选择器返回，请先完成或取消该请求。");
+            return;
+        }
         File staged = null;
         try {
             staged = stagePendingFridaLibraryExport(buildFridaScriptLibraryJson());
@@ -1405,10 +1460,11 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
 
     private void chooseTarget() {
-        if (targetLoading) {
-            setStatus("正在后台读取可调试应用列表…");
+        if (targetLoading || targetPickerOpen) {
+            setStatus("正在读取或显示可调试应用列表…");
             return;
         }
+        targetPickerOpen = true;
         targetLoading = true;
         final int request = ++targetLoadGeneration;
         setStatus("正在后台读取可调试应用列表…");
@@ -1440,6 +1496,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     if (isFinishing() || isDestroyed() || request != targetLoadGeneration) return;
                     targetLoading = false;
                     if (loadFailure != null) {
+                        targetPickerOpen = false;
                         setStatus("读取可调试应用失败：" + loadFailure);
                         return;
                     }
@@ -1448,12 +1505,15 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             });
         } catch (RejectedExecutionException full) {
             targetLoading = false;
+            targetPickerOpen = false;
             setStatus("后台任务队列繁忙，应用列表未读取；请稍后重试。");
         }
     }
 
     private void showTargetPicker(List<Target> targets) {
+        targetLoading = false;
         if (targets == null || targets.isEmpty()) {
+            targetPickerOpen = false;
             setStatus("没有可调试的用户应用。请使用自己构建的 debuggable 测试目标。");
             return;
         }
@@ -1462,6 +1522,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             labels[i] = targets.get(i).label + "\\n" + targets.get(i).packageName;
         new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
                 .setItems(labels, (dialog, which) -> {
+                    targetPickerOpen = false;
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
                     monitorEventGeneration++;
@@ -1474,7 +1535,14 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     targetLabel.setText(targetName + "\\n" + targetPackage
                             + "\\nGadget 默认进程：" + targetPackage
                             + "\\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
-                }).setNegativeButton("取消", null).show();
+                }).setNegativeButton("取消", (dialog, which) -> targetPickerOpen = false)
+                .setOnCancelListener(dialog -> targetPickerOpen = false)
+                .show();
+    }
+
+    private void clearPendingProcessPickerState() {
+        pendingProcessPickerPids.clear();
+        hasPendingProcessPickerSelection = false;
     }
 
     private void chooseTargetProcesses() {
@@ -1482,72 +1550,125 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
+        if (processPickerOpen) {
+            setStatus("正在读取或显示当前目标进程列表…");
+            return;
+        }
+        processPickerOpen = true;
+        final int operationGeneration = ++processPickerGeneration;
+        final String requestedPackage = targetPackage;
+        final String requestedName = targetName;
         final int targetUid;
         try {
-            ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
+            ApplicationInfo targetInfo = getPackageManager().getApplicationInfo(requestedPackage, 0);
             if ((targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
                     || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                processPickerOpen = false;
+                clearPendingProcessPickerState();
                 setStatus("目标应用已不再符合 debuggable 用户应用条件，拒绝枚举进程。");
                 return;
             }
             targetUid = targetInfo.uid;
         } catch (Throwable missing) {
+            processPickerOpen = false;
+            clearPendingProcessPickerState();
             setStatus("目标应用已卸载或不可用，拒绝枚举进程。");
             return;
         }
-        String command = "pkg=" + quote(targetPackage) + "; uid=" + targetUid
+        String command = "pkg=" + quote(requestedPackage) + "; uid=" + targetUid
                 + "; ps -A -o PID,NAME 2>/dev/null | awk -v pkg=\"$pkg\" "
                 + "'NR>1 && $1 ~ /^[0-9]+$/ && ($2==pkg || index($2,pkg \":\")==1) {print $1 \"|\" $2}'"
                 + " | while IFS='|' read -r pid name; do "
                 + "proc_uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"/proc/$pid/status\" 2>/dev/null || :); "
                 + "[ \"$proc_uid\" = \"$uid\" ] && printf '%s|%s\\n' \"$pid\" \"$name\"; done";
-        runRoot(command, 15000L, result -> {
-            if (result.exitCode != 0 || result.output == null) {
-                setStatus("读取目标进程失败：" + result.output);
-                return;
-            }
-            List<String> pids = new ArrayList<>();
-            List<String> labels = new ArrayList<>();
-            for (String line : result.output.split("\\r?\\n")) {
-                String[] parts = line.trim().split("\\|", 2);
-                if (parts.length != 2 || !parts[0].matches("[0-9]{1,10}")) continue;
-                if (!parts[1].equals(targetPackage) && !parts[1].startsWith(targetPackage + ":")) continue;
-                pids.add(parts[0]);
-                labels.add(parts[1] + "  · PID " + parts[0]);
-            }
-            if (pids.isEmpty()) {
-                selectedProcessPids.clear();
-                setStatus("目标应用当前没有运行进程。启动目标应用后可重新选择；注入时也可自动枚举全部进程。");
-                targetLabel.setText(targetName + "\\n" + targetPackage + "\\n当前没有运行进程");
-                return;
-            }
-            boolean[] checked = new boolean[pids.size()];
-            for (int i = 0; i < pids.size(); i++)
-                checked[i] = selectedProcessPids.isEmpty() || selectedProcessPids.contains(pids.get(i));
-            new AlertDialog.Builder(this).setTitle("选择目标进程（可多选）")
-                    .setMultiChoiceItems(labels.toArray(new String[0]), checked,
-                            (dialog, which, enabled) -> checked[which] = enabled)
-                    .setNeutralButton("自动附加全部进程", (dialog, which) -> {
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(command, 15000L, 256 * 1024);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()
+                            || operationGeneration != processPickerGeneration
+                            || !processPickerOpen
+                            || !requestedPackage.equals(targetPackage)) return;
+                    if (result.exitCode != 0 || result.output == null) {
+                        processPickerOpen = false;
+                        clearPendingProcessPickerState();
+                        setStatus("读取目标进程失败：" + result.output);
+                        return;
+                    }
+                    List<String> pids = new ArrayList<>();
+                    List<String> labels = new ArrayList<>();
+                    for (String line : result.output.split("\\r?\\n")) {
+                        String[] parts = line.trim().split("\\|", 2);
+                        if (parts.length != 2 || !parts[0].matches("[0-9]{1,10}")) continue;
+                        if (!parts[1].equals(requestedPackage)
+                                && !parts[1].startsWith(requestedPackage + ":")) continue;
+                        pids.add(parts[0]);
+                        labels.add(parts[1] + "  · PID " + parts[0]);
+                    }
+                    if (pids.isEmpty()) {
+                        processPickerOpen = false;
                         selectedProcessPids.clear();
-                        targetLabel.setText(targetName + "\\n" + targetPackage
-                                + "\\n进程：自动枚举全部运行进程");
-                    })
-                    .setNegativeButton("取消", null)
-                    .setPositiveButton("保存进程选择", (dialog, which) -> {
-                        selectedProcessPids.clear();
-                        for (int i = 0; i < pids.size(); i++)
-                            if (checked[i]) selectedProcessPids.add(pids.get(i));
-                        if (selectedProcessPids.isEmpty()) {
-                            targetLabel.setText(targetName + "\\n" + targetPackage
-                                    + "\\n进程：未固定，注入时自动枚举全部运行进程");
-                        } else {
-                            targetLabel.setText(targetName + "\\n" + targetPackage
-                                    + "\\n已选择进程数：" + selectedProcessPids.size());
-                        }
-                    }).show();
-        });
+                        clearPendingProcessPickerState();
+                        setStatus("目标应用当前没有运行进程。启动目标应用后可重新选择；注入时也可自动枚举全部进程。");
+                        targetLabel.setText(requestedName + "\\n" + requestedPackage + "\\n当前没有运行进程");
+                        return;
+                    }
+                    boolean[] checked = new boolean[pids.size()];
+                    java.util.Set<String> staged = hasPendingProcessPickerSelection
+                            ? new java.util.LinkedHashSet<>(pendingProcessPickerPids)
+                            : new java.util.LinkedHashSet<>(selectedProcessPids);
+                    for (int i = 0; i < pids.size(); i++)
+                        checked[i] = staged.isEmpty() || staged.contains(pids.get(i));
+                    pendingProcessPickerPids.clear();
+                    for (int i = 0; i < pids.size(); i++)
+                        if (checked[i]) pendingProcessPickerPids.add(pids.get(i));
+                    hasPendingProcessPickerSelection = true;
+                    new AlertDialog.Builder(this).setTitle("选择目标进程（可多选）")
+                            .setMultiChoiceItems(labels.toArray(new String[0]), checked,
+                                    (dialog, which, enabled) -> {
+                                        checked[which] = enabled;
+                                        String pid = pids.get(which);
+                                        if (enabled) pendingProcessPickerPids.add(pid);
+                                        else pendingProcessPickerPids.remove(pid);
+                                        hasPendingProcessPickerSelection = true;
+                                    })
+                            .setNeutralButton("自动附加全部进程", (dialog, which) -> {
+                                processPickerOpen = false;
+                                clearPendingProcessPickerState();
+                                selectedProcessPids.clear();
+                                targetLabel.setText(requestedName + "\\n" + requestedPackage
+                                        + "\\n进程：自动枚举全部运行进程");
+                            })
+                            .setNegativeButton("取消", (dialog, which) -> {
+                                processPickerOpen = false;
+                                clearPendingProcessPickerState();
+                            })
+                            .setOnCancelListener(dialog -> {
+                                processPickerOpen = false;
+                                clearPendingProcessPickerState();
+                            })
+                            .setPositiveButton("保存进程选择", (dialog, which) -> {
+                                processPickerOpen = false;
+                                selectedProcessPids.clear();
+                                for (int i = 0; i < pids.size(); i++)
+                                    if (checked[i]) selectedProcessPids.add(pids.get(i));
+                                clearPendingProcessPickerState();
+                                if (selectedProcessPids.isEmpty()) {
+                                    targetLabel.setText(requestedName + "\\n" + requestedPackage
+                                            + "\\n进程：未固定，注入时自动枚举全部运行进程");
+                                } else {
+                                    targetLabel.setText(requestedName + "\\n" + requestedPackage
+                                            + "\\n已选择进程数：" + selectedProcessPids.size());
+                                }
+                            }).show();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            processPickerOpen = false;
+            clearPendingProcessPickerState();
+            setStatus("后台任务队列繁忙，进程列表未读取；请稍后重试。");
+        }
     }
-
     private void loadOriginalExamples() {
         try {
             List<String> labels = new ArrayList<>();
@@ -2756,6 +2877,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     @Override protected void onDestroy() {
         targetLoadGeneration++;
         targetLoading = false;
+        targetPickerOpen = false;
+        processPickerGeneration++;
+        processPickerOpen = false;
+        clearPendingProcessPickerState();
         monitorEventGeneration++;
         worker.shutdownNow();
         if (isFinishing()) deleteTransientFridaScriptDraft();
