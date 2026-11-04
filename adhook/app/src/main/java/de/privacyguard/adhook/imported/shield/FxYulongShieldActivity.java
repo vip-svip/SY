@@ -316,16 +316,13 @@ public final class FxYulongShieldActivity extends Activity {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
                     catch (Throwable ignored) { }
                 }));
-        String protectionState = shieldPrefs.getBoolean("protect_service_running", false)
-                ? "实时守护服务正在运行"
-                : (shieldPrefs.getBoolean("protect_on", false) ? "守护开关已保存，服务当前未运行" : "实时守护未开启");
         String warning = shieldPrefs.getString("protect_last_warn_message", "尚无管控名单提醒");
         String warningTime = shieldPrefs.getString("protect_last_warn_time", "");
         int warningCount = shieldPrefs.getInt("protect_warn_count", 0);
-        card("实时守护状态",
-                protectionState + "\n累计提醒：" + warningCount
-                        + (warningTime.isEmpty() ? "" : "\n最近提醒：" + warningTime)
-                        + "\n" + warning);
+        card("最近守护提醒",
+                "累计提醒：" + warningCount
+                        + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
+                        + "\\n" + warning);
         boolean recoveryEnabled = shieldPrefs.getBoolean("protect_on", false)
                 || shieldPrefs.getBoolean("shake_trigger_on", false);
         card("开机与低频后台恢复",
