@@ -2623,3 +2623,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已重新读取源码与测试脚本，确认状态捕获在取消 Hook scope 操作和重建 Hub 视图之前执行，且回归脚本包含该约束。尚未执行脚本或 Android 构建/真机测试。
 - 当前最新 HEAD（写入本记录前）：`be7d6e656485536859b248bc1dd66905e695450b`。
 - 下一步：继续检查 Hook 列表、详情和自定义规则编辑器的往返路径；不打最终包，不改变 FX 1.0.0 版本号。
+
+
+## 2026-11-05 — 游龙广告草稿跨多个子页面持续保留（修正前一批的不足）
+
+- 本次修复前 HEAD：`d3a3fae410bf6fe1148363ecb02d98300a58a234`。
+- 复查前一批的草稿实现后发现其不足：只捕获当前页面草稿并立即恢复到新页面；由于新页面的字段 key 通常不同，离开原页面后草稿仍会丢失，不能算真正跨页面保留。本次改为 Activity 级 `retainedDrafts` Bundle：恢复时先装入已保存草稿；每次切换页面前将当前页面字段合并进既有草稿；新页面仅恢复自己拥有的字段，但其他页面草稿继续留在 Bundle；Activity 重建时保存全部页面草稿。
+- 源码提交：`dfb82bc55803a6411bcd23b62eda06503cc2469d`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 回归断言提交：`c4eabe5add01dc96e40ef8d4e23809f2b3b51b78`，文件 `scripts/tests/fx-yulong-ad-activity-state-regression.sh`。断言检查 retained bundle 初始化、Activity 恢复、捕获时合并既有数据、页面切换前捕获、页面切换后恢复和保存全部草稿。
+- 已从 GitHub 重新读取源码及脚本，逐项静态检查以上断言存在；尚未执行该 Shell/Python 回归脚本、Gradle、模拟器或真机测试。此前“切换页面保留草稿”的描述仅在同 key 字段/当前页面范围成立，本条记录明确更正为真正的跨页面累计保存。
+- 当前 HEAD（本记录写入前）：`1f1460566ef61fa79fa06fc7a1f6edc14e69600c`。
+- 下一步：继续 Hook 原生页面和游龙插件交互验证，避免重复只做状态变量修补；固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
