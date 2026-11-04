@@ -619,24 +619,31 @@ watch_lock_pid_start_time() {
 }
 watch_lock_owner_is_ours() {
   _watch_owner_pid=$1
+  # Return 0 for a live owner, 1 for a stale/reused PID (safe to reclaim if
+  # the lock record has not changed), and 2 for an actual foreign/malformed
+  # owner. Keep this as a single liveness/identity decision: checking kill -0
+  # once in the caller and again here races with a starter exiting normally.
   watch_lock_pid_live "$_watch_owner_pid" || return 1
   _watch_owner_marker=$(sed -n '2p' "$WATCH_LOCK" 2>/dev/null || true)
   case "$_watch_owner_marker" in
     FXYWLOCK2)
       _watch_owner_script=$(sed -n '3p' "$WATCH_LOCK" 2>/dev/null || true)
       _watch_owner_start=$(sed -n '4p' "$WATCH_LOCK" 2>/dev/null || true)
-      [ "$_watch_owner_script" = "$SCRIPT_PATH" ] || return 1
-      case "$_watch_owner_start" in ''|*[!0-9]*) return 1 ;; esac
+      [ "$_watch_owner_script" = "$SCRIPT_PATH" ] || return 2
+      case "$_watch_owner_start" in ''|*[!0-9]*) return 2 ;; esac
       _watch_live_start=$(watch_lock_pid_start_time "$_watch_owner_pid") || return 1
-      [ "$_watch_live_start" = "$_watch_owner_start" ]
+      [ "$_watch_live_start" = "$_watch_owner_start" ] || return 1
+      return 0
       ;;
     '')
-      # Backward compatibility for old PID-only locks. Do not weaken the
-      # identity check; old owners must still expose the exact script path.
-      watch_lock_process_is_ours "$_watch_owner_pid"
+      # Backward compatibility for old PID-only locks. A live foreign process
+      # is a hard conflict; an exited owner is an ordinary stale lock.
+      if watch_lock_process_is_ours "$_watch_owner_pid"; then return 0; fi
+      watch_lock_pid_live "$_watch_owner_pid" && return 2
+      return 1
       ;;
     *)
-      return 1
+      return 2
       ;;
   esac
 }
@@ -697,14 +704,24 @@ watch_lock_acquire() {
           return 1
           ;;
         *)
-          if watch_lock_pid_live "$_watch_lock_owner"; then
-            watch_lock_owner_is_ours "$_watch_lock_owner" || {
+          _watch_owner_state=0
+          watch_lock_owner_is_ours "$_watch_lock_owner" || _watch_owner_state=$?
+          case "$_watch_owner_state" in
+            0)
+              # A live owner of this script holds the lifecycle lock.
+              ;;
+            1)
+              # The PID exited or was reused between lock creation and this
+              # check. Reclaim only the exact unchanged record we inspected.
+              if [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]; then
+                rm -f "$WATCH_LOCK"
+              fi
+              ;;
+            *)
               echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
               return 1
-            }
-          elif [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]; then
-            rm -f "$WATCH_LOCK"
-          fi
+              ;;
+          esac
           ;;
       esac
     else

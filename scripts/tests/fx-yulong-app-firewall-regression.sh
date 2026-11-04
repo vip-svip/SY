@@ -265,6 +265,15 @@ assert "set -C" in lock, "watcher lock is not created with noclobber"
 assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
+owner = source.split("watch_lock_owner_is_ours() {", 1)[1].split("\n}", 1)[0]
+assert "[ \"$_watch_owner_script\" = \"$SCRIPT_PATH\" ] || return 2" in owner, \
+    "a foreign script must remain a hard lock conflict"
+assert "[ \"$_watch_live_start\" = \"$_watch_owner_start\" ] || return 1" in owner, \
+    "PID reuse must be reported as a stale owner, not a foreign lock"
+assert "_watch_owner_state=0" in source and "case \"$_watch_owner_state\" in" in source, \
+    "lock acquisition must distinguish a live owner, stale PID and unrelated lock"
+assert '[ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]' in source, \
+    "stale lock reclamation must compare the exact record before unlinking"
 assert "watch_lock_pid_start_time()" in source, "watcher lock must capture the kernel process start time"
 assert "watch_lock_owner_is_ours()" in source and "FXYWLOCK2" in source, "watcher lock owner must be verified using PID, script path and process start time"
 assert 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start"' in source, "watcher lock must publish full ownership metadata atomically"
