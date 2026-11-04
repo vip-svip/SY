@@ -346,7 +346,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
         rows.setPadding(0, dp(4), 0, dp(20)); scroll.addView(rows);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 1);
 
         TextView intro = text("按应用 UID 分别限制 Wi-Fi 与移动数据，可为每个应用设置每日时间段。规则覆盖 IPv4/IPv6，并独立于 FX 分应用 VPN 路由；不启动第二个 VpnService。", 13, 0xff617080, false);
         card("防火墙说明", "系统级应用网络限制", intro);
