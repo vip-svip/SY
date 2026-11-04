@@ -16,7 +16,9 @@ public final class FxYulongBootReceiver extends BroadcastReceiver {
         if (context == null || intent == null) return;
         String action = intent.getAction();
         if (!Intent.ACTION_BOOT_COMPLETED.equals(action)
-                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) return;
+                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
+                && !"android.intent.action.QUICKBOOT_POWERON".equals(action)
+                && !"com.htc.intent.action.QUICKBOOT_POWERON".equals(action)) return;
 
         final Context app = context.getApplicationContext();
         android.content.SharedPreferences prefs =

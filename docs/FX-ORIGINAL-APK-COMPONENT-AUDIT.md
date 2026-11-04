@@ -144,3 +144,8 @@ Smali inspection of ProfileScheduleWorker shows the original worker maps Calenda
 ## 2026-11-04 — Yulong Quick Settings service-toggle adaptation
 
 The original `AdBlockTileService` detects whether `AdBlockVpnService` or `RootProxyService` is active and toggles the selected protection service. FX does not reintroduce either competing legacy network service. Instead, the original network-protection shortcut is mapped to `FxYulongVpnTileService`, which controls the one canonical FX VPN route through `yulong-vpn-control.sh` and confirms `status.sh` state. The already-migrated `FxYulongAdTileService` remains a distinct ad-filter master switch. Static source regression is added; actual QS rendering and Android device networking still require device verification.
+
+
+## 2026-11-04 — BootReceiver vendor QuickBoot intent parity
+
+The original Yulong Shield BootReceiver listens to Android BOOT_COMPLETED, MY_PACKAGE_REPLACED, `android.intent.action.QUICKBOOT_POWERON` and HTC `com.htc.intent.action.QUICKBOOT_POWERON`. FX's boot receiver and manifest now accept all four. Its startup remains limited to persisted user-enabled Shield services and validates overlay permission before restoring the optional overlay. Volume-key rescue is handled independently by the user-enabled accessibility `onKeyEvent` path, not by starting a foreground monitor. Host source regression is included; vendor-device broadcast delivery is pending.

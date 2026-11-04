@@ -945,3 +945,11 @@ Added direct Sunday 06:59 and 07:00 checks to ensure the original half-open over
 The native General Settings backup/import path validates its full payload before any Root mutation: supported HTTPS/builtin list sources, domain rows and notes, a strict DNS-flag allowlist, IPv4 VPN resolver values, bounded custom/global DNS endpoints, and unique 1–7 ad-schedule weekdays. Custom DNS round-trips IPv4, HTTPS/DoH, TLS/DoT and QUIC/DoQ endpoints; global DNS remains IPv4-only. Invalid supplied VPN DNS values are rejected rather than silently skipped.
 
 The import transaction now creates private same-directory temporary backups instead of predictable PID-named files. Failure restores settings and the separate ad-filter schedule, reapplies the normal FX runtime, and preserves the backup files with exit code 35 when restoration or runtime re-apply cannot be confirmed. A plain-Java host regression covers domain/source/note/DNS endpoint validation; a source regression verifies the Root transaction contract. Device-level Root import/rollback remains unverified.
+
+
+## 2026-11-04 — Yulong vendor QuickBoot receiver compatibility
+
+- The original Shield BootReceiver accepts Android BOOT_COMPLETED, MY_PACKAGE_REPLACED, generic QUICKBOOT_POWERON and HTC QUICKBOOT_POWERON. FX previously restored Shield services only for the first two actions.
+- FX now accepts both vendor quickboot actions in the receiver and manifest. It continues to restore only user-enabled protection/shake and overlay features, checks the user's current overlay permission, and refreshes only its own keepalive schedule.
+- Volume-key rescue remains handled by the explicitly enabled FX AccessibilityService key-event path; it does not start the Shield foreground monitor by itself. No Android permission or user switch is silently enabled.
+- Added a manifest/source host regression. Actual vendor firmware broadcast delivery remains device-pending.
