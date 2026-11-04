@@ -3006,3 +3006,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`。
 - 验证：已核对 Java 事务生成器第 519–520 行的实际 shell 检查及 Actions 报错位置；修复后 Actions 待执行。尚未做设备级恢复/回滚测试。
 - 下一步：检查新 Actions 是否越过备份预检脚本；继续执行 Dia Frida SAF 严格 UTF-8 导入回归，并优先验证恢复中断/目录符号链接拒绝行为。不得把 Host 断言当作数据恢复真机验收。
+
+
+## 2026-11-05 — Dia 备份回滚目录守卫断言转为显式反斜杠构造
+
+- 基于最新 HEAD：`cb2ddcf4a477a6ac362cc2380b4fc96b6594e1f4`。
+- Actions `41915194221`：上次 Python SyntaxError 已消除，脚本继续执行至 rollback 的 Stellar 目录守卫断言，因预期字符串反斜杠层级不匹配而失败。
+- 根因：测试字面量仍然包含多层转义，匹配结果不等于 Java 拼接生成的 shell 片段；前次修复只消除了语法错误，没有保证字节级匹配。
+- 修复：两条 PG / Stellar rollback 断言统一通过 `q = chr(92) + '"'` 构造 Java 源码的反斜杠双引号，避免手写反斜杠数量；保留对两条路径守卫的严格检查。
+- 改动路径：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
+- 验证：尚待 Actions；静态核对 Java 源码生成片段为 `[ ! -d \"$PG\" ] || [ -L \"$PG\" ]` 和 `[ ! -d \"$DIR\" ] || [ -L \"$DIR\" ]`。不宣称产品回滚已真机验证。
+- 下一步：读取新 Actions 首错；通过后继续 Dia SAF/Frida 页面批次，不再把测试脚本修复作为产品功能完成。
