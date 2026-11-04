@@ -40,6 +40,37 @@ CONF="$PG/settings.conf"
 LOCK="$PG/native-managed-lists.lock"
 APPLY_LOG="$TMP/apply.log"
 export MP="$MOD" PG CONF LOCK APPLY_LOG
+
+# A symlink at PG must be rejected before settings or lock files are touched.
+mkdir "$TMP/external-state"
+cp "$CONF" "$TMP/external-state/settings.conf"
+ln -s "$TMP/external-state" "$TMP/state-link"
+if env MP="$MOD" PG="$TMP/state-link" CONF="$TMP/state-link/settings.conf" \
+    LOCK="$TMP/state-link/native-managed-lists.lock" sh "$SCRIPT" list ruleList >/dev/null 2>&1; then
+  fail "symlinked state directory was accepted"
+fi
+cmp -s "$CONF" "$TMP/external-state/settings.conf" || fail "symlinked state directory changed external settings"
+[ ! -e "$TMP/external-state/native-managed-lists.lock" ] || fail "symlinked state directory created an outside lock"
+rm "$TMP/state-link"
+
+# Reject symlinked ancestors, not only a symlink at the final PG component.
+mkdir "$TMP/real-parent"
+ln -s "$TMP/real-parent" "$TMP/parent-link"
+if env MP="$MOD" PG="$TMP/parent-link/state" CONF="$TMP/parent-link/state/settings.conf" \
+    LOCK="$TMP/parent-link/state/native-managed-lists.lock" sh "$SCRIPT" list ruleList >/dev/null 2>&1; then
+  fail "state below a symlinked parent was accepted"
+fi
+[ ! -e "$TMP/real-parent/state" ] || fail "symlinked parent created an external state directory"
+rm "$TMP/parent-link"
+
+# Environment overrides must not redirect settings or lock writes outside PG.
+if env MP="$MOD" PG="$PG" CONF="$TMP/outside-settings.conf" LOCK="$LOCK" sh "$SCRIPT" list ruleList >/dev/null 2>&1; then
+  fail "external CONF override was accepted"
+fi
+if env MP="$MOD" PG="$PG" CONF="$CONF" LOCK="$TMP/outside-lock" sh "$SCRIPT" list ruleList >/dev/null 2>&1; then
+  fail "external LOCK override was accepted"
+fi
+[ ! -e "$TMP/outside-settings.conf" ] && [ ! -e "$TMP/outside-lock" ] || fail "rejected path overrides created external files"
 run(){ sh "$SCRIPT" "$@"; }
 
 initial=$(run list ruleList)

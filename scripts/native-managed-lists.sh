@@ -16,7 +16,41 @@ fi
 PG=${PG:-/data/adb/privacyguard}
 CONF=${CONF:-$PG/settings.conf}
 LOCK=${LOCK:-$PG/native-managed-lists.lock}
-mkdir -p "$PG"
+
+# Validate each existing ancestor before touching the module state directory.
+# Never mkdir -p through a symlink: the settings file and lock must remain
+# direct children of the private FX state directory.
+_nl_validate_parent_chain() {
+  _nl_candidate=$1
+  case "$_nl_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_nl_candidate" in /|*/|*//* ) return 1 ;; esac
+  _nl_final=${_nl_candidate##*/}
+  case "$_nl_final" in ''|.|..) return 1 ;; esac
+  _nl_parent=${_nl_candidate%/*}
+  [ -n "$_nl_parent" ] || _nl_parent=/
+  _nl_rest=${_nl_parent#/}
+  _nl_walk=
+  while [ -n "$_nl_rest" ]; do
+    case "$_nl_rest" in
+      */*) _nl_component=${_nl_rest%%/*}; _nl_rest=${_nl_rest#*/} ;;
+      *) _nl_component=$_nl_rest; _nl_rest= ;;
+    esac
+    case "$_nl_component" in ''|.|..) return 1 ;; esac
+    _nl_walk="$_nl_walk/$_nl_component"
+    [ -d "$_nl_walk" ] && [ ! -L "$_nl_walk" ] || return 1
+  done
+  return 0
+}
+
+_nl_validate_parent_chain "$PG" || {
+  echo "FX state directory has a missing or unsafe parent" >&2
+  exit 21
+}
+[ ! -L "$PG" ] || { echo "FX state directory must not be a symbolic link" >&2; exit 21; }
+if [ ! -e "$PG" ]; then mkdir "$PG" || { echo "cannot create FX state directory" >&2; exit 21; }; fi
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX state directory missing or unsafe" >&2; exit 21; }
+[ "$CONF" = "$PG/settings.conf" ] || { echo "FX settings path must be the module state file" >&2; exit 21; }
+[ "$LOCK" = "$PG/native-managed-lists.lock" ] || { echo "FX list lock path must be inside the module state directory" >&2; exit 21; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 
 TMP_FILE=
