@@ -123,8 +123,10 @@ assert "commitCustomRuleGroupUpdate(" in source[ensure_start:ensure_end], "group
 helper_start = source.index("private boolean commitCustomRuleGroupUpdate(")
 helper_end = source.index("\n    private ", helper_start + 20)
 helper = source[helper_start:helper_end]
-assert "if (update.commit())" in helper and "lastCustomRuleGroupRollbackSaved = rollback.commit()" in helper, \\
-    "group updates must synchronously commit and verify rollback on storage failure"
+assert (
+    "if (update.commit())" in helper
+    and "lastCustomRuleGroupRollbackSaved = rollback.commit()" in helper
+), "group updates must synchronously commit and verify rollback on storage failure"
 rename_start = source.index("private void showRenameCustomRuleGroupDialog(String oldName)")
 rename_end = source.index("\n    private ", rename_start + 20)
 rename = source[rename_start:rename_end]
