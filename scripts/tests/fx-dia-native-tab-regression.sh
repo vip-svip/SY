@@ -20,6 +20,7 @@ $DIA/FxDiaGpsPickerActivity.java
 $DIA/FxDiaSessionLogActivity.java
 $DIA/FxDiaSignatureActivity.java
 $DIA/FxDiaSystemExpandActivity.java
+$DIA/FxDiaWifiProxyActivity.java
 "
 fail() { echo "FAIL: $*" >&2; exit 1; }
 for file in "$BASE" "$MAIN" $PAGES; do
@@ -61,6 +62,11 @@ for token in ("PackageInstaller", "allowed_install_from_unknown_source",
               "restart_package_installer", "RootAccess", "setPositiveButton"):
     assert token in system_page, f"System Expand guarded action missing: {token}"
 print("PASS: Signature viewer remains read-only and System Expand keeps guarded settings actions")
+wifi_page = next(p for p in pages if "class FxDiaWifiProxyActivity" in p)
+for token in ("FxDiaWifiProxyState.mayRestore", "FxDiaWifiProxyState.evaluate",
+              "RootAccess.execute", "setPositiveButton", "worker.shutdownNow()"):
+    assert token in wifi_page, f"Wi-Fi proxy guarded restore/worker lifecycle missing: {token}"
+print("PASS: Wi-Fi proxy guarded restore and worker shutdown remain")
 print("PASS: Dia independent pages retain the shared six-tab shell")
 print("PASS: File/ELF SAF grant, import/export, directory and worker paths remain")
 PY
