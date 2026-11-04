@@ -55,6 +55,40 @@ public class FxYulongWhitelistPolicyTest {
                 FxYulongWhitelistPolicy.parse(value.toString()).size());
     }
 
+    @Test public void serializerDeduplicatesAndRoundTrips() {
+        String encoded = FxYulongWhitelistPolicy.serialize(Arrays.asList(
+                "com.example.app", "com.example.app", "org.example.tool"));
+        assertEquals("com.example.app,org.example.tool", encoded);
+        assertEquals(FxYulongWhitelistPolicy.parse(encoded),
+                FxYulongWhitelistPolicy.parse("com.example.app,org.example.tool"));
+    }
+
+    @Test public void serializerRejectsInvalidPackageInsteadOfDroppingIt() {
+        assertEquals(null, FxYulongWhitelistPolicy.serialize(
+                Arrays.asList("com.example.good", "../bad")));
+    }
+
+    @Test public void serializerRejectsMoreThanTheMaximumEntries() {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        for (int i = 0; i <= FxYulongWhitelistPolicy.MAX_ENTRIES; i++) {
+            values.add("com.example.app" + i);
+        }
+        assertEquals(null, FxYulongWhitelistPolicy.serialize(values));
+    }
+
+    @Test public void serializerRejectsOversizedRawPayload() {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        String prefix = "com." + repeat('a', 180) + ".";
+        for (int i = 0; i < 6000; i++) values.add(prefix + i);
+        assertEquals(null, FxYulongWhitelistPolicy.serialize(values));
+    }
+
+    private static String repeat(char value, int count) {
+        char[] chars = new char[count];
+        Arrays.fill(chars, value);
+        return new String(chars);
+    }
+
     @Test public void packageLookupRejectsInvalidNamesBeforePreferenceRead() {
         assertFalse(FxYulongWhitelistPolicy.isWhitelisted(null, "../bad"));
         assertFalse(FxYulongWhitelistPolicy.isWhitelisted(null, "com..bad"));
