@@ -2722,3 +2722,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：源码锚点唯一性静态检查；本地未执行 Android Gradle/JUnit/真机测试，等待 push 后 Actions 定向回归。
 - 失败路线：不再使用旧 EditText 的 `setText("OBSERVE")` 断言；若后续失败，依据新日志定位实际断言，不通过删除安全限制绕过。
 - 下一步：修复后继续执行 Hook/Dia targeted 回归；然后集中处理游龙安全护盾白名单/扫描详情交互。
+
+
+## 2026-11-05 — Hook 隐私分类导航回归断言跟进
+
+- Actions：`41912130500` 失败于 `fx-hook-native-ui-regression.sh`，首个失败：`per-app editor rebuilds do not restore the active privacy section`。
+- 根因：当前 MainActivity 已将分类定位请求从长期导航上下文 `activePrivacySection` 拆分为一次性 `pendingPrivacySection`；`focusPendingPrivacySection()` 只消费 pending 值并执行滚动定位，长期来源分类仍由 `activePrivacySection` 单独保存。测试继续要求旧局部变量名，误把导航状态拆分判为丢失。
+- 修复：将断言改为检查 `pendingPrivacySection` 被捕获、清空并用于 section tag 定位；保留其它关于 activePrivacySection Bundle 保存和返回链的独立断言。仅修正测试，不改导航实现。
+- 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 下一步：本提交后继续读取 targeted Host Actions 第一条失败；如果出现实际导航错误再修 MainActivity，不通过删除断言绕过。

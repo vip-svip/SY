@@ -235,7 +235,7 @@ grep -Fq 'outState.putBoolean("fx_hook_screen_visible", hookUiVisible);' "$PRIVA
 grep -Fq 'state.getBoolean("fx_hook_screen_visible", selectedBottomTab == 4)' "$PRIVACY" || fail "native Hook editor is not restored when the Privacy tab remains selected"
 grep -Fq 'outState.putString("fx_privacy_section", activePrivacySection)' "$PRIVACY" || fail "originating Privacy category is not saved across Activity recreation"
 grep -Fq 'showAppList(activePrivacySection);' "$PRIVACY" || fail "restored Privacy editor does not reopen its original category"
-grep -Fq 'final String requested = activePrivacySection;' "$PRIVACY" || fail "per-app editor rebuilds do not restore the active privacy section"
+grep -Fq 'final String requested = pendingPrivacySection;' "$PRIVACY" || fail "per-app editor rebuilds do not restore the pending privacy section"
 grep -Fq 'showAppList(activePrivacySection)' "$PRIVACY" || fail "return navigation loses the originating privacy category"
 grep -Fq 'private void focusPendingPrivacySection()' "$PRIVACY" || fail "privacy category does not deep-link to its native controls"
 grep -Fq 't.setTag("fx-section:" + s);' "$PRIVACY" || fail "native Hook section headers cannot be targeted for category navigation"
