@@ -5723,7 +5723,7 @@ public final class MainActivity extends ComponentActivity {
         finishSpinner.setEnabled(userTarget);
         content.addView(finishSpinner, new LinearLayout.LayoutParams(-1, -2));
 
-        boolean dialogConfigured = false;
+        boolean dialogConfiguredValue = false;
         try {
             boolean dialogEnabled = getPreferences(0).getBoolean(
                     packageNameKey + ":dialog_match_enabled", false);
@@ -5733,11 +5733,12 @@ public final class MainActivity extends ComponentActivity {
             List<String> idTerms = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
                     .parseTerms(getPreferences(0).getString(
                             packageNameKey + ":dialog_id_terms", ""));
-            dialogConfigured = debuggableTarget && dialogEnabled
+            dialogConfiguredValue = debuggableTarget && dialogEnabled
                     && (!textTerms.isEmpty() || !idTerms.isEmpty());
         } catch (IllegalArgumentException invalidDraft) {
-            dialogConfigured = false;
+            dialogConfiguredValue = false;
         }
+        final boolean dialogConfigured = dialogConfiguredValue;
 
         section("动作二：暂停 / 恢复当前应用的 Dialog 规则");
         TextView dialogNote = new TextView(this);
