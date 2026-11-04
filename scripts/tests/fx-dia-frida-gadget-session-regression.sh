@@ -83,7 +83,7 @@ for label, needle in (
     ("status checker validates CLI command identity", "FX_GADGET_CLI_PID_CONFLICT"),
     ("status checker validates stdin feeder identity", "FX_GADGET_FEEDER_PID_CONFLICT"),
     ("status checker distinguishes degraded and stale sessions", "FX_GADGET_SESSION_DEGRADED"),
-    ("status checker is read-only", "rm -f" not in check and 'kill "
+    ("status checker is read-only", "rm -f" not in check and 'kill "$' not in check),
 ):
     if needle not in check:
         raise SystemExit(f"FAIL: Gadget session status contract missing: {label}")
