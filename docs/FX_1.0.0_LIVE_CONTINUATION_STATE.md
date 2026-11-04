@@ -1821,3 +1821,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `9517b39b7fed6d09b5f44e66b74bd834061c62c7` — `test(dia): cover Frida script create dialog restoration`。
 - 验证等级：源码静态断言确认弹窗 pending 状态、名称草稿 Bundle 保存/恢复、异步 reload 后重开、64 字符限制及配置变更取消保护；`fx-dia-frida-script-library-saf-regression.sh` 增加对应断言。未执行 Shell/Python 回归、Gradle、模拟器或真机旋转/编辑器回传。
 - 下一步：Frida 主页面“保存脚本到库”名称弹窗仍需同样的草稿恢复/输入上限核对；之后把 Frida 管理页、脚本库、全屏编辑器的返回链作为一个页面组做一次 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook 自定义规则 CRUD 后保持原生管理页
+
+- 本批起始 HEAD：`a8f9e3feabadeed07d0c9cba1d35d93b1362efda`。
+- 复核确认：自定义 Hook 规则页本来已有分组筛选、搜索、滚动位置、编辑器草稿和 Activity 重建恢复字段；本批没有重复实现已有能力。
+- 实际导航缺陷：规则新增/编辑成功、规则删除、分组重命名/删除、规则移动分组成功后调用 `showTarget(target)`，会把用户从自定义规则管理页踢回普通应用 Hook 配置页。
+- 修复：五条 CRUD/分组刷新路径改为 `showCustomHookRulesPage(target, targetDebuggable)`，保留同一目标的规则管理上下文；页面入口原有 `captureCustomHookRuleFilters()` 继续保存分组、搜索和滚动状态。显式“返回”仍走 `leaveCustomHookRulesPage()`，返回目标不变。
+- 提交：
+  - `bfa0d8f9b0b5320b4c62c934e8284e76468ae592` — `fix(hook): keep custom rule manager open after edits`。
+  - `5ea20984f647c86fd04987af29f0a9e28e58b63a` — `test(hook): cover custom rule manager refresh navigation`。
+- 验证：静态核对五条 CRUD/分组刷新路径均回到自定义规则管理页；回归脚本增加分组/规则刷新、保存后停留、删除后停留、显式返回断言。尚未执行完整 Shell/Python 回归、Gradle 编译或 Android 真机操作。
+- 未完成/风险：JSON 导入成功后的页面停留、OBSERVE 日志 Activity 返回后的目标包/筛选上下文仍需单独实测；分组弹窗层级及编辑器验证失败时草稿保留仍需 UI 自动化/真机检查。
+- 下一步：检查 Hook 目标详情页的 Hook 开关、LSPosed 作用域/权限状态刷新是否丢失详情滚动位置；随后运行针对性回归。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
