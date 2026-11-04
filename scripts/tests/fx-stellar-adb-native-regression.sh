@@ -52,7 +52,8 @@ done
 
 # Ensure the source workflow stages libraries from the original Stellar intake,
 # not a checked-in binary copied from an unrelated release.
-grep -Fq "name '*_9.9.60_src'" "$WORKFLOW" || fail "workflow does not locate the original 9.9.60 source root"
-grep -Fq 'lib/arm64-v8a/libadb.so' "$WORKFLOW" || fail "workflow does not stage the arm64 JNI library"
-grep -Fq 'lib/armeabi-v7a/libadb.so' "$WORKFLOW" || fail "workflow does not stage the 32-bit JNI library"
+grep -Fq -- "-name '*_9.9.60_src'" "$WORKFLOW" || fail "workflow does not locate the original 9.9.60 source root"
+grep -Fq 'for abi in arm64-v8a armeabi-v7a; do' "$WORKFLOW" || fail "workflow does not stage both supported Android ABIs"
+grep -Fq 'native_source="$stellar_root/lib/$abi/libadb.so"' "$WORKFLOW" || fail "workflow does not read libadb.so from the original source tree"
+grep -Fq 'native_target="adhook/app/src/main/jniLibs/$abi/libadb.so"' "$WORKFLOW" || fail "workflow does not stage the source library into Android jniLibs"
 echo "PASS: original Stellar libadb ABIs, JNI_OnLoad, PairingContext JVM descriptors and source-staging provenance"
