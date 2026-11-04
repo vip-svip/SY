@@ -6432,14 +6432,6 @@ public final class MainActivity extends ComponentActivity {
         literalValue.addTextChangedListener(draftWatcher);
         group.addTextChangedListener(draftWatcher);
         priority.addTextChangedListener(draftWatcher);
-        android.widget.AdapterView.OnItemSelectedListener draftSelectionListener =
-                new android.widget.AdapterView.OnItemSelectedListener() {
-                    @Override public void onItemSelected(android.widget.AdapterView<?> parent,
-                                                         View view, int position, long itemId) {
-                        persistEditorDraft.run();
-                    }
-                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
-                };
         syntax.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
                                                  View view, int position, long itemId) {
@@ -6671,10 +6663,20 @@ public final class MainActivity extends ComponentActivity {
 
 
     private void showCustomRuleImportDialog() {
+        final String importDraftKey = selectedPackage + ":dev_rule_import_json_draft";
         EditText input = new EditText(this);
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
         input.setMinLines(8);
         input.setHint("Paste FX portable rule-group JSON with format, sourcePackage and rules fields.");
+        input.setText(getPreferences(0).getString(importDraftKey, ""));
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(importDraftKey,
+                        value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
         new AlertDialog.Builder(this).setTitle("导入自定义 Hook 规则组")
                 .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
@@ -6799,7 +6801,9 @@ public final class MainActivity extends ComponentActivity {
                         allGroups.addAll(importedGroupNames);
                         allGroups.addAll(baseGroups);
                         editor.putStringSet(selectedPackage + ":dev_rule_groups", allGroups);
-                        editor.apply();
+                        editor.remove(importDraftKey);
+                        if (!editor.commit())
+                            throw new IllegalStateException("规则导入失败：本地配置未能完整写入，原有规则未确认更新。");
 
                         ApplicationInfo currentTarget = findApp(selectedPackage);
                         if (currentTarget != null) showTarget(currentTarget);
