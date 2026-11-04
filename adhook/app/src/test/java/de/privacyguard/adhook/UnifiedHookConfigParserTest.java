@@ -785,10 +785,10 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void rejectsTwoActivityKeyActionsUsingTheSameTrigger() {
+    public void rejectsTwoActivityKeyActionsWithOverlappingGestures() {
         UnifiedHookConfigParser.parse(String.join("\n", "schema_version=1", "ads_enabled=0",
                 "privacy_enabled=0", "[list:targets]",
-                "com.example.debug,key_finish_trigger=5,key_dialog_toggle_trigger=5,"
+                "com.example.debug,key_finish_trigger=0,key_dialog_toggle_trigger=2,"
                         + "dialog_match=1,dialog_text_terms_b64="
                         + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                                 "blocked".getBytes(java.nio.charset.StandardCharsets.UTF_8)), ""));
