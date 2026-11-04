@@ -1710,3 +1710,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - d231eecbd2ca1a3644f9674b8532266690adbe4a — 回归脚本覆盖分组事务、层级恢复和输入长度上限。
 - 静态验证：最新源码确认统一 helper 的旧值快照、回滚 commit、四条调用路径、分组弹窗状态恢复、选择器 slot/choice 恢复以及两个 24 字符过滤器；回归脚本包含对应静态断言。未执行 Shell 脚本、Gradle、模拟器/真机旋转或 SharedPreferences 故障注入。
 - 下一步：集中核对 Hook/Dia 的 Host 测试脚本与仓库可运行测试入口，确认哪些可在当前 Actions 结果中读取、哪些必须在有完整工作树的环境运行；不重复启动整套 Actions。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 自定义规则编辑器输入边界
+
+- 本批起始 HEAD：`811ebbc1839c3e28bef5a56126a06e349b188e1b`。
+- 自定义规则编辑器原先已有目标包/编辑槽隔离的 SharedPreferences 草稿自动保存、Activity 重建恢复和提交成功清理，但输入框没有应用与解析器一致的最大长度限制，粘贴极长文本会在每次 TextWatcher 事件中持续写入草稿。
+- 修改 `MainActivity.showCustomRuleDialog`，对编辑器字段加入硬输入上限：
+  - 规则 ID：32 字符（匹配 DeveloperHookRule 的 1–32 字符 ID 约束）。
+  - Java/Frida/Smali 方法描述符：512 字符（匹配描述符规范化器上限）。
+  - RETURN_LITERAL 值：256 字符（匹配字面值解析器上限；字符串 UTF-8 字节限制仍由解析器继续校验）。
+  - 分组名称：24 字符（匹配分组校验）。
+  - 优先级：5 字符（足以输入 -1000 至 1000 的有效范围，数值范围仍由规则解析器校验）。
+- 保留现有草稿 identity、字段恢复、文本变更自动保存、取消保留草稿、验证/原子 commit 以及成功提交清理；没有更改规则动作白名单、签名解析、目标包隔离或发布语义。
+- 提交：
+  - `e8788db45a430cb055a5b2ea168447434a9a78e0` — `fix(hook): bound custom rule editor draft fields`。
+  - `8a01389a36ec22c8408ecdf6bc36297c59ed41e6` — `test(hook): enforce custom rule editor input bounds`。
+- 最新 HEAD 静态复核：五项 InputFilter 上限、编辑器草稿保存/清理及原规则解析调用均通过源码断言；回归脚本包含五项上限断言。未运行 `fx-dia-custom-hook-literal-regression.sh`、Gradle/Android 编译或设备旋转/输入测试。当前容器无法解析 github.com，因此未在本地完整 checkout 执行脚本。
+- 下一步：继续核对自定义规则新增/编辑提交后分组筛选与滚动定位是否稳定，之后检查日志页返回后 Hook 目标页的实例/视图状态；尝试通过已有仓库 CI 状态读取可用的测试结果，但不触发整套 Actions。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
