@@ -134,15 +134,30 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
         hostInput.setSingleLine(true);
         hostInput.setHint("代理主机，例如 127.0.0.1 或 proxy.example.com");
         hostInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        hostInput.setText(prefs().getString("host", "127.0.0.1"));
+        hostInput.setText(prefs().getString("draft_host", prefs().getString("host", "127.0.0.1")));
         body.addView(hostInput);
 
         portInput = new EditText(this);
         portInput.setSingleLine(true);
         portInput.setHint("代理端口 1–65535");
         portInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        portInput.setText(prefs().getString("port", "8080"));
+        portInput.setText(prefs().getString("draft_port", prefs().getString("port", "8080")));
         body.addView(portInput);
+        // Keep non-secret host/port drafts recoverable; credentials are never stored here.
+        hostInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                prefs().edit().putString("draft_host", value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
+        portInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                prefs().edit().putString("draft_port", value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
 
         applyButton = button("启用并应用系统 HTTP 代理", () -> confirmApply());
         restoreButton = button("关闭并恢复原系统代理", () -> restoreProxy());
@@ -236,11 +251,17 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
                 return;
             }
             String newPrevious = extract(result.output, "PREVIOUS=");
-            prefs().edit().putBoolean("active", true)
+            boolean saved = prefs().edit().putBoolean("active", true)
                     .putString("host", hostInput.getText().toString().trim())
                     .putString("port", portInput.getText().toString().trim())
                     .putString("previous", newPrevious)
-                    .putString("applied", target).apply();
+                    .putString("applied", target)
+                    .remove("draft_host").remove("draft_port").commit();
+            if (!saved) {
+                status.setText("系统代理已应用，但 FX 本地状态保存失败；请勿重复启用，先刷新状态并核对当前代理。");
+                refreshStatus();
+                return;
+            }
             proxyStatus = FxDiaWifiProxyState.Status.ACTIVE;
             status.setText("系统全局 HTTP 代理已启用并核对成功： " + target);
             updateButtons();
