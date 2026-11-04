@@ -68,6 +68,34 @@ public final class FxYulongShieldActivity extends Activity {
         refreshControlsFromSystem();
     }
 
+    private boolean isAccessibilityEnabledInSystem() {
+        String enabled = android.provider.Settings.Secure.getString(
+                getContentResolver(),
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabled == null || enabled.trim().isEmpty()) return false;
+        String expectedPackage = getPackageName();
+        String expectedClass =
+                de.privacyguard.adhook.FxAccessibilityService.class.getName();
+        for (String entry : enabled.split(":")) {
+            android.content.ComponentName component =
+                    android.content.ComponentName.unflattenFromString(entry);
+            if (component != null
+                    && expectedPackage.equals(component.getPackageName())
+                    && expectedClass.equals(component.getClassName())) return true;
+        }
+        return false;
+    }
+
+    private boolean isAccessibilityServiceConnectedNow(boolean systemEnabled) {
+        if (!systemEnabled || !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
+            return false;
+        }
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("fx_accessibility", MODE_PRIVATE);
+        return prefs.getBoolean("service_connected", false)
+                && prefs.getInt("service_pid", -1) == android.os.Process.myPid();
+    }
+
     private boolean hasNotificationPermission() {
         return android.os.Build.VERSION.SDK_INT < 33
                 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -125,27 +153,39 @@ public final class FxYulongShieldActivity extends Activity {
         if (runtimeStatus != null) {
             boolean usage = hasUsageAccess();
             boolean notifications = hasNotificationPermission();
-            boolean accessibility = de.privacyguard.adhook.FxAccessibilityService.isConnected();
+            boolean accessibilityEnabled = isAccessibilityEnabledInSystem();
+            boolean accessibilityConnected =
+                    isAccessibilityServiceConnectedNow(accessibilityEnabled);
             boolean overlay = android.provider.Settings.canDrawOverlays(this);
             boolean protectionRunning = isServiceRunning(FxYulongProtectionService.class);
             boolean rescueRunning = isServiceRunning(FxYulongRescueOverlayService.class);
+            boolean foregroundProtection = shieldPrefs.getBoolean("protect_on", false);
+            boolean shakeRescue = shieldPrefs.getBoolean("shake_trigger_on", false);
+            boolean autoRiskEnabled = shieldPrefs.getBoolean("auto_block_on", true);
+            boolean volumeTriggerEnabled = shieldPrefs.getBoolean("volume_trigger_on", false);
             StringBuilder state = new StringBuilder();
             state.append("使用情况访问：").append(usage ? "已授权" : "未授权");
             state.append("\n通知权限：").append(notifications ? "已授权" : "未授权");
-            state.append("\nFX 无障碍服务：").append(accessibility ? "已连接" : "未连接");
+            state.append("\n无障碍系统开关：").append(accessibilityEnabled ? "已启用" : "未启用");
+            state.append(" · FX 服务连接：").append(accessibilityConnected ? "已连接" : "未连接");
             state.append("\n悬浮窗权限：").append(overlay ? "已授权" : "未授权");
-            state.append("\n实时守护服务：").append(protectionRunning ? "运行中" : "未运行");
-            state.append("（开关 ").append(shieldPrefs.getBoolean("protect_on", false) ? "开启" : "关闭").append("）");
+            state.append("\n守护 Service 进程：").append(protectionRunning ? "运行中" : "未运行");
+            if (foregroundProtection) {
+                state.append(" · 前台名单监测开关：已开启");
+            } else if (shakeRescue && protectionRunning) {
+                state.append(" · 仅为摇动救援运行，前台名单监测关闭");
+            } else {
+                state.append(" · 前台名单监测开关：关闭");
+            }
             state.append("\n悬浮救援服务：").append(rescueRunning ? "运行中" : "未运行");
-            if (!notifications && (shieldPrefs.getBoolean("protect_on", false)
-                    || shieldPrefs.getBoolean("shake_trigger_on", false))) {
+            if (!notifications && (foregroundProtection || shakeRescue)) {
                 state.append("\n警告：通知权限已撤销，后台服务无法正常维持提醒。");
             }
-            if (!usage && shieldPrefs.getBoolean("protect_on", false)) {
-                state.append("\n警告：使用情况访问已撤销，前台守护不可工作；请关闭并重新授权。");
+            if (!usage && foregroundProtection) {
+                state.append("\n警告：使用情况访问已撤销，前台名单监测不可工作；请重新授权。");
             }
-            if (!accessibility && shieldPrefs.getBoolean("auto_block_on", true)) {
-                state.append("\n提示：前台自动扫描开关已保存，但 FX 无障碍服务未连接。");
+            if (!accessibilityConnected && (autoRiskEnabled || volumeTriggerEnabled)) {
+                state.append("\n提示：无障碍功能开关已保存，但系统服务未连接；前台自动扫描/音量键触发当前不可用。");
             }
             if (!overlay && shieldPrefs.getBoolean("overlay_rescue_on", false)) {
                 state.append("\n提示：悬浮窗权限已撤销，已保存的救援入口无法显示。");
