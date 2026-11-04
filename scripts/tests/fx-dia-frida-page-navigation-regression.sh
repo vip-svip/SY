@@ -27,7 +27,7 @@ checks = {
     "target picker reopens after Activity recreation": "if (restoreTargetPickerPending)" in frida and "chooseTarget();" in frida,
     "target picker cancellation clears pending state": "pickerDialog.setOnCancelListener(dialog -> {" in target_picker and "targetPickerOpen = false;" in target_picker,
     "target picker searches app names and package names": "adapter.getFilter().filter(targetPickerQuery)" in target_picker and "search.setHint(\"搜索应用名称或包名\")" in target_picker,
-    "target picker displays package identity": 'return label + "\\n" + packageName;' in frida,
+    "target picker displays package identity": 'return label + " · " + packageName;' in frida,
     "target picker shows empty search state": "list.setEmptyView(empty);" in target_picker,
     "target picker search query saved": "outState.putString(STATE_TARGET_PICKER_QUERY" in frida,
     "target picker search query restored": "state.getString(STATE_TARGET_PICKER_QUERY" in frida,
