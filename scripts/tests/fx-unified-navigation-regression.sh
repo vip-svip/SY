@@ -3,12 +3,14 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 shell="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
-test -s "$activity" && test -s "$shell"
-python3 - "$activity" "$shell" <<'PY'
+host="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeTabActivity.java"
+test -s "$activity" && test -s "$shell" && test -s "$host"
+python3 - "$activity" "$shell" "$host" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 shell = Path(sys.argv[2]).read_text(encoding="utf-8")
+host = Path(sys.argv[3]).read_text(encoding="utf-8")
 settings_start = activity.index("    private void showSettings()")
 settings_end = activity.index("    private String importedSuiteTitle(", settings_start)
 settings = activity[settings_start:settings_end]
@@ -31,5 +33,7 @@ assert "showSettings();" in restore
 assert "restoreMigrationNavigation();" not in restore
 assert 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' in shell
 assert "Ad/Hosts" not in shell and "Ad / Hosts" not in shell
-print("PASS: Settings has no migration-app hub; native six-tab navigation uses Ad.")
+assert "FxUiMode.read(this).getStorageId()" in host
+assert '"huawei".equals(mode)' not in host and '"ios".equals(mode)' not in host
+print("PASS: Settings has no migration-app hub; native six-tab navigation uses Ad; shared Activity host preserves all five skins.")
 PY
