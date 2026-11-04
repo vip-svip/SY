@@ -130,6 +130,8 @@ grep -Fq '.putBoolean(selectedPackage + ":location_access_block", checked)' "$AC
 grep -Fq 'if (locationAccessBlocked && (enabled || providerEnabled))' "$ACTIVITY" || fail "GPS coordinate/provider simulation conflict guard missing"
 grep -Fq 'has_conflict_aware_location_control(source)' "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migrator does not accept the dedicated guarded location control"
 grep -Fq 'end = source.find("\\n    private ", start + 1)' "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migrator location helper boundary must stop at the next method"
+grep -Fq "'if (coordinates || provider)'" "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migrator must verify the location switch rejects active GPS simulation"
+grep -Fq "'if (locationAccessBlocked && (enabled || providerEnabled))' in source" "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migrator must verify GPS saves also reject active location blocking"
 grep -Fq 'has_conflict_aware_location_control' "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migration checker rejects the dedicated guarded location switch"
 keys_block=$(sed -n '/String\[\] keys=/,/};/p' "$ACTIVITY")
 for feature in privacy exif_strip clipboard_read_block clipboard_isolate wifi_scan_block notification_listen_block notification_permission_hide mic_silence camera_access_block location_access_block mic_access_block media_store_query_block sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit member_diag; do
