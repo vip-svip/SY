@@ -7,6 +7,11 @@ MOD=${1:-"$ROOT/fx-module"}
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$PATCHER" ] || fail "scheduler patcher missing"
 [ -s "$SOURCE" ] || fail "scheduler source missing"
+[ -s "$ROOT/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" ] || fail "canonical PID-reuse regression source missing"
+[ -s "$MOD/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" ] || fail "Release PID-reuse regression was not replaced in the module"
+cmp -s "$ROOT/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" "$MOD/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" || fail "staged PID-reuse regression is stale"
+sh -n "$ROOT/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" || fail "canonical PID-reuse regression shell syntax invalid"
+
 grep -Fq 'sync-subs.sh' "$PATCHER" || fail "scheduler patcher does not validate subscription synchronizer"
 grep -Fq 'runner.sh' "$PATCHER" || fail "scheduler patcher does not validate QuickJS runner"
 grep -Fq 'host.js' "$PATCHER" || fail "scheduler patcher does not validate HTTP host bridge"
