@@ -501,7 +501,7 @@ public final class FxYulongVirusDb {
                 || lower.contains("<html")
                 || lower.contains("<title")
                 || lower.contains("<body")
-                || lower.startsWith("[{")
+                || lower.matches("(?s)^\\[\\s*\\{.*")
                 || lower.contains("bad gateway")
                 || lower.contains("service unavailable")
                 || lower.contains("gateway timeout")
