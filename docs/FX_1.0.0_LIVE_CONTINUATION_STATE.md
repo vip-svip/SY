@@ -2029,7 +2029,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Activity 销毁时使目标/进程查询代次失效，清除当前 Activity 的 pending UI 状态。
 - 修复 Frida 脚本库 SAF 导出暂存冲突：只允许一个脚本库 JSON 导出请求等待系统文件选择器返回，避免并行导出覆盖单一 pending staging filename。
 - 提交：
-  - efca312d39bb1505af2298f9212667cecb20995c — 目标与进程选择器状态恢复。
+  - 04ef55dcd7612a37bef2fb9f98f305fc9d193c20 — Frida 目标/进程选择器状态恢复。
   - 8305b1044691c0546b8ae286506174bf0a7582ac — 明确全不选状态与恢复回调排队期间的 pending 标记。
   - 61113e197529983b96306ad89fe246e482c428ac — 切换目标时取消旧进程选择请求，避免旧 busy 标记阻止新目标操作。
   - 632a6dc9a8b4683cd769a0e1881e36207133fbf8 — 进程扫描完成后复核目标包名/UID/debuggable/system 状态。
