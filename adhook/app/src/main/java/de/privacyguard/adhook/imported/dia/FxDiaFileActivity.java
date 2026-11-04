@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -39,7 +38,7 @@ import java.util.zip.ZipFile;
  * File operations are restricted to a directory explicitly granted through SAF.
  * APK/SO inspection is read-only and limited to user-installed debuggable apps.
  */
-public final class FxDiaFileActivity extends Activity {
+public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int PICK_TREE = 7511, PICK_IMPORT = 7512, PICK_EXPORT = 7513;
     private static final int MAX_PREVIEW = 512 * 1024;
     private Uri treeUri, exportSource;
@@ -101,7 +100,7 @@ public final class FxDiaFileActivity extends Activity {
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         fileStatus = text("尚未授权文件目录。", 12, 0xff526170, false);
         location = text("未选择目录", 12, 0xff334155, false);
