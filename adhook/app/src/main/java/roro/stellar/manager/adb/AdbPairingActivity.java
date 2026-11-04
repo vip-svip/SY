@@ -32,6 +32,14 @@ public final class AdbPairingActivity extends Activity {
                 return thread;
             }, new ThreadPoolExecutor.AbortPolicy());
     private final AtomicLong operationGeneration = new AtomicLong();
+    private final AtomicLong probeGeneration = new AtomicLong();
+    private final ThreadPoolExecutor probeWorker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> {
+                Thread thread = new Thread(r, "fx-stellar-adb-shell-probe");
+                thread.setDaemon(true);
+                return thread;
+            }, new ThreadPoolExecutor.AbortPolicy());
     private final Map<String, AdbPairingDiscovery.Device> devices = new LinkedHashMap<>();
 
     private TextView status;
@@ -40,6 +48,7 @@ public final class AdbPairingActivity extends Activity {
     private EditText pairingCode;
     private Button scanButton;
     private Button pairButton;
+    private Button connectTestButton;
     private AdbPairingDiscovery discovery;
     private AdbPairingDiscovery.Device selectedDevice;
     private volatile AdbPairingClient activeClient;
@@ -110,12 +119,14 @@ public final class AdbPairingActivity extends Activity {
             if (connectDiscoveryMode) startConnectDiscovery(operationGeneration.get());
             else startDiscovery();
         });
+        connectTestButton = button("验证所选设备的 ADB Shell 通道", this::probeSelectedConnectEndpoint);
+        connectTestButton.setEnabled(false);
         devicesSummary = text("尚未发现设备", 12, 0xff617080, false);
         deviceRows = new LinearLayout(this);
         deviceRows.setOrientation(LinearLayout.VERTICAL);
         card(body, "设备发现",
-                "只发现广播 _adb-tls-pairing._tcp 的设备。扫描由你主动启动；FX 不会扫描或保存 Wi-Fi 密码。",
-                scanButton, status, devicesSummary, deviceRows);
+                "配对后会继续发现 _adb-tls-connect._tcp。选中目标 connect 端点后，可进行一次固定只读 echo 探测；不会执行任意命令或授予系统权限。",
+                scanButton, connectTestButton, status, devicesSummary, deviceRows);
 
         pairingCode = new EditText(this);
         pairingCode.setSingleLine(true);
@@ -197,17 +208,72 @@ public final class AdbPairingActivity extends Activity {
             Button row = button((selected ? "✓ " : "") + device.toString(),
                     () -> selectDevice(device));
             row.setTextSize(12);
-            row.setEnabled(!pairing && !connectDiscoveryMode);
+            row.setEnabled(!pairing);
             deviceRows.addView(row);
         }
         pairButton.setEnabled(!pairing && !connectDiscoveryMode && selectedDevice != null);
+        if (connectTestButton != null) {
+            connectTestButton.setEnabled(!pairing && connectDiscoveryMode && selectedDevice != null);
+        }
     }
 
     private void selectDevice(AdbPairingDiscovery.Device device) {
-        if (pairing || connectDiscoveryMode || device == null) return;
+        if (pairing || device == null) return;
         selectedDevice = device;
         renderDevices();
-        status.setText("已选择 " + device.serviceName + " · " + device.host + ":" + device.port);
+        if (connectDiscoveryMode) {
+            status.setText("已选择配对后的 ADB connect 端点 " + device.host + ":" + device.port
+                    + "。点击固定只读探测以验证 ADB Shell 通道。");
+        } else {
+            status.setText("已选择 " + device.serviceName + " · " + device.host + ":" + device.port);
+        }
+    }
+
+    /** Open the authenticated ADB shell channel with a fixed, read-only echo probe only. */
+    private void probeSelectedConnectEndpoint() {
+        if (destroyed || pairing || !connectDiscoveryMode || selectedDevice == null) return;
+        final AdbPairingDiscovery.Device target = selectedDevice;
+        final long generation = probeGeneration.incrementAndGet();
+        connectTestButton.setEnabled(false);
+        status.setText("正在通过已配对的 ADB 主机密钥建立 TLS/CNXN/AUTH，并验证固定 Shell 探测…");
+        try {
+            probeWorker.execute(() -> {
+                AdbShellProbeClient client = null;
+                String output = null;
+                String failure = null;
+                try {
+                    AdbKey key = AdbKey.getOrCreate(getApplicationContext());
+                    client = new AdbShellProbeClient(target.host, target.port, key);
+                    activeProbe = client;
+                    output = client.probe();
+                } catch (Exception error) {
+                    failure = error.getClass().getSimpleName()
+                            + (error.getMessage() == null ? "" : ": " + error.getMessage());
+                } finally {
+                    if (activeProbe == client) activeProbe = null;
+                    if (client != null) client.close();
+                }
+                final String probeOutput = output;
+                final String probeFailure = failure;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()
+                            || generation != probeGeneration.get()
+                            || selectedDevice == null
+                            || !selectedDevice.serviceName.equals(target.serviceName)) return;
+                    if (probeFailure == null) {
+                        status.setText("ADB TLS/AUTH 与 Shell 通道探测成功。固定命令返回："
+                                + probeOutput.trim());
+                    } else {
+                        status.setText("ADB Shell 探测失败（不会修改设备状态）："
+                                + probeFailure + "。可重新扫描 connect 服务或重试。");
+                    }
+                    renderDevices();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            status.setText("ADB Shell 探测队列繁忙，本次未开始；请稍后重试。");
+            renderDevices();
+        }
     }
 
     private void confirmAndPair() {
@@ -302,8 +368,9 @@ public final class AdbPairingActivity extends Activity {
         connectDiscoveryMode = true;
         selectedDevice = null;
         devices.clear();
-        pairButton.setText("ADB Shell 命令通道尚未迁入");
+        pairButton.setText("ADB Shell 命令通道尚未验证");
         pairButton.setEnabled(false);
+        if (connectTestButton != null) connectTestButton.setEnabled(false);
         scanButton.setText("重新扫描 ADB connect 服务");
         scanButton.setEnabled(false);
         renderDevices();
@@ -338,6 +405,14 @@ public final class AdbPairingActivity extends Activity {
                         @Override public void onDeviceLost(String serviceName) {
                             if (destroyed || generation != operationGeneration.get()) return;
                             devices.remove(serviceName);
+                            if (selectedDevice != null
+                                    && selectedDevice.serviceName.equals(serviceName)) {
+                                selectedDevice = null;
+                                probeGeneration.incrementAndGet();
+                                AdbShellProbeClient probing = activeProbe;
+                                activeProbe = null;
+                                if (probing != null) probing.close();
+                            }
                             String savedName = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
                                     .getString("connect_service_name", "");
                             if (serviceName.equals(savedName)) {
@@ -386,7 +461,12 @@ public final class AdbPairingActivity extends Activity {
         AdbPairingClient client = activeClient;
         activeClient = null;
         if (client != null) client.close();
+        probeGeneration.incrementAndGet();
+        AdbShellProbeClient probing = activeProbe;
+        activeProbe = null;
+        if (probing != null) probing.close();
         pairWorker.shutdownNow();
+        probeWorker.shutdownNow();
         super.onDestroy();
     }
 }
