@@ -320,6 +320,10 @@ for token in (
     assert token in warning_page, f"Warning page live-action guard missing: {token}"
 assert 'if (!validPackageName() || !("CERTAIN".equals(severity) || "SUSPECT".equals(severity)))' in warning_page, \
     "Invalid severity must not open the system uninstall confirmation"
+assert "catch (RuntimeException lookupFailure)" in warning_page, \
+    "Whitelist action must handle package visibility/runtime lookup failures without crashing"
+assert "包含无法识别的条目" in warning_page and "本次没有修改任何白名单数据" in warning_page, \
+    "Risk detail whitelist action must not silently discard malformed existing entries"
 
 # Batch cleanup must reject malformed or truncated queue payloads atomically.
 for token in (
