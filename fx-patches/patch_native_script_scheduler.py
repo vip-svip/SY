@@ -45,8 +45,17 @@ def main() -> None:
     source = root / "fx-patches/native-script-scheduler.sh"
     target = module / "scripts/jsruntime/scheduler.sh"
     uninstall = module / "uninstall.sh"
+    runtime = module / "scripts/jsruntime"
+    sync_subs = runtime / "sync-subs.sh"
+    runner = runtime / "runner.sh"
+    host = runtime / "host.js"
     if not source.is_file() or not uninstall.is_file():
         raise SystemExit("scheduler source or module uninstall.sh is missing")
+    # The watcher is not a feature by itself: a restored Release must contain
+    # the real HTTPS subscription synchronizer and QuickJS runner it delegates to.
+    missing = [str(path.relative_to(module)) for path in (sync_subs, runner, host) if not path.is_file() or path.stat().st_size == 0]
+    if missing:
+        raise SystemExit("QuickJS subscription runtime is incomplete; missing: " + ", ".join(missing))
     payload = source.read_bytes()
     if target.is_symlink():
         raise SystemExit(f"refusing scheduler symlink: {target}")
