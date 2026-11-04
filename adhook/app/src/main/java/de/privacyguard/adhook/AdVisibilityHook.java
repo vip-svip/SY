@@ -178,6 +178,7 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerVoidNoOpHookedExecutables = ConcurrentHashMap.newKeySet();
+    private final Set<java.lang.reflect.Executable> developerPassthroughHookedExecutables = ConcurrentHashMap.newKeySet();
     private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
     private volatile boolean activityObserverInstalled;
     private volatile boolean dialogObserverInstalled;
@@ -356,6 +357,10 @@ public final class AdVisibilityHook extends XposedModule {
                 } else if (rule.action == DeveloperHookRule.Action.NO_OP_VOID) {
                     installDeveloperVoidNoOpHook(param.getClassLoader(), pkg, debuggableTarget,
                             rule.descriptor, rule.id);
+                } else if (rule.action == DeveloperHookRule.Action.RETURN_ARGUMENT_0
+                        || rule.action == DeveloperHookRule.Action.RETURN_THIS) {
+                    installDeveloperPassthroughHook(param.getClassLoader(), pkg, debuggableTarget,
+                            rule.descriptor, rule.action, rule.id);
                 }
             }
         }
@@ -533,6 +538,69 @@ public final class AdVisibilityHook extends XposedModule {
             logFx(Log.WARN, "developer void no-op failed open=" + label + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
         }
     }
+    /**
+     * Debug-only, type-exact passthrough hooks for developer-owned test builds.
+     * RETURN_ARGUMENT_0 returns the first argument only when its JVM descriptor
+     * exactly equals the method return descriptor. RETURN_THIS requires a
+     * non-static method whose declared return type accepts the receiver class.
+     */
+    private void installDeveloperPassthroughHook(ClassLoader loader, String packageName,
+            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
+        if (descriptor == null || (action != DeveloperHookRule.Action.RETURN_ARGUMENT_0
+                && action != DeveloperHookRule.Action.RETURN_THIS)
+                || !MemberTestGate.isEnabled(debuggableBuild,
+                        targetDeveloperOptIn(packageName), packageName, packageName)) return;
+        try {
+            DeveloperExecutableDescriptor parsed =
+                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)) return;
+            java.lang.reflect.Executable executable = parsed.resolve(loader);
+            if (!(executable instanceof Method)) return;
+            Method method = (Method) executable;
+            if (Modifier.isAbstract(method.getModifiers()) || Modifier.isNative(method.getModifiers())) return;
+            Class<?>[] parameterTypes = method.getParameterTypes();
+            if (action == DeveloperHookRule.Action.RETURN_ARGUMENT_0) {
+                if (parameterTypes.length == 0 || method.getReturnType() == void.class
+                        || method.getReturnType() != parameterTypes[0]) return;
+            } else if (Modifier.isStatic(method.getModifiers())
+                    || !method.getReturnType().isAssignableFrom(method.getDeclaringClass())) {
+                return;
+            }
+            if (!developerPassthroughHookedExecutables.add(executable)) return;
+            try {
+                final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
+                hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            long count = hits.incrementAndGet();
+                            if (count == 1L || count % 100L == 0L) {
+                                logFx(Log.INFO, "developer passthrough hit=" + label + " package="
+                                        + packageName + " action=" + action + " count=" + count);
+                            }
+                            if (action == DeveloperHookRule.Action.RETURN_ARGUMENT_0) {
+                                java.util.List<Object> args = chain.getArgs();
+                                if (args == null || args.isEmpty()) {
+                                    throw new IllegalStateException("validated passthrough argument missing");
+                                }
+                                return args.get(0);
+                            }
+                            Object receiver = chain.getThisObject();
+                            if (receiver == null || !method.getReturnType().isInstance(receiver)) {
+                                throw new IllegalStateException("validated receiver is unavailable");
+                            }
+                            return receiver;
+                        });
+            } catch (Throwable hookFailure) {
+                developerPassthroughHookedExecutables.remove(executable);
+                throw hookFailure;
+            }
+            logFx(Log.INFO, "developer passthrough installed=" + label + " package="
+                    + packageName + " action=" + action + " method=" + method.getName());
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "developer passthrough failed open=" + label + " package="
+                    + packageName + " error=" + failure.getClass().getSimpleName());
+        }
+    }
+
     private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
             boolean debuggableBuild, String descriptor, boolean replacement, String label) {
         installDeveloperBooleanTestHook(loader, packageName, debuggableBuild, descriptor,

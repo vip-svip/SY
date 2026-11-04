@@ -206,4 +206,42 @@ public class DeveloperHookRuleTest {
                 .contains("mutation actions are not supported"));
     }
 
+
+    @Test public void acceptsReturnFirstArgumentOnlyForExactMatchingTypes() {
+        DeveloperHookRule valid = DeveloperHookRule.parse(
+                "echo|Lcom/example/vpn/Echo;->echo(Ljava/lang/String;)Ljava/lang/String;|RETURN_ARGUMENT_0|5",
+                "com.example.vpn");
+        assertNotNull(valid);
+        assertEquals(DeveloperHookRule.Action.RETURN_ARGUMENT_0, valid.action);
+        assertNull(DeveloperHookRule.parse(
+                "bad|Lcom/example/vpn/Echo;->echo(Ljava/lang/Object;)Ljava/lang/String;|RETURN_ARGUMENT_0|5",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "bad|Lcom/example/vpn/Echo;->echo()Ljava/lang/String;|RETURN_ARGUMENT_0|5",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "bad|com.example.vpn.Echo#echo()Z|RETURN_ARGUMENT_0|5",
+                "com.example.vpn"));
+    }
+
+    @Test public void acceptsReturnThisOnlyForObjectReturningMethods() {
+        DeveloperHookRule valid = DeveloperHookRule.parse(
+                "self|Lcom/example/vpn/Builder;->self()Lcom/example/vpn/Builder;|RETURN_THIS|5",
+                "com.example.vpn");
+        assertNotNull(valid);
+        assertEquals(DeveloperHookRule.Action.RETURN_THIS, valid.action);
+        assertNull(DeveloperHookRule.parse(
+                "bad|Lcom/example/vpn/Builder;->count()I|RETURN_THIS|5",
+                "com.example.vpn"));
+        assertNull(DeveloperHookRule.parse(
+                "bad|Lcom/example/vpn/Builder;->items()[Ljava/lang/Object;|RETURN_THIS|5",
+                "com.example.vpn"));
+    }
+
+    @Test public void passthroughActionsAreNotClassifiedAsMutationCommands() {
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_ARGUMENT_0"));
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_ARG0"));
+        assertFalse(DeveloperHookRule.isUnsupportedMutationAction("RETURN_THIS"));
+    }
+
 }

@@ -5167,7 +5167,7 @@ public final class MainActivity extends ComponentActivity {
         note.setTextColor(0xff697681); note.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(note);
         section("自定义 Hook");
         TextView custom=new TextView(this);
-        custom.setText("仅对可调试版本目标应用生效。OBSERVE 只记录方法调用元数据；RETURN_TRUE/FALSE 仅允许零参数 boolean 测试方法，用于你自己的调试构建。不会修改正式应用、账号、会员或服务端授权。");
+        custom.setText("仅对可调试版本目标应用生效。OBSERVE 只记录调用元数据；RETURN_TRUE/FALSE 仅允许零参数 boolean；RETURN_ARGUMENT_0 要求首参数与返回类型完全相同；RETURN_THIS 仅用于非静态且返回类型可接收当前对象的方法；其他固定返回/空操作也须满足精确返回类型。以上仅用于 debuggable 自有测试构建，不修改正式应用、账号、会员或服务端授权。");
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
         Button addRule=new Button(this); addRule.setText("添加自定义 Hook 规则");
         addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
@@ -5348,7 +5348,7 @@ public final class MainActivity extends ComponentActivity {
         EditText action = new EditText(this);
         action.setSingleLine(true);
         action.setText("OBSERVE");
-        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING / NO_OP_VOID");
+        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING / RETURN_ARGUMENT_0 / RETURN_ARG0 / RETURN_THIS / NO_OP_VOID");
         EditText group = new EditText(this);
         group.setSingleLine(true);
         group.setText("默认");
@@ -5365,7 +5365,7 @@ public final class MainActivity extends ComponentActivity {
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
                 + "RETURN_ZERO 仅支持数值原语；RETURN_EMPTY_STRING 仅支持 String。"
                 + "NO_OP_VOID 只接受精确 void 方法，会跳过方法主体，可能破坏应用逻辑。"
-                + "所有替换动作只对 debuggable 目标生效；观察日志不记录参数值、返回值、口令或令牌。");
+                + "RETURN_ARGUMENT_0 要求首参数和返回类型的 JVM 描述符完全一致；RETURN_THIS 只允许非静态方法且返回类型可接收当前对象。所有替换动作只对 debuggable 目标生效；观察日志不记录参数值、返回值、口令或令牌。");
         help.setTextSize(12);
         help.setTextColor(0xff687681);
         help.setPadding(0, dp(6), 0, dp(8));
@@ -5392,8 +5392,9 @@ public final class MainActivity extends ComponentActivity {
                     if (!"OBSERVE".equals(actionText) && !"RETURN_TRUE".equals(actionText)
                             && !"RETURN_FALSE".equals(actionText) && !"RETURN_NULL".equals(actionText)
                             && !"RETURN_ZERO".equals(actionText) && !"RETURN_EMPTY_STRING".equals(actionText)
-                            && !"NO_OP_VOID".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING 或 NO_OP_VOID。")
+                            && !"RETURN_ARGUMENT_0".equals(actionText) && !"RETURN_ARG0".equals(actionText)
+                            && !"RETURN_THIS".equals(actionText) && !"NO_OP_VOID".equals(actionText)) {
+                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING、RETURN_ARGUMENT_0、RETURN_THIS 或 NO_OP_VOID。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }

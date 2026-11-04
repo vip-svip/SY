@@ -12,10 +12,10 @@ import java.util.Set;
  * Legacy owner#method()Z descriptors remain accepted for boolean Debug fixtures.
  */
 public final class DeveloperHookRule {
-    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, NO_OP_VOID, OBSERVE, DISABLED }
+    public enum Action { RETURN_TRUE, RETURN_FALSE, RETURN_NULL, RETURN_ZERO, RETURN_EMPTY_STRING, RETURN_ARGUMENT_0, RETURN_THIS, NO_OP_VOID, OBSERVE, DISABLED }
 
     public static final String UNSUPPORTED_MUTATION_ACTION_MESSAGE =
-            "自定义 Hook 修改型动作不支持（mutation actions are not supported）。当前仅支持 OBSERVE、RETURN_*（仅 debuggable 本地测试）、NO_OP_VOID（仅精确 void 方法）和 DISABLED。";
+            "自定义 Hook 写入型动作不支持（mutation actions are not supported）。除 OBSERVE、RETURN_*、NO_OP_VOID 外，RETURN_ARGUMENT_0（首参数与返回类型必须完全相同）和 RETURN_THIS（仅非静态且返回类型可接收当前对象）也仅用于 debuggable 本地测试；不支持字段写入或任意方法调用。";
 
     /** Identify common state-changing action names so the UI and config parser can fail closed with a precise reason. */
     public static boolean isUnsupportedMutationAction(String rawAction) {
@@ -66,6 +66,8 @@ public final class DeveloperHookRule {
         else if ("NULL".equals(actionText) || "RETURN_NULL".equals(actionText)) action = Action.RETURN_NULL;
         else if ("ZERO".equals(actionText) || "RETURN_ZERO".equals(actionText)) action = Action.RETURN_ZERO;
         else if ("EMPTY_STRING".equals(actionText) || "RETURN_EMPTY_STRING".equals(actionText)) action = Action.RETURN_EMPTY_STRING;
+        else if ("RETURN_ARGUMENT_0".equals(actionText) || "RETURN_ARG0".equals(actionText)) action = Action.RETURN_ARGUMENT_0;
+        else if ("RETURN_THIS".equals(actionText)) action = Action.RETURN_THIS;
         else if ("NO_OP_VOID".equals(actionText) || "DO_NOTHING".equals(actionText)) action = Action.NO_OP_VOID;
         else if ("OBSERVE".equals(actionText) || "OBSERVE_ONLY".equals(actionText)) action = Action.OBSERVE;
         else if ("OFF".equals(actionText) || "DISABLED".equals(actionText)) action = Action.DISABLED;
@@ -75,6 +77,23 @@ public final class DeveloperHookRule {
             if (!descriptor.startsWith("L")) return null;
             DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
             if (parsed == null || "<init>".equals(parsed.name) || !"V".equals(parsed.returnDescriptor)) return null;
+        }
+        if (action == Action.RETURN_ARGUMENT_0 || action == Action.RETURN_THIS) {
+            // Passthrough actions require a complete JVM descriptor. Legacy
+            // owner#method()Z syntax cannot prove parameter/receiver compatibility.
+            if (!descriptor.startsWith("L")) return null;
+            DeveloperExecutableDescriptor parsed =
+                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
+            if (parsed == null || "<init>".equals(parsed.name)) return null;
+            String result = parsed.returnDescriptor;
+            if (action == Action.RETURN_ARGUMENT_0) {
+                if (parsed.parameterDescriptors.isEmpty()
+                        || !result.equals(parsed.parameterDescriptors.get(0))
+                        || "V".equals(result)) return null;
+            } else if (!result.startsWith("L") || !result.endsWith(";")) {
+                // Arrays and primitive results cannot represent the receiver object.
+                return null;
+            }
         }
         if (action == Action.RETURN_TRUE || action == Action.RETURN_FALSE
                 || action == Action.RETURN_NULL || action == Action.RETURN_ZERO
