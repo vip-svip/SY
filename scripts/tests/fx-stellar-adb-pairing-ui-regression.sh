@@ -76,7 +76,9 @@ grep -Fq 'AdbPairingActivity.class' "$SECURE" || fail "Stellar secure-settings s
 # screen stores only its ADB peer result and never runs pm grant/revoke.
 grep -Fq '"fx_stellar_adb_pairing"' "$PAIRING" || fail "ADB pairing result is not stored independently"
 ! grep -Fq 'RootAccess' "$PAIRING" || fail "pairing UI must not bypass the separate Root permission grant"
-! grep -Fq 'pm grant' "$PAIRING" || fail "pairing UI must not execute pm grant automatically"
+! grep -Fq 'permissionCommand(' "$PAIRING" || fail "pairing UI must not construct a permission grant command"
+! grep -Fq 'RootAccess.execute(' "$PAIRING" || fail "pairing UI must not invoke the Root bridge"
+! grep -Fq 'new ProcessBuilder("su"' "$PAIRING" || fail "pairing UI must not start a Root shell"
 ! grep -Fq 'runPermissionChange' "$PAIRING" || fail "pairing UI must not trigger the separate permission screen's grant action"
 grep -Fq 'runPermissionChange(true)' "$SECURE" || fail "explicit secure-settings grant confirmation disappeared"
 echo "PASS: native mDNS discovery, serialized resolve, TLS/SPAKE2 pairing UI, cancellation and separate permission boundary"
