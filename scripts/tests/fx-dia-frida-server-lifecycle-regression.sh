@@ -26,6 +26,9 @@ required_guards = {
     "listen argument is matched exactly": r'''sed -n '2p')\" = \"-l\"''',
     "loopback endpoint is matched exactly": r'''sed -n '3p')\" = \"127.0.0.1:27042\"''',
     "full command line is read from proc": "/proc/$fx_server_pid/cmdline",
+    "process start time comes from proc stat field 22": "awk '{print $20}'",
+    "start time is exposed as a shared identity helper": "server_pid_starttime()",
+
 }
 for label, needle in required_guards.items():
     if needle not in guards:
@@ -41,7 +44,11 @@ required_start = {
     "server stays on loopback": "127.0.0.1:27042",
     "untracked matching server is not duplicated": "server=already-running-unmanaged",
     "startup verifies process identity": r'''server_pid_matches \"$pid\"''',
-    "startup records PID, executable and port": r'''printf '%s\\n%s\\n%s\\n' \"$pid\" \"$server\" 27042''',
+    "startup persists PID, executable, port and process starttime": r'''printf '%s\\n%s\\n%s\\n%s\\n' \"$pid\" \"$server\" 27042 \"$spawned_start\"''',
+    "startup refuses old PID-only records while process remains live": "FX_FRIDA_PID_RECORD_LEGACY_UNVERIFIED",
+    "startup checks current process starttime against its new record": r'''[ \"$current_start\" = \"$spawned_start\" ]''',
+    "startup cleanup checks the original process starttime before TERM": r'''[ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ]''',
+
 }
 for label, needle in required_start.items():
     if needle not in start:
@@ -53,6 +60,12 @@ if r'''if [ -n \"$spawned_pid\" ] && server_pid_matches \"$spawned_pid\"; then k
 
 required_stop = {
     "stop validates the stored port": r'''[ \"$port\" = 27042 ]''',
+    "stop reads the persisted process starttime": "expected_start=$(sed -n '4p' \\\"$pidfile\\\")",
+    "stop refuses old PID-only records": "FX_FRIDA_PID_RECORD_LEGACY_UNVERIFIED",
+    "stop verifies starttime before TERM": r'''[ \"$actual_start\" = \"$expected_start\" ]''',
+    "stop rechecks starttime during bounded wait": "actual_start=$(server_pid_starttime",
+    "stop preserves record when PID is reused": "FX_FRIDA_PID_REUSED",
+
     "stop validates the stored executable path": "*[!A-Za-z0-9_./-]*|*..*",
     "stop verifies ownership before signal": r'''server_pid_matches \"$pid\" ||''',
     "stop sends TERM only": r'''kill -TERM \"$pid\"''',
@@ -66,7 +79,10 @@ if "kill -KILL" in stop or "pkill" in stop or "killall" in stop:
     raise SystemExit("FAIL: stop must not force-kill or broadly match processes")
 if stop.index("FX_FRIDA_SERVER_STOP_TIMEOUT") > stop.index(r'''rm -f \"$pidfile\"'''):
     raise SystemExit("FAIL: stop deletes PID record before timeout check")
-if "server_pid_matches" not in check or "grep -Fq" in check:
-    raise SystemExit("FAIL: runtime status must use exact process identity")
+if "server_pid_matches" not in check or "server_pid_starttime" not in check or "grep -Fq" in check:
+    raise SystemExit("FAIL: runtime status must use exact process and start-time identity")
+if "stored_start" not in check or "server=pid-reused" not in check:
+    raise SystemExit("FAIL: runtime status must distinguish a reused PID from the recorded server")
+
 print("PASS: Frida server lifecycle is serialized, atomic, loopback-only and exact-process-owned")
 PY
