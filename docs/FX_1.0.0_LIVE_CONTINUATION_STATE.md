@@ -3351,3 +3351,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 日志用户修改搜索词时清除旧 scroll restore 标记并回到第一页。
 - DNS 定向回归 Actions `41917559211` SUCCESS；File Browser 回归 run `41917657584` 多次因分支并行 push 被 concurrency 取消，源码和测试断言均已提交，尚未获得该修复对应的 CI 成功结果。
 - 本状态条目用于恢复此前并行状态合并时未带入的续接记录；当前最新 HEAD 以分支实时 ref 为准：`1bb1c3557d99fcea95acef2903f8923f8b37a7d1`。
+
+
+## 2026-11-05 — Frida Gadget 日志读取队列回归契约对齐
+
+- Actions `41917868626` 在前序 Frida 二进制导入与 Gadget config/deploy 测试 PASS 后，失败于 session regression 要求 `showGadgetSessionLog()` 方法体内有一个独立 1 项 ThreadPoolExecutor。
+- 当前实现实际使用 Activity 级单线程、容量 12、AbortPolicy 的共享 Root worker；`runRoot()` 统一经过 `submitWorker()`，所有 Root 操作串行执行，队列满时显示失败提示，Activity 销毁时 `shutdownNow()`。日志读取通过同一 `runRoot(command, 12000L)`，不会另起并发 Root worker。
+- 修复：测试改为验证共享 Root worker 的单线程/有界队列/AbortPolicy、Root 命令统一入口、队列饱和提示、Activity 生命周期关闭，以及 Gadget log 读取走同一 Root worker。没有为通过测试而增加第二个并发 Root worker。
+- 改动路径：`scripts/tests/fx-dia-frida-gadget-session-regression.sh`、本状态文件。
+- 验证：已对照 `FxDiaFridaActivity` 当前 `worker`、`submitWorker`、`runRoot`、`showGadgetSessionLog` 与 `onDestroy` 实际实现；等待 Actions。
+- 下一步：查看 session regression 后续首错；再继续 Frida server/Gadget UI 的状态同步和取消返回链。
