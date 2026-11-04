@@ -25,6 +25,7 @@ import java.util.Set;
 
 /** User-confirmed recovery actions for Yulong Shield inside the unified FX APK. */
 public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativeTabActivity {
+    public static final String EXTRA_OPENED_FROM_NOTIFICATION = "fx_rescue_opened_from_notification";
     private static final String PREFS = "shield_prefs";
     private SharedPreferences prefs;
     private String foregroundPackage = "";
@@ -134,8 +135,16 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
                         status.setText("无法打开悬浮窗设置：" + e.getClass().getSimpleName());
                     }
                 }),
-                button("返回安全护盾主页", () ->
-                        startActivity(new Intent(this, FxYulongShieldActivity.class))));
+                button("返回安全护盾主页", () -> {
+                    if (getIntent().getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false)) {
+                        Intent home = new Intent(this, FxYulongShieldActivity.class);
+                        home.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivity(home);
+                    }
+                    // When opened from the Shield Hub, finish back to the existing Hub
+                    // instead of creating a duplicate Hub above the Rescue Activity.
+                    finish();
+                }));
     }
 
     private String formatForeground() {
