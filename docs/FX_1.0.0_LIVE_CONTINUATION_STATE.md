@@ -2177,3 +2177,26 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`a54008ea5eae58823535a63f86a5e8b2e766fbfe`（实现）；`38a05fa53b2a10a3663ebed3d3f46b9cb753b216`（回归断言）。
 - 验证等级：源码静态检查；未运行 Shell/Python、Gradle、UI 自动化或真机旋转/滚动测试。
 - 下一步：回到 Dia Frida 编辑器返回归属和 SAF Worker 生命周期，随后按页面批次继续游龙安全护盾剩余风险详情/告警/名单原生页面。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia DEX 浏览器来源 / SAF / 搜索与滚动状态恢复
+
+- 本批起始实时 HEAD：`a102de7565271c44c0cfcf468fa88b8d574ef963`；提交期间检测到并行提交，所有后续修改均重新读取最新分支文件后追加，没有强推。
+- 修复 `FxDiaDexBrowserActivity` 旋转/Activity 重建后丢失当前 DEX 来源的问题：
+  - Bundle 保存来源类型（已选应用、已解析 APK、Framework DEX、独立文档）、目标包名、文档 URI/名称、持久化授权标记、搜索词和结果 ScrollView 位置。
+  - 重建后按来源重新读取：应用 APK 重新从当前安装路径解析；Framework DEX 从应用资产重读；独立 DEX 文件从 URI 重新打开并走有界只读解析。
+  - 不把 `classes` / DEX 索引集合写入 Bundle，避免大型索引引发 TransactionTooLarge。
+  - 独立文档选择通过 `ACTION_OPEN_DOCUMENT` 获取 READ grant；提供方授予 persistable flag 时调用 `takePersistableUriPermission`；切换来源或 Activity 最终结束时释放已持久化 grant；配置变更期间保留。
+  - 不支持持久授权的提供方仍尝试使用当前 URI 恢复；若系统/提供方已撤销临时授权，解析错误会回显，用户可重新选择文件。
+  - 异步解析完成后恢复结果滚动位置；用户切换 APK/Framework/文档来源或修改搜索词时清除旧滚动恢复，避免旧结果位置跳到新列表。
+  - 应用清单读取 Worker 与 DEX 解析 Worker 竞争时，迟到的应用清单回调只更新应用索引，不覆盖当前 DEX 解析状态文本。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java`；`scripts/tests/fx-dia-dex-document-browser-regression.sh`；本状态文件。
+- 提交：
+  - `5bb212b65f00c02e8ba8f87ff92872f3eb2b797b` — 保存/恢复来源、URI、筛选和滚动状态，恢复后重新解析。
+  - `120ff9cf95f06201893e0e8174ad312a3b4c8643` — 对未授予 persistable flag 的文档提供方保留尝试恢复路径，失败时提示重新选择，而不直接丢弃 URI。
+  - `81161c1ea360456e8fcb33ba8f8d3778b405f8f0` — 切换来源/搜索时清理旧滚动恢复。
+  - `e6c639436a8b4354d5557420e954a33f0fe32133` — 增加 DEX 来源、SAF grant、Bundle、异步恢复及滚动状态回归断言。
+  - `3a04d775d0f208bc86dad93193467bdcee35c4f1` — 防止应用清单迟到回调覆盖当前 DEX 加载状态。
+  - `1d68d0cb7198fd810695eaec42a6c54d40293390` — 回归脚本增加 Worker 状态归属断言。
+- 静态验证：最新 HEAD 源码与回归脚本检查 10 项均通过：SAF grant 获取/释放、Bundle 来源字段、四种来源恢复、非持久授权 fallback、滚动恢复及实例保护、切换来源/搜索清理旧滚动、DEX 索引不序列化、应用清单回调不覆盖 DEX 状态。未在完整 checkout 执行 Shell 回归脚本，未运行 Gradle、模拟器或真机 SAF/旋转测试。
+- 下一步：检查 Dex Hook picker 返回 MainActivity 时的目标包名/规则编辑器草稿在 MainActivity 重建期间是否归属稳定；之后集中运行 Dia DEX Browser / Hook picker 两条针对性回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
