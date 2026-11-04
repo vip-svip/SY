@@ -11,6 +11,7 @@ import android.app.Instrumentation;
 import android.app.Application;
 import de.privacyguard.hook.DiaFridaGadgetLoader;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import dalvik.system.DexFile;
 import android.content.ContentResolver;
 import android.database.Cursor;
@@ -165,6 +166,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean locationSimulationHooksInstalled;
     private volatile boolean locationProviderEnabledHooksInstalled;
     private volatile boolean timeZoneSimulationHooksInstalled;
+    private volatile boolean appVersionSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
@@ -296,6 +298,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean locationProviderEnabledSimulationForPackage = target != null && target.locationProviderEnabledSimulation && debuggableTarget;
         final boolean androidIdSimulationForPackage = target != null && target.androidIdSimulation && debuggableTarget;
         final boolean timeZoneSimulationForPackage = target != null && target.timeZoneSimulation && debuggableTarget;
+        final boolean appVersionSimulationForPackage = target != null && target.appVersionSimulation && debuggableTarget;
         final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
         final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
         final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
@@ -304,13 +307,14 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
+        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
         if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
+        if (appVersionSimulationForPackage) installAppVersionSimulationHooks(pkg);
         if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
         if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
         if (clipboardIsolateForPackage) installClipboardIsolationHooks(pkg);
@@ -1106,6 +1110,68 @@ public final class AdVisibilityHook extends XposedModule {
                     + ": " + failure.getClass().getSimpleName());
             return false;
         }
+    }
+
+    /**
+     * Dia ExpandFakeActivity version fixture, limited to the current debuggable app querying itself.
+     * Does not alter signatures, APK files, other packages, or device-wide package state.
+     */
+    private synchronized boolean installAppVersionSimulationHooks(final String pkg) {
+        if (appVersionSimulationHooksInstalled) return true;
+        int installed = 0;
+        try {
+            Class<?> manager = Class.forName("android.app.ApplicationPackageManager", false, null);
+            for (final Method method : manager.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!"getPackageInfo".equals(name) && !"getPackageInfoAsUser".equals(name)) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (method.getReturnType() != PackageInfo.class || params.length == 0) continue;
+                final boolean stringPackage = params[0] == String.class;
+                final boolean versionedPackage = "android.content.pm.VersionedPackage".equals(params[0].getName());
+                if (!stringPackage && !versionedPackage) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object result = chain.proceed();
+                                if (!(result instanceof PackageInfo) || chain.getArgs().size() == 0) return result;
+                                Object request = chain.getArgs().get(0);
+                                String requestedPackage = request instanceof String ? (String) request : null;
+                                if (requestedPackage == null && request != null) {
+                                    try {
+                                        Object candidate = request.getClass().getMethod("getPackageName").invoke(request);
+                                        if (candidate instanceof String) requestedPackage = (String) candidate;
+                                    } catch (Throwable ignored) { }
+                                }
+                                String activePackage = currentPackage;
+                                if (!activePackage.equals(requestedPackage)
+                                        || !debuggablePackages.contains(activePackage)) return result;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (active == null || !active.appVersionSimulation
+                                        || active.simulatedVersionName == null) return result;
+                                PackageInfo info = (PackageInfo) result;
+                                info.versionName = active.simulatedVersionName;
+                                info.versionCode = (int) active.simulatedVersionCode;
+                                try {
+                                    Field major = PackageInfo.class.getDeclaredField("versionCodeMajor");
+                                    major.setAccessible(true);
+                                    major.setInt(info, 0);
+                                } catch (Throwable ignored) { }
+                                return info;
+                            });
+                    installed++;
+                } catch (Throwable methodFailure) {
+                    logFx(Log.DEBUG, "PackageInfo version hook unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable failure) {
+            logFx(Log.WARN, "ApplicationPackageManager version fixture unavailable for " + pkg
+                    + ": " + failure.getClass().getSimpleName());
+            return false;
+        }
+        appVersionSimulationHooksInstalled = installed > 0;
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "debug-only PackageInfo version simulation hooks installed=" + installed + " for " + pkg);
+        return appVersionSimulationHooksInstalled;
     }
 
     private synchronized boolean installLocationSimulationHooks(final String pkg) {

@@ -3252,8 +3252,8 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("自定义 Hook");
                     return;
                 case "应用版本":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class));
+                    markMigrationChild(suite, category, page);
+                    showAppList("应用版本模拟");
                     return;
                 case "按键控制":
                     startActivity(new Intent(this,
@@ -4950,6 +4950,68 @@ public final class MainActivity extends ComponentActivity {
         content.addView(simulatedAndroidId);
         content.addView(simulateAndroidId);
         content.addView(saveAndroidId);
+        section("应用版本模拟");
+        TextView appVersionNote = new TextView(this);
+        appVersionNote.setText("仅对所选 debuggable 测试应用生效：覆盖该应用在自身进程中通过 PackageManager 查询自己的 versionName/versionCode。不会修改 APK、签名、安装包、其他应用或设备全局信息。");
+        appVersionNote.setTextColor(0xff697681);
+        appVersionNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(appVersionNote);
+        EditText simulatedVersionName = new EditText(this);
+        simulatedVersionName.setSingleLine(true);
+        simulatedVersionName.setHint("测试 versionName，例如 9.9.9-test");
+        simulatedVersionName.setText(getPreferences(0).getString(selectedPackage + ":app_version_name", ""));
+        EditText simulatedVersionCode = new EditText(this);
+        simulatedVersionCode.setSingleLine(true);
+        simulatedVersionCode.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        simulatedVersionCode.setHint("测试 versionCode（0 至 2147483647）");
+        simulatedVersionCode.setText(getPreferences(0).getString(selectedPackage + ":app_version_code", "1"));
+        Switch simulateAppVersion = new Switch(this);
+        simulateAppVersion.setText("启用此应用的版本测试值");
+        simulateAppVersion.setChecked(getPreferences(0).getBoolean(selectedPackage + ":app_version_simulate", false));
+        simulateAppVersion.setEnabled(targetDebuggable);
+        simulatedVersionName.setEnabled(targetDebuggable);
+        simulatedVersionCode.setEnabled(targetDebuggable);
+        Button saveAppVersion = new Button(this);
+        saveAppVersion.setAllCaps(false);
+        saveAppVersion.setText("保存并发布应用版本测试值");
+        saveAppVersion.setEnabled(targetDebuggable);
+        saveAppVersion.setOnClickListener(v -> {
+            boolean enabled = simulateAppVersion.isChecked();
+            String versionName = simulatedVersionName.getText().toString().trim();
+            String versionCodeText = simulatedVersionCode.getText().toString().trim();
+            long versionCode;
+            try {
+                versionCode = Long.parseLong(versionCodeText);
+            } catch (NumberFormatException invalid) {
+                Toast.makeText(this, "versionCode 必须是 0 至 2147483647 的整数。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (versionCode < 0L || versionCode > 2147483647L) {
+                Toast.makeText(this, "versionCode 必须是 0 至 2147483647 的整数。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (enabled && (versionName.isEmpty()
+                    || versionName.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 128)) {
+                Toast.makeText(this, "启用版本模拟时，versionName 必须为 1 至 128 个 UTF-8 字节。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            for (int n = 0; n < versionName.length(); n++) {
+                if (Character.isISOControl(versionName.charAt(n))) {
+                    Toast.makeText(this, "versionName 不能包含控制字符。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
+            getPreferences(0).edit()
+                    .putBoolean(selectedPackage + ":app_version_simulate", enabled)
+                    .putString(selectedPackage + ":app_version_name", versionName)
+                    .putString(selectedPackage + ":app_version_code", Long.toString(versionCode))
+                    .apply();
+            publishConfig();
+        });
+        content.addView(simulatedVersionName);
+        content.addView(simulatedVersionCode);
+        content.addView(simulateAppVersion);
+        content.addView(saveAppVersion);
         section("时间与时区模拟");
         TextView timeZoneNote = new TextView(this);
         timeZoneNote.setText("只覆盖此 debuggable 目标进程调用 TimeZone.getDefault() 的结果；不修改系统时间、系统时区或其他应用。");
@@ -5860,6 +5922,31 @@ public final class MainActivity extends ComponentActivity {
                     for (String id : java.util.TimeZone.getAvailableIDs()) if (id.equals(value)) { known = true; break; }
                     if (!known) throw new IllegalStateException("不支持的测试时区：" + p);
                     row.append(",time_zone=").append(value);
+                    has = true;
+                }
+                boolean appVersionSimulation = getPreferences(0).getBoolean(
+                        p + ":app_version_simulate", false)
+                        && (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                if (appVersionSimulation) {
+                    String versionName = getPreferences(0).getString(p + ":app_version_name", "");
+                    String versionCodeText = getPreferences(0).getString(p + ":app_version_code", "");
+                    long versionCode;
+                    try { versionCode = Long.parseLong(versionCodeText); }
+                    catch (NumberFormatException invalid) {
+                        throw new IllegalStateException("应用版本 code 无效：" + p);
+                    }
+                    if (versionName.isEmpty()
+                            || versionName.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 128
+                            || versionCode < 0L || versionCode > 2147483647L)
+                        throw new IllegalStateException("应用版本测试值无效：" + p);
+                    for (int n = 0; n < versionName.length(); n++) {
+                        if (Character.isISOControl(versionName.charAt(n)))
+                            throw new IllegalStateException("应用版本名称含控制字符：" + p);
+                    }
+                    String encodedVersionName = java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(versionName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    row.append(",app_version_simulate=1,app_version_name_b64=")
+                            .append(encodedVersionName).append(",app_version_code=").append(versionCode);
                     has = true;
                 }
                 StringBuilder legacyManaged = new StringBuilder(p);
