@@ -2007,9 +2007,11 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 rememberDiaToast(toast, null, text, null);
                             } else if (chain.getThisObject() instanceof Toast && isSetView
                                     && !args.isEmpty() && args.get(0) instanceof View) {
+                                // Replacing the view invalidates any text captured from an earlier
+                                // makeText call on the same Toast instance.
                                 View view = (View) args.get(0);
-                                rememberDiaToast((Toast) chain.getThisObject(),
-                                        view.getContext().getPackageName(), null, view);
+                                diaToastPayloads.put((Toast) chain.getThisObject(),
+                                        new DiaToastPayload(view.getContext().getPackageName(), null, view));
                             }
                         } catch (Throwable failure) {
                             logFx(Log.DEBUG, "Toast text capture unavailable: "
