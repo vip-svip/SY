@@ -30,9 +30,28 @@ if notice not in hub:
         raise SystemExit("Hook hub LSPosed section anchor changed; refusing to patch unrelated UI")
     source = source[:hub_start] + hub + source[hub_end:]
 
+# The per-target editor's publish action writes FX configuration and Remote Files;
+# it deliberately does not request or revoke any LSPosed scope.
+publish_notice = "保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。"
+publish_anchor = '        renderCustomRules();\\n        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'
+publish_replacement = '''        renderCustomRules();
+        TextView publishScopeNotice = new TextView(this);
+        publishScopeNotice.setText("保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。");
+        publishScopeNotice.setTextColor(0xff697681);
+        publishScopeNotice.setTextSize(12);
+        publishScopeNotice.setPadding(dp(16), dp(4), dp(16), dp(10));
+        content.addView(publishScopeNotice);
+        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'''
+if publish_notice not in source:
+    if source.count(publish_anchor) != 1:
+        raise SystemExit("cannot locate unique Hook config publish control; refusing to patch unrelated UI")
+    source = source.replace(publish_anchor, publish_replacement, 1)
+
 if notice not in source:
     raise SystemExit("LSPosed Manager authority notice was not written into native Hook UI")
+if publish_notice not in source:
+    raise SystemExit("LSPosed config-publish scope notice was not written into native Hook UI")
 if source.count(notice) > 3:
     raise SystemExit("duplicate LSPosed Manager authority notices detected")
 main.write_text(source, encoding="utf-8")
-print(f"PASS: LSPosed Manager authority notice visible in Hook hub ({main})")
+print(f"PASS: LSPosed Manager authority and config-publish scope notices visible in native Hook UI ({main})")

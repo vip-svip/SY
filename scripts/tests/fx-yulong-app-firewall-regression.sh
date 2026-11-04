@@ -88,7 +88,7 @@ export REAL_NOHUP MOCK_WATCH_SPAWN_LOG
 cat > "$TMP/bin/nohup" <<'NOHUP'
 #!/bin/sh
 printf 'spawn\n' >> "$MOCK_WATCH_SPAWN_LOG"
-if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 0.3; fi
+if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 1; fi
 exec "$REAL_NOHUP" "$@"
 NOHUP
 chmod 0755 "$TMP/bin/nohup"
@@ -264,6 +264,7 @@ assert "set -C" in lock, "watcher lock is not created with noclobber"
 assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
+assert 'grep -Fqx "$SCRIPT_PATH"' in lock, "lock identity must match the script argv token, not assume a fixed argv position"
 assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
 assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
 assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
@@ -453,7 +454,18 @@ v2run stop-watch > "$V2/watch-stop-before-overlap.out"
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run start-watch > "$V2/watch-start-race.out" 2>&1 &
 starting=$!
-sleep 0.05
+# Wait until the mock nohup records its spawn. That happens only after start-watch
+# has acquired the lifecycle lock, so stop is guaranteed to contend with that owner.
+_race_wait=0
+while [ "$_race_wait" -lt 100 ]; do
+  [ -s "$MOCK_WATCH_SPAWN_LOG" ] && break
+  sleep 0.01
+  _race_wait=$((_race_wait + 1))
+done
+[ -s "$MOCK_WATCH_SPAWN_LOG" ] || {
+  cat "$V2/watch-start-race.out" >&2 || :
+  fail "watcher start did not enter delayed child-spawn phase"
+}
 v2run stop-watch > "$V2/watch-stop-race.out" 2>&1 &
 stopping=$!
 wait "$starting" || { cat "$V2/watch-start-race.out" >&2; fail "watcher start failed during start/stop race"; }

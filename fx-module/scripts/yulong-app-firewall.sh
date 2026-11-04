@@ -379,12 +379,15 @@ mutate_transaction() {
 WATCH_PIDFILE="$PG/yulong-app-firewall.pid"
 WATCH_LOG="$PG/yulong-app-firewall.log"
 WATCH_LOCK="$PG/yulong-app-firewall-watch.lock"
-WATCH_LOCK_PID="$WATCH_LOCK/owner.pid"
 WATCH_LOCK_OWNED=0
 SCRIPT_PATH="$MP/scripts/yulong-app-firewall.sh"
 WATCH_INTERVAL=${WATCH_INTERVAL:-10}
 case "$WATCH_INTERVAL" in ''|*[!0-9]*) WATCH_INTERVAL=10 ;; esac
 [ "$WATCH_INTERVAL" -gt 0 ] || WATCH_INTERVAL=10
+WATCH_LOCK_MAX_TRIES=${WATCH_LOCK_MAX_TRIES:-100}
+case "$WATCH_LOCK_MAX_TRIES" in ''|*[!0-9]*) WATCH_LOCK_MAX_TRIES=100 ;; esac
+[ "$WATCH_LOCK_MAX_TRIES" -gt 0 ] || WATCH_LOCK_MAX_TRIES=100
+[ "$WATCH_LOCK_MAX_TRIES" -le 100 ] || WATCH_LOCK_MAX_TRIES=100
 interface_snapshot() {
   [ -d "$NET_CLASS" ] || return 1
   for iface_path in "$NET_CLASS"/*; do
@@ -402,17 +405,18 @@ has_scheduled_rules() {
 }
 watch_is_ours() {
   _watch_pid=$1
+  watch_lock_pid_live "$_watch_pid" || return 1
   [ -r "/proc/$_watch_pid/cmdline" ] || return 1
-  _watch_cmd=$(tr '\000' ' ' < "/proc/$_watch_pid/cmdline" 2>/dev/null) || return 1
-  case "$_watch_cmd" in *"$SCRIPT_PATH"*' watch-loop'*) return 0 ;; esac
-  return 1
+  _watch_arg1=$(tr '\000' '\n' < "/proc/$_watch_pid/cmdline" 2>/dev/null | sed -n '2p') || return 1
+  _watch_arg2=$(tr '\000' '\n' < "/proc/$_watch_pid/cmdline" 2>/dev/null | sed -n '3p') || return 1
+  [ "$_watch_arg1" = "$SCRIPT_PATH" ] && [ "$_watch_arg2" = "watch-loop" ]
 }
 watch_loop() {
   _watch_sleep_pid=
-  last_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
-  last_minute=$(date '+%H:%M' 2>/dev/null || true)
+  _watch_pid_tmp=
   cleanup_watch_loop() {
     [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :
+    [ -z "$_watch_pid_tmp" ] || rm -f "$_watch_pid_tmp" 2>/dev/null || :
     if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
         && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then
       rm -f "$WATCH_PIDFILE"
@@ -422,6 +426,18 @@ watch_loop() {
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
+  # The watcher itself, not the spawning parent, publishes its PID after
+  # entering this command. The parent holds the lifecycle lock until this
+  # readiness marker is visible and the process identity is confirmed.
+  [ ! -L "$WATCH_PIDFILE" ] && [ ! -e "$WATCH_PIDFILE" ] || exit 1
+  _watch_pid_tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || exit 1
+  [ -f "$_watch_pid_tmp" ] && [ ! -L "$_watch_pid_tmp" ] || exit 1
+  printf '%s\n' "$$" > "$_watch_pid_tmp"
+  chmod 600 "$_watch_pid_tmp"
+  mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"
+  _watch_pid_tmp=
+  last_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
+  last_minute=$(date '+%H:%M' 2>/dev/null || true)
   while :; do
     sleep "$WATCH_INTERVAL" & _watch_sleep_pid=$!
     wait "$_watch_sleep_pid" || :; _watch_sleep_pid=
@@ -441,6 +457,34 @@ watch_loop() {
     fi
   done
 }
+find_live_watchers() {
+  _watch_found=
+  for _watch_proc in /proc/[0-9]*; do
+    [ -r "$_watch_proc/cmdline" ] || continue
+    _watch_candidate=$(basename "$_watch_proc")
+    case "$_watch_candidate" in ''|*[!0-9]*) continue ;; esac
+    watch_is_ours "$_watch_candidate" || continue
+    if [ -n "$_watch_found" ]; then
+      _watch_found="$_watch_found $_watch_candidate"
+    else
+      _watch_found=$_watch_candidate
+    fi
+  done
+  printf '%s\n' "$_watch_found"
+}
+publish_watch_pid() {
+  _publish_pid=$1
+  [ ! -L "$WATCH_PIDFILE" ] || return 1
+  _publish_tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || return 1
+  if ! printf '%s\n' "$_publish_pid" > "$_publish_tmp" || ! chmod 600 "$_publish_tmp"; then
+    rm -f "$_publish_tmp"
+    return 1
+  fi
+  if ! mv -f "$_publish_tmp" "$WATCH_PIDFILE"; then
+    rm -f "$_publish_tmp"
+    return 1
+  fi
+}
 start_watch_locked() {
   [ "$(read_master)" = 1 ] && has_enabled_rules || {
     echo "no enabled per-app firewall rules; watcher not started"
@@ -456,20 +500,63 @@ start_watch_locked() {
       return 0
     fi
     rm -f "$WATCH_PIDFILE"
+  elif [ -e "$WATCH_PIDFILE" ]; then
+    rm -f "$WATCH_PIDFILE"
+  fi
+  # Recover the exact watcher process if its marker was lost or removed during
+  # an interrupted prior startup. A second start must not launch a duplicate.
+  _watch_existing=$(find_live_watchers)
+  if [ -n "$_watch_existing" ]; then
+    _watch_primary=$(printf '%s\n' "$_watch_existing" | awk '{print $1}')
+    case "$_watch_primary" in ''|*[!0-9]*) _watch_primary= ;; esac
+    if [ -n "$_watch_primary" ] && kill -0 "$_watch_primary" 2>/dev/null \
+        && watch_is_ours "$_watch_primary"; then
+      for _watch_extra in $(printf '%s\n' "$_watch_existing" | awk '{for (i=2;i<=NF;i++) print $i}'); do
+        if kill -0 "$_watch_extra" 2>/dev/null && watch_is_ours "$_watch_extra"; then
+          kill -TERM "$_watch_extra" 2>/dev/null || :
+        fi
+      done
+      publish_watch_pid "$_watch_primary" || {
+        echo "unable to restore live watcher PID marker" >&2
+        return 1
+      }
+      echo "already-running pid=$_watch_primary (recovered live process marker)"
+      return 0
+    fi
   fi
   nohup sh "$SCRIPT_PATH" watch-loop </dev/null >> "$WATCH_LOG" 2>&1 &
   pid=$!
-  tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || { kill "$pid" 2>/dev/null || :; return 1; }
-  printf '%s\n' "$pid" > "$tmp"
-  if [ ! -f "$tmp" ] || [ -L "$tmp" ] || ! chmod 600 "$tmp" || ! mv -f "$tmp" "$WATCH_PIDFILE"; then
-    rm -f "$tmp"; kill "$pid" 2>/dev/null || :; return 1
+  _watch_start_wait=0
+  _watch_child_pid=
+  while [ "$_watch_start_wait" -lt 50 ]; do
+    if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ]; then
+      _watch_child_pid=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
+      case "$_watch_child_pid" in ''|*[!0-9]*) _watch_child_pid= ;; esac
+      if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \
+          && watch_is_ours "$_watch_child_pid"; then
+        echo "started pid=$_watch_child_pid"
+        return 0
+      fi
+    fi
+    # Some nohup implementations preserve their PID through exec; others
+    # launch the command as a child. The watcher-owned PID marker is canonical.
+    sleep 0.1
+    _watch_start_wait=$((_watch_start_wait + 1))
+  done
+  if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ]; then
+    _watch_child_pid=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
+    case "$_watch_child_pid" in ''|*[!0-9]*) _watch_child_pid= ;; esac
+    if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \
+        && watch_is_ours "$_watch_child_pid"; then
+      kill -TERM "$_watch_child_pid" 2>/dev/null || :
+    fi
+    rm -f "$WATCH_PIDFILE"
   fi
-  sleep 0.1
-  if ! kill -0 "$pid" 2>/dev/null || ! watch_is_ours "$pid"; then
-    rm -f "$WATCH_PIDFILE"; kill "$pid" 2>/dev/null || :
-    echo "watcher failed to start" >&2; return 1
+  if kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then
+    kill -TERM "$pid" 2>/dev/null || :
   fi
-  echo "started pid=$pid"
+  echo "watcher failed to publish its live PID; lifecycle lock remains held until cleanup" >&2
+  return 1
 }
 stop_watch_locked() {
   [ ! -L "$WATCH_PIDFILE" ] || { echo "firewall watcher PID file is unsafe" >&2; return 1; }
@@ -493,27 +580,23 @@ stop_watch_locked() {
   rm -f "$WATCH_PIDFILE"
   echo "stopped"
 }
+watch_lock_pid_live() {
+  _watch_lock_pid=$1
+  case "$_watch_lock_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$_watch_lock_pid/stat" ] || return 1
+  _watch_lock_state=$(sed 's/^.*) //' "/proc/$_watch_lock_pid/stat" 2>/dev/null | cut -d ' ' -f1 || :)
+  case "$_watch_lock_state" in Z|X|x) return 1 ;; esac
+  kill -0 "$_watch_lock_pid" 2>/dev/null
+}
 watch_lock_process_is_ours() {
   _lock_pid=$1
+  watch_lock_pid_live "$_lock_pid" || return 1
   [ -r "/proc/$_lock_pid/cmdline" ] || return 1
-  _lock_cmd=$(tr '\000' ' ' < "/proc/$_lock_pid/cmdline" 2>/dev/null) || return 1
-  case "$_lock_cmd" in *"$SCRIPT_PATH"*) return 0 ;; esac
-  return 1
-}
-watch_lock_release() {
-  [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
-  if [ -d "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-      && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
-      && [ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$$" ]; then
-    rm -f "$WATCH_LOCK_PID"
-    rmdir "$WATCH_LOCK" 2>/dev/null || :
-  fi
-  WATCH_LOCK_OWNED=0
-}
-watch_lock_signal_exit() {
-  _watch_signal_status=$1
-  watch_lock_release
-  exit "$_watch_signal_status"
+  # Match the exact script argument anywhere in argv. Some Android shell
+  # launchers add a wrapper argument before the script path, so argv[2] is
+  # not a stable identity contract.
+  _lock_args=$(tr '\000' '\n' < "/proc/$_lock_pid/cmdline" 2>/dev/null) || return 1
+  printf '%s\n' "$_lock_args" | grep -Fqx "$SCRIPT_PATH"
 }
 watch_lock_acquire() {
   [ ! -L "$WATCH_LOCK" ] || {
@@ -521,66 +604,108 @@ watch_lock_acquire() {
     return 1
   }
   _watch_lock_tries=0
-  while ! (umask 077; mkdir "$WATCH_LOCK") 2>/dev/null; do
-    [ ! -L "$WATCH_LOCK" ] || {
-      echo "firewall watcher lock path became unsafe" >&2
-      return 1
-    }
-    if [ -e "$WATCH_LOCK" ] && [ ! -d "$WATCH_LOCK" ]; then
-      echo "firewall watcher lock is not a directory" >&2
-      return 1
-    fi
+  while :; do
     if [ -d "$WATCH_LOCK" ]; then
-      [ ! -L "$WATCH_LOCK_PID" ] || {
-        echo "firewall watcher lock owner path is unsafe" >&2
+      # Upgrade path: an older FX version used a lock directory with owner.pid.
+      [ ! -L "$WATCH_LOCK" ] || {
+        echo "legacy firewall watcher lock path is unsafe" >&2
         return 1
       }
-      if [ -f "$WATCH_LOCK_PID" ]; then
-        _watch_lock_owner=$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)
-        case "$_watch_lock_owner" in
-          '' ) : ;;
-          *[!0-9]* )
-            echo "firewall watcher lock owner PID is malformed" >&2
+      _legacy_owner_file="$WATCH_LOCK/owner.pid"
+      if [ -f "$_legacy_owner_file" ] && [ ! -L "$_legacy_owner_file" ]; then
+        _legacy_owner=$(cat "$_legacy_owner_file" 2>/dev/null || true)
+        case "$_legacy_owner" in
+          '') : ;;
+          *[!0-9]*)
+            echo "legacy firewall watcher lock owner PID is malformed" >&2
             return 1
             ;;
-          * )
-            if kill -0 "$_watch_lock_owner" 2>/dev/null; then
-              watch_lock_process_is_ours "$_watch_lock_owner" || {
-                echo "firewall watcher lock belongs to an unrelated process" >&2
+          *)
+            if watch_lock_pid_live "$_legacy_owner"; then
+              watch_lock_process_is_ours "$_legacy_owner" || {
+                echo "legacy firewall watcher lock belongs to an unrelated process" >&2
                 return 1
               }
-            else
-              rm -f "$WATCH_LOCK_PID"
+            elif [ "$(cat "$_legacy_owner_file" 2>/dev/null || true)" = "$_legacy_owner" ]; then
+              rm -f "$_legacy_owner_file"
               rmdir "$WATCH_LOCK" 2>/dev/null || :
             fi
             ;;
         esac
-      elif [ "$_watch_lock_tries" -ge 2 ]; then
-        # Recover a process killed in the tiny interval between mkdir and PID publication.
-        rmdir "$WATCH_LOCK" 2>/dev/null || :
+      else
+        # An ownerless legacy directory may be a live starter between mkdir
+        # and owner publication. Never reclaim it solely because it is empty.
+        :
+      fi
+    elif [ -e "$WATCH_LOCK" ]; then
+      [ ! -L "$WATCH_LOCK" ] || {
+        echo "firewall watcher lock path became unsafe" >&2
+        return 1
+      }
+      [ -f "$WATCH_LOCK" ] || {
+        echo "firewall watcher lock is not a regular file" >&2
+        return 1
+      }
+      _watch_lock_owner=$(cat "$WATCH_LOCK" 2>/dev/null || true)
+      case "$_watch_lock_owner" in
+        '') : ;;
+        *[!0-9]*)
+          echo "firewall watcher lock owner PID is malformed" >&2
+          return 1
+          ;;
+        *)
+          if watch_lock_pid_live "$_watch_lock_owner"; then
+            watch_lock_process_is_ours "$_watch_lock_owner" || {
+              echo "firewall watcher lock belongs to an unrelated process" >&2
+              return 1
+            }
+          elif [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_owner" ]; then
+            rm -f "$WATCH_LOCK"
+          fi
+          ;;
+      esac
+    else
+      # POSIX noclobber makes file creation exclusive and writes the owner PID
+      # in the same redirection. There is no separate mkdir/owner.pid publish gap.
+      if (umask 077; set -C; printf '%s\n' "$$" > "$WATCH_LOCK") 2>/dev/null; then
+        WATCH_LOCK_OWNED=1
+        if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ] \
+            && chmod 600 "$WATCH_LOCK"; then
+          trap 'watch_lock_signal_exit 129' HUP
+          trap 'watch_lock_signal_exit 130' INT
+          trap 'watch_lock_signal_exit 143' TERM
+          return 0
+        fi
+        if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]; then
+          rm -f "$WATCH_LOCK"
+        fi
+        WATCH_LOCK_OWNED=0
+        echo "unable to verify firewall watcher lock ownership" >&2
+        return 1
       fi
     fi
     _watch_lock_tries=$((_watch_lock_tries + 1))
-    [ "$_watch_lock_tries" -lt 100 ] || {
+    [ "$_watch_lock_tries" -lt "$WATCH_LOCK_MAX_TRIES" ] || {
       echo "firewall watcher lifecycle is busy; no change was made" >&2
       return 10
     }
     sleep 0.1
   done
-  WATCH_LOCK_OWNED=1
-  if (umask 077; printf '%s\n' "$$" > "$WATCH_LOCK_PID") \
-      && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
-      && chmod 600 "$WATCH_LOCK_PID"; then
-    trap 'watch_lock_signal_exit 129' HUP
-    trap 'watch_lock_signal_exit 130' INT
-    trap 'watch_lock_signal_exit 143' TERM
-    return 0
+}
+watch_lock_release() {
+  [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
+  if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
+      && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]; then
+    rm -f "$WATCH_LOCK"
   fi
-  rm -f "$WATCH_LOCK_PID"
-  rmdir "$WATCH_LOCK" 2>/dev/null || :
   WATCH_LOCK_OWNED=0
-  echo "unable to publish firewall watcher lock owner" >&2
-  return 1
+}
+watch_lock_signal_exit() {
+  _watch_signal_status=$1
+  watch_lock_release
+  exit "$_watch_signal_status"
 }
 watch_lock_run() {
   watch_lock_acquire || return $?

@@ -88,7 +88,7 @@ export REAL_NOHUP MOCK_WATCH_SPAWN_LOG
 cat > "$TMP/bin/nohup" <<'NOHUP'
 #!/bin/sh
 printf 'spawn\n' >> "$MOCK_WATCH_SPAWN_LOG"
-if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 0.3; fi
+if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 1; fi
 exec "$REAL_NOHUP" "$@"
 NOHUP
 chmod 0755 "$TMP/bin/nohup"
@@ -253,24 +253,62 @@ done
 grep -Fq '[ -f "$CONF" ] && [ ! -L "$CONF" ]' "$SOURCE" || fail "settings.conf symlink guard missing"
 grep -Fq '[ ! -L "$ACTIVE" ]' "$SOURCE" || fail "active marker symlink guard missing"
 
-# Watcher lifecycle PID ownership must use the real shell PID, never a literal "$".
+# The watcher lifecycle lock is an atomic POSIX noclobber file containing its real owner PID.
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+lock = source.split("watch_lock_acquire() {", 1)[1].split("watch_lock_release() {", 1)[0]
+release = source.split("watch_lock_release() {", 1)[1].split("watch_lock_signal_exit() {", 1)[0]
+assert "set -C" in lock, "watcher lock is not created with noclobber"
+assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
+assert "chmod 600" in lock, "watcher lock is not private"
+assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
+assert 'grep -Fqx "$SCRIPT_PATH"' in lock, "lock identity must match the script argv token, not assume a fixed argv position"
+assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
+assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
+assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
+assert '"$WATCH_LOCK"' in release and '"$$"' in release,     "lock release does not verify exact PID ownership"
+print("PASS: watcher atomically creates, verifies and releases its PID-bearing lock file")
+PY
+
+# The watch-loop child, not its parent, publishes the PID after process startup.
 python3 - "$SOURCE" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
-    'printf \'%s\\n\' "$$" > "$WATCH_LOCK_PID"',
-    '[ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$$" ]; then',
-    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then',
+    'printf \'%s\\n\' "' + chr(36) * 2 + '" > "$_watch_pid_tmp"',
+    'chmod 600 "$_watch_pid_tmp"',
+    'mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"',
+    'while [ "$_watch_start_wait" -lt 50 ]; do',
+    'if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \\',
+    '&& watch_is_ours "$_watch_child_pid"; then',
 )
 for item in required:
     if item not in source:
-        raise SystemExit("FAIL: watcher PID ownership contract missing: " + item)
-for line in source.splitlines():
-    if "WATCH_LOCK_PID" in line or "WATCH_PIDFILE" in line:
-        if '= "$" ]; then' in line or 'printf \'%s\\n\' "$" > "$WATCH_LOCK_PID"' in line:
-            raise SystemExit("FAIL: literal dollar sign remains in watcher PID ownership")
-print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
+        raise SystemExit("FAIL: watcher child-readiness contract missing: " + item)
+print("PASS: watcher child atomically publishes its own PID; starter verifies child identity under lock")
+PY
+
+# Watcher lock signals must release only the exact owner-held atomic file lock.
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    "watch_lock_signal_exit() {",
+    "trap 'watch_lock_signal_exit 129' HUP",
+    "trap 'watch_lock_signal_exit 130' INT",
+    "trap 'watch_lock_signal_exit 143' TERM",
+)
+for item in required:
+    if item not in source:
+        raise SystemExit("FAIL: watcher signal cleanup missing: " + item)
+body = source.split("watch_lock_signal_exit() {", 1)[1].split("watch_lock_run() {", 1)[0]
+if "watch_lock_release" not in body or 'exit "$_watch_signal_status"' not in body:
+    raise SystemExit("FAIL: watcher signal handler does not release its owned lock before exiting")
+print("PASS: HUP/INT/TERM release the watcher-owned PID lock file")
 PY
 
 # Signal handlers must exit into the sole EXIT cleanup handler.
@@ -351,10 +389,22 @@ if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003
 
 export MOCK_TIME=23:00
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
-WATCH_LOCK_DIR="$V2/pg/yulong-app-firewall-watch.lock"
+WATCH_LOCK_PATH="$V2/pg/yulong-app-firewall-watch.lock"
 export MOCK_WATCH_SPAWN_DELAY=1
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run stop-watch > "$V2/watch-stop-before-race.out"
+# A lock directory without owner metadata may be a live starter paused after mkdir.
+# Contenders must fail closed instead of stealing that active initialization window.
+: > "$WATCH_LOCK_PATH"
+export WATCH_LOCK_MAX_TRIES=3
+if v2run start-watch > "$V2/watch-ownerless-lock.out" 2>&1; then
+  fail "watcher start accepted an ownerless lock file"
+fi
+[ -f "$WATCH_LOCK_PATH" ] || fail "watcher start removed an ownerless lock file"
+[ ! -s "$WATCH_LOCK_PATH" ] || fail "watcher wrote an owner PID into a lock owned by another start"
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 0 ] || fail "watcher spawned while an ownerless lock was present"
+rm -f "$WATCH_LOCK_PATH"
+unset WATCH_LOCK_MAX_TRIES
 # Two simultaneous starts must serialize around the check/spawn/PID publication window.
 v2run start-watch > "$V2/watch-start-a.out" 2>&1 &
 start_a=$!
@@ -369,32 +419,59 @@ if [ "$_spawn_count" -ne 1 ]; then
   echo "start A output:" >&2; cat "$V2/watch-start-a.out" >&2 || :
   echo "start B output:" >&2; cat "$V2/watch-start-b.out" >&2 || :
   echo "watch PID: $(cat "$WATCH_PIDFILE" 2>/dev/null || echo missing)" >&2
-  echo "lock owner: $(cat "$WATCH_LOCK_DIR/owner.pid" 2>/dev/null || echo missing)" >&2
+  echo "lock owner: $(cat "$WATCH_LOCK_PATH" 2>/dev/null || echo missing)" >&2
   ps -ef 2>/dev/null | grep -F "$V2/module/scripts/yulong-app-firewall.sh" | grep -v grep >&2 || :
   fail "concurrent starts spawned more than one watcher"
 fi
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing after concurrent start"
+[ "$(stat -c %a "$WATCH_PIDFILE")" = 600 ] || fail "watcher PID record is not private"
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
+watch_cmdline=$(tr '\000' '\n' < "/proc/$watch_pid/cmdline" 2>/dev/null || true)
+[ "$(printf '%s\n' "$watch_cmdline" | sed -n '2p')" = "$V2/module/scripts/yulong-app-firewall.sh" ] || fail "published PID is not the exact watcher script"
+[ "$(printf '%s\n' "$watch_cmdline" | sed -n '3p')" = "watch-loop" ] || fail "published PID is not the watch-loop child"
 if ! grep -Fq 'already-running' "$V2/watch-start-a.out" && ! grep -Fq 'already-running' "$V2/watch-start-b.out"; then
   fail "concurrent start did not observe the active watcher"
 fi
-[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after concurrent starts"
+[ ! -e "$WATCH_LOCK_PATH" ] || fail "watcher lifecycle lock remained after concurrent starts"
 
 # Stop while a start is delayed before publishing its PID. The serialized stop
 # must wait for publication, then terminate that exact watcher instead of missing it.
+# Removing only the marker must not permit another watcher to spawn.
+# The running process is rediscovered through /proc and its marker is restored.
+: > "$MOCK_WATCH_SPAWN_LOG"
+v2run start-watch > "$V2/watch-recover-base.out"
+_recover_pid=$(cat "$WATCH_PIDFILE")
+_recover_count=$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')
+rm -f "$WATCH_PIDFILE"
+v2run start-watch > "$V2/watch-recover-marker.out"
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq "$_recover_count" ] || fail "lost watcher marker caused a duplicate spawn"
+[ "$(cat "$WATCH_PIDFILE")" = "$_recover_pid" ] || fail "live watcher marker was not restored to the existing process"
+kill -0 "$_recover_pid" 2>/dev/null || fail "existing watcher died during marker recovery"
+
 v2run stop-watch > "$V2/watch-stop-before-overlap.out"
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run start-watch > "$V2/watch-start-race.out" 2>&1 &
 starting=$!
-sleep 0.05
+# Wait until the mock nohup records its spawn. That happens only after start-watch
+# has acquired the lifecycle lock, so stop is guaranteed to contend with that owner.
+_race_wait=0
+while [ "$_race_wait" -lt 100 ]; do
+  [ -s "$MOCK_WATCH_SPAWN_LOG" ] && break
+  sleep 0.01
+  _race_wait=$((_race_wait + 1))
+done
+[ -s "$MOCK_WATCH_SPAWN_LOG" ] || {
+  cat "$V2/watch-start-race.out" >&2 || :
+  fail "watcher start did not enter delayed child-spawn phase"
+}
 v2run stop-watch > "$V2/watch-stop-race.out" 2>&1 &
 stopping=$!
 wait "$starting" || { cat "$V2/watch-start-race.out" >&2; fail "watcher start failed during start/stop race"; }
 wait "$stopping" || { cat "$V2/watch-stop-race.out" >&2; fail "watcher stop failed during start/stop race"; }
 [ ! -e "$WATCH_PIDFILE" ] || fail "stop racing with start left a live watcher PID file"
-[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after start/stop race"
+[ ! -e "$WATCH_LOCK_PATH" ] || fail "watcher lifecycle lock remained after start/stop race"
 [ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "start/stop race spawned unexpected watcher count"
 
 unset MOCK_WATCH_SPAWN_DELAY
