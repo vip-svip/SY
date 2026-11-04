@@ -51,6 +51,17 @@ public final class AdbPublicKeyEncoder {
         return result;
     }
 
+    /** The PeerInfo payload is the public-key line without its own NUL; the 8192-byte
+     * PeerInfo zero padding supplies the single required terminator. */
+    public static byte[] encodeLine(RSAPublicKey key, String comment) {
+        byte[] terminated = encode(key, comment);
+        try {
+            return java.util.Arrays.copyOf(terminated, terminated.length - 1);
+        } finally {
+            java.util.Arrays.fill(terminated, (byte) 0);
+        }
+    }
+
     private static void putWords(ByteBuffer output, BigInteger value) {
         BigInteger remaining = value;
         for (int i = 0; i < ANDROID_PUBKEY_MODULUS_SIZE_WORDS; i++) {
