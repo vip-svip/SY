@@ -3139,11 +3139,11 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "悬浮救援入口":
                     startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                            de.privacyguard.adhook.imported.shield.FxYulongRescueActivity.class));
                     return;
                 case "守护运行状态":
                     startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                            de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
                     return;
                 case "每日安全总结":
                     startActivity(new Intent(this,
