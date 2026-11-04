@@ -2266,3 +2266,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`c3d7e52d6d1e966416fd07ee455c4852161c5c61`（有界后台执行）；`d5858a8bda3718aced02d7b643b760f10ad2f1f0`、`4b36849fead32ac0e1b2b34498497ece7c9e4e1b`（执行线程、队列、取消和移除路径回归断言）。
 - 验证等级：最新 HEAD 静态检查确认 request/refresh/remove 都通过有界 executor，Binder 申请不在 UI 线程执行，FutureTask 超时/取消、队列满处理和 onDestroy shutdown 存在；回归脚本断言同步更新。未运行 Python Host 测试、Gradle、LSPosed Manager 或真机 Binder 阻塞测试。
 - 下一步：等待当前 Actions；继续核对 DEX 文档 URI 权限释放与 Frida 导出 worker 销毁处理，随后做一次集中的 Dia/Hook/Shield Host 回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida SAF 与二进制导入 Worker 的 Activity 销毁取消
+
+- 本批起始 HEAD：`5038c3294ac39ab884c861ba48cca4b9af34ba43`。
+- 问题：Frida Activity 的单线程 Worker 在 `onDestroy()` 调用 `shutdownNow()`，但长文件读取循环本身不检查中断；正在导入 80/150 MiB ARM64 ELF 时，页面销毁后仍可能继续读取并推进到 Root 安装步骤。SAF 脚本/JSON 导入和脚本库导出也有同类循环。
+- 修改 `FxDiaFridaActivity.java`：
+  - 新增 volatile Activity 销毁标记和统一 `ensureFridaWorkerActive()` 检查（销毁或线程中断即抛出取消信号）。
+  - JS 脚本导入、脚本库 JSON 导入、脚本库 SAF 导出和 Frida ELF 二进制读取循环逐块检查取消。
+  - 二进制校验完成后、执行 Root 安装命令前再次检查；页面销毁后未开始的 Root 安装不会启动。
+  - `onDestroy()` 先设置销毁标记，再递增请求代次、清理选择器状态并中断 Worker；二进制私有暂存文件仍由 finally 删除。
+- 修改 `fx-dia-frida-script-library-saf-regression.sh`：断言销毁标记、线程中断检测以及至少五个后台读取/写入/安装检查点。
+- 提交：`bb79a47200723c6435c77c5924c649318f2e09d7`（实现）；`99abdab26a4df70b054539dcfd73a344c87a5d72`（回归断言）。
+- 验证等级：源码静态断言；未运行 Host Shell、Gradle、UI 自动化、真实 SAF 长文件读取取消或 Root 安装中断故障注入。
+- 下一步：继续核对 Frida Server / Inject 运行生命周期是否在页面离开时仅停止本页发起的会话、不误停用户手动启动的实例；随后检查安全护盾名单管理页面编辑/保存/返回状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
