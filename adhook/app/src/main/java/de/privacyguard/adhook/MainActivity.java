@@ -56,8 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Unified FX APP shell: bundled full management UI plus native per-app Hook manager. */
 public final class MainActivity extends ComponentActivity {
-    private static final java.util.Set<String> AUTO_SCOPE_REQUESTS_IN_FLIGHT =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ConcurrentMap<String, Long> AUTO_SCOPE_REQUESTS_IN_FLIGHT =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ThreadPoolExecutor AUTO_SCOPE_EXECUTOR =
             new java.util.concurrent.ThreadPoolExecutor(
                     1, 1, 30L, java.util.concurrent.TimeUnit.SECONDS,
@@ -5789,8 +5789,19 @@ public final class MainActivity extends ComponentActivity {
         if (!getSharedPreferences("digXposed", MODE_PRIVATE)
                 .getBoolean("lsp_sync", false)) return;
         final String packageName = target.packageName;
-        if (!FxLsposedScopeBridge.isConnected()
-                || !AUTO_SCOPE_REQUESTS_IN_FLIGHT.add(packageName)) return;
+        if (!FxLsposedScopeBridge.isConnected()) return;
+        // A Binder/service death may prevent the async scope callback from
+        // arriving. Expire after 30s, and use a token so an old callback cannot
+        // clear a newer retry for the same package.
+        final long requestToken = System.nanoTime();
+        while (true) {
+            Long pending = AUTO_SCOPE_REQUESTS_IN_FLIGHT.putIfAbsent(packageName, requestToken);
+            if (pending == null) break;
+            if (requestToken - pending < java.util.concurrent.TimeUnit.SECONDS.toNanos(30L))
+                return;
+            if (AUTO_SCOPE_REQUESTS_IN_FLIGHT.replace(packageName, pending, requestToken))
+                break;
+        }
 
         final java.lang.ref.WeakReference<MainActivity> activityRef =
                 new java.lang.ref.WeakReference<>(this);
@@ -5800,13 +5811,13 @@ public final class MainActivity extends ComponentActivity {
                     FxLsposedScopeBridge.Snapshot current =
                             FxLsposedScopeBridge.snapshot(packageName);
                     if (!current.connected || current.targetInScope) {
-                        AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                        AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken);
                         return;
                     }
                     FxLsposedScopeBridge.requestScope(packageName,
                             new FxLsposedScopeBridge.RequestCallback() {
                         @Override public void onApproved(java.util.List<String> approvedPackages) {
-                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken);
                             if (approvedPackages == null || !approvedPackages.contains(packageName)) return;
                             MainActivity activity = activityRef.get();
                             if (activity == null) return;
@@ -5820,19 +5831,19 @@ public final class MainActivity extends ComponentActivity {
                         }
 
                         @Override public void onFailed(String message) {
-                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken);
                             android.util.Log.w("FX-LSPosed",
                                     "Automatic scope request failed for " + packageName + ": " + message);
                         }
                     });
                 } catch (RuntimeException error) {
-                    AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                    AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken);
                     android.util.Log.w("FX-LSPosed",
                             "Automatic scope request unavailable for " + packageName, error);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException full) {
-            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken);
             android.util.Log.w("FX-LSPosed",
                     "Automatic scope queue is full; the request can be retried for " + packageName);
         }
