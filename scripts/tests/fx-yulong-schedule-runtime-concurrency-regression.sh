@@ -64,6 +64,28 @@ printf 'yulong_ad_schedule_active=0\n' > "$PG/state"
 MP="$MOD"
 export MP PG
 . "$MOD/scripts/util.sh"
+
+# Weekly schedule state path rejects a symlinked final directory and ancestor.
+mkdir "$TMP/external-schedule-state"
+cp "$PG/yulong-ad-schedule.conf" "$TMP/external-schedule-state/yulong-ad-schedule.conf"
+ln -s "$TMP/external-schedule-state" "$TMP/schedule-state-link"
+if MP="$MOD" PG="$TMP/schedule-state-link" sh "$SCHEDULE" status >/dev/null 2>&1; then
+  echo "FAIL: ad scheduler accepted a symlinked PG directory" >&2; exit 1
+fi
+cmp -s "$PG/yulong-ad-schedule.conf" "$TMP/external-schedule-state/yulong-ad-schedule.conf" || {
+  echo "FAIL: ad scheduler touched external schedule config" >&2; exit 1;
+}
+rm "$TMP/schedule-state-link"
+mkdir "$TMP/real-schedule-parent"
+ln -s "$TMP/real-schedule-parent" "$TMP/schedule-parent-link"
+if MP="$MOD" PG="$TMP/schedule-parent-link/state" sh "$SCHEDULE" status >/dev/null 2>&1; then
+  echo "FAIL: ad scheduler accepted PG below a symlinked parent" >&2; exit 1
+fi
+[ ! -e "$TMP/real-schedule-parent/state" ] || {
+  echo "FAIL: ad scheduler created state through symlink parent" >&2; exit 1;
+}
+rm "$TMP/schedule-parent-link"
+
 # Force a long pause between successful mkdir and owner-file publication.
 # Old code could delete this live lock after five 200ms polls and start duplicates.
 REAL_MKDIR=$(command -v mkdir)

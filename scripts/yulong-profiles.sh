@@ -5,8 +5,38 @@ ACTION=${1:-list}
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)
 MP=${MP:-${SCRIPT_DIR%/scripts}}
 PG=${PG:-/data/adb/privacyguard}
+_yprof_validate_parent_chain() {
+  _yprof_candidate=$1
+  case "$_yprof_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_yprof_candidate" in /|*/|*//* ) return 1 ;; esac
+  _yprof_final=${_yprof_candidate##*/}
+  case "$_yprof_final" in ''|.|..) return 1 ;; esac
+  _yprof_parent=${_yprof_candidate%/*}
+  [ -n "$_yprof_parent" ] || _yprof_parent=/
+  _yprof_rest=${_yprof_parent#/}
+  _yprof_walk=
+  while [ -n "$_yprof_rest" ]; do
+    case "$_yprof_rest" in
+      */*) _yprof_component=${_yprof_rest%%/*}; _yprof_rest=${_yprof_rest#*/} ;;
+      *) _yprof_component=$_yprof_rest; _yprof_rest= ;;
+    esac
+    case "$_yprof_component" in ''|.|..) return 1 ;; esac
+    _yprof_walk="$_yprof_walk/$_yprof_component"
+    [ -d "$_yprof_walk" ] && [ ! -L "$_yprof_walk" ] || return 1
+  done
+  return 0
+}
+_yprof_validate_parent_chain "$PG" || { echo "FX profile state parent is missing or unsafe" >&2; exit 21; }
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX profile state directory is unsafe" >&2; exit 21; }
 [ -f "$MP/scripts/util.sh" ] || { echo "FX module utility library is missing" >&2; exit 20; }
 [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
+CONF="$PG/settings.conf"
+PROFILES="$PG/yulong-profiles.tsv"
+SCHEDULES="$PG/yulong-profile-schedules.tsv"
+LOCK="$PG/yulong-profile.lock"
+for _yprof_path in "$PROFILES" "$SCHEDULES" "$LOCK"; do
+  [ ! -L "$_yprof_path" ] || { echo "FX profile state file is a symbolic link" >&2; exit 21; }
+done
 . "$MP/scripts/util.sh"
 CONF="$PG/settings.conf"
 PROFILES="$PG/yulong-profiles.tsv"
@@ -80,8 +110,7 @@ trap 'cleanup; exit 129' HUP
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM
 acquire_lock(){
-  mkdir -p "$PG" 2>/dev/null || return 1
-  [ ! -L "$PG" ] || return 1
+  [ -d "$PG" ] && [ ! -L "$PG" ] || return 1
   _tries=0
   _selfstat=
   IFS= read -r _selfstat < /proc/self/stat || return 31
@@ -128,8 +157,7 @@ replace_profile_row(){
   atomic_replace "$PROFILES" "$_tmp"
 }
 ensure_store(){
-  mkdir -p "$PG" 2>/dev/null || return 1
-  [ ! -L "$PG" ] && [ ! -L "$PROFILES" ] && [ ! -L "$SCHEDULES" ] || return 1
+  [ -d "$PG" ] && [ ! -L "$PG" ] && [ ! -L "$PROFILES" ] && [ ! -L "$SCHEDULES" ] || return 1
   if [ ! -s "$PROFILES" ]; then
     _current_urls=$(pg_list rule | awk -F'|' '$1 ~ /^https:\/\// && $3=="1" {print $1}' | LC_ALL=C sort -u)
     _current_b64=$(encode "$_current_urls")

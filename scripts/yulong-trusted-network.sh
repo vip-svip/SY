@@ -19,8 +19,35 @@ fi
 CONF="$PG/yulong-trusted-network.conf"; LIST="$PG/yulong-trusted-ssids.conf"
 MARK="$PG/yulong-trusted-paused"; PID="$PG/yulong-trusted-network.pid"
 LOCK="$PG/yulong-trusted-network.lock"; LOG="$PG/yulong-trusted-network.log"
-mkdir -p "$PG" 2>/dev/null || exit 21
+_ytn_validate_parent_chain() {
+  _ytn_candidate=$1
+  case "$_ytn_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_ytn_candidate" in /|*/|*//* ) return 1 ;; esac
+  _ytn_final=${_ytn_candidate##*/}
+  case "$_ytn_final" in ''|.|..) return 1 ;; esac
+  _ytn_parent=${_ytn_candidate%/*}
+  [ -n "$_ytn_parent" ] || _ytn_parent=/
+  _ytn_rest=${_ytn_parent#/}
+  _ytn_walk=
+  while [ -n "$_ytn_rest" ]; do
+    case "$_ytn_rest" in
+      */*) _ytn_component=${_ytn_rest%%/*}; _ytn_rest=${_ytn_rest#*/} ;;
+      *) _ytn_component=$_ytn_rest; _ytn_rest= ;;
+    esac
+    case "$_ytn_component" in ''|.|..) return 1 ;; esac
+    _ytn_walk="$_ytn_walk/$_ytn_component"
+    [ -d "$_ytn_walk" ] && [ ! -L "$_ytn_walk" ] || return 1
+  done
+  return 0
+}
+_ytn_validate_parent_chain "$PG" || { echo "trusted-network state parent is unsafe" >&2; exit 21; }
+[ ! -L "$PG" ] || exit 21
+if [ ! -e "$PG" ]; then mkdir "$PG" 2>/dev/null || exit 21; fi
 [ -d "$PG" ] && [ ! -L "$PG" ] || exit 21
+for _ytn_path in "$CONF" "$LIST" "$MARK" "$PID" "$LOCK" "$LOG"; do
+  [ ! -L "$_ytn_path" ] || { echo "trusted-network state path is a symbolic link" >&2; exit 21; }
+done
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || exit 21
 INTERVAL=10
 log(){ printf '[%s] trusted-network: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$1" >> "$LOG" 2>/dev/null || :; }
 valid(){ v=$1; case "$v" in ''|*'|'*) return 1 ;; esac; n=$(printf '%s' "$v"|wc -c|tr -d ' '); [ "$n" -ge 1 ] && [ "$n" -le 32 ] || return 1; printf '%s' "$v"|LC_ALL=C grep -q '[[:cntrl:]]' && return 1; case "$v" in '<unknown ssid>'|'0x'|'null') return 1 ;; esac; }

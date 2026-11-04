@@ -79,6 +79,23 @@ export PG="$PROFILE_PG"
 export MP="$PROFILE_MOD"
 export CONF="$PROFILE_PG/settings.conf"
 
+# The controller must reject a final state symlink and a symlinked ancestor before reading config.
+mkdir "$T/external-profile-state"
+cp "$PROFILE_PG/settings.conf" "$T/external-profile-state/settings.conf"
+ln -s "$T/external-profile-state" "$T/profile-state-link"
+if MP="$PROFILE_MOD" PG="$T/profile-state-link" sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list >/dev/null 2>&1; then
+  fail "Profile controller accepted a symlinked PG directory"
+fi
+cmp -s "$PROFILE_PG/settings.conf" "$T/external-profile-state/settings.conf" || fail "Profile controller touched external settings"
+rm "$T/profile-state-link"
+mkdir "$T/real-profile-parent"
+ln -s "$T/real-profile-parent" "$T/profile-parent-link"
+if MP="$PROFILE_MOD" PG="$T/profile-parent-link/state" sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list >/dev/null 2>&1; then
+  fail "Profile controller accepted PG below a symlinked parent"
+fi
+[ ! -e "$T/real-profile-parent/state" ] || fail "Profile controller created external state through symlink parent"
+rm "$T/profile-parent-link"
+
 profile_list=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list)
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|default|' || fail "bootstrap did not preserve a Default profile"
 printf '%s\n' "$profile_list" | grep -Fq 'PROFILE|strict|' || fail "original Strict preset missing"
@@ -372,6 +389,21 @@ FXYULONGPROFILESCHEDULE1
 schedule_1|default|00:00|23:59|0|0,1,2,3,4,5,6
 SCHEDULES
 export PG="$WATCH_PG" MP="$WATCH_MOD"
+
+# Scheduler start/status paths reject symlinked PG leaf and ancestor.
+mkdir "$T/external-watch-state"
+ln -s "$T/external-watch-state" "$T/watch-state-link"
+if MP="$WATCH_MOD" PG="$T/watch-state-link" sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" status >/dev/null 2>&1; then
+  fail "Profile scheduler accepted a symlinked PG directory"
+fi
+rm "$T/watch-state-link"
+mkdir "$T/real-watch-parent"
+ln -s "$T/real-watch-parent" "$T/watch-parent-link"
+if MP="$WATCH_MOD" PG="$T/watch-parent-link/state" sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" status >/dev/null 2>&1; then
+  fail "Profile scheduler accepted PG below a symlinked parent"
+fi
+[ ! -e "$T/real-watch-parent/state" ] || fail "Profile scheduler created external state through symlink parent"
+rm "$T/watch-parent-link"
 disabled_output=$(sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" start "$WATCH_MOD" "$WATCH_PG")
 printf '%s\n' "$disabled_output" | grep -Fq "no-profile-schedules" || fail "disabled-only profile schedules must not start a polling watcher"
 [ ! -e "$WATCH_PG/yulong-profile-schedule.pid" ] || fail "disabled-only profile schedule left a PID file"

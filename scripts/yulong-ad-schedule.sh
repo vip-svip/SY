@@ -20,7 +20,35 @@ RUNTIME_LOCK="$PG/yulong-ad-schedule.runtime.lock"
 RUNTIME_OWNER="$RUNTIME_LOCK/owner"
 RUNTIME_LOCK_HELD=0
 RUNTIME_LOCK_START=
-mkdir -p "$PG" 2>/dev/null || exit 21
+_yas_validate_parent_chain() {
+  _yas_candidate=$1
+  case "$_yas_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_yas_candidate" in /|*/|*//* ) return 1 ;; esac
+  _yas_final=${_yas_candidate##*/}
+  case "$_yas_final" in ''|.|..) return 1 ;; esac
+  _yas_parent=${_yas_candidate%/*}
+  [ -n "$_yas_parent" ] || _yas_parent=/
+  _yas_rest=${_yas_parent#/}
+  _yas_walk=
+  while [ -n "$_yas_rest" ]; do
+    case "$_yas_rest" in
+      */*) _yas_component=${_yas_rest%%/*}; _yas_rest=${_yas_rest#*/} ;;
+      *) _yas_component=$_yas_rest; _yas_rest= ;;
+    esac
+    case "$_yas_component" in ''|.|..) return 1 ;; esac
+    _yas_walk="$_yas_walk/$_yas_component"
+    [ -d "$_yas_walk" ] && [ ! -L "$_yas_walk" ] || return 1
+  done
+  return 0
+}
+_yas_validate_parent_chain "$PG" || { echo "Yulong schedule state parent is unsafe" >&2; exit 21; }
+[ ! -L "$PG" ] || exit 21
+if [ ! -e "$PG" ]; then mkdir "$PG" 2>/dev/null || exit 21; fi
+[ -d "$PG" ] && [ ! -L "$PG" ] || exit 21
+for _yas_path in "$SCHEDULE" "$PIDFILE" "$LOG" "$RUNTIME_LOCK"; do
+  [ ! -L "$_yas_path" ] || { echo "Yulong schedule state path is a symbolic link" >&2; exit 21; }
+done
+[ ! -e "$RUNTIME_LOCK" ] || [ -d "$RUNTIME_LOCK" ] || exit 21
 log() { printf '[%s] yulong-ad-schedule: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 proc_start_time() {
   [ -r "/proc/$1/stat" ] || return 1

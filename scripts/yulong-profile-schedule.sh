@@ -19,7 +19,35 @@ OWNER="$LOCK/owner"
 HELD=0
 SELF_PID=
 SELF_START=
-mkdir -p "$PG" 2>/dev/null || exit 21
+_yps_validate_parent_chain() {
+  _yps_candidate=$1
+  case "$_yps_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_yps_candidate" in /|*/|*//* ) return 1 ;; esac
+  _yps_final=${_yps_candidate##*/}
+  case "$_yps_final" in ''|.|..) return 1 ;; esac
+  _yps_parent=${_yps_candidate%/*}
+  [ -n "$_yps_parent" ] || _yps_parent=/
+  _yps_rest=${_yps_parent#/}
+  _yps_walk=
+  while [ -n "$_yps_rest" ]; do
+    case "$_yps_rest" in
+      */*) _yps_component=${_yps_rest%%/*}; _yps_rest=${_yps_rest#*/} ;;
+      *) _yps_component=$_yps_rest; _yps_rest= ;;
+    esac
+    case "$_yps_component" in ''|.|..) return 1 ;; esac
+    _yps_walk="$_yps_walk/$_yps_component"
+    [ -d "$_yps_walk" ] && [ ! -L "$_yps_walk" ] || return 1
+  done
+  return 0
+}
+_yps_validate_parent_chain "$PG" || { echo "profile scheduler state parent is unsafe" >&2; exit 21; }
+[ ! -L "$PG" ] || exit 21
+if [ ! -e "$PG" ]; then mkdir "$PG" 2>/dev/null || exit 21; fi
+[ -d "$PG" ] && [ ! -L "$PG" ] || exit 21
+for _yps_path in "$PIDFILE" "$LOG" "$LOCK"; do
+  [ ! -L "$_yps_path" ] || { echo "profile scheduler path is a symbolic link" >&2; exit 21; }
+done
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || exit 21
 log(){ printf '[%s] profile-schedule: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 proc_start(){ [ -r "/proc/$1/stat" ] || return 1; awk '{print $22}' "/proc/$1/stat" 2>/dev/null; }
 process_running(){

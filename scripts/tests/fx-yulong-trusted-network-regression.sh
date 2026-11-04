@@ -51,6 +51,25 @@ printf '1\n' > "$STATE/yulong_ad_trusted_active"
 MOCK_WIFI_SSID='<unknown ssid>'; MOCK_APPLY_FAIL=0; export MOCK_WIFI_SSID MOCK_APPLY_FAIL
 run(){ env MP="$MOD" PG="$STATE" TEST_STATE="$STATE" PATH="$BIN:$PATH" INTERVAL=5 sh "$MOD/scripts/yulong-trusted-network.sh" "$@"; }
 
+# Trusted-network controller must reject symlinked state parents before logs/config writes.
+mkdir "$T/external-trusted-state"
+cp "$STATE/yulong-trusted-network.conf" "$T/external-trusted-state/yulong-trusted-network.conf"
+ln -s "$T/external-trusted-state" "$T/trusted-state-link"
+if env MP="$MOD" PG="$T/trusted-state-link" TEST_STATE="$T/external-trusted-state" PATH="$BIN:$PATH" \
+    sh "$MOD/scripts/yulong-trusted-network.sh" status >/dev/null 2>&1; then
+  fail "trusted-network accepted a symlinked PG directory"
+fi
+cmp -s "$STATE/yulong-trusted-network.conf" "$T/external-trusted-state/yulong-trusted-network.conf" || fail "trusted-network symlink changed external config"
+rm "$T/trusted-state-link"
+mkdir "$T/real-trusted-parent"
+ln -s "$T/real-trusted-parent" "$T/trusted-parent-link"
+if env MP="$MOD" PG="$T/trusted-parent-link/state" TEST_STATE="$STATE" PATH="$BIN:$PATH" \
+    sh "$MOD/scripts/yulong-trusted-network.sh" status >/dev/null 2>&1; then
+  fail "trusted-network accepted PG below a symlinked parent"
+fi
+[ ! -e "$T/real-trusted-parent/state" ] || fail "trusted-network created state through symlink parent"
+rm "$T/trusted-parent-link"
+
 MOCK_WIFI_SSID=Trusted-Corp; export MOCK_WIFI_SSID
 out=$(run evaluate)
 printf '%s\n' "$out" | grep -Fqx 'trusted=1' || fail "trusted SSID was not recognized"
