@@ -2354,3 +2354,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `8f95edf7a8e00cf94cb81f0cfd20640e75c7160d` — 回归脚本覆盖 pending 请求保存/恢复、结果归属、Dia 返回层级与输入边界。
 - 验证：最新 HEAD 静态核对 10 项通过（pending 字段/Bundle/结果门控、启动路由、成功后 migration child、包名格式/长度、描述符长度、系统/更新系统应用排除、回归断言）。未运行完整 Shell 脚本、Gradle、模拟器或真机选择器取消/重建/返回测试。
 - 下一步：继续补齐三套原生页面的返回栈/ActivityResult 测试，再集中运行 DEX Hook picker 与 DEX browser 两条针对性脚本；随后继续 Hook 主 Tab 运行态页面。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 四个原生主 Tab 独立滚动位置恢复
+
+- 本批开始时目标分支 HEAD：e57d1bc7e96512cffc243ef8b4a64ea46d72b502。
+- renderNativePage() 重建 VPN / Ad-Hosts / 隐私 / 脚本页面树时此前不保存各 Tab 的滚动偏移；进入 Hook / 设置再返回也会重建主页面 ScrollView，长页面因此跳回顶部。
+- 修复：为前四个主 Tab 建立独立滚动位置槽；切换主 Tab、进入 Hook Hub / Hook 应用列表 / Settings、Activity 保存状态前捕获位置；renderNativePage() 在页面布局后恢复目标 Tab 的偏移；Activity Bundle 保存/恢复四槽数组，值限制在 0–5,000,000；恢复回调以 render generation、当前 selectedBottomTab、ScrollView 实例防止过期页面回调。
+- 提交：47b7b2e63a00b33ae46059619ebac27bff0de302 — fix(ui): preserve native primary tab scroll positions；8114b9a26a9cfd2fd758f61277c50069be9f852c — test(ui): cover native primary tab scroll restoration。
+- 静态验证：当前分支已复核四槽数组、Bundle 保存/恢复、切换/离页捕获、generation 与 Tab/ScrollView 身份保护及 scrollTo 恢复；回归脚本包含同一契约。未执行 Shell 脚本、Gradle、UI 自动化或真机长列表/旋转测试。
+- 下一步：检查 VPN 状态轮询和节点/订阅异步列表刷新是否覆盖用户当前页面状态；然后核对 Hosts 分页编辑器与 Script 列表在 Tab 切换后的滚动/搜索持久化。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
