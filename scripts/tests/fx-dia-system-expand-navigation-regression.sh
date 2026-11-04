@@ -28,5 +28,14 @@ for token in ('"Wi-Fi Proxy"', '"允许从未知来源安装"', '"重启 Package
     assert token in activity, f"SystemExpand real behavior missing: {token}"
 assert "不会强制停止或重启系统安装器" in activity, "SystemExpand must preserve installer-session safety"
 assert "不会伪装成已启用的调试 Hook" in activity, "unsupported framework hook must not be presented as operational"
-print("PASS: Dia SystemExpand native screen is reachable from the correct four-level menu and retains truthful system actions")
+for token in (
+    'STATE_SCROLL_Y = "fx_dia_system_expand_scroll_y"',
+    "private ScrollView systemExpandScroll;",
+    "state.getInt(STATE_SCROLL_Y, 0)",
+    "systemExpandScroll = scroll;",
+    "outState.putInt(STATE_SCROLL_Y",
+    "systemExpandScroll == scroll && scroll.getParent() != null",
+    "scroll.scrollTo(0, restoreY);"):
+    assert token in activity, f"SystemExpand page state restoration missing: {token}"
+print("PASS: Dia SystemExpand native screen is reachable from the correct four-level menu and restores its scroll position safely")
 PY
