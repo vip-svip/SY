@@ -27,17 +27,20 @@ public final class PairingContext implements AutoCloseable {
     private final byte[] msg;
 
     private PairingContext(long pointer) {
+        this(pointer, true);
+    }
+
+    /** Cleanup-only holder; it must not ask a partially-created context for nativeMsg. */
+    private PairingContext(long pointer, boolean readInitialMessage) {
         if (pointer == 0L) {
             throw new IllegalArgumentException("libadb returned an empty pairing context");
         }
         nativePtr = pointer;
-        byte[] initialMessage;
-        try {
-            initialMessage = nativeMsg(pointer);
-        } catch (RuntimeException | LinkageError failure) {
-            nativePtr = 0L;
-            throw failure;
+        if (!readInitialMessage) {
+            msg = new byte[0];
+            return;
         }
+        byte[] initialMessage = nativeMsg(pointer);
         if (initialMessage == null || initialMessage.length == 0) {
             nativePtr = 0L;
             throw new IllegalStateException("libadb did not produce the initial SPAKE2 message");
@@ -61,10 +64,10 @@ public final class PairingContext implements AutoCloseable {
             pointer = nativeConstructor(true, secret);
             if (pointer == 0L) return null;
             return new PairingContext(pointer);
-        } catch (IllegalArgumentException | IllegalStateException | LinkageError failure) {
+        } catch (RuntimeException | LinkageError failure) {
             if (pointer != 0L) {
                 try {
-                    nativeDestroy(pointer);
+                    new PairingContext(pointer, false).destroy();
                 } catch (RuntimeException | LinkageError ignored) {
                     // Native cleanup is best-effort after a failed initialization.
                 }
