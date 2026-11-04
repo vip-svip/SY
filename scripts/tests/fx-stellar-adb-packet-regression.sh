@@ -43,7 +43,7 @@ public final class AdbPacketCodecSmoke {
                 "unknown frame type must be rejected");
         check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0, 0})) == null,
                 "zero payload must be rejected");
-        check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0, 0x40})) == null,
+        check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0x40, 0})) == null,
                 "payload at the exclusive 0x4000 upper bound must be rejected");
         check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0})) == null,
                 "truncated frame header must be rejected");
