@@ -3007,6 +3007,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showHookHub() {
+        if (isHookAppListVisible()) captureHookAppListState();
         if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
         cancelHookTargetScopeOperation();
         cancelAppIconLoad();
