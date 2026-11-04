@@ -70,7 +70,16 @@ FIXTURE="$T/patch-fixture"
 mkdir -p "$FIXTURE"
 printf 'id=privacyguard\n' > "$FIXTURE/module.prop"
 mkdir -p "$FIXTURE/scripts/jsruntime"
-printf '#!/system/bin/sh\nMODDIR=/tmp/fx\nSTATE_DIR=/data/adb/privacyguard\nexit 0\n' > "$FIXTURE/uninstall.sh"
+cat > "$FIXTURE/uninstall.sh" <<'LEGACY_RELEASE'
+#!/system/bin/sh
+MODDIR=/tmp/fx
+PG=/data/adb/privacyguard
+# Stop the background script-subscription scheduler before user data is removed.
+_pg_sched_pid=$(cat "$PG/jsruntime/scheduler.pid" 2>/dev/null)
+if [ -n "$_pg_sched_pid" ]; then kill "$_pg_sched_pid" 2>/dev/null || :; fi
+rm -f "$PG/jsruntime/scheduler.pid" 2>/dev/null || :
+exit 0
+LEGACY_RELEASE
 printf '#!/system/bin/sh\nexit 0\n' > "$FIXTURE/scripts/jsruntime/sync-subs.sh"
 printf '#!/system/bin/sh\nexit 0\n' > "$FIXTURE/scripts/jsruntime/runner.sh"
 printf '/* fixture host bridge */\n' > "$FIXTURE/scripts/jsruntime/host.js"
@@ -81,6 +90,32 @@ second=$(sha256sum "$FIXTURE/scripts/jsruntime/scheduler.sh" "$FIXTURE/uninstall
 [ "$first" = "$second" ] || fail "scheduler patch is not idempotent"
 [ "$(grep -Fc '# FX_QUICKJS_SCHEDULER_STOP_BEGIN' "$FIXTURE/uninstall.sh")" -eq 1 ] || fail "patcher duplicated uninstall hook"
 sh -n "$FIXTURE/uninstall.sh" || fail "patched uninstall shell syntax invalid"
+grep -Fq 'preserving state and aborting cleanup' "$FIXTURE/uninstall.sh" || fail "uninstall does not fail closed when scheduler stop fails"
+if grep -Fq 'kill "$_pg_sched_pid"' "$FIXTURE/uninstall.sh"; then fail "legacy PID-only scheduler kill remains after patch"; fi
+if grep -Fq 'rm -f "$PG/jsruntime/scheduler.pid"' "$FIXTURE/uninstall.sh"; then fail "legacy PID-only scheduler record deletion remains after patch"; fi
+
+# Upgrade the earlier FX marker form too; never leave the previous best-effort stop hook in place.
+OLD_FIXTURE="$T/old-marker-fixture"
+mkdir -p "$OLD_FIXTURE/scripts/jsruntime"
+printf 'id=privacyguard\n' > "$OLD_FIXTURE/module.prop"
+cp "$FIXTURE/scripts/jsruntime/sync-subs.sh" "$OLD_FIXTURE/scripts/jsruntime/sync-subs.sh"
+cp "$FIXTURE/scripts/jsruntime/runner.sh" "$OLD_FIXTURE/scripts/jsruntime/runner.sh"
+cp "$FIXTURE/scripts/jsruntime/host.js" "$OLD_FIXTURE/scripts/jsruntime/host.js"
+cat > "$OLD_FIXTURE/uninstall.sh" <<'OLD_MARKER'
+#!/system/bin/sh
+MODDIR=/tmp/fx
+STATE_DIR=/data/adb/privacyguard
+# FX_QUICKJS_SCHEDULER_STOP_BEGIN
+if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
+  sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$STATE_DIR/jsruntime/scheduler.log" 2>&1 || :
+fi
+# FX_QUICKJS_SCHEDULER_STOP_END
+exit 0
+OLD_MARKER
+python3 "$PATCHER" "$OLD_FIXTURE" >/dev/null || fail "upgrading the previous marked uninstall hook failed"
+grep -Fq 'preserving state and aborting cleanup' "$OLD_FIXTURE/uninstall.sh" || fail "previous marked hook was not hardened"
+python3 "$PATCHER" "$OLD_FIXTURE" >/dev/null || fail "second previous-marker patch failed"
+
 grep -Fq 'STOPFILE="$STATE_DIR/scheduler.stop"' "$SOURCE" || fail "cooperative stop marker is missing"
 grep -Fq 'stop_requested()' "$SOURCE" || fail "scheduler does not poll owned stop requests"
 if grep -Fq 'kill -TERM "$_stop_pid"' "$SOURCE"; then fail "scheduler stop still signals a PID"; fi
