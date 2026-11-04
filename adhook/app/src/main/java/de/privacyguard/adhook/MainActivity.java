@@ -4489,7 +4489,7 @@ public final class MainActivity extends ComponentActivity {
 
     @Override public void onBackPressed() {
         if (hookCustomRulesPageVisible && hookTargetVisible) { leaveCustomHookRulesPage(); return; }
-        if (hookTargetVisible) { showAppList(); return; }
+        if (hookTargetVisible) { showAppList(activePrivacySection); return; }
         if (migrationChildActive && migrationSuite != null && migrationCategory != null) {
             migrationChildActive = false;
             migrationLevel = 2;
