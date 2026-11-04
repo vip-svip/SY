@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -79,8 +80,9 @@ private fun FxNativeAppShell(
                 factory = { pageContent },
                 modifier = Modifier
                     .fillMaxSize()
-                    // Keep the real page content above the persistent 72dp native tab bar.
+                    // Reserve the Android navigation gesture area and the persistent tab bar.
                     // The bar remains an overlay so Liquid Glass can sample the page backdrop.
+                    .navigationBarsPadding()
                     .padding(bottom = 72.dp)
                     .layerBackdrop(backdrop),
                 update = {}
@@ -115,6 +117,7 @@ private fun FxNativeAppShell(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .height(72.dp)
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
