@@ -3387,9 +3387,11 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "对话框与通知":
                     markMigrationChild(suite, category, page);
-                    // The Dia page is target-app scoped. Use the existing per-app
-                    // notification Hook controls, not the global Privacy settings panel.
-                    showAppList("通知保护");
+                    // Dialog inspection belongs to the target-scoped Dia Frida tools;
+                    // notification protection remains independently available in Privacy.
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", "Dialog 观察与规则"));
                     return;
                 case "剪贴板":
                     markMigrationChild(suite, category, page);
