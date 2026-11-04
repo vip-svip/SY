@@ -154,6 +154,9 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
                 "后台任务繁忙：内容特征库同步未排队，请稍后重试。", () -> {
             try {
                 FxYulongVirusContentDb.refreshNow(getApplicationContext());
+                FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
+                        getSharedPreferences("shield_prefs", MODE_PRIVATE)
+                                .getBoolean("automatic_content_scan_enabled", false));
                 postUi(() -> {
                     contentRefresh.setEnabled(true);
                     updateContentStatus();
@@ -180,6 +183,9 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
                 "后台任务繁忙：病毒库同步未排队，请稍后重试。", () -> {
             try {
                 FxYulongVirusDb.refreshNow(getApplicationContext());
+                FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
+                        getSharedPreferences("shield_prefs", MODE_PRIVATE)
+                                .getBoolean("automatic_content_scan_enabled", false));
                 postUi(() -> {
                     refresh.setEnabled(true); updateStatus();
                     Toast.makeText(this,FxYulongVirusDb.isServerReachable()?"病毒库同步完成":"同步不完整，原有缓存已保留",Toast.LENGTH_LONG).show();
