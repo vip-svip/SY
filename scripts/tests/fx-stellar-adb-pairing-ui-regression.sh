@@ -48,10 +48,10 @@ grep -Fq 'Arrays.fill(secret, (byte) 0)' "$CLIENT" || fail "SPAKE2 secret buffer
 grep -Fq 'AdbTlsKeyingMaterial.export(socket)' "$CLIENT" || fail "pairing client does not use the public TLS exporter wrapper"
 grep -Fq 'Build.VERSION.SDK_INT < 31' "$EXPORTER" || fail "TLS exporter must fail closed below API 31"
 
-grep -Fq 'AdbPairingDiscovery.SERVICE_TYPE' "$DISCOVERY" || fail "pairing mDNS service constant is not public"
+grep -Fq 'SERVICE_TYPE = "_adb-tls-pairing._tcp."' "$DISCOVERY" || fail "pairing mDNS service constant is not public"
 grep -Fq 'new AdbPairingDiscovery(getApplicationContext()' "$PAIRING" || fail "UI does not instantiate the mDNS discovery component"
 grep -Fq 'discovery.start()' "$PAIRING" || fail "explicit device discovery action is not wired"
-grep -Fq 'pairingCode.matches("[0-9]{6}")' "$PAIRING" || fail "UI must validate the original six-digit pairing code"
+grep -Fq 'code.matches("[0-9]{6}")' "$PAIRING" || fail "UI must validate the original six-digit pairing code"
 grep -Fq 'new AdbPairingClient(target.host, target.port, code, key)' "$PAIRING" || fail "selected mDNS device is not passed to the pairing client"
 grep -Fq 'client.start()' "$PAIRING" || fail "UI does not execute the TLS/SPAKE2 pairing sequence"
 grep -Fq 'AdbKey.getOrCreate(getApplicationContext())' "$PAIRING" || fail "pairing UI does not use the persistent original ADB host key"
@@ -63,6 +63,8 @@ grep -Fq 'AdbPairingActivity.class' "$SECURE" || fail "Stellar secure-settings s
 # Pairing must remain separate from system permission grants: the pairing
 # screen stores only its ADB peer result and never runs pm grant/revoke.
 grep -Fq '"fx_stellar_adb_pairing"' "$PAIRING" || fail "ADB pairing result is not stored independently"
-! grep -Fq 'WRITE_SECURE_SETTINGS' "$PAIRING" || fail "pairing UI must not silently grant system permission"
+! grep -Fq 'RootAccess' "$PAIRING" || fail "pairing UI must not bypass the separate Root permission grant"
+! grep -Fq 'pm grant' "$PAIRING" || fail "pairing UI must not execute pm grant automatically"
+! grep -Fq 'runPermissionChange' "$PAIRING" || fail "pairing UI must not trigger the separate permission screen's grant action"
 grep -Fq 'runPermissionChange(true)' "$SECURE" || fail "explicit secure-settings grant confirmation disappeared"
 echo "PASS: native mDNS discovery, serialized resolve, TLS/SPAKE2 pairing UI, cancellation and separate permission boundary"
