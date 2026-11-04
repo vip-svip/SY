@@ -33,4 +33,8 @@ for guard in (
     assert guard in loader, f"loader security/activation guard missing: {guard}"
 assert "DiaFridaGadgetLoader.loadForPackage(" in legacy, "legacy adapter no longer delegates"
 assert "IXposedHookLoadPackage" in legacy, "legacy LSPosed adapter was dropped"
-print("PASS: Dia Gadget loader is reachable from modern libXposed and legacy LSPosed")
+merger = (ROOT / "fx-patches/merge_hook_single_apk.py").read_text(encoding="utf-8")
+assert "DiaFridaGadgetLoader.java" in merger, "merge step does not preserve shared loader source"
+assert "dia_frida_loader.stat().st_size < 5000" in merger, "shared loader size guard missing"
+assert "dia_frida_source.stat().st_size < 1000" in merger, "legacy adapter size guard missing"
+print("PASS: Dia Gadget shared loader is wired into modern libXposed and preserved by legacy merge")

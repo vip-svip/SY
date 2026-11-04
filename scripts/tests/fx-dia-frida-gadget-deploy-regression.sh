@@ -4,18 +4,20 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 DEPLOY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGadgetDeployment.java"
 TARGET_HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/hook/DiaFridaTargetHook.java"
+TARGET_LOADER="$ROOT/adhook/app/src/main/java/de/privacyguard/hook/DiaFridaGadgetLoader.java"
 MERGER="$ROOT/fx-patches/merge_hook_single_apk.py"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$ACTIVITY" "$DEPLOY" "$TARGET_HOOK" "$MERGER"; do
+for file in "$ACTIVITY" "$DEPLOY" "$TARGET_HOOK" "$TARGET_LOADER" "$MERGER"; do
   [ -s "$file" ] || fail "required Dia Gadget deployment source missing: $file"
 done
-python3 - "$ACTIVITY" "$DEPLOY" "$TARGET_HOOK" "$MERGER" <<'PY'
+python3 - "$ACTIVITY" "$DEPLOY" "$TARGET_HOOK" "$TARGET_LOADER" "$MERGER" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 deploy = Path(sys.argv[2]).read_text(encoding="utf-8")
-hook = Path(sys.argv[3]).read_text(encoding="utf-8")
-merger = Path(sys.argv[4]).read_text(encoding="utf-8")
+legacy_adapter = Path(sys.argv[3]).read_text(encoding="utf-8")
+hook = Path(sys.argv[4]).read_text(encoding="utf-8")
+merger = Path(sys.argv[5]).read_text(encoding="utf-8")
 
 # Normalize escaped double quotes in Java command strings before checking the generated shell contract.
 deploy_contract = deploy.replace(chr(92) + '"', '"')
@@ -85,7 +87,7 @@ for label, needle in {
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
 for label, needle in {
-    "original Dia pre-attach Gadget loading timing": "protected void beforeHookedMethod(MethodHookParam param)",
+    "shared loader public entrypoint": "public static void loadForPackage(ApplicationInfo info",
     "package-qualified process de-duplication key": 'expectedPackage + "|" + expectedProcess',
     "process guard uses package-qualified key": "HOOKED_PROCESSES.contains(processKey)",
     "process reservation uses package-qualified key": "HOOKED_PROCESSES.add(processKey)",
@@ -96,7 +98,11 @@ for label, needle in {
     "runtime symlink detection checks each original path component": "Files.isSymbolicLink(current.toPath())",
 }.items():
     if needle not in hook:
-        raise SystemExit(f"FAIL: target loader {label}: missing {needle!r}")
+        raise SystemExit(f"FAIL: shared target loader {label}: missing {needle!r}")
+if "IXposedHookLoadPackage" not in legacy_adapter:
+    raise SystemExit("FAIL: legacy Xposed adapter interface was dropped")
+if "DiaFridaGadgetLoader.loadForPackage(" not in legacy_adapter:
+    raise SystemExit("FAIL: legacy adapter does not delegate to the shared loader")
 if 'owner=$(stat -c \'%u:%g\' "$dest")' not in deploy_contract:
     raise SystemExit("FAIL: deployment does not match staged files to app UID/GID")
 lib_commit = deploy_contract.find('mv "$stage/$gadget" "$dest/$gadget"; new_g=1')
@@ -136,7 +142,13 @@ if "processes=*" in deploy_contract:
     raise SystemExit("FAIL: Gadget marker must bind one explicit process per listener port")
 if "de.privacyguard.hook.DiaFridaTargetHook" not in merger:
     raise SystemExit("FAIL: unified Hook merge does not register the Dia target-side Gadget loader")
-print("PASS: Dia Gadget deploy/remove UI, package scope, ABI, hashes and target loader contracts are present")
+if "DiaFridaGadgetLoader.java" not in merger:
+    raise SystemExit("FAIL: single-APK merge does not preserve the shared runtime loader")
+if 'dia_frida_loader.stat().st_size < 5000' not in merger:
+    raise SystemExit("FAIL: source merger does not apply a size guard to the shared loader")
+if 'dia_frida_source.stat().st_size < 1000' not in merger:
+    raise SystemExit("FAIL: source merger still applies the full-loader size threshold to the legacy adapter")
+print("PASS: Dia Gadget deploy/remove UI, shared loader, legacy adapter, ABI, hashes and target contracts are present")
 PY
 
 echo "PASS: Gadget deploy/remove migration regression source checks"

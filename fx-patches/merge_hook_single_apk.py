@@ -155,8 +155,9 @@ shutil.copy2(target, module_main)
 (modern / "assets").mkdir(parents=True, exist_ok=True)
 (modern / "res/values").mkdir(parents=True, exist_ok=True)
 shutil.copy2(legacy / "assets/xposed_init", modern / "assets/xposed_init")
-# Dia's Gadget loader is a separate, scoped LSPosed entrypoint in the same APK.
-# Keep MainHook's existing privacy/ad entry intact and append the target loader.
+# The legacy Xposed adapter remains in xposed_init for API-82 hosts. The modern
+# libXposed AdVisibilityHook calls the shared loader directly; both runtimes use
+# the same verified package/process-scoped Gadget implementation.
 xposed_init = modern / "assets/xposed_init"
 xposed_entries = [
     line.strip()
@@ -168,10 +169,17 @@ if dia_frida_entry not in xposed_entries:
     xposed_entries.append(dia_frida_entry)
 xposed_init.write_text("\n".join(xposed_entries) + "\n", encoding="utf-8")
 dia_frida_source = modern / "java/de/privacyguard/hook/DiaFridaTargetHook.java"
-if not dia_frida_source.is_file() or dia_frida_source.stat().st_size < 5000:
-    raise SystemExit("native Dia Frida target loader source missing or unexpectedly small")
+dia_frida_loader = modern / "java/de/privacyguard/hook/DiaFridaGadgetLoader.java"
+if not dia_frida_source.is_file() or dia_frida_source.stat().st_size < 1000:
+    raise SystemExit("native Dia Frida legacy adapter missing or unexpectedly small")
+if not dia_frida_loader.is_file() or dia_frida_loader.stat().st_size < 5000:
+    raise SystemExit("native Dia Frida shared runtime loader missing or unexpectedly small")
+if "DiaFridaGadgetLoader.loadForPackage(" not in dia_frida_source.read_text(encoding="utf-8"):
+    raise SystemExit("legacy Dia Frida adapter does not delegate to the shared loader")
+if "public static void loadForPackage(ApplicationInfo info" not in dia_frida_loader.read_text(encoding="utf-8"):
+    raise SystemExit("shared Dia Frida loader entrypoint is missing")
 if dia_frida_entry not in xposed_init.read_text(encoding="utf-8"):
-    raise SystemExit("Dia Frida target loader entrypoint missing from unified xposed_init")
+    raise SystemExit("legacy Dia Frida adapter entrypoint missing from unified xposed_init")
 legacy_arrays = legacy / "res/values/arrays.xml"
 fx_scope_arrays = modern / "res/values/xposed_scope.xml"
 # The FX resource is the sole dynamic scope source; do not import legacy static target selections.
