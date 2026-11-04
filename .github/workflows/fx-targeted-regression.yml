@@ -116,8 +116,28 @@ jobs:
             run_sh scripts/tests/fx-hook-native-ui-regression.sh
             run_sh scripts/tests/fx-dia-native-tab-regression.sh
             run_sh scripts/tests/fx-dia-custom-hook-literal-regression.sh
+            run_sh scripts/tests/fx-dia-dialog-native-regression.sh
+            run_py scripts/tests/fx-dia-wifi-proxy-regression.py
             run_py scripts/tests/fx-dia-lsposed-scope-regression.py
             run_py scripts/tests/fx-dia-lsposed-auto-scope-regression.py
+            run_sh scripts/tests/fx-native-privacy-settings-regression.sh
+            run_sh scripts/tests/fx-native-vpn-api-regression.sh
+            run_sh scripts/tests/fx-native-vpn-config-lock-regression.sh
+            run_sh scripts/tests/fx-vpn-transparent-toggle-regression.sh
+            run_sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh
+            run_sh scripts/tests/fx-yulong-dns-cache-regression.sh
+            run_sh scripts/tests/fx-yulong-vpn-control-regression.sh
+            run_py scripts/tests/fx-yulong-vpn-tile-regression.py
+            run_sh scripts/tests/v1.0.0-fxhook-capture-privacy-wiring-regression.sh
+            run_sh scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
+            run_sh scripts/tests/vpncore-default-node-fallback-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaGpsPickerActivity|FxDiaBackupActivity|FxDiaWifiProxyActivity|fx-dia-backup|fx-dia-dialog|fx-dia-wifi-proxy) ]]; then
+            run_sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
+            run_sh scripts/tests/fx-dia-dialog-native-regression.sh
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_py scripts/tests/fx-dia-wifi-proxy-regression.py
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaDexBrowserActivity|fx-dia-dex-document-browser) ]]; then
