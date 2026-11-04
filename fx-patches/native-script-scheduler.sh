@@ -198,7 +198,7 @@ stop_scheduler() {
       else
         _stop_tmp=$(mktemp "$STATE_DIR/.scheduler-stop.XXXXXX") || return 1
         if ! {
-          printf '%s\\n' "$_stop_snapshot" > "$_stop_tmp" &&
+          printf '%s\n' "$_stop_snapshot" > "$_stop_tmp" &&
           chmod 600 "$_stop_tmp"
         }; then
           rm -f "$_stop_tmp"
@@ -249,13 +249,13 @@ scheduler_loop() {
     case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
 
     if [ $((now-prev)) -ge $((interval*3600)) ]; then
-      if awk '/^\\[list:script\\]/{s=1;next} /^\\[/{s=0} s && /^https:\\/\\/[^|]+\\|[^|]*\\|1([[:space:]]*)?$/{found=1} END{exit !found}' "$PG/settings.conf" 2>/dev/null; then
+      if awk '/^\[list:script\]/{s=1;next} /^\[/{s=0} s && /^https:\/\/[^|]+\|[^|]*\|1([[:space:]]*)?$/{found=1} END{exit !found}' "$PG/settings.conf" 2>/dev/null; then
         sh "$MODDIR/scripts/jsruntime/sync-subs.sh" >> "$STATE_DIR/scheduler.log" 2>&1
         rc=$?
         if [ "$rc" -eq 0 ]; then
           _stamp_tmp=$(mktemp "$stamp.tmp.XXXXXX") || _stamp_tmp=
           if [ -n "$_stamp_tmp" ]; then
-            printf '%s\\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp" && mv -f "$_stamp_tmp" "$stamp" || rm -f "$_stamp_tmp"
+            printf '%s\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp" && mv -f "$_stamp_tmp" "$stamp" || rm -f "$_stamp_tmp"
           fi
         else
           echo "[$(date '+%F %T')] refresh failed rc=$rc; retry next hour" >> "$STATE_DIR/scheduler.log"
