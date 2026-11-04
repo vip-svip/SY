@@ -75,4 +75,7 @@ second=$(sha256sum "$FIXTURE/scripts/jsruntime/scheduler.sh" "$FIXTURE/uninstall
 [ "$first" = "$second" ] || fail "scheduler patch is not idempotent"
 [ "$(grep -Fc '# FX_QUICKJS_SCHEDULER_STOP_BEGIN' "$FIXTURE/uninstall.sh")" -eq 1 ] || fail "patcher duplicated uninstall hook"
 sh -n "$FIXTURE/uninstall.sh" || fail "patched uninstall shell syntax invalid"
-echo "PASS: QuickJS scheduler staging, ownership lifecycle, unrelated-PID refusal, symlink rejection and uninstall cleanup"
+grep -Fq 'STOPFILE="$STATE_DIR/scheduler.stop"' "$SOURCE" || fail "cooperative stop marker is missing"
+grep -Fq 'stop_requested()' "$SOURCE" || fail "scheduler does not poll owned stop requests"
+if grep -Fq 'kill -TERM "$_stop_pid"' "$SOURCE"; then fail "scheduler stop still signals a PID"; fi
+echo "PASS: QuickJS scheduler staging, cooperative ownership lifecycle, unrelated-PID refusal, symlink rejection and uninstall cleanup"
