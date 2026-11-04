@@ -42,6 +42,6 @@ assert "new ArrayBlockingQueue<>(2)" in activity and "RejectedExecutionException
 assert "worker.shutdownNow()" in activity, "Root worker must stop with Activity lifecycle"
 assert "ACTION_APPLICATION_DEVELOPMENT_SETTINGS" in activity, "manual Wireless debugging settings route missing"
 assert "mDNS" in activity and "libadb.so" in activity and "不会将打开开发者选项伪装成已配对" in activity, "unmigrated protocol boundary must remain truthful"
-assert "roro.stellar.manager.authorization.FxStellarSecureSettingsActivity.class" in manager
+assert "new Intent(this,FxStellarSecureSettingsActivity.class)" in manager
 print("PASS: Stellar secure-settings grant is Root-backed, user-confirmed, verified, revocable and explicitly distinct from automatic ADB pairing")
 PY

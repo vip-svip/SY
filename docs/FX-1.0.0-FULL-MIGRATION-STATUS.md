@@ -797,3 +797,11 @@ After each implementation batch:
 
 - The hard-link publication refactor initially changed the expected record and temporary payload to `$$` but left `watch_lock_pid_start_time` called with a literal `$`. This caused fresh lock acquisition to fail before the lifecycle operation. The lookup now uses the same current shell PID as the record.
 - Updated regression assertions to require `$$` at the start-time lookup and both record fields, and corrected the stale noclobber comment to describe hard-link publication.
+
+## 2026-11-04 — Managed Hosts legacy-section compatibility and Stellar regression repair
+
+- Managed-list add now inserts exactly once into the final existing `[list:<section>]` block. This preserves older installations that accumulated duplicate section headers instead of duplicating new rows into every repeated block.
+- The Hosts regression fixture includes a legacy duplicate `[list:rule]` section, verifies the new subscription is exposed exactly once at the expected index, and edits the new row.
+- The module backend is synchronized byte-for-byte with the root script.
+- The Stellar secure-settings regression now verifies the actual manager navigation expression, `new Intent(this,FxStellarSecureSettingsActivity.class)`, rather than a fully qualified class spelling absent from the imported Java source.
+- Source and host-regression changes only. CI validation is pending; no final APK/KernelSU ZIP or device result is claimed.

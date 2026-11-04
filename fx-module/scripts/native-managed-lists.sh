@@ -122,18 +122,33 @@ append_row() {
     return 3
   fi
   TMP_FILE=$(mktemp "$CONF.native-list.XXXXXX") || return 1
-  awk -F'|' -v OFS='|' -v target="[list:$section]" \
-      -v value="$value" -v note="$note" '
-    BEGIN {inlist=0; found=0; added=0}
-    $0==target {inlist=1; found=1; print; next}
-    /^\[/ {
-      if(inlist && !added) {print value,note,1; added=1}
-      inlist=0; print; next
+  # Legacy append-only builds may have repeated section headers. Add once,
+  # to the last matching section, while preserving every existing row.
+  awk -F'|' -v OFS='|' -v target="[list:$section]" -v value="$value" -v note="$note" '
+    {
+      lines[NR]=$0
+      if($0==target) {
+        last_header=NR
+        last_end=NR
+        in_target=1
+      } else if(in_target && /^\[/) {
+        last_end=NR-1
+        in_target=0
+      }
     }
-    {print}
     END {
-      if(inlist && !added) print value,note,1
-      if(!found) {print ""; print target; print value,note,1}
+      if(in_target) last_end=NR
+      if(!last_header) {
+        for(i=1;i<=NR;i++) print lines[i]
+        if(NR>0) print ""
+        print target
+        print value,note,1
+        exit
+      }
+      for(i=1;i<=NR;i++) {
+        print lines[i]
+        if(i==last_end) print value,note,1
+      }
     }
   ' "$CONF" > "$TMP_FILE" || return 1
   [ -s "$TMP_FILE" ] || return 1

@@ -31,6 +31,10 @@ allow.example|Allow note|1
 
 [list:block]
 block.example|Block note|1
+
+# Legacy duplicate section emitted by older append-only code.
+[list:rule]
+https://legacy.example/filter.txt|Legacy second section|1
 CONF
 CONF="$PG/settings.conf"
 LOCK="$PG/native-managed-lists.lock"
@@ -46,7 +50,8 @@ printf '%s\n' "$initial" | grep -Fq '1|https://disabled.example/filter.txt|Disab
 added=$(run add ruleList https://new.example/filter.txt New)
 printf '%s\n' "$added" | grep -qx 'applied=1' || fail "rule add did not apply"
 list=$(run list ruleList)
-printf '%s\n' "$list" | grep -Fq '2|https://new.example/filter.txt|New|1' || fail "new subscription missing from list"
+printf '%s\n' "$list" | grep -Fq '3|https://new.example/filter.txt|New|1' || fail "new subscription missing from list"
+[ "$(printf '%s\n' "$list" | grep -F -c 'https://new.example/filter.txt')" -eq 1 ] || fail "new subscription was inserted more than once across repeated sections"
 if run add ruleList https://new.example/filter.txt Duplicate >/dev/null 2>&1; then
   fail "duplicate subscription was accepted"
 else
@@ -65,13 +70,13 @@ if run add domainList "trailing-newline.example
 if run add domainList backslash.example 'literal\x0a payload' >/dev/null 2>&1; then fail "AWK escape in note was accepted"; fi
 
 before_invalid_edit=$(sha256sum "$CONF" | awk '{print $1}')
-if run edit ruleList 2 ftp://invalid.example/filter.txt Invalid 1 >/dev/null 2>&1; then
+if run edit ruleList 3 ftp://invalid.example/filter.txt Invalid 1 >/dev/null 2>&1; then
   fail "non-HTTP subscription edit was accepted"
 fi
 after_invalid_edit=$(sha256sum "$CONF" | awk '{print $1}')
 [ "$before_invalid_edit" = "$after_invalid_edit" ] || fail "invalid subscription edit changed settings.conf"
 
-run edit ruleList 2 https://edited.example/filter.txt Edited 1 >/dev/null
+run edit ruleList 3 https://edited.example/filter.txt Edited 1 >/dev/null
 list=$(run list ruleList)
 printf '%s\n' "$list" | grep -Fq '2|https://edited.example/filter.txt|Edited|1' || fail "edit did not persist"
 run toggle ruleList 1 1 >/dev/null
