@@ -5,11 +5,15 @@ SOURCE="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/FxStel
 SERVICE="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/StellarAuthorizationService.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
+COMMAND_ARGS="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/StellarCommandArguments.java"
+COMMAND_ARGS_TEST="$ROOT/adhook/app/src/test/java/roro/stellar/manager/authorization/StellarCommandArgumentsTest.java"
 [ -s "$SOURCE" ] || { echo "FAIL: Stellar manager Activity source missing" >&2; exit 1; }
-python3 - "$SOURCE" "$SERVICE" "$MANIFEST" "$ROOT_ACCESS" <<'PY'
+python3 - "$SOURCE" "$SERVICE" "$MANIFEST" "$ROOT_ACCESS" "$COMMAND_ARGS" "$COMMAND_ARGS_TEST" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+command_args = Path(sys.argv[5]).read_text(encoding="utf-8")
+command_args_test = Path(sys.argv[6])
 
 root_start = source.index("private void root(")
 root_end = source.index("private String appLabel", root_start)
@@ -58,6 +62,15 @@ assert "StellarAuthorizationService.MSG_EXECUTE" in source and "StellarAuthoriza
 assert "rootCallbacks.remove(id)" in source, "responses must resolve the matching pending callback"
 assert "unbindService(stellarConnection)" in source, "Activity must unbind with its lifecycle"
 assert "RootAccess.execute(" not in source, "Activity must not bypass Binder and invoke Root directly"
+ assert "StellarCommandArguments.buildScriptCommand(args)" in service, "Binder payload must be parsed before Root execution"
+ assert "buildCommand(args)" not in service and "+ args;" not in service, "raw Binder text must never be concatenated into su -c"
+ assert "catch (IllegalArgumentException invalid)" in service, "malformed command grammar must fail closed"
+ assert "command, COMMAND_TIMEOUT_MS, OUTPUT_LIMIT" in service, "only the prevalidated command string may reach RootAccess"
+ assert "private static List<String> tokenize(String raw)" in command_args and "MAX_INPUT_LENGTH = 8192" in command_args, "strict bounded argv parser is missing"
+ assert "isSafeQuotedCharacter" in command_args and "isSafeUnquotedCharacter" in command_args, "shell metacharacters and control data must be rejected"
+ assert "case \"run\"" in command_args and "READ_ONLY_SCOPES.contains(args.get(2))" in command_args, "run requests must be limited to read-only scopes"
+ assert "shellQuote(arg)" in command_args, "every validated argument must be shell-quoted independently"
+ assert command_args_test.is_file(), "Stellar Root argv boundary JUnit regression missing"
 assert "extends Service" in service and "new Messenger(incoming)" in service, "transport must be a real Android Messenger Binder service"
 assert "new ArrayBlockingQueue<>(16)" in service, "Binder command queue must be bounded"
 assert "commands.execute(" in service and "RootAccess.execute(" in service, "service must execute asynchronously and return actual backend results"
