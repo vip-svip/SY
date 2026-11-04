@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -22,7 +21,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Original Yulong Shield virus database settings page, using its migrated native database engine. */
-public final class FxYulongVirusDatabaseActivity extends Activity {
+public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
             r -> { Thread t = new Thread(r, "fx-yulong-virus-db"); t.setDaemon(true); return t; },
@@ -81,7 +80,7 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
         root.addView(header);
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true);
         body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(0,dp(4),0,dp(20));
-        scroll.addView(body); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentView(root);
+        scroll.addView(body); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 5);
 
         FxYulongVirusDb.get(this);
         summary=text("",13,0xff455565,false);
