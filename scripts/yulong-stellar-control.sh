@@ -253,8 +253,109 @@ set_pkg(){
     commit_state_temp "$PKGS"
   fi
 }
+BOOT_SCRIPT=/data/adb/service.d/stellar.sh
+FX_PACKAGE=de.privacyguard.adhook
+boot_script(){
+  action="$1"
+  case "$action" in
+    status)
+      if [ -f "$BOOT_SCRIPT" ] && [ ! -L "$BOOT_SCRIPT" ] && [ -x "$BOOT_SCRIPT" ] \
+          && grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$BOOT_SCRIPT"; then
+        echo "success=1 boot_script=installed path=$BOOT_SCRIPT"
+      else
+        echo "success=1 boot_script=absent path=$BOOT_SCRIPT"
+      fi
+      ;;
+    install)
+      [ -d /data/adb ] || { echo "KernelSU/Magisk data directory is unavailable" >&2; return 20; }
+      apk_path=$(pm path "$FX_PACKAGE" 2>/dev/null | sed -n '1s/^package://p')
+      [ -n "$apk_path" ] && [ "${apk_path%/base.apk}" != "$apk_path" ] || {
+        echo "FX Hook base APK was not found; boot script was not installed" >&2
+        return 21
+      }
+      apk_dir=${apk_path%/base.apk}
+      found=""
+      for candidate in "$apk_dir"/lib/*/libstellar.so; do
+        [ -f "$candidate" ] && [ -x "$candidate" ] || continue
+        found="$candidate"
+        break
+      done
+      [ -n "$found" ] || {
+        echo "FX Hook libstellar.so is missing or not executable; boot script was not installed" >&2
+        return 22
+      }
+      mkdir -p /data/adb/service.d || return 23
+      [ ! -L /data/adb/service.d ] || {
+        echo "service.d is a symlink; refusing to write boot script" >&2
+        return 24
+      }
+      [ ! -L "$BOOT_SCRIPT" ] || {
+        echo "existing boot script path is a symlink; refusing to replace it" >&2
+        return 24
+      }
+      boot_tmp=$(mktemp /data/adb/service.d/.stellar.sh.fx.XXXXXX) || return 25
+      if ! cat > "$boot_tmp" <<'FX_STELLAR_BOOT_SCRIPT'
+#!/system/bin/sh
+# FX_STELLAR_BOOT_SCRIPT_V1
+# Wait for Android's package manager and boot properties, but never block
+# the service.d runner indefinitely if the boot sequence is incomplete.
+LOG=/data/local/tmp/fx_stellar_boot.log
+exec >> "$LOG" 2>&1
+echo "[FX Stellar] boot script started"
+i=0
+while [ "$(getprop sys.boot_completed 2>/dev/null)" != "1" ]; do
+  i=$((i+1))
+  [ "$i" -lt 100 ] || { echo "[FX Stellar] boot completion timeout"; exit 124; }
+  sleep 3
+done
+APK_PATH=$(pm path de.privacyguard.adhook 2>/dev/null | sed -n '1s/^package://p')
+[ -n "$APK_PATH" ] || { echo "[FX Stellar] FX Hook package is not installed"; exit 20; }
+APK_DIR=${APK_PATH%/base.apk}
+LIB=""
+for CANDIDATE in "$APK_DIR"/lib/*/libstellar.so; do
+  [ -f "$CANDIDATE" ] && [ -x "$CANDIDATE" ] || continue
+  LIB="$CANDIDATE"
+  break
+done
+[ -n "$LIB" ] || { echo "[FX Stellar] executable libstellar.so was not found"; exit 21; }
+echo "[FX Stellar] launching $LIB"
+"$LIB"
+RESULT=$?
+echo "[FX Stellar] launcher exited with code $RESULT"
+exit "$RESULT"
+FX_STELLAR_BOOT_SCRIPT
+      then
+        rm -f "$boot_tmp"
+        return 26
+      fi
+      chmod 0755 "$boot_tmp" || { rm -f "$boot_tmp"; return 27; }
+      grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$boot_tmp" || { rm -f "$boot_tmp"; return 28; }
+      mv -f "$boot_tmp" "$BOOT_SCRIPT" || { rm -f "$boot_tmp"; return 29; }
+      [ -x "$BOOT_SCRIPT" ] || return 30
+      echo "success=1 boot_script=installed path=$BOOT_SCRIPT"
+      ;;
+    remove)
+      [ ! -L "$BOOT_SCRIPT" ] || {
+        echo "existing boot script path is a symlink; refusing to remove it" >&2
+        return 24
+      }
+      rm -f "$BOOT_SCRIPT" || return 31
+      [ ! -e "$BOOT_SCRIPT" ] || return 32
+      echo "success=1 boot_script=removed path=$BOOT_SCRIPT"
+      ;;
+    *)
+      echo "unsupported boot-script operation" >&2
+      return 2
+      ;;
+  esac
+}
+
 cmd="$1"
 case "$cmd" in
+  boot-script)
+    [ "$#" -eq 2 ] || exit 2
+    with_lock boot_script "$2"
+    ;;
   logs)
     [ "$#" -eq 1 ] || exit 2
     with_lock read_action_log
