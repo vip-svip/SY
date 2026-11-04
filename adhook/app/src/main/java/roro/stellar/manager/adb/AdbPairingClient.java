@@ -31,7 +31,6 @@ public final class AdbPairingClient implements Closeable {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
     private static final int EXPORTER_LENGTH = 64;
-    private static final String EXPORTER_LABEL = "adb-label\0";
     private static final int MAX_PAIRING_FRAME = PairingPacketHeader.MAX_PAYLOAD;
 
     private final String host;
@@ -134,7 +133,7 @@ public final class AdbPairingClient implements Closeable {
         byte[] exporter = null;
         byte[] secret = null;
         try {
-            exporter = exportKeyingMaterial(tlsSocket, EXPORTER_LABEL, EXPORTER_LENGTH);
+            exporter = exportKeyingMaterial(tlsSocket, AdbTlsKeyingMaterial.LABEL, EXPORTER_LENGTH);
             if (exporter == null || exporter.length != EXPORTER_LENGTH) {
                 throw new IOException("Conscrypt returned an invalid ADB TLS exporter");
             }
