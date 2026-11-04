@@ -1110,10 +1110,16 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 if (output == null) throw new IllegalStateException("无法创建目标文件。");
                 output.write(source.getBytes(StandardCharsets.UTF_8));
                 output.flush();
-                runOnUiThread(() -> setStatus("当前 JS 脚本已导出。"));
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    setStatus("当前 JS 脚本已导出。");
+                });
             } catch (Throwable error) {
-                runOnUiThread(() -> setStatus("JS 脚本导出失败：" + error.getClass().getSimpleName()
-                        + (error.getMessage() == null ? "" : "：" + error.getMessage())));
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    setStatus("JS 脚本导出失败：" + error.getClass().getSimpleName()
+                            + (error.getMessage() == null ? "" : "：" + error.getMessage()));
+                });
             }
         });
     }
