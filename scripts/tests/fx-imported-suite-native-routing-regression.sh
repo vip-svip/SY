@@ -12,6 +12,12 @@ grep -Fq 'case "VPN 保护": case "VPN 状态": case "自动重连":' "$MAIN" ||
 grep -Fq 'FxYulongAdGeneralActivity.class' "$MAIN" || fail "Yulong general settings do not open their native page"
 grep -Fq 'FxYulongAdSummaryActivity.class' "$MAIN" || fail "Yulong summary/statistics do not open their native page"
 grep -Fq 'FxYulongDnsActivity.class' "$MAIN" || fail "Yulong DNS query log does not open its native page"
+grep -Fq 'page.equals("计划任务")' "$MAIN" || fail "Yulong schedule route is missing"
+grep -Fq 'putExtra("suite_page", "计划任务")' "$MAIN" || fail "Yulong schedule does not open its own editor"
+grep -Fq 'page.equals("白名单域名")' "$MAIN" || fail "Yulong domain allow/block route is missing"
+grep -Fq 'putExtra("suite_page", "域名名单")' "$MAIN" || fail "Yulong custom domains do not open domain editor"
+grep -Fq 'page.equals("DNS 日志")' "$MAIN" || fail "Yulong DNS log route is missing"
+
 grep -Fq 'case "信任的网络":' "$MAIN" || fail "Yulong trusted Wi-Fi source page is not mapped"
 trusted_block=$(sed -n '/case "信任的网络":/,/case "Root 代理模式":/p' "$MAIN")
 printf '%s\\n' "$trusted_block" | grep -Fq '"suite_page", "信任的网络"' || fail "trusted Wi-Fi does not open its dedicated native screen"
