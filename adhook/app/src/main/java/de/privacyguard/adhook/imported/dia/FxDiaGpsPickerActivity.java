@@ -24,8 +24,9 @@ import java.util.Locale;
 
 /**
  * Native FX migration of Dia 23.11 GPSActivity:
- * embeds the original AMap coordinate picker and returns the chosen WGS84-style
- * numeric pair to the selected app's existing LSPosed test-location editor.
+ * embeds the original AMap coordinate picker and returns the original AMap
+ * coordinate pair (GCJ-02; no WGS84 conversion) to the selected app's
+ * existing LSPosed test-location editor.
  *
  * No Javascript bridge is exposed. Only HTTPS AMap pages may be navigated.
  */
@@ -36,6 +37,10 @@ public final class FxDiaGpsPickerActivity extends Activity {
     private EditText latitudeInput;
     private EditText longitudeInput;
     private TextView status;
+    private static final String STATE_PAIR = "fx_dia_gps_pair";
+    private static final String STATE_LATITUDE = "fx_dia_gps_latitude";
+    private static final String STATE_LONGITUDE = "fx_dia_gps_longitude";
+    private static final String STATE_STATUS = "fx_dia_gps_status";
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -95,15 +100,23 @@ public final class FxDiaGpsPickerActivity extends Activity {
 
         LinearLayout coordinateRow = new LinearLayout(this);
         coordinateRow.setOrientation(LinearLayout.HORIZONTAL);
-        latitudeInput = decimalInput("纬度 -90 至 90", getIntent().getStringExtra("latitude"));
-        longitudeInput = decimalInput("经度 -180 至 180", getIntent().getStringExtra("longitude"));
+        String initialLatitude = state == null
+                ? getIntent().getStringExtra("latitude")
+                : state.getString(STATE_LATITUDE, getIntent().getStringExtra("latitude"));
+        String initialLongitude = state == null
+                ? getIntent().getStringExtra("longitude")
+                : state.getString(STATE_LONGITUDE, getIntent().getStringExtra("longitude"));
+        latitudeInput = decimalInput("纬度 -90 至 90", initialLatitude);
+        longitudeInput = decimalInput("经度 -180 至 180", initialLongitude);
+        if (state != null) pairInput.setText(state.getString(STATE_PAIR, ""));
         coordinateRow.addView(longitudeInput, new LinearLayout.LayoutParams(0, -2, 1));
         coordinateRow.addView(latitudeInput, new LinearLayout.LayoutParams(0, -2, 1));
         form.addView(coordinateRow);
 
-        TextView note = label("使用方法：在下方高德地图选择位置，把地图显示的“经度,纬度”复制到上方输入框，再点“解析坐标”。也可以直接分别输入经度和纬度。坐标只会回填到当前选择的 debuggable 目标应用，不会改变系统真实定位。", 12, 0xff647282, false);
+        TextView note = label("使用方法：在下方高德地图选择位置，把地图显示的“经度,纬度”（高德 GCJ-02 坐标）复制到上方输入框，再点“解析坐标”。也可以直接分别输入经度和纬度。按原 Dia 行为直接使用高德返回值，不做 WGS84 转换；坐标只会回填到当前选择的 debuggable 目标应用，不会改变系统真实定位。", 12, 0xff647282, false);
         form.addView(note);
-        status = label("等待地图坐标。", 12, 0xff526170, false);
+        status = label(state == null ? "等待地图坐标。"
+                : state.getString(STATE_STATUS, "已恢复上次编辑状态。"), 12, 0xff526170, false);
         form.addView(status);
 
         LinearLayout buttons = new LinearLayout(this);
@@ -119,11 +132,15 @@ public final class FxDiaGpsPickerActivity extends Activity {
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
 
+        boolean restoredMap = false;
         if (state != null) {
-            webView.restoreState(state);
-        } else {
-            webView.loadUrl(PICKER_URL);
+            try {
+                restoredMap = webView.restoreState(state) != null && webView.getUrl() != null;
+            } catch (RuntimeException restoreFailed) {
+                status.setText("地图页面恢复失败；坐标输入已恢复，可重新加载地图。");
+            }
         }
+        if (!restoredMap) webView.loadUrl(PICKER_URL);
     }
 
     private void configureWebView(WebView view) {
@@ -178,6 +195,10 @@ public final class FxDiaGpsPickerActivity extends Activity {
         try {
             double lon = Double.parseDouble(parts[0]);
             double lat = Double.parseDouble(parts[1]);
+            if (!Double.isFinite(lat) || !Double.isFinite(lon)
+                    || lat < -90d || lat > 90d || lon < -180d || lon > 180d) {
+                throw new IllegalArgumentException("纬度必须在 -90 至 90，经度必须在 -180 至 180。");
+            }
             setCoordinates(lat, lon);
             status.setText("已解析高德坐标（经度,纬度）。");
         } catch (Exception invalid) {
@@ -209,8 +230,14 @@ public final class FxDiaGpsPickerActivity extends Activity {
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
+        if (pairInput != null) outState.putString(STATE_PAIR, pairInput.getText().toString());
+        if (latitudeInput != null) outState.putString(STATE_LATITUDE, latitudeInput.getText().toString());
+        if (longitudeInput != null) outState.putString(STATE_LONGITUDE, longitudeInput.getText().toString());
+        if (status != null) outState.putString(STATE_STATUS, status.getText().toString());
+        if (webView != null) {
+            try { webView.saveState(outState); } catch (RuntimeException ignored) { }
+        }
         super.onSaveInstanceState(outState);
-        if (webView != null) webView.saveState(outState);
     }
 
     @Override protected void onDestroy() {
