@@ -292,7 +292,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 | 模式 | 内部存储 ID（兼容 1.0.0） | 页面渲染实现 |
 |---|---|---|
-| ClassicWebCompat | `classic` | 显示 APK 内置原版 WebUI；六个主 Tab 使用原页面结构与交互，受信任的本地 WebView AssetLoader 加载，不访问远程页面。 |
+| ClassicWebCompat | `classic` | 显示 APK 内置原版 WebUI；VPN、Ad/Hosts、隐私、脚本四个业务页面使用原版 WebUI 页面内容；Hook 与设置继续由同一原生宿主承载并使用 Classic 外观。WebView 仅由受信任的本地 AssetLoader 加载，不访问远程页面。 |
 | FXLiquidNative | `glass` | 原生 Android 页面 + Jetpack Compose + Kyant Backdrop 液态背景采样/模糊/Lens 导航。 |
 | MiuixStyle | `miuix` | 原生 Android 页面 + MiuixTheme/Miuix 组件、系统配色和对应导航样式。 |
 
@@ -306,7 +306,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 **全局切换行为：**
 1. 冷启动读取 `fx_ui/mode`，旧值兼容映射到三个稳定 ID；未知值安全回落 ClassicWebCompat。
 2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和迁移子页面返回上下文。
-3. ClassicWebCompat 的 WebView 仅加载 APK 内置 AssetLoader 资源，禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
+3. ClassicWebCompat 的四个业务页由 WebView 显示 APK 内置 AssetLoader 资源；Hook 与设置使用同一 Classic 外观的原生宿主。禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
 4. FXLiquidNative 使用 Compose 原生导航与液态背景效果；MiuixStyle 使用 Miuix 主题组件。两者共享同一 Domain/Repository/状态源，不复制业务逻辑。
 5. 三种模式共享相同六个 Tab：VPN、Ad/Hosts、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
 6. 切换过程中不得 stop/start/reconfigure VPN、内核级代理、DNS、Root 规则、LSPosed、Accessibility 或脚本任务。UI 观察状态变化，不拥有服务生命周期。
