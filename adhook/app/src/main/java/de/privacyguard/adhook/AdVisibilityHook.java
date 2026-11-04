@@ -1188,8 +1188,9 @@ private boolean targetDeveloperOptIn(String packageName) {
     /** Report Wi-Fi or cellular transport only to the selected debuggable test app. */
     /**
      * Per-app debug location fixture. It changes only LocationManager.getLastKnownLocation()
-     * results in an explicitly selected debuggable target process. It does not alter the
-     * device provider, GNSS, system mock-location setting, fused-provider callbacks or routes.
+     * results in an explicitly selected debuggable target process. Location objects returned
+     * by fused-provider callbacks are covered only when the target reads their Location getters.
+     * Callback registration, device provider, GNSS, mock-location settings and routes are untouched.
      */
     /** Per-app timezone fixture for explicitly selected debuggable test builds. */
     private synchronized boolean installTimeZoneSimulationHooks(final String pkg) {
