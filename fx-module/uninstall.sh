@@ -3,9 +3,17 @@
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=/data/adb/privacyguard
 # FX_QUICKJS_SCHEDULER_STOP_BEGIN
+_FX_SCHEDULER_STATE_DIR=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
 if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
-  sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$STATE_DIR/jsruntime/scheduler.log" 2>&1 || :
+  if ! sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" 2>&1; then
+    echo "FX uninstall: QuickJS scheduler did not confirm shutdown; preserving state and aborting cleanup" >&2
+    exit 1
+  fi
+elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
+  echo "FX uninstall: scheduler PID record exists but scheduler script is missing; aborting cleanup" >&2
+  exit 1
 fi
+unset _FX_SCHEDULER_STATE_DIR
 # FX_QUICKJS_SCHEDULER_STOP_END
 if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
