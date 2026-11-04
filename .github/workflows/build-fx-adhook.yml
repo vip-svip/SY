@@ -301,6 +301,7 @@ jobs:
           sh scripts/tests/fx-stellar-adb-packet-regression.sh
           sh scripts/tests/fx-stellar-adb-key-regression.sh
           sh scripts/tests/fx-stellar-adb-pairing-ui-regression.sh
+          sh scripts/tests/fx-stellar-adb-shell-probe-regression.sh
           sh scripts/tests/fx-stellar-secure-settings-regression.sh
           sh scripts/tests/fx-stellar-command-shortcut-regression.sh
           sh scripts/tests/fx-stellar-permission-request-regression.sh
