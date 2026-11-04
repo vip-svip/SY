@@ -4,6 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParser.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParserTest.java"
+HOST_TEST="$ROOT/scripts/tests/FxDiaMonitorEventParserHostTest.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$ACTIVITY" ] && [ -s "$PARSER" ] && [ -s "$UNIT" ] || fail "Dia monitor-event sources missing"
 grep -Fq 'button("查看结构化监控事件", () -> showMonitorEvents())' "$ACTIVITY" || fail "Frida screen has no native monitor-event browser"
@@ -13,6 +14,10 @@ grep -Fq 'MAX_LOG_CHARS = 256 * 1024' "$PARSER" || fail "monitor-event parser ha
 grep -Fq 'case "SQL":' "$PARSER" || fail "SQL monitor family is not supported"
 grep -Fq 'case "HTTP":' "$PARSER" || fail "HTTP monitor family is not supported"
 grep -Fq 'case "RUNTIME":' "$PARSER" || fail "Runtime monitor family is not supported"
+grep -Fq 'case "APPENTRY":' "$PARSER" || fail "Activity-entry observer events are discarded"
+grep -Fq 'return "Activity 入口";' "$PARSER" || fail "Activity-entry event category is missing"
+grep -Fq 'case "APPENTRY":' "$UNIT" || fail "Activity-entry parser unit test is missing"
+[ -s "$HOST_TEST" ] || fail "standalone Activity-entry parser host test is missing"
 grep -Fq 'SQL 文本' "$ACTIVITY" || fail "event view does not explain content redaction"
 grep -Fq 'private void showMonitorEvents()' "$ACTIVITY" || fail "event filtering UI is missing"
 grep -Fq 'matched > shown' "$ACTIVITY" || fail "event view has no render-row cap"
@@ -20,4 +25,11 @@ grep -Fq 'private int monitorEventGeneration;' "$ACTIVITY" || fail "event reques
 grep -Fq 'final String requestedPackage = targetPackage;' "$ACTIVITY" || fail "event reader does not snapshot the requested target"
 grep -Fq '!requestedPackage.equals(targetPackage)' "$ACTIVITY" || fail "late event results can be shown for a newly selected target"
 grep -Fq 'monitorEventGeneration++;' "$ACTIVITY" || fail "target changes and Activity teardown do not invalidate stale event reads"
+if ! command -v javac >/dev/null 2>&1 || ! command -v java >/dev/null 2>&1; then
+    fail "JDK is required to execute the standalone monitor parser regression"
+fi
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT HUP INT TERM
+javac -Xlint:all -Werror -d "$OUT" "$PARSER" "$HOST_TEST"
+java -cp "$OUT" de.privacyguard.adhook.imported.dia.FxDiaMonitorEventParserHostTest
 echo "PASS: Dia monitor-event browser is bounded, filterable and metadata-only"

@@ -25,8 +25,8 @@ public final class FxDiaMonitorEventParser {
 
     private static final String[] CATEGORIES = {
             "HTTP", "WebView", "SQL", "算法", "Native", "ClassLoader", "Socket",
-            "Intent", "点击", "ViewGroup", "Fragment", "线程", "调用栈",
-            "按键", "Runtime", "内存"
+            "Intent", "Activity 入口", "点击", "ViewGroup", "Fragment", "线程",
+            "调用栈", "按键", "Runtime", "内存"
     };
 
     private FxDiaMonitorEventParser() { }
@@ -76,6 +76,9 @@ public final class FxDiaMonitorEventParser {
                 case "action": return "Action";
                 case "component": return "组件";
                 case "requestCode": return "请求码";
+                case "stage": return "阶段";
+                case "activity": return "Activity";
+                case "intentPackage": return "Intent 包名";
                 case "view": return "View";
                 case "id": return "资源 ID";
                 case "parent": return "父 View";
@@ -127,6 +130,7 @@ public final class FxDiaMonitorEventParser {
             case "CLASSLOADER": return "ClassLoader";
             case "SOCKET": return "Socket";
             case "INTENT": return "Intent";
+            case "APPENTRY": return "Activity 入口";
             case "CLICK": return "点击";
             case "VIEWGROUP": return "ViewGroup";
             case "FRAGMENT": return "Fragment";
@@ -158,6 +162,10 @@ public final class FxDiaMonitorEventParser {
                 return oneOf(key, "endpoint", "timeoutMs", "elapsedMs", "exception");
             case "INTENT":
                 return oneOf(key, "action", "component", "requestCode");
+            case "APPENTRY":
+                // Activity observer records only class/launch metadata. Intent
+                // extras, URI data, component object and payload are never shown.
+                return oneOf(key, "stage", "activity", "action", "intentPackage");
             case "CLICK":
                 return oneOf(key, "view", "id");
             case "VIEWGROUP":

@@ -51,16 +51,35 @@ public final class FxDiaMonitorEventParserTest {
         assertEquals("good.example", events.get(1).fields.get("host"));
     }
 
+    @Test public void parsesAppEntryMetadataWithoutIntentPayload() {
+        List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
+                "[DIA_APPENTRY] stage=newActivity activity=com.example.MainActivity "
+                + "action=android.intent.action.MAIN intentPackage=com.example.app "
+                + "extras=sessionToken data=https://example.com/path component=secret.Component");
+        assertEquals(1, events.size());
+        FxDiaMonitorEventParser.Event event = events.get(0);
+        assertEquals("Activity 入口", event.category);
+        assertEquals("newActivity", event.fields.get("stage"));
+        assertEquals("com.example.MainActivity", event.fields.get("activity"));
+        assertEquals("android.intent.action.MAIN", event.fields.get("action"));
+        assertEquals("com.example.app", event.fields.get("intentPackage"));
+        assertFalse(event.fields.containsKey("extras"));
+        assertFalse(event.fields.containsKey("data"));
+        assertFalse(event.fields.containsKey("component"));
+        assertFalse(event.toDisplayString().contains("sessionToken"));
+        assertFalse(event.toDisplayString().contains("https://"));
+    }
+
     @Test public void supportsEveryBuiltInMonitorFamily() {
         StringBuilder log = new StringBuilder();
         String[] tags = {"HTTP", "WEBVIEW", "SQL", "ALGORITHM", "NATIVE", "CLASSLOADER",
                 "SOCKET", "INTENT", "CLICK", "VIEWGROUP", "FRAGMENT", "THREAD", "STACK",
-                "KEY", "RUNTIME", "MEMORY"};
+                "KEY", "RUNTIME", "MEMORY", "APPENTRY"};
         for (String tag : tags) log.append("[DIA_").append(tag).append("] event\n");
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(log.toString());
         assertEquals(tags.length, events.size());
         assertEquals("HTTP", events.get(0).category);
-        assertEquals("内存", events.get(events.size() - 1).category);
+        assertEquals("Activity 入口", events.get(events.size() - 1).category);
     }
 
     @Test public void retainsOnlyTheNewestThreeHundredEvents() {

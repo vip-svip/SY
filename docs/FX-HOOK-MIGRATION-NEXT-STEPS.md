@@ -106,3 +106,10 @@ This makes the current CI package build successful, but the build still depends 
 - CI run `41080488374` passed unit tests, Android debug APK build, signing/metadata checks, and DEX markers; APK SHA-256 `778b07f84b924629969a849c4ef2b8ce68df3bed277e638190f583b2e79d9991`.
 - Shared processes fail open; `clipboard_isolate` and `clipboard_read_block` are mutually exclusive. This is not OS-wide cross-app isolation.
 - At the time of this 2026-10-30 entry, APK consolidation was still pending. It was subsequently completed in CI as one dual-entry APK; remaining acceptance is OnePlus 12 physical-device LSPosed testing and the remaining legacy Hook migration.
+
+## 2026-11-05 — Dia Activity entry observer event rendering
+
+- The new appentry Frida template emits [DIA_APPENTRY] metadata records, but the native monitor-event parser previously treated that tag as unknown and silently discarded every record. The parser now maps it to the Activity 入口 category.
+- The allowlist retains only stage, Activity class name, Intent action and Intent package. It intentionally drops Intent extras, URI/data, component objects and arbitrary payload fields; the existing safe-value grammar and event/input bounds remain active.
+- Added JUnit coverage plus a standalone JDK host regression that compiles the exact production parser with javac -Xlint:all -Werror and checks APPENTRY visibility without leaking Intent payload.
+- Verification scope: parser host test only. Android Gradle build, Frida injection, and OnePlus 12 + KernelSU + LSPosed behavior remain unverified on a physical device.
