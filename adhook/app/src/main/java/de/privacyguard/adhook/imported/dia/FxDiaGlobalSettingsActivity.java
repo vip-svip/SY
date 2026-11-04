@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -32,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * cross-process runtime has not been migrated are shown as unavailable rather
  * than being presented as active controls.
  */
-public final class FxDiaGlobalSettingsActivity extends Activity {
+public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PREFS = "digXposed";
     // Original Dia 23.11 res/xml/my_settings.xml preference keys, including
     // actions whose old standalone runtime is intentionally not invoked by FX.
@@ -266,6 +265,6 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
                         .setPositiveButton("关闭", null)
                         .show());
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
     }
 }
