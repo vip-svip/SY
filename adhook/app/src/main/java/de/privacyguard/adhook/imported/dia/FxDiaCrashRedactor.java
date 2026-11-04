@@ -16,7 +16,7 @@ public final class FxDiaCrashRedactor {
     private static final Pattern HEADER = Pattern.compile(
             "(?im)(\\b(?:authorization|proxy-authorization)\\s*[:=]\\s*)[^\\r\\n]+");
     private static final Pattern KEY_VALUE = Pattern.compile(
-            "(?i)(\\b" + SENSITIVE_KEYS + "\\b\\s*[:=]\\s*)(\"[^\"]*\"|'[^']*'|[^\\s,;&}\\]]+)");
+            "(?i)(\\b" + SENSITIVE_KEYS + "\\b[\"']?\\s*[:=]\\s*)(\"[^\"]*\"|'[^']*'|[^\\s,;&}\\]]+)");
     private static final Pattern QUERY_VALUE = Pattern.compile(
             "(?i)([?&]" + SENSITIVE_KEYS + "=)[^&#\\s]+");
     private static final Pattern URL_USER_INFO = Pattern.compile(
