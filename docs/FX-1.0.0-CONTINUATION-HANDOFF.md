@@ -270,3 +270,11 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The DEX browser now offers a direct method-to-rule path when opened from the Dia settings page. It only lists concrete non-abstract, non-native methods from a debuggable user application, emits an exact owner/method/JVM-descriptor tuple, and validates it with the same DeveloperHookRule parser before returning to MainActivity.
 - MainActivity rechecks the target package, debuggable flag, system flag and descriptor, opens that package's native Custom Hook editor, and pre-fills an OBSERVE rule for explicit confirmation. Field signatures remain read-only/copyable; no arbitrary field write or class mutation is introduced.
 - Added a dedicated host source-contract regression and wired it into the migration workflow. Android LSPosed behavior remains subject to current build and target-device verification.
+
+
+## Yulong watcher lock redesign — atomic PID-bearing file lock
+
+- Replaced the two-step lock-directory/owner.pid lifecycle lock with an exclusive POSIX noclobber file lock that writes the owner PID during the exclusive file creation. This removes the separate directory creation and owner publication race window.
+- The lock code rechecks the owner PID before stale cleanup, rejects symlinked/non-regular paths, treats an empty in-progress lock as busy, and waits on a live FX script owner. It still recognizes and safely waits for/removes stale legacy owner.pid lock directories from older installs.
+- Watcher identity now compares exact /proc command-line argument positions 2 and 3 against the script path and watch-loop command, not a substring. The regression now uses an empty file-lock fixture and asserts the published PID is the exact child process.
+- The restored Release module receives the same canonical script through patch_yulong_app_firewall.py. CI must pass the repeated start/stop race before this is considered verified.

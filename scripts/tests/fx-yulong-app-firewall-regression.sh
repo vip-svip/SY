@@ -370,20 +370,21 @@ if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003
 
 export MOCK_TIME=23:00
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
-WATCH_LOCK_DIR="$V2/pg/yulong-app-firewall-watch.lock"
+WATCH_LOCK_PATH="$V2/pg/yulong-app-firewall-watch.lock"
 export MOCK_WATCH_SPAWN_DELAY=1
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run stop-watch > "$V2/watch-stop-before-race.out"
 # A lock directory without owner metadata may be a live starter paused after mkdir.
 # Contenders must fail closed instead of stealing that active initialization window.
-mkdir "$WATCH_LOCK_DIR"
+: > "$WATCH_LOCK_PATH"
 export WATCH_LOCK_MAX_TRIES=3
 if v2run start-watch > "$V2/watch-ownerless-lock.out" 2>&1; then
-  fail "watcher start accepted an ownerless lifecycle lock"
+  fail "watcher start accepted an ownerless lock file"
 fi
-[ -d "$WATCH_LOCK_DIR" ] || fail "watcher start stole an ownerless lifecycle lock"
+[ -f "$WATCH_LOCK_PATH" ] || fail "watcher start removed an ownerless lock file"
+[ ! -s "$WATCH_LOCK_PATH" ] || fail "watcher wrote an owner PID into a lock owned by another start"
 [ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 0 ] || fail "watcher spawned while an ownerless lock was present"
-rmdir "$WATCH_LOCK_DIR"
+rm -f "$WATCH_LOCK_PATH"
 unset WATCH_LOCK_MAX_TRIES
 # Two simultaneous starts must serialize around the check/spawn/PID publication window.
 v2run start-watch > "$V2/watch-start-a.out" 2>&1 &
@@ -399,7 +400,7 @@ if [ "$_spawn_count" -ne 1 ]; then
   echo "start A output:" >&2; cat "$V2/watch-start-a.out" >&2 || :
   echo "start B output:" >&2; cat "$V2/watch-start-b.out" >&2 || :
   echo "watch PID: $(cat "$WATCH_PIDFILE" 2>/dev/null || echo missing)" >&2
-  echo "lock owner: $(cat "$WATCH_LOCK_DIR/owner.pid" 2>/dev/null || echo missing)" >&2
+  echo "lock owner: $(cat "$WATCH_LOCK_PATH" 2>/dev/null || echo missing)" >&2
   ps -ef 2>/dev/null | grep -F "$V2/module/scripts/yulong-app-firewall.sh" | grep -v grep >&2 || :
   fail "concurrent starts spawned more than one watcher"
 fi
@@ -408,15 +409,13 @@ fi
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
-watch_cmd=$(tr '\000' ' ' < "/proc/$watch_pid/cmdline" 2>/dev/null || true)
-case "$watch_cmd" in
-  *"$V2/module/scripts/yulong-app-firewall.sh"*' watch-loop'*) ;;
-  *) fail "published watcher PID is not the child watch-loop process" ;;
-esac
+watch_cmdline=$(tr '\000' '\n' < "/proc/$watch_pid/cmdline" 2>/dev/null || true)
+[ "$(printf '%s\n' "$watch_cmdline" | sed -n '2p')" = "$V2/module/scripts/yulong-app-firewall.sh" ] || fail "published PID is not the exact watcher script"
+[ "$(printf '%s\n' "$watch_cmdline" | sed -n '3p')" = "watch-loop" ] || fail "published PID is not the watch-loop child"
 if ! grep -Fq 'already-running' "$V2/watch-start-a.out" && ! grep -Fq 'already-running' "$V2/watch-start-b.out"; then
   fail "concurrent start did not observe the active watcher"
 fi
-[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after concurrent starts"
+[ ! -e "$WATCH_LOCK_PATH" ] || fail "watcher lifecycle lock remained after concurrent starts"
 
 # Stop while a start is delayed before publishing its PID. The serialized stop
 # must wait for publication, then terminate that exact watcher instead of missing it.
@@ -430,7 +429,7 @@ stopping=$!
 wait "$starting" || { cat "$V2/watch-start-race.out" >&2; fail "watcher start failed during start/stop race"; }
 wait "$stopping" || { cat "$V2/watch-stop-race.out" >&2; fail "watcher stop failed during start/stop race"; }
 [ ! -e "$WATCH_PIDFILE" ] || fail "stop racing with start left a live watcher PID file"
-[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after start/stop race"
+[ ! -e "$WATCH_LOCK_PATH" ] || fail "watcher lifecycle lock remained after start/stop race"
 [ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "start/stop race spawned unexpected watcher count"
 
 unset MOCK_WATCH_SPAWN_DELAY
