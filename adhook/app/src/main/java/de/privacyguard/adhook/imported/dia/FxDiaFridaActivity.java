@@ -2583,13 +2583,18 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
 
     private void deployGadgetToTarget(String library, String config,
                                       String destination, int port, String processName) {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString("gadget_process", processName).apply();
         String command = FxDiaGadgetDeployment.buildDeployCommand(
                 library, config, destination, targetPackage, port, processName);
         runRoot(command, 45000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && result.output.contains("FX_GADGET_DEPLOYED")) {
+                boolean preferencesSaved = getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString("gadget_process", processName).commit();
+                if (!preferencesSaved) {
+                    setStatus("Gadget 已部署，但本机进程配置索引保存失败；请重新打开页面核对目标进程。\\n"
+                            + result.output);
+                    return;
+                }
                 setStatus("Gadget 已部署到目标应用原生库目录。请在 LSPosed 中启用目标作用域，然后完全停止并重新启动目标应用。"
                         + "\n" + result.output);
             } else {
@@ -2695,13 +2700,18 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "printf 'config=%s\\non_load=%s\\nport=%s\\n' "
                 + quote(configPath) + " " + quote(wait ? "wait" : "resume") + " " + port + "; "
                 + "cat \"$config\"";
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString("gadget_path", library)
-                .putString("gadget_port", Integer.toString(port))
-                .putBoolean("gadget_on_load_wait", wait)
-                .apply();
         runRoot(command, 20000L, result -> {
             if (result.exitCode == 0) {
+                boolean preferencesSaved = getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString("gadget_path", library)
+                        .putString("gadget_port", Integer.toString(port))
+                        .putBoolean("gadget_on_load_wait", wait)
+                        .commit();
+                if (!preferencesSaved) {
+                    setStatus("Gadget 配置文件已写入，但本机 UI 配置索引保存失败；请重新打开页面核对配置路径和端口。\\n"
+                            + result.output);
+                    return;
+                }
                 setStatus("Frida Gadget 监听配置已写入。\\n" + result.output
                         + "\\n需由目标 debuggable 应用加载对应 Gadget 动态库后才会生效。");
             } else {
