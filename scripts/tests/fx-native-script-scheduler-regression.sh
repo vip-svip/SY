@@ -117,7 +117,7 @@ grep -Fq 'preserving state and aborting cleanup' "$OLD_FIXTURE/uninstall.sh" || 
 python3 "$PATCHER" "$OLD_FIXTURE" >/dev/null || fail "second previous-marker patch failed"
 
 grep -Fq 'STOPFILE="$STATE_DIR/scheduler.stop"' "$SOURCE" || fail "cooperative stop marker is missing"
-grep -Fq 'pid_fields "$" 2>/dev/null' "$SOURCE" || fail "scheduler does not capture its own PID start time"
+grep -Fq 'pid_fields "$$" 2>/dev/null' "$SOURCE" || fail "scheduler does not capture its own PID start time"
 grep -Fq "awk '{print \$20}'" "$SOURCE" || fail "scheduler does not capture Linux proc starttime field 22"
 grep -Fq 'stop_requested()' "$SOURCE" || fail "scheduler does not poll owned stop requests"
 if grep -Fq 'kill -TERM "$_stop_pid"' "$SOURCE"; then fail "scheduler stop still signals a PID"; fi
