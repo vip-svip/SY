@@ -975,3 +975,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Firewall 数据刷新仍按当前 `appFilterMode` 过滤，不会把用户应用页和系统应用页混在一起；包变化时重新读取 Root 防火墙规则，再异步刷新应用列表。没有改动 Root 规则格式、UID 流量统计口径、每应用计划任务或 VPN 路由。
 - 相关提交仍以本节前一节列出的 74d02c8 / bcf3635 / 7fc2361 / 41c78b4 为准；本节新增脚本提交如上。未生成 APK/ZIP。
 - 下一批：检查 `persistRule(packageName, uid, ...)` 的 UID 与包名绑定是否在写入脚本和 Root 端再次核验，避免应用卸载/重装后旧 UID 规则误套到新包；再检查列表刷新失败时是否保留旧列表且不错误恢复总开关。然后继续 Dia 原生页面原始 KeyEventHook 溯源，不以 Frida 观察模板替代。
+
+## 2026-11-05 — Firewall Root 侧 UID 重新解析复核 / Dia KeyEvent 原始实现溯源
+
+- 本节检查时实时 HEAD：`5d5ec6c098201782aa0c6e264214fba5354d087a`（检查期间分支有并行提交，以上一节记录的 Firewall 筛选修复为基础继续核验）。
+- 已检查 `scripts/yulong-app-firewall.sh` 的 `apply_rules()`：每次应用规则前重新执行 `cmd package list packages -U` 取得当前包 UID 快照，再由 `resolve_uid(packageName, snapshot)` 按包名解析当前 UID；卸载包会从活动规则中排除，无法解析 UID 时保留旧防火墙并报错。构建 iptables/ip6tables 规则使用解析出的当前 UID，而非直接信任 UI 传来的旧 UID。因此当前脚本已有防止卸载/重装后沿用旧 UID 的 Root 侧保护；UI 传入 UID 不是最终生效依据。
+- 防火墙更新采用双链 staging：先构建 IPv4/IPv6 新链、再安装两侧 OUTPUT 跳转、最后切换活动标记并清理旧链；中间步骤失败会清理新链并保留旧链。刷新 Root 列表失败时 UI 保留上次应用列表，并按 appsLoaded 状态恢复总开关可用性；不将失败响应当作空规则覆盖。
+- Dia 原始按键实现溯源：在当前仓库代码搜索 `KeyEventHook alert_auto`、`disable_alert_mode alert_enabled`、`ToastDisableHook`、`alert_close_ex` 未找到可核验的原始实现文件。现有 `FxDiaFridaActivity` 的 `key` 模板只是 Frida 的 `Activity.dispatchKeyEvent` 观察器，日志后继续调用原方法，不能等同于拦截 Hook。没有 APK / 字节码证据前不实现猜测版 alert_auto。
+- 下一批：优先从已导入 Dia APK / 资源 / DEX 中找到原始 KeyEventHook、ToastDisableHook 和 alert 规则实现证据；若仓库当前没有对应二进制文件，标记为外部源缺失并继续做其它可完成的 Dia 原生页面，不重复对 KeyEvent 语义猜测。Firewall 这批筛选方向 Bug 与 11 项 Host 断言已完成；真实设备仍需验收用户/系统应用分类、Root 规则切换及 IPv4/IPv6 流量行为。
