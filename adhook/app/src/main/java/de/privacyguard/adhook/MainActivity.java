@@ -207,13 +207,22 @@ public final class MainActivity extends ComponentActivity {
         } else {
             showDashboard();
         }
+        handleImportedNativeTabIntent(getIntent());
         handleLegacyVpnShortcut(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        handleImportedNativeTabIntent(intent);
         handleLegacyVpnShortcut(intent);
+    }
+
+    private void handleImportedNativeTabIntent(Intent intent) {
+        if (intent == null || !intent.hasExtra("fx_open_native_tab")) return;
+        int tab = intent.getIntExtra("fx_open_native_tab", -1);
+        intent.removeExtra("fx_open_native_tab");
+        if (tab >= 0 && tab <= 3) openImportedNativeTab(tab);
     }
 
     private void handleLegacyVpnShortcut(Intent intent) {
@@ -3064,13 +3073,24 @@ public final class MainActivity extends ComponentActivity {
                             .putExtra("suite_page", "DNS 设置"));
                     return;
                 case "VPN 保护": case "VPN 状态": case "自动重连":
+                    startActivity(new Intent(this, MainActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            .putExtra("fx_open_native_tab", 0));
+                    return;
                 case "信任的网络": case "Root 代理模式": case "iptables DNS 重定向":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "VPN 与 Root Proxy"));
+                            .putExtra("suite_page", "VPN 与 Root Proxy")
+                            .putExtra("yulong_source_page", page));
+                    return;
+                case "过滤 HTTP/3 (QUIC)":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "DNS 设置")
+                            .putExtra("yulong_source_page", page));
                     return;
                 case "HTTPS 过滤": case "根 CA 证书": case "保存证书":
-                case "安装证书": case "验证证书": case "过滤 HTTP/3 (QUIC)":
+                case "安装证书": case "验证证书":
                     markMigrationChild(suite, category, page);
                     showNativeCertificateManager();
                     return;
@@ -3114,9 +3134,13 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "悬浮救援入口":
                     startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongRescueActivity.class));
+                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
                     return;
-                case "守护运行状态": case "每日安全总结":
+                case "守护运行状态":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
+                    return;
+                case "每日安全总结":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
                     return;
