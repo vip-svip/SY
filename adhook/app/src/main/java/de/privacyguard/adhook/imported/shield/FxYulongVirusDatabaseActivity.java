@@ -154,11 +154,14 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
             try {
                 long previousContentSuccess = FxYulongVirusContentDb.getLastSuccessAt();
                 FxYulongVirusContentDb.refreshNow(getApplicationContext());
+                final boolean contentReady =
+                        FxYulongVirusContentDb.isContentDatabaseReady(getApplicationContext());
                 // A still-ready old cache is not evidence that this sync succeeded.
                 // Refresh (including HTTP 304) updates lastSuccessAt; only then launch
-                // the post-update whole-device scan.
-                if (FxYulongVirusContentDb.isContentDatabaseReady(getApplicationContext())
-                        && FxYulongVirusContentDb.getLastSuccessAt() > previousContentSuccess) {
+                // the post-update whole-device scan or report a successful sync.
+                final boolean contentSyncSucceeded = contentReady
+                        && FxYulongVirusContentDb.getLastSuccessAt() > previousContentSuccess;
+                if (contentSyncSucceeded) {
                     FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
                             getSharedPreferences("shield_prefs", MODE_PRIVATE)
                                     .getBoolean("automatic_content_scan_enabled", false));
@@ -166,10 +169,12 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
                 postUi(() -> {
                     contentRefresh.setEnabled(true);
                     updateContentStatus();
-                    Toast.makeText(this,
-                            FxYulongVirusContentDb.isContentDatabaseReady(this)
-                                ? "APK 内容特征库同步完成" : "内容特征库未就绪，旧缓存已保留",
-                            Toast.LENGTH_LONG).show();
+                    String message = contentSyncSucceeded
+                            ? "APK 内容特征库同步成功（含未变化的 304 响应）"
+                            : contentReady
+                                ? "本次同步未成功；旧版 APK 特征缓存仍可用"
+                                : "内容特征库未就绪；本次同步未成功，旧缓存未被覆盖";
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 });
             } catch(Throwable error) {
                 postUi(() -> {
@@ -192,14 +197,25 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
                 // The DB adapter marks the current attempt reachable only when at
                 // least one remote list/304 succeeded. Offline stale-cache retention
                 // must not masquerade as a successful database-update trigger.
-                if (FxYulongVirusDb.isServerReachable() && FxYulongVirusDb.getLastSuccess() > 0L) {
+                List<FxYulongVirusDb.ListStatus> listResults = FxYulongVirusDb.getListStatus();
+                int successfulLists = 0;
+                for (FxYulongVirusDb.ListStatus item : listResults) if (item.ok) successfulLists++;
+                final int successCount = successfulLists;
+                final int totalCount = listResults.size();
+                final boolean anyListSucceeded = successCount > 0;
+                if (anyListSucceeded && FxYulongVirusDb.getLastSuccess() > 0L) {
                     FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
                             getSharedPreferences("shield_prefs", MODE_PRIVATE)
                                     .getBoolean("automatic_content_scan_enabled", false));
                 }
                 postUi(() -> {
                     refresh.setEnabled(true); updateStatus();
-                    Toast.makeText(this,FxYulongVirusDb.isServerReachable()?"病毒库同步完成":"同步不完整，原有缓存已保留",Toast.LENGTH_LONG).show();
+                    String message = successCount == totalCount && totalCount > 0
+                            ? "病毒库完整同步完成（" + successCount + "/" + totalCount + "）"
+                            : successCount > 0
+                                ? "病毒库部分同步（" + successCount + "/" + totalCount + "），失败名单保留旧缓存"
+                                : "病毒库同步失败，原有缓存已保留";
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 });
             } catch(Throwable error) {
                 postUi(() -> {
