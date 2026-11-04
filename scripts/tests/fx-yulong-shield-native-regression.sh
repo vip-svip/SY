@@ -493,8 +493,17 @@ assert "onSaveInstanceState(Bundle outState)" in white
 assert "outState.putString(STATE_QUERY" in white and "outState.putInt(STATE_SCROLL_Y" in white
 assert "searchInput.setText(query)" in white and "whitelistScroll.scrollTo(0, restoreY)" in white
 assert 'STATE_PAGE = "fx_shield_blacklist_page"' in black
+assert 'STATE_QUERY = "fx_shield_blacklist_query"' in black
 assert 'STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y"' in black
+assert "blacklistSearchInput.addTextChangedListener" in black
+assert 'blacklistQuery = value == null ? "" : value.toString().trim();' in black
+assert "label.contains(q) || pkg.contains(q)" in black
+assert "blacklistPage = 1;" in black
+assert "blacklistPage * BLACKLIST_PAGE_SIZE" in black
+assert 'more.setText("加载更多（已显示 "' in black
+assert "outState.putString(STATE_QUERY" in black
 assert "outState.putInt(STATE_PAGE" in black and "outState.putInt(STATE_SCROLL_Y" in black
+assert black.index("blacklistSearchInput.setText(blacklistQuery)") < black.rindex("blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1))")
 assert "savedInstanceState.getInt(STATE_PAGE, 1)" in black
 assert "blacklistScroll.scrollTo(0, restoreY)" in black
 assert "MAX_PICKER_STAGED = 100" in black, "Blacklist picker must cap staged selections to the Bundle-restorable limit"
