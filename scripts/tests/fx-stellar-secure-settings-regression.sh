@@ -46,7 +46,7 @@ assert "TLS 1.3" in activity and "SPAKE2" in activity and "PeerInfo" in activity
 assert "API 31+" in activity and "配对成功不会自动授予 WRITE_SECURE_SETTINGS" in activity, "pairing version boundary and separate permission grant must remain explicit"
 assert "Android 11 及更旧系统不支持本页的 FX 独立主机密钥自动配对" in activity, "legacy system ADB pairing must not be presented as FX host-key pairing"
 assert "系统自带 ADB 客户端的手动配对不会登记 FX 密钥" in activity, "manual pairing with the system adb identity must not be represented as FX pairing"
-assert "_adb-tls-connect._tcp" in activity and "自动发现和端点保存" in activity, "migrated ADB connect DNS-SD endpoint discovery must be disclosed"
+assert "_adb-tls-connect._tcp" in activity and "mDNS 自动发现、端点保存" in activity, "migrated ADB connect DNS-SD endpoint discovery must be disclosed"
 assert "一次性固定只读 echo Shell 探测" in activity, "completed fixed read-only ADB shell probe must be disclosed"
 assert "原版通用 Shell 命令" in activity and "root: 通道" in activity and "tcpip 管理操作尚未迁入" in activity, "remaining original ADB management operations must remain explicitly unmigrated"
 assert "固定探测成功不代表这些完整管理能力已完成" in activity, "one-shot probe must not be represented as full Shell migration"
