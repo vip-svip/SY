@@ -2295,3 +2295,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：重新从指定分支读取 MainActivity 与回归脚本，逐项核对启动标记、Bundle 保存、Bundle 恢复、结果消费和脚本断言，均匹配。尚未执行完整 Shell 回归、Gradle 编译、模拟器或真机 Activity 重建测试；不标记为运行测试通过。
 - 未完成/风险：若系统在启动内部 picker 时抛出 ActivityNotFoundException 或其他启动异常，当前请求标记需要异常回滚；需补充启动失败回滚与测试。还需在设备上验证进程回收后 picker 返回的 Activity Result 行为。
 - 下一批：优先补齐 picker 启动异常回滚，然后转入游龙安全护盾风险详情/告警/名单编辑页面组的真实页面状态闭环；继续推进六 Tab 主壳。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Frida Server 启停归属复核
+
+- 本批起始 HEAD：`e57d1bc7e96512cffc243ef8b4a64ea46d72b502`。
+- 复核 `FxDiaFridaActivity.startServer()/stopServer()` 与 `fx-dia-frida-server-lifecycle-regression.sh`：
+  - 启动前枚举已有匹配进程；发现无 FX PID 记录的手动/外部 Server 时返回 `already-running-unmanaged`，不重复启动、不接管。
+  - FX 自己启动时记录 PID、可执行文件路径、端口和进程 starttime；原子写 PID 文件。
+  - 停止只读取 FX PID 文件，并校验 PID、starttime、可执行文件身份；只发送 TERM，等待上限 5 秒；PID 重用/记录冲突时 fail-closed。
+  - 无 FX PID 记录时返回 `no-fx-owned-server`，不会按进程名批量杀掉用户手动运行的 Server。
+  - 已有 Host 回归脚本覆盖未登记实例不重复启动、PID/starttime/可执行文件身份检查、只 TERM 和记录删除顺序。
+- 结论：该工作线当前实现符合“只停止本页/FX 拥有的会话”的边界，本次无需改动代码；这是源码复核，不代表真机多实例/权限故障注入已验收。
+- 下一步：集中检查安全护盾扫描结果详情、风险警告、白名单/黑名单管理的编辑、保存、返回与缓存刷新闭环；固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
