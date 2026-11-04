@@ -3294,3 +3294,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：源码与测试断言已提交；Actions 尚待读取。未在 Android 设备上构造 FIFO/设备节点进行 Root 行为测试。
 - CI 待排查：`41917087777` 在 `fx-dia-frida-process-identity-regression.py` 第 60 行失败，称 `FxDiaSessionLogActivity` 缺少 symlink/regular/non-empty 检查；当前文件 blob `ce4e2523e7f488a3588c6cae6b7130af584bf831` 中三项检查均存在。下一轮应打印 CI 实际读取路径和缺失 token，或检查唯一 `refreshLog()` 方法片段，不能继续改产品文件猜测。
 - 下一步：读取 Gadget config/session/server 定向 Actions；解决上述 CI 文件读取断言来源不一致；继续 Frida Server/Gadget 会话状态回显和 Activity 重建。
+
+
+## 2026-11-05 — 文件浏览器与 DNS 搜索取消过期滚动恢复
+
+- 发现边界竞态：Activity 从旋转/重建恢复时仍在异步读取目录或 DNS 日志；用户在读取完成前修改搜索词，旧的页深度/scrollY 仍可能在新搜索结果渲染后应用，页面跳回旧位置。
+- 修复 File Browser：用户输入新目录查询时清除待恢复分页深度和滚动值；重建恢复时先设置查询词（允许 TextWatcher 清理旧状态），再安装保存的页深度/scrollY，避免恢复动作被自身查询初始化覆盖。
+- 修复 DNS 日志：用户修改搜索词时回到第一页，并清除旧的待恢复 scrollY 标记，确保新搜索从顶部开始。
+- 改动：`FxDiaFileActivity.java`、`fx-dia-file-browser-io-regression.sh`、`FxYulongDnsActivity.java`、`fx-yulong-dns-cache-regression.sh`。产品/回归提交：`b9eb001ecdc03fd299685866bb1fd080d3365e5c`、`836ff829d7891f0b948dd3c2d6281c64416e69af`、`b7c30f5fa66a79c878647c12ef286f353bd50b0f`、`5bd0768644562c9747dedb6be8676551cbb156ad`。
+- 验证：源码与回归断言已复核；Actions 由于多个并行提交发生取消/重排，需以本批最终测试提交的 Actions 为准。未做 Android 真机异步旋转验收。
+- 下一步：读取 File Browser/DNS 定向 Actions；然后继续 Yulong Firewall/Whitelist/Stats 页交互恢复和空状态，不做无关全量 Actions。
