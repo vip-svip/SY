@@ -29,8 +29,14 @@ actual_actions = {
 }
 assert expected_actions <= actual_actions, \
     "BootReceiver manifest must keep standard boot, package replace and both original QuickBoot broadcasts"
-for action in expected_actions:
-    assert action in source, f"BootReceiver does not accept {action}"
+source_equivalents = {
+    "android.intent.action.BOOT_COMPLETED": "Intent.ACTION_BOOT_COMPLETED",
+    "android.intent.action.MY_PACKAGE_REPLACED": "Intent.ACTION_MY_PACKAGE_REPLACED",
+    "android.intent.action.QUICKBOOT_POWERON": '"android.intent.action.QUICKBOOT_POWERON"',
+    "com.htc.intent.action.QUICKBOOT_POWERON": '"com.htc.intent.action.QUICKBOOT_POWERON"',
+}
+for action, source_token in source_equivalents.items():
+    assert source_token in source, f"BootReceiver does not accept {action} (expected {source_token})"
 
 # Restore only the user-opted-in Shield services and do not silently restore
 # Android permissions. Volume-key rescue is delivered by the accessibility
