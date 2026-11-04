@@ -168,6 +168,18 @@ assert "FxYulongShieldActivity.class" in rescue_route, \
 assert "FxYulongRescueActivity.java" in shield, "Dedicated rescue Activity source missing"
 assert "FxYulongRescueActivity.class" in hub and "打开救援中心" in hub, \
     "The hub must retain a separate path into the original recovery actions"
+rescue = shield["FxYulongRescueActivity.java"]
+assert "new Intent(context, FxYulongRescueActivity.class)" in protection_service, \
+    "Rescue notification must open the dedicated Rescue screen, not the Shield Hub"
+assert "FxYulongRescueActivity.EXTRA_OPENED_FROM_NOTIFICATION, true" in protection_service, \
+    "Notification launch must carry the Rescue caller-origin marker"
+assert "private void returnToShieldHub()" in rescue, "Rescue caller-aware back routing is missing"
+assert "onBackPressed()" in rescue and "returnToShieldHub();" in rescue, \
+    "System Back must use the same caller-aware route as the header button"
+assert 'button("‹ 返回安全护盾", this::returnToShieldHub)' in rescue, \
+    "Rescue header Back must use the caller-aware route"
+assert 'button("返回安全护盾主页", this::returnToShieldHub)' in rescue, \
+    "Rescue footer Back must use the caller-aware route"
 assert "private ScrollView shieldScroll;" in hub, "Shield hub scroll container must survive Activity recreation"
 assert 'STATE_SCROLL_Y = "fx_yulong_shield_scroll_y"' in hub, "Shield hub scroll state key is missing"
 assert "onSaveInstanceState(Bundle outState)" in hub and "outState.putInt(STATE_SCROLL_Y" in hub, "Shield hub scroll position is not saved"

@@ -1983,3 +1983,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `79d132ebf8385beefbd8fac029903b333fecc734` — 增加目标已卸载时状态清理断言。
 - 验证：当前最新源码静态核对目标滚动状态键、Bundle 保存/恢复、首次分类焦点与重建焦点分离、普通/专用详情页恢复、目标包与 ScrollView 实例保护、进入/离开自定义规则页的滚动保留，以及原目标卸载时清理；回归脚本包含对应断言。未执行 Shell/Python 回归、Gradle 构建、UI 自动化、旋转或真机点按。
 - 下一步：继续核对 Hook 详情页权限/作用域异步状态回读是否会覆盖当前目标或留下过期 Loading 状态；随后在可运行环境执行 Hook 原生 UI 回归和相关 Host 测试。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾救援通知直接进入 Rescue 并恢复调用来源返回链
+
+- 本批起始 HEAD：`632a6dc9a8b4683cd769a0e1881e36207133fbf8`。
+- 已有 RescueActivity 的通知来源返回分支，但 ProtectionService 的通知 PendingIntent 实际仍指向 Shield Hub，未设置 `EXTRA_OPENED_FROM_NOTIFICATION`，导致来源分支不可达。
+- 修改：
+  - 救援通知现在直接打开 `FxYulongRescueActivity`，携带 `EXTRA_OPENED_FROM_NOTIFICATION=true`；通知点击不再先落到 Hub。
+  - Rescue 顶部返回、页面底部“返回安全护盾主页”和 Android 系统 Back 统一调用 `returnToShieldHub()`。
+  - 通知来源：显式启动/回到 Hub（`CLEAR_TOP | SINGLE_TOP`）再结束 Rescue；Hub 内部打开：仅结束 Rescue，回到原有 Hub 实例，不创建重复 Hub。
+  - 保留原有救援操作、权限和确认流程。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongProtectionService.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRescueActivity.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 验证等级：源码静态检查确认 PendingIntent 目标/来源标记、顶部/底部/系统 Back 共用调用来源路由，以及 Shield Host 回归脚本对应断言。未运行 Host 脚本、Gradle、UI 自动化、通知点击或真机返回栈测试。
+- 当前 Actions：HEAD `1c286a95db52dd12ef403b6476bda5701c48d32d` 对应运行 `41906293213` 在提交时 pending；更早运行因同一工作流并发取消而 cancelled，不计为通过。
+- 其他已接管并保留的并行提交：Dia Frida 目标/进程选择恢复与回归（`162adce548ae62c1e6edb50b5261cec1f34972a5`、`9802250e0d969e5b369e50456913fa8cc8146a98`）、脚本库导出请求串行保护测试（`a22aedf7b9ee7f6baa8fcc8c965f246c1f6a453c`）、本批之前的 Rescue 来源返回修复（`043c514704513ac24cc85c8c24f6abfd2891ebe8`）。
+- 未完成：第一、二份长期交接文件在资料库 `/FX` 当前目录列表中不存在，本窗口未能读取；已完整读取现存的 UI 总指令和提速补充档。不得用推测补写缺失文件内容。
+- 下一步：继续安全护盾扫描结果详情/清理队列的页面返回和状态回显；随后接回 Dia Frida 主页面/脚本库/全屏编辑器的页面组回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。

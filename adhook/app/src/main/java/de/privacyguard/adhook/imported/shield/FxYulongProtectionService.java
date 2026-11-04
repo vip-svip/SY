@@ -241,8 +241,9 @@ public final class FxYulongProtectionService extends Service implements SensorEv
             channel.setDescription("由用户手动开启的音量键/摇动触发提醒");
             manager.createNotificationChannel(channel);
         }
-        Intent open = new Intent(context, FxYulongShieldActivity.class);
-        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        Intent open = new Intent(context, FxYulongRescueActivity.class);
+        open.putExtra(FxYulongRescueActivity.EXTRA_OPENED_FROM_NOTIFICATION, true);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent content = PendingIntent.getActivity(context, 9025, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23
                         ? PendingIntent.FLAG_IMMUTABLE : 0));

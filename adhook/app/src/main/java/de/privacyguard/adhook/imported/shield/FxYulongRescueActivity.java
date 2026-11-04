@@ -72,7 +72,7 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
-        header.addView(button("‹ 返回安全护盾", () -> finish()));
+        header.addView(button("‹ 返回安全护盾", this::returnToShieldHub));
         header.addView(text("安全护盾 · 救援中心", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
@@ -135,16 +135,21 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
                         status.setText("无法打开悬浮窗设置：" + e.getClass().getSimpleName());
                     }
                 }),
-                button("返回安全护盾主页", () -> {
-                    if (getIntent().getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false)) {
-                        Intent home = new Intent(this, FxYulongShieldActivity.class);
-                        home.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                        startActivity(home);
-                    }
-                    // When opened from the Shield Hub, finish back to the existing Hub
-                    // instead of creating a duplicate Hub above the Rescue Activity.
-                    finish();
-                }));
+                button("返回安全护盾主页", this::returnToShieldHub));
+    }
+
+    private void returnToShieldHub() {
+        if (getIntent().getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false)) {
+            Intent home = new Intent(this, FxYulongShieldActivity.class);
+            home.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(home);
+        }
+        // Hub-launched rescue screens simply finish to the existing caller.
+        finish();
+    }
+
+    @Override public void onBackPressed() {
+        returnToShieldHub();
     }
 
     private String formatForeground() {
