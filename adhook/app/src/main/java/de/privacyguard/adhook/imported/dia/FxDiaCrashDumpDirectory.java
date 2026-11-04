@@ -4,6 +4,8 @@ import java.io.File;
 
 /**
  * Deletes only direct regular-file contents of the FX-private minidump folder.
+ * Keeps the empty directory in place because the registered Breakpad handler
+ * holds this path for the lifetime of the current process.
  * Refuses symbolic links, nested folders and paths resolving outside filesDir.
  */
 public final class FxDiaCrashDumpDirectory {
@@ -19,7 +21,12 @@ public final class FxDiaCrashDumpDirectory {
             if (!absoluteRoot.equals(canonicalRoot)) return false;
 
             File directory = new File(filesRoot, DIRECTORY_NAME);
-            if (!directory.exists()) return true;
+            // Breakpad is already initialized with this exact output path. A
+            // successful clear must leave the directory writable, not remove
+            // it and silently disable future native minidump creation.
+            if (!directory.exists() && !directory.mkdir() && !directory.isDirectory()) {
+                return false;
+            }
             if (!directory.isDirectory()) return false;
 
             File canonicalDirectory = directory.getCanonicalFile();
@@ -42,7 +49,11 @@ public final class FxDiaCrashDumpDirectory {
             for (File entry : entries) {
                 if (!entry.delete()) return false;
             }
-            return directory.delete();
+            File[] remaining = directory.listFiles();
+            return directory.isDirectory()
+                    && directory.getCanonicalFile().equals(expectedDirectory)
+                    && directory.canWrite()
+                    && remaining != null && remaining.length == 0;
         } catch (java.io.IOException | SecurityException unsafePath) {
             return false;
         }

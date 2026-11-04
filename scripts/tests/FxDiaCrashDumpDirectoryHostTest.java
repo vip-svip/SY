@@ -20,15 +20,28 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(root.mkdir(), "private files fixture must be created");
 
         File dumps = child(root);
-        require(dumps.mkdir(), "minidump directory must be created");
+        require(FxDiaCrashDumpDirectory.clear(root),
+                "missing minidump directory should be created for the already-registered Breakpad path");
+        require(dumps.isDirectory() && dumps.canWrite(),
+                "empty minidump output directory must remain writable after clear");
+
         Files.write(new File(dumps, "one.dmp").toPath(), "dump-one".getBytes(StandardCharsets.UTF_8));
         Files.write(new File(dumps, "two.dmp").toPath(), "dump-two".getBytes(StandardCharsets.UTF_8));
         require(FxDiaCrashDumpDirectory.clear(root), "regular private minidumps should be cleared");
-        require(!dumps.exists(), "minidump directory should be removed after successful clear");
+        require(dumps.isDirectory() && dumps.canWrite(),
+                "minidump directory must remain writable for future Breakpad crashes");
+        File[] afterClear = dumps.listFiles();
+        require(afterClear != null && afterClear.length == 0,
+                "successful clear must remove all dump files while retaining the output directory");
+        Files.write(new File(dumps, "after-clear.dmp").toPath(),
+                "future-crash".getBytes(StandardCharsets.UTF_8));
+        require(new File(dumps, "after-clear.dmp").isFile(),
+                "future Breakpad minidump must be writable without restarting the FX process");
+        require(FxDiaCrashDumpDirectory.clear(root), "post-clear minidump should also be removable");
 
         Path externalFile = temp.resolve("external-secret.dmp");
         Files.write(externalFile, "do-not-delete".getBytes(StandardCharsets.UTF_8));
-        require(dumps.mkdir(), "symlink fixture directory must be created");
+        require(dumps.isDirectory(), "symlink-entry fixture must reuse the preserved output directory");
         Files.createSymbolicLink(new File(dumps, "linked.dmp").toPath(), externalFile);
         require(!FxDiaCrashDumpDirectory.clear(root), "symlinked dump entry must be rejected");
         require(Files.exists(externalFile), "symlink target must remain untouched");
@@ -53,7 +66,9 @@ public final class FxDiaCrashDumpDirectoryHostTest {
         require(Files.exists(externalKeep), "external minidump must remain untouched");
 
         Files.delete(dumps.toPath());
-        require(FxDiaCrashDumpDirectory.clear(root), "missing minidump directory is already clear");
-        System.out.println("PASS: private minidump clear, symlink refusal, no recursive deletion and idempotent absence");
+        require(FxDiaCrashDumpDirectory.clear(root), "missing minidump directory should be recreated");
+        require(dumps.isDirectory() && dumps.canWrite(),
+                "recreated minidump directory must be writable after a prior path removal");
+        System.out.println("PASS: private minidump clear preserves or recreates writable Breakpad path, rejects symlinks and nested directories");
     }
 }
