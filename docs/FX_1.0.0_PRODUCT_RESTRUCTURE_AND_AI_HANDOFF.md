@@ -407,8 +407,8 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 ### P1 — UI 基础与五模式框架
 - 固定六 Tab 和返回栈；建立 Skin interface/design tokens。
 - 实现模式切换、设置入口、壁纸选择/预览/回退和低性能降级。
-- 先迁移主壳和最常用页面；旧 Web 兼容模式保留。
-- 完成每个 Skin 下的六 Tab 基础布局与无数据/错误/权限状态。
+- 先迁移主壳和最常用页面；旧 Web 兼容模式保留。五种 Skin 均须接入统一 Skin Host 与六 Tab renderer；HUAWEI/iOS 不得只增加选择器枚举，必须提供独立 tokens、真实组件 renderer 和逐页适配。
+- 完成五种 Skin 下的六 Tab 基础布局与无数据/错误/权限状态，并对 HUAWEI/iOS 单独覆盖状态栏、导航栏、返回手势、字体缩放、无障碍、横竖屏和大屏布局。
 
 ### P2 — 来源应用页面全量映射
 - Dia、游龙广告各版本、游龙安全护盾、GKD-XA 分别建立页面映射。
@@ -495,6 +495,8 @@ Version: FX 1.0.0；versionName=1.0.0、versionCode=10000（先读取 Gradle 核
 A. 老版本网页界面：以游龙工具_10.0.2.apk 的实际 UI 为依据，保留经典交互和兼容桥接；
 B. 原生液态玻璃：FX 默认原生设计，半透明、背景模糊、高光、层次卡片，低性能设备可降级；
 C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现，非小米设备也必须可运行。
+D. HUAWEI HarmonyStyle：在 Android APK 内实现 HarmonyOS 视觉风格 Skin，不得宣称是 HarmonyOS 原生应用。使用 Kotlin + Jetpack Compose 建立独立 HarmonyColorTokens、HarmonyShapeTokens、HarmonyTypographyTokens、HarmonySpacingTokens 和 Harmony Renderer；实现卡片/服务入口层级、宽松留白、统一图标与字号网格、TopBar、BottomBar、Card、ListItem、Dialog、Sheet、Switch、Search、空/加载/错误状态。遵循 WindowInsets、WindowSizeClass、手势返回、深浅色、字体缩放和无障碍；只使用 Android 公共 API，HMS/HarmonyOS 私有能力只能作为可选探测适配器，缺失时必须正常回退。
+E. iOS CupertinoStyle：在 Android APK 内实现 Cupertino 视觉与交互风格，不得宣称是 iOS 原生客户端，也不得调用 Apple 私有 API。建立 CupertinoColorTokens、CupertinoShapeTokens、CupertinoTypographyTokens、CupertinoSpacingTokens 和独立 Renderer；使用 FX 自有 Compose 组件实现 NavigationBar、TabBar、InsetGroupedList、FormRow、Toggle、Alert、ActionSheet、BottomSheet 和层级模糊。遵循公开 Apple Human Interface Guidelines 的交互原则；SF Symbols、字体及系统资源必须使用合法授权替代资源，不得打包未经许可的 Apple 资产。不得声称获得 iOS 权限、后台生命周期或 Network Extension 能力。
 五种模式只切换 Presentation，不复制业务逻辑、服务、数据、权限和配置。设置里提供模式切换、壁纸、主题、模糊、遮罩、动效和预览。
 
 壁纸：系统 Photo Picker/SAF 选图、预览裁剪、缩放定位、模糊/遮罩、浅深色适配、URI 持久授权、失效回退、重启升级恢复、本地清除。壁纸不能影响 VPN/过滤/证书/Hook 服务。
@@ -507,6 +509,16 @@ C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现�
 3. 隐私：迁移现有 FX 隐私功能和游龙安全护盾所有页面/功能；Root、模块、LSPosed 隐藏/兼容按应用配置、真实状态回读、可撤销；不保证绝对隐身，不破坏系统安全。
 4. Hook：广告 Hook、Dia 功能、GKD-XA 功能、应用更新 Hook、VPN/隐私检测、开屏广告、用户授权的位置模拟和自定义规则；所有执行通道 Root/LSPosed/Accessibility 分开报告真实状态。VIP 只实现合法会员功能和用户自有应用测试，不得伪造付费资格或绕过授权。
 5. 脚本与规则：多生态真实执行，目标包括 Surge、Quantumult X、Loon、Shadowrocket、Stash、Egern、Surfboard、Clash/Mihomo、sing-box、Tampermonkey/Violentmonkey/Greasemonkey UserScript；过滤规则支持 AdGuard、uBlock Origin、Adblock Plus、Hosts、PAC、DNS blocklist、CIDR/IP/domain 和 URL Rewrite。建立 QuickJS 等 runtime、平台 API adapter、parser/validator/serializer 和逐版本兼容矩阵。6. 网络内核：必须内置至少一个经过测试的默认内核，并支持 sing-box、Mihomo、Xray-core、V2Fly/v2ray-core、dae、Leaf、Brook 等候选内核/引擎适配，以及用户上传/自定义内核导入、校验、能力探测、切换、更新、回滚。Hysteria 2、TUIC、VLESS/VMess、Trojan、Shadowsocks、SOCKS、HTTP(S) 等作为协议能力逐内核登记，不得误列为独立内核。网络内核 Provider 与脚本 Runtime 分离。MITM 脚本接入所选内核真实 TLS hook；浏览器 UserScript/扩展按浏览器真实 API 实现；提供沙箱、权限、超时、取消、日志、导入导出。
+
+【HUAWEI 与 iOS Skin 的强制实施细则】
+- 不得把两种新模式只写进需求文档或只加模式按钮。必须实际修改 FxUiMode.kt、FxDesignModePanel.kt、FxNativeAppShell.kt/统一 Skin Host，以及六 Tab 页面 renderer。
+- 为 HUAWEI 与 iOS 分别建立稳定 storage ID（建议 huawei、ios），兼容未知/旧 ID 回退；模式状态只能由统一 FxUiMode 读写，禁止页面各自保存主题。
+- HUAWEI：建立 Harmony*Tokens 与 Harmony*Renderer/组件适配层；覆盖 TopBar、BottomBar、卡片、列表、表单、弹窗、Sheet、搜索、空态、加载态、错误态；适配华为 Android 设备与非华为 Android 设备。不得依赖 HMS 私有 API 才能启动，不复制未授权华为系统图标/资源。
+- iOS：建立 Cupertino*Tokens 与 Cupertino*Renderer/组件适配层；覆盖导航栏、TabBar、InsetGroupedList、FormRow、Toggle、Alert、ActionSheet、BottomSheet；按公开 HIG 实现交互细节。不得依赖 Apple 私有 API，不得将 Android Skin 描述为 iOS 客户端，不得使用未经授权的 SF Symbols/字体/系统资源。
+- 五种模式必须共享同一业务状态、ViewModel/Repository、数据库、权限和服务生命周期。换肤不得停止/重启 VPN、Root 内核级代理、DNS、Hosts、Hook、Frida 或脚本运行时。
+- 五种模式必须逐页适配六个 Tab；禁止只让主壳换色而内部页面仍使用同一套默认 Material 控件就声称完成。
+- 增加 FxUiMode 单测、稳定 ID/旧值迁移测试、renderer 路由回归、六 Tab 覆盖回归；加入截图或 UI 自动化测试。验证需分层记录：静态检查、单测、Gradle 编译、UI 自动化、华为/非华为 Android 设备、iOS 风格视觉验收。真实 iOS 客户端不属于当前 Android APK 交付范围。
+- 当前源码已知只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三种模式模型/渲染分支；HUAWEI 与 iOS 仍为待实现，不得因需求文档已有章节就标记源码完成。
 
 【架构要求】
 - Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle 五种 skin。
@@ -522,7 +534,7 @@ C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现�
 
 【执行顺序】
 P0：恢复最新仓库状态、源码证据和 APK 10.0.2 UI/壁纸映射。
-P1：六 Tab + 三 Skin 架构 + 模式切换 + 壁纸功能。
+P1：六 Tab + 五 Skin 架构（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle）+ 模式切换 + 壁纸功能。
 P2：Dia/游龙各版本/安全护盾/GKD 页面与功能矩阵，按完整页面组迁移。
 P3：DNS/Hosts/广告过滤多层真实链路和共享 TUN。
 P4：VPN 节点/规则/DNS/防泄漏/MITM/证书/脚本 runtime。
