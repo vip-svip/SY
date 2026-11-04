@@ -188,7 +188,7 @@ shutil.copy2(legacy_arrays, modern / "res/values/arrays.xml")
 
 gradle = repo / "adhook/app/build.gradle"
 g = gradle.read_text(encoding="utf-8")
-g = g.replace("minSdk 28", "minSdk 27")
+# Keep minSdk/targetSdk in Gradle defaultConfig; do not rewrite the app's SDK floor.
 if "de.robv.android.xposed:api:82" not in g:
     g = g.replace("compileOnly 'io.github.libxposed:api:101.0.1'",
                   "compileOnly 'io.github.libxposed:api:101.0.1'\n    compileOnly 'de.robv.android.xposed:api:82'")
@@ -228,12 +228,11 @@ application_node.set(ANDROID + "usesCleartextTraffic", "false")
 if application_node.get(ANDROID + "theme") is None:
     application_node.set(ANDROID + "theme", "@android:style/Theme.Material.Light.NoActionBar")
 
+# AGP 9 rejects <uses-sdk> in the application manifest. The single source
+# of truth for minSdk/targetSdk is adhook/app/build.gradle defaultConfig.
 uses_sdk = manifest_root.find("uses-sdk")
-if uses_sdk is None:
-    uses_sdk = ET.Element("uses-sdk")
-    manifest_root.insert(0, uses_sdk)
-uses_sdk.set(ANDROID + "minSdkVersion", "27")
-uses_sdk.set(ANDROID + "targetSdkVersion", "34")
+if uses_sdk is not None:
+    manifest_root.remove(uses_sdk)
 
 query_permission = "android.permission.QUERY_ALL_PACKAGES"
 if not any(node.get(ANDROID + "name") == query_permission
