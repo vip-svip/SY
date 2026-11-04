@@ -255,18 +255,50 @@ set_pkg(){
 }
 BOOT_SCRIPT=/data/adb/service.d/stellar.sh
 FX_PACKAGE=de.privacyguard.adhook
+DROP_PREFS_FILE=/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml
+
+read_drop_privileges(){
+  [ ! -L "$DROP_PREFS_FILE" ] || { echo "drop_privileges settings path is a symlink" >&2; return 34; }
+  if [ ! -e "$DROP_PREFS_FILE" ]; then echo 0; return 0; fi
+  [ -f "$DROP_PREFS_FILE" ] || { echo "drop_privileges settings path is not a regular file" >&2; return 34; }
+  if grep -Fq 'name="drop_privileges"' "$DROP_PREFS_FILE"; then
+    if grep -Eq '<boolean name="drop_privileges" value="true"[[:space:]]*/>' "$DROP_PREFS_FILE"; then echo 1; return 0; fi
+    if grep -Eq '<boolean name="drop_privileges" value="false"[[:space:]]*/>' "$DROP_PREFS_FILE"; then echo 0; return 0; fi
+    echo "drop_privileges setting is malformed; refusing launcher startup" >&2
+    return 34
+  else
+    rc=$?
+    [ "$rc" -eq 1 ] || { echo "cannot read drop_privileges settings" >&2; return 34; }
+    echo 0
+    return 0
+  fi
+}
+
+find_native_helper(){
+  wanted=$1
+  result=""
+  for candidate in "$apk_dir"/lib/*/"$wanted"; do
+    [ -f "$candidate" ] && [ ! -L "$candidate" ] && [ -x "$candidate" ] || continue
+    result="$candidate"
+    break
+  done
+  [ -n "$result" ] || return 1
+  printf '%s\n' "$result"
+}
+
 boot_script(){
   action="$1"
   case "$action" in
     status)
+      drop_privileges=$(read_drop_privileges) || return $?
       if [ -f "$BOOT_SCRIPT" ] && [ ! -L "$BOOT_SCRIPT" ] && [ -x "$BOOT_SCRIPT" ] \
           && grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$BOOT_SCRIPT"; then
-        echo "success=1 boot_script=installed path=$BOOT_SCRIPT"
+        echo "success=1 boot_script=installed drop_privileges=$drop_privileges path=$BOOT_SCRIPT"
       elif [ -f "$BOOT_SCRIPT" ] && [ ! -L "$BOOT_SCRIPT" ] \
           && grep -Fq 'pm path com.youlong.hd' "$BOOT_SCRIPT"; then
-        echo "success=1 boot_script=legacy path=$BOOT_SCRIPT"
+        echo "success=1 boot_script=legacy drop_privileges=$drop_privileges path=$BOOT_SCRIPT"
       elif [ ! -e "$BOOT_SCRIPT" ]; then
-        echo "success=1 boot_script=absent path=$BOOT_SCRIPT"
+        echo "success=1 boot_script=absent drop_privileges=$drop_privileges path=$BOOT_SCRIPT"
       else
         echo "boot script exists but is not recognized; refusing to treat it as FX-managed" >&2
         return 33
@@ -280,16 +312,19 @@ boot_script(){
         return 21
       }
       apk_dir=${apk_path%/base.apk}
-      found=""
-      for candidate in "$apk_dir"/lib/*/libstellar.so; do
-        [ -f "$candidate" ] && [ -x "$candidate" ] || continue
-        found="$candidate"
-        break
-      done
+      drop_privileges=$(read_drop_privileges) || return $?
+      found=$(find_native_helper libstellar.so) || found=""
       [ -n "$found" ] || {
         echo "FX Hook libstellar.so is missing or not executable; boot script was not installed" >&2
         return 22
       }
+      if [ "$drop_privileges" = 1 ]; then
+        chid=$(find_native_helper libchid.so) || chid=""
+        [ -n "$chid" ] || {
+          echo "drop_privileges is enabled but FX Hook libchid.so is missing or not executable; boot script was not installed" >&2
+          return 23
+        }
+      fi
       mkdir -p /data/adb/service.d || return 23
       [ ! -L /data/adb/service.d ] || {
         echo "service.d is a symlink; refusing to write boot script" >&2
@@ -310,6 +345,7 @@ boot_script(){
 # FX_STELLAR_BOOT_SCRIPT_V1
 # Wait for Android's package manager and boot properties, but never block
 # the service.d runner indefinitely if the boot sequence is incomplete.
+DROP_PREFS_FILE=/data/user_de/0/de.privacyguard.adhook/shared_prefs/settings.xml
 LOG=/data/local/tmp/fx_stellar_boot.log
 exec >> "$LOG" 2>&1
 echo "[FX Stellar] boot script started"
@@ -324,13 +360,44 @@ APK_PATH=$(pm path de.privacyguard.adhook 2>/dev/null | sed -n '1s/^package://p'
 APK_DIR=${APK_PATH%/base.apk}
 LIB=""
 for CANDIDATE in "$APK_DIR"/lib/*/libstellar.so; do
-  [ -f "$CANDIDATE" ] && [ -x "$CANDIDATE" ] || continue
+  [ -f "$CANDIDATE" ] && [ ! -L "$CANDIDATE" ] && [ -x "$CANDIDATE" ] || continue
   LIB="$CANDIDATE"
   break
 done
 [ -n "$LIB" ] || { echo "[FX Stellar] executable libstellar.so was not found"; exit 21; }
-echo "[FX Stellar] launching $LIB"
-"$LIB"
+DROP_PRIVILEGES=0
+if [ -L "$DROP_PREFS_FILE" ]; then
+  echo "[FX Stellar] drop_privileges settings path is a symlink; refusing startup"
+  exit 34
+elif [ -e "$DROP_PREFS_FILE" ]; then
+  [ -f "$DROP_PREFS_FILE" ] || { echo "[FX Stellar] drop_privileges settings is not a regular file"; exit 34; }
+  if grep -Fq 'name="drop_privileges"' "$DROP_PREFS_FILE"; then
+    if grep -Eq '<boolean name="drop_privileges" value="true"[[:space:]]*/>' "$DROP_PREFS_FILE"; then
+      DROP_PRIVILEGES=1
+    elif grep -Eq '<boolean name="drop_privileges" value="false"[[:space:]]*/>' "$DROP_PREFS_FILE"; then
+      DROP_PRIVILEGES=0
+    else
+      echo "[FX Stellar] drop_privileges setting is malformed; refusing startup"
+      exit 34
+    fi
+  else
+    rc=$?
+    [ "$rc" -eq 1 ] || { echo "[FX Stellar] cannot read drop_privileges setting"; exit 34; }
+  fi
+fi
+echo "[FX Stellar] launching $LIB drop_privileges=$DROP_PRIVILEGES"
+if [ "$DROP_PRIVILEGES" = 1 ]; then
+  CHID=""
+  for CANDIDATE in "$APK_DIR"/lib/*/libchid.so; do
+    [ -f "$CANDIDATE" ] && [ ! -L "$CANDIDATE" ] && [ -x "$CANDIDATE" ] || continue
+    CHID="$CANDIDATE"
+    break
+  done
+  [ -n "$CHID" ] || { echo "[FX Stellar] drop_privileges is enabled but libchid.so is missing; refusing root fallback"; exit 22; }
+  "$CHID" 2000 "$LIB"
+else
+  "$LIB"
+fi
 RESULT=$?
 echo "[FX Stellar] launcher exited with code $RESULT"
 exit "$RESULT"
