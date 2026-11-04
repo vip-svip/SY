@@ -61,6 +61,9 @@ printf 'iptables %s\n' "$*" >> "$MOCK_RULE_LOG"
 [ "${1:-}" = -t ] && [ "${2:-}" = nat ] || exit 64
 case "${3:-}" in
   -N|-F|-X|-A) exit 0 ;;
+  -C)
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 64
+    grep -Fxq "${6:-}" "$MOCK_HOOKS4"; exit $? ;;
   -I)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 64
     printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
@@ -77,6 +80,9 @@ printf 'ip6tables %s\n' "$*" >> "$MOCK_RULE_LOG"
 [ "${1:-}" = -t ] && [ "${2:-}" = nat ] || exit 64
 case "${3:-}" in
   -N|-F|-X|-A) exit 0 ;;
+  -C)
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 64
+    grep -Fxq "${6:-}" "$MOCK_HOOKS6"; exit $? ;;
   -I)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 64
     [ "${MOCK_FAIL_IPV6_ATTACH:-0}" = 1 ] && exit 1
@@ -131,6 +137,13 @@ run_proxy(){
     MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
     MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
     "$@" sh "$MOD/scripts/yulong-root-proxy.sh" ensure "$MOD" "$CASE_DIR/state" tun0 10042
+}
+run_status(){
+  CASE_DIR=$1; shift
+  env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" \
+    MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
+    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
+    "$@" sh "$MOD/scripts/yulong-root-proxy.sh" status
 }
 assert_stopped(){
   case_dir=$1
@@ -191,6 +204,21 @@ for line in \
   grep -Fqx "$line" "$CASE_DIR/rules.log" || fail "missing rule: $line"
 done
 [ ! -e "$CASE_DIR/state/yulong-root-proxy.lock" ] || fail "success leaked lock"
+status_out=$(run_status "$CASE_DIR")
+printf '%s\n' "$status_out" | grep -Fqx active=1 || fail "healthy Root Proxy was not reported active"
+printf '%s\n' "$status_out" | grep -Fqx redirects=attached || fail "status did not confirm both redirects"
+printf '%s\n' "$status_out" | grep -Fqx route=verified || fail "status did not revalidate the VPN egress"
+printf '%s\n' "$status_out" | grep -Fqx dns_probe=passed || fail "status did not confirm local DNS health"
+
+# Metadata alone must not be treated as proof of a live redirect.
+: > "$CASE_DIR/hooks4"
+status_out=$(run_status "$CASE_DIR")
+printf '%s\n' "$status_out" | grep -Fqx active=0 || fail "missing IPv4 redirect was reported active"
+printf '%s\n' "$status_out" | grep -Fqx reason=ipv4_redirect_missing || fail "missing IPv4 redirect reason not reported"
+printf '%s\n' FXYRP4_A > "$CASE_DIR/hooks4"
+status_out=$(run_status "$CASE_DIR" MOCK_ROUTE_FAIL=1)
+printf '%s\n' "$status_out" | grep -Fqx active=0 || fail "changed VPN route was reported active"
+printf '%s\n' "$status_out" | grep -Fqx reason=vpn_route_unavailable || fail "unavailable VPN route reason not reported"
 
 for scenario in route route2 package-manager unbound adguard probe route-recheck; do
   prepare_case "$scenario"

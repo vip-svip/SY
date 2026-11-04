@@ -854,3 +854,10 @@ After each implementation batch:
 - Custom Hook group rename and delete now compare each of the 64 per-rule group assignments using the normalized trimmed value, matching the behavior of the group-index loader.
 - This repairs older preference entries where a group name was persisted with leading/trailing whitespace: rename now moves those rules to the normalized new name, and delete moves them to `默认` rather than leaving an orphaned assignment.
 - The rule-group regression now asserts both legacy whitespace cases. This is source/host regression coverage; persistence behavior on a running LSPosed target remains device-pending.
+
+## 2026-11-04 — Root Proxy truthful live-state status
+
+- Replaced the previous metadata-only `status` response. It now takes the shared lifecycle lock and verifies the active metadata, actual FXYRP IPv4/IPv6 OUTPUT chain markers, matching stored egress marker, current interface/IPv4 route and local DNS probe before returning `active=1`.
+- Missing/corrupt markers, changed or unavailable VPN route, a detached v4/v6 redirect, or failed local DNS health now return `active=0` with a machine-readable `reason`. Status is read-only; it does not alter third-party VPN settings, detach rules or silently repair state.
+- Added runtime regressions for a healthy active session, a missing IPv4 redirect while metadata remains, and a VPN route that no longer resolves through the recorded tunnel. The status command must not report either stale case as active.
+- Host simulation only. A live process crash / real Android iptables drift and external-VPN reconnect still require device validation.
