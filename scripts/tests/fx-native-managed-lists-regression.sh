@@ -133,8 +133,9 @@ from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
 for token in ('umask 077', 'set -C', '_nl_read_lock_owner()', '_nl_unlock()',
- 
-              'kill -0', '.stale.$_nl_lock_pid.', 'legacy ownerless managed-list lock',
+              'IFS= read -r _nl_lock_pid _nl_rest < /proc/self/stat',
+              'printf \'%s\\n\' "$_nl_lock_pid" > "$LOCK"',
+              '_nl_lock_pid', 'kill -0', '.stale.$_nl_lock_pid.', 'legacy ownerless managed-list lock',
               'refusing to follow it', 'trap cleanup EXIT',
               'normalize_domain()', 'normalize_value()', 'value_exists()'):
     assert token in s, f"managed list safety invariant missing: {token}"
