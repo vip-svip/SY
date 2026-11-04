@@ -3327,16 +3327,33 @@ public final class MainActivity extends ComponentActivity {
             }
         }
 
+        if (category.equals("首页与防护")
+                && (page.equals("统计") || page.equals("每日防护总结"))) {
+            startActivity(new Intent(this,
+                    de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class));
+            return;
+        }
+        if (category.equals("通用设置")) {
+            startActivity(new Intent(this,
+                    de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class));
+            return;
+        }
+        if (category.equals("日志与诊断")) {
+            if (page.equals("DNS 查询日志")) {
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
+            } else {
+                showNativeRuntimeLogs();
+            }
+            return;
+        }
         if (category.equals("首页与防护") || category.equals("过滤列表与规则")
-                || category.equals("DNS 设置") || category.equals("通用设置")
-                || category.equals("日志与诊断") || category.equals("VPN 与 Root Proxy")) {
+                || category.equals("DNS 设置") || category.equals("VPN 与 Root Proxy")) {
             String targetPage = page;
             if (category.equals("首页与防护")) targetPage = "首页与防护";
             else if (category.equals("过滤列表与规则")) targetPage = "过滤列表";
             else if (category.equals("DNS 设置")) targetPage = "DNS 设置";
             else if (category.equals("VPN 与 Root Proxy")) targetPage = "VPN 与 Root Proxy";
-            else if (category.equals("通用设置")) targetPage = "通用设置";
-            else if (category.equals("日志与诊断")) targetPage = "日志与诊断";
             startActivity(new Intent(this,
                     de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
                     .putExtra("suite_page", targetPage));
