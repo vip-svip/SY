@@ -15,6 +15,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Shared Yulong 9.9.60 foreground/install risk-scan dispatch and notification policy. */
 public final class FxYulongRiskScanDispatcher {
@@ -22,6 +23,7 @@ public final class FxYulongRiskScanDispatcher {
     private static final String CHANNEL = "fx_yulong_auto_risk";
     private static final long PACKAGE_COOLDOWN_MS = 90_000L;
     private static final Object COOLDOWN_LOCK = new Object();
+    private static final AtomicBoolean FULL_SCAN_RUNNING = new AtomicBoolean(false);
 
     private FxYulongRiskScanDispatcher() { }
 
@@ -51,15 +53,9 @@ public final class FxYulongRiskScanDispatcher {
                                  boolean contentScan, Runnable completion) {
         Context app = context.getApplicationContext();
         SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        long now = System.currentTimeMillis();
-        synchronized (COOLDOWN_LOCK) {
-            String key = "auto_risk_scan_last_attempt_" + packageName;
-            long last = prefs.getLong(key, 0L);
-            if (last > 0L && now >= last && now - last < PACKAGE_COOLDOWN_MS) {
-                finish(completion);
-                return;
-            }
-            prefs.edit().putLong(key, now).apply();
+        if (!claimPackage(prefs, packageName)) {
+            finish(completion);
+            return;
         }
 
         FxYulongScanEngine.scanPackage(app, packageName, contentScan, result -> {
@@ -90,6 +86,68 @@ public final class FxYulongRiskScanDispatcher {
                 finish(completion);
             }
         });
+    }
+
+    /** Run the original full installed-app sweep after either Yulong database is refreshed. */
+    public static void onVirusDatabaseUpdated(Context context, boolean contentScan) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean("auto_block_on", true)
+                || !FULL_SCAN_RUNNING.compareAndSet(false, true)) return;
+        FxYulongScanEngine.scan(app, contentScan, result -> {
+            try {
+                int notified = 0;
+                for (FxYulongScanEngine.Finding finding : result.findings) {
+                    if (claimPackage(prefs, finding.packageName)) {
+                        notifyFinding(app, finding, prefs.getString("auto_block_mode", "direct"));
+                        notified++;
+                    }
+                }
+                String status;
+                if (result.databaseEntries <= 0 || result.scanned <= 0) {
+                    status = "全量扫描未形成安全结论：" + result.message;
+                } else if (!result.inventoryComplete) {
+                    status = "全量扫描不完整，不能据此判断所有应用安全；命中 " + result.findings.size() + " 项";
+                } else {
+                    status = "病毒库更新后扫描 " + result.scanned + " 个应用，命中 "
+                            + result.findings.size() + " 项，新提醒 " + notified + " 项"
+                            + (result.contentTruncated ? "（内容扫描达到时间预算）" : "");
+                }
+                recordFullScanResult(prefs, result, status);
+            } catch (Throwable error) {
+                android.util.Log.w("FX-YulongRisk", "full scan result callback failed", error);
+            } finally {
+                FULL_SCAN_RUNNING.set(false);
+            }
+        });
+    }
+
+    private static boolean claimPackage(SharedPreferences prefs, String packageName) {
+        long now = System.currentTimeMillis();
+        synchronized (COOLDOWN_LOCK) {
+            String key = "auto_risk_scan_last_attempt_" + packageName;
+            long last = prefs.getLong(key, 0L);
+            if (last > 0L && now >= last && now - last < PACKAGE_COOLDOWN_MS) return false;
+            prefs.edit().putLong(key, now).apply();
+            return true;
+        }
+    }
+
+    private static void recordFullScanResult(SharedPreferences prefs,
+                                             FxYulongScanEngine.Result result, String status) {
+        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date());
+        String oldDay = prefs.getString("automatic_scan_day", "");
+        int scans = today.equals(oldDay) ? prefs.getInt("automatic_scan_count_today", 0) : 0;
+        int findings = today.equals(oldDay) ? prefs.getInt("automatic_scan_findings_today", 0) : 0;
+        prefs.edit()
+                .putString("automatic_scan_day", today)
+                .putInt("automatic_scan_count_today", scans + Math.max(0, result.scanned))
+                .putInt("automatic_scan_findings_today", findings + result.findings.size())
+                .putString("automatic_scan_last_result", status)
+                .putString("automatic_scan_last_package", "全部已安装应用")
+                .putString("automatic_scan_last_time", DateFormat.getDateTimeInstance().format(new Date()))
+                .apply();
     }
 
     private static void recordResult(SharedPreferences prefs, String packageName,
