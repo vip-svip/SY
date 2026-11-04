@@ -239,3 +239,10 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 2. Yulong Shield: current Stellar manager is an FX-local Root-backed scoped controller, not the original asynchronous IStellarService/StellarProvider Binder daemon. Full Binder readiness/request/confirmation/response/log transport, original multi-mode remediation and complete rescue overlay parity remain open.
 3. Dia: Frida server/Gadget host lifecycle and page routes are source-integrated, but Android LSPosed/Gadget runtime is still device-pending. The original full class-loader/method/native interception and built-in HTTP/SQL/algorithm monitoring parity is not established by editable Frida templates alone.
 4. Run the current source regression + Gradle APK build from one exact HEAD; only after all source migrations and acceptance gates close may the paired FX Hook APK + KernelSU ZIP be built. Keep OnePlus 12 / KernelSU / LSPosed verification explicitly pending until real device evidence exists.
+
+
+## Dia editor correction — JavaScript stays JavaScript
+
+- The shared full-screen Sora editor now accepts an explicit source-language extra. The original Java editor keeps the bundled Java tokenizer; the Frida caller selects JavaScript mode and no longer applies Java token highlighting to JS source.
+- The current APK only bundles Sora core plus language-java. In JS mode the editor deliberately remains in Sora's default plain-text language and labels that mode honestly; source save/return limits and the 0x3039-compatible result contract are unchanged. A future grammar module is not claimed as included.
+- Regression coverage checks both language paths and confirms that only the Java path installs JavaLanguage.

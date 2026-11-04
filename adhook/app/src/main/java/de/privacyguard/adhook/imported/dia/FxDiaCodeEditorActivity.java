@@ -29,6 +29,7 @@ import io.github.rosemoe.sora.widget.CodeEditor;
 public final class FxDiaCodeEditorActivity extends Activity {
     public static final int RESULT_CODE_EDITOR = 0x3039;
     public static final String EXTRA_CODE = "code";
+    public static final String EXTRA_LANGUAGE = "language";
 
     private static final int MAX_SOURCE_BYTES = 48 * 1024;
     private static final int EDITOR_VIEW_ID = 0x00f3039;
@@ -93,13 +94,17 @@ public final class FxDiaCodeEditorActivity extends Activity {
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(3), dp(8), dp(3));
         header.addView(button("‹ 返回", this::onBackPressed));
-        TextView title = text("Dia · Java 代码编辑器", 17, 0xff17212b, true);
+        boolean javascriptMode = "javascript".equalsIgnoreCase(
+                getIntent() == null ? "" : getIntent().getStringExtra(EXTRA_LANGUAGE));
+        TextView title = text(javascriptMode ? "Dia · JavaScript 脚本编辑器" : "Dia · Java 代码编辑器",
+                17, 0xff17212b, true);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         header.addView(button("保存并返回", this::saveAndReturn));
         root.addView(header);
 
-        TextView note = text(
-                "原版 CodeEditorActivity 的原生编辑页。保存只将代码回传上一页，不会自动执行。",
+        TextView note = text(javascriptMode
+                ? "Frida JavaScript 脚本编辑模式。当前 APK 只内置 Java 语法模块，因此脚本使用纯文本编辑；保存只回传，不会自动执行。"
+                : "原版 CodeEditorActivity 的 Java 原生编辑页。保存只将代码回传上一页，不会自动执行。",
                 12, 0xff617080, false);
         note.setPadding(dp(12), dp(3), dp(12), dp(7));
         root.addView(note);
@@ -108,7 +113,9 @@ public final class FxDiaCodeEditorActivity extends Activity {
         editor.setId(EDITOR_VIEW_ID);
         editor.setSaveEnabled(false);
         editor.setText(source);
-        editor.setEditorLanguage(new JavaLanguage());
+        // Sora defaults to EmptyLanguage. Keep Frida JavaScript as source text
+        // instead of applying the Java tokenizer to a different language.
+        if (!javascriptMode) editor.setEditorLanguage(new JavaLanguage());
         root.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
 

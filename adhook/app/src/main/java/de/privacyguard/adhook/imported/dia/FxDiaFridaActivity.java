@@ -622,6 +622,7 @@ public final class FxDiaFridaActivity extends Activity {
         }
         Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
+        intent.putExtra(FxDiaCodeEditorActivity.EXTRA_LANGUAGE, "javascript");
         try {
             startActivityForResult(intent, REQUEST_CODE_FULL_EDITOR);
             setStatus("已打开 Dia 全屏代码编辑器；代码只有在保存返回后才会更新到当前脚本。");
