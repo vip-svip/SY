@@ -249,7 +249,10 @@ public final class MainActivity extends ComponentActivity {
                 JSONObject state = new JSONObject(status.output.trim());
                 currentMode = state.optString("vpn_mode", "direct");
                 node = state.optString("vpn_node", "");
-                boolean live = state.optBoolean("vpn_on", false);
+                if (!state.optBoolean("root_proxy_known", false))
+                    throw new IllegalStateException("Root Proxy 状态不可用，未切换快捷模式");
+                boolean live = state.optBoolean("vpn_on", false)
+                        || state.optBoolean("root_proxy_on", false);
                 if (live && !"direct".equals(currentMode)) {
                     getSharedPreferences("fx_vpn_shortcut", MODE_PRIVATE).edit()
                             .putString("last_non_direct_mode", currentMode).apply();
@@ -2397,7 +2400,8 @@ public final class MainActivity extends ComponentActivity {
     private String nativeVpnRootCommand(String action, String value) {
         String module = "MP=; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do [ -f \"$d/module.prop\" ] && { MP=\"$d\"; break; }; done; [ -n \"$MP\" ] || exit 20; ";
         String util = ". \"$MP/scripts/util.sh\" || exit 21; ";
-        if ("status".equals(action)) return module + "sh \"$MP/scripts/status.sh\"";
+        if ("status".equals(action)) return module
+                + "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard status";
         if ("mode".equals(action)) {
             String mode = shellQuote(value);
             return module + util
@@ -2577,7 +2581,10 @@ public final class MainActivity extends ComponentActivity {
                     org.json.JSONObject state = new org.json.JSONObject(result.output.trim());
                     String mode = state.optString("vpn_mode", "direct");
                     lastNativeVpnMode = mode;
-                    boolean liveOn = state.optBoolean("vpn_on", false);
+                    if (!state.optBoolean("root_proxy_known", false))
+                        throw new IllegalStateException("Root Proxy 状态不可用");
+                    boolean rootProxyOn = state.optBoolean("root_proxy_on", false);
+                    boolean liveOn = state.optBoolean("vpn_on", false) || rootProxyOn;
                     String modeLabel = "direct".equals(mode) ? "直连"
                             : "global".equals(mode) ? "全局"
                             : "rule".equals(mode) ? "规则"
@@ -2585,7 +2592,8 @@ public final class MainActivity extends ComponentActivity {
                     syncingNativeVpn = true;
                     nativeVpnSwitch.setChecked(!"direct".equals(mode) && liveOn);
                     syncingNativeVpn = false;
-                    String live = "direct".equals(mode) ? "直连：未接管流量"
+                    String live = rootProxyOn ? "第三方 VPN / Root DNS 保护正在运行"
+                            : "direct".equals(mode) ? "直连：未接管流量"
                             : liveOn ? "status.sh 确认：代理正在运行"
                             : "已保存代理模式，但后端尚未确认运行";
                     String node = state.optString("vpn_node", "");

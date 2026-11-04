@@ -38,12 +38,14 @@ public final class FxYulongVpnTileService extends TileService {
     private static final class VpnState {
         final boolean running;
         final String mode;
-        VpnState(boolean running, String mode) {
+        final boolean rootProxy;
+        VpnState(boolean running, String mode, boolean rootProxy) {
             this.running = running;
             this.mode = mode;
+            this.rootProxy = rootProxy;
         }
         boolean protectedNow() {
-            return running && !"direct".equals(mode);
+            return rootProxy || (running && !"direct".equals(mode));
         }
     }
 
@@ -66,10 +68,14 @@ public final class FxYulongVpnTileService extends TileService {
             JSONObject status = new JSONObject(result.output.trim());
             Object runningValue = status.opt("vpn_on");
             Object modeValue = status.opt("vpn_mode");
-            if (!(runningValue instanceof Boolean) || !(modeValue instanceof String)) return null;
+            Object rootProxyValue = status.opt("root_proxy_on");
+            Object rootProxyKnownValue = status.opt("root_proxy_known");
+            if (!(runningValue instanceof Boolean) || !(modeValue instanceof String)
+                    || !(rootProxyValue instanceof Boolean) || !Boolean.TRUE.equals(rootProxyKnownValue))
+                return null;
             String mode = ((String) modeValue).trim();
             if (!Arrays.asList(MODES).contains(mode)) return null;
-            return new VpnState((Boolean) runningValue, mode);
+            return new VpnState((Boolean) runningValue, mode, (Boolean) rootProxyValue);
         } catch (Exception invalidStatus) {
             return null;
         }
@@ -78,6 +84,7 @@ public final class FxYulongVpnTileService extends TileService {
     private String describe(VpnState state) {
         if (state == null) return "Root 状态不可用";
         if (!state.protectedNow()) return "直连 · VPN 已关闭";
+        if (state.rootProxy) return "保护中 · 第三方 VPN / Root DNS";
         switch (state.mode) {
             case "global": return "保护中 · 全局模式";
             case "rule": return "保护中 · 规则模式";

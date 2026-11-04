@@ -22,6 +22,18 @@ if "\\$" in runtime_text:
     raise SystemExit("Yulong Root Proxy contains escaped shell variable references")
 target.chmod(0o755)
 
+# The published module archive is restored before this patcher runs. Re-stage
+# the canonical controller so Tile, Widget and Tasker share Root Proxy-aware
+# start/stop/status behavior rather than carrying an older release copy.
+vpn_control_source = repo / "scripts/yulong-vpn-control.sh"
+vpn_control_target = module / "scripts/yulong-vpn-control.sh"
+if not vpn_control_source.is_file() or vpn_control_source.stat().st_size < 5000:
+    raise SystemExit("canonical Yulong VPN controller source is missing or incomplete")
+vpn_control_target.parent.mkdir(parents=True, exist_ok=True)
+if vpn_control_source.resolve() != vpn_control_target.resolve():
+    shutil.copy2(vpn_control_source, vpn_control_target)
+vpn_control_target.chmod(0o755)
+
 def replace_once(path, old, new, label):
     text = path.read_text(encoding="utf-8")
     count = text.count(old)

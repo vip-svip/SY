@@ -47,30 +47,40 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         final boolean hasNode;
         final String mode;
         final String detail;
+        final boolean rootProxy;
 
-        VpnState(boolean valid, boolean running, boolean hasNode, String mode, String detail) {
+        VpnState(boolean valid, boolean running, boolean hasNode, String mode, String detail,
+                 boolean rootProxy) {
             this.valid = valid;
             this.running = running;
             this.hasNode = hasNode;
             this.mode = mode == null ? "direct" : mode;
             this.detail = detail == null ? "" : detail;
+            this.rootProxy = rootProxy;
         }
+        boolean protectedNow() { return running || rootProxy; }
     }
 
     private static VpnState readState() {
         RootAccess.Result result = RootAccess.execute(shell("status"), 30000L, 256 * 1024);
         if (result.exitCode != 0 || result.output == null) {
             return new VpnState(false, false, false, "direct",
-                    result.output == null ? "Root 状态不可用" : result.output.trim());
+                    result.output == null ? "Root 状态不可用" : result.output.trim(), false);
         }
         try {
             org.json.JSONObject json = new org.json.JSONObject(result.output.trim());
+            Object proxyOn = json.opt("root_proxy_on");
+            Object proxyKnown = json.opt("root_proxy_known");
+            if (!(proxyOn instanceof Boolean) || !Boolean.TRUE.equals(proxyKnown)) {
+                return new VpnState(false, false, false, "direct",
+                        "Root Proxy 状态不可用，拒绝显示网络保护已关闭", false);
+            }
             return new VpnState(true, json.optBoolean("vpn_on", false),
                     !json.optString("vpn_node", "").isEmpty(),
-                    json.optString("vpn_mode", "direct"), "");
+                    json.optString("vpn_mode", "direct"), "", (Boolean) proxyOn);
         } catch (Exception invalid) {
             return new VpnState(false, false, false, "direct",
-                    "status.sh 返回无效状态：" + invalid.getClass().getSimpleName());
+                    "status.sh 返回无效状态：" + invalid.getClass().getSimpleName(), false);
         }
     }
 
@@ -83,7 +93,7 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
                     updateViews(app, readState(), "");
                 } catch (Throwable failure) {
                     updateViews(app, new VpnState(false, false, false, "direct",
-                            failure.getClass().getSimpleName()), "");
+                            failure.getClass().getSimpleName(), false), "");
                 } finally {
                     REFRESH_PENDING.set(false);
                 }
@@ -104,12 +114,15 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         if (!state.valid) {
             status = "VPN 状态不可用";
             button = "刷新状态";
+        } else if (state.rootProxy) {
+            status = "网络保护已启用 · 第三方 VPN / Root DNS";
+            button = "停止防护";
         } else if (state.running) {
             status = "VPN 已启用 · " + state.mode;
             button = "停止 VPN";
         } else if ("direct".equals(state.mode)) {
-            status = "直连 · VPN 已关闭";
-            button = "启动 VPN";
+            status = "直连 · 网络保护已关闭";
+            button = "启动防护";
         } else {
             status = "已配置 " + state.mode + " · 后端未运行";
             button = "重试启动";
@@ -157,7 +170,7 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
             pending = goAsync();
         } catch (RuntimeException unavailable) {
             TOGGLE_PENDING.set(false);
-            updateViews(context, new VpnState(false, false, false, "direct", "无法启动后台任务"), "");
+            updateViews(context, new VpnState(false, false, false, "direct", "无法启动后台任务", false), "");
             return;
         }
 
@@ -169,14 +182,14 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
                         updateViews(context, current, "Root 状态不可用，未更改");
                         return;
                     }
-                    String operation = current.running ? "stop" : "start";
+                    String operation = current.protectedNow() ? "stop" : "start";
                     RootAccess.Result result = RootAccess.execute(shell(operation), 150000L, 512 * 1024);
                     VpnState actual = readState();
                     updateViews(context, actual, result.exitCode == 0 ? ""
                             : "操作失败（退出码 " + result.exitCode + "）");
                 } catch (Throwable failure) {
                     updateViews(context, new VpnState(false, false, false, "direct",
-                            failure.getClass().getSimpleName()), "VPN 操作失败，未确认状态");
+                            failure.getClass().getSimpleName(), false), "VPN 操作失败，未确认状态");
                 } finally {
                     TOGGLE_PENDING.set(false);
                     pending.finish();
@@ -185,7 +198,7 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         } catch (RejectedExecutionException full) {
             TOGGLE_PENDING.set(false);
             try {
-                updateViews(context, new VpnState(false, false, false, "direct", "后台任务繁忙"), "请稍后重试");
+                updateViews(context, new VpnState(false, false, false, "direct", "后台任务繁忙", false), "请稍后重试");
             } finally {
                 pending.finish();
             }

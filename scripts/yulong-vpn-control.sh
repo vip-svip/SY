@@ -26,8 +26,28 @@ export MP PG
 LOCK="$PG/yulong-vpn-control.lock"
 LOG="$PG/yulong-vpn-control.log"
 LOCK_HELD=0
-status_json() { sh "$MP/scripts/status.sh"; }
-is_running() { printf '%s' "$1" | grep -Eq '"vpn_on"[[:space:]]*:[[:space:]]*true'; }
+status_json() {
+  _fx_status=$(sh "$MP/scripts/status.sh") || return $?
+  case "$_fx_status" in
+    *\}) _fx_status=${_fx_status%\}} ;;
+    *) echo "status.sh returned invalid JSON" >&2; return 1 ;;
+  esac
+  _fx_root_proxy_on=false
+  _fx_root_proxy_known=false
+  if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
+    _fx_root_proxy_status=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || {
+      echo "Root Proxy status is unavailable; refusing to mutate an unknown network route" >&2
+      return 1
+    }
+    _fx_root_proxy_known=true
+    printf '%s\n' "$_fx_root_proxy_status" | grep -Fqx 'active=1' && _fx_root_proxy_on=true
+  fi
+  printf '%s,"root_proxy_on":%s,"root_proxy_known":%s}\n' \
+    "$_fx_status" "$_fx_root_proxy_on" "$_fx_root_proxy_known"
+}
+is_vpn_running() { printf '%s' "$1" | grep -Eq '"vpn_on"[[:space:]]*:[[:space:]]*true'; }
+is_root_proxy_running() { printf '%s' "$1" | grep -Eq '"root_proxy_on"[[:space:]]*:[[:space:]]*true'; }
+is_running() { is_vpn_running "$1" || is_root_proxy_running "$1"; }
 mode_from_status() { printf '%s' "$1" | sed -n 's/.*"vpn_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'; }
 lock_acquire() {
   n=0
@@ -101,13 +121,58 @@ restore_mode() {
   pg_set vpn_mode "$prior" >/dev/null 2>&1 || return 1
   apply_mode "$prior"
 }
+try_root_proxy_without_node() {
+  [ -x "$MP/scripts/yulong-root-proxy.sh" ] || return 1
+  [ "$(pg_get vpn_external_compat 0 2>/dev/null || echo 0)" = "1" ] || return 1
+  [ "$(pg_get dns_forward 1 2>/dev/null || echo 1)" = "1" ] || return 1
+
+  _prior_mode=$(pg_get vpn_mode direct 2>/dev/null || echo direct)
+  _prior_proxy=$(pg_get vpn_external_dns_proxy 1 2>/dev/null || echo 1)
+  case "$_prior_mode" in
+    direct) _target_mode=global ;;
+    global|rule|tun) _target_mode=$_prior_mode ;;
+    *) return 1 ;;
+  esac
+
+  # External VPN owns Android's VPN slot. Use the FX Root Proxy only when the
+  # user explicitly enabled compatibility and the live route/DNS probes pass.
+  pg_set vpn_external_dns_proxy 1 || return 1
+  pg_set vpn_mode "$_target_mode" || {
+    pg_set vpn_external_dns_proxy "$_prior_proxy" >/dev/null 2>&1 || :
+    return 1
+  }
+  if ! apply_mode "$_target_mode"; then
+    pg_set vpn_mode "$_prior_mode" >/dev/null 2>&1 || :
+    pg_set vpn_external_dns_proxy "$_prior_proxy" >/dev/null 2>&1 || :
+    apply_mode "$_prior_mode" >/dev/null 2>&1 || :
+    return 1
+  fi
+  _after=$(status_json 2>/dev/null || true)
+  if is_root_proxy_running "$_after"; then
+    echo "root_proxy_started=1"
+    echo "vpn_mode=$_target_mode"
+    return 0
+  fi
+  # Do not leave a phantom enabled route if the external VPN/DNS proof failed.
+  pg_set vpn_mode "$_prior_mode" >/dev/null 2>&1 || :
+  pg_set vpn_external_dns_proxy "$_prior_proxy" >/dev/null 2>&1 || :
+  apply_mode "$_prior_mode" >/dev/null 2>&1 || echo "Root Proxy fallback rollback apply failed" >> "$LOG"
+  return 1
+}
 start_vpn() {
   lock_acquire || return $?
   old_mode=$(pg_get vpn_mode direct 2>/dev/null || echo direct)
-  state=$(status_json 2>/dev/null || true)
+  if ! state=$(status_json 2>/dev/null); then
+    echo "VPN_STATUS_UNAVAILABLE: route status could not be verified; no change was applied" >&2
+    return 35
+  fi
   if is_running "$state"; then echo "vpn_already_running=1"; return 0; fi
   node=$(pg_get vpn_node "" 2>/dev/null || true)
-  [ -n "$node" ] || { echo "VPN_NO_NODE_SELECTED: select a VPN node before starting" >&2; return 32; }
+  if [ -z "$node" ]; then
+    if try_root_proxy_without_node; then return 0; fi
+    echo "VPN_NO_NODE_SELECTED: select an FX node, or enable third-party VPN Root Proxy compatibility in DNS settings" >&2
+    return 32
+  fi
   case "$old_mode" in
     direct) target=global ;;
     global|rule|tun) target=$old_mode ;;
@@ -119,7 +184,11 @@ start_vpn() {
     echo "VPN_START_APPLY_FAILED: previous route mode restored" >&2
     return 1
   fi
-  state=$(status_json 2>/dev/null || true)
+  if ! state=$(status_json 2>/dev/null); then
+    restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN rollback apply failed after status read error" >> "$LOG"
+    echo "VPN_START_NOT_CONFIRMED: route status is unavailable after apply" >&2
+    return 33
+  fi
   actual_mode=$(mode_from_status "$state")
   if [ "$actual_mode" != "$target" ] || ! is_running "$state"; then
     restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN rollback apply failed" >> "$LOG"
@@ -132,7 +201,10 @@ start_vpn() {
 stop_vpn() {
   lock_acquire || return $?
   old_mode=$(pg_get vpn_mode direct 2>/dev/null || echo direct)
-  state=$(status_json 2>/dev/null || true)
+  if ! state=$(status_json 2>/dev/null); then
+    echo "VPN_STATUS_UNAVAILABLE: route status could not be verified; no change was applied" >&2
+    return 35
+  fi
   if [ "$old_mode" = "direct" ] && ! is_running "$state"; then
     echo "vpn_already_stopped=1"
     return 0
@@ -143,7 +215,11 @@ stop_vpn() {
     echo "VPN_STOP_APPLY_FAILED: previous route mode restored" >&2
     return 1
   fi
-  state=$(status_json 2>/dev/null || true)
+  if ! state=$(status_json 2>/dev/null); then
+    restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN rollback apply failed after status read error" >> "$LOG"
+    echo "VPN_STOP_NOT_CONFIRMED: route status is unavailable after apply" >&2
+    return 34
+  fi
   actual_mode=$(mode_from_status "$state")
   if [ "$actual_mode" != "direct" ] || is_running "$state"; then
     restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN rollback apply failed" >> "$LOG"
@@ -157,7 +233,10 @@ case "$CMD" in
   start) start_vpn ;;
   stop) stop_vpn ;;
   toggle)
-    state=$(status_json 2>/dev/null || true)
+    state=$(status_json 2>/dev/null) || {
+      echo "VPN_STATUS_UNAVAILABLE: toggle refused to mutate an unknown route" >&2
+      exit 35
+    }
     if is_running "$state"; then stop_vpn; else start_vpn; fi
     ;;
   *) echo "usage: $0 MODULE_DIR STATE_DIR {status|start|stop|toggle}" >&2; exit 64 ;;

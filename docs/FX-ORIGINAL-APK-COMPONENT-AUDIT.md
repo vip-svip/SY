@@ -149,3 +149,8 @@ The original `AdBlockTileService` detects whether `AdBlockVpnService` or `RootPr
 ## 2026-11-04 — BootReceiver vendor QuickBoot intent parity
 
 The original Yulong Shield BootReceiver listens to Android BOOT_COMPLETED, MY_PACKAGE_REPLACED, `android.intent.action.QUICKBOOT_POWERON` and HTC `com.htc.intent.action.QUICKBOOT_POWERON`. FX's boot receiver and manifest now accept all four. Its startup remains limited to persisted user-enabled Shield services and validates overlay permission before restoring the optional overlay. Volume-key rescue is handled independently by the user-enabled accessibility `onKeyEvent` path, not by starting a foreground monitor. Host source regression is included; vendor-device broadcast delivery is pending.
+
+
+## 2026-11-04 — Unified VPN and third-party Root DNS protection status
+
+The canonical Yulong compatibility controller now exposes one status for both the FX-owned VpnService and the separately validated external-VPN Root Proxy. A no-FX-node start is allowed only when third-party VPN compatibility and DNS forwarding are explicitly enabled; it then relies on Root Proxy's existing interface, VPN-owner UID, route and local DNS probes. Failed proof restores the previous VPN mode and compatibility preference. Unknown Root Proxy status blocks start/stop/toggle rather than being treated as inactive. The Yulong VPN Quick Settings tile, original home-screen widget, Tasker receiver and FX VPN dashboard consume the shared status. This remains host-source regression evidence until Actions, APK build and Android device checks complete.

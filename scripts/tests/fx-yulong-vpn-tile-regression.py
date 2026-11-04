@@ -36,6 +36,8 @@ for token in (
     'vpnCommand(action)',
     '"vpn_on"',
     '"vpn_mode"',
+    '"root_proxy_on"',
+    '"root_proxy_known"',
     "Tile.STATE_ACTIVE",
     "Tile.STATE_INACTIVE",
     "Tile.STATE_UNAVAILABLE",
