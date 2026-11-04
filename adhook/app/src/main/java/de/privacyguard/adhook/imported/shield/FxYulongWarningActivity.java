@@ -25,6 +25,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
     private static final String WHITELIST_KEY = "whitelist_pkgs";
     private static final int MAX_PACKAGE_NAME = 255;
     private static final int MAX_WHITELIST_CHARS = 1024 * 1024;
+    private static final String STATE_SCROLL_Y = "fx_yulong_warning_scroll_y";
 
     private String packageName = "";
     private String appLabel = "";
@@ -33,6 +34,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
     private TextView packageState;
     private Button addWhitelistButton;
     private Button uninstallButton;
+    private ScrollView warningScroll;
     private boolean targetInstalled;
 
     private int dp(float value) {
@@ -82,13 +84,13 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        warningScroll = new ScrollView(this);
+        warningScroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(14), dp(8), dp(14), dp(20));
-        scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        warningScroll.addView(body);
+        root.addView(warningScroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         String severityLabel;
         int severityColor;
@@ -124,7 +126,16 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         body.addView(button("稍后处理", this::finish));
 
         setContentViewWithNativeTabs(root, 5);
+        if (state != null) {
+            final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            warningScroll.post(() -> warningScroll.scrollTo(0, restoreY));
+        }
         refreshTargetAvailability();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        if (warningScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, warningScroll.getScrollY()));
+        super.onSaveInstanceState(outState);
     }
 
     @Override protected void onResume() {
