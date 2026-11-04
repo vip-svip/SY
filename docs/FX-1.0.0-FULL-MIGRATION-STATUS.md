@@ -748,3 +748,12 @@ After each implementation batch:
 - A SHA-256 digest catches transport/file corruption before decryption; GCM authentication rejects wrong passwords or modified ciphertext. The passphrase is not persisted in SharedPreferences or the backup file.
 - Local JSON, GitHub Contents and HTTPS WebDAV uploads all use the same encrypted envelope. Restore paths decrypt before inspecting the inner FX-DIA backup and continue to verify the embedded settings/Stellar file hashes.
 - Legacy `FX-DIA-BACKUP-1` JSON remains importable for compatibility, but it was not encrypted and may contain readable VPN credentials; users should re-export it in the new encrypted format.
+
+## 2026-11-04 — Managed Hosts list backend validation repair
+
+- Removed an accidentally duplicated function tail after the CLI case terminator; latest Actions had stopped at a POSIX shell syntax error on line 262 before executing this regression.
+- Domain/block values now pass the same LF, control-byte, separator and AWK-escape checks as subscription values before normalization. This prevents command substitution from silently trimming a trailing newline into a valid domain.
+- Failed mutations now reconcile with the apply mode used by that mutation (full for subscription/rule changes; fast for allow/block domain changes).
+- The CLI `apply [full|fast]` branch is now reachable before managed-list ID resolution; the default remains full.
+- The regression now asserts the checked-in module backend matches the source backend, covers LF inside notes and trailing-LF values, rejects backslash-based AWK escape payloads and invalid subscription edits, and checks rollback/apply mode behavior.
+- The current module-tree backend is synchronized from the source implementation. CI must still complete successfully after this repair. No APK/KernelSU ZIP or real-device test is claimed.

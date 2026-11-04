@@ -2,8 +2,11 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SCRIPT="$ROOT/scripts/native-managed-lists.sh"
+PACKAGED="$ROOT/fx-module/scripts/native-managed-lists.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SCRIPT" ] || fail "native managed list backend missing"
+[ -s "$PACKAGED" ] || fail "packaged managed list backend missing"
+cmp -s "$SCRIPT" "$PACKAGED" || fail "packaged managed list backend is stale"
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/fx-native-managed-lists.XXXXXX")
 cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT HUP INT TERM
@@ -54,7 +57,19 @@ if run add ruleList ftp://invalid.example/list Invalid >/dev/null 2>&1; then fai
 if run add unknownList value note >/dev/null 2>&1; then fail "unknown list id was accepted"; fi
 if run add domainList 'bad|value' note >/dev/null 2>&1; then fail "separator injection was accepted"; fi
 if run add blockList "line
-break" note >/dev/null 2>&1; then fail "control-character injection was accepted"; fi
+break" note >/dev/null 2>&1; then fail "control-character value was accepted"; fi
+if run add blockList good-note.example "line
+break" >/dev/null 2>&1; then fail "newline in note was accepted"; fi
+if run add domainList "trailing-newline.example
+" note >/dev/null 2>&1; then fail "trailing newline in domain was accepted"; fi
+if run add domainList backslash.example 'literal\x0a payload' >/dev/null 2>&1; then fail "AWK escape in note was accepted"; fi
+
+before_invalid_edit=$(sha256sum "$CONF" | awk '{print $1}')
+if run edit ruleList 2 ftp://invalid.example/filter.txt Invalid 1 >/dev/null 2>&1; then
+  fail "non-HTTP subscription edit was accepted"
+fi
+after_invalid_edit=$(sha256sum "$CONF" | awk '{print $1}')
+[ "$before_invalid_edit" = "$after_invalid_edit" ] || fail "invalid subscription edit changed settings.conf"
 
 run edit ruleList 2 https://edited.example/filter.txt Edited 1 >/dev/null
 list=$(run list ruleList)
@@ -86,6 +101,11 @@ fi
 after=$(sha256sum "$CONF" | awk '{print $1}')
 [ "$before" = "$after" ] || fail "failed apply did not restore prior settings.conf"
 [ ! -e "$LOCK" ] || fail "lock was not released after rollback"
+tail -n 1 "$APPLY_LOG" | grep -qx full || fail "rule rollback did not reconcile with full apply"
+run apply >/dev/null
+tail -n 1 "$APPLY_LOG" | grep -qx full || fail "default apply command did not select full mode"
+run apply fast >/dev/null
+tail -n 1 "$APPLY_LOG" | grep -qx fast || fail "explicit fast apply command did not select fast mode"
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
