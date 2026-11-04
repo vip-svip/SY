@@ -16,6 +16,10 @@ assert "runOnUiThread(() -> {" in refresh, "results must return to the UI thread
 assert "generation != refreshGeneration.get()" in refresh, "stale refresh results must be discarded"
 assert "refreshTask.cancel(true)" in source and "worker.shutdownNow()" in source, \
     "Activity destruction must cancel work and close the executor"
+assert "new ArrayBlockingQueue<>(1)" in source, "refresh queue must have a strict one-task bound"
+assert "new ThreadPoolExecutor.AbortPolicy()" in source, "refresh overload must reject rather than accumulate unbounded work"
+assert "RejectedExecutionException rejected" in refresh, "queue saturation must be surfaced"
+assert "Executors.newSingleThreadExecutor()" not in source, "unbounded executor remains"
 assert 'private static String bytes(long v)' in source
 assert '"\\n累计接收（按唯一 UID）：" + bytes(totals.getRxBytes())' in source, \
     "summary must use a real newline and disclose unique-UID aggregation"

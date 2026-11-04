@@ -18,8 +18,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +28,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Per-application cumulative UID traffic counters, independent of VPN and DNS. */
 public final class FxYulongAppStatsActivity extends Activity {
     private final List<Row> data = new ArrayList<>();
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "fx-yulong-app-stats"));
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> { Thread t = new Thread(r, "fx-yulong-app-stats"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
     private final AtomicInteger refreshGeneration = new AtomicInteger();
     private Future<?> refreshTask;
     private volatile boolean destroying;
@@ -160,7 +164,7 @@ public final class FxYulongAppStatsActivity extends Activity {
             });
         } catch (RejectedExecutionException rejected) {
             if (!destroying && !isFinishing() && !isDestroyed()) {
-                summary.setText("后台统计任务已关闭，请重新打开页面。");
+                summary.setText("后台统计队列繁忙，本次刷新未提交；当前统计结果保持不变，请稍后重试。");
             }
         }
     }
