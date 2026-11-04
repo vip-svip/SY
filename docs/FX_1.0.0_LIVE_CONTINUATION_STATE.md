@@ -1771,3 +1771,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `474749b65b61f96ebddf6a03664aadab17ec3397` — 回归断言。
 - 静态验证：最新 MainActivity 与 `fx-hook-native-ui-regression.sh` 确认 Root 请求代次、旧线程中断、过时代次丢弃、Activity 销毁取消和分组返回链锚点均存在。未执行完整 Shell/Python 回归、Gradle 编译、Android UI 自动化、模拟器、Root 权限/竞态故障注入或真机验证。
 - 下一步：检查逐应用 LSPosed 作用域刷新请求是否也存在过期回调覆盖、请求超时后状态悬挂；然后核对三种授权（Root/LSPosed/Accessibility）在 Hook Hub 与目标详情页的状态文案一致性。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook LSPosed 作用域异步回调过期保护
+
+- 本批起始实时 HEAD：`78567966113edd224be56e9a566483a982b5a52d`；编辑期间并行工作线推进，已基于更新后的 MainActivity SHA 顺序重放，保留并行提交。
+- 发现目标应用页的 LSPosed 作用域申请和移除回调没有与页面/目标包绑定：用户切换目标、离开页面或触发更新的状态刷新后，较晚返回的 Binder 回调仍可能覆盖旧 TextView；移除线程也不是 daemon。
+- 修改 `MainActivity.java`：
+  - 申请、移除操作启动时递增共享 `hookTargetScopeGeneration`，回调只在代次仍有效时更新 UI。
+  - 新增 `isCurrentHookScopeOperation`，同时检查 Activity 生命周期、代次、当前 TextView 实例、当前目标包、选中包和 View 附着状态。
+  - 申请成功/失败、移除成功/失败以及同步异常均使用同一有效性检查；申请成功后再触发最新状态读取。
+  - 移除工作线程设为 daemon，避免页面关闭后非关键线程滞留进程。
+  - 旧状态读取本身已有代次/目标包/View 检查，继续保留；不把作用域批准误报成目标进程已注入。
+- 提交：
+  - `06a64f5fc5a06fbe52832e617bb61d0b332b23bf` — `fix(hook): ignore stale LSPosed scope operation callbacks`。
+  - `bdf289305edea28d6d5c1eb370a85894abc08912` — `test(hook): cover stale LSPosed scope callbacks`。
+- 验证等级：从最新分支读取 MainActivity 和 Hook Native UI 回归脚本；静态断言确认请求/移除回调代次保护、目标包与 View 实例校验、daemon worker，以及测试脚本新增断言。未执行 Shell 回归、Gradle 编译、LSPosed Binder 真机批准/移除或页面切换竞态测试。
+- 未完成：仍需检查 Hook Hub 的 Remote Files 状态刷新和 Accessibility 状态刷新是否存在旧页面回调；随后优先进入 UI 页面覆盖率更高的 Dia Frida 管理主页面/编辑器批次，而不是继续无止境修边缘状态。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
