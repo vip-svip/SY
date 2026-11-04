@@ -2938,3 +2938,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 验证：已从同一分支 MainActivity 逐条核对 8 个断言目标全部存在；此提交用于触发 targeted Hook Host 回归，尚未把静态对照记为通过。
 - 下一步：读取 Actions 首个失败并按真实源码修正；通过后转到 Dia 页面导航/返回链，之后完成 Shield 列表页搜索/筛选状态回归。
+
+
+## 2026-11-05 — Shield 白名单大列表分页
+
+- WhitelistActivity 原先会把全部匹配条目一次性创建为 View；白名单策略允许最多 10,000 项，可能导致 UI 卡顿。
+- 已改为每批 50 行并提供加载更多；搜索回到第一页；保存/恢复页码、查询和滚动位置；名单缩减时页码夹到有效范围。
+- 恢复状态时先 setText(query)，再恢复页码，避免 TextWatcher 将保存页码重置为 1。
+- 改动：WhitelistActivity.java；fx-yulong-shield-native-regression.sh。
+- 提交：59eb23e68297f42d0c947b5749676e95f0d00ffe；fa6f412a37b78309bda48108021e3ea70daf67ec；2f7d3ff50447a13fa117f88412ce583da916598a。
+- 验证：Shield Host 定向回归 run 41914246428 SUCCESS；未执行 Android UI 自动化或真机旋转/滚动验收。
+- 未完成：白名单排序/过滤仍在 UI 线程；黑名单已加入列表缺少搜索。下一步为黑名单列表搜索与分页状态恢复，再继续 Hook/Dia 页面组。固定 FX 1.0.0，不打最终包。
