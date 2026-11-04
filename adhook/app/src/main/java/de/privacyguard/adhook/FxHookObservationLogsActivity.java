@@ -1,6 +1,5 @@
 package de.privacyguard.adhook;
 
-import android.app.Activity;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -23,7 +22,7 @@ import java.util.concurrent.RejectedExecutionException;
  * It reads only bounded logcat entries matching the FX-owned observer tag and
  * exact target package; no user-provided text is ever interpolated into shell.
  */
-public final class FxHookObservationLogsActivity extends Activity {
+public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
     public static final String EXTRA_TARGET_PACKAGE = "fx_hook_observation_target_package";
     public static final String EXTRA_TARGET_LABEL = "fx_hook_observation_target_label";
     private static final int ROOT_OUTPUT_LIMIT = 64 * 1024;
@@ -175,7 +174,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         outputView.setPadding(dp(12), dp(8), dp(12), dp(18));
         scroll.addView(outputView);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 4);
         scroll.post(() -> scroll.scrollTo(0, restoredScrollY));
 
         search.addTextChangedListener(new TextWatcher() {
