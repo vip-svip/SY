@@ -709,3 +709,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原有 Activity Browser 功能和权限边界保留；未更改固定版本 1.0.0、未触发完整 Actions、未生成 APK/KernelSU ZIP。
 - 下一批直接任务：① Dia 设备属性 / GPS 页面组，对照 per-app 表单保存键、Root/Remote Files 发布字段和 API-101 consumer，重点检查 Android ID、时区、应用版本、GPS 坐标/accuracy、provider enabled 与 Fused Location 回调是否一一对应；② 随后核对 Dialog 专用工具，不能把通知读取/阻断 Hook 当作 Dialog 自动处理；③ 对照原页面与现有 Activity，只补确实尚未实现的表单/详情/返回链。
 - 并行工作线：设备模拟字段和 Hook config serializer/runtime consumer 可以独立只读检查；涉及 MainActivity 统一按当前 blob 顺序整合。
+
+
+## 2026-11-05 — Dia 设备模拟配置发布范围收紧
+
+- 本批代码提交：
+  - `283216a8b97059f2ddadd39762466d5286c88eb9` — MainActivity 发布配置时，对 GPS 坐标模拟、GPS provider 状态模拟、Android ID 与时区模拟统一增加目标应用 `FLAG_DEBUGGABLE` 约束。
+  - `ce3a91d11defd59e9cb0d26400caf47f426e94a6` — 新增 `scripts/tests/fx-dia-device-simulation-scope-regression.sh`。
+- 修复原因：此前 UI 会对非 debuggable 目标禁用这些控件，但发布配置的序列化路径没有对历史残留 SharedPreferences 再次检查目标标志；应用升级后若移除 debuggable，旧配置仍可能被写入模块配置。现在发布端也执行同一边界检查，旧偏好保留但不再下发。
+- 定向验证：新增脚本检查四个发布开关均受 `FLAG_DEBUGGABLE` 约束。该脚本已提交；本会话未在本地仓库运行它，也未运行 Android/Gradle 编译、安装或真机测试。
+- 未改变配置键、GPS 坐标范围、目标应用偏好数据或 FX 1.0.0 版本号；未生成 APK/KernelSU ZIP，未触发整套 Actions。
+- 已知限制：这是发布端范围保护，不代表 GPS/Fused Location 各 API overload 已在真机覆盖验证。
+- 下一批立即任务：对照原 Dia Dialog 页面与现有通知 Hook 区分能力，核对原始 Dialog 专用处理是否存在实际执行器；若未迁移，按真实执行能力实现页面或明确标记未支持，禁止增加无后端开关。随后回到 Hook 自定义规则格式与执行适配器对照。
+
+
+- 当前分支实时 HEAD（追加状态后待复核）：`ce3a91d11defd59e9cb0d26400caf47f426e94a6`。
