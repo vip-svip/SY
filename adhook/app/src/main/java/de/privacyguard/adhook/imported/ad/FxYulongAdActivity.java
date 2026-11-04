@@ -40,9 +40,13 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
          TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
          r -> new Thread(r, "fx-yulong-ad-ui"), new ThreadPoolExecutor.AbortPolicy());
  private LinearLayout body,entries; private TextView status; private EditText search;
+ private ScrollView pageScroll;
+ private int pendingPageScrollY;
+ private boolean pendingPageScrollRestore;
  private String page="首页与防护",snapshot="";
  private static final String STATE_PAGE="fx_yulong_ad_page";
  private static final String STATE_DRAFTS="fx_yulong_ad_drafts";
+ private static final String STATE_SCROLL_Y="fx_yulong_ad_scroll_y";
  private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();
   private LinearLayout proxyWhitelistRows;
   private TextView proxyWhitelistStatus;
@@ -148,11 +152,13 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   if(b!=null){
    page=b.getString(STATE_PAGE,"首页与防护");
    pendingRestoredDrafts=b.getBundle(STATE_DRAFTS);
+   pendingPageScrollY=Math.max(0,b.getInt(STATE_SCROLL_Y,0));
+   pendingPageScrollRestore=true;
   }else{
    page=getIntent().getStringExtra("suite_page");
    if(page==null)page="首页与防护";
   }
-  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
+  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));pageScroll.addView(body);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
  @Override protected void onSaveInstanceState(Bundle out){
   out.putString(STATE_PAGE,page);
   Bundle drafts=new Bundle();
@@ -161,6 +167,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
    drafts.putString(entry.getKey(),field.getText()==null?"":field.getText().toString());
   }
   out.putBundle(STATE_DRAFTS,drafts);
+  if(pageScroll!=null)out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));
   super.onSaveInstanceState(out);
  }
  private void render(){trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("配置档",()->open("保护配置档")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
@@ -776,7 +783,16 @@ private void saveVpnDns(String key,EditText input){
   });
  }
  private void renderLogs(){card("运行日志","显示 FX 当前模块日志，不将全局日志冒充原版逐应用统计。");root("logs",r->card("FX 日志","本机启动与过滤记录",txt(safe(r.output),11,0xff526170,false)));}
- private void load(){root("list",r->{if(r.exitCode!=0){status.setText("读取失败："+safe(r.output));return;}snapshot=r.output==null?"":r.output;status.setText("已读取设备端 FX 配置。");bind();});}
+ private void load(){root("list",r->{if(r.exitCode!=0){status.setText("读取失败："+safe(r.output));restorePageScrollIfNeeded();return;}snapshot=r.output==null?"":r.output;status.setText("已读取设备端 FX 配置。");bind();restorePageScrollIfNeeded();});}
+ private void restorePageScrollIfNeeded(){
+  if(!pendingPageScrollRestore||pageScroll==null)return;
+  final int y=pendingPageScrollY;
+  pageScroll.post(()->{
+   if(isFinishing()||isDestroyed()||!pendingPageScrollRestore||pageScroll==null)return;
+   pageScroll.scrollTo(0,y);
+   pendingPageScrollRestore=false;
+  });
+ }
  private List<Row> rows(String kind){List<Row> out=new ArrayList<>();for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length>=4&&kind.equals(p[0]))out.add(new Row(p[0],p[1],p[2],"1".equals(p[3])));}return out;}
  private void bind(){if(snapshot.isEmpty())return;
   if("首页与防护".equals(page)){
@@ -921,7 +937,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   });
  }
 
- private void open(String p){page=p;render();bind();}
+ private void open(String p){page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();bind();}
   private boolean isTrustedNetworkPageCurrent(TextView target) {
     return target != null && target == trustedNetworkStatus
             && "信任的网络".equals(page) && !isFinishing() && !isDestroyed();
