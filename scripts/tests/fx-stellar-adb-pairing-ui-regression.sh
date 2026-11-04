@@ -99,6 +99,11 @@ grep -Fq 'onSaveInstanceState(Bundle out)' "$PAIRING" || fail "ADB discovery mod
 grep -Fq 'discovery.isStarted()' "$PAIRING" || fail "only a live discovery session may be auto-resumed after recreation"
 grep -Fq 'startConnectDiscovery(operationGeneration.get())' "$PAIRING" || fail "post-pair connect discovery mode is not restored"
 grep -Fq 'restoreSelectedDeviceIfMatching(device)' "$PAIRING" || fail "saved target must be reselected only after fresh mDNS resolution"
+grep -Fq 'interruptedPairingOnRestore = saved.getBoolean("pairing_was_active", false)' "$PAIRING" || fail "interrupted pairing state must be remembered"
+grep -Fq 'interruptedPairingOnRestore ?' "$PAIRING" || fail "resumed scan must retain the interrupted-pairing notice"
+grep -Fq '(restoredSelectionPending ? restoredServiceName : "")' "$PAIRING" || fail "pending target must survive repeated Activity recreation"
+grep -Fq 'restoredSelectionPending = false;' "$PAIRING" || fail "manual device selection must cancel pending auto-selection"
+grep -Fq 'restoredServiceName = "";' "$PAIRING" || fail "manual device selection must forget the previous target"
 grep -Fq 'if (saved.getBoolean("pairing_was_active", false))' "$PAIRING" || fail "interrupted pairing must be disclosed after recreation"
 grep -Fq 'AdbPairingActivity.class' "$SECURE" || fail "Stellar secure-settings screen has no ADB pairing entry"
 
