@@ -160,8 +160,9 @@ for name in ("showImportedSuite", "showImportedSuiteCategory", "openImportedSuit
     assert name in main, f"3rd/4th-level navigation missing: {name}"
 # Dia pages must route to their matching native feature surface. General FX
 # privacy groups are not substitutes for Dia's target-specific editors or tools.
-for panel in ("notifyPanel", "sensorPanel", "netPanel"):
-    assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia feature has lost its matching native settings panel: {panel}"
+assert 'case "通知监听与权限提示":' in main and 'showAppList("通知保护")' in main, "Dia notification page must open the per-app notification policy editor"
+assert 'case "传感器":' in main and 'showNativeSettingsGroup("sensorPanel"' in main, "Dia sensor page must open the native sensor panel"
+assert 'case "网络与代理":' in main and 'showNativeSettingsGroup("netPanel"' in main, "Dia network page must open the native network panel"
 assert 'case "设备属性":' in main and 'showAppList("设备标识模拟")' in main, \
     "Dia device identity must open the per-target identity editor, not a global device panel"
 hub = shield["FxYulongShieldActivity.java"]
