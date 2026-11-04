@@ -2987,3 +2987,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-dia-dialog-native-regression.sh`。
 - 验证：已对照 MainActivity 保存回调第 6184–6188 行；修复后 Actions 待执行。此前失败导致该脚本之后的 Wi-Fi、VPN、Dia SAF/Frida 脚本尚未在该 run 中执行。
 - 下一步：读取新 Actions 首错；继续完成 Dia 原生页面组与 SAF 导入严格 UTF-8 校验；Host 回归不代表 Android Gradle/JUnit/真机验收。
+
+
+## 2026-11-05 — Dia Dialog / ActivityKey 文案断言对齐
+
+- 失败 Actions：`41914822688`（HEAD `d5f0a7673e233bb6fb11e573fdac0a6bc6d8e178`），Hook 原生 UI、Dia 六 Tab、Hook literal/group drafts 均通过；随后 `fx-dia-dialog-native-regression.sh` 在 ActivityKey UI 文案断言失败。
+- 根因：测试期待旧文案“需要先有有效的 debuggable Dialog 规则”，当前原生 UI 已更新为“需要先配置有效的 debuggable Dialog 规则。”，语义一致但字面不同。
+- 修复：测试断言更新为当前 UI 文案，不改产品文案或安全条件。
+- 改动路径：`scripts/tests/fx-dia-dialog-native-regression.sh`。
+- 验证：已对照 `MainActivity.showDiaKeyControlTarget()` 确认该文案在无有效 Debug Dialog 规则时触发；等待下一次 Actions。
