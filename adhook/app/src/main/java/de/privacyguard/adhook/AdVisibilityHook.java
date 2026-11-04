@@ -11,6 +11,7 @@ import android.app.Instrumentation;
 import android.app.Application;
 import de.privacyguard.hook.DiaFridaGadgetLoader;
 import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
+import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import dalvik.system.DexFile;
@@ -26,6 +27,7 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
@@ -155,6 +157,11 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
     private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
     private final Set<String> debuggablePackages = ConcurrentHashMap.newKeySet();
+    private final Set<String> diaKeyGesturePackages = ConcurrentHashMap.newKeySet();
+    private final Map<String, Boolean> diaKeyDialogActive = new ConcurrentHashMap<>();
+    private final FxDiaKeyGesturePolicy diaKeyGesturePolicy = new FxDiaKeyGesturePolicy();
+    private volatile boolean diaKeyGestureDispatchHookInstalled;
+    private volatile boolean diaKeyGestureLongPressHookInstalled;
     // Settings.Secure.getString is process-global. Register one interceptor per process;
     // adding one per package would stack transforms when a process exposes multiple packages.
     private volatile boolean privacyIdentifierHookInstalled;
@@ -277,6 +284,19 @@ public final class AdVisibilityHook extends XposedModule {
                 | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
         if (debuggableTarget) debuggablePackages.add(pkg);
         else debuggablePackages.remove(pkg);
+        final boolean keyGestureForPackage = target != null && !systemTarget
+                && (target.keyFinishTrigger >= 0 || target.keyDialogToggleTrigger >= 0);
+        if (keyGestureForPackage) {
+            diaKeyGesturePackages.add(pkg);
+            if (target.keyDialogToggleTrigger >= 0) {
+                diaKeyDialogActive.putIfAbsent(pkg, target.dialogMatchEnabled);
+            } else {
+                diaKeyDialogActive.remove(pkg);
+            }
+        } else {
+            diaKeyGesturePackages.remove(pkg);
+            diaKeyDialogActive.remove(pkg);
+        }
         // Custom Hook is explicitly enabled per app and restricted to debuggable builds.
         // OBSERVE records metadata; RETURN_* actions are local Debug fixtures only.
         // They never grant production authorization or modify server-side entitlements.
@@ -327,12 +347,13 @@ public final class AdVisibilityHook extends XposedModule {
         // manually crafted Remote Files entry contains a Toast opt-in.
         final boolean toastFilterForPackage = !systemTarget && target != null
                 && target.toastFilterEnabled && !target.toastTextTerms.isEmpty();
-        if (!adsForPackage && !dialogMatchForPackage && !toastFilterForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
+        if (!adsForPackage && !dialogMatchForPackage && !toastFilterForPackage && !keyGestureForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage || dialogMatchForPackage) installAdViewHooks();
         if (dialogMatchForPackage) installDiaDialogWindowHooks();
         if (toastFilterForPackage) installDiaToastHooks();
+        if (keyGestureForPackage) installDiaKeyGestureHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
         if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
@@ -2072,10 +2093,119 @@ private boolean targetDeveloperOptIn(String packageName) {
         }
     }
 
+    private UnifiedHookConfigParser.Target diaKeyGestureRulesFor(String packageName) {
+        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
+                || !diaKeyGesturePackages.contains(packageName)) return null;
+        UnifiedHookConfigParser.Target target = targets.get(packageName);
+        return target == null || (target.keyFinishTrigger < 0 && target.keyDialogToggleTrigger < 0)
+                ? null : target;
+    }
+
+    private void handleDiaKeyGesture(Activity activity, String packageName, int trigger) {
+        UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
+        if (target == null) return;
+        if (target.keyFinishTrigger == trigger) {
+            logFx(Log.INFO, "dia-key-action package=" + packageName
+                    + " action=finish-activity trigger=" + trigger);
+            activity.finish();
+        }
+        if (target.keyDialogToggleTrigger == trigger) {
+            boolean current = Boolean.TRUE.equals(diaKeyDialogActive.get(packageName));
+            boolean next = !current;
+            diaKeyDialogActive.put(packageName, next);
+            logFx(Log.INFO, "dia-key-action package=" + packageName
+                    + " action=dialog-rule-toggle enabled=" + next + " trigger=" + trigger);
+            try {
+                Toast.makeText(activity, next ? "FX Dialog 规则已恢复" : "FX Dialog 规则已暂停",
+                        Toast.LENGTH_SHORT).show();
+            } catch (Throwable failure) {
+                logFx(Log.DEBUG, "Dia key action feedback unavailable: "
+                        + failure.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private synchronized void installDiaKeyGestureHooks() {
+        if (!diaKeyGestureDispatchHookInstalled) {
+            try {
+                Method dispatch = Activity.class.getDeclaredMethod("dispatchKeyEvent", KeyEvent.class);
+                hook(dispatch).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    try {
+                        Object receiver = chain.getThisObject();
+                        Object argument = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                        if (receiver instanceof Activity && argument instanceof KeyEvent) {
+                            Activity activity = (Activity) receiver;
+                            KeyEvent event = (KeyEvent) argument;
+                            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                                String packageName = activity.getPackageName();
+                                UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
+                                if (target != null) {
+                                    List<Integer> triggers = diaKeyGesturePolicy.onKeyDown(
+                                            event.getKeyCode(), event.getEventTime(), event.getRepeatCount());
+                                    for (Integer trigger : triggers) {
+                                        handleDiaKeyGesture(activity, packageName, trigger);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable failure) {
+                        // Key remapping is opt-in and must never prevent native key dispatch.
+                        logFx(Log.DEBUG, "Activity.dispatchKeyEvent gesture failed open: "
+                                + failure.getClass().getSimpleName());
+                    }
+                    return chain.proceed();
+                });
+                diaKeyGestureDispatchHookInstalled = true;
+            } catch (Throwable failure) {
+                logFx(Log.WARN, "Activity.dispatchKeyEvent key hook unavailable: "
+                        + failure.getClass().getSimpleName());
+            }
+        }
+        if (!diaKeyGestureLongPressHookInstalled) {
+            try {
+                Method longPress = Activity.class.getDeclaredMethod("onKeyLongPress",
+                        int.class, KeyEvent.class);
+                hook(longPress).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    try {
+                        Object receiver = chain.getThisObject();
+                        List<Object> args = chain.getArgs();
+                        if (receiver instanceof Activity && args.size() >= 1
+                                && args.get(0) instanceof Integer
+                                && ((Integer) args.get(0)) == KeyEvent.KEYCODE_BACK) {
+                            Activity activity = (Activity) receiver;
+                            String packageName = activity.getPackageName();
+                            UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
+                            if (target != null) {
+                                for (Integer trigger : diaKeyGesturePolicy.onLongPress(
+                                        (Integer) args.get(0))) {
+                                    handleDiaKeyGesture(activity, packageName, trigger);
+                                }
+                            }
+                        }
+                    } catch (Throwable failure) {
+                        logFx(Log.DEBUG, "Activity.onKeyLongPress gesture failed open: "
+                                + failure.getClass().getSimpleName());
+                    }
+                    return chain.proceed();
+                });
+                diaKeyGestureLongPressHookInstalled = true;
+            } catch (Throwable failure) {
+                logFx(Log.WARN, "Activity.onKeyLongPress key hook unavailable: "
+                        + failure.getClass().getSimpleName());
+            }
+        }
+        if (diaKeyGestureDispatchHookInstalled || diaKeyGestureLongPressHookInstalled) {
+            logFx(Log.INFO, "Dia ActivityKey hooks installed dispatch="
+                    + diaKeyGestureDispatchHookInstalled + ", longPress="
+                    + diaKeyGestureLongPressHookInstalled);
+        }
+    }
+
     private UnifiedHookConfigParser.Target dialogRulesFor(String packageName) {
         if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
                 || !debuggablePackages.contains(packageName)) return null;
         UnifiedHookConfigParser.Target target = targets.get(packageName);
+        if (Boolean.FALSE.equals(diaKeyDialogActive.get(packageName))) return null;
         if (target == null || !target.dialogMatchEnabled
                 || (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())) return null;
         return target;
