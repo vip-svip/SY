@@ -3443,3 +3443,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：将 `FxNativeAppShell` 加入 Dia 原生页面回归映射，并在该映射内明确运行 `fx-dia-six-tab-regression.sh`。不会放宽 Host 测试，也不会让共享壳改动绕过回归。
 - Workflow 提交：`760e3f9280861f4e0f88d0188f5457b3f7b48722`。
 - 下一步：读取新 Actions；若六 Tab regression 通过，再继续 MainActivity 主壳 edge-to-edge/软键盘状态；否则按新首错定位。
+
+
+## 2026-11-05 — Frida Gadget session regression Python 引号语法修复
+
+- Actions `41919397802` 的首错发生在 `fx-dia-frida-gadget-session-regression.sh` Python here-doc 第 77 行：新增“状态检查只读”断言中的双引号/反斜杠转义使 Python 解析失败，尚未执行该脚本后续产品断言。
+- 修复：改用单引号 Python 字符串表达 `kill "$` 搜索片段，避免双引号与反斜杠嵌套。没有删除只读状态检查。
+- 测试提交：`ef0d4b38442dbb129d0a3e3edab1813814d5ec06`。
+- 下一步：读取新 Actions；同时复核 `FxNativeAppShell.kt` 的六 Tab inset 变更是否通过映射后的专用回归。当前仅有源码/测试静态检查，未做 Android 视觉与真机验收。
