@@ -3481,3 +3481,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Actions `41919397802` and `41919533754` failed before completing the Gadget session regression because a duplicated Python assertion block had been appended after the first complete shell fixture; the duplicate contained malformed shell syntax.
 - Restored the original full source-contract checks and local process/UID/FIFO lifecycle fixture, retaining a single copy. No fixture behavior or product code was removed.
 - Repair commit: `b9b130309ee808533dd47e15c58db268618269de`. Targeted Actions pending.
+
+
+## 2026-11-05 — Frida session 与六 Tab 回归断言对齐
+
+- Actions `41919894854` 首错：会话日志线程池回归的 Python 正则把括号/空白转义成双反斜杠，导致正则本身无法编译；已改成单层正则转义，仍检查单线程、单项队列和 `ThreadPoolExecutor` 构造。修复提交：`a3d0ad3a2eb13aca86faf54b28339a2570d89a7e`。
+- Actions `41919804590` 首错：六 Tab 页面路由测试仍要求 `FxDiaFridaActivity` 启动 `FxDiaScriptLibraryActivity.class`，但当前真实实现把脚本库原生界面集成在 Frida Activity 内，由 `showFridaScriptLibrary()` 打开。已把断言改为检查用户可见入口按钮和原生实现方法，保留页面功能验证。修复提交：`c88ff46b6cb4e2b0dc3fd094d96e4b61488357cb`。
+- 说明：两项都是测试契约与当前源码实现不一致；没有删除产品页面或降低六 Tab/脚本库功能要求。
+- 下一步：读取新 Actions；若通过，回到 MainActivity 主壳和 Hook/Dia 编辑器的软键盘遮挡与返回状态，避免继续陷入测试补丁循环。
