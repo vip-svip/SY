@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
-public final class FxYulongDnsActivity extends Activity {
+public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String STATE_SEARCH = "fx_dns_search";
     private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";
     private final AtomicInteger loadGeneration = new AtomicInteger();
@@ -113,7 +113,7 @@ public final class FxYulongDnsActivity extends Activity {
         LinearLayout body = new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         status = text("正在读取本机查询日志…", 13, 0xff526170, false);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
