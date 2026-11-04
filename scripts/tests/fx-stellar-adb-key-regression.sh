@@ -137,8 +137,8 @@ public final class AdbKeyVaultSmoke {
                 "ADB client certificate validity must start at Unix epoch");
         check(certificate.getNotAfter().getTime() == 2461449600000L,
                 "ADB client certificate validity must end at 2048-01-01 UTC");
-        check(certificate.getSubjectX500Principal().getName().isEmpty(),
-                "ADB client certificate subject must preserve the original empty X500Name");
+        check(certificate.getSubjectX500Principal().getName().contains("CN=youlong"),
+                "ADB client certificate subject must expose the stable youlong identity");
         javax.net.ssl.SSLContext tls = AdbTlsContext.create(persisted);
         check("TLSv1.3".equals(tls.getProtocol()), "ADB TLS context must use TLSv1.3");
 
