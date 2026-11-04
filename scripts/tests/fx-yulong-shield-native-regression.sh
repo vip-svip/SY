@@ -357,7 +357,11 @@ assert 'if (!validPackageName() || !("CERTAIN".equals(severity) || "SUSPECT".equ
     "Invalid severity must not open the system uninstall confirmation"
 assert "catch (RuntimeException lookupFailure)" in warning_page, \
     "Whitelist action must handle package visibility/runtime lookup failures without crashing"
-assert "FxYulongWhitelistPolicy.isWellFormed(raw)" in warning_page, \
+assert "catch (RuntimeException unreadablePreference)" in warning_page, \
+    "Risk detail whitelist action must handle wrong-type/corrupt SharedPreferences without crashing"
+assert "无法按文本读取" in warning_page, \
+    "Risk detail whitelist action must explain that unreadable whitelist data was preserved"
+assert "FxYulongWhitelistPolicy.isWellFormed(storedWhitelist)" in warning_page, \
     "Risk detail whitelist action must reject malformed original data through the shared parser"
 assert "FxYulongWhitelistPolicy.serialize(packages)" in warning_page, \
     "Risk detail whitelist action must use the shared bounded serializer"
