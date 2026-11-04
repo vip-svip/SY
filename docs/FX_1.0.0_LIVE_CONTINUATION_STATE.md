@@ -2217,3 +2217,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 以上 Hook Hub 仅为源码行为复核；DEX 回归脚本为新增静态断言，未执行完整 Host 回归、Gradle、模拟器或真机 SAF 提供方授权撤销测试。
 - 本窗口本地实现提交：救援通知路由 `d4ee58b8be644037170a4467c4ebde0373aef4b7`；扫描滚动恢复 `cf39f274e81b1e853a70e27d6367ac0f06e5edd0`；扫描页清理队列返回后失效旧结果 `457526851701b46281533d9d50e393acd8adec01`；病毒库同步状态准确反馈 `4685a61500f20d68bd1c5c0a5a7a14f04310fd01`；病毒库页滚动恢复 `a54008ea5eae58823535a63f86a5e8b2e766fbfe`。对应测试/状态提交均已记录在本文件相邻条目。
 - 下一步：检查 Dia Frida SAF 文件 picker 与后台 Worker 的请求归属/取消生命周期；随后对游龙安全护盾风险详情、告警和名单编辑页面做一组集中 UI 状态闭环。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook Hub Root / LSPosed / Accessibility 真实状态口径核验
+
+- 当前核验目标分支 HEAD：9ed8c3ede0d799386f437a2f4cacb33652ae8618。
+- Hub 的三种授权状态由不同真实来源组成，未将某个配置开关或偏好值冒充系统授权：
+  - Root：通过 RootAccess 执行 su 命令，必须返回 UID 0 才显示 Root 已授予；同时区分 FX KernelSU 模块启用/禁用/待卸载/版本异常与 KSU 工具存在性。RootAccess 默认命令上限 20 秒并回收 su 客户端。
+  - LSPosed Hub：分别显示 Manager 是否安装与 libXposed Service Binder 是否连接；逐应用详情另通过 snapshot(packageName) 读取具体包是否在作用域，文案明确说明作用域批准不代表目标进程已注入。
+  - Accessibility：读取 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES 并匹配 FX AccessibilityService 组件；“服务已连接”还要求 FxAccessibilityService.isConnected()、service_connected 偏好及 service_pid 等于当前应用进程 PID。
+- 本批未新增重复状态控件；扩展 fx-hook-native-ui-regression.sh，静态保护 Root UID 0、LSPosed Manager/Binder/逐包作用域以及 Accessibility 系统/服务/PID 四个契约点。
+- 回归提交：f776f0c7348f458d49b0dc071c22ef769e6c9e27 — test(hook): assert real Root LSPosed and accessibility state。
+- 静态验证：当前 HEAD 的 MainActivity 与回归脚本匹配上述状态源；未运行 Shell 脚本、Gradle 编译、模拟器或真机 Root/LSPosed Manager/Accessibility 授权切换。
+- 下一步：回到 Hook 原生主页面/目标详情 UI 的可用性与生命周期测试；有真实 checkout 环境后运行 fx-hook-native-ui-regression.sh 与相关 Host 测试。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
