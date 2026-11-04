@@ -3654,11 +3654,17 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
                     return;
                 case "Dex 查找与解析":
-                    pendingDiaDexHookPicker = true;
                     Intent dexBrowser = new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
                     dexBrowser.putExtra("allow_hook_method_pick", true);
-                    startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER);
+                    pendingDiaDexHookPicker = true;
+                    try {
+                        startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER);
+                    } catch (RuntimeException launchFailure) {
+                        pendingDiaDexHookPicker = false;
+                        Toast.makeText(this, "无法打开 DEX 选择器：" + launchFailure.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    }
                     return;
                 case "签名信息":
                     startActivity(new Intent(this,
