@@ -73,13 +73,13 @@ private fun FxDesignModePanel(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("选择 FX Hook 的原生界面渲染模式")
+                Text("选择 FX 全局界面模式")
                 Text(
-                    "Miuix 和 Backdrop 在这里由真实 Compose 组件渲染；Web 管理页面仍保留原有功能，不会被误称为原生 Compose 页面。"
+                    "三种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
                 )
-                ModeCard("classic", "经典界面", "简洁原生外观，优先兼容性", currentMode, onModeSelected, backdrop, false)
-                ModeCard("miuix", "Miuix 原生界面", "使用 MiuixTheme、Card、Text 组件与系统动态配色", currentMode, onModeSelected, backdrop, false)
-                ModeCard("glass", "Liquid Glass 液态玻璃", "使用 Kyant Backdrop 实时背景采样；Android 12+ 启用模糊，Android 13+ 启用 Lens 折射", currentMode, onModeSelected, backdrop, true)
+                ModeCard(FxUiMode.CLASSIC_WEB_COMPAT.storageId, FxUiMode.CLASSIC_WEB_COMPAT.title, FxUiMode.CLASSIC_WEB_COMPAT.description, currentMode, onModeSelected, backdrop, false)
+                ModeCard(FxUiMode.FX_LIQUID_NATIVE.storageId, FxUiMode.FX_LIQUID_NATIVE.title, FxUiMode.FX_LIQUID_NATIVE.description, currentMode, onModeSelected, backdrop, true)
+                ModeCard(FxUiMode.MIUIX_STYLE.storageId, FxUiMode.MIUIX_STYLE.title, FxUiMode.MIUIX_STYLE.description, currentMode, onModeSelected, backdrop, false)
             }
         }
     }
