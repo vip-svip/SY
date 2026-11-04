@@ -2000,3 +2000,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 其他已接管并保留的并行提交：Dia Frida 目标/进程选择恢复与回归（`162adce548ae62c1e6edb50b5261cec1f34972a5`、`9802250e0d969e5b369e50456913fa8cc8146a98`）、脚本库导出请求串行保护测试（`a22aedf7b9ee7f6baa8fcc8c965f246c1f6a453c`）、本批之前的 Rescue 来源返回修复（`043c514704513ac24cc85c8c24f6abfd2891ebe8`）。
 - 未完成：第一、二份长期交接文件在资料库 `/FX` 当前目录列表中不存在，本窗口未能读取；已完整读取现存的 UI 总指令和提速补充档。不得用推测补写缺失文件内容。
 - 下一步：继续安全护盾扫描结果详情/清理队列的页面返回和状态回显；随后接回 Dia Frida 主页面/脚本库/全屏编辑器的页面组回归。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Frida 进程扫描回调的安装身份复核
+
+- 本批起始实时 HEAD：`397e5307ae57b86a4bd13a6566f915689badbbea`。
+- 现有机制已具备：目标/进程扫描异步请求代次、目标切换时废弃旧进程请求、过程弹窗暂存勾选与旋转恢复、注入前重新读取目标 UID，以及 Shell 侧对 PID 的进程名和 UID 二次校验。
+- 本批补齐扫描快照与当前安装之间的竞态：Root 枚举结束后、显示 PID 选择器之前，重新通过 PackageManager 获取当前目标应用；如果目标已卸载、UID 与扫描前不同、debuggable 标记被移除或变为系统应用，则关闭进程选择、清空已固定与暂存 PID，并提示用户重新选择。
+- 未改变注入流程的权限边界；PID 仍需在实际注入命令中再次满足目标包名与 UID，失效 PID 不会交给 frida-inject。
+- 提交：
+  - `632a6dc9a8b4683cd769a0e1881e36207133fbf8` — `fix(dia): revalidate target identity after Frida process scan`。
+  - `397e5307ae57b86a4bd13a6566f915689badbbea` — `test(dia): cover stale Frida process picker identity`。
+- 最新 HEAD 静态验证：回调请求代次/目标包、扫描后 PackageManager 重新获取、UID/debuggable/system 状态核验、失效时清空 PID、既有注入侧 UID 检查，以及回归脚本新断言共 7 项通过。未在 Root 真机或模拟器中制造卸载/重装并发、UID 变化、PID 复用或多进程注入；源码静态通过不等于设备验收。
+- 下一步：检查 Sora 全屏编辑器结果回传是否绑定发起编辑时的目标与脚本版本，避免编辑过程中切换目标后把旧代码覆盖到新脚本；随后检查 Frida SAF 文件选择请求与 Worker 在 Activity 重建/快速连续操作时是否串单。固定 FX 1.0.0，不提前发布最终 APK / KernelSU ZIP。
