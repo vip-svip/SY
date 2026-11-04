@@ -36,6 +36,11 @@ assert 'case "对话框与通知":' in ui and 'showAppList("Dialog处理")' in u
 assert "showDiaDialogTarget(ai, targetDebuggable)" in ui
 for field in ("dialog_match_enabled", "dialog_text_terms", "dialog_id_terms", "dialog_notify"):
     assert field in ui, f"missing per-app preference {field}"
+for field in ("dialog_draft_enabled", "dialog_draft_text_terms", "dialog_draft_id_terms", "dialog_draft_notify"):
+    assert field in ui, f"missing recoverable Dialog draft field {field}"
+assert "textTerms.addTextChangedListener" in ui and "idTerms.addTextChangedListener" in ui
+assert ".remove(draftEnabledKey)" in ui and ".remove(draftTextKey)" in ui
+assert ".remove(draftIdsKey)" in ui and ".remove(draftNotifyKey)" in ui
 assert "dialog_text_terms_b64=" in ui and "dialog_id_terms_b64=" in ui
 assert "文本规则与资源 ID 规则各最多 32 条" in ui
 assert "targetDebuggable &&" in ui, "publish path must re-check debuggable targets"
