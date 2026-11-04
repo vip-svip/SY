@@ -6936,9 +6936,41 @@ public final class MainActivity extends ComponentActivity {
         help.setTextSize(12);
         help.setTextColor(0xff687681);
         help.setPadding(0, dp(6), 0, dp(8));
+
+        TextView signaturePreview = new TextView(this);
+        signaturePreview.setTextSize(12);
+        signaturePreview.setPadding(dp(4), dp(2), dp(4), dp(8));
+        Runnable updateSignaturePreview = () -> {
+            String rawDescriptor = descriptor.getText() == null
+                    ? "" : descriptor.getText().toString().trim();
+            if (rawDescriptor.isEmpty()) {
+                signaturePreview.setText("输入方法签名后，这里会显示规范化结果。");
+                signaturePreview.setTextColor(0xff687681);
+                return;
+            }
+            String normalizedDescriptor =
+                    DeveloperHookRule.normalizeDescriptor(rawDescriptor, selectedPackage);
+            if (normalizedDescriptor == null) {
+                signaturePreview.setText("签名尚未通过校验：检查语法、返回类型以及目标包范围。");
+                signaturePreview.setTextColor(0xffa12d2d);
+            } else {
+                signaturePreview.setText("签名有效 · JVM：" + normalizedDescriptor);
+                signaturePreview.setTextColor(0xff24734a);
+            }
+        };
+        descriptor.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                updateSignaturePreview.run();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        updateSignaturePreview.run();
+
         form.addView(id);
         form.addView(syntax);
         form.addView(descriptor);
+        form.addView(signaturePreview);
         form.addView(action);
         form.addView(literalValue);
         form.addView(group);

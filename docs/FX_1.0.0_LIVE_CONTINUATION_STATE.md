@@ -2658,3 +2658,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 失败路线：此前首次提交遇到分支前进冲突，已重新读取 HEAD 与全部目标文件并基于新 HEAD 重放；不重复使用旧 SHA。
 - 下一批：① Hook 自定义规则编辑器多语法输入与验证回显；② Dia SAF/编辑器返回链；③ 六 Tab 页面返回链定向回归。
 - 可并行工作线：游龙广告 Tasker 回执状态回读；安全护盾名单/扫描详情 UI 核对。共享文件修改顺序整合。
+
+
+## 2026-11-05 — Hook 自定义规则编辑器实时签名校验反馈
+
+- 本批开始时分支 HEAD：`72fd49ce44be6fd98a20c4d2fa76057ec07c26e8`。
+- 页面组：Hook 第五 Tab → 应用详情 → 自定义 Hook 规则编辑器。
+- 修改：签名输入时实时调用现有 `DeveloperHookRule.normalizeDescriptor`，对当前目标包执行与保存路径一致的语法/包范围校验；显示有效 JVM 描述符或具体的未通过校验状态。覆盖 Java、Frida `.overload()`、Smali/JVM 和旧式签名，不另造解析规则，不改变保存/执行语义。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-custom-hook-passthrough-regression.sh`、本状态文件。
+- 验证：源码静态核对；targeted 回归脚本新增实时规范化、有效结果和无效反馈断言。Shell 回归、Android 单元测试、Gradle 构建、UI 自动化、安装及真机测试尚未运行。
+- 失败路线：无；沿用现有解析器而非新增第二套 parser。
+- 下一批：① 检查 Hook 编辑器保存/旋转/返回后草稿与预览一致；② Dia SAF URI 恢复后的导入确认/取消回归；③ 六 Tab 页面返回链定向回归。
