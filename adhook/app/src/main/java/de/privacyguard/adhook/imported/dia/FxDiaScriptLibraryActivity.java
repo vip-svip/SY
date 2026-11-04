@@ -455,7 +455,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 try {
                     getContentResolver().takePersistableUriPermission(uri, grantFlags);
                     pendingImportUriPersisted = true;
-                } catch (SecurityException ignored) {
+                } catch (RuntimeException ignored) {
                     // Keep the temporary result grant for this Activity instance.
                 }
             }
