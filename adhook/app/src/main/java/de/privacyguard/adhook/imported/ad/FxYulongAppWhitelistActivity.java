@@ -55,6 +55,7 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
     private ScrollView scroll;
     private int pendingScrollY;
     private boolean pendingScrollRestore;
+    private int scrollRestoreGeneration;
     private boolean restoringUiState;
     private TextView status;
     private EditText query;
@@ -212,6 +213,9 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 appPage = 1;
+                scrollRestoreGeneration++;
+                pendingScrollY = 0;
+                pendingScrollRestore = false;
                 if (scroll != null) scroll.scrollTo(0, 0);
                 renderRows();
             }
@@ -317,8 +321,10 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
     private void restoreScrollIfNeeded() {
         if (!pendingScrollRestore || scroll == null) return;
         final int restoreY = pendingScrollY;
+        final int generation = ++scrollRestoreGeneration;
         scroll.post(() -> {
             if (destroyed || isFinishing() || isDestroyed()
+                    || generation != scrollRestoreGeneration
                     || !pendingScrollRestore || scroll == null) return;
             scroll.scrollTo(0, restoreY);
             pendingScrollRestore = false;
@@ -408,6 +414,7 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        scrollRestoreGeneration++;
         unregisterPackageChanges();
         worker.shutdownNow();
         appWorker.shutdownNow();
