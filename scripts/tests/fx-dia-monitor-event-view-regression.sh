@@ -85,6 +85,12 @@ grep -Fq 'isSafePackageName(targetPackage)' "$EVENTS" || fail "target package va
 grep -Fq '[ ! -L ' "$EVENTS" || fail "symlink log path guard missing"
 grep -Fq 'dia-frida/logs/' "$ACTIVITY" || fail "Frida log directory contract missing"
 grep -Fq 'dia-frida/logs/' "$EVENTS" || fail "native event page log directory mismatch"
+grep -Fq 'private String checkedSessionLogDirectoryPrefix()' "$ACTIVITY" || fail "Frida clear-log action must validate every parent directory"
+grep -Fq "FX_DIA_LOG_PATH_UNAVAILABLE" "$ACTIVITY" || fail "Frida clear-log action must fail closed when a parent directory is absent or a symlink"
+grep -Fq 'String command = checkedSessionLogDirectoryPrefix()' "$ACTIVITY" || fail "Frida clear-log Root command must include the parent-directory guard"
+grep -Fq 'FX_DIA_LOG_CLEARED' "$ACTIVITY" || fail "Frida clear-log action must emit a success marker only after truncation and chmod"
+grep -Fq 'FX_DIA_LOG_MISSING_OR_UNSAFE' "$ACTIVITY" || fail "Frida clear-log action must reject a missing or symlink target file"
+grep -Fq '清空失败，日志未被确认清空' "$ACTIVITY" || fail "Frida clear-log UI must not report success when Root does not confirm truncation"
 python3 - "$MANIFEST" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
