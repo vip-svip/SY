@@ -22,6 +22,7 @@ grep -Fq 'loadDexDocument(documentUri, documentName)' "$DEX" || fail "restored s
 grep -Fq 'loadFrameworkDex();' "$DEX" || fail "Framework DEX source is not restored"
 grep -Fq 'loadDex();' "$DEX" || fail "selected APK DEX source is not restored"
 grep -Fq 'restoreResultScrollAfterRender();' "$DEX" || fail "result scroll position is not restored after asynchronous parsing"
+grep -Fq 'if ("none".equals(sourceKind) || "installed-selected".equals(sourceKind))' "$DEX" || fail "late app inventory callback can overwrite active DEX source status"
 grep -Fq 'resetResultScrollRestoration();' "$DEX" || fail "switching query/source must discard stale result scroll position"
 grep -Fq 'expected == resultScroll' "$DEX" || fail "stale scroll callback must not mutate a newer page"
 grep -Fq 'onSaveInstanceState(Bundle outState)' "$DEX" || fail "DEX browser state saving override missing"
