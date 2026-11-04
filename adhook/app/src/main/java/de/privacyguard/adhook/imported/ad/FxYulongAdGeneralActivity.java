@@ -46,7 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Yulong AdBlock 7.0.1 general settings and transactional filter backup/restore. */
-public final class FxYulongAdGeneralActivity extends Activity {
+public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int IMPORT_REQUEST = 7811;
     private static final int EXPORT_REQUEST = 7812;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
@@ -143,7 +143,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         batteryStatus = text("正在读取系统省电策略…", 12, 0xff526170, false);
         card(body, "后台运行与电池优化",
