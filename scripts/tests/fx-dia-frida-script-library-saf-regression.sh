@@ -27,6 +27,8 @@ required = {
     "real SAF export callback": "requestCode == REQUEST_EXPORT_LIBRARY",
     "real SAF import callback": "requestCode == REQUEST_IMPORT_LIBRARY",
     "bounded streaming import": "MAX_LIBRARY_JSON_BYTES - count",
+    "strict UTF-8 decoding for JSON SAF imports": "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())",
+    "strict UTF-8 decoding for standalone JS SAF imports": "String source = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())",
     "private-cache export staging": 'File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir())',
     "private-cache export path validation": "resolvePendingFridaLibraryExport(stagedName)",
     "streamed SAF export": "new java.io.FileInputStream(staged)",

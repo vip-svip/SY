@@ -3046,3 +3046,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Shield 主 UI、六 Tab、worker bounds 的 Host 回归此前在 `41913976722` 成功；Hook 原生 UI 的单独完整回归仍需从最新变更后再跑一次，不能把单个脚本前段 PASS 记作整套通过。
 - 仍未完成 Android Gradle/JUnit、APK/DEX 实际制品、模拟器/真机、备份实际恢复及系统权限验收。Host-only APK 制品检查为 SKIP，不是 APK 通过。
 - 下一批：① Hook/Dia 原生 UI 合并回归复跑；② Shield 白名单/黑名单分页和选择页状态恢复 targeted 回归；③ Dia SAF 文件选择与覆盖确认旋转/进程恢复的设备级验收。固定 FX 1.0.0，不生成最终 APK 或 KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 两条 SAF 导入路径启用严格 UTF-8 解码
+
+- 基于分支最新 HEAD：`f76fb0ba81356a7946c4158f4e1f16ee244d4fcc`。
+- 页面组：Dia 23.11 → Frida 脚本库 JSON 文件导入、独立 JS 文件导入。
+- 发现真实数据完整性问题：`FxDiaScriptLibraryPolicy.decodeUtf8()` 已使用 UTF-8 Decoder 的 REPORT 模式并有 Host 测试覆盖，但两个 SAF 读取入口仍用 `new String(bytes, UTF_8)` 的替换解码行为。遇到截断/非法 UTF-8 时，损坏字节会被替换为 U+FFFD，随后仍可能进入 JSON 预览或编辑器。
+- 修复：JSON 脚本库导入和独立 JS 导入均改用共享 `FxDiaScriptLibraryPolicy.decodeUtf8()`。非法 UTF-8 会抛出明确导入错误，不再静默篡改文件内容；原有大小限制、后台读取、取消检查和不自动执行行为保持不变。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java`、`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`、本状态文件。
+- 验证：保留已有 Host 测试对有效多字节 UTF-8 和非法字节拒绝的覆盖；新增静态回归断言，要求两条 SAF 入口实际调用严格解码器。等待 Actions。
+- 下一步：复跑 SAF/Frida 页面回归；核对文件选择取消、Activity 重建时 SAF URI/确认弹窗状态；随后推进 Frida Server/Gadget 页面生命周期与返回链。未做真机 SAF 文件提供器验收。

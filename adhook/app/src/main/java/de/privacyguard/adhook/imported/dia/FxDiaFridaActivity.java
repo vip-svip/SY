@@ -1028,7 +1028,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB。");
                     output.write(buffer, 0, count);
                 }
-                String json = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                String json = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     previewAndImportFridaScriptLibraryJson(json);
@@ -1114,7 +1114,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         throw new IllegalArgumentException("脚本超过 512 KiB 限制。");
                     output.write(buffer, 0, count);
                 }
-                String source = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                String source = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
                 if (source.trim().isEmpty()) throw new IllegalArgumentException("脚本内容为空。");
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
