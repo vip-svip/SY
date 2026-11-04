@@ -164,10 +164,11 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             safeDetail = safeDetail.substring(0, MAX_RESULT_DETAIL_CHARS) + "…（已截断）";
         }
         String target = adFilterAction ? "ad_filter" : "vpn";
+        boolean receiptPersisted = false;
         try {
             // Persist before broadcasting so the General Settings page can still
             // show the most recent result after its Activity/process was stopped.
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            receiptPersisted = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
                     .putString(PREF_LAST_ACTION, action == null ? "" : action)
                     .putString(PREF_LAST_TARGET, target)
                     .putInt(PREF_LAST_ENABLED, enabled)
@@ -176,7 +177,9 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                     .putString(PREF_LAST_DETAIL, safeDetail)
                     .putLong(PREF_LAST_AT, System.currentTimeMillis())
                     .commit();
-        } catch (RuntimeException ignored) { }
+        } catch (RuntimeException ignored) {
+            receiptPersisted = false;
+        }
 
         try {
             Intent reply = new Intent(ACTION_RESULT);
@@ -186,6 +189,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             reply.putExtra("success", success);
             reply.putExtra("exit_code", exitCode);
             reply.putExtra("detail", safeDetail);
+            reply.putExtra("receipt_persisted", receiptPersisted);
             reply.setPackage(context.getPackageName());
             context.sendBroadcast(reply);
         } catch (RuntimeException ignored) { }
