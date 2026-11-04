@@ -280,7 +280,8 @@ case "$cmd" in
     with_lock transaction mutate_remove "$2"
     ;;
   apply)
-    with_lock sh "$MP/scripts/apply.sh" fast
+    # Avoid a nested lock if apply.sh re-enters this manager.
+    sh "$MP/scripts/apply.sh" fast
     ;;
   *)
     echo "usage: $0 list|master 0|1|mode only|bypass|set-item PACKAGE 0|1|remove PACKAGE|apply-item PACKAGE 0|1|apply-master 0|1|apply-mode only|bypass|apply-remove PACKAGE|apply" >&2

@@ -73,19 +73,19 @@ pid_b=$!
 wait "$pid_a" || { echo "first concurrent VPN app update failed" >&2; cat "$T/concurrent-a.log" >&2; exit 1; }
 wait "$pid_b" || { echo "second concurrent VPN app update failed" >&2; cat "$T/concurrent-b.log" >&2; exit 1; }
 run list > "$T/concurrent-list"
-grep -q '^com.example.concurrent_a|com.example.concurrent_a|1rm -rf "$T"
- "$T/concurrent-list" || {
+grep -Fq 'com.example.concurrent_a|com.example.concurrent_a|1' "$T/concurrent-list" || {
   echo "concurrent update A was lost" >&2; cat "$T/concurrent-list" >&2; exit 1;
 }
-grep -q '^com.example.concurrent_b|com.example.concurrent_b|1rm -rf "$T"
- "$T/concurrent-list" || {
+grep -Fq 'com.example.concurrent_b|com.example.concurrent_b|1' "$T/concurrent-list" || {
   echo "concurrent update B was lost" >&2; cat "$T/concurrent-list" >&2; exit 1;
 }
 [ ! -e "$T/pg/settings.conf.vpn-apps.lock" ] || {
   echo "VPN app config lock leaked after concurrent updates" >&2; exit 1;
 }
-if grep -Eq 'CONF\.vpn-(apps|mode)\.\$\$|CONF\.vpn-apps\.(rollback|restore)\.\$\rm -rf "$T"
- "$SCRIPT"; then
+if grep -Fq 'CONF.vpn-apps.$$' "$SCRIPT" \
+    || grep -Fq 'CONF.vpn-mode.$$' "$SCRIPT" \
+    || grep -Fq 'CONF.vpn-apps.rollback.$$' "$SCRIPT" \
+    || grep -Fq 'CONF.vpn-apps.restore.$$' "$SCRIPT"; then
   echo "predictable PID-suffixed VPN config temp paths remain" >&2; exit 1;
 fi
 grep -Fq 'mktemp "$CONF.vpn-apps.XXXXXX"' "$SCRIPT"
