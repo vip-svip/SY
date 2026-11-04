@@ -23,6 +23,17 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
     public static final String ACTION_VPN_STOP = "de.privacyguard.adhook.VPN_STOP";
     public static final String ACTION_RESULT = "de.privacyguard.adhook.AD_FILTER_RESULT";
 
+    public static final String PREFS_NAME = "fx_yulong_tasker";
+    public static final String PREF_ALLOW_EXTERNAL = "allow_external_actions";
+    public static final String PREF_LAST_ACTION = "last_action";
+    public static final String PREF_LAST_TARGET = "last_target";
+    public static final String PREF_LAST_ENABLED = "last_requested_enabled";
+    public static final String PREF_LAST_SUCCESS = "last_success";
+    public static final String PREF_LAST_EXIT_CODE = "last_exit_code";
+    public static final String PREF_LAST_DETAIL = "last_detail";
+    public static final String PREF_LAST_AT = "last_at";
+    private static final int MAX_RESULT_DETAIL_CHARS = 2048;
+
     public static final String LEGACY_ACTION_START = "app.pwhs.blockads.TASKER_START";
     public static final String LEGACY_ACTION_STOP = "app.pwhs.blockads.TASKER_STOP";
 
@@ -54,6 +65,16 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
             adFilterAction = false;
             enabled = 0;
         } else {
+            return;
+        }
+
+        // The receiver is exported for Tasker compatibility. Because these
+        // broadcasts can invoke Root-backed operations, require an explicit
+        // opt-in from the FX General Settings screen before accepting any action.
+        if (!context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(PREF_ALLOW_EXTERNAL, false)) {
+            publishResult(context, action, adFilterAction, enabled, false, 13,
+                    "外部自动化控制尚未在 FX 通用设置中授权；请求未执行。");
             return;
         }
 
@@ -126,14 +147,33 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
 
     private static void publishResult(Context context, String action, boolean adFilterAction,
                                       int enabled, boolean success, int exitCode, String detail) {
+        String safeDetail = detail == null ? "" : detail;
+        if (safeDetail.length() > MAX_RESULT_DETAIL_CHARS) {
+            safeDetail = safeDetail.substring(0, MAX_RESULT_DETAIL_CHARS) + "…（已截断）";
+        }
+        String target = adFilterAction ? "ad_filter" : "vpn";
+        try {
+            // Persist before broadcasting so the General Settings page can still
+            // show the most recent result after its Activity/process was stopped.
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                    .putString(PREF_LAST_ACTION, action == null ? "" : action)
+                    .putString(PREF_LAST_TARGET, target)
+                    .putInt(PREF_LAST_ENABLED, enabled)
+                    .putBoolean(PREF_LAST_SUCCESS, success)
+                    .putInt(PREF_LAST_EXIT_CODE, exitCode)
+                    .putString(PREF_LAST_DETAIL, safeDetail)
+                    .putLong(PREF_LAST_AT, System.currentTimeMillis())
+                    .commit();
+        } catch (RuntimeException ignored) { }
+
         try {
             Intent reply = new Intent(ACTION_RESULT);
             reply.putExtra("source_action", action);
-            reply.putExtra("target", adFilterAction ? "ad_filter" : "vpn");
+            reply.putExtra("target", target);
             reply.putExtra("requested_enabled", enabled);
             reply.putExtra("success", success);
             reply.putExtra("exit_code", exitCode);
-            reply.putExtra("detail", detail == null ? "" : detail);
+            reply.putExtra("detail", safeDetail);
             reply.setPackage(context.getPackageName());
             context.sendBroadcast(reply);
         } catch (RuntimeException ignored) { }
