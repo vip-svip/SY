@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 /** Native viewer and guarded clear operation for the current Dia Frida session log. */
-public final class FxDiaSessionLogActivity extends Activity {
+public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String EXTRA_TARGET_PACKAGE = "fx_dia_session_log_target_package";
     private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
@@ -161,7 +161,7 @@ public final class FxDiaSessionLogActivity extends Activity {
         outputView.setPadding(dp(12), dp(8), dp(12), dp(18));
         logScroll.addView(outputView);
         root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count,
