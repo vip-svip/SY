@@ -848,3 +848,9 @@ After each implementation batch:
 - The actual Frida-inject path resolves the package UID again immediately before injection and verifies each PID's live UID after checking its package/process name. A PID/name match with a different UID is skipped and recorded; the injector is not called for that process.
 - This preserves the existing user-installed + debuggable target boundary and closes the PID-reuse/name-only identity gap for both selected and auto-enumerated processes.
 - Added and registered `fx-dia-frida-process-identity-regression.py` to assert UID resolution and enforcement before the injector call. Host/source validation only; actual Frida attach and runtime behavior remain device-pending.
+
+## 2026-11-04 — Dia legacy rule-group whitespace normalization
+
+- Custom Hook group rename and delete now compare each of the 64 per-rule group assignments using the normalized trimmed value, matching the behavior of the group-index loader.
+- This repairs older preference entries where a group name was persisted with leading/trailing whitespace: rename now moves those rules to the normalized new name, and delete moves them to `默认` rather than leaving an orphaned assignment.
+- The rule-group regression now asserts both legacy whitespace cases. This is source/host regression coverage; persistence behavior on a running LSPosed target remains device-pending.
