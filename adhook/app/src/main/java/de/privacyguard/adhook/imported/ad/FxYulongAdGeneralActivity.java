@@ -19,6 +19,7 @@ import android.service.quicksettings.TileService;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -54,6 +55,8 @@ public final class FxYulongAdGeneralActivity extends Activity {
             new ThreadPoolExecutor.AbortPolicy());
     private TextView batteryStatus, operationStatus, taskerResultStatus;
     private Switch taskerExternalControl;
+    private EditText taskerSenderPackageInput;
+    private TextView taskerSecurityStatus;
     private boolean updatingTaskerControlSwitch;
     private boolean taskerResultReceiverRegistered;
     private String pendingExport;
@@ -173,12 +176,41 @@ public final class FxYulongAdGeneralActivity extends Activity {
 
         android.content.SharedPreferences taskerPrefs =
                 getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        taskerSenderPackageInput = new EditText(this);
+        taskerSenderPackageInput.setSingleLine(true);
+        taskerSenderPackageInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        taskerSenderPackageInput.setHint("授权自动化应用包名（必须已安装）");
+        taskerSenderPackageInput.setText(taskerPrefs.getString(
+                FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, ""));
+
+        taskerSecurityStatus = text("", 12, 0xff526170, false);
         taskerExternalControl = new Switch(this);
-        taskerExternalControl.setText("允许外部自动化广播执行 Root 操作");
-        taskerExternalControl.setChecked(taskerPrefs.getBoolean(
-                FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false));
+        taskerExternalControl.setText("允许指定自动化应用执行 Root 操作");
+        boolean senderReady = Build.VERSION.SDK_INT >= 34
+                && isAutomationSenderInstalled(taskerPrefs.getString(
+                        FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, ""));
+        boolean storedAllowed = taskerPrefs.getBoolean(
+                FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
+        if (!senderReady && storedAllowed) {
+            taskerPrefs.edit().putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false).commit();
+            storedAllowed = false;
+        }
+        taskerExternalControl.setChecked(storedAllowed);
+        taskerExternalControl.setEnabled(senderReady);
         taskerExternalControl.setOnCheckedChangeListener((button, checked) -> {
             if (updatingTaskerControlSwitch) return;
+            String allowed = taskerPrefs.getString(
+                    FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, "");
+            if (checked && (Build.VERSION.SDK_INT < 34 || !isAutomationSenderInstalled(allowed))) {
+                updatingTaskerControlSwitch = true;
+                button.setChecked(false);
+                updatingTaskerControlSwitch = false;
+                Toast.makeText(this, Build.VERSION.SDK_INT < 34
+                        ? "当前 Android 版本无法可靠识别广播发送方；为防止任意应用触发 Root，自动化控制保持关闭。"
+                        : "请先保存一个已安装的授权自动化应用包名。", Toast.LENGTH_LONG).show();
+                return;
+            }
             boolean saved = taskerPrefs.edit()
                     .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, checked)
                     .commit();
@@ -193,7 +225,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
         });
         taskerResultStatus = text("尚无自动化执行回执。", 12, 0xff526170, false);
         card(body, "Tasker / 自动化广播",
-                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。接收组件为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤与 VPN 动作相互独立。该 Receiver 导出以兼容外部自动化，但可触发 Root 命令，因此默认关闭。开启后，设备上能够发送这些动作广播的应用都可请求执行；当前不按发送方包名/签名做白名单筛选。仅在确认设备上的应用可信且确实需要自动化时开启；关闭后外部请求会在执行 Root 命令前被拒绝。最近回执只说明那次命令的执行结果，不等于服务当前仍在运行。",
+                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。Receiver 可调用 Root，因此必须先保存一个已安装的授权发送应用包名，再手动开启开关。仅 Android 14+ 能通过系统 API 校验真实广播发起应用；更低版本直接拒绝执行。最近回执不代表服务当前仍在运行。",
+                taskerSenderPackageInput,
+                button("验证并保存授权应用包名", this::saveTaskerSenderPackage),
+                taskerSecurityStatus,
                 taskerExternalControl,
                 button("复制：开启广告过滤", () -> copyTaskerAction("开启广告过滤", FxYulongAdTaskerReceiver.ACTION_ENABLE)),
                 button("复制：关闭广告过滤", () -> copyTaskerAction("关闭广告过滤", FxYulongAdTaskerReceiver.ACTION_DISABLE)),
@@ -251,10 +286,93 @@ public final class FxYulongAdGeneralActivity extends Activity {
         taskerResultReceiverRegistered = false;
     }
 
+    private boolean isAutomationSenderInstalled(String packageName) {
+        if (!FxYulongTaskerCallerPolicy.isValidPackageName(packageName)) return false;
+        try {
+            getPackageManager().getApplicationInfo(packageName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException | SecurityException unavailable) {
+            return false;
+        }
+    }
+
+    private void saveTaskerSenderPackage() {
+        if (taskerSenderPackageInput == null) return;
+        String packageName = taskerSenderPackageInput.getText().toString().trim();
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        if (packageName.isEmpty()) {
+            boolean saved = prefs.edit()
+                    .remove(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE)
+                    .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
+                    .commit();
+            if (!saved) {
+                Toast.makeText(this, "清除授权包名失败，原设置保持不变。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            updatingTaskerControlSwitch = true;
+            taskerExternalControl.setChecked(false);
+            updatingTaskerControlSwitch = false;
+            taskerExternalControl.setEnabled(false);
+            Toast.makeText(this, "已清除自动化发送方授权，外部 Root 控制已关闭。", Toast.LENGTH_LONG).show();
+            refreshTaskerResultStatus();
+            return;
+        }
+        if (!FxYulongTaskerCallerPolicy.isValidPackageName(packageName)) {
+            Toast.makeText(this, "包名格式无效；请输入完整的 Android 应用包名。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!isAutomationSenderInstalled(packageName)) {
+            Toast.makeText(this, "该包名未安装或不可见；请核对自动化应用包名。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        boolean saved = prefs.edit()
+                .putString(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, packageName)
+                .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
+                .commit();
+        if (!saved) {
+            Toast.makeText(this, "授权包名保存失败，原设置保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        updatingTaskerControlSwitch = true;
+        taskerExternalControl.setChecked(false);
+        updatingTaskerControlSwitch = false;
+        taskerExternalControl.setEnabled(Build.VERSION.SDK_INT >= 34);
+        Toast.makeText(this, Build.VERSION.SDK_INT >= 34
+                ? "已保存授权发送方 " + packageName + "；请再次手动开启外部控制。"
+                : "已保存包名，但当前 Android 版本无法验证发送方身份，因此 Root 自动化不可用。",
+                Toast.LENGTH_LONG).show();
+        refreshTaskerResultStatus();
+    }
+
     private void refreshTaskerResultStatus() {
         if (taskerResultStatus == null || isFinishing() || isDestroyed()) return;
         android.content.SharedPreferences prefs =
                 getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        String allowedPackage = prefs.getString(
+                FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, "");
+        boolean senderReady = Build.VERSION.SDK_INT >= 34
+                && isAutomationSenderInstalled(allowedPackage);
+        boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
+        if (taskerExternalControl != null) {
+            taskerExternalControl.setEnabled(senderReady);
+            if (!senderReady && taskerExternalControl.isChecked()) {
+                updatingTaskerControlSwitch = true;
+                taskerExternalControl.setChecked(false);
+                updatingTaskerControlSwitch = false;
+                prefs.edit().putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false).commit();
+                allowed = false;
+            }
+        }
+        if (taskerSecurityStatus != null) {
+            String message = Build.VERSION.SDK_INT < 34
+                    ? "安全状态：Android 14 以下无法可靠验证广播发起应用，Root 自动化已禁用。"
+                    : !isAutomationSenderInstalled(allowedPackage)
+                        ? "安全状态：未指定有效且已安装的自动化发送方；Root 自动化不会执行。"
+                        : "安全状态：仅接受包名 " + allowedPackage
+                            + " 且系统 UID 映射匹配的广播；仍需手动开启下方授权开关。";
+            taskerSecurityStatus.setText(message);
+        }
         if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
             boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
             taskerResultStatus.setText(allowed
