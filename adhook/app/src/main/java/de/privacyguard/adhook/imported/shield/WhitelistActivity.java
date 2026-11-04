@@ -78,7 +78,10 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private EditText searchInput;
     private ScrollView whitelistScroll;
     private String query = "";
+    private int whitelistPage = 1;
+    private static final int WHITELIST_PAGE_SIZE = 50;
     private static final String STATE_QUERY = "fx_shield_whitelist_query";
+    private static final String STATE_PAGE = "fx_shield_whitelist_page";
     private static final String STATE_SCROLL_Y = "fx_shield_whitelist_scroll_y";
 
     private final ThreadPoolExecutor labelWorker = new ThreadPoolExecutor(1, 1, 30L,
@@ -114,6 +117,7 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         setContentViewWithNativeTabs(root, 5);
         if (savedInstanceState != null) {
             query = savedInstanceState.getString(STATE_QUERY, "");
+            whitelistPage = Math.max(1, Math.min(200, savedInstanceState.getInt(STATE_PAGE, 1)));
             searchInput.setText(query);
             final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
             whitelistScroll.post(() -> whitelistScroll.scrollTo(0, restoreY));
@@ -126,6 +130,7 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putString(STATE_QUERY, searchInput == null ? query : searchInput.getText().toString());
+        outState.putInt(STATE_PAGE, Math.max(1, Math.min(200, whitelistPage)));
         if (whitelistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, whitelistScroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
@@ -324,6 +329,7 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 query = s == null ? "" : s.toString().trim();
+                whitelistPage = 1;
                 refreshWhitelistUI();
             }
             @Override public void afterTextChanged(Editable s) {}
@@ -509,6 +515,10 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 + (whitelistDataWarning.isEmpty() ? "" : "\\n" + whitelistDataWarning));
         sectionTitle.setText("已加入白名单 (" + currentWhitelist.size() + ")");
 
+        int maxPages = Math.max(1, (visible.size() + WHITELIST_PAGE_SIZE - 1) / WHITELIST_PAGE_SIZE);
+        whitelistPage = Math.max(1, Math.min(whitelistPage, maxPages));
+        int visibleLimit = Math.min(visible.size(), whitelistPage * WHITELIST_PAGE_SIZE);
+
         if (visible.isEmpty()) {
             emptyHint.setVisibility(View.VISIBLE);
             whitelistContainer.setVisibility(View.GONE);
@@ -525,8 +535,25 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         } else {
             emptyHint.setVisibility(View.GONE);
             whitelistContainer.setVisibility(View.VISIBLE);
-            for (AppItem item : visible) {
-                whitelistContainer.addView(buildWhitelistRow(item));
+            for (int i = 0; i < visibleLimit; i++) {
+                whitelistContainer.addView(buildWhitelistRow(visible.get(i)));
+            }
+            if (visibleLimit < visible.size()) {
+                TextView more = new TextView(this);
+                more.setText("加载更多（已显示 " + visibleLimit + " / " + visible.size() + "）");
+                more.setTextColor(COLOR_PRIMARY);
+                more.setTextSize(14);
+                more.setGravity(Gravity.CENTER);
+                more.setPadding(dp(12), dp(14), dp(12), dp(14));
+                more.setOnClickListener(v -> {
+                    int restoreY = whitelistScroll == null ? 0 : whitelistScroll.getScrollY();
+                    whitelistPage = Math.min(maxPages, whitelistPage + 1);
+                    refreshWhitelistUI();
+                    if (whitelistScroll != null) {
+                        whitelistScroll.post(() -> whitelistScroll.scrollTo(0, restoreY));
+                    }
+                });
+                whitelistContainer.addView(more);
             }
         }
 
