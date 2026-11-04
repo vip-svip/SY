@@ -2416,113 +2416,15 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void showMonitorEvents() {
-        final String requestedPackage = targetPackage;
-        final String requestedName = targetName == null ? targetPackage : targetName;
-        if (requestedPackage == null || requestedPackage.trim().isEmpty()) {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
-        final int request = ++monitorEventGeneration;
-        String log = sessionLogPath();
-        if (log.isEmpty()) {
-            setStatus("请先选择 debuggable 目标应用。");
-            return;
-        }
-        String command = "if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
-                + " ] && [ -s " + quote(log) + " ]; then tail -n 800 " + quote(log)
-                + "; else echo FX_DIA_NO_EVENTS; fi";
-        runRoot(command, 15000L, result -> {
-            if (isFinishing() || isDestroyed()
-                    || request != monitorEventGeneration
-                    || !requestedPackage.equals(targetPackage)) return;
-            if (result.exitCode != 0) {
-                setStatus("读取监控事件失败（退出码 " + result.exitCode + "）："
-                        + (result.output == null ? "Root 读取失败" : result.output));
-                return;
-            }
-            List<FxDiaMonitorEventParser.Event> events =
-                    FxDiaMonitorEventParser.parse(result.output);
-            LinearLayout panel = new LinearLayout(this);
-            panel.setOrientation(LinearLayout.VERTICAL);
-            panel.setPadding(dp(12), dp(8), dp(12), dp(8));
-            TextView note = text(
-                    "仅解析 FX 内置 [DIA_*] 元数据事件；不会显示 SQL 文本、网络正文/请求头、命令内容、调用栈或自定义脚本原文。",
-                    12, 0xff617080, false);
-            panel.addView(note);
-            String[] categories = FxDiaMonitorEventParser.getCategories();
-            String[] options = new String[categories.length + 1];
-            options[0] = "全部类型";
-            System.arraycopy(categories, 0, options, 1, categories.length);
-            android.widget.Spinner category = new android.widget.Spinner(this);
-            android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
-                    this, android.R.layout.simple_spinner_item, options);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            category.setAdapter(adapter);
-            panel.addView(category);
-            EditText query = new EditText(this);
-            query.setSingleLine(true);
-            query.setHint("搜索主机、类名、方法或状态码");
-            panel.addView(query);
-            TextView count = text("", 12, 0xff617080, false);
-            panel.addView(count);
-            ScrollView scroll = new ScrollView(this);
-            LinearLayout rows = new LinearLayout(this);
-            rows.setOrientation(LinearLayout.VERTICAL);
-            scroll.addView(rows);
-            panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-
-            Runnable render = () -> {
-                rows.removeAllViews();
-                String selected = category.getSelectedItemPosition() <= 0 ? ""
-                        : categories[category.getSelectedItemPosition() - 1];
-                String needle = query.getText() == null ? ""
-                        : query.getText().toString().trim().toLowerCase(Locale.ROOT);
-                int matched = 0;
-                int shown = 0;
-                for (FxDiaMonitorEventParser.Event event : events) {
-                    if (!selected.isEmpty() && !selected.equals(event.category)) continue;
-                    String rendered = event.toDisplayString();
-                    if (!needle.isEmpty()
-                            && !rendered.toLowerCase(Locale.ROOT).contains(needle)) continue;
-                    matched++;
-                    if (shown >= 120) continue;
-                    TextView row = text(rendered, 12, 0xff263443, false);
-                    row.setPadding(dp(10), dp(7), dp(10), dp(7));
-                    rows.addView(row);
-                    View divider = new View(this);
-                    divider.setBackgroundColor(0xffe0e5eb);
-                    rows.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
-                    shown++;
-                }
-                count.setText("匹配事件：" + matched + " · 当前显示：" + shown
-                        + (matched > shown ? "（列表最多显示 120 条，请缩小筛选范围）" : ""));
-                if (matched == 0) {
-                    rows.addView(text("没有符合条件的内置监控事件。请先载入并手动注入对应监控模板。",
-                            13, 0xff617080, false));
-                }
-            };
-            category.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                @Override public void onItemSelected(android.widget.AdapterView<?> parent,
-                                                     View view, int position, long id) {
-                    render.run();
-                }
-                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
-            });
-            query.addTextChangedListener(new android.text.TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence s, int start, int count,
-                                                        int after) { }
-                @Override public void onTextChanged(CharSequence s, int start, int before,
-                                                    int count) { render.run(); }
-                @Override public void afterTextChanged(android.text.Editable editable) { }
-            });
-            render.run();
-            new AlertDialog.Builder(this)
-                    .setTitle("Dia 监控事件 · " + requestedName)
-                    .setView(panel)
-                    .setPositiveButton("关闭", null)
-                    .show();
-            setStatus("结构化事件读取完成：" + events.size() + " 条（最多保留最近 300 条）。");
-        });
+        Intent page = new Intent(this, FxDiaMonitorEventsActivity.class);
+        page.putExtra(FxDiaMonitorEventsActivity.EXTRA_TARGET_PACKAGE, targetPackage);
+        page.putExtra(FxDiaMonitorEventsActivity.EXTRA_TARGET_NAME,
+                targetName == null ? targetPackage : targetName);
+        startActivity(page);
     }
 
     private void clearSessionLog() {
