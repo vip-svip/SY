@@ -61,6 +61,13 @@ assert "customHookRuleSearchQuery = s == null ? \"\" : s.toString();" in main
 assert "ruleScroll.scrollTo(0, restoreRuleY);" in main, "custom-rule list scroll must restore"
 assert "nativeScroll == ruleScroll" in main, "stale custom-rule scroll callbacks must be ignored"
 
+# Successful rule CRUD/group operations must rebuild the custom-rule manager, not eject to the generic target page.
+custom_refresh = main.count("if (target != null) showCustomHookRulesPage(target,")
+assert custom_refresh >= 4, f"expected custom-rule group/rule refresh routes, found {custom_refresh}"
+assert "showCustomHookRulesPage(target,\n                            (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);\n                }).show();\n    }\n\n    private String remapCustomRuleDescriptor" in main, "saving a rule must remain in the custom-rule manager"
+assert "showCustomHookRulesPage(target,\n                                        (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);\n                            }).show());" in main, "deleting a rule must remain in the custom-rule manager"
+assert "private void leaveCustomHookRulesPage()" in main and 'showAppList("自定义 Hook");' in main, "explicit Back must still leave the manager normally"
+
 # A rule editor dialog that was open during recreation reopens with its existing persisted draft.
 assert 'state.getBoolean("fx_custom_rule_editor_open", false)' in main
 assert 'state.getInt("fx_custom_rule_editor_slot", -1)' in main
