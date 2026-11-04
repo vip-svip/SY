@@ -478,19 +478,29 @@ start_watch_locked() {
   nohup sh "$SCRIPT_PATH" watch-loop </dev/null >> "$WATCH_LOG" 2>&1 &
   pid=$!
   _watch_start_wait=0
+  _watch_child_pid=
   while [ "$_watch_start_wait" -lt 50 ]; do
-    if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
-        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ] \
-        && kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then
-      echo "started pid=$pid"
-      return 0
+    if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ]; then
+      _watch_child_pid=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
+      case "$_watch_child_pid" in ''|*[!0-9]*) _watch_child_pid= ;; esac
+      if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \
+          && watch_is_ours "$_watch_child_pid"; then
+        echo "started pid=$_watch_child_pid"
+        return 0
+      fi
     fi
-    if ! kill -0 "$pid" 2>/dev/null; then break; fi
+    # Some nohup implementations preserve their PID through exec; others
+    # launch the command as a child. The watcher-owned PID marker is canonical.
     sleep 0.1
     _watch_start_wait=$((_watch_start_wait + 1))
   done
-  if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
-      && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ]; then
+  if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ]; then
+    _watch_child_pid=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
+    case "$_watch_child_pid" in ''|*[!0-9]*) _watch_child_pid= ;; esac
+    if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \
+        && watch_is_ours "$_watch_child_pid"; then
+      kill -TERM "$_watch_child_pid" 2>/dev/null || :
+    fi
     rm -f "$WATCH_PIDFILE"
   fi
   if kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then
