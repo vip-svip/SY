@@ -340,3 +340,32 @@ The recursive Git tree for this branch contains only `fx-module/scripts/jsruntim
 To prevent packaging a watcher that silently cannot perform its job, `patch_native_script_scheduler.py` now refuses to stage the scheduler unless the restored module contains non-empty `sync-subs.sh`, `runner.sh`, and `host.js`. The scheduler regression fixture now supplies explicit minimal dependency fixtures, and checks that the patcher enforces all three dependencies.
 
 This is a fail-fast integration guard, **not** an implementation of remote subscription synchronization. No claim is made that subscription updates are working until the real synchronizer source is inspected and its end-to-end tests pass. The regression has been updated but was not executed in this session; CI and device verification remain outstanding.
+
+
+## Latest continuation update — 2026-11-04 — QuickJS uninstall ownership + migration-only CI
+
+Checkpoint: `9ab5a4af827b3958e325d414dd2509d5b7b60b14`.
+
+### QuickJS scheduler / uninstall
+- Corrected the scheduler's own-process start-time capture to call `pid_fields "$$"`. The prior checked-in form passed a literal `$` and could not publish its owner record.
+- The module Release archive uses the legacy `PG=/data/adb/privacyguard` layout and still had a PID-only scheduler stop/delete block. The reviewed scheduler patcher replaces that block with an owner-bound cooperative stop request, and aborts uninstall cleanup if shutdown cannot be confirmed.
+- The Release archive's old `v1.0.0-uninstall-scheduler-pid-reuse-regression.sh` asserted the removed direct TERM/SIGKILL implementation. The patcher now stages the canonical root regression into the restored module, rather than preserving that obsolete contract.
+- The canonical regression starts a real test scheduler, mutates only the recorded process start-time field to simulate PID reuse, proves the unrelated/live process remains alive and no stop marker is created, restores the valid owner snapshot and proves cooperative shutdown, then rejects a legacy PID-only record.
+- `scripts/tests/fx-native-script-scheduler-regression.sh` now requires the staged PID-reuse test to be byte-identical to the canonical test, preventing Release restore from silently reintroducing the stale test.
+
+### CI / build gates
+- The KernelSU package workflow is manual-only and requires the explicit `migration_complete=true` input on the FX integration branch. It has no push trigger.
+- The Hook APK workflow still runs source migration and host regression lanes on branch pushes, but Java/Gradle/SDK/compile/upload steps require the same explicit manual migration-complete approval. Push validation therefore does not generate interim APKs.
+- Corrected stale Dia LSPosed scope regressions to verify official libXposed service behavior, explicit opt-in, Manager approval, bounded queue behavior and token-owned cleanup. Updated the auto-scope extractor to use the actual adjacent method boundary and fully-qualified executor names.
+- Updated the migration regression's workflow assertions to match the manual-only final package gate; the previous Release/branch test version expected package builds on push.
+
+### Latest validation
+- GitHub Actions run `41833507310`, commit `9ab5a4af827b3958e325d414dd2509d5b7b60b14`: source restoration passed; static migration checks passed; complete host suite passed with **309 total / 303 pass / 6 artifact-dependent skips / 0 failures / 0 timeouts**.
+- The six skips are checks that require generated signed APK or Android ARM64 QJS build artifacts. This push lane intentionally did not compile or package.
+- No APK compile, APK install, KernelSU ZIP, OnePlus 12 test, KernelSU device test, LSPosed runtime test or Frida Gadget device test was run or claimed.
+
+### Continue migration
+1. Continue Dia 23.11 source-to-native parity, especially Frida listener/message/console coverage and any remaining page/editor functionality not represented by real implementations.
+2. Continue Yulong AdBlock's original trie/bloom runtime parity and per-app DNS query counters; UID traffic-byte totals must not be presented as DNS query counts.
+3. Continue Yulong Shield's original Stellar Binder daemon/protocol parity and remaining ProtectService self-defense semantics. The FX Messenger transport is not the original daemon.
+4. Do not set `migration_complete=true` or run the final paired APK/KernelSU packaging workflows until the source-migration acceptance gates genuinely close.
