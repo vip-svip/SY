@@ -2416,3 +2416,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态核验：重新读取 MainActivity、FxNativeTabActivity、FxNativeAppShell.kt 和新测试脚本，核对标签顺序、数量、索引边界和返回路由，均匹配。未执行 Shell/Gradle/Compose UI 自动化或真机六 Tab 点击/返回测试。
 - 当前分支 HEAD（状态文件提交前）：`a399034c2ee22d77da69d9f36a629c9171b9191f`。
 - 下一步：检查 Dia 与游龙原生页面在系统返回键、顶部返回按钮和主 Tab 切换时的返回栈一致性；然后继续原生页面 UI 批次，优先未完成的 Dia / 游龙广告插件页面。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 白名单全量格式校验与选择器防覆盖保护
+
+- 复核并发更新后的 `WhitelistPickerActivity`：中央 `FxYulongWhitelistPolicy.isWellFormed(raw)` 会对整份 CSV 原子校验；只要存在一个非法条目、条数超限或原始文本超限，解析即整体拒绝。选择器新增 `whitelistDataCorrupt` 标记，并在 `saveSelected()` 前阻止写入，避免用户新增一个应用时覆盖掉损坏/不完整的旧白名单。
+- 本轮未重复改写已存在的实现；新增 `fx-yulong-shield-native-regression.sh` 断言，保护全量格式检测与写入拦截。
+- 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`；实现已存在于 `WhitelistPickerActivity.java`（本轮复核 Blob `b0851d34fc8baa4ee1c5a31c227857f20babf5ed`）。
+- 提交：`9a729f2ffd9477b495340b58c06defadc2b4690e` — 白名单异常源数据写入保护回归断言。
+- 验证：最新源码与脚本静态核对全量格式检测、损坏标记、保存拦截和测试断言，均匹配；未执行 Shell/Gradle/设备测试。
+- 仍需完成：确认白名单列表主页面对损坏数据同样不做部分写入；对黑名单现有 CSV 做同等级完整性审计；真机验证名单管理器从扫描详情返回后的刷新与提示。
+- 当前读取的分支 HEAD：`0b01cb741db766102f38c76ee8f0d32c631dfc75`。
+- 下一步：审计 `WhitelistActivity` 的“移除/清理系统应用”写入路径是否在原始数据损坏时 fail-closed，再检查黑名单数据写入路径。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
