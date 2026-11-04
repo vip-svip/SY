@@ -216,3 +216,26 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The watcher process now atomically publishes its own PID record only after entering `watch-loop`; the starter no longer pre-publishes the PID based on `$!` and waits until the child marker plus exact process identity are visible before releasing the lifecycle lock.
 - This closes the startup window exposed by the CI delayed-`nohup` concurrency fixture. Empty/stale PID records are cleared only while holding the same lifecycle lock; the child PID marker is private and uses a randomized same-directory temp file.
 - The targeted concurrent-start regression now validates the real child-published marker and mode 0600, alongside the existing single-spawn and start/stop-race checks. CI must pass before this fix is treated as verified.
+
+
+## 2026-11-04 — Dia page lifecycle and unified Xposed entrypoint corrections
+
+- Dia's fourth-level `运行日志` route now opens the target-specific Frida session log rather than the unrelated FX module log viewer. The last selected target package/label is persisted across fresh Dia Activity launches, but is reused only after PackageManager revalidates that it remains installed, user-owned and `FLAG_DEBUGGABLE`; stale or no-longer-eligible targets are cleared.
+- Dia's `脚本编辑器` menu now opens the full-screen editor directly; `JS 脚本列表` continues to open the script library. Regression: `scripts/tests/fx-dia-frida-page-navigation-regression.sh`, wired into `.github/workflows/build-fx-adhook.yml`.
+- The APK-level Hook regression now verifies both legacy `assets/xposed_init` adapters: `de.privacyguard.hook.MainHook` and `de.privacyguard.hook.DiaFridaTargetHook`. The test also checks both DEX classes plus the modern libxposed `AdVisibilityHook`. The two-line legacy list is intentional; requiring an exact one-line file had incorrectly rejected the Frida adapter.
+- Commits: `7a4d1dc218` (Dia page lifecycle), `2091a8bc8f` (APK entrypoint assertions).
+
+## 2026-11-04 — Yulong watcher and Dia Frida server lifecycle hardening
+
+- The Yulong watcher no longer steals an ownerless lifecycle lock during the mkdir-to-owner-PID publication window. The final startup handshake moved PID publication into the watcher child itself: after entering `watch-loop`, it writes its own PID through a private randomized same-directory temp and atomic rename. The starter holds the lock until that exact child PID appears and `/proc/<pid>/cmdline` confirms the watcher identity.
+- Concurrent-start regression additionally checks the published PID is the live child `watch-loop` process and that the PID file mode is 0600. The fixture delays `nohup` startup to exercise the handoff window. Test contract was updated to assert child-owned publication rather than the superseded parent-owned PID flow.
+- Dia Frida server lifecycle now defines and uses exact process guards: PID liveness rejects zombie/exited states, and ownership requires exact `argv[0]`, `-l`, and `127.0.0.1:27042` matches from `/proc/<pid>/cmdline`. Start is serialized, writes a private atomic PID record, detects an unmanaged matching server rather than duplicating it, and verifies ownership before returning. Stop sends TERM only to the exact FX-owned process and keeps state on timeout/PID reuse.
+- Commits: `9b0e5dd392` (initial ownership hardening), `3e1b6e83c1` (child readiness handshake), `96463dd486` / `ce70698b43` / `aa64adc1e5` / `132cecdbea` (readiness regression contract), `24cbb1b916` / `056212cdd6` (Frida exact process guard).
+- Verification at this handoff revision: Actions run `41756139305` is the latest full source-validation run and must be checked before claiming regression success. Older run `41755952765` failed because its test still asserted the previous parent-owned startup loop; run `41755952765` did not reach APK compilation. No OnePlus 12 / Android device validation is recorded; no final APK/KernelSU ZIP was generated.
+
+## Remaining source/runtime gates — do not mark complete yet
+
+1. Yulong AdBlock: true per-app DNS query/block counters are still distinct from UID byte totals; Root Proxy compatibility needs vendor-VPN device verification; full upstream DNS protocol and original scheduler parity remain open.
+2. Yulong Shield: current Stellar manager is an FX-local Root-backed scoped controller, not the original asynchronous IStellarService/StellarProvider Binder daemon. Full Binder readiness/request/confirmation/response/log transport, original multi-mode remediation and complete rescue overlay parity remain open.
+3. Dia: Frida server/Gadget host lifecycle and page routes are source-integrated, but Android LSPosed/Gadget runtime is still device-pending. The original full class-loader/method/native interception and built-in HTTP/SQL/algorithm monitoring parity is not established by editable Frida templates alone.
+4. Run the current source regression + Gradle APK build from one exact HEAD; only after all source migrations and acceptance gates close may the paired FX Hook APK + KernelSU ZIP be built. Keep OnePlus 12 / KernelSU / LSPosed verification explicitly pending until real device evidence exists.
