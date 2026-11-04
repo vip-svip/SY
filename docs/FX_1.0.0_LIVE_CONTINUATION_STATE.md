@@ -2918,3 +2918,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仅更新测试注释断言，未更改产品导航行为；改动文件 `scripts/tests/fx-yulong-shield-six-tab-regression.sh`，提交 `5dad0d655baca72478430e0cffd681c1e9451d5f`。
 - 已对照 RescueActivity 第 141–148 行及 OverlayService 两个启动入口；新 Actions 尚待执行。
 - 下一步读取六 Tab 与 Shield worker-bound 回归的首个失败。Shield 主回归在 `41913864161` 中实际 PASS；六 Tab 尚未通过。
+
+
+## 2026-11-05 — Shield 三项定向 Host 回归通过
+
+- Actions：`41913976722`，HEAD `5dad0d655baca72478430e0cffd681c1e9451d5f`，结论 SUCCESS。
+- 实际通过：
+  - `fx-yulong-shield-native-regression.sh`：主 UI/数据库/扫描/安全删除/白名单边界/扫描证据字段断言。
+  - `fx-yulong-shield-six-tab-regression.sh`：Shield 原生页面六 Tab 壳、返回导航与页面注册。
+  - `fx-yulong-shield-worker-bounds-regression.sh`：病毒库和完整性工作线程有界、过载拒绝及 Activity 生命周期回调保护。
+- 这属于 GitHub Host 静态/脚本回归通过；不代表 Android Gradle 编译、JUnit、设备安装或真机操作已验收。
+- 下一步：检查 WhitelistActivity / WhitelistPickerActivity / BlacklistActivity 的搜索、筛选、分页、选择状态与返回恢复；之后回到 Hook Host 回归，确认剩余静默失败是否已随最新断言修正。
