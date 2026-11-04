@@ -133,6 +133,7 @@ from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
 for token in ('umask 077', 'set -C', '_nl_read_lock_owner()', '_nl_unlock()',
+              'IFS= read -r _nl_lock_pid _nl_rest < /proc/self/stat', '_nl_lock_pid',
               'kill -0', '.stale.$$.', 'legacy ownerless managed-list lock',
               'refusing to follow it', 'trap cleanup EXIT',
               'normalize_domain()', 'normalize_value()', 'value_exists()'):

@@ -212,17 +212,17 @@ _nl_remove_lock_path() {
 _nl_unlock() {
   [ "$LOCK_HELD" = 1 ] || return 0
   _nl_owner=$(_nl_read_lock_owner "$LOCK" 2>/dev/null || :)
-  if [ "$_nl_owner" = "$" ]; then
-    _nl_release="$LOCK.release.$"
+  if [ "$_nl_owner" = "$_nl_lock_pid" ]; then
+    _nl_release="$LOCK.release.$_nl_lock_pid"
     _nl_release_try=0
     while { [ -e "$_nl_release" ] || [ -L "$_nl_release" ]; } && [ "$_nl_release_try" -lt 20 ]; do
       _nl_release_try=$((_nl_release_try + 1))
-      _nl_release="$LOCK.release.$.$_nl_release_try"
+      _nl_release="$LOCK.release.$_nl_lock_pid.$_nl_release_try"
     done
     if [ ! -e "$_nl_release" ] && [ ! -L "$_nl_release" ] &&
        mv "$LOCK" "$_nl_release" 2>/dev/null; then
       _nl_release_owner=$(_nl_read_lock_owner "$_nl_release" 2>/dev/null || :)
-      if [ "$_nl_release_owner" = "$" ]; then
+      if [ "$_nl_release_owner" = "$_nl_lock_pid" ]; then
         _nl_remove_lock_path "$_nl_release" || :
       elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
         mv "$_nl_release" "$LOCK" 2>/dev/null || :
@@ -234,6 +234,20 @@ _nl_unlock() {
 }
 
 _nl_acquire_lock() {
+  # A builtin read of /proc/self/stat obtains this shell's PID directly;
+  # command substitution would report a short-lived subshell PID instead.
+  _nl_lock_pid=
+  _nl_rest=
+  IFS=' ' read -r _nl_lock_pid _nl_rest < /proc/self/stat || {
+    echo "cannot determine managed-list lock owner PID" >&2
+    return 10
+  }
+  case "$_nl_lock_pid" in ''|0|*[!0-9]*)
+    echo "cannot determine managed-list lock owner PID" >&2
+    return 10
+    ;;
+  esac
+
   _nl_tries=0
   _nl_retries=${FX_MANAGED_LIST_LOCK_RETRIES:-20}
   case "$_nl_retries" in ''|*[!0-9]*|0) _nl_retries=20 ;; esac
@@ -246,7 +260,7 @@ _nl_acquire_lock() {
     fi
 
     if [ ! -e "$LOCK" ]; then
-      if ( umask 077; set -C; printf '%s\n' "$" > "$LOCK" ) 2>/dev/null; then
+      if ( umask 077; set -C; printf '%s\\n' "$_nl_lock_pid" > "$LOCK" ) 2>/dev/null; then
         LOCK_HELD=1
         return 0
       fi
@@ -262,7 +276,7 @@ _nl_acquire_lock() {
             _nl_owner2=$(_nl_read_lock_owner "$LOCK" 2>/dev/null || :)
             if [ "$_nl_owner2" = "$_nl_owner" ] &&
                ! kill -0 "$_nl_owner2" 2>/dev/null; then
-              _nl_stale="$LOCK.stale.$.$_nl_tries"
+              _nl_stale="$LOCK.stale.$_nl_lock_pid.$_nl_tries"
               if [ ! -e "$_nl_stale" ] && [ ! -L "$_nl_stale" ] &&
                  mv "$LOCK" "$_nl_stale" 2>/dev/null; then
                 _nl_moved_owner=$(_nl_read_lock_owner "$_nl_stale" 2>/dev/null || :)
@@ -294,7 +308,6 @@ _nl_acquire_lock() {
     sleep 1
   done
 }
-
 with_lock() {
   _nl_acquire_lock || return $?
   if "$@"; then rc=0; else rc=$?; fi
