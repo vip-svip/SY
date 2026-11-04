@@ -1561,3 +1561,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：当前 HEAD 重新读取源码和测试脚本，确认载荷同步持久化、512 KiB 上限、状态标记保存/恢复、取消/失败/成功清理、GPS 目标恢复竞态断言存在。未执行完整 Shell 脚本、Gradle/JUnit、模拟器或真机 SAF 交互。
 - 失败路线：两次基于过期 MainActivity blob SHA 更新时遇到 409；均重新读取最新 HEAD 与 blob SHA 后仅重放缺失改动，没有覆盖并行提交。一次静态核验把文件大小常量误限定在方法代码片段内，已改为检查类常量本身并补上回归断言。
 - 下一步：检查 Hook 自定义规则页的未提交编辑器草稿、导入/导出与返回链；随后执行 Dia 页面组 Host 测试可运行性检查。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 自定义规则筛选与滚动状态恢复
+
+- 本批起始 HEAD：`dbeaff3c30f40bcd0c5dfbb50cebf3b29a9af3d1`；更新期间并行分支有推进，所有写入均基于重新读取的最新文件 SHA。
+- 修复自定义 Hook 规则页重建后筛选条件与位置丢失：
+  - 按当前目标应用保存分组筛选、搜索关键词（最多 256 字符）和纵向滚动位置。
+  - Activity 重建后恢复三个状态；分组不存在时安全回退到“全部分组”，不会显示空白错误筛选。
+  - 规则新增/编辑/导入/分组变更触发目标页重建时，先从当前 Spinner、EditText 与 ScrollView 捕获状态，再重建规则列表并恢复筛选和滚动。
+  - 目标应用变化时清空上一目标的筛选，避免跨包复用 UI 状态。
+  - 滚动恢复回调校验目标包与当前 ScrollView 实例，阻止旧页面异步回调影响新页面。
+- 提交：
+  - `67b61259ad25d26192b4972e8aff4b492d2dc792` — `fix(hook): restore custom rule filters and scroll state`。
+  - `c6c23ace7c5ec7e95a34b1a7946b77d447e4e693` — `test(hook): cover custom rule filter and scroll restoration`。
+- 静态验证：已检查三个 Bundle 状态键、保存/恢复路径、分组 Spinner 还原、搜索输入还原、编辑后重建捕获、滚动恢复以及目标/ScrollView 实例保护；回归脚本已加入对应断言。未执行完整 Shell 回归、Gradle 编译、UI 自动化或真机旋转与规则编辑测试。
+- 未改变规则 schema、解析器、动作白名单、规则 ID 唯一性、发布协议、LSPosed 授权或目标进程注入语义。
+- 下一步：检查规则新增/编辑和 JSON 导入弹窗在配置变化期间的未提交草稿保留；然后统一执行可用的 Hook/Dia Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
