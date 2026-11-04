@@ -6,26 +6,75 @@ PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigP
 SER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java"
 UI="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java"
-TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicyTest.java"
+POLICY_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicyTest.java"
+PARSER_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java"
+SER_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java"
+HOST_TEST="$ROOT/scripts/tests/FxDiaDialogMatchPolicyHostTest.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for f in "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$TEST"; do [ -s "$f" ] || fail "missing Dialog source: $f"; done
-python3 - "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$TEST" <<'PY'
+for f in "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" "$HOST_TEST"; do
+    [ -s "$f" ] || fail "missing Dialog source: $f"
+done
+python3 - "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" <<'PY'
 from pathlib import Path
 import re, sys
-hook, parser, ser, ui, policy, test = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
-imports = re.findall(r"^import de\\.privacyguard\\.adhook\\.imported\\.dia\\.FxDiaDialogMatchPolicy;$", hook, re.M)
+hook, parser, ser, ui, policy, policy_test, parser_test, ser_test = [
+    Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
+]
+imports = re.findall(
+    r"^import de\.privacyguard\.adhook\.imported\.dia\.FxDiaDialogMatchPolicy;$",
+    hook, re.M)
 assert len(imports) == 1, f"Dialog policy import count must be one, got {len(imports)}"
-assert 'Dialog.class.getDeclaredMethod("show")' in hook
-assert "dialogRulesFor(dialogPackage)" in hook
+
+# Native per-app UI and configuration publication.
+assert 'case "对话框与通知":' in ui and 'showAppList("Dialog处理")' in ui
+assert "showDiaDialogTarget(ai, targetDebuggable)" in ui
+for field in ("dialog_match_enabled", "dialog_text_terms", "dialog_id_terms", "dialog_notify"):
+    assert field in ui, f"missing per-app preference {field}"
+assert "dialog_text_terms_b64=" in ui and "dialog_id_terms_b64=" in ui
+assert "文本规则与资源 ID 规则各最多 32 条" in ui
+assert "targetDebuggable &&" in ui, "publish path must re-check debuggable targets"
+
+# Unified parser/serializer validation and bounded literal matching.
+for key in ("dialog_match", "dialog_notify", "dialog_text_terms_b64", "dialog_id_terms_b64"):
+    assert key in parser, f"parser does not consume {key}"
+assert "dialogNotify && !dialogMatchEnabled" in parser
+assert "dialog_notify" in ser and "dialog rules/feedback require dialogMatchEnabled" in ser
+assert "MAX_TERMS = 32" in policy and "MAX_RAW_UTF8_BYTES = 1024" in policy
+assert "MAX_TEXT_CHARS = 4096" in policy
+assert "matchesResourceIdExactly" in policy_test
+
+# Real runtime path: package scope, WindowManager pre-attach and Dialog.show pre-check.
+assert "dialogMatchForPackage && debuggableTarget" in hook
+assert "private UnifiedHookConfigParser.Target dialogRulesFor" in hook
+assert 'Class.forName("android.view.WindowManagerImpl"' in hook
+assert '"addView".equals(method.getName())' in hook
+assert "dialogWindowAddViewMethods.contains(key)" in hook
+assert "findDialogRuleMatch(root, target, new int[]{512}, 0)" in hook
+assert "WindowManager.addView Dialog check failed open" in hook
+assert "Dialog.class.getDeclaredMethod(\"show\")" in hook
+assert "dialogRules == null || fullScreen ? null" in hook
 assert "dialog pre-display match failed open" in hook
-assert "new int[]{512}" in hook and "depth > 16" in hook
 assert "dialogNotifyLastShown.put(packageName, now)" in hook
-assert "dialogMatchEnabled" in parser and "dialog_text_terms_b64" in parser and "dialog_id_terms_b64" in parser
-assert "dialogMatchEnabled" in ser and "dialog rules/feedback require dialogMatchEnabled" in ser
-assert "showDiaDialogTarget" in ui and "保存并发布 Dialog 规则" in ui
-assert "parseTerms" in policy and "MAX_TERMS = 32" in policy and "MAX_RAW_UTF8_BYTES = 1024" in policy
-assert "matchesResourceIdExactly" in test and "rejectsRawRuleTextOverOneKiB" in test
-assert 'logFx(Log.INFO, "dia-dialog-match package="' in hook
-assert 'dialog match inspection failed' in hook
-print("PASS: Dialog UI/config/runtime contracts, bounded matcher, fail-open, throttled feedback and single import")
+assert "now - previous < 3000L" in hook
+
+# Parser/serializer regression cases cover defaults, invalid configurations and round trips.
+for case in (
+    "parsesExplicitDialogTextAndResourceRulesWithOptionalFeedback",
+    "legacyTargetsDoNotEnableDialogHandlingOrFeedback",
+    "rejectsDialogMatchWithoutExplicitRules",
+    "rejectsDialogFeedbackWhenMatchingIsDisabled"):
+    assert case in parser_test, f"missing Parser test: {case}"
+for case in (
+    "serializerRoundTripsDialogRulesAndFeedbackPerTarget",
+    "serializerRejectsDialogFeedbackWithoutEnabledMatcher"):
+    assert case in ser_test, f"missing Serializer test: {case}"
+print("PASS: Dialog UI/config/runtime source contracts")
 PY
+
+command -v javac >/dev/null 2>&1 || fail "JDK is required for Dialog policy host tests"
+command -v java >/dev/null 2>&1 || fail "JRE is required for Dialog policy host tests"
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT HUP INT TERM
+javac -Xlint:all -Werror -d "$OUT" "$POLICY" "$HOST_TEST"
+java -cp "$OUT" de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicyHostTest
+echo "PASS: Dia native Dialog integration regression"
