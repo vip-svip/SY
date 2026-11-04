@@ -150,6 +150,7 @@ public final class MainActivity extends ComponentActivity {
     private boolean lastCustomRuleGroupCommitAttempted;
     private int customRuleGroupDialogSlot = -1;
     private int customRuleGroupDialogChoice;
+    private boolean customRuleGroupReturnToPicker;
     private int customRuleEditorEditingSlot = -1;
     private String customRuleEditorPresetDescriptor;
     private boolean hookHubVisible;
@@ -286,6 +287,8 @@ public final class MainActivity extends ComponentActivity {
                 customRuleGroupDialogValue = state.getString("fx_custom_rule_group_dialog_value");
                 customRuleGroupDialogSlot = state.getInt("fx_custom_rule_group_dialog_slot", -1);
                 customRuleGroupDialogChoice = Math.max(0, state.getInt("fx_custom_rule_group_dialog_choice", 0));
+                customRuleGroupReturnToPicker =
+                        state.getBoolean("fx_custom_rule_group_return_to_picker", false);
                 customRuleGroupDialogRestorePending = customRuleGroupDialogMode != null;
                 if (customRuleEditorPresetDescriptor != null
                         && customRuleEditorPresetDescriptor.length() > 4096) {
@@ -486,6 +489,8 @@ public final class MainActivity extends ComponentActivity {
                         outState.putString("fx_custom_rule_group_dialog_value", customRuleGroupDialogValue);
                     outState.putInt("fx_custom_rule_group_dialog_slot", customRuleGroupDialogSlot);
                     outState.putInt("fx_custom_rule_group_dialog_choice", customRuleGroupDialogChoice);
+                    outState.putBoolean("fx_custom_rule_group_return_to_picker",
+                            customRuleGroupReturnToPicker);
                 }
                 if (customRuleEditorDialogOpen || customRuleEditorRestorePending) {
                     outState.putBoolean("fx_custom_rule_editor_open", true);
@@ -6308,7 +6313,23 @@ public final class MainActivity extends ComponentActivity {
         customRuleGroupDialogValue = null;
         customRuleGroupDialogSlot = -1;
         customRuleGroupDialogChoice = 0;
+        customRuleGroupReturnToPicker = false;
         customRuleGroupDialogRestorePending = false;
+    }
+
+    private void cancelCustomRuleGroupAddDialog() {
+        boolean returnToPicker = customRuleGroupReturnToPicker;
+        int slot = customRuleGroupDialogSlot;
+        int choice = customRuleGroupDialogChoice;
+        clearCustomRuleGroupDialogState();
+        if (returnToPicker && slot > 0) showCustomRuleGroupPicker(slot, choice);
+    }
+
+    private void retryCustomRuleGroupAddDialog(boolean returnToPicker, int slot, int choice) {
+        customRuleGroupReturnToPicker = returnToPicker && slot > 0;
+        customRuleGroupDialogSlot = customRuleGroupReturnToPicker ? slot : -1;
+        customRuleGroupDialogChoice = customRuleGroupReturnToPicker ? Math.max(0, choice) : 0;
+        showAddCustomRuleGroupDialog();
     }
 
     private void showAddCustomRuleGroupDialog() {
@@ -6331,24 +6352,40 @@ public final class MainActivity extends ComponentActivity {
         input.setHint("例如：网络监控、会员状态、设备模拟");
         new AlertDialog.Builder(this).setTitle("新增规则分组")
                 .setView(input)
-                .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
-                .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
+                .setNegativeButton("取消", (dialog, which) -> cancelCustomRuleGroupAddDialog())
+                .setOnCancelListener(dialog -> cancelCustomRuleGroupAddDialog())
                 .setPositiveButton("新增", (dialog, which) -> {
-                    clearCustomRuleGroupDialogState();
+                    boolean returnToPicker = customRuleGroupReturnToPicker;
+                    int pickerSlot = customRuleGroupDialogSlot;
+                    int pickerChoice = customRuleGroupDialogChoice;
                     String value = input.getText().toString().trim();
                     if (!validCustomRuleGroupName(value)) {
                         new AlertDialog.Builder(this).setMessage("分组名称无效，最长 24 个字符。")
-                                .setPositiveButton("知道了", null).show();
+                                .setPositiveButton("返回编辑", (d, w) ->
+                                        retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice))
+                                .show();
                         return;
                     }
                     if (!ensureCustomRuleGroup(value)) {
                         new AlertDialog.Builder(this)
                                 .setMessage(customRuleGroupCommitFailureMessage("创建分组"))
-                                .setPositiveButton("知道了", null).show();
+                                .setPositiveButton("重试", (d, w) ->
+                                        retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice))
+                                .show();
                         return;
                     }
-                    getPreferences(0).edit().remove(draftKey).apply();
-                    new AlertDialog.Builder(this).setMessage("已创建分组：" + value)
+                    boolean draftCleared = getPreferences(0).edit().remove(draftKey).commit();
+                    clearCustomRuleGroupDialogState();
+                    if (returnToPicker && pickerSlot > 0) {
+                        int preferredIndex = new java.util.ArrayList<>(getCustomRuleGroups()).indexOf(value);
+                        showCustomRuleGroupPicker(pickerSlot, preferredIndex);
+                        if (!draftCleared) {
+                            Toast.makeText(this, "分组已创建，但输入草稿清理未确认。", Toast.LENGTH_LONG).show();
+                        }
+                        return;
+                    }
+                    new AlertDialog.Builder(this).setMessage("已创建分组：" + value
+                                    + (draftCleared ? "" : "；输入草稿清理未确认"))
                             .setPositiveButton("继续管理", (d, w) -> showCustomRuleGroupsDialog())
                             .setNegativeButton("关闭", null).show();
                 }).show();
@@ -6357,6 +6394,9 @@ public final class MainActivity extends ComponentActivity {
     private void showCustomRuleGroupsDialog() {
         customRuleGroupDialogMode = "list";
         customRuleGroupDialogValue = null;
+        customRuleGroupDialogSlot = -1;
+        customRuleGroupDialogChoice = 0;
+        customRuleGroupReturnToPicker = false;
         customRuleGroupDialogRestorePending = false;
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         String[] names = groups.toArray(new String[0]);
@@ -6503,6 +6543,7 @@ public final class MainActivity extends ComponentActivity {
         customRuleGroupDialogMode = "picker";
         customRuleGroupDialogValue = null;
         customRuleGroupDialogSlot = slot;
+        customRuleGroupReturnToPicker = false;
         customRuleGroupDialogRestorePending = false;
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         String[] names = groups.toArray(new String[0]);
@@ -6519,7 +6560,10 @@ public final class MainActivity extends ComponentActivity {
                     chosen[0] = which;
                     customRuleGroupDialogChoice = which;
                 })
-                .setNeutralButton("新增分组", (dialog, which) -> showAddCustomRuleGroupDialog())
+                .setNeutralButton("新增分组", (dialog, which) -> {
+                    customRuleGroupReturnToPicker = true;
+                    showAddCustomRuleGroupDialog();
+                })
                 .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
                 .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
                 .setPositiveButton("移动", (dialog, which) -> {
