@@ -31,8 +31,11 @@ assert "EXTERNALLY_CHANGED" in activity and "FX 不会覆盖当前值" in activi
     "Activity must disclose external proxy ownership conflicts"
 assert "FxDiaWifiProxyState.evaluate" in tile and "queryLiveState()" in tile, \
     "Quick Settings Tile must derive state from the live system proxy"
-assert "refreshTile(after)" in tile and "refreshTile(before)" in tile, \
-    "Tile must render both successful and refused transitions from live state"
+assert "refreshTile(after)" in tile and "postTileState(before)" in tile, \
+    "Tile must render successful transitions and post refused transitions to the main looper"
+assert "postTileState(FxDiaWifiProxyState.Status.UNKNOWN)" in tile, \
+    "Tile read failures must post state changes to the main looper"
+assert "refreshTile();" not in tile, "stale preference-only Tile renderer must be removed"
 assert "EXTERNALLY_CHANGED" in tile and "未执行" in tile, \
     "Tile must refuse to overwrite externally changed proxy state"
 assert "Status evaluate(boolean managed" in state and "Status.UNKNOWN" in state, \

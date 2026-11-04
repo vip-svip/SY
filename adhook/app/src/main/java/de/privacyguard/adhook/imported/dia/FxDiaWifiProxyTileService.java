@@ -30,7 +30,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
                 android.widget.Toast.makeText(this,
                         "Dia 快速设置任务繁忙，本次操作未执行；请稍后重试。",
                         android.widget.Toast.LENGTH_LONG).show();
-                refreshTile();
+                refreshTile(FxDiaWifiProxyState.Status.UNKNOWN);
             });
         }
     }
@@ -88,6 +88,10 @@ public final class FxDiaWifiProxyTileService extends TileService {
                         android.widget.Toast.LENGTH_LONG).show());
     }
 
+    private void postTileState(FxDiaWifiProxyState.Status state) {
+        new android.os.Handler(getMainLooper()).post(() -> refreshTile(state));
+    }
+
     @Override public void onStartListening() {
         super.onStartListening();
         submitWorker(() -> {
@@ -110,14 +114,14 @@ public final class FxDiaWifiProxyTileService extends TileService {
         String current = readCurrentProxy();
         if (current == null) {
             showMessage("无法读取系统代理，未执行切换；请检查 KernelSU Root 授权。");
-            refreshTile(FxDiaWifiProxyState.Status.UNKNOWN);
+            postTileState(FxDiaWifiProxyState.Status.UNKNOWN);
             return;
         }
         FxDiaWifiProxyState.Status before = FxDiaWifiProxyState.evaluate(
                 p.getBoolean("active", false), current, expected, true);
         if (before == FxDiaWifiProxyState.Status.EXTERNALLY_CHANGED) {
             showMessage("系统代理已被其他程序或用户更改。FX 为避免覆盖外部设置，本次切换未执行；请打开代理管理页面解除 FX 管理。");
-            refreshTile(before);
+            postTileState(before);
             return;
         }
         boolean active = FxDiaWifiProxyState.mayRestore(before);

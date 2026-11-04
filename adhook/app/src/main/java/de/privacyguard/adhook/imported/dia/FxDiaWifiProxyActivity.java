@@ -231,6 +231,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
                 status.setText(result.output != null && result.output.contains("FX_PROXY_CONFLICT")
                         ? "检测到系统代理被其他程序更改，未覆盖其设置。"
                         : "系统代理应用失败：" + safe(result.output));
+                refreshStatus();
                 return;
             }
             String newPrevious = extract(result.output, "PREVIOUS=");
@@ -275,6 +276,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
                 status.setText(result.output != null && result.output.contains("FX_PROXY_CONFLICT")
                         ? "系统代理已被外部更改。为避免覆盖其他程序设置，FX 未执行恢复。"
                         : "系统代理恢复失败：" + safe(result.output));
+                refreshStatus();
                 return;
             }
             prefs().edit().putBoolean("active", false)
@@ -310,7 +312,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
             if (result.exitCode != 0) {
                 proxyStatus = FxDiaWifiProxyState.Status.UNKNOWN;
                 status.setText("无法读取系统代理：" + safe(result.output)
-                        + "\\n为避免覆盖外部代理，恢复操作已暂时禁用。");
+                        + "\n为避免覆盖外部代理，恢复操作已暂时禁用。");
                 updateButtons();
                 return;
             }
@@ -333,7 +335,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
                     stateText = "FX 管理状态：未启用";
                     break;
             }
-            status.setText("global http_proxy = " + shown + "\\n" + stateText);
+            status.setText("global http_proxy = " + shown + "\n" + stateText);
             updateButtons();
         });
     }
