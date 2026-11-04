@@ -2813,3 +2813,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `e7feee9401b1cedebcaef5fb5f070ed1d69b10a9`。
 - 验证：已对照 Shield Hub 当前源码逐行确认字符串布局；等待本次 Actions 结果。未执行 Gradle/Android 单测/真机。
 - 失败路线：不要求累计提醒首行添加空白换行；后续如调整文案，断言应检查实际信息层级而非旧字符串字面形态。
+
+
+## 2026-11-05 — Shield 病毒库缓存错误持久化断言修正
+
+- Actions：`41913137273` 通过 Shield Hub 提醒换行检查后，失败于病毒库缓存安全契约断言，要求 `editor.putString(K_LAST_ERROR, lastError)`。
+- 核对：`FxYulongVirusDb.save()` 使用链式初始化：`SharedPreferences.Editor editor = sp.edit().putString(...).putString(K_LAST_ERROR, lastError);`。实际逻辑存在，旧断言错误要求在赋值后再次调用 editor.putString。
+- 修正：回归断言改为匹配真实链式调用的 `.putString(K_LAST_ERROR, lastError);`；没有改变病毒库缓存实现或安全语义。
+- 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `7c4d135316f7383337d0cb6c68723890e2c009e8`。
+- 验证：已读取 `FxYulongVirusDb.save()` 真实代码行并对照测试表达式；等待下一次定向 Actions。未执行 Android 单测、Gradle、模拟器或真机。
+- 失败路线：不再匹配 `editor.putString(K_LAST_ERROR, lastError)` 独立调用；实现使用 Editor 链式构造。
