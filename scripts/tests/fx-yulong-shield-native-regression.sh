@@ -22,6 +22,9 @@ manifest_text = manifest_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 main = main_path.read_text(encoding="utf-8")
 shield = {p.name: p.read_text(encoding="utf-8") for p in shield_dir.glob("*.java")}
+blacklist_activity = shield["BlacklistActivity.java"]
+blacklist_policy = shield["FxYulongBlacklistPolicy.java"]
+protection_service = shield["FxYulongProtectionService.java"]
 A = "{http://schemas.android.com/apk/res/android}"
 
 declared = {node.attrib.get(A + "name", "") for node in manifest.findall("./application/activity")}
@@ -419,6 +422,19 @@ assert "RootAccess" not in white and "yulong-stellar-control.sh" not in white \
     "Shield risk-exemption whitelist must remain separate from Stellar Root privilege authorization"
 assert '"blacklist_pkgs"' in black, "Blacklist manager must preserve the original blacklist key"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
+
+# Blacklist CSV is bounded and all-or-nothing; the live service and UI share the policy.
+assert "MAX_RAW_CHARS = 1024 * 1024" in blacklist_policy
+assert "MAX_ENTRIES = 10000" in blacklist_policy
+assert "isWellFormed(String raw)" in blacklist_policy
+assert "if (!isWellFormed(raw)) return Collections.emptySet();" in blacklist_policy
+assert "serialize(Iterable<String> packageNames)" in blacklist_policy
+assert "return FxYulongBlacklistPolicy.parse(values);" in protection_service, "Protection service must reject malformed blacklist atomically"
+assert 'blacklistDataCorrupt = !raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw)' in blacklist_activity
+assert "if (blacklistDataCorrupt)" in blacklist_activity and "已阻止覆盖" in blacklist_activity
+assert 'prefs.edit().putString("blacklist_pkgs", serialized).commit()' in blacklist_activity, "Blacklist writes must be checked and synchronous"
+assert "currentBlacklist.removeAll(staged);" in blacklist_activity and "currentBlacklist.add(item.packageName);" in blacklist_activity, "Failed blacklist writes must roll back in-memory edits"
+assert "管控名单保存失败，原有配置保持不变。" in blacklist_activity
 
 # Blacklist inventory and selection must not enumerate every installed package on
 # the UI thread or create a giant MultiChoiceItems dialog.
