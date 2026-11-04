@@ -157,7 +157,7 @@ fi
 # Test original Calendar weekday indexes (Sunday=0, Monday=1) and time semantics.
 mkdir -p "$T/bin"
 cat > "$T/bin/date" <<'DATE'
-#!/system/bin/sh
+#!/bin/sh
 case "$1" in
   +%w) printf '%s\n' "${FX_PROFILE_TEST_DOW:-1}" ;;
   +%H:%M) printf '%s\n' "${FX_PROFILE_TEST_TIME:-12:00}" ;;
@@ -166,6 +166,9 @@ case "$1" in
 esac
 DATE
 chmod 0755 "$T/bin/date"
+[ -x "$T/bin/date" ] || fail "fake date executable bit was not set"
+"$T/bin/date" +%w | grep -Fqx 0 || fail "fake date command could not execute or return Sunday=0"
+"$T/bin/date" +%H:%M | grep -Fqx 12:00 || fail "fake date command could not return test time"
 export PATH="$T/bin:$PATH"
 date_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 22:00 07:00 0)
 date_schedule_id=${date_schedule#created=}
