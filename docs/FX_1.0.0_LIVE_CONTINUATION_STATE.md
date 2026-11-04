@@ -3137,3 +3137,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：改用 `ET.fromstring(manifest_path)` 解析内存中的 XML 文本；产品代码未变。
 - 改动路径：`scripts/tests/fx-dia-crash-report-regression.sh`。
 - 验证：等待新 Actions 继续执行 CrashReport 状态恢复、JNI/Breakpad host tests；不把 XML parser 修复本身记为产品验收。
+
+
+## 2026-11-05 — Dia 文件浏览器搜索、嵌套导航与重建状态恢复
+
+- 修改前 HEAD：`79684b9a55c5d834e640aaf8f77301a0663bc6ff`。
+- 页面：Dia 23.11 → 文件与 SO 库浏览（SAF 授权目录）。
+- UI 完成：增加当前目录名称/MIME 类型搜索；过滤结果继续使用 100 项分页与 5,000 项读取上限；匹配数/显示数实时反馈。
+- 页面恢复：保存并恢复 SAF 授权树内的嵌套 document ID 路径、搜索查询、已展开分页深度和 ScrollView 位置；恢复前验证路径首项仍与当前 SAF tree root 相同、路径长度最多 64；用户改选目录或授权失效时清除旧分页/滚动状态，防止把旧目录状态套到新授权树。
+- 主要改动：`FxDiaFileActivity.java`、`fx-dia-file-browser-io-regression.sh`。相关提交：`cef36e68d53b6e9970b7a9c087e7294b987f7aed`（搜索/恢复）、`4ab8ab4622b5f3e2a6d8ef530fb2ebc07b976de2`（先恢复分页再恢复滚动）、`875a0d4696ebc1528f9804f188c31276fc99f1cf`（更换/失效树时清除旧状态）、`1d803dae7603af668a933b0e328dd812ae8817c4`、`baaefe17eea592cf7121892ad5128c22234c3bc1`（回归覆盖）。
+- 验证：静态源码检查确认搜索过滤、路径/query/分页/滚动保存恢复和有界 SAF path 校验均存在。Actions `41916426607` 正在执行；较早 run `41916386132` 在 Dia Crash Report 回归处失败，日志显示测试脚本把内存 XML 文本传给 `ElementTree.parse` 当文件路径；当前分支脚本已使用 `ElementTree.fromstring`，该失败不属于 FileActivity 产品代码，等待当前 run 确认。
+- 未验证：Android Gradle/JUnit、SAF 提供器兼容、旋转/进程重建视觉、真实文件读写真机验收。
+- 下一批：读取当前 Actions 结果；随后集中处理 Dia 文件浏览器的 SAF URI 读写取消/权限撤销交互，或转到备份页面导入/导出弹窗的恢复链。固定 FX 1.0.0，不打最终包。
