@@ -77,6 +77,9 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private int pickerScrollY;
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
+    private TextView blacklistDataWarningView;
+    private boolean blacklistDataCorrupt;
+    private String blacklistDataWarning = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -136,7 +139,14 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setGravity(Gravity.CENTER_HORIZONTAL);
-        content.setPadding(dp(24), dp(40), dp(24), dp(40));
+        content.setPadding(dp(24), dp(20), dp(24), dp(40));
+
+        blacklistDataWarningView = new TextView(this);
+        blacklistDataWarningView.setTextColor(0xffa32620);
+        blacklistDataWarningView.setTextSize(13);
+        blacklistDataWarningView.setPadding(dp(12), dp(10), dp(12), dp(10));
+        blacklistDataWarningView.setVisibility(View.GONE);
+        content.addView(blacklistDataWarningView);
 
         // 图标
         TextView iconView = new TextView(this);
@@ -262,21 +272,30 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private void loadBlacklist() {
         currentBlacklist.clear();
         String raw = prefs.getString("blacklist_pkgs", "");
-        if (!raw.isEmpty()) {
-            for (String p : raw.split(",")) {
-                String t = p.trim();
-                if (!t.isEmpty()) currentBlacklist.add(t);
-            }
-        }
+        blacklistDataCorrupt = !raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw);
+        blacklistDataWarning = blacklistDataCorrupt
+                ? "原管控名单格式异常或超过安全上限；为避免覆盖旧配置，当前禁止修改。"
+                : "";
+        if (!blacklistDataCorrupt) currentBlacklist.addAll(FxYulongBlacklistPolicy.parse(raw));
     }
 
-    private void saveBlacklist() {
-        StringBuilder sb = new StringBuilder();
-        for (String p : currentBlacklist) {
-            if (sb.length() > 0) sb.append(",");
-            sb.append(p);
+    private boolean saveBlacklist() {
+        if (blacklistDataCorrupt) {
+            Toast.makeText(this, "原管控名单数据异常，已阻止覆盖。请先核实并修复原始数据。",
+                    Toast.LENGTH_LONG).show();
+            return false;
         }
-        prefs.edit().putString("blacklist_pkgs", sb.toString()).apply();
+        String serialized = FxYulongBlacklistPolicy.serialize(currentBlacklist);
+        if (serialized == null) {
+            Toast.makeText(this, "管控名单超过安全条数或字符上限，未保存任何部分数据。",
+                    Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (!prefs.edit().putString("blacklist_pkgs", serialized).commit()) {
+            Toast.makeText(this, "管控名单保存失败，原有配置保持不变。", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        return true;
     }
 
     private static class AppItem {
