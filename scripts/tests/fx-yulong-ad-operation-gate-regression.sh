@@ -48,16 +48,19 @@ tile_reject = tile_click.find("catch (RejectedExecutionException full)")
 if tile_reject < 0 or "FxYulongAdOperationGate.release()" in tile_click[tile_reject:]:
     raise SystemExit("FAIL: rejected Tile task must not release an unacquired gate")
 
-# The Widget acquires before goAsync/worker submission. Its submission-failure
-# branches are allowed to release because this callback already owns the gate.
+# The migrated Yulong home-screen Widget controls the unified VPN route,
+# not the ad-master setting. It must use its own controller lock and must never
+# acquire the ad settings transaction gate.
 widget_receive = widget[widget.find("@Override public void onReceive("):]
-widget_acquire = widget_receive.find("FxYulongAdOperationGate.tryAcquire()")
+widget_pending = widget_receive.find("TOGGLE_PENDING.compareAndSet(false, true)")
 go_async = widget_receive.find("goAsync()")
 worker_submit = widget_receive.find("WORKER.execute(")
-if min(widget_acquire, go_async, worker_submit) < 0 or not widget_acquire < go_async < worker_submit:
-    raise SystemExit("FAIL: Widget must acquire before starting async work")
-if widget_receive.count("FxYulongAdOperationGate.release(gateToken)") != 3:
-    raise SystemExit("FAIL: Widget must release its exact lease token on both pre-submit failures and worker completion")
+if min(widget_pending, go_async, worker_submit) < 0 or not widget_pending < go_async < worker_submit:
+    raise SystemExit("FAIL: VPN Widget must serialize before goAsync and submit accepted work asynchronously")
+if "FxYulongAdOperationGate" in widget_receive:
+    raise SystemExit("FAIL: VPN Widget must not acquire the separate ad-settings transaction gate")
+if "yulong-vpn-control.sh" not in widget or "TOGGLE_PENDING.set(false);" not in widget_receive:
+    raise SystemExit("FAIL: VPN Widget must use canonical VPN control and release its pending state")
 if "OWNER_TOKEN.compareAndSet(0L, token)" not in gate or "OWNER_TOKEN.compareAndSet(token, 0L)" not in gate:
     raise SystemExit("FAIL: operation gate does not enforce exact-token ownership")
 all_callers = "\\n".join((activity, general, tasker, tile, widget))
@@ -65,8 +68,12 @@ if "FxYulongAdOperationGate.release()" in all_callers:
     raise SystemExit("FAIL: a caller still uses unsafe ownerless release API")
 if "gateToken = FxYulongAdOperationGate.tryAcquire()" not in general or "release(gateToken)" not in general:
     raise SystemExit("FAIL: General settings import does not carry its lease token")
-if "final long gateToken = FxYulongAdOperationGate.tryAcquire()" not in tasker or tasker.count("release(gateToken)") != 3:
-    raise SystemExit("FAIL: Tasker does not preserve its lease token through async completion/failure")
+if "final long gateToken = adFilterAction ? FxYulongAdOperationGate.tryAcquire() : 0L;" not in tasker:
+    raise SystemExit("FAIL: Tasker must acquire the ad transaction gate only for AD_FILTER actions")
+if tasker.count("release(gateToken)") != 3:
+    raise SystemExit("FAIL: Tasker does not preserve and release its conditional ad lease token")
+if "yulong-vpn-control.sh" not in tasker or "module-side yulong-vpn-control.sh lock" not in tasker:
+    raise SystemExit("FAIL: legacy Tasker VPN aliases must use the canonical separate VPN lock")
 
 root_start = activity.find("private void root(")
 root_end = activity.find("private String safe(", root_start)
@@ -82,5 +89,5 @@ if "RootAccess.failure(125" not in root or "后台任务繁忙，请稍后重试
 if "if(cb!=null)cb.accept(busy)" not in root:
     raise SystemExit("FAIL: rejected read-only Root task does not notify its operation callback")
 
-print("PASS: Activity queue rejection cannot clear another writer's gate; Tile and Widget retain ownership-balanced release paths")
+print("PASS: ad Activity/General/Tile callers retain exact-token leases; VPN Widget and Tasker VPN aliases use their separate canonical route lock")
 PY
