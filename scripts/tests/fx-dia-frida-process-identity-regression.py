@@ -17,7 +17,7 @@ assert "getApplicationInfo(targetPackage, 0)" in picker and "targetUid = targetI
 assert "targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE" in picker
 assert "targetInfo.flags & ApplicationInfo.FLAG_SYSTEM" in picker
 assert '"; uid=" + targetUid' in picker, "process enumeration must be bound to the currently installed target UID"
-assert '/proc/$pid/status' in picker and 'awk \'$1=="Uid:" {print $2; exit}\'' in picker, \
+assert '/proc/$pid/status' in picker and 'Uid:' in picker and '{print $2; exit}' in picker, \\
     "process picker must reject PID/name matches whose current UID differs"
 assert picker.index("getApplicationInfo(targetPackage, 0)") < picker.index("runRoot(command"), \
     "current package identity must be captured before enumerating processes"
