@@ -2749,3 +2749,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：断言调整为至少三个受限输入，并更新失败说明；保留新增/重命名与编辑器三处的长度约束，不更改产品代码。
 - 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 下一步：读取本次 targeted Actions 的新首错；若 Hook UI Host 回归通过，再切换到 Dia/Shield 页面批次。APK/DEX 检查需另行提供 debug APK 后执行。
+
+
+## 2026-11-05 — Hook LSPosed 作用域任务所有权断言跟进
+
+- Actions：`41912530483` 已通过 APK 条件跳过及分组输入约束，随后在 Hook 原生 UI 脚本中因旧方法签名检查而以无显式 FAIL 文本的状态退出。
+- 定位：对照当前 MainActivity，`finishHookTargetScopeOperation` 已从旧版 `(int request, Thread worker)` 改为只接收 generation，并由 `FutureTask<Void> hookTargetScopeFuture` 统一追踪、清理任务；测试仍匹配旧线程参数签名。
+- 修复：回归脚本改为检查当前单参数完成方法及 FutureTask 所有权字段/赋值，保留 generation 超时、取消和过期回调断言。未删除任务保护。
+- 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 下一步：重跑 targeted Host 回归；若仍退出，继续定位第一个不匹配的源断言。
