@@ -908,3 +908,13 @@ After each implementation batch:
 - Schedule status now verifies /proc command identity before reporting that the background watcher is running.
 - Verification status: host regression and current-HEAD CI result pending. This change does not produce a final APK or KernelSU ZIP; Root/Android device behavior remains unverified.
 - The latest ADB UI text correction is present in the new source HEAD; no further ADB source change is required for that earlier test failure.
+
+
+## 2026-11-04 — Yulong ProtectionProfile / ProfileSchedule migration batch
+
+- Added a root-owned profile store with the original Default, Strict, Family, Gaming and Strict Family presets plus custom profiles. The initially-created Default profile snapshots the device's current enabled `[list:rule]` sources and existing SafeSearch flags so first-run initialization does not silently replace the user's active list.
+- Profile switching saves the outgoing profile's selected list, applies the target profile's selected URLs to existing FX rule rows, persists the active profile, SafeSearch and YouTube restriction flags, then uses the existing serialized `apply.sh fast` path. Failed apply and intermediate settings-write errors restore both `settings.conf` and the profile table.
+- Added independent weekly `ProfileSchedule` records and a separate profile scheduler watcher. It matches the original local weekday/time-window behavior, including overnight intervals; equal start/end is a zero-length interval and does not match. The existing Yulong ad-filter schedule remains a separate feature.
+- The profile page is available in the native Yulong screen. It supports switching built-ins, creating/deleting custom profiles, setting SafeSearch/YouTube flags and adding/enabling/disabling/removing weekly profile schedules.
+- AdGuard Home configuration rendering now reads the two profile flags and enables provider-level SafeSearch/YouTube restrictions in the existing FX DNS engine; no second DNS service or VpnService was added.
+- Verification status: host regression and unified Hook APK compile are pending for this commit. One earlier run stopped at the initial patcher YAML anchor; the patcher is being changed to parse the actual restored YAML block before CI retry. Real device behavior and actual web/search provider response verification remain device-pending.

@@ -177,6 +177,25 @@ profile_list_locked(){
 current_urls_file(){
   pg_list rule | awk -F'|' '$1!="" && $3=="1" {print $1}' | LC_ALL=C sort -u > "$1"
 }
+rollback_profile_state(){
+  _restore_conf=$(mktemp "$CONF.profile-restore.XXXXXX") || { BACKUP_CONF=; BACKUP_PROFILES=; return 34; }
+  _restore_profiles=$(mktemp "$PROFILES.profile-restore.XXXXXX") || { rm -f "$_restore_conf"; BACKUP_CONF=; BACKUP_PROFILES=; return 34; }
+  if cp -p "$BACKUP_CONF" "$_restore_conf" && cp -p "$BACKUP_PROFILES" "$_restore_profiles" && mv -f "$_restore_conf" "$CONF" && mv -f "$_restore_profiles" "$PROFILES"; then
+    sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
+    rm -f "$BACKUP_CONF" "$BACKUP_PROFILES" "$TMP"
+    BACKUP_CONF=; BACKUP_PROFILES=; TMP=
+    return 0
+  fi
+  rm -f "$_restore_conf" "$_restore_profiles" 2>/dev/null || :
+  echo "profile rollback failed; preserved backup files: $BACKUP_CONF $BACKUP_PROFILES" >&2
+  BACKUP_CONF=; BACKUP_PROFILES=
+  return 34
+}
+refresh_schedule_worker(){
+  if [ -x "$MP/scripts/yulong-profile-schedule.sh" ]; then
+    PG="$PG" MP="$MP" sh "$MP/scripts/yulong-profile-schedule.sh" start "$MP" "$PG" >/dev/null 2>&1 || echo "profile_schedule_watcher=deferred" >&2
+  fi
+}
 apply_profile_locked(){
   ensure_store || return 1
   _target=$1; valid_id "$_target" || { echo "invalid profile id" >&2; return 2; }
@@ -203,9 +222,9 @@ apply_profile_locked(){
     current_urls_file "$_current_file" || { rm -f "$_current_file"; return 1; }
     _current_b64=$(base64 < "$_current_file" | tr -d '\r\n')
     rm -f "$_current_file"
-    replace_profile_row "$_active|$_active_name|$_active_kind|$_current_b64|$_active_safe|$_active_yt" || return 1
+    replace_profile_row "$_active|$_active_name|$_active_kind|$_current_b64|$_active_safe|$_active_yt" || { rollback_profile_state || :; return 1; }
   fi
-  _existing=$(mktemp "$PG/profile-existing-urls.XXXXXX") || return 1
+  _existing=$(mktemp "$PG/profile-existing-urls.XXXXXX") || { rollback_profile_state || :; return 1; }
   pg_list rule | awk -F'|' '$1!="" {print $1}' | LC_ALL=C sort -u > "$_existing"
   _missing=0
   while IFS= read -r _url; do
@@ -213,18 +232,18 @@ apply_profile_locked(){
     grep -F -x "$_url" "$_existing" >/dev/null 2>&1 || _missing=$((_missing+1))
   done < "$TMP"
   rm -f "$_existing"
-  _rules_tmp=$(mktemp "$CONF.profile-rules.XXXXXX") || return 1
+  _rules_tmp=$(mktemp "$CONF.profile-rules.XXXXXX") || { rollback_profile_state || :; return 1; }
   awk -F'|' -v OFS='|' -v wanted="$TMP" '
     BEGIN{while((getline u < wanted)>0) selected[u]=1; close(wanted); inside=0}
     $0=="[list:rule]"{inside=1;print;next}
     /^\[/ {inside=0;print;next}
     inside && $0 !~ /^[[:space:]]*#/ && NF>=3 && $1!="" {$3=($1 in selected)?"1":"0";print;next}
     {print}
-  ' "$CONF" > "$_rules_tmp" || { rm -f "$_rules_tmp"; return 1; }
-  chmod 600 "$_rules_tmp" && mv -f "$_rules_tmp" "$CONF" || { rm -f "$_rules_tmp"; return 1; }
-  pg_set yulong_active_profile "$_target" || return 1
-  pg_set yulong_safe_search_enabled "$_target_safe" || return 1
-  pg_set yulong_youtube_restricted_mode "$_target_yt" || return 1
+  ' "$CONF" > "$_rules_tmp" || { rm -f "$_rules_tmp"; rollback_profile_state || :; return 1; }
+  chmod 600 "$_rules_tmp" && mv -f "$_rules_tmp" "$CONF" || { rm -f "$_rules_tmp"; rollback_profile_state || :; return 1; }
+  pg_set yulong_active_profile "$_target" || { rollback_profile_state || :; return 1; }
+  pg_set yulong_safe_search_enabled "$_target_safe" || { rollback_profile_state || :; return 1; }
+  pg_set yulong_youtube_restricted_mode "$_target_yt" || { rollback_profile_state || :; return 1; }
   if sh "$MP/scripts/apply.sh" fast; then
     rm -f "$BACKUP_CONF" "$BACKUP_PROFILES" "$TMP"
     BACKUP_CONF=; BACKUP_PROFILES=; TMP=
@@ -232,16 +251,8 @@ apply_profile_locked(){
     return 0
   fi
   echo "profile apply failed; restoring previous state" >&2
-  _restore_conf=$(mktemp "$CONF.profile-restore.XXXXXX") || return 34
-  _restore_profiles=$(mktemp "$PROFILES.profile-restore.XXXXXX") || return 34
-  if cp -p "$BACKUP_CONF" "$_restore_conf" && cp -p "$BACKUP_PROFILES" "$_restore_profiles" && mv -f "$_restore_conf" "$CONF" && mv -f "$_restore_profiles" "$PROFILES"; then
-    sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || :
-    rm -f "$BACKUP_CONF" "$BACKUP_PROFILES" "$TMP"
-    BACKUP_CONF=; BACKUP_PROFILES=; TMP=
-    return 35
-  fi
-  echo "profile apply failed and rollback failed; backups retained under $PG" >&2
-  return 34
+  rollback_profile_state || return 34
+  return 35
 }
 profile_create_locked(){
   ensure_store || return 1
@@ -302,7 +313,7 @@ schedule_remove_locked(){
   _id=$1; valid_id "$_id" || return 2
   _tmp=$(mktemp "$SCHEDULES.tmp.XXXXXX") || return 1
   awk -F'|' -v id="$_id" 'NR==1 || $1!=id {print}' "$SCHEDULES" > "$_tmp" || { rm -f "$_tmp"; return 1; }
-  atomic_replace "$SCHEDULES" "$_tmp"
+  atomic_replace "$SCHEDULES" "$_tmp" || return 1
 }
 profile_evaluate(){
   with_lock ensure_store || return 1
@@ -332,10 +343,10 @@ case "$ACTION" in
   list) with_lock profile_list_locked ;;
   profile-create) [ "$#" -eq 4 ] || fail "usage: $0 profile-create NAME SAFE YOUTUBE" 2; with_lock profile_create_locked "$2" "$3" "$4" ;;
   profile-switch) [ "$#" -eq 2 ] || fail "usage: $0 profile-switch ID" 2; with_lock apply_profile_locked "$2" ;;
-  profile-delete) [ "$#" -eq 2 ] || fail "usage: $0 profile-delete ID" 2; with_lock profile_delete_locked "$2" ;;
-  schedule-add) [ "$#" -eq 5 ] || fail "usage: $0 schedule-add PROFILE HH:MM HH:MM DAYS" 2; with_lock schedule_add_locked "$2" "$3" "$4" "$5" ;;
-  schedule-set) [ "$#" -eq 6 ] || fail "usage: $0 schedule-set ID ENABLED HH:MM HH:MM DAYS" 2; with_lock schedule_set_locked "$2" "$3" "$4" "$5" "$6" ;;
-  schedule-remove) [ "$#" -eq 2 ] || fail "usage: $0 schedule-remove ID" 2; with_lock schedule_remove_locked "$2" ;;
+  profile-delete) [ "$#" -eq 2 ] || fail "usage: $0 profile-delete ID" 2; with_lock profile_delete_locked "$2"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
+  schedule-add) [ "$#" -eq 5 ] || fail "usage: $0 schedule-add PROFILE HH:MM HH:MM DAYS" 2; with_lock schedule_add_locked "$2" "$3" "$4" "$5"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
+  schedule-set) [ "$#" -eq 6 ] || fail "usage: $0 schedule-set ID ENABLED HH:MM HH:MM DAYS" 2; with_lock schedule_set_locked "$2" "$3" "$4" "$5" "$6"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
+  schedule-remove) [ "$#" -eq 2 ] || fail "usage: $0 schedule-remove ID" 2; with_lock schedule_remove_locked "$2"; _rc=$?; [ "$_rc" -ne 0 ] || refresh_schedule_worker; exit "$_rc" ;;
   evaluate) profile_evaluate ;;
   *) fail "unsupported profile operation" 2 ;;
 esac

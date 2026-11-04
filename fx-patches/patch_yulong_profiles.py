@@ -30,6 +30,7 @@ if not agh.is_file():
     raise SystemExit("restored FX adguardhome.sh is missing")
 agh_text = agh.read_text(encoding="utf-8")
 marker = "# FX_YULONG_PROFILE_SAFE_SEARCH_V1"
+state_marker = "# FX_YULONG_PROFILE_SAFE_SEARCH_STATE_V1"
 replacement = '''  # FX_YULONG_PROFILE_SAFE_SEARCH_V1
   safe_search:
     enabled: $_pg_safe_search_active
@@ -40,14 +41,7 @@ replacement = '''  # FX_YULONG_PROFILE_SAFE_SEARCH_V1
     pixabay: $_pg_safe_search_flag
     yandex: $_pg_safe_search_flag
     youtube: $_pg_youtube_restricted_flag'''
-old = "  safe_search:\\n    enabled: false"
-if marker not in agh_text:
-    if old not in agh_text:
-        raise SystemExit("AdGuard Home safe_search template anchor is missing")
-    agh_text = agh_text.replace(old, replacement, 1)
-    querylog = '''  case "$_dns_querylog_enabled" in true) : ;; *) _dns_querylog_enabled=false ;; esac
-'''
-    additions = '''  case "$_dns_querylog_enabled" in true) : ;; *) _dns_querylog_enabled=false ;; esac
+state_reader = '''  # FX_YULONG_PROFILE_SAFE_SEARCH_STATE_V1
   _pg_safe_search_flag=$(awk -F= '$1=="yulong_safe_search_enabled" && $2=="1" {v=1} END {if(v) print "true"; else print "false"}' "$PG/settings.conf" 2>/dev/null)
   _pg_youtube_restricted_flag=$(awk -F= '$1=="yulong_youtube_restricted_mode" && $2=="1" {v=1} END {if(v) print "true"; else print "false"}' "$PG/settings.conf" 2>/dev/null)
   _pg_safe_search_active=false
@@ -55,14 +49,18 @@ if marker not in agh_text:
     _pg_safe_search_active=true
   fi
 '''
-    if querylog not in agh_text:
-        raise SystemExit("AdGuard Home Safe Search state insertion anchor is missing")
-    agh_text = agh_text.replace(querylog, additions, 1)
-    agh.write_text(agh_text, encoding="utf-8")
-    agh.chmod(0o755)
-elif "_pg_youtube_restricted_flag" not in agh_text:
-    raise SystemExit("Safe Search marker exists but state reader is missing; refusing partial patch")
-
+if marker not in agh_text:
+    safe_match = re.search(r"(?m)^  safe_search:\s*\n(?:^    .*(?:\n|$))*", agh_text)
+    if safe_match is None:
+        raise SystemExit("AdGuard Home safe_search YAML block is missing")
+    agh_text = agh_text[:safe_match.start()] + replacement + "\n" + agh_text[safe_match.end():]
+if state_marker not in agh_text:
+    render_match = re.search(r"(?m)^_pg_render_config\(\)\s*\{\s*$", agh_text)
+    if render_match is None:
+        raise SystemExit("AdGuard Home _pg_render_config() function anchor is missing")
+    agh_text = agh_text[:render_match.end()] + "\n" + state_reader + agh_text[render_match.end():]
+agh.write_text(agh_text, encoding="utf-8")
+agh.chmod(0o755)
 # Restore the independent ProtectionProfile scheduler after the main FX apply.
 service = module / "service.sh"
 if not service.is_file():

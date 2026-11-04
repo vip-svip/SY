@@ -94,7 +94,7 @@ watch(){
 }
 start_locked(){
   # Avoid a permanent poller when no profile schedules have been created.
-  _count=$(awk 'NR>1 && NF>=6 {n++} END{print n+0}' "$PG/yulong-profile-schedules.tsv" 2>/dev/null || echo 0)
+  _count=$(awk 'NR>1 && $5=="1" && NF>=6 {n++} END{print n+0}' "$PG/yulong-profile-schedules.tsv" 2>/dev/null || echo 0)
   if [ "$_count" -eq 0 ]; then
     stop_locked
     echo "no-profile-schedules"
@@ -144,7 +144,7 @@ status(){
     if [ -n "$_pid" ] && process_running "$_pid" && is_our_watcher "$_pid"; then _running=1; fi
   fi
   echo "watcher=$_running"
-  echo "schedules=$(awk 'NR>1 && NF>=6 {n++} END{print n+0}' "$PG/yulong-profile-schedules.tsv" 2>/dev/null)"
+  echo "schedules=$(awk 'NR>1 && $5=="1" && NF>=6 {n++} END{print n+0}' "$PG/yulong-profile-schedules.tsv" 2>/dev/null)"
 }
 trap 'release_lock; exit 129' HUP
 trap 'release_lock; exit 130' INT
