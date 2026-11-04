@@ -258,8 +258,7 @@ public final class MainActivity extends ComponentActivity {
             finish();
             return;
         }
-        uiMode = normalizeUiMode(getSharedPreferences("fx_ui", MODE_PRIVATE)
-                .getString("mode", "classic"));
+        uiMode = FxUiMode.read(this).getStorageId();
         boolean restoreHookScreen = false;
         boolean restoreSettingsScreen = false;
         String restoreHookKind = "";
@@ -3224,11 +3223,15 @@ public final class MainActivity extends ComponentActivity {
         androidx.savedstate.ViewTreeSavedStateRegistryOwner.set(designModePanel, this);
         FxDesignModePanelKt.installFxDesignModePanel(designModePanel, uiMode, selected -> {
             if (selected == null || selected.equals(uiMode)) return kotlin.Unit.INSTANCE;
-            uiMode = selected;
-            getSharedPreferences("fx_ui", MODE_PRIVATE).edit()
-                    .putString("mode", uiMode).apply();
+            uiMode = FxUiMode.fromStorageId(selected).getStorageId();
+            if (!FxUiMode.write(MainActivity.this, FxUiMode.fromStorageId(uiMode))) {
+                Toast.makeText(MainActivity.this, "界面模式保存失败，已保留当前模式", Toast.LENGTH_LONG).show();
+                return kotlin.Unit.INSTANCE;
+            }
+            // Rebuild only the presentation shell. Runtime services and their
+            // controllers are deliberately not touched by a skin change.
             applyWebUiMode();
-            Toast.makeText(MainActivity.this, "界面模式已切换", Toast.LENGTH_SHORT).show();
+            Toast.makeText(MainActivity.this, "已切换到 " + FxUiMode.fromStorageId(uiMode).getTitle(), Toast.LENGTH_SHORT).show();
             showSettings();
             return kotlin.Unit.INSTANCE;
         });
