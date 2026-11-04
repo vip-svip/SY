@@ -1578,3 +1578,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：已检查三个 Bundle 状态键、保存/恢复路径、分组 Spinner 还原、搜索输入还原、编辑后重建捕获、滚动恢复以及目标/ScrollView 实例保护；回归脚本已加入对应断言。未执行完整 Shell 回归、Gradle 编译、UI 自动化或真机旋转与规则编辑测试。
 - 未改变规则 schema、解析器、动作白名单、规则 ID 唯一性、发布协议、LSPosed 授权或目标进程注入语义。
 - 下一步：检查规则新增/编辑和 JSON 导入弹窗在配置变化期间的未提交草稿保留；然后统一执行可用的 Hook/Dia Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 自定义规则编辑/导入草稿与 OBSERVE 日志状态恢复
+
+- 本批实时起点：`dbeaff3c30f40bcd0c5dfbb50cebf3b29a9af3d1`；最终代码和测试已重新核对到本记录提交的父 HEAD。
+- 自定义规则编辑器（`MainActivity.showCustomRuleDialog`）：新增/编辑草稿按目标包名和槽位隔离，保存规则 ID、语法类型、方法签名、动作、RETURN_LITERAL 值、分组和优先级；编辑时校验原规则指纹；正式规则同步提交成功后清理草稿，取消/失败保留。
+- JSON 导入对话框：按目标包名恢复未完成 JSON 输入；导入使用同步 `commit()`，仅成功后清除导入草稿并报告成功，不再以异步 `apply()` 的未核验结果提示成功。
+- OBSERVE 日志原生 Activity：保存/恢复搜索词和日志 ScrollView 纵向位置；首次刷新渲染优先应用恢复位置，后续筛选/刷新尽量保持用户位置；保留原有 Root 读取限制、目标包精确筛选、日志输出上限及 Activity 销毁时取消 worker。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`adhook/app/src/main/java/de/privacyguard/adhook/FxHookObservationLogsActivity.java`；`scripts/tests/fx-dia-custom-hook-literal-regression.sh`；本状态文件。
+- 提交：`6039e12f030086edbc26d21535f62a859ad4f689`（编辑草稿）；`8cf9e1d7e5fa37fbbf9e54fd6eff18e80662a3ba`（导入草稿/同步提交）；`c714074ad04464bf4a306386e1f66a23975dcc24`（编辑与导入回归断言）；`cea857d66ac5287c81a7c62501eb769d666e0eaa`、`80632e56d05209669f9b8f1125deb0bf84bdd369`（OBSERVE 搜索/滚动恢复）；`e954a5dee4c53e125681c6616ef076635ca537fa`（日志状态回归断言）。
+- 验证等级：最新分支源码静态检查通过，确认编辑器七类字段、草稿身份校验、监听、成功后清理、JSON 导入草稿和同步提交、日志 Bundle 保存/恢复、首次 render 恢复及测试断言均存在。尚未在完整 checkout 运行 Shell/Python 回归，未运行 Gradle、UI 自动化、模拟器或真机旋转/编辑/导入操作。
+- 失败路线：一次 GitHub Contents API 409，因并行提交更新了 MainActivity；重新读取最新 HEAD/blob SHA 后重放成功。后续继续避免复用旧 SHA。
+- 下一步：将 Hook 编辑/导入弹窗的打开状态与未提交文本纳入 Activity 重建恢复；核对 OBSERVE 日志返回后目标 Hook 页面/筛选状态；随后集中执行 Hook/Dia Host 回归。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
