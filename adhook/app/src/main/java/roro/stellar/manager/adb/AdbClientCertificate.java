@@ -1,27 +1,29 @@
 package roro.stellar.manager.adb;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.Signature;
-import java.security.interfaces.RSAPublicKey;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAPublicKey;
+import java.util.Date;
+
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x500.RDN;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 /**
- * Builds the original Stellar ADB client certificate shape without relying on
- * hidden platform internals: v3, serial 1, CN=youlong issuer/subject, 1970..2048
- * validity and SHA256withRSA signature. Non-empty DNs are required by standard X.509 parsers.
+ * Original Stellar ADB client certificate shape, using the same BouncyCastle
+ * builder as the 9.9.60 implementation: v3, serial 1, empty issuer/subject,
+ * epoch start, 2048 expiry and SHA256withRSA.
  */
 public final class AdbClientCertificate {
-    private static final byte[] SIGNATURE_ALGORITHM = sequence(
-            oid(new byte[]{0x2a, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xf7, 0x0d, 0x01, 0x01, 0x0b}),
-            tagged(0x05, new byte[0]));
+    private static final long NOT_AFTER_MILLIS = 2461449600000L;
 
     private AdbClientCertificate() { }
 
@@ -30,95 +32,27 @@ public final class AdbClientCertificate {
         if (publicKey == null || privateKey == null) {
             throw new IllegalArgumentException("ADB certificate keys are required");
         }
-
-        byte[] version = tagged(0xa0, integer(BigInteger.valueOf(2)));
-        byte[] serial = integer(BigInteger.ONE);
-        byte[] issuerName = distinguishedName("youlong");
-        byte[] subjectName = distinguishedName("youlong");
-        byte[] validity = sequence(
-                tagged(0x17, "700101000000Z".getBytes(StandardCharsets.US_ASCII)),
-                tagged(0x17, "480101000000Z".getBytes(StandardCharsets.US_ASCII)));
-        byte[] subjectPublicKeyInfo = publicKey.getEncoded();
-        if (subjectPublicKeyInfo == null || subjectPublicKeyInfo.length == 0) {
-            throw new GeneralSecurityException("RSA SubjectPublicKeyInfo is unavailable");
-        }
-
-        byte[] tbsCertificate = sequence(version, serial, SIGNATURE_ALGORITHM,
-                issuerName, validity, subjectName, subjectPublicKeyInfo);
-        Signature signer = Signature.getInstance("SHA256withRSA");
-        signer.initSign(privateKey);
-        signer.update(tbsCertificate);
-        byte[] signature = signer.sign();
-
-        byte[] signatureBits = new byte[signature.length + 1];
-        signatureBits[0] = 0; // DER BIT STRING unused-bit count.
-        System.arraycopy(signature, 0, signatureBits, 1, signature.length);
-        byte[] encodedCertificate = sequence(
-                tbsCertificate,
-                SIGNATURE_ALGORITHM,
-                tagged(0x03, signatureBits));
-
-        CertificateFactory factory = CertificateFactory.getInstance("X.509");
-        X509Certificate certificate = (X509Certificate) factory.generateCertificate(
-                new ByteArrayInputStream(encodedCertificate));
-        certificate.verify(publicKey);
-        certificate.checkValidity(new java.util.Date());
-        return certificate;
-    }
-
-    private static byte[] distinguishedName(String commonName) {
-        byte[] commonNameOid = oid(new byte[]{0x55, 0x04, 0x03}); // 2.5.4.3
-        byte[] commonNameValue = tagged(0x0c,
-                commonName.getBytes(StandardCharsets.UTF_8)); // UTF8String
-        byte[] attribute = sequence(commonNameOid, commonNameValue);
-        byte[] relativeName = tagged(0x31, attribute); // SET OF AttributeTypeAndValue
-        return sequence(relativeName); // Name ::= SEQUENCE OF RDN
-    }
-
-    private static byte[] integer(BigInteger value) {
-        return tagged(0x02, value.toByteArray());
-    }
-
-    private static byte[] oid(byte[] body) {
-        return tagged(0x06, body);
-    }
-
-    private static byte[] sequence(byte[]... values) {
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
         try {
-            for (byte[] value : values) body.write(value);
-        } catch (IOException impossible) {
-            throw new AssertionError(impossible);
-        }
-        return tagged(0x30, body.toByteArray());
-    }
-
-    private static byte[] tagged(int tag, byte[] body) {
-        ByteArrayOutputStream output = new ByteArrayOutputStream(body.length + 8);
-        output.write(tag);
-        writeLength(output, body.length);
-        try {
-            output.write(body);
-        } catch (IOException impossible) {
-            throw new AssertionError(impossible);
-        }
-        return output.toByteArray();
-    }
-
-    private static void writeLength(ByteArrayOutputStream output, int length) {
-        if (length < 0x80) {
-            output.write(length);
-            return;
-        }
-        int bytes = 0;
-        int value = length;
-        while (value != 0) {
-            bytes++;
-            value >>>= 8;
-        }
-        output.write(0x80 | bytes);
-        for (int shift = (bytes - 1) * 8; shift >= 0; shift -= 8) {
-            output.write((length >>> shift) & 0xff);
+            X500Name emptyName = new X500Name(new RDN[0]);
+            JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+                    emptyName, BigInteger.ONE, new Date(0L),
+                    new Date(NOT_AFTER_MILLIS), emptyName, publicKey);
+            BouncyCastleProvider provider = new BouncyCastleProvider();
+            ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
+                    .setProvider(provider)
+                    .build(privateKey);
+            X509Certificate certificate = new JcaX509CertificateConverter()
+                    .setProvider(provider)
+                    .getCertificate(builder.build(signer));
+            certificate.checkValidity(new Date());
+            certificate.verify(publicKey);
+            return certificate;
+        } catch (Exception failure) {
+            if (failure instanceof GeneralSecurityException) {
+                throw (GeneralSecurityException) failure;
+            }
+            throw new GeneralSecurityException(
+                    "Unable to create the original Stellar ADB TLS client certificate", failure);
         }
     }
 }
