@@ -7173,6 +7173,31 @@ public final class MainActivity extends ComponentActivity {
                     row.append(",toast_filter=1,toast_text_terms_b64=").append(encodedToastTerms);
                     has = true;
                 }
+                int keyFinishTrigger = getPreferences(0).getInt(p + ":key_finish_trigger", -1);
+                int keyDialogToggleTrigger = getPreferences(0).getInt(p + ":key_dialog_toggle_trigger", -1);
+                boolean keyTarget = (ai.flags & (ApplicationInfo.FLAG_SYSTEM
+                        | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0;
+                if (keyFinishTrigger < -1 || keyFinishTrigger > 6
+                        || keyDialogToggleTrigger < -1 || keyDialogToggleTrigger > 6) {
+                    throw new IllegalStateException("按键触发器值超出范围：" + p);
+                }
+                if ((keyFinishTrigger >= 0 || keyDialogToggleTrigger >= 0) && !keyTarget) {
+                    throw new IllegalStateException("系统应用不允许发布 FX 按键动作：" + p);
+                }
+                if (keyFinishTrigger >= 0 && keyFinishTrigger == keyDialogToggleTrigger) {
+                    throw new IllegalStateException("两个按键动作不能使用同一个触发器：" + p);
+                }
+                if (keyFinishTrigger >= 0) {
+                    row.append(",key_finish_trigger=").append(keyFinishTrigger);
+                    has = true;
+                }
+                if (keyDialogToggleTrigger >= 0) {
+                    if (!targetDebuggable || !dialogMatchEnabled) {
+                        throw new IllegalStateException("Dialog 按键切换需要有效的 debuggable Dialog 规则：" + p);
+                    }
+                    row.append(",key_dialog_toggle_trigger=").append(keyDialogToggleTrigger);
+                    has = true;
+                }
                 boolean customEnabled=false;
                 for(int n=1;n<=64;n++) {
                     String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
