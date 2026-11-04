@@ -236,7 +236,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (isSafePendingLibraryExportName(restoredPendingName))
             pendingFridaLibraryExportFileName = restoredPendingName;
         cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName);
-        if (state == null) deleteTransientFridaScriptDraft();
+        // The private cache file is valid only when this exact Activity state carries
+        // its ownership marker. Remove orphaned files from failed/oversized saves.
+        if (state == null || !state.getBoolean(STATE_SCRIPT_DRAFT_FILE, false))
+            deleteTransientFridaScriptDraft();
         String title = getIntent().getStringExtra("dia_page");
         if (title == null || title.trim().isEmpty()) title = "Frida 环境";
 
@@ -538,6 +541,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         } catch (java.io.FileNotFoundException missing) {
             return null;
         } catch (Exception error) {
+            // Do not let a corrupt/oversized cache be retried as a valid draft forever.
+            deleteTransientFridaScriptDraft();
             setStatus("恢复大型 Frida 脚本草稿失败：" + error.getClass().getSimpleName());
             return null;
         }
@@ -657,6 +662,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     && writeTransientFridaScriptDraft(source)) {
                 outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true);
             } else {
+                // A failed write can roll back to an older AtomicFile. The new Bundle
+                // has no ownership marker, so remove that previous draft immediately.
+                deleteTransientFridaScriptDraft();
                 setStatus("脚本超过 512 KiB 或暂存失败；Activity 重建后可能无法恢复该草稿，请先导出/保存脚本。");
             }
         }
