@@ -77,6 +77,8 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-whitelist-patcher-") as td:
     assert test_target.read_bytes() == WHITELIST_TEST.read_bytes(), "Release whitelist test is stale"
     assert stat.S_IMODE(script_target.stat().st_mode) == 0o755, "Release whitelist script is not executable"
     assert stat.S_IMODE(test_target.stat().st_mode) == 0o755, "Release whitelist test is not executable"
+    syntax = subprocess.run(["sh", "-n", str(test_target)], capture_output=True, text=True, check=False)
+    assert syntax.returncode == 0, "Release whitelist test has invalid shell syntax: " + syntax.stderr
 
     vpncore = (module / "scripts/vpncore.sh").read_text(encoding="utf-8")
     proxy = (module / "scripts/yulong-root-proxy.sh").read_text(encoding="utf-8")

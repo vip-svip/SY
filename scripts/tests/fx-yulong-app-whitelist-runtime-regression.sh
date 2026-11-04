@@ -32,7 +32,7 @@ if [ "$FX_TEST_VERIFY_LOCK_PID" = 1 ]; then
   kill -0 "$lock_pid" 2>/dev/null || exit 92
   [ "$(stat -c %a "$LOCK/pid")" = 600 ] || exit 93
   for backup in "$CONF".yulong-white-rollback.*; do
-    [ -f "$backup" ] || continue
+    [ -f "$backup" ] && [ ! -L "$backup" ] || continue
     [ "$(stat -c %a "$backup")" = 600 ] || exit 94
   done
 fi

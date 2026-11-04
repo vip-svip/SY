@@ -2,6 +2,7 @@
 """Patch Yulong 7.0.1 app-whitelist bypass into all FX DNS/TUN ingress paths."""
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module").resolve()
@@ -170,6 +171,15 @@ if not whitelist_source.is_file() or whitelist_source.stat().st_size < 3000:
     raise SystemExit("reviewed Yulong app-whitelist source missing or unexpectedly small")
 if not whitelist_test_source.is_file() or whitelist_test_source.stat().st_size < 1500:
     raise SystemExit("Yulong app-whitelist regression missing or unexpectedly small")
+for shell_source in (whitelist_source, whitelist_test_source):
+    syntax = subprocess.run(
+        ["sh", "-n", str(shell_source)],
+        capture_output=True, text=True, check=False
+    )
+    if syntax.returncode != 0:
+        raise SystemExit(
+            f"refusing to stage invalid shell source {shell_source}: {syntax.stderr.strip()}"
+        )
 whitelist_target.parent.mkdir(parents=True, exist_ok=True)
 whitelist_test_target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy2(whitelist_source, whitelist_target)
