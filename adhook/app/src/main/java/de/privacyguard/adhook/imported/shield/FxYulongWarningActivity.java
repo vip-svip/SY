@@ -230,13 +230,19 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         }
         packages.add(packageName);
 
-        StringBuilder serialized = new StringBuilder();
-        for (String value : packages) {
-            if (serialized.length() > 0) serialized.append(',');
-            serialized.append(value);
+        // Use the same bounded canonical serializer as the whitelist manager and scanner.
+        // Adding one more entry must not push a valid 10,000-item / 1 MiB list over its
+        // limit and make the entire whitelist unreadable on the next scan.
+        String serialized = FxYulongWhitelistPolicy.serialize(packages);
+        if (serialized == null) {
+            showMessage("白名单已达到安全上限",
+                    "加入该应用后将超过 " + FxYulongWhitelistPolicy.MAX_ENTRIES
+                            + " 个条目或 " + FxYulongWhitelistPolicy.MAX_RAW_CHARS
+                            + " 个字符。原白名单保持不变，请先移除无用条目后重试。");
+            return;
         }
         boolean saved = preferences.edit()
-                .putString(WHITELIST_KEY, serialized.toString())
+                .putString(WHITELIST_KEY, serialized)
                 .commit();
         if (!saved) {
             showMessage("保存失败", "白名单没有确认写入磁盘；原配置保持不变，请稍后重试。");
