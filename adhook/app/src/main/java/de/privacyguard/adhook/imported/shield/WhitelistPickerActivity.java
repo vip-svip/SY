@@ -85,6 +85,13 @@ public class WhitelistPickerActivity extends Activity {
     private String query = "";
     private String whitelistDataWarning = "";
     private boolean loadFinished = false;
+    private static final String STATE_QUERY = "fx_shield_whitelist_picker_query";
+    private static final String STATE_SELECTED = "fx_shield_whitelist_picker_selected";
+    private static final String STATE_FIRST_POSITION = "fx_shield_whitelist_picker_first_position";
+    private static final String STATE_FIRST_TOP = "fx_shield_whitelist_picker_first_top";
+    private int restoreFirstPosition;
+    private int restoreFirstTop;
+    private boolean restoreListPosition;
 
     private static class AppItem {
         String packageName;
@@ -106,6 +113,14 @@ public class WhitelistPickerActivity extends Activity {
         pm = getPackageManager();
         prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadCurrentWhitelist();
+        if (savedInstanceState != null) {
+            ArrayList<String> restored = savedInstanceState.getStringArrayList(STATE_SELECTED);
+            if (restored != null) selected.addAll(restored);
+            query = savedInstanceState.getString(STATE_QUERY, "");
+            restoreFirstPosition = Math.max(0, savedInstanceState.getInt(STATE_FIRST_POSITION, 0));
+            restoreFirstTop = savedInstanceState.getInt(STATE_FIRST_TOP, 0);
+            restoreListPosition = true;
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             getWindow().setStatusBarColor(Color.WHITE);
@@ -143,8 +158,20 @@ public class WhitelistPickerActivity extends Activity {
 
         root.addView(buildBottomBar());
         setContentView(root);
+        if (!query.isEmpty()) searchInput.setText(query);
 
         loadAppsAsync();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putString(STATE_QUERY, searchInput == null ? query : searchInput.getText().toString());
+        outState.putStringArrayList(STATE_SELECTED, new ArrayList<>(selected));
+        if (listView != null) {
+            outState.putInt(STATE_FIRST_POSITION, listView.getFirstVisiblePosition());
+            View first = listView.getChildAt(0);
+            outState.putInt(STATE_FIRST_TOP, first == null ? 0 : first.getTop());
+        }
+        super.onSaveInstanceState(outState);
     }
 
     private View buildHeader() {
@@ -305,6 +332,12 @@ public class WhitelistPickerActivity extends Activity {
                     allApps.clear();
                     allApps.addAll(loaded);
                     applyFilter();
+                    if (restoreListPosition) {
+                        final int position = restoreFirstPosition;
+                        final int top = restoreFirstTop;
+                        listView.post(() -> listView.setSelectionFromTop(position, top));
+                        restoreListPosition = false;
+                    }
                 });
             });
         } catch (RejectedExecutionException ignored) {
