@@ -1518,3 +1518,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：从当前 HEAD 重新读取源码和测试脚本，静态断言通过：pending target 保存/恢复、接受 pendingRestorePackage、延迟打开避免重复导航、测试覆盖均存在。未运行 Shell/Python/Java Host 测试、Gradle、模拟器或真机旋转与 SAF 交互。
 - 失败路线：第一次基于旧 MainActivity blob SHA 更新时遇到 GitHub 409（并行提交已更新同一路径）；已重新读取分支最新 HEAD 和 blob SHA 后重放补丁成功。以后不得复用旧 SHA。
 - 下一步：核对 MainActivity 的 SAF 导入/导出回调中暂存 payload 的重建恢复，特别是脚本 JSON 导出；随后进行 Dia 页面组一次针对性 Host 回归可运行性检查。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 应用列表搜索 / 分页 / 滚动状态恢复
+
+- 本批起始 HEAD：`32b0d5a5050a0db08bc550d9269f1e60c4212b51`；期间并行分支推进到最新 HEAD 后，重新读取并确认修改已基于最新源码提交，没有强推或覆盖。
+- 修复 Hook 应用列表状态丢失：
+  - Bundle 保存/恢复搜索词（最大 256 字符）、列表滚动位置和已展开可见数量（限制 40–10000）。
+  - 搜索词在创建 TextWatcher 之前恢复；用户修改搜索词时重置滚动位置与分页数量。
+  - 点击应用进入 Hook 详情前记录当前列表状态；返回同一筛选类别时恢复搜索、分页和滚动位置；切换到不同类别则清空旧筛选上下文。
+  - “加载更多”更新持久化可见数量；异步读取应用清单完成后恢复分页数量和滚动位置。
+  - 滚动恢复回调检查当前 Hook 列表可见且 ScrollView 实例未变化，避免旧页面异步回调滚动到新页面。
+  - `base()` 将实际 ScrollView 保存到 `nativeScroll`，使既有详情页按分类定位的 `focusPendingPrivacySection()` 使用真实滚动容器。
+- 提交：
+  - `2a9f9a1eb36952678476247cc3fac4c132243ee0` — `fix(hook): restore app list search paging and scroll state`。
+  - `aa3462f0b44b0ba1ab367297d58ba993cebac1bf` — `test(hook): cover app list state restoration`。
+- 静态验证：最新 HEAD 确认三个状态键、Bundle 保存/恢复、搜索恢复、分页恢复、滚动恢复实例保护和进入目标前状态捕获均存在；Dia 回归脚本包含对应断言。未执行完整 Shell 脚本、Gradle 编译、模拟器/真机旋转与多页实际点按测试。
+- 并行接管：已保留并复核随后提交的 GPS Picker 目标包名在 MainActivity 重建后的恢复与结果归属检查（`829326a84c235924c5ff6f66c1c58820abaef767`、`6f06af1dbd9cc1058b8934359884b2dbe251750f`、`3c458f1f30d04ab8ceed4a12e222c541ece6ac23`），不重复覆盖。
+- 下一步：检查 Hook 自定义规则页草稿、规则对话框、导入/导出、分组弹窗与 OBSERVE 日志页的返回状态；然后集中执行可运行的 Dia/Hook Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
