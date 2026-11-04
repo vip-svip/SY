@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
@@ -16,7 +15,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /** Local daily summary based only on counters written by FX Shield subsystems. */
-public final class FxYulongDailySummaryActivity extends Activity {
+public final class FxYulongDailySummaryActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PREFS = "shield_prefs";
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String s,int size,int color,boolean bold) {
@@ -75,7 +74,7 @@ public final class FxYulongDailySummaryActivity extends Activity {
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body=new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0,dp(4),0,dp(18)); scroll.addView(body);
-        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentView(root);
+        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 5);
 
         card(body,"统计日期",today);
         card(body,"前台管控提醒","今日 "+warnings+" 次 · 累计 "
