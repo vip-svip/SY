@@ -448,7 +448,8 @@ assert 'private Set<String> split(SharedPreferences prefs)' in protection_servic
 assert 'FxYulongBlacklistPolicy.parse(prefs.getString("blacklist_pkgs", ""))' in protection_service
 assert "catch (RuntimeException corruptPreference)" in protection_service, "Wrong-type blacklist preference must not crash foreground warning service"
 assert "return java.util.Collections.emptySet();" in protection_service, "Unreadable blacklist preference must fail open instead of enforcing a partial list"
-assert 'blacklistDataCorrupt = !raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw)' in blacklist_activity
+assert "blacklistDataCorrupt = true;" in blacklist_activity and '|| (!raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw))' in blacklist_activity, \
+    "Blacklist manager must retain read failures and reject malformed stored data atomically"
 assert "if (blacklistDataCorrupt)" in blacklist_activity and "已阻止覆盖" in blacklist_activity
 assert 'prefs.edit().putString("blacklist_pkgs", serialized).commit()' in blacklist_activity, "Blacklist writes must be checked and synchronous"
 assert "currentBlacklist.removeAll(staged);" in blacklist_activity and "currentBlacklist.add(item.packageName);" in blacklist_activity, "Failed blacklist writes must roll back in-memory edits"
