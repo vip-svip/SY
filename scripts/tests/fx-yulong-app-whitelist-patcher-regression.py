@@ -40,9 +40,11 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-whitelist-patcher-") as td:
     (module / "scripts/yulong-root-proxy.sh").write_text(
         "_build_chain4() {\n"
         '  iptables -t nat -A "$_chain" -m owner --uid-owner "$_uid" -j RETURN || return 1\n'
+        '  iptables -t nat -A "$_chain" -d 127.0.0.0/8 -j RETURN || return 1\n'
         "}\n"
         "_build_chain6() {\n"
         '  ip6tables -t nat -A "$_chain" -m owner --uid-owner "$_uid" -j RETURN || return 1\n'
+        '  ip6tables -t nat -A "$_chain" -d ::1/128 -j RETURN || return 1\n'
         "}\n", encoding="utf-8"
     )
     (module / "scripts/apply.sh").write_text(
