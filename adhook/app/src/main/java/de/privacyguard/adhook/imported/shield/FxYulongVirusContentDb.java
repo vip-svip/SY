@@ -1117,6 +1117,7 @@ public final class FxYulongVirusContentDb {
 
         // 已经命中但只要求告警的强信号（证书/整包/资产 action=warn）
         Verdict warnVerdict = null;
+        boolean contentReadFailure = false;
         try {
             // ---------------- ① 签名证书 ----------------
             List<String> certShas = certSha256List(info);
@@ -1175,11 +1176,12 @@ public final class FxYulongVirusContentDb {
                     && apkSizeMayMatch(d, apkFile.length())) {
                 if (expired(deadlineMs)) return truncatedVerdict();
                 String apkSha = sha256File(apkFile);
+                if (apkSha == null) contentReadFailure = true;
                 ApkEntry ae = apkSha == null ? null : d.apkSamples.get(apkSha);
                 if (ae != null) {
                     String why = dn(ae.displayName, ae.family) + "：APK 哈希命中";
                     if (isBlock(ae.action)) {
-                        return remember(cacheKey, new Verdict(BLOCK, ae.family, why, false));
+                        return remember(cacheKey, new Verdict(BLOCK, ae.family, why, false, contentReadFailure));
                     }
                     if (warnVerdict == null) {
                         warnVerdict = new Verdict(WARN, ae.family, why + "（仅告警）", false);
@@ -1224,11 +1226,15 @@ public final class FxYulongVirusContentDb {
                         if (expired(deadlineMs)) return truncatedVerdict();
                         ZipEntry ze = dexEntries.get(i);
                         String sha = sha256Stream(zip, ze);
-                        DexEntry de = sha == null ? null : d.matchDex(ze.getName(), sha);
+                        if (sha == null) {
+                            contentReadFailure = true;
+                            continue;
+                        }
+                        DexEntry de = d.matchDex(ze.getName(), sha);
                         if (de == null) continue;
                         String why = dn(de.displayName, de.family) + "：DEX 哈希命中（" + de.name + "）";
                         if (isBlock(de.action)) {
-                            return remember(cacheKey, new Verdict(BLOCK, de.family, why, false));
+                            return remember(cacheKey, new Verdict(BLOCK, de.family, why, false, contentReadFailure));
                         }
                         if (warnVerdict == null) {
                             warnVerdict = new Verdict(WARN, de.family, why + "（仅告警）", false);
@@ -1243,10 +1249,14 @@ public final class FxYulongVirusContentDb {
                     ZipEntry ze = zip.getEntry(ae.path);
                     if (ze == null || ze.isDirectory()) continue;
                     String sha = sha256Stream(zip, ze);
-                    if (sha == null || !sha.equalsIgnoreCase(ae.sha256)) continue;
+                    if (sha == null) {
+                        contentReadFailure = true;
+                        continue;
+                    }
+                    if (!sha.equalsIgnoreCase(ae.sha256)) continue;
                     String why = dn(ae.displayName, ae.family) + "：关键资产哈希命中（" + ae.path + "）";
                     if (isBlock(ae.action)) {
-                        return remember(cacheKey, new Verdict(BLOCK, ae.family, why, false));
+                        return remember(cacheKey, new Verdict(BLOCK, ae.family, why, false, contentReadFailure));
                     }
                     if (warnVerdict == null) {
                         warnVerdict = new Verdict(WARN, ae.family, why + "（仅告警）", false);
@@ -1285,7 +1295,8 @@ public final class FxYulongVirusContentDb {
 
                 if (maxHigh >= d.highTokenBlockMin) {
                     return remember(cacheKey, new Verdict(BLOCK, highFamily,
-                            dn(highDisplay, highFamily) + "：高特异字符串命中 " + maxHigh + " 个", false));
+                            dn(highDisplay, highFamily) + "：高特异字符串命中 " + maxHigh + " 个",
+                            ts != null && ts.truncated, contentReadFailure));
                 }
                 if (maxHigh == 1 && warnVerdict == null) {
                     warnVerdict = new Verdict(WARN, highFamily,
@@ -1325,21 +1336,26 @@ public final class FxYulongVirusContentDb {
                 }
 
                 // ---------------- ⑦ 汇总 ----------------
+                boolean tokenTruncated = ts != null && ts.truncated;
+                boolean inspectionIncomplete = contentReadFailure || tokenTruncated;
                 if (maxHigh == 0 && weak >= 2) {
                     return remember(cacheKey, new Verdict(WARN, weakFamily,
-                            dn(weakDisplay, weakFamily) + "：弱信号累计 " + weak + " 项（结构/包名形态/通用字符串）", false));
-                }
-                if (ts != null && ts.truncated) {
-                    // Preserve a positive partial warning, but mark it incomplete and do not cache it.
-                    if (warnVerdict != null) {
-                        return new Verdict(warnVerdict.level, warnVerdict.family,
-                                warnVerdict.reason + "（内容扫描未完成）", true,
-                                warnVerdict.unavailable);
-                    }
-                    return truncatedVerdict();
+                            dn(weakDisplay, weakFamily) + "：弱信号累计 " + weak + " 项（结构/包名形态/通用字符串）",
+                            tokenTruncated, contentReadFailure));
                 }
                 if (warnVerdict != null) {
+                    if (inspectionIncomplete) {
+                        // Keep the positive warning while preventing a partial verdict from
+                        // being cached or reported as a fully inspected clean result.
+                        return new Verdict(warnVerdict.level, warnVerdict.family,
+                                warnVerdict.reason + "（内容扫描未完成）",
+                                tokenTruncated, contentReadFailure || warnVerdict.unavailable);
+                    }
                     return remember(cacheKey, warnVerdict);
+                }
+                if (inspectionIncomplete) {
+                    return tokenTruncated ? truncatedVerdict()
+                            : new Verdict(CLEAN, "", "内容文件读取失败，结果不完整", false, true);
                 }
                 String cleanWhy = weak > 0 ? "未命中特征（弱信号 " + weak + " 项）" : "未命中特征";
                 return remember(cacheKey, new Verdict(CLEAN, weakFamily, cleanWhy, false));

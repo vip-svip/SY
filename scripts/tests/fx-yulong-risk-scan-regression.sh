@@ -37,6 +37,24 @@ grep -Fq 'FxYulongScanCompleteness.isComplete' "$SCAN" || fail "aggregate scan l
 grep -Fq 'this.unavailable = unavailable' "$CONTENT_DB" || fail "content verdict discards unreadable input state"
 grep -Fq 'v != null && !v.truncated && !v.unavailable' "$CONTENT_DB" || fail "incomplete verdicts must not be cached as CLEAN"
 grep -Fq 'r.truncated = true' "$CONTENT_DB" || fail "token-entry read failures must mark inspection incomplete"
+grep -Fq 'if (apkSha == null) contentReadFailure = true' "$CONTENT_DB" || fail "APK SHA-256 read failure is still treated as a no-match"
+grep -Fq 'contentReadFailure = true' "$CONTENT_DB" || fail "DEX/asset entry read failures are still treated as no-match"
+grep -Fq 'boolean inspectionIncomplete = contentReadFailure || tokenTruncated' "$CONTENT_DB" || fail "aggregate content read failures do not reach the final verdict"
+grep -Fq '内容文件读取失败，结果不完整' "$CONTENT_DB" || fail "failed content reads must return an unavailable verdict"
+python3 - "$CONTENT_DB" <<'PY'
+from pathlib import Path
+import sys
+s = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = s.index("static Verdict inspectApk")
+end = s.index("public static String snapshotJson", start)
+scan = s[start:end]
+weak = scan.index("if (maxHigh == 0 && weak >= 2)")
+incomplete = scan.index("boolean inspectionIncomplete = contentReadFailure || tokenTruncated")
+assert weak > incomplete, "weak-signal warning must be produced after incomplete state is known"
+assert "if (apkSha == null) contentReadFailure = true" in scan
+assert scan.count("if (sha == null) {") >= 2
+print("PASS: APK, DEX and asset hash failures prevent partial content scans from being cached as clean")
+PY
 python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java" <<'PY'
 from pathlib import Path
 import sys
