@@ -47,6 +47,8 @@ public final class FxYulongVirusDbTest {
         assertTrue(FxYulongVirusDb.parse("<html><body>502 Bad Gateway</body></html>", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("{\\"error\\":\\"Bad Gateway\\"}", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("[{\\"error\\":\\"temporary\\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[  {\\"error\\":\\"temporary\\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[\\n {\\"error\\":\\"temporary\\"}]", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("503 Service Unavailable", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("502 Bad Gateway", true).isEmpty());
     }
