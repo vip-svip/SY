@@ -3024,3 +3024,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正脚本断言匹配当前带确认覆盖名单的真实调用，不更改产品行为。
 - 改动：scripts/tests/fx-dia-script-library-regression.sh；提交 5a773e952d952a7066fc83c462208b858a308829。
 - 验证：等待本提交 Actions；不代表 Android Gradle/JUnit/真机已验证。
+
+
+## 2026-11-05 — Dia 回滚 Stellar 路径断言匹配复合条件的实际结构
+
+- 基于最新 HEAD：`271c5cd596762378c7c2cba4de41897115c91ea7`。
+- Actions `41915290629` 仍使用上一提交的测试脚本，失败点为 Stellar 目录守卫断言；PG 守卫断言已经通过。
+- 根因：产品 rollback 将 PG、TXN、Stellar DIR、STXN 四个目录检查合并在同一个 `if` 条件中。DIR 守卫前面是 `||`，不是第二个独立的 `if`。测试错误地要求 `if [ ! -d "$DIR" ]`，属于结构预期不准确。
+- 修复：保留同一目录拒绝 symlink 的条件，只将 DIR 断言匹配片段修正为 `[ ! -d "$DIR" ] || [ -L "$DIR" ]`；PG 断言仍检查首个 `if`。
+- 改动路径：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
+- 验证：等待本提交 Actions；目前仅完成源码结构对照，不宣称测试通过。
+- 下一步：读取本提交 Actions；通过后回到 Dia SAF/Frida 原生页面批次，避免继续把回归脚本修复当作产品功能交付。

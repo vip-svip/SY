@@ -102,7 +102,7 @@ assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollb
 assert "FX_DIA_RESTORE_ROLLBACK_FAILED TXN=" in transaction, "rollback failures must preserve recovery snapshots and report their paths"
 q = chr(92) + '"'
 assert ("if [ ! -d " + q + "$PG" + q + " ] || [ -L " + q + "$PG" + q + " ]") in transaction, "rollback must refuse to traverse a replaced PG directory"
-assert ("if [ ! -d " + q + "$DIR" + q + " ] || [ -L " + q + "$DIR" + q + " ]") in transaction, "rollback must refuse to traverse a replaced Stellar directory"
+assert ("[ ! -d " + q + "$DIR" + q + " ] || [ -L " + q + "$DIR" + q + " ]") in transaction, "rollback must refuse to traverse a replaced Stellar directory"
 assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new java.io.FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
 # Remote GitHub backups must preserve the 1 MiB product limit without
 # misreporting successful uploads or forwarding tokens to untrusted download hosts.
