@@ -30,8 +30,12 @@ assert 'success=1 boot_script=installed' in manager and 'success=1 boot_script=r
     "UI must verify the exact backend result before reporting boot mode changes"
 assert 'boot mode preference write failed' not in manager, "failure messaging must remain localized and explicit"
 assert 'root("boot-script remove",rollback->' in manager, "failed SCRIPT preference commit must attempt to roll back the installed script"
-assert 'BootMode=BROADCAST' in manager and 'TCPIP_PREWARM' in manager, \
-    "not-yet-migrated original launch modes must be disclosed instead of exposed as fake switches"
+assert 'boolean supportedMode="NONE".equals(savedMode)||scriptSelected;' in manager, \
+    "only NONE and the migrated SCRIPT mode may enable the boot switch"
+assert 'bootScriptSwitch.setEnabled(supportedMode);' in manager, \
+    "unmigrated BROADCAST/TCPIP_PREWARM modes must lock the SCRIPT switch"
+assert '检测到保存的原版 BootMode="+savedMode+' in manager, \
+    "the saved original boot mode must be identified and disclosed dynamically"
 assert 'BROADCAST 和 TCPIP_PREWARM' in manager, "UI must explain the two deferred original boot modes"
 assert 'bootScriptUpdating=true;' in manager and 'bootScriptUpdating=false;' in manager, \
     "programmatic switch rollback must not trigger a second install/remove confirmation"
