@@ -243,9 +243,14 @@ public final class AdbPairingActivity extends Activity {
                 String output = null;
                 String failure = null;
                 try {
+                    if (destroyed || generation != probeGeneration.get()) return;
                     AdbKey key = AdbKey.getOrCreate(getApplicationContext());
                     client = new AdbShellProbeClient(target.host, target.port, key);
                     activeProbe = client;
+                    if (destroyed || generation != probeGeneration.get()) {
+                        client.close();
+                        return;
+                    }
                     output = client.probe();
                 } catch (Exception error) {
                     failure = error.getClass().getSimpleName()
@@ -368,6 +373,10 @@ public final class AdbPairingActivity extends Activity {
      */
     private void startConnectDiscovery(final long generation) {
         if (destroyed || generation != operationGeneration.get()) return;
+        probeGeneration.incrementAndGet();
+        AdbShellProbeClient previousProbe = activeProbe;
+        activeProbe = null;
+        if (previousProbe != null) previousProbe.close();
         stopDiscovery();
         connectDiscoveryMode = true;
         selectedDevice = null;
