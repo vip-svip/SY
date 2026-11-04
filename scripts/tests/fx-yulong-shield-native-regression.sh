@@ -78,6 +78,16 @@ assert overlay_service.count("FxYulongKeepAliveReceiver.refreshSchedule(this)") 
     "Overlay service must cancel/update the alarm after disable, revoked permission and attach failure"
 assert 'putString("overlay_restore_error", "overlay permission revoked")' in overlay_service, \
     "Overlay service must report why it disabled the rescue shortcut"
+shield_activity = shield["FxYulongShieldActivity.java"]
+sync_start = shield_activity.index("private void syncProtectionService(")
+sync_end = shield_activity.index("private boolean ensureNotificationPermission()", sync_start)
+sync = shield_activity[sync_start:sync_end]
+assert 'if (protect && !hasUsageAccess()) {' in sync
+assert 'putBoolean("protect_on", false)' in sync
+assert 'putString("protect_restore_error", "usage access revoked")' in sync
+assert sync.index('protect = false;') < sync.index('if (protect || shake)')
+assert 'if (protect || shake)' in sync and 'FxYulongKeepAliveReceiver.refreshSchedule(this)' in sync, \
+    "shake rescue must still start and retain its recovery schedule without Usage Access"
 for token in ("Intent.ACTION_UNINSTALL_PACKAGE", "Intent.EXTRA_RETURN_RESULT",
               "PackageManager.NameNotFoundException", "FLAG_SYSTEM",
               "FLAG_UPDATED_SYSTEM_APP", "Settings.ACTION_APPLICATION_DETAILS_SETTINGS"):

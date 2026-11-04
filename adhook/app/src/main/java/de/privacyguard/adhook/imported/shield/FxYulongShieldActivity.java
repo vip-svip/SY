@@ -51,7 +51,13 @@ public final class FxYulongShieldActivity extends Activity {
     private void syncProtectionService(android.content.SharedPreferences prefs) {
         boolean protect = prefs.getBoolean("protect_on", false);
         boolean shake = prefs.getBoolean("shake_trigger_on", false);
-        if (protect && !hasUsageAccess()) return;
+        if (protect && !hasUsageAccess()) {
+            // Usage Access gates foreground monitoring only; preserve the
+            // independent accelerometer rescue trigger.
+            prefs.edit().putBoolean("protect_on", false)
+                    .putString("protect_restore_error", "usage access revoked").apply();
+            protect = false;
+        }
         Intent intent = new Intent(this, FxYulongProtectionService.class);
         if (protect || shake) {
             intent.setAction(FxYulongProtectionService.ACTION_START);

@@ -805,3 +805,10 @@ After each implementation batch:
 - The module backend is synchronized byte-for-byte with the root script.
 - The Stellar secure-settings regression now verifies the actual manager navigation expression, `new Intent(this,FxStellarSecureSettingsActivity.class)`, rather than a fully qualified class spelling absent from the imported Java source.
 - Source and host-regression changes only. CI validation is pending; no final APK/KernelSU ZIP or device result is claimed.
+
+## 2026-11-04 — Shield independent permission downgrade
+
+- Fixed `syncProtectionService()`: revoked Usage Access now disables only optional foreground-package monitoring and records the reason, then continues to start the service if the separate accelerometer shake-rescue trigger remains enabled.
+- Previously the early return skipped service synchronization and recovery-alarm recalculation entirely. A user who revoked Usage Access after enabling foreground monitoring could then toggle shake rescue without starting/restarting its sensor service.
+- Extended the Shield native regression to assert the downgrade occurs before the `protect || shake` decision, only `protect_on` is cleared, and the independent shake path still reaches service/alarm synchronization.
+- Static/host regression only; Android permission revocation and sensor behavior remain device-validation items.
