@@ -18,6 +18,9 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ArrayAdapter;
+import android.widget.FrameLayout;
+import android.widget.ListView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -111,6 +114,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private String targetPackage;
     private String targetName;
     private static final String STATE_TARGET_PICKER_OPEN = "fx_frida_target_picker_open";
+    private static final String STATE_TARGET_PICKER_QUERY = "fx_frida_target_picker_query";
     private static final String STATE_PROCESS_PICKER_OPEN = "fx_frida_process_picker_open";
     private static final String STATE_PROCESS_PICKER_HAS_STAGED_SELECTION =
             "fx_frida_process_picker_has_staged_selection";
@@ -119,6 +123,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private boolean targetLoading;
     private boolean targetPickerOpen;
     private boolean restoreTargetPickerPending;
+    private String targetPickerQuery = "";
+    private EditText targetPickerSearch;
     private int targetLoadGeneration;
     private boolean processPickerOpen;
     private boolean restoreProcessPickerPending;
@@ -271,6 +277,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         }
         restoreTargetPickerPending = state != null
                 && state.getBoolean(STATE_TARGET_PICKER_OPEN, false);
+        targetPickerQuery = state == null ? "" : state.getString(STATE_TARGET_PICKER_QUERY, "");
+        if (targetPickerQuery.length() > 256) targetPickerQuery = targetPickerQuery.substring(0, 256);
         restoreProcessPickerPending = state != null
                 && state.getBoolean(STATE_PROCESS_PICKER_OPEN, false);
         hasPendingProcessPickerSelection = state != null
@@ -719,6 +727,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
         outState.putBoolean(STATE_TARGET_PICKER_OPEN,
                 targetPickerOpen || targetLoading || restoreTargetPickerPending);
+        outState.putString(STATE_TARGET_PICKER_QUERY, targetPickerSearch == null
+                ? targetPickerQuery : targetPickerSearch.getText().toString());
         outState.putBoolean(STATE_PROCESS_PICKER_OPEN,
                 processPickerOpen || restoreProcessPickerPending);
         outState.putBoolean(STATE_PROCESS_PICKER_HAS_STAGED_SELECTION,
@@ -1591,6 +1601,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         private static final class Target {
         final String packageName, label;
         Target(String p, String l) { packageName = p; label = l; }
+        @Override public String toString() { return label + "\\n" + packageName; }
     }
 
     private void chooseTarget() {
@@ -1648,36 +1659,77 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         targetLoading = false;
         if (targets == null || targets.isEmpty()) {
             targetPickerOpen = false;
+            targetPickerSearch = null;
             setStatus("没有可调试的用户应用。请使用自己构建的 debuggable 测试目标。");
             return;
         }
-        String[] labels = new String[targets.size()];
-        for (int i = 0; i < targets.size(); i++)
-            labels[i] = targets.get(i).label + "\\n" + targets.get(i).packageName;
-        new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
-                .setItems(labels, (dialog, which) -> {
+        LinearLayout picker = new LinearLayout(this);
+        picker.setOrientation(LinearLayout.VERTICAL);
+        picker.setPadding(dp(16), dp(8), dp(16), dp(4));
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("搜索应用名称或包名");
+        search.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(256)});
+        picker.addView(search, new LinearLayout.LayoutParams(-1, -2));
+        FrameLayout listFrame = new FrameLayout(this);
+        LinearLayout.LayoutParams frameParams = new LinearLayout.LayoutParams(-1, dp(360));
+        frameParams.topMargin = dp(6);
+        picker.addView(listFrame, frameParams);
+        ListView list = new ListView(this);
+        TextView empty = text("没有匹配的 debuggable 用户应用", 13, 0xff687583, false);
+        empty.setGravity(Gravity.CENTER);
+        listFrame.addView(list, new FrameLayout.LayoutParams(-1, -1));
+        listFrame.addView(empty, new FrameLayout.LayoutParams(-1, -1));
+        list.setEmptyView(empty);
+        ArrayAdapter<Target> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_list_item_1, new ArrayList<>(targets));
+        list.setAdapter(adapter);
+        targetPickerSearch = search;
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                targetPickerQuery = value == null ? "" : value.toString();
+                adapter.getFilter().filter(targetPickerQuery);
+                list.setSelection(0);
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        search.setText(targetPickerQuery);
+        AlertDialog pickerDialog = new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
+                .setView(picker)
+                .setNegativeButton("取消", (dialog, which) -> {
                     targetPickerOpen = false;
-                    // A process enumeration belongs to the previously selected package.
-                    // Invalidate it before changing the target so its callback cannot
-                    // leave the next target's process picker permanently busy.
-                    processPickerGeneration++;
-                    processPickerOpen = false;
-                    clearPendingProcessPickerState();
-                    targetPackage = targets.get(which).packageName;
-                    targetName = targets.get(which).label;
-                    monitorEventGeneration++;
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                            .putString("target_package", targetPackage)
-                            .putString("target_name", targetName)
-                            .apply();
-                    selectedProcessPids.clear();
-                    gadgetProcess.setText(targetPackage);
-                    targetLabel.setText(targetName + "\\n" + targetPackage
-                            + "\\nGadget 默认进程：" + targetPackage
-                            + "\\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
-                }).setNegativeButton("取消", (dialog, which) -> targetPickerOpen = false)
-                .setOnCancelListener(dialog -> targetPickerOpen = false)
-                .show();
+                    targetPickerSearch = null;
+                })
+                .create();
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            Target selected = adapter.getItem(position);
+            if (selected == null) return;
+            pickerDialog.dismiss();
+            targetPickerOpen = false;
+            targetPickerSearch = null;
+            processPickerGeneration++;
+            processPickerOpen = false;
+            clearPendingProcessPickerState();
+            targetPackage = selected.packageName;
+            targetName = selected.label;
+            monitorEventGeneration++;
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString("target_package", targetPackage)
+                    .putString("target_name", targetName)
+                    .apply();
+            selectedProcessPids.clear();
+            gadgetProcess.setText(targetPackage);
+            targetLabel.setText(targetName + "\\n" + targetPackage
+                    + "\\nGadget 默认进程：" + targetPackage
+                    + "\\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
+        });
+        pickerDialog.setOnCancelListener(dialog -> {
+            targetPickerOpen = false;
+            targetPickerSearch = null;
+        });
+        pickerDialog.show();
     }
 
     private void clearPendingProcessPickerState() {
