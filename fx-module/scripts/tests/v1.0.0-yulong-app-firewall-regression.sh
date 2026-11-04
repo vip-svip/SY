@@ -83,7 +83,7 @@ DATE
 chmod 0755 "$TMP/bin/date"
 REAL_NOHUP=$(command -v nohup)
 MOCK_WATCH_SPAWN_LOG="$TMP/nohup-spawn.log"
-grep -Fq 'if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]' "$SOURCE" || fail "mock nohup delay is not expandable"
+grep -Fq 'if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]' "$0" || fail "mock nohup delay is not expandable"
 export REAL_NOHUP MOCK_WATCH_SPAWN_LOG
 cat > "$TMP/bin/nohup" <<'NOHUP'
 #!/bin/sh
