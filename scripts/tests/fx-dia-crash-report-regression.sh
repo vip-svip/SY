@@ -51,7 +51,7 @@ for token in ("Thread.setDefaultUncaughtExceptionHandler", "delegate.uncaughtExc
     assert token in store, f"crash store invariant missing: {token}"
 assert "Process.killProcess(Process.myPid())" in store, "fallback fatal-exit path is missing"
 assert "recordNativeCrash(" in store and "NATIVE_HANDLING" in store, "native callback is not persisted"
-assert 'message.append("\\\\nMinidump: ")' in store, "minidump path is not saved"
+assert 'message.append("\\nMinidump: ")' in store, "minidump path is not saved"
 assert "FxDiaNativeCrashCapture.install(application)" in store, "re-enable path does not install native capture"
 assert 'System.loadLibrary("breakpad")' in jni_wrapper, "Breakpad JNI library is not loaded"
 assert "private static final native void initBreakpadNative" in jni_wrapper, "original JNI method descriptor changed"
