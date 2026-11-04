@@ -143,6 +143,9 @@ assert 'GET_SIGNING_CERTIFICATES' in (repo_root / "adhook/app/src/main/java/de/p
 
 accessibility = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java").read_text(encoding="utf-8")
 risk_dispatcher = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRiskScanDispatcher.java").read_text(encoding="utf-8")
+virus_database_page = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDatabaseActivity.java").read_text(encoding="utf-8")
+assert "onVirusDatabaseUpdated" in risk_dispatcher and "FULL_SCAN_RUNNING" in risk_dispatcher, "database refresh must trigger one serialized full-app scan"
+assert virus_database_page.count("FxYulongRiskScanDispatcher.onVirusDatabaseUpdated") == 2, "both list and content database refreshes must dispatch the full scan"
 install_receiver = shield["FxYulongInstallScanReceiver.java"]
 assert "onForegroundPackageChanged(this, pkg)" in accessibility, "foreground package changes must feed Yulong auto-risk scanning"
 for token in ("onForegroundPackageChanged", "onPackageInstalled", "PACKAGE_COOLDOWN_MS",
