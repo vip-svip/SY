@@ -30,6 +30,26 @@ gen_text = generator.read_text(encoding="utf-8")
 native_ui_text = native_ui.read_text(encoding="utf-8")
 reg_text = regression.read_text(encoding="utf-8")
 mic_text = mic_regression.read_text(encoding="utf-8")
+
+def has_conflict_aware_location_control(source):
+    """Accept the dedicated GPS-conflict-aware native switch as API-101 UI."""
+    call = "addLocationAccessBlockToggle(locationConflictStatus);"
+    start = source.find("private void addLocationAccessBlockToggle(TextView conflictStatus)")
+    if start < 0 or call not in source:
+        return False
+    end = source.find("\\n    private ", start + 1)
+    helper = source[start:end] if end > start else source[start:]
+    return all(marker in helper for marker in (
+        'sw.setText("限制位置访问")',
+        'selectedPackage + ":location_access_block"',
+        '.putBoolean(selectedPackage + ":location_access_block", checked)',
+        'if (locationAccessBlocked && (enabled || provider)',
+        'location_simulate',
+        'location_provider_enabled_simulate',
+        '.commit()',
+        'content.addView(sw',
+    ))
+
 already_complete = (
     'else if (key == "camera_access_block") camera_access=val' in gen_text
     and 'camera_access_block=%s' in gen_text
@@ -40,10 +60,13 @@ already_complete = (
     ))
     and all(marker in native_ui_text for marker in (
         'toggle("限制摄像头访问", "camera_access_block"',
-        'toggle("限制位置访问", "location_access_block"',
         'toggle("阻止录音启动（会影响录音功能）", "mic_access_block"',
         'toggle("清理媒体查询元数据", "media_store_query_block"'
     ))
+    and (
+        'toggle("限制位置访问", "location_access_block"' in native_ui_text
+        or has_conflict_aware_location_control(native_ui_text)
+    )
     and "camera_access_block=1" in reg_text
     and "media_store_query_block=1" in reg_text
     and "unsupported developer-hook fields leaked into the runtime schema" in reg_text
@@ -130,7 +153,12 @@ for label, feature in (
     ("阻止录音启动（会影响录音功能）", "mic_access_block"),
     ("清理媒体查询元数据", "media_store_query_block"),
 ):
-    if 'toggle("' + label + '", "' + feature + '"' not in native_ui_final:
+    has_generic_toggle = 'toggle("' + label + '", "' + feature + '"' in native_ui_final
+    if feature == "location_access_block":
+        has_location_switch = has_conflict_aware_location_control(native_ui_final)
+        if not (has_generic_toggle or has_location_switch):
+            missing.append(feature + " native UI control")
+    elif not has_generic_toggle:
         missing.append(feature + " native UI toggle")
     if '"' + feature + '"' not in native_ui_final:
         missing.append(feature + " native config serializer")
