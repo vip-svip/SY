@@ -6,7 +6,8 @@
 
 - Repository：`vip-svip/SY`
 - Branch：`fx-v1.0.0-unified-hook-integration`
-- 本批功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`
+- 历史功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`（历史检查点，不是本轮最新 HEAD）。
+- 本轮提交后的最新分支 HEAD：`b25ae132405ac899cc5833b97dd199fb1d92eb4f`（本轮第二批状态文档提交；其前一代码提交为 `948dafaf5db095177d64d5acab47ae864b84ef38`）。
 - 本批脚本库 UI 首次提交：`7cdce9ae77d22986be39e40a2544d56099ec0005`（编辑器结果回调在后续修正提交中完成）
 - 本状态更新时的工作主题：Dia 原生 Frida 脚本库独立页面；最新 HEAD 以实时 GitHub 分支为准。
 - 固定目标：FX 1.0.0，versionCode 10000（改动前仍需核实 Gradle 实际配置）
