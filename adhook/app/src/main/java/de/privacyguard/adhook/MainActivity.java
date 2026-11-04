@@ -125,6 +125,12 @@ public final class MainActivity extends ComponentActivity {
         thread.setDaemon(true);
         return thread;
     });
+    private final ExecutorService nativeWallpaperExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "fx-native-wallpaper");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final AtomicBoolean nativeWallpaperOperationBusy = new AtomicBoolean(false);
     private final Runnable nativeVpnPoll = new Runnable() {
         @Override public void run() {
             if (isFinishing() || hookUiVisible || settingsUiVisible || lastWebTabIndex != 0 || webView == null || !webUiReady) return;
@@ -245,6 +251,7 @@ public final class MainActivity extends ComponentActivity {
     private boolean pendingDiaDexHookPicker;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
+    private static final int REQUEST_NATIVE_WALLPAPER_PICKER = 4112;
     private String pendingNativeScriptExport;
     private static final String NATIVE_SCRIPT_EXPORT_PREFS = "fx_pending_native_script_export";
     private static final String NATIVE_SCRIPT_EXPORT_PAYLOAD = "payload";
@@ -634,7 +641,7 @@ public final class MainActivity extends ComponentActivity {
         selectedBottomTab = lastWebTabIndex;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xfff4f6f8);
+        root.setBackgroundColor(uiBackgroundColor());
 
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
@@ -3208,6 +3215,13 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(18), dp(4), dp(18), dp(14));
         content.addView(intro);
+        section("壁纸与背景");
+        addNativeActionCard(
+                "壁纸随心换",
+                FxWallpaperStore.currentPath(this) == null
+                        ? "未设置自定义壁纸，当前为默认背景"
+                        : "当前已设置自定义壁纸",
+                "管理壁纸", this::showNativeWallpaperDialog);
         section("界面模式");
         TextView note = new TextView(this);
         note.setText("五种全局模式均已接入模式选择器与应用级导航外观：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）、iOS CupertinoStyle（iOS 视觉风格）。当前 HUAWEI/iOS 已实现全局导航与表面基础 Skin，逐页组件适配仍在继续。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
@@ -3288,6 +3302,130 @@ public final class MainActivity extends ComponentActivity {
         content.addView(appDetails);
         section("运行日志");
         content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+    }
+
+    private void showNativeWallpaperDialog() {
+        LinearLayout previewPanel = new LinearLayout(this);
+        previewPanel.setOrientation(LinearLayout.VERTICAL);
+        previewPanel.setPadding(dp(18), dp(8), dp(18), dp(4));
+
+        TextView status = new TextView(this);
+        boolean hasWallpaper = FxWallpaperStore.currentPath(this) != null;
+        status.setText(hasWallpaper ? "当前已设置自定义壁纸" : "未设置自定义壁纸，当前为默认背景");
+        status.setTextColor(0xff66727e);
+        status.setPadding(0, 0, 0, dp(10));
+        previewPanel.addView(status);
+
+        ImageView preview = new ImageView(this);
+        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        preview.setAdjustViewBounds(false);
+        preview.setBackground(uiPanelDrawable());
+        preview.setClipToOutline(true);
+        preview.setVisibility(hasWallpaper ? View.VISIBLE : View.GONE);
+        previewPanel.addView(preview, new LinearLayout.LayoutParams(-1, dp(156)));
+
+        java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap> previewBitmap =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("壁纸随心换")
+                .setView(previewPanel)
+                .setPositiveButton("上传本地图片", (d, which) -> openNativeWallpaperPicker())
+                .setNeutralButton("恢复默认壁纸", (d, which) -> restoreNativeWallpaper())
+                .setNegativeButton("关闭", null)
+                .create();
+        dialog.setOnDismissListener(ignored -> {
+            preview.setImageDrawable(null);
+            android.graphics.Bitmap bitmap = previewBitmap.getAndSet(null);
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        });
+        dialog.show();
+
+        if (hasWallpaper) {
+            nativeWallpaperExecutor.execute(() -> {
+                android.graphics.Bitmap bitmap = FxWallpaperStore.loadPreview(this);
+                runOnUiThread(() -> {
+                    if (bitmap == null) return;
+                    if (isFinishing() || isDestroyed() || !dialog.isShowing()) {
+                        bitmap.recycle();
+                        return;
+                    }
+                    android.graphics.Bitmap previous = previewBitmap.getAndSet(bitmap);
+                    if (previous != null && !previous.isRecycled()) previous.recycle();
+                    preview.setImageBitmap(bitmap);
+                });
+            });
+        }
+    }
+
+    private void openNativeWallpaperPicker() {
+        if (nativeWallpaperOperationBusy.get()) {
+            Toast.makeText(this, "壁纸正在处理中，请稍后再试。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("image/*");
+        picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(picker, REQUEST_NATIVE_WALLPAPER_PICKER);
+        } catch (Exception error) {
+            Toast.makeText(this, "无法打开系统图片选择器：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importNativeWallpaper(Uri uri) {
+        if (uri == null || !nativeWallpaperOperationBusy.compareAndSet(false, true)) {
+            Toast.makeText(this, "壁纸选择无效或已有壁纸操作正在进行。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        AlertDialog progress = new AlertDialog.Builder(this)
+                .setMessage("处理中...")
+                .setCancelable(false)
+                .create();
+        progress.show();
+        nativeWallpaperExecutor.execute(() -> {
+            String savedPath = null;
+            Exception failure = null;
+            try {
+                savedPath = FxWallpaperStore.saveFromUri(this, uri);
+            } catch (Exception error) {
+                failure = error;
+            }
+            final String resultPath = savedPath;
+            final Exception resultFailure = failure;
+            runOnUiThread(() -> {
+                nativeWallpaperOperationBusy.set(false);
+                if (isFinishing() || isDestroyed()) {
+                    progress.dismiss();
+                    return;
+                }
+                progress.dismiss();
+                if (resultFailure != null || resultPath == null) {
+                    String reason = resultFailure == null ? "未知错误" : resultFailure.getMessage();
+                    new AlertDialog.Builder(this)
+                            .setTitle("壁纸保存失败")
+                            .setMessage(reason == null ? "无法保存所选图片。" : reason)
+                            .setPositiveButton("知道了", null)
+                            .show();
+                    return;
+                }
+                showSettings();
+                Toast.makeText(this, "壁纸已保存并应用", Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
+    private void restoreNativeWallpaper() {
+        if (nativeWallpaperOperationBusy.get()) {
+            Toast.makeText(this, "壁纸正在处理中，请稍后再试。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!FxWallpaperStore.clear(this)) {
+            Toast.makeText(this, "恢复默认壁纸失败，原壁纸设置保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        showSettings();
+        Toast.makeText(this, "已恢复默认壁纸", Toast.LENGTH_SHORT).show();
     }
 
     private String importedSuiteTitle(String suite) {
@@ -4715,6 +4853,11 @@ public final class MainActivity extends ComponentActivity {
             }
             return;
         }
+        if (requestCode == REQUEST_NATIVE_WALLPAPER_PICKER) {
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+            importNativeWallpaper(data.getData());
+            return;
+        }
         if (requestCode == REQUEST_NATIVE_SCRIPT_EXPORT) {
             String pending = pendingNativeScriptExport;
             pendingNativeScriptExport = null;
@@ -4873,8 +5016,13 @@ public final class MainActivity extends ComponentActivity {
 
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
     private int uiBackgroundColor() {
+        // Keep native page containers transparent so the shared Compose shell can
+        // show the user's wallpaper beneath every primary tab and imported page.
+        if (FxWallpaperStore.currentPath(this) != null) return 0x00000000;
         if ("miuix".equals(uiMode)) return 0xfff3f5fa;
         if ("glass".equals(uiMode)) return 0xffe8eef4;
+        if ("huawei".equals(uiMode)) return 0xfff1f5fa;
+        if ("ios".equals(uiMode)) return 0xfff2f2f7;
         return 0xfff4f6f8;
     }
     private int uiSurfaceColor() {
