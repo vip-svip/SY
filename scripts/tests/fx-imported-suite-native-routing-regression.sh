@@ -43,4 +43,23 @@ firewall_block=$(sed -n '/page.equals("应用网络拦截")/,/page.equals("应�
 printf '%s\\n' "$firewall_block" | grep -Fq 'FxYulongFirewallActivity.class' || fail "Yulong mobile/Wi-Fi/time firewall does not route to its native page"
 grep -Fq '原版移动数据/Wi-Fi 阻断和每日时间计划已接入' "$MAIN" || fail "app-management fallback falsely claims the migrated firewall is missing"
 grep -Fq '唯一 FX VPN 下经验证的 Root DNS Proxy' "$MAIN" || fail "Yulong fallback fails to identify the migrated single-VPN Root DNS Proxy"
-echo "PASS: Yulong VPN, QUIC, Shield rescue and live-status routes use the matching native feature pages"
+
+# Every migrated Yulong Ad screen belongs to FX's Ad tab (index 1), not Settings (index 5).
+for page in \
+  FxYulongAdActivity.java \
+  FxYulongAdGeneralActivity.java \
+  FxYulongAdSummaryActivity.java \
+  FxYulongAppStatsActivity.java \
+  FxYulongAppWhitelistActivity.java \
+  FxYulongDnsActivity.java \
+  FxYulongFirewallActivity.java
+do
+  source_file="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/$page"
+  [ -s "$source_file" ] || fail "Yulong Ad native page missing: $page"
+  grep -Fq 'setContentViewWithNativeTabs(root, 1);' "$source_file" || fail "$page does not select the Ad tab"
+  if grep -Fq 'setContentViewWithNativeTabs(root, 5);' "$source_file"; then
+    fail "$page incorrectly highlights Settings instead of Ad"
+  fi
+done
+
+echo "PASS: Yulong VPN, Ad tab selection, QUIC, Shield rescue and live-status routes use the matching native feature pages"
