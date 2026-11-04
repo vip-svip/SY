@@ -4301,8 +4301,21 @@ public final class MainActivity extends ComponentActivity {
     private boolean isAccessibilityEnabled() {
         String enabled = android.provider.Settings.Secure.getString(
                 getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        return enabled != null && (enabled.contains(getPackageName() + "/.FxAccessibilityService")
-                || enabled.contains(getPackageName() + "/" + getPackageName() + ".FxAccessibilityService"));
+        if (enabled == null || enabled.trim().isEmpty()) return false;
+        android.content.ComponentName expected =
+                new android.content.ComponentName(this, FxAccessibilityService.class);
+        for (String flattened : enabled.split(":")) {
+            String entry = flattened == null ? "" : flattened.trim();
+            if (entry.isEmpty()) continue;
+            android.content.ComponentName component =
+                    android.content.ComponentName.unflattenFromString(entry);
+            if (expected.equals(component)) return true;
+            // Some Android builds retain the package-relative short form in the secure setting.
+            if ((getPackageName() + "/.FxAccessibilityService").equals(entry)
+                    || (getPackageName() + "/" + getPackageName() + ".FxAccessibilityService").equals(entry))
+                return true;
+        }
+        return false;
     }
 
     @Override protected void onDestroy() {
@@ -4509,20 +4522,39 @@ public final class MainActivity extends ComponentActivity {
     private void checkRoot(TextView state, boolean request, Runnable afterCheck) {
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
         new Thread(() -> {
-            RootAccess.Result result = RootAccess.execute("id -u; if [ -s /data/adb/modules/privacyguard/module.prop ] && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop; then if [ -e /data/adb/modules/privacyguard/disable ]; then echo FX_MODULE=disabled; elif [ -e /data/adb/modules/privacyguard/remove ]; then echo FX_MODULE=remove-pending; else echo FX_MODULE=enabled; fi; else echo FX_MODULE=missing; fi; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_TOOL=present || echo KSU_TOOL=not-found");
+            String command = "uid=$(id -u 2>/dev/null || echo unknown); echo FX_ROOT_UID=$uid; "
+                    + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
+                    + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
+                    + "if [ -d \\"$d\\" ] && [ ! -L \\"$d\\" ] && [ -f \\"$d/module.prop\\" ] "
+                    + "&& [ ! -L \\"$d/module.prop\\" ] && grep -qx 'id=privacyguard' \\"$d/module.prop\\"; "
+                    + "then MP=\\"$d\\"; break; fi; done; "
+                    + "if [ -n \\"$MP\\" ]; then version=$(sed -n 's/^version=//p' \\"$MP/module.prop\\" | head -n 1); "
+                    + "if [ -e \\"$MP/remove\\" ]; then echo FX_MODULE=remove-pending; "
+                    + "elif [ -e \\"$MP/disable\\" ]; then echo FX_MODULE=disabled; "
+                    + "elif [ \\"$version\\" = '1.0.0' ]; then echo FX_MODULE=enabled; "
+                    + "else echo FX_MODULE=version-mismatch; fi; "
+                    + "echo FX_MODULE_PATH=$MP; else echo FX_MODULE=missing; fi; "
+                    + "(command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) "
+                    + "&& echo KSU_TOOL=present || echo KSU_TOOL=not-found";
+            RootAccess.Result result = RootAccess.execute(command);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || state.getParent() == null) return;
-                if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
+                boolean rootGranted = result.exitCode == 0 && result.output.contains("FX_ROOT_UID=0");
+                if (rootGranted) {
                     String moduleState = result.output.contains("FX_MODULE=enabled") ? "模块启用标记存在"
                             : result.output.contains("FX_MODULE=disabled") ? "模块已禁用"
                             : result.output.contains("FX_MODULE=remove-pending") ? "模块待卸载"
-                            : "模块缺失/版本不符";
+                            : result.output.contains("FX_MODULE=version-mismatch") ? "模块版本不匹配"
+                            : "模块缺失";
                     state.setText("Root UID 0 · FX " + moduleState + " · KSU 工具 "
                             + (result.output.contains("KSU_TOOL=present") ? "存在" : "未检测到"));
                 } else if (result.denied) {
                     state.setText("尚未获得 Root 授权。请在 KernelSU 管理器中允许 FX 应用。");
                 } else {
-                    state.setText("Root 不可用或请求失败：\\n" + result.output);
+                    String detail = result.output == null || result.output.trim().isEmpty()
+                            ? "Root 命令未返回诊断信息。" : result.output.trim();
+                    if (detail.length() > 300) detail = detail.substring(0, 300);
+                    state.setText("Root 不可用或请求失败：\\n" + detail);
                 }
                 if (afterCheck != null) afterCheck.run();
             });
