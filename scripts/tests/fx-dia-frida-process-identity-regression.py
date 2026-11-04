@@ -43,4 +43,8 @@ assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
     "session log viewer must refuse symlink and non-regular log targets"
 assert r'\\\"' not in inject, "Java command builder must emit shell quoting, not literal backslash-quote characters"
 assert r'[ ! -L \"$log\" ]' in inject, "session log symlink guard must keep a syntactically complete test bracket"
+assert "trap '[ -z " in inject and "|| rm -f " in inject and "' EXIT" in inject, \
+    "temporary Frida script cleanup must tolerate tmp being cleared after atomic replace"
+assert "trap 'exit 129' HUP" in inject and "trap 'exit 130' INT" in inject and "trap 'exit 143' TERM" in inject, \
+    "signal handlers must exit into the single EXIT cleanup path"
 print("PASS: Frida selection/injection revalidate package UID and use private, symlink-safe script/log paths")
