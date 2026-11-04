@@ -46,7 +46,10 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
             }
         }
     }
+    private static final String STATE_SCROLL_Y = "fx_shield_virus_db_scroll_y";
     private LinearLayout body;
+    private ScrollView databaseScroll;
+    private int restoredScrollY;
     private TextView summary;
     private LinearLayout listRows;
     private Button refresh;
@@ -73,12 +76,13 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        restoredScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(12),dp(8),dp(12),dp(8));
         header.addView(action("‹ 返回",this::finish));
         header.addView(text("病毒库管理",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
         root.addView(header);
-        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true);
+        ScrollView scroll=new ScrollView(this); databaseScroll=scroll; scroll.setFillViewport(true);
         body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(0,dp(4),0,dp(20));
         scroll.addView(body); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 5);
 
@@ -93,6 +97,20 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
         card("高级 APK 内容特征库（原版默认不用于手动扫描）", contentSummary, contentRefresh);
         updateStatus();
         updateContentStatus();
+        if (restoredScrollY > 0) {
+            final int restoreY = restoredScrollY;
+            scroll.post(() -> {
+                if (!destroyed && !isFinishing() && !isDestroyed()
+                        && databaseScroll == scroll && scroll.getParent() != null)
+                    scroll.scrollTo(0, restoreY);
+            });
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_SCROLL_Y, databaseScroll == null
+                ? Math.max(0, restoredScrollY) : Math.max(0, databaseScroll.getScrollY()));
     }
 
     private void updateStatus() {
