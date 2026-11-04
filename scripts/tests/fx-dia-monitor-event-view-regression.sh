@@ -16,4 +16,8 @@ grep -Fq 'case "RUNTIME":' "$PARSER" || fail "Runtime monitor family is not supp
 grep -Fq 'SQL 文本' "$ACTIVITY" || fail "event view does not explain content redaction"
 grep -Fq 'private void showMonitorEvents()' "$ACTIVITY" || fail "event filtering UI is missing"
 grep -Fq 'matched > shown' "$ACTIVITY" || fail "event view has no render-row cap"
+grep -Fq 'private int monitorEventGeneration;' "$ACTIVITY" || fail "event requests have no generation guard"
+grep -Fq 'final String requestedPackage = targetPackage;' "$ACTIVITY" || fail "event reader does not snapshot the requested target"
+grep -Fq '!requestedPackage.equals(targetPackage)' "$ACTIVITY" || fail "late event results can be shown for a newly selected target"
+grep -Fq 'monitorEventGeneration++;' "$ACTIVITY" || fail "target changes and Activity teardown do not invalidate stale event reads"
 echo "PASS: Dia monitor-event browser is bounded, filterable and metadata-only"

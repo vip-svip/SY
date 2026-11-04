@@ -85,6 +85,7 @@ public final class FxDiaFridaActivity extends Activity {
     private TextView targetLabel;
     private String targetPackage;
     private String targetName;
+    private int monitorEventGeneration;
     private final java.util.LinkedHashSet<String> selectedProcessPids = new java.util.LinkedHashSet<>();
 
     private int dp(float value) {
@@ -516,6 +517,7 @@ public final class FxDiaFridaActivity extends Activity {
                     prefs.edit().remove("target_package").remove("target_name").apply();
                     targetPackage = null;
                     targetName = null;
+                    monitorEventGeneration++;
                     selectedProcessPids.clear();
                     targetLabel.setText("上次选择的目标已不再是可调试用户应用，请重新选择。");
                 }
@@ -523,6 +525,7 @@ public final class FxDiaFridaActivity extends Activity {
                 prefs.edit().remove("target_package").remove("target_name").apply();
                 targetPackage = null;
                 targetName = null;
+                monitorEventGeneration++;
                 selectedProcessPids.clear();
                 targetLabel.setText("上次选择的目标应用已卸载，需重新选择。");
             }
@@ -1300,6 +1303,7 @@ public final class FxDiaFridaActivity extends Activity {
                 .setItems(labels, (dialog, which) -> {
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
+                    monitorEventGeneration++;
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .putString("target_package", targetPackage)
                             .putString("target_name", targetName)
@@ -2297,6 +2301,13 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void showMonitorEvents() {
+        final String requestedPackage = targetPackage;
+        final String requestedName = targetName == null ? targetPackage : targetName;
+        if (requestedPackage == null || requestedPackage.trim().isEmpty()) {
+            setStatus("请先选择 debuggable 目标应用。");
+            return;
+        }
+        final int request = ++monitorEventGeneration;
         String log = sessionLogPath();
         if (log.isEmpty()) {
             setStatus("请先选择 debuggable 目标应用。");
@@ -2306,6 +2317,9 @@ public final class FxDiaFridaActivity extends Activity {
                 + " ] && [ -s " + quote(log) + " ]; then tail -n 800 " + quote(log)
                 + "; else echo FX_DIA_NO_EVENTS; fi";
         runRoot(command, 15000L, result -> {
+            if (isFinishing() || isDestroyed()
+                    || request != monitorEventGeneration
+                    || !requestedPackage.equals(targetPackage)) return;
             if (result.exitCode != 0) {
                 setStatus("读取监控事件失败（退出码 " + result.exitCode + "）："
                         + (result.output == null ? "Root 读取失败" : result.output));
@@ -2388,7 +2402,7 @@ public final class FxDiaFridaActivity extends Activity {
             });
             render.run();
             new AlertDialog.Builder(this)
-                    .setTitle("Dia 监控事件 · " + (targetName == null ? targetPackage : targetName))
+                    .setTitle("Dia 监控事件 · " + requestedName)
                     .setView(panel)
                     .setPositiveButton("关闭", null)
                     .show();
@@ -2414,6 +2428,7 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        monitorEventGeneration++;
         worker.shutdownNow();
         super.onDestroy();
     }
