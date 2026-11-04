@@ -35,6 +35,13 @@ grep -Fq 'importRequestPending = true;' "$ACTIVITY" || fail "SAF import request 
 grep -Fq 'exportRequestPending = true;' "$ACTIVITY" || fail "SAF export request is not tracked"
 grep -Fq 'mergeImport' "$ACTIVITY" || fail "JSON library import is not connected"
 grep -Fq 'FxDiaScriptLibraryStore.mergeImport(this, json, preview.overwrittenNames)' "$ACTIVITY" || fail "confirmed overwrite preview is not passed to the atomic merge"
+python3 - "$ACTIVITY" <<'PY'
+from pathlib import Path
+import sys
+activity = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert 'String.join("\\n", preview.overwrittenNames)' in activity, "import preview must show every same-name script before confirmation"
+assert "preview.overwrittenNames.subList(" not in activity, "import preview must not hide conflicts beyond the first five names"
+PY
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
 python3 - "$ACTIVITY" "$STORE" "$FRIDA" "$POLICY" "$HOST_TEST" <<'PY'
