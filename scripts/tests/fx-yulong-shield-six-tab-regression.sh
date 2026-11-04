@@ -25,6 +25,8 @@ pages = {
     "WhitelistActivity.java": ".imported.shield.WhitelistActivity",
     "WhitelistPickerActivity.java": ".imported.shield.WhitelistPickerActivity",
     "BlacklistActivity.java": ".imported.shield.BlacklistActivity",
+    "FxYulongDailySummaryActivity.java": ".imported.shield.FxYulongDailySummaryActivity",
+    "FxYulongWarningActivity.java": ".imported.shield.FxYulongWarningActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
@@ -62,5 +64,12 @@ assert "if (!isChangingConfigurations())" in black, "configuration recreation mu
 assert "currentBlacklist.addAll(staged)" in black, "only explicit confirmation may commit staged packages"
 assert "pickerStaged.clear();" in black, "dismissed/cancelled picker draft must be cleared"
 assert "FxYulongScanActivity.class" in hub
-print("PASS: Shield database/scan/integrity/rescue pages retain six-tab shell and existing navigation/result/removal contracts")
+daily = (shield_dir / "FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
+for token in ("shield_prefs", "automatic_scan_last_result", "FxYulongProtectionService", "FxYulongRescueOverlayService"):
+    assert token in daily, f"daily summary data source missing: {token}"
+warning = (shield_dir / "FxYulongWarningActivity.java").read_text(encoding="utf-8")
+for token in ("MAX_PACKAGE_NAME", "MAX_WHITELIST_CHARS", "Intent.ACTION_DELETE",
+              "WHITELIST_KEY", "AlertDialog", "package:"):
+    assert token in warning, f"warning confirmation/safety contract missing: {token}"
+print("PASS: Shield database/scan/integrity/rescue/daily-summary/warning pages retain six-tab shell and existing navigation/result/removal contracts")
 PY
