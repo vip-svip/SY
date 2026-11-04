@@ -26,7 +26,6 @@ required = [
     'private void restorePageScrollIfNeeded()',
     'pageScroll.scrollTo(0,y);',
     'pendingPageScrollRestore=false;',
-    'private void open(String p){page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();bind();}',
     'private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();',
     'private EditText draftField(String key)',
     'field.setTag("fx-yulong-ad-draft:"+key);',
@@ -44,6 +43,13 @@ required = [
 ]
 for token in required:
     assert token in s, f"missing Yulong editor recreation invariant: {token}"
+open_start = s.index("private void open(String p)")
+open_end = s.index("\\n  private ", open_start)
+open_method = s[open_start:open_end]
+assert open_method.index("captureDrafts()") < open_method.index("page=p;")
+assert "pendingPageScrollRestore=false" in open_method and "pendingPageScrollY=0" in open_method
+assert open_method.index("render();") < open_method.index("restoreDrafts(drafts)") < open_method.index("bind();"), \
+    "page switching must reset scroll while restoring unsaved form drafts"
 
 keys = (
     "rule_url", "rule_name", "rule_search",
