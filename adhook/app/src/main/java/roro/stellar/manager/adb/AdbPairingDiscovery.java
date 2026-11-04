@@ -18,6 +18,7 @@ import java.util.Set;
 public final class AdbPairingDiscovery implements AutoCloseable {
     public static final String SERVICE_TYPE = "_adb-tls-pairing._tcp.";
     public static final String CONNECT_SERVICE_TYPE = "_adb-tls-connect._tcp.";
+    private static final int MAX_DISCOVERED_SERVICES = 64;
 
     public interface Listener {
         void onStarted();
@@ -105,9 +106,23 @@ public final class AdbPairingDiscovery implements AutoCloseable {
 
             @Override public void onServiceFound(NsdServiceInfo serviceInfo) {
                 if (serviceInfo == null || !isExpectedService(serviceInfo.getServiceType())) return;
+                String name = serviceInfo.getServiceName();
+                if (name == null || name.isEmpty()) return;
+                boolean overLimit = false;
                 synchronized (AdbPairingDiscovery.this) {
-                    if (closed || !knownNames.add(serviceInfo.getServiceName())) return;
-                    resolveQueue.addLast(serviceInfo);
+                    if (closed || knownNames.contains(name)) return;
+                    if (knownNames.size() >= MAX_DISCOVERED_SERVICES) {
+                        overLimit = true;
+                    } else {
+                        knownNames.add(name);
+                        resolveQueue.addLast(serviceInfo);
+                    }
+                }
+                if (overLimit) {
+                    post(() -> listener.onError(
+                            "ADB DNS-SD 服务数量超过安全上限（" + MAX_DISCOVERED_SERVICES
+                                    + "），已忽略后续广播", 1001));
+                    return;
                 }
                 resolveNext();
             }
@@ -118,6 +133,8 @@ public final class AdbPairingDiscovery implements AutoCloseable {
                 synchronized (AdbPairingDiscovery.this) {
                     knownNames.remove(name);
                     resolvedNames.remove(name);
+                    resolveQueue.removeIf(pending ->
+                            pending != null && name.equals(pending.getServiceName()));
                 }
                 post(() -> listener.onDeviceLost(name));
             }
@@ -139,7 +156,13 @@ public final class AdbPairingDiscovery implements AutoCloseable {
     private void resolveNext() {
         final NsdServiceInfo next;
         synchronized (this) {
-            if (closed || !started || resolving || resolveQueue.isEmpty()) return;
+            if (closed || !started || resolving) return;
+            while (!resolveQueue.isEmpty()) {
+                NsdServiceInfo candidate = resolveQueue.peekFirst();
+                if (candidate != null && knownNames.contains(candidate.getServiceName())) break;
+                resolveQueue.removeFirst();
+            }
+            if (resolveQueue.isEmpty()) return;
             next = resolveQueue.removeFirst();
             resolving = true;
         }
