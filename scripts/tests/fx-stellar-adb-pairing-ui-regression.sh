@@ -65,7 +65,9 @@ grep -Fq 'putString("connect_service_name"' "$PAIRING" || fail "resolved ADB con
 grep -Fq 'putString("connect_host"' "$PAIRING" || fail "resolved ADB connect host is not persisted"
 grep -Fq 'putInt("connect_port"' "$PAIRING" || fail "resolved ADB connect port is not persisted"
 grep -Fq 'remove("connect_port")' "$PAIRING" || fail "lost ADB connect service does not clear stale endpoint state"
-grep -Fq 'ADB Shell 命令通道尚未迁入' "$PAIRING" || fail "UI must not claim that endpoint discovery is an active ADB Shell session"
+grep -Fq 'probeSelectedConnectEndpoint()' "$PAIRING" || fail "connect endpoint does not expose the fixed read-only shell probe"
+grep -Fq 'ADB Shell 固定只读探测已通过' "$PAIRING" || fail "successful ADB probe result is not reflected in the UI"
+grep -Fq '不代表通用 Shell 管理功能已全部迁入' "$PAIRING" || fail "UI must not claim that the fixed probe completes full Shell migration"
 
 grep -Fq 'pairingCode.setText("")' "$PAIRING" || fail "pairing code remains in the visible input after starting"
 grep -Fq 'client.close()' "$PAIRING" || fail "pairing client is not closed after the attempt"
