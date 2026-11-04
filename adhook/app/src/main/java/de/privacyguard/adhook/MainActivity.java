@@ -6574,9 +6574,11 @@ public final class MainActivity extends ComponentActivity {
         EditText id = new EditText(this);
         id.setSingleLine(true);
         id.setHint("规则 ID，例如 observe1");
+        id.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(32)});
         EditText descriptor = new EditText(this);
         descriptor.setSingleLine(false);
         descriptor.setMinLines(2);
+        descriptor.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(512)});
         String[] syntaxLabels = {"Java 精确签名", "Frida .overload()", "Smali / JVM 描述符", "旧式 boolean 签名"};
         String[] syntaxHints = {
                 "com.example.app.Foo#run(java.lang.String,int[]): java.lang.Object",
@@ -6617,6 +6619,7 @@ public final class MainActivity extends ComponentActivity {
         action.setAdapter(actionAdapter);
         EditText literalValue = new EditText(this);
         literalValue.setSingleLine(true);
+        literalValue.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(256)});
         literalValue.setHint("RETURN_LITERAL：String 文本、boolean/byte/short/int/long/float/double；char 填 0–65535 数值码");
         action.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
@@ -6628,10 +6631,12 @@ public final class MainActivity extends ComponentActivity {
         });
         EditText group = new EditText(this);
         group.setSingleLine(true);
+        group.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(24)});
         group.setText("默认");
         group.setHint("规则分组，例如 网络监控");
         EditText priority = new EditText(this);
         priority.setSingleLine(true);
+        priority.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(5)});
         priority.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         priority.setText("0");
