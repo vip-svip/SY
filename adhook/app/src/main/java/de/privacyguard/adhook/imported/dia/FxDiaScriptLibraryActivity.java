@@ -40,6 +40,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final String STATE_EDITOR_REQUEST_PENDING = "fx_dia_script_library_editor_request_pending";
     private static final String STATE_IMPORT_REQUEST_PENDING = "fx_dia_script_library_import_request_pending";
     private static final String STATE_EXPORT_REQUEST_PENDING = "fx_dia_script_library_export_request_pending";
+    private static final String STATE_PENDING_IMPORT_URI = "fx_dia_script_library_pending_import_uri";
+    private static final String STATE_PENDING_IMPORT_URI_PERSISTED = "fx_dia_script_library_pending_import_uri_persisted";
     private static final String STATE_SEARCH = "fx_dia_script_library_search";
     private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
     private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
@@ -62,6 +64,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private boolean editorRequestPending;
     private boolean importRequestPending;
     private boolean exportRequestPending;
+    private Uri pendingImportUri;
+    private boolean pendingImportUriPersisted;
     private boolean openingInitialEditor;
     private boolean createDialogRestorePending;
     private String createNameDraft = "";
@@ -121,6 +125,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             editorRequestPending = state.getBoolean(STATE_EDITOR_REQUEST_PENDING, false);
             importRequestPending = state.getBoolean(STATE_IMPORT_REQUEST_PENDING, false);
             exportRequestPending = state.getBoolean(STATE_EXPORT_REQUEST_PENDING, false);
+            String pendingUri = state.getString(STATE_PENDING_IMPORT_URI);
+            if (pendingUri != null && pendingUri.length() <= 4096) {
+                pendingImportUri = Uri.parse(pendingUri);
+                pendingImportUriPersisted = state.getBoolean(STATE_PENDING_IMPORT_URI_PERSISTED, false);
+            }
             restoredSearch = state.getString(STATE_SEARCH, "");
             restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             restoreScrollPending = true;
@@ -201,6 +210,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                     libraryScroll.post(() -> libraryScroll.scrollTo(0, restoredScrollY));
                 }
                 setStatus("已读取 " + scripts.length() + " 个本地脚本。数据保存在 FX 私有应用配置中。");
+                if (pendingImportUri != null) importFrom(pendingImportUri);
                 if (openingInitialEditor) {
                     openingInitialEditor = false;
                     createScript();
@@ -347,6 +357,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         pick.addCategory(Intent.CATEGORY_OPENABLE);
         pick.setType("application/json");
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         importRequestPending = true;
         try {
             startActivityForResult(pick, REQUEST_IMPORT);
@@ -436,8 +447,20 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             return;
         }
         Uri uri = data.getData();
-        if (requestCode == REQUEST_IMPORT) importFrom(uri);
-        else exportTo(uri);
+        if (requestCode == REQUEST_IMPORT) {
+            pendingImportUri = uri;
+            pendingImportUriPersisted = false;
+            int grantFlags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (grantFlags != 0) {
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, grantFlags);
+                    pendingImportUriPersisted = true;
+                } catch (SecurityException ignored) {
+                    // Keep the temporary result grant for this Activity instance.
+                }
+            }
+            importFrom(uri);
+        } else exportTo(uri);
     }
 
     private void importFrom(Uri uri) {
@@ -459,7 +482,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 json = new String(output.toByteArray(), StandardCharsets.UTF_8);
                 preview = FxDiaScriptLibraryStore.previewImport(this, json);
             } catch (Throwable error) {
-                runOnUiThread(() -> setStatus("脚本库导入校验失败：" + detail(error)));
+                runOnUiThread(() -> {
+                    clearPendingImportUri();
+                    setStatus("脚本库导入校验失败：" + detail(error));
+                });
                 return;
             }
             runOnUiThread(() -> {
@@ -473,23 +499,39 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 }
                 new AlertDialog.Builder(this).setTitle("确认导入脚本库")
                         .setMessage(message + "\n不会自动执行导入的脚本。")
-                        .setNegativeButton("取消", null)
-                        .setPositiveButton("验证并导入", (dialog, which) -> submitIo(() -> {
-                            try {
-                                int count = FxDiaScriptLibraryStore.mergeImport(this, json);
-                                JSONObject loaded = FxDiaScriptLibraryStore.read(this);
-                                runOnUiThread(() -> {
-                                    if (isFinishing() || isDestroyed()) return;
-                                    scripts = loaded;
-                                    renderRows();
-                                    setStatus("已导入 " + count + " 个脚本。导入内容未执行。");
-                                });
-                            } catch (Throwable error) {
-                                runOnUiThread(() -> setStatus("导入失败：" + detail(error)));
-                            }
-                        })).show();
+                        .setNegativeButton("取消", (dialog, which) -> clearPendingImportUri())
+                        .setPositiveButton("验证并导入", (dialog, which) -> {
+                            clearPendingImportUri();
+                            submitIo(() -> {
+                                try {
+                                    int count = FxDiaScriptLibraryStore.mergeImport(this, json);
+                                    JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                                    runOnUiThread(() -> {
+                                        if (isFinishing() || isDestroyed()) return;
+                                        scripts = loaded;
+                                        renderRows();
+                                        setStatus("已导入 " + count + " 个脚本。导入内容未执行。");
+                                    });
+                                } catch (Throwable error) {
+                                    runOnUiThread(() -> setStatus("导入失败：" + detail(error)));
+                                }
+                            });
+                        }).show();
             });
         });
+    }
+
+    private void clearPendingImportUri() {
+        Uri uri = pendingImportUri;
+        boolean persisted = pendingImportUriPersisted;
+        pendingImportUri = null;
+        pendingImportUriPersisted = false;
+        if (uri != null && persisted) {
+            try {
+                getContentResolver().releasePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException ignored) { }
+        }
     }
 
     private void exportTo(Uri uri) {
@@ -528,6 +570,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);
         out.putBoolean(STATE_IMPORT_REQUEST_PENDING, importRequestPending);
         out.putBoolean(STATE_EXPORT_REQUEST_PENDING, exportRequestPending);
+        if (pendingImportUri != null) {
+            out.putString(STATE_PENDING_IMPORT_URI, pendingImportUri.toString());
+            out.putBoolean(STATE_PENDING_IMPORT_URI_PERSISTED, pendingImportUriPersisted);
+        }
         if (createNameInput != null && createNameInput.getText() != null)
             createNameDraft = createNameInput.getText().toString();
         out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
@@ -541,6 +587,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     }
 
     @Override protected void onDestroy() {
+        if (isFinishing() && !isChangingConfigurations()) clearPendingImportUri();
         worker.shutdownNow();
         super.onDestroy();
     }
