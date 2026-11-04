@@ -130,6 +130,15 @@ public final class MainActivity extends ComponentActivity {
     private boolean hookTargetVisible;
     private boolean hookCustomRulesPageVisible;
     private boolean customHookReturnToTarget;
+    private static final String STATE_CUSTOM_HOOK_GROUP_FILTER = "fx_custom_hook_group_filter";
+    private static final String STATE_CUSTOM_HOOK_SEARCH = "fx_custom_hook_search";
+    private static final String STATE_CUSTOM_HOOK_SCROLL_Y = "fx_custom_hook_scroll_y";
+    private String customHookRuleGroupFilter = "";
+    private String customHookRuleSearchQuery = "";
+    private int customHookRuleScrollY;
+    private String customHookRulesTargetPackage;
+    private Spinner customHookRuleGroupFilterView;
+    private EditText customHookRuleSearchFilterView;
     private boolean hookHubVisible;
     private boolean settingsUiVisible;
     private boolean hookAuthorizationRefreshPending;
@@ -250,6 +259,16 @@ public final class MainActivity extends ComponentActivity {
             migrationChildActive = state.getBoolean("fx_migration_child_active", false);
             if ("target".equals(restoreHookKind) || "target_custom_rules".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
+            }
+            if ("target_custom_rules".equals(restoreHookKind)) {
+                customHookRulesTargetPackage = state.getString("fx_selected_package");
+                customHookRuleGroupFilter = state.getString(STATE_CUSTOM_HOOK_GROUP_FILTER, "");
+                if (customHookRuleGroupFilter.length() > 24)
+                    customHookRuleGroupFilter = customHookRuleGroupFilter.substring(0, 24);
+                customHookRuleSearchQuery = state.getString(STATE_CUSTOM_HOOK_SEARCH, "");
+                if (customHookRuleSearchQuery.length() > 256)
+                    customHookRuleSearchQuery = customHookRuleSearchQuery.substring(0, 256);
+                customHookRuleScrollY = Math.max(0, state.getInt(STATE_CUSTOM_HOOK_SCROLL_Y, 0));
             }
         } else {
             clearPendingNativeScriptExport();
@@ -425,6 +444,14 @@ public final class MainActivity extends ComponentActivity {
                     : restoringTarget ? (hookCustomRulesPageVisible ? "target_custom_rules" : "target") : "list";
             outState.putString("fx_hook_screen", hookScreen);
             outState.putBoolean("fx_hook_custom_return_to_target", customHookReturnToTarget);
+            if (hookCustomRulesPageVisible) {
+                captureCustomHookRuleFilters();
+                outState.putString(STATE_CUSTOM_HOOK_GROUP_FILTER, customHookRuleGroupFilter);
+                outState.putString(STATE_CUSTOM_HOOK_SEARCH,
+                        customHookRuleSearchQuery.length() > 256
+                                ? customHookRuleSearchQuery.substring(0, 256) : customHookRuleSearchQuery);
+                outState.putInt(STATE_CUSTOM_HOOK_SCROLL_Y, Math.max(0, customHookRuleScrollY));
+            }
             String targetPackage = pendingRestorePackage != null
                     ? pendingRestorePackage : selectedPackage;
             if (("target".equals(hookScreen) || "target_custom_rules".equals(hookScreen)) && targetPackage != null) {
@@ -5990,6 +6017,14 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showCustomHookRulesPage(ApplicationInfo target, boolean targetDebuggable) {
+        captureCustomHookRuleFilters();
+        if (customHookRulesTargetPackage == null
+                || !customHookRulesTargetPackage.equals(target.packageName)) {
+            customHookRuleGroupFilter = "";
+            customHookRuleSearchQuery = "";
+            customHookRuleScrollY = 0;
+        }
+        customHookRulesTargetPackage = target.packageName;
         hookUiVisible = true;
         settingsUiVisible = false;
         hookTargetVisible = true;
@@ -6075,6 +6110,9 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void leaveCustomHookRulesPage() {
+        captureCustomHookRuleFilters();
+        customHookRuleGroupFilterView = null;
+        customHookRuleSearchFilterView = null;
         String packageName = selectedPackage;
         boolean returnToTarget = customHookReturnToTarget;
         hookCustomRulesPageVisible = false;
@@ -7042,6 +7080,23 @@ public final class MainActivity extends ComponentActivity {
         startActivity(page);
     }
 
+    private void captureCustomHookRuleFilters() {
+        Spinner group = customHookRuleGroupFilterView;
+        if (group != null && group.getSelectedItem() != null) {
+            String selected = String.valueOf(group.getSelectedItem());
+            customHookRuleGroupFilter = "全部分组".equals(selected) ? "" : selected;
+        }
+        EditText search = customHookRuleSearchFilterView;
+        if (search != null) {
+            CharSequence value = search.getText();
+            customHookRuleSearchQuery = value == null ? "" : value.toString();
+            if (customHookRuleSearchQuery.length() > 256)
+                customHookRuleSearchQuery = customHookRuleSearchQuery.substring(0, 256);
+        }
+        if (hookCustomRulesPageVisible && nativeScroll != null)
+            customHookRuleScrollY = Math.max(0, nativeScroll.getScrollY());
+    }
+
     private void renderCustomRules(boolean targetDebuggable) {
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         java.util.List<String> options = new java.util.ArrayList<>();
@@ -7052,10 +7107,20 @@ public final class MainActivity extends ComponentActivity {
                 android.R.layout.simple_spinner_item, options);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         groupFilter.setAdapter(adapter);
+        customHookRuleGroupFilterView = groupFilter;
+        int restoredGroupPosition = 0;
+        if (!customHookRuleGroupFilter.isEmpty()) {
+            int index = options.indexOf(customHookRuleGroupFilter);
+            if (index > 0) restoredGroupPosition = index;
+            else customHookRuleGroupFilter = "";
+        }
+        groupFilter.setSelection(restoredGroupPosition);
 
         EditText searchFilter = new EditText(this);
         searchFilter.setSingleLine(true);
         searchFilter.setHint("搜索规则 ID、方法签名、动作或分组");
+        searchFilter.setText(customHookRuleSearchQuery);
+        customHookRuleSearchFilterView = searchFilter;
         content.addView(groupFilter);
         content.addView(searchFilter);
 
@@ -7234,15 +7299,33 @@ public final class MainActivity extends ComponentActivity {
         };
         groupFilter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
-                                                 View view, int position, long id) { render[0].run(); }
+                                                 View view, int position, long id) {
+                Object selected = groupFilter.getSelectedItem();
+                String value = selected == null ? "" : String.valueOf(selected);
+                customHookRuleGroupFilter = "全部分组".equals(value) ? "" : value;
+                render[0].run();
+            }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
         searchFilter.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render[0].run(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                customHookRuleSearchQuery = s == null ? "" : s.toString();
+                render[0].run();
+            }
             @Override public void afterTextChanged(Editable editable) { }
         });
         render[0].run();
+        final ScrollView ruleScroll = nativeScroll;
+        final int restoreRuleY = customHookRuleScrollY;
+        if (restoreRuleY > 0 && ruleScroll != null) {
+            ruleScroll.post(() -> {
+                if (hookCustomRulesPageVisible && nativeScroll == ruleScroll
+                        && selectedPackage != null && selectedPackage.equals(customHookRulesTargetPackage)) {
+                    ruleScroll.scrollTo(0, restoreRuleY);
+                }
+            });
+        }
     }
 
     private boolean enabled(String pkg, String feature) {
