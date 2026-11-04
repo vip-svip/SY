@@ -13,7 +13,7 @@ for source in "$VIRUS" "$INTEGRITY"; do
   grep -Fq 'worker.shutdownNow()' "$source" || fail "worker is not stopped on Activity teardown in $source"
 done
 grep -Fq 'private void postUi(Runnable update)' "$VIRUS" || fail "Virus DB callbacks are not lifecycle guarded"
-grep -Fq 'destroyed = true' "$VIRUS" || fail "Virus DB Activity teardown does not invalidate callbacks"
+grep -Eq 'destroyed[[:space:]]*=[[:space:]]*true' "$VIRUS" || fail "Virus DB Activity teardown does not invalidate callbacks"
 grep -Fq 'checkButton.setEnabled(false)' "$INTEGRITY" || fail "Integrity check does not prevent duplicate requests"
 grep -Fq 'request != checkGeneration' "$INTEGRITY" || fail "late Integrity results are not generation guarded"
 echo "PASS: Shield virus-database and integrity workers are bounded, reject overload and discard stale Activity callbacks"
