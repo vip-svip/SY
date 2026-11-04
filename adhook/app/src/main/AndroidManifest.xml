@@ -116,6 +116,7 @@
         <activity android:name="roro.stellar.manager.authorization.FxStellarCommandShortcutActivity" android:exported="false" android:excludeFromRecents="true" />
         <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
         <activity android:name="roro.stellar.manager.authorization.FxStellarSecureSettingsActivity" android:exported="false" />
+        <activity android:name="roro.stellar.manager.adb.AdbPairingActivity" android:exported="false" />
         <service
             android:name="roro.stellar.manager.authorization.StellarAuthorizationService"
             android:enabled="true"
