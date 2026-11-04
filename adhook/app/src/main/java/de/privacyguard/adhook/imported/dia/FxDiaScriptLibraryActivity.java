@@ -479,7 +479,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                     }
                     output.write(buffer, 0, count);
                 }
-                json = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                json = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
                 preview = FxDiaScriptLibraryStore.previewImport(this, json);
             } catch (Throwable error) {
                 runOnUiThread(() -> {
