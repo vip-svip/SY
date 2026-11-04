@@ -4,6 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SOURCE="$ROOT/scripts/yulong-ad-schedule.sh"
 CONTROL="$ROOT/scripts/yulong-ad-control.sh"
 [ -s "$SOURCE" ] || { echo "FAIL: Yulong schedule runtime missing" >&2; exit 1; }
+sh -n "$SOURCE" || { echo "FAIL: Yulong schedule script has invalid shell syntax" >&2; exit 1; }
 [ -s "$CONTROL" ] || { echo "FAIL: Yulong control backend missing" >&2; exit 1; }
 TMP=$(mktemp -d "/tmp/fx-yulong-schedule-lock.XXXXXX")
 MOD="$TMP/module"
@@ -69,9 +70,9 @@ REAL_MKDIR=$(command -v mkdir)
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/mkdir" <<'EOF'
 #!/bin/sh
-if [ "\${1:-}" = "\${FX_TEST_RUNTIME_LOCK:-}" ]; then
+if [ "${1:-}" = "${FX_TEST_RUNTIME_LOCK:-}" ]; then
   "$FX_TEST_REAL_MKDIR" "$@" || exit $?
-  sleep "\${FX_TEST_LOCK_PUBLISH_DELAY:-1.5}"
+  sleep "${FX_TEST_LOCK_PUBLISH_DELAY:-1.5}"
   exit 0
 fi
 exec "$FX_TEST_REAL_MKDIR" "$@"
@@ -184,6 +185,7 @@ import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 assert "IFS= read -r _lock_self_stat < /proc/self/stat" in source, "lock must read its own PID from procfs"
 assert "lock_self_pid=" + chr(36) + "{_lock_self_stat%% *}" in source, "current PID extraction must be valid shell parameter expansion"
+assert "lock_retry_limit=" + chr(36) + "{FX_YULONG_SCHEDULE_LOCK_RETRIES:-300}" in source, "retry override must be expanded by POSIX shell"
 assert '"$RUNTIME_LOCK/owner.$_lock_self_pid"' in source, "temporary lock owner must be scoped to current PID"
 assert 'printf \'%s %s\\n\' "$_lock_self_pid"' in source, "owner record must store current PID"
 assert '"$_release_pid" = "$_lock_self_pid"' in source, "release must confirm owner PID and process start time"

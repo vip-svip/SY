@@ -30,11 +30,11 @@ acquire_runtime_lock() {
   _lock_tries=0
   _lock_self_stat=
   IFS= read -r _lock_self_stat < /proc/self/stat || { log "cannot read current process identity"; return 31; }
-  _lock_self_pid=\${_lock_self_stat%% *}
+  _lock_self_pid=${_lock_self_stat%% *}
   case "$_lock_self_pid" in ''|*[!0-9]*) log "cannot parse current process PID"; return 31 ;; esac
   _lock_self_start=$(proc_start_time "$_lock_self_pid" 2>/dev/null || :)
   case "$_lock_self_start" in ''|*[!0-9]*) log "cannot establish process identity for scheduler lock"; return 31 ;; esac
-  _lock_retry_limit=\${FX_YULONG_SCHEDULE_LOCK_RETRIES:-300}
+  _lock_retry_limit=${FX_YULONG_SCHEDULE_LOCK_RETRIES:-300}
   case "$_lock_retry_limit" in ''|*[!0-9]*|0) _lock_retry_limit=300 ;; esac
   [ "$_lock_retry_limit" -le 300 ] 2>/dev/null || _lock_retry_limit=300
 
