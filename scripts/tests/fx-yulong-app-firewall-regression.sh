@@ -253,24 +253,24 @@ done
 grep -Fq '[ -f "$CONF" ] && [ ! -L "$CONF" ]' "$SOURCE" || fail "settings.conf symlink guard missing"
 grep -Fq '[ ! -L "$ACTIVE" ]' "$SOURCE" || fail "active marker symlink guard missing"
 
-# Watcher lifecycle PID ownership must use the real shell PID, never a literal "$".
+# The watcher lifecycle lock is an atomic POSIX noclobber file containing its real owner PID.
 python3 - "$SOURCE" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
-    'printf \'%s\\n\' "$$" > "$WATCH_LOCK_PID"',
-    '[ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$$" ]; then',
-    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then',
+    'if (umask 077; set -C; printf \\'%s\\\\n\\' "$$" > "$WATCH_LOCK") 2>/dev/null; then',
+    '[ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]',
+    'chmod 600 "$WATCH_LOCK"',
+    'if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ]',
+    'rm -f "$WATCH_LOCK"',
 )
 for item in required:
     if item not in source:
-        raise SystemExit("FAIL: watcher PID ownership contract missing: " + item)
-for line in source.splitlines():
-    if "WATCH_LOCK_PID" in line or "WATCH_PIDFILE" in line:
-        if '= "$" ]; then' in line or 'printf \'%s\\n\' "$" > "$WATCH_LOCK_PID"' in line:
-            raise SystemExit("FAIL: literal dollar sign remains in watcher PID ownership")
-print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
+        raise SystemExit("FAIL: atomic watcher lock contract missing: " + item)
+if 'printf \\'%s\\\\n\\' "$$" > "$WATCH_LOCK_PID"' in source:
+    raise SystemExit("FAIL: obsolete two-step WATCH_LOCK_PID contract remains")
+print("PASS: watcher atomically creates, verifies and releases its PID-bearing lock file")
 PY
 
 # The watch-loop child, not its parent, publishes the PID after process startup.

@@ -278,3 +278,10 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The lock code rechecks the owner PID before stale cleanup, rejects symlinked/non-regular paths, treats an empty in-progress lock as busy, and waits on a live FX script owner. It still recognizes and safely waits for/removes stale legacy owner.pid lock directories from older installs.
 - Watcher identity now compares exact /proc command-line argument positions 2 and 3 against the script path and watch-loop command, not a substring. The regression now uses an empty file-lock fixture and asserts the published PID is the exact child process.
 - The restored Release module receives the same canonical script through patch_yulong_app_firewall.py. CI must pass the repeated start/stop race before this is considered verified.
+
+
+## 2026-11-04 — Yulong atomic-lock regression contract correction
+
+- The watcher implementation was upgraded from a lock directory plus owner.pid file to a single exclusive POSIX noclobber lock file containing the owner PID. CI still asserted the superseded WATCH_LOCK_PID directory-owner design and failed before running the rest of the host suite.
+- Updated the regression to assert the current implementation's atomic file creation, PID ownership verification, restrictive permissions and owner-only release. This is a test-contract correction, not a relaxation of the single-owner invariant.
+- The current CI run must validate the complete host suite and APK compile before this migration batch is considered verified.
