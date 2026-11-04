@@ -27,6 +27,34 @@ assert "LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager �
 assert "移除此应用的 LSPosed 作用域" in MAIN, "target scope revoke action missing"
 assert "系统应用作用域" in MAIN, "system-app scope request confirmation missing"
 assert "作用域只代表允许模块加载" in MAIN, "UI must distinguish approved scope from injected-process status"
+
+# Manual scope reads, requests and removals must never perform Binder work on the UI
+# thread or create an unbounded thread for every retry.
+assert "new java.util.concurrent.ThreadPoolExecutor(1, 1, 30L" in MAIN
+assert "new java.util.concurrent.ArrayBlockingQueue<>(1)" in MAIN
+assert "FutureTask<Void> hookTargetScopeFuture" in MAIN
+assert "hookTargetScopeExecutor.shutdownNow();" in MAIN
+def main_method(signature, next_signature):
+    start = MAIN.index(signature)
+    end = MAIN.index(next_signature, start)
+    return MAIN[start:end]
+
+manual = main_method("private void addLsposedScopeControls(String packageName, boolean systemPackage)",
+                     "private void clearHookTargetScopePendingWork()")
+assert manual.index("executeHookTargetScopeOperation(") < manual.index("FxLsposedScopeBridge.requestScope("), \
+    "Manager scope request Binder call must run through the bounded executor"
+refresh = main_method("private void refreshLsposedScopeStatus(TextView state, String packageName)",
+                      "private boolean isCurrentHookScopeOperation(")
+remove = main_method("private void removeLsposedScope(String packageName, TextView state)",
+                     "private void updateHookTargetScopeStatus(")
+assert "executeHookTargetScopeOperation(" in refresh and "new Thread(" not in refresh
+assert "executeHookTargetScopeOperation(" in remove and "new Thread(" not in remove
+submit = main_method("private void executeHookTargetScopeOperation(", "private boolean isCurrentHookScopeOperation(")
+assert "hookTargetScopeExecutor.execute(task)" in submit
+assert "RejectedExecutionException full" in submit and "操作队列繁忙" in submit
+clear = main_method("private void clearHookTargetScopePendingWork()", "private void cancelHookTargetScopeOperation()")
+assert "task.cancel(true)" in clear and "hookTargetScopeExecutor.remove(task)" in clear
+
 assert "FxLsposedScopeBridge.isConnected()" in MAIN, "Hook hub does not display live service Binder state"
 assert "dialog.box" not in BRIDGE, "legacy Dia package identity must not be copied into FX bridge"
 assert "staticScope=false" in MODULE, "dynamic user-managed scope must remain enabled"
