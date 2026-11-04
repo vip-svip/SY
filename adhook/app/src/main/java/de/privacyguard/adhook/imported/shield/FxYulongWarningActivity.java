@@ -211,19 +211,26 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         }
 
         SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
-        String raw = preferences.getString(WHITELIST_KEY, "");
-        if (raw == null) raw = "";
-        if (raw.length() > MAX_WHITELIST_CHARS) {
+        final String raw;
+        try {
+            raw = preferences.getString(WHITELIST_KEY, "");
+        } catch (RuntimeException unreadablePreference) {
+            showMessage("白名单数据异常",
+                    "现有白名单无法按文本读取，可能存在损坏或类型不匹配。为避免覆盖旧配置，本次没有修改任何白名单数据。");
+            return;
+        }
+        String storedWhitelist = raw == null ? "" : raw;
+        if (storedWhitelist.length() > MAX_WHITELIST_CHARS) {
             showMessage("白名单数据异常", "现有白名单超过安全读取上限。为避免覆盖数据，本次没有修改。");
             return;
         }
 
-        if (!FxYulongWhitelistPolicy.isWellFormed(raw)) {
+        if (!FxYulongWhitelistPolicy.isWellFormed(storedWhitelist)) {
             showMessage("白名单数据异常",
                     "现有白名单含无效条目或超过安全上限。为避免静默丢失旧配置，本次没有修改任何白名单数据。");
             return;
         }
-        Set<String> packages = new LinkedHashSet<>(FxYulongWhitelistPolicy.parse(raw));
+        Set<String> packages = new LinkedHashSet<>(FxYulongWhitelistPolicy.parse(storedWhitelist));
         if (packages.contains(packageName)) {
             showMessage("已在白名单中", appLabel + " 已经在用户白名单里，无需重复添加。");
             return;
