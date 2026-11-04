@@ -144,6 +144,10 @@ jobs:
             run_sh scripts/tests/fx-hook-observation-logs-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxWallpaperStore|FxNativeAppShell|fx-wallpaper) ]]; then
+            run_sh scripts/tests/fx-wallpaper-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxNativeTabActivity|FxNativeAppShell|FxDiaActivityBrowserActivity|FxDiaCrashReportActivity|FxDiaFileActivity|FxDiaGlobalSettingsActivity|FxDiaInspectorActivity|FxDiaJsonActivity|FxDiaMonitorEventsActivity|FxDiaSessionLogActivity|FxDiaSignatureActivity|FxDiaSystemExpandActivity) ]]; then
             run_sh scripts/tests/fx-dia-native-tab-regression.sh
             run_sh scripts/tests/fx-dia-six-tab-regression.sh
