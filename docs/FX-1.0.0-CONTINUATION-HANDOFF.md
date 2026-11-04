@@ -254,3 +254,12 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - Added `FxHookApplication` registration for `XposedServiceHelper`, a process-singleton `FxLsposedScopeBridge`, and per-target Hook UI controls to read current scope, request LSPosed Manager approval, and remove that target's scope. Requests for system apps require a separate confirmation.
 - The default `META-INF/xposed/scope.list` remains empty and `staticScope=false`; FX does not silently add targets on install. The screen distinguishes approved module scope from actual target-process injection.
 - Added `scripts/tests/fx-dia-lsposed-scope-regression.py` to the manual validation workflow. Compile/CI and real OnePlus 12 LSPosed behavior remain to be verified; no final APK/KernelSU ZIP has been built.
+
+
+## 2026-11-04 — Stellar authorization Binder transport migration
+
+- Added a private, non-exported Android Messenger Binder service for the current FX Stellar authorization backend. The Activity binds through Android's service lifecycle, negotiates protocol version 1, sends request IDs and allowlisted backend operations asynchronously, and resolves each response to its matching callback.
+- The service owns the single-thread bounded command executor and forwards actual RootAccess results (exit code, bounded output and denied flag). Request arguments and response output are capped; queue saturation and Binder disconnection are explicit failures. The Activity no longer invokes RootAccess.execute directly.
+- Existing user confirmation dialogs, target selection, package/scope controls, audit log UI and shell-side allowlists remain in place.
+- This is the FX in-app Binder transport layer, not binary/API parity with the original separate IStellarService/StellarProvider daemon. The original daemon protocol and full remediation/rescue parity remain open pending original interface sources and runtime evidence.
+- Source regression and Gradle compilation are required on this exact commit; no Android device / OnePlus 12 claim is made.

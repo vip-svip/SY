@@ -89,6 +89,10 @@
         <activity android:name=".imported.shield.FxYulongRescueActivity" android:exported="false" />
         <activity android:name=".imported.shield.FxYulongDailySummaryActivity" android:exported="false" />
         <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
+        <service
+            android:name="roro.stellar.manager.authorization.StellarAuthorizationService"
+            android:enabled="true"
+            android:exported="false" />
         <activity android:name=".imported.shield.WhitelistActivity" android:exported="false" />
         <activity android:name=".imported.shield.WhitelistPickerActivity" android:exported="false" />
         <activity android:name=".imported.shield.BlacklistActivity" android:exported="false" />

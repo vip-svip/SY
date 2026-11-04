@@ -2,8 +2,11 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SOURCE="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/FxStellarManagerActivity.java"
+SERVICE="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/StellarAuthorizationService.java"
+MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
+ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
 [ -s "$SOURCE" ] || { echo "FAIL: Stellar manager Activity source missing" >&2; exit 1; }
-python3 - "$SOURCE" <<'PY'
+python3 - "$SOURCE" "$SERVICE" "$MANIFEST" "$ROOT_ACCESS" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -45,5 +48,28 @@ assert 'addSwitch("安全设置写入（高权限）","SECURE_SETTINGS_WRITE",tr
 secure_card = source.split('addCard("安全设置写入"', 1)[1].split('addCard("AppOps 管理"', 1)[0]
 assert "SECURE_SETTINGS_WRITE" in secure_card and 'confirmManaged("secure-setting ' in secure_card, \
        "secure-setting actions must require the dedicated scope and explicit confirmation"
+
+service = Path(sys.argv[2]).read_text(encoding="utf-8")
+manifest = Path(sys.argv[3]).read_text(encoding="utf-8")
+root_access = Path(sys.argv[4]).read_text(encoding="utf-8")
+create_start = source.index("@Override protected void onCreate")
+create_end = source.index("private void render()", create_start)
+create = source[create_start:create_end]
+assert "bindService(" in create and "Context.BIND_AUTO_CREATE" in create, "Activity must bind the private Binder service"
+assert "StellarAuthorizationService.MSG_HELLO" in source, "Activity must negotiate Binder protocol"
+assert "StellarAuthorizationService.MSG_EXECUTE" in source and "StellarAuthorizationService.MSG_RESULT" in source, "request and response messages must be distinct"
+assert "rootCallbacks.remove(id)" in source, "responses must resolve the matching pending callback"
+assert "unbindService(stellarConnection)" in source, "Activity must unbind with its lifecycle"
+assert "RootAccess.execute(" not in source, "Activity must not bypass Binder and invoke Root directly"
+assert "extends Service" in service and "new Messenger(incoming)" in service, "transport must be a real Android Messenger Binder service"
+assert "new ArrayBlockingQueue<>(16)" in service, "Binder command queue must be bounded"
+assert "commands.execute(" in service and "RootAccess.execute(" in service, "service must execute asynchronously and return actual backend results"
+assert "MAX_SHELL_ARGS = 8192" in service and "OUTPUT_LIMIT = 256 * 1024" in service, "Binder request/output sizes must be capped"
+assert "KEY_EXIT_CODE" in service and "KEY_OUTPUT" in service and "KEY_DENIED" in service, "response must preserve result metadata"
+assert "android:name=\"roro.stellar.manager.authorization.StellarAuthorizationService\"" in manifest, "Binder service must be registered"
+svc = manifest.split('android:name="roro.stellar.manager.authorization.StellarAuthorizationService"',1)[1].split("/>",1)[0]
+assert 'android:exported="false"' in svc, "Root broker must be private to the FX APK"
+assert "public Result(int code, String text, boolean wasDenied)" in root_access, "Binder response result must be publicly constructible"
+
 print("PASS: Stellar manager app inventory is off-main-thread, Root work is bounded, target selection is restorable, and secure-settings scope is grantable")
 PY

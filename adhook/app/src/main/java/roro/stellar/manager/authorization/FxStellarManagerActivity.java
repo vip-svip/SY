@@ -2,10 +2,20 @@ package roro.stellar.manager.authorization;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -15,6 +25,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import de.privacyguard.adhook.RootAccess;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,6 +38,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Stellar authorization manager retained inside Yulong Shield in the single FX APK. */
 public final class FxStellarManagerActivity extends Activity {
@@ -34,7 +46,7 @@ public final class FxStellarManagerActivity extends Activity {
  // from accumulating an unbounded number of long-running su processes.
  private final ThreadPoolExecutor worker=new ThreadPoolExecutor(
    1,1,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(16),r->{
-     Thread thread=new Thread(r,"fx-stellar-root");thread.setDaemon(true);return thread;
+     Thread thread=new Thread(r,"fx-stellar-app-inventory");thread.setDaemon(true);return thread;
    },new ThreadPoolExecutor.AbortPolicy());
  private final List<ApplicationInfo> apps=new ArrayList<>();
  private final Map<String,String> appLabels=new HashMap<>();
@@ -48,21 +60,130 @@ public final class FxStellarManagerActivity extends Activity {
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
  private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
- private String command(String args) {
-  return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-    + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
-    + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-stellar-control.sh\" " + args;
- }
  private boolean activityAlive(){return !isFinishing()&&!isDestroyed();}
  private void deliver(java.util.function.Consumer<RootAccess.Result> cb,RootAccess.Result result){
   runOnUiThread(()->{if(activityAlive())cb.accept(result);});
  }
- private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
-  try{
-   worker.execute(()->deliver(cb,RootAccess.execute(command(args),60000L,256*1024)));
-  }catch(RejectedExecutionException full){
-   deliver(cb,RootAccess.failure(75,"Stellar 操作队列已满；本次操作未执行，请等待现有任务完成后重试。"));
+ private static final int MAX_PENDING_ROOT_REQUESTS = 16;
+ private final AtomicLong rootRequestIds = new AtomicLong(1L);
+ private final ArrayDeque<PendingRootRequest> rootQueue = new ArrayDeque<>();
+ private final Map<Long,java.util.function.Consumer<RootAccess.Result>> rootCallbacks = new HashMap<>();
+ private Messenger stellarService;
+ private boolean stellarServiceReady;
+ private boolean stellarServiceBound;
+ private static final class PendingRootRequest {
+  final long id; final String args;
+  final java.util.function.Consumer<RootAccess.Result> callback;
+  PendingRootRequest(long requestId,String shellArgs,java.util.function.Consumer<RootAccess.Result> cb){
+   id=requestId;args=shellArgs;callback=cb;
   }
+ }
+ private final Handler binderReplyHandler = new Handler(Looper.getMainLooper(), message -> {
+  if(message.what==StellarAuthorizationService.MSG_READY){
+   Bundle data=message.getData();
+   int version=data==null?0:data.getInt(StellarAuthorizationService.KEY_PROTOCOL_VERSION,0);
+   if(version!=StellarAuthorizationService.PROTOCOL_VERSION){
+    failRootRequests("Stellar Binder 协议版本不匹配；本次请求没有执行。");
+    return true;
+   }
+   stellarServiceReady=true;
+   flushRootRequests();
+   return true;
+  }
+  if(message.what==StellarAuthorizationService.MSG_RESULT){
+   Bundle data=message.getData();
+   if(data==null)return true;
+   long id=data.getLong(StellarAuthorizationService.KEY_REQUEST_ID,-1L);
+   java.util.function.Consumer<RootAccess.Result> callback=rootCallbacks.remove(id);
+   if(callback!=null){
+    int code=data.getInt(StellarAuthorizationService.KEY_EXIT_CODE,1);
+    String output=data.getString(StellarAuthorizationService.KEY_OUTPUT,"");
+    boolean denied=data.getBoolean(StellarAuthorizationService.KEY_DENIED,false);
+    callback.accept(new RootAccess.Result(code,output,denied));
+   }
+   flushRootRequests();
+   return true;
+  }
+  return true;
+ });
+ private final Messenger binderReplyMessenger = new Messenger(binderReplyHandler);
+ private final ServiceConnection stellarConnection = new ServiceConnection(){
+  @Override public void onServiceConnected(ComponentName name,IBinder binder){
+   stellarService=new Messenger(binder);
+   stellarServiceReady=false;
+   try{
+    Message hello=Message.obtain(null,StellarAuthorizationService.MSG_HELLO);
+    hello.replyTo=binderReplyMessenger;
+    stellarService.send(hello);
+   }catch(RemoteException failure){
+    stellarService=null;
+    failRootRequests("Stellar Binder 握手失败："+failure.getClass().getSimpleName());
+   }
+  }
+  @Override public void onServiceDisconnected(ComponentName name){
+   stellarService=null;stellarServiceReady=false;
+   failRootRequests("Stellar Binder 服务断开；正在执行的请求结果未知，请刷新状态后再操作。");
+  }
+  @Override public void onBindingDied(ComponentName name){
+   stellarService=null;stellarServiceReady=false;
+   failRootRequests("Stellar Binder 绑定已失效；请重新打开授权管理页。");
+  }
+  @Override public void onNullBinding(ComponentName name){
+   stellarService=null;stellarServiceReady=false;
+   failRootRequests("Stellar Binder 服务未返回可用接口。");
+  }
+ };
+ private void failRootRequests(String reason){
+  for(java.util.function.Consumer<RootAccess.Result> callback:new ArrayList<>(rootCallbacks.values())){
+   callback.accept(RootAccess.failure(75,reason));
+  }
+  rootCallbacks.clear();
+  while(!rootQueue.isEmpty()){
+   PendingRootRequest request=rootQueue.removeFirst();
+   request.callback.accept(RootAccess.failure(75,reason));
+  }
+ }
+ private void flushRootRequests(){
+  if(!stellarServiceReady||stellarService==null||!activityAlive())return;
+  while(!rootQueue.isEmpty()&&rootCallbacks.size()<MAX_PENDING_ROOT_REQUESTS){
+   PendingRootRequest request=rootQueue.removeFirst();
+   Message message=Message.obtain(null,StellarAuthorizationService.MSG_EXECUTE);
+   Bundle data=new Bundle();
+   data.putLong(StellarAuthorizationService.KEY_REQUEST_ID,request.id);
+   data.putString(StellarAuthorizationService.KEY_SHELL_ARGS,request.args);
+   message.setData(data);
+   message.replyTo=binderReplyMessenger;
+   rootCallbacks.put(request.id,request.callback);
+   try{
+    stellarService.send(message);
+   }catch(RemoteException failure){
+    rootCallbacks.remove(request.id);
+    request.callback.accept(RootAccess.failure(75,
+      "Stellar Binder 请求发送失败："+failure.getClass().getSimpleName()));
+    stellarServiceReady=false;
+    stellarService=null;
+    failRootRequests("Stellar Binder 连接中断；尚未发送的请求已停止。");
+    return;
+   }
+  }
+ }
+ private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
+  if(Looper.myLooper()!=Looper.getMainLooper()){
+   runOnUiThread(()->root(args,cb));
+   return;
+  }
+  if(!activityAlive())return;
+  if(args==null||args.isEmpty()||args.length()>StellarAuthorizationService.MAX_SHELL_ARGS){
+   cb.accept(RootAccess.failure(2,"Stellar 请求为空或超过大小限制；未执行。"));
+   return;
+  }
+  if(rootQueue.size()+rootCallbacks.size()>=MAX_PENDING_ROOT_REQUESTS){
+   cb.accept(RootAccess.failure(75,"Stellar 请求队列已满；本次请求未执行。"));
+   return;
+  }
+  long id=rootRequestIds.getAndIncrement();
+  rootQueue.addLast(new PendingRootRequest(id,args,cb));
+  flushRootRequests();
  }
  private String appLabel(String pkg){String label=appLabels.get(pkg);return label==null||label.isEmpty()?pkg:label;}
  private void loadApplications(){
@@ -108,6 +229,13 @@ public final class FxStellarManagerActivity extends Activity {
   ScrollView scroll=new ScrollView(this);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(20));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
   if(saved!=null)target=saved.getString("stellar_target_package","");
   render();
+  stellarServiceBound=bindService(
+    new Intent(this,StellarAuthorizationService.class),
+    stellarConnection,Context.BIND_AUTO_CREATE);
+  if(!stellarServiceBound){
+   state.setText("Stellar Binder 服务绑定失败；授权数据未读取。");
+   failRootRequests("Stellar Binder 服务绑定失败；请求未执行。");
+  }
   loadApplications();
   refresh();
  }
@@ -302,5 +430,14 @@ private void refresh(){
     }}
   });
  }
- @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
+ @Override protected void onDestroy(){
+  stellarServiceReady=false;stellarService=null;
+  if(stellarServiceBound){
+   try{unbindService(stellarConnection);}catch(IllegalArgumentException ignored){}
+   stellarServiceBound=false;
+  }
+  rootQueue.clear();rootCallbacks.clear();
+  worker.shutdownNow();
+  super.onDestroy();
+ }
 }

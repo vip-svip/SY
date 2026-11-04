@@ -13,7 +13,7 @@ public final class RootAccess {
         public final int exitCode;
         public final String output;
         public final boolean denied;
-        Result(int code, String text, boolean wasDenied) {
+        public Result(int code, String text, boolean wasDenied) {
             exitCode = code;
             output = text;
             denied = wasDenied;
