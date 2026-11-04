@@ -288,7 +288,9 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private void evaluateForeground(String packageName, SharedPreferences prefs) {
         if (packageName == null || packageName.isEmpty() || packageName.equals(getPackageName())) return;
         Set<String> blacklist = split(prefs.getString("blacklist_pkgs", ""));
-        Set<String> whitelist = split(prefs.getString("whitelist_pkgs", ""));
+        // Manual scans, automatic risk dispatch and real-time foreground warnings
+        // must all use the same bounded, fail-open user whitelist policy.
+        Set<String> whitelist = FxYulongWhitelistPolicy.load(this);
         if (!blacklist.contains(packageName) || whitelist.contains(packageName)) return;
 
         long now = System.currentTimeMillis();
