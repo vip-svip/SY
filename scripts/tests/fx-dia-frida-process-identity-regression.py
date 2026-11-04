@@ -30,4 +30,15 @@ uid_check = inject.index('proc_uid=$(awk')
 attach = inject.index(' -p \\"$pid\\" -s ')
 assert uid_check < attach, "current process UID must be verified before invoking frida-inject"
 assert 'case "$proc" in "$pkg"|"$pkg":*)' in inject, "package/process-name scope check must remain"
-print("PASS: Frida process selection and injection revalidate debuggable package UID before PID attach")
+assert "base=/data/adb/privacyguard" in inject and "for path in /data /data/adb /data/adb/privacyguard" in inject, \
+    "Frida script staging must validate each parent state directory"
+assert "unsafe-frida-state-symlink=$path" in inject and "unsafe-frida-session-file" in inject, \
+    "Frida script staging must reject symlinked state and destination paths"
+assert 'tmp=$(mktemp ' in inject and 'base64 -d > ' in inject and 'mv -f ' in inject, \
+    "Frida script source must be staged privately and atomically replaced"
+assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
+    "Frida session logs must remain private and regular files"
+viewer = body("private void showSessionLog()", "private void showMonitorEvents()")
+assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
+    "session log viewer must refuse symlink and non-regular log targets"
+print("PASS: Frida selection/injection revalidate package UID and use private, symlink-safe script/log paths")
