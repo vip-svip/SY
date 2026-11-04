@@ -52,6 +52,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String SERVER_PID = "/data/adb/privacyguard/dia-frida-server.pid";
     private static final int REQUEST_EXPORT_LIBRARY = 7105;
     private static final int REQUEST_CODE_FULL_EDITOR = 0x3039;
+    private static final String STATE_FULL_EDITOR_PENDING = "fx_frida_full_editor_pending";
+    private static final String STATE_FULL_EDITOR_TARGET = "fx_frida_full_editor_target";
+    private static final String STATE_FULL_EDITOR_SOURCE_SHA256 = "fx_frida_full_editor_source_sha256";
     private static final int MAX_FRIDA_SOURCE_BYTES = 48 * 1024;
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
     private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
@@ -86,6 +89,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private EditText gadgetProcess;
     private android.widget.RadioGroup gadgetLoadMode;
     private EditText script;
+    private boolean fullEditorPending;
+    private String pendingFullEditorTargetPackage;
+    private String pendingFullEditorSourceSha256;
     private TextView status;
     private TextView targetLabel;
     private static final String STATE_FRIDA_SCROLL_Y = "fx_frida_scroll_y";
@@ -246,6 +252,17 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         restoredFridaScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_FRIDA_SCROLL_Y, 0));
         restoreSaveScriptDialog = state != null && state.getBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, false);
         saveScriptNameDraft = state == null ? "" : state.getString(STATE_SAVE_SCRIPT_NAME_DRAFT, "");
+        fullEditorPending = state != null && state.getBoolean(STATE_FULL_EDITOR_PENDING, false);
+        pendingFullEditorTargetPackage = state == null ? null
+                : state.getString(STATE_FULL_EDITOR_TARGET);
+        pendingFullEditorSourceSha256 = state == null ? null
+                : state.getString(STATE_FULL_EDITOR_SOURCE_SHA256);
+        if (fullEditorPending && (pendingFullEditorSourceSha256 == null
+                || !pendingFullEditorSourceSha256.matches("[0-9a-f]{64}"))) {
+            fullEditorPending = false;
+            pendingFullEditorTargetPackage = null;
+            pendingFullEditorSourceSha256 = null;
+        }
         restoreTargetPickerPending = state != null
                 && state.getBoolean(STATE_TARGET_PICKER_OPEN, false);
         restoreProcessPickerPending = state != null
@@ -686,6 +703,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (saveScriptNameInput != null && saveScriptNameInput.getText() != null)
             saveScriptNameDraft = saveScriptNameInput.getText().toString();
         outState.putBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, restoreSaveScriptDialog);
+        outState.putBoolean(STATE_FULL_EDITOR_PENDING, fullEditorPending);
+        if (fullEditorPending && pendingFullEditorSourceSha256 != null) {
+            if (pendingFullEditorTargetPackage != null)
+                outState.putString(STATE_FULL_EDITOR_TARGET, pendingFullEditorTargetPackage);
+            outState.putString(STATE_FULL_EDITOR_SOURCE_SHA256, pendingFullEditorSourceSha256);
+        }
         outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64
                 ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
         outState.putBoolean(STATE_TARGET_PICKER_OPEN,
@@ -811,20 +834,57 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
 
 
+    private String fingerprintFullEditorSource(String source) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(source.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest) {
+                int unsigned = value & 0xff;
+                hex.append(Character.forDigit((unsigned >>> 4) & 0x0f, 16));
+                hex.append(Character.forDigit(unsigned & 0x0f, 16));
+            }
+            return hex.toString();
+        } catch (Exception unavailable) {
+            throw new IllegalStateException("无法计算编辑器源代码指纹。", unavailable);
+        }
+    }
+
+    private void clearFullEditorRequest() {
+        fullEditorPending = false;
+        pendingFullEditorTargetPackage = null;
+        pendingFullEditorSourceSha256 = null;
+    }
+
     private void openFullScreenCodeEditor() {
+        if (fullEditorPending) {
+            setStatus("全屏编辑器请求仍在等待返回，请先完成当前编辑。");
+            return;
+        }
         String source = script == null || script.getText() == null
                 ? "" : script.getText().toString();
         if (source.getBytes(StandardCharsets.UTF_8).length > MAX_FRIDA_SOURCE_BYTES) {
             setStatus("当前 Frida 脚本超过 48 KiB，无法送入全屏编辑器。");
             return;
         }
+        final String sourceFingerprint;
+        try {
+            sourceFingerprint = fingerprintFullEditorSource(source);
+        } catch (IllegalStateException unavailable) {
+            setStatus(unavailable.getMessage());
+            return;
+        }
+        pendingFullEditorTargetPackage = targetPackage;
+        pendingFullEditorSourceSha256 = sourceFingerprint;
+        fullEditorPending = true;
         Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_LANGUAGE, "javascript");
         try {
             startActivityForResult(intent, REQUEST_CODE_FULL_EDITOR);
-            setStatus("已打开 Dia 全屏代码编辑器；代码只有在保存返回后才会更新到当前脚本。");
+            setStatus("已打开 Dia 全屏代码编辑器；返回时会核对目标应用与源脚本版本。");
         } catch (Exception error) {
+            clearFullEditorRequest();
             setStatus("无法打开全屏代码编辑器：" + error.getClass().getSimpleName());
         }
     }
@@ -1072,19 +1132,45 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_FULL_EDITOR) {
-            if (resultCode == FxDiaCodeEditorActivity.RESULT_CODE_EDITOR && data != null) {
-                String editedSource = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
-                if (editedSource == null) {
-                    setStatus("全屏编辑器返回的代码为空，当前脚本未更改。");
-                } else if (editedSource.getBytes(StandardCharsets.UTF_8).length > MAX_FRIDA_SOURCE_BYTES) {
-                    setStatus("返回代码超过 48 KiB，当前脚本未更改。");
-                } else if (script != null) {
-                    script.setText(editedSource);
-                    setStatus("全屏编辑器内容已回传；尚未执行或注入。");
-                }
-            } else {
-                setStatus("全屏编辑器未保存，当前 Frida 脚本保持不变。");
+            final String requestedTarget = pendingFullEditorTargetPackage;
+            final String requestedFingerprint = pendingFullEditorSourceSha256;
+            final boolean hadPendingRequest = fullEditorPending;
+            clearFullEditorRequest();
+            if (!hadPendingRequest || requestedFingerprint == null) {
+                setStatus("全屏编辑器请求状态已失效，返回结果未应用。");
+                return;
             }
+            if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
+                setStatus("全屏编辑器未保存，当前 Frida 脚本保持不变。");
+                return;
+            }
+            String editedSource = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
+            if (editedSource == null) {
+                setStatus("全屏编辑器返回的代码为空，当前脚本未更改。");
+                return;
+            }
+            if (editedSource.getBytes(StandardCharsets.UTF_8).length > MAX_FRIDA_SOURCE_BYTES) {
+                setStatus("返回代码超过 48 KiB，当前脚本未更改。");
+                return;
+            }
+            if (script == null || !java.util.Objects.equals(requestedTarget, targetPackage)) {
+                setStatus("目标应用已变化，全屏编辑器的旧返回结果已丢弃。");
+                return;
+            }
+            String currentSource = script.getText() == null ? "" : script.getText().toString();
+            String currentFingerprint;
+            try {
+                currentFingerprint = fingerprintFullEditorSource(currentSource);
+            } catch (IllegalStateException unavailable) {
+                setStatus(unavailable.getMessage() + " 当前脚本未更改。");
+                return;
+            }
+            if (!requestedFingerprint.equals(currentFingerprint)) {
+                setStatus("Frida 脚本在全屏编辑期间已被其他操作更新，旧编辑结果已丢弃。");
+                return;
+            }
+            script.setText(editedSource);
+            setStatus("全屏编辑器内容已回传；尚未执行或注入。");
             return;
         }
         if (requestCode == REQUEST_EXPORT_LIBRARY) {
