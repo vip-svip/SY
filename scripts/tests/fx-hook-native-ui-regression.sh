@@ -364,3 +364,23 @@ grep -Fq 'hadHookEnabled' "$main_activity"
 grep -Fq 'previousGroupSet' "$main_activity"
 grep -Fq 'boolean rollbackSaved = rollback.commit();' "$main_activity"
 grep -Fq '原有规则已恢复' "$main_activity"
+
+# Rule-group add/rename/delete/move must restore prior assignments if persistence fails.
+grep -Fq 'private boolean commitCustomRuleGroupUpdate(' "$main_activity"
+grep -Fq 'previousAssignments.put(key' "$main_activity"
+grep -Fq 'existingAssignmentKeys.add(key)' "$main_activity"
+grep -Fq 'if (hadGroupSet) rollback.putStringSet(groupsKey, previousGroups);' "$main_activity"
+grep -Fq 'lastCustomRuleGroupRollbackSaved = rollback.commit();' "$main_activity"
+grep -Fq 'return commitCustomRuleGroupUpdate(groups, java.util.Collections.emptyMap());' "$main_activity"
+grep -Fq 'return commitCustomRuleGroupUpdate(groups, assignments);' "$main_activity"
+grep -Fq 'if (!commitCustomRuleGroupUpdate(groups, assignments))' "$main_activity"
+grep -Fq 'if (!commitCustomRuleGroupUpdate(getCustomRuleGroups(), assignments))' "$main_activity"
+
+# Add/rename dialogs keep per-target drafts and reopen after a configuration change.
+grep -Fq 'fx_custom_rule_group_dialog_mode' "$main_activity"
+grep -Fq 'fx_custom_rule_group_dialog_value' "$main_activity"
+grep -Fq 'customRuleGroupDialogRestorePending = customRuleGroupDialogMode != null;' "$main_activity"
+grep -Fq 'if (customRuleGroupDialogRestorePending)' "$main_activity"
+grep -Fq 'dev_rule_group_add_draft' "$main_activity"
+grep -Fq 'dev_rule_group_rename_draft:' "$main_activity"
+grep -Fq 'showRenameCustomRuleGroupDialog(value)' "$main_activity"
