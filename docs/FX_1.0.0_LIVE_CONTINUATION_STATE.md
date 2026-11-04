@@ -3318,3 +3318,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 游龙广告 DNS 查询日志新增 malformed 计数与诊断文案：产品 `a7e1170318ebe63a901213d57f047be4ae602cd0`，格式修正 `b8eb881cd1828bbdcce9befb1553ad50e4da6081`，回归 `ef9a5aa898f2b73d1821cdf0c0f40b045b60fa11`；相关回归提交被并行 Actions 取消，未做真实 querylog 注入验收。
 - 本轮确认的回归路线：不要再使用旧 EditText 的 OBSERVE setText 断言、旧 privacy 局部变量断言、旧 libXposed early-return 字符串、旧 SystemExpand 文案、把已读取 XML 文本交给 ET.parse()，或要求 Activity Browser 测试不存在的 scroll key；这些分别已按现有控件/路由/实现契约处理或记录。
 - 下一批 UI：继续游龙广告 Firewall/Whitelist 包更新/UID 关联的真实回读；随后安全护盾名单/风险详情与 Dia 文件/备份页面。P0 检查优先，但不得用 UI 状态或静态测试替代 Root/真机验收。
+
+
+## 2026-11-05 — Dia Frida 会话日志页面后台队列限流
+
+- 页面：Dia 23.11 → Frida 会话日志查看/清空。
+- 缺陷：日志 Activity 使用 `Executors.newSingleThreadExecutor()`，底层任务队列无界；用户连续刷新/清空时，过期 Root 读取请求仍可无限排队，requestGeneration 只能丢弃迟到 UI 回调，不能限制队列内存。
+- 修复：改为单线程 `ThreadPoolExecutor` + `ArrayBlockingQueue<>(1)` + `AbortPolicy`；队列满时沿用页面现有拒绝处理，明确提示任务未执行；Activity 销毁时继续 `shutdownNow()`。
+- 产品提交：`d74ff8eda54e68a12c0627f491583c0e630f0a05`；回归提交：`ef612178a46ffa25bde7d111ea1817cca5bad979`。
+- 验证：源码及回归断言已提交；Actions 尚待读取。未运行 Android UI 压力测试或真机连续点击验证。
+- 下一步：检查 Frida server/Gadget 回归链；继续检查 Dia 原生页面后台任务是否有无界执行器，并优先完成 UI 状态/返回链，而不是重复全仓扫描。
