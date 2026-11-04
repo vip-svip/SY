@@ -38,7 +38,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Read-only DEX class-name browser migrated from Dia 23.11. */
-public final class FxDiaDexBrowserActivity extends Activity {
+public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_DEX_DOCUMENT = 0xD3A;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
@@ -112,7 +112,7 @@ public final class FxDiaDexBrowserActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentView(root);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
 
         target = text("尚未选择应用。", 13, 0xff334155, false);
         summary = text("选择应用后读取 APK 中的 DEX 类名。", 13, 0xff334155, false);
