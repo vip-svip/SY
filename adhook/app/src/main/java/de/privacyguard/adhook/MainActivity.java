@@ -5313,7 +5313,7 @@ public final class MainActivity extends ComponentActivity {
         Button addRule = new Button(this);
         addRule.setAllCaps(false);
         addRule.setText("新增自定义 Hook 规则");
-        addRule.setEnabled(targetDebuggable);
+        addRule.setEnabled(true);
         addRule.setOnClickListener(v -> showCustomRuleDialog());
         content.addView(addRule);
 
@@ -5347,7 +5347,7 @@ public final class MainActivity extends ComponentActivity {
             String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
             if (stored == null) continue;
             totalRules++;
-            String[] fields = stored.split("\\\\|", -1);
+            String[] fields = stored.split("\\|", -1);
             if (fields.length != 4 && fields.length != 5) {
                 invalidRules++;
                 continue;
@@ -5366,7 +5366,7 @@ public final class MainActivity extends ComponentActivity {
         summary.setTextColor(invalidRules == 0 ? 0xff526170 : 0xff9b2c2c);
         summary.setPadding(dp(18), dp(8), dp(18), dp(8));
         content.addView(summary);
-        renderCustomRules();
+        renderCustomRules(targetDebuggable);
 
         Button publish = new Button(this);
         publish.setAllCaps(false);
@@ -5641,7 +5641,7 @@ public final class MainActivity extends ComponentActivity {
         syntax.setAdapter(syntaxAdapter);
         int initialSyntax = presetDescriptor != null && presetDescriptor.startsWith("L") ? 2
                 : presetDescriptor != null && presetDescriptor.contains(".overload(") ? 1
-                : presetDescriptor != null && presetDescriptor.matches(".*\\\\(\\\\)Z$") ? 3 : 0;
+                : presetDescriptor != null && presetDescriptor.matches(".*\\(\\)Z$") ? 3 : 0;
         syntax.setSelection(initialSyntax);
         descriptor.setHint(syntaxHints[initialSyntax]);
         syntax.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
@@ -6255,7 +6255,7 @@ public final class MainActivity extends ComponentActivity {
         startActivity(page);
     }
 
-    private void renderCustomRules() {
+    private void renderCustomRules(boolean targetDebuggable) {
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         java.util.List<String> options = new java.util.ArrayList<>();
         options.add("全部分组");
@@ -6281,7 +6281,8 @@ public final class MainActivity extends ComponentActivity {
         ruleRows.setOrientation(LinearLayout.VERTICAL);
         content.addView(ruleRows, new LinearLayout.LayoutParams(-1, -2));
 
-        Runnable render = () -> {
+        final Runnable[] render = new Runnable[1];
+        render[0] = () -> {
             ruleRows.removeAllViews();
             String selectedGroup = groupFilter.getSelectedItemPosition() <= 0
                     ? "" : String.valueOf(groupFilter.getSelectedItem());
@@ -6298,10 +6299,12 @@ public final class MainActivity extends ComponentActivity {
                     String ruleKey = selectedPackage + ":dev_rule_" + slot;
                     String value = getPreferences(0).getString(ruleKey, null);
                     if (value == null) continue;
-                    String[] parts = value.split("\\\\|", -1);
+                    String[] parts = value.split("\\|", -1);
                     if (parts.length != 4 && parts.length != 5) {
-                        total++;
-                        invalidCount++;
+                        if (selectedGroup.isEmpty() || "默认".equals(groupName)) {
+                            total++;
+                            invalidCount++;
+                        }
                         continue;
                     }
                     String ruleGroup = getPreferences(0).getString(
@@ -6346,10 +6349,10 @@ public final class MainActivity extends ComponentActivity {
                     Switch enabled = new Switch(this);
                     enabled.setText(valid ? "启用规则（保存后发布）" : "规则无效，禁止启用");
                     enabled.setChecked(active);
-                    enabled.setEnabled(valid);
+                    enabled.setEnabled(valid && (targetDebuggable || active));
                     enabled.setOnCheckedChangeListener((button, checked) -> {
                         String current = getPreferences(0).getString(ruleKey, null);
-                        String[] fields = current == null ? new String[0] : current.split("\\\\|", -1);
+                        String[] fields = current == null ? new String[0] : current.split("\\|", -1);
                         if (fields.length != 4 && fields.length != 5) {
                             button.setChecked(false);
                             Toast.makeText(this, "规则数据已变化或损坏，请刷新列表。", Toast.LENGTH_LONG).show();
@@ -6365,6 +6368,11 @@ public final class MainActivity extends ComponentActivity {
                             Toast.makeText(this, "签名或动作校验失败，未修改规则。", Toast.LENGTH_LONG).show();
                             return;
                         }
+                        if (checked && !targetDebuggable && !"OBSERVE".equalsIgnoreCase(currentBase)) {
+                            button.setChecked(false);
+                            Toast.makeText(this, "非 debuggable 目标只允许 OBSERVE；替换动作不会启用。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
                         fields[2] = checked ? currentBase : "OFF";
                         boolean saved = getPreferences(0).edit()
                                 .putString(ruleKey, fields[0] + "|" + fields[1] + "|" + fields[2] + "|" + fields[3]
@@ -6376,7 +6384,7 @@ public final class MainActivity extends ComponentActivity {
                             Toast.makeText(this, "规则状态保存失败。", Toast.LENGTH_LONG).show();
                             return;
                         }
-                        render.run();
+                        render[0].run();
                     });
                     row.addView(enabled);
 
@@ -6439,15 +6447,15 @@ public final class MainActivity extends ComponentActivity {
         };
         groupFilter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
-                                                 View view, int position, long id) { render.run(); }
+                                                 View view, int position, long id) { render[0].run(); }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
         searchFilter.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render.run(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render[0].run(); }
             @Override public void afterTextChanged(Editable editable) { }
         });
-        render.run();
+        render[0].run();
     }
 
     private boolean enabled(String pkg, String feature) {
