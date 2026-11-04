@@ -591,4 +591,389 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         worker.shutdownNow();
         super.onDestroy();
     }
+}                    message += "\n同名脚本将被覆盖（" + preview.overwrittenNames.size() + " 个）：\n"
+                            + String.join("\n", preview.overwrittenNames);
+                }
+                setStatus("已读取 " + scripts.length() + " 个本地脚本。数据保存在 FX 私有应用配置中。");
+                if (pendingImportUri != null) importFrom(pendingImportUri);
+                if (openingInitialEditor) {
+                    openingInitialEditor = false;
+                    createScript();
+                } else if (createDialogRestorePending) {
+                    createScript();
+                }
+            });
+        });
+    }
+
+    private void renderRows() {
+        if (rows == null) return;
+        rows.removeAllViews();
+        String query = search == null || search.getText() == null
+                ? "" : search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        Iterator<String> iterator = scripts.keys();
+        while (iterator.hasNext()) {
+            String name = iterator.next();
+            if (query.isEmpty() || name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                names.add(name);
+            }
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        if (names.isEmpty()) {
+            rows.addView(text(query.isEmpty()
+                    ? "脚本库为空。可新建脚本，或导入兼容的 FX-DIA-FRIDA-SCRIPTS-1 JSON。"
+                    : "没有匹配的脚本名称。", 13, 0xff617080, false));
+            return;
+        }
+        for (String name : names) {
+            String source = scripts.optString(name, "");
+            int bytes = source.getBytes(StandardCharsets.UTF_8).length;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12), dp(7), dp(12), dp(7));
+            row.setBackgroundColor(0xfff0f3f7);
+            row.addView(text(name, 14, 0xff17212b, true));
+            row.addView(text("UTF-8 " + bytes + " bytes · 不会自动执行", 11, 0xff617080, false));
+            LinearLayout buttons = new LinearLayout(this);
+            buttons.setOrientation(LinearLayout.HORIZONTAL);
+            buttons.addView(button("编辑", () -> openEditor(name, source)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            buttons.addView(button("删除", () -> confirmDelete(name)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            row.addView(buttons);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(dp(10), dp(3), dp(10), dp(3));
+            rows.addView(row, lp);
+        }
+    }
+
+    private void clearCreateScriptDialogState() {
+        createDialogRestorePending = false;
+        createNameDraft = "";
+        createNameInput = null;
+    }
+
+    private void createScript() {
+        createDialogRestorePending = true;
+        EditText input = new EditText(this);
+        createNameInput = input;
+        input.setSingleLine(true);
+        input.setHint("脚本名称，最多 64 个字符");
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
+        input.setText(createNameDraft);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                createNameDraft = value == null ? "" : value.toString();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("新建 Frida JavaScript")
+                .setMessage("新脚本会先打开本地编辑器。保存回传后才写入私有脚本库，不会自动注入目标进程。")
+                .setView(input)
+                .setNegativeButton("取消", (d, which) -> clearCreateScriptDialogState())
+                .setPositiveButton("继续", (d, which) -> {
+                    String name = FxDiaScriptLibraryPolicy.normalizeName(
+                            input.getText() == null ? "" : input.getText().toString());
+                    clearCreateScriptDialogState();
+                    String error = FxDiaScriptLibraryPolicy.validateName(name);
+                    if (error != null) {
+                        setStatus(error);
+                        return;
+                    }
+                    if (!scripts.has(name)) {
+                        error = FxDiaScriptLibraryPolicy.validateCount(scripts.length(), false);
+                        if (error != null) {
+                            setStatus(error);
+                            return;
+                        }
+                        openEditor(name, "");
+                        return;
+                    }
+                    new AlertDialog.Builder(this).setTitle("脚本名称已存在")
+                            .setMessage("“" + name + "”已存在。继续编辑会在保存时覆盖该脚本。")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("编辑现有脚本", (d, w) ->
+                                    openEditor(name, scripts.optString(name, ""))).show();
+                }).create();
+        dialog.setOnCancelListener(ignored -> {
+            if (!isChangingConfigurations()) clearCreateScriptDialogState();
+        });
+        dialog.show();
+    }
+
+    private void openEditor(String name, String source) {
+        Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
+        intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
+        intent.putExtra(FxDiaCodeEditorActivity.EXTRA_LANGUAGE, "javascript");
+        editingName = name;
+        editorRequestPending = true;
+        try {
+            startActivityForResult(intent, REQUEST_EDITOR);
+        } catch (RuntimeException error) {
+            editorRequestPending = false;
+            editingName = null;
+            setStatus("无法打开 JavaScript 编辑器：" + detail(error));
+        }
+    }
+
+    private void confirmDelete(String name) {
+        new AlertDialog.Builder(this).setTitle("删除脚本？")
+                .setMessage("确认从 FX 本地 Frida 脚本库删除“" + name + "”？此操作不会影响已导出的 JSON 文件。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> submitIo(() -> {
+                    try {
+                        FxDiaScriptLibraryStore.delete(this, name);
+                        JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            scripts = loaded;
+                            renderRows();
+                            setStatus("已删除脚本：" + name);
+                        });
+                    } catch (Throwable error) {
+                        runOnUiThread(() -> setStatus("删除失败：" + detail(error)));
+                    }
+                })).show();
+    }
+
+    private void chooseImport() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("application/json");
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        importRequestPending = true;
+        try {
+            startActivityForResult(pick, REQUEST_IMPORT);
+        } catch (RuntimeException error) {
+            importRequestPending = false;
+            setStatus("无法打开 JSON 文件选择器：" + detail(error));
+        }
+    }
+
+    private void chooseExport() {
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("application/json");
+        create.putExtra(Intent.EXTRA_TITLE, "FX-Dia-Frida-Scripts.json");
+        exportRequestPending = true;
+        try {
+            startActivityForResult(create, REQUEST_EXPORT);
+        } catch (RuntimeException error) {
+            exportRequestPending = false;
+            setStatus("无法打开 JSON 保存选择器：" + detail(error));
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        // The code editor returns its source in an Intent extra and uses Dia's
+        // custom result code. It does not return a SAF Uri; handle it first.
+        if (requestCode == REQUEST_EDITOR) {
+            if (!editorRequestPending) {
+                setStatus("忽略未关联到当前编辑请求的编辑器结果。");
+                return;
+            }
+            editorRequestPending = false;
+            if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
+                editingName = null;
+                setStatus("编辑器未保存，脚本库保持不变。");
+                return;
+            }
+            final String name = editingName;
+            editingName = null;
+            final String source = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
+            if (name == null || name.trim().isEmpty()) {
+                setStatus("编辑器返回时没有有效的脚本名称，未保存。");
+                return;
+            }
+            String validation = FxDiaScriptLibraryPolicy.validateSource(source);
+            if (validation != null) {
+                setStatus(validation + " 脚本库保持不变。");
+                return;
+            }
+            submitIo(() -> {
+                try {
+                    FxDiaScriptLibraryStore.save(this, name, source);
+                    JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        scripts = loaded;
+                        renderRows();
+                        setStatus("已保存脚本：“" + name + "”。尚未执行或注入。");
+                    });
+                } catch (Throwable error) {
+                    runOnUiThread(() -> setStatus("保存脚本失败：" + detail(error)));
+                }
+            });
+            return;
+        }
+
+        if (requestCode == REQUEST_IMPORT) {
+            if (!importRequestPending) {
+                setStatus("忽略未关联到当前请求的导入结果。");
+                return;
+            }
+            importRequestPending = false;
+        } else if (requestCode == REQUEST_EXPORT) {
+            if (!exportRequestPending) {
+                setStatus("忽略未关联到当前请求的导出结果。");
+                return;
+            }
+            exportRequestPending = false;
+        } else {
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            if (requestCode == REQUEST_IMPORT) setStatus("已取消脚本库导入。");
+            else setStatus("已取消脚本库导出。");
+            return;
+        }
+        Uri uri = data.getData();
+        if (requestCode == REQUEST_IMPORT) {
+            pendingImportUri = uri;
+            pendingImportUriPersisted = false;
+            int grantFlags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (grantFlags != 0) {
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, grantFlags);
+                    pendingImportUriPersisted = true;
+                } catch (RuntimeException ignored) {
+                    // Keep the temporary result grant for this Activity instance.
+                }
+            }
+            importFrom(uri);
+        } else exportTo(uri);
+    }
+
+    private void importFrom(Uri uri) {
+        setStatus("正在读取脚本库 JSON…");
+        submitIo(() -> {
+            final String json;
+            final FxDiaScriptLibraryStore.ImportPreview preview;
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("无法读取所选 JSON 文件。");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES - count) {
+                        throw new IllegalArgumentException("脚本库 JSON 超过 1 MiB。");
+                    }
+                    output.write(buffer, 0, count);
+                }
+                json = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
+                preview = FxDiaScriptLibraryStore.previewImport(this, json);
+            } catch (Throwable error) {
+                runOnUiThread(() -> {
+                    clearPendingImportUri();
+                    setStatus("脚本库导入校验失败：" + detail(error));
+                });
+                return;
+            }
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                String message = "将导入 " + preview.count + " 个脚本。";
+                if (!preview.overwrittenNames.isEmpty()) {
+                    message += "\n同名脚本将被覆盖（" + preview.overwrittenNames.size() + " 个）："
+                            + String.join("、", preview.overwrittenNames.subList(
+                                    0, Math.min(5, preview.overwrittenNames.size())));
+                    if (preview.overwrittenNames.size() > 5) message += " 等";
+                }
+                new AlertDialog.Builder(this).setTitle("确认导入脚本库")
+                        .setMessage(message + "\n不会自动执行导入的脚本。")
+                        .setNegativeButton("取消", (dialog, which) -> clearPendingImportUri())
+                        .setPositiveButton("验证并导入", (dialog, which) -> {
+                            clearPendingImportUri();
+                            submitIo(() -> {
+                                try {
+                                    int count = FxDiaScriptLibraryStore.mergeImport(this, json, preview.overwrittenNames);
+                                    JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                                    runOnUiThread(() -> {
+                                        if (isFinishing() || isDestroyed()) return;
+                                        scripts = loaded;
+                                        renderRows();
+                                        setStatus("已导入 " + count + " 个脚本。导入内容未执行。");
+                                    });
+                                } catch (Throwable error) {
+                                    runOnUiThread(() -> setStatus("导入失败：" + detail(error)));
+                                }
+                            });
+                        }).show();
+            });
+        });
+    }
+
+    private void clearPendingImportUri() {
+        Uri uri = pendingImportUri;
+        boolean persisted = pendingImportUriPersisted;
+        pendingImportUri = null;
+        pendingImportUriPersisted = false;
+        if (uri != null && persisted) {
+            try {
+                getContentResolver().releasePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException ignored) { }
+        }
+    }
+
+    private void exportTo(Uri uri) {
+        setStatus("正在导出脚本库 JSON…");
+        submitIo(() -> {
+            String message;
+            try {
+                String json = FxDiaScriptLibraryStore.exportJson(this);
+                try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
+                    if (output == null) throw new IllegalStateException("无法写入所选 JSON 文件。");
+                    byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+                    if (bytes.length > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
+                        throw new IllegalArgumentException("脚本库 JSON 超过 1 MiB。");
+                    }
+                    output.write(bytes);
+                    output.flush();
+                }
+                message = "脚本库 JSON 已导出。";
+            } catch (Throwable error) {
+                message = "导出失败：" + detail(error);
+            }
+            String result = message;
+            runOnUiThread(() -> setStatus(result));
+        });
+    }
+
+    private String detail(Throwable error) {
+        if (error == null) return "未知错误";
+        String value = error.getClass().getSimpleName()
+                + (error.getMessage() == null ? "" : "： " + error.getMessage());
+        return value.length() > 400 ? value.substring(0, 400) + "…" : value;
+    }
+
+    @Override protected void onSaveInstanceState(Bundle out) {
+        if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
+        out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);
+        out.putBoolean(STATE_IMPORT_REQUEST_PENDING, importRequestPending);
+        out.putBoolean(STATE_EXPORT_REQUEST_PENDING, exportRequestPending);
+        if (pendingImportUri != null) {
+            out.putString(STATE_PENDING_IMPORT_URI, pendingImportUri.toString());
+            out.putBoolean(STATE_PENDING_IMPORT_URI_PERSISTED, pendingImportUriPersisted);
+        }
+        if (createNameInput != null && createNameInput.getText() != null)
+            createNameDraft = createNameInput.getText().toString();
+        out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
+        out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft.length() > 64
+                ? createNameDraft.substring(0, 64) : createNameDraft);
+        out.putString(STATE_SEARCH,
+                search == null || search.getText() == null ? "" : search.getText().toString());
+        out.putInt(STATE_SCROLL_Y, libraryScroll == null ? 0 : libraryScroll.getScrollY());
+        out.putBoolean(STATE_OPENING_INITIAL_EDITOR, openingInitialEditor);
+        super.onSaveInstanceState(out);
+    }
+
+    @Override protected void onDestroy() {
+        if (isFinishing() && !isChangingConfigurations()) clearPendingImportUri();
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }
