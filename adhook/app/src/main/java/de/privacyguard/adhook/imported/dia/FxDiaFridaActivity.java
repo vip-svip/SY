@@ -1483,6 +1483,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "server=" + quote(server) + "; state=/data/adb/privacyguard; "
                 + "pidfile=" + quote(SERVER_PID) + "; log=\"$state/dia-frida-server.log\"; "
                 + "lock=\"$state/.dia-frida-server.lock\"; "
+                + checkedDiaServerStateDirectoryPrefix()
                 + "mkdir -p \"$state\"; test -d \"$state\" && test ! -L \"$state\"; chmod 700 \"$state\"; "
                 + "[ ! -L \"$pidfile\" ] && [ ! -L \"$lock\" ] && [ ! -L \"$log\" ] || { echo FX_FRIDA_UNSAFE_STATE; exit 21; }; "
                 + "mkdir \"$lock\" 2>/dev/null || { echo FX_FRIDA_SERVER_START_BUSY; exit 10; }; "
@@ -1528,6 +1529,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         private void stopServer() {
         String command = "set -eu; umask 077; state=/data/adb/privacyguard; "
                 + "pidfile=" + quote(SERVER_PID) + "; lock=\"$state/.dia-frida-server.lock\"; "
+                + checkedDiaServerStateDirectoryPrefix()
                 + "mkdir -p \"$state\"; test -d \"$state\" && test ! -L \"$state\"; "
                 + "[ ! -L \"$pidfile\" ] && [ ! -L \"$lock\" ] || { echo FX_FRIDA_UNSAFE_STATE; exit 21; }; "
                 + "mkdir \"$lock\" 2>/dev/null || { echo FX_FRIDA_SERVER_STOP_BUSY; exit 10; }; "
@@ -2732,8 +2734,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"$proc_root/$pid/status\" 2>/dev/null || :); "
                 + "[ \"$uid\" = \"$target_uid\" ] && printf '%s\\n' \"$pid\" || :; done); "
                 + "[ -n \"$pids\" ] || { echo FX_GADGET_TARGET_NOT_RUNNING; exit 4; }; "
-                + "dir=/data/adb/privacyguard/dia-frida/logs; mkdir -p \"$dir\"; "
-                + "test -d \"$dir\" && test ! -L \"$dir\"; chmod 700 \"$dir\"; "
+                + "dir=/data/adb/privacyguard/dia-frida/logs; "
+                + prepareDiaLogsDirectoryPrefix()
+                + "chmod 700 \"$dir\"; "
                 + "[ ! -L \"$log\" ] && [ ! -L \"$pidfile\" ] && [ ! -L \"$pipe\" ] && [ ! -L \"$script\" ] || { echo FX_GADGET_UNSAFE_SESSION_PATH; exit 21; }; "
                 + "start_lock=\"$dir/.gadget-$port.start-lock\"; "
                 + "[ ! -L \"$start_lock\" ] || { echo FX_GADGET_UNSAFE_START_LOCK; exit 29; }; "
@@ -2817,7 +2820,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         final String pipePath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".stdin";
         final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
         final String startLockPath = "/data/adb/privacyguard/dia-frida/logs/.gadget-" + port + ".start-lock";
-        String command = "set -eu; pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
+        String command = "set -eu; " + checkedSessionLogDirectoryPrefix()
+                + "pidfile=" + quote(pidPath) + "; pipe=" + quote(pipePath) + "; "
                 + "script=" + quote(scriptPath) + "; start_lock=" + quote(startLockPath) + "; expected_pkg=" + quote(expectedPackage)
                 + "; expected_process=" + quote(expectedProcess) + "; expected_cli=" + quote(expectedCli) + "; port=" + port + "; "
                 + "[ ! -L \"$start_lock\" ] || { echo FX_GADGET_UNSAFE_START_LOCK; exit 29; }; "
@@ -2855,7 +2859,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             return;
         }
         String log = gadgetSessionLogPath(port);
-        String command = "set -eu; path=" + quote(log) + "; "
+        String command = "set -eu; " + checkedSessionLogDirectoryPrefix()
+                + "path=" + quote(log) + "; "
                 + "[ ! -L \"$path\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
                 + "if [ -s \"$path\" ]; then tail -n 500 \"$path\"; "
                 + "else echo '当前端口尚无 Gadget 会话消息/console 输出。'; fi";
@@ -2973,6 +2978,23 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private String sessionLogPath() {
         if (targetPackage == null || targetPackage.trim().isEmpty()) return "";
         return "/data/adb/privacyguard/dia-frida/logs/" + targetPackage + ".log";
+    }
+
+    private String checkedDiaServerStateDirectoryPrefix() {
+        return "for path in /data /data/adb; do "
+                + "[ -d \"$path\" ] && [ ! -L \"$path\" ] || { echo FX_FRIDA_UNSAFE_STATE_PARENT; exit 21; }; "
+                + "done; [ ! -L '/data/adb/privacyguard' ] || { echo FX_FRIDA_UNSAFE_STATE; exit 21; }; ";
+    }
+
+    private String prepareDiaLogsDirectoryPrefix() {
+        return "for path in /data /data/adb; do "
+                + "[ -d \"$path\" ] && [ ! -L \"$path\" ] || { echo FX_DIA_LOG_UNSAFE_PARENT; exit 21; }; "
+                + "done; "
+                + "for path in /data/adb/privacyguard /data/adb/privacyguard/dia-frida /data/adb/privacyguard/dia-frida/logs; do "
+                + "[ ! -L \"$path\" ] || { echo FX_DIA_LOG_UNSAFE_PARENT; exit 21; }; done; "
+                + "mkdir -p \"$dir\"; "
+                + "for path in /data/adb/privacyguard /data/adb/privacyguard/dia-frida /data/adb/privacyguard/dia-frida/logs; do "
+                + "[ -d \"$path\" ] && [ ! -L \"$path\" ] || { echo FX_DIA_LOG_UNSAFE_PARENT; exit 21; }; done; ";
     }
 
     private String checkedSessionLogDirectoryPrefix() {
