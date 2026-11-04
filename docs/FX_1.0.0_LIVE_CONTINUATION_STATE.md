@@ -2634,3 +2634,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已从 GitHub 重新读取源码及脚本，逐项静态检查以上断言存在；尚未执行该 Shell/Python 回归脚本、Gradle、模拟器或真机测试。此前“切换页面保留草稿”的描述仅在同 key 字段/当前页面范围成立，本条记录明确更正为真正的跨页面累计保存。
 - 当前 HEAD（本记录写入前）：`1f1460566ef61fa79fa06fc7a1f6edc14e69600c`。
 - 下一步：继续 Hook 原生页面和游龙插件交互验证，避免重复只做状态变量修补；固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 脚本库 SAF 导入预览 URI 重建恢复
+
+- 修复前分支 HEAD：`6a841278428fe58e141e889b7c4927dbc68197d4`。
+- 修复 Dia Frida 脚本库从 SAF 选择 JSON 后，Activity 若在后台读取/覆盖预览对话框期间重建，局部变量中的 URI 与预览流程会丢失的问题。导入选择器请求持久化读取授权；若 provider 返回可持久化 read grant，则调用 `takePersistableUriPermission`；将待确认导入 URI 与 grant 标记保存到 Bundle；Activity 重建后先重新读取脚本库，再从该 URI 重新校验并显示预览；用户取消、确认导入、校验失败或页面正常结束时清理 URI 状态并释放已持久化授权。若 provider 不支持持久授权，则保留当前临时授权路径，不伪称已持久化。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java`；`scripts/tests/fx-dia-script-library-regression.sh`。
+- 提交：`03d8664929bb84af9d7429359db1bc363c189bc7`（URI 状态恢复与权限管理）；`935ccf74dbc5480cc59a222235d622f2295a2122`（兼容不可用的持久授权）；`d968ce74b7f28234e3e108733c8ed7e00dd31caf`（回归断言）。
+- 已从 GitHub 重新读取源码和测试脚本，静态确认 URI Bundle 保存/恢复、选择器持久授权请求、恢复后重新生成预览、取消/确认清理及授权释放断言均存在。尚未执行 Shell/Python/JVM 回归脚本、Gradle、模拟器或真机测试。
+- 当前 HEAD（本记录写入前）：`d968ce74b7f28234e3e108733c8ed7e00dd31caf`。
+- 下一步：继续检查 Dia 原生页面的 SAF/编辑器返回链及覆盖确认对话框重建；固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
