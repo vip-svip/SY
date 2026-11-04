@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -21,7 +20,7 @@ import java.util.Set;
  * User-confirmed Shield warning page.
  * It never automatically stops, disables, freezes, or uninstalls the target app.
  */
-public final class FxYulongWarningActivity extends Activity {
+public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PREFS = "shield_prefs";
     private static final String WHITELIST_KEY = "whitelist_pkgs";
     private static final int MAX_PACKAGE_NAME = 255;
@@ -118,7 +117,7 @@ public final class FxYulongWarningActivity extends Activity {
         body.addView(button("打开 Android 系统卸载确认", this::uninstall));
         body.addView(button("稍后处理", this::finish));
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
     }
 
     private String safe(String value, int maxChars) {
