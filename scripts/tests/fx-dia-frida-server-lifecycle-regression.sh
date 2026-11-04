@@ -63,6 +63,14 @@ required_start = {
 for label, needle in required_start.items():
     if needle not in start:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+root_call = start.index("runRoot(command, 20000L")
+path_pref = start.index('getSharedPreferences(PREFS, MODE_PRIVATE).edit()')
+if path_pref < root_call:
+    raise SystemExit("FAIL: server_path preference is persisted before Root confirms start/status")
+if ".commit()" not in start or "if (!preferencesSaved)" not in start:
+    raise SystemExit("FAIL: server_path preference must synchronously persist only after successful Root result")
+if "本机路径索引保存失败" not in start:
+    raise SystemExit("FAIL: server path preference persistence failure is not surfaced")
 if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
 cleanup_pid_guard = r'''if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" '''
