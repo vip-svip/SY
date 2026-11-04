@@ -21,10 +21,10 @@ check = body("private void checkRuntime()", "private String serverProcessGuards(
 
 required_guards = {
     "PID liveness rejects zombies": "Z|X|x",
-    "PID liveness checks the process": 'kill -0 \\"$fx_server_pid\\"',
-    "executable path is matched exactly": "sed -n \\'1p\\')\\" = \\"$server\\"",
-    "listen argument is matched exactly": "sed -n \\'2p\\')\\" = \\"-l\\"',
-    "loopback endpoint is matched exactly": "sed -n \\'3p\\')\\" = \\"127.0.0.1:27042\\"',
+    "PID liveness checks the process": r'''kill -0 "$fx_server_pid"''',
+    "executable path is matched exactly": r'''sed -n '1p')" = "$server"''',
+    "listen argument is matched exactly": r'''sed -n '2p')" = "-l"''',
+    "loopback endpoint is matched exactly": r'''sed -n '3p')" = "127.0.0.1:27042"''',
     "full command line is read from proc": "/proc/$fx_server_pid/cmdline",
 }
 for label, needle in required_guards.items():
@@ -32,39 +32,39 @@ for label, needle in required_guards.items():
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 
 required_start = {
-    "server path must be executable and not symlinked": 'test -x \\"$server\\" && test ! -L \\"$server\\"',
-    "state, PID, lock and log paths reject symlinks": '[ ! -L \\"$pidfile\\" ] && [ ! -L \\"$lock\\" ] && [ ! -L \\"$log\\" ]',
-    "concurrent starts are serialized": 'mkdir \\"$lock\\"',
+    "server path must be executable and not symlinked": r'''test -x \"$server\" && test ! -L \"$server\"''',
+    "state, PID, lock and log paths reject symlinks": r'''[ ! -L \"$pidfile\" ] && [ ! -L \"$lock\" ] && [ ! -L \"$log\" ]''',
+    "concurrent starts are serialized": r'''mkdir \"$lock\"''',
     "PID record uses a randomized same-directory temp": ".dia-frida-server.pid.XXXXXX",
-    "PID record replacement is atomic": 'mv -f \\"$tmp\\" \\"$pidfile\\"',
-    "PID record is private": 'chmod 600 \\"$tmp\\"',
+    "PID record replacement is atomic": r'''mv -f \"$tmp\" \"$pidfile\"''',
+    "PID record is private": r'''chmod 600 \"$tmp\"''',
     "server stays on loopback": "127.0.0.1:27042",
     "untracked matching server is not duplicated": "server=already-running-unmanaged",
-    "startup verifies process identity": 'server_pid_matches \\"$pid\\"',
-    "startup records PID, executable and port": 'printf \\'%s\\\\n%s\\\\n%s\\\\n\\' \\"$pid\\" \\"$server\\" 27042',
+    "startup verifies process identity": r'''server_pid_matches \"$pid\"''',
+    "startup records PID, executable and port": r'''printf '%s\\n%s\\n%s\\n' \"$pid\" \"$server\" 27042''',
 }
 for label, needle in required_start.items():
     if needle not in start:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
-if 'if [ -n \\"$spawned_pid\\" ] && server_pid_matches \\"$spawned_pid\\"; then kill -TERM' not in start:
+if r'''if [ -n \"$spawned_pid\" ] && server_pid_matches \"$spawned_pid\"; then kill -TERM''' not in start:
     raise SystemExit("FAIL: startup cleanup may signal only its exact process")
 
 required_stop = {
-    "stop validates the stored port": '[ \\"$port\\" = 27042 ]',
+    "stop validates the stored port": r'''[ \"$port\" = 27042 ]''',
     "stop validates the stored executable path": "*[!A-Za-z0-9_./-]*|*..*",
-    "stop verifies ownership before signal": 'server_pid_matches \\"$pid\\" ||',
-    "stop sends TERM only": 'kill -TERM \\"$pid\\"',
+    "stop verifies ownership before signal": r'''server_pid_matches \"$pid\" ||''',
+    "stop sends TERM only": r'''kill -TERM \"$pid\"''',
     "stop uses a bounded wait": "FX_FRIDA_SERVER_STOP_TIMEOUT",
-    "stop removes its record only after exit": 'rm -f \\"$pidfile\\"',
+    "stop removes its record only after exit": r'''rm -f \"$pidfile\"''',
 }
 for label, needle in required_stop.items():
     if needle not in stop:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 if "kill -KILL" in stop or "pkill" in stop or "killall" in stop:
     raise SystemExit("FAIL: stop must not force-kill or broadly match processes")
-if stop.index("FX_FRIDA_SERVER_STOP_TIMEOUT") > stop.index('rm -f \\"$pidfile\\"'):
+if stop.index("FX_FRIDA_SERVER_STOP_TIMEOUT") > stop.index(r'''rm -f \"$pidfile\"'''):
     raise SystemExit("FAIL: stop deletes PID record before timeout check")
 if "server_pid_matches" not in check or "grep -Fq" in check:
     raise SystemExit("FAIL: runtime status must use exact process identity")
