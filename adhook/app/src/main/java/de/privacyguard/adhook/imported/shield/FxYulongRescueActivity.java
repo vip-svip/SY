@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
@@ -25,7 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /** User-confirmed recovery actions for Yulong Shield inside the unified FX APK. */
-public final class FxYulongRescueActivity extends Activity {
+public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String PREFS = "shield_prefs";
     private SharedPreferences prefs;
     private String foregroundPackage = "";
@@ -83,7 +82,7 @@ public final class FxYulongRescueActivity extends Activity {
         body.setPadding(dp(10), dp(4), dp(10), dp(22));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         foregroundLabel = text(formatForeground(), 13, 0xff17212b, true);
         card(body, "当前前台应用", "仅读取 Usage Access 的前台包名，不读取屏幕内容、输入内容或其他应用数据。",
