@@ -357,6 +357,14 @@ assert "catch (RuntimeException lookupFailure)" in warning_page, \
     "Whitelist action must handle package visibility/runtime lookup failures without crashing"
 assert "FxYulongWhitelistPolicy.isWellFormed(raw)" in warning_page, \
     "Risk detail whitelist action must reject malformed original data through the shared parser"
+assert "FxYulongWhitelistPolicy.serialize(packages)" in warning_page, \
+    "Risk detail whitelist action must use the shared bounded serializer"
+assert "if (serialized == null)" in warning_page, \
+    "Risk detail whitelist action must reject additions above the shared entry/size limits"
+assert "白名单已达到安全上限" in warning_page, \
+    "Risk detail page must explain why an over-limit whitelist addition was rejected"
+assert '.putString(WHITELIST_KEY, serialized)' in warning_page, \
+    "Risk detail page must only commit the validated canonical whitelist string"
 assert "本次没有修改任何白名单数据" in warning_page, \
     "Risk detail whitelist action must not silently discard malformed existing entries"
 whitelist_policy = shield["FxYulongWhitelistPolicy.java"]
