@@ -124,6 +124,13 @@ DEX 可核验的原版壁纸交互：
 
 当前 FX 首批迁移必须保持上述可见文案、上传/恢复行为、私有存储边界和图片处理参数。更进一步的裁剪、模糊、遮罩、定位调节属于扩展体验要求，必须先从 APK 的实际实现证据确认原版是否存在；不得把 FX 新增设计误标成 10.0.2 原版功能。
 
+FX 当前源码接线（实现状态以实时状态文档为准）：
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxWallpaperStore.kt`：私有存储、缩放、JPEG、预览解码、恢复默认。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：Settings 壁纸弹窗、系统图片选择器、后台保存、恢复默认和 WebView 透明背景。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：五 Skin 共用壁纸层、IO 解码和 Bitmap 生命周期。
+- `adhook/app/src/test/java/de/privacyguard/adhook/FxWallpaperStoreTest.kt` 与 `scripts/tests/fx-wallpaper-regression.sh`：图片缩放/采样测试与端到端源码契约回归。
+- 壁纸数据不上传、不放公共目录、不保留长期外部 URI 授权；失败写入不替换旧图。未完成 Gradle/设备验证前，不得称为真机验收通过。
+
 ## 2. 应用信息架构与导航
 
 ### 2.1 固定六 Tab
