@@ -3190,7 +3190,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(intro);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("全局目标为五种界面模式。当前可切换：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）。HUAWEI HarmonyStyle 与 iOS CupertinoStyle 已纳入重构计划，独立 Renderer 尚未接入，完成前不会显示为可选项。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
+        note.setText("五种全局模式均已接入模式选择器与应用级导航外观：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）、iOS CupertinoStyle（iOS 视觉风格）。当前 HUAWEI/iOS 已实现全局导航与表面基础 Skin，逐页组件适配仍在继续。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
@@ -3217,7 +3217,7 @@ public final class MainActivity extends ComponentActivity {
             return kotlin.Unit.INSTANCE;
         });
         content.addView(designModePanel,
-                new LinearLayout.LayoutParams(-1, dp(360)));
+                new LinearLayout.LayoutParams(-1, dp(560)));
         // Settings is reserved for app-wide preferences and diagnostics.
         // Operational VPN/privacy controls live on their matching primary tabs.
         section("开源许可与第三方声明");
