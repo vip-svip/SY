@@ -185,7 +185,7 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
         body.setPadding(0, dp(4), 0, dp(20));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 1);
 
         TextView intro = text(
                 "加入白名单的应用会绕过 FX 广告/DNS 过滤通道。FX TUN 模式通过 sing-box exclude_uid 排除应用；第三方 VPN 兼容模式通过 FX Root DNS Proxy 的 UID 放行规则排除应用。此名单独立于分应用代理名单和网络阻断名单。",
