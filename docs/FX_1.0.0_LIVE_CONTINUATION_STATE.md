@@ -3410,3 +3410,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Product commits: `ce2d7caccaecaca1a7919065b4b0717491daea69`, `1973aa04c83131fc0da656d08062781550eede03`, `bfacd24b4e7d51076c3b61bd579fe784d6eada4c`.
 - Regression commits: `6c63c5e56762efd965faccf4c0071ca0ef99aaed`, `b73aee4ea771c81dd3d7fc20255576dabf07396e`, `2e40c1e25bb0f990fb9b411bd535ae6cd3e53687`.
 - Actions and device UI/rotation tests pending.
+
+
+## 2026-11-05 — Yulong app-list scroll tests status
+
+- `fx-yulong-app-whitelist-activity-regression.sh`: Actions `41918782161` SUCCESS.
+- `fx-yulong-app-stats-regression.py`: Actions `41918827421` SUCCESS.
+- `fx-yulong-firewall-activity-regression.sh`: Actions `41918758162` was cancelled by a later push before a final result; source/test changes are committed, but CI is not marked passed.
+- No Android rotation or real package install/remove device test has run.
