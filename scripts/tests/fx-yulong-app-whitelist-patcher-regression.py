@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-whitelist-patcher-") as td:
     # Minimal source anchors representing the real restored FX Release layout.
     (module / "scripts/vpncore.sh").write_text(
         "vpncore_genconf() {\n"
-        "  printf '{\"type\":\"tun\",\"exclude_uid\":[0]}\\n'\n",
+        "  printf '{\"type\":\"tun\",\"exclude_uid\":[0]}\\n'\n"
         "}\n", encoding="utf-8"
     )
     (module / "scripts/yulong-root-proxy.sh").write_text(
