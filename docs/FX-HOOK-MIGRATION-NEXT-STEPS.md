@@ -126,3 +126,12 @@ This makes the current CI package build successful, but the build still depends 
 - The template is inert by default: both regex and ID rule arrays are empty. The user must edit explicit rules in the script editor and manually inject into the selected test target. It checks clickable/enabled/visible state, uses the Android UI thread, logs no button text, clamps delay to 0–10 seconds, and bounds scans to 1,500 nodes/depth 28 and eight scheduled clicks per process.
 - The Dia monitor regression now verifies the page, loader, default-off rules, bounds, UI-thread execution and Node syntax. The original ViewGroup dialog-removal behavior is still separate and is not claimed as migrated here.
 - Verification scope remains source regression and JavaScript syntax until the Android APK and a permitted target-app runtime are exercised.
+
+## 2026-11-05 — Dia ViewGroup rule-based dialog removal
+
+- Compared original ViewGroupHook/ViewGroupHook$1 Smali: the old hook reads alert_keyword/alert_id/disable_alert_mode, inspects view subtrees after addView and removes matched child views on the UI draw lifecycle. FX previously exposed only a ViewGroup hierarchy observer.
+- Added a separate native Dia page and Frida asset for rule-based removal. Rules default empty and require manual injection. Default scope deliberately matches the original safe mode: only direct additions to DecorView or android.R.id.content; it never climbs from a nested addView and risks deleting an entire Activity content hierarchy. ALLOW_ANY_PARENT is an explicit opt-in, default false.
+- Matching uses TextView regular expressions or resource names/IDs; matched text is not logged. Removal runs on Android's main thread and is bounded to 1,500 nodes/depth 28, five removals per process, eight 100 ms rechecks and 64 pending roots. Queue growth is capped.
+- Expanded the Dia regression to check loader/menu wiring, empty-by-default rules, direct-root scope, operation limits, main-thread mutation and Node syntax. The auto-click tree queue now has the same strict outstanding-node bound.
+- The Yulong widget regression's default “启动 VPN” caption belongs to the XML layout and is already checked there. The Provider replaces it with dynamic labels such as “启动防护”, “重试启动” and “停止 VPN” when refreshing live state; removed the stale assertion that incorrectly required the static default caption inside Java Provider code.
+- Verification scope: source changes committed; latest GitHub workflow must still pass. Android build, Frida injection and physical-device runtime remain unverified.

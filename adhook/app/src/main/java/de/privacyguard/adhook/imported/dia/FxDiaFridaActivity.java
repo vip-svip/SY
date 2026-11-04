@@ -357,7 +357,7 @@ public final class FxDiaFridaActivity extends Activity {
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
         warning.setPadding(dp(16), dp(6), dp(16), dp(14));
         card(body, "Dia 开发监控模板",
-                "仅对自有可调试测试应用启用。观察模板不会读取 Intent extras/URI 或命令内容；自动点击模板会触发真实按钮事件，默认无匹配规则，须明确填写正则/资源 ID 并手动注入。不要对支付、授权、删除等敏感操作配置自动点击。",
+                "仅对自有可调试测试应用启用。自动点击和匹配弹窗移除模板都会执行真实 UI 操作，规则默认全空且必须手动注入；弹窗移除默认只检查 DecorView/content 直接子项，扩大范围前务必确认应用和规则。不要对支付、授权、删除等敏感操作配置自动操作。",
                 button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
                 button("载入 WebView 导航监控", () -> loadDiaMonitorTemplate("webview-http")),
                 button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
@@ -368,6 +368,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 Socket 连接观察", () -> loadDiaMonitorTemplate("socket")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
                 button("载入正则/资源 ID 自动点击", () -> loadDiaMonitorTemplate("click-auto")),
+                button("载入匹配弹窗移除", () -> loadDiaMonitorTemplate("viewgroup-remove")),
                 button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
                 button("载入 Fragment 生命周期观察", () -> loadDiaMonitorTemplate("fragment")),
                 button("载入线程/启动调用栈观察", () -> loadDiaMonitorTemplate("thread")),
@@ -444,6 +445,8 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("click");
         } else if ("按文本/ID 自动点击".equals(title)) {
             loadDiaMonitorTemplate("click-auto");
+        } else if ("按文本/ID 移除匹配弹窗".equals(title)) {
+            loadDiaMonitorTemplate("viewgroup-remove");
         } else if ("ViewGroup 层级监控".equals(title)) {
             loadDiaMonitorTemplate("viewgroup");
         } else if ("Fragment 生命周期".equals(title)) {
@@ -1870,6 +1873,14 @@ public final class FxDiaFridaActivity extends Activity {
                     return;
                 }
                 break;
+            case "viewgroup-remove":
+                try {
+                    source = readDiaTemplateAsset("dia/fx_dialog_remove_template.js");
+                } catch (Exception error) {
+                    setStatus("读取匹配弹窗移除模板失败：" + error.getMessage());
+                    return;
+                }
+                break;
             case "memory":
                 source = "Java.perform(function () {\\n"
                         + "  var ActivityThread = Java.use('android.app.ActivityThread');\\n"
@@ -1886,6 +1897,8 @@ public final class FxDiaFridaActivity extends Activity {
         script.setText(source);
         if ("click-auto".equals(kind)) {
             setStatus("自动点击模板已载入：规则默认为空；仅对自有测试应用填写正则/资源 ID 后手动注入。");
+        } else if ("viewgroup-remove".equals(kind)) {
+            setStatus("匹配弹窗移除模板已载入：规则默认为空，默认只检查 DecorView/content 直接新增子视图；配置规则并确认目标后手动注入。");
         } else {
             setStatus("监控模板已载入；请先检查目标类/方法，再手动执行注入。");
         }

@@ -106,7 +106,9 @@
                 try {
                     if (Group.class.isAssignableFrom(view.getClass())) {
                         var group = Java.cast(view, Group);
-                        var count = Math.min(Number(group.getChildCount()), MAX_TREE_NODES - visited);
+                        var waiting = queue.length - cursor;
+                        var capacity = Math.max(0, MAX_TREE_NODES - visited - waiting);
+                        var count = Math.min(Number(group.getChildCount()), capacity);
                         for (var i = 0; i < count; i++) {
                             var child = group.getChildAt(i);
                             if (child) queue.push({view:child,depth:item.depth+1});

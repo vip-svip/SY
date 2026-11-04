@@ -77,6 +77,8 @@ required_actions = {
 assert required_actions <= actions, f"Tasker legacy/new action filters missing: {sorted(required_actions-actions)}"
 
 # Widget is the original Yulong VPN lifecycle widget. It does not own the ad filter.
+# The static default caption "启动 VPN" is asserted against widget_layout above;
+# Provider refresh replaces it with the dynamic live-state labels asserted below.
 for token in (
     "new ArrayBlockingQueue<>(2)",
     "REFRESH_PENDING.compareAndSet(false, true)",
@@ -88,7 +90,8 @@ for token in (
     "RootAccess.execute(shell(operation)",
     "pending.finish();",
     "VPN 已启用",
-    "启动 VPN",
+    "启动防护",
+    "重试启动",
     "停止 VPN",
 ):
     assert token in widget, f"VPN widget migration missing {token}"
