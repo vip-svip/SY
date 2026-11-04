@@ -13,8 +13,6 @@ PIDFILE="$STATE_DIR/scheduler.pid"
 SCRIPT_PATH="$MODDIR/scripts/jsruntime/scheduler.sh"
 OWNED=0
 OWN_RECORD=
-SLEEP_PID=
-SYNC_PID=
 OWNER_PID=
 OWNER_START=
 OWNER_SNAPSHOT=
@@ -106,20 +104,21 @@ remove_snapshot() {
   return 1
 }
 
+stop_requested() {
+  [ ! -L "$STOPFILE" ] || return 1
+  [ -f "$STOPFILE" ] || return 1
+  [ "$(cat "$STOPFILE" 2>/dev/null)" = "$OWN_RECORD" ]
+}
+
 cleanup_owner() {
-  if [ -n "$SYNC_PID" ]; then
-    kill -TERM "$SYNC_PID" 2>/dev/null || :
-    wait "$SYNC_PID" 2>/dev/null || :
-    SYNC_PID=
+  if [ "$OWNED" = 1 ]; then
+    if [ -f "$STOPFILE" ] && [ ! -L "$STOPFILE" ] \
+        && [ "$(cat "$STOPFILE" 2>/dev/null)" = "$OWN_RECORD" ]; then
+      rm -f "$STOPFILE"
+    fi
+    remove_snapshot "$OWN_RECORD" || :
+    OWNED=0
   fi
-  if [ -n "$SLEEP_PID" ]; then
-    kill -TERM "$SLEEP_PID" 2>/dev/null || :
-    wait "$SLEEP_PID" 2>/dev/null || :
-    SLEEP_PID=
-  fi
-  [ "$OWNED" = 1 ] || return 0
-  remove_snapshot "$OWN_RECORD" || :
-  OWNED=0
 }
 
 acquire_owner() {
@@ -174,6 +173,7 @@ acquire_owner() {
 
 stop_scheduler() {
   [ ! -L "$PIDFILE" ] || { echo "unsafe QuickJS scheduler PID symlink" >&2; return 22; }
+  [ ! -L "$STOPFILE" ] || { echo "unsafe QuickJS scheduler stop path" >&2; return 22; }
   [ -f "$PIDFILE" ] || { echo "running=0"; return 0; }
   _owner_state=0
   read_owner || _owner_state=$?
@@ -188,31 +188,52 @@ stop_scheduler() {
       return 10
       ;;
     0)
-      _stop_pid=$OWNER_PID
-      _stop_start=$OWNER_START
       _stop_snapshot=$OWNER_SNAPSHOT
-      [ "$_stop_pid" != "$$" ] || { echo "refusing to stop the current scheduler control process" >&2; return 2; }
-      kill -TERM "$_stop_pid" 2>/dev/null || :
+      if [ -e "$STOPFILE" ]; then
+        [ -f "$STOPFILE" ] && [ "$(cat "$STOPFILE" 2>/dev/null)" = "$_stop_snapshot" ] || {
+          echo "QuickJS scheduler stop request belongs to another owner" >&2
+          return 10
+        }
+      else
+        _stop_tmp=$(mktemp "$STATE_DIR/.scheduler-stop.XXXXXX") || return 1
+        if ! {
+          printf '%s\\n' "$_stop_snapshot" > "$_stop_tmp" &&
+          chmod 600 "$_stop_tmp"
+        }; then
+          rm -f "$_stop_tmp"
+          return 1
+        fi
+        if ! ln "$_stop_tmp" "$STOPFILE" 2>/dev/null; then
+          rm -f "$_stop_tmp"
+          [ -f "$STOPFILE" ] && [ ! -L "$STOPFILE" ] \
+            && [ "$(cat "$STOPFILE" 2>/dev/null)" = "$_stop_snapshot" ] || return 10
+        else
+          rm -f "$_stop_tmp"
+        fi
+      fi
+
       _wait=0
-      while [ "$_wait" -lt 50 ] && process_matches "$_stop_pid" "$_stop_start"; do
+      while [ "$_wait" -lt 50 ]; do
+        if [ ! -f "$PIDFILE" ] || [ "$(cat "$PIDFILE" 2>/dev/null)" != "$_stop_snapshot" ]; then
+          if [ -f "$STOPFILE" ] && [ ! -L "$STOPFILE" ] \
+              && [ "$(cat "$STOPFILE" 2>/dev/null)" = "$_stop_snapshot" ]; then
+            rm -f "$STOPFILE"
+          fi
+          echo "running=0"
+          return 0
+        fi
         sleep 0.1
         _wait=$((_wait+1))
       done
-      if process_matches "$_stop_pid" "$_stop_start"; then
-        echo "QuickJS scheduler did not stop within 5 seconds; PID record preserved" >&2
-        return 10
-      fi
-      if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]           && [ "$(cat "$PIDFILE" 2>/dev/null)" = "$_stop_snapshot" ]; then
-        remove_snapshot "$_stop_snapshot" || :
-      fi
-      echo "running=0"
-      return 0
+      echo "QuickJS scheduler stop requested; it has not exited within 5 seconds" >&2
+      return 10
       ;;
   esac
 }
 
 scheduler_loop() {
   while [ -f "$MODDIR/module.prop" ] && [ -f "$PG/settings.conf" ]; do
+    stop_requested && return 0
     interval=$(grep -m1 '^script_auto_update_h=' "$PG/settings.conf" 2>/dev/null | cut -d= -f2- | tr -d ' ')
     interval=${interval:-24}
     case "$interval" in ''|*[!0-9]*) interval=24 ;; esac
@@ -227,16 +248,13 @@ scheduler_loop() {
     case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
 
     if [ $((now-prev)) -ge $((interval*3600)) ]; then
-      if awk '/^\[list:script\]/{s=1;next} /^\[/{s=0} s && /^https:\/\/[^|]+\|[^|]*\|1([[:space:]]*)?$/{found=1} END{exit !found}' "$PG/settings.conf" 2>/dev/null; then
-        sh "$MODDIR/scripts/jsruntime/sync-subs.sh" >> "$STATE_DIR/scheduler.log" 2>&1 &
-        SYNC_PID=$!
-        wait "$SYNC_PID"
+      if awk '/^\\[list:script\\]/{s=1;next} /^\\[/{s=0} s && /^https:\\/\\/[^|]+\\|[^|]*\\|1([[:space:]]*)?$/{found=1} END{exit !found}' "$PG/settings.conf" 2>/dev/null; then
+        sh "$MODDIR/scripts/jsruntime/sync-subs.sh" >> "$STATE_DIR/scheduler.log" 2>&1
         rc=$?
-        SYNC_PID=
         if [ "$rc" -eq 0 ]; then
           _stamp_tmp=$(mktemp "$stamp.tmp.XXXXXX") || _stamp_tmp=
           if [ -n "$_stamp_tmp" ]; then
-            printf '%s\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp" && mv -f "$_stamp_tmp" "$stamp" || rm -f "$_stamp_tmp"
+            printf '%s\\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp" && mv -f "$_stamp_tmp" "$stamp" || rm -f "$_stamp_tmp"
           fi
         else
           echo "[$(date '+%F %T')] refresh failed rc=$rc; retry next hour" >> "$STATE_DIR/scheduler.log"
@@ -244,17 +262,19 @@ scheduler_loop() {
       fi
     fi
 
-    sleep 3600 &
-    SLEEP_PID=$!
-    wait "$SLEEP_PID" || :
-    SLEEP_PID=
+    _slept=0
+    while [ "$_slept" -lt 3600 ]; do
+      stop_requested && return 0
+      sleep 2
+      _slept=$((_slept+2))
+    done
   done
 }
 
 cmd=${1:-start}
 case "$cmd" in
   start)
-    for _path in /data /data/adb "$PG" "$STATE_DIR" "$PIDFILE"; do
+    for _path in /data /data/adb "$PG" "$STATE_DIR" "$PIDFILE" "$STOPFILE"; do
       reject_symlink_path "$_path" || { echo "unsafe QuickJS scheduler state path: $_path" >&2; exit 22; }
     done
     mkdir -p "$STATE_DIR" 2>/dev/null || exit 1
@@ -270,7 +290,7 @@ case "$cmd" in
     scheduler_loop
     ;;
   stop|uninstall)
-    reject_symlink_path "$PIDFILE" || { echo "unsafe QuickJS scheduler PID path" >&2; exit 22; }
+    reject_symlink_path "$PIDFILE" && reject_symlink_path "$STOPFILE" || { echo "unsafe QuickJS scheduler state path" >&2; exit 22; }
     stop_scheduler
     ;;
   status)
