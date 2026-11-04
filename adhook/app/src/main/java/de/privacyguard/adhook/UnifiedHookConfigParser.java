@@ -54,6 +54,7 @@ public final class UnifiedHookConfigParser {
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
         public boolean dialogMatchEnabled;
+        public boolean dialogNotify;
         public final List<String> dialogTextTerms = new ArrayList<>();
         public final List<String> dialogIdTerms = new ArrayList<>();
         public boolean androidIdSimulation;
@@ -295,7 +296,7 @@ public final class UnifiedHookConfigParser {
             boolean networkTypeSimulation=false;
             String simulatedNetworkType=null;
             boolean locationSimulation=false;
-            boolean dialogMatchEnabled=false;
+            boolean dialogMatchEnabled=false, dialogNotify=false;
             String dialogTextTermsRaw=null, dialogIdTermsRaw=null;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
@@ -339,6 +340,11 @@ public final class UnifiedHookConfigParser {
                 if ("dialog_match".equals(key)) {
                     dialogMatchEnabled = "1".equals(value);
                     if (!bit(value)) throw new IllegalArgumentException("invalid dialog match flag");
+                    continue;
+                }
+                if ("dialog_notify".equals(key)) {
+                    dialogNotify = "1".equals(value);
+                    if (!bit(value)) throw new IllegalArgumentException("invalid dialog notification flag");
                     continue;
                 }
                 if ("dialog_text_terms_b64".equals(key)) {
@@ -513,6 +519,8 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("dialog match monitoring requires explicit text or ID rules");
             if (!dialogMatchEnabled && hasDialogTerms)
                 throw new IllegalArgumentException("dialog match rules require dialog_match=1");
+            if (dialogNotify && !dialogMatchEnabled)
+                throw new IllegalArgumentException("dialog notification requires dialog_match=1");
             if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
                 throw new IllegalArgumentException("location simulation requires latitude and longitude");
             if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null
@@ -523,6 +531,7 @@ public final class UnifiedHookConfigParser {
             if (locationProviderEnabledSimulation && locationAccessBlock)
                 throw new IllegalArgumentException("provider-enabled simulation conflicts with location access blocking");
             parsedTarget.dialogMatchEnabled = dialogMatchEnabled;
+            parsedTarget.dialogNotify = dialogNotify;
             parsedTarget.dialogTextTerms.addAll(dialogTextTerms);
             parsedTarget.dialogIdTerms.addAll(dialogIdTerms);
             parsedTarget.locationSimulation = locationSimulation;
