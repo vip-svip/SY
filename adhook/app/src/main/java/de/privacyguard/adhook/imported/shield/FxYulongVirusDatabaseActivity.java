@@ -153,10 +153,17 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
         submitWorker(contentRefresh, contentSummary,
                 "后台任务繁忙：内容特征库同步未排队，请稍后重试。", () -> {
             try {
+                long previousContentSuccess = FxYulongVirusContentDb.getLastSuccessAt();
                 FxYulongVirusContentDb.refreshNow(getApplicationContext());
-                FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
-                        getSharedPreferences("shield_prefs", MODE_PRIVATE)
-                                .getBoolean("automatic_content_scan_enabled", false));
+                // A still-ready old cache is not evidence that this sync succeeded.
+                // Refresh (including HTTP 304) updates lastSuccessAt; only then launch
+                // the post-update whole-device scan.
+                if (FxYulongVirusContentDb.isContentDatabaseReady(getApplicationContext())
+                        && FxYulongVirusContentDb.getLastSuccessAt() > previousContentSuccess) {
+                    FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
+                            getSharedPreferences("shield_prefs", MODE_PRIVATE)
+                                    .getBoolean("automatic_content_scan_enabled", false));
+                }
                 postUi(() -> {
                     contentRefresh.setEnabled(true);
                     updateContentStatus();
@@ -183,9 +190,14 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
                 "后台任务繁忙：病毒库同步未排队，请稍后重试。", () -> {
             try {
                 FxYulongVirusDb.refreshNow(getApplicationContext());
-                FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
-                        getSharedPreferences("shield_prefs", MODE_PRIVATE)
-                                .getBoolean("automatic_content_scan_enabled", false));
+                // The DB adapter marks the current attempt reachable only when at
+                // least one remote list/304 succeeded. Offline stale-cache retention
+                // must not masquerade as a successful database-update trigger.
+                if (FxYulongVirusDb.isServerReachable() && FxYulongVirusDb.getLastSuccess() > 0L) {
+                    FxYulongRiskScanDispatcher.onVirusDatabaseUpdated(getApplicationContext(),
+                            getSharedPreferences("shield_prefs", MODE_PRIVATE)
+                                    .getBoolean("automatic_content_scan_enabled", false));
+                }
                 postUi(() -> {
                     refresh.setEnabled(true); updateStatus();
                     Toast.makeText(this,FxYulongVirusDb.isServerReachable()?"病毒库同步完成":"同步不完整，原有缓存已保留",Toast.LENGTH_LONG).show();
