@@ -100,6 +100,14 @@ final class StellarCommandArguments {
             case "list": case "logs": case "clear-logs":
                 requireSize(args, 1);
                 return;
+            case "boot-script":
+                requireSize(args, 2);
+                if (!("install".equals(args.get(1))
+                        || "remove".equals(args.get(1))
+                        || "status".equals(args.get(1)))) {
+                    throw new IllegalArgumentException("unsupported boot-script operation");
+                }
+                return;
             case "pkg-set":
                 requireSize(args, 3);
                 requirePackage(args.get(1));
