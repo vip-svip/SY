@@ -785,3 +785,10 @@ After each implementation batch:
 - Regression assertions now check all PID-bearing expressions, not merely the presence of a lock file and hard-link operation.
 - If post-publication verification fails, the publisher removes only the lock whose bytes still exactly match its own expected record, avoiding a stranded self-owned lock without deleting another owner's lock.
 - The currently running Actions attempt predates this correction; the next branch run must verify the lifecycle race end-to-end.
+
+## 2026-11-04 — Dia inspector app-list responsiveness
+
+- Moved `PackageManager.getInstalledApplications()`, debuggable/user-app filtering, label retrieval and locale-aware sorting off the Activity main thread onto its existing bounded executor.
+- The app picker now waits for asynchronous inventory completion, including when the user opens it while the initial load is already running. Application labels are cached with the result, so opening the picker no longer performs PackageManager calls on the UI thread.
+- Added generation checks and Activity-destroy invalidation so a late enumeration cannot update a destroyed screen. Queue saturation is surfaced rather than silently dropping the picker request.
+- Added and registered a targeted regression for background ordering, picker continuation, stale callback suppression and bounded worker behavior. Validation is pending the branch workflow; no device performance measurement is claimed.
