@@ -3272,3 +3272,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 现在目标选择器通过 `ArrayAdapter<Target>` 过滤，点击回调使用 `adapter.getItem(position)`，再以 `selected.packageName` 更新目标；该行为保留包名身份且支持搜索。
 - 修复：回归断言匹配 Adapter 选择路径，未改变 PackageManager 后台枚举、generation 丢弃、目标状态保存或 worker 约束。
 - 改动：`scripts/tests/fx-dia-frida-target-loader-regression.py`，提交 `705107a3b1fe32b77acde22c7e5bee88f43de75c`。新 Actions 待验证。
+
+
+## 2026-11-05 — 游龙广告 DNS 查询日志异常记录显式诊断
+
+- 页面：游龙广告插件 → DNS → 本地查询日志。
+- 发现 UI 数据透明度问题：解析器遇到 JSON 行损坏或缺少域名字段时直接静默跳过；页面只显示有效解析条数，用户无法知道展示数据是否不完整。
+- 修复：新增 malformed 计数；非法 JSON 与缺少域名的记录都会计数，并在页面状态中显示“无法解析/缺少域名 N 条”，提示检查本地日志格式。有效记录的拦截/放行计数和原始日志不被修改。
+- 改动路径：`FxYulongDnsActivity.java`、`fx-yulong-ad-activity-state-regression.sh`、本状态文件。
+- 提交：产品逻辑 `a7e1170318ebe63a901213d57f047be4ae602cd0`；格式修正 `b8eb881cd1828bbdcce9befb1553ad50e4da6081`；回归 `ef9a5aa898f2b73d1821cdf0c0f40b045b60fa11`。
+- 验证：源码已复核计数路径与状态文案；回归脚本新增 malformed 计数断言。待 Actions；未做真实 AdGuard Home querylog 注入损坏行的设备验证。
+- 下一步：检查游龙广告 Firewall/Whitelist 页面对应用卸载、包替换、UID 变化时的配置关联与状态刷新；然后继续安全护盾名单/扫描 UI 页面组。
