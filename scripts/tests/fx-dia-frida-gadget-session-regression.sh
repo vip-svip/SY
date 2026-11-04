@@ -68,7 +68,7 @@ show = source[source.index("private void showGadgetSessionLog()"):
 logs_guard = source[source.index("private String prepareDiaLogsDirectoryPrefix()"):
                     source.index("private String checkedSessionLogDirectoryPrefix()")]
 existing_guard = source[source.index("private String checkedSessionLogDirectoryPrefix()"):
-                        source.index("private void buildPage()")]
+                        source.index("private void showSessionLog()")]
 if "prepareDiaLogsDirectoryPrefix()" not in attach:
     raise SystemExit("FAIL: Gadget attach must preflight/create/check the entire Frida log directory chain")
 if "checkedSessionLogDirectoryPrefix()" not in stop:
@@ -77,16 +77,19 @@ if "checkedSessionLogDirectoryPrefix()" not in show:
     raise SystemExit("FAIL: Gadget log viewer must reject symlinks in every parent directory")
 for label, needle in (
     ("Gadget parent guard checks real /data and /data/adb directories", "for path in /data /data/adb; do"),
-    ("Gadget parent guard rejects symlink ancestors before mkdir", "[ ! -L \\"$path\\" ]"),
-    ("Gadget parent guard verifies each directory after mkdir", "[ -d \\"$path\\" ] && [ ! -L \\"$path\\" ]"),
+    ("Gadget parent guard rejects symlink ancestors before mkdir", "! -L "),
+    ("Gadget parent guard verifies directories after mkdir", "[ -d "),
     ("Gadget parent guard has explicit fail-closed status", "FX_DIA_LOG_UNSAFE_PARENT"),
 ):
     if needle not in logs_guard:
         raise SystemExit(f"FAIL: {label}")
 for label, needle in (
-    ("read/stop guard checks parent directory chain", "for path in /data/adb/privacyguard"),
-    ("read/stop guard rejects symlink or missing parents", "[ -d \\"$path\\" ] && [ ! -L \\"$path\\" ]"),
+    ("read/stop guard defines the FX base directory", 'String baseDir = "/data/adb/privacyguard";'),
+    ("read/stop guard validates the Dia directory", 'String diaDir = baseDir + "/dia-frida";'),
+    ("read/stop guard validates the logs directory", 'String logDir = diaDir + "/logs";'),
+    ("read/stop guard checks the /data/adb parent", "if [ -L '/data/adb' ]"),
     ("read/stop guard emits explicit failure marker", "FX_DIA_LOG_PATH_UNAVAILABLE"),
+    ("read/stop guard quotes all checked directories", "quote(baseDir)") ,
 ):
     if needle not in existing_guard:
         raise SystemExit(f"FAIL: {label}")
