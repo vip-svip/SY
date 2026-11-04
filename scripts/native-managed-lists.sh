@@ -45,15 +45,17 @@ resolve_section() {
 valid_field() {
   [ -n "$1" ] || return 1
   [ "${#1}" -le 4096 ] || return 1
-  case "$1" in *'|'*|*'\\'*|'*'
-'*) return 1 ;; esac
+  case "$1" in *'|'*|*'\'*) return 1 ;; esac
+  lines=$(printf '%s' "$1" | wc -l | tr -d '[:space:]')
+  [ "${lines:-0}" -eq 0 ] || return 1
   if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then return 1; fi
   return 0
 }
 valid_note() {
   [ "${#1}" -le 180 ] || return 1
-  case "$1" in *'|'*|*'\\'*|'*'
-'*) return 1 ;; esac
+  case "$1" in *'|'*|*'\'*) return 1 ;; esac
+  lines=$(printf '%s' "$1" | wc -l | tr -d '[:space:]')
+  [ "${lines:-0}" -eq 0 ] || return 1
   if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then return 1; fi
   return 0
 }

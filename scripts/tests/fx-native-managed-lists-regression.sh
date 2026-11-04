@@ -105,7 +105,7 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
 assert "grep -Eq" in normalize, "URL subscription validation is missing"
 assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
-assert "*'" + "\n" + "'*)" in source, "literal LF must be rejected explicitly"
+assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
 print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
 PY
 echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
