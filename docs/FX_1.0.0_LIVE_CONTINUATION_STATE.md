@@ -2230,3 +2230,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回归提交：f776f0c7348f458d49b0dc071c22ef769e6c9e27 — test(hook): assert real Root LSPosed and accessibility state。
 - 静态验证：当前 HEAD 的 MainActivity 与回归脚本匹配上述状态源；未运行 Shell 脚本、Gradle 编译、模拟器或真机 Root/LSPosed Manager/Accessibility 授权切换。
 - 下一步：回到 Hook 原生主页面/目标详情 UI 的可用性与生命周期测试；有真实 checkout 环境后运行 fx-hook-native-ui-regression.sh 与相关 Host 测试。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia DEX 浏览器：恢复目标应用标题换行修正
+
+- 本批起始分支检查点：`1d68d0cb7198fd810695eaec42a6c54d40293390`（GitHub 分支比较读取；不是沿用旧聊天 SHA）。
+- 发现：`FxDiaDexBrowserActivity.restoreSourceAfterRecreation()` 在恢复已选应用时把两个反斜杠和 n 写入标题字符串，运行时会显示字面量 `\\n`，而不是将应用名称与包名分行，导致旋转/进程重建后的目标信息可读性错误。
+- 修复：将恢复标题改为真实 Java 换行转义 `"\\n"`；不改动目标选择、DEX 解析、来源状态或权限生命周期。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java`；`scripts/tests/fx-dia-dex-document-browser-regression.sh`；本状态文件。
+- 提交：
+  - `1bae397ae197d8d39a589cfd238c105e2b595cc2` — 修复恢复目标标题换行。
+  - `5f309372b7298c4cfdc9c62aab5736ad82bf8fa3` — 增加针对性静态回归断言。
+- 验证等级：已读取提交后的源码与测试脚本并核对目标字符串；未在完整 checkout 执行 Shell 回归脚本，未运行 Gradle、UI 自动化、模拟器或真机旋转/进程重建测试。不得标记为运行测试通过。
+- 未完成：DEX picker 返回主界面时，目标包名/规则编辑器草稿在 MainActivity 重建期间的请求归属稳定性；SAF 提供方授权恢复仍需设备验证。
+- 下一步直接任务：① 检查 Dia DEX picker 与 MainActivity 的 Activity Result 目标归属；② 检查游龙 Tasker/Widget 操作回执页面的状态呈现；③ 继续推进六 Tab 主壳与剩余原生页面批次。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
