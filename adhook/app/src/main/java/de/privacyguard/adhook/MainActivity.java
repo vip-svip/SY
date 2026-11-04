@@ -122,6 +122,8 @@ public final class MainActivity extends ComponentActivity {
     };
     private boolean hookUiVisible;
     private boolean hookTargetVisible;
+    private boolean hookCustomRulesPageVisible;
+    private boolean customHookReturnToTarget;
     private boolean hookHubVisible;
     private boolean settingsUiVisible;
     // Preserve the Settings > migration suite > category > page return chain.
@@ -207,12 +209,14 @@ public final class MainActivity extends ComponentActivity {
             activePrivacySection = state.getString("fx_privacy_section");
             restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
+            hookCustomRulesPageVisible = "target_custom_rules".equals(restoreHookKind);
+            customHookReturnToTarget = state.getBoolean("fx_hook_custom_return_to_target", false);
             migrationSuite = state.getString("fx_migration_suite");
             migrationCategory = state.getString("fx_migration_category");
             migrationPage = state.getString("fx_migration_page");
             migrationLevel = Math.max(0, Math.min(3, state.getInt("fx_migration_level", 0)));
             migrationChildActive = state.getBoolean("fx_migration_child_active", false);
-            if ("target".equals(restoreHookKind)) {
+            if ("target".equals(restoreHookKind) || "target_custom_rules".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
             }
         }
@@ -362,8 +366,10 @@ public final class MainActivity extends ComponentActivity {
         if (hookUiVisible) {
             if (activePrivacySection != null) outState.putString("fx_privacy_section", activePrivacySection);
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
-            String hookScreen = hookHubVisible ? "hub" : restoringTarget ? "target" : "list";
+            String hookScreen = hookHubVisible ? "hub"
+                    : restoringTarget ? (hookCustomRulesPageVisible ? "target_custom_rules" : "target") : "list";
             outState.putString("fx_hook_screen", hookScreen);
+            outState.putBoolean("fx_hook_custom_return_to_target", customHookReturnToTarget);
             String targetPackage = pendingRestorePackage != null
                     ? pendingRestorePackage : selectedPackage;
             if ("target".equals(hookScreen) && targetPackage != null) {
@@ -4413,6 +4419,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override public void onBackPressed() {
+        if (hookCustomRulesPageVisible && hookTargetVisible) { leaveCustomHookRulesPage(); return; }
         if (hookTargetVisible) { showAppList(); return; }
         if (migrationChildActive && migrationSuite != null && migrationCategory != null) {
             migrationChildActive = false;
@@ -4861,10 +4868,15 @@ public final class MainActivity extends ComponentActivity {
         } catch (RuntimeException unavailable) {
             selectedLabel = ai.packageName;
         }
+        boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        if (hookCustomRulesPageVisible || "自定义 Hook".equals(activePrivacySection)) {
+            hookCustomRulesPageVisible = true;
+            showCustomHookRulesPage(ai, targetDebuggable);
+            return;
+        }
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
-        boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         TextView scopeNotice = new TextView(this);
         scopeNotice.setText("LSPosed 模块启用和目标应用作用域必须在 LSPosed Manager 中单独设置；FX 可通过 libXposed 服务提交此应用的作用域申请或移除请求，但最终批准仍由 LSPosed Manager 决定。若服务未连接，先在 LSPosed Manager 启用 FX Hook，再刷新。作用域批准不代表目标进程已经注入。");
         scopeNotice.setTextColor(0xff697681);
@@ -5238,27 +5250,19 @@ public final class MainActivity extends ComponentActivity {
         note.setTextColor(0xff697681); note.setPadding(dp(18),dp(2),dp(18),dp(14)); content.addView(note);
         section("自定义 Hook");
         TextView custom=new TextView(this);
-        custom.setText("仅对可调试版本目标应用生效。OBSERVE 只记录调用元数据；RETURN_TRUE/FALSE 仅允许零参数 boolean；RETURN_ARGUMENT_0 要求首参数与返回类型完全相同；RETURN_THIS 仅用于非静态且返回类型可接收当前对象的方法；其他固定返回/空操作也须满足精确返回类型。以上仅用于 debuggable 自有测试构建，不修改正式应用、账号、会员或服务端授权。");
+        custom.setText("将自定义规则、分组、语法编辑、导入导出和 OBSERVE 日志放在独立页面管理。当前目标为 "
+                + (targetDebuggable ? "debuggable 测试构建，可使用规则允许的观察/替换动作。" : "非 debuggable 构建；仅保留规则配置，替换动作不会执行。")
+                + " 不修改正式应用、账号、会员或服务端授权。");
         custom.setTextColor(0xff697681); custom.setPadding(dp(18),dp(4),dp(18),dp(8)); content.addView(custom);
-        Button addRule=new Button(this); addRule.setText("添加自定义 Hook 规则");
-        addRule.setOnClickListener(v->showCustomRuleDialog()); content.addView(addRule);
-        Button observeLogs = new Button(this);
-        observeLogs.setText("查看 OBSERVE 方法日志");
-        observeLogs.setOnClickListener(v -> showCustomHookObservationLogs());
-        content.addView(observeLogs);
-        Button ruleGroups = new Button(this); ruleGroups.setText("管理规则分组");
-        ruleGroups.setOnClickListener(v -> showCustomRuleGroupsDialog());
-        content.addView(ruleGroups);
-        LinearLayout ruleTools = new LinearLayout(this);
-        ruleTools.setOrientation(LinearLayout.HORIZONTAL);
-        Button importRules = new Button(this); importRules.setText("批量导入 JSON");
-        importRules.setOnClickListener(v -> showCustomRuleImportDialog());
-        Button exportRules = new Button(this); exportRules.setText("导出 JSON");
-        exportRules.setOnClickListener(v -> showCustomRuleExportDialog());
-        ruleTools.addView(importRules, new LinearLayout.LayoutParams(0, -2, 1));
-        ruleTools.addView(exportRules, new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(ruleTools);
-        renderCustomRules();
+        Button manageRules=new Button(this);
+        manageRules.setAllCaps(false);
+        manageRules.setText("打开自定义 Hook 规则管理");
+        manageRules.setOnClickListener(v -> {
+            hookCustomRulesPageVisible = true;
+            customHookReturnToTarget = true;
+            showTarget(ai);
+        });
+        content.addView(manageRules);
         Button save=new Button(this); save.setText("保存并发布 Hook 配置");
         save.setOnClickListener(v -> {
             getPreferences(0).edit().putBoolean(key("draft_saved"),true).apply();
@@ -5273,6 +5277,130 @@ public final class MainActivity extends ComponentActivity {
         focusPendingPrivacySection();
     }
  
+
+    private void showCustomHookRulesPage(ApplicationInfo target, boolean targetDebuggable) {
+        hookUiVisible = true;
+        settingsUiVisible = false;
+        hookTargetVisible = true;
+        hookHubVisible = false;
+        selectedBottomTab = 4;
+        base("自定义 Hook 规则 · " + selectedLabel);
+
+        TextView targetInfo = new TextView(this);
+        targetInfo.setText("目标应用：" + selectedLabel + "\\n包名：" + selectedPackage
+                + "\\n构建类型：" + (targetDebuggable ? "debuggable 测试构建" : "非 debuggable"));
+        targetInfo.setTextColor(0xff526170);
+        targetInfo.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(targetInfo);
+
+        TextView safety = new TextView(this);
+        safety.setText("仅针对当前目标包中的精确方法签名。Java、Frida .overload()、Smali/JVM 描述符和旧式零参数 boolean 语法会先规范化为 JVM 描述符并由执行适配器校验。替换动作仅适用于 debuggable 自有测试应用；OBSERVE 不记录参数值、返回值、口令或令牌。");
+        safety.setTextColor(0xff697681);
+        safety.setPadding(dp(18), dp(2), dp(18), dp(10));
+        content.addView(safety);
+
+        section("LSPosed 作用域状态");
+        addLsposedScopeControls(selectedPackage,
+                (target.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+
+        section("自定义规则");
+        TextView ruleNote = new TextView(this);
+        ruleNote.setText("每个目标应用最多 64 条规则。规则保存到当前应用的独立配置；完成编辑后使用页面底部“保存并发布”将规则配置发布到 FX Hook。规则 ID 在同一目标内必须唯一。");
+        ruleNote.setTextColor(0xff697681);
+        ruleNote.setPadding(dp(18), dp(2), dp(18), dp(8));
+        content.addView(ruleNote);
+
+        Button addRule = new Button(this);
+        addRule.setAllCaps(false);
+        addRule.setText("新增自定义 Hook 规则");
+        addRule.setEnabled(targetDebuggable);
+        addRule.setOnClickListener(v -> showCustomRuleDialog());
+        content.addView(addRule);
+
+        LinearLayout tools = new LinearLayout(this);
+        tools.setOrientation(LinearLayout.HORIZONTAL);
+        Button groups = new Button(this);
+        groups.setAllCaps(false);
+        groups.setText("管理分组");
+        groups.setOnClickListener(v -> showCustomRuleGroupsDialog());
+        Button importRules = new Button(this);
+        importRules.setAllCaps(false);
+        importRules.setText("导入 JSON");
+        importRules.setOnClickListener(v -> showCustomRuleImportDialog());
+        Button exportRules = new Button(this);
+        exportRules.setAllCaps(false);
+        exportRules.setText("导出 JSON");
+        exportRules.setOnClickListener(v -> showCustomRuleExportDialog());
+        tools.addView(groups, new LinearLayout.LayoutParams(0, -2, 1));
+        tools.addView(importRules, new LinearLayout.LayoutParams(0, -2, 1));
+        tools.addView(exportRules, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(tools);
+
+        Button observeLogs = new Button(this);
+        observeLogs.setAllCaps(false);
+        observeLogs.setText("查看 OBSERVE 方法日志");
+        observeLogs.setOnClickListener(v -> showCustomHookObservationLogs());
+        content.addView(observeLogs);
+
+        int totalRules = 0, enabledRules = 0, invalidRules = 0;
+        for (int slot = 1; slot <= 64; slot++) {
+            String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
+            if (stored == null) continue;
+            totalRules++;
+            String[] fields = stored.split("\\\\|", -1);
+            if (fields.length != 4 && fields.length != 5) {
+                invalidRules++;
+                continue;
+            }
+            String action = getPreferences(0).getString(selectedPackage + ":dev_rule_base_" + slot,
+                    "OFF".equalsIgnoreCase(fields[2]) ? "OBSERVE" : fields[2]);
+            String encoded = fields[0] + "|" + fields[1] + "|" + action + "|" + fields[3]
+                    + (fields.length == 5 ? "|" + fields[4] : "");
+            if (DeveloperHookRule.parse(encoded, selectedPackage) == null) invalidRules++;
+            if (!"OFF".equalsIgnoreCase(fields[2])) enabledRules++;
+        }
+        TextView summary = new TextView(this);
+        summary.setText("规则总数：" + totalRules + " / 64"
+                + "\\n已启用：" + enabledRules + " · 已暂停：" + (totalRules - enabledRules)
+                + " · 格式异常：" + invalidRules);
+        summary.setTextColor(invalidRules == 0 ? 0xff526170 : 0xff9b2c2c);
+        summary.setPadding(dp(18), dp(8), dp(18), dp(8));
+        content.addView(summary);
+        renderCustomRules();
+
+        Button publish = new Button(this);
+        publish.setAllCaps(false);
+        publish.setText("保存并发布 Hook 配置");
+        publish.setOnClickListener(v -> {
+            if (!getPreferences(0).edit().putBoolean(key("draft_saved"), true).commit()) {
+                Toast.makeText(this, "本地草稿保存失败，尚未发布。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            publishConfig();
+        });
+        content.addView(publish, new LinearLayout.LayoutParams(-1, -2));
+
+        Button back = new Button(this);
+        back.setAllCaps(false);
+        back.setText(customHookReturnToTarget ? "返回应用 Hook 配置" : "返回 Hook 应用列表");
+        back.setOnClickListener(v -> leaveCustomHookRulesPage());
+        content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void leaveCustomHookRulesPage() {
+        String packageName = selectedPackage;
+        boolean returnToTarget = customHookReturnToTarget;
+        hookCustomRulesPageVisible = false;
+        customHookReturnToTarget = false;
+        if (returnToTarget) {
+            ApplicationInfo target = findApp(packageName);
+            if (target != null) {
+                showTarget(target);
+                return;
+            }
+        }
+        showAppList("自定义 Hook");
+    }
 
     private void focusPendingPrivacySection() {
         final String requested = activePrivacySection;
@@ -5499,21 +5627,50 @@ public final class MainActivity extends ComponentActivity {
         EditText descriptor = new EditText(this);
         descriptor.setSingleLine(false);
         descriptor.setMinLines(2);
-        if (presetDescriptor != null && !presetDescriptor.trim().isEmpty()) {
-            descriptor.setText(presetDescriptor);
-            id.setText("dexMethod" + (System.currentTimeMillis() % 1_000_000L));
-        }
-        descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[]): java.lang.Object\n"
-                + "Frida：com.example.Foo.run.overload('java.lang.String','int[]') -> java.lang.Object\n"
-                + "Smali：Lcom/example/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;\n"
-                + "旧式：com.example.Foo#isReady()Z");
-        EditText action = new EditText(this);
-        action.setSingleLine(true);
-        action.setText("OBSERVE");
-        action.setHint("OBSERVE / RETURN_TRUE / RETURN_FALSE / RETURN_NULL / RETURN_ZERO / RETURN_EMPTY_STRING / RETURN_ARGUMENT_0 / RETURN_ARG0 / RETURN_THIS / NO_OP_VOID");
+        String[] syntaxLabels = {"Java 精确签名", "Frida .overload()", "Smali / JVM 描述符", "旧式 boolean 签名"};
+        String[] syntaxHints = {
+                "com.example.app.Foo#run(java.lang.String,int[]): java.lang.Object",
+                "com.example.app.Foo.run.overload('java.lang.String','int[]') -> java.lang.Object",
+                "Lcom/example/app/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;",
+                "com.example.app.Foo#isReady()Z"
+        };
+        Spinner syntax = new Spinner(this);
+        ArrayAdapter<String> syntaxAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, syntaxLabels);
+        syntaxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        syntax.setAdapter(syntaxAdapter);
+        int initialSyntax = presetDescriptor != null && presetDescriptor.startsWith("L") ? 2
+                : presetDescriptor != null && presetDescriptor.contains(".overload(") ? 1
+                : presetDescriptor != null && presetDescriptor.matches(".*\\\\(\\\\)Z$") ? 3 : 0;
+        syntax.setSelection(initialSyntax);
+        descriptor.setHint(syntaxHints[initialSyntax]);
+        syntax.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long id) {
+                descriptor.setHint(syntaxHints[Math.max(0, Math.min(syntaxHints.length - 1, position))]);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        String[] actionOptions = {"OBSERVE", "RETURN_TRUE", "RETURN_FALSE", "RETURN_NULL",
+                "RETURN_ZERO", "RETURN_EMPTY_STRING", "RETURN_LITERAL", "RETURN_ARGUMENT_0",
+                "RETURN_THIS", "NO_OP_VOID"};
+        Spinner action = new Spinner(this);
+        ArrayAdapter<String> actionAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, actionOptions);
+        actionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        action.setAdapter(actionAdapter);
         EditText literalValue = new EditText(this);
         literalValue.setSingleLine(true);
         literalValue.setHint("RETURN_LITERAL：String 文本、boolean/byte/short/int/long/float/double；char 填 0–65535 数值码");
+        action.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long id) {
+                literalValue.setEnabled("RETURN_LITERAL".equals(actionOptions[position]));
+                literalValue.setAlpha(literalValue.isEnabled() ? 1.0f : 0.55f);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
         EditText group = new EditText(this);
         group.setSingleLine(true);
         group.setText("默认");
@@ -5529,9 +5686,15 @@ public final class MainActivity extends ComponentActivity {
             String[] existing = presetDescriptor.split("\\|", -1);
             id.setText(existing[0]);
             descriptor.setText(existing[1]);
-            action.setText(getPreferences(0).getString(
+            String savedAction = getPreferences(0).getString(
                     selectedPackage + ":dev_rule_base_" + editingSlot,
-                    "OFF".equalsIgnoreCase(existing[2]) ? "OBSERVE" : existing[2]));
+                    "OFF".equalsIgnoreCase(existing[2]) ? "OBSERVE" : existing[2]);
+            for (int option = 0; option < actionOptions.length; option++) {
+                if (actionOptions[option].equalsIgnoreCase(savedAction)) {
+                    action.setSelection(option);
+                    break;
+                }
+            }
             if (existing.length == 5) literalValue.setText(existing[4]);
             group.setText(getPreferences(0).getString(
                     selectedPackage + ":dev_rule_group_" + editingSlot, "默认"));
@@ -5549,6 +5712,7 @@ public final class MainActivity extends ComponentActivity {
         help.setTextColor(0xff687681);
         help.setPadding(0, dp(6), 0, dp(8));
         form.addView(id);
+        form.addView(syntax);
         form.addView(descriptor);
         form.addView(action);
         form.addView(literalValue);
@@ -5563,7 +5727,7 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("保存", (dialog, which) -> {
                     String ruleId = id.getText().toString().trim();
                     String method = descriptor.getText().toString().trim();
-                    String actionText = action.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
+                    String actionText = String.valueOf(action.getSelectedItem()).trim().toUpperCase(java.util.Locale.ROOT);
                     String groupName = group.getText().toString().trim();
                     String priorityText = priority.getText().toString().trim();
                     if (!validCustomRuleGroupName(groupName)) {
@@ -6092,86 +6256,198 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderCustomRules() {
-        for (String groupName : getCustomRuleGroups()) {
-            LinearLayout groupRows = new LinearLayout(this);
-            groupRows.setOrientation(LinearLayout.VERTICAL);
-            int groupCount = 0;
-            for (int i = 1; i <= 64; i++) {
-                String key = selectedPackage + ":dev_rule_" + i;
-                String value = getPreferences(0).getString(key, null);
-                if (value == null) continue;
-                String ruleGroup = getPreferences(0).getString(
-                        selectedPackage + ":dev_rule_group_" + i, "默认");
-                if (!groupName.equals(ruleGroup)) continue;
-                String[] parts = value.split("\\|", -1);
-                if (parts.length != 4 && parts.length != 5) continue;
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        java.util.List<String> options = new java.util.ArrayList<>();
+        options.add("全部分组");
+        options.addAll(groups);
+        Spinner groupFilter = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, options);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        groupFilter.setAdapter(adapter);
 
-                final int slot = i;
-                String baseAction = getPreferences(0).getString(
-                        selectedPackage + ":dev_rule_base_" + slot,
-                        "OFF".equals(parts[2]) ? "OBSERVE" : parts[2]);
-                boolean active = !"OFF".equalsIgnoreCase(parts[2]);
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.VERTICAL);
-                row.setPadding(dp(12), dp(6), dp(12), dp(6));
-                row.setBackground(uiPanelDrawable());
-                TextView item = new TextView(this);
-                item.setText(parts[0] + " · " + parts[1] + "\\n动作：" + baseAction
-                        + (parts.length == 5 ? " · 常量：" + parts[4] : "")
-                        + " · 优先级：" + parts[3] + (active ? "" : " · 已暂停"));
-                item.setTextSize(12);
-                item.setTextColor(0xff596775);
-                row.addView(item);
+        EditText searchFilter = new EditText(this);
+        searchFilter.setSingleLine(true);
+        searchFilter.setHint("搜索规则 ID、方法签名、动作或分组");
+        content.addView(groupFilter);
+        content.addView(searchFilter);
 
-                Switch enabled = new Switch(this);
-                enabled.setText("启用规则");
-                enabled.setChecked(active);
-                enabled.setOnCheckedChangeListener((button, checked) -> {
-                    String[] current = getPreferences(0).getString(key, "").split("\\|", -1);
-                    if (current.length != 4 && current.length != 5) return;
-                    String currentBase = getPreferences(0).getString(
+        TextView summary = new TextView(this);
+        summary.setTextColor(0xff617080);
+        summary.setPadding(dp(18), dp(5), dp(18), dp(5));
+        content.addView(summary);
+
+        LinearLayout ruleRows = new LinearLayout(this);
+        ruleRows.setOrientation(LinearLayout.VERTICAL);
+        content.addView(ruleRows, new LinearLayout.LayoutParams(-1, -2));
+
+        Runnable render = () -> {
+            ruleRows.removeAllViews();
+            String selectedGroup = groupFilter.getSelectedItemPosition() <= 0
+                    ? "" : String.valueOf(groupFilter.getSelectedItem());
+            String needle = searchFilter.getText() == null ? ""
+                    : searchFilter.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            int total = 0, activeCount = 0, invalidCount = 0, shown = 0;
+
+            for (String groupName : getCustomRuleGroups()) {
+                if (!selectedGroup.isEmpty() && !selectedGroup.equals(groupName)) continue;
+                LinearLayout groupRows = new LinearLayout(this);
+                groupRows.setOrientation(LinearLayout.VERTICAL);
+                int groupCount = 0;
+                for (int slot = 1; slot <= 64; slot++) {
+                    String ruleKey = selectedPackage + ":dev_rule_" + slot;
+                    String value = getPreferences(0).getString(ruleKey, null);
+                    if (value == null) continue;
+                    String[] parts = value.split("\\\\|", -1);
+                    if (parts.length != 4 && parts.length != 5) {
+                        total++;
+                        invalidCount++;
+                        continue;
+                    }
+                    String ruleGroup = getPreferences(0).getString(
+                            selectedPackage + ":dev_rule_group_" + slot, "默认");
+                    ruleGroup = validCustomRuleGroupName(ruleGroup) ? ruleGroup.trim() : "默认";
+                    if (!groupName.equals(ruleGroup)) continue;
+
+                    total++;
+                    String baseAction = getPreferences(0).getString(
                             selectedPackage + ":dev_rule_base_" + slot,
-                            "OFF".equals(current[2]) ? "OBSERVE" : current[2]);
-                    current[2] = checked ? currentBase : "OFF";
-                    getPreferences(0).edit()
-                            .putString(key, current[0] + "|" + current[1] + "|" + current[2] + "|" + current[3]
-                                    + (current.length == 5 ? "|" + current[4] : ""))
-                            .putString(selectedPackage + ":dev_rule_base_" + slot, currentBase)
-                            .apply();
-                });
-                row.addView(enabled);
+                            "OFF".equalsIgnoreCase(parts[2]) ? "OBSERVE" : parts[2]);
+                    String validation = parts[0] + "|" + parts[1] + "|" + baseAction + "|" + parts[3]
+                            + (parts.length == 5 ? "|" + parts[4] : "");
+                    DeveloperHookRule parsed = DeveloperHookRule.parse(validation, selectedPackage);
+                    boolean valid = parsed != null;
+                    boolean active = !"OFF".equalsIgnoreCase(parts[2]);
+                    if (active) activeCount++;
+                    if (!valid) invalidCount++;
 
-                Button moveGroup = new Button(this);
-                moveGroup.setText("移动到分组");
-                moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(slot));
-                row.addView(moveGroup);
+                    String searchable = parts[0] + " " + parts[1] + " " + baseAction
+                            + " " + ruleGroup + " " + parts[3];
+                    if (!needle.isEmpty() && !searchable.toLowerCase(java.util.Locale.ROOT).contains(needle))
+                        continue;
 
-                Button editRule = new Button(this);
-                editRule.setAllCaps(false);
-                editRule.setText("编辑规则");
-                editRule.setOnClickListener(v -> showEditCustomRuleDialog(slot));
-                row.addView(editRule);
+                    final int currentSlot = slot;
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(dp(12), dp(7), dp(12), dp(7));
+                    row.setBackground(uiPanelDrawable());
 
-                Button remove = new Button(this);
-                remove.setText("删除 " + parts[0]);
-                remove.setOnClickListener(v -> {
-                    getPreferences(0).edit().remove(key)
-                            .remove(selectedPackage + ":dev_rule_base_" + slot)
-                            .remove(selectedPackage + ":dev_rule_group_" + slot).apply();
-                    ApplicationInfo ai = findApp(selectedPackage);
-                    if (ai != null) showTarget(ai);
-                });
-                row.addView(remove);
-                groupRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
-                groupCount++;
+                    TextView item = new TextView(this);
+                    item.setText(parts[0] + " · " + baseAction
+                            + "\\n" + parts[1]
+                            + (parts.length == 5 ? "\\n常量：" + parts[4] : "")
+                            + "\\n分组：" + ruleGroup + " · 优先级：" + parts[3]
+                            + (active ? " · 已启用" : " · 已暂停")
+                            + (valid ? "" : " · 签名/动作无效"));
+                    item.setTextSize(12);
+                    item.setTextColor(valid ? 0xff596775 : 0xff9b2c2c);
+                    row.addView(item);
+
+                    Switch enabled = new Switch(this);
+                    enabled.setText(valid ? "启用规则（保存后发布）" : "规则无效，禁止启用");
+                    enabled.setChecked(active);
+                    enabled.setEnabled(valid);
+                    enabled.setOnCheckedChangeListener((button, checked) -> {
+                        String current = getPreferences(0).getString(ruleKey, null);
+                        String[] fields = current == null ? new String[0] : current.split("\\\\|", -1);
+                        if (fields.length != 4 && fields.length != 5) {
+                            button.setChecked(false);
+                            Toast.makeText(this, "规则数据已变化或损坏，请刷新列表。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        String currentBase = getPreferences(0).getString(
+                                selectedPackage + ":dev_rule_base_" + currentSlot,
+                                "OFF".equalsIgnoreCase(fields[2]) ? "OBSERVE" : fields[2]);
+                        String currentValidation = fields[0] + "|" + fields[1] + "|" + currentBase + "|" + fields[3]
+                                + (fields.length == 5 ? "|" + fields[4] : "");
+                        if (DeveloperHookRule.parse(currentValidation, selectedPackage) == null) {
+                            button.setChecked(false);
+                            Toast.makeText(this, "签名或动作校验失败，未修改规则。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        fields[2] = checked ? currentBase : "OFF";
+                        boolean saved = getPreferences(0).edit()
+                                .putString(ruleKey, fields[0] + "|" + fields[1] + "|" + fields[2] + "|" + fields[3]
+                                        + (fields.length == 5 ? "|" + fields[4] : ""))
+                                .putString(selectedPackage + ":dev_rule_base_" + currentSlot, currentBase)
+                                .commit();
+                        if (!saved) {
+                            button.setChecked(!checked);
+                            Toast.makeText(this, "规则状态保存失败。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        render.run();
+                    });
+                    row.addView(enabled);
+
+                    LinearLayout actions = new LinearLayout(this);
+                    Button moveGroup = new Button(this);
+                    moveGroup.setAllCaps(false);
+                    moveGroup.setText("移动分组");
+                    moveGroup.setOnClickListener(v -> showCustomRuleGroupPicker(currentSlot));
+                    Button editRule = new Button(this);
+                    editRule.setAllCaps(false);
+                    editRule.setText("编辑");
+                    editRule.setOnClickListener(v -> showEditCustomRuleDialog(currentSlot));
+                    Button remove = new Button(this);
+                    remove.setAllCaps(false);
+                    remove.setText("删除");
+                    remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+                            .setTitle("删除 Hook 规则")
+                            .setMessage("删除规则“" + parts[0] + "”？此操作只移除此目标应用的本地规则草稿；需要再次发布后才会同步到 Hook 运行配置。")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("删除", (dialog, which) -> {
+                                boolean deleted = getPreferences(0).edit().remove(ruleKey)
+                                        .remove(selectedPackage + ":dev_rule_base_" + currentSlot)
+                                        .remove(selectedPackage + ":dev_rule_group_" + currentSlot)
+                                        .commit();
+                                if (!deleted) {
+                                    Toast.makeText(this, "规则删除失败，配置未确认保存。", Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                                ApplicationInfo target = findApp(selectedPackage);
+                                if (target != null) showTarget(target);
+                            }).show());
+                    actions.addView(moveGroup, new LinearLayout.LayoutParams(0, -2, 1));
+                    actions.addView(editRule, new LinearLayout.LayoutParams(0, -2, 1));
+                    actions.addView(remove, new LinearLayout.LayoutParams(0, -2, 1));
+                    row.addView(actions);
+                    groupRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                    groupCount++;
+                    shown++;
+                }
+                if (groupCount > 0) {
+                    TextView heading = title(groupName + " · " + groupCount + " 条规则", 14);
+                    heading.setPadding(dp(18), dp(8), dp(18), dp(4));
+                    ruleRows.addView(heading);
+                    ruleRows.addView(groupRows, new LinearLayout.LayoutParams(-1, -2));
+                }
             }
-            if (groupCount > 0) {
-                TextView heading = title(groupName + " · " + groupCount + " 条规则", 14);
-                heading.setPadding(dp(18), dp(8), dp(18), dp(4));
-                content.addView(heading);
-                content.addView(groupRows, new LinearLayout.LayoutParams(-1, -2));
+            int paused = Math.max(0, total - activeCount);
+            summary.setText("规则总数：" + total + " · 已启用：" + activeCount
+                    + " · 已暂停：" + paused + " · 格式异常：" + invalidCount
+                    + " · 当前匹配：" + shown + " / 64");
+            if (shown == 0) {
+                TextView empty = new TextView(this);
+                empty.setText(total == 0
+                        ? "当前应用尚未配置自定义 Hook 规则。点击“新增自定义 Hook 规则”创建第一条规则。"
+                        : "没有符合当前分组或搜索条件的规则。请调整筛选条件。");
+                empty.setTextColor(0xff697681);
+                empty.setPadding(dp(18), dp(18), dp(18), dp(18));
+                ruleRows.addView(empty);
             }
-        }
+        };
+        groupFilter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long id) { render.run(); }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+        searchFilter.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { render.run(); }
+            @Override public void afterTextChanged(Editable editable) { }
+        });
+        render.run();
     }
 
     private boolean enabled(String pkg, String feature) {
