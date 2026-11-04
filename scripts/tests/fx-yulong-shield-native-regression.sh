@@ -414,7 +414,7 @@ assert "startActivityForResult(intent, REQUEST_BATCH_CLEANUP);" in scan_page, "S
 assert "if (requestCode != REQUEST_BATCH_CLEANUP) return;" in scan_page, "Only the cleanup queue result may invalidate the scan"
 assert "selectedForCleanup.clear();" in scan_page and "restoreRequiresRescan = true;" in scan_page, "Returning from cleanup must invalidate stale scan selections"
 assert "原扫描结果可能已过期。请重新扫描后再处理。" in scan_page, "Stale scan results must be explained to the user"
-assert "if (scanScroll == scroll && scroll.getParent() != null)" in scan_page, "Stale scan scroll callbacks must not move a replacement page"
+assert "if (!isFinishing() && !isDestroyed() && scanScroll == scroll && scroll.getParent() != null)" in scan_page, "Stale scan scroll callbacks must be lifecycle- and container-guarded"
 assert "resultRows.removeAllViews()" in scan_page and "resultRows.addView(item" in scan_page
 assert "findings.removeAllViews()" not in scan_page
 
