@@ -3059,13 +3059,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 下一步：复跑 SAF/Frida 页面回归；核对文件选择取消、Activity 重建时 SAF URI/确认弹窗状态；随后推进 Frida Server/Gadget 页面生命周期与返回链。未做真机 SAF 文件提供器验收。
 
 
-## 2026-11-05 — Dia Frida 脚本库导入确认修复
+## 2026-11-05 — Dia SystemExpand 页面滚动状态恢复
 
-- 基于最新提交链完成：产品代码提交 `279a71854bdad98c6b628027204df7310366f209`；回归断言提交 `3cfe8354d0dffa85a6b470e116dd7d550ced44df`。
-- 页面：Dia 23.11 → Frida → JS 脚本库 → SAF JSON 导入预览/确认。
-- 缺陷：预览 UI 已列出同名脚本覆盖清单，但确认回调使用不带确认名单的 Store 重载；Store 按安全契约拒绝未经明确授权的覆盖，导致用户确认后仍导入失败。
-- 修复：确认回调传入预览中显示的 `preview.overwrittenNames`。Store 在同步锁内重新读取并校验；预览后新增的同名冲突仍拒绝并要求重新预览。
-- 改动路径：`FxDiaScriptLibraryActivity.java`、`fx-dia-script-library-regression.sh`、本状态文件。
-- 验证：静态检查确认 UI 预览名单进入 Store 显式确认参数；新增回归断言。尚未执行本地 JVM、Android Gradle、UI 自动化或真机。对应 Actions 待读取。
-- 未完成：SAF 在不同 DocumentsProvider 上的设备行为未验收；脚本导入不会自动执行。
-- 下一批：读取当前 Dia targeted Actions 后续首错；继续 Frida 脚本库/编辑器的冲突、保存/返回状态和 Frida server/injector/gadget 会话页。
+- 基于分支 HEAD：`efef72b3f947a088c57cfe38dc796153e612f951`。
+- 问题：SystemExpand 原生页有独立 ScrollView 与多项系统设置入口，但没有 `onSaveInstanceState`，旋转/Activity 重建会回到页面顶部。
+- 修改：保存 `fx_dia_system_expand_scroll_y`；重建时在布局完成后恢复 scrollY，并检查 Activity 未销毁、ScrollView 仍是当前实例且仍挂在页面树上，避免旧回调移动新页面。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSystemExpandActivity.java`、`scripts/tests/fx-dia-system-expand-navigation-regression.sh`、本状态文件。
+- 验证：targeted 回归新增 7 个状态保存/恢复锚点；当前仅源码静态核对，尚未执行 Actions/Android 构建/设备旋转测试。
+- 下一步：读取本提交 Actions；随后继续 Dia 原生页面的 Activity 浏览器/系统扩展返回链，并复跑 Hook 原生 UI回归。
