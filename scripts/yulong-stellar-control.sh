@@ -264,7 +264,7 @@ sync_packages(){
   for pkg in "$@"; do
     valid_pkg "$pkg" || { echo "invalid package in Stellar whitelist sync" >&2; return 2; }
     if ! grep -Fxq "$pkg" "$_PKG_SYNC_TEMP"; then
-      printf '%s\\n' "$pkg" >> "$_PKG_SYNC_TEMP" || return 1
+      printf '%s\n' "$pkg" >> "$_PKG_SYNC_TEMP" || return 1
       count=$((count+1))
     fi
   done
@@ -273,8 +273,7 @@ sync_packages(){
   # only remove stale grants; it can never grant a package that was not kept.
   for file in "$ALWAYS" "$SCOPES"; do
     begin_state_temp "$file" || return 1
-    awk -F '\\t' 'FILENAME==ARGV[1]{keep[$0]=1;next} keep[$1]{print}' \\
-      "$_PKG_SYNC_TEMP" "$file" > "$_STELLAR_TEMP" || return 1
+    awk -F '\t' 'FILENAME==ARGV[1]{keep[$0]=1;next} keep[$1]{print}' "$_PKG_SYNC_TEMP" "$file" > "$_STELLAR_TEMP" || return 1
     commit_state_temp "$file" || return 1
   done
   begin_state_temp "$PKGS" || return 1
