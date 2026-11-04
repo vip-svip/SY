@@ -290,6 +290,10 @@ batch_cleanup = shield["FxYulongBatchCleanupActivity.java"]
 engine = shield["FxYulongScanEngine.java"]
 db = shield["FxYulongVirusDb.java"]
 content_db = shield["FxYulongVirusContentDb.java"]
+virus_db = db
+scan_activity = scan_page
+warning_activity = shield["FxYulongWarningActivity.java"]
+virus_db_test = (repo_root / "adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java").read_text(encoding="utf-8")
 
 # Five-list cache metadata distinguishes attempts from successful cache writes.
 for token in (
