@@ -1317,3 +1317,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交 `71a063097136579e9bbe63c08bc9eea83e98fe32` 扩展 `scripts/tests/fx-dia-native-tab-regression.sh`，把 GPS Picker、Session Log 纳入页面集合并断言上述状态恢复锚点。
 - 静态核验：两页共享宿主接线和状态键均存在；回归脚本已纳入两页。未运行完整 Shell、Gradle/Android 编译、模拟器/真机点按与旋转验收。
 - 下一步：检查尚未迁移的 Dia Signature / System Expand / Wi-Fi Proxy 页面；同时推进 Shield Batch Cleanup / Screen Filter。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
+
+## 2026-11-05 — Shield Batch Cleanup / Screen Filter 与 Dia Session Log 六 Tab 接入
+
+- 本节更新前实时 HEAD：`9c57dbb1f3ef01cea3146a4df72e358f06668b14`。
+- 新接入三个独立 Activity：
+  - `FxYulongBatchCleanupActivity.java` — `9e634c561d492a93874b11209ac9676d5d085b63`。
+  - `FxYulongScreenFilterActivity.java` — `239b1e6358147cb1159b6e7b717cdd4d5920dbb1`。
+  - `FxDiaSessionLogActivity.java` — `6aaf833a613ec3e9aa060ccd71d98fe3c6a6d90c`（由并行工作线先提交，当前源码已复核）。
+- 更新回归入口：
+  - `scripts/tests/fx-yulong-shield-six-tab-regression.sh` — `fca6e7ee36b468d30f28b61b1b54214e8a718655`，增加 Batch Cleanup / Screen Filter 两页。
+  - `scripts/tests/fx-dia-six-tab-regression.sh` — `a76f4324d78110ff7976c8cd10b403dc8d05083e`，增加 Session Log。
+- 当前 HEAD 静态核验 6 项通过：三页继承共享 `FxNativeTabActivity`、使用唯一六 Tab 根安装点、Manifest 有声明、两个回归脚本包含目标页面。Shield 七页原有六 Tab 与管控弹窗状态恢复检查仍在。
+- 同步接管并行 Dia ActivityKey 冲突检查：`e2f3fb4a0bf9e8f8e85db764f31d7796263c63bf`、`b82e8933636b3fabb652d5e391e9f3337ff0ec38`、`65821e8c007fdd44917154b38c09e6c134e53336`、`7d4d136d964a7ba4aea9ae40010159540d8d546d`、`9fb7e8a28454a335fd320c8827aeafa0eb22249c` 已连续处理 UI/Parser/Serializer/Host 中重叠 ActivityKey 触发配置；不重复修改。该逻辑仍需检查实际目标进程触发与误触边界。
+- 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器或真机 Tab 点击/返回验收；本批 6 项是从最新 GitHub 文件读取后的静态检查。
+- 未更改六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+- 下一批继续：Dia Signature / System Expand / Wi-Fi Proxy 的原生入口与返回链；并检查 Shield Batch Cleanup 的系统确认结果回传及 Screen Filter Accessibility 服务状态是否准确反映真实连接状态。
