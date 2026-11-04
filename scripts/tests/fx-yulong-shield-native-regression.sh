@@ -481,7 +481,14 @@ assert "setMultiChoiceItems(names, checked" not in black
 # Whitelist and blacklist pages retain their visible position and active filters
 # when Android recreates their Activities.
 assert 'STATE_QUERY = "fx_shield_whitelist_query"' in white
+assert 'STATE_PAGE = "fx_shield_whitelist_page"' in white
 assert 'STATE_SCROLL_Y = "fx_shield_whitelist_scroll_y"' in white
+assert "WHITELIST_PAGE_SIZE = 50" in white, "Whitelist list must render in bounded 50-row batches"
+assert "whitelistPage * WHITELIST_PAGE_SIZE" in white, "Whitelist page must cap the number of materialized row views"
+assert 'more.setText("加载更多（已显示 "' in white, "Whitelist list must expose progressive loading"
+assert "whitelistPage = 1;" in white and "refreshWhitelistUI();" in white, "Changing the search query must restart from the first result page"
+assert white.index("searchInput.setText(query)") < white.index("whitelistPage = Math.max(1, Math.min(200, savedInstanceState.getInt(STATE_PAGE, 1)))"), "Saved whitelist page must be restored after the search watcher is invoked"
+assert "outState.putInt(STATE_PAGE" in white, "Whitelist page must survive Activity recreation"
 assert "onSaveInstanceState(Bundle outState)" in white
 assert "outState.putString(STATE_QUERY" in white and "outState.putInt(STATE_SCROLL_Y" in white
 assert "searchInput.setText(query)" in white and "whitelistScroll.scrollTo(0, restoreY)" in white
