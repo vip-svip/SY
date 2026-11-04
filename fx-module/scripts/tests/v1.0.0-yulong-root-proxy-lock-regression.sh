@@ -10,6 +10,10 @@ PG="$TMP/state"
 BIN="$TMP/bin"
 mkdir -p "$MOD/scripts" "$PG" "$BIN"
 printf 'id=privacyguard\n' > "$MOD/module.prop"
+cat > "$PG/settings.conf" <<'CONF'
+[list:yulong_root_proxy_whitelist]
+CONF
+chmod 600 "$PG/settings.conf"
 printf "%s\n" "# test utility stub" > "$MOD/scripts/util.sh"
 for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
@@ -44,6 +48,10 @@ SH
 chmod 0755 "$BIN/sleep"
 export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"
 LOCK="$PG/yulong-root-proxy.lock"
+[ -f "$PG/settings.conf" ] || {
+  echo "FAIL: test fixture did not create canonical settings.conf" >&2
+  exit 1
+}
 
 grep -Fq '( umask 077; set -C; printf ' "$SOURCE" || {
   echo "FAIL: Root Proxy lock must use private noclobber file creation" >&2; exit 1;
