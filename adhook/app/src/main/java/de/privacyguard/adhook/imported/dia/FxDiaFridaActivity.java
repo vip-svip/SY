@@ -2396,23 +2396,15 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private void showSessionLog() {
-        String log = sessionLogPath();
-        if (log.isEmpty()) {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
-        runRoot("if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
-                + " ] && [ -s " + quote(log) + " ]; then tail -n 500 " + quote(log)
-                + "; else echo '当前目标暂无安全可读的注入日志。'; fi", 12000L, result -> {
-            TextView viewer = text(result.output, 12, 0xff334155, false);
-            viewer.setTextIsSelectable(true);
-            viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
-            ScrollView scroll = new ScrollView(this);
-            scroll.addView(viewer);
-            new AlertDialog.Builder(this).setTitle("Frida 会话日志 · " + targetName)
-                    .setView(scroll).setPositiveButton("关闭", null).show();
-            setStatus("日志读取退出码 " + result.exitCode);
-        });
+        Intent page = new Intent(this, FxDiaSessionLogActivity.class);
+        page.putExtra("fx_dia_session_log_target_package", targetPackage);
+        page.putExtra("fx_dia_session_log_target_name",
+                targetName == null ? targetPackage : targetName);
+        startActivity(page);
     }
 
     private void showMonitorEvents() {
