@@ -57,6 +57,9 @@ public final class UnifiedHookConfigParser {
         public String simulatedAndroidId;
         public boolean timeZoneSimulation;
         public String simulatedTimeZone;
+        public boolean appVersionSimulation;
+        public String simulatedVersionName;
+        public long simulatedVersionCode;
         public String developerVipMethod;
         public String developerLoginMethod;
         public String developerHideUpdateMethod;
@@ -295,6 +298,9 @@ public final class UnifiedHookConfigParser {
             String simulatedAndroidId=null;
             boolean timeZoneSimulation=false;
             String simulatedTimeZone=null;
+            boolean appVersionSimulation=false;
+            String simulatedVersionName=null;
+            Long simulatedVersionCode=null;
             String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
             boolean developerHooksEnabled = false;
             List<DeveloperHookRule> developerRules = new ArrayList<>();
@@ -361,6 +367,23 @@ public final class UnifiedHookConfigParser {
                     }
                     if (!known) throw new IllegalArgumentException("unknown simulated time zone");
                     simulatedTimeZone = value;
+                    continue;
+                }
+                if ("app_version_name_b64".equals(key)) {
+                    simulatedVersionName = decodeDeveloperRuleValue(value);
+                    if (simulatedVersionName.isEmpty()
+                            || simulatedVersionName.getBytes(StandardCharsets.UTF_8).length > 128)
+                        throw new IllegalArgumentException("simulated app version name exceeds 128 bytes");
+                    for (int n=0;n<simulatedVersionName.length();n++)
+                        if (Character.isISOControl(simulatedVersionName.charAt(n)))
+                            throw new IllegalArgumentException("simulated app version name contains control characters");
+                    continue;
+                }
+                if ("app_version_code".equals(key)) {
+                    try { simulatedVersionCode = Long.valueOf(value); }
+                    catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated app version code"); }
+                    if (simulatedVersionCode < 0L || simulatedVersionCode > 2147483647L)
+                        throw new IllegalArgumentException("simulated app version code out of range");
                     continue;
                 }
                 if ("dev_hook_enabled".equals(key)) {
@@ -431,7 +454,8 @@ public final class UnifiedHookConfigParser {
                     case "location_provider_enabled_simulate": locationProviderEnabledSimulation = on; break;
                     case "android_id_simulate": androidIdSimulation = on; break;
                     case "time_zone_simulate": timeZoneSimulation = on; break;
-                    case "notification_listen_block": notificationListenBlock = on; break;
+                    case "app_version_simulate": appVersionSimulation = on; break;
+                    case "notification_listen_block": notificationListenBlock = on;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
                     case "camera_access_block": cameraAccessBlock = on; break;
@@ -487,6 +511,13 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("time_zone requires time_zone_simulate=1");
             parsedTarget.timeZoneSimulation = timeZoneSimulation;
             parsedTarget.simulatedTimeZone = simulatedTimeZone;
+            if (appVersionSimulation && (simulatedVersionName == null || simulatedVersionCode == null))
+                throw new IllegalArgumentException("app version simulation requires version name and code");
+            if (!appVersionSimulation && (simulatedVersionName != null || simulatedVersionCode != null))
+                throw new IllegalArgumentException("app version values require app_version_simulate=1");
+            parsedTarget.appVersionSimulation = appVersionSimulation;
+            parsedTarget.simulatedVersionName = simulatedVersionName;
+            parsedTarget.simulatedVersionCode = simulatedVersionCode == null ? 0L : simulatedVersionCode;
             targets.put(pkg, parsedTarget);
         }
 

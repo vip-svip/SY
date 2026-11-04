@@ -76,7 +76,18 @@ public final class UnifiedHookConfigSerializer {
                     .append(",mic_access_block=").append(target.microphoneAccessBlock ? '1' : '0')
                     .append(",media_store_query_block=").append(target.mediaStoreQueryBlock ? '1' : '0')
                     .append(",ad_id_unify=").append(target.adIdUnify ? '1' : '0')
+                    .append(",app_version_simulate=").append(target.appVersionSimulation ? '1' : '0')
                     .append(",dev_hook_enabled=").append(target.developerHooksEnabled ? '1' : '0');
+            if (target.appVersionSimulation) {
+                if (target.simulatedVersionName == null || target.simulatedVersionName.isEmpty()
+                        || target.simulatedVersionName.getBytes(StandardCharsets.UTF_8).length > 128
+                        || target.simulatedVersionCode < 0L || target.simulatedVersionCode > 2147483647L)
+                    throw new IllegalArgumentException("invalid simulated application version");
+                String encodedVersionName = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(target.simulatedVersionName.getBytes(StandardCharsets.UTF_8));
+                out.append(",app_version_name_b64=").append(encodedVersionName)
+                        .append(",app_version_code=").append(target.simulatedVersionCode);
+            }
             int ruleIndex = 1;
             for (DeveloperHookRule rule : target.developerRules) {
                 if (rule == null || ruleIndex > UnifiedHookConfigParser.MAX_DEVELOPER_RULES_PER_TARGET)
