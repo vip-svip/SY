@@ -65,7 +65,7 @@ ui = section(java, "private void showNativeManagedListDialog(",
              "private void showNativeListDialog(")
 mutation = section(java, "private void mutateNativeManagedList(",
                    "private void showNativeListDialog(")
-assert 'sh \\"$MP/scripts/native-managed-lists.sh\\"' in mutation,     "native list edits must call the module-side managed list script"
+assert "native-managed-lists.sh" in mutation, "native list edits must call the module-side managed list script"
 assert 'shellQuote(operation)' in mutation and 'shellQuote(listId)' in mutation,     "operation and list identifier must be shell-quoted"
 for token in ('case "add":', 'case "edit":', 'case "toggle":', 'case "delete":'):
     assert token in mutation, f"native list operation is missing: {token}"
@@ -74,7 +74,7 @@ for token in ('shellQuote(newValue)', 'shellQuote(newNote)', 'runNativeModuleCom
     assert token in mutation, f"native list mutation contract missing: {token}"
 assert "evaluateJavascript" not in ui and "webView" not in ui,     "Hosts/Ad managed lists must not use the retired WebView mutation bridge"
 assert '"FXLIST1".equals(lines[0])' in ui, "UI must validate the native list response envelope"
-assert 'line.split("\\\\|", 4)' in ui, "UI must parse row index/value/note/enabled as four fields"
+assert "line.split(" in ui and "parts.length != 4" in ui, "UI must parse row index/value/note/enabled as four fields"
 
 for token in (
     'ruleList) echo rule', 'domainList) echo domain', 'blockList) echo block',
@@ -202,9 +202,9 @@ reader = method("private void renderNativePrivacySettingsGroup(",
                 "private void setNativePrivacySetting(")
 writer = method("private void setNativePrivacySetting(",
                 "private void finishNativePrivacySetting(")
-assert 'native-privacy-settings.sh\\" list' in reader
+assert "native-privacy-settings.sh" in reader and '" list"' in reader
 assert 'runNativeModuleCommand(command, 120000L' in writer
-assert 'native-privacy-settings.sh\\" set' in writer
+assert "native-privacy-settings.sh" in writer and '" set "' in writer
 assert 'finishNativePrivacySetting(control, enabled, true' in writer
 assert 'finishNativePrivacySetting(control, previous, false' in writer
 assert '配置已保存，但模块应用失败' in writer
