@@ -5230,7 +5230,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(saveTimeZone);
         section("位置隐私");
         TextView gpsNote = new TextView(this);
-        gpsNote.setText("GPS 测试模拟仅对所选 debuggable 应用生效：覆盖 LocationManager.getLastKnownLocation()，并统一模拟该进程读取 Location.getLatitude()/getLongitude()/getAccuracy() 的结果（含返回 Location 对象的 Fused 回调）。不改变系统 GPS/GNSS provider、真实定位硬件或其他应用。");
+        gpsNote.setText("GPS 测试模拟仅对所选 debuggable 应用生效：覆盖 LocationManager.getLastKnownLocation()，并统一模拟该进程读取 Location.getLatitude()/getLongitude()/getAccuracy() 的结果；Fused 回调返回的 Location 对象也只在目标应用读取这些 getter 时显示测试值。不改变回调注册、系统 GPS/GNSS provider、真实定位硬件或其他应用。");
         gpsNote.setTextColor(0xff697681);
         gpsNote.setPadding(dp(18), dp(2), dp(18), dp(8));
         content.addView(gpsNote);
