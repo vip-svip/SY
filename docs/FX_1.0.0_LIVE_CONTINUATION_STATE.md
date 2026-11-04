@@ -1681,3 +1681,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：最新 HEAD 静态检查确认 Bundle mode/value/slot/choice、列表/actions/delete/picker 恢复分支、选择索引恢复、目标包草稿、统一事务 commit 与失败回滚路径及测试断言存在。未运行完整 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机旋转/写盘故障注入。
 - 失败路线：一次测试断言仍检查旧的直接 `putString().commit()`，而并行实现已统一到 `commitCustomRuleGroupUpdate`；已根据实际源码契约更新断言，不改变产品逻辑。没有重复触发完整 Actions。
 - 下一步：核对分组新增/重命名输入长度过滤与删除/移动冲突提示；随后在可用环境执行 Hook/Dia Host 回归脚本并读取具体失败日志。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 规则分组名称输入边界
+
+- 在新增/重命名分组的原生 EditText 上添加 24 字符长度过滤器，与现有 `validCustomRuleGroupName` 校验上限一致；目标包级草稿恢复仍然生效，超长输入不会持续写入偏好。
+- 回归脚本增加新增与重命名两个输入框的长度过滤断言。
+- 提交：`cebf81ff65f0ed7005fbe8dc32999e42b5f33df5`（输入过滤）；`811ebbc1839c3e28bef5a56126a06e349b188e1b`、`d4913ae9bada8fd4d513f751ae673a4e63c1ea63`（回归断言及结果提示）。
+- 验证：最新 HEAD 静态确认两个编辑框均有 24 字符限制，现有规则分组事务/回滚和 Bundle 恢复保持存在；未运行完整 Shell 回归或 Android UI/真机输入测试。
+- 下一步：检查 Hook 自定义规则/分组相关脚本的 Host 测试执行入口与可用性，修复测试实际失败而非继续堆叠静态断言；之后转向 Hook 页面真实状态/权限显示或下一组 UI。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
