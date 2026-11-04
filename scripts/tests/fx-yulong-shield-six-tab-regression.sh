@@ -57,7 +57,7 @@ assert "Intent.ACTION_DELETE" in scan and 'setPositiveButton("打开系统确认
 assert "Intent.ACTION_DELETE" in rescue
 assert "FxYulongRescueActivity.class" in hub
 assert "FxYulongDailySummaryActivity.class" in hub
-assert "FxYulongWarningActivity.class" in hub
+assert "FxYulongWarningActivity.class" in scan
 assert "FxYulongVirusDatabaseActivity.class" in hub
 for key in ("STATE_PICKER_OPEN", "STATE_PICKER_QUERY", "STATE_PICKER_PAGE", "STATE_PICKER_STAGED", "STATE_PICKER_SCROLL_Y"):
     assert key in black, f"Blacklist picker state missing: {key}"
