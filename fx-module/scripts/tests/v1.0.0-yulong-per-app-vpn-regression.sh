@@ -11,6 +11,7 @@ EOF
 cp "$SOURCE_DIR/scripts/util.sh" "$T/module/scripts/util.sh"
 cat > "$T/module/scripts/apply.sh" <<'EOF'
 #!/system/bin/sh
+[ "${FX_TEST_APPLY_DELAY:-0}" = "1" ] && sleep 1
 [ "${FX_TEST_APPLY_FAIL:-0}" = "1" ] && exit 17
 exit 0
 EOF
@@ -60,6 +61,38 @@ run apply-remove com.example.alpha
 if run master 1 >/dev/null 2>&1; then
   echo "master switch enabled with an empty app list" >&2; exit 1
 fi
+# Concurrent app-list writes must serialize through one transaction lock.
+run_delayed() {
+  env MP="$T/module" PG="$T/pg" CONF="$T/pg/settings.conf" FX_TEST_APPLY_DELAY=1 \
+    sh "$SCRIPT" "$@"
+}
+run_delayed apply-item com.example.concurrent_a 1 > "$T/concurrent-a.log" 2>&1 &
+pid_a=$!
+run_delayed apply-item com.example.concurrent_b 1 > "$T/concurrent-b.log" 2>&1 &
+pid_b=$!
+wait "$pid_a" || { echo "first concurrent VPN app update failed" >&2; cat "$T/concurrent-a.log" >&2; exit 1; }
+wait "$pid_b" || { echo "second concurrent VPN app update failed" >&2; cat "$T/concurrent-b.log" >&2; exit 1; }
+run list > "$T/concurrent-list"
+grep -q '^com.example.concurrent_a|com.example.concurrent_a|1rm -rf "$T"
+ "$T/concurrent-list" || {
+  echo "concurrent update A was lost" >&2; cat "$T/concurrent-list" >&2; exit 1;
+}
+grep -q '^com.example.concurrent_b|com.example.concurrent_b|1rm -rf "$T"
+ "$T/concurrent-list" || {
+  echo "concurrent update B was lost" >&2; cat "$T/concurrent-list" >&2; exit 1;
+}
+[ ! -e "$T/pg/settings.conf.vpn-apps.lock" ] || {
+  echo "VPN app config lock leaked after concurrent updates" >&2; exit 1;
+}
+if grep -Eq 'CONF\.vpn-(apps|mode)\.\$\$|CONF\.vpn-apps\.(rollback|restore)\.\$\rm -rf "$T"
+ "$SCRIPT"; then
+  echo "predictable PID-suffixed VPN config temp paths remain" >&2; exit 1;
+fi
+grep -Fq 'mktemp "$CONF.vpn-apps.XXXXXX"' "$SCRIPT"
+grep -Fq 'mktemp "$CONF.vpn-mode.XXXXXX"' "$SCRIPT"
+grep -Fq 'mktemp "$CONF.vpn-apps.rollback.XXXXXX"' "$SCRIPT"
+grep -Fq 'mktemp "$CONF.vpn-apps.restore.XXXXXX"' "$SCRIPT"
+
 sh -n "$SCRIPT"
-echo 'PASS: per-app VPN app-list CRUD, settings transaction, input validation and empty-list guard'
+echo 'PASS: per-app VPN app-list CRUD, atomic rollback, serialized concurrent writes, input validation and empty-list guard'
 rm -rf "$T"
