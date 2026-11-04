@@ -19,4 +19,9 @@ grep -Fq 'FxDiaInstallerRestartPolicy.isSafeToRestart' "$ACTIVITY" || fail "UI b
 [ "$(grep -Fc 'getAllSessions()' "$ACTIVITY")" -ge 2 ] || fail "install sessions are not rechecked after confirmation"
 grep -Fq '确认窗口打开后检测到新的活动/已提交安装会话' "$ACTIVITY" || fail "session changes during confirmation are not refused"
 grep -Fq 'sessionReadSucceeded' "$POLICY" || fail "policy does not fail closed on session-read errors"
+grep -Fq '搜索应用名称或包名' "$ACTIVITY" || fail "install-source picker has no search field"
+grep -Fq 'adapter.getFilter().filter' "$ACTIVITY" || fail "install-source picker does not filter labels/package names"
+grep -Fq 'list.setEmptyView(empty)' "$ACTIVITY" || fail "install-source picker has no filtered empty state"
+grep -Fq 'list.setOnItemClickListener' "$ACTIVITY" || fail "filtered rows do not open Android's per-app permission page"
+if grep -Fq '.setItems(labels' "$ACTIVITY"; then fail "old unsearchable item dialog remains"; fi
 echo "PASS: Package Installer restart checks all sessions, fails closed and requires confirmation"
