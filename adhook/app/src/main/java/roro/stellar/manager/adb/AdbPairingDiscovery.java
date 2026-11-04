@@ -1,0 +1,213 @@
+package roro.stellar.manager.adb;
+
+import android.content.Context;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.os.Handler;
+import android.os.Looper;
+
+import java.net.InetAddress;
+import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * Discovers Android Wireless Debugging pairing endpoints over DNS-SD.
+ * Resolves one result at a time for compatibility with older NsdManager stacks.
+ */
+public final class AdbPairingDiscovery implements AutoCloseable {
+    public static final String SERVICE_TYPE = "_adb-tls-pairing._tcp.";
+
+    public interface Listener {
+        void onStarted();
+        void onDeviceFound(Device device);
+        void onDeviceLost(String serviceName);
+        void onError(String message, int errorCode);
+        void onStopped();
+    }
+
+    public static final class Device {
+        public final String serviceName;
+        public final String host;
+        public final int port;
+
+        Device(String serviceName, String host, int port) {
+            this.serviceName = serviceName;
+            this.host = host;
+            this.port = port;
+        }
+
+        @Override public String toString() {
+            return serviceName + " · " + host + ":" + port;
+        }
+    }
+
+    private final NsdManager manager;
+    private final Listener listener;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ArrayDeque<NsdServiceInfo> resolveQueue = new ArrayDeque<>();
+    private final Set<String> knownNames = new HashSet<>();
+    private final Set<String> resolvedNames = new HashSet<>();
+    private NsdManager.DiscoveryListener discoveryListener;
+    private boolean resolving;
+    private boolean started;
+    private boolean closed;
+
+    public AdbPairingDiscovery(Context context, Listener listener) {
+        if (context == null || listener == null) {
+            throw new IllegalArgumentException("NSD context and listener are required");
+        }
+        Object service = context.getApplicationContext().getSystemService(Context.NSD_SERVICE);
+        if (!(service instanceof NsdManager)) {
+            throw new IllegalStateException("Android Network Service Discovery is unavailable");
+        }
+        manager = (NsdManager) service;
+        this.listener = listener;
+    }
+
+    public synchronized void start() {
+        if (closed) throw new IllegalStateException("ADB pairing discovery is closed");
+        if (started) return;
+        started = true;
+        discoveryListener = new NsdManager.DiscoveryListener() {
+            @Override public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                fail("无法启动 ADB 无线配对服务发现", errorCode);
+            }
+
+            @Override public void onStopDiscoveryFailed(String serviceType, int errorCode) {
+                fail("无法停止 ADB 无线配对服务发现", errorCode);
+            }
+
+            @Override public void onDiscoveryStarted(String serviceType) {
+                post(() -> listener.onStarted());
+            }
+
+            @Override public void onDiscoveryStopped(String serviceType) {
+                post(() -> listener.onStopped());
+            }
+
+            @Override public void onServiceFound(NsdServiceInfo serviceInfo) {
+                if (serviceInfo == null || !isPairingService(serviceInfo.getServiceType())) return;
+                synchronized (AdbPairingDiscovery.this) {
+                    if (closed || !knownNames.add(serviceInfo.getServiceName())) return;
+                    resolveQueue.addLast(serviceInfo);
+                }
+                resolveNext();
+            }
+
+            @Override public void onServiceLost(NsdServiceInfo serviceInfo) {
+                if (serviceInfo == null) return;
+                String name = serviceInfo.getServiceName();
+                synchronized (AdbPairingDiscovery.this) {
+                    knownNames.remove(name);
+                    resolvedNames.remove(name);
+                }
+                post(() -> listener.onDeviceLost(name));
+            }
+        };
+        try {
+            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
+        } catch (RuntimeException failure) {
+            started = false;
+            fail("ADB 无线配对服务发现启动失败：" + failure.getClass().getSimpleName(), -1);
+        }
+    }
+
+    private boolean isPairingService(String type) {
+        if (type == null) return false;
+        String normalized = type.endsWith(".") ? type.substring(0, type.length() - 1) : type;
+        return SERVICE_TYPE.substring(0, SERVICE_TYPE.length() - 1)
+                .equalsIgnoreCase(normalized + ".");
+    }
+
+    private void resolveNext() {
+        final NsdServiceInfo next;
+        synchronized (this) {
+            if (closed || !started || resolving || resolveQueue.isEmpty()) return;
+            next = resolveQueue.removeFirst();
+            resolving = true;
+        }
+        try {
+            manager.resolveService(next, new NsdManager.ResolveListener() {
+                @Override public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
+                    synchronized (AdbPairingDiscovery.this) {
+                        resolving = false;
+                        if (serviceInfo != null) knownNames.remove(serviceInfo.getServiceName());
+                    }
+                    post(() -> listener.onError("解析 ADB 配对服务失败", errorCode));
+                    resolveNext();
+                }
+
+                @Override public void onServiceResolved(NsdServiceInfo serviceInfo) {
+                    Device device = null;
+                    if (serviceInfo != null) {
+                        InetAddress address = serviceInfo.getHost();
+                        int port = serviceInfo.getPort();
+                        String name = serviceInfo.getServiceName();
+                        if (address != null && port > 0 && port <= 65535) {
+                            device = new Device(name, address.getHostAddress(), port);
+                        }
+                    }
+                    synchronized (AdbPairingDiscovery.this) {
+                        resolving = false;
+                        if (device != null && !closed) resolvedNames.add(device.serviceName);
+                    }
+                    if (device != null) {
+                        Device resolved = device;
+                        post(() -> {
+                            synchronized (AdbPairingDiscovery.this) {
+                                if (closed || !resolvedNames.contains(resolved.serviceName)) return;
+                            }
+                            listener.onDeviceFound(resolved);
+                        });
+                    }
+                    resolveNext();
+                }
+            });
+        } catch (RuntimeException failure) {
+            synchronized (this) {
+                resolving = false;
+                knownNames.remove(next.getServiceName());
+            }
+            post(() -> listener.onError(
+                    "ADB 配对服务解析异常：" + failure.getClass().getSimpleName(), -1));
+            resolveNext();
+        }
+    }
+
+    private void fail(String message, int errorCode) {
+        post(() -> listener.onError(message, errorCode));
+    }
+
+    private void post(Runnable action) {
+        main.post(() -> {
+            synchronized (AdbPairingDiscovery.this) {
+                if (closed) return;
+            }
+            action.run();
+        });
+    }
+
+    @Override
+    public void close() {
+        NsdManager.DiscoveryListener current;
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            current = discoveryListener;
+            discoveryListener = null;
+            started = false;
+            resolving = false;
+            resolveQueue.clear();
+            knownNames.clear();
+            resolvedNames.clear();
+        }
+        if (current != null) {
+            try {
+                manager.stopServiceDiscovery(current);
+            } catch (IllegalArgumentException | RuntimeException ignored) {
+                // Discovery may have failed before NsdManager registered its listener.
+            }
+        }
+    }
+}
