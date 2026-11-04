@@ -1476,3 +1476,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：当前 HEAD 源码逐项确认四个草稿键、输入监听、恢复优先级、成功提交后清理和原规则解析路径均存在；回归脚本已增加相应断言。尚未在完整 checkout 中运行 Shell/Host 测试、Gradle、模拟器或真机旋转测试。
 - 失败路线记录：本批没有发生代码更新冲突；以分支最新 HEAD 逐文件获取 SHA 后提交，未使用旧文件 SHA 覆盖并行修改。
 - 下一步：同样审计 Dia 页面中其他未发布表单（ActivityKey、Wi-Fi 模拟、GPS 配对/代理配置）的草稿与旋转恢复；随后做统一页面状态恢复与跨 Activity 六 Tab 回跳测试。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Wi-Fi 环境模拟表单草稿恢复
+
+- 本批起始实时 HEAD：`bbbbc0a4c40a1317416c063d4e107afa417bed5a`。
+- 修复主 Hook 应用详情中的 Wi-Fi 环境模拟表单：SSID、BSSID 与启用开关各自持久化未发布草稿；页面重建/再次进入时优先恢复草稿，防止用户输入丢失。
+- 保存时保留原 SSID UTF-8 字节数/字符限制、BSSID 格式校验及 debuggable 目标限制；改为同步 `commit()`，成功才清除草稿并调用 `publishConfig()`，存储失败时明确提示且不发布。
+- 提交：`f9f4b15365938afbe723e3b7eb645683eed6ca04`（草稿恢复和原子保存）；`2aa9bc0a8eeff1e857020ec39bd63b6b6d1fee8b` 与 `5a17af62ba990b9c00cf8921c52b2b89c6e824ec`（回归脚本覆盖草稿恢复、输入监听、成功清理及失败处理）。
+- 静态验证：当前 HEAD 重新读取 MainActivity 与回归脚本，确认三类草稿字段、实时监听、恢复、成功清理、失败不发布路径全部存在。尚未运行完整 Host/Shell 测试、Gradle、模拟器或真机旋转测试。
+- 下一步：检查 GPS Picker / GPS 配对、Wi-Fi Proxy、备份/恢复页面的 Activity Result 与未提交表单恢复；再统一执行可用 Host 回归及跨页面六 Tab 返回链静态验证。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
