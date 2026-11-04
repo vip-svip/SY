@@ -2602,3 +2602,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 从 GitHub 重新读取 Activity 和脚本，静态确认单飞获取早于 worker.execute、完成/拒绝/销毁路径释放门闩、按钮状态恢复、RuntimeException 处理和 generation 保护均存在。尚未实际运行该脚本、Gradle、模拟器或真机测试。
 - 当前最新 HEAD（写入本记录前）：`d3a3fae410bf6fe1148363ecb02d98300a58a234`。
 - 下一步：继续 Hook 应用列表/详情/自定义规则页面的状态和交互闭环，优先修复可复现的数据丢失或导航错误；不打最终包，不改变 FX 1.0.0 版本号。
+
+
+## 2026-11-05 — 游龙广告编辑页状态回归断言更新
+
+- Targeted run `41910874212` 在 `fx-yulong-ad-activity-state-regression.sh` 失败：脚本仍要求旧版不保留草稿的 `open(String p)` 单行实现；当前实现已在切页前 `captureDrafts()`，重置新页滚动位置，渲染后 `restoreDrafts(drafts)` 并重新绑定。
+- 已移除过期的旧实现断言，改为验证操作顺序：先捕获草稿，再切页/重置滚动，渲染后恢复草稿，最后绑定控件；避免测试把已修复的状态保留行为误判为失败。
+- 提交：`72d731d6146415ae427a330d439777fbf2dd474b`（更新页面切换状态断言）；`2659ab7adf7aaed127e5d3a1c60ab460f7ab4efb`（修正测试方法边界换行）。
+- 当前分支后续还增加 Hook OBSERVE 日志刷新串行化：防止重复 Root logcat 请求，刷新期间禁用按钮，异常/队列满明确显示状态。提交 `68dd9fbd4c930a4aabf3e4aa1ec462870faa9106`。
+- 验证等级：源码与断言静态一致；修正后的 targeted run 仍需读取最终结果。
+- 下一步：完成 Frida SAF 导入 URI 的重建恢复与覆盖预览回归；继续核对六 Tab/Shield/Hook 导航返回链。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
