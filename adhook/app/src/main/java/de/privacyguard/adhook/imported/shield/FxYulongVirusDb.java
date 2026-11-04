@@ -478,18 +478,41 @@ public final class FxYulongVirusDb {
     }
 
     /** 解析列表：兼容「一行一条」纯文本与 JSON 数组两种写法 */
-    private static Set<String> parse(String body, boolean isPkg) {
+    static Set<String> parse(String body, boolean isPkg) {
         Set<String> out = new LinkedHashSet<>();
         if (body == null) return out;
-        String s = body.replace("\uFEFF", "")
-                .replace("\r\n", "\n")
+        String normalized = body.replace("\uFEFF", "").trim();
+        if (normalized.isEmpty()) return out;
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        // These endpoints are plain-text lists or JSON string arrays, never HTML,
+        // JSON error objects, proxy error pages or arrays of error objects.
+        if (normalized.startsWith("{")
+                || lower.startsWith("<")
+                || lower.contains("<!doctype")
+                || lower.contains("<html")
+                || lower.contains("<title")
+                || lower.contains("<body")
+                || lower.startsWith("[{")
+                || lower.contains("bad gateway")
+                || lower.contains("service unavailable")
+                || lower.contains("gateway timeout")
+                || lower.contains("internal server error")
+                || lower.contains("too many requests")
+                || lower.matches("(?s)^[45][0-9]{2}\\s+.*")) {
+            return out;
+        }
+        String s = normalized.replace("\r\n", "\n")
                 .replace("\r", "\n")
                 .replace("[", "\n").replace("]", "\n")
                 .replace("\"", "").replace(",", "\n");
         for (String line : s.split("\n")) {
             String t = line.trim();
             if (t.isEmpty()) continue;
-            if (isPkg) t = cleanPkg(t);
+            if (isPkg) {
+                // Do not sanitize an error page into a plausible package identifier.
+                if (!t.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) continue;
+                t = cleanPkg(t);
+            }
             if (t.isEmpty()) continue;
             out.add(t);
         }
