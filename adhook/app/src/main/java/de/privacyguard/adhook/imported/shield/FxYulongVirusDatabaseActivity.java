@@ -16,12 +16,37 @@ import org.json.JSONObject;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Original Yulong Shield virus database settings page, using its migrated native database engine. */
 public final class FxYulongVirusDatabaseActivity extends Activity {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> { Thread t = new Thread(r, "fx-yulong-virus-db"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
+    private volatile boolean destroyed;
+
+    private void postUi(Runnable update) {
+        runOnUiThread(() -> {
+            if (destroyed || isFinishing() || isDestroyed()) return;
+            update.run();
+        });
+    }
+
+    private void submitWorker(Button button, TextView target, String busyMessage, Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            button.setEnabled(true);
+            if (!destroyed && !isFinishing() && !isDestroyed()) {
+                target.setText(busyMessage);
+                Toast.makeText(this, "后台同步队列繁忙，本次任务未提交。", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
     private LinearLayout body;
     private TextView summary;
     private LinearLayout listRows;
@@ -125,10 +150,11 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
     private void refreshContentDatabase() {
         contentRefresh.setEnabled(false);
         contentSummary.setText("正在同步 virus-db.json 与 virus-db-rules.json…");
-        worker.execute(() -> {
+        submitWorker(contentRefresh, contentSummary,
+                "后台任务繁忙：内容特征库同步未排队，请稍后重试。", () -> {
             try {
                 FxYulongVirusContentDb.refreshNow(getApplicationContext());
-                runOnUiThread(() -> {
+                postUi(() -> {
                     contentRefresh.setEnabled(true);
                     updateContentStatus();
                     Toast.makeText(this,
@@ -137,7 +163,7 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
                             Toast.LENGTH_LONG).show();
                 });
             } catch(Throwable error) {
-                runOnUiThread(() -> {
+                postUi(() -> {
                     contentRefresh.setEnabled(true);
                     updateContentStatus();
                     Toast.makeText(this,"内容特征库同步失败："+error.getClass().getSimpleName(),
@@ -150,15 +176,16 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
     private void refreshDatabase() {
         refresh.setEnabled(false);
         summary.setText("正在同步五类逻辑名单及其兼容旧名单…");
-        worker.execute(() -> {
+        submitWorker(refresh, summary,
+                "后台任务繁忙：病毒库同步未排队，请稍后重试。", () -> {
             try {
                 FxYulongVirusDb.refreshNow(getApplicationContext());
-                runOnUiThread(() -> {
+                postUi(() -> {
                     refresh.setEnabled(true); updateStatus();
                     Toast.makeText(this,FxYulongVirusDb.isServerReachable()?"病毒库同步完成":"同步不完整，原有缓存已保留",Toast.LENGTH_LONG).show();
                 });
             } catch(Throwable error) {
-                runOnUiThread(() -> {
+                postUi(() -> {
                     refresh.setEnabled(true); updateStatus();
                     Toast.makeText(this,"同步失败："+error.getClass().getSimpleName(),Toast.LENGTH_LONG).show();
                 });
@@ -166,5 +193,5 @@ public final class FxYulongVirusDatabaseActivity extends Activity {
         });
     }
 
-    @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;worker.shutdownNow();super.onDestroy();}
 }

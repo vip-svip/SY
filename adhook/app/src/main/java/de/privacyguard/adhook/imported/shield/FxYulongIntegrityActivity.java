@@ -19,8 +19,10 @@ import de.privacyguard.adhook.RootAccess;
 
 import java.security.MessageDigest;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Read-only FX signer and KernelSU module integrity report.
@@ -28,9 +30,15 @@ import java.util.concurrent.Executors;
  * package re-enable, permission restoration or self-repair actions.
  */
 public final class FxYulongIntegrityActivity extends Activity {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> { Thread t = new Thread(r, "fx-yulong-integrity"); t.setDaemon(true); return t; },
+            new ThreadPoolExecutor.AbortPolicy());
     private String signerReport = "";
     private TextView moduleStatus;
+    private Button checkButton;
+    private volatile boolean destroyed;
+    private int checkGeneration;
 
     private int dp(float n) {
         return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
@@ -86,7 +94,8 @@ public final class FxYulongIntegrityActivity extends Activity {
         moduleStatus = text("尚未检查。", 13, 0xff334155, false);
         moduleStatus.setTextIsSelectable(true);
         body.addView(moduleStatus);
-        body.addView(button("检查模块完整性", this::checkModule));
+        checkButton = button("检查模块完整性", this::checkModule);
+        body.addView(checkButton);
         body.addView(button("复制模块检查报告", () -> copy(
                 moduleStatus.getText() == null ? "" : moduleStatus.getText().toString())));
 
@@ -168,18 +177,28 @@ public final class FxYulongIntegrityActivity extends Activity {
     }
 
     private void checkModule() {
+        if (destroyed || isFinishing() || isDestroyed()) return;
+        final int request = ++checkGeneration;
+        checkButton.setEnabled(false);
         moduleStatus.setText("正在通过 Root 读取模块文件与语法状态…");
-        worker.execute(() -> {
-            RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                moduleStatus.setText("Root 退出码：" + result.exitCode + "\n"
-                        + (result.output == null ? "" : result.output)
-                        + (result.exitCode == 0
-                        ? "\n结果：只读检查完成；这不是设备运行或网络行为验证。"
-                        : "\n结果：检查未完成，请确认 FX Hook 已获 Root 授权。"));
+        try {
+            worker.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()
+                            || request != checkGeneration) return;
+                    checkButton.setEnabled(true);
+                    moduleStatus.setText("Root 退出码：" + result.exitCode + "\n"
+                            + (result.output == null ? "" : result.output)
+                            + (result.exitCode == 0
+                            ? "\n结果：只读检查完成；这不是设备运行或网络行为验证。"
+                            : "\n结果：检查未完成，请确认 FX Hook 已获 Root 授权。"));
+                });
             });
-        });
+        } catch (RejectedExecutionException full) {
+            checkButton.setEnabled(true);
+            moduleStatus.setText("完整性检查队列繁忙，本次检查未执行；请稍后重试。");
+        }
     }
 
     private void copy(String value) {
@@ -191,6 +210,8 @@ public final class FxYulongIntegrityActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        destroyed = true;
+        checkGeneration++;
         worker.shutdownNow();
         super.onDestroy();
     }
