@@ -9,10 +9,10 @@ The original optional stack control converts UTF-8 bytes into lowercase hexadeci
 ## FX implementation
 
 - FxDiaCrashStore installs in the FX Application process and delegates each fatal exception to the previously installed Android/Xposed handler after attempting to persist a report.
-- The record is stored in the FX private files directory using AtomicFile. JSON size and field lengths are bounded, writes are synced, and records are not uploaded automatically.
+- The record is stored in the FX private files directory using AtomicFile. JSON size and field lengths are bounded, writes are synced, and records are not uploaded automatically. The reader accepts Dia 23.11's original unversioned CrashInfo JSON fields, preserving an existing crash.log across migration. The original digXposed disable_java_crash_capture and has_crash flags are recognized.
 - The next FX launch checks the pending flag and opens the native report Activity. Users can also enter it from Dia's Developer and Monitoring category.
 - Copy and share are explicit user actions. The native Android share sheet replaces the original third-party feedback deep link.
-- Capture can be disabled in the report screen. Scope is limited to uncaught Java exceptions in the FX app process; LSPosed target processes, native crash signals and kernel crashes are not claimed.
+- Capture can be disabled in the report screen. The original encrypt_stack preference name and default-on behavior are preserved. Scope is limited to uncaught Java exceptions in the FX app process; LSPosed target processes, native crash signals and kernel crashes are not claimed.
 
 ## Verification boundary
 

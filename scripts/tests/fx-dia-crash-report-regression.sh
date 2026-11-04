@@ -34,12 +34,17 @@ assert "FxDiaCrashStore.hasPendingReport(this)" in main, "next app launch does n
 assert "FxDiaCrashStore.install(this)" in application, "Application does not install the crash handler"
 for token in ("Thread.setDefaultUncaughtExceptionHandler", "delegate.uncaughtException(thread, error)",
               "AtomicFile", "startWrite()", "finishWrite(output)", "failWrite(output)",
-              "FILE_NAME", "MAX_JSON_BYTES", "has_crash", "getFD().sync()"):
+              "FILE_NAME", "MAX_JSON_BYTES", "has_crash", "getFD().sync()",
+              'json.has("schemaVersion")', 'json.has("processName")', 'json.optString("stack", "")',
+              'getSharedPreferences("digXposed"', '"encrypt_stack"'):
     assert token in store, f"crash store invariant missing: {token}"
 assert "Process.killProcess(Process.myPid())" in store, "fallback fatal-exit path is missing"
 assert "getPackageName()" in store and "Build.MODEL" in store, "process/device metadata is missing"
 assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are not size-bounded"
+assert "schemaVersion == 0" in store and "file.getBaseFile().lastModified()" in store, "legacy unversioned Dia CrashInfo JSON must remain readable"
+assert 'getSharedPreferences("digXposed"' in store, "legacy Dia shared crash preferences must be preserved"
 assert "hexUtf8(" in record and "可逆，不是加密" in record, "HEX encoding must not be represented as encryption"
+assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference must be preserved"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
               "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled",
               "boolean hadPendingReport = FxDiaCrashStore.hasPendingReport(this)",

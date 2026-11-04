@@ -44,10 +44,15 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
+    private static SharedPreferences legacyPrefs(Context context) {
+        return context.getSharedPreferences("digXposed", Context.MODE_PRIVATE);
+    }
+
     public static boolean isCaptureEnabled(Context context) {
         SharedPreferences p = prefs(context);
         return p.getBoolean("capture_enabled", true)
-                && !p.getBoolean("disable_java_crash_capture", false);
+                && !p.getBoolean("disable_java_crash_capture", false)
+                && !legacyPrefs(context).getBoolean("disable_java_crash_capture", false);
     }
 
     public static void setCaptureEnabled(Context context, boolean enabled) {
@@ -58,11 +63,13 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     }
 
     public static boolean hasPendingReport(Context context) {
-        return prefs(context).getBoolean("has_crash", false);
+        return prefs(context).getBoolean("has_crash", false)
+                || legacyPrefs(context).getBoolean("has_crash", false);
     }
 
     public static void clearPendingFlag(Context context) {
         prefs(context).edit().putBoolean("has_crash", false).commit();
+        legacyPrefs(context).edit().putBoolean("has_crash", false).commit();
     }
 
     public static FxDiaCrashRecord read(Context context) {
@@ -78,12 +85,24 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
                 output.write(buffer, 0, count);
             }
             JSONObject json = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
-            if (json.optInt("schemaVersion", -1) != SCHEMA_VERSION) return null;
-            return new FxDiaCrashRecord(
-                    json.optLong("timestampMs", 0L), json.optLong("threadId", 0L),
-                    json.optString("processName", ""), json.optString("threadName", ""),
-                    json.optString("deviceInfo", ""), json.optString("message", ""),
-                    json.optString("stack", ""));
+            int schemaVersion = json.optInt("schemaVersion", 0);
+            if (schemaVersion == SCHEMA_VERSION) {
+                return new FxDiaCrashRecord(
+                        json.optLong("timestampMs", file.getBaseFile().lastModified()),
+                        json.optLong("threadId", 0L), json.optString("processName", ""),
+                        json.optString("threadName", ""), json.optString("deviceInfo", ""),
+                        json.optString("message", ""), json.optString("stack", ""));
+            }
+            // Dia 23.11 wrote an unversioned CrashInfo JSON object directly to crash.log.
+            if (schemaVersion == 0 && json.has("processName") && json.has("threadName")
+                    && json.has("stack")) {
+                return new FxDiaCrashRecord(
+                        file.getBaseFile().lastModified(), json.optLong("threadId", 0L),
+                        json.optString("processName", ""), json.optString("threadName", ""),
+                        json.optString("deviceInfo", ""), json.optString("message", ""),
+                        json.optString("stack", ""));
+            }
+            return null;
         } catch (IOException | JSONException | RuntimeException invalid) {
             return null;
         }
@@ -92,6 +111,8 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     public static void clear(Context context) {
         crashFile(context).delete();
         prefs(context).edit().putBoolean("has_crash", false).remove("crash_timestamp").commit();
+        legacyPrefs(context).edit().putBoolean("has_crash", false)
+                .remove("crash_timestamp").commit();
     }
 
     @Override public void uncaughtException(Thread thread, Throwable error) {
@@ -100,6 +121,8 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
                 FxDiaCrashRecord record = capture(thread, error);
                 write(record);
                 prefs(app).edit().putBoolean("has_crash", true)
+                        .putLong("crash_timestamp", record.timestampMs).commit();
+                legacyPrefs(app).edit().putBoolean("has_crash", true)
                         .putLong("crash_timestamp", record.timestampMs).commit();
             }
         } catch (Throwable ignored) {

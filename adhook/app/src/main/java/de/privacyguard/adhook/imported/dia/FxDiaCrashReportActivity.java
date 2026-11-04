@@ -83,10 +83,10 @@ public final class FxDiaCrashReportActivity extends Activity {
         hexStack = new CheckBox(this);
         hexStack.setText("堆栈 HEX 编码（原版称“加密堆栈”）");
         hexStack.setChecked(getSharedPreferences("fx_dia_crash", MODE_PRIVATE)
-                .getBoolean("hex_stack", true));
+                .getBoolean("encrypt_stack", true));
         hexStack.setOnCheckedChangeListener((button, checked) -> {
             getSharedPreferences("fx_dia_crash", MODE_PRIVATE).edit()
-                    .putBoolean("hex_stack", checked).apply();
+                    .putBoolean("encrypt_stack", checked).apply();
             render();
         });
         body.addView(hexStack);
