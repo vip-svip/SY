@@ -1,5 +1,6 @@
 package de.privacyguard.adhook;
 
+import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.TreeMap;
