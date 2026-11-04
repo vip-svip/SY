@@ -291,3 +291,41 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 
 - Added an idempotent source-restoration patcher and placed it immediately after the dual-entry Hook APK merge in CI. It ensures the Hook hub visibly states that LSPosed module enablement and per-target scope are separate Manager approvals; FX only submits requests and reads results.
 - This is an actual native Hook page message, not a Settings-page relocation or a relaxed regression assertion. The patcher fails closed if the Hook hub structure changes unexpectedly.
+
+
+## Latest continuation update — 2026-11-04 — QuickJS scheduler ownership and deployment
+
+Branch checkpoint: `4d56a6810303f7b4a168de16f9ddfeb61af1e0c4`.
+
+### Source changes
+
+- Added `fx-patches/patch_native_script_scheduler.py`. It stages the reviewed scheduler into `fx-module/scripts/jsruntime/scheduler.sh`, makes it executable, and adds one idempotent stop hook to module uninstall. The patcher refuses a symlink target and rejects partial/duplicate uninstall markers.
+- Replaced the old PID-only scheduler in the checked-in module snapshot with the owned-record implementation from `fx-patches/native-script-scheduler.sh`.
+- Changed stop behavior from signalling the recorded PID to an owner-matched stop-request file. The scheduler polls the request while idle and exits through its own cleanup path; an unrelated PID is refused and is not signalled. A stale stop marker is reclaimed only after no active scheduler owner is found.
+- Added `scripts/tests/fx-native-script-scheduler-regression.sh` for staging/idempotency, shell syntax, start/status/stop lifecycle, unrelated-live-PID refusal, symlink rejection and uninstall-hook presence.
+- Wired the patcher and regression into both `.github/workflows/build-fx-adhook.yml` and `.github/workflows/build-fx-kernelsu.yml`, after module source restoration and before their relevant validation/package steps.
+- Updated `fx-module/uninstall.sh` so an installed scheduler receives an owner-matched uninstall stop request.
+
+### Changed paths
+
+- `fx-patches/native-script-scheduler.sh`
+- `fx-patches/patch_native_script_scheduler.py`
+- `scripts/tests/fx-native-script-scheduler-regression.sh`
+- `fx-module/scripts/jsruntime/scheduler.sh`
+- `fx-module/uninstall.sh`
+- `.github/workflows/build-fx-adhook.yml`
+- `.github/workflows/build-fx-kernelsu.yml`
+
+### Verification status
+
+- GitHub branch writes were accepted and the branch was re-read at `4d56a6810303f7b4a168de16f9ddfeb61af1e0c4`.
+- Source-level checks confirmed the new scheduler and module snapshot contain the cooperative stop marker and no longer contain the scheduler-PID `kill -TERM` path; both workflows contain the staging and regression commands.
+- The new shell regression has **not been executed in this session**. GitHub commit status/workflow-run queries returned no status entries for the inspected commits; no CI pass is claimed.
+- No Gradle build, APK build, KernelSU ZIP, install test or real-device test was run. No final package was generated.
+
+### Remaining immediate checks
+
+1. Confirm the new `fx-native-script-scheduler-regression.sh` passes in the next matching app-validation run; investigate rather than weaken any failed assertion.
+2. The checked-in `fx-module/scripts/jsruntime/sync-subs.sh` path returned 404 during source inspection, although the scheduler invokes it and `native-script-list.sh` documents it as the subscription consumer. Verify the restored Release module source contains it. If absent there too, implement and test the real HTTPS subscription synchronization path before claiming remote script auto-update works.
+3. Continue the larger migration backlog: Dia Frida listener/message forwarding and remaining editors/pages; Yulong Ad trie/bloom runtime and genuine DNS query counters; Shield Stellar Binder transport and remaining self-defense semantics. Keep all device-only claims unverified until target-device tests exist.
+
