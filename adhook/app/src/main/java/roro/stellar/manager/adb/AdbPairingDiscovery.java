@@ -115,9 +115,8 @@ public final class AdbPairingDiscovery implements AutoCloseable {
 
     private boolean isPairingService(String type) {
         if (type == null) return false;
-        String normalized = type.endsWith(".") ? type.substring(0, type.length() - 1) : type;
-        return SERVICE_TYPE.substring(0, SERVICE_TYPE.length() - 1)
-                .equalsIgnoreCase(normalized + ".");
+        String normalized = type.endsWith(".") ? type : type + ".";
+        return SERVICE_TYPE.equalsIgnoreCase(normalized);
     }
 
     private void resolveNext() {
@@ -148,11 +147,16 @@ public final class AdbPairingDiscovery implements AutoCloseable {
                             device = new Device(name, address.getHostAddress(), port);
                         }
                     }
+                    boolean stillAdvertised = false;
                     synchronized (AdbPairingDiscovery.this) {
                         resolving = false;
-                        if (device != null && !closed) resolvedNames.add(device.serviceName);
+                        if (device != null && !closed
+                                && knownNames.contains(device.serviceName)) {
+                            resolvedNames.add(device.serviceName);
+                            stillAdvertised = true;
+                        }
                     }
-                    if (device != null) {
+                    if (stillAdvertised) {
                         Device resolved = device;
                         post(() -> {
                             synchronized (AdbPairingDiscovery.this) {
@@ -205,7 +209,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
         if (current != null) {
             try {
                 manager.stopServiceDiscovery(current);
-            } catch (IllegalArgumentException | RuntimeException ignored) {
+            } catch (RuntimeException ignored) {
                 // Discovery may have failed before NsdManager registered its listener.
             }
         }
