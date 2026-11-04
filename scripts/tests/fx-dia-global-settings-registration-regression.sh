@@ -77,7 +77,10 @@ assert "PackageManager.GET_PERMISSIONS" in expand_page, "install-source discover
 assert "Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES" in expand_page, "selected source app must open Android's per-app install permission page"
 assert "PackageManager.MATCH_DEFAULT_ONLY" in expand_page and "Settings.ACTION_APPLICATION_DETAILS_SETTINGS" in expand_page, "Package Installer management must open its real app-info page"
 assert "worker.shutdownNow()" in expand_page and "RejectedExecutionException" in expand_page, "install-source inventory worker must be bounded and lifecycle-safe"
-assert "不会绕过PackageInstaller" in expand_page and "不会强制停止或重启" in expand_page, "system install security and active installer sessions must remain protected"
+assert "不会绕过PackageInstaller" in expand_page and "不会强制停止或重启系统安装器" in expand_page, "system install security and active installer sessions must remain protected"
+assert "REQUEST_INSTALL_PACKAGES" in expand_page and "Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES" in expand_page, "unknown source must route to Android per-app settings"
+assert "Settings.ACTION_APPLICATION_DETAILS_SETTINGS" in expand_page, "Package Installer action must open real Android app info"
+assert "remain visible but disabled" not in expand_page.lower(), "SystemExpand documentation must not claim migrated install-source actions are disabled"
 assert "RootAccess.execute" not in expand_page and "pm uninstall" not in expand_page, "SystemExpand must not issue destructive or unchecked Root commands"
 
 print("PASS: Dia global preferences, private navigation, backup route and honest SystemExpand feature boundaries")
