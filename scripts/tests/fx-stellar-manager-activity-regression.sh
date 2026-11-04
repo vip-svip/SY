@@ -68,5 +68,21 @@ svc = manifest.split('android:name="roro.stellar.manager.authorization.StellarAu
 assert 'android:exported="false"' in svc, "Root broker must be private to the FX APK"
 assert "public Result(int code, String text, boolean wasDenied)" in root_access, "Binder response result must be publicly constructible"
 
+guard = Path(sys.argv[1]).with_name("FxStellarCommandGuardActivity.java").read_text(encoding="utf-8")
+assert "ACTION_COMMAND_GUARD" in guard and 'getLongExtra("id", -1L)' in guard
+assert "REQUEST_TIMEOUT_MS = 30000L" in guard and 'submitDecision("DENY")' in guard
+for decision in ('"ALLOW"', '"DENY"', '"ALWAYS_ALLOW"'):
+    assert decision in guard, f"command guard response token missing: {decision}"
+assert '"/data/local/tmp/stellar_guard"' in guard and '".resp"' in guard
+assert "mktemp" in guard and "chmod 600" in guard and "mv -f" in guard
+assert "RootAccess.execute(" in guard and "responseCommand(decision)" in guard
+assert "new ProcessBuilder" not in guard and "Runtime.getRuntime()" not in guard, \
+    "incoming commands must only be displayed and never executed by this confirmation Activity"
+guard_manifest = manifest.split('android:name="roro.stellar.manager.authorization.FxStellarCommandGuardActivity"', 1)[1].split("</activity>", 1)[0]
+assert 'android:exported="true"' in guard_manifest
+assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in guard_manifest
+assert 'android:name="com.youlong.hd.intent.action.COMMAND_GUARD"' in guard_manifest
+
+
 print("PASS: Stellar manager app inventory is off-main-thread, Root work is bounded, target selection is restorable, and secure-settings scope is grantable")
 PY
