@@ -76,7 +76,7 @@ private fun FxNativeAppShell(
                 // Keep the six-tab bar and the active page above the soft keyboard.
                 // Applying this to the shared host covers every migrated native page.
                 .imePadding()
-                .background(when (mode) { "miuix" -> miuixColors.background; "glass" -> Color(0xFFE8EEF4); else -> Color(0xFFF4F6F8) })
+                .background(when (mode) { "miuix" -> miuixColors.background; "glass" -> Color(0xFFE8EEF4); "huawei" -> Color(0xFFF1F5FA); "ios" -> Color(0xFFF2F2F7); else -> Color(0xFFF4F6F8) })
         ) {
             // Record the real page beneath the translucent navigation surface.
             // Unlike a gradient placeholder, this samples the actual AndroidView content.
@@ -91,14 +91,14 @@ private fun FxNativeAppShell(
                     .layerBackdrop(backdrop),
                 update = {}
             )
-            val barShape = RoundedCornerShape(when (mode) { "classic" -> 10.dp; "miuix" -> 18.dp; else -> 26.dp })
+            val barShape = RoundedCornerShape(when (mode) { "classic" -> 10.dp; "miuix" -> 18.dp; "huawei" -> 16.dp; "ios" -> 22.dp; else -> 26.dp })
             // Glass mode is rendered exclusively by the upstream LiquidBottomTabs
             // component below; this modifier is only for the classic and Miuix bars.
             val barModifier = if (mode == "miuix") {
                 Modifier.background(miuixColors.surface, barShape)
             } else {
                 Modifier.background(
-                    if (mode == "classic") Color(0xFFF7F8FA) else Color.White.copy(alpha = 0.94f),
+                    when (mode) { "classic" -> Color(0xFFF7F8FA); "huawei" -> Color(0xFFF9FBFE); "ios" -> Color(0xF9FFFFFF); else -> Color.White.copy(alpha = 0.94f) },
                     barShape
                 )
             }
@@ -162,7 +162,7 @@ private fun FxNativeAppShell(
                 ) {
                     labels.forEachIndexed { index, label ->
                         val active = selected == index
-                        val tabShape = RoundedCornerShape(20.dp)
+                        val tabShape = RoundedCornerShape(when (mode) { "ios" -> 18.dp; "huawei" -> 14.dp; else -> 20.dp })
                         val tabModifier = if (active && mode == "miuix") {
                             Modifier.background(miuixColors.primaryContainer, tabShape)
                         } else if (active) {
@@ -184,6 +184,8 @@ private fun FxNativeAppShell(
                                 text = label,
                                 color = when {
                                     mode == "miuix" && active -> miuixColors.onPrimaryContainer
+                                    mode == "ios" && active -> Color(0xFF007AFF)
+                                    mode == "huawei" && active -> Color(0xFF2878D0)
                                     mode == "miuix" -> miuixColors.onSurfaceContainerVariant
                                     active -> Color(0xFF1769AA)
                                     else -> Color(0xFF526170)
