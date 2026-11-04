@@ -195,16 +195,18 @@ public final class FxHookObservationLogsActivity extends Activity {
                         return;
                     }
                     String output = result.output == null ? "" : result.output.trim();
-                    if (result.exitCode != 0 && output.isEmpty()) {
-                        rawOutput = "";
-                        status.setText("读取 OBSERVE 日志失败（退出码 " + result.exitCode
-                                + (result.denied ? "，Root 权限被拒绝" : "") + "）。");
-                    } else if (output.contains("FX_HOOK_MODULE_UNAVAILABLE")) {
+                    if (output.contains("FX_HOOK_MODULE_UNAVAILABLE")) {
                         rawOutput = "";
                         status.setText("未找到可用的 privacyguard KernelSU 模块，无法读取 Hook 日志。");
                     } else if (output.contains("LOGCAT_UNAVAILABLE")) {
                         rawOutput = "";
                         status.setText("当前系统没有可用的 logcat 命令。");
+                    } else if (result.exitCode != 0) {
+                        rawOutput = "";
+                        String detail = output.length() > 180 ? output.substring(0, 180) : output;
+                        status.setText("读取 OBSERVE 日志失败（退出码 " + result.exitCode
+                                + (result.denied ? "，Root 权限被拒绝" : "")
+                                + (detail.isEmpty() ? "。" : "）：" + detail));
                     } else {
                         rawOutput = output;
                         int records = countLines(output);
