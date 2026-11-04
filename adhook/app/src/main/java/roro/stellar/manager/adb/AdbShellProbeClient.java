@@ -52,9 +52,17 @@ public final class AdbShellProbeClient implements Closeable {
     /** Connect, complete TLS plus ADB AUTH, and prove a shell channel using one fixed command. */
     public synchronized String probe() throws IOException, GeneralSecurityException {
         ensureOpen();
-        connectAndAuthenticate();
-        ensureOpen();
-        return runFixedProbe();
+        try {
+            connectAndAuthenticate();
+            ensureOpen();
+            return runFixedProbe();
+        } catch (IOException | GeneralSecurityException | RuntimeException failure) {
+            // Cancellation can race socket construction/registration. Sweep again
+            // after the active path unwinds so a late TLS wrapper cannot leak.
+            closed = true;
+            closeResources();
+            throw failure;
+        }
     }
 
     private void connectAndAuthenticate() throws IOException, GeneralSecurityException {
@@ -210,8 +218,13 @@ public final class AdbShellProbeClient implements Closeable {
 
     @Override
     public void close() {
-        if (closed) return;
+        // Do not return early when already closed: a socket may have been
+        // published after a racing first close, and needs a second sweep.
         closed = true;
+        closeResources();
+    }
+
+    private void closeResources() {
         SSLSocket secure = tlsSocket;
         tlsSocket = null;
         if (secure != null) {
