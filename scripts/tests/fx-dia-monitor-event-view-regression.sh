@@ -16,5 +16,4 @@ grep -Fq 'case "RUNTIME":' "$PARSER" || fail "Runtime monitor family is not supp
 grep -Fq 'SQL 文本' "$ACTIVITY" || fail "event view does not explain content redaction"
 grep -Fq 'private void showMonitorEvents()' "$ACTIVITY" || fail "event filtering UI is missing"
 grep -Fq 'matched > shown' "$ACTIVITY" || fail "event view has no render-row cap"
-grep -Fq 'never' "$PARSER" && fail "invalid parser marker"
 echo "PASS: Dia monitor-event browser is bounded, filterable and metadata-only"

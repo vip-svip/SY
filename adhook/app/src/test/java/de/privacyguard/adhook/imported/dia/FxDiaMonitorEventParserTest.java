@@ -12,8 +12,8 @@ import static org.junit.Assert.assertTrue;
 public final class FxDiaMonitorEventParserTest {
     @Test public void parsesHttpAndWebViewMetadataOnly() {
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
-                "[DIA_HTTP] OkHttp method=GET host=api.example.com status=204 elapsedMs=19\\n"
-                + "[DIA_WEBVIEW] postUrl host=docs.example.com bodyBytes=32 content=redacted\\n");
+                "[DIA_HTTP] OkHttp method=GET host=api.example.com status=204 elapsedMs=19\n"
+                + "[DIA_WEBVIEW] postUrl host=docs.example.com bodyBytes=32 content=redacted\n");
         assertEquals(2, events.size());
         assertEquals("HTTP", events.get(0).category);
         assertEquals("GET", events.get(0).fields.get("method"));
@@ -43,8 +43,8 @@ public final class FxDiaMonitorEventParserTest {
 
     @Test public void ignoresUnknownTagsAndUnsafeValues() {
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(
-                "[DIA_UNKNOWN] token=secret\\n"
-                + "[DIA_HTTP] method=GET host=example.com/path?token=secret status=200\\n"
+                "[DIA_UNKNOWN] token=secret\n"
+                + "[DIA_HTTP] method=GET host=example.com/path?token=secret status=200\n"
                 + "[DIA_HTTP] method=POST host=good.example status=200");
         assertEquals(2, events.size());
         assertFalse(events.get(0).fields.containsKey("host"));
@@ -56,7 +56,7 @@ public final class FxDiaMonitorEventParserTest {
         String[] tags = {"HTTP", "WEBVIEW", "SQL", "ALGORITHM", "NATIVE", "CLASSLOADER",
                 "SOCKET", "INTENT", "CLICK", "VIEWGROUP", "FRAGMENT", "THREAD", "STACK",
                 "KEY", "RUNTIME", "MEMORY"};
-        for (String tag : tags) log.append("[DIA_").append(tag).append("] event\\n");
+        for (String tag : tags) log.append("[DIA_").append(tag).append("] event\n");
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(log.toString());
         assertEquals(tags.length, events.size());
         assertEquals("HTTP", events.get(0).category);
@@ -66,7 +66,7 @@ public final class FxDiaMonitorEventParserTest {
     @Test public void retainsOnlyTheNewestThreeHundredEvents() {
         StringBuilder log = new StringBuilder();
         for (int i = 0; i < 350; i++) {
-            log.append("[DIA_KEY] keyCode=").append(i).append(" action=0\\n");
+            log.append("[DIA_KEY] keyCode=").append(i).append(" action=0\n");
         }
         List<FxDiaMonitorEventParser.Event> events = FxDiaMonitorEventParser.parse(log.toString());
         assertEquals(FxDiaMonitorEventParser.MAX_EVENTS, events.size());
@@ -76,7 +76,7 @@ public final class FxDiaMonitorEventParserTest {
 
     @Test public void boundsInputAndLineLengths() {
         String huge = "x".repeat(FxDiaMonitorEventParser.MAX_LOG_CHARS + 1000)
-                + "\\n[DIA_RUNTIME] Runtime.exec invoked; command content omitted";
+                + "\n[DIA_RUNTIME] Runtime.exec invoked; command content omitted";
         assertEquals(1, FxDiaMonitorEventParser.parse(huge).size());
         assertTrue(FxDiaMonitorEventParser.parse(null).isEmpty());
     }

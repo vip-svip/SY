@@ -49,9 +49,9 @@ public final class FxDiaMonitorEventParser {
         public String toDisplayString() {
             StringBuilder out = new StringBuilder(category);
             for (Map.Entry<String, String> item : fields.entrySet()) {
-                out.append("\\n").append(label(item.getKey())).append("：").append(item.getValue());
+                out.append("\n").append(label(item.getKey())).append("：").append(item.getValue());
             }
-            if (fields.isEmpty()) out.append("\\n监控事件");
+            if (fields.isEmpty()) out.append("\n监控事件");
             return out.toString();
         }
 
