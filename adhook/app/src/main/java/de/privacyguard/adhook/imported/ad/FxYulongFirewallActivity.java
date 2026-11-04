@@ -436,7 +436,7 @@ public final class FxYulongFirewallActivity extends Activity {
                         if (info.packageName == null || info.packageName.equals(getPackageName())) return true;
                         boolean systemApp = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0
                                 || (info.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
-                        return appFilterMode == 1 ? systemApp : appFilterMode == 2 && !systemApp;
+                        return !FxYulongFirewallAppFilterPolicy.includes(appFilterMode, info.flags);
                     });
                     for (ApplicationInfo info : loaded) {
                         String label;
