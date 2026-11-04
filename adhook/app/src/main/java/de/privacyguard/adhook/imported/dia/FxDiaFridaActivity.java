@@ -1237,6 +1237,11 @@ public final class FxDiaFridaActivity extends Activity {
                 setStatus("停止退出码 " + result.exitCode + "\n" + result.output));
     }
 
+    private static final class Target {
+        final String packageName, label;
+        Target(String p, String l) { packageName = p; label = l; }
+    }
+
     private void chooseTarget() {
         List<Target> targets = new ArrayList<>();
         PackageManager pm = getPackageManager();
