@@ -3435,3 +3435,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 首次 `41919031554` 失败暴露实现漏项：页面内容与 Glass 底栏已加 `navigationBarsPadding()`，classic/Miuix `Row` 底栏仍未加。不是放宽测试；按日志补齐 classic/Miuix 底栏的系统导航区避让。
 - 修复提交：`8a18767b0786b5f90448279d0269f0b8279dee49`。当前共享壳应包含三处 inset：AndroidView 页面、Glass 底栏、classic/Miuix 底栏。
 - 验证：最新源码回读统计到 3 处 `navigationBarsPadding()`，Glass/classic 两个底栏各 1 处；新 Actions 尚未完成。设备导航模式与 edge-to-edge 视觉仍未验收。
+
+
+## 2026-11-05 — 六 Tab 共享壳回归映射接入 Actions
+
+- Actions `41919196015` 已确认：产品源码的三处 navigation inset 已存在；失败根因不是测试断言，而是 `.github/workflows/fx-targeted-regression.yml` 的 changed-path 路由没有包含 `FxNativeAppShell.kt`，因此源码变更进入“无对应 Host regression mapping”退出分支。
+- 修复：将 `FxNativeAppShell` 加入 Dia 原生页面回归映射，并在该映射内明确运行 `fx-dia-six-tab-regression.sh`。不会放宽 Host 测试，也不会让共享壳改动绕过回归。
+- Workflow 提交：`760e3f9280861f4e0f88d0188f5457b3f7b48722`。
+- 下一步：读取新 Actions；若六 Tab regression 通过，再继续 MainActivity 主壳 edge-to-edge/软键盘状态；否则按新首错定位。
