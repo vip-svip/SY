@@ -63,7 +63,10 @@ assert "不代表 FX Hook 已注入" in main and "服务连接状态不等同于
 assert "addUnavailableAction(\"设置语言\"" in global_page, "language must stay unavailable until unified locale resources/lifecycle are migrated"
 assert "showLanguagePicker" not in global_page and "addStoredSwitch(\"显示 LSPosed 激活状态提示\"" in global_page, "only a preference with a real native consumer may be enabled"
 assert "EMessage" not in global_page, "do not invent an EMessage event-bus dependency for active_tip"
-assert "dialog.box.lsp.LScope" in global_page, "LSPosed scope sync limitation must be disclosed"
+assert 'addStoredSwitch("自动申请 LSPosed 作用域"' in global_page, "migrated automatic scope request must remain an opt-in preference"
+assert "通过官方 libXposed 服务向 LSPosed Manager 提交申请" in global_page, "scope request must disclose the official Manager approval route"
+assert "Manager 仍须批准" in global_page, "scope request must disclose that Manager approval remains required"
+assert "dialog.box.lsp.LScope" not in global_page, "FX must not preserve the legacy Dia Binder package as a fake migrated dependency"
 assert "不会执行重启" in global_page, "framework restart must not silently trigger a device reboot"
 assert "CheckUpdateActivity" not in global_page, "old standalone Dia updater must not be launched"
 
