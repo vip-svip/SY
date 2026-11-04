@@ -1017,3 +1017,33 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   1. 在可执行仓库工作树中运行 `sh scripts/tests/fx-yulong-app-firewall-regression.sh` 和 `sh scripts/tests/fx-yulong-firewall-filter-regression.sh`；若失败先定位本批断言/Root mock 环境，不触发全量 Actions。
   2. 对照 Dia 23.11 导入 APK / 资源继续查找原版 `KeyEventHook` 的真实字节码或源码；当前 Frida key 模板只是观察器，不能猜测 `alert_auto` / `disable_alert_mode`。
   3. 回到 UI 主线继续完成游龙安全护盾原生深层页面与导航返回链。
+
+## 2026-11-05 — 游龙广告独立应用管理页统一六 Tab 导航
+
+- 本批代码提交前 HEAD：a48755dda21c0f2400509e99e8c63a40895ba1e0。
+- 发现并纠正之前导航检查的范围问题：MainActivity 内部通过 base() 创建的页面已有六 Tab；但独立 Activity 使用自己的 setContentView(root)，不在 MainActivity.base() 的 Compose 外壳内，实际打开后没有固定底栏。
+- 新增共享容器：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeTabActivity.java`
+  - 提交 15b73a52a2219b06082dbff7f184e3086da23022。
+  - 基类复用现有 FxNativeAppShell 与 fx_ui.mode，向 ComposeView 设置 Lifecycle / ViewModelStore / SavedStateRegistry owners；底栏点击时通过 CLEAR_TOP + SINGLE_TOP 将选中的 0–5 Tab 交给栈中的 MainActivity，并结束当前独立页。
+- 已接入三个游龙广告应用管理页：
+  - `FxYulongAppStatsActivity.java` — bda906739db5c3fd4a4c30dd71eefcff156d709f。
+  - `FxYulongAppWhitelistActivity.java` — f8c25ab10a568af30d8490d95107601cd1064383。
+  - `FxYulongFirewallActivity.java` — 5d5ec6c098201782aa0c6e264214fba5354d087a。
+  - 三页仍使用各自原有标题、返回按钮、列表、搜索、分页、编辑器及 Root 操作；本批只把根 View 放入六 Tab 外壳，初始选中“设置”Tab。
+- MainActivity 路由提交 e6f08048a88147edd4b7b5023cea58881a61cda6：外部独立页以前只能请求 0–3；现改为 0–5 全部走 handleNativeTabSelection，因此 VPN / Ad / 隐私 / 脚本 / Hook / 设置均可从独立页返回主导航。
+- 定向脚本更新：
+  - 3f8a8ab5cd06555e34b54401a4fb9d126a79756b：`scripts/tests/fx-yulong-firewall-filter-regression.sh` 增加共享基类、三个 Activity 和 MainActivity 六 Tab 回跳接线断言。
+  - 3a101556123a1e156c53186f9022e6f378ec39e1：修正旧 Firewall 集成回归中已废弃的反向筛选表达式断言。
+  - 3fe1e9a18ceb8b0b75fd97d12c9320e8a664f8e9：回归脚本增加 stale inventory 只读状态和 Root 包/UID 写入校验。
+- 已在本轮本地执行独立 JDK Host 测试：从当前 GitHub 文件内容取得的 FxYulongFirewallAppFilterPolicy.java 与 FxYulongFirewallAppFilterPolicyHostTest.java，以 `javac -Xlint:all -Werror` 编译并运行；11 项断言全部通过。六 Tab 静态接线脚本尚未在完整仓库工作树执行；未运行 Android / Gradle 编译、模拟器或真机导航验收。
+- 同期并行 Firewall 安全修复：
+  - e52a8ad1ed1cbec55b72cb68614905be1d737550：Root 写入 set / rule 前重新解析当前包 UID；包不存在、快照不可读或 UID 变化都拒绝修改。
+  - 349884740d4fe7debd2bf00bfa2e36c17599555f：新增 stale UID、已卸载包与 Root 快照失败回归。
+  - 4b4236036a99d1313d7c8dc1b077617d39880e23：Root/PackageManager 清单刷新未成功时防火墙编辑控件只读，总开关保持禁用。
+  - ddc53d482aa7ade372124cf7d7f6b76d8151e7be：合并设置按钮的只读状态，避免创建后未被挂载的重复按钮。
+  - 7fc7994e0255a560e422602c2a6c503ac35ea279：修正 Root UID 验证函数输出换行。
+  - 59565158641e29885e1dbb5cd5a48976a269a225：修正 stale UID 测试中的包清单换行 fixture。
+  - a48755dda21c0f2400509e99e8c63a40895ba1e0：同步记录上述 Firewall UID / stale inventory 防护。
+- 未完成：其他独立 Activity（Yulong Ad 主页、DNS、证书/日志页、Dia 编辑器/Frida/Inspector、Shield 扫描/救援等）仍需按主入口优先级接入相同六 Tab 外壳；本批只覆盖三个高频广告应用管理页。外层六 Tab 固定结构仍需全页面验收。
+- 下一批具体任务：继续接入游龙广告主功能 Activity（FxYulongAdActivity、FxYulongDnsActivity、FxYulongAdSummaryActivity 或 General Activity）中优先的 1–3 个页面；随后为 Dia 与 Shield 的核心页面复用同一基类。逐个验证 Tab 点击回跳、Activity 返回和滚动/编辑状态，不改 FX 1.0.0 版本，不提前打包。
