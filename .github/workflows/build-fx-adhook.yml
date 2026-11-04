@@ -297,6 +297,7 @@ jobs:
           sh scripts/tests/fx-stellar-control-shell-regression.sh
           sh scripts/tests/fx-stellar-manager-activity-regression.sh
           sh scripts/tests/fx-stellar-manager-provider-regression.sh
+          sh scripts/tests/fx-stellar-adb-native-regression.sh
           sh scripts/tests/fx-stellar-secure-settings-regression.sh
           sh scripts/tests/fx-stellar-command-shortcut-regression.sh
           sh scripts/tests/fx-stellar-permission-request-regression.sh
