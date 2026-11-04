@@ -33,7 +33,7 @@ if notice not in hub:
 # The per-target editor's publish action writes FX configuration and Remote Files;
 # it deliberately does not request or revoke any LSPosed scope.
 publish_notice = "保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。"
-publish_anchor = '        renderCustomRules();\\n        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'
+publish_anchor = "        renderCustomRules();" + chr(10) + '        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'
 publish_replacement = '''        renderCustomRules();
         TextView publishScopeNotice = new TextView(this);
         publishScopeNotice.setText("保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。");
