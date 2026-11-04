@@ -40,12 +40,17 @@ required = {
     "failed or oversized new draft removes previous cache": "// A failed write can roll back to an older AtomicFile.",
     "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
+    "Activity destruction marks worker cancellation": "activityDestroyed = true;\n        targetLoadGeneration++;",
+    "worker cancellation checks both lifecycle and interrupt": "activityDestroyed || Thread.currentThread().isInterrupted()",
+    "worker import/export loops check cancellation": "ensureFridaWorkerActive();",
     "script export success callback checks Activity lifecycle": 'if (isFinishing() || isDestroyed()) return;\n                    setStatus("当前 JS 脚本已导出。");',
     "script export failure callback checks Activity lifecycle": 'if (isFinishing() || isDestroyed()) return;\n                    setStatus("JS 脚本导出失败："',
 }
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: missing {label}: {needle}")
+if source.count("ensureFridaWorkerActive();") < 5:
+    raise SystemExit("FAIL: large SAF read/write and binary install paths must check cancellation")
 if "导出脚本库 JSON 文件" not in source or "从 JSON 文件批量导入脚本库" not in source:
     raise SystemExit("FAIL: Frida script library UI does not expose file import/export")
 if "exportFridaScriptLibrary() {\n        try {\n            org.json.JSONObject root" in source:
