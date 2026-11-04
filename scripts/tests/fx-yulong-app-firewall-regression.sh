@@ -273,6 +273,11 @@ for line in source.splitlines():
 print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
 PY
 
+# Start must retain the lifecycle lock until nohup has exec'd the exact watcher.
+grep -Fq 'while [ "$_watch_start_wait" -lt 30 ]; do' "$SOURCE" || fail "watcher startup releases lifecycle lock before identity confirmation"
+grep -Fq 'if watch_is_ours "$pid"; then' "$SOURCE" || fail "watcher startup does not confirm exact process identity under lock"
+grep -Fq 'retaining PID record' "$SOURCE" || fail "ambiguous live watcher PID could be discarded and duplicated"
+
 # Signal handlers must exit into the sole EXIT cleanup handler.
 grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE" || fail "EXIT lock cleanup handler missing"
 grep -Fqx "  trap 'exit 129' HUP" "$SOURCE" || fail "HUP exit handler missing"
