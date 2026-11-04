@@ -42,6 +42,9 @@ import sys
 activity, store, frida = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES - count" in activity, "import stream must have a hard byte limit"
+assert "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())" in activity, "JSON import must use strict UTF-8 decoding"
+assert "newDecoder()" in policy and "CodingErrorAction.REPORT" in policy, "JSON decoder must reject malformed UTF-8 instead of silently replacing bytes"
+assert "malformed UTF-8 must be rejected" in host, "host policy test must cover malformed UTF-8 rejection"
 editor_start = activity.index("if (requestCode == REQUEST_EDITOR)")
 saf_start = activity.index("if (resultCode != RESULT_OK || data == null || data.getData() == null)")
 editor_result = activity[editor_start:saf_start]
