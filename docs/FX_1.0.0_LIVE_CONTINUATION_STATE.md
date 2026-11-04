@@ -2539,3 +2539,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`4617aabb31006bd215007240e984127ebd138851`（Activity 生命周期修复）；`3915ce2436521d7a58a4506d6518869cfcd23b0e`（回归断言）。
 - 回归脚本增加 pending 标记、Bundle 保存/恢复、迟到结果拒绝、启动失败/取消清理断言，并保留既有 JSON 字段验证断言。尚未执行该脚本、javac/Java、Gradle、模拟器或真机验证；不能宣称测试通过。
 - 下一步：继续游龙广告原生页面与 Dia 原生页面导航/状态闭环；先查同类 SAF 生命周期问题，再做页面交互回归。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Frida 脚本库导入覆盖预览与回归测试同步
+
+- 首次 targeted Host run `41909724439` 在 Frida SAF 回归脚本第一项失败：测试仍要求旧的 Activity 内联 schema 字符串和 `writeFridaScriptLibrary(merged)`，而实现已拆分为 `FxDiaScriptLibraryStore` / `FxDiaScriptLibraryPolicy`。这是回归断言过期，不是 schema 校验缺失；当前 Store 仍校验导入 schema，Policy 仍限制单脚本 128 KiB、脚本数 64 和 JSON 1 MiB。
+- 同时修复真实的导入覆盖风险：文件导入与剪贴板导入现在都先调用 `previewImport`，显示导入数量及最多 8 个同名覆盖项，必须再次点击“确认覆盖并导入”才写入。Store 的默认 `mergeImport(context,json)` 不再允许静默覆盖；确认版在写锁内重新检查重叠名称，预览后出现的新同名项会拒绝写入并要求重新预览。
+- 回归脚本改为分别读取 Activity、ScriptLibraryStore 和 ScriptLibraryPolicy，验证 schema、大小/数量限制、覆盖预览、确认列表与锁内复核；不再依赖已废弃的旧实现字符串。
+- 改动路径：`FxDiaScriptLibraryStore.java`、`FxDiaFridaActivity.java`、`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`、本状态文件。
+- 提交：`c5bdbec5b81c7acfe1f7973a49762904b5a32896`（默认禁止未确认覆盖）；`b39e57a1e0ffb6945d9569594f51166b5006df60`（文件/剪贴板双路径预览确认）；`c1fe04977f622669d0fa4443ebbdeb8a51b22f1b`（更新 Store/Policy 回归断言）。
+- 静态验证：最新 HEAD 确认默认合并拒绝覆盖、确认名单二次校验、文件与剪贴板都走预览、UI 显示同名项；回归脚本所有新增关键断言与当前源码一致。修复后的 targeted Actions 结果待读取，未声称测试通过。
+- 下一步：确认 Frida SAF 回归通过；继续保存/恢复文件选择返回后的 pending import URI，避免 Activity 旋转取消后台导入后丢失本次选择。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
