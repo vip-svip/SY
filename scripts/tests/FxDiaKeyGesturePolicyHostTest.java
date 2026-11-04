@@ -95,6 +95,19 @@ public final class FxDiaKeyGesturePolicyHostTest {
         check(registry.forPackage("com.example.first") != firstPackage,
                 "removing a package resets its previous gesture timestamps");
 
+        check(FxDiaKeyGesturePolicy.hasOverlappingTriggers(0, 2),
+                "volume-down double and triple gestures overlap");
+        check(FxDiaKeyGesturePolicy.hasOverlappingTriggers(1, 3),
+                "Back double and triple gestures overlap");
+        check(FxDiaKeyGesturePolicy.hasOverlappingTriggers(0, 6),
+                "volume-down double can overlap with volume chord");
+        check(FxDiaKeyGesturePolicy.hasOverlappingTriggers(4, 6),
+                "volume-up double can overlap with volume chord");
+        check(!FxDiaKeyGesturePolicy.hasOverlappingTriggers(0, 4),
+                "different volume-key double gestures do not overlap");
+        check(!FxDiaKeyGesturePolicy.hasOverlappingTriggers(-1, 6),
+                "disabled actions do not conflict");
+
         System.out.println("PASS: " + passed + " Dia key gesture host assertions");
     }
 }
