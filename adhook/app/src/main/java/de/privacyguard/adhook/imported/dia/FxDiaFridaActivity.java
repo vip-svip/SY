@@ -1537,7 +1537,9 @@ public final class FxDiaFridaActivity extends Activity {
 
         android.widget.CheckBox broadScope = new android.widget.CheckBox(this);
         broadScope.setText("允许检查任意 ViewGroup 父容器（高风险）");
-        broadScope.setChecked(false);
+        // Restore the last chosen scope for review; the wider scope still requires
+        // a fresh confirmation each time the user generates a script.
+        broadScope.setChecked(prefs.getBoolean("dialog_remove_any_parent", false));
         broadScope.setPadding(0, dp(4), 0, dp(4));
         form.addView(broadScope);
         TextView scopeWarning = text(
@@ -1607,8 +1609,8 @@ public final class FxDiaFridaActivity extends Activity {
                                 return;
                             }
                             boolean saved = prefs.edit()
-                                    .putString("dialog_remove_regex_rules", String.join("\\n", regexRules))
-                                    .putString("dialog_remove_resource_ids", String.join("\\n", resourceRules))
+                                    .putString("dialog_remove_regex_rules", String.join("\n", regexRules))
+                                    .putString("dialog_remove_resource_ids", String.join("\n", resourceRules))
                                     .putBoolean("dialog_remove_any_parent", broadScope.isChecked())
                                     .commit();
                             if (!saved) {
