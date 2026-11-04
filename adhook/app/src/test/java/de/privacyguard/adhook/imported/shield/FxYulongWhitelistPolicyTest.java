@@ -19,10 +19,22 @@ public class FxYulongWhitelistPolicyTest {
         assertTrue(values.contains("org.example_tool.client"));
     }
 
-    @Test public void ignoresMalformedPackageNames() {
+    @Test public void rejectsWholeWhitelistWhenAnyPackageNameIsMalformed() {
         Set<String> values = FxYulongWhitelistPolicy.parse(
-                ", ../bad, com..bad, package name, not-a-package, com.example.good");
-        assertEquals(Collections.singleton("com.example.good"), values);
+                "com.example.good, ../bad, com..bad, package name, not-a-package");
+        assertTrue(values.isEmpty());
+        assertFalse(FxYulongWhitelistPolicy.isWellFormed(
+                "com.example.good, ../bad"));
+    }
+
+    @Test public void rejectsEmptyCsvEntriesInsteadOfPartiallyTrustingTheList() {
+        assertTrue(FxYulongWhitelistPolicy.parse("com.example.good,,org.example.app").isEmpty());
+        assertFalse(FxYulongWhitelistPolicy.isWellFormed("com.example.good,"));
+    }
+
+    @Test public void acceptsEmptyWhitelistAndValidDeduplicatedEntries() {
+        assertTrue(FxYulongWhitelistPolicy.isWellFormed(""));
+        assertTrue(FxYulongWhitelistPolicy.isWellFormed("com.example.app, com.example.app"));
     }
 
     @Test public void emptyAndNullValuesProduceEmptyWhitelist() {
