@@ -2899,3 +2899,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
 - 验证：确认所需四个文件在当前 HEAD 均存在且名称与读取路径一致；等待本次 Actions 执行。尚未运行 Gradle/JUnit/真机。
 - 下一步：读取新 Actions 第一条失败；通过后切到白名单/黑名单列表页真实搜索、分页和返回状态检查，不继续无限修测试断言。
+
+
+## 2026-11-05 — Shield 风险详情证据回归变量绑定补齐
+
+- Actions：`41913734663` 已越过黑名单策略及名单损坏保护断言，随后因新增证据回归段引用未定义的 Python 名称 `virus_db` 以 NameError 退出。
+- 根因：此前新增了真实命中来源/匹配条目检查，但未把已有源码读取变量映射到新检查段；属于测试脚本装配错误，不是产品运行错误。
+- 修复：将 `virus_db` 绑定到已读取的 `db`，`scan_activity` 绑定到 `scan_page`，并显式读取 `FxYulongWarningActivity.java` 与 `FxYulongVirusDbTest.java`。
+- 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `42a0b1e8bda8bf761c002ad3b3876a7f0e21781a`。
+- 验证：已确认测试引用的源文件均存在；实际证据字段已在 `FxYulongVirusDb.MatchEvidence`、扫描状态保存/恢复、风险详情 UI 与单测中实现。等待本轮 Actions。
+- 下一步：执行完证据字段回归后，继续修复下一条真实首错；不把测试脚本成功等同于 Android UI/真机验收。
