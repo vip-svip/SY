@@ -50,13 +50,9 @@ public final class FxYulongWhitelistPolicy {
                         "User whitelist exceeded the safe read limit; risk scanning will not suppress findings.");
                 return Collections.emptySet();
             }
-            Set<String> parsed = parse(raw);
-            if (parsed.size() >= MAX_ENTRIES) {
-                android.util.Log.e("FX-YulongShield",
-                        "User whitelist exceeded the supported entry limit; risk scanning will not suppress findings.");
-                return Collections.emptySet();
-            }
-            return parsed;
+            // parse() rejects lists above MAX_ENTRIES atomically; exactly MAX_ENTRIES
+            // valid packages remain a supported, usable whitelist.
+            return parse(raw);
         } catch (RuntimeException error) {
             android.util.Log.e("FX-YulongShield",
                     "Cannot read user whitelist; risk scanning will continue without suppression.", error);
