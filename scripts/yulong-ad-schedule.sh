@@ -28,54 +28,56 @@ proc_start_time() {
 }
 acquire_runtime_lock() {
   _lock_tries=0
-  _lock_missing=0
   _lock_self_stat=
   IFS= read -r _lock_self_stat < /proc/self/stat || { log "cannot read current process identity"; return 31; }
-  _lock_self_pid=${_lock_self_stat%% *}
+  _lock_self_pid=\${_lock_self_stat%% *}
   case "$_lock_self_pid" in ''|*[!0-9]*) log "cannot parse current process PID"; return 31 ;; esac
   _lock_self_start=$(proc_start_time "$_lock_self_pid" 2>/dev/null || :)
   case "$_lock_self_start" in ''|*[!0-9]*) log "cannot establish process identity for scheduler lock"; return 31 ;; esac
-  while ! mkdir "$RUNTIME_LOCK" 2>/dev/null; do
-    if [ -d "$RUNTIME_LOCK" ] && [ ! -L "$RUNTIME_LOCK" ]; then
-      if [ -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
-        _lock_record=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
-        _lock_pid=$(printf '%s\n' "$_lock_record" | awk '{print $1}')
-        _lock_start=$(printf '%s\n' "$_lock_record" | awk '{print $2}')
-        case "$_lock_pid" in ''|*[!0-9]*) _lock_pid= ;; esac
-        case "$_lock_start" in ''|*[!0-9]*) _lock_start= ;; esac
-        _lock_actual=
-        if [ -n "$_lock_pid" ] && [ -n "$_lock_start" ]; then
-          _lock_actual=$(proc_start_time "$_lock_pid" 2>/dev/null || :)
-        fi
-        if [ "$_lock_actual" != "$_lock_start" ]; then
-          _lock_confirm=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
-          if [ "$_lock_confirm" = "$_lock_record" ]; then
-            rm -f "$RUNTIME_OWNER" 2>/dev/null || :
-            rmdir "$RUNTIME_LOCK" 2>/dev/null || :
-          fi
-        fi
-        _lock_missing=0
-      else
-        _lock_missing=$((_lock_missing + 1))
-        if [ "$_lock_missing" -ge 60 ] && [ ! -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
-          for _lock_tmp in "$RUNTIME_LOCK"/owner.*; do
-            [ -f "$_lock_tmp" ] && [ ! -L "$_lock_tmp" ] || continue
-            rm -f "$_lock_tmp" 2>/dev/null || :
-          done
+  _lock_retry_limit=\${FX_YULONG_SCHEDULE_LOCK_RETRIES:-300}
+  case "$_lock_retry_limit" in ''|*[!0-9]*|0) _lock_retry_limit=300 ;; esac
+  [ "$_lock_retry_limit" -le 300 ] 2>/dev/null || _lock_retry_limit=300
+
+  while :; do
+    if [ -L "$RUNTIME_LOCK" ]; then
+      log "scheduler runtime lock path is a symbolic link; refusing to follow it"
+      return 31
+    fi
+    if mkdir "$RUNTIME_LOCK" 2>/dev/null; then
+      break
+    fi
+
+    if [ -d "$RUNTIME_LOCK" ] && [ ! -L "$RUNTIME_LOCK" ] &&
+       [ -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+      _lock_record=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
+      _lock_pid=$(printf '%s\n' "$_lock_record" | awk '{print $1}')
+      _lock_start=$(printf '%s\n' "$_lock_record" | awk '{print $2}')
+      case "$_lock_pid" in ''|*[!0-9]*) _lock_pid= ;; esac
+      case "$_lock_start" in ''|*[!0-9]*) _lock_start= ;; esac
+      if [ -n "$_lock_pid" ] && [ -n "$_lock_start" ]; then
+        _lock_actual=$(proc_start_time "$_lock_pid" 2>/dev/null || :)
+        if [ "$_lock_actual" != "$_lock_start" ] &&
+           [ "$(cat "$RUNTIME_OWNER" 2>/dev/null || :)" = "$_lock_record" ]; then
+          rm -f "$RUNTIME_OWNER" 2>/dev/null || :
           rmdir "$RUNTIME_LOCK" 2>/dev/null || :
-          _lock_missing=0
         fi
       fi
     fi
+
     _lock_tries=$((_lock_tries + 1))
-    if [ "$_lock_tries" -ge 300 ]; then
-      log "scheduler runtime lock remained busy; operation was not applied"
+    if [ "$_lock_tries" -ge "$_lock_retry_limit" ]; then
+      if [ -d "$RUNTIME_LOCK" ] && [ ! -s "$RUNTIME_OWNER" ]; then
+        log "ownerless legacy scheduler lock remains; refusing unsafe automatic removal"
+      else
+        log "scheduler runtime lock remained busy or had no verifiable owner; operation was not applied"
+      fi
       return 30
     fi
     sleep 0.2
   done
+
   _lock_owner_tmp="$RUNTIME_LOCK/owner.$_lock_self_pid"
-  if (umask 077; printf '%s %s\n' "$_lock_self_pid" "$_lock_self_start" > "$_lock_owner_tmp" && mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"); then
+  if (umask 077; printf '%s %s\n' "$_lock_self_pid" "$_lock_self_start" > "$_lock_owner_tmp" && chmod 600 "$_lock_owner_tmp"); then
     RUNTIME_LOCK_HELD=1
     RUNTIME_LOCK_START=$_lock_self_start
     return 0

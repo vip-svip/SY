@@ -63,12 +63,36 @@ printf 'yulong_ad_schedule_active=0\n' > "$PG/state"
 MP="$MOD"
 export MP PG
 . "$MOD/scripts/util.sh"
+# Force a long pause between successful mkdir and owner-file publication.
+# Old code could delete this live lock after five 200ms polls and start duplicates.
+REAL_MKDIR=$(command -v mkdir)
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/mkdir" <<'EOF'
+#!/bin/sh
+if [ "\${1:-}" = "\${FX_TEST_RUNTIME_LOCK:-}" ]; then
+  "$FX_TEST_REAL_MKDIR" "$@" || exit $?
+  sleep "\${FX_TEST_LOCK_PUBLISH_DELAY:-1.5}"
+  exit 0
+fi
+exec "$FX_TEST_REAL_MKDIR" "$@"
+EOF
+chmod 700 "$TMP/bin/mkdir"
+FX_TEST_REAL_MKDIR=$REAL_MKDIR
+FX_TEST_RUNTIME_LOCK=$PG/yulong-ad-schedule.runtime.lock
+FX_TEST_LOCK_PUBLISH_DELAY=1.5
+ORIGINAL_PATH=$PATH
+export FX_TEST_REAL_MKDIR FX_TEST_RUNTIME_LOCK FX_TEST_LOCK_PUBLISH_DELAY
+PATH="$TMP/bin:$PATH"
+export PATH
 i=0
 while [ "$i" -lt 8 ]; do
   (sh "$SCHEDULE" start > "$TMP/start.$i.log" 2>&1) &
   i=$((i + 1))
 done
 wait
+PATH=$ORIGINAL_PATH
+export PATH
+unset FX_TEST_REAL_MKDIR FX_TEST_RUNTIME_LOCK FX_TEST_LOCK_PUBLISH_DELAY
 watchers=$(ps -eo pid=,args= | awk -v script="$SCHEDULE" 'index($0,script) && index($0," watch ") && $0 !~ /awk/ {n++} END{print n+0}')
 [ "$watchers" -eq 1 ] || {
   echo "FAIL: concurrent starts created $watchers watcher processes (expected 1)" >&2
@@ -126,11 +150,22 @@ sh "$SCHEDULE" evaluate >/dev/null
   exit 1
 }
 mkdir "$PG/yulong-ad-schedule.runtime.lock"
-sh "$SCHEDULE" evaluate >/dev/null
-[ ! -e "$PG/yulong-ad-schedule.runtime.lock" ] || {
-  echo "FAIL: ownerless runtime lock was not reclaimed" >&2
+if FX_YULONG_SCHEDULE_LOCK_RETRIES=3 sh "$SCHEDULE" evaluate > "$TMP/ownerless.log" 2>&1; then
+  echo "FAIL: ownerless legacy lock was stolen" >&2
+  exit 1
+else
+  ownerless_rc=$?
+fi
+[ "$ownerless_rc" -eq 30 ] || {
+  echo "FAIL: ambiguous ownerless lock should fail closed (rc=$ownerless_rc)" >&2
   exit 1
 }
+[ -d "$PG/yulong-ad-schedule.runtime.lock" ] &&
+[ ! -e "$PG/yulong-ad-schedule.runtime.lock/owner" ] || {
+  echo "FAIL: ownerless legacy lock was removed or modified" >&2
+  exit 1
+}
+rmdir "$PG/yulong-ad-schedule.runtime.lock"
 cat > "$PG/yulong-ad-schedule.conf" <<'EOF'
 enabled=1
 start=00:00
@@ -152,6 +187,9 @@ assert "lock_self_pid=" + chr(36) + "{_lock_self_stat%% *}" in source, "current 
 assert '"$RUNTIME_LOCK/owner.$_lock_self_pid"' in source, "temporary lock owner must be scoped to current PID"
 assert 'printf \'%s %s\\n\' "$_lock_self_pid"' in source, "owner record must store current PID"
 assert '"$_release_pid" = "$_lock_self_pid"' in source, "release must confirm owner PID and process start time"
+assert '$_lock_missing' not in source, "ownerless lock cleanup must not use a short time threshold"
+assert 'FX_YULONG_SCHEDULE_LOCK_RETRIES' in source, "bounded retry override must support deterministic fail-closed tests"
+assert 'ownerless legacy scheduler lock remains' in source, "ownerless compatibility lock must fail closed"
 print("PASS: scheduler lock owner uses the live process PID and start time")
 PY
 python3 - "$CONTROL" <<'PY'
