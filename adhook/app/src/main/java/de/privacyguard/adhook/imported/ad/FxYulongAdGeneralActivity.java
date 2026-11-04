@@ -377,8 +377,8 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
             boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
             taskerResultStatus.setText(allowed
-                    ? "已允许外部自动化控制；尚未收到执行回执。"
-                    : "外部自动化控制当前关闭；Tasker 广播不会执行 Root 操作。尚无最近执行回执。");
+                    ? "已允许指定发送方 " + allowedPackage + "；尚未收到执行回执。"
+                    : "外部自动化控制当前关闭；未授权广播不会执行 Root 操作。尚无最近执行回执。");
             return;
         }
         String action = prefs.getString(FxYulongAdTaskerReceiver.PREF_LAST_ACTION, "未知动作");
@@ -401,7 +401,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (!detail.isEmpty()) display.append("\n回执详情：").append(detail);
         display.append("\n外部自动化授权：")
                 .append(prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
-                        ? "已开启（设备上可发送该动作的应用均可请求执行）"
+                        ? "已开启（仅接受 " + allowedPackage + " 且系统发送包名/UID 映射匹配的请求）"
                         : "已关闭（后续外部请求将在 Root 执行前被拒绝）");
         display.append("\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
         taskerResultStatus.setText(display.toString());
