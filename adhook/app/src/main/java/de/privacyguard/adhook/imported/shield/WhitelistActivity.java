@@ -76,7 +76,10 @@ public class WhitelistActivity extends Activity {
     private TextView sectionTitle;
     private String whitelistDataWarning = "";
     private EditText searchInput;
+    private ScrollView whitelistScroll;
     private String query = "";
+    private static final String STATE_QUERY = "fx_shield_whitelist_query";
+    private static final String STATE_SCROLL_Y = "fx_shield_whitelist_scroll_y";
 
     private final ThreadPoolExecutor labelWorker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
@@ -109,9 +112,22 @@ public class WhitelistActivity extends Activity {
         root.addView(buildContent());
 
         setContentView(root);
+        if (savedInstanceState != null) {
+            query = savedInstanceState.getString(STATE_QUERY, "");
+            searchInput.setText(query);
+            final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
+            whitelistScroll.post(() -> whitelistScroll.scrollTo(0, restoreY));
+        }
 
         refreshWhitelistUI();
         loadLabelsAsync();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putString(STATE_QUERY, searchInput == null ? query : searchInput.getText().toString());
+        if (whitelistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, whitelistScroll.getScrollY()));
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -250,8 +266,8 @@ public class WhitelistActivity extends Activity {
     // 内容
     // ============================================================
     private View buildContent() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        whitelistScroll = new ScrollView(this);
+        whitelistScroll.setFillViewport(true);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -376,8 +392,8 @@ public class WhitelistActivity extends Activity {
         whitelistContainer.setOrientation(LinearLayout.VERTICAL);
         content.addView(whitelistContainer);
 
-        scroll.addView(content);
-        return scroll;
+        whitelistScroll.addView(content);
+        return whitelistScroll;
     }
 
     private int getStatusBarHeight() {
