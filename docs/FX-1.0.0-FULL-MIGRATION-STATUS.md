@@ -771,3 +771,10 @@ After each implementation batch:
 - Lock acquisition now waits briefly and re-reads a snapshot that initially failed identity validation. A changed snapshot is retried; a stable foreign record remains a hard conflict. Stale cleanup compares the settled record before unlinking.
 - Existing concurrent start/start and start/stop regression coverage remains the runtime host simulation; static assertions now pin the settle/re-read and compare-before-delete contract.
 - Android/OEM background execution still requires device validation. No APK/KernelSU archive is claimed.
+
+## 2026-11-04 — Atomic Yulong watcher lock publication
+
+- Replaced create-empty-then-write lock publication with a private same-directory temporary file containing the complete PID/protocol/script/start-time record, followed by one atomic hard-link publication to the lock path.
+- Contending starts/stops can no longer read an intermediate one-line PID record and misclassify the active starter as an unrelated process. The existing PID + script path + kernel start-time checks remain unchanged after publication.
+- The regression now asserts complete-record-before-link publication and forbids the old `set -C` partial-write approach. The real start/start and start/stop process race remains in the integration test.
+- Validation is pending the next GitHub Actions run; no real Android-device run is claimed.

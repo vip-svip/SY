@@ -261,8 +261,12 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 lock = source.split("watch_lock_acquire() {", 1)[1].split("watch_lock_release() {", 1)[0]
 matcher = source.split("watch_lock_process_is_ours() {", 1)[1].split("watch_lock_acquire() {", 1)[0]
 release = source.split("watch_lock_release() {", 1)[1].split("watch_lock_signal_exit() {", 1)[0]
-assert "set -C" in lock, "watcher lock is not created with noclobber"
-assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
+assert 'mktemp "$WATCH_LOCK.tmp.XXXXXX"' in lock, "watcher ownership record is not prepared in a unique private temp file"
+assert "ln \"$_watch_lock_tmp\" \"$WATCH_LOCK\"" in lock, \
+    "complete watcher ownership metadata must be atomically published by a same-directory hard link"
+assert "set -C" not in lock, "partially-written noclobber lock publication must not return"
+assert "printf" in lock and '"$"' in lock and '"$_watch_lock_tmp"' in lock, \
+    "exclusive lock does not publish the real shell PID into the prepared record"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
 owner = source.split("watch_lock_owner_is_ours() {", 1)[1].split("\n}", 1)[0]
@@ -283,7 +287,8 @@ assert '_watch_lock_settled" != "$_watch_lock_record"' in settle[1], \
     "lock acquisition must retry if the owner record changed during publication"
 assert '$_watch_lock_settled' in settle[1] and 'rm -f "$WATCH_LOCK"' in settle[1], \
     "stale cleanup must be tied to the settled lock snapshot"
-assert 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start"' in source, "watcher lock must publish full ownership metadata atomically"
+assert 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp"' in source, \
+    "watcher must write full ownership metadata before publishing the lock path"
 
 assert 'case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac' in matcher, "lock identity must recognize wrapped shell invocations containing the exact script path"
 assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"

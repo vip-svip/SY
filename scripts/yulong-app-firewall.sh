@@ -746,33 +746,39 @@ watch_lock_acquire() {
           ;;
       esac
     else
-      # Publish PID, script path and /proc start time together. The start
-      # time prevents PID reuse; the script path avoids fragile argv parsing.
-      _watch_lock_start=$(watch_lock_pid_start_time "$$") || {
+      # Prepare the complete ownership record under a unique private name,
+      # then publish it with one same-directory hard link. A contender can
+      # never observe a truncated/partially-written lock record.
+      _watch_lock_start=$(watch_lock_pid_start_time "$") || {
         echo "unable to read current watcher lock owner start time" >&2
         return 1
       }
-      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
-      if (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
+      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
+      _watch_lock_tmp=$(mktemp "$WATCH_LOCK.tmp.XXXXXX") || return 1
+      if ! {
+        printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp" &&
+        chmod 600 "$_watch_lock_tmp"
+      }; then
+        rm -f "$_watch_lock_tmp"
+        return 1
+      fi
+      if ln "$_watch_lock_tmp" "$WATCH_LOCK" 2>/dev/null; then
+        rm -f "$_watch_lock_tmp"
         WATCH_LOCK_OWNED=1
         WATCH_LOCK_START=$_watch_lock_start
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ] \
-            && chmod 600 "$WATCH_LOCK"; then
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
           trap 'watch_lock_signal_exit 129' HUP
           trap 'watch_lock_signal_exit 130' INT
           trap 'watch_lock_signal_exit 143' TERM
           return 0
-        fi
-        if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
-          rm -f "$WATCH_LOCK"
         fi
         WATCH_LOCK_OWNED=0
         WATCH_LOCK_START=
         echo "unable to verify firewall watcher lock ownership" >&2
         return 1
       fi
+      rm -f "$_watch_lock_tmp"
     fi
     _watch_lock_tries=$((_watch_lock_tries + 1))
     [ "$_watch_lock_tries" -lt "$WATCH_LOCK_MAX_TRIES" ] || {
