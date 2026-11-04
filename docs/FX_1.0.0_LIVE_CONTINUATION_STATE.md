@@ -3428,3 +3428,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 产品提交：`dea52536b27d265e0436d44def250884f37322ce`；回归提交：`5caa09cc96312d0a41f545f3219aec9d264fd67e`。
 - 验证：静态检查确认页面内容和两种底栏各有 inset 处理；Actions 尚待读取。未执行 Compose UI 截图、手势/三键导航设备测试或旋转测试。
 - 下一步：读取本批六 Tab/Shield 回归；继续检查 MainActivity 六 Tab 主壳的 edge-to-edge、软键盘和返回状态，再转回 Shield 风险详情/批量清理 UI。
+
+
+## 2026-11-05 — 六 Tab classic 底栏 inset 回归补齐
+
+- 首次 `41919031554` 失败暴露实现漏项：页面内容与 Glass 底栏已加 `navigationBarsPadding()`，classic/Miuix `Row` 底栏仍未加。不是放宽测试；按日志补齐 classic/Miuix 底栏的系统导航区避让。
+- 修复提交：`8a18767b0786b5f90448279d0269f0b8279dee49`。当前共享壳应包含三处 inset：AndroidView 页面、Glass 底栏、classic/Miuix 底栏。
+- 验证：最新源码回读统计到 3 处 `navigationBarsPadding()`，Glass/classic 两个底栏各 1 处；新 Actions 尚未完成。设备导航模式与 edge-to-edge 视觉仍未验收。
