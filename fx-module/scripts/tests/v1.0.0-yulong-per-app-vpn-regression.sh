@@ -2,6 +2,7 @@
 set -eu
 SOURCE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SCRIPT="$SOURCE_DIR/scripts/vpn-apps.sh"
+sh -n "$SCRIPT" || { echo "VPN app manager has invalid POSIX shell syntax" >&2; exit 1; }
 T="${TMPDIR:-/tmp}/fx-vpn-apps-$$"
 mkdir -p "$T/module/scripts" "$T/pg"
 cp "$SCRIPT" "$T/module/scripts/vpn-apps.sh"

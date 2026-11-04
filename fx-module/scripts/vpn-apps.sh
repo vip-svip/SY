@@ -204,7 +204,7 @@ transaction() {
     return 1
   }
   _restore=$_VPN_RESTORE
-  if cp -p "$_backup" "$_restore" && chmod 600 "$_restore"
+  if cp -p "$_backup" "$_restore" && chmod 600 "$_restore" \
       && [ ! -L "$CONF" ] && mv -f "$_restore" "$CONF"; then
     _VPN_RESTORE=
     if sh "$MP/scripts/apply.sh" fast; then

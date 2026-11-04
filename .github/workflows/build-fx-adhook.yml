@@ -102,6 +102,8 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+          python3 fx-patches/patch_vpn_apps.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_native_script_store.py fx-module
           python3 fx-patches/patch_quickjs_http_limits.py fx-module
           sh scripts/tests/fx-jsruntime-http-limits-regression.sh fx-module
