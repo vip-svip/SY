@@ -126,10 +126,32 @@ public final class FxDiaScriptLibraryStore {
 
     /** Merge is called only after the UI has explicitly described same-name replacement. */
     public static int mergeImport(Context context, String json) throws Exception {
+        return mergeImport(context, json, java.util.Collections.emptyList());
+    }
+
+    /**
+     * Merge only names the user explicitly confirmed after previewImport().
+     * Re-check overlaps under the write lock so a new same-name entry cannot be
+     * silently overwritten between preview and commit.
+     */
+    public static int mergeImport(Context context, String json, List<String> confirmedOverwrites) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");
+        List<String> confirmed = confirmedOverwrites == null
+                ? java.util.Collections.emptyList() : confirmedOverwrites;
         JSONObject incoming = parseImport(json);
         synchronized (LOCK) {
             JSONObject merged = readLocked(context);
+            List<String> unconfirmed = new ArrayList<>();
             Iterator<String> keys = incoming.keys();
+            while (keys.hasNext()) {
+                String name = keys.next();
+                if (merged.has(name) && !confirmed.contains(name)) unconfirmed.add(name);
+            }
+            if (!unconfirmed.isEmpty()) {
+                throw new IllegalStateException("脚本库在预览后发生变化，出现未确认的同名脚本："
+                        + android.text.TextUtils.join("、", unconfirmed) + "。请重新预览后再导入。");
+            }
+            keys = incoming.keys();
             while (keys.hasNext()) {
                 String name = keys.next();
                 merged.put(name, incoming.getString(name));
