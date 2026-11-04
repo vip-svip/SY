@@ -378,6 +378,9 @@ mutate_transaction() {
 }
 WATCH_PIDFILE="$PG/yulong-app-firewall.pid"
 WATCH_LOG="$PG/yulong-app-firewall.log"
+WATCH_LOCK="$PG/yulong-app-firewall-watch.lock"
+WATCH_LOCK_PID="$WATCH_LOCK/owner.pid"
+WATCH_LOCK_OWNED=0
 SCRIPT_PATH="$MP/scripts/yulong-app-firewall.sh"
 WATCH_INTERVAL=${WATCH_INTERVAL:-10}
 case "$WATCH_INTERVAL" in ''|*[!0-9]*) WATCH_INTERVAL=10 ;; esac
@@ -411,12 +414,14 @@ watch_loop() {
   cleanup_watch_loop() {
     [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :
     if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
-        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then
+        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$" ]; then
       rm -f "$WATCH_PIDFILE"
     fi
-    exit 0
   }
-  trap cleanup_watch_loop HUP INT TERM
+  trap cleanup_watch_loop EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   while :; do
     sleep "$WATCH_INTERVAL" & _watch_sleep_pid=$!
     wait "$_watch_sleep_pid" || :; _watch_sleep_pid=
@@ -436,7 +441,7 @@ watch_loop() {
     fi
   done
 }
-start_watch() {
+start_watch_locked() {
   [ "$(read_master)" = 1 ] && has_enabled_rules || {
     echo "no enabled per-app firewall rules; watcher not started"
     return 0
@@ -466,7 +471,7 @@ start_watch() {
   fi
   echo "started pid=$pid"
 }
-stop_watch() {
+stop_watch_locked() {
   [ ! -L "$WATCH_PIDFILE" ] || { echo "firewall watcher PID file is unsafe" >&2; return 1; }
   if [ -s "$WATCH_PIDFILE" ]; then
     pid=$(cat "$WATCH_PIDFILE" 2>/dev/null || true)
@@ -488,6 +493,111 @@ stop_watch() {
   rm -f "$WATCH_PIDFILE"
   echo "stopped"
 }
+watch_lock_process_is_ours() {
+  _lock_pid=$1
+  [ -r "/proc/$_lock_pid/cmdline" ] || return 1
+  _lock_cmd=$(tr '\000' ' ' < "/proc/$_lock_pid/cmdline" 2>/dev/null) || return 1
+  case "$_lock_cmd" in *"$SCRIPT_PATH"*) return 0 ;; esac
+  return 1
+}
+watch_lock_release() {
+  [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
+  if [ -d "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
+      && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
+      && [ "$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)" = "$" ]; then
+    rm -f "$WATCH_LOCK_PID"
+    rmdir "$WATCH_LOCK" 2>/dev/null || :
+  fi
+  WATCH_LOCK_OWNED=0
+}
+watch_lock_signal_exit() {
+  _watch_signal_status=$1
+  watch_lock_release
+  exit "$_watch_signal_status"
+}
+watch_lock_acquire() {
+  [ ! -L "$WATCH_LOCK" ] || {
+    echo "firewall watcher lock path is unsafe" >&2
+    return 1
+  }
+  _watch_lock_tries=0
+  while ! (umask 077; mkdir "$WATCH_LOCK") 2>/dev/null; do
+    [ ! -L "$WATCH_LOCK" ] || {
+      echo "firewall watcher lock path became unsafe" >&2
+      return 1
+    }
+    if [ -e "$WATCH_LOCK" ] && [ ! -d "$WATCH_LOCK" ]; then
+      echo "firewall watcher lock is not a directory" >&2
+      return 1
+    fi
+    if [ -d "$WATCH_LOCK" ]; then
+      [ ! -L "$WATCH_LOCK_PID" ] || {
+        echo "firewall watcher lock owner path is unsafe" >&2
+        return 1
+      }
+      if [ -f "$WATCH_LOCK_PID" ]; then
+        _watch_lock_owner=$(cat "$WATCH_LOCK_PID" 2>/dev/null || true)
+        case "$_watch_lock_owner" in
+          '' ) : ;;
+          *[!0-9]* )
+            echo "firewall watcher lock owner PID is malformed" >&2
+            return 1
+            ;;
+          * )
+            if kill -0 "$_watch_lock_owner" 2>/dev/null; then
+              watch_lock_process_is_ours "$_watch_lock_owner" || {
+                echo "firewall watcher lock belongs to an unrelated process" >&2
+                return 1
+              }
+            else
+              rm -f "$WATCH_LOCK_PID"
+              rmdir "$WATCH_LOCK" 2>/dev/null || :
+            fi
+            ;;
+        esac
+      elif [ "$_watch_lock_tries" -ge 2 ]; then
+        # Recover a process killed in the tiny interval between mkdir and PID publication.
+        rmdir "$WATCH_LOCK" 2>/dev/null || :
+      fi
+    fi
+    _watch_lock_tries=$((_watch_lock_tries + 1))
+    [ "$_watch_lock_tries" -lt 100 ] || {
+      echo "firewall watcher lifecycle is busy; no change was made" >&2
+      return 10
+    }
+    sleep 0.1
+  done
+  WATCH_LOCK_OWNED=1
+  if (umask 077; printf '%s\n' "$" > "$WATCH_LOCK_PID") \
+      && [ -f "$WATCH_LOCK_PID" ] && [ ! -L "$WATCH_LOCK_PID" ] \
+      && chmod 600 "$WATCH_LOCK_PID"; then
+    trap 'watch_lock_signal_exit 129' HUP
+    trap 'watch_lock_signal_exit 130' INT
+    trap 'watch_lock_signal_exit 143' TERM
+    return 0
+  fi
+  rm -f "$WATCH_LOCK_PID"
+  rmdir "$WATCH_LOCK" 2>/dev/null || :
+  WATCH_LOCK_OWNED=0
+  echo "unable to publish firewall watcher lock owner" >&2
+  return 1
+}
+watch_lock_run() {
+  watch_lock_acquire || return $?
+  if "$@"; then
+    _watch_lock_result=0
+  else
+    _watch_lock_result=$?
+  fi
+  watch_lock_release
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  return "$_watch_lock_result"
+}
+start_watch() { watch_lock_run start_watch_locked; }
+stop_watch() { watch_lock_run stop_watch_locked; }
+
 reconcile_watch_lifecycle() {
   if [ "$(read_master)" = 1 ] && has_enabled_rules; then
     start_watch || echo "firewall watcher did not start; re-evaluation is pending" >&2

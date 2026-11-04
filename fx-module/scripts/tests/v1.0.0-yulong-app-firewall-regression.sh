@@ -81,6 +81,16 @@ else
 fi
 DATE
 chmod 0755 "$TMP/bin/date"
+REAL_NOHUP=$(command -v nohup)
+MOCK_WATCH_SPAWN_LOG="$TMP/nohup-spawn.log"
+export REAL_NOHUP MOCK_WATCH_SPAWN_LOG
+cat > "$TMP/bin/nohup" <<'NOHUP'
+#!/bin/sh
+printf 'spawn\n' >> "$MOCK_WATCH_SPAWN_LOG"
+if [ "\${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 0.3; fi
+exec "$REAL_NOHUP" "$@"
+NOHUP
+chmod 0755 "$TMP/bin/nohup"
 MOCK_HOOKS4="$TMP/iptables.hooks"
 MOCK_HOOKS6="$TMP/ip6tables.hooks"
 : > "$MOCK_HOOKS4"; : > "$MOCK_HOOKS6"
@@ -319,14 +329,48 @@ v2run apply-event > "$V2/after-end.out"
 if tail -n +$((before_lines + 1)) "$V2/iptables.log" | grep -Fq 'uid-owner 20003'; then fail "cross-midnight rule remained active after its end minute"; fi
 
 export MOCK_TIME=23:00
-v2run start-watch > "$V2/watch-start.out"
 WATCH_PIDFILE="$V2/pg/yulong-app-firewall.pid"
-[ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing"
+WATCH_LOCK_DIR="$V2/pg/yulong-app-firewall-watch.lock"
+export MOCK_WATCH_SPAWN_DELAY=1
+: > "$MOCK_WATCH_SPAWN_LOG"
+v2run stop-watch > "$V2/watch-stop-before-race.out"
+# Two simultaneous starts must serialize around the check/spawn/PID publication window.
+v2run start-watch > "$V2/watch-start-a.out" 2>&1 &
+start_a=$!
+v2run start-watch > "$V2/watch-start-b.out" 2>&1 &
+start_b=$!
+wait "$start_a" || { cat "$V2/watch-start-a.out" >&2; fail "first concurrent watcher start failed"; }
+wait "$start_b" || { cat "$V2/watch-start-b.out" >&2; fail "second concurrent watcher start failed"; }
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "concurrent starts spawned more than one watcher"
+[ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing after concurrent start"
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
-v2run start-watch > "$V2/watch-start-again.out"
-grep -Fq 'already-running' "$V2/watch-start-again.out" || fail "second start created duplicate watcher"
+if ! grep -Fq 'already-running' "$V2/watch-start-a.out" && ! grep -Fq 'already-running' "$V2/watch-start-b.out"; then
+  fail "concurrent start did not observe the active watcher"
+fi
+[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after concurrent starts"
+
+# Stop while a start is delayed before publishing its PID. The serialized stop
+# must wait for publication, then terminate that exact watcher instead of missing it.
+v2run stop-watch > "$V2/watch-stop-before-overlap.out"
+: > "$MOCK_WATCH_SPAWN_LOG"
+v2run start-watch > "$V2/watch-start-race.out" 2>&1 &
+starting=$!
+sleep 0.05
+v2run stop-watch > "$V2/watch-stop-race.out" 2>&1 &
+stopping=$!
+wait "$starting" || { cat "$V2/watch-start-race.out" >&2; fail "watcher start failed during start/stop race"; }
+wait "$stopping" || { cat "$V2/watch-stop-race.out" >&2; fail "watcher stop failed during start/stop race"; }
+[ ! -e "$WATCH_PIDFILE" ] || fail "stop racing with start left a live watcher PID file"
+[ ! -d "$WATCH_LOCK_DIR" ] || fail "watcher lifecycle lock remained after start/stop race"
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "start/stop race spawned unexpected watcher count"
+
+unset MOCK_WATCH_SPAWN_DELAY
+v2run start-watch > "$V2/watch-start.out"
+[ -s "$WATCH_PIDFILE" ] || fail "watcher did not restart after serialized stop"
+watch_pid=$(cat "$WATCH_PIDFILE")
+kill -0 "$watch_pid" 2>/dev/null || fail "restarted watcher is not alive"
 before_rebuild=$(grep -cE 'iptables -t filter -F FXYUL_[AB]' "$V2/iptables.log" || true)
 mkdir -p "$V2/net/vendor0"
 sleep 2
