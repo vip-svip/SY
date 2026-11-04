@@ -2013,3 +2013,31 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `397e5307ae57b86a4bd13a6566f915689badbbea` — `test(dia): cover stale Frida process picker identity`。
 - 最新 HEAD 静态验证：回调请求代次/目标包、扫描后 PackageManager 重新获取、UID/debuggable/system 状态核验、失效时清空 PID、既有注入侧 UID 检查，以及回归脚本新断言共 7 项通过。未在 Root 真机或模拟器中制造卸载/重装并发、UID 变化、PID 复用或多进程注入；源码静态通过不等于设备验收。
 - 下一步：检查 Sora 全屏编辑器结果回传是否绑定发起编辑时的目标与脚本版本，避免编辑过程中切换目标后把旧代码覆盖到新脚本；随后检查 Frida SAF 文件选择请求与 Worker 在 Activity 重建/快速连续操作时是否串单。固定 FX 1.0.0，不提前发布最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 目标/进程选择器旋转恢复、PID 选择保真与目标身份复核
+
+- 本批开始前分支 HEAD：9e3870ff4c8bc3b9a2c8285387f15a26779160dc；后续并行推进至 HEAD 397e5307ae57b86a4bd13a6566f915689badbbea。提交前后均按实时 branch HEAD 和文件 blob SHA 操作，无强推。
+- 修复 Frida 管理页目标/进程选择器重建丢失：
+  - Bundle 保存/恢复 debuggable 目标选择器是否打开；Activity 重建后重新读取已安装 debuggable 用户应用，再恢复目标选择列表。
+  - Bundle 保存/恢复进程选择器是否打开；重建后针对恢复的目标重新执行 Root 进程扫描，不复用旧 PID 列表作为实时结果。
+  - 多选对话框逐项暂存 PID；旋转时保存暂存 PID，重建后根据当前进程扫描结果重建勾选状态。
+  - 区分“从未做过选择（默认全选当前进程）”和“用户明确取消全部勾选（恢复后仍为空）”，避免空集合被误当作默认全选。
+  - 恢复回调尚未执行时，pending 标记仍写入 Bundle，避免 View.post 排队后再次旋转造成选择器状态丢失。
+  - 切换目标应用时递增进程请求代次、关闭旧进程选择状态并清空旧 PID 暂存；旧 Root 回调同时校验请求代次和目标包名，不能覆盖当前目标。
+  - Root 进程扫描完成后再次通过 PackageManager 校验目标仍存在、UID 未变化、仍是 debuggable 且非系统应用；身份变化时丢弃旧 PID 快照。
+  - Activity 销毁时使目标/进程查询代次失效，清除当前 Activity 的 pending UI 状态。
+- 修复 Frida 脚本库 SAF 导出暂存冲突：只允许一个脚本库 JSON 导出请求等待系统文件选择器返回，避免并行导出覆盖单一 pending staging filename。
+- 提交：
+  - efca312d39bb1505af2298f9212667cecb20995c — 目标与进程选择器状态恢复。
+  - 8305b1044691c0546b8ae286506174bf0a7582ac — 明确全不选状态与恢复回调排队期间的 pending 标记。
+  - 61113e197529983b96306ad89fe246e482c428ac — 切换目标时取消旧进程选择请求，避免旧 busy 标记阻止新目标操作。
+  - 632a6dc9a8b4683cd769a0e1881e36207133fbf8 — 进程扫描完成后复核目标包名/UID/debuggable/system 状态。
+  - 9802250e0d969e5b369e50456913fa8cc8146a98 — 选择器重建与暂存 PID 回归断言。
+  - a22aedf7b9ee7f6baa8fcc8c965f246c1f6a453c — 防止重叠 Frida 脚本库 SAF 导出。
+  - ab9642cdb61d61874ecb1753ca5ee6ce84a0a3d8、4730cd11d71a566d2467f57003f5f1b92ae3e2c2 — 目标切换失效回归及修正源码换行匹配断言。
+  - 397e5307ae57b86a4bd13a6566f915689badbbea — 并行工作线增加目标身份过期快照回归测试。
+- 最新文件静态核验（HEAD 397e5307ae57b86a4bd13a6566f915689badbbea）：目标/进程选择器 Bundle 保存/恢复、暂存 PID 列表、明确空选择保真、延迟恢复状态继续保存、进程请求代次/目标包名校验、目标切换时取消旧请求、目标 UID/debuggable 复核、单一 SAF 导出保护，以及两份回归脚本对应断言全部存在。
+- 测试状态：本批未在完整 checkout 执行 Shell/Python 回归；未运行 Gradle、Android 编译、模拟器、UI 自动化、Root 权限注入故障或真机旋转/进程选择测试。GitHub Actions 最新自动运行 41906545883（Validate FX APP migration and build Hook APK，HEAD 397e5307...）状态为 pending，不能计为通过；同工作流前面的 push 运行多次被 concurrency 取消，也不计为通过。没有手动重新触发整套 Actions。
+- 失败/修正记录：本轮测试断言一度把 Java 源码换行匹配写成双重转义，静态检查发现无法按源码实际换行匹配，已改成单转义并提交 4730cd11d71a566d2467f57003f5f1b92ae3e2c2；未为通过测试而放宽产品逻辑。
+- 下一步：核对 FxDiaCodeEditorActivity 的 Activity Result 返回目标/脚本内容归属，确保全屏编辑器返回时不会覆盖用户切换后的 Frida 脚本；然后查 SAF 文件 picker 返回与后台 Worker 取消/Activity 销毁的请求归属。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
