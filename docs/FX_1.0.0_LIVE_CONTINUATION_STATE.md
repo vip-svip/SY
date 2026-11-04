@@ -2495,3 +2495,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新 Blob：Activity `c8b0ac25118aa1c906bc01b3771be7c58fa5a697`；Policy `ce5b5e50bd52317f295132138cff92d1d88cce8d`；Host tests `01f5ae7286f26f0bdfd714209aabaa7967dc12cb`；regression `7ecae19785738b95f2c5bf0c7ebbd226fbdbc3b9`。
 - 静态复核通过：整份校验、损坏门禁、commit 结果检查、失败提示和新增/移出/清空回滚、Host 测试及脚本断言均存在。未运行 Shell/JUnit/Gradle/设备测试，不宣称运行通过。
 - 未完成：黑白名单页面真实 Android 重建/返回刷新及持久化故障注入仍需设备验证。下一批检查 Dia 23.11 与游龙广告插件原生页面的导航、编辑器和状态恢复。固定 FX 1.0.0，不打包最终 APK/KernelSU ZIP。
+
+
+## 2026-11-05 — 黑名单偏好读取异常的服务端兜底
+
+- 追加前实时 HEAD：c680303993c7ec854d448f62ee00c606dd7c89ef；状态文件 Blob：acfd698ce6efc34332877bc09934935a90f79a7d。
+- 在已有黑名单完整校验/原子写入基础上，FxYulongProtectionService 的前台提醒读取现在通过 split(SharedPreferences) 统一读取并调用 FxYulongBlacklistPolicy.parse；若读取字符串时出现 RuntimeException（如偏好值类型不匹配），记录诊断并返回空集合，本轮不执行黑名单提醒，服务不会因该异常退出。
+- fx-yulong-shield-native-regression.sh 同步改为检查真实的 SharedPreferences 守护读取入口、RuntimeException 捕获与 fail-open 返回。
+- 提交：48ba69881d62a3b60d796e93024de6ff7f07a4ba（服务读取保护）；7d1a707bdd0e628fd7ce60b493fbe98ac5116eea（对应回归断言）。
+- 静态复核：当前 Service 使用 guarded helper；测试脚本断言与实现匹配。未运行 Shell/JUnit/Gradle/模拟器/真机故障注入。
+- 下一批按 UI 优先策略回到 Dia / 游龙广告原生页面批次；固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
