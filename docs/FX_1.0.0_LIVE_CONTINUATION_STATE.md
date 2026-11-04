@@ -2710,3 +2710,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：已从 Actions 日志确认失败发生于 Hub 授权状态断言前，非应用代码断言失败；修复后由本提交触发 targeted Host 回归，结果待读取。
 - 失败路线：不重复假设脚本顶部变量必然有效；改为在使用点重新绑定。
 - 下一步：读取新 Actions run；若通过，继续 Dia 编辑器/导入对话框重建与覆盖确认闭环；若失败，按新的第一条错误定位，不运行整套 Actions。
+
+
+## 2026-11-05 — Hook 原生 UI 回归修正 OBSERVE 默认值契约
+
+- 基于分支最新 HEAD：`abaa722f31798bf683b3d8ae87639675a2f70405`。
+- 失败 Actions：`41911919358`（HEAD `a28930fcc20af37e733af71e8737f0e5e2e372a9`），分页与脚本变量初始化断言已通过，随后因测试仍查找 `action.setText("OBSERVE")` 而失败。
+- 根因：自定义 Hook 编辑器使用 Spinner，OBSERVE 是 actionOptions 第一项；旧断言仍按早期 EditText 版本查找 setText，和当前原生控件类型不一致。
+- 修复：新建规则时显式调用 `action.setSelection(0)`，使 OBSERVE 默认行为在 UI 代码中明确；编辑已有规则与恢复草稿仍在后续代码按持久化动作/草稿覆盖该默认值。回归脚本改为验证显式首项选择及 OBSERVE 位于动作选项首位，不放宽行为门禁。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：源码锚点唯一性静态检查；本地未执行 Android Gradle/JUnit/真机测试，等待 push 后 Actions 定向回归。
+- 失败路线：不再使用旧 EditText 的 `setText("OBSERVE")` 断言；若后续失败，依据新日志定位实际断言，不通过删除安全限制绕过。
+- 下一步：修复后继续执行 Hook/Dia targeted 回归；然后集中处理游龙安全护盾白名单/扫描详情交互。

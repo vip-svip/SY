@@ -6823,6 +6823,8 @@ public final class MainActivity extends ComponentActivity {
                 android.R.layout.simple_spinner_item, actionOptions);
         actionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         action.setAdapter(actionAdapter);
+        // New rules must be non-invasive until the user deliberately selects a Debug fixture action.
+        action.setSelection(0);
         EditText literalValue = new EditText(this);
         literalValue.setSingleLine(true);
         literalValue.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(256)});
