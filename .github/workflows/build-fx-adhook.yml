@@ -106,6 +106,8 @@ jobs:
           python3 fx-patches/patch_vpn_apps.py fx-module
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_native_script_store.py fx-module
+          python3 fx-patches/patch_native_script_scheduler.py fx-module
+          sh scripts/tests/fx-native-script-scheduler-regression.sh fx-module
           python3 fx-patches/patch_quickjs_http_limits.py fx-module
           sh scripts/tests/fx-jsruntime-http-limits-regression.sh fx-module
           sh scripts/tests/fx-native-script-store-regression.sh
