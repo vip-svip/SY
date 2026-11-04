@@ -39,4 +39,8 @@ rescue=$(awk '/case "悬浮救援入口":/{capture=1} capture{print} capture && 
 printf '%s\n' "$rescue" | grep -Fq 'FxYulongShieldActivity.class' || fail "floating rescue settings must open the hub page with the real enable switch"
 grep -Fq 'FxYulongRescueActivity.class' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java" || fail "Shield rescue center is no longer reachable from the hub"
 grep -Fq '打开救援中心' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java" || fail "hub no longer exposes the original rescue center entry"
+firewall_block=$(sed -n '/page.equals("应用网络拦截")/,/page.equals("应用统计")/p' "$MAIN")
+printf '%s\\n' "$firewall_block" | grep -Fq 'FxYulongFirewallActivity.class' || fail "Yulong mobile/Wi-Fi/time firewall does not route to its native page"
+grep -Fq '原版移动数据/Wi-Fi 阻断和每日时间计划已接入' "$MAIN" || fail "app-management fallback falsely claims the migrated firewall is missing"
+grep -Fq '唯一 FX VPN 下经验证的 Root DNS Proxy' "$MAIN" || fail "Yulong fallback fails to identify the migrated single-VPN Root DNS Proxy"
 echo "PASS: Yulong VPN, QUIC, Shield rescue and live-status routes use the matching native feature pages"

@@ -81,6 +81,7 @@ assert "不会绕过PackageInstaller" in expand_page and "不会强制停止或�
 assert "REQUEST_INSTALL_PACKAGES" in expand_page and "Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES" in expand_page, "unknown source must route to Android per-app settings"
 assert "Settings.ACTION_APPLICATION_DETAILS_SETTINGS" in expand_page, "Package Installer action must open real Android app info"
 assert "remain visible but disabled" not in expand_page.lower(), "SystemExpand documentation must not claim migrated install-source actions are disabled"
+assert "逐安装来源授权和安装器应用信息入口已迁入" in expand_page, "SystemExpand introduction must match the actual migrated install-source and installer actions"
 assert "RootAccess.execute" not in expand_page and "pm uninstall" not in expand_page, "SystemExpand must not issue destructive or unchecked Root commands"
 
 print("PASS: Dia global preferences, private navigation, backup route and honest SystemExpand feature boundaries")

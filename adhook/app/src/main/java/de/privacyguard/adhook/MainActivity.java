@@ -3440,7 +3440,7 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             showImportedSuitePendingPage(suite, category, page,
-                    "游龙原版独立应用防火墙（移动数据/Wi-Fi 阻断与时间计划）尚未迁移。这里仅提供已接入 FX VPN 后端的分应用路由管理，不将路由例外伪装成断网防火墙。");
+                    "该应用管理子页尚未单独迁移。原版移动数据/Wi-Fi 阻断和每日时间计划已接入“应用网络拦截”页；分应用 VPN 路由是独立功能，不互相冒充。");
             return;
         }
         if (category.equals("HTTPS 与证书")) {
@@ -3456,7 +3456,7 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         showImportedSuitePendingPage(suite, category, page,
-                "游龙广告插件 7.0.1 的独立应用过滤与 Root Proxy 运行时尚未迁入。现阶段可使用 FX 的 Hosts、DNS / VPN、证书和日志原生控制页；不会把 FX 状态冒充为原插件状态。");
+                "该游龙广告子页仍未单独迁移。已迁入的核心功能包括广告主开关、规则订阅、域名名单、DNS 配置、唯一 FX VPN 下经验证的 Root DNS Proxy、每日计划、应用网络防火墙与分应用统计；不会用空壳代替尚未迁移的子页。");
     }
 
     /**
