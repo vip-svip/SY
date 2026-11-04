@@ -63,6 +63,22 @@ assert "new ArrayBlockingQueue<>(16)" in service, "Binder command queue must be 
 assert "commands.execute(" in service and "RootAccess.execute(" in service, "service must execute asynchronously and return actual backend results"
 assert "MAX_SHELL_ARGS = 8192" in service and "OUTPUT_LIMIT = 256 * 1024" in service, "Binder request/output sizes must be capped"
 assert "KEY_EXIT_CODE" in service and "KEY_OUTPUT" in service and "KEY_DENIED" in service, "response must preserve result metadata"
+
+assert "MSG_PERMISSION_REQUEST = 5" in service and "MSG_PERMISSION_RESULT = 6" in service
+assert "handlePermissionRequest(message)" in service
+assert "getPackagesForUid(uid)" in service and "packageBelongsToUid(sourcePackage, uid)" in service
+assert "POST_NOTIFICATIONS" in service and "NotificationManager.IMPORTANCE_HIGH" in service
+for key in ("REPLY_ALLOWED", "REPLY_ONE_TIME", "REPLY_PERMISSION"):
+    assert key in service, f"original permission response Bundle key missing: {key}"
+assert "android:name=\\"roro.stellar.manager.authorization.StellarPermissionRequestActivity\\"" in manifest
+permission_activity = manifest.split('android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"',1)[1].split("</activity>",1)[0]
+assert 'android:exported="true"' in permission_activity
+assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in permission_activity
+assert 'android:name="com.youlong.hd.intent.action.REQUEST_PERMISSION"' in permission_activity
+authorization_service = manifest.split('android:name="roro.stellar.manager.authorization.StellarAuthorizationService"',1)[1].split("/>",1)[0]
+assert 'android:exported="true"' in authorization_service
+assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in authorization_service
+
 assert "android:name=\"roro.stellar.manager.authorization.StellarAuthorizationService\"" in manifest, "Binder service must be registered"
 svc = manifest.split('android:name="roro.stellar.manager.authorization.StellarAuthorizationService"',1)[1].split("/>",1)[0]
 assert 'android:exported="false"' in svc, "Root broker must be private to the FX APK"

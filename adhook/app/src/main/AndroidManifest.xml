@@ -100,11 +100,24 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+            android:taskAffinity="com.youlong.hd.permission"
+            android:excludeFromRecents="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="com.youlong.hd.intent.action.REQUEST_PERMISSION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
         <service
             android:name="roro.stellar.manager.authorization.StellarAuthorizationService"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
         <activity android:name=".imported.shield.WhitelistActivity" android:exported="false" />
         <activity android:name=".imported.shield.WhitelistPickerActivity" android:exported="false" />
         <activity android:name=".imported.shield.BlacklistActivity" android:exported="false" />
