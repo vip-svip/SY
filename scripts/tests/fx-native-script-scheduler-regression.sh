@@ -7,6 +7,9 @@ MOD=${1:-"$ROOT/fx-module"}
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$PATCHER" ] || fail "scheduler patcher missing"
 [ -s "$SOURCE" ] || fail "scheduler source missing"
+grep -Fq 'sync-subs.sh' "$PATCHER" || fail "scheduler patcher does not validate subscription synchronizer"
+grep -Fq 'runner.sh' "$PATCHER" || fail "scheduler patcher does not validate QuickJS runner"
+grep -Fq 'host.js' "$PATCHER" || fail "scheduler patcher does not validate HTTP host bridge"
 [ -s "$MOD/scripts/jsruntime/scheduler.sh" ] || fail "staged scheduler missing"
 cmp -s "$SOURCE" "$MOD/scripts/jsruntime/scheduler.sh" || fail "staged scheduler differs from reviewed source"
 sh -n "$SOURCE" || fail "scheduler shell syntax invalid"
