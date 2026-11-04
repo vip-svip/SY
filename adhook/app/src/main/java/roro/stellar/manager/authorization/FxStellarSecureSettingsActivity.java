@@ -22,11 +22,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * FX migration of Stellar's WRITE_SECURE_SETTINGS authorization outcome.
  *
- * The original automatic wireless ADB mDNS/TLS pairing client depends on
- * libadb.so and PairingContext native crypto. This page does not pretend to
- * reproduce that transport: it provides the same explicit permission grant
- * through the already-authorized KernelSU Root path and a truthful system
- * Wireless debugging settings entry for manual pairing.
+ * The original ADB TLS/SPAKE2 pairing flow is hosted by AdbPairingActivity.
+ * This page keeps the separate, explicitly confirmed WRITE_SECURE_SETTINGS
+ * grant/revoke operation and verifies the resulting PackageManager state.
  */
 public final class FxStellarSecureSettingsActivity extends Activity {
     private static final String PERMISSION = "android.permission.WRITE_SECURE_SETTINGS";
