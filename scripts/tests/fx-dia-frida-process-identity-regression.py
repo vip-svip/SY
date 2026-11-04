@@ -23,7 +23,7 @@ assert '/proc/$pid/status' in picker and 'Uid:' in picker and '{print $2; exit}'
 assert picker.index("getApplicationInfo(targetPackage, 0)") < picker.index("runRoot(command"), "current package identity must be captured before enumerating processes"
 
 assert "targetUid = targetInfo.uid" in inject
-assert '"target_uid=" + targetUid' in inject, "injection command must carry the freshly resolved package UID"
+assert '"; target_uid=" + targetUid' in inject, "injection command must carry the freshly resolved package UID"
 assert 'proc_uid=$(awk' in inject and '/proc/$pid/status' in inject
 assert 'skipped-uid-mismatch-pid=$pid' in inject, "UID mismatch must skip the PID rather than attempt injection"
 uid_check = inject.index('proc_uid=$(awk')
