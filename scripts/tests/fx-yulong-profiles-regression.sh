@@ -167,15 +167,23 @@ esac
 DATE
 chmod 0755 "$T/bin/date"
 [ -x "$T/bin/date" ] || fail "fake date executable bit was not set"
-"$T/bin/date" +%w | grep -Fqx 0 || fail "fake date command could not execute or return Sunday=0"
-"$T/bin/date" +%H:%M | grep -Fqx 12:00 || fail "fake date command could not return test time"
+FX_PROFILE_TEST_DOW=0 "$T/bin/date" +%w | grep -Fqx 0 || fail "fake date command could not execute or return Sunday=0"
+FX_PROFILE_TEST_TIME=12:00 "$T/bin/date" +%H:%M | grep -Fqx 12:00 || fail "fake date command could not return test time"
 export PATH="$T/bin:$PATH"
 date_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 22:00 07:00 0)
 date_schedule_id=${date_schedule#created=}
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$date_schedule_id" 1 22:00 07:00 0 >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
 FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=22:30 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-evaluate.out"
-grep -Fq "switched=$custom_id" "$T/sunday-evaluate.out" || fail "Sunday=0 overnight schedule did not switch at 22:30"
+grep -Fq "switched=$custom_id" "$T/sunday-evaluate.out" || {
+  echo "--- Sunday evaluation output ---" >&2
+  cat "$T/sunday-evaluate.out" >&2
+  echo "--- profile schedule state ---" >&2
+  cat "$PROFILE_PG/yulong-profile-schedules.tsv" >&2
+  echo "--- active profile state ---" >&2
+  grep -E '^yulong_active_profile=|^yulong_safe_search_enabled=|^yulong_youtube_restricted_mode=' "$PROFILE_PG/settings.conf" >&2 || :
+  fail "Sunday=0 overnight schedule did not switch at 22:30"
+}
 monday_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add default 09:00 17:00 1)
 monday_id=${monday_schedule#created=}
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id" >/dev/null
