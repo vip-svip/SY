@@ -76,13 +76,18 @@ public final class FxYulongAdGeneralActivity extends Activity {
             int requested = intent.getIntExtra("requested_enabled", -1);
             StringBuilder display = new StringBuilder();
             display.append("收到本次实时命令回执，但未能保存到本地历史。")
-                    .append("\\n控制目标：").append("vpn".equals(target) ? "FX VPN" : "广告过滤")
+                    .append(System.lineSeparator()).append("控制目标：")
+                    .append("vpn".equals(target) ? "FX VPN" : "广告过滤")
                     .append(" · 请求：").append(requested == 1 ? "开启/启动" : requested == 0 ? "关闭/停止" : "未知")
-                    .append("\\n动作：").append(action)
-                    .append("\\n命令结果：").append(success ? "执行成功" : "执行失败")
+                    .append(System.lineSeparator()).append("动作：").append(action)
+                    .append(System.lineSeparator()).append("命令结果：")
+                    .append(success ? "执行成功" : "执行失败")
                     .append(" · 退出码：").append(exitCode);
-            if (!detail.isEmpty()) display.append("\\n回执详情：").append(detail);
-            display.append("\\n关闭或重启页面后，本次未持久化的回执将无法恢复。");
+            if (!detail.isEmpty()) {
+                display.append(System.lineSeparator()).append("回执详情：").append(detail);
+            }
+            display.append(System.lineSeparator())
+                    .append("关闭或重启页面后，本次未持久化的回执将无法恢复。");
             if (taskerResultStatus != null) taskerResultStatus.setText(display.toString());
         }
     };
