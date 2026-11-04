@@ -4576,20 +4576,27 @@ public final class MainActivity extends ComponentActivity {
             if (!requestPending || resultCode != RESULT_OK || data == null) return;
             String targetPackage = data.getStringExtra("fx_dex_hook_package");
             String descriptor = data.getStringExtra("fx_dex_hook_descriptor");
+            boolean validPackage = targetPackage != null && targetPackage.length() <= 255
+                    && targetPackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
             ApplicationInfo targetInfo = null;
-            if (targetPackage != null) {
+            if (validPackage) {
                 try {
                     targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
-                } catch (PackageManager.NameNotFoundException ignored) { }
+                } catch (PackageManager.NameNotFoundException | IllegalArgumentException ignored) { }
             }
-            if (targetInfo == null || descriptor == null
+            if (targetInfo == null || descriptor == null || descriptor.isEmpty()
+                    || descriptor.length() > 4096
                     || (targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
-                    || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    || (targetInfo.flags & (ApplicationInfo.FLAG_SYSTEM
+                            | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
                     || DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0", targetPackage) == null) {
                 Toast.makeText(this, "DEX 方法不能导入：目标必须是仍安装的 debuggable 用户应用，且必须是该包内的完整方法签名。",
                         Toast.LENGTH_LONG).show();
                 return;
             }
+            // Keep the source Dia category as the back destination while the
+            // selected method is reviewed in the Hook editor.
+            migrationChildActive = true;
             activePrivacySection = "自定义 Hook";
             showTarget(targetInfo);
             showCustomRuleDialog(descriptor);
