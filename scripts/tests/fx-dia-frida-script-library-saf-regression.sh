@@ -48,6 +48,8 @@ if "导出脚本库 JSON 文件" not in source or "从 JSON 文件批量导入�
     raise SystemExit("FAIL: Frida script library UI does not expose file import/export")
 if "exportFridaScriptLibrary() {\n        try {\n            org.json.JSONObject root" in source:
     raise SystemExit("FAIL: script library export still bypasses the SAF file picker")
+if "已有脚本库导出请求等待系统文件选择器返回" not in source:
+    raise SystemExit("FAIL: a second SAF export may overwrite the pending staged filename")
 if "pendingFridaLibraryExport;" in source or "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExport)" in source:
     raise SystemExit("FAIL: script library JSON payload is stored directly in Activity state Bundle")
 if "pendingFridaLibraryExportFileName = staged.getName()" not in source:
