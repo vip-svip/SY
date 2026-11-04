@@ -76,7 +76,7 @@ assert "replaceAll(Context context" in store, "shared storage replace API is mis
 assert "FxDiaScriptLibraryStore.read(this)" in frida, "legacy Frida page bypasses shared store"
 assert "FxDiaScriptLibraryStore.save(this, label, source)" in frida, "legacy Frida save bypasses shared validation"
 assert "FxDiaScriptLibraryStore.delete(this, name)" in frida, "legacy Frida delete bypasses shared locking"
-assert "FxDiaScriptLibraryStore.mergeImport(this, json)" in frida, "legacy Frida import bypasses shared validation"
+assert "FxDiaScriptLibraryStore.mergeImport(this, json, confirmedOverwrites)" in frida, "legacy Frida import bypasses shared validation"
 print("PASS: dedicated and legacy Frida pages share one validated, serialized script-library store")
 PY
 
