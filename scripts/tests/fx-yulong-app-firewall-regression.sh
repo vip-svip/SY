@@ -390,6 +390,8 @@ if [ "$_spawn_count" -ne 1 ]; then
   fail "concurrent starts spawned more than one watcher"
 fi
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing after concurrent start"
+[ "$(stat -c %a "$WATCH_PIDFILE")" = 600 ] || fail "watcher PID record is not private"
+[ "$(cat "$WATCH_PIDFILE")" = "$(cat "$WATCH_PIDFILE")" ] || fail "watcher PID readiness marker changed during publication"
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"

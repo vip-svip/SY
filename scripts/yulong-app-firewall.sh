@@ -413,10 +413,10 @@ watch_is_ours() {
 }
 watch_loop() {
   _watch_sleep_pid=
-  last_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
-  last_minute=$(date '+%H:%M' 2>/dev/null || true)
+  _watch_pid_tmp=
   cleanup_watch_loop() {
     [ -z "$_watch_sleep_pid" ] || kill "$_watch_sleep_pid" 2>/dev/null || :
+    [ -z "$_watch_pid_tmp" ] || rm -f "$_watch_pid_tmp" 2>/dev/null || :
     if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
         && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$$" ]; then
       rm -f "$WATCH_PIDFILE"
@@ -426,6 +426,18 @@ watch_loop() {
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
+  # The watcher itself, not the spawning parent, publishes its PID after
+  # entering this command. The parent holds the lifecycle lock until this
+  # readiness marker is visible and the process identity is confirmed.
+  [ ! -L "$WATCH_PIDFILE" ] && [ ! -e "$WATCH_PIDFILE" ] || exit 1
+  _watch_pid_tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || exit 1
+  [ -f "$_watch_pid_tmp" ] && [ ! -L "$_watch_pid_tmp" ] || exit 1
+  printf '%s\n' "$$" > "$_watch_pid_tmp"
+  chmod 600 "$_watch_pid_tmp"
+  mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"
+  _watch_pid_tmp=
+  last_interfaces=$(interface_snapshot 2>/dev/null || printf '__unavailable__')
+  last_minute=$(date '+%H:%M' 2>/dev/null || true)
   while :; do
     sleep "$WATCH_INTERVAL" & _watch_sleep_pid=$!
     wait "$_watch_sleep_pid" || :; _watch_sleep_pid=
@@ -460,36 +472,31 @@ start_watch_locked() {
       return 0
     fi
     rm -f "$WATCH_PIDFILE"
+  elif [ -e "$WATCH_PIDFILE" ]; then
+    rm -f "$WATCH_PIDFILE"
   fi
   nohup sh "$SCRIPT_PATH" watch-loop </dev/null >> "$WATCH_LOG" 2>&1 &
   pid=$!
-  tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || { kill "$pid" 2>/dev/null || :; return 1; }
-  printf '%s\n' "$pid" > "$tmp"
-  if [ ! -f "$tmp" ] || [ -L "$tmp" ] || ! chmod 600 "$tmp" || ! mv -f "$tmp" "$WATCH_PIDFILE"; then
-    rm -f "$tmp"; kill "$pid" 2>/dev/null || :; return 1
-  fi
-  # Keep the lifecycle lock until the spawned PID has become the exact
-  # watcher process. A fixed 100 ms delay can release the lock while nohup or
-  # a slow shell startup is still in flight, allowing the next starter to miss
-  # the transitional PID and launch a duplicate watcher.
   _watch_start_wait=0
-  while [ "$_watch_start_wait" -lt 30 ]; do
-    if ! kill -0 "$pid" 2>/dev/null; then
-      rm -f "$WATCH_PIDFILE"
-      echo "watcher exited before startup was confirmed" >&2
-      return 1
-    fi
-    if watch_is_ours "$pid"; then
+  while [ "$_watch_start_wait" -lt 50 ]; do
+    if [ -s "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
+        && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ] \
+        && kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then
       echo "started pid=$pid"
       return 0
     fi
+    if ! kill -0 "$pid" 2>/dev/null; then break; fi
     sleep 0.1
     _watch_start_wait=$((_watch_start_wait + 1))
   done
-  # Retain the PID record on an identity-ambiguous live process. This prevents
-  # a subsequent start from spawning another copy; it will fail closed until
-  # the process is inspected instead of signaling an unverified PID.
-  echo "watcher startup identity was not confirmed; retaining PID record" >&2
+  if [ -f "$WATCH_PIDFILE" ] && [ ! -L "$WATCH_PIDFILE" ] \
+      && [ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ]; then
+    rm -f "$WATCH_PIDFILE"
+  fi
+  if kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then
+    kill -TERM "$pid" 2>/dev/null || :
+  fi
+  echo "watcher failed to publish its live PID; lifecycle lock remains held until cleanup" >&2
   return 1
 }
 stop_watch_locked() {

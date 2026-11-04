@@ -209,3 +209,10 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - Yulong watcher lifecycle no longer removes an ownerless lock directory after a short delay. That directory may belong to a live starter paused between mkdir and owner-PID publication; deleting it could let two processes claim the same lifecycle lock. Regression coverage now exercises the fail-closed case using a bounded retry setting.
 - Added scripts/tests/fx-dia-frida-server-lifecycle-regression.sh to the manual source-import workflow.
 - Verification boundary: source changes only. The new regression and complete GitHub Actions run must pass before this batch is CI-verified. No Android install/OnePlus 12 device result and no final APK/KernelSU ZIP are claimed.
+
+
+## 2026-11-04 — Yulong watcher startup readiness handshake
+
+- The watcher process now atomically publishes its own PID record only after entering `watch-loop`; the starter no longer pre-publishes the PID based on `$!` and waits until the child marker plus exact process identity are visible before releasing the lifecycle lock.
+- This closes the startup window exposed by the CI delayed-`nohup` concurrency fixture. Empty/stale PID records are cleared only while holding the same lifecycle lock; the child PID marker is private and uses a randomized same-directory temp file.
+- The targeted concurrent-start regression now validates the real child-published marker and mode 0600, alongside the existing single-spawn and start/stop-race checks. CI must pass before this fix is treated as verified.
