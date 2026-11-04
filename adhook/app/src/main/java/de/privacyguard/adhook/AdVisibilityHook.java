@@ -1192,6 +1192,12 @@ private boolean targetDeveloperOptIn(String packageName) {
      * by fused-provider callbacks are covered only when the target reads their Location getters.
      * Callback registration, device provider, GNSS, mock-location settings and routes are untouched.
      */
+    /** Per-app device simulation is intentionally disabled in shared-package processes. */
+    private boolean isAuthorizedDeviceSimulationTarget(String packageName) {
+        return FxTargetSimulationGate.isAuthorized(packageName, currentPackage,
+                processPackages, debuggablePackages);
+    }
+
     /** Per-app timezone fixture for explicitly selected debuggable test builds. */
     private synchronized boolean installTimeZoneSimulationHooks(final String pkg) {
         if (timeZoneSimulationHooksInstalled) return true;
@@ -1200,7 +1206,7 @@ private boolean targetDeveloperOptIn(String packageName) {
             hook(getDefault).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                        if (active != null && debuggablePackages.contains(currentPackage)
+                        if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
                                 && active.timeZoneSimulation && active.simulatedTimeZone != null) {
                             return java.util.TimeZone.getTimeZone(active.simulatedTimeZone);
                         }
@@ -1248,7 +1254,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 }
                                 String activePackage = currentPackage;
                                 if (!activePackage.equals(requestedPackage)
-                                        || !debuggablePackages.contains(activePackage)) return result;
+                                        || !isAuthorizedDeviceSimulationTarget(activePackage)) return result;
                                 UnifiedHookConfigParser.Target active = targets.get(activePackage);
                                 if (active == null || !active.appVersionSimulation
                                         || active.simulatedVersionName == null) return result;
@@ -1279,120 +1285,169 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     private synchronized boolean installLocationSimulationHooks(final String pkg) {
-        if (locationSimulationHooksInstalled) return true;
-        int installed = 0;
-        // Dia's optional "pretend GPS is on" setting is kept separate from
-        // coordinate spoofing. It reports provider availability only to this
-        // explicitly selected debuggable target; Android permission checks remain real.
-        try {
-            Class<?> manager = Class.forName("android.location.LocationManager", false, null);
-            for (final Method method : manager.getDeclaredMethods()) {
-                final String name = method.getName();
-                final Class<?>[] parameters = method.getParameterTypes();
-                final boolean providerQuery = "isProviderEnabled".equals(name)
-                        && method.getReturnType() == boolean.class
-                        && parameters.length == 1 && parameters[0] == String.class;
-                final boolean locationQuery = "isLocationEnabled".equals(name)
-                        && method.getReturnType() == boolean.class && parameters.length == 0;
-                if (!providerQuery && !locationQuery) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                                if (active != null && debuggablePackages.contains(currentPackage)
-                                        && active.locationProviderEnabledSimulation) return Boolean.TRUE;
-                                return chain.proceed();
-                            });
-                    locationProviderEnabledHooksInstalled = true;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "Location provider-state simulation unavailable: " + method.toGenericString());
+        UnifiedHookConfigParser.Target requested = targets.get(pkg);
+        if (requested == null || !isAuthorizedDeviceSimulationTarget(pkg)) return false;
+
+        final boolean needCoordinates = requested.locationSimulation;
+        final boolean needProviderState = requested.locationProviderEnabledSimulation;
+        if (!needCoordinates && !needProviderState) return false;
+        if ((!needCoordinates || locationSimulationHooksInstalled)
+                && (!needProviderState || locationProviderEnabledHooksInstalled)) return true;
+
+        // Provider-state reporting and coordinate values are independent controls.
+        // Track their hook registration separately so enabling one for a later
+        // target cannot be skipped merely because the other is already installed.
+        if (needProviderState && !locationProviderEnabledHooksInstalled) {
+            int providerHooks = 0;
+            try {
+                Class<?> manager = Class.forName("android.location.LocationManager", false, null);
+                for (final Method method : manager.getDeclaredMethods()) {
+                    final String name = method.getName();
+                    final Class<?>[] parameters = method.getParameterTypes();
+                    final boolean providerQuery = "isProviderEnabled".equals(name)
+                            && method.getReturnType() == boolean.class
+                            && parameters.length == 1 && parameters[0] == String.class;
+                    final boolean locationQuery = "isLocationEnabled".equals(name)
+                            && method.getReturnType() == boolean.class && parameters.length == 0;
+                    if (!providerQuery && !locationQuery) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    if (active == null
+                                            || !isAuthorizedDeviceSimulationTarget(activePackage)
+                                            || !active.locationProviderEnabledSimulation) {
+                                        return chain.proceed();
+                                    }
+                                    if (locationQuery) return Boolean.TRUE;
+                                    Object provider = chain.getArgs().isEmpty()
+                                            ? null : chain.getArgs().get(0);
+                                    // The UI option is explicitly "GPS service enabled"; it
+                                    // must not claim that network/passive providers are enabled.
+                                    if (android.location.LocationManager.GPS_PROVIDER.equals(provider)) {
+                                        return Boolean.TRUE;
+                                    }
+                                    return chain.proceed();
+                                });
+                        providerHooks++;
+                    } catch (Throwable failure) {
+                        logFx(Log.DEBUG, "Location provider-state simulation unavailable: "
+                                + method.toGenericString());
+                    }
                 }
+            } catch (Throwable failure) {
+                logFx(Log.DEBUG, "Location provider-state simulation API unavailable");
             }
-        } catch (Throwable failure) {
-            logFx(Log.DEBUG, "Location provider-state simulation API unavailable");
+            locationProviderEnabledHooksInstalled = providerHooks > 0;
+            logFx(locationProviderEnabledHooksInstalled ? Log.INFO : Log.WARN,
+                    "debug-only GPS provider-state hooks installed=" + providerHooks + " for " + pkg);
         }
 
-        try {
-            Class<?> type = Class.forName("android.location.LocationManager", false, null);
-            for (final Method method : type.getDeclaredMethods()) {
-                if (!"getLastKnownLocation".equals(method.getName())
-                        || method.getReturnType() != android.location.Location.class
-                        || method.getParameterTypes().length != 1
-                        || method.getParameterTypes()[0] != String.class) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                Object original = chain.proceed();
-                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                                if (active == null || !debuggablePackages.contains(currentPackage)
-                                        || !active.locationSimulation) return original;
-                                String provider = "gps";
-                                try {
-                                    Object value = chain.getArgs().get(0);
-                                    if (value instanceof String && !((String) value).isEmpty())
-                                        provider = (String) value;
-                                } catch (Throwable ignored) { }
-                                android.location.Location simulated;
-                                if (original instanceof android.location.Location) {
-                                    simulated = new android.location.Location((android.location.Location) original);
-                                } else {
-                                    simulated = new android.location.Location(provider);
-                                }
-                                simulated.setLatitude(active.simulatedLatitude);
-                                simulated.setLongitude(active.simulatedLongitude);
-                                simulated.setAccuracy(active.simulatedAccuracy);
-                                simulated.setTime(System.currentTimeMillis());
-                                if (android.os.Build.VERSION.SDK_INT >= 17) {
-                                    simulated.setElapsedRealtimeNanos(android.os.SystemClock.elapsedRealtimeNanos());
-                                }
-                                return simulated;
-                            });
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "LocationManager simulation unavailable: " + method.toGenericString());
+        if (needCoordinates && !locationSimulationHooksInstalled) {
+            int coordinateHooks = 0;
+            try {
+                Class<?> type = Class.forName("android.location.LocationManager", false, null);
+                for (final Method method : type.getDeclaredMethods()) {
+                    if (!"getLastKnownLocation".equals(method.getName())
+                            || method.getReturnType() != android.location.Location.class
+                            || method.getParameterTypes().length != 1
+                            || method.getParameterTypes()[0] != String.class) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object original = chain.proceed();
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    if (active == null
+                                            || !isAuthorizedDeviceSimulationTarget(activePackage)
+                                            || !active.locationSimulation) return original;
+                                    String provider = "gps";
+                                    try {
+                                        Object value = chain.getArgs().get(0);
+                                        if (value instanceof String && !((String) value).isEmpty()) {
+                                            provider = (String) value;
+                                        }
+                                    } catch (Throwable ignored) { }
+                                    android.location.Location simulated;
+                                    if (original instanceof android.location.Location) {
+                                        simulated = new android.location.Location(
+                                                (android.location.Location) original);
+                                    } else {
+                                        simulated = new android.location.Location(provider);
+                                    }
+                                    simulated.setLatitude(active.simulatedLatitude);
+                                    simulated.setLongitude(active.simulatedLongitude);
+                                    simulated.setAccuracy(active.simulatedAccuracy);
+                                    simulated.setTime(System.currentTimeMillis());
+                                    if (android.os.Build.VERSION.SDK_INT >= 17) {
+                                        simulated.setElapsedRealtimeNanos(
+                                                android.os.SystemClock.elapsedRealtimeNanos());
+                                    }
+                                    return simulated;
+                                });
+                        coordinateHooks++;
+                    } catch (Throwable failure) {
+                        logFx(Log.DEBUG, "LocationManager simulation unavailable: "
+                                + method.toGenericString());
+                    }
                 }
+            } catch (Throwable failure) {
+                logFx(Log.WARN, "LocationManager unavailable; debug GPS simulation remains inactive");
+                return false;
             }
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "LocationManager unavailable; debug GPS simulation remains inactive");
-            return false;
-        }
-        // Cover Location objects returned by modern fused providers as well as
-        // LocationManager.getLastKnownLocation(). Only the current debuggable
-        // target process sees these test values; system GNSS/provider state is untouched.
-        try {
-            Class<?> locationType = Class.forName("android.location.Location", false, null);
-            for (final Method method : locationType.getDeclaredMethods()) {
-                String name = method.getName();
-                if (method.getParameterTypes().length != 0) continue;
-                final int field;
-                if ("getLatitude".equals(name) && method.getReturnType() == double.class) field = 1;
-                else if ("getLongitude".equals(name) && method.getReturnType() == double.class) field = 2;
-                else if ("getAccuracy".equals(name) && method.getReturnType() == float.class) field = 3;
-                else continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                                if (active != null && debuggablePackages.contains(currentPackage)
-                                        && active.locationSimulation) {
-                                    if (field == 1) return Double.valueOf(active.simulatedLatitude);
-                                    if (field == 2) return Double.valueOf(active.simulatedLongitude);
-                                    return Float.valueOf(active.simulatedAccuracy);
-                                }
-                                return chain.proceed();
-                            });
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "Location value simulation unavailable: " + method.toGenericString());
+
+            // Fused providers return Location objects through Play Services callbacks.
+            // We do not replace callback registration or results globally; only
+            // getters read from an explicitly selected single-package test process
+            // observe the configured latitude/longitude/accuracy.
+            try {
+                Class<?> locationType = Class.forName("android.location.Location", false, null);
+                for (final Method method : locationType.getDeclaredMethods()) {
+                    String name = method.getName();
+                    if (method.getParameterTypes().length != 0) continue;
+                    final int field;
+                    if ("getLatitude".equals(name) && method.getReturnType() == double.class) {
+                        field = 1;
+                    } else if ("getLongitude".equals(name) && method.getReturnType() == double.class) {
+                        field = 2;
+                    } else if ("getAccuracy".equals(name) && method.getReturnType() == float.class) {
+                        field = 3;
+                    } else {
+                        continue;
+                    }
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    if (active != null
+                                            && isAuthorizedDeviceSimulationTarget(activePackage)
+                                            && active.locationSimulation) {
+                                        if (field == 1) return Double.valueOf(active.simulatedLatitude);
+                                        if (field == 2) return Double.valueOf(active.simulatedLongitude);
+                                        return Float.valueOf(active.simulatedAccuracy);
+                                    }
+                                    return chain.proceed();
+                                });
+                        coordinateHooks++;
+                    } catch (Throwable failure) {
+                        logFx(Log.DEBUG, "Location value simulation unavailable: "
+                                + method.toGenericString());
+                    }
                 }
+            } catch (Throwable failure) {
+                logFx(Log.WARN,
+                        "Location value accessors unavailable; last-known-location fallback remains active");
             }
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "Location value accessors unavailable; last-known-location fallback remains active");
+
+            locationSimulationHooksInstalled = coordinateHooks > 0;
+            logFx(locationSimulationHooksInstalled ? Log.INFO : Log.WARN,
+                    "debug-only Location coordinate hooks installed=" + coordinateHooks + " for " + pkg);
         }
-        locationSimulationHooksInstalled = installed > 0;
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "debug-only Location object/GNSS test accessors installed=" + installed + " for " + pkg);
-        return locationSimulationHooksInstalled;
+
+        return (!needCoordinates || locationSimulationHooksInstalled)
+                && (!needProviderState || locationProviderEnabledHooksInstalled);
     }
 
     private synchronized boolean installNetworkTypeSimulationHooks(final String pkg) {
@@ -1413,7 +1468,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
                                 UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                                if (active != null && debuggablePackages.contains(currentPackage)
+                                if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
                                         && active.networkTypeSimulation) {
                                     boolean wifi = "wifi".equals(active.simulatedNetworkType);
                                     return type ? (wifi ? 1 : 0) : (wifi ? "WIFI" : "MOBILE");
@@ -1434,7 +1489,7 @@ private boolean targetDeveloperOptIn(String packageName) {
             hook(hasTransport).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                        if (active != null && debuggablePackages.contains(currentPackage)
+                        if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
                                 && active.networkTypeSimulation) {
                             Object arg = chain.getArgs().get(0);
                             int transport = arg instanceof Number ? ((Number) arg).intValue() : -1;
@@ -1472,7 +1527,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                             .intercept(chain -> {
                                 String activePackage = currentPackage;
                                 UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (active != null && debuggablePackages.contains(activePackage)
+                                if (active != null && isAuthorizedDeviceSimulationTarget(activePackage)
                                         && active.wifiSimulation) {
                                     String value = ssid ? active.simulatedWifiSsid : active.simulatedWifiBssid;
                                     if (value != null && !value.isEmpty()) return value;
@@ -1721,10 +1776,9 @@ private boolean targetDeveloperOptIn(String packageName) {
                 // interceptor for every PackageReady callback.
                 String activePackage = currentPackage;
                 UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
-                if (activeTarget == null || NEVER.contains(activePackage)) return original;
-                if (activeTarget.androidIdSimulation
-                        && debuggablePackages.contains(activePackage)
-                        && activeTarget.simulatedAndroidId != null) {
+                if (activeTarget == null || NEVER.contains(activePackage)
+                        || !isAuthorizedDeviceSimulationTarget(activePackage)) return original;
+                if (activeTarget.androidIdSimulation && activeTarget.simulatedAndroidId != null) {
                     return activeTarget.simulatedAndroidId;
                 }
                 if (!privacyEnabled || !activeTarget.privacy) return original;
