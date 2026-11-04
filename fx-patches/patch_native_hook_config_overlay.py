@@ -37,7 +37,7 @@ prefix = '''    case "$PG" in /*) : ;; *) echo "gen_xposed_conf: Hook state dire
       continue
     fi
     _GXC_NATIVE_CONFIG="$PG/fx-native-hook-targets-$_gxc_uid.conf"
-    if [ -e "$_GXC_NATIVE_CONFIG" ]; then''';
+    if [ -e "$_GXC_NATIVE_CONFIG" ]; then
 
       _GXC_NATIVE_SIZE=$(wc -c < "$_GXC_NATIVE_CONFIG" 2>/dev/null | tr -d ' ')
       _GXC_NATIVE_LINES=$(wc -l < "$_GXC_NATIVE_CONFIG" 2>/dev/null | tr -d ' ')

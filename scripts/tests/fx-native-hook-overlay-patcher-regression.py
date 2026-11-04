@@ -8,6 +8,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 PATCHER = ROOT / "fx-patches/patch_native_hook_config_overlay.py"
 MAIN = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+
+# Validate the patcher source itself before launching it in the temp fixture.
+compile(PATCHER.read_text(encoding="utf-8"), str(PATCHER), "exec")
 START = '''    {
       # Modern unified Hook schema. Keep xposed.conf in its legacy format for
 '''
