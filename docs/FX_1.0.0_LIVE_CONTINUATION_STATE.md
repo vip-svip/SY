@@ -882,3 +882,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   1. 追踪 Dia 原版 `ToastDisableHook` 的 Hook 点、匹配字段、作用域和绕过条件，新增独立默认关闭、逐应用 Toast 过滤设置与执行器，不复用 Dialog 提示开关。
   2. 追踪 `KeyEventHook` 与 `alert_auto` / `disable_alert_mode` 的调用链，先复原原始模式语义，再做显式启用的安全迁移。
   3. 核对动态布局监听及 Dialog 规则的设备覆盖；随后回到 Frida 监听 / 代理页面原生导航返回链。
+
+## 2026-11-05 — 游龙广告应用白名单页面状态恢复（UI 优先批次）
+
+- 本批代码提交前 HEAD：4fed76d48d0f1c6b1b9a4935085d43dada1566e4。
+- 本批 UI 代码提交：41f601c53b9d1b85d80a3ff8df766ff2639e8991（fix(ui): restore Yulong app whitelist list state）。
+- 改动路径：adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java。
+- 完成：应用白名单 Activity 保存并恢复分页页码、搜索词与 ScrollView 滚动位置；异步加载应用清单完成后保留恢复页码并恢复滚动；用户主动修改搜索词时重置到第一页及顶部。白名单实际选择仍从 Root 脚本读取，开关写入仍走既有脚本链，本批未更改过滤语义或配置格式。
+- 同步核对：六 Tab 原生外壳 FxNativeAppShell.kt 已用于 Dashboard native shell；MainActivity.base() 也调用 mountNativeShell(root)，Hook、设置及迁移应用主/分类页复用同一六 Tab 外壳。因此未对底栏重复造轮子。
+- 定向静态核验：7 项源码断言通过，确认状态键、保存字段、重建时读回、异步加载不覆盖恢复页码、内容重绘后恢复滚动、搜索变更重置页码/位置，以及 ScrollView 被提升为 Activity 字段。
+- 验证边界：未运行 Gradle / Android 编译、UI 自动化或真机旋转/进程重建；以上仅为提交源码静态核验，不是设备验收。
+- 并行工作线新进展：其后分支新增 1725569d71e01afb7daacdf591a96eb59cc50328（Parser 增加 per-app Toast 规则字段和约束）与 f93aafda36277583e727c244b1ab7851fe40d4ad（Serializer 写入 Toast 规则）。仅确认 diff 触及 UnifiedHookConfigParser / Serializer；本轮尚未验证相应 UI、Hook 执行器或单测，不能视为 Toast 功能完成。
+- 未完成事项：三套应用仍有部分四级页面路由到通用页或明确 pending 页；Dia 与游龙安全护盾深层页面映射/返回链仍需逐组对照原版。应用白名单页仍需 Android 生命周期实测。
+- 排除路线：曾怀疑 Hook/设置页面底栏会消失；复核确认 base() 已挂载同一六 Tab Compose 外壳，故不做重复修补。
+- 下一批具体任务：继续补齐游龙广告“应用管理”页面组的原生交互与恢复（白名单页已处理，Firewall 页已有分页/查询/滚动恢复；核查应用统计页）；并行工作线应把 Toast Parser/Serializer 接到独立默认关闭、逐应用 UI 与执行器，不能复用 Dialog 提示开关。
