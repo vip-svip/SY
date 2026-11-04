@@ -5620,6 +5620,11 @@ public final class MainActivity extends ComponentActivity {
                             : null;
                     boolean previouslyEnabled = true;
                     if (editingSlot > 0) {
+                        if (!presetDescriptor.equals(previousStored)) {
+                            new AlertDialog.Builder(this).setMessage("规则在编辑期间已发生变化，为避免覆盖新配置，本次保存已取消。请重新打开编辑器。")
+                                    .setPositiveButton("知道了", null).show();
+                            return;
+                        }
                         String[] previous = previousStored == null
                                 ? new String[0] : previousStored.split("\\|", -1);
                         if (previous.length != 4 && previous.length != 5) {
