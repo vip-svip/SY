@@ -3573,3 +3573,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将该回归脚本加入 `.github/workflows/build-fx-adhook.yml` 的静态迁移检查步骤，避免后续改动静默移除三模式接线。
 - 测试脚本提交：`5e9121fa6b0c26e072c4f520f14afce7b67f1d8e`；CI 接入提交：`b9db142c5ce27ce1a0088566812311b7a51bee7f`。
 - 当前未能从本轮连接器触发 Actions，也没有 Gradle 编译结果；此处只确认源码和工作流配置已写入，不能报告 CI 通过。下一步应获取该分支 PR 触发的 workflow run，读取具体 job 日志，先修复编译/静态回归失败，再做安装和运行中切换验证。
+
+- 回归脚本复核发现原断言引用了不存在的 `RoundedCornerShape(when (mode)` 写法，且错误地要求模式标题字面量出现在选择器文件。已修正为检查真实 enum 选择入口、Liquid/Miuix/Classic 分支、Classic WebView 挂载及 Tab 路由，避免静态门禁自身误报。
+- 修正回归脚本提交：`aaf22d600fbf80d31fd40f39ee8f6c2ce20dc94a`。工作流已接入该脚本，但本轮未执行 Actions/Gradle，不能标记测试通过。
