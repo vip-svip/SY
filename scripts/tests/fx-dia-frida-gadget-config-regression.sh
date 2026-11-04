@@ -50,6 +50,12 @@ if "本机进程配置索引保存失败" not in deploy_method:
     raise SystemExit("FAIL: Gadget deployment preference persistence failure is not surfaced")
 if "本机 UI 配置索引保存失败" not in config_method:
     raise SystemExit("FAIL: Gadget config preference persistence failure is not surfaced")
+if r'本机进程配置索引保存失败；请重新打开页面核对目标进程。\\n' in deploy_method:
+    raise SystemExit("FAIL: Gadget deploy persistence status renders a literal \\n instead of a line break")
+if r'本机 UI 配置索引保存失败；请重新打开页面核对配置路径和端口。\\n' in config_method:
+    raise SystemExit("FAIL: Gadget config persistence status renders a literal \\n instead of a line break")
+if r'Frida Gadget 监听配置已写入。\\n' in config_method:
+    raise SystemExit("FAIL: Gadget success status renders a literal \\n instead of a line break")
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: missing {label}: {needle}")
