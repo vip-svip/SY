@@ -2612,3 +2612,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前分支后续还增加 Hook OBSERVE 日志刷新串行化：防止重复 Root logcat 请求，刷新期间禁用按钮，异常/队列满明确显示状态。提交 `68dd9fbd4c930a4aabf3e4aa1ec462870faa9106`。
 - 验证等级：源码与断言静态一致；修正后的 targeted run 仍需读取最终结果。
 - 下一步：完成 Frida SAF 导入 URI 的重建恢复与覆盖预览回归；继续核对六 Tab/Shield/Hook 导航返回链。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Hook 授权中心往返保留应用列表视口
+
+- 修复前分支 HEAD：`c7c7a94ec6e762fcb7ed68ae8756fe06a443afce`。
+- 修复 Hook 应用列表进入“授权状态与系统设置”（Root / LSPosed / 无障碍 Hub）再返回时，未捕获当前列表滚动位置的问题。现在 `showHookHub()` 在切换界面前检测当前是否为 Hook 应用列表，并调用现有 `captureHookAppListState()`，保留搜索词、滚动位置和已展开分页数量；返回应用列表时由既有加载/渲染逻辑恢复。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-hook-native-ui-regression.sh`。
+- 提交：`9e9336ae3a8ea17bb513642b6548a39b9f16a897`（状态捕获）；`be7d6e656485536859b248bc1dd66905e695450b`（回归断言）。
+- 已重新读取源码与测试脚本，确认状态捕获在取消 Hook scope 操作和重建 Hub 视图之前执行，且回归脚本包含该约束。尚未执行脚本或 Android 构建/真机测试。
+- 当前最新 HEAD（写入本记录前）：`be7d6e656485536859b248bc1dd66905e695450b`。
+- 下一步：继续检查 Hook 列表、详情和自定义规则编辑器的往返路径；不打最终包，不改变 FX 1.0.0 版本号。
