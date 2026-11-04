@@ -83,11 +83,12 @@ DATE
 chmod 0755 "$TMP/bin/date"
 REAL_NOHUP=$(command -v nohup)
 MOCK_WATCH_SPAWN_LOG="$TMP/nohup-spawn.log"
+grep -Fq 'if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]' "$SOURCE" || fail "mock nohup delay is not expandable"
 export REAL_NOHUP MOCK_WATCH_SPAWN_LOG
 cat > "$TMP/bin/nohup" <<'NOHUP'
 #!/bin/sh
 printf 'spawn\n' >> "$MOCK_WATCH_SPAWN_LOG"
-if [ "\${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 0.3; fi
+if [ "${MOCK_WATCH_SPAWN_DELAY:-0}" = "1" ]; then sleep 0.3; fi
 exec "$REAL_NOHUP" "$@"
 NOHUP
 chmod 0755 "$TMP/bin/nohup"
@@ -361,7 +362,17 @@ v2run start-watch > "$V2/watch-start-b.out" 2>&1 &
 start_b=$!
 wait "$start_a" || { cat "$V2/watch-start-a.out" >&2; fail "first concurrent watcher start failed"; }
 wait "$start_b" || { cat "$V2/watch-start-b.out" >&2; fail "second concurrent watcher start failed"; }
-[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "concurrent starts spawned more than one watcher"
+_spawn_count=$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')
+if [ "$_spawn_count" -ne 1 ]; then
+  echo "expected one nohup spawn, got $_spawn_count" >&2
+  cat "$MOCK_WATCH_SPAWN_LOG" >&2 || :
+  echo "start A output:" >&2; cat "$V2/watch-start-a.out" >&2 || :
+  echo "start B output:" >&2; cat "$V2/watch-start-b.out" >&2 || :
+  echo "watch PID: $(cat "$WATCH_PIDFILE" 2>/dev/null || echo missing)" >&2
+  echo "lock owner: $(cat "$WATCH_LOCK_DIR/owner.pid" 2>/dev/null || echo missing)" >&2
+  ps -ef 2>/dev/null | grep -F "$V2/module/scripts/yulong-app-firewall.sh" | grep -v grep >&2 || :
+  fail "concurrent starts spawned more than one watcher"
+fi
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing after concurrent start"
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
