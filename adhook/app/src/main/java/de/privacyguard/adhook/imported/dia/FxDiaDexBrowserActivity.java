@@ -728,7 +728,8 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                     if (getIntent().getBooleanExtra("allow_hook_method_pick", false)
                             && selected != null
                             && (selected.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
-                            && (selected.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+                            && (selected.flags & (ApplicationInfo.FLAG_SYSTEM
+                                    | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0) {
                         detailDialog.setNeutralButton("选择方法并添加 OBSERVE Hook",
                                 (dialog, which) -> chooseDexHookMethod(item));
                     }
@@ -744,7 +745,8 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         if (!getIntent().getBooleanExtra("allow_hook_method_pick", false)
                 || selected == null
                 || (selected.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
-                || (selected.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                || (selected.flags & (ApplicationInfo.FLAG_SYSTEM
+                        | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) {
             summary.setText("导入 Hook 只允许 debuggable 用户应用；Framework DEX 和系统应用保持只读。");
             return;
         }
