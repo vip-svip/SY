@@ -2711,6 +2711,11 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void handleNativeTabSelection(int index) {
+        if (index < 0 || index > 5) return;
+        // A direct top-level tab selection leaves any nested per-app Custom Hook
+        // route. Activity recreation restores that route through onCreate instead.
+        hookCustomRulesPageVisible = false;
+        customHookReturnToTarget = false;
         if (index == 5) {
             selectedBottomTab = 5;
             showSettings();
