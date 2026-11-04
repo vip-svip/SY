@@ -373,6 +373,9 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         }
         if (candidates.isEmpty()) {
             pickerDialogOpen = false;
+            pickerQuery = "";
+            pickerPage = 1;
+            pickerScrollY = 0;
             pickerStaged.clear();
             new AlertDialog.Builder(this)
                     .setTitle("提示")
@@ -480,6 +483,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 pickerDialogOpen = false;
                 pickerQuery = "";
                 pickerPage = 1;
+                pickerScrollY = 0;
                 pickerStaged.clear();
             }
         });
