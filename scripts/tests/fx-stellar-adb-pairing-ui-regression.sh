@@ -95,6 +95,11 @@ grep -Fq '不代表通用 Shell 管理功能已全部迁入' "$PAIRING" || fail 
 grep -Fq 'pairingCode.setText("")' "$PAIRING" || fail "pairing code remains in the visible input after starting"
 grep -Fq 'client.close()' "$PAIRING" || fail "pairing client is not closed after the attempt"
 grep -Fq 'stopDiscovery();' "$PAIRING" || fail "mDNS discovery is not stopped when the UI is destroyed"
+grep -Fq 'onSaveInstanceState(Bundle out)' "$PAIRING" || fail "ADB discovery mode and target are not saved across Activity recreation"
+grep -Fq 'discovery.isStarted()' "$PAIRING" || fail "only a live discovery session may be auto-resumed after recreation"
+grep -Fq 'startConnectDiscovery(operationGeneration.get())' "$PAIRING" || fail "post-pair connect discovery mode is not restored"
+grep -Fq 'restoreSelectedDeviceIfMatching(device)' "$PAIRING" || fail "saved target must be reselected only after fresh mDNS resolution"
+grep -Fq 'if (saved.getBoolean("pairing_was_active", false))' "$PAIRING" || fail "interrupted pairing must be disclosed after recreation"
 grep -Fq 'AdbPairingActivity.class' "$SECURE" || fail "Stellar secure-settings screen has no ADB pairing entry"
 
 # Pairing must remain separate from system permission grants: the pairing

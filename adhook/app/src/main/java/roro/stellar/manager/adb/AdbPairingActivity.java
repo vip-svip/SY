@@ -57,6 +57,9 @@ public final class AdbPairingActivity extends Activity {
     private volatile boolean destroyed;
     private boolean pairing;
     private boolean connectDiscoveryMode;
+    private boolean restoredSelectionPending;
+    private String restoredServiceName = "";
+
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -144,6 +147,38 @@ public final class AdbPairingActivity extends Activity {
                 "配对只建立 ADB TLS/SPAKE2 信任关系，不会自动授予 WRITE_SECURE_SETTINGS、不会打开 Shell 常驻服务，也不会执行其他设备命令。后续权限授予仍需你在 Stellar 权限页明确确认。");
 
         setContentView(root);
+        if (saved != null) {
+            restoredServiceName = saved.getString("selected_service_name", "");
+            restoredSelectionPending = !restoredServiceName.isEmpty();
+            boolean resumeConnect = saved.getBoolean("connect_discovery_mode", false);
+            boolean resumeDiscovery = saved.getBoolean("discovery_was_active", false);
+            if (saved.getBoolean("pairing_was_active", false)) {
+                status.setText("页面重建中断了正在进行的 ADB 配对。为保护配对码，FX 不会保存或自动重放该凭据；请重新输入配对码后重试。");
+            }
+            if (resumeDiscovery) {
+                if (resumeConnect) startConnectDiscovery(operationGeneration.get());
+                else startDiscovery();
+            } else if (!restoredServiceName.isEmpty()) {
+                status.setText("已恢复上次选中的 ADB 设备标识；请重新扫描并验证设备仍在广播后继续。");
+            }
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putBoolean("discovery_was_active", discovery != null && discovery.isStarted());
+        out.putBoolean("connect_discovery_mode", connectDiscoveryMode);
+        out.putBoolean("pairing_was_active", pairing);
+        out.putString("selected_service_name",
+                selectedDevice == null ? "" : selectedDevice.serviceName);
+    }
+
+    private void restoreSelectedDeviceIfMatching(AdbPairingDiscovery.Device device) {
+        if (device == null || !restoredSelectionPending) return;
+        if (restoredServiceName.equals(device.serviceName)) {
+            selectedDevice = device; // Fresh mDNS resolution replaces the stale host/port.
+            restoredSelectionPending = false;
+        }
     }
 
     private void startDiscovery() {
@@ -172,8 +207,11 @@ public final class AdbPairingActivity extends Activity {
                         @Override public void onDeviceFound(AdbPairingDiscovery.Device device) {
                             if (destroyed || device == null) return;
                             devices.put(device.serviceName, device);
+                            restoreSelectedDeviceIfMatching(device);
                             renderDevices();
-                            status.setText("已发现 " + devices.size() + " 个配对服务。选择目标设备后输入配对码。");
+                            status.setText(selectedDevice == device
+                                    ? "已恢复上次选择的设备。请重新确认目标并输入本次配对码。"
+                                    : "已发现 " + devices.size() + " 个配对服务。选择目标设备后输入配对码。");
                         }
 
                         @Override public void onDeviceLost(String serviceName) {
@@ -427,6 +465,7 @@ public final class AdbPairingActivity extends Activity {
                                 return;
                             }
                             devices.put(device.serviceName, device);
+                            restoreSelectedDeviceIfMatching(device);
                             boolean saved = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
                                     .edit()
                                     .putString("connect_service_name", device.serviceName)

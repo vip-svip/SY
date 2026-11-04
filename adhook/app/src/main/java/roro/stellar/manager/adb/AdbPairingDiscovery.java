@@ -274,6 +274,10 @@ public final class AdbPairingDiscovery implements AutoCloseable {
         });
     }
 
+    public synchronized boolean isStarted() {
+        return started && !closed;
+    }
+
     @Override
     public void close() {
         NsdManager.DiscoveryListener current;
