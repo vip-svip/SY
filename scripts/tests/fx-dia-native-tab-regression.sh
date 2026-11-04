@@ -49,6 +49,18 @@ assert "hookAppListVisibleCount = nextEnd;" in main, "Load more must retain the 
 assert "listScroll.scrollTo(0, restoreY);" in main, "app-list scroll position must restore after async inventory load"
 assert "if (isHookAppListVisible() && nativeScroll == listScroll)" in main, "stale restore callbacks must not scroll a newer screen"
 
+# Hook custom-rule screen must retain group/search filters and scroll through rule-edit rebuilds/recreation.
+for key in ("STATE_CUSTOM_HOOK_GROUP_FILTER", "STATE_CUSTOM_HOOK_SEARCH",
+            "STATE_CUSTOM_HOOK_SCROLL_Y"):
+    assert key in main, f"custom-rule screen state key missing: {key}"
+assert "captureCustomHookRuleFilters();" in main, "custom-rule edits must capture current view state before rebuilding"
+assert "groupFilter.setSelection(restoredGroupPosition);" in main, "custom-rule group filter must restore"
+assert "searchFilter.setText(customHookRuleSearchQuery);" in main, "custom-rule search must restore"
+assert "customHookRuleGroupFilter = \"全部分组\".equals(value) ? \"\" : value;" in main
+assert "customHookRuleSearchQuery = s == null ? \"\" : s.toString();" in main
+assert "ruleScroll.scrollTo(0, restoreRuleY);" in main, "custom-rule list scroll must restore"
+assert "nativeScroll == ruleScroll" in main, "stale custom-rule scroll callbacks must be ignored"
+
 # Dia Hook category must expose the independently migrated Dialog, Notification and Toast screens.
 assert '{"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤",' in main
 assert 'case "对话框处理": case "对话框与通知":' in main
