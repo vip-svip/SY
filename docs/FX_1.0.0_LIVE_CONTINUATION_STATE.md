@@ -2878,3 +2878,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDb.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`、`adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`。
 - 验证：新增 VirusDb JUnit 证据断言和 Shield targeted 静态回归断言；尚未运行 Gradle/JUnit、Actions、模拟器或真机。
 - 下一步：执行 Shield 定向回归；核对名单编辑页搜索/筛选状态与分页恢复；处理 Hook Host regression 静默退出。
+
+
+## 2026-11-05 — Shield 黑名单损坏状态累计断言修正
+
+- Actions：`41913547735` 已越过黑名单策略方法签名、病毒库缓存/正则、扫描页滚动保护检查；随后在黑名单读取损坏状态断言处失败。
+- 根因：测试要求旧的单表达式赋值 `blacklistDataCorrupt = !raw.isEmpty() && ...`；当前实现先在 SharedPreferences 类型读取失败时置 `blacklistDataCorrupt = true`，随后通过 `blacklistDataCorrupt || (...malformed...)` 累计损坏状态，避免后续正常化空字符串掩盖读取失败。
+- 修复：回归改为同时验证读取失败标记和格式校验 OR 累计；保留“损坏时不修改原始名单”的安全门禁。
+- 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `e7ad99e5b77f1ed36d0cdc1e366a56c604d09397`。
+- 验证：对照 `BlacklistActivity.loadBlacklist()` 第 272–286 行；未执行真机，等待本轮 Actions。
+- 下一步：继续定位 Shield 回归后续断言，避免将静态核对误报为完整通过。
