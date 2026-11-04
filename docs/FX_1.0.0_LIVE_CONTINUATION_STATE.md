@@ -573,3 +573,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本状态提交前已读取分支 HEAD：1a00262f3cfe1fdc407df3588c0d97c587077405；本批代码提交 5718c7fa31e1b260e70896ed5ac52ed63f414fcd 已在该 HEAD 的历史中。
 - 下一批直接任务：① Dia 原始 Manifest/页面映射，对照当前独立 Activity 路由，选择 1–3 个尚未独立迁移的页面实现真实页面结构与返回链；② 优先覆盖 Dia 当前显示为 pending/通用占位的原始页面，而不是继续修安全护盾边缘 UI；③ 模块构建环境可用时再跑 Android compile/Gradle，当前 DNS 阻塞仍须如实说明。
 - 并行工作线：Dia 页面目录/Manifest 映射可独立只读；共享 MainActivity / Manifest 路由变更按顺序整合。
+
+
+## 2026-11-05 — Shield 每日总结统计口径与实际服务状态
+
+- 本批代码提交：`fe0332b9aae52a961375e101b69d20d24168bb12`。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongDailySummaryActivity.java`。
+- 统计口径修正：`automatic_scan_count_today` 实际累计的是已检查应用数量（单包事件每包 +1；全量扫描按实际 scanned 数增加），不是“扫描触发次数”。日报标题改为“自动风险扫描应用数”，显示“今日检查应用 X 个”，并说明包含前台、安装/更新和病毒库更新后的扫描。
+- 运行状态修正：日报不再通过可能过期的 `protect_service_running` SharedPreferences 作为服务实时状态；改为查询 FX 自己的 `FxYulongProtectionService` 与 `FxYulongRescueOverlayService` 运行项。用户保存的 protect/shake/volume 开关仍单独显示为配置状态；通知权限也作为实际系统权限单独回读。
+- 同批复核到当前最新 `FxYulongShieldActivity.java`（blob `a5533b7078c559bac3bafce17670b46761e868e0`）：已实现 onResume 刷新全部控件，并通过 PackageManager 之外的系统权限 API 与 ActivityManager 实际检查 Usage Access、POST_NOTIFICATIONS、Accessibility、悬浮窗、两个前台服务状态；未把这部分较新的代码用旧版本覆盖。
+- 静态复核：日报显示单位、扫描来源、两个 Service 运行状态检查和通知权限状态均存在；Shield Hub 的 `onResume()` 调用 `refreshControlsFromSystem()`，系统权限/服务状态改变后返回页面会刷新。
+- 验证等级：GitHub 源码静态核对通过；未运行 Android/Kotlin 编译、Gradle、JUnit、UI 自动化、安装或真机服务状态测试。`ActivityManager.getRunningServices` 为 deprecated API，仅用于同应用服务检测，设备兼容性仍未验证。
+- 本批未改变扫描计数的写入行为、服务生命周期、权限申请或自动扫描调度；未触发完整 Actions。
+- 下一批：继续 Dia 页面迁移映射；先检查“对话框与通知/剪贴板”是否使用 per-app Hook 配置还是 FX 全局隐私设置，避免路由错位；随后核对 GPS/设备模拟页面保存与发布完整性。Dia 所有原始页面和业务逻辑仍未全量验收。
