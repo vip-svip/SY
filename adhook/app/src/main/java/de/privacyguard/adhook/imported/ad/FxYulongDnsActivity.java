@@ -178,7 +178,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
 
     private void parse(String output) {
         data.clear();
-        int total = 0, blocked = 0;
+        int total = 0, blocked = 0, malformed = 0;
         String raw = output == null ? "" : output;
         if (raw.contains("FXDNSLOG_DISABLED")) {
             status.setText("DNS 查询日志当前关闭。请返回游龙广告插件 → DNS 设置，手动开启本地日志。");
@@ -209,14 +209,15 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     if (domain.isEmpty()) domain = question.optString("host", "").trim();
                     if (type.isEmpty()) type = question.optString("type", "").trim();
                 }
-                if (domain.isEmpty()) continue;
+                if (domain.isEmpty()) { malformed++; continue; }
                 data.add(new Entry(time, domain, type, isBlocked, reason));
                 total++;
                 if (isBlocked) blocked++;
-            } catch (Exception ignored) { }
+            } catch (Exception ignored) { malformed++; }
         }
-        status.setText("最近解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
-                + Math.max(0, total - blocked) + " 条。数据仅来自本地查询日志尾部。");
+        status.setText("本次解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
+                + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed\
+                + " 条。数据仅来自本地查询日志尾部；若异常数大于 0，请检查本地日志格式。");
         render();
     }
 
