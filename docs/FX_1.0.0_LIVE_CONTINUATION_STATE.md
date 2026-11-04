@@ -1536,3 +1536,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：最新 HEAD 确认三个状态键、Bundle 保存/恢复、搜索恢复、分页恢复、滚动恢复实例保护和进入目标前状态捕获均存在；Dia 回归脚本包含对应断言。未执行完整 Shell 脚本、Gradle 编译、模拟器/真机旋转与多页实际点按测试。
 - 并行接管：已保留并复核随后提交的 GPS Picker 目标包名在 MainActivity 重建后的恢复与结果归属检查（`829326a84c235924c5ff6f66c1c58820abaef767`、`6f06af1dbd9cc1058b8934359884b2dbe251750f`、`3c458f1f30d04ab8ceed4a12e222c541ece6ac23`），不重复覆盖。
 - 下一步：检查 Hook 自定义规则页草稿、规则对话框、导入/导出、分组弹窗与 OBSERVE 日志页的返回状态；然后集中执行可运行的 Dia/Hook Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 自定义规则编辑器与 JSON 导入草稿恢复
+
+- 本批开始时分支 HEAD：`dbeaff3c30f40bcd0c5dfbb50cebf3b29a9af3d1`；开发期间分支出现并行提交，已重新读取最新 HEAD/文件 SHA 后重放变更，没有强推或覆盖。
+- `MainActivity.showCustomRuleDialog`：新增规则和编辑既有规则时，分别按目标包名与编辑槽位保存草稿；保留规则 ID、语法类型、方法签名、动作、RETURN_LITERAL 常量、分组、优先级。仅当编辑草稿的原规则指纹匹配时恢复，避免把旧草稿套到已被外部修改的规则；正式规则 `commit()` 成功后才清除草稿，保存失败/取消时保留。
+- `showCustomRuleImportDialog`：JSON 输入文本按目标应用独立保存并在重新打开时恢复；导入写入改为同步 `commit()`，成功后才清理导入草稿并显示成功，避免 `apply()` 异步写入失败时仍提示导入成功。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-custom-hook-literal-regression.sh`；本状态文件。
+- 提交：`6039e12f030086edbc26d21535f62a859ad4f689`（规则编辑草稿）；`8cf9e1d7e5fa37fbbf9e54fd6eff18e80662a3ba`（JSON 导入草稿与同步提交）；`c714074ad04464bf4a306386e1f66a23975dcc24`（回归断言）。并行提交后当前最新 HEAD 以本记录更新提交为准。
+- 验证等级：从当前分支 HEAD 重新读取源码与回归脚本，静态确认编辑草稿身份/字段/监听/成功清理、导入草稿恢复/监听/同步提交及回归断言均存在。未在完整 checkout 执行该 Shell/Python 回归脚本，未运行 Gradle、UI 自动化、模拟器或真机旋转/导入操作。
+- 失败路线：一次 GitHub Contents API 409，原因是并行提交更新了同一 `MainActivity.java`；按流程重新读取最新分支 HEAD 与文件 blob SHA 后重放成功。不要复用旧 SHA。
+- 下一批：将 Hook 自定义规则编辑/导入对话框提升为可恢复的原生页面状态（含弹窗重建与返回链）；随后核对 OBSERVE 日志 Activity 的筛选/滚动状态与结果回跳。再集中运行 Dia/Hook Host 回归。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
