@@ -2740,3 +2740,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：将 APK/DEX/aapt 检查改为条件段：提供 debug APK 时仍完整执行全部真实制品检查；Host-only 作业没有 APK 时明确打印 SKIP，不把未执行冒充通过。源码/导航/权限/运行时门禁断言仍无条件执行。
 - 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 下一步：本提交触发的 targeted Host Actions 应执行全部源码断言并跳过仅限 APK 的检查；之后单独安排一次真实 Gradle debug APK 构建来执行制品验收，不生成最终交付包。
+
+
+## 2026-11-05 — Hook 分组名称长度回归断言覆盖新增编辑器字段
+
+- Actions：`41912409974` 已通过 MainActivity 导航/权限等源码断言，并明确 SKIP 了 Host-only job 未构建的 APK 制品检查；随后失败于 `rule group add/rename inputs must enforce their 24-character name limit`。
+- 根因：当前源码共有三个 24 字符限制输入：规则编辑器分组字段、分组新增、分组重命名；旧测试只要求恰好两个，未把新增规则编辑器字段纳入计数。
+- 修复：断言调整为至少三个受限输入，并更新失败说明；保留新增/重命名与编辑器三处的长度约束，不更改产品代码。
+- 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 下一步：读取本次 targeted Actions 的新首错；若 Hook UI Host 回归通过，再切换到 Dia/Shield 页面批次。APK/DEX 检查需另行提供 debug APK 后执行。
