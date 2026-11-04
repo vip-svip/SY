@@ -83,6 +83,7 @@ public class WhitelistPickerActivity extends Activity {
     private TextView submitView;
     private EditText searchInput;
     private String query = "";
+    private String whitelistDataWarning = "";
     private boolean loadFinished = false;
 
     private static class AppItem {
@@ -373,6 +374,9 @@ public class WhitelistPickerActivity extends Activity {
         } else {
             countView.setText("已选 " + selected.size() + " 个 / " + total + " 个应用");
         }
+        if (!whitelistDataWarning.isEmpty()) {
+            countView.setText(countView.getText() + " · " + whitelistDataWarning);
+        }
         boolean allSelected = total > 0;
         for (AppItem item : visibleApps) {
             if (!selected.contains(item.packageName)) {
@@ -509,23 +513,22 @@ public class WhitelistPickerActivity extends Activity {
     private void loadCurrentWhitelist() {
         currentWhitelist.clear();
         String raw = prefs.getString("whitelist_pkgs", "");
+        if (raw == null) raw = "";
+        Set<String> parsed = FxYulongWhitelistPolicy.parse(raw);
+        whitelistDataWarning = !raw.trim().isEmpty() && parsed.isEmpty()
+                ? "原白名单无有效数据或超过安全上限；不会部分信任超限名单。"
+                : "";
         boolean removedSystem = false;
-        if (!raw.isEmpty()) {
-            for (String p : raw.split(",")) {
-                String t = p.trim();
-                if (t.isEmpty()) continue;
-                // 2026-11-02（用户需求）：系统应用不再自动进入白名单；
-                // 旧版本留在 prefs 里的系统条目在这里直接清掉，避免再次写回。
-                if (isSystemPackage(t)) {
-                    removedSystem = true;
-                    continue;
-                }
-                currentWhitelist.add(t);
+        for (String packageName : parsed) {
+            // 系统应用不自动进入白名单；旧版残留项在保存时统一清理。
+            if (isSystemPackage(packageName)) {
+                removedSystem = true;
+                continue;
             }
+            currentWhitelist.add(packageName);
         }
-        if (removedSystem) {
-            saveCurrentWhitelistOnly();
-
+        if (removedSystem && !saveCurrentWhitelistOnly()) {
+            whitelistDataWarning = "系统应用条目已从当前选择中排除，但本地配置修复失败。";
         }
     }
 
@@ -540,13 +543,19 @@ public class WhitelistPickerActivity extends Activity {
         }
     }
 
-    private void saveCurrentWhitelistOnly() {
-        StringBuilder sb = new StringBuilder();
-        for (String p : currentWhitelist) {
-            if (sb.length() > 0) sb.append(",");
-            sb.append(p);
+    private boolean saveCurrentWhitelistOnly() {
+        String serialized = FxYulongWhitelistPolicy.serialize(currentWhitelist);
+        if (serialized == null) {
+            whitelistDataWarning = "白名单超过安全保存上限，未写入部分数据。";
+            return false;
         }
-        prefs.edit().putString("whitelist_pkgs", sb.toString()).apply();
+        boolean saved = prefs.edit().putString("whitelist_pkgs", serialized).commit();
+        if (!saved) {
+            whitelistDataWarning = "白名单本地保存失败，原有数据保持不变。";
+            return false;
+        }
+        whitelistDataWarning = "";
+        return true;
     }
 
     private void saveSelected() {
@@ -554,7 +563,7 @@ public class WhitelistPickerActivity extends Activity {
             Toast.makeText(this, "请先选择要加入的应用", Toast.LENGTH_SHORT).show();
             return;
         }
-        // 再次过滤，确保旧版本残留的系统应用不会随保存写回。
+        // 再次过滤系统应用，并通过中央 policy 一次性验证条数与存储大小。
         Set<String> all = new HashSet<>();
         for (String p : currentWhitelist) {
             if (!isSystemPackage(p)) all.add(p);
@@ -562,13 +571,17 @@ public class WhitelistPickerActivity extends Activity {
         for (String p : selected) {
             if (!isSystemPackage(p)) all.add(p);
         }
-        StringBuilder sb = new StringBuilder();
-        for (String p : all) {
-            if (sb.length() > 0) sb.append(",");
-            sb.append(p);
+        String serialized = FxYulongWhitelistPolicy.serialize(all);
+        if (serialized == null) {
+            Toast.makeText(this, "合并后的白名单超过 " + FxYulongWhitelistPolicy.MAX_ENTRIES
+                    + " 个应用或 " + FxYulongWhitelistPolicy.MAX_RAW_CHARS
+                    + " 个字符；没有保存任何条目，请减少选择数量。", Toast.LENGTH_LONG).show();
+            return;
         }
-        prefs.edit().putString("whitelist_pkgs", sb.toString()).apply();
-
+        if (!prefs.edit().putString("whitelist_pkgs", serialized).commit()) {
+            Toast.makeText(this, "白名单保存失败，原有配置保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
         Toast.makeText(this, "已加入 " + selected.size() + " 个应用", Toast.LENGTH_SHORT).show();
         finish();
     }
