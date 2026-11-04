@@ -58,9 +58,12 @@ public final class FxStellarManagerActivity extends Activity {
  private final Set<String> packages=new HashSet<>(), scopes=new HashSet<>(), always=new HashSet<>();
  private String target="";
  private LinearLayout body;
- private TextView state, selectedLabel, auditOutput;
+ private TextView state, selectedLabel, auditOutput, bootScriptStatus;
  private LinearLayout alwaysRows;
+ private Switch bootScriptSwitch;
+ private android.content.SharedPreferences stellarSettings;
  private boolean syncing;
+ private boolean bootScriptUpdating;
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
@@ -344,6 +347,7 @@ public final class FxStellarManagerActivity extends Activity {
   state=text("正在读取授权策略…",12,0xff617080,false);body.addView(state);
   body.addView(button("选择授权目标应用",this::chooseTarget));
   body.addView(button("无线调试 / Secure Settings 授权",()->startActivity(new Intent(this,FxStellarSecureSettingsActivity.class))));
+  addBootScriptControls();
   addSwitch("允许该应用请求 Stellar 授权","PKG",false);
   selectedLabel=text("当前目标应用：未选择",13,0xff334155,true);body.addView(selectedLabel);
   addSwitch("读取 Shell 身份","SHELL_ID_COMMAND",false);
@@ -441,6 +445,144 @@ public final class FxStellarManagerActivity extends Activity {
       .setNegativeButton("取消",null).setPositiveButton("撤销",(d,w)->apply("pkg-set "+quote(target)+" 0","撤销 Stellar 授权")).show();
   }));
  }
+ private android.content.SharedPreferences stellarSettings(){
+  if(stellarSettings==null){
+   android.content.Context deviceProtected=createDeviceProtectedStorageContext();
+   stellarSettings=deviceProtected.getSharedPreferences("settings",MODE_PRIVATE);
+  }
+  return stellarSettings;
+ }
+
+ private void addBootScriptControls(){
+  String savedMode=stellarSettings().getString("boot_mode","NONE");
+  boolean scriptSelected="SCRIPT".equals(savedMode);
+  boolean supportedMode="NONE".equals(savedMode)||scriptSelected;
+  bootScriptSwitch=new Switch(this);
+  bootScriptSwitch.setText("KernelSU/Magisk service.d 开机启动（SCRIPT）");
+  bootScriptSwitch.setChecked(scriptSelected);
+  bootScriptSwitch.setEnabled(supportedMode);
+  bootScriptSwitch.setOnCheckedChangeListener((button,enabled)->{
+   if(bootScriptUpdating)return;
+   bootScriptUpdating=true;
+   button.setEnabled(false);
+   new AlertDialog.Builder(this)
+     .setTitle(enabled?"安装 Stellar 开机脚本":"移除 Stellar 开机脚本")
+     .setMessage(enabled
+       ?"将把经过校验的 FX libstellar.so 启动脚本原子写入 /data/adb/service.d/stellar.sh。设备完成启动后，脚本会定位本 FX 包的本机库并执行 Stellar。此操作需要 Root；不会打开 ADB、修改 tcpip 端口或自动授予 WRITE_SECURE_SETTINGS。"
+       :"将删除 FX 管理的 /data/adb/service.d/stellar.sh，之后重启不再由此脚本启动 Stellar。不会删除 FX APK 或其他启动脚本。")
+     .setNegativeButton("取消",(dialog,which)->{
+      bootScriptUpdating=false;
+      button.setChecked(!enabled);
+      button.setEnabled(true);
+     })
+     .setPositiveButton(enabled?"安装并启用":"移除并关闭",(dialog,which)->applyBootScriptMode(enabled))
+     .setOnCancelListener(dialog->{
+      if(bootScriptUpdating){
+       bootScriptUpdating=false;
+       button.setChecked(!enabled);
+       button.setEnabled(true);
+      }
+     }).show();
+  });
+
+  bootScriptStatus=text("正在读取开机脚本状态…",12,0xff617080,false);
+  LinearLayout panel=new LinearLayout(this);
+  panel.setOrientation(1);
+  panel.addView(bootScriptSwitch);
+  panel.addView(bootScriptStatus);
+  panel.addView(button("查询开机脚本状态",this::refreshBootScriptStatus));
+  if(!supportedMode){
+   bootScriptStatus.setText("检测到保存的原版 BootMode="+savedMode+"。此 FX 构建尚未迁入该模式的完整启动链；为防止伪迁移，开关已锁定。先使用下面的“关闭旧启动模式”明确停用。");
+   panel.addView(button("关闭未迁移的旧启动模式",()->{
+    new AlertDialog.Builder(this).setTitle("将原版启动模式设为 NONE")
+      .setMessage("该模式的完整 Receiver/WorkManager 链尚未迁入 FX。明确关闭后，FX 不会再按旧模式调度开机启动。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("设为 NONE",(dialog,which)->{
+       root("boot-script remove",result->{
+        if(result.exitCode!=0||result.output==null
+             ||!result.output.contains("success=1 boot_script=removed")){
+         bootScriptStatus.setText("清理旧启动脚本失败；原模式偏好未修改："+(result.output==null?"":result.output));
+         return;
+        }
+        if(!stellarSettings().edit().putString("boot_mode","NONE").commit()){
+         bootScriptStatus.setText("启动脚本已移除，但 NONE 偏好未能保存；请再次刷新并重试。");
+         return;
+        }
+        bootScriptUpdating=false;
+        bootScriptSwitch.setChecked(false);
+        bootScriptSwitch.setEnabled(true);
+        bootScriptStatus.setText("已关闭旧启动模式；当前 BootMode=NONE。");
+       });
+      }).show();
+   }));
+  }
+  addCard("开机启动模式", "默认 NONE。当前已迁入的模式只有 SCRIPT；BROADCAST 和 TCPIP_PREWARM 的原版 Receiver/WorkManager 行为仍在迁移中，不会在此处伪装成可用。", panel);
+  refreshBootScriptStatus();
+ }
+
+ private void applyBootScriptMode(boolean install){
+  final String command="boot-script "+(install?"install":"remove");
+  root(command,result->{
+   String marker=install?"success=1 boot_script=installed":"success=1 boot_script=removed";
+   if(result.exitCode!=0||result.output==null||!result.output.contains(marker)){
+    bootScriptUpdating=false;
+    bootScriptSwitch.setChecked(!install);
+    bootScriptSwitch.setEnabled(true);
+    bootScriptStatus.setText((install?"安装":"移除")+"失败；boot_mode 未修改。Root 退出码 "
+       +result.exitCode+"："+(result.output==null?"":result.output));
+    return;
+   }
+   boolean saved=stellarSettings().edit().putString("boot_mode",install?"SCRIPT":"NONE").commit();
+   if(!saved){
+    if(install){
+     root("boot-script remove",rollback->{
+      bootScriptUpdating=false;
+      bootScriptSwitch.setChecked(false);
+      bootScriptSwitch.setEnabled(true);
+      bootScriptStatus.setText("启动脚本已安装，但 boot_mode 偏好写入失败；已尝试回滚脚本。"
+        +(rollback.exitCode==0?"回滚成功。":"回滚失败，请手动检查 service.d。"));
+     });
+    }else{
+     bootScriptUpdating=false;
+     bootScriptSwitch.setChecked(true);
+     bootScriptSwitch.setEnabled(true);
+     bootScriptStatus.setText("启动脚本已删除，但 boot_mode=NONE 写入失败；请刷新后确认状态。");
+    }
+    return;
+   }
+   bootScriptUpdating=false;
+   bootScriptSwitch.setChecked(install);
+   bootScriptSwitch.setEnabled(true);
+   bootScriptStatus.setText(install
+      ?"已安装并启用 SCRIPT 开机脚本；只有检测到服务脚本和 FX libstellar.so 后才会执行。"
+      :"已移除 FX 开机脚本；boot_mode=NONE。");
+   state.setText(install?"Stellar BootMode 已设置为 SCRIPT。":"Stellar BootMode 已设置为 NONE。");
+  });
+ }
+
+ private void refreshBootScriptStatus(){
+  if(bootScriptStatus==null)return;
+  bootScriptStatus.setText("正在通过受保护的 Root broker 查询 service.d…");
+  root("boot-script status",result->{
+   if(bootScriptStatus==null)return;
+   if(result.exitCode!=0||result.output==null){
+    bootScriptStatus.setText("开机脚本状态查询失败（Root "+result.exitCode+"）："
+      +(result.output==null?"":result.output));
+    return;
+   }
+   String mode=stellarSettings().getString("boot_mode","NONE");
+   if(result.output.contains("boot_script=installed")){
+    bootScriptStatus.setText("磁盘脚本：FX 已安装并可执行 · BootMode="+mode);
+   }else if(result.output.contains("boot_script=legacy")){
+    bootScriptStatus.setText("磁盘脚本：检测到原版 Stellar 脚本；打开开关可迁移到 FX 包名和启动器。");
+   }else if(result.output.contains("boot_script=absent")){
+    bootScriptStatus.setText("磁盘脚本：未安装 · BootMode="+mode);
+   }else{
+    bootScriptStatus.setText("磁盘脚本存在但不属于 FX 管理，已拒绝自动替换或删除。");
+   }
+  });
+ }
+
  private void addCard(String title,String detail,View... children){
   LinearLayout p=new LinearLayout(this);p.setOrientation(1);p.setPadding(dp(12),dp(8),dp(12),dp(8));p.setBackgroundColor(0xffeef2f6);
   p.addView(text(title,14,0xff17212b,true));p.addView(text(detail,12,0xff617080,false));for(View v:children)p.addView(v);
