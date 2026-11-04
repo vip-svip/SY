@@ -50,6 +50,9 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
     private static final int IMPORT_REQUEST = 7811;
     private static final int EXPORT_REQUEST = 7812;
     private static final int MAX_BACKUP_BYTES = 1024 * 1024;
+    private static final String STATE_PENDING_EXPORT = "fx_yulong_ad_pending_export";
+    private static final String STATE_IMPORT_PENDING = "fx_yulong_ad_import_pending";
+    private static final String STATE_EXPORT_PENDING = "fx_yulong_ad_export_pending";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> { Thread t = new Thread(r, "fx-yulong-ad-backup"); t.setDaemon(true); return t; },
@@ -61,6 +64,8 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
     private boolean updatingTaskerControlSwitch;
     private boolean taskerResultReceiverRegistered;
     private String pendingExport;
+    private boolean importRequestPending;
+    private boolean exportRequestPending;
 
     private final BroadcastReceiver taskerResultReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
@@ -134,6 +139,15 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) {
+            pendingExport = state.getString(STATE_PENDING_EXPORT);
+            importRequestPending = state.getBoolean(STATE_IMPORT_PENDING, false);
+            exportRequestPending = state.getBoolean(STATE_EXPORT_PENDING, false);
+            if (pendingExport != null && pendingExport.length() > MAX_BACKUP_BYTES) {
+                pendingExport = null;
+                exportRequestPending = false;
+            }
+        }
         LinearLayout root = new LinearLayout(this); root.setOrientation(1); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
@@ -616,6 +630,13 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         return out;
     }
 
+    @Override protected void onSaveInstanceState(Bundle out) {
+        out.putString(STATE_PENDING_EXPORT, pendingExport);
+        out.putBoolean(STATE_IMPORT_PENDING, importRequestPending);
+        out.putBoolean(STATE_EXPORT_PENDING, exportRequestPending);
+        super.onSaveInstanceState(out);
+    }
+
     private void exportSettings() {
         operationStatus.setText("正在读取 FX 设备端配置…");
         submitWorker(() -> {
@@ -625,12 +646,17 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     pendingExport = output;
+                    exportRequestPending = true;
                     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType("application/json");
                     intent.putExtra(Intent.EXTRA_TITLE, "fx-yulong-ad-settings.json");
                     try { startActivityForResult(intent, EXPORT_REQUEST); }
-                    catch (Throwable error) { operationStatus.setText("无法打开导出文件选择器。"); }
+                    catch (RuntimeException error) {
+                        exportRequestPending = false;
+                        pendingExport = null;
+                        operationStatus.setText("无法打开导出文件选择器，本次导出已取消。");
+                    }
                 });
             } catch (Throwable error) { showError("导出失败", error); }
         });
@@ -640,15 +666,34 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");
+        importRequestPending = true;
         try { startActivityForResult(intent, IMPORT_REQUEST); }
-        catch (Throwable error) { operationStatus.setText("无法打开导入文件选择器。"); }
+        catch (RuntimeException error) {
+            importRequestPending = false;
+            operationStatus.setText("无法打开导入文件选择器，本次导入已取消。");
+        }
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        if (requestCode == EXPORT_REQUEST) writeExport(data.getData());
-        else if (requestCode == IMPORT_REQUEST) readImport(data.getData());
+        if (requestCode == EXPORT_REQUEST) {
+            if (!exportRequestPending) return;
+            exportRequestPending = false;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                pendingExport = null;
+                if (operationStatus != null) operationStatus.setText("导出已取消，未写入文件。");
+                return;
+            }
+            writeExport(data.getData());
+        } else if (requestCode == IMPORT_REQUEST) {
+            if (!importRequestPending) return;
+            importRequestPending = false;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                if (operationStatus != null) operationStatus.setText("导入已取消，设备配置未更改。");
+                return;
+            }
+            readImport(data.getData());
+        }
     }
 
     private void writeExport(Uri uri) {
