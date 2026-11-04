@@ -79,6 +79,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private final Map<String, FirewallRule> rules = new HashMap<>();
     private boolean loading = true;
     private boolean appsLoaded;
+    // A retained package snapshot is display-only until Root and PackageManager refresh both succeed.
+    private boolean inventoryReady;
     private boolean refreshAfterLoad;
     private boolean packageChangeReceiverRegistered;
     private boolean suppressMaster;
@@ -126,6 +128,11 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     }
     private void persistRule(String packageName, int uid, FirewallRule draft,
                              java.util.function.Consumer<Boolean> completion) {
+        if (!inventoryReady) {
+            status.setText("应用列表尚未成功刷新，暂不允许修改防火墙规则。");
+            if (completion != null) completion.accept(false);
+            return;
+        }
         String command = "rule " + quote(packageName) + " " + uid
                 + " " + (draft.enabled ? "1" : "0")
                 + " " + (draft.blockWifi ? "1" : "0")
@@ -146,6 +153,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 time[0], time[1], true).show();
     }
     private void showRuleDialog(String packageName, int uid) {
+        if (!inventoryReady) {
+            status.setText("应用列表尚未成功刷新，暂不允许修改防火墙规则。");
+            return;
+        }
         FirewallRule draft = ruleFor(packageName).copy();
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(18), dp(8), dp(18), dp(8));
@@ -294,6 +305,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             return;
         }
         loading = true;
+        inventoryReady = false;
+        master.setEnabled(false);
         if (scroll != null) {
             pendingScrollY = Math.max(0, scroll.getScrollY());
             pendingScrollRestore = true;
@@ -303,8 +316,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         runRoot("list", result -> {
             if (result.exitCode != 0) {
                 loading = false;
-                master.setEnabled(appsLoaded);
-                status.setText("应用列表刷新失败，保留上次列表：" + safeOutput(result.output));
+                master.setEnabled(false);
+                status.setText("应用列表刷新失败，保留上次列表（只读）：" + safeOutput(result.output));
                 return;
             }
             parseList(result.output);
@@ -383,7 +396,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         });
         runRoot("list", result -> {
             if (result.exitCode != 0) {
-                loading = false; master.setEnabled(false);
+                loading = false; inventoryReady = false; master.setEnabled(false);
                 status.setText("无法读取防火墙配置：" + safeOutput(result.output)); return;
             }
             parseList(result.output);
@@ -455,6 +468,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     if (destroyed || isFinishing() || isDestroyed()) return;
                     if (loadFailure != null) {
                         loading = false;
+                        inventoryReady = false;
                         refreshAfterLoad = false;
                         master.setEnabled(false);
                         status.setText("无法读取应用列表：" + loadFailure.getClass().getSimpleName());
@@ -470,6 +484,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     }
                     loading = false;
                     appsLoaded = true;
+                    inventoryReady = true;
                     master.setEnabled(true);
                     status.setText("已读取 " + apps.size() + " 个" + ("用户应用".equals(suitePage) ? "用户应用" : "系统应用".equals(suitePage) ? "系统应用" : "应用") + "；列表按需分页加载。");
                     renderRows();
@@ -482,6 +497,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             });
         } catch (java.util.concurrent.RejectedExecutionException closing) {
             loading = false;
+            inventoryReady = false;
+            master.setEnabled(false);
             if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
         }
     }
@@ -540,9 +557,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             TextView detail = text(ruleSummary(existing), 11, 0xff526170, false);
             Switch enabled = new Switch(this); enabled.setText("启用该应用的网络拦截规则");
             enabled.setChecked(existing.enabled);
+            enabled.setEnabled(inventoryReady);
             final boolean[] suppressRow = {false};
             enabled.setOnCheckedChangeListener((button, checked) -> {
-                if (suppressRow[0]) return;
+                if (suppressRow[0] || !inventoryReady) return;
                 FirewallRule draft = ruleFor(pkg).copy();
                 boolean previous = draft.enabled; draft.enabled = checked; button.setEnabled(false);
                 persistRule(pkg, info.uid, draft, ok -> {
@@ -553,7 +571,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 });
             });
             item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(detail); item.addView(enabled);
+            Button configure = button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid));
+            configure.setEnabled(inventoryReady);
             item.addView(button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid)));
+            item.getChildAt(item.getChildCount() - 1).setEnabled(inventoryReady);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
         }
