@@ -3,12 +3,19 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 LIBRARY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
+STORE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryStore.java"
+POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryPolicy.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Dia Frida Activity source missing" >&2; exit 1; }
-python3 - "$ACTIVITY" <<'PY'
+[ -s "$STORE" ] || { echo "FAIL: Dia Frida script-library store missing" >&2; exit 1; }
+[ -s "$POLICY" ] || { echo "FAIL: Dia Frida script-library policy missing" >&2; exit 1; }
+python3 - "$ACTIVITY" "$LIBRARY" "$STORE" "$POLICY" <<'PY'
 from pathlib import Path
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+library = Path(sys.argv[2]).read_text(encoding="utf-8")
+store = Path(sys.argv[3]).read_text(encoding="utf-8")
+policy = Path(sys.argv[4]).read_text(encoding="utf-8")
 required = {
     "export request code": "REQUEST_EXPORT_LIBRARY = 7105",
     "import request code": "REQUEST_IMPORT_LIBRARY = 7106",
@@ -20,9 +27,6 @@ required = {
     "real SAF export callback": "requestCode == REQUEST_EXPORT_LIBRARY",
     "real SAF import callback": "requestCode == REQUEST_IMPORT_LIBRARY",
     "bounded streaming import": "MAX_LIBRARY_JSON_BYTES - count",
-    "schema validation": '"FX-DIA-FRIDA-SCRIPTS-1".equals(root.optString("schema"))',
-    "bounded per-script import": "source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024",
-    "duplicate name merge persistence": "writeFridaScriptLibrary(merged)",
     "private-cache export staging": 'File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir())',
     "private-cache export path validation": "resolvePendingFridaLibraryExport(stagedName)",
     "streamed SAF export": "new java.io.FileInputStream(staged)",
@@ -49,6 +53,37 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: missing {label}: {needle}")
+
+store_required = {
+    "stable JSON schema": 'public static final String SCHEMA = "FX-DIA-FRIDA-SCRIPTS-1"',
+    "legacy stored schema validation": "if (!schema.isEmpty() && !SCHEMA.equals(schema))",
+    "strict imported schema validation": 'if (!SCHEMA.equals(root.optString("schema", "")))',
+    "same-name overlap preview": "if (existing.has(name)) overlaps.add(name)",
+    "confirmed overwrite guard": "if (merged.has(name) && !confirmed.contains(name)) unconfirmed.add(name)",
+    "merge persists under store lock": "writeLocked(context, merged)",
+}
+for label, needle in store_required.items():
+    if needle not in store:
+        raise SystemExit(f"FAIL: missing store {label}: {needle}")
+policy_required = {
+    "per-script byte limit": "MAX_SOURCE_BYTES = 128 * 1024",
+    "per-script UTF-8 validation": "source.getBytes(StandardCharsets.UTF_8).length > MAX_SOURCE_BYTES",
+    "script-count limit": "MAX_SCRIPTS = 64",
+    "library JSON byte limit": "MAX_LIBRARY_JSON_BYTES = 1024 * 1024",
+}
+for label, needle in policy_required.items():
+    if needle not in policy:
+        raise SystemExit(f"FAIL: missing policy {label}: {needle}")
+for label, needle in {
+    "file import previews overlaps": "previewAndImportFridaScriptLibraryJson(json)",
+    "clipboard import previews overlaps": "previewAndImportFridaScriptLibraryJson(input.getText().toString())",
+    "preview lists overwritten names": "preview.overwrittenNames",
+    "overwrite requires explicit confirmation": "确认覆盖并导入",
+    "only previewed names may be overwritten": "mergeFridaScriptLibraryJson(json, preview.overwrittenNames)",
+    "store merge receives confirmation list": "FxDiaScriptLibraryStore.mergeImport(this, json, confirmedOverwrites)",
+}.items():
+    if needle not in source:
+        raise SystemExit(f"FAIL: missing import overwrite safety {label}: {needle}")
 if source.count("ensureFridaWorkerActive();") < 5:
     raise SystemExit("FAIL: large SAF read/write and binary install paths must check cancellation")
 if "导出脚本库 JSON 文件" not in source or "从 JSON 文件批量导入脚本库" not in source:
@@ -67,7 +102,6 @@ if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
 print("PASS: Dia Frida script library supports bounded SAF JSON import/export, cancellation and rotation state")
 
-library = Path(sys.argv[1].replace("FxDiaFridaActivity.java", "FxDiaScriptLibraryActivity.java")).read_text(encoding="utf-8")
 for label, needle in {
     "search query saved": "out.putString(STATE_SEARCH",
     "search query restored": 'state.getString(STATE_SEARCH, "")',
