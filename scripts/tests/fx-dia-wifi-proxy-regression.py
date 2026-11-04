@@ -29,6 +29,13 @@ assert "FxDiaWifiProxyState.mayRestore(proxyStatus)" in activity, \
     "Activity must disable restoration when FX no longer owns the live value"
 assert "EXTERNALLY_CHANGED" in activity and "FX 不会覆盖当前值" in activity, \
     "Activity must disclose external proxy ownership conflicts"
+assert 'prefs().getString("draft_host", prefs().getString("host", "127.0.0.1"))' in activity
+assert 'prefs().getString("draft_port", prefs().getString("port", "8080"))' in activity
+assert 'hostInput.addTextChangedListener' in activity and 'portInput.addTextChangedListener' in activity
+assert '.remove("draft_host").remove("draft_port").commit()' in activity, \
+    "successful apply must atomically commit managed proxy state and clear drafts"
+assert "FX_PROXY_ROLLBACK_FAILED" in activity and "已安全恢复修改前的系统代理" in activity, \
+    "local preference commit failure must attempt a verified conditional OS rollback"
 assert "FxDiaWifiProxyState.evaluate" in tile and "queryLiveState()" in tile, \
     "Quick Settings Tile must derive state from the live system proxy"
 assert "refreshTile(after)" in tile and "postTileState(before)" in tile, \
