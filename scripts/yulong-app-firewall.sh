@@ -457,6 +457,34 @@ watch_loop() {
     fi
   done
 }
+find_live_watchers() {
+  _watch_found=
+  for _watch_proc in /proc/[0-9]*; do
+    [ -r "$_watch_proc/cmdline" ] || continue
+    _watch_candidate=$(basename "$_watch_proc")
+    case "$_watch_candidate" in ''|*[!0-9]*) continue ;; esac
+    watch_is_ours "$_watch_candidate" || continue
+    if [ -n "$_watch_found" ]; then
+      _watch_found="$_watch_found $_watch_candidate"
+    else
+      _watch_found=$_watch_candidate
+    fi
+  done
+  printf '%s\n' "$_watch_found"
+}
+publish_watch_pid() {
+  _publish_pid=$1
+  [ ! -L "$WATCH_PIDFILE" ] || return 1
+  _publish_tmp=$(mktemp "$WATCH_PIDFILE.XXXXXX") || return 1
+  if ! printf '%s\n' "$_publish_pid" > "$_publish_tmp" || ! chmod 600 "$_publish_tmp"; then
+    rm -f "$_publish_tmp"
+    return 1
+  fi
+  if ! mv -f "$_publish_tmp" "$WATCH_PIDFILE"; then
+    rm -f "$_publish_tmp"
+    return 1
+  fi
+}
 start_watch_locked() {
   [ "$(read_master)" = 1 ] && has_enabled_rules || {
     echo "no enabled per-app firewall rules; watcher not started"
@@ -474,6 +502,27 @@ start_watch_locked() {
     rm -f "$WATCH_PIDFILE"
   elif [ -e "$WATCH_PIDFILE" ]; then
     rm -f "$WATCH_PIDFILE"
+  fi
+  # Recover the exact watcher process if its marker was lost or removed during
+  # an interrupted prior startup. A second start must not launch a duplicate.
+  _watch_existing=$(find_live_watchers)
+  if [ -n "$_watch_existing" ]; then
+    _watch_primary=$(printf '%s\n' "$_watch_existing" | awk '{print $1}')
+    case "$_watch_primary" in ''|*[!0-9]*) _watch_primary= ;; esac
+    if [ -n "$_watch_primary" ] && kill -0 "$_watch_primary" 2>/dev/null \
+        && watch_is_ours "$_watch_primary"; then
+      for _watch_extra in $(printf '%s\n' "$_watch_existing" | awk '{for (i=2;i<=NF;i++) print $i}'); do
+        if kill -0 "$_watch_extra" 2>/dev/null && watch_is_ours "$_watch_extra"; then
+          kill -TERM "$_watch_extra" 2>/dev/null || :
+        fi
+      done
+      publish_watch_pid "$_watch_primary" || {
+        echo "unable to restore live watcher PID marker" >&2
+        return 1
+      }
+      echo "already-running pid=$_watch_primary (recovered live process marker)"
+      return 0
+    fi
   fi
   nohup sh "$SCRIPT_PATH" watch-loop </dev/null >> "$WATCH_LOG" 2>&1 &
   pid=$!
