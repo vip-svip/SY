@@ -12,7 +12,7 @@ import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 session_log = Path(sys.argv[2]).read_text(encoding="utf-8")
 import re
-assert re.search(r"new ThreadPoolExecutor\\(\\s*1,\\s*1,\\s*30L,\\s*TimeUnit\\.SECONDS,\\s*new ArrayBlockingQueue<>\\(1\\)", session_log), "session log reads must use a single bounded worker"
+assert re.search(r"new ThreadPoolExecutor\(\s*1,\s*1,\s*30L,\s*TimeUnit\.SECONDS,\s*new ArrayBlockingQueue<>\(1\)", session_log), "session log reads must use a single bounded worker"
 assert "new ThreadPoolExecutor.AbortPolicy()" in session_log, "session log worker must reject overload explicitly"
 assert "catch (RejectedExecutionException full)" in session_log, "session log UI must report queue saturation"
 assert "worker.shutdownNow();" in session_log, "session log worker must stop with Activity lifecycle"
