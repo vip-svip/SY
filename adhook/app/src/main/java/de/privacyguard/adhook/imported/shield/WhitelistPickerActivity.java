@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
@@ -50,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  *   · 勾选只 notifyDataSetChanged，不重建页面；
  *   · 应用列表和图标在后台线程加载，进入页面先显示「加载中」。
  */
-public class WhitelistPickerActivity extends Activity {
+public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabActivity {
 
     private static final int COLOR_BG = 0xFFF5F6F8;
     private static final int COLOR_PRIMARY = 0xFF1565C0;
@@ -157,7 +156,7 @@ public class WhitelistPickerActivity extends Activity {
         root.addView(listView);
 
         root.addView(buildBottomBar());
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         if (!query.isEmpty()) searchInput.setText(query);
 
         loadAppsAsync();
