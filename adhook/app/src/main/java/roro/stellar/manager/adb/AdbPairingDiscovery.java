@@ -71,6 +71,9 @@ public final class AdbPairingDiscovery implements AutoCloseable {
         started = true;
         discoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                synchronized (AdbPairingDiscovery.this) {
+                    started = false;
+                }
                 fail("无法启动 ADB 无线配对服务发现", errorCode);
             }
 
