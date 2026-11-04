@@ -3298,3 +3298,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - File Browser 搜索取消过期路径/分页/滚动恢复：源码修复和测试断言已提交；为确保测试精确覆盖 TextWatcher 代码块，新增 `cb19c4f30f4de94bd14384e1e484b58cd351cc59`，等待本次 Actions。
 - Backup 表单非敏感字段/滚动恢复：产品与测试断言已提交，但之前对应 Actions 因 Frida 并行提交被取消；目前仅静态源码断言，不标记为 CI 通过。下一轮需单独触发其测试脚本。
 - 仍未执行 Android Gradle 构建、模拟器 UI、真实 SAF/旋转/进程重建或真机网络验收。
+
+
+## 2026-11-05 — Dia Frida 统一 Root 调用异常与空结果处理
+
+- 页面组：Dia 23.11 → Frida server、Gadget、部署/移除、会话管理等共享 Root 操作。
+- 发现问题：统一 `runRoot()` 直接调用 `RootAccess.execute()`，没有捕获运行时异常，也没有检查空结果；Root broker 异常会让后台任务结束而 UI 不收到状态回调，空结果则可能传入回调并被解引用。
+- 修复：统一包装 Root 调用，捕获 RuntimeException 并向当前页面状态区显示异常类型/消息；若 broker 返回 null，显示明确失败状态并停止回调，避免任何调用方误判成功。Activity 已销毁时仍丢弃迟到 UI 更新。
+- 产品提交：`775de347ec98c98c0b58428c1fa8627164ba5ff1`；回归提交：`50bbd21d9bb0e18e550ac8340df828bbd823ac40`。
+- 验证：源码与回归脚本已提交；Actions 尚待读取。未运行 Android Gradle/JUnit/Root 真机故障注入。
+- 下一步：检查最新 Frida server/Gadget Actions；继续页面级运行状态回读与会话停止后的 UI 同步。不能将 Root 命令发出或配置写入等同于目标进程已注入。
