@@ -198,7 +198,7 @@ public final class FxStellarSecureSettingsActivity extends Activity {
                 button("刷新权限状态", this::refreshStatus),
                 grantButton, revokeButton);
         card(body, "原版无线 ADB 配对",
-                "FX 已迁入原版 libadb.so JNI SPAKE2、TLS 1.3、ADB PeerInfo 与 mDNS 配对服务发现。自动配对使用 Android 12/API 31+ 的公开 TLS exporter；更旧系统仍可从 Android 系统页面手动完成配对。当前迁移范围止于 ADB 配对与信任记录，尚未迁入配对后的 _adb-tls-connect._tcp 自动发现和 ADB Shell 命令通道；这里不会把配对成功伪装成 Shell 已连接。配对成功不会自动授予 WRITE_SECURE_SETTINGS。",
+                "FX 已迁入原版 libadb.so JNI SPAKE2、TLS 1.3、ADB PeerInfo，以及配对后的 _adb-tls-connect._tcp 自动发现和端点保存。自动配对使用 Android 12/API 31+ 的公开 TLS exporter；更旧系统仍可从 Android 系统页面手动完成配对。当前尚未迁入 ADB Shell 命令通道；发现 connect 端点不代表 Shell 已连接，也不会自动执行设备命令。配对成功不会自动授予 WRITE_SECURE_SETTINGS。",
                 button("扫描并自动配对 ADB 设备", () ->
                         startActivity(new Intent(this, roro.stellar.manager.adb.AdbPairingActivity.class))),
                 button("打开 Android 开发者选项 / 无线调试", this::openWirelessDebuggingSettings));
