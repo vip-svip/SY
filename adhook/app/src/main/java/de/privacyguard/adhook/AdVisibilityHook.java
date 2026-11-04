@@ -1866,6 +1866,7 @@ private boolean targetDeveloperOptIn(String packageName) {
 
     /** Install bounded pre-addView checks for every WindowManagerImpl overload that accepts a View and LayoutParams. */
     private synchronized void installDiaDialogWindowHooks() {
+        if (dialogWindowAddViewHooksInstalled) return;
         try {
             Class<?> windowManagerImpl = Class.forName("android.view.WindowManagerImpl",
                     false, View.class.getClassLoader());
@@ -2037,7 +2038,12 @@ private boolean targetDeveloperOptIn(String packageName) {
                         UnifiedHookConfigParser.Target dialogRules = dialogRulesFor(dialogPackage);
                         dialogWindow = dialog.getWindow();
                         View decor = dialogWindow == null ? null : dialogWindow.getDecorView();
-                        String matched = dialogRules == null ? null
+                        WindowManager.LayoutParams attributes = dialogWindow == null
+                                ? null : dialogWindow.getAttributes();
+                        boolean fullScreen = attributes != null
+                                && attributes.width == WindowManager.LayoutParams.MATCH_PARENT
+                                && attributes.height == WindowManager.LayoutParams.MATCH_PARENT;
+                        String matched = dialogRules == null || fullScreen ? null
                                 : findDialogRuleMatch(decor, dialogRules, new int[]{512}, 0);
                         if (matched != null) {
                             logFx(Log.INFO, "dia-dialog-block package=" + dialogPackage
