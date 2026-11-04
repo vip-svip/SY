@@ -6,7 +6,7 @@
 
 - Repository：`vip-svip/SY`
 - Branch：`fx-v1.0.0-unified-hook-integration`
-- 本次续接读取时最新 HEAD：`775de347ec98c98c0b58428c1fa8627164ba5ff1`（随后状态文档提交会继续推进 HEAD；新窗口必须重新读取分支 ref）。
+- 历史检查点：`775de347ec98c98c0b58428c1fa8627164ba5ff1`（仅为旧状态记录，不是本轮当前 HEAD；本轮实际新提交见文末）。
 - 最近 Dia Host 回归：run `41915416366`，HEAD `6a99665a29b18406360a5e5df4e1d2e795d1d030`，SUCCESS；不是当前 HEAD 的 Gradle/设备验证。
 - 历史功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`（历史检查点，不是本轮最新 HEAD）。
 - 上一轮状态文档记录的 HEAD：`1b17e21e2ab1c3c355ab817a0c8711643d880d32`（历史检查点；本轮工作前已从分支文件重新核对）。
@@ -3451,3 +3451,26 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：改用单引号 Python 字符串表达 `kill "$` 搜索片段，避免双引号与反斜杠嵌套。没有删除只读状态检查。
 - 测试提交：`ef0d4b38442dbb129d0a3e3edab1813814d5ec06`。
 - 下一步：读取新 Actions；同时复核 `FxNativeAppShell.kt` 的六 Tab inset 变更是否通过映射后的专用回归。当前仅有源码/测试静态检查，未做 Android 视觉与真机验收。
+
+
+## 2026-11-05 — 六 Tab 原生共享壳软键盘避让
+
+- 页面组：共享原生 Tab 容器 `FxNativeAppShell.kt`，覆盖通过 `FxNativeTabActivity` 使用该容器的迁移原生页面。
+- 发现问题：共享壳为 Android 系统导航栏预留空间并固定底部六 Tab，但根 `Box` 未处理 IME inset。页面中的输入框/编辑器打开软键盘时，底部导航可能被键盘遮挡，页面可视区域也没有统一收缩；这会影响 Dia 脚本/代码编辑器、Hook 规则编辑和其他迁移页面的键盘交互。
+- 修复：在共享根容器增加一次 `.imePadding()`，使页面视口与六 Tab 底栏一起避让软键盘；未改变六 Tab 顺序、72dp 底栏高度、导航回调或页面业务逻辑。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`
+  - `scripts/tests/fx-dia-six-tab-regression.sh`
+  - 本状态文件。
+- 提交：
+  - 产品修复：`eee2d14a005f05f8841c0f5e8f57bac2e0a23f20`
+  - 定向回归：`f44ba981fabe3dd84a6e12adff15cf4828834000`
+- 静态验证：从目标分支重新读取两个文件；确认 IME import、共享根 Box 唯一 `.imePadding()`、修饰符位于背景之前；回归脚本新增 IME import、唯一调用和根容器范围断言。读取回验全部 6 项静态条件通过。
+- 验证等级：GitHub 源码静态核对通过。未运行本地 Host shell regression（当前未建立仓库工作树）、Kotlin/Compose 编译、Gradle 构建、UI 自动化、软键盘截图、旋转或真机测试；不声称键盘视觉行为已设备验收。
+- 未触发完整 Actions；无失败路线。没有删除功能或改变 FX 版本。
+- 本批提交前最新代码/回归 HEAD：`f44ba981fabe3dd84a6e12adff15cf4828834000`；本状态文件随后单独提交，提交 SHA 由 GitHub 返回。
+- 下一批直接任务：
+  1. 核对 MainActivity 主应用六 Tab 与共享原生迁移壳是否存在不同的 IME/系统栏适配路径；只修真实缺口，避免重复添加 inset。
+  2. 继续 Hook 编辑器、Dia 脚本编辑器的键盘遮挡/滚动/保存状态恢复页面级核对。
+  3. 若上述共享 UI 回归无缺陷，转入安全护盾扫描结果/风险详情的原始页面映射差异。
+- 失败路线：本批未遇到失败路线；下一轮不要重复全量盘点或重跑整套 Actions。
