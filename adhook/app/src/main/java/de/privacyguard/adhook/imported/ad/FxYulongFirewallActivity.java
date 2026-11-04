@@ -573,8 +573,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(detail); item.addView(enabled);
             Button configure = button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid));
             configure.setEnabled(inventoryReady);
-            item.addView(button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid)));
-            item.getChildAt(item.getChildCount() - 1).setEnabled(inventoryReady);
+            item.addView(configure);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(12), dp(2), dp(12), dp(2)); rows.addView(item, lp); shown++;
         }
