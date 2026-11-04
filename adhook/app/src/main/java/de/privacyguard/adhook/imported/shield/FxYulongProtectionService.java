@@ -322,13 +322,9 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     }
 
     private Set<String> split(String values) {
-        Set<String> out = new HashSet<>();
-        if (values == null || values.trim().isEmpty()) return out;
-        for (String value : values.split(",")) {
-            String pkg = value.trim();
-            if (pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) out.add(pkg);
-        }
-        return out;
+        // A malformed/oversized legacy list is rejected atomically. The service
+        // then fails open instead of partially enforcing a possibly truncated list.
+        return FxYulongBlacklistPolicy.parse(values);
     }
 
     private void createChannels() {
