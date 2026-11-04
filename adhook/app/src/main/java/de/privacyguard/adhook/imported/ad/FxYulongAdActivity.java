@@ -52,6 +52,8 @@ public final class FxYulongAdActivity extends Activity {
   private final Set<String> proxyWhitelistSelected=new HashSet<>();
   private int proxyWhitelistPage=1;
   private long proxyWhitelistGeneration;
+  private TextView rootProxyStatus;
+  private long rootProxyStatusGeneration;
  private static final int BULK_DRAFT_MAX_CHARS=48*1024;
  private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
@@ -124,6 +126,7 @@ public final class FxYulongAdActivity extends Activity {
       new AlertDialog.Builder(this).setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
      }
      load();
+     if ("VPN 与 Root Proxy".equals(page)) refreshRootProxyStatus();
     });
    });
   }catch(RejectedExecutionException full){
@@ -153,15 +156,68 @@ public final class FxYulongAdActivity extends Activity {
   out.putBundle(STATE_DRAFTS,drafts);
   super.onSaveInstanceState(out);
  }
- private void render(){draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
+ private void render(){rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
+  rootProxyStatus=txt("正在读取 Root Proxy 实际运行状态…",12,0xff617080,false);
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
     dnsSwitch("第三方 VPN 兼容路由开关","vpn_external_compat"),
-    btn("刷新 Root Proxy 运行状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})),
+    rootProxyStatus,
+    btn("刷新 Root Proxy 实际状态",this::refreshRootProxyStatus),
     btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));
-  card("工作条件","仅当检测到唯一活动第三方 VPN、VPN 接口/所属 UID/出口路由可验证，Unbound 与 AdGuard Home 健康探测通过后才接管 DNS；任何验证失败都会撤销 FX 自有重定向规则并保留原 VPN DNS。");
-renderRootProxyWhitelist();}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
+  card("工作条件","仅当检测到唯一活动第三方 VPN、VPN 接口/所属 UID/出口路由可验证，Unbound 与 AdGuard Home 健康探测通过后才接管明文 DNS；任何验证失败都会撤销 FX 自有重定向规则并保留原 VPN DNS。配置开关已启用不代表 DNS 已接管，必须以此页的实际运行状态为准。");
+renderRootProxyWhitelist();
+refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
  private void open(String p){page=p;render();bind();}
+  private boolean isRootProxyStatusCurrent(TextView target) {
+    return target != null && target == rootProxyStatus
+            && "VPN 与 Root Proxy".equals(page)
+            && !isFinishing() && !isDestroyed();
+  }
+
+  private void refreshRootProxyStatus() {
+    final TextView target = rootProxyStatus;
+    if (!isRootProxyStatusCurrent(target)) return;
+    final long generation = ++rootProxyStatusGeneration;
+    target.setText("正在读取 Root Proxy 实际状态…");
+    root("rootproxy-status", result -> {
+      if (!isRootProxyStatusCurrent(target) || generation != rootProxyStatusGeneration) return;
+      if (result.exitCode != 0) {
+        target.setText("Root Proxy 状态读取失败（退出码 " + result.exitCode + "）："
+                + safe(result.output));
+        return;
+      }
+      Map<String,String> values = new HashMap<>();
+      String output = result.output == null ? "" : result.output;
+      for (String line : output.split("\\r?\\n")) {
+        int separator = line.indexOf('=');
+        if (separator <= 0) continue;
+        String key = line.substring(0, separator).trim();
+        String value = line.substring(separator + 1).trim();
+        if (key.matches("[a-z_]+") && value.length() <= 256) values.put(key, value);
+      }
+      String enabled = values.getOrDefault("enabled", "unknown");
+      String active = values.getOrDefault("active", "unknown");
+      StringBuilder message = new StringBuilder();
+      message.append("配置开关：")
+              .append("1".equals(enabled) ? "已启用" : "0".equals(enabled) ? "已关闭" : "未知")
+              .append("  ·  实际 DNS 接管：")
+              .append("1".equals(active) ? "运行中" : "0".equals(active) ? "未运行" : "未知")
+              .append("\\nDNS 例外应用：")
+              .append(values.getOrDefault("whitelist_count", "0"));
+      if ("1".equals(active)) {
+        message.append("\\n活动接口：").append(values.getOrDefault("interface", "未知"))
+                .append("  ·  VPN UID：").append(values.getOrDefault("vpn_uid", "未知"))
+                .append("\\n已验证 DNS 出口：").append(values.getOrDefault("egress_ipv4", "未知"))
+                .append("\\n激活时间：").append(values.getOrDefault("activated_at", "未知"));
+      } else if ("1".equals(enabled)) {
+        message.append("\\n配置已启用，但当前没有可验证的第三方 VPN DNS 接管路径；FX 保持 fail-open，不会抢占 VPN 或改写未验证的路由。");
+      } else {
+        message.append("\\n当前已关闭。启用后仍需通过 VPN 接口、所属 UID、出口路由和本地 DNS 健康检查才会接管。");
+      }
+      target.setText(message.toString());
+    });
+  }
+
    private void renderRootProxyWhitelist(){
    proxyWhitelistStatus=txt("正在读取 Root Proxy DNS 例外名单…",12,0xff617080,false);
    proxyWhitelistSearch=draftField("rootproxy_whitelist_search");
@@ -618,5 +674,5 @@ private boolean adMaster(){
 }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
  private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true));r.addView(txt(e.title,10,0xff718091,false));r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
- @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
+ @Override protected void onDestroy(){rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
 }
