@@ -3387,11 +3387,8 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "对话框与通知":
                     markMigrationChild(suite, category, page);
-                    // Dialog inspection belongs to the target-scoped Dia Frida tools;
-                    // notification protection remains independently available in Privacy.
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", "Dialog 观察与规则"));
+                    // Keep Dialog filtering independent from the Notification privacy hooks.
+                    showAppList("Dialog处理");
                     return;
                 case "剪贴板":
                     markMigrationChild(suite, category, page);
@@ -4973,6 +4970,10 @@ public final class MainActivity extends ComponentActivity {
             showCustomHookRulesPage(ai, targetDebuggable);
             return;
         }
+        if ("Dialog处理".equals(activePrivacySection)) {
+            showDiaDialogTarget(ai, targetDebuggable);
+            return;
+        }
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
@@ -5390,6 +5391,133 @@ public final class MainActivity extends ComponentActivity {
         focusPendingPrivacySection();
     }
  
+
+    private void showDiaDialogTarget(ApplicationInfo target, boolean targetDebuggable) {
+        hookUiVisible = true;
+        settingsUiVisible = false;
+        hookTargetVisible = true;
+        hookHubVisible = false;
+        selectedBottomTab = 2;
+        base("Dialog 处理 · " + selectedLabel);
+
+        TextView packageName = new TextView(this);
+        packageName.setText(selectedPackage);
+        packageName.setTextColor(0xff687582);
+        packageName.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(packageName);
+
+        TextView scope = new TextView(this);
+        scope.setText(targetDebuggable
+                ? "目标构建：debuggable。规则仅在该应用的 LSPosed 进程中生效；LSPosed 模块及目标作用域仍须在管理器批准。"
+                : "目标构建：非 debuggable。为避免对正式应用产生不受控影响，Dialog 拦截开关和规则发布已禁用。");
+        scope.setTextColor(0xff697681);
+        scope.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(scope);
+        addLsposedScopeControls(selectedPackage,
+                (target.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+
+        section("按目标应用匹配 Dialog");
+        TextView details = new TextView(this);
+        details.setText("只处理明确命中的普通 Dialog / Window。文本为不区分大小写的字面包含匹配（不是正则）；资源 ID 为精确匹配，支持完整名称、entry name、十进制或十六进制 ID。每行一条，最多 32 条，单条最多 96 字符，总量最多 1 KiB。空规则绝不全拦截；全屏窗口会跳过。");
+        details.setTextColor(0xff697681);
+        details.setPadding(dp(18), dp(2), dp(18), dp(12));
+        content.addView(details);
+
+        final String packageNameKey = selectedPackage;
+        Switch enabled = new Switch(this);
+        enabled.setText("启用此应用的 Dialog 规则");
+        enabled.setPadding(dp(18), dp(10), dp(18), dp(10));
+        enabled.setChecked(getPreferences(0).getBoolean(packageNameKey + ":dialog_match_enabled", false));
+        enabled.setEnabled(targetDebuggable);
+        content.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView keywordLabel = new TextView(this);
+        keywordLabel.setText("Dialog 文本关键字（每行一条）");
+        keywordLabel.setTextColor(0xff263443);
+        keywordLabel.setPadding(dp(18), dp(12), dp(18), dp(4));
+        content.addView(keywordLabel);
+        EditText textTerms = new EditText(this);
+        textTerms.setSingleLine(false);
+        textTerms.setMinLines(3);
+        textTerms.setMaxLines(8);
+        textTerms.setGravity(Gravity.TOP | Gravity.START);
+        textTerms.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        textTerms.setHint("例如：更新失败\n请先登录");
+        textTerms.setText(getPreferences(0).getString(packageNameKey + ":dialog_text_terms", ""));
+        textTerms.setEnabled(targetDebuggable);
+        content.addView(textTerms, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView idLabel = new TextView(this);
+        idLabel.setText("Dialog 资源 ID（每行一条）");
+        idLabel.setTextColor(0xff263443);
+        idLabel.setPadding(dp(18), dp(12), dp(18), dp(4));
+        content.addView(idLabel);
+        EditText idTerms = new EditText(this);
+        idTerms.setSingleLine(false);
+        idTerms.setMinLines(3);
+        idTerms.setMaxLines(8);
+        idTerms.setGravity(Gravity.TOP | Gravity.START);
+        idTerms.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        idTerms.setHint("例如：com.example:id/alert_close\nbtn_cancel");
+        idTerms.setText(getPreferences(0).getString(packageNameKey + ":dialog_id_terms", ""));
+        idTerms.setEnabled(targetDebuggable);
+        content.addView(idTerms, new LinearLayout.LayoutParams(-1, -2));
+
+        Switch notify = new Switch(this);
+        notify.setText("拦截成功后显示提示");
+        notify.setPadding(dp(18), dp(10), dp(18), dp(10));
+        notify.setChecked(getPreferences(0).getBoolean(packageNameKey + ":dialog_notify", false));
+        notify.setEnabled(targetDebuggable);
+        content.addView(notify, new LinearLayout.LayoutParams(-1, -2));
+
+        Button save = new Button(this);
+        save.setAllCaps(false);
+        save.setText("保存并发布 Dialog 规则");
+        save.setEnabled(targetDebuggable);
+        save.setOnClickListener(v -> {
+            final boolean shouldEnable = enabled.isChecked();
+            final List<String> textRules;
+            final List<String> idRules;
+            try {
+                textRules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                        .parseTerms(textTerms.getText() == null ? "" : textTerms.getText().toString());
+                idRules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                        .parseTerms(idTerms.getText() == null ? "" : idTerms.getText().toString());
+            } catch (IllegalArgumentException invalid) {
+                new AlertDialog.Builder(this).setTitle("Dialog 规则无效")
+                        .setMessage(invalid.getMessage())
+                        .setPositiveButton("确定", null).show();
+                return;
+            }
+            if (shouldEnable && textRules.isEmpty() && idRules.isEmpty()) {
+                Toast.makeText(this, "启用前至少添加一条文本或资源 ID 规则；空规则不会拦截全部窗口。",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            String normalizedText = String.join("\n", textRules);
+            String normalizedIds = String.join("\n", idRules);
+            boolean saved = getPreferences(0).edit()
+                    .putBoolean(packageNameKey + ":dialog_match_enabled", shouldEnable)
+                    .putString(packageNameKey + ":dialog_text_terms", normalizedText)
+                    .putString(packageNameKey + ":dialog_id_terms", normalizedIds)
+                    .putBoolean(packageNameKey + ":dialog_notify", notify.isChecked())
+                    .commit();
+            if (!saved) {
+                Toast.makeText(this, "Dialog 设置未能写入本地存储，未发布配置。",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            publishConfig();
+        });
+        content.addView(save, new LinearLayout.LayoutParams(-1, -2));
+
+        Button back = new Button(this);
+        back.setText("返回 Dialog 应用列表");
+        back.setOnClickListener(v -> showAppList("Dialog处理"));
+        content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+    }
 
     private void showCustomHookRulesPage(ApplicationInfo target, boolean targetDebuggable) {
         hookUiVisible = true;
@@ -6702,6 +6830,35 @@ public final class MainActivity extends ComponentActivity {
                 if (networkTypeSim && (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
                         && ("wifi".equals(networkType) || "cellular".equals(networkType))) {
                     row.append(",network_type_simulate=1,network_type=").append(networkType);
+                    has = true;
+                }
+                boolean dialogMatchEnabled = targetDebuggable
+                        && getPreferences(0).getBoolean(p + ":dialog_match_enabled", false);
+                if (dialogMatchEnabled) {
+                    String rawText = getPreferences(0).getString(p + ":dialog_text_terms", "");
+                    String rawIds = getPreferences(0).getString(p + ":dialog_id_terms", "");
+                    List<String> textRules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                            .parseTerms(rawText);
+                    List<String> idRules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                            .parseTerms(rawIds);
+                    if (textRules.isEmpty() && idRules.isEmpty()) {
+                        throw new IllegalStateException("Dialog 规则已启用，但没有有效文本或资源 ID：" + p);
+                    }
+                    row.append(",dialog_match=1");
+                    if (!textRules.isEmpty()) {
+                        String encodedTerms = java.util.Base64.getUrlEncoder().withoutPadding()
+                                .encodeToString(String.join("\n", textRules)
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        row.append(",dialog_text_terms_b64=").append(encodedTerms);
+                    }
+                    if (!idRules.isEmpty()) {
+                        String encodedIds = java.util.Base64.getUrlEncoder().withoutPadding()
+                                .encodeToString(String.join("\n", idRules)
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        row.append(",dialog_id_terms_b64=").append(encodedIds);
+                    }
+                    row.append(",dialog_notify=")
+                            .append(getPreferences(0).getBoolean(p + ":dialog_notify", false) ? '1' : '0');
                     has = true;
                 }
                 boolean customEnabled=false;
