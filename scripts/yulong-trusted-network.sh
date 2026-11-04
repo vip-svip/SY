@@ -116,7 +116,7 @@ watch_loop(){
 }
 start(){
  LOCK_HELD=0; lock_acquire || return 1
- if [ "$(is_enabled)" != 1 ] || [ ! -s "$LIST" ]; then lock_release; evaluate || :; echo watcher=disabled; return 0; fi
+ if [ "$(is_enabled)" != 1 ] || [ ! -s "$LIST" ]; then lock_release; stop 0 || :; echo watcher=disabled; return 0; fi
  if [ -s "$PID" ]; then p=$(cat "$PID" 2>/dev/null || true); if ours "$p" && kill -0 "$p" 2>/dev/null; then lock_release; evaluate || :; echo watcher=running; return 0; fi; [ ! -L "$PID" ] && rm -f "$PID" 2>/dev/null || :; fi
  [ ! -L "$PID" ] || { lock_release; return 1; }
  nohup sh "$SCRIPT" watch "$MP" "$PG" >> "$LOG" 2>&1 &
@@ -140,7 +140,7 @@ stop(){
  fi
  [ ! -L "$PID" ] && [ "$(cat "$PID" 2>/dev/null || true)" = "$p" ] && rm -f "$PID" 2>/dev/null || :
  lock_release
- if [ "$uninstall" = 1 ]; then pg_set yulong_ad_trusted_active 1 >/dev/null 2>&1 || :; unmark || :; log "watcher stopped for uninstall"; return 0; fi
+ if [ "$uninstall" = 1 ]; then if marked; then pg_set yulong_ad_trusted_active 1 || return 1; unmark || return 1; fi; log "watcher stopped for uninstall"; return 0; fi
  evaluate
 }
 status(){
