@@ -738,7 +738,7 @@ private void saveVpnDns(String key,EditText input){
          String command="schedule-set "+(enabled.isChecked()?"1":"0")+" "+q(start.getText().toString().trim())+" "+q(end.getText().toString().trim())+" "+q(selected.toString());
          root(command,r->{
            if(r.exitCode==0){
-             state.setText("计划已保存并立即重新计算。\\n"+safe(r.output));
+             state.setText("计划已保存并立即重新计算。\n"+safe(r.output));
            }else{
              state.setText("计划保存/应用失败："+safe(r.output));
              new AlertDialog.Builder(this).setTitle("计划未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
