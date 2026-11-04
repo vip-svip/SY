@@ -2823,3 +2823,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `7c4d135316f7383337d0cb6c68723890e2c009e8`。
 - 验证：已读取 `FxYulongVirusDb.save()` 真实代码行并对照测试表达式；等待下一次定向 Actions。未执行 Android 单测、Gradle、模拟器或真机。
 - 失败路线：不再匹配 `editor.putString(K_LAST_ERROR, lastError)` 独立调用；实现使用 Editor 链式构造。
+
+
+## 2026-11-05 — 安全护盾风险详情页防止白名单偏好类型损坏导致崩溃
+
+- 基于当前分支新增批次，风险详情页此前直接调用 `SharedPreferences.getString("whitelist_pkgs", "")`。若偏好项被外部写成非 String 类型，Android 会抛出 RuntimeException/ClassCastException，导致风险详情页崩溃。
+- 修复：读取白名单时增加 RuntimeException 保护；读取失败显示“无法按文本读取”，立即返回且不修改任何白名单数据。后续格式检查、中央有界序列化和 commit 仍使用同一套安全流程。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 提交：源码 `6d041e7790027c61a6087473e0163abd3b607b7d`；回归断言 `2da33f19f9f33abab5cdf729a5d7486bf04149cb`。
+- 验证：源码与测试断言已提交；尚未执行 Shield 定向脚本、Android 单测、Gradle、模拟器或真机。
+- 不改变扫描白名单语义，不静默清空损坏数据，不执行卸载/强停。
+- 下一步：继续读取 Shield targeted Actions 的最新首错并完成名单/扫描 UI 页面组；然后切换 Dia Frida 脚本库/编辑器或 Hook 页面组，避免长期停留在同一测试脚本。
