@@ -124,5 +124,18 @@ for token in ('export MP PG', 'pg_get vpn_node', 'pg_set vpn_mode', 'scripts/sta
               'VPN_NO_NODE_SELECTED'):
     assert token in vpn, f"canonical VPN lifecycle helper missing {token}"
 
+# A successful control command and a persisted receipt are separate outcomes.
+for token in (
+    "boolean receiptPersisted = false;",
+    ".commit();",
+    'reply.putExtra("receipt_persisted", receiptPersisted)',
+):
+    assert token in receiver, f"receipt persistence signal missing: {token}"
+assert 'getBooleanExtra("receipt_persisted", true)' in general, \
+    "General UI must retain backward compatibility with older receivers"
+assert "收到本次实时命令回执，但未能保存到本地历史" in general, \
+    "General UI must expose a live result when history commit fails"
+assert "boundedTaskerText" in general, "live receipt details must be size bounded"
+
 print("PASS: Yulong Tasker aliases and home widget control one FX VPN route; ad master remains independent")
 PY
