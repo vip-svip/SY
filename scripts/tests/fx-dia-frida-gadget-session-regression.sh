@@ -63,6 +63,33 @@ attach = source[source.index("private void attachToGadgetAndResume()"):
                  source.index("private void stopGadgetSession()")]
 stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
+show = source[source.index("private void showGadgetSessionLog()"):
+               source.index("private void copyGadgetConnectCommand()")]
+logs_guard = source[source.index("private String prepareDiaLogsDirectoryPrefix()"):
+                    source.index("private String checkedSessionLogDirectoryPrefix()")]
+existing_guard = source[source.index("private String checkedSessionLogDirectoryPrefix()"):
+                        source.index("private void buildPage()")]
+if "prepareDiaLogsDirectoryPrefix()" not in attach:
+    raise SystemExit("FAIL: Gadget attach must preflight/create/check the entire Frida log directory chain")
+if "checkedSessionLogDirectoryPrefix()" not in stop:
+    raise SystemExit("FAIL: Gadget stop must reject symlinks in every parent directory")
+if "checkedSessionLogDirectoryPrefix()" not in show:
+    raise SystemExit("FAIL: Gadget log viewer must reject symlinks in every parent directory")
+for label, needle in (
+    ("Gadget parent guard checks real /data and /data/adb directories", "for path in /data /data/adb; do"),
+    ("Gadget parent guard rejects symlink ancestors before mkdir", "[ ! -L \\"$path\\" ]"),
+    ("Gadget parent guard verifies each directory after mkdir", "[ -d \\"$path\\" ] && [ ! -L \\"$path\\" ]"),
+    ("Gadget parent guard has explicit fail-closed status", "FX_DIA_LOG_UNSAFE_PARENT"),
+):
+    if needle not in logs_guard:
+        raise SystemExit(f"FAIL: {label}")
+for label, needle in (
+    ("read/stop guard checks parent directory chain", "for path in /data/adb/privacyguard"),
+    ("read/stop guard rejects symlink or missing parents", "[ -d \\"$path\\" ] && [ ! -L \\"$path\\" ]"),
+    ("read/stop guard emits explicit failure marker", "FX_DIA_LOG_PATH_UNAVAILABLE"),
+):
+    if needle not in existing_guard:
+        raise SystemExit(f"FAIL: {label}")
 if "ps -A -o PID,NAME" in attach:
     raise SystemExit("FAIL: Gadget process matching must not rely on the ps NAME column")
 if "session_pid_active()" not in attach or "Z|X|x" not in attach:
