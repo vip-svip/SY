@@ -86,8 +86,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private TextView status;
     private TextView targetLabel;
     private static final String STATE_FRIDA_SCROLL_Y = "fx_frida_scroll_y";
+    private static final String STATE_SAVE_SCRIPT_DIALOG_PENDING = "fx_frida_save_script_dialog_pending";
+    private static final String STATE_SAVE_SCRIPT_NAME_DRAFT = "fx_frida_save_script_name_draft";
     private int restoredFridaScrollY;
     private ScrollView pageScroll;
+    private boolean restoreSaveScriptDialog;
+    private String saveScriptNameDraft = "";
+    private EditText saveScriptNameInput;
     private String targetPackage;
     private String targetName;
     private boolean targetLoading;
@@ -222,6 +227,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         restoredFridaScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_FRIDA_SCROLL_Y, 0));
+        restoreSaveScriptDialog = state != null && state.getBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, false);
+        saveScriptNameDraft = state == null ? "" : state.getString(STATE_SAVE_SCRIPT_NAME_DRAFT, "");
         String restoredPendingName = state == null ? null : state.getString(STATE_PENDING_LIBRARY_EXPORT);
         if (isSafePendingLibraryExportName(restoredPendingName))
             pendingFridaLibraryExportFileName = restoredPendingName;
@@ -486,6 +493,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     scroll.scrollTo(0, restoreY);
             });
         }
+        if (restoreSaveScriptDialog) scroll.post(this::showSaveFridaScriptDialog);
     }
 
     private void restoreTransientState(Bundle state) {
@@ -569,6 +577,11 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         if (pageScroll != null) outState.putInt(STATE_FRIDA_SCROLL_Y, Math.max(0, pageScroll.getScrollY()));
+        if (saveScriptNameInput != null && saveScriptNameInput.getText() != null)
+            saveScriptNameDraft = saveScriptNameInput.getText().toString();
+        outState.putBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, restoreSaveScriptDialog);
+        outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64
+                ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
         if (isSafePendingLibraryExportName(pendingFridaLibraryExportFileName)) {
             outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName);
         }
@@ -610,6 +623,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         FxDiaScriptLibraryStore.replaceAll(this, scripts);
     }
 
+    private void clearSaveScriptDialogState() {
+        restoreSaveScriptDialog = false;
+        saveScriptNameDraft = "";
+        saveScriptNameInput = null;
+    }
+
     private void saveCurrentFridaScript() {
         String source = script == null || script.getText() == null
                 ? "" : script.getText().toString();
@@ -621,15 +640,33 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("单个 Frida 脚本不能超过 128 KiB。");
             return;
         }
+        restoreSaveScriptDialog = true;
+        showSaveFridaScriptDialog();
+    }
+
+    private void showSaveFridaScriptDialog() {
+        if (isFinishing() || isDestroyed() || script == null) return;
+        String source = script.getText() == null ? "" : script.getText().toString();
         EditText name = new EditText(this);
+        saveScriptNameInput = name;
         name.setSingleLine(true);
         name.setHint("脚本名称，例如 HTTP 连接观察");
-        new AlertDialog.Builder(this).setTitle("保存 Frida 脚本")
+        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
+        name.setText(saveScriptNameDraft);
+        name.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                saveScriptNameDraft = value == null ? "" : value.toString();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("保存 Frida 脚本")
                 .setMessage("脚本保存在 FX 本机应用偏好中，不会自动注入目标应用。")
                 .setView(name)
-                .setNegativeButton("取消", null)
-                .setPositiveButton("保存", (dialog, which) -> {
+                .setNegativeButton("取消", (d, which) -> clearSaveScriptDialogState())
+                .setPositiveButton("保存", (d, which) -> {
                     String label = name.getText() == null ? "" : name.getText().toString().trim();
+                    clearSaveScriptDialogState();
                     if (label.isEmpty() || label.length() > 64 || label.indexOf('|') >= 0) {
                         setStatus("脚本名称不能为空，且不能超过 64 个字符。");
                         return;
@@ -640,7 +677,11 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     } catch (Exception error) {
                         setStatus("保存脚本失败：" + error.getMessage());
                     }
-                }).show();
+                }).create();
+        dialog.setOnCancelListener(ignored -> {
+            if (!isChangingConfigurations()) clearSaveScriptDialogState();
+        });
+        dialog.show();
     }
 
 
