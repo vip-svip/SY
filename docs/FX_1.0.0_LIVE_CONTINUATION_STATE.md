@@ -1944,3 +1944,22 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`16f41027ea2c7120853e57d0cf1149e7e202f114`（允许安全迁移旧目录锁）；`2a6c35d5c73ff852761546f1c429ffae5b7f6343`（模块脚本源码纳入 CI 路径过滤）。
 - 验证状态：工作流文件静态确认新增 `fx-module/scripts/**` 触发路径；该路径更新已触发最新验证，等待结果。此前 952863 提交对应的完整工作流失败于 Root Proxy 旧目录锁预检，已定位并修复；未把该旧失败记作通过。
 - 下一步：读取新 Actions 的 Root Proxy lock regression 结果；通过后回到 Frida 目标进程选择的异步回调竞态保护。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Shield 救援中心按启动来源返回，避免重复 Hub 入栈
+
+- 本批起始实时 HEAD：`44aac26b13ce19f44a1add529ff77441e6f8b2f3`；提交期间遇到并行更新后，均从最新分支重新读取文件再追加，没有强推。
+- 查明 `FxYulongRescueActivity` 有两类入口：
+  - Shield Hub 内的“打开救援中心”按钮；
+  - `FxYulongRescueOverlayService` 常驻通知的 PendingIntent。悬浮气泡本身仍直接打开 Shield Hub。
+- 修复返回行为：
+  - 通知 PendingIntent 增加 `EXTRA_OPENED_FROM_NOTIFICATION` 来源标记；
+  - 从通知启动时，“返回安全护盾主页”使用 `CLEAR_TOP | SINGLE_TOP` 打开/复用 Shield Hub，再结束 Rescue Activity；
+  - 从 Shield Hub 进入时不新建 Hub，只 `finish()` 返回原 Hub，避免 Hub → Rescue → 新 Hub 的重复任务栈。
+  - 悬浮气泡直达 Hub 的行为不变。
+- 提交：
+  - `4345517a79541af7c4f0163c93afab0de4675000` — 通知入口写入启动来源标记。
+  - `043c514704513ac24cc85c8c24f6abfd2891ebe8` — Rescue Activity 按来源选择返回路径。
+  - `1c286a95db52dd12ef403b6476bda5701c48d32d` — Shield 六 Tab 回归脚本覆盖两种入口及返回栈契约。
+- 静态验证：当前分支复核到通知来源 extra、Hub 内入口、悬浮气泡仍直达 Hub、通知路径使用 CLEAR_TOP/SINGLE_TOP、Hub 路径结束当前 Activity，以及新增回归断言。未执行完整 Shell 回归、Gradle、模拟器/真机通知点击与多次返回测试。
+- 下一步：审计剩余 Shield 页从通知/悬浮服务打开时的任务栈；再检查三套应用的跨 Activity Result 与表单取消/返回行为。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
