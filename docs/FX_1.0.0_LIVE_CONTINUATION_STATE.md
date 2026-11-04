@@ -2700,3 +2700,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 验证：源码静态确认变量赋值现在早于首次引用；尚未重跑 Actions。下一次定向运行将继续执行该脚本余下断言，不能预先记为通过。
 - 失败路线：不要在脚本中再次把变量定义留在首次使用之后；不需要修改 MainActivity 来绕过此错误。
+
+
+## 2026-11-05 — 修复 Hook 原生 UI 回归脚本变量未绑定
+
+- 失败 Actions：`41911812059`，HEAD `1aab5145f518e66c5f83015b1ac31f2a8019f62c`；失败步骤 `fx-hook-native-ui-regression.sh`，报错 `line 70: main_activity: unbound variable`。
+- 复核：脚本顶部已有路径变量定义，但执行在授权 Hub 断言处仍触发 nounset。为避免测试包装/可选 APK 检查路径影响该段变量可用性，在 Hub 断言块前显式重新绑定到仓库内 MainActivity 路径；不修改产品源码，不放宽任何断言。
+- 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：已从 Actions 日志确认失败发生于 Hub 授权状态断言前，非应用代码断言失败；修复后由本提交触发 targeted Host 回归，结果待读取。
+- 失败路线：不重复假设脚本顶部变量必然有效；改为在使用点重新绑定。
+- 下一步：读取新 Actions run；若通过，继续 Dia 编辑器/导入对话框重建与覆盖确认闭环；若失败，按新的第一条错误定位，不运行整套 Actions。

@@ -68,6 +68,9 @@ grep -Eq "waitFor\(Math\.max\(1000L, timeoutMs\), TimeUnit\.MILLISECONDS\)" "$RO
 grep -q "destroyForcibly()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java" || fail "root timeout process cleanup missing"
 
 # Hub authorization indicators must reflect separate system/runtime facts, not local UI flags.
+# Re-establish this path immediately before the Hub assertions; the earlier path is
+# also used by optional APK checks and must not be assumed to survive sourced test wrappers.
+main_activity="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 grep -Fq 'checkRoot(rootState, false);' "$main_activity"
 grep -Fq 'refreshHookHubLsposedStatus(ls);' "$main_activity"
 grep -Fq 'refreshHookHubAccessibilityStatus(accessibility);' "$main_activity"
