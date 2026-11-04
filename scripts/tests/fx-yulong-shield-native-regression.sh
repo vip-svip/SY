@@ -142,6 +142,22 @@ assert 'GET_SIGNING_CERTIFICATES' in (repo_root / "adhook/app/src/main/java/de/p
     "Dia signature inspector must read PackageManager signing certificates"
 
 accessibility = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java").read_text(encoding="utf-8")
+risk_dispatcher = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRiskScanDispatcher.java").read_text(encoding="utf-8")
+install_receiver = shield["FxYulongInstallScanReceiver.java"]
+assert "onForegroundPackageChanged(this, pkg)" in accessibility, "foreground package changes must feed Yulong auto-risk scanning"
+for token in ("onForegroundPackageChanged", "onPackageInstalled", "PACKAGE_COOLDOWN_MS",
+              "auto_block_on", "auto_block_mode", "automatic_scan_count_today",
+              'manager.notify("fx-yulong-auto-risk:" + finding.packageName',
+              "Intent.ACTION_DELETE"):
+    assert token in risk_dispatcher, f"Yulong shared auto-risk dispatcher missing {token}"
+assert "FxYulongRiskScanDispatcher.onPackageInstalled" in install_receiver
+assert 'getBoolean("automatic_install_scan_enabled", true)' in shield["FxYulongShieldActivity.java"], \
+       "install scan must preserve original default-on behavior"
+for token in ("auto_block_on", "auto_block_mode", "自动前台风险扫描",
+              "directMode", "confirmMode", "FxAccessibilityService.isConnected()"):
+    assert token in shield["FxYulongShieldActivity.java"], f"Yulong risk mode UI missing {token}"
+assert "pm uninstall" not in risk_dispatcher and "su -c" not in risk_dispatcher, \
+       "automatic risk handling must never uninstall without Android's confirmation UI"
 volume_sequence = shield["FxYulongVolumeTriggerSequence.java"]
 volume_sequence_test = (repo_root / "adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVolumeTriggerSequenceTest.java").read_text(encoding="utf-8")
 assert "volume_trigger_key" in accessibility and "volume_trigger_count" in accessibility
@@ -251,5 +267,5 @@ assert "new ThreadPoolExecutor.AbortPolicy()" in scan_engine, "queue saturation 
 assert "catch (RejectedExecutionException full)" in scan_engine, "queue saturation failure must be handled"
 assert "扫描队列繁忙，本次请求未执行" in scan_engine, "queue saturation must be reported instead of silently dropping scans"
 assert "Executors.newSingleThreadExecutor" not in scan_engine, "unbounded scanner executor must not return"
-print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup")
+print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup and foreground/install risk scanning")
 PY
