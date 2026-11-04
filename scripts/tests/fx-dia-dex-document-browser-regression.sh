@@ -3,6 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 DEX="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java"
 INDEX="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexIndex.java"
+MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$DEX" ] && [ -s "$INDEX" ] || fail "Dia DEX browser sources missing"
 grep -Fq 'REQUEST_DEX_DOCUMENT' "$DEX" || fail "standalone DEX document picker missing"
@@ -18,6 +19,11 @@ grep -Fq 'STATE_DOCUMENT_PERSISTED' "$DEX" || fail "persistable SAF grant state 
 grep -Fq 'STATE_QUERY' "$DEX" || fail "DEX search query is not saved across Activity recreation"
 grep -Fq 'STATE_SCROLL_Y' "$DEX" || fail "DEX results scroll position is not saved across Activity recreation"
 grep -Fq 'restoreSourceAfterRecreation(state)' "$DEX" || fail "DEX source is not reloaded after Activity recreation"
+[ -s "$MAIN" ] || fail "MainActivity source missing"
+grep -Fq 'pendingDiaDexHookPicker = true;' "$MAIN" || fail "DEX picker launch must register a pending request"
+grep -Fq 'outState.putBoolean("fx_pending_dia_dex_hook_picker", pendingDiaDexHookPicker);' "$MAIN" || fail "pending DEX picker request must survive Activity recreation"
+grep -Fq 'pendingDiaDexHookPicker = state.getBoolean("fx_pending_dia_dex_hook_picker", false);' "$MAIN" || fail "pending DEX picker request is not restored"
+grep -Fq 'if (!requestPending || resultCode != RESULT_OK || data == null) return;' "$MAIN" || fail "DEX picker result must be ignored unless its request is still pending"
 grep -Fq 'target.setText(String.valueOf(label) + "\n" + packageName);' "$DEX" || fail "restored application label must use an actual line break"
 grep -Fq 'loadDexDocument(documentUri, documentName)' "$DEX" || fail "restored standalone DEX URI is not re-parsed"
 grep -Fq 'loadFrameworkDex();' "$DEX" || fail "Framework DEX source is not restored"
