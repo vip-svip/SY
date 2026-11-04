@@ -286,7 +286,40 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - **Runtime**：QuickJS 脚本执行、Frida 会话（若已实现并许可）、规则引擎。
 - **Observability**：结构化状态、脱敏日志、诊断导出、运行健康状态。
 
-### 4.2 核心约束
+### 4.2 三种全局界面模式的实现与源码约束
+
+**三种模式是同一个 APK 的全局 Skin，不是三个应用，也不是网络运行模式。**
+
+| 模式 | 内部存储 ID（兼容 1.0.0） | 页面渲染实现 |
+|---|---|---|
+| ClassicWebCompat | `classic` | 显示 APK 内置原版 WebUI；六个主 Tab 使用原页面结构与交互，受信任的本地 WebView AssetLoader 加载，不访问远程页面。 |
+| FXLiquidNative | `glass` | 原生 Android 页面 + Jetpack Compose + Kyant Backdrop 液态背景采样/模糊/Lens 导航。 |
+| MiuixStyle | `miuix` | 原生 Android 页面 + MiuixTheme/Miuix 组件、系统配色和对应导航样式。 |
+
+**本轮代码落点（必须保留并继续完善）：**
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、稳定存储 ID、旧值迁移（`web` → `classic`）、模式读取/保存入口和 Renderer 类型。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt`：设置页三模式原生选择器；展示统一名称、当前选中态和模式说明。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：六 Tab 原生外壳；Liquid/Miuix/Classic 的导航皮肤由同一组件根据模式选择。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：全局模式路由；ClassicWebCompat 将内置 WebView 作为可见页面，两个 Native 模式隐藏 WebView 并挂载原生页面；模式变化只重建 UI，不调用网络/Hook/脚本服务启停接口。
+- `adhook/app/build.gradle`：Compose、Miuix、Kyant Backdrop 和 Capsule 依赖；新增 Skin 依赖必须核对许可证并更新第三方声明。
+
+**全局切换行为：**
+1. 冷启动读取 `fx_ui/mode`，旧值兼容映射到三个稳定 ID；未知值安全回落 ClassicWebCompat。
+2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和迁移子页面返回上下文。
+3. ClassicWebCompat 的 WebView 仅加载 APK 内置 AssetLoader 资源，禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
+4. FXLiquidNative 使用 Compose 原生导航与液态背景效果；MiuixStyle 使用 Miuix 主题组件。两者共享同一 Domain/Repository/状态源，不复制业务逻辑。
+5. 三种模式共享相同六个 Tab：VPN、Ad/Hosts、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
+6. 切换过程中不得 stop/start/reconfigure VPN、内核级代理、DNS、Root 规则、LSPosed、Accessibility 或脚本任务。UI 观察状态变化，不拥有服务生命周期。
+7. 动画/Backdrop 不可用或低内存时允许降级为静态背景，但不得切换业务模式或丢失页面功能。
+
+**验收矩阵：**
+- 三模式冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
+- 在每个模式中逐个进入六个 Tab，页面、返回栈和功能权限一致；ClassicWebCompat WebView 无越权导航。
+- 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换三种模式；服务 PID/连接状态/配置哈希不因换肤改变。
+- 每种模式分别测试底部栏点击/手势、无障碍语义、键盘弹出、滚动恢复、Hook 列表和迁移页面。
+- 不能只凭模式选择器显示选中就判定完成；必须有构建日志、UI 自动化/截图对照和设备实测记录。
+
+### 4.3 核心约束
 
 - 单一共享 VPN ingress；Ad filter 与 Proxy router 是 ingress 后的独立 pipeline，不得创建互相争抢的多个 VpnService。
 - 网络管线有明确优先级：本地阻止/白名单 → DNS 决策 → 规则路由 → 代理出口/直连；每一步都能解释决策原因。
