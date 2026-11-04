@@ -7,6 +7,7 @@ ALWAYS=$DIR/command_always_allow.txt
 SCOPES=$DIR/scope_grants.txt
 LOCK=$DIR/fx-stellar.lock
 _STELLAR_TEMP=
+_PKG_SYNC_TEMP=
 if [ -e "$DIR" ] || [ -L "$DIR" ]; then
   [ -d "$DIR" ] && [ ! -L "$DIR" ] || { echo "Stellar data directory is not a safe directory" >&2; exit 40; }
 else
@@ -44,6 +45,8 @@ with_lock(){
   cleanup_lock(){
     [ -z "$_STELLAR_TEMP" ] || rm -f "$_STELLAR_TEMP" 2>/dev/null || :
     _STELLAR_TEMP=
+    [ -z "$_PKG_SYNC_TEMP" ] || rm -f "$_PKG_SYNC_TEMP" 2>/dev/null || :
+    _PKG_SYNC_TEMP=
     rmdir "$LOCK" 2>/dev/null || :
   }
   # A signal must terminate into EXIT cleanup; do not release the lock and resume.
@@ -253,6 +256,35 @@ set_pkg(){
     commit_state_temp "$PKGS"
   fi
 }
+sync_packages(){
+  _PKG_SYNC_TEMP=$(mktemp "$DIR/pkg-sync.XXXXXX") || return 1
+  chmod 0600 "$_PKG_SYNC_TEMP" || return 1
+  : > "$_PKG_SYNC_TEMP" || return 1
+  count=0
+  for pkg in "$@"; do
+    valid_pkg "$pkg" || { echo "invalid package in Stellar whitelist sync" >&2; return 2; }
+    if ! grep -Fxq "$pkg" "$_PKG_SYNC_TEMP"; then
+      printf '%s\\n' "$pkg" >> "$_PKG_SYNC_TEMP" || return 1
+      count=$((count+1))
+    fi
+  done
+  # Retire command grants for packages removed from the Yulong Shield
+  # whitelist before publishing the new package set. A failed later step can
+  # only remove stale grants; it can never grant a package that was not kept.
+  for file in "$ALWAYS" "$SCOPES"; do
+    begin_state_temp "$file" || return 1
+    awk -F '\\t' 'FILENAME==ARGV[1]{keep[$0]=1;next} keep[$1]{print}' \\
+      "$_PKG_SYNC_TEMP" "$file" > "$_STELLAR_TEMP" || return 1
+    commit_state_temp "$file" || return 1
+  done
+  begin_state_temp "$PKGS" || return 1
+  cat "$_PKG_SYNC_TEMP" > "$_STELLAR_TEMP" || return 1
+  commit_state_temp "$PKGS" || return 1
+  log_entry=$(printf '[%s] shield-whitelist sync packages=%s' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$count")
+  append_action_log "$log_entry" || echo "warning: whitelist sync succeeded but audit log update failed" >&2
+  unset log_entry
+  echo "success=1 package_count=$count"
+}
 cmd="$1"
 case "$cmd" in
   logs)
@@ -276,6 +308,12 @@ case "$cmd" in
   pkg-set)
     [ "$#" -eq 3 ] && valid_pkg "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
     with_lock set_pkg "$2" "$3"
+    ;;
+  pkg-sync)
+    [ "$#" -le 1001 ] || { echo "Stellar whitelist sync exceeds 1000 packages" >&2; exit 2; }
+    shift
+    for pkg in "$@"; do valid_pkg "$pkg" || { echo "invalid package in Stellar whitelist sync" >&2; exit 2; }; done
+    with_lock sync_packages "$@"
     ;;
   scope-set)
     [ "$#" -eq 4 ] && valid_pkg "$2" && valid_scope "$3" && { [ "$4" = 0 ] || { [ "$4" = 1 ] && [ "$3" != "TERMINAL_COMMAND" ]; }; } || exit 2
