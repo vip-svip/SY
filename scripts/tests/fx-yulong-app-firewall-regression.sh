@@ -355,6 +355,17 @@ WATCH_LOCK_DIR="$V2/pg/yulong-app-firewall-watch.lock"
 export MOCK_WATCH_SPAWN_DELAY=1
 : > "$MOCK_WATCH_SPAWN_LOG"
 v2run stop-watch > "$V2/watch-stop-before-race.out"
+# A lock directory without owner metadata may be a live starter paused after mkdir.
+# Contenders must fail closed instead of stealing that active initialization window.
+mkdir "$WATCH_LOCK_DIR"
+export WATCH_LOCK_MAX_TRIES=3
+if v2run start-watch > "$V2/watch-ownerless-lock.out" 2>&1; then
+  fail "watcher start accepted an ownerless lifecycle lock"
+fi
+[ -d "$WATCH_LOCK_DIR" ] || fail "watcher start stole an ownerless lifecycle lock"
+[ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 0 ] || fail "watcher spawned while an ownerless lock was present"
+rmdir "$WATCH_LOCK_DIR"
+unset WATCH_LOCK_MAX_TRIES
 # Two simultaneous starts must serialize around the check/spawn/PID publication window.
 v2run start-watch > "$V2/watch-start-a.out" 2>&1 &
 start_a=$!

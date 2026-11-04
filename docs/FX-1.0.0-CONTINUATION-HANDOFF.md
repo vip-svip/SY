@@ -200,3 +200,12 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - Compared the original MethodActivity.smali and Module.smali: the original per-target method_empty preference feeds a ClassLoader observer that replaces configured methods with XC_MethodReplacement.DO_NOTHING when its separate method master is on.
 - FX adds NO_OP_VOID to the unified custom Hook rule model. It requires an exact Java/JVM signature with return type void; constructors and other return types are rejected. The runtime re-resolves the method and independently checks target package scope, developer opt-in, FLAG_DEBUGGABLE, non-abstract and non-native method status before skipping the original body.
 - This is a safer subset, not full parity with the legacy class.method-only selector or its future ClassLoader observer. It does not act on release targets. Regression coverage: parser rejection/acceptance, serializer round-trip, native UI/runtime source contracts and the static migration workflow. OnePlus 12 LSPosed runtime testing remains outstanding.
+
+
+## Latest continuation — 2026-11-04: Frida server ownership and Yulong watcher lock
+
+- Dia Frida's local server lifecycle was hardened. Start now serializes attempts, rejects symlinked state/PID/lock/log/server paths, uses a randomized same-directory PID-record temporary file with mode 0600 and atomic rename, and detects an already-running exact server process before spawning. Ownership is checked against exact argv[0], the listen argument and the loopback endpoint; substring grep matching was removed.
+- Stop reads the stored server path/port, checks exact process identity before SIGTERM, treats zombie/dead PIDs as stopped, and retains the PID record when stop times out or the PID appears reused. It does not use pkill/killall or force-kill.
+- Yulong watcher lifecycle no longer removes an ownerless lock directory after a short delay. That directory may belong to a live starter paused between mkdir and owner-PID publication; deleting it could let two processes claim the same lifecycle lock. Regression coverage now exercises the fail-closed case using a bounded retry setting.
+- Added scripts/tests/fx-dia-frida-server-lifecycle-regression.sh to the manual source-import workflow.
+- Verification boundary: source changes only. The new regression and complete GitHub Actions run must pass before this batch is CI-verified. No Android install/OnePlus 12 device result and no final APK/KernelSU ZIP are claimed.

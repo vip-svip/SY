@@ -385,6 +385,10 @@ SCRIPT_PATH="$MP/scripts/yulong-app-firewall.sh"
 WATCH_INTERVAL=${WATCH_INTERVAL:-10}
 case "$WATCH_INTERVAL" in ''|*[!0-9]*) WATCH_INTERVAL=10 ;; esac
 [ "$WATCH_INTERVAL" -gt 0 ] || WATCH_INTERVAL=10
+WATCH_LOCK_MAX_TRIES=${WATCH_LOCK_MAX_TRIES:-100}
+case "$WATCH_LOCK_MAX_TRIES" in ''|*[!0-9]*) WATCH_LOCK_MAX_TRIES=100 ;; esac
+[ "$WATCH_LOCK_MAX_TRIES" -gt 0 ] || WATCH_LOCK_MAX_TRIES=100
+[ "$WATCH_LOCK_MAX_TRIES" -le 100 ] || WATCH_LOCK_MAX_TRIES=100
 interface_snapshot() {
   [ -d "$NET_CLASS" ] || return 1
   for iface_path in "$NET_CLASS"/*; do
@@ -555,13 +559,14 @@ watch_lock_acquire() {
             fi
             ;;
         esac
-      elif [ "$_watch_lock_tries" -ge 2 ]; then
-        # Recover a process killed in the tiny interval between mkdir and PID publication.
-        rmdir "$WATCH_LOCK" 2>/dev/null || :
+      else
+        # This can be a live process paused between mkdir and PID publication.
+        # Never delete an ownerless lock: two starters could otherwise own it.
+        :
       fi
     fi
     _watch_lock_tries=$((_watch_lock_tries + 1))
-    [ "$_watch_lock_tries" -lt 100 ] || {
+    [ "$_watch_lock_tries" -lt "$WATCH_LOCK_MAX_TRIES" ] || {
       echo "firewall watcher lifecycle is busy; no change was made" >&2
       return 10
     }
