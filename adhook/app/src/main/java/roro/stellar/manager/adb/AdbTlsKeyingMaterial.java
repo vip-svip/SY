@@ -10,7 +10,7 @@ import javax.net.ssl.SSLSocket;
 
 /** Exports the RFC 5705 material bound to the ADB TLS 1.3 pairing handshake. */
 public final class AdbTlsKeyingMaterial {
-    public static final String LABEL = "adb-label\u0000";
+    public static final String LABEL = "adb-label" + (char) 0;
     public static final int LENGTH_BYTES = 64;
 
     private AdbTlsKeyingMaterial() { }
