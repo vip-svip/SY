@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-whitelist-patcher-") as td:
     # Minimal source anchors representing the real restored FX Release layout.
     (module / "scripts/vpncore.sh").write_text(
         "vpncore_genconf() {\n"
-        "  printf '{\\"type\\":\\"tun\\",\\"exclude_uid\\":[0]}\\\\n'\n"
+        "  printf '{\"type\":\"tun\",\"exclude_uid\":[0]}\\n'\n",
         "}\n", encoding="utf-8"
     )
     (module / "scripts/yulong-root-proxy.sh").write_text(
@@ -49,10 +49,10 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-whitelist-patcher-") as td:
         "  nat4 -N PGNAT 2>/dev/null\n"
         "  ip6tables $FWWAIT -t nat -N PGNAT >/dev/null 2>&1 || _agh6_ok=0\n"
         "  for _mu in $VPN_MOD_UIDS; do\n"
-        "    nat4 -A PGVPN -m owner --uid-owner \\"$_mu\\" -j RETURN 2>/dev/null\n"
+        '    nat4 -A PGVPN -m owner --uid-owner "$_mu" -j RETURN 2>/dev/null\n'
         "  done\n"
         "    for _mu in $VPN_MOD_UIDS; do\n"
-        "      nat6 -A PGVPN6 -m owner --uid-owner \\"$_mu\\" -j RETURN 2>/dev/null\n"
+        '      nat6 -A PGVPN6 -m owner --uid-owner "$_mu" -j RETURN 2>/dev/null\n'
         "    done\n"
         "# 提交 nat 表队列（只提交 nat 部分，filter/mangle 队列保持不动）\n",
         encoding="utf-8"
