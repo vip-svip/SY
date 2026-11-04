@@ -113,3 +113,9 @@ This makes the current CI package build successful, but the build still depends 
 - The allowlist retains only stage, Activity class name, Intent action and Intent package. It intentionally drops Intent extras, URI/data, component objects and arbitrary payload fields; the existing safe-value grammar and event/input bounds remain active.
 - Added JUnit coverage plus a standalone JDK host regression that compiles the exact production parser with javac -Xlint:all -Werror and checks APPENTRY visibility without leaking Intent payload.
 - Verification scope: parser host test only. Android Gradle build, Frida injection, and OnePlus 12 + KernelSU + LSPosed behavior remain unverified on a physical device.
+
+## 2026-11-05 — Fix Yulong VPN controller regression fixture
+
+- The workflow host regression creates a temporary scripts/util.sh with pg_get/pg_set and exports MP/PG for child shell scripts, but later calls pg_set directly in the parent test shell without sourcing util.sh there. This made the suite stop at the no-external-VPN rollback case with `pg_set: not found`, before later checks or Android build.
+- Source the same temporary helper in the test process after its fixture is created. Production controller behavior is unchanged; the test now exercises the actual helper contract it already declared.
+- Verification scope: source-level fixture correction and shell syntax to be checked; full GitHub workflow and device behavior are not represented as passed.

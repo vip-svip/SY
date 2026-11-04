@@ -85,6 +85,8 @@ __ROOT_PROXY__
 
 chmod 755 "$MOD/scripts/apply.sh" "$MOD/scripts/status.sh" "$MOD/scripts/yulong-root-proxy.sh"
 export MP="$MOD" PG
+# The assertions below exercise pg_get/pg_set in this shell as well as in child scripts.
+. "$MOD/scripts/util.sh"
 
 # Ordinary FX VPN route: start, status and stop all confirm the actual state.
 printf 'vpn_mode=direct\nvpn_node=node-test\n' > "$PG/settings.conf"
