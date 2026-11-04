@@ -4131,7 +4131,12 @@ public final class MainActivity extends ComponentActivity {
             if (resultCode != RESULT_OK || data == null) return;
             String targetPackage = data.getStringExtra("fx_dex_hook_package");
             String descriptor = data.getStringExtra("fx_dex_hook_descriptor");
-            ApplicationInfo targetInfo = targetPackage == null ? null : findApp(targetPackage);
+            ApplicationInfo targetInfo = null;
+            if (targetPackage != null) {
+                try {
+                    targetInfo = getPackageManager().getApplicationInfo(targetPackage, 0);
+                } catch (PackageManager.NameNotFoundException ignored) { }
+            }
             if (targetInfo == null || descriptor == null
                     || (targetInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
                     || (targetInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0

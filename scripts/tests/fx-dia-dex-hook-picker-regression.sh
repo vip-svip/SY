@@ -14,6 +14,9 @@ assert 'putExtra("allow_hook_method_pick", true)' in main
 assert "startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER)" in main
 assert 'getStringExtra("fx_dex_hook_package")' in main
 assert 'getStringExtra("fx_dex_hook_descriptor")' in main
+result_handler = main[main.index("if (requestCode == REQUEST_DIA_DEX_HOOK_PICKER)"):main.index("if (requestCode == REQUEST_DIA_GPS_PICKER)")]
+assert "getPackageManager().getApplicationInfo(targetPackage, 0)" in result_handler
+assert "findApp(targetPackage)" not in result_handler, "DEX result must not depend on an already-loaded MainActivity app list"
 assert 'DeveloperHookRule.parse("dexPick|" + descriptor + "|OBSERVE|0", targetPackage)' in main
 assert "FLAG_DEBUGGABLE" in main and "FLAG_SYSTEM" in main
 assert "showCustomRuleDialog(descriptor)" in main
