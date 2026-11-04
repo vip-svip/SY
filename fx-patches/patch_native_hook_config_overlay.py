@@ -20,8 +20,25 @@ end = '''    } > "$_gxc_tmp" 2>/dev/null || { rm -f "$_gxc_tmp"; _GXC_ALL_OK=0; 
 if source.count(start) != 1 or source.count(end) != 1:
     raise SystemExit("Remote Files generation block changed; refusing unsafe overlay patch")
 
-prefix = '''    _GXC_NATIVE_CONFIG="$PG/fx-native-hook-targets-$_gxc_uid.conf"
-    if [ -e "$_GXC_NATIVE_CONFIG" ]; then
+prefix = '''    case "$PG" in /*) : ;; *) echo "gen_xposed_conf: Hook state directory is not absolute" >&2; _GXC_ALL_OK=0; continue ;; esac
+    case "$PG" in *//*|*/./*|*/../*|*/.|*/..) echo "gen_xposed_conf: Hook state path contains unsafe components" >&2; _GXC_ALL_OK=0; continue ;; esac
+    _gxc_parent=$(dirname "$PG")
+    while [ "$_gxc_parent" != "/" ]; do
+      [ -d "$_gxc_parent" ] && [ ! -L "$_gxc_parent" ] || {
+        echo "gen_xposed_conf: Hook state directory ancestor is missing or symlinked" >&2
+        _GXC_ALL_OK=0
+        continue 2
+      }
+      _gxc_parent=$(dirname "$_gxc_parent")
+    done
+    if [ -L "$PG" ] || { [ -e "$PG" ] && [ ! -d "$PG" ]; }; then
+      echo "gen_xposed_conf: Hook state directory is unsafe" >&2
+      _GXC_ALL_OK=0
+      continue
+    fi
+    _GXC_NATIVE_CONFIG="$PG/fx-native-hook-targets-$_gxc_uid.conf"
+    if [ -e "$_GXC_NATIVE_CONFIG" ]; then''';
+
       _GXC_NATIVE_SIZE=$(wc -c < "$_GXC_NATIVE_CONFIG" 2>/dev/null | tr -d ' ')
       _GXC_NATIVE_LINES=$(wc -l < "$_GXC_NATIVE_CONFIG" 2>/dev/null | tr -d ' ')
       if [ ! -f "$_GXC_NATIVE_CONFIG" ] || [ -L "$_GXC_NATIVE_CONFIG" ] ||

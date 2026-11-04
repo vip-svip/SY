@@ -6285,7 +6285,13 @@ public final class MainActivity extends ComponentActivity {
             String pgDir="/data/adb/privacyguard";
             String nativeOverlay=pgDir+"/fx-native-hook-targets-"+androidUser+".conf";
             String nativeOverlayTemp=nativeOverlay+".tmp";
-            String command="set -e; umask 077; mkdir -p '"+moduleDir+"' '"+legacyDir+"' '"+pgDir+"'; "
+            String command="set -e; umask 077; "
+                    +"for _d in '/data' '/data/adb' '/data/adb/lspd' '/data/adb/lspd/modules' '/data/adb/lspd/modules/"+androidUser+"' '/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook' '"+moduleDir+"' '/data/local' '/data/local/tmp' '"+legacyDir+"' '"+pgDir+"'; do "
+                    +"[ ! -L \"$_d\" ] && { [ ! -e \"$_d\" ] || [ -d \"$_d\" ]; } || { echo 'unsafe Hook directory path' >&2; exit 71; }; done; "
+                    +"mkdir -p '"+moduleDir+"' '"+legacyDir+"' '"+pgDir+"'; "
+                    +"for _f in '"+remote+"' '"+temp+"' '"+remote+".bak' '"+managedFile+"' '"+managedTemp+"' '"+managedFile+".bak' '"+nativeOverlay+"' '"+nativeOverlayTemp+"' '"+nativeOverlay+".bak'; do "
+                    +"[ ! -L \"$_f\" ] && { [ ! -e \"$_f\" ] || [ -f \"$_f\" ]; } || { echo 'unsafe Hook publication file path' >&2; exit 72; }; done; "
+                    +"rm -f '"+temp+"' '"+managedTemp+"' '"+nativeOverlayTemp+"'; "
                     +"printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'; "
                     +"printf '%s' '"+encoded+"' | base64 -d > '"+nativeOverlayTemp+"'; "
                     +"printf '%s' '"+managedEncoded+"' | base64 -d > '"+managedTemp+"'; "
