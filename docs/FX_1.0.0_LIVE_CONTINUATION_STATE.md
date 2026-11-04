@@ -1308,3 +1308,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本节写入前 HEAD：7d4d136d964a7ba4aea9ae40010159540d8d546d。最近提交：7d4d136d964a7ba4aea9ae40010159540d8d546d test(dia): cover overlapping ActivityKey gesture conflicts；239b1e6358147cb1159b6e7b717cdd4d5920dbb1 feat(shield): add six-tab shell to screen filter；6aaf833a613ec3e9aa060ccd71d98fe3c6a6d90c feat(ui): keep six-tab shell on Dia session logs；4bf46f5ad58379ca69c6021e272e59f8a69fcfe2 feat(ui): keep six-tab shell on Dia GPS picker；9e634c561d492a93874b11209ac9676d5d085b63 feat(shield): add six-tab shell to batch cleanup；65821e8c007fdd44917154b38c09e6c134e53336 test(dia): cover overlapping ActivityKey gestures in Serializer；0bec1ffaca6a3aa9a1ed0a1d5df2db7522ded04d docs(fx): record Dia File six-tab integration；8733d6d6b1f74817ccf7620dedf8893cf662b261 test(dia): cover File and ELF six-tab integration；b82e8933636b3fabb652d5e391e9f3337ff0ec38 test(dia): cover overlapping ActivityKey gestures in Parser；fda4b980504f514998f02dbea443eaa90dc6a255 feat(dia): keep File and ELF page in six-tab shell；149ea8cd08bbe2a412ebb9c8a67f3cc33f12c2a2 docs(dia): record nine core pages on six tabs；e2f3fb4a0bf9e8f8e85db764f31d7796263c63bf fix(dia): prevent overlapping ActivityKey assignments in UI。
 - 下一批：检查 Dia Wi-Fi Proxy 的 UI 启动方式与系统代理恢复链，决定如何挂载导航；然后核对 Dia Crash Capture/Session/Monitor 页面所有按钮实际后端动作，以及 Shield Batch Cleanup/Screen Filter 的服务与权限状态真实性。
 - 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia GPS Picker / Session Log 原生页统一六 Tab
+
+- 本批复核时，GPS Picker 与 Session Log 已由并行工作线先行接入 `FxNativeTabActivity`，本轮不重复修改页面实现；当前源码确认两页均使用 `setContentViewWithNativeTabs(root, 5)`，不再直接安装裸根布局。
+- GPS Picker 保留 `STATE_PAIR`、`STATE_LATITUDE`、`STATE_LONGITUDE`、`STATE_STATUS` 和 `onSaveInstanceState`；Session Log 保留 `STATE_SEARCH`、`STATE_SCROLL_Y` 与滚动/搜索恢复。
+- 提交 `71a063097136579e9bbe63c08bc9eea83e98fe32` 扩展 `scripts/tests/fx-dia-native-tab-regression.sh`，把 GPS Picker、Session Log 纳入页面集合并断言上述状态恢复锚点。
+- 静态核验：两页共享宿主接线和状态键均存在；回归脚本已纳入两页。未运行完整 Shell、Gradle/Android 编译、模拟器/真机点按与旋转验收。
+- 下一步：检查尚未迁移的 Dia Signature / System Expand / Wi-Fi Proxy 页面；同时推进 Shield Batch Cleanup / Screen Filter。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
