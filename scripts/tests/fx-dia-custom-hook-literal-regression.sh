@@ -20,4 +20,38 @@ grep -Fq 'MemberTestGate.isEnabled' "$ENGINE" || fail "literal runtime must reta
 grep -Fq 'new BigInteger' "$RULE" || fail "integer literal parsing must be range checked"
 grep -Fq 'new BigDecimal' "$RULE" || fail "floating-point literal parsing must be finite checked"
 grep -Fq 'pausedLiteralRuleKeepsItsValueAndRemainsInert' "$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/DeveloperHookRuleTest.java" || fail "paused literal compatibility test missing"
-echo "PASS: typed constant returns are validated, portable, pause-safe and restricted to opted-in debuggable methods"
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+editor_start = source.index("private void showCustomRuleDialog(String presetDescriptor, int editingSlot)")
+editor_end = source.index("\n    private ", editor_start + 20)
+editor = source[editor_start:editor_end]
+for token in (
+    '":dev_rule_editor_draft_"',
+    'draftIdentity.equals(getPreferences(0).getString',
+    'draftPrefix + "id"', 'draftPrefix + "descriptor"', 'draftPrefix + "literal"',
+    'draftPrefix + "group"', 'draftPrefix + "priority"',
+    'draftPrefix + "syntax"', 'draftPrefix + "action"',
+    'id.addTextChangedListener(draftWatcher)',
+    'descriptor.addTextChangedListener(draftWatcher)',
+    'literalValue.addTextChangedListener(draftWatcher)',
+    'group.addTextChangedListener(draftWatcher)',
+    'priority.addTextChangedListener(draftWatcher)',
+    'editor.remove(draftPrefix + field)',
+):
+    assert token in editor, f"custom rule editor draft recovery missing {token}"
+assert "if (!editor.commit())" in editor, "rule editor must commit before clearing its recoverable draft"
+import_start = source.index("private void showCustomRuleImportDialog()")
+import_end = source.index("\n    private ", import_start + 20)
+importer = source[import_start:import_end]
+for token in (
+    '":dev_rule_import_json_draft"',
+    'getPreferences(0).getString(importDraftKey, "")',
+    'input.addTextChangedListener(',
+    'editor.remove(importDraftKey)',
+    'if (!editor.commit())',
+):
+    assert token in importer, f"custom rule import draft/atomic persistence missing {token}"
+assert "editor.apply()" not in importer, "rule import must not report success after an unchecked async write"
+PY
+echo "PASS: typed constant returns are validated; custom-rule editor/import drafts recover and import commits atomically"
