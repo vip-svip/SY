@@ -38,6 +38,11 @@ for token in (
     'literalValue.addTextChangedListener(draftWatcher)',
     'group.addTextChangedListener(draftWatcher)',
     'priority.addTextChangedListener(draftWatcher)',
+    'new android.text.InputFilter.LengthFilter(32)',
+    'new android.text.InputFilter.LengthFilter(512)',
+    'new android.text.InputFilter.LengthFilter(256)',
+    'new android.text.InputFilter.LengthFilter(24)',
+    'new android.text.InputFilter.LengthFilter(5)',
     'editor.remove(draftPrefix + field)',
 ):
     assert token in editor, f"custom rule editor draft recovery missing {token}"
