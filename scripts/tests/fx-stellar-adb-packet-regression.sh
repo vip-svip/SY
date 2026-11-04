@@ -138,5 +138,8 @@ javac -d "$TMP/classes" "$HEADER" "$PEER" "$TMP/src/roro/stellar/manager/adb/Adb
 java -cp "$TMP/classes" roro.stellar.manager.adb.AdbPacketCodecSmoke \
     || fail "ADB pairing packet codec round-trip/bounds smoke test failed"
 grep -Fq 'payload > MAX_PAYLOAD' "$HEADER" || fail "frame length bound must include 0x4000 and reject larger packets"
-grep -Fq 'RECORD_LENGTH = DATA_LENGTH + 1' "$PEER" || fail "peer-info wire record width changed"
+grep -Fq 'RECORD_LENGTH = 8192' "$PEER" || fail "peer-info wire record width changed"
+grep -Fq 'DATA_LENGTH = RECORD_LENGTH - 1' "$PEER" || fail "peer-info payload width changed"
+grep -Fq 'ADB_DEVICE_GUID((byte) 1)' "$PEER" || fail "device GUID PeerInfo type must be one"
+grep -Fq 'ADB_RSA_PUB_KEY((byte) 0)' "$PEER" || fail "RSA public key PeerInfo type must be zero"
 echo "PASS: original ADB pairing header/PeerInfo packet contract"
