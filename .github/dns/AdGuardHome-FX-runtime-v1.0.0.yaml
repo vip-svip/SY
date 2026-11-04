@@ -35,6 +35,13 @@ filtering:
   rewrites: []
   safe_search:
     enabled: false
+    bing: false
+    duckduckgo: false
+    ecosia: false
+    google: false
+    pixabay: false
+    yandex: false
+    youtube: false
   blocked_services:
     schedule:
       time_zone: Local

@@ -93,6 +93,7 @@ case "$custom_id" in custom_*) : ;; *) fail "custom profile ID not returned: $cr
 python3 - "$PROFILE_PG/settings.conf" <<'PY'
 from pathlib import Path
 import sys
+import subprocess
 path=Path(sys.argv[1])
 s=path.read_text(encoding="utf-8")
 s=s.replace("builtin://alpha|Alpha test list|1","builtin://alpha|Alpha test list|0")
@@ -136,7 +137,7 @@ profile_list=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" list)
 
 # Stage the real profile scripts and patch the DNS/UI lifecycle twice to prove idempotency.
 PATCH_MOD="$T/patch-module"
-mkdir -p "$PATCH_MOD/scripts"
+mkdir -p "$PATCH_MOD/scripts" "$PATCH_MOD/fxrules"
 printf 'id=privacyguard\n' > "$PATCH_MOD/module.prop"
 cat > "$PATCH_MOD/scripts/adguardhome.sh" <<'AGH'
 #!/system/bin/sh
@@ -146,10 +147,34 @@ _pg_render_config(){
   cat <<EOF_CFG
 filtering:
   safe_search:
-    enabled: false
+    enabled: $_pg_safe_search_active
+    bing: $_pg_safe_search_flag
+    duckduckgo: $_pg_safe_search_flag
+    ecosia: $_pg_safe_search_flag
+    google: $_pg_safe_search_flag
+    pixabay: $_pg_safe_search_flag
+    yandex: $_pg_safe_search_flag
+    youtube: $_pg_youtube_restricted_flag
+user_rules:
+  - "||gjfzpt.cn^"
+  - "||fzapp-test-tyy.gjfzpt.cn^"
+  - "||oss.gjfzpt.cn^"
+  - "||fzapp.gjfzpt.cn^"
+  - "||fzapph5.gjfzpt.cn^"
 EOF_CFG
 }
+case "${1:-}" in
+  render-config) _pg_render_config ;;
+  *) echo "unsupported action" >&2; exit 64 ;;
+esac
 AGH
+cat > "$PATCH_MOD/fxrules/anti_fraud_96110.txt" <<'RULES'
+DOMAIN,gjfzpt.cn,REJECT
+DOMAIN, fzapp-test-tyy.gjfzpt.cn,REJECT
+DOMAIN,oss.gjfzpt.cn,REJECT
+DOMAIN,fzapp.gjfzpt.cn,REJECT
+DOMAIN,fzapph5.gjfzpt.cn,REJECT
+RULES
 cat > "$PATCH_MOD/service.sh" <<'SERVICE'
 #!/system/bin/sh
 if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then :; fi
@@ -171,6 +196,11 @@ assert "FX_YULONG_PROFILE_SAFE_SEARCH_V1" in agh
 assert "enabled: $_pg_safe_search_active" in agh
 assert "bing: $_pg_safe_search_flag" in agh and "youtube: $_pg_youtube_restricted_flag" in agh
 assert "_pg_safe_search_active=true" in agh
+doc=m/"docs"/"AdGuardHome-FX-runtime-config-v1.0.0.yaml"
+assert doc.is_file(), "reference AdGuard Home YAML was not generated"
+assert "bing: false" in doc.read_text(encoding="utf-8"), "default reference YAML must keep SafeSearch disabled"
+assert "youtube: false" in doc.read_text(encoding="utf-8"), "default reference YAML must keep YouTube restriction disabled"
+assert subprocess.run(["sh", str(m/"scripts"/"adguardhome.sh"), "render-config", str(m), str(m)], check=True, stdout=subprocess.PIPE).stdout == doc.read_bytes(), "reference YAML differs from runtime renderer"
 assert service.count("FX_YULONG_PROFILE_SCHEDULER_START_V1")==1
 assert 'yulong-profile-schedule.sh" start "$MODDIR" "$PG"' in service
 assert uninstall.count("FX_YULONG_PROFILE_SCHEDULER_STOP_V1")==1

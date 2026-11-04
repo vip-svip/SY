@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_yulong_profiles.py FX_MODULE_ROOT")
@@ -62,6 +64,44 @@ if state_marker not in agh_text:
     agh_text = agh_text[:render_match.end()] + "\n" + state_reader + agh_text[render_match.end():]
 agh.write_text(agh_text, encoding="utf-8")
 agh.chmod(0o755)
+
+# Keep the packaged reference YAML byte-for-byte aligned with the renderer.
+# Render with both profile flags explicitly off: this is the installed default,
+# while the user-controlled profile values are applied later on every runtime
+# config generation through settings.conf.
+docs_dir = module / "docs"
+docs_dir.mkdir(parents=True, exist_ok=True)
+runtime_doc = docs_dir / "AdGuardHome-FX-runtime-config-v1.0.0.yaml"
+with tempfile.TemporaryDirectory(prefix="fx-agh-profile-doc-") as temp_state:
+    Path(temp_state, "settings.conf").write_text(
+        "yulong_safe_search_enabled=0\nyulong_youtube_restricted_mode=0\n",
+        encoding="utf-8",
+    )
+    rendered = subprocess.run(
+        ["sh", str(agh), "render-config", str(module), temp_state],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if rendered.returncode != 0 or not rendered.stdout:
+        raise SystemExit(
+            "AdGuard Home default documentation render failed: "
+            + (rendered.stderr[-2000:] or "empty renderer output")
+        )
+    for required in (
+        "safe_search:\n    enabled: false",
+        "bing: false",
+        "duckduckgo: false",
+        "youtube: false",
+    ):
+        if required not in rendered.stdout:
+            raise SystemExit(
+                "AdGuard Home default render omitted required Safe Search setting: "
+                + required.replace("\n", " / ")
+            )
+    runtime_doc.write_text(rendered.stdout, encoding="utf-8")
+    runtime_doc.chmod(0o644)
 # Restore the independent ProtectionProfile scheduler after the main FX apply.
 service = module / "service.sh"
 if not service.is_file():
