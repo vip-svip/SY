@@ -34,6 +34,9 @@ assert '\"run \" + quote(packageName)' in activity
 assert '.setPositiveButton(\"执行\"' in activity, "shortcut execution must require explicit foreground confirmation"
 assert "worker.shutdownNow()" in activity
 assert "new ProcessBuilder" not in activity and "Runtime.getRuntime()" not in activity
+assert activity.count("protected void onCreate(Bundle saved)") == 1, "shortcut Activity must not contain duplicate onCreate bodies"
+assert activity.count("private void executeCommand()") == 1, "shortcut Activity must not contain duplicate command executors"
+assert activity.rstrip().endswith("}"), "shortcut Activity must end at its single class boundary"
 
 root = ET.parse(sys.argv[3]).getroot()
 ns = "{http://schemas.android.com/apk/res/android}"

@@ -248,6 +248,8 @@ jobs:
           python3 scripts/tests/fx-dia-wifi-proxy-regression.py
           sh scripts/tests/fx-dia-app-version-simulation-regression.sh
           sh scripts/tests/fx-dia-custom-hook-literal-regression.sh
+          sh scripts/tests/fx-open-source-licenses-regression.sh
+          sh scripts/tests/fx-manifest-sdk-regression.sh
           python3 scripts/tests/fx-java-shell-command-escape-regression.py
           python3 scripts/tests/fx-hook-method-noop-regression.py
           sh scripts/tests/fx-custom-hook-passthrough-regression.sh

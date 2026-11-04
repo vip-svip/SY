@@ -2890,6 +2890,18 @@ public final class MainActivity extends ComponentActivity {
                 new LinearLayout.LayoutParams(-1, dp(360)));
         // Settings is reserved for app-wide preferences and diagnostics.
         // Operational VPN/privacy controls live on their matching primary tabs.
+        section("开源许可与第三方声明");
+        TextView licenseIntro = new TextView(this);
+        licenseIntro.setText("查看随 FX Hook APK 分发的第三方开源组件许可证和版权声明。");
+        licenseIntro.setTextColor(0xff66727e);
+        licenseIntro.setPadding(dp(18), dp(6), dp(18), dp(8));
+        content.addView(licenseIntro);
+        Button openLicenses = new Button(this);
+        openLicenses.setAllCaps(false);
+        openLicenses.setText("查看开源许可证");
+        openLicenses.setOnClickListener(v -> startActivity(
+                new Intent(this, FxOpenSourceLicensesActivity.class)));
+        content.addView(openLicenses);
         section("模块与运行状态");
         TextView runtimeStatus = new TextView(this);
         runtimeStatus.setText("点击刷新，读取设备端 FX 模块状态。");
