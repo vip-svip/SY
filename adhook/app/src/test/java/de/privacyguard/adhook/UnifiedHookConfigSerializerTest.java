@@ -418,4 +418,34 @@ public class UnifiedHookConfigSerializerTest {
     }
 
 
+    @Test
+    public void serializerRoundTripsPerAppToastFilterRules() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.toastFilterEnabled = true;
+        target.toastTextTerms.add("签到成功");
+        target.toastTextTerms.add("Please update");
+        targets.put("com.example.toast", target);
+
+        String encoded = UnifiedHookConfigSerializer.serialize(false, false, targets);
+        assertTrue(encoded.contains("toast_filter=1"));
+        assertTrue(encoded.contains("toast_text_terms_b64="));
+        UnifiedHookConfigParser.Target restored =
+                UnifiedHookConfigParser.parse(encoded).targets.get("com.example.toast");
+        assertTrue(restored.toastFilterEnabled);
+        assertEquals(target.toastTextTerms, restored.toastTextTerms);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsToastTermsWhenFilteringIsDisabled() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.toastTextTerms.add("promotion");
+        targets.put("com.example.toast", target);
+        UnifiedHookConfigSerializer.serialize(false, false, targets);
+    }
+
+
 }
