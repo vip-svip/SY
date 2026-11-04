@@ -67,6 +67,23 @@ jobs:
             sha256sum "adhook/app/src/main/jniLibs/$abi/libadb.so"
           done
 
+          # Export the original Stellar smali tree separately for focused
+          # component migration audits; do not copy the full 193 MiB intake.
+          stellar_audit="$RUNNER_TEMP/fx-original-stellar-component-audit"
+          mkdir -p "$stellar_audit"
+          original_manifest="$(find "$stellar_root" -maxdepth 2 -type f -name AndroidManifest.xml -print -quit)"
+          [[ -n "$original_manifest" ]] || { echo "::error::Original 9.9.60 AndroidManifest.xml is missing."; exit 1; }
+          install -m 0644 "$original_manifest" "$stellar_audit/AndroidManifest.xml"
+          find "$stellar_root" -type f -path '*/roro/stellar/manager/*' -name '*.smali' -print0 > "$stellar_audit/smali-files.nul"
+          tr '\\0' '\\n' < "$stellar_audit/smali-files.nul" | sed "s|^$stellar_root/||" > "$stellar_audit/smali-paths.txt"
+          while IFS= read -r -d '' original_smali; do
+            relative="${original_smali#"$stellar_root"/}"
+            mkdir -p "$stellar_audit/$(dirname "$relative")"
+            install -m 0644 "$original_smali" "$stellar_audit/$relative"
+          done < "$stellar_audit/smali-files.nul"
+          printf 'Original Stellar smali files copied: '
+          find "$stellar_audit" -type f -name '*.smali' | wc -l
+
           stage_dia_asset() {
             local source_rel="$1" target_rel="$2" source_file
             source_file="$dia_root/assets/$source_rel"
@@ -507,6 +524,14 @@ jobs:
           path: ${{ runner.temp }}/fx-regression-logs/
           if-no-files-found: warn
           retention-days: 3
+      - name: Preserve original Stellar component source for focused audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-v1.0.0-original-stellar-component-audit
+          retention-days: 7
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/fx-original-stellar-component-audit/
       - name: Preserve restored module source for focused audit
         if: always()
         uses: actions/upload-artifact@v4
