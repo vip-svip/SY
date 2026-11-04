@@ -10,6 +10,7 @@ import android.app.Dialog;
 import android.app.Instrumentation;
 import android.app.Application;
 import de.privacyguard.hook.DiaFridaGadgetLoader;
+import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import dalvik.system.DexFile;
@@ -308,10 +309,11 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
         final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        if (!adsForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
+        final boolean dialogMatchForPackage = target != null && target.dialogMatchEnabled;
+        if (!adsForPackage && !dialogMatchForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
-        if (adsForPackage) installAdViewHooks();
+        if (adsForPackage || dialogMatchForPackage) installAdViewHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
         if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
@@ -370,7 +372,7 @@ public final class AdVisibilityHook extends XposedModule {
         if (!hooksInstalledFor.add(pkg)) return;
         logFx(Log.INFO, "package ready=" + pkg +
                 " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
-                " adDetection=automatic(splash/feed/overlay)" + " memberDiagReadOnly=" + memberDiagForPackage +
+                " adDetection=automatic(splash/feed/overlay)" + " dialogMatchMonitor=" + dialogMatchForPackage + " memberDiagReadOnly=" + memberDiagForPackage +
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
@@ -1845,6 +1847,61 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     /** Install process-global framework observers once; resolve app scope per callback. */
+    private void scheduleDialogMatchScan(final Dialog dialog,
+                                         final UnifiedHookConfigParser.Target target,
+                                         final String packageName) {
+        try {
+            final Window window = dialog.getWindow();
+            final View decor = window == null ? null : window.getDecorView();
+            if (decor == null) return;
+            decor.postDelayed(() -> {
+                try {
+                    if (!dialog.isShowing()) return;
+                    String kind = findDialogRuleMatch(decor, target, new int[]{512}, 0);
+                    if (kind != null) {
+                        // Record only the match type and package. Dialog text may contain
+                        // private information, so it is never copied into logcat.
+                        logFx(Log.INFO, "dia-dialog-match package=" + packageName
+                                + " executable=dialog-match kind=" + kind);
+                    }
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "dialog match inspection failed: "
+                            + failure.getClass().getSimpleName());
+                }
+            }, 120L);
+        } catch (Throwable failure) {
+            logFx(Log.DEBUG, "dialog match scheduling unavailable: "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
+    private String findDialogRuleMatch(View view, UnifiedHookConfigParser.Target target,
+                                       int[] budget, int depth) {
+        if (view == null || target == null || budget[0]-- <= 0 || depth > 16) return null;
+        CharSequence text = view instanceof TextView ? ((TextView) view).getText() : null;
+        if (FxDiaDialogMatchPolicy.matchesText(text, target.dialogTextTerms)) return "text";
+        int id = view.getId();
+        if (id != View.NO_ID) {
+            String fullName = null;
+            String entryName = null;
+            try { fullName = view.getResources().getResourceName(id); }
+            catch (Resources.NotFoundException ignored) { }
+            try { entryName = view.getResources().getResourceEntryName(id); }
+            catch (Resources.NotFoundException ignored) { }
+            if (FxDiaDialogMatchPolicy.matchesResourceId(
+                    id, fullName, entryName, target.dialogIdTerms)) return "id";
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            int childCount = Math.min(group.getChildCount(), Math.max(0, budget[0]));
+            for (int i = 0; i < childCount && budget[0] > 0; i++) {
+                String match = findDialogRuleMatch(group.getChildAt(i), target, budget, depth + 1);
+                if (match != null) return match;
+            }
+        }
+        return null;
+    }
+
     private synchronized void installAdViewHooks() {
         if (!activityObserverInstalled) try {
             Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
@@ -1873,6 +1930,10 @@ private boolean targetDeveloperOptIn(String packageName) {
                         String pkg = dialog.getContext().getPackageName();
                         UnifiedHookConfigParser.Target target = adTargetFor(pkg);
                         Window window = dialog.getWindow();
+                        UnifiedHookConfigParser.Target dialogRules = targets.get(pkg);
+                        if (dialogRules != null && dialogRules.dialogMatchEnabled && window != null) {
+                            scheduleDialogMatchScan(dialog, dialogRules, pkg);
+                        }
                         if (target != null && window != null) scheduleRootScans(window.getDecorView(), target, pkg);
                     }
                 } catch (Throwable t) { logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName()); }
