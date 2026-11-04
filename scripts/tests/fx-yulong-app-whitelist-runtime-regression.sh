@@ -160,7 +160,7 @@ rmdir "$LOCK"
   echo "FAIL: lock recovery changed the sentinel target" >&2; exit 1;
 }
 
-grep -Fq '"$" > "$_YW_PID_TEMP"' "$SCRIPT" || {
+grep -Fq '"$$" > "$_YW_PID_TEMP"' "$SCRIPT" || {
   echo "FAIL: whitelist lock owner does not record the current PID" >&2; exit 1;
 }
 if grep -Fq 'cp -p "$CONF" "$backup"' "$SCRIPT" || grep -Fq 'cp -p "$backup" "$_YW_RESTORE"' "$SCRIPT"; then

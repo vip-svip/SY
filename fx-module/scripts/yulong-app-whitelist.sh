@@ -112,7 +112,7 @@ with_lock() {
     echo "cannot create private whitelist lock owner file" >&2
     return 10
   }
-  if ! printf '%s\n' "$" > "$_YW_PID_TEMP" || ! chmod 600 "$_YW_PID_TEMP" \
+  if ! printf '%s\n' "$$" > "$_YW_PID_TEMP" || ! chmod 600 "$_YW_PID_TEMP" \
       || [ -L "$LOCK/pid" ] || ! mv -f "$_YW_PID_TEMP" "$LOCK/pid"; then
     rm -f "$_YW_PID_TEMP"
     _YW_PID_TEMP=
