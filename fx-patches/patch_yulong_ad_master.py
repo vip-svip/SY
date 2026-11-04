@@ -52,10 +52,15 @@ needle = '''  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_filter_enabled 1)" !
 schedule_gate = needle + '''
   if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_schedule_active 1)" != "1" ]; then return 0; fi
   if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_trusted_active 1)" != "1" ]; then return 0; fi'''
+missing_gates = []
 if "yulong_ad_schedule_active" not in u:
+    missing_gates.append('  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_schedule_active 1)" != "1" ]; then return 0; fi')
+if "yulong_ad_trusted_active" not in u:
+    missing_gates.append('  if [ "$1" = "rule" ] && [ "$(pg_get yulong_ad_trusted_active 1)" != "1" ]; then return 0; fi')
+if missing_gates:
     if needle not in u:
-        raise SystemExit("Yulong ad master gate anchor missing for schedule extension")
-    u = u.replace(needle, schedule_gate, 1)
+        raise SystemExit("Yulong ad master gate anchor missing for schedule/trusted extension")
+    u = u.replace(needle, needle + "\n" + "\n".join(missing_gates), 1)
     util.write_text(u, encoding="utf-8")
 
 # Keep scalar defaults in the key/value section, before every [list:*] block.
@@ -64,42 +69,44 @@ malformed_schedule_block = r"\n# Weekly Yulong ad schedule runtime state (1=insi
 d = d.replace(malformed_schedule_block, "")
 d = re.sub(r"(?m)^# Weekly Yulong ad schedule runtime state.*(?:\r?\n|$)", "", d)
 d = re.sub(r"(?m)^yulong_ad_schedule_active=.*(?:\r?\n|$)", "", d)
+d = re.sub(r"(?m)^yulong_ad_trusted_active=.*(?:\r?\n|$)", "", d)
 schedule_anchor = re.search(r"(?m)^yulong_ad_filter_enabled=[^\r\n]*", d)
 if schedule_anchor is None:
     raise SystemExit("Yulong ad master default key missing before schedule state insertion")
 schedule_default = (
     "\n# Weekly Yulong ad schedule runtime state (1=inside schedule, default enabled).\n"
-    "yulong_ad_schedule_active=1\n"    "yulong_ad_trusted_active=1\n"
+    "yulong_ad_schedule_active=1\n"
+    "yulong_ad_trusted_active=1\n"
 )
 d = d[:schedule_anchor.end()] + schedule_default + d[schedule_anchor.end():]
 default.write_text(d, encoding="utf-8")
 
 service = root / "service.sh"
+if not service.is_file():
+    raise SystemExit("restored FX service.sh missing")
+service_text = service.read_text(encoding="utf-8")
+service_marker = 'if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then'
 service_trusted_insert = '''# Trusted Wi-Fi watcher gates only Yulong ad rules.
 if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
   sh "$MODDIR/scripts/yulong-trusted-network.sh" start >> "$PG/boot.log" 2>&1 || :
 fi
 '''
-if "yulong-trusted-network.sh" not in service_text:
-    if service_marker not in service_text:
-        raise SystemExit("FX service trusted-network insertion anchor missing")
-    service_text = service_text.replace(service_marker, service_trusted_insert + service_marker, 1)
-    service.write_text(service_text, encoding="utf-8")
-    service.chmod(0o755)
-service_marker = 'if [ -x "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then'
 service_insert = '''# Restore the Yulong weekly schedule after the main FX apply.
 if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || :
 fi
 '''
-if service.is_file():
-    service_text = service.read_text(encoding="utf-8")
-    if "yulong-ad-schedule.sh" not in service_text:
-        if service_marker not in service_text:
-            raise SystemExit("FX service scheduler insertion anchor missing")
-        service_text = service_text.replace(service_marker, service_insert + service_marker, 1)
-        service.write_text(service_text, encoding="utf-8")
-        service.chmod(0o755)
+service_additions = []
+if "yulong-trusted-network.sh" not in service_text:
+    service_additions.append(service_trusted_insert)
+if "yulong-ad-schedule.sh" not in service_text:
+    service_additions.append(service_insert)
+if service_additions:
+    if service_marker not in service_text:
+        raise SystemExit("FX service lifecycle insertion anchor missing")
+    service_text = service_text.replace(service_marker, "".join(service_additions) + service_marker, 1)
+    service.write_text(service_text, encoding="utf-8")
+    service.chmod(0o755)
 
 uninstall = root / "uninstall.sh"
 if not uninstall.is_file():
