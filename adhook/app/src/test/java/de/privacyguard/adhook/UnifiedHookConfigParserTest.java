@@ -415,10 +415,11 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesOptInNotificationListenBlockWithIndependentMaster() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_listen_enabled=1\n[list:targets]\n" +
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_listen_enabled=1\nnotification_permission_hide_enabled=1\n[list:targets]\n" +
                 "com.example.notify,notification_listen_block=1\n");
         assertTrue(result.isNotificationListenBlockedFor("com.example.notify"));
         assertFalse(result.isNotificationListenBlockedFor("com.example.other"));
+        assertFalse(result.isNotificationPermissionHiddenFor("com.example.notify"));
         assertFalse(result.isPrivacyEnabledFor("com.example.notify"));
     }
 
@@ -433,10 +434,11 @@ public class UnifiedHookConfigParserTest {
     @Test
     public void parsesNotificationPermissionHideWithIndependentMaster() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
-                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_permission_hide_enabled=1\n[list:targets]\n" +
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\nnotification_listen_enabled=1\nnotification_permission_hide_enabled=1\n[list:targets]\n" +
                 "com.example.notify,notification_permission_hide=1\n");
         assertTrue(result.isNotificationPermissionHiddenFor("com.example.notify"));
         assertFalse(result.isNotificationPermissionHiddenFor("com.example.other"));
+        assertFalse(result.isNotificationListenBlockedFor("com.example.notify"));
     }
 
     @Test
