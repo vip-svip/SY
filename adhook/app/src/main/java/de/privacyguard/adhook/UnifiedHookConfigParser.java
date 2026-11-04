@@ -294,6 +294,7 @@ public final class UnifiedHookConfigParser {
             boolean locationSimulation=false;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
+            boolean simulatedAccuracySpecified=false;
             boolean androidIdSimulation=false;
             String simulatedAndroidId=null;
             boolean timeZoneSimulation=false;
@@ -347,6 +348,7 @@ public final class UnifiedHookConfigParser {
                     continue;
                 }
                 if ("location_accuracy".equals(key)) {
+                    simulatedAccuracySpecified = true;
                     try { simulatedAccuracy = Float.parseFloat(value); }
                     catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated accuracy"); }
                     if (Float.isNaN(simulatedAccuracy) || Float.isInfinite(simulatedAccuracy)
@@ -488,8 +490,9 @@ public final class UnifiedHookConfigParser {
             parsedTarget.simulatedNetworkType = simulatedNetworkType;
             if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
                 throw new IllegalArgumentException("location simulation requires latitude and longitude");
-            if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null))
-                throw new IllegalArgumentException("location coordinates require location_simulate=1");
+            if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null
+                    || simulatedAccuracySpecified))
+                throw new IllegalArgumentException("location values require location_simulate=1");
             if (locationSimulation && locationAccessBlock)
                 throw new IllegalArgumentException("location simulation conflicts with location access blocking");
             if (locationProviderEnabledSimulation && locationAccessBlock)
