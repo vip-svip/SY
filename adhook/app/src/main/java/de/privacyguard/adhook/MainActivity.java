@@ -184,7 +184,7 @@ public final class MainActivity extends ComponentActivity {
     // Keep only the newest Root authorization check eligible to update the Hook UI.
     private volatile Thread hookRootCheckThread;
     private int hookRootCheckGeneration;
-    // Preserve the Settings > migration suite > category > page return chain.
+    // Legacy migration navigation state is ignored; Settings is no longer a source-app hub.
     private String migrationSuite;
     private String migrationCategory;
     private String migrationPage;
@@ -294,11 +294,6 @@ public final class MainActivity extends ComponentActivity {
             restoreHookKind = state.getString("fx_hook_screen", "list");
             hookCustomRulesPageVisible = "target_custom_rules".equals(restoreHookKind);
             customHookReturnToTarget = state.getBoolean("fx_hook_custom_return_to_target", false);
-            migrationSuite = state.getString("fx_migration_suite");
-            migrationCategory = state.getString("fx_migration_category");
-            migrationPage = state.getString("fx_migration_page");
-            migrationLevel = Math.max(0, Math.min(3, state.getInt("fx_migration_level", 0)));
-            migrationChildActive = state.getBoolean("fx_migration_child_active", false);
             if ("target".equals(restoreHookKind) || "target_custom_rules".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
                 hookTargetScrollY = Math.max(0, state.getInt(STATE_HOOK_TARGET_SCROLL_Y, 0));
@@ -343,7 +338,8 @@ public final class MainActivity extends ComponentActivity {
             if ("hub".equals(restoreHookKind)) showHookHub();
             else showAppList(activePrivacySection);
         } else if (restoreSettingsScreen) {
-            restoreMigrationNavigation();
+            clearMigrationNavigation();
+            showSettings();
         } else {
             showDashboard();
         }
@@ -500,11 +496,6 @@ public final class MainActivity extends ComponentActivity {
         outState.putBoolean("fx_pending_native_script_export", "pending".equals(pendingNativeScriptExport));
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
-        if (migrationSuite != null) outState.putString("fx_migration_suite", migrationSuite);
-        if (migrationCategory != null) outState.putString("fx_migration_category", migrationCategory);
-        if (migrationPage != null) outState.putString("fx_migration_page", migrationPage);
-        outState.putInt("fx_migration_level", migrationLevel);
-        outState.putBoolean("fx_migration_child_active", migrationChildActive);
         if (hookUiVisible) {
             if (isHookAppListVisible()) captureHookAppListState();
             if (hookTargetVisible && !hookCustomRulesPageVisible && nativeScroll != null) {
@@ -3191,32 +3182,22 @@ public final class MainActivity extends ComponentActivity {
         selectedBottomTab = 5;
         base("设置");
         // Settings is app-wide only: never attach the hidden WebView compatibility bridge here.
-        // Feature controls belong to VPN, Ad/Hosts, Privacy, Scripts, and Hook destinations.
+        // Feature controls belong to VPN, Ad, Privacy, Scripts, and Hook destinations.
         TextView intro = new TextView(this);
-        intro.setText("全局设置：界面模式、应用授权与运行诊断。VPN、Hosts、隐私保护、脚本和 Hook 的功能配置均在各自主页面管理。");
+        intro.setText("全局设置：界面模式、壁纸与主题、权限入口、备份恢复和运行诊断。广告过滤、VPN、隐私、脚本与 Hook 功能均在各自主页面管理。");
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(18), dp(4), dp(18), dp(14));
         content.addView(intro);
-        section("迁移应用");
-        addNativeActionCard("Dia 23.11",
-                "三级入口 · Hook、设备模拟、Frida、脚本、开发监控与规则页面",
-                "打开 Dia 23.11", () -> showImportedSuite("dia"));
-        addNativeActionCard("游龙广告插件 7.0.1",
-                "三级入口 · 广告过滤、DNS、VPN / Root Proxy、HTTPS 与诊断页面",
-                "打开游龙广告插件", () -> showImportedSuite("yulong-ad"));
-        addNativeActionCard("游龙安全护盾 9.9.60",
-                "三级入口 · 安全中心、病毒库、应用扫描、Stellar 与救援恢复四级页面",
-                "打开安全护盾", () -> showImportedSuite("yulong-shield"));
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("三种全局模式：ClassicWebCompat 显示内置原版 WebUI；FXLiquidNative 使用原生页面与 Kyant Backdrop 液态导航；MiuixStyle 使用原生页面与 Miuix 组件。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
+        note.setText("五种全局模式：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）与 iOS CupertinoStyle（iOS 视觉风格）。新模式须在源码完成后才可启用；模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
         androidx.compose.ui.platform.ComposeView designModePanel =
                 new androidx.compose.ui.platform.ComposeView(this);
         // This ComposeView is a sibling of the main shell, not its descendant.
-        // Bind all three owners before setContent() so the settings panel can
+        // Bind all lifecycle owners before setContent() so the settings panel can
         // create a lifecycle-aware recomposer and resolve saved state/ViewModels.
         androidx.lifecycle.ViewTreeLifecycleOwner.set(designModePanel, this);
         androidx.lifecycle.ViewTreeViewModelStoreOwner.set(designModePanel, this);
