@@ -65,6 +65,15 @@ stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
 show = source[source.index("private void showGadgetSessionLog()"):
                source.index("private void copyGadgetConnectCommand()")]
+for label, needle in (
+    ("Gadget log path rejects symlinks", r'[ ! -L \"$path\" ]'),
+    ("Gadget log path must be absent or a regular file", r'[ ! -f \"$path\" ]'),
+    ("Gadget log path must be readable", r'[ ! -r \"$path\" ]'),
+    ("Gadget log path rejects special files", "FX_GADGET_LOG_TYPE_REJECTED"),
+    ("Gadget log reads remain bounded", "tail -n 500"),
+):
+    if needle not in show:
+        raise SystemExit(f"FAIL: Gadget session log reader safety missing: {label}")
 logs_guard = source[source.index("private String prepareDiaLogsDirectoryPrefix()"):
                     source.index("private String checkedSessionLogDirectoryPrefix()")]
 existing_guard = source[source.index("private String checkedSessionLogDirectoryPrefix()"):
