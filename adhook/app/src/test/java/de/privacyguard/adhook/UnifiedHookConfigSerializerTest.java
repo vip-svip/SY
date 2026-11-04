@@ -448,4 +448,48 @@ public class UnifiedHookConfigSerializerTest {
     }
 
 
+    @Test
+    public void serializerRoundTripsPerAppActivityKeyActions() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.keyFinishTrigger = 5;
+        target.keyDialogToggleTrigger = 6;
+        target.dialogMatchEnabled = true;
+        target.dialogTextTerms.add("更新失败");
+        targets.put("com.example.debug", target);
+
+        String encoded = UnifiedHookConfigSerializer.serialize(false, false, targets);
+        assertTrue(encoded.contains("key_finish_trigger=5"));
+        assertTrue(encoded.contains("key_dialog_toggle_trigger=6"));
+        UnifiedHookConfigParser.Target restored =
+                UnifiedHookConfigParser.parse(encoded).targets.get("com.example.debug");
+        assertEquals(5, restored.keyFinishTrigger);
+        assertEquals(6, restored.keyDialogToggleTrigger);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsDialogKeyToggleWithoutDialogRules() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.keyDialogToggleTrigger = 6;
+        targets.put("com.example.debug", target);
+        UnifiedHookConfigSerializer.serialize(false, false, targets);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsTwoActivityKeyActionsUsingTheSameTrigger() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.keyFinishTrigger = 5;
+        target.keyDialogToggleTrigger = 5;
+        target.dialogMatchEnabled = true;
+        target.dialogTextTerms.add("blocked");
+        targets.put("com.example.debug", target);
+        UnifiedHookConfigSerializer.serialize(false, false, targets);
+    }
+
+
 }
