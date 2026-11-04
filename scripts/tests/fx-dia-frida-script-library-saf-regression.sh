@@ -56,6 +56,14 @@ for label, needle in {
     "initial new-script request state saved": "out.putBoolean(STATE_OPENING_INITIAL_EDITOR, openingInitialEditor)",
     "initial new-script request state restored": "state.getBoolean(STATE_OPENING_INITIAL_EDITOR",
     "editor return target preserved": "out.putString(STATE_EDITING_NAME, editingName)",
+    "create dialog pending state saved": "out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending)",
+    "create dialog pending state restored": "state.getBoolean(STATE_CREATE_DIALOG_PENDING, false)",
+    "create name draft saved": "out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft.length() > 64",
+    "create name draft restored into input": "input.setText(createNameDraft)",
+    "create dialog reopens after reload": "else if (createDialogRestorePending) {\n                    createScript();",
+    "create dialog input bounded": "new android.text.InputFilter.LengthFilter(64)",
+    "create dialog clears on explicit cancel": '.setNegativeButton("取消", (d, which) -> clearCreateScriptDialogState())',
+    "rotation cancel retains pending draft": "if (!isChangingConfigurations()) clearCreateScriptDialogState();",
 }.items():
     if needle not in library:
         raise SystemExit(f"FAIL: script library state restoration missing {label}: {needle}")
