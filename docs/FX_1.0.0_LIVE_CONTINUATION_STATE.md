@@ -1935,3 +1935,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`16f41027ea2c7120853e57d0cf1149e7e202f114`。
 - 验证等级：源码静态确认预检允许目录进入迁移逻辑，同时保留路径组件 symlink guard 和 with_lock owner/rename 检查。CI 失败日志已定位到本行；修复后的自动 Actions 尚待完成，未声称回归通过。
 - 下一步：等待该提交触发的唯一 Actions 结果；若锁回归通过，继续 Frida 目标进程选择回调的代次/包名/UID 过期保护；若失败，读取具体新日志，不重跑无关 Actions。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Root Proxy 锁迁移修复纳入 CI 触发范围
+
+- 补充发现：原 `build-fx-adhook.yml` 的 push paths 只包含 `fx-module/scripts/tests/**`，没有包含被测试的模块脚本源码；因此单独修改 `fx-module/scripts/yulong-root-proxy.sh` 不会触发验证，不能用 CI 证明修复。
+- 已增加 `fx-module/scripts/**` 路径过滤，使 apply/subfetch/DNS/Root Proxy 等模块脚本源码变更都会触发同一验证工作流；仍保留 concurrency cancel-in-progress，只验证最新树，不堆叠旧 Actions。
+- 提交：`16f41027ea2c7120853e57d0cf1149e7e202f114`（允许安全迁移旧目录锁）；`2a6c35d5c73ff852761546f1c429ffae5b7f6343`（模块脚本源码纳入 CI 路径过滤）。
+- 验证状态：工作流文件静态确认新增 `fx-module/scripts/**` 触发路径；该路径更新已触发最新验证，等待结果。此前 952863 提交对应的完整工作流失败于 Root Proxy 旧目录锁预检，已定位并修复；未把该旧失败记作通过。
+- 下一步：读取新 Actions 的 Root Proxy lock regression 结果；通过后回到 Frida 目标进程选择的异步回调竞态保护。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
