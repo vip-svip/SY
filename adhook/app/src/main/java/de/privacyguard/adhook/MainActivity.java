@@ -84,6 +84,12 @@ public final class MainActivity extends ComponentActivity {
     private volatile Thread appIconLoaderThread;
     private int appIconLoadGeneration;
     private static final int MAX_APP_ROWS_PER_PAGE = 40;
+    private static final String STATE_HOOK_APP_LIST_QUERY = "fx_hook_app_list_query";
+    private static final String STATE_HOOK_APP_LIST_SCROLL_Y = "fx_hook_app_list_scroll_y";
+    private static final String STATE_HOOK_APP_LIST_VISIBLE_COUNT = "fx_hook_app_list_visible_count";
+    private String hookAppListQuery = "";
+    private int hookAppListScrollY;
+    private int hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
     private String selectedPackage;
     private String selectedLabel;
     private WebView webView;
@@ -217,6 +223,11 @@ public final class MainActivity extends ComponentActivity {
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
             restoreHookScreen = state.getBoolean("fx_hook_screen_visible", selectedBottomTab == 4);
             activePrivacySection = state.getString("fx_privacy_section");
+            hookAppListQuery = state.getString(STATE_HOOK_APP_LIST_QUERY, "");
+            if (hookAppListQuery.length() > 256) hookAppListQuery = hookAppListQuery.substring(0, 256);
+            hookAppListScrollY = Math.max(0, state.getInt(STATE_HOOK_APP_LIST_SCROLL_Y, 0));
+            hookAppListVisibleCount = Math.max(MAX_APP_ROWS_PER_PAGE,
+                    Math.min(10000, state.getInt(STATE_HOOK_APP_LIST_VISIBLE_COUNT, MAX_APP_ROWS_PER_PAGE)));
             restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
             hookCustomRulesPageVisible = "target_custom_rules".equals(restoreHookKind);
@@ -390,6 +401,7 @@ public final class MainActivity extends ComponentActivity {
         outState.putInt("fx_migration_level", migrationLevel);
         outState.putBoolean("fx_migration_child_active", migrationChildActive);
         if (hookUiVisible) {
+            if (isHookAppListVisible()) captureHookAppListState();
             if (activePrivacySection != null) outState.putString("fx_privacy_section", activePrivacySection);
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
             String hookScreen = hookHubVisible ? "hub"
@@ -402,6 +414,11 @@ public final class MainActivity extends ComponentActivity {
                 outState.putString("fx_selected_package", targetPackage);
             }
         }
+        outState.putString(STATE_HOOK_APP_LIST_QUERY,
+                hookAppListQuery.length() > 256 ? hookAppListQuery.substring(0, 256) : hookAppListQuery);
+        outState.putInt(STATE_HOOK_APP_LIST_SCROLL_Y, Math.max(0, hookAppListScrollY));
+        outState.putInt(STATE_HOOK_APP_LIST_VISIBLE_COUNT,
+                Math.max(MAX_APP_ROWS_PER_PAGE, Math.min(10000, hookAppListVisibleCount)));
         super.onSaveInstanceState(outState);
     }
 
@@ -4666,6 +4683,13 @@ public final class MainActivity extends ComponentActivity {
     private void showAppList() { showAppList(null); }
 
     private void showAppList(String privacySection) {
+        boolean sameSection = activePrivacySection == null
+                ? privacySection == null : activePrivacySection.equals(privacySection);
+        if (!sameSection) {
+            hookAppListQuery = "";
+            hookAppListScrollY = 0;
+            hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
+        }
         activePrivacySection = privacySection;
         pendingPrivacySection = privacySection;
         cancelHookStatusRefresh();
@@ -4680,6 +4704,7 @@ public final class MainActivity extends ComponentActivity {
         Button home = new Button(this); home.setText("授权状态与系统设置"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
+        search.setText(hookAppListQuery);
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
         TextView hint = new TextView(this); hint.setText("点击应用进入独立 Hook 配置"); hint.setTextColor(0xff66727e);
         hint.setPadding(dp(18), dp(8), dp(18), dp(8)); content.addView(hint);
@@ -4691,12 +4716,23 @@ public final class MainActivity extends ComponentActivity {
         search.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s,int st,int c,int a) {}
             public void onTextChanged(CharSequence s,int st,int before,int count) {
-                if (appsLoaded) renderApps(s.toString());
+                hookAppListQuery = s == null ? "" : s.toString();
+                hookAppListScrollY = 0;
+                hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
+                if (appsLoaded) renderApps(hookAppListQuery);
             }
             public void afterTextChanged(Editable e) {}
         });
         loadAppsAsync();
     }
+    private void captureHookAppListState() {
+        if (search != null) {
+            CharSequence value = search.getText();
+            hookAppListQuery = value == null ? "" : value.toString();
+        }
+        if (nativeScroll != null) hookAppListScrollY = Math.max(0, nativeScroll.getScrollY());
+    }
+
     private boolean isHookAppListVisible() {
         return hookUiVisible && !hookHubVisible && !hookTargetVisible
                 && search != null && content != null;
@@ -4826,16 +4862,32 @@ public final class MainActivity extends ComponentActivity {
                     || ai.packageName.toLowerCase(Locale.ROOT).contains(q)) filtered.add(ai);
         }
         if (filtered.isEmpty()) {
+            hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
+            hookAppListScrollY = 0;
             TextView empty = new TextView(this);
             empty.setText("没有匹配的应用");
             empty.setPadding(dp(18), dp(20), dp(18), dp(20));
             content.addView(empty);
             return;
         }
-        appendAppRows(0, Math.min(MAX_APP_ROWS_PER_PAGE, filtered.size()));
+        int requestedCount = Math.max(MAX_APP_ROWS_PER_PAGE,
+                Math.min(10000, hookAppListVisibleCount));
+        int initialEnd = Math.min(requestedCount, filtered.size());
+        hookAppListVisibleCount = initialEnd;
+        appendAppRows(0, initialEnd);
+        final ScrollView listScroll = nativeScroll;
+        final int restoreY = hookAppListScrollY;
+        if (restoreY > 0 && listScroll != null) {
+            listScroll.post(() -> {
+                if (isHookAppListVisible() && nativeScroll == listScroll) {
+                    listScroll.scrollTo(0, restoreY);
+                }
+            });
+        }
     }
 
     private void appendAppRows(int start, int end) {
+        hookAppListVisibleCount = Math.max(hookAppListVisibleCount, end);
         for (int i = start; i < end; i++) {
             ApplicationInfo ai = filtered.get(i);
             LinearLayout row = new LinearLayout(this);
@@ -4873,7 +4925,10 @@ public final class MainActivity extends ComponentActivity {
             arrow.setTextSize(28);
             arrow.setTextColor(0xff637080);
             row.addView(arrow);
-            row.setOnClickListener(v -> showTarget(ai));
+            row.setOnClickListener(v -> {
+                captureHookAppListState();
+                showTarget(ai);
+            });
             content.addView(row, new LinearLayout.LayoutParams(-1, -2));
             View divider = new View(this);
             divider.setBackgroundColor(0xffe8ebee);
@@ -4884,6 +4939,7 @@ public final class MainActivity extends ComponentActivity {
             more.setText("加载更多应用（" + (filtered.size() - end) + "）");
             more.setOnClickListener(v -> {
                 int nextEnd = Math.min(end + MAX_APP_ROWS_PER_PAGE, filtered.size());
+                hookAppListVisibleCount = nextEnd;
                 int oldCount = content.getChildCount();
                 // Remove the previous pagination control before appending the next page.
                 if (oldCount > 4 && content.getChildAt(oldCount - 1) == more) {
