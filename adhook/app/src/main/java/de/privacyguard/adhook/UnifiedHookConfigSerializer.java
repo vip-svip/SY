@@ -108,7 +108,8 @@ public final class UnifiedHookConfigSerializer {
             if (target.dialogMatchEnabled) {
                 if (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())
                     throw new IllegalArgumentException("dialog monitoring requires explicit rules");
-                out.append(",dialog_match=1");
+                out.append(",dialog_match=1")
+                        .append(",dialog_notify=").append(target.dialogNotify ? '1' : '0');
                 if (!target.dialogTextTerms.isEmpty()) {
                     String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
                             .encodeToString(String.join("\n", target.dialogTextTerms)
@@ -121,8 +122,9 @@ public final class UnifiedHookConfigSerializer {
                                     .getBytes(StandardCharsets.UTF_8));
                     out.append(",dialog_id_terms_b64=").append(encoded);
                 }
-            } else if (!target.dialogTextTerms.isEmpty() || !target.dialogIdTerms.isEmpty()) {
-                throw new IllegalArgumentException("dialog rules require dialogMatchEnabled");
+            } else if (!target.dialogTextTerms.isEmpty() || !target.dialogIdTerms.isEmpty()
+                    || target.dialogNotify) {
+                throw new IllegalArgumentException("dialog rules/feedback require dialogMatchEnabled");
             }
 
             if (target.locationSimulation) {
