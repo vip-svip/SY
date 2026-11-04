@@ -2364,3 +2364,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：47b7b2e63a00b33ae46059619ebac27bff0de302 — fix(ui): preserve native primary tab scroll positions；8114b9a26a9cfd2fd758f61277c50069be9f852c — test(ui): cover native primary tab scroll restoration。
 - 静态验证：当前分支已复核四槽数组、Bundle 保存/恢复、切换/离页捕获、generation 与 Tab/ScrollView 身份保护及 scrollTo 恢复；回归脚本包含同一契约。未执行 Shell 脚本、Gradle、UI 自动化或真机长列表/旋转测试。
 - 下一步：检查 VPN 状态轮询和节点/订阅异步列表刷新是否覆盖用户当前页面状态；然后核对 Hosts 分页编辑器与 Script 列表在 Tab 切换后的滚动/搜索持久化。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾黑名单选择器跨页暂存上限与重建一致性
+
+- 本批读取指定分支当前文件后定位到状态边界：选择器允许跨页累计勾选，但只有 `pickerStaged.size() <= 100` 才写入 Activity Bundle；原 UI 未限制选择数量，超过 100 后旋转/系统重建会静默丢失全部暂存选择。
+- 修复：明确单次最多暂存 100 个应用；达到上限时立即撤销当前勾选并提示用户，已选项目不丢失；保存/恢复统一使用 `MAX_PICKER_STAGED` 常量；原有跨页累积、搜索、取消、确认加入和弹窗重建恢复链保留。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/BlacklistActivity.java`；`scripts/tests/fx-yulong-shield-native-regression.sh`；本状态文件。
+- 提交：`ec7ac4610fb7c21c879a1f46c192b470c5489d18`（选择器限制实现）；`802f759ff271582a82af82aa530b7ba0e1367830`（回归断言）。
+- 验证：重新读取最新源码和测试脚本，核对 100 项上限、超限拒绝/提示、Bundle 暂存、异步应用清单完成后重开 picker 及脚本断言，均匹配。未运行 Shell/Python/Gradle 或设备旋转、多页勾选测试；不计为运行测试通过。
+- 仍需完成：真机测试 99/100/101 项选择边界、搜索切换和翻页时暂存不丢、取消不写入、确认一次性写入；检查白名单/黑名单数据异常时 fail-closed 策略一致。
+- 本次读取到的 GitHub 分支 HEAD：`bbd261b7c3abae65b3d65dcccfe5e643f0b28f94`。实时状态文件在本条提交后将更新到新 HEAD。
+- 下一步：继续安全护盾告警与名单编辑返回链；然后检查六 Tab 固定导航在 Dia / 游龙原生 Activity 之间的选中态和返回恢复。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
