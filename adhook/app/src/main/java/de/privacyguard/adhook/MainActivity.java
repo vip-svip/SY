@@ -5388,7 +5388,8 @@ public final class MainActivity extends ComponentActivity {
                                 throw new IllegalArgumentException("第 " + (i + 1) + " 条规则分组名称无效。");
                             if (!"OBSERVE".equals(action) && !"RETURN_TRUE".equals(action)
                                     && !"RETURN_FALSE".equals(action) && !"RETURN_NULL".equals(action)
-                                    && !"RETURN_ZERO".equals(action) && !"RETURN_EMPTY_STRING".equals(action))
+                                    && !"RETURN_ZERO".equals(action) && !"RETURN_EMPTY_STRING".equals(action)
+                                    && !"NO_OP_VOID".equals(action))
                                 throw new IllegalArgumentException("不支持该规则动作。");
                             ApplicationInfo currentTarget = findApp(selectedPackage);
                             boolean debugBuild = currentTarget != null

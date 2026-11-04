@@ -30,6 +30,13 @@ for token in ('"NO_OP_VOID".equals(actionText)', "NO_OP_VOID 只接受精确 voi
               "NO_OP_VOID 必须是返回 void 的真实方法",
               'if (!debuggable && !"OBSERVE".equals(actionText))'):
     assert token in ui, f"custom Hook UI contract missing: {token}"
+import_start = ui.index("private void showCustomRuleImportDialog()")
+import_end = ui.index("private ApplicationInfo findApp(", import_start)
+import_ui = ui[import_start:import_end]
+assert '"NO_OP_VOID".equals(action)' in import_ui, \
+    "portable rule-group importer must accept exported NO_OP_VOID actions"
+assert 'if (!debugBuild && !"OBSERVE".equals(action)' in import_ui, \
+    "imported behavior replacements, including NO_OP_VOID, must remain debuggable-only"
 tests = read("adhook/app/src/test/java/de/privacyguard/adhook/DeveloperHookRuleTest.java")
 assert "acceptsNoOpOnlyForExactVoidMethods" in tests
 assert "rejectsNoOpForNonVoidConstructorsAndLegacyAmbiguousSignatures" in tests
