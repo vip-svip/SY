@@ -37,6 +37,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final int REQUEST_IMPORT = 0x3a12;
     private static final int REQUEST_EXPORT = 0x3a13;
     private static final String STATE_EDITING_NAME = "fx_dia_script_library_editing_name";
+    private static final String STATE_EDITOR_REQUEST_PENDING = "fx_dia_script_library_editor_request_pending";
     private static final String STATE_SEARCH = "fx_dia_script_library_search";
     private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
     private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
@@ -56,6 +57,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private boolean restoreScrollPending;
     private JSONObject scripts = new JSONObject();
     private String editingName;
+    private boolean editorRequestPending;
     private boolean openingInitialEditor;
     private boolean createDialogRestorePending;
     private String createNameDraft = "";
@@ -112,6 +114,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         super.onCreate(state);
         if (state != null) {
             editingName = state.getString(STATE_EDITING_NAME);
+            editorRequestPending = state.getBoolean(STATE_EDITOR_REQUEST_PENDING, false);
             restoredSearch = state.getString(STATE_SEARCH, "");
             restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             restoreScrollPending = true;
@@ -300,13 +303,16 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     }
 
     private void openEditor(String name, String source) {
-        editingName = name;
         Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_LANGUAGE, "javascript");
+        editingName = name;
+        editorRequestPending = true;
         try {
             startActivityForResult(intent, REQUEST_EDITOR);
         } catch (RuntimeException error) {
+            editorRequestPending = false;
+            editingName = null;
             setStatus("无法打开 JavaScript 编辑器：" + detail(error));
         }
     }
@@ -360,6 +366,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         // The code editor returns its source in an Intent extra and uses Dia's
         // custom result code. It does not return a SAF Uri; handle it first.
         if (requestCode == REQUEST_EDITOR) {
+            if (!editorRequestPending) {
+                setStatus("忽略未关联到当前编辑请求的编辑器结果。");
+                return;
+            }
+            editorRequestPending = false;
             if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
                 editingName = null;
                 setStatus("编辑器未保存，脚本库保持不变。");
@@ -489,6 +500,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     @Override protected void onSaveInstanceState(Bundle out) {
         if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
+        out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);
         if (createNameInput != null && createNameInput.getText() != null)
             createNameDraft = createNameInput.getText().toString();
         out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
