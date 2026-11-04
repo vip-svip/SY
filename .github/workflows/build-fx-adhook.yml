@@ -220,6 +220,7 @@ jobs:
           sh scripts/tests/fx-yulong-ad-activity-state-regression.sh
           sh scripts/tests/fx-yulong-shield-native-regression.sh "$PWD/fx-patches/merge_hook_single_apk.py"
           sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
+          sh scripts/tests/fx-yulong-risk-scan-regression.sh
           sh scripts/tests/fx-imported-suite-native-routing-regression.sh
           sh scripts/tests/fx-imported-suite-back-navigation-regression.sh
           sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
