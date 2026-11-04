@@ -102,9 +102,10 @@ python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows()", 1)[0]
-assert "printf '%s\\\\n' \"$raw\"" in normalize, "validated subscription value must be returned to the caller"
-assert "*'\\\\n'*)" in source, "literal newline must be rejected before the line-oriented grep check"
-print("PASS: managed list validator returns normalized values and explicitly rejects LF")
+normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
+assert "grep -Eq" in normalize, "URL subscription validation is missing"
+assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
+assert "*'" + "\n" + "'*)" in source, "literal LF must be rejected explicitly"
+print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
 PY
 echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"

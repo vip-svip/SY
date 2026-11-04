@@ -45,16 +45,16 @@ resolve_section() {
 valid_field() {
   [ -n "$1" ] || return 1
   [ "${#1}" -le 4096 ] || return 1
-  case "$1" in *'|'*|*'\\'*|*'
+  case "$1" in *'|'*|*'\\'*|'*'
 '*) return 1 ;; esac
-  if printf '%s' "$1" | grep -q '[[:cntrl:]]'; then return 1; fi
+  if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then return 1; fi
   return 0
 }
 valid_note() {
   [ "${#1}" -le 180 ] || return 1
-  case "$1" in *'|'*|*'\\'*|*'
+  case "$1" in *'|'*|*'\\'*|'*'
 '*) return 1 ;; esac
-  if printf '%s' "$1" | grep -q '[[:cntrl:]]'; then return 1; fi
+  if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then return 1; fi
   return 0
 }
 normalize_domain() {
@@ -73,10 +73,9 @@ normalize_value() {
   case "$kind" in
     rule)
       valid_field "$raw" || return 1
-      printf '%s\n' "$raw" | grep -Eq '^https?://[A-Za-z0-9._~:/?#@!    rule)
-      valid_field "$raw" || return 1
-      printf '%s\n' "$raw" | grep -Eq '^https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'
-      ;;()*+,;=%-]+
+      printf '%s\n' "$raw" | grep -Eq '^https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$' || return 1
+      printf '%s\n' "$raw"
+      ;;
     domain|block) normalize_domain "$raw" ;;
     *) return 1 ;;
   esac
