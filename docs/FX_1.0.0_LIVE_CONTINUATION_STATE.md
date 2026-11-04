@@ -3489,3 +3489,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Actions `41919804590` 首错：六 Tab 页面路由测试仍要求 `FxDiaFridaActivity` 启动 `FxDiaScriptLibraryActivity.class`，但当前真实实现把脚本库原生界面集成在 Frida Activity 内，由 `showFridaScriptLibrary()` 打开。已把断言改为检查用户可见入口按钮和原生实现方法，保留页面功能验证。修复提交：`c88ff46b6cb4e2b0dc3fd094d96e4b61488357cb`。
 - 说明：两项都是测试契约与当前源码实现不一致；没有删除产品页面或降低六 Tab/脚本库功能要求。
 - 下一步：读取新 Actions；若通过，回到 MainActivity 主壳和 Hook/Dia 编辑器的软键盘遮挡与返回状态，避免继续陷入测试补丁循环。
+
+
+## 2026-11-05 — Gadget session 与 Dia Inspector 回归契约二次修正
+
+- Actions `41920295990` 首错：状态检查只读断言把布尔表达式放进 `(label, needle)` 元组，循环随后执行 `needle in check`，触发 TypeError。已将只读条件改为独立 if，继续检查 `rm -f` 和 `kill "$` 均不出现在状态查询命令中。提交：`bfb148197093cc94415cceb97c94da02d359a0a0`。
+- Actions `41920329579` 首错：六 Tab 回归仍把 `FxDiaInspectorActivity` 错误归到 Activity Browser 页面；当前 Inspector 是 MainActivity 的独立 Dia 原生路由，Activity Browser 是组件清单浏览页。已将脚本输入增加 MainActivity，改为检查 Inspector 主导航入口，同时检查 Browser 仍读取 `PackageManager.GET_ACTIVITIES`。提交：`f5fd00bdb14e7fe2aa1fae5b37e96aef799e63b2`。
+- 下一步：读取新 Actions；不再把 Inspector 页面路由强行要求放在 Activity Browser 内。
