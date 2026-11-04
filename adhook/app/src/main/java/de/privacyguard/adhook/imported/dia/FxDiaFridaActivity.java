@@ -1601,7 +1601,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         private static final class Target {
         final String packageName, label;
         Target(String p, String l) { packageName = p; label = l; }
-        @Override public String toString() { return label + "\\n" + packageName; }
+        @Override public String toString() { return label + " · " + packageName; }
     }
 
     private void chooseTarget() {
@@ -1721,9 +1721,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     .apply();
             selectedProcessPids.clear();
             gadgetProcess.setText(targetPackage);
-            targetLabel.setText(targetName + "\\n" + targetPackage
-                    + "\\nGadget 默认进程：" + targetPackage
-                    + "\\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
+            targetLabel.setText(targetName + "\n" + targetPackage
+                    + "\nGadget 默认进程：" + targetPackage
+                    + "\nFrida-inject 进程：注入时自动枚举所有当前运行进程");
         });
         pickerDialog.setOnCancelListener(dialog -> {
             targetPickerOpen = false;
