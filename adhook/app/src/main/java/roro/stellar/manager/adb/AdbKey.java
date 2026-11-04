@@ -19,6 +19,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509TrustManager;
+import javax.crypto.Cipher;
 import java.net.Socket;
 import javax.net.ssl.SSLEngine;
 
@@ -40,6 +41,15 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 public final class AdbKey {
     private static final long CERT_NOT_AFTER_MS = 2461449600000L; // 2048-01-01T00:00:00Z
     private static final String IDENTITY = "youlong";
+    private static final byte[] ADB_AUTH_PADDING = createAdbAuthPadding();
+
+    private static byte[] createAdbAuthPadding() {
+        byte[] padding = new byte[236];
+        padding[0] = 0;
+        padding[1] = 1;
+        java.util.Arrays.fill(padding, 2, padding.length, (byte) 0xff);
+        return padding;
+    }
 
     private final RSAPrivateKey privateKey;
     private final RSAPublicKey publicKey;
@@ -146,15 +156,19 @@ public final class AdbKey {
     public RSAPublicKey getPublicKey() { return publicKey; }
     public X509Certificate getCertificate() { return certificate; }
 
-    /** Original ADB AUTH challenge signature (RSA PKCS#1 v1.5 over SHA-1). */
+    /**
+     * Original ADB AUTH signature: raw RSA private operation over the 236-byte
+     * 00 01 FF... block followed by the 20-byte daemon challenge. This is not
+     * SHA1withRSA DigestInfo encoding; adb expects the raw AUTH padding block.
+     */
     public byte[] sign(byte[] token) throws GeneralSecurityException {
         if (token == null || token.length != 20) {
             throw new GeneralSecurityException("ADB AUTH challenge must be exactly 20 bytes");
         }
-        Signature signature = Signature.getInstance("SHA1withRSA");
-        signature.initSign(privateKey, new SecureRandom());
-        signature.update(token);
-        return signature.sign();
+        Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, privateKey);
+        cipher.update(ADB_AUTH_PADDING);
+        return cipher.doFinal(token);
     }
 
     /** ADB peer-info record contains Base64(524-byte adb_rsa_pubkey) + comment + NUL. */
