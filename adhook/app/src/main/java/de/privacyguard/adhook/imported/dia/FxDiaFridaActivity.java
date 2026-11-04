@@ -1168,17 +1168,17 @@ public final class FxDiaFridaActivity extends Activity {
 
     private String serverProcessGuards() {
         return "server_pid_live() { "
-                + "fx_server_pid=\\\"$1\\\"; case \\\"$fx_server_pid\\\" in ''|*[!0-9]*) return 1;; esac; "
-                + "[ -r \\\"/proc/$fx_server_pid/stat\\\" ] || return 1; "
-                + "state=$(sed 's/^.*) //' \\\"/proc/$fx_server_pid/stat\\\" 2>/dev/null | cut -d ' ' -f1); "
-                + "case \\\"$state\\\" in Z|X|x) return 1;; esac; "
-                + "kill -0 \\\"$fx_server_pid\\\" 2>/dev/null; }; "
+                + "fx_server_pid=\"$1\"; case \"$fx_server_pid\" in ''|*[!0-9]*) return 1;; esac; "
+                + "[ -r \"/proc/$fx_server_pid/stat\" ] || return 1; "
+                + "state=$(sed 's/^.*) //' \"/proc/$fx_server_pid/stat\" 2>/dev/null | cut -d ' ' -f1); "
+                + "case \"$state\" in Z|X|x) return 1;; esac; "
+                + "kill -0 \"$fx_server_pid\" 2>/dev/null; }; "
                 + "server_pid_matches() { "
-                + "fx_server_pid=\\\"$1\\\"; server_pid_live \\\"$fx_server_pid\\\" || return 1; "
-                + "[ -r \\\"/proc/$fx_server_pid/cmdline\\\" ] || return 1; "
-                + "[ \\\"$(tr '\\\\000' '\\\\n' < \\\"/proc/$fx_server_pid/cmdline\\\" 2>/dev/null | sed -n '1p')\\\" = \\\"$server\\\" ] && "
-                + "[ \\\"$(tr '\\\\000' '\\\\n' < \\\"/proc/$fx_server_pid/cmdline\\\" 2>/dev/null | sed -n '2p')\\\" = \\\"-l\\\" ] && "
-                + "[ \\\"$(tr '\\\\000' '\\\\n' < \\\"/proc/$fx_server_pid/cmdline\\\" 2>/dev/null | sed -n '3p')\\\" = \\\"127.0.0.1:27042\\\" ]; }; ";
+                + "fx_server_pid=\"$1\"; server_pid_live \"$fx_server_pid\" || return 1; "
+                + "[ -r \"/proc/$fx_server_pid/cmdline\" ] || return 1; "
+                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '1p')\" = \"$server\" ] && "
+                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '2p')\" = \"-l\" ] && "
+                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '3p')\" = \"127.0.0.1:27042\" ]; }; ";
     }
 
     private void startServer() {
