@@ -267,7 +267,7 @@ for item in required:
         raise SystemExit("FAIL: watcher PID ownership contract missing: " + item)
 for line in source.splitlines():
     if "WATCH_LOCK_PID" in line or "WATCH_PIDFILE" in line:
-        if '= "$"' in line or ' "$" > "$WATCH' in line:
+        if '= "$" ]; then' in line or 'printf \'%s\\n\' "$" > "$WATCH_LOCK_PID"' in line:
             raise SystemExit("FAIL: literal dollar sign remains in watcher PID ownership")
 print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
 PY
