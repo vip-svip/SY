@@ -46,7 +46,7 @@ assert manual.index("executeHookTargetScopeOperation(") < manual.index("FxLspose
 refresh = main_method("private void refreshLsposedScopeStatus(TextView state, String packageName)",
                       "private boolean isCurrentHookScopeOperation(")
 remove = main_method("private void removeLsposedScope(String packageName, TextView state)",
-                     "private void updateHookTargetScopeStatus(")
+                     "private ApplicationInfo findApp(String pkg)")
 assert "executeHookTargetScopeOperation(" in refresh and "new Thread(" not in refresh
 assert "executeHookTargetScopeOperation(" in remove and "new Thread(" not in remove
 submit = main_method("private void executeHookTargetScopeOperation(", "private boolean isCurrentHookScopeOperation(")
