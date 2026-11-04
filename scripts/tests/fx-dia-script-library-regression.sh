@@ -24,6 +24,10 @@ grep -Fq 'startActivityForResult(intent, REQUEST_EDITOR)' "$ACTIVITY" || fail "s
 grep -Fq 'editorRequestPending = true;' "$ACTIVITY" || fail "script editor request is not tracked"
 grep -Fq 'editorRequestPending = false;' "$ACTIVITY" || fail "script editor request is not consumed or rolled back"
 grep -Fq 'STATE_EDITOR_REQUEST_PENDING' "$ACTIVITY" || fail "script editor request is not restored across Activity recreation"
+grep -Fq 'STATE_IMPORT_REQUEST_PENDING' "$ACTIVITY" || fail "SAF import request is not restored across Activity recreation"
+grep -Fq 'STATE_EXPORT_REQUEST_PENDING' "$ACTIVITY" || fail "SAF export request is not restored across Activity recreation"
+grep -Fq 'importRequestPending = true;' "$ACTIVITY" || fail "SAF import request is not tracked"
+grep -Fq 'exportRequestPending = true;' "$ACTIVITY" || fail "SAF export request is not tracked"
 grep -Fq 'mergeImport' "$ACTIVITY" || fail "JSON library import is not connected"
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
@@ -42,6 +46,10 @@ assert "if (!editorRequestPending)" in editor_result, "stale editor result must 
 assert "editorRequestPending = false;" in editor_result, "editor result must consume the pending request before processing data"
 assert "catch (RuntimeException error)" in activity and "editingName = null;" in activity, "editor launch failure must clear request ownership and pending name"
 assert "out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);" in activity, "editor request ownership must survive Activity recreation"
+assert "if (!importRequestPending)" in activity and "importRequestPending = false;" in activity, "stale SAF import results must be rejected and request consumed"
+assert "if (!exportRequestPending)" in activity and "exportRequestPending = false;" in activity, "stale SAF export results must be rejected and request consumed"
+assert "out.putBoolean(STATE_IMPORT_REQUEST_PENDING, importRequestPending);" in activity
+assert "out.putBoolean(STATE_EXPORT_REQUEST_PENDING, exportRequestPending);" in activity
 assert "getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE)" in editor_result, "edited source is not read from the result Intent"
 assert "FxDiaScriptLibraryStore.save(this, name, source)" in editor_result, "edited source is not persisted to the shared script library"
 assert "Context.MODE_PRIVATE" in store, "script data must remain private to FX"
