@@ -191,12 +191,14 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
             return;
         }
         if ("document".equals(sourceKind)) {
-            if (documentUri == null || !documentPermissionPersisted) {
-                summary.setText("上次选择的 DEX 文件没有可恢复的持久读取授权。请重新选择文件。");
+            if (documentUri == null) {
+                summary.setText("上次选择的 DEX 文件 URI 无效，请重新选择文件。");
                 sourceKind = "none";
-                documentUri = null;
                 documentPermissionPersisted = false;
                 return;
+            }
+            if (!documentPermissionPersisted) {
+                summary.setText("正在尝试恢复上次选择的 DEX 文件；若文件提供方未保留本次读取授权，请重新选择文件。");
             }
             loadDexDocument(documentUri, documentName);
             return;
