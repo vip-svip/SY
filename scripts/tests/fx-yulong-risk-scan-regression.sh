@@ -38,6 +38,12 @@ grep -Fq 'this.unavailable = unavailable' "$CONTENT_DB" || fail "content verdict
 grep -Fq 'v != null && !v.truncated && !v.unavailable' "$CONTENT_DB" || fail "incomplete verdicts must not be cached as CLEAN"
 grep -Fq 'r.truncated = true' "$CONTENT_DB" || fail "token-entry read failures must mark inspection incomplete"
 grep -Fq 'if (apkSha == null) contentReadFailure = true' "$CONTENT_DB" || fail "APK SHA-256 read failure is still treated as a no-match"
+grep -Fq 'CONTENT_SCAN_CACHE_SCHEMA = 2' "$CONTENT_DB" || fail "scan semantics cache namespace was not invalidated"
+grep -Fq '"content-scan-v" + CONTENT_SCAN_CACHE_SCHEMA' "$CONTENT_DB" || fail "old persisted verdicts can still bypass current scan semantics"
+grep -Fq 'CertReadResult certResult = certSha256List(info)' "$CONTENT_DB" || fail "certificate read completeness is not returned"
+grep -Fq 'if (!certResult.complete) contentReadFailure = true' "$CONTENT_DB" || fail "certificate read failure is still treated as no-hit"
+grep -Fq 'certResult.complete && d.allowlistCerts.contains(sha)' "$CONTENT_DB" || fail "partial certificate read can still allowlist-bypass inspection"
+grep -Fq 'if (sigs == null || sigs.length == 0)' "$CONTENT_DB" || fail "empty signer metadata must be considered incomplete"
 grep -Fq 'contentReadFailure = true' "$CONTENT_DB" || fail "DEX/asset entry read failures are still treated as no-match"
 grep -Fq 'boolean inspectionIncomplete = contentReadFailure || tokenTruncated' "$CONTENT_DB" || fail "aggregate content read failures do not reach the final verdict"
 grep -Fq '内容文件读取失败，结果不完整' "$CONTENT_DB" || fail "failed content reads must return an unavailable verdict"
@@ -53,7 +59,14 @@ incomplete = scan.index("boolean inspectionIncomplete = contentReadFailure || to
 assert weak > incomplete, "weak-signal warning must be produced after incomplete state is known"
 assert "if (apkSha == null) contentReadFailure = true" in scan
 assert scan.count("if (sha == null) {") >= 2
-print("PASS: APK, DEX and asset hash failures prevent partial content scans from being cached as clean")
+assert '"content-scan-v" + CONTENT_SCAN_CACHE_SCHEMA' in scan
+assert "if (!certResult.complete) contentReadFailure = true" in scan
+assert "certResult.complete && d.allowlistCerts.contains(sha)" in scan
+key_pos = scan.index('final String cacheKey = "content-scan-v"')
+cert_pos = scan.index("CertReadResult certResult = certSha256List(info)")
+allow_pos = scan.index("certResult.complete && d.allowlistCerts.contains(sha)")
+assert key_pos < cert_pos < allow_pos
+print("PASS: scan cache schema invalidates old CLEAN verdicts and incomplete signer reads cannot allowlist-bypass")
 PY
 python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java" <<'PY'
 from pathlib import Path

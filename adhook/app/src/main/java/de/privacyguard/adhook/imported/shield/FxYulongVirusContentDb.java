@@ -453,6 +453,8 @@ public final class FxYulongVirusContentDb {
 
     /** 2026-10-24：判定结果落盘（跨进程重启复用；键里含特征库版本）。 */
     private static final String PREF_VERDICT = "fx_yulong_virus_verdict_cache";
+    /** Bump whenever inspection semantics change so old CLEAN verdicts cannot bypass new checks. */
+    private static final int CONTENT_SCAN_CACHE_SCHEMA = 2;
     private static final String K_VERDICT_PREFIX = "v_";
     /** 最近一次 inspectApk 的 Context（remember 落盘用，避免改所有调用点）。 */
     private static volatile Context verdictCtx = null;
@@ -1092,10 +1094,10 @@ public final class FxYulongVirusContentDb {
             return new Verdict(CLEAN, "", "无法读取包信息", false, true);
         }
 
-        // 判定缓存：包名 + versionCode + lastUpdateTime + 特征库版本。
-        // 2026-10-24 性能：除了进程内缓存，还落盘一份（virus_verdict_cache）——
-        // 进程重启 / 后台扫描重启后不必把所有 APK 重新哈希一遍。
-        final String cacheKey = pkg + "|" + info.versionCode + "|" + info.lastUpdateTime + "|" + d.version;
+        // Include the scanner semantics version, otherwise old persisted CLEAN verdicts
+        // can bypass newly-added integrity checks after an app upgrade.
+        final String cacheKey = "content-scan-v" + CONTENT_SCAN_CACHE_SCHEMA + "|"
+                + pkg + "|" + info.versionCode + "|" + info.lastUpdateTime + "|" + d.version;
         Verdict cached = VERDICT_CACHE.get(cacheKey);
         if (cached != null) return cached;
         verdictCtx = ctx.getApplicationContext() != null ? ctx.getApplicationContext() : ctx;
@@ -1120,9 +1122,12 @@ public final class FxYulongVirusContentDb {
         boolean contentReadFailure = false;
         try {
             // ---------------- ① 签名证书 ----------------
-            List<String> certShas = certSha256List(info);
+            CertReadResult certResult = certSha256List(info);
+            if (!certResult.complete) contentReadFailure = true;
+            List<String> certShas = certResult.sha256;
             for (String sha : certShas) {
-                if (d.allowlistCerts.contains(sha)) {
+                // A partially-read signer set must never trigger an allowlist bypass.
+                if (certResult.complete && d.allowlistCerts.contains(sha)) {
                     return remember(cacheKey, new Verdict(CLEAN, "", "证书在 allowlist，放行", false));
                 }
             }
@@ -1963,9 +1968,20 @@ public final class FxYulongVirusContentDb {
         }
     }
 
-    /** 取包的证书 SHA-256 列表（当前 + 历史；API &lt; 28 回退 GET_SIGNATURES） */
-    private static List<String> certSha256List(PackageInfo info) {
+    private static final class CertReadResult {
+        final List<String> sha256;
+        final boolean complete;
+
+        CertReadResult(List<String> hashes, boolean complete) {
+            this.sha256 = hashes;
+            this.complete = complete;
+        }
+    }
+
+    /** Read all current/history signing certificates; missing or failed reads are incomplete. */
+    private static CertReadResult certSha256List(PackageInfo info) {
         List<String> out = new ArrayList<>();
+        boolean complete = true;
         try {
             Signature[] sigs = null;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -1978,17 +1994,28 @@ public final class FxYulongVirusContentDb {
                 // noinspection deprecation
                 sigs = info.signatures;
             }
-            if (sigs == null) return out;
-            for (int i = 0; i < sigs.length; i++) {
-                Signature s = sigs[i];
-                if (s == null) continue;
-                String sha = sha256Bytes(s.toByteArray());
-                if (sha != null && !sha.isEmpty()) out.add(sha);
+            if (sigs == null || sigs.length == 0) {
+                return new CertReadResult(out, false);
             }
+            for (int i = 0; i < sigs.length; i++) {
+                Signature signature = sigs[i];
+                if (signature == null) {
+                    complete = false;
+                    continue;
+                }
+                String sha = sha256Bytes(signature.toByteArray());
+                if (sha == null || sha.isEmpty()) {
+                    complete = false;
+                    continue;
+                }
+                out.add(sha);
+            }
+            if (out.isEmpty()) complete = false;
         } catch (Throwable tr) {
+            complete = false;
             Log.w(TAG, "读取签名证书失败", tr);
         }
-        return out;
+        return new CertReadResult(out, complete);
     }
 
     private static String sha256Bytes(byte[] data) {
