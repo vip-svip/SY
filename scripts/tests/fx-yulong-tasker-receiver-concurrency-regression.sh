@@ -21,6 +21,10 @@ import xml.etree.ElementTree as ET
 receiver_path, widget_path, tile_path, ad_path, general_path, gate_path, manifest_path, vpn_path = map(Path, sys.argv[1:])
 receiver = receiver_path.read_text(encoding="utf-8")
 widget = widget_path.read_text(encoding="utf-8")
+widget_layout = (widget_path.parents[4] / "res/layout/fx_yulong_ad_widget.xml").read_text(encoding="utf-8")
+assert 'android:text="FX VPN 快捷控制"' in widget_layout, "widget heading must match its migrated VPN function"
+assert 'android:text="节点：未选择"' in widget_layout, "widget body must not retain ad-block count copy"
+assert 'android:text="启动 VPN"' in widget_layout, "widget default action must match its VPN start/stop behavior"
 tile = tile_path.read_text(encoding="utf-8")
 ad = ad_path.read_text(encoding="utf-8")
 general = general_path.read_text(encoding="utf-8")
