@@ -40,6 +40,14 @@ import java.util.concurrent.TimeUnit;
 /** Read-only DEX class-name browser migrated from Dia 23.11. */
 public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_DEX_DOCUMENT = 0xD3A;
+    private static final String STATE_SOURCE_KIND = "fx_dex_source_kind";
+    private static final String STATE_TARGET_PACKAGE = "fx_dex_target_package";
+    private static final String STATE_DOCUMENT_URI = "fx_dex_document_uri";
+    private static final String STATE_DOCUMENT_NAME = "fx_dex_document_name";
+    private static final String STATE_DOCUMENT_PERSISTED = "fx_dex_document_persisted";
+    private static final String STATE_QUERY = "fx_dex_query";
+    private static final String STATE_SCROLL_Y = "fx_dex_scroll_y";
+    private static final int MAX_QUERY_CHARS = 256;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
             r -> new Thread(r, "fx-dia-dex-io"), new ThreadPoolExecutor.AbortPolicy());
@@ -60,6 +68,14 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
     private volatile int dexGeneration;
     private boolean appsLoading;
     private volatile boolean destroyed;
+    private String sourceKind = "none";
+    private String documentName = "selected.dex";
+    private Uri documentUri;
+    private boolean documentPermissionPersisted;
+    private String restoredQuery = "";
+    private int restoredScrollY;
+    private boolean restoreScrollPending;
+    private ScrollView resultScroll;
 
     private static final class SearchHit {
         final FxDiaDexIndex.DexClass item;
@@ -101,6 +117,28 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) {
+            sourceKind = state.getString(STATE_SOURCE_KIND, "none");
+            if (!"installed-selected".equals(sourceKind)
+                    && !"installed-loaded".equals(sourceKind)
+                    && !"framework".equals(sourceKind)
+                    && !"document".equals(sourceKind)) sourceKind = "none";
+            restoredQuery = state.getString(STATE_QUERY, "");
+            if (restoredQuery.length() > MAX_QUERY_CHARS)
+                restoredQuery = restoredQuery.substring(0, MAX_QUERY_CHARS);
+            restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            restoreScrollPending = restoredScrollY > 0;
+            documentName = state.getString(STATE_DOCUMENT_NAME, "selected.dex");
+            if (documentName == null || documentName.length() > 256) documentName = "selected.dex";
+            String savedUri = state.getString(STATE_DOCUMENT_URI);
+            if ("document".equals(sourceKind) && savedUri != null && savedUri.length() <= 4096) {
+                try { documentUri = Uri.parse(savedUri); }
+                catch (RuntimeException invalid) { documentUri = null; }
+                documentPermissionPersisted = state.getBoolean(STATE_DOCUMENT_PERSISTED, false);
+            } else if ("document".equals(sourceKind)) {
+                sourceKind = "none";
+            }
+        }
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
@@ -110,6 +148,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        resultScroll = scroll;
         LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
@@ -117,6 +156,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         target = text("尚未选择应用。", 13, 0xff334155, false);
         summary = text("选择应用后读取 APK 中的 DEX 类名。", 13, 0xff334155, false);
         filter = new EditText(this); filter.setSingleLine(true); filter.setHint("搜索类名、方法名、字段名或描述符");
+        filter.setText(restoredQuery);
         results = new LinearLayout(this); results.setOrientation(LinearLayout.VERTICAL);
         card(body, "目标 APK", "只读解析 DEX class/method/field 索引；不加载目标类、不执行目标代码。",
                 target, button("选择已安装应用", this::chooseApp),
@@ -137,6 +177,85 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
             @Override public void afterTextChanged(Editable s) {}
         });
         loadInstalledApps();
+        restoreSourceAfterRecreation(state);
+    }
+
+    private void restoreSourceAfterRecreation(Bundle state) {
+        if (state == null || "none".equals(sourceKind)) return;
+        if ("framework".equals(sourceKind)) {
+            loadFrameworkDex();
+            return;
+        }
+        if ("document".equals(sourceKind)) {
+            if (documentUri == null || !documentPermissionPersisted) {
+                summary.setText("上次选择的 DEX 文件没有可恢复的持久读取授权。请重新选择文件。");
+                sourceKind = "none";
+                documentUri = null;
+                documentPermissionPersisted = false;
+                return;
+            }
+            loadDexDocument(documentUri, documentName);
+            return;
+        }
+        String packageName = state.getString(STATE_TARGET_PACKAGE, "");
+        if (packageName.isEmpty()) {
+            summary.setText("上次选择的应用信息无效，请重新选择应用。");
+            sourceKind = "none";
+            return;
+        }
+        try {
+            selected = getPackageManager().getApplicationInfo(packageName, 0);
+            CharSequence label = getPackageManager().getApplicationLabel(selected);
+            target.setText(String.valueOf(label) + "\\n" + packageName);
+            if ("installed-loaded".equals(sourceKind)) loadDex();
+            else summary.setText("已恢复目标应用。点击“读取 DEX 类名”重新建立只读索引。");
+        } catch (PackageManager.NameNotFoundException missing) {
+            selected = null;
+            sourceKind = "none";
+            summary.setText("上次选择的应用已卸载，请重新选择应用。");
+        }
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putString(STATE_SOURCE_KIND, sourceKind);
+        if (selected != null && selected.packageName != null)
+            outState.putString(STATE_TARGET_PACKAGE, selected.packageName);
+        if (documentUri != null && documentUri.toString().length() <= 4096)
+            outState.putString(STATE_DOCUMENT_URI, documentUri.toString());
+        if (documentName != null && documentName.length() <= 256)
+            outState.putString(STATE_DOCUMENT_NAME, documentName);
+        outState.putBoolean(STATE_DOCUMENT_PERSISTED, documentPermissionPersisted);
+        String query = filter == null || filter.getText() == null
+                ? "" : filter.getText().toString();
+        outState.putString(STATE_QUERY,
+                query.length() > MAX_QUERY_CHARS ? query.substring(0, MAX_QUERY_CHARS) : query);
+        outState.putInt(STATE_SCROLL_Y,
+                Math.max(0, resultScroll == null ? restoredScrollY : resultScroll.getScrollY()));
+        super.onSaveInstanceState(outState);
+    }
+
+    private void restoreResultScrollAfterRender() {
+        if (!restoreScrollPending || resultScroll == null) return;
+        final ScrollView expected = resultScroll;
+        final int y = restoredScrollY;
+        restoreScrollPending = false;
+        expected.post(() -> {
+            if (!destroyed && !isFinishing() && !isDestroyed() && expected == resultScroll)
+                expected.scrollTo(0, y);
+        });
+    }
+
+    private void releaseDocumentPermission() {
+        Uri old = documentUri;
+        boolean release = documentPermissionPersisted;
+        documentUri = null;
+        documentPermissionPersisted = false;
+        if (release && old != null) {
+            try {
+                getContentResolver().releasePersistableUriPermission(
+                        old, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException | IllegalArgumentException ignored) { }
+        }
     }
 
     private void chooseDexDocument() {
@@ -173,6 +292,31 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         }
         final Uri uri = data.getData();
         final String name = documentName(uri);
+        int grantFlags = data.getFlags();
+        boolean persisted = false;
+        if ((grantFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
+                && (grantFlags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                persisted = true;
+            } catch (SecurityException | IllegalArgumentException ignored) { }
+        }
+        boolean sameDocument = uri.equals(documentUri);
+        if (!sameDocument) releaseDocumentPermission();
+        documentUri = uri;
+        documentName = name == null || name.length() > 256 ? "selected.dex" : name;
+        documentPermissionPersisted = persisted || (sameDocument && documentPermissionPersisted);
+        sourceKind = "document";
+        selected = null;
+        loadDexDocument(uri, documentName);
+    }
+
+    private void loadDexDocument(Uri uri, String name) {
+        if (uri == null) {
+            summary.setText("DEX 文档 URI 无效，请重新选择文件。");
+            return;
+        }
         final int request = ++dexGeneration;
         searchGeneration++;
         exportGeneration++;
@@ -180,7 +324,9 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         selected = null;
         classes.clear();
         target.setText("DEX 文件：" + name);
-        summary.setText("正在后台只读解析 DEX 文件…");
+        summary.setText(documentPermissionPersisted
+                ? "正在后台只读解析 DEX 文件…"
+                : "正在读取本次选择的 DEX 文件；该文件授权可能无法跨进程重建…");
         results.removeAllViews();
         try {
             worker.execute(() -> {
@@ -277,6 +423,8 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         }
         new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
                 .setItems(labels, (dialog, which) -> {
+                    releaseDocumentPermission();
+                    sourceKind = "installed-selected";
                     selected = apps.get(which);
                     dexGeneration++;
                     exportGeneration++;
@@ -287,6 +435,9 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
     }
 
     private void loadFrameworkDex() {
+        releaseDocumentPermission();
+        sourceKind = "framework";
+        selected = null;
         exportGeneration++;
         detailGeneration++;
         summary.setText("正在读取 Dia 23.11 随附的 Android Framework DEX…");
@@ -327,6 +478,8 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
 
     private void loadDex() {
         if (selected == null) { summary.setText("请先选择应用。"); return; }
+        releaseDocumentPermission();
+        sourceKind = "installed-loaded";
         final ApplicationInfo app = selected;
         final int request = ++dexGeneration;
         summary.setText("正在只读解析 DEX 类、方法与字段索引…");
@@ -414,6 +567,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                     else if (truncated) results.addView(text(
                             "仅显示前 300 个匹配类，请缩小搜索范围。",
                             12, 0xff8a6d3b, false));
+                    restoreResultScrollAfterRender();
                 });
             });
         } catch (RejectedExecutionException full) {
@@ -701,6 +855,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
 
     @Override protected void onDestroy() {
         destroyed = true;
+        if (!isChangingConfigurations()) releaseDocumentPermission();
         searchGeneration++;
         exportGeneration++;
         detailGeneration++;
