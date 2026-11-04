@@ -34,6 +34,7 @@ grep -Fq 'releasePersistableUriPermission' "$ACTIVITY" || fail "persisted SAF im
 grep -Fq 'importRequestPending = true;' "$ACTIVITY" || fail "SAF import request is not tracked"
 grep -Fq 'exportRequestPending = true;' "$ACTIVITY" || fail "SAF export request is not tracked"
 grep -Fq 'mergeImport' "$ACTIVITY" || fail "JSON library import is not connected"
+grep -Fq 'FxDiaScriptLibraryStore.mergeImport(this, json, preview.overwrittenNames)' "$ACTIVITY" || fail "confirmed overwrite preview is not passed to the atomic merge"
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
 python3 - "$ACTIVITY" "$STORE" "$FRIDA" "$POLICY" "$HOST_TEST" <<'PY'
