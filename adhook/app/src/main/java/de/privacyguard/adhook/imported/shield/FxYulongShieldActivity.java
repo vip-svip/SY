@@ -16,7 +16,7 @@ import android.widget.Toast;
  * Yulong Shield 9.9.60 third-level hub inside FX.
  * Original feature pages are kept as separate fourth-level Activities.
  */
-public final class FxYulongShieldActivity extends Activity {
+public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private LinearLayout body;
     private ScrollView shieldScroll;
     private static final String STATE_SCROLL_Y = "fx_yulong_shield_scroll_y";
@@ -260,7 +260,7 @@ public final class FxYulongShieldActivity extends Activity {
         body.setPadding(0, dp(4), 0, dp(18));
         shieldScroll.addView(body);
         root.addView(shieldScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         if (state != null) {
             final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             shieldScroll.post(() -> shieldScroll.scrollTo(0, restoreY));
