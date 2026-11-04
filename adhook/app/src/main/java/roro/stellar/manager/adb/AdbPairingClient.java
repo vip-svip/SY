@@ -210,7 +210,7 @@ public final class AdbPairingClient implements Closeable {
     }
 
     private boolean exchangePeerInfo() throws IOException {
-        byte[] publicKeyLine = key.getAdbPublicKey();
+        byte[] publicKeyLine = key.getAdbPublicKeyLine();
         byte[] plainRecord = null;
         byte[] encryptedRecord = null;
         byte[] remoteEncrypted = null;
