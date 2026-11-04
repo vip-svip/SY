@@ -3361,3 +3361,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-frida-gadget-session-regression.sh`、本状态文件。
 - 验证：已对照 `FxDiaFridaActivity` 当前 `worker`、`submitWorker`、`runRoot`、`showGadgetSessionLog` 与 `onDestroy` 实际实现；等待 Actions。
 - 下一步：查看 session regression 后续首错；再继续 Frida server/Gadget UI 的状态同步和取消返回链。
+
+
+## 2026-11-05 — Dia Frida/CrashReport 定向回归断言修正
+
+- Actions `41917868626` 首错：新增会话日志线程池检查把 `ThreadPoolExecutor` 构造函数误按单行匹配，源码实际按多行格式化；已改为分别检查构造调用和参数/单项队列，保留容量为 1 的强约束。提交：`1bb1c3557d99fcea95acef2903f8923f8b37a7d1`。
+- Actions `41917824964` 首错：CrashReport 测试错误要求 `FxDiaNativeCrashCapture` 内出现调用表达式 `clearMinidumps(context)`，实际类定义的是 `clearMinidumps(Context context)` API；同时有多处测试期望旧变量名/旧布尔表达式，与 `FxDiaCrashDumpDirectory` 现行 `directory.equals(...)` 和失败即返回 false 的实现不一致。已按当前实际 API/路径守卫重写断言，不改变产品代码。提交：`66b34177b24a5fa8ff8edca216d86c60f85bdf70`。
+- 未验证：两项测试修正均等待新 Actions；不宣称 CrashReport 或 Frida 回归通过。
+- 下一步：读取新 Actions 首错；若通过，再继续处理 Frida SessionLog bounded worker 和 Gadget/Server 偏好一致性。CI 中 `FxDiaSessionLogActivity` 路径断言来源矛盾仍需追踪。
