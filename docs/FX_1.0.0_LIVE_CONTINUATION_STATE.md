@@ -1895,3 +1895,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 相关提交：`60399161c08e4c4f4c423865581c8b1af15f6deb`（接受冲突感知位置控件）；`c83802867775b1759bc018163f9704cfe7e4fb2e`（迁移检查器 helper 边界调整）；`9ba322ea7103d202e71c58cfd8f7a4a65554b37d`（双向 GPS/位置互斥回归覆盖）。后续当前分支检查器已把错误变量名改为真实变量名。
 - 最新可见自动运行：`41905358248` 对当前 HEAD `95f53f94f81dfa7b4158cfca42b53ec62bbd6fe9` 仍处于 pending；`41905243917` 对稍早提交处于 in_progress；更早运行因 `concurrency.cancel-in-progress: true` 被取消。当前没有证据证明最新 HEAD 的 Host 回归或 Android 编译已通过。
 - 下一步：等待/读取当前自动运行的结果；若该步骤通过，再确认静态迁移与 Host 回归阶段是否真正执行。随后将位置保护控件的同一契约加入 `fx-hook-native-ui-regression.sh`，与下一批 Hook UI 测试一起提交，避免单独触发重复的 300 项 workflow。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 大脚本草稿旋转恢复
+
+- 发现 Frida 主页面允许从 SAF 导入最大 512 KiB 的脚本，但 Activity Bundle 只保存不超过 48 KiB 的源码；较大导入脚本在旋转/Activity 重建时会丢失。
+- 修复：48 KiB 以内继续使用 Bundle；48–512 KiB 使用应用私有 cache 中的 `AtomicFile` 暂存，Bundle 只保存布尔标记。写入采用 `startWrite/finishWrite/failWrite` 原子流程，恢复时执行 512 KiB 上限检查；首次无恢复状态时清理陈旧草稿，Activity 正常结束时清理暂存文件。
+- 不降低原 SAF 导入 512 KiB 上限、不改变全屏编辑器 48 KiB 上限、不把大型脚本源码塞入 Activity Bundle。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java`；`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`；本状态文件。
+- 提交：`43b9c74a8d9c22f3ab06826e30e0d6cf14d15a26`（AtomicFile 草稿保存/恢复）；`952863f0e82f8b932f5baf65df8a9176bd7dfb5a`（回归断言）。
+- 验证等级：源码静态确认 Bundle/AtomicFile 双路径、512 KiB 限制、原子写入失败回滚、恢复读取和 Activity finish 清理，以及回归断言。未运行 Shell/Python 回归、Gradle、模拟器或真机 48–512 KiB 脚本旋转测试。
+- 下一步：复核 Frida 页面状态恢复中的目标进程 PID 过期校验、编辑器返回与 SAF 并发请求；随后集中运行 Frida 页面组 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
