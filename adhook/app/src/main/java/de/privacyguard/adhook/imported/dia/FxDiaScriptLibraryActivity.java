@@ -32,7 +32,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Dedicated native Dia fourth-level page for the shared Frida JavaScript library. */
-public final class FxDiaScriptLibraryActivity extends Activity {
+public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_EDITOR = 0x3a11;
     private static final int REQUEST_IMPORT = 0x3a12;
     private static final int REQUEST_EXPORT = 0x3a13;
@@ -120,7 +120,7 @@ public final class FxDiaScriptLibraryActivity extends Activity {
         body.setPadding(0, dp(4), 0, dp(16));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         status = text("正在读取本机 Frida 脚本库…", 12, 0xff617080, false);
         card(body, "本地脚本库", "数据与 Dia Frida 管理页共用同一私有配置和 JSON schema；载入、编辑、删除和导入不会自动执行脚本。",
