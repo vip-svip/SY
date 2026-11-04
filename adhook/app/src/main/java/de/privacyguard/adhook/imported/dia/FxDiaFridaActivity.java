@@ -1513,7 +1513,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("frida-server 路径无效。");
             return;
         }
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("server_path", server).apply();
         String command = "set -eu; umask 077; "
                 + "server=" + quote(server) + "; state=/data/adb/privacyguard; "
                 + "pidfile=" + quote(SERVER_PID) + "; log=\"$state/dia-frida-server.log\"; "
@@ -1557,8 +1556,20 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "[ \"$current_start\" = \"$spawned_start\" ] && server_pid_matches \"$pid\" || { "
                 + "echo FX_FRIDA_SERVER_START_FAILED; exit 25; }; "
                 + "spawned_pid=; spawned_start=; echo server=started pid=$pid;";
-        runRoot(command, 20000L, result ->
-                setStatus("启动退出码 " + result.exitCode + "\n" + result.output));
+        runRoot(command, 20000L, result -> {
+            if (result.exitCode != 0) {
+                setStatus("启动退出码 " + result.exitCode + "\n" + result.output);
+                return;
+            }
+            boolean preferencesSaved = getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString("server_path", server).commit();
+            if (!preferencesSaved) {
+                setStatus("frida-server 状态检查/启动命令已成功，但本机路径索引保存失败；请重新打开页面核对路径。\n"
+                        + result.output);
+                return;
+            }
+            setStatus("启动退出码 0\n" + result.output);
+        });
     }
 
         private void stopServer() {
