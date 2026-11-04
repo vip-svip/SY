@@ -317,6 +317,19 @@ assert "activityDestroyed = true;" in black
 assert "private void loadApps()" not in black
 assert "setMultiChoiceItems(names, checked" not in black
 
+# Whitelist and blacklist pages retain their visible position and active filters
+# when Android recreates their Activities.
+assert 'STATE_QUERY = "fx_shield_whitelist_query"' in white
+assert 'STATE_SCROLL_Y = "fx_shield_whitelist_scroll_y"' in white
+assert "onSaveInstanceState(Bundle outState)" in white
+assert "outState.putString(STATE_QUERY" in white and "outState.putInt(STATE_SCROLL_Y" in white
+assert "searchInput.setText(query)" in white and "whitelistScroll.scrollTo(0, restoreY)" in white
+assert 'STATE_PAGE = "fx_shield_blacklist_page"' in black
+assert 'STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y"' in black
+assert "outState.putInt(STATE_PAGE" in black and "outState.putInt(STATE_SCROLL_Y" in black
+assert "savedInstanceState.getInt(STATE_PAGE, 1)" in black
+assert "blacklistScroll.scrollTo(0, restoreY)" in black
+
 # Whitelist label/icon refresh must not spawn overlapping unbounded raw threads.
 assert "ThreadPoolExecutor(1, 1, 30L" in white
 assert "new ArrayBlockingQueue<>(1)" in white
