@@ -457,10 +457,16 @@ schedule_get() {
   echo "active=$(pg_get yulong_ad_schedule_active 1)"
   watcher=0
   pidfile="$PG/yulong-ad-schedule.pid"
-  if [ -s "$pidfile" ]; then
+  if [ -f "$pidfile" ] && [ ! -L "$pidfile" ]; then
     pid=$(cat "$pidfile" 2>/dev/null)
     case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then watcher=1; fi
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ -r "/proc/$pid/cmdline" ]; then
+      proc_state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null || :)
+      proc_cmd=$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null || :)
+      case "$proc_cmd" in
+        *"yulong-ad-schedule.sh"*' watch '*) [ "$proc_state" = Z ] || watcher=1 ;;
+      esac
+    fi
   fi
   echo "watcher=$watcher"
 }

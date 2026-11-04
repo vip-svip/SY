@@ -16,8 +16,97 @@ done
 SCHEDULE="$PG/yulong-ad-schedule.conf"
 PIDFILE="$PG/yulong-ad-schedule.pid"
 LOG="$PG/yulong-ad-schedule.log"
+RUNTIME_LOCK="$PG/yulong-ad-schedule.runtime.lock"
+RUNTIME_OWNER="$RUNTIME_LOCK/owner"
+RUNTIME_LOCK_HELD=0
+RUNTIME_LOCK_START=
 mkdir -p "$PG" 2>/dev/null || exit 21
 log() { printf '[%s] yulong-ad-schedule: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
+proc_start_time() {
+  [ -r "/proc/$1/stat" ] || return 1
+  awk '$3 != "Z" {print $22}' "/proc/$1/stat" 2>/dev/null
+}
+acquire_runtime_lock() {
+  _lock_tries=0
+  _lock_missing=0
+  _lock_self_start=$(proc_start_time "$" 2>/dev/null || :)
+  case "$_lock_self_start" in ''|*[!0-9]*) log "cannot establish process identity for scheduler lock"; return 31 ;; esac
+  while ! mkdir "$RUNTIME_LOCK" 2>/dev/null; do
+    if [ -d "$RUNTIME_LOCK" ] && [ ! -L "$RUNTIME_LOCK" ]; then
+      if [ -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+        _lock_record=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
+        _lock_pid=$(printf '%s\n' "$_lock_record" | awk '{print $1}')
+        _lock_start=$(printf '%s\n' "$_lock_record" | awk '{print $2}')
+        case "$_lock_pid" in ''|*[!0-9]*) _lock_pid= ;; esac
+        case "$_lock_start" in ''|*[!0-9]*) _lock_start= ;; esac
+        _lock_actual=
+        if [ -n "$_lock_pid" ] && [ -n "$_lock_start" ]; then
+          _lock_actual=$(proc_start_time "$_lock_pid" 2>/dev/null || :)
+        fi
+        if [ "$_lock_actual" != "$_lock_start" ]; then
+          _lock_confirm=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
+          if [ "$_lock_confirm" = "$_lock_record" ]; then
+            rm -f "$RUNTIME_OWNER" 2>/dev/null || :
+            rmdir "$RUNTIME_LOCK" 2>/dev/null || :
+          fi
+        fi
+        _lock_missing=0
+      else
+        _lock_missing=$((_lock_missing + 1))
+        if [ "$_lock_missing" -ge 5 ] && [ ! -s "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+          for _lock_tmp in "$RUNTIME_LOCK"/owner.*; do
+            [ -f "$_lock_tmp" ] && [ ! -L "$_lock_tmp" ] || continue
+            rm -f "$_lock_tmp" 2>/dev/null || :
+          done
+          rmdir "$RUNTIME_LOCK" 2>/dev/null || :
+          _lock_missing=0
+        fi
+      fi
+    fi
+    _lock_tries=$((_lock_tries + 1))
+    if [ "$_lock_tries" -ge 300 ]; then
+      log "scheduler runtime lock remained busy; operation was not applied"
+      return 30
+    fi
+    sleep 0.2
+  done
+  _lock_owner_tmp="$RUNTIME_LOCK/owner.$"
+  if (umask 077; printf '%s %s\n' "$" "$_lock_self_start" > "$_lock_owner_tmp" && mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"); then
+    RUNTIME_LOCK_HELD=1
+    RUNTIME_LOCK_START=$_lock_self_start
+    return 0
+  fi
+  rm -f "$_lock_owner_tmp" 2>/dev/null || :
+  rmdir "$RUNTIME_LOCK" 2>/dev/null || :
+  return 31
+}
+release_runtime_lock() {
+  [ "$RUNTIME_LOCK_HELD" = 1 ] || return 0
+  if [ -f "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+    _release_record=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
+    _release_pid=$(printf '%s\n' "$_release_record" | awk '{print $1}')
+    _release_start=$(printf '%s\n' "$_release_record" | awk '{print $2}')
+    if [ "$_release_pid" = "$" ] && [ "$_release_start" = "$RUNTIME_LOCK_START" ]; then
+      rm -f "$RUNTIME_OWNER" 2>/dev/null || :
+      rmdir "$RUNTIME_LOCK" 2>/dev/null || :
+    fi
+  fi
+  RUNTIME_LOCK_HELD=0
+  RUNTIME_LOCK_START=
+}
+with_runtime_lock() {
+  acquire_runtime_lock || return $?
+  if "$@"; then
+    _lock_rc=0
+  else
+    _lock_rc=$?
+  fi
+  release_runtime_lock
+  return "$_lock_rc"
+}
+trap 'release_runtime_lock; exit 129' HUP
+trap 'release_runtime_lock; exit 130' INT
+trap 'release_runtime_lock; exit 143' TERM
 read_value() {
   key=$1
   if [ -f "$SCHEDULE" ] && [ ! -L "$SCHEDULE" ]; then
@@ -25,6 +114,7 @@ read_value() {
   fi
 }
 valid_time() { printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'; }
+valid_days() { printf '%s\n' "$1" | awk -F, 'NF<1 || NF>7 {bad=1} {for(i=1;i<=NF;i++)if($i!~/^[1-7]$/||seen[$i]++)bad=1} END{exit bad?1:0}'; }
 to_minutes() {
   h=${1%:*}; m=${1#*:}
   h=${h#0}; m=${m#0}
@@ -39,6 +129,7 @@ calculate() {
   start=$(read_value start); end=$(read_value end); days=$(read_value days)
   valid_time "$start" && valid_time "$end" || { echo 1; return 0; }
   [ -n "$days" ] || days=1,2,3,4,5,6,7
+  valid_days "$days" || { log "invalid schedule weekdays; failing open to active ad filtering"; echo 1; return 0; }
   day=$(date '+%u' 2>/dev/null); now_hm=$(date '+%H:%M' 2>/dev/null)
   case "$day" in 1|2|3|4|5|6|7) ;; *) echo 1; return 0 ;; esac
   valid_time "$now_hm" || { echo 1; return 0; }
@@ -56,7 +147,7 @@ calculate() {
     echo 0
   fi
 }
-evaluate() {
+evaluate_locked() {
   desired=$(calculate)
   current=$(pg_get yulong_ad_schedule_active 1 2>/dev/null)
   case "$current" in 0|1) ;; *) current=1 ;; esac
@@ -70,21 +161,12 @@ evaluate() {
   sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1 || :
   log "apply failed; restored previous active state $current"; return 1
 }
+evaluate() { with_runtime_lock evaluate_locked; }
 watch() { log "watcher started"; while :; do evaluate || :; sleep 60; done; }
-start() {
-  # A disabled schedule must not keep a 60-second background poller alive.
-  if [ "$(read_value enabled)" != 1 ]; then
-    stop || return 1
-    echo "schedule-disabled"
-    return 0
-  fi
-  if [ -s "$PIDFILE" ]; then
-    old=$(cat "$PIDFILE" 2>/dev/null); case "$old" in ''|*[!0-9]*) old= ;; esac
-    if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then echo "already-running pid=$old"; return 0; fi
-  fi
-  nohup sh "$SCRIPT" watch "$MP" "$PG" >> "$LOG" 2>&1 &
-  pid=$!; (umask 077; printf '%s\n' "$pid" > "$PIDFILE") || return 1
-  evaluate || :; echo "started pid=$pid"
+process_running() {
+  kill -0 "$1" 2>/dev/null || return 1
+  _process_state=$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null || :)
+  [ "$_process_state" != Z ]
 }
 is_our_watcher() {
   _watch_pid=$1
@@ -95,37 +177,73 @@ is_our_watcher() {
   esac
   return 1
 }
-stop() {
-  _uninstall_mode=${4:-}
-  if [ -s "$PIDFILE" ]; then
+write_pidfile() {
+  _pid_to_write=$1
+  _pid_tmp=$(mktemp "$PG/yulong-ad-schedule.pid.XXXXXX") || return 1
+  if (umask 077; printf '%s\n' "$_pid_to_write" > "$_pid_tmp" && chmod 600 "$_pid_tmp" && mv -f "$_pid_tmp" "$PIDFILE"); then
+    return 0
+  fi
+  rm -f "$_pid_tmp" 2>/dev/null || :
+  return 1
+}
+start_locked() {
+  if [ "$(read_value enabled)" != 1 ]; then
+    stop_locked "$@" || return 1
+    echo "schedule-disabled"
+    return 0
+  fi
+  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    old=$(cat "$PIDFILE" 2>/dev/null)
+    case "$old" in ''|*[!0-9]*) old= ;; esac
+    if [ -n "$old" ] && process_running "$old" && is_our_watcher "$old"; then
+      echo "already-running pid=$old"
+      return 0
+    fi
+  fi
+  rm -f "$PIDFILE"
+  nohup sh "$SCRIPT" watch "$MP" "$PG" >> "$LOG" 2>&1 &
+  pid=$!
+  if ! write_pidfile "$pid"; then
+    if is_our_watcher "$pid"; then kill -TERM "$pid" 2>/dev/null || :; fi
+    log "failed to persist watcher PID; spawned watcher was asked to stop"
+    return 1
+  fi
+  evaluate_locked || log "watcher started; immediate evaluate failed and will retry on the next interval"
+  echo "started pid=$pid"
+}
+start() { with_runtime_lock start_locked "$@"; }
+stop_locked() {
+  _uninstall_mode=
+  [ "$#" -lt 4 ] || _uninstall_mode=$4
+  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
     pid=$(cat "$PIDFILE" 2>/dev/null)
     case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      if ! is_our_watcher "$pid"; then
-        log "refusing to signal PID $pid: process identity does not match this watcher"
-        return 1
-      fi
-      kill -TERM "$pid" 2>/dev/null || :
-      _stop_wait=0
-      while [ "$_stop_wait" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
-        sleep 0.2
-        _stop_wait=$((_stop_wait+1))
-      done
-      if kill -0 "$pid" 2>/dev/null; then
-        if ! is_our_watcher "$pid"; then
-          log "PID $pid changed identity during shutdown; refusing SIGKILL"
+    if [ -n "$pid" ] && process_running "$pid"; then
+      if is_our_watcher "$pid"; then
+        kill -TERM "$pid" 2>/dev/null || :
+        _stop_wait=0
+        while [ "$_stop_wait" -lt 10 ] && process_running "$pid"; do
+          sleep 0.2
+          _stop_wait=$((_stop_wait + 1))
+        done
+        if process_running "$pid"; then
+          if ! is_our_watcher "$pid"; then
+            log "PID $pid changed identity during shutdown; refusing SIGKILL"
+            return 1
+          fi
+          kill -KILL "$pid" 2>/dev/null || :
+          _stop_wait=0
+          while [ "$_stop_wait" -lt 10 ] && process_running "$pid"; do
+            sleep 0.2
+            _stop_wait=$((_stop_wait + 1))
+          done
+        fi
+        if process_running "$pid"; then
+          log "could not confirm watcher PID $pid stopped"
           return 1
         fi
-        kill -KILL "$pid" 2>/dev/null || :
-        _stop_wait=0
-        while [ "$_stop_wait" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
-          sleep 0.2
-          _stop_wait=$((_stop_wait+1))
-        done
-      fi
-      if kill -0 "$pid" 2>/dev/null; then
-        log "could not confirm watcher PID $pid stopped"
-        return 1
+      else
+        log "refusing to signal PID $pid: process identity does not match this watcher; removing stale PID pointer"
       fi
     fi
   fi
@@ -146,12 +264,27 @@ stop() {
   log "watcher stopped; Yulong manual master preference remains unchanged"
   echo stopped
 }
+stop() { with_runtime_lock stop_locked "$@"; }
+status() {
+  echo "enabled=$(read_value enabled)"
+  echo "start=$(read_value start)"
+  echo "end=$(read_value end)"
+  echo "days=$(read_value days)"
+  echo "active=$(pg_get yulong_ad_schedule_active 1)"
+  watcher=0
+  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    pid=$(cat "$PIDFILE" 2>/dev/null)
+    case "$pid" in ''|*[!0-9]*) pid= ;; esac
+    if [ -n "$pid" ] && process_running "$pid" && is_our_watcher "$pid"; then watcher=1; fi
+  fi
+  echo "watcher=$watcher"
+}
 cmd=${1:-status}
 case "$cmd" in
-  start) start ;;
+  start) start "$@" ;;
   watch) watch ;;
-  evaluate) evaluate ;;
-  stop) stop ;;
-  status) echo "enabled=$(read_value enabled)"; echo "start=$(read_value start)"; echo "end=$(read_value end)"; echo "days=$(read_value days)"; echo "active=$(pg_get yulong_ad_schedule_active 1)" ;;
+  evaluate) with_runtime_lock evaluate_locked ;;
+  stop) stop "$@" ;;
+  status) status ;;
   *) echo "usage: $0 {start|watch|evaluate|stop|status}" >&2; exit 64 ;;
 esac

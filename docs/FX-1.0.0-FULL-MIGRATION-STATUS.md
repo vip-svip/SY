@@ -898,3 +898,13 @@ After each implementation batch:
 - OBSERVE hit/exception events now also emit the same metadata-only message through Android `Log.println`, while preserving the existing framework module log.
 - The per-target custom Hook page now exposes `查看 OBSERVE 方法日志`. The viewer reads a bounded recent logcat window, filters the exact selected package's `dev-observe` events, limits to 300 lines and caps displayed output. It reuses the existing Root command channel and does not alter Hook configuration.
 - Source/host regression only. Target-side logcat visibility, LSPosed runtime and OEM log policy remain device-pending.
+
+
+## 2026-11-04 — Yulong schedule lifecycle concurrency and original profile-scheduler audit
+
+- The original Yulong ProfileScheduleWorker is not the same as FX's ad-rule time window. It loads enabled ProtectionProfile schedules, checks weekday/time windows and switches the active profile via ProfileManager.switchToProfile(profileId). This remains a separate migration gap; the existing weekly ad-filter gate is not a substitute.
+- FX's ad schedule runtime now serializes start, stop and evaluate operations, reaps stale runtime locks by PID plus /proc/<pid>/stat start time, writes PID state via an atomic same-directory rename, and refuses to signal a reused PID that is not the FX watcher. Malformed weekday lists fail open to active filtering.
+- Added a hermetic host regression that races concurrent watcher starts/evaluations, checks the single-watcher invariant, validates stop/restart behavior and confirms a stale PID pointing at an unrelated process is never signalled.
+- Schedule status now verifies /proc command identity before reporting that the background watcher is running.
+- Verification status: host regression and current-HEAD CI result pending. This change does not produce a final APK or KernelSU ZIP; Root/Android device behavior remains unverified.
+- The latest ADB UI text correction is present in the new source HEAD; no further ADB source change is required for that earlier test failure.

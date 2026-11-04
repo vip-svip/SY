@@ -116,3 +116,14 @@ The original MethodActivity stores a per-target method_empty set. Module checks 
 FX now exposes the narrower NO_OP_VOID action through the unified per-app custom Hook editor. It accepts exact Java/JVM executable descriptors and is gated by per-target developer opt-in plus the target app's debuggable flag. The modern runtime resolves the exact method again and rejects constructors, non-void methods, abstract methods and native methods before installing a no-original-body interceptor. This avoids the original UI's ambiguous class.method-only selection and prevents a null no-op result from being applied to primitive/object-returning methods.
 
 This is not full parity with the original global method switch or its dynamic ClassLoader observer for future secondary loaders. It is a deliberately bounded, verifiable subset for developer-owned Debug apps. Release targets remain fail-open. Host/unit/CI verification is required; Android LSPosed runtime is device-pending.
+
+
+## 2026-11-04 follow-up — Yulong ProfileScheduleWorker is distinct from the ad-filter timer
+
+The original Yulong 7.0.1 source-intake artifact (fx-apk-source-intake; SHA-256 5e8328d9c940d961fb49073ac9be8b2d2aac793148bafff700eed80a97851a3a) contains app.pwhs.blockads.worker.ProfileScheduleWorker and data.entities.ProfileSchedule.
+
+Static Smali inspection confirms that this worker queries ProtectionProfileDao.getEnabledSchedules(), evaluates each enabled row's comma-separated weekday set and local Calendar start/end minutes, checks the current active protection-profile ID, and calls ProfileManager.switchToProfile(profileId) when the matching scheduled profile is not active. The schedule entity carries its own ID, profile ID, start/end hour/minute, enabled flag and weekdays.
+
+FX's yulong-ad-schedule.sh is a different feature: it gates the Yulong [list:rule] ad-filter output. It does not switch ProtectionProfile records. Therefore the original profile-switching scheduler remains a distinct migration item and must not be marked complete by the ad-filter timer.
+
+The same source-level review found that FX's shell timer previously had no single lock around watcher start/stop/evaluate: simultaneous boot, UI schedule save, or control requests could each observe an empty PID file and launch independent 60-second pollers. The runtime now serializes these state transitions with a process-identity-backed lock, atomically replaces the PID file, treats reused PIDs as stale without signalling them, and fails open to active filtering for malformed weekday input. A host concurrency regression was added. This is host/source evidence only; Android Root lifecycle and real-time scheduling remain device-pending.
