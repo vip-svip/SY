@@ -2958,3 +2958,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未验证：Android UI 自动化、Gradle、模拟器和真机。下一步补定向断言并检查 Actions，然后继续 Dia UTF-8 导入与 Hook UI 页面批次。
 
 - 管控名单回归断言补齐提交：0e473322396d1908e67fdb777f1aa6d8f154d4cf；检查搜索字段、标签/包名匹配、50 项分页、查询/页码/滚动恢复和 watcher 恢复顺序。等待该提交 Actions 结果。
+
+
+## 2026-11-05 — Dia/Hook 自定义规则字面量回归脚本语法修复
+
+- 失败 Actions：`41914328874`（HEAD `2a95b195f1189b8c4de4a2b7608f59508d6a1e94`），Hook 原生 UI 与 Dia 六 Tab 回归均通过；`fx-dia-custom-hook-literal-regression.sh` 的 Python heredoc 在多行 assert 处因双反斜杠续行报 SyntaxError。
+- 修复：将 `commitCustomRuleGroupUpdate` 持久化/回滚断言改为括号包裹的多行布尔表达式；保留原断言语义。
+- 改动路径：`scripts/tests/fx-dia-custom-hook-literal-regression.sh`、本状态文件。
+- 验证：脚本语法修复已提交 `802b279a892f49548ece036f782d8404f127df4e`；等待对应 Actions 结果。
+- 失败路线：不依赖易错的反斜杠续行；用括号明确表达多行条件。
