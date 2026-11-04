@@ -29,6 +29,12 @@ required = {
     "cancel-safe export cleanup": "deletePendingFridaLibraryExport(stagedName)",
     "rotation saves only filename": "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName)",
     "rotation restores filename": "state.getString(STATE_PENDING_LIBRARY_EXPORT)",
+    "large script draft cache": "new android.util.AtomicFile(new File(getCacheDir(), SCRIPT_DRAFT_CACHE_NAME))",
+    "large script draft size cap": "MAX_FRIDA_DRAFT_BYTES = 512 * 1024",
+    "large script draft Bundle marker": "outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true)",
+    "large script draft restore": "readTransientFridaScriptDraft()",
+    "large script draft atomic write": "atomic.finishWrite(output)",
+    "large script draft rollback": "atomic.failWrite(output)",
     "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
 }
@@ -43,6 +49,8 @@ if "pendingFridaLibraryExport;" in source or "outState.putString(STATE_PENDING_L
     raise SystemExit("FAIL: script library JSON payload is stored directly in Activity state Bundle")
 if "pendingFridaLibraryExportFileName = staged.getName()" not in source:
     raise SystemExit("FAIL: staged export file name is not tracked for Activity restoration")
+if 'if (isFinishing()) deleteTransientFridaScriptDraft();' not in source:
+    raise SystemExit("FAIL: private large-script draft cache is not cleaned on Activity finish")
 if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
 print("PASS: Dia Frida script library supports bounded SAF JSON import/export, cancellation and rotation state")
