@@ -3547,3 +3547,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已更新产品重构方案，记录源码路径、全局路由、状态保留、安全边界和三模式验收矩阵。
 - 提交：`2f450063134e9d0b2a98598a2f0d63f46e5a1e12`（FxUiMode）；`8f8fab0529575c811c4b2bdbaa7da64ac31eaf7a`（模式选择器）；`60b691a441f37cfb61aa27c223254efc59747753`（MainActivity 路由）；`a7a640e0d22dcc2f7eb3b7ff1e42a7b3dbbb12a2`（产品方案）。
 - 当前状态：源码已提交，尚未完成 Gradle 编译、自动化 UI 测试和真机三模式切换验收；不得标记为已完全验收。
+
+
+## 2026-11-05 — 三种全局界面模式源码接入（进行中）
+
+用户要求三种可切换全局界面模式必须有实现方案和源码，不接受只写概念。已开始写入应用源码：
+
+- 新增 `FxUiMode.kt`：集中定义 `ClassicWebCompat/classic`、`FXLiquidNative/glass`、`MiuixStyle/miuix`；兼容旧存储 ID；提供统一 read/write。
+- 更新 `FxDesignModePanel.kt`：设置页显示三种正式模式名称、模式职责和切换不重启服务的约束。
+- 更新 `FxNativeAppShell.kt`：三种模式使用不同背景、导航圆角、表面配色；Liquid 模式使用 Kyant LiquidBottomTabs，Miuix 使用 MiuixTheme 色彩，Classic 使用低圆角兼容导航样式。
+- 更新 `MainActivity.java`：启动通过 FxUiMode 读取；切换通过统一模型同步保存，失败不继续切换；换肤只更新界面，不调用 VPN/DNS/代理/Hook/脚本启停接口。
+- 源码提交：`2f450063134e9d0b2a98598a2f0d63f46e5a1e12`、`8f8fab0529575c811c4b2bdbaa7da64ac31eaf7a`、`41a9474c7acd74f5306bb4bf48ef647e24351922`、`761f1093fe780ea2d9c8adea8293495ba9302c72`。
+- 方案文档提交：`892c2b8b626061d94315db78a32fb05e32a52053`。
+
+当前边界：已落地统一模式模型、设置面板、Shell 差异化外观和持久化入口；尚未完成 Gradle 编译、安装运行、所有页面逐页视觉验收及服务运行期间换肤测试。ClassicWebCompat 目前采用现有 native 页面容器与兼容外观，尚不能宣称已完整恢复旧 WebUI 的全部页面行为。下一步先编译并修正 Kotlin/Java/Compose 集成错误，再补全各页面的模式差异与运行中无中断验收。
