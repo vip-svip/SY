@@ -3,7 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SRC="$ROOT/adhook/app/src/main/java/roro/stellar/manager/adb"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in AdbKeyStore.java AdbPrivateKeyVault.java AdbPublicKeyEncoder.java AndroidAdbEncryptionKey.java PreferenceAdbKeyStore.java AdbKey.java AdbPairingClient.java; do
+for file in AdbKeyStore.java AdbPrivateKeyVault.java AdbPublicKeyEncoder.java AndroidAdbEncryptionKey.java PreferenceAdbKeyStore.java AdbKey.java AdbAuthSignature.java AdbPairingClient.java; do
     [ -s "$SRC/$file" ] || fail "Stellar ADB identity source missing: $file"
 done
 
@@ -61,6 +61,32 @@ public final class AdbIdentitySmoke {
         MemoryStore store = new MemoryStore();
         AdbPrivateKeyVault vault = new AdbPrivateKeyVault(store, aes);
         KeyPair generated = vault.loadOrCreate();
+        byte[] authToken = new byte[20];
+        for (int i = 0; i < authToken.length; i++) authToken[i] = (byte) (i * 7 + 3);
+        byte[] encodedAuth = AdbAuthSignature.encodePrehashedSha1(authToken);
+        check(encodedAuth.length == 256, "ADB AUTH EMSA block must be exactly 256 bytes for RSA-2048");
+        check(encodedAuth[0] == 0 && encodedAuth[1] == 1, "ADB AUTH block must start with PKCS#1 v1.5 type-1 padding");
+        for (int i = 2; i < 220; i++) check(encodedAuth[i] == (byte) 0xff, "ADB AUTH FF padding is malformed");
+        check(encodedAuth[220] == 0, "ADB AUTH DigestInfo separator is missing");
+        byte[] sha1Prefix = new byte[]{0x30,0x21,0x30,0x09,0x06,0x05,0x2b,0x0e,0x03,0x02,0x1a,0x05,0x00,0x04,0x14};
+        check(Arrays.equals(sha1Prefix, Arrays.copyOfRange(encodedAuth, 221, 236)),
+                "ADB AUTH SHA-1 DigestInfo DER prefix is malformed");
+        check(Arrays.equals(authToken, Arrays.copyOfRange(encodedAuth, 236, 256)),
+                "ADB AUTH prehash must be appended unchanged (never hashed a second time)");
+        byte[] authSignature = AdbAuthSignature.sign(generated.getPrivate(), authToken);
+        check(authSignature.length == 256, "ADB AUTH RSA signature length must be 256 bytes");
+        javax.crypto.Cipher publicOperation = javax.crypto.Cipher.getInstance("RSA/ECB/NoPadding");
+        publicOperation.init(javax.crypto.Cipher.DECRYPT_MODE, generated.getPublic());
+        byte[] verifiedAuthBlock = publicOperation.doFinal(authSignature);
+        check(Arrays.equals(verifiedAuthBlock, encodedAuth),
+                "ADB AUTH signature did not verify to the exact PKCS#1 v1.5 SHA-1 prehash block");
+        Arrays.fill(authSignature, (byte) 0);
+        Arrays.fill(verifiedAuthBlock, (byte) 0);
+        Arrays.fill(encodedAuth, (byte) 0);
+        boolean invalidTokenRejected = false;
+        try { AdbAuthSignature.sign(generated.getPrivate(), new byte[19]); }
+        catch (IllegalArgumentException expected) { invalidTokenRejected = true; }
+        check(invalidTokenRejected, "ADB AUTH must reject non-20-byte challenge tokens");
         check(generated.getPrivate() instanceof java.security.interfaces.RSAPrivateKey,
                 "ADB vault did not generate an RSA private key");
         check(((RSAPublicKey) generated.getPublic()).getModulus().bitLength() == 2048,
@@ -128,6 +154,7 @@ javac -d "$TMP/classes" \
     "$SRC/AdbKeyStore.java" \
     "$SRC/AdbPrivateKeyVault.java" \
     "$SRC/AdbPublicKeyEncoder.java" \
+    "$SRC/AdbAuthSignature.java" \
     "$TMP/test/roro/stellar/manager/adb/AdbIdentitySmoke.java" \
     || fail "Android-independent ADB vault/encoder classes do not compile on the host JDK"
 java -cp "$TMP/classes" roro.stellar.manager.adb.AdbIdentitySmoke \
@@ -139,8 +166,11 @@ grep -Fq 'new PreferenceAdbKeyStore(preferences)' "$SRC/AdbKey.java" || fail "Ad
 grep -Fq 'AndroidAdbEncryptionKey.getOrCreate()' "$SRC/AdbKey.java" || fail "AdbKey no longer uses the AndroidKeyStore AES key"
 grep -Fq 'new AdbPrivateKeyVault(' "$SRC/AdbKey.java" || fail "AdbKey does not use the encrypted PKCS#8 vault"
 grep -Fq 'AdbPublicKeyEncoder.encode(publicKey, identity)' "$SRC/AdbKey.java" || fail "AdbKey does not use the tested ADB RSA wire encoder"
-grep -Fq 'RSA/ECB/NoPadding' "$SRC/AdbKey.java" || fail "ADB AUTH raw RSA transform is missing"
-grep -Fq 'createAdbAuthPadding()' "$SRC/AdbKey.java" || fail "original 236-byte AUTH padding block is missing"
+grep -Fq 'AdbAuthSignature.sign(privateKey, token)' "$SRC/AdbKey.java" || fail "ADB AUTH does not delegate to the tested prehashed SHA-1 signer"
+grep -Fq 'SHA1_DIGEST_INFO_PREFIX' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH is missing the SHA-1 DigestInfo DER prefix"
+grep -Fq 'paddingLength = MODULUS_BYTES - 3 - digestInfoLength' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH PKCS#1 v1.5 padding length is not derived from RSA-2048 block size"
+grep -Fq 'Cipher.getInstance("RSA/ECB/NoPadding")' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH raw RSA primitive is missing"
+! grep -Fq 'ADB_AUTH_PADDING' "$SRC/AdbKey.java" || fail "obsolete malformed AUTH padding remains in AdbKey"
 grep -Fq 'SSLContext.getInstance("TLSv1.3")' "$SRC/AdbKey.java" || fail "ADB TLS context is not pinned to TLS 1.3"
 
 grep -Fq 'settings' "$SRC/AdbKey.java" || fail "original device-protected preference file name changed"
