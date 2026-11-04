@@ -92,21 +92,18 @@ public final class FxDiaActivityBrowserActivity extends Activity {
     private static final class ActivityEntry {
         final ActivityInfo info;
         final int componentState;
+        final boolean applicationEnabled;
         final boolean enabled;
 
-        ActivityEntry(ActivityInfo activityInfo, int state) {
+        ActivityEntry(ActivityInfo activityInfo, int state, boolean appEnabled) {
             info = activityInfo;
             componentState = state;
+            applicationEnabled = appEnabled;
             enabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                    || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && activityInfo.enabled);
-            if (state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                    || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
-                    || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED) {
-                enabled = false;
-            }
+                    || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                        && activityInfo.enabled && appEnabled);
         }
     }
-
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
@@ -132,6 +129,21 @@ public final class FxDiaActivityBrowserActivity extends Activity {
     private String quote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
+
+    private boolean submitWorker(Runnable task) {
+        if (destroyed) return false;
+        try {
+            worker.execute(task);
+            return true;
+        } catch (RejectedExecutionException full) {
+            if (!destroyed) {
+                if (status != null) status.setText("后台任务队列繁忙，本次操作未执行；请稍后重试。");
+                Toast.makeText(this, "后台任务繁忙，请稍后重试。", Toast.LENGTH_LONG).show();
+            }
+            return false;
+        }
+    }
+
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -434,6 +446,8 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                     PackageManager pm = getPackageManager();
                     PackageInfo info = pm.getPackageInfo(packageName,
                             PackageManager.GET_ACTIVITIES | PackageManager.MATCH_DISABLED_COMPONENTS);
+                    boolean applicationEnabled = info.applicationInfo == null
+                            || info.applicationInfo.enabled;
                     if (info.activities != null) {
                         Set<String> launcherNames = new HashSet<>();
                         if (launcherOnly) {
@@ -460,7 +474,7 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                             } catch (RuntimeException unavailable) {
                                 state = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
                             }
-                            result.add(new ActivityEntry(item, state));
+                            result.add(new ActivityEntry(item, state, applicationEnabled));
                         }
                     }
                     result.sort(Comparator.comparing(entry ->
@@ -555,12 +569,15 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         TextView name = text(className, 13, 0xff17212b, true);
         String permission = info.permission == null ? "无" : info.permission;
         TextView meta = text("exported=" + info.exported + " · manifestEnabled=" + info.enabled
+                + " · appEnabled=" + entry.applicationEnabled
                 + " · componentState=" + entry.componentState + " · permission=" + permission,
                 10, 0xff718091, false);
         Switch toggle = new Switch(this);
         toggle.setText("启用此 Activity");
         toggle.setChecked(entry.enabled);
+        final boolean[] changingProgrammatically = {false};
         toggle.setOnCheckedChangeListener((button, wanted) -> {
+            if (changingProgrammatically[0]) return;
             button.setEnabled(false);
             String componentArg = packageName + "/" + className;
             String command = "user_id=$(am get-current-user 2>/dev/null); "
@@ -568,31 +585,55 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                     + (wanted ? "pm enable --user \"$user_id\" "
                             : "pm disable-user --user \"$user_id\" ")
                     + quote(componentArg);
-            new AlertDialog.Builder(this).setTitle(wanted ? "启用 Activity？" : "禁用 Activity？")
+            Runnable rollback = () -> {
+                changingProgrammatically[0] = true;
+                button.setChecked(entry.enabled);
+                changingProgrammatically[0] = false;
+                button.setEnabled(true);
+            };
+            final boolean[] operationAccepted = {false};
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(wanted ? "启用 Activity？" : "禁用 Activity？")
                     .setMessage("这会修改目标应用的组件状态。禁用启动入口可能导致目标应用无法正常打开；可返回 FX 再次启用。")
-                    .setNegativeButton("取消", (dialog, which) -> {
-                        button.setChecked(entry.enabled);
-                        button.setEnabled(true);
-                    })
-                    .setPositiveButton("继续", (dialog, which) -> submitWorker(() -> {
-                        RootAccess.Result applied = RootAccess.execute(command, 30000L, 65536);
-                        runOnUiThread(() -> {
-                            if (destroyed || isFinishing() || isDestroyed()
-                                    || selected == null || !packageName.equals(selected.packageName)) return;
-                            button.setEnabled(true);
-                            if (applied == null || applied.exitCode != 0) {
-                                button.setChecked(entry.enabled);
-                                status.setText("组件状态修改失败："
-                                        + (applied == null ? "Root 没有返回结果。" : safeError(applied.output)));
-                            } else {
-                                status.setText(wanted ? "Activity 已启用，正在读取系统新状态…"
-                                        : "Activity 已禁用，正在读取系统新状态…");
+                    .setNegativeButton("取消", (ignored, which) -> rollback.run())
+                    .setPositiveButton("继续", (ignored, which) -> {
+                        operationAccepted[0] = true;
+                        boolean queued = submitWorker(() -> {
+                            RootAccess.Result applied = null;
+                            String failure = null;
+                            try {
+                                applied = RootAccess.execute(command, 30000L, 65536);
+                            } catch (RuntimeException error) {
+                                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
+                            }
+                            final RootAccess.Result result = applied;
+                            final String operationFailure = failure;
+                            runOnUiThread(() -> {
+                                if (destroyed || isFinishing() || isDestroyed()) return;
+                                if (selected == null || !packageName.equals(selected.packageName)) return;
+                                if (operationFailure != null || result == null || result.exitCode != 0) {
+                                    rollback.run();
+                                    String detail = operationFailure != null ? operationFailure
+                                            : result == null ? "Root 没有返回结果。"
+                                            : safeError(result.output);
+                                    status.setText("组件状态修改失败：" + detail);
+                                    return;
+                                }
+                                button.setEnabled(true);
+                                status.setText(wanted ? "Activity 启用命令已执行，正在读取系统新状态…"
+                                        : "Activity 禁用命令已执行，正在读取系统新状态…");
                                 activityGeneration++;
                                 activitiesLoading = false;
                                 loadActivities();
-                            }
+                            });
                         });
-                    })).show();
+                        if (!queued) rollback.run();
+                    })
+                    .create();
+            dialog.setOnCancelListener(ignored -> {
+                if (!operationAccepted[0]) rollback.run();
+            });
+            dialog.show();
         });
         row.addView(name);
         row.addView(meta);
@@ -604,6 +645,8 @@ public final class FxDiaActivityBrowserActivity extends Activity {
 
     private void selectApp(ApplicationInfo app) {
         if (app == null || !isSafePackage(app.packageName)) return;
+        activityGeneration++;
+        activitiesLoading = false;
         selected = app;
         target.setText(appLabel(app) + "\n" + app.packageName);
         activitySearch.setText("");
