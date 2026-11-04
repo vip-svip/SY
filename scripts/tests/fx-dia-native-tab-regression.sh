@@ -70,6 +70,10 @@ assert "selectedBottomTab = 5;" in route and "showSettings();" in route
 assert "selectedBottomTab = 4;" in route and "showAppList();" in route
 assert "lastWebTabIndex = index;" in route and "renderNativePage(index);" in route
 assert "Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP" in base
+assert 'pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");' in main
+assert 'outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);' in main
+assert "REQUEST_DIA_GPS_PICKER" in main and "pendingDiaGpsTargetPackage = selectedPackage;" in main
+assert "target.equals(selectedPackage)" in main, "GPS result must remain scoped to the original selected app"
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
     assert "setContentViewWithNativeTabs(root, 5);" in page
