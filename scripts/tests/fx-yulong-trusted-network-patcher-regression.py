@@ -42,6 +42,10 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-trusted-patcher-") as tmp:
     uninstall = (module / "uninstall.sh").read_text(encoding="utf-8")
     util = (scripts / "util.sh").read_text(encoding="utf-8")
     defaults = (scripts / "default.conf").read_text(encoding="utf-8")
+    vpn_control = scripts / "yulong-vpn-control.sh"
+    assert vpn_control.is_file(), "VPN lifecycle helper missing from restored module"
+    assert vpn_control.read_text(encoding="utf-8") == (repo / "scripts/yulong-vpn-control.sh").read_text(encoding="utf-8"), \
+        "restored module must use the canonical VPN lifecycle helper"
 
     assert service.count('if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then') == 1, "trusted watcher guard must be inserted once"
     assert service.count('sh "$MODDIR/scripts/yulong-trusted-network.sh" start') == 1, "trusted watcher start command must be inserted once"

@@ -33,6 +33,12 @@ if "yulong_ad_filter_enabled=" not in d:
 
 # Stage the weekly scheduler into the restored module.
 repo_root = Path(__file__).resolve().parent.parent
+vpn_control_source = repo_root / "scripts/yulong-vpn-control.sh"
+vpn_control_target = root / "scripts/yulong-vpn-control.sh"
+if not vpn_control_source.is_file() or vpn_control_source.stat().st_size < 5000:
+    raise SystemExit("Yulong VPN lifecycle controller is missing or incomplete")
+vpn_control_target.write_text(vpn_control_source.read_text(encoding="utf-8"), encoding="utf-8")
+vpn_control_target.chmod(0o755)
 scheduler_source = repo_root / "scripts/yulong-ad-schedule.sh"
 trusted_source = repo_root / "scripts/yulong-trusted-network.sh"
 trusted_target = root / "scripts/yulong-trusted-network.sh"
@@ -121,17 +127,27 @@ fi
     # Release layouts contain a REMOVER assignment, while minimal fixtures and
     # early layouts may not. In every form, anchor cleanup immediately after the
     # persistent state directory is known and before any data/chain cleanup.
-    state_markers = ('PG=/data/adb/privacyguard\\n',
-                     'STATE_DIR=/data/adb/privacyguard\\n')
-    insertion = next((marker for marker in state_markers if marker in uninstall_text), None)
-    if insertion is None:
-        remover_marker = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"\\n'
-        if remover_marker in uninstall_text:
-            uninstall_text = uninstall_text.replace(remover_marker, trusted_stop + remover_marker, 1)
-        else:
-            raise SystemExit("uninstall state/remover insertion anchors are missing; refusing unsafe watcher cleanup")
-    else:
-        uninstall_text = uninstall_text.replace(insertion, insertion + trusted_stop, 1)
+    uninstall_lines = uninstall_text.splitlines(keepends=True)
+    insertion_index = None
+    for index, line in enumerate(uninstall_lines):
+        if line.strip() in ('PG=/data/adb/privacyguard', 'STATE_DIR=/data/adb/privacyguard'):
+            insertion_index = index + 1
+            break
+    if insertion_index is None:
+        for index, line in enumerate(uninstall_lines):
+            if line.strip() == 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"':
+                insertion_index = index
+                break
+    if insertion_index is None:
+        # A direct ownership-safe invocation is also a valid last-resort anchor.
+        for index, line in enumerate(uninstall_lines):
+            if 'remove_adhook_app.sh' in line and 'STATE_DIR' in line:
+                insertion_index = index
+                break
+    if insertion_index is None:
+        raise SystemExit("uninstall state/remover insertion anchors are missing; refusing unsafe watcher cleanup")
+    uninstall_lines.insert(insertion_index, trusted_stop)
+    uninstall_text = "".join(uninstall_lines)
     uninstall.write_text(uninstall_text, encoding="utf-8")
     uninstall.chmod(0o755)
 

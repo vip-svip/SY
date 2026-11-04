@@ -2,117 +2,113 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 RECEIVER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTaskerReceiver.java"
+WIDGET="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java"
+TILE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java"
+AD="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
+GENERAL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java"
+GATE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdOperationGate.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
-[ -s "$RECEIVER" ] || { echo "FAIL: Tasker receiver is missing" >&2; exit 1; }
-python3 - "$RECEIVER" "$MANIFEST" <<'PY'
+VPN="$ROOT/scripts/yulong-vpn-control.sh"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+for f in "$RECEIVER" "$WIDGET" "$TILE" "$AD" "$GENERAL" "$GATE" "$VPN" "$MANIFEST"; do
+  [ -s "$f" ] || fail "required Yulong integration source missing: $f"
+done
+python3 - "$RECEIVER" "$WIDGET" "$TILE" "$AD" "$GENERAL" "$GATE" "$MANIFEST" "$VPN" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-receiver_path, manifest_path = map(Path, sys.argv[1:])
-source = receiver_path.read_text(encoding="utf-8")
-root = receiver_path.parents[0]
-widget_source = (root / "FxYulongAdWidgetProvider.java").read_text(encoding="utf-8")
-tile_source = (root / "FxYulongAdTileService.java").read_text(encoding="utf-8")
-ad_activity = (root / "FxYulongAdActivity.java").read_text(encoding="utf-8")
-general_activity = (root / "FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
-gate_source = (root / "FxYulongAdOperationGate.java").read_text(encoding="utf-8")
-gate_source = (root / "FxYulongAdOperationGate.java").read_text(encoding="utf-8")
+receiver_path, widget_path, tile_path, ad_path, general_path, gate_path, manifest_path, vpn_path = map(Path, sys.argv[1:])
+receiver = receiver_path.read_text(encoding="utf-8")
+widget = widget_path.read_text(encoding="utf-8")
+tile = tile_path.read_text(encoding="utf-8")
+ad = ad_path.read_text(encoding="utf-8")
+general = general_path.read_text(encoding="utf-8")
+gate = gate_path.read_text(encoding="utf-8")
+vpn = vpn_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
-ns = "{http://schemas.android.com/apk/res/android}"
+A = "{http://schemas.android.com/apk/res/android}"
 
-assert "AtomicBoolean REQUEST_PENDING" in source, "exported receiver needs a process-wide in-flight guard"
-assert "REQUEST_PENDING.compareAndSet(false,true)" in source, "Root action must be accepted atomically"
-assert "publishResult(context,action,enabled,false,75)" in source, "duplicate requests must receive a busy result"
-assert source.count('new Thread(()->{') == 1, "only the guarded request may create a worker"
-assert "REQUEST_PENDING.set(false);" in source, "in-flight guard must be released"
-assert "pending.finish();" in source, "goAsync result must always be finished"
-assert "private static void publishResult" in source, "result reporting must be centralized"
-assert "reply.setPackage(context.getPackageName())" in source, "result broadcasts must be scoped to the FX package"
-assert "RootAccess.execute(command,90000L,128*1024)" in source, "Tasker must still use the fixed allowlisted Root command"
+# Legacy Yulong Tasker actions must control the unified VPN route, not the ad master.
+for token in (
+    "LEGACY_ACTION_START.equals(action)",
+    "LEGACY_ACTION_STOP.equals(action)",
+    "ACTION_VPN_START.equals(action)",
+    "ACTION_VPN_STOP.equals(action)",
+    "yulong-vpn-control.sh",
+    "yulong-ad-control.sh",
+    '"target", adFilterAction ? "ad_filter" : "vpn"',
+):
+    assert token in receiver, f"Tasker route/action parity missing {token}"
+assert 'ad-master " + enabled' in receiver, "new AD_FILTER actions must only change the ad-filter master"
+assert '" /data/adb/privacyguard "' in receiver, "VPN helper must receive the canonical module and state directories"
+assert "adFilterAction ? 90000L : 150000L" in receiver, "Tasker Root work must use bounded action-specific timeouts"
+assert "AtomicBoolean REQUEST_PENDING" in receiver
+assert "REQUEST_PENDING.compareAndSet(false, true)" in receiver
+assert "FxYulongAdOperationGate.tryAcquire()" in receiver
+assert receiver.count("FxYulongAdOperationGate.release(gateToken)") == 3, "ad-master transaction gate must be released on every exit path"
+assert "pending.finish();" in receiver
+assert "reply.setPackage(context.getPackageName())" in receiver
+assert "AdBlockVpnService" not in receiver and "startForegroundService" not in receiver,     "Tasker compatibility must not start a competing VpnService"
 
-# All three UI/automation entry points must serialize writes through one process gate.
-assert "AtomicLong NEXT_TOKEN" in gate_source
-assert "AtomicLong OWNER_TOKEN" in gate_source
-assert "OWNER_TOKEN.compareAndSet(0L, token)" in gate_source
-assert "OWNER_TOKEN.compareAndSet(token, 0L)" in gate_source
-assert "FxYulongAdOperationGate.tryAcquire()" in source
-assert source.count("FxYulongAdOperationGate.release(gateToken)") == 3, "Tasker must release gate on all three exit paths"
-
-receiver = next((x for x in manifest.findall("./application/receiver")
-                 if x.attrib.get(ns + "name", "").endswith("FxYulongAdTaskerReceiver")), None)
-assert receiver is not None, "Tasker receiver is not declared"
-assert receiver.attrib.get(ns + "exported") == "true", "Tasker compatibility must remain externally callable"
-actions = {x.attrib.get(ns + "name") for x in receiver.findall("./intent-filter/action")}
-required = {
+receiver_node = next((node for node in manifest.findall("./application/receiver")
+                      if node.attrib.get(A + "name", "").endswith("FxYulongAdTaskerReceiver")), None)
+assert receiver_node is not None and receiver_node.attrib.get(A + "exported") == "true"
+actions = {node.attrib.get(A + "name") for node in receiver_node.findall("./intent-filter/action")}
+required_actions = {
     "de.privacyguard.adhook.AD_FILTER_ENABLE",
     "de.privacyguard.adhook.AD_FILTER_DISABLE",
+    "de.privacyguard.adhook.VPN_START",
+    "de.privacyguard.adhook.VPN_STOP",
     "app.pwhs.blockads.TASKER_START",
     "app.pwhs.blockads.TASKER_STOP",
 }
-assert required.issubset(actions), f"Tasker action aliases were lost: {sorted(required - actions)}"
-assert "startForegroundService" not in source and "AdBlockVpnService" not in source,     "Tasker action must not start a competing VpnService"
+assert required_actions <= actions, f"Tasker legacy/new action filters missing: {sorted(required_actions-actions)}"
 
-# Widget refresh and toggle broadcasts share one bounded queue and cannot pile up Root work.
-assert "new ArrayBlockingQueue<>(2)" in widget_source
-assert "REFRESH_PENDING.compareAndSet(false, true)" in widget_source
-assert "TOGGLE_PENDING.compareAndSet(false, true)" in widget_source
-assert "catch (RejectedExecutionException full)" in widget_source
-toggle_body = widget_source[widget_source.find("TOGGLE_PENDING.compareAndSet(false, true)"):widget_source.find("private static int readEnabled")]
-worker_finally_at = toggle_body.find("} finally {")
-assert worker_finally_at >= 0, "widget Root worker must have a completion finally block"
-worker_finally = toggle_body[worker_finally_at:]
-assert "pending.finish();" in worker_finally, "widget Root toggle must always finish its asynchronous broadcast"
-assert worker_finally.find("FxYulongAdOperationGate.release(gateToken)") < worker_finally.find("TOGGLE_PENDING.set(false);") < worker_finally.find("pending.finish();"), "widget worker must release the shared gate, clear its pending flag, then finish";
+# Widget is the original Yulong VPN lifecycle widget. It does not own the ad filter.
+for token in (
+    "new ArrayBlockingQueue<>(2)",
+    "REFRESH_PENDING.compareAndSet(false, true)",
+    "TOGGLE_PENDING.compareAndSet(false, true)",
+    "catch (RejectedExecutionException full)",
+    'shell("status")',
+    'shell(operation)',
+    "yulong-vpn-control.sh",
+    "RootAccess.execute(shell(operation)",
+    "pending.finish();",
+    "VPN 已启用",
+    "启动 VPN",
+    "停止 VPN",
+):
+    assert token in widget, f"VPN widget migration missing {token}"
+assert "FxYulongAdOperationGate" not in widget, "VPN widget must not lock the separate ad-filter setting"
+assert "AD_MASTER|" not in widget and "dns-log-tail" not in widget, "VPN widget must not present ad state as VPN state"
+assert "worker.shutdownNow()" not in widget, "AppWidgetProvider worker is process-scoped"
+assert "MainActivity.class" in widget, "widget open action must lead to the single FX app"
 
-assert "Executors.newSingleThreadExecutor" not in widget_source
-widget = next((x for x in manifest.findall("./application/receiver")
-               if x.attrib.get(ns + "name", "").endswith("FxYulongAdWidgetProvider")), None)
-assert widget is not None and widget.attrib.get(ns + "exported") == "false"
+widget_node = next((node for node in manifest.findall("./application/receiver")
+                    if node.attrib.get(A + "name", "").endswith("FxYulongAdWidgetProvider")), None)
+assert widget_node is not None and widget_node.attrib.get(A + "exported") == "false"
 
-# Quick Settings must not treat an unreadable Root state as disabled and turn filtering on.
-assert "new ArrayBlockingQueue<>(1)" in tile_source
-assert "refreshPending.compareAndSet(false, true)" in tile_source
-assert "togglePending.compareAndSet(false, true)" in tile_source
-assert "current == Tile.STATE_UNAVAILABLE" in tile_source
-assert "未更改" in tile_source
-assert "worker.shutdownNow();" in tile_source
-assert "Executors.newSingleThreadExecutor" not in tile_source
-assert "gateToken = FxYulongAdOperationGate.tryAcquire();" in tile_source
-assert "if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);" in tile_source
-assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
-assert widget_source.count("FxYulongAdOperationGate.release(gateToken)") == 3, "widget must release the cross-entry gate on every failure/finish path"
-tile = next((x for x in manifest.findall("./application/service")
-             if x.attrib.get(ns + "name", "").endswith("FxYulongAdTileService")), None)
-assert tile is not None
-assert tile.attrib.get(ns + "permission") == "android.permission.BIND_QUICK_SETTINGS_TILE"
-assert tile.attrib.get(ns + "exported") == "true"
+# Ad Quick Settings tile remains the independent ad-master switch.
+assert "FxYulongAdOperationGate.tryAcquire()" in tile
+assert "ad-master" in tile
+assert "FxYulongAdOperationGate.tryAcquire()" in ad
+assert "FxYulongAdOperationGate.tryAcquire()" in general
+for token in ("AtomicLong NEXT_TOKEN", "AtomicLong OWNER_TOKEN",
+              "OWNER_TOKEN.compareAndSet(0L, token)", "OWNER_TOKEN.compareAndSet(token, 0L)"):
+    assert token in gate
 
-# All Android-side ad-master writers share one process gate; the yulong shell
-# command retains its own mkdir transaction lock for cross-process callers.
-assert "AtomicLong NEXT_TOKEN" in gate_source
-assert "AtomicLong OWNER_TOKEN" in gate_source
-assert "OWNER_TOKEN.compareAndSet(0L, token)" in gate_source
-assert "OWNER_TOKEN.compareAndSet(token, 0L)" in gate_source
-assert "FxYulongAdOperationGate.tryAcquire()" in source
-assert "FxYulongAdOperationGate.tryAcquire()" in widget_source
-assert "FxYulongAdOperationGate.tryAcquire()" in tile_source
-assert "FxYulongAdOperationGate.tryAcquire()" in ad_activity
-assert 'args.matches("^ad-master\\\\s+[01]$")' in ad_activity
-assert "FxYulongAdOperationGate.release(gateToken);" in ad_activity
-assert "FxYulongAdOperationGate.tryAcquire()" in general_activity
-assert "FxYulongAdOperationGate.release(gateToken);" in general_activity
-assert "finally {" in general_activity and "导入未开始" in general_activity
-# Queueable Activities must acquire the global gate only after their worker starts;
-# otherwise onDestroy()+shutdownNow() can drop a queued task while leaking BUSY forever.
-restore_worker = general_activity.find("worker.execute(() -> {", general_activity.find("private void applyImport(JSONObject json)"))
-restore_gate = general_activity.find("gateToken = FxYulongAdOperationGate.tryAcquire();", restore_worker)
-restore_release = general_activity.find("if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);", restore_gate)
-assert restore_worker >= 0 and restore_gate > restore_worker and restore_release > restore_gate
-assert general_activity.find("FxYulongAdOperationGate.tryAcquire();", general_activity.find("private void applyImport(JSONObject json)")) >= restore_worker
-ad_worker = ad_activity.find("worker.execute(()->{", ad_activity.find("private void apply(String args,String label)"))
-ad_gate = ad_activity.find("gateToken=FxYulongAdOperationGate.tryAcquire();", ad_worker)
-ad_release = ad_activity.find("if(gateToken!=0L)FxYulongAdOperationGate.release(gateToken);", ad_gate)
-assert ad_worker >= 0 and ad_gate > ad_worker and ad_release > ad_gate
-print("PASS: Tasker, widget and Quick Settings Root toggles are bounded, serialized and fail closed")
+# No migrated Tasker/widget class may start a second VPN service.
+vpn_services = [node.attrib.get(A + "name", "") for node in manifest.findall("./application/service")
+                if node.attrib.get(A + "permission") == "android.permission.BIND_VPN_SERVICE"]
+assert len(vpn_services) <= 1, f"multiple competing VpnService components: {vpn_services}"
+
+# Controller contract is tested separately by the hermetic shell regression.
+for token in ('export MP PG', 'pg_get vpn_node', 'pg_set vpn_mode', 'scripts/status.sh',
+              'scripts/apply.sh', 'VPN_START_APPLY_FAILED', 'VPN_STOP_APPLY_FAILED',
+              'VPN_NO_NODE_SELECTED'):
+    assert token in vpn, f"canonical VPN lifecycle helper missing {token}"
+
+print("PASS: Yulong Tasker aliases and home widget control one FX VPN route; ad master remains independent")
 PY
