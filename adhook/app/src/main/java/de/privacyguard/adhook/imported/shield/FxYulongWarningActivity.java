@@ -194,7 +194,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         } catch (PackageManager.NameNotFoundException removed) {
             showMessage("目标应用已不存在", "应用可能已卸载或更新；请重新扫描后再处理。");
             return;
-        } catch (SecurityException | RuntimeException lookupFailure) {
+        } catch (RuntimeException lookupFailure) {
             showMessage("无法核实目标应用", "Android 未允许 FX 读取该应用信息；白名单保持不变，请检查应用可见性和系统状态后重试。");
             return;
         }
