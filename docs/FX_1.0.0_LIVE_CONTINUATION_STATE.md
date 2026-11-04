@@ -1413,3 +1413,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本轮仅为源码静态核验，不能据此认定页面视觉、返回栈、业务后端或真机交互已验收。
 - 本地资料库检查：当前 `/FX` 目录内实际存在并已完整读取《FX_1.0.0_UI优先自主推进与中断续接执行总指令.md》及《FX_1.0.0_UI优先提速与自主开工提示词.md》；用户指令中另两份《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》《FX_1.0.0_快速推进与主动修复执行档.md》在当前 `/FX` 目录清单中不存在，故无法读取，不以旧聊天内容冒充文件读取。
 - 下一步：继续核对 Dia 页面实际路由/父子返回链与原始 Manifest 组件映射；优先处理跨 Activity 六 Tab 点击后的回跳一致性与页面恢复。之后进入 Hook UI 与主 Tab 的实际交互验收。固定 FX 1.0.0，不生成最终包。
+
+## 2026-11-05 — 本轮接管补充：资料库可用文档与最新页面覆盖
+
+- 本轮已完整读取资料库 /FX 中实际存在的两份 UI 开发文件：
+  - FX_1.0.0_UI优先自主推进与中断续接执行总指令.md
+  - FX_1.0.0_UI优先提速与自主开工提示词.md
+- 对 /FX 执行目录列表核验后，以下两份用户要求的长期交接文件当前不在资料库清单中：FX_1.0.0_项目接管总档_自主开发与查漏补缺.md、FX_1.0.0_快速推进与主动修复执行档.md。已尝试按完整名称与简化标题搜索，仍无结果；不能声称已读取或以旧聊天替代文件内容。
+- 当前真实分支 HEAD 以本节写入前实时读取为准：e421e9726559092cbf129171b586275fad115197。本轮页面代码继续按最新 HEAD 复核，没有使用旧 SHA 覆盖并行工作。
+- 最新并行提交已将 Shield Daily Summary / Warning 接入六 Tab；其真实入口分别是 Hub → Daily Summary、Scan 结果 → Warning。回归脚本曾错误地把 Warning 归到 Hub，已在 ca55a6f6afa6b87a2004b9c69e67668dda75f89d 改为从 Scan 检查 Warning 路由。
+- 目前源码静态核对的页面覆盖：Dia 已有 17 个独立 Activity 接入共享六 Tab 壳；Shield 已覆盖 Hub、Scan、Integrity、Rescue、Batch Cleanup、Screen Filter、Virus Database、Daily Summary、Warning、Whitelist、Whitelist Picker、Blacklist 等 12 个 Activity；Yulong Ad 主页面、General、Summary、Stats、App Whitelist、DNS、Firewall 等 7 个页面已有共享宿主记录。以上只代表源码接线，不代表视觉/设备验收或业务后端全部完成。
+- 当前最重要的未完成项仍是：六 Tab 全页面实际回跳/返回栈设备验收；Dia 原始页面与 Manifest 全量映射；Hook 页面实际权限/注入状态；VPN/DNS/Hosts/隐私/脚本真实后端闭环；Shield 服务权限状态与批量清理回执。
+- 下一批直接任务：核对 FxNativeTabActivity 对所有独立 Activity 的 Tab 回跳行为，确认 CLEAR_TOP | SINGLE_TOP 到 MainActivity 后实际选中请求 Tab；再核对 Activity Result/SAF 在旋转后的回传。优先源码可验证的导航状态，不启动整套 Actions。
+- 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器或真机导航；不生成 APK / KernelSU ZIP。
