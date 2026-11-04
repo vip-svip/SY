@@ -159,7 +159,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         });
         taskerResultStatus = text("尚无自动化执行回执。", 12, 0xff526170, false);
         card(body, "Tasker / 自动化广播",
-                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。接收组件为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤与 VPN 动作相互独立。由于该 Receiver 可触发 Root 命令，外部控制默认关闭；仅在信任已安装的自动化应用时手动开启。最近回执只说明命令执行结果，不等于服务当前仍在运行。",
+                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。接收组件为 de.privacyguard.adhook.imported.ad.FxYulongAdTaskerReceiver；广告过滤与 VPN 动作相互独立。该 Receiver 导出以兼容外部自动化，但可触发 Root 命令，因此默认关闭。开启后，设备上能够发送这些动作广播的应用都可请求执行；当前不按发送方包名/签名做白名单筛选。仅在确认设备上的应用可信且确实需要自动化时开启；关闭后外部请求会在执行 Root 命令前被拒绝。最近回执只说明那次命令的执行结果，不等于服务当前仍在运行。",
                 taskerExternalControl,
                 button("复制：开启广告过滤", () -> copyTaskerAction("开启广告过滤", FxYulongAdTaskerReceiver.ACTION_ENABLE)),
                 button("复制：关闭广告过滤", () -> copyTaskerAction("关闭广告过滤", FxYulongAdTaskerReceiver.ACTION_DISABLE)),
@@ -246,6 +246,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 .append("\n命令结果：").append(success ? "执行成功" : "执行失败")
                 .append(" · 退出码：").append(exitCode);
         if (!detail.isEmpty()) display.append("\n回执详情：").append(detail);
+        display.append("\n外部自动化授权：")
+                .append(prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
+                        ? "已开启（设备上可发送该动作的应用均可请求执行）"
+                        : "已关闭（后续外部请求将在 Root 执行前被拒绝）");
         display.append("\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
         taskerResultStatus.setText(display.toString());
     }
