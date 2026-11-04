@@ -262,8 +262,14 @@ boot_script(){
       if [ -f "$BOOT_SCRIPT" ] && [ ! -L "$BOOT_SCRIPT" ] && [ -x "$BOOT_SCRIPT" ] \
           && grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$BOOT_SCRIPT"; then
         echo "success=1 boot_script=installed path=$BOOT_SCRIPT"
-      else
+      elif [ -f "$BOOT_SCRIPT" ] && [ ! -L "$BOOT_SCRIPT" ] \
+          && grep -Fq 'pm path com.youlong.hd' "$BOOT_SCRIPT"; then
+        echo "success=1 boot_script=legacy path=$BOOT_SCRIPT"
+      elif [ ! -e "$BOOT_SCRIPT" ]; then
         echo "success=1 boot_script=absent path=$BOOT_SCRIPT"
+      else
+        echo "boot script exists but is not recognized; refusing to treat it as FX-managed" >&2
+        return 33
       fi
       ;;
     install)
@@ -289,10 +295,15 @@ boot_script(){
         echo "service.d is a symlink; refusing to write boot script" >&2
         return 24
       }
-      [ ! -L "$BOOT_SCRIPT" ] || {
-        echo "existing boot script path is a symlink; refusing to replace it" >&2
+      [ ! -L /data/adb ] && [ ! -L /data/adb/service.d ] || {
+        echo "KernelSU/Magisk service.d path contains a symlink; refusing to write boot script" >&2
         return 24
       }
+      if [ -e "$BOOT_SCRIPT" ] && ! grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$BOOT_SCRIPT" \
+          && ! grep -Fq 'pm path com.youlong.hd' "$BOOT_SCRIPT"; then
+        echo "existing boot script is not FX-managed or a recognized legacy Stellar script; refusing to overwrite" >&2
+        return 33
+      fi
       boot_tmp=$(mktemp /data/adb/service.d/.stellar.sh.fx.XXXXXX) || return 25
       if ! cat > "$boot_tmp" <<'FX_STELLAR_BOOT_SCRIPT'
 #!/system/bin/sh
@@ -339,6 +350,11 @@ FX_STELLAR_BOOT_SCRIPT
         echo "existing boot script path is a symlink; refusing to remove it" >&2
         return 24
       }
+      if [ -e "$BOOT_SCRIPT" ] && ! grep -Fq '# FX_STELLAR_BOOT_SCRIPT_V1' "$BOOT_SCRIPT" \
+          && ! grep -Fq 'pm path com.youlong.hd' "$BOOT_SCRIPT"; then
+        echo "existing boot script is not FX-managed or a recognized legacy Stellar script; refusing to remove it" >&2
+        return 33
+      fi
       rm -f "$BOOT_SCRIPT" || return 31
       [ ! -e "$BOOT_SCRIPT" ] || return 32
       echo "success=1 boot_script=removed path=$BOOT_SCRIPT"
