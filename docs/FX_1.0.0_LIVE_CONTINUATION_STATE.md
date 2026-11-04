@@ -3682,3 +3682,29 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 上述 Activity 均已在同一 FX APK Manifest 内声明；本次让这些功能从 Ad 业务页可达，不再依赖“设置→迁移应用”入口。
 - 提交：`dfb66743da8d83480c51859cadd69ec122b0905f`；导航回归增加功能可达性断言：`a5ec96960a3abb7708585a7f06199e068d1e34d8`。
 - 边界：这批完成的是五个既有原生功能页的 Ad 内入口整合；不代表游龙广告插件所有功能已经全部迁移完成，也不代表这些 Activity 已全部合并成同一 Compose 页面。后续继续把独立 Activity 的业务状态和页面逐步收敛到 Ad 页面栈。
+
+
+## 2026-11-05 — 游龙工具 10.0.2 壁纸功能首批迁移与回归修正
+
+### 原 APK 核验
+- 从资料库根目录找到并读取 `/游龙工具_10.0.2.apk`（不在 /FX 子目录）。
+- 文件大小：92,008,250 bytes；SHA-256：`c2d7bb1b8e688232888a927d5b81affcf5c28832f9e6420e27e800e54f5fee75`。
+- 从 APK Manifest/DEX 核实：package `com.youlong.tool`，versionName `10.0.2`，versionCode `1234567901`。
+- 原版壁纸对照为 Native Wallpaper Dialog：标题“壁纸随心换”；上传本地图片、恢复默认壁纸、关闭；使用 `native_wallpaper_prefs / wallpaper_path`；选中图片复制到私有 files 目录，最长边 1920 px，JPEG quality 85，文件名 `native_wallpaper_<timestamp>.jpg`。未把未经证实的裁剪/模糊控件冒称为原版功能。
+
+### FX 源码落地
+- 新增 `FxWallpaperStore.kt`：应用私有目录存储、原 10.0.2 SharedPreferences key 兼容、图片分辨率上限、1920px 缩放、JPEG 85、原子发布、旧壁纸安全清理、预览/显示位图有界解码、恢复默认。
+- 修改 `MainActivity.java`：设置页新增“壁纸与背景 → 壁纸随心换”；有预览、当前状态文案、系统 ACTION_OPEN_DOCUMENT 图片选择、“处理中...”后台保存、失败保留原图、恢复默认。壁纸存储/解码不在 UI 线程执行。
+- 修改 `FxNativeAppShell.kt`：壁纸作为共享 Presentation 背景加载；覆盖六个主 Tab 及共享原生 Activity 壳；导入页面根容器透明以露出壁纸；Bitmap 在 IO dispatcher 解码并在 Compose dispose 时释放。
+- Classic Web 兼容页通过透明 WebView/页面根背景显示共享 Shell 壁纸；关闭自定义壁纸时恢复原主题背景。
+- 新增 `FxWallpaperStoreTest.kt`：横图/竖图比例、1920px 长边、采样大小、非法尺寸单测。
+- 新增 `scripts/tests/fx-wallpaper-regression.sh`，并接入 `.github/workflows/build-fx-adhook.yml` 与 `.github/workflows/fx-targeted-regression.yml` 的定向检查。
+
+### 定向 Actions 失败与修复
+- 旧定向测试未给 `FxWallpaperStore.kt` 增加路径映射，曾报“changed source path has no targeted Host regression mapping”；已在 `fx-targeted-regression.yml` 增加 WallpaperStore、NativeAppShell、MainActivity 和 wallpaper test 的映射。
+- Dia crash dump 既有测试错误要求目录重建代码必须是无 `create` 参数的字符串；实际 `checkedDirectory(filesRoot, true)` 已对 missing directory 执行 guarded mkdir，Host JVM 用例本来就覆盖创建行为。已把静态断言改为匹配真实的 guarded-create 实现，不改变生产逻辑。
+- 修复提交：`f09bf024934b3b6eaefd76a4e2acc2dedd04d672`（修正 crash dump 静态断言）；`82b72af33ba5f3ae810752720b7ac299bef74a55`（壁纸 Store/Shell 测试映射）；`d1eabc29c87951208a9829f33db570f463809839`（MainActivity 壁纸入口映射）。
+- 回归补充提交：`2820475a845b48ffff430e80daec0bf336ccc0a6`（WallpaperStore tests）；`aaf4b2d5d5a19907d26cffd3ec930df88ccb98bc`（wallpaper host regression）；`8c8e8d82704071dfdc5e029e87e6ae993eca087b`（build workflow 接入）；`de5b5ba9bfc27ae76f2f58ea3d58e5078f3ac408`（竖图缩放期望修正）。
+- 其他壁纸代码提交：`1f7a1922fb6e4dbb8eb022a41dc7879691d12d9c`（Store 初版）；`090e1b726e15b2da5d8354a977aa73c6c738ccc1`（按目标长边限制采样）；`26fc3149aa899c14b7b8b383110c547fd6023f9e`（设置入口/选择器/预览/恢复）；`fe210098d9e36907ba1cc7724bdb2470e903068b`（共享 Shell 壁纸渲染）；`ee7217890227022e6eb936b925953aac91bc15f7`、`03da7263a3259678b82075234dea821409b81b66`（页面容器透明与 Bitmap 生命周期修复）。
+- 当前最新观测的目标回归 Run：`41936402322`，commit `d1eabc29c87951208a9829f33db570f463809839`，当时状态 pending；还没有可确认的最终 job 结果。
+- 验证边界：已核对 GitHub 代码、文档、测试脚本和 CI 接线；尚未取得成功 Actions 完成结果、Gradle build、安装运行、壁纸切换截图或华为/非华为真机验证。不得标记设备验收完成。
