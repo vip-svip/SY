@@ -52,6 +52,13 @@ public final class FxYulongAdActivity extends Activity {
   private final Set<String> proxyWhitelistSelected=new HashSet<>();
   private int proxyWhitelistPage=1;
   private long proxyWhitelistGeneration;
+  private Switch trustedPauseSwitch;
+  private LinearLayout trustedSsidRows;
+  private TextView trustedNetworkStatus;
+  private EditText trustedSsidInput;
+  private String trustedCurrentSsid = "";
+  private long trustedNetworkGeneration;
+  private boolean trustedNetworkSyncing;
   private TextView rootProxyStatus;
   private long rootProxyStatusGeneration;
  private static final int BULK_DRAFT_MAX_CHARS=48*1024;
@@ -156,7 +163,7 @@ public final class FxYulongAdActivity extends Activity {
   out.putBundle(STATE_DRAFTS,drafts);
   super.onSaveInstanceState(out);
  }
- private void render(){rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("VPN 与 Root Proxy".equals(page)){
+ private void render(){trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
   rootProxyStatus=txt("正在读取 Root Proxy 实际运行状态…",12,0xff617080,false);
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
@@ -168,6 +175,131 @@ public final class FxYulongAdActivity extends Activity {
 renderRootProxyWhitelist();
 refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
  private void open(String p){page=p;render();bind();}
+  private boolean isTrustedNetworkPageCurrent(TextView target) {
+    return target != null && target == trustedNetworkStatus
+            && "信任的网络".equals(page) && !isFinishing() && !isDestroyed();
+  }
+
+  private void renderTrustedNetworks() {
+    trustedPauseSwitch = new Switch(this);
+    trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停游龙广告过滤");
+    trustedPauseSwitch.setTextSize(14);
+    trustedPauseSwitch.setOnCheckedChangeListener((button, enabled) -> {
+      if (trustedNetworkSyncing) return;
+      root("trusted-pause-set " + (enabled ? "1" : "0"), result -> {
+        if (!isTrustedNetworkPageCurrent(trustedNetworkStatus)) return;
+        status.setText(result.exitCode == 0
+                ? (enabled ? "可信网络自动暂停已启用。" : "可信网络自动暂停已关闭。")
+                : "可信网络设置失败：" + safe(result.output));
+        refreshTrustedNetworks();
+      });
+    });
+    trustedNetworkStatus = txt("正在读取当前 Wi-Fi 和可信网络列表…",12,0xff617080,false);
+    trustedSsidInput = draftField("trusted_ssid");
+    trustedSsidInput.setSingleLine(true);
+    trustedSsidInput.setHint("输入 Wi-Fi SSID（最多 32 字节）");
+    trustedSsidRows = new LinearLayout(this);
+    trustedSsidRows.setOrientation(LinearLayout.VERTICAL);
+    card("可信网络自动暂停",
+        "仅当自动暂停已启用、当前 SSID 命中名单、游龙广告总开关开启且周计划处于活动时，才暂停游龙广告规则列表。退出可信网络后只恢复本功能自己暂停的门控；不会修改 FX Hosts、96110、VPN/TUN 或用户手动广告开关。",
+        trustedPauseSwitch, trustedNetworkStatus,
+        btn("读取当前状态并立即检测",this::refreshTrustedNetworks));
+    card("可信 Wi-Fi SSID",
+        "支持读取当前 SSID 或手动输入。名单保存在 root 私有文件中，不写入运行日志。",
+        trustedSsidInput,
+        btn("填入当前 Wi-Fi SSID",() -> {
+          if (trustedCurrentSsid == null || trustedCurrentSsid.isEmpty()) {
+            status.setText("当前没有可读取的 Wi-Fi SSID；请手动输入。");
+          } else {
+            trustedSsidInput.setText(trustedCurrentSsid);
+            trustedSsidInput.setSelection(trustedSsidInput.length());
+          }
+        }),
+        btn("添加可信网络",this::addTrustedSsid));
+    card("已保存的可信网络",
+        "命中名单后只暂停游龙广告 [list:rule] 过滤源；Hosts 和 FX 96110 反诈规则继续工作。",
+        trustedSsidRows);
+    refreshTrustedNetworks();
+  }
+
+  private void refreshTrustedNetworks() {
+    final TextView target = trustedNetworkStatus;
+    if (!isTrustedNetworkPageCurrent(target)) return;
+    final long generation = ++trustedNetworkGeneration;
+    target.setText("正在读取当前 Wi-Fi 和可信网络状态…");
+    root("trusted-refresh", result -> {
+      if (!isTrustedNetworkPageCurrent(target) || generation != trustedNetworkGeneration) return;
+      if (result.exitCode != 0) {
+        target.setText("读取可信网络状态失败：" + safe(result.output));
+        return;
+      }
+      String enabled="0", current="", matched="0", paused="0", gate="1", watcher="0";
+      java.util.List<String> ssids = new java.util.ArrayList<>();
+      for (String line : (result.output == null ? "" : result.output).split("\\r?\\n")) {
+        if (line.startsWith("SSID|")) {
+          String value = line.substring(5);
+          if (!value.isEmpty() && value.length() <= 64) ssids.add(value);
+          continue;
+        }
+        int at = line.indexOf('=');
+        if (at <= 0) continue;
+        String key=line.substring(0,at), value=line.substring(at+1);
+        switch (key) {
+          case "pause_enabled": enabled=value; break;
+          case "current_ssid": current=value; break;
+          case "trusted_match": matched=value; break;
+          case "paused_by_trusted": paused=value; break;
+          case "trusted_gate": gate=value; break;
+          case "watcher": watcher=value; break;
+        }
+      }
+      trustedCurrentSsid = current;
+      trustedNetworkSyncing = true;
+      if (trustedPauseSwitch != null) trustedPauseSwitch.setChecked("1".equals(enabled));
+      trustedNetworkSyncing = false;
+      StringBuilder detail = new StringBuilder();
+      detail.append("当前 Wi-Fi：").append(current.isEmpty() ? "未连接或系统未提供 SSID" : current)
+              .append("\n可信名单命中：").append("1".equals(matched) ? "是" : "否")
+              .append("\n自动暂停：").append("1".equals(enabled) ? "已启用" : "已关闭")
+              .append("  ·  watcher：").append("1".equals(watcher) ? "运行中" : "未运行")
+              .append("\n游龙广告规则门控：").append("0".equals(gate) ? "已暂停" : "正常");
+      if ("1".equals(paused)) detail.append("\n暂停来源：可信网络（FX 所有权标记）");
+      target.setText(detail.toString());
+      trustedSsidRows.removeAllViews();
+      if (ssids.isEmpty()) trustedSsidRows.addView(txt("暂无可信 Wi-Fi。",12,0xff718091,false));
+      else for (String ssid : ssids) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(txt(ssid,13,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(btn("移除",() -> removeTrustedSsid(ssid)));
+        trustedSsidRows.addView(row);
+      }
+    });
+  }
+
+  private void addTrustedSsid() {
+    String ssid = trustedSsidInput == null || trustedSsidInput.getText() == null
+            ? "" : trustedSsidInput.getText().toString().trim();
+    if (ssid.isEmpty()) { status.setText("请输入 SSID，或先读取当前 Wi-Fi。"); return; }
+    root("trusted-ssid-add " + q(ssid), result -> {
+      if (!isTrustedNetworkPageCurrent(trustedNetworkStatus)) return;
+      if (result.exitCode != 0) status.setText("添加可信 Wi-Fi 失败：" + safe(result.output));
+      else { status.setText("可信 Wi-Fi 已保存。"); trustedSsidInput.setText(""); }
+      refreshTrustedNetworks();
+    });
+  }
+
+  private void removeTrustedSsid(String ssid) {
+    new AlertDialog.Builder(this).setTitle("移除可信 Wi-Fi")
+            .setMessage("移除后，连接此 SSID 将不再自动暂停游龙广告过滤。")
+            .setNegativeButton("取消",null)
+            .setPositiveButton("移除",(dialog,which) -> root("trusted-ssid-remove " + q(ssid), result -> {
+              if (!isTrustedNetworkPageCurrent(trustedNetworkStatus)) return;
+              status.setText(result.exitCode == 0 ? "可信 Wi-Fi 已移除。" : "移除失败：" + safe(result.output));
+              refreshTrustedNetworks();
+            })).show();
+  }
+
   private boolean isRootProxyStatusCurrent(TextView target) {
     return target != null && target == rootProxyStatus
             && "VPN 与 Root Proxy".equals(page)
@@ -674,5 +806,5 @@ private boolean adMaster(){
 }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
  private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true));r.addView(txt(e.title,10,0xff718091,false));r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
- @Override protected void onDestroy(){rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
+ @Override protected void onDestroy(){trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
 }

@@ -3077,7 +3077,12 @@ public final class MainActivity extends ComponentActivity {
                             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
                             .putExtra("fx_open_native_tab", 0));
                     return;
-                case "信任的网络": case "Root 代理模式": case "iptables DNS 重定向":
+                case "信任的网络":
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
+                            .putExtra("suite_page", "信任的网络"));
+                    return;
+                case "Root 代理模式": case "iptables DNS 重定向":
                     startActivity(new Intent(this,
                             de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
                             .putExtra("suite_page", "VPN 与 Root Proxy")
