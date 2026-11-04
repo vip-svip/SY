@@ -92,13 +92,6 @@ private fun FxNativeAppShell(
             }
         }
     }
-    DisposableEffect(wallpaperBitmap) {
-        onDispose {
-            wallpaperBitmap?.let { bitmap ->
-                if (!bitmap.isRecycled) bitmap.recycle()
-            }
-        }
-    }
     var selected by remember { mutableIntStateOf(selectedIndex.coerceIn(0, 5)) }
     // Keep this provider stable across recompositions. LiquidBottomTabs keys its
     // gesture/callback effects by this function; an inline lambda resets them on
