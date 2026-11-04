@@ -36,6 +36,26 @@ for source in (stats, whitelist, activity):
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
 print("PASS: Firewall filter, lifecycle, six-tab shell and tab-return wiring")
 PY
+
+ROOT_SCRIPT="$ROOT/scripts/yulong-app-firewall.sh"
+python3 - "$ACTIVITY" "$ROOT_SCRIPT" <<'PY'
+from pathlib import Path
+import sys
+activity, root_script = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+assert "private boolean inventoryReady;" in activity
+assert "inventoryReady = false;" in activity and "inventoryReady = true;" in activity
+assert "master.setEnabled(appsLoaded);" not in activity
+assert "if (!inventoryReady)" in activity
+assert "enabled.setEnabled(inventoryReady);" in activity
+assert "configure.setEnabled(inventoryReady);" in activity
+assert "validate_package_uid()" in root_script
+assert 'cmd package list packages -U' in root_script
+assert 'package UID changed; refresh the app list before saving' in root_script
+assert 'package is no longer installed; refusing stale firewall rule' in root_script
+assert root_script.count('validate_package_uid "$2" "$3" >/dev/null') == 2
+print("PASS: Firewall stale-inventory and package/UID write guards")
+PY
+
 command -v javac >/dev/null 2>&1 || fail "JDK is required"
 command -v java >/dev/null 2>&1 || fail "JRE is required"
 OUT=$(mktemp -d)
