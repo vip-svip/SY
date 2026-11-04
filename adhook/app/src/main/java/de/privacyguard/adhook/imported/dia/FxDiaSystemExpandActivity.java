@@ -239,7 +239,7 @@ public final class FxDiaSystemExpandActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView intro = text(
-                "对应 Dia 23.11 的 system_expand_setting PreferenceScreen。原页面包含模块级开关、ro.debuggable、Wi-Fi Proxy 和安装来源控制。FX 只开放已迁入的系统 HTTP 代理操作，其余选项保持禁用。",
+                "对应 Dia 23.11 的 system_expand_setting PreferenceScreen。Wi-Fi HTTP 代理、逐安装来源授权和安装器应用信息入口已迁入；ro.debuggable 原版全局 Hook 因依赖 framework/System UI 注入，不在统一 FX APK 中伪装启用。模块级独立开关由统一 FX 模块生命周期取代。",
                 12, 0xff526170, false);
         intro.setPadding(dp(16), dp(10), dp(16), dp(12));
         body.addView(intro);
