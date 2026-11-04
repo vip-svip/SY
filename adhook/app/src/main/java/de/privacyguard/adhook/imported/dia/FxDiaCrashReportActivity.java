@@ -19,6 +19,7 @@ import android.widget.Toast;
 /** Native Dia crash report viewer; copy and share are explicit user actions. */
 public final class FxDiaCrashReportActivity extends Activity {
     private FxDiaCrashRecord record;
+    private boolean unreadablePendingReport;
     private CheckBox hexStack;
     private TextView reportView;
     private TextView statusView;
@@ -47,8 +48,10 @@ public final class FxDiaCrashReportActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        boolean hadPendingReport = FxDiaCrashStore.hasPendingReport(this);
         record = FxDiaCrashStore.read(this);
-        FxDiaCrashStore.clearPendingFlag(this);
+        unreadablePendingReport = hadPendingReport && record == null;
+        if (hadPendingReport) FxDiaCrashStore.clearPendingFlag(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
@@ -110,8 +113,13 @@ public final class FxDiaCrashReportActivity extends Activity {
 
     private void render() {
         if (record == null) {
-            statusView.setText("目前没有可读取的崩溃记录。启用捕获后，FX 自身进程下次发生 Java 未捕获异常时会在下一次启动显示报告。");
-            reportView.setText("(无崩溃记录)");
+            if (unreadablePendingReport) {
+                statusView.setText("检测到上次启动留下的崩溃标记，但私有 crash.log 无法解析或超过 512 KiB 上限。原始文件已保留，没有把这次崩溃误显示为“无记录”；你可以清除损坏记录后继续使用。");
+                reportView.setText("(崩溃记录不可读取；原始 crash.log 保留在 FX 私有 files 目录)");
+            } else {
+                statusView.setText("目前没有可读取的崩溃记录。启用捕获后，FX 自身进程下次发生 Java 未捕获异常时会在下一次启动显示报告。");
+                reportView.setText("(无崩溃记录)");
+            }
             return;
         }
         statusView.setText("已读取一条 FX 私有崩溃记录。捕获开关仅影响后续异常。");

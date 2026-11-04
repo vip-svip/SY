@@ -41,7 +41,11 @@ assert "getPackageName()" in store and "Build.MODEL" in store, "process/device m
 assert "MAX_STACK_CHARS" in record and "bounded(" in record, "crash fields are not size-bounded"
 assert "hexUtf8(" in record and "可逆，不是加密" in record, "HEX encoding must not be represented as encryption"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
-              "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled"):
+              "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled",
+              "boolean hadPendingReport = FxDiaCrashStore.hasPendingReport(this)",
+              "unreadablePendingReport = hadPendingReport && record == null",
+              "crash.log 无法解析或超过 512 KiB 上限",
+              "原始 crash.log 保留在 FX 私有 files 目录"):
     assert token in activity, f"native report operation missing: {token}"
 for token in ("hexEncodingIsByteAccurateAndReversible", "recordFieldsAreBounded",
               "rawAndHexReportsAreDistinctAndClearlyLabeled"):
