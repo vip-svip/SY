@@ -58,3 +58,33 @@ ad_source = AD_TILE.read_text(encoding="utf-8")
 assert 'command("list")' in ad_source and 'command("ad-master " + next)' in ad_source
 assert 'tile.setLabel("FX 广告过滤")' in ad_source
 print("PASS: Yulong Quick Settings maps to FX's single VPN controller; independent ad-master tile remains separate")
+
+CONTROLLER = ROOT / "scripts/yulong-vpn-control.sh"
+ROOT_PROXY_PATCHER = ROOT / "fx-patches/patch_yulong_root_proxy.py"
+WIDGET = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java"
+MAIN = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+
+controller = CONTROLLER.read_text(encoding="utf-8")
+for token in (
+    '"root_proxy_on":%s',
+    '"root_proxy_known":%s',
+    "try_root_proxy_without_node()",
+    "vpn_external_compat",
+    "VPN_STATUS_UNAVAILABLE",
+    "toggle refused to mutate an unknown route",
+):
+    assert token in controller, f"shared VPN/Root Proxy controller contract missing: {token}"
+
+patcher = ROOT_PROXY_PATCHER.read_text(encoding="utf-8")
+assert 'vpn_control_source = repo / "scripts/yulong-vpn-control.sh"' in patcher
+assert "vpn_control_target.chmod(0o755)" in patcher
+
+widget = WIDGET.read_text(encoding="utf-8")
+for token in ('"root_proxy_on"', '"root_proxy_known"', "state.protectedNow()", "state.rootProxy"):
+    assert token in widget, f"home-screen widget does not consume shared protection state: {token}"
+
+main = MAIN.read_text(encoding="utf-8")
+assert '"$MP/scripts/yulong-vpn-control.sh"' in main
+assert 'optBoolean("root_proxy_on", false)' in main
+assert 'optBoolean("root_proxy_known", false)' in main
+print("PASS: VPN tile, home widget, main dashboard and release restore patcher share VPN/Root Proxy state")

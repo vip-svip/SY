@@ -129,7 +129,8 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
         }
         views.setTextViewText(R.id.fx_yulong_widget_status, status);
         views.setTextViewText(R.id.fx_yulong_widget_count,
-                !message.isEmpty() ? message : state.hasNode ? "节点：已配置" : "节点：未选择");
+                !message.isEmpty() ? message : state.rootProxy ? "第三方 VPN 已接管流量"
+                        : state.hasNode ? "节点：已配置" : "节点：未选择");
         views.setTextViewText(R.id.fx_yulong_widget_toggle, button);
         views.setViewVisibility(R.id.fx_yulong_widget_status, android.view.View.VISIBLE);
 
