@@ -620,8 +620,20 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
         for (String p : currentWhitelist) {
             if (!isSystemPackage(p)) all.add(p);
         }
+        int added = 0;
+        int rejectedStale = 0;
         for (String p : selected) {
-            if (!isSystemPackage(p)) all.add(p);
+            if (!isEligibleUserApp(p)) {
+                rejectedStale++;
+                continue;
+            }
+            if (all.add(p)) added++;
+        }
+        if (added == 0) {
+            Toast.makeText(this, rejectedStale > 0
+                    ? "所选应用已卸载或不再可用；白名单未修改。"
+                    : "所选应用已在白名单中；没有新增条目。", Toast.LENGTH_LONG).show();
+            return;
         }
         String serialized = FxYulongWhitelistPolicy.serialize(all);
         if (serialized == null) {
@@ -634,7 +646,7 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
             Toast.makeText(this, "白名单保存失败，原有配置保持不变。", Toast.LENGTH_LONG).show();
             return;
         }
-        Toast.makeText(this, "已加入 " + selected.size() + " 个应用", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "已加入 " + added + " 个应用" + (rejectedStale > 0 ? "；跳过 " + rejectedStale + " 个已失效项" : ""), Toast.LENGTH_LONG).show();
         finish();
     }
 
