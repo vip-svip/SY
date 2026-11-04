@@ -48,6 +48,7 @@ public final class FxHookObservationLogsActivity extends Activity {
     private ScrollView logScroll;
     private String restoredSearch = "";
     private int restoredScrollY;
+    private boolean restoreScrollPending;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -79,6 +80,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         if (state != null) {
             restoredSearch = state.getString("fx_hook_observe_search", "");
             restoredScrollY = Math.max(0, state.getInt("fx_hook_observe_scroll_y", 0));
+            restoreScrollPending = true;
         }
         if (!isSafePackageName(targetPackage)) {
             Toast.makeText(this, "OBSERVE 日志目标包名无效，无法读取。", Toast.LENGTH_LONG).show();
@@ -241,7 +243,9 @@ public final class FxHookObservationLogsActivity extends Activity {
 
     private void render() {
         if (outputView == null || search == null || count == null) return;
-        final int previousScrollY = logScroll == null ? 0 : logScroll.getScrollY();
+        final int previousScrollY = restoreScrollPending ? restoredScrollY
+                : (logScroll == null ? 0 : logScroll.getScrollY());
+        restoreScrollPending = false;
         if (rawOutput.isEmpty()) {
             outputView.setText("暂无可显示的 OBSERVE 记录。");
             count.setText("匹配记录：0");
