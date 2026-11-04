@@ -916,11 +916,11 @@ public final class MainActivity extends ComponentActivity {
         h.setText(heading);
         h.setTextSize(16);
         h.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        h.setTextColor(0xff17212b);
+        h.setTextColor(uiPrimaryTextColor());
         TextView d = new TextView(this);
         d.setText(description);
         d.setTextSize(12);
-        d.setTextColor(0xff718091);
+        d.setTextColor(uiSecondaryTextColor());
         d.setPadding(0, dp(5), 0, 0);
         card.addView(h);
         card.addView(d);
@@ -946,11 +946,11 @@ public final class MainActivity extends ComponentActivity {
         title.setText(heading);
         title.setTextSize(15);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(0xff17212b);
+        title.setTextColor(uiPrimaryTextColor());
         TextView detail = new TextView(this);
         detail.setText(description);
         detail.setTextSize(12);
-        detail.setTextColor(0xff718091);
+        detail.setTextColor(uiSecondaryTextColor());
         detail.setPadding(0, dp(4), 0, dp(4));
         card.addView(title);
         card.addView(detail);
@@ -5032,6 +5032,19 @@ public final class MainActivity extends ComponentActivity {
         if ("ios".equals(uiMode)) return 0xffffffff;
         return 0xffffffff;
     }
+    private int uiPrimaryTextColor() {
+        if ("glass".equals(uiMode)) return 0xff24394c;
+        if ("miuix".equals(uiMode)) return 0xff202b3c;
+        if ("huawei".equals(uiMode)) return 0xff1d2f43;
+        if ("ios".equals(uiMode)) return 0xff1c1c1e;
+        return 0xff17212b;
+    }
+    private int uiSecondaryTextColor() {
+        if ("huawei".equals(uiMode)) return 0xff64788f;
+        if ("ios".equals(uiMode)) return 0xff6c6c70;
+        if ("miuix".equals(uiMode) || "glass".equals(uiMode)) return 0xff718091;
+        return 0xff66727e;
+    }
     private GradientDrawable roundedDrawable(int color, int strokeColor) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
@@ -5072,10 +5085,7 @@ public final class MainActivity extends ComponentActivity {
     }
     private TextView title(String value, int size) {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size);
-        int textColor = "glass".equals(uiMode) ? 0xff24394c
-                : "miuix".equals(uiMode) ? 0xff202b3c
-                : "ios".equals(uiMode) ? 0xff1c1c1e : 0xff17212b;
-        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(textColor);
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(uiPrimaryTextColor());
         t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
     }
     private void base(String heading) {
