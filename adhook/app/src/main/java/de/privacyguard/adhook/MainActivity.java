@@ -5029,17 +5029,39 @@ public final class MainActivity extends ComponentActivity {
         EditText simulatedSsid = new EditText(this);
         simulatedSsid.setSingleLine(true);
         simulatedSsid.setHint("测试 SSID（最多 32 字节）");
-        simulatedSsid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_ssid", ""));
+        simulatedSsid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_draft_ssid",
+                getPreferences(0).getString(selectedPackage + ":wifi_sim_ssid", "")));
         EditText simulatedBssid = new EditText(this);
         simulatedBssid.setSingleLine(true);
         simulatedBssid.setHint("测试 BSSID（AA:BB:CC:DD:EE:FF）");
-        simulatedBssid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_bssid", ""));
+        simulatedBssid.setText(getPreferences(0).getString(selectedPackage + ":wifi_sim_draft_bssid",
+                getPreferences(0).getString(selectedPackage + ":wifi_sim_bssid", "")));
         Switch simulateWifi = new Switch(this);
         simulateWifi.setText("启用此应用的 Wi-Fi 标识模拟");
-        simulateWifi.setChecked(getPreferences(0).getBoolean(selectedPackage + ":wifi_simulate", false));
+        simulateWifi.setChecked(getPreferences(0).getBoolean(selectedPackage + ":wifi_sim_draft_enabled",
+                getPreferences(0).getBoolean(selectedPackage + ":wifi_simulate", false)));
         simulateWifi.setEnabled(targetDebuggable);
         simulatedSsid.setEnabled(targetDebuggable);
         simulatedBssid.setEnabled(targetDebuggable);
+        // Keep unsaved Wi-Fi test values recoverable across Activity recreation/navigation.
+        simulatedSsid.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(selectedPackage + ":wifi_sim_draft_ssid",
+                        value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        simulatedBssid.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(selectedPackage + ":wifi_sim_draft_bssid",
+                        value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        simulateWifi.setOnCheckedChangeListener((button, checked) ->
+                getPreferences(0).edit().putBoolean(selectedPackage + ":wifi_sim_draft_enabled", checked).apply());
         Button saveWifiSimulation = new Button(this);
         saveWifiSimulation.setAllCaps(false);
         saveWifiSimulation.setText("保存并发布 Wi-Fi 测试配置");
@@ -5059,11 +5081,18 @@ public final class MainActivity extends ComponentActivity {
             if (!bssid.isEmpty() && !bssid.matches("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}")) {
                 Toast.makeText(this, "BSSID 格式应为 AA:BB:CC:DD:EE:FF。", Toast.LENGTH_LONG).show(); return;
             }
-            getPreferences(0).edit()
+            boolean saved = getPreferences(0).edit()
                     .putBoolean(selectedPackage + ":wifi_simulate", enabled)
                     .putString(selectedPackage + ":wifi_sim_ssid", ssid)
                     .putString(selectedPackage + ":wifi_sim_bssid", bssid)
-                    .apply();
+                    .remove(selectedPackage + ":wifi_sim_draft_enabled")
+                    .remove(selectedPackage + ":wifi_sim_draft_ssid")
+                    .remove(selectedPackage + ":wifi_sim_draft_bssid")
+                    .commit();
+            if (!saved) {
+                Toast.makeText(this, "Wi-Fi 测试配置未能写入本地存储，未发布。", Toast.LENGTH_LONG).show();
+                return;
+            }
             publishConfig();
         });
         content.addView(simulatedSsid);
