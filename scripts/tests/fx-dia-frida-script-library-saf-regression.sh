@@ -40,6 +40,8 @@ required = {
     "failed or oversized new draft removes previous cache": "// A failed write can roll back to an older AtomicFile.",
     "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
+    "script export success callback checks Activity lifecycle": 'if (isFinishing() || isDestroyed()) return;\n                    setStatus("当前 JS 脚本已导出。");',
+    "script export failure callback checks Activity lifecycle": 'if (isFinishing() || isDestroyed()) return;\n                    setStatus("JS 脚本导出失败："',
 }
 for label, needle in required.items():
     if needle not in source:
