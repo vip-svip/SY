@@ -22,6 +22,9 @@ assert source.count("new Thread(") == 1, "raw per-action Threads must be removed
 assert "private void submitIo(String operation, Runnable task)" in source
 assert "pendingRestoreDisplayedEntries = -1;" in source, "user search changes must discard the previous restored page depth"
 assert "pendingRestoreScrollY = 0;" in source, "user search changes must discard the previous restored scroll position"
+search_handler = section("directorySearch.addTextChangedListener", 'card(body, "目录内容"')
+assert "pendingRestoreDisplayedEntries = -1;" in search_handler, "directory search must cancel stale page restoration"
+assert "pendingRestoreScrollY = 0;" in search_handler, "directory search must cancel stale scroll restoration"
 restore_tree = section("private void restoreTree(Bundle state)", "private static final class Entry")
 assert restore_tree.index("directorySearch.setText(restoredQuery)") < restore_tree.index("pendingRestoreDisplayedEntries ="), "restored query must be applied before saved pagination/scroll values"
 assert "private List<Entry> filteredDirectoryEntries()" in source, "directory search filter is missing"
