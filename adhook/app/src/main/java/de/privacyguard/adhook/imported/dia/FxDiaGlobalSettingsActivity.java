@@ -47,8 +47,8 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
     private static final String FRAMEWORK_RESTART_COMMAND =
             "stop; fx_stop_rc=$?; start; fx_start_rc=$?; "
                     + "printf 'FX_STOP_RC=%s\\nFX_START_RC=%s\\n' "
-                    + "\\\"$fx_stop_rc\\\" \\ \"$fx_start_rc\\\"; "
-                    + "[ \\"$fx_stop_rc\\" -eq 0 ] && [ \\"$fx_start_rc\\" -eq 0 ]";
+                    + "\"$fx_stop_rc\" \"$fx_start_rc\"; "
+                    + "[ \"$fx_stop_rc\" -eq 0 ] && [ \"$fx_start_rc\" -eq 0 ]";
     private static final ThreadPoolExecutor FRAMEWORK_RESTART_EXECUTOR =
             new ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS,
                     new ArrayBlockingQueue<>(1),
