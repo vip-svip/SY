@@ -56,7 +56,7 @@ assert 'tmp=$(mktemp ' in inject and 'base64 -d > ' in inject and 'mv -f ' in in
     "Frida script source must be staged privately and atomically replaced"
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
-viewer = body("private void showSessionLog()", "private void showMonitorEvents()")
+viewer = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java").read_text(encoding="utf-8")
 assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
     "session log viewer must refuse symlink and non-regular log targets"
 assert r'\\\"' not in inject, "Java command builder must emit shell quoting, not literal backslash-quote characters"
