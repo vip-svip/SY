@@ -26,10 +26,13 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
 public final class FxYulongDnsActivity extends Activity {
-    private static final String PREFS = "fx_dns_log";
+    private static final String STATE_SEARCH = "fx_dns_search";
+    private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";
+    private final AtomicInteger loadGeneration = new AtomicInteger();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16),
             r -> { Thread t = new Thread(r, "fx-yulong-dns-log"); t.setDaemon(true); return t; },
@@ -39,6 +42,11 @@ public final class FxYulongDnsActivity extends Activity {
     private TextView status;
     private EditText search;
     private Button cacheFlushButton;
+    private Button refreshButton;
+    private Button clearButton;
+    private ScrollView scroll;
+    private int pendingScrollY;
+    private boolean pendingScrollRestore;
 
     private static final class Entry {
         final String time, domain, type, reason;
@@ -101,7 +109,7 @@ public final class FxYulongDnsActivity extends Activity {
         header.addView(text("游龙广告插件 · DNS 查询日志", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
-        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -109,10 +117,16 @@ public final class FxYulongDnsActivity extends Activity {
 
         status = text("正在读取本机查询日志…", 13, 0xff526170, false);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
+        if (state != null) {
+            search.setText(state.getString(STATE_SEARCH, ""));
+            pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            pendingScrollRestore = true;
+        }
+        refreshButton = button("刷新", this::load);
+        clearButton = button("清理本地查询日志", this::confirmClear);
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
-                status, button("刷新", this::load),
-                button("清理本地查询日志", this::confirmClear));
+                status, refreshButton, clearButton);
         cacheFlushButton = button("重启本地 DNS 并清理缓存", this::confirmCacheFlush);
         card(body, "DNS 缓存维护",
                 "只重启 FX 管理的本地 Unbound / AdGuard Home。DNS 可能短暂中断；不会清理系统 DNS 缓存、Hosts 或查询日志。",
@@ -128,14 +142,29 @@ public final class FxYulongDnsActivity extends Activity {
     }
 
     private void load() {
+        final int generation = loadGeneration.incrementAndGet();
+        if (refreshButton != null) refreshButton.setEnabled(false);
         status.setText("正在读取最近 500 条 DNS 查询记录…");
         String command = shell("dns-log-tail");
         root(command, result -> {
+            if (generation != loadGeneration.get()) return;
+            if (refreshButton != null) refreshButton.setEnabled(true);
             if (result.exitCode != 0) {
                 status.setText("读取失败：" + safe(result.output));
-                data.clear(); render(); return;
+                data.clear(); render(); restoreScrollIfNeeded(); return;
             }
             parse(result.output);
+            restoreScrollIfNeeded();
+        });
+    }
+
+    private void restoreScrollIfNeeded() {
+        if (!pendingScrollRestore || scroll == null) return;
+        final int restoreY = pendingScrollY;
+        scroll.post(() -> {
+            if (isFinishing() || isDestroyed() || !pendingScrollRestore || scroll == null) return;
+            scroll.scrollTo(0, restoreY);
+            pendingScrollRestore = false;
         });
     }
 
@@ -211,6 +240,8 @@ public final class FxYulongDnsActivity extends Activity {
                 .setMessage("将停止并重新启动 FX 管理的本地 Unbound / AdGuard Home，以清空它们的进程内缓存。期间 DNS 可能短暂中断。不会清理 Android 系统 DNS 缓存、Hosts 或查询日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("重启并清理", (dialog, which) -> {
+                    loadGeneration.incrementAndGet();
+                    if (refreshButton != null) refreshButton.setEnabled(true);
                     if (cacheFlushButton != null) cacheFlushButton.setEnabled(false);
                     status.setText("正在重启 FX 本地 DNS 服务并清理缓存…");
                     root(shell("cache-flush"), 120000L, result -> {
@@ -231,17 +262,33 @@ public final class FxYulongDnsActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("清理本地 DNS 查询日志")
                 .setMessage("只清理 FX AdGuard Home 自己的 querylog.json 文件，不修改 DNS 规则、Hosts 或系统日志。")
                 .setNegativeButton("取消", null)
-                .setPositiveButton("清理", (d, w) -> root(shell("dns-log-clear"), result -> {
-                    if (result.exitCode == 0) {
-                        status.setText("本地 DNS 查询日志已清理。");
-                        data.clear(); render();
-                    } else status.setText("清理失败：" + safe(result.output));
-                })).show();
+                .setPositiveButton("清理", (d, w) -> {
+                    loadGeneration.incrementAndGet();
+                    if (clearButton != null) clearButton.setEnabled(false);
+                    if (refreshButton != null) refreshButton.setEnabled(true);
+                    root(shell("dns-log-clear"), result -> {
+                        if (clearButton != null) clearButton.setEnabled(true);
+                        if (result.exitCode == 0) {
+                            status.setText("本地 DNS 查询日志已清理。");
+                            data.clear(); render();
+                        } else status.setText("清理失败：" + safe(result.output));
+                    });
+                }).show();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        if (search != null) outState.putString(STATE_SEARCH, search.getText().toString());
+        if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
+        super.onSaveInstanceState(outState);
     }
 
     private String safe(String value) {
         return value == null || value.trim().isEmpty() ? "请确认 FX Hook Root 权限。" : value.trim();
     }
 
-    @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() {
+        loadGeneration.incrementAndGet();
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }
