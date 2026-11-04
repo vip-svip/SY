@@ -611,3 +611,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未执行 Android 编译、Gradle 构建、仓库 JUnit task、UI 自动化、模拟器/真机手动扫描/自动通知/前台守护流程。未触发整套 Actions。
 - 未完成项：原始 Shield 9.9.60 的其他第四级页面仍需对照原应用逐页查漏；尤其风险详情、管控规则、日报与实时状态页面还需目标 ROM 验证。
 - 下一批直接任务：① Dia 页面目录与 Manifest 原生路由映射，找出尚未独立迁移的 1–3 个原始四级页面；② 检查 Dia 页面返回链和权限状态；③ 构建环境可用时跑 targeted Android compile。
+
+
+## 2026-11-05 — Dia 剪贴板/通知页面路由纠偏
+
+- 本批代码提交：`c78577a75b1fb11d85f06439fc763ac91946e67b`。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 原问题：Dia 原始页面树中的“对话框与通知”和“剪贴板”两个 target-app scoped 子页都路由到 FX 全局 `notifyPanel` 隐私设置组，作用范围与页面层级不一致。
+- 修正：`剪贴板` 进入每应用 Hook 详情的“剪贴板保护”部分（读取阻断/隔离两个独立真实配置）；`对话框与通知` 进入每应用 Hook 详情的“通知保护”部分（通知监听注册阻断/权限提示控制）。两个路由都保留 `markMigrationChild` 的迁移应用返回链。
+- 复核依据：最新 MainActivity 存在对应 `showTarget` 控件并读写 per-app config key：`clipboard_read_block`、`clipboard_isolate`、`notification_listen_block`、`notification_permission_hide`；其发布仍通过 FX Hook 配置发布路径。全局 `notifyPanel` 保留在 FX Privacy Tab 内，未删除。
+- 未完成/不得误报：Dia 原版专用的 Dialog 拦截/自动处理逻辑没有在本批迁移。现在此三级/四级入口可进入真实的 per-app 通知 Hook 配置，但不能据此标记“对话框处理完整迁移”。下一轮需对照原始 Dia APK 页面/实现，确定对话框工具实际操作对象和回调，再决定独立 Activity 还是复用自定义 Hook；不能仅添加一个假开关。
+- 验证等级：GitHub 源码静态核对通过（路由与四个对应配置键存在）；未运行 Java/Kotlin 编译、Gradle、单测、UI 自动化、安装或 LSPosed 实际注入/真机验证。
+- 未删除原有全局通知/剪贴板隐私配置；未改版本号；未触发完整 Actions。
+- 下一批：继续 Dia GPS/设备属性模拟表单与真实 Hook 发布适配核对，重点验证 UI 声称的 fused location callback、provider enabled、lat/lon/accuracy 是否都被执行层支持；随后补上未迁移的 Dialog 功能映射。
