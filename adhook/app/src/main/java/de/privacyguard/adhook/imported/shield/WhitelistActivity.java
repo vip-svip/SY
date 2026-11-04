@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import de.privacyguard.adhook.RootAccess;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -83,12 +82,6 @@ public class WhitelistActivity extends Activity {
             r -> new Thread(r, "fx-shield-whitelist-labels"),
             new ThreadPoolExecutor.DiscardOldestPolicy());
     private final AtomicLong labelLoadGeneration = new AtomicLong();
-    private final AtomicLong stellarSyncGeneration = new AtomicLong();
-    private final ThreadPoolExecutor stellarSyncWorker = new ThreadPoolExecutor(1, 1, 30L,
-            TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
-            r -> new Thread(r, "fx-shield-stellar-whitelist-sync"),
-            new ThreadPoolExecutor.DiscardOldestPolicy());
-    private TextView stellarSyncStatus;
     private volatile boolean activityDestroyed;
 
     private static class AppItem {
@@ -118,7 +111,6 @@ public class WhitelistActivity extends Activity {
 
         refreshWhitelistUI();
         loadLabelsAsync();
-        syncStellarWhitelist();
     }
 
     @Override
@@ -129,7 +121,6 @@ public class WhitelistActivity extends Activity {
             loadWhitelist();
             refreshWhitelistUI();
             loadLabelsAsync();
-            syncStellarWhitelist();
         }
     }
 
@@ -178,9 +169,7 @@ public class WhitelistActivity extends Activity {
     protected void onDestroy() {
         activityDestroyed = true;
         labelLoadGeneration.incrementAndGet();
-        stellarSyncGeneration.incrementAndGet();
         labelWorker.shutdownNow();
-        stellarSyncWorker.shutdownNow();
         super.onDestroy();
     }
 
@@ -303,15 +292,6 @@ public class WhitelistActivity extends Activity {
         summaryDesc.setTextSize(12);
         summaryDesc.setPadding(0, dp(9), 0, 0);
         summary.addView(summaryDesc);
-
-        stellarSyncStatus = new TextView(this);
-        stellarSyncStatus.setText("Stellar 命令白名单：等待同步");
-        stellarSyncStatus.setTextColor(COLOR_SUB);
-        stellarSyncStatus.setTextSize(11);
-        stellarSyncStatus.setPadding(0, dp(8), 0, 0);
-        stellarSyncStatus.setClickable(true);
-        stellarSyncStatus.setOnClickListener(v -> syncStellarWhitelist());
-        summary.addView(stellarSyncStatus);
         content.addView(summary);
 
         // 搜索框
@@ -430,7 +410,6 @@ public class WhitelistActivity extends Activity {
             for (String p : raw.split(",")) {
                 String t = p.trim();
                 if (t.isEmpty()) continue;
-                if (!t.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) continue;
                 if (isSystemPackage(t)) {
                     removedSystem = true;
                     continue;
@@ -461,104 +440,7 @@ public class WhitelistActivity extends Activity {
             sb.append(p);
         }
         prefs.edit().putString("whitelist_pkgs", sb.toString()).apply();
-        syncStellarWhitelist();
-    }
 
-    private static String shellQuote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
-    }
-
-    private String buildStellarWhitelistSyncCommand(List<String> packages) {
-        StringBuilder command = new StringBuilder(
-                "MP=''; for d in /data/adb/modules/privacyguard "
-                + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
-                + "/data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; "
-                + "sh \"$MP/scripts/yulong-stellar-control.sh\" pkg-sync");
-        for (String packageName : packages) {
-            command.append(" ").append(shellQuote(packageName));
-        }
-        return command.toString();
-    }
-
-    /** Keep the original Stellar SharedPreferences cache and guarded policy file in sync. */
-    private void syncStellarWhitelist() {
-        final long generation = stellarSyncGeneration.incrementAndGet();
-        final List<String> packages = new ArrayList<>();
-        for (String packageName : currentWhitelist) {
-            if (packageName != null
-                    && packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) {
-                packages.add(packageName);
-            }
-        }
-        Collections.sort(packages);
-        if (packages.size() > 1000) {
-            setStellarSyncStatus(generation,
-                    "本地白名单已保存；Stellar 同步超过 1000 个应用的安全上限，点击重试前请精简列表。",
-                    0xffc62828);
-            return;
-        }
-
-        StringBuilder legacyPackages = new StringBuilder();
-        for (String packageName : packages) {
-            if (legacyPackages.length() > 0) legacyPackages.append(",");
-            legacyPackages.append(packageName);
-        }
-        boolean legacySaved = getSharedPreferences("stellar_command_whitelist", MODE_PRIVATE)
-                .edit().putString("pkgs", legacyPackages.toString()).commit();
-        if (!legacySaved) {
-            setStellarSyncStatus(generation,
-                    "本地白名单已保存；Stellar 兼容缓存写入失败，点击重试。",
-                    0xffc62828);
-            return;
-        }
-
-        final String command = buildStellarWhitelistSyncCommand(packages);
-        if (command.length() > 90000) {
-            setStellarSyncStatus(generation,
-                    "本地白名单已保存；Stellar 同步命令超过安全长度限制，点击重试前请精简列表。",
-                    0xffc62828);
-            return;
-        }
-        setStellarSyncStatus(generation,
-                "Stellar 命令白名单：正在同步 " + packages.size() + " 个应用…", COLOR_SUB);
-        try {
-            stellarSyncWorker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(command, 45000L, 32768);
-                runOnUiThread(() -> {
-                    if (activityDestroyed || isFinishing() || isDestroyed()
-                            || generation != stellarSyncGeneration.get()
-                            || stellarSyncStatus == null) return;
-                    if (result.exitCode == 0 && result.output != null
-                            && result.output.contains("success=1 package_count=" + packages.size())) {
-                        setStellarSyncStatus(generation,
-                                "Stellar 命令白名单：已同步 " + packages.size()
-                                        + " 个应用 · 点击重新同步",
-                                0xff2e7d32);
-                    } else {
-                        String detail = result.output == null ? "" : result.output.trim();
-                        if (detail.length() > 120) detail = detail.substring(0, 120) + "…";
-                        setStellarSyncStatus(generation,
-                                "本地白名单已保存；Stellar 同步失败（Root " + result.exitCode + "）"
-                                        + (detail.isEmpty() ? "" : "：" + detail) + " · 点击重试",
-                                0xffc62828);
-                    }
-                });
-            });
-        } catch (RejectedExecutionException full) {
-            setStellarSyncStatus(generation,
-                    "本地白名单已保存；Stellar 同步队列繁忙，点击重试。",
-                    0xffc62828);
-        }
-    }
-
-    private void setStellarSyncStatus(long generation, String message, int color) {
-        if (activityDestroyed || generation != stellarSyncGeneration.get()
-                || stellarSyncStatus == null) return;
-        stellarSyncStatus.setText(message);
-        stellarSyncStatus.setTextColor(color);
     }
 
     // ============================================================
