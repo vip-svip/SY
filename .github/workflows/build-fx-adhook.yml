@@ -2,6 +2,12 @@ name: Validate FX APP migration and build Hook APK
 
 on:
   workflow_dispatch:
+    inputs:
+      migration_complete:
+        description: "Only enable APK build after Dia, Yulong AdBlock and Yulong Shield source migrations and acceptance gates are complete."
+        required: true
+        type: boolean
+        default: false
   push:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -388,19 +394,23 @@ jobs:
           echo "pass=$pass skipped=$skipped fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
           [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
       - name: Set up Java 17 for FX Hook APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - name: Set up Gradle for FX Hook APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
       - name: Set up Android SDK for FX Hook APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - name: Normalize Android 17 platform path for Android Gradle Plugin
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         shell: bash
         run: |
           set -euo pipefail
@@ -410,6 +420,7 @@ jobs:
           fi
           test -s "$sdk_root/platforms/android-37/android.jar"
       - name: Compile and verify the unified FX Hook APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         shell: bash
         run: |
           set -euo pipefail
@@ -452,6 +463,7 @@ jobs:
           sh scripts/tests/fx-native-single-navigation-regression.sh
           sha256sum "$apk"
       - name: Upload verified FX Hook APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true }}
         if: success()
         uses: actions/upload-artifact@v4
         with:
