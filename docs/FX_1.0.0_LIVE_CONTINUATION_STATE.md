@@ -2052,3 +2052,25 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：源码静态断言通过；未运行 Shell 回归、Gradle、UI 自动化或真机风险详情往返/旋转测试。
 - 最近并行提交：Frida 目标包/进程扫描后重新验证目标身份（`632a6dc9a8b4683cd769a0e1881e36207133fbf8`）、目标切换清理旧 PID（`4730cd11d71a566d2467f57003f5f1b92ae3e2c2`）、过期进程选择身份断言（`397e5307ae57b86a4bd13a6566f915689badbbea`），以及对应状态记录（`6c506066769547604157f7b0d9cad13af6823692`）。安全护盾通知来源直达救援页（`d4ee58b8be644037170a4467c4ebde0373aef4b7`）。
 - 下一步：核对扫描结果详情页与批量清理队列 Activity 的回退后状态回显/系统卸载结果回读；随后检查病毒库管理页错误/缓存回滚 UI。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾批量清理队列完整性与恢复 fail-closed
+
+- 本批基于分支最新文件检查后发现：批量清理页 `FxYulongBatchCleanupActivity.restoreQueue()` 之前使用三个数组长度的最小值并静默截断；包名格式错误/重复项目也会被跳过后继续处理剩余队列。若队列 Bundle/Intent 字段不匹配，页面可能展示一个不完整的清理队列，而用户无法从页面判断被省略的项目。
+- 修复 `FxYulongBatchCleanupActivity.java`：
+  - packages / labels / reasons 必须全部存在、数量完全一致、非空且不超过 100 项；不再按最短数组静默截断。
+  - 全队列预检每个包名格式、唯一性、label/reason 长度；任一项目异常则拒绝整个队列，不部分执行。
+  - 已移除项目必须属于原队列；恢复 index 必须在 0 到队列长度范围内。
+  - 无效队列状态和原因写入 Bundle；Activity 重建后继续保持无效状态。
+  - 无效队列页面明确显示拒绝原因并禁用“打开系统卸载确认”和“跳过当前项”，要求返回扫描页重新选择。
+  - 保留逐项 Android 系统卸载确认流程；没有增加静默卸载、Root force-stop 或冻结行为。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongBatchCleanupActivity.java`
+  - `scripts/tests/fx-yulong-shield-native-regression.sh`
+  - `docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`
+- 提交：
+  - `67bd883a0697d8f2477753a7b0b67bcb913e6a01` — fail-closed 队列恢复与状态保存。
+  - `9c108c193e7a36d0ccf86da593a215c08a43cecc` — Shield 回归脚本覆盖字段数量、大小上限、包名唯一性、已移除项目归属、index 范围和无效状态禁用操作。
+- 最新 HEAD 复核：`a102de7565271c44c0cfcf468fa88b8d574ef963`。静态检查确认实现与回归脚本均包含上述契约；本轮没有执行 Shell 回归脚本、Host 单测、Gradle 构建、UI 自动化、安装或真机卸载流程。不得把静态断言审阅表述为运行测试通过。
+- 中断恢复注意：资料库 `/FX` 当前目录列表未包含《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》和《FX_1.0.0_快速推进与主动修复执行档.md》，本窗口已完整读取现存的 UI 总指令、提速补充档和旧版 Library 实时状态；缺失两份文件不以推测补写。
+- 下一批直接任务：① 核对 Shield 批量清理从系统卸载页返回后的当前项状态和队列滚动/返回链；② 检查风险详情页对卸载结果、包卸载广播和通知入口的状态回显；③ 然后继续 Dia Frida 目标进程选择与脚本编辑器的结果归属回归。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
