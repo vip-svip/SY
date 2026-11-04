@@ -111,13 +111,13 @@ public final class UnifiedHookConfigSerializer {
                 out.append(",dialog_match=1");
                 if (!target.dialogTextTerms.isEmpty()) {
                     String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
-                            .encodeToString(String.join("\\n", target.dialogTextTerms)
+                            .encodeToString(String.join("\n", target.dialogTextTerms)
                                     .getBytes(StandardCharsets.UTF_8));
                     out.append(",dialog_text_terms_b64=").append(encoded);
                 }
                 if (!target.dialogIdTerms.isEmpty()) {
                     String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
-                            .encodeToString(String.join("\\n", target.dialogIdTerms)
+                            .encodeToString(String.join("\n", target.dialogIdTerms)
                                     .getBytes(StandardCharsets.UTF_8));
                     out.append(",dialog_id_terms_b64=").append(encoded);
                 }
