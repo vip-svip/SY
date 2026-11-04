@@ -624,3 +624,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：GitHub 源码静态核对通过（路由与四个对应配置键存在）；未运行 Java/Kotlin 编译、Gradle、单测、UI 自动化、安装或 LSPosed 实际注入/真机验证。
 - 未删除原有全局通知/剪贴板隐私配置；未改版本号；未触发完整 Actions。
 - 下一批：继续 Dia GPS/设备属性模拟表单与真实 Hook 发布适配核对，重点验证 UI 声称的 fused location callback、provider enabled、lat/lon/accuracy 是否都被执行层支持；随后补上未迁移的 Dialog 功能映射。
+
+
+## 2026-11-05 — Shield 白名单管理页读写端与实时守护第三消费点完成统一
+
+- 写入前实时分支 HEAD：`00e74f28e62ea9cef7362dc022ff1175f5d79b1f`。
+- 代码提交：
+  - `db5adc459d64d33a4b427bf5eb070060327f22fe` — 中央策略增加 `isValidPackageName()` 和有界 `serialize()`。
+  - `90779ddd1a6ffa440355ae7b8dbc6e4f7b7a523b` — 白名单管理 Activity 统一 parser/serializer，commit 失败不虚报成功，单项移除失败恢复条目。
+  - `f2a5b9ed0d3298d3fce564103d75326fd5af8c87` — 全屏多选 Picker 统一 parser/serializer；超限整批拒绝、提交失败保留原配置。
+  - `e122edd5b322255cbafc2fd503838ca7522c2359` — 增加 serializer 去重往返、非法包名、超过条数、超过原始字符上限的测试。
+  - `ea235c13fa28e5c8c415c938c844e7b910a62d27` — 实时前台 ProtectionService 白名单读取切换到中央 policy，移除该消费点的独立 CSV parser。
+- 改动路径：`FxYulongWhitelistPolicy.java`、`WhitelistActivity.java`、`WhitelistPickerActivity.java`、`FxYulongProtectionService.java`、`FxYulongWhitelistPolicyTest.java`。
+- 当前三个运行时消费者统一使用中央白名单：手动全量/单应用扫描、自动前台/安装风险通知、实时前台黑名单守护；两个 UI 管理写入入口也使用相同规则。
+- 写入端严格拒绝非法包名、超过 10,000 个唯一包名或 CSV 长度超过 1 MiB 的整个写入；不会截断，也不会部分保存。读取端遇到超限名单仍返回空信任集合（fail-open 扫描），不会因名单损坏隐藏风险。恰好 10,000 个唯一条目保持可用。
+- 管理 UI 会显示原名单为空/全无效/超限的警告；新增应用时把有效集合重新完整序列化，只有本地 commit 成功才关闭页面。单项移除保存失败会恢复 UI 中的原条目。
+- 本地验证：临时 JDK harness 使用 Android Context/SharedPreferences/Log 与 JUnit 最小 stub 编译策略/测试逻辑，11 项断言 11/11 通过。这不是仓库 Gradle/JUnit 任务；未运行 Android 编译、Gradle、Activity 真机/模拟器交互或真实扫描服务测试。
+- GitHub 静态复核：重新读取 Policy、管理页、Picker、ProtectionService、测试与 Gradle；确认三个运行时消费点、两个 UI 写入点统一、限额 guard、失败恢复和测试源码均存在；版本仍为 FX 1.0.0 / versionCode 10000。
+- 这一节覆盖并完成前一节“WhitelistActivity / WhitelistPickerActivity 写入端尚未采用统一 policy”的待办；不改变之前的 fail-open 安全策略。
+- 未运行完整 Actions；未生成最终 APK 或 KernelSU ZIP。
+- 下一批直接任务：① Dia 目录/Manifest/Activity Browser 页面路由映射，对照当前原生页面找 1–3 个未独立迁移或通用占位页面；② 补页面的导航、编辑/详情和返回链，不只增加空按钮；③ 页面完成后按对应后端能力做 targeted 检查，再更新当前分支状态。
