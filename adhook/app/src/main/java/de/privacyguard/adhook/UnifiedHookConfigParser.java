@@ -55,6 +55,8 @@ public final class UnifiedHookConfigParser {
         public float simulatedAccuracy = 5f;
         public boolean dialogMatchEnabled;
         public boolean dialogNotify;
+        public boolean toastFilterEnabled;
+        public final List<String> toastTextTerms = new ArrayList<>();
         public final List<String> dialogTextTerms = new ArrayList<>();
         public final List<String> dialogIdTerms = new ArrayList<>();
         public boolean androidIdSimulation;
@@ -296,8 +298,8 @@ public final class UnifiedHookConfigParser {
             boolean networkTypeSimulation=false;
             String simulatedNetworkType=null;
             boolean locationSimulation=false;
-            boolean dialogMatchEnabled=false, dialogNotify=false;
-            String dialogTextTermsRaw=null, dialogIdTermsRaw=null;
+            boolean dialogMatchEnabled=false, dialogNotify=false, toastFilterEnabled=false;
+            String dialogTextTermsRaw=null, dialogIdTermsRaw=null, toastTextTermsRaw=null;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
             boolean simulatedAccuracySpecified=false;
@@ -353,6 +355,15 @@ public final class UnifiedHookConfigParser {
                 }
                 if ("dialog_id_terms_b64".equals(key)) {
                     dialogIdTermsRaw = decodeDeveloperRuleValue(value);
+                    continue;
+                }
+                if ("toast_filter".equals(key)) {
+                    toastFilterEnabled = "1".equals(value);
+                    if (!bit(value)) throw new IllegalArgumentException("invalid toast filter flag");
+                    continue;
+                }
+                if ("toast_text_terms_b64".equals(key)) {
+                    toastTextTermsRaw = decodeDeveloperRuleValue(value);
                     continue;
                 }
                 if ("location_lat".equals(key)) {
@@ -521,6 +532,11 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("dialog match rules require dialog_match=1");
             if (dialogNotify && !dialogMatchEnabled)
                 throw new IllegalArgumentException("dialog notification requires dialog_match=1");
+            List<String> toastTextTerms = FxDiaDialogMatchPolicy.parseTerms(toastTextTermsRaw);
+            if (toastFilterEnabled && toastTextTerms.isEmpty())
+                throw new IllegalArgumentException("toast filtering requires explicit text rules");
+            if (!toastFilterEnabled && !toastTextTerms.isEmpty())
+                throw new IllegalArgumentException("toast text rules require toast_filter=1");
             if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
                 throw new IllegalArgumentException("location simulation requires latitude and longitude");
             if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null
@@ -534,6 +550,8 @@ public final class UnifiedHookConfigParser {
             parsedTarget.dialogNotify = dialogNotify;
             parsedTarget.dialogTextTerms.addAll(dialogTextTerms);
             parsedTarget.dialogIdTerms.addAll(dialogIdTerms);
+            parsedTarget.toastFilterEnabled = toastFilterEnabled;
+            parsedTarget.toastTextTerms.addAll(toastTextTerms);
             parsedTarget.locationSimulation = locationSimulation;
             parsedTarget.locationProviderEnabledSimulation = locationProviderEnabledSimulation;
             if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
