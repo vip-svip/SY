@@ -354,6 +354,7 @@ jobs:
           sh scripts/tests/fx-stellar-manager-activity-regression.sh
           sh scripts/tests/fx-stellar-manager-provider-regression.sh
           sh scripts/tests/fx-stellar-adb-native-regression.sh
+          sh scripts/tests/fx-stellar-native-launcher-regression.sh
           sh scripts/tests/fx-stellar-adb-packet-regression.sh
           sh scripts/tests/fx-stellar-adb-key-regression.sh
           sh scripts/tests/fx-stellar-adb-identity-regression.sh
