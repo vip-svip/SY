@@ -5,6 +5,7 @@ JAVA="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia"
 ACTIVITY="$JAVA/FxDiaScriptLibraryActivity.java"
 STORE="$JAVA/FxDiaScriptLibraryStore.java"
 POLICY="$JAVA/FxDiaScriptLibraryPolicy.java"
+FRIDA="$JAVA/FxDiaFridaActivity.java"
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 HOST_TEST="$ROOT/scripts/tests/FxDiaScriptLibraryPolicyHostTest.java"
@@ -23,10 +24,10 @@ grep -Fq 'startActivityForResult(intent, REQUEST_EDITOR)' "$ACTIVITY" || fail "s
 grep -Fq 'mergeImport' "$ACTIVITY" || fail "JSON library import is not connected"
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
-python3 - "$ACTIVITY" "$STORE" <<'PY'
+python3 - "$ACTIVITY" "$STORE" "$FRIDA" <<'PY'
 from pathlib import Path
 import sys
-activity, store = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+activity, store, frida = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES - count" in activity, "import stream must have a hard byte limit"
 editor_start = activity.index("if (requestCode == REQUEST_EDITOR)")
@@ -36,9 +37,24 @@ assert editor_start < saf_start, "custom editor result must be handled before re
 assert "FxDiaCodeEditorActivity.RESULT_CODE_EDITOR" in editor_result, "custom editor result code is ignored"
 assert "getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE)" in editor_result, "edited source is not read from the result Intent"
 assert "FxDiaScriptLibraryStore.save(this, name, source)" in editor_result, "edited source is not persisted to the shared script library"
-assert "SharedPreferences.MODE_PRIVATE" in store, "script data must remain private to FX"
+assert "Context.MODE_PRIVATE" in store, "script data must remain private to FX"
 assert "commit()" in store, "script writes must confirm persistence"
 assert "validateScripts" in store and "validateSource" in store, "reads and imports must reject invalid entries"
 assert "synchronized (LOCK)" in store, "script-library read/modify/write operations must be serialized"
-print("PASS: Dia script library routes, persistent CRUD, editor, bounded JSON import/export")
+assert "instanceof String" in store, "non-string JSON values must be rejected"
+assert "replaceAll(Context context" in store, "shared storage replace API is missing"
+assert "FxDiaScriptLibraryStore.read(this)" in frida, "legacy Frida page bypasses shared store"
+assert "FxDiaScriptLibraryStore.save(this, label, source)" in frida, "legacy Frida save bypasses shared validation"
+assert "FxDiaScriptLibraryStore.delete(this, name)" in frida, "legacy Frida delete bypasses shared locking"
+assert "FxDiaScriptLibraryStore.mergeImport(this, json)" in frida, "legacy Frida import bypasses shared validation"
+print("PASS: dedicated and legacy Frida pages share one validated, serialized script-library store")
 PY
+
+if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+  javac -d "$tmp" "$POLICY" "$HOST_TEST"
+  java -cp "$tmp" FxDiaScriptLibraryPolicyHostTest
+else
+  echo "SKIP: host JVM policy test (JDK unavailable)"
+fi

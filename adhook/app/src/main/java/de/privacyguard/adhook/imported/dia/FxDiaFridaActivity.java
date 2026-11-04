@@ -586,27 +586,11 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private org.json.JSONObject readFridaScriptLibrary() throws Exception {
-        String raw = getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getString("frida_script_library_v1", "{}");
-        if (raw.length() > 1024 * 1024)
-            throw new IllegalStateException("Frida 脚本库超过 1 MiB，拒绝继续加载。");
-        org.json.JSONObject root = new org.json.JSONObject(raw);
-        org.json.JSONObject scripts = root.optJSONObject("scripts");
-        return scripts == null ? new org.json.JSONObject() : scripts;
+        return FxDiaScriptLibraryStore.read(this);
     }
 
     private void writeFridaScriptLibrary(org.json.JSONObject scripts) throws Exception {
-        if (scripts == null || scripts.length() > 64)
-            throw new IllegalArgumentException("每个 FX Dia 配置最多保存 64 个 Frida 脚本。");
-        org.json.JSONObject root = new org.json.JSONObject();
-        root.put("schema", "FX-DIA-FRIDA-SCRIPTS-1");
-        root.put("scripts", scripts);
-        byte[] bytes = root.toString().getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > 1024 * 1024)
-            throw new IllegalArgumentException("Frida 脚本库超过 1 MiB，请删除部分脚本。");
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString("frida_script_library_v1", root.toString())
-                .apply();
+        FxDiaScriptLibraryStore.replaceAll(this, scripts);
     }
 
     private void saveCurrentFridaScript() {
@@ -634,9 +618,7 @@ public final class FxDiaFridaActivity extends Activity {
                         return;
                     }
                     try {
-                        org.json.JSONObject scripts = readFridaScriptLibrary();
-                        scripts.put(label, source);
-                        writeFridaScriptLibrary(scripts);
+                        FxDiaScriptLibraryStore.save(this, label, source);
                         setStatus("Frida 脚本已保存到本地脚本库：" + label);
                     } catch (Exception error) {
                         setStatus("保存脚本失败：" + error.getMessage());
@@ -697,9 +679,7 @@ public final class FxDiaFridaActivity extends Activity {
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) -> {
                                 try {
-                                    org.json.JSONObject latest = readFridaScriptLibrary();
-                                    latest.remove(name);
-                                    writeFridaScriptLibrary(latest);
+                                    FxDiaScriptLibraryStore.delete(this, name);
                                     setStatus("已从本地脚本库删除：" + name);
                                 } catch (Exception error) {
                                     setStatus("删除脚本失败：" + error.getMessage());
@@ -710,13 +690,7 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private String buildFridaScriptLibraryJson() throws Exception {
-        org.json.JSONObject root = new org.json.JSONObject();
-        root.put("schema", "FX-DIA-FRIDA-SCRIPTS-1");
-        root.put("scripts", readFridaScriptLibrary());
-        String json = root.toString(2);
-        if (json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES)
-            throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB，无法导出。");
-        return json;
+        return FxDiaScriptLibraryStore.exportJson(this);
     }
 
     private void exportFridaScriptLibrary() {
@@ -826,26 +800,7 @@ public final class FxDiaFridaActivity extends Activity {
     }
 
     private int mergeFridaScriptLibraryJson(String json) throws Exception {
-        if (json == null || json.getBytes(StandardCharsets.UTF_8).length > MAX_LIBRARY_JSON_BYTES)
-            throw new IllegalArgumentException("Frida 脚本库 JSON 为空或超过 1 MiB。");
-        org.json.JSONObject root = new org.json.JSONObject(json);
-        if (!"FX-DIA-FRIDA-SCRIPTS-1".equals(root.optString("schema")))
-            throw new IllegalArgumentException("JSON schema 不匹配。");
-        org.json.JSONObject incoming = root.getJSONObject("scripts");
-        if (incoming.length() > 64) throw new IllegalArgumentException("单次最多导入 64 个脚本。");
-        org.json.JSONObject merged = readFridaScriptLibrary();
-        java.util.Iterator<String> keys = incoming.keys();
-        while (keys.hasNext()) {
-            String name = keys.next();
-            String source = incoming.optString(name, "");
-            if (name.trim().isEmpty() || name.length() > 64
-                    || name.indexOf('|') >= 0 || source.trim().isEmpty()
-                    || source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024)
-                throw new IllegalArgumentException("脚本名称或大小不符合限制：" + name);
-            merged.put(name, source);
-        }
-        writeFridaScriptLibrary(merged);
-        return incoming.length();
+        return FxDiaScriptLibraryStore.mergeImport(this, json);
     }
 
     private void pickScript() {

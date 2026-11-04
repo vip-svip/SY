@@ -126,3 +126,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Verification/Actions status at this update: do not infer a pass for a newer HEAD from older Actions runs. The latest observed workflow run before this documentation update was still in progress for an earlier commit; read current Actions only when the next functional batch reaches its verification point.
 - Documentation-only change: no new app behavior, APK build, install test, UI automation, or device validation is claimed.
 
+
+
+### Frida 脚本库存储统一（2026-11-05）
+
+- 新旧 Frida 页面现在共用 `FxDiaScriptLibraryStore`；原 Frida 页面保存、删除、JSON 导入/导出不再绕过共享校验和串行写入。
+- 导入 JSON 时严格拒绝非字符串的脚本值，防止类型强制转换吞掉错误格式。
+- 脚本库定向回归会在 JDK 可用时编译并执行 Host JVM 策略测试。
+- 已执行的本地 Host JVM 策略测试：PASS（脚本名、控制字符、UTF-8 字节大小、空源码、64 条上限和同名替换）。
+- Android Gradle 构建、安装及真机 SAF/编辑流程：未运行/未验证。

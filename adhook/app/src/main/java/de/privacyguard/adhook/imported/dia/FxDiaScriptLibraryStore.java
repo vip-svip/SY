@@ -78,6 +78,14 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Replace all entries after the caller has explicitly confirmed an import/merge. */
+    public static void replaceAll(Context context, JSONObject scripts) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");
+        synchronized (LOCK) {
+            writeLocked(context, scripts);
+        }
+    }
+
     public static void delete(Context context, String name) throws Exception {
         if (context == null || name == null) throw new IllegalArgumentException("删除参数无效。");
         synchronized (LOCK) {
@@ -157,7 +165,11 @@ public final class FxDiaScriptLibraryStore {
         while (keys.hasNext()) {
             String name = keys.next();
             String nameError = FxDiaScriptLibraryPolicy.validateName(name);
-            String sourceError = FxDiaScriptLibraryPolicy.validateSource(scripts.optString(name, null));
+            Object rawSource = scripts.opt(name);
+            if (!(rawSource instanceof String)) {
+                throw new IllegalArgumentException("脚本“" + name + "”的内容必须是字符串。");
+            }
+            String sourceError = FxDiaScriptLibraryPolicy.validateSource((String) rawSource);
             if (nameError != null) throw new IllegalArgumentException(nameError);
             if (sourceError != null) throw new IllegalArgumentException("脚本“" + name + "”： " + sourceError);
         }
