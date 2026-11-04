@@ -2333,3 +2333,24 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态核验：重新读取最新分支源码和两份测试脚本，确认启动失败回滚、Bundle 状态、非法条目保护、异常捕获及对应断言均存在。未执行 Shell/Python/Gradle、模拟器或真机测试；不计为运行测试通过。
 - 剩余事项：确认白名单管理器与风险详情页对历史非法条目的策略一致；验证大名单、权限可见性与旋转恢复；继续检查黑名单分页选择/暂存/取消/保存是否存在跨页丢选。
 - 下一步：检查安全护盾黑名单编辑器的分页选择与状态恢复，再推进六 Tab 原生页面导航。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — DEX Hook ActivityResult 请求归属与 Dia 返回层级
+
+- 本批开始时实时 HEAD：`09528a3a8fa5cc18b08c94b95586e19b5c267df6`；本批提交时重新读取最新 MainActivity、DEX Activity 和回归脚本，未覆盖并行工作。
+- 接管并复核并行工作线已落地的 `pendingDiaDexHookPicker`：
+  - 从 Dia “Dex 查找与解析”入口启动选择器前置为 pending；
+  - MainActivity Bundle 保存/恢复该请求标记；
+  - 只有仍有对应 pending 请求且返回 `RESULT_OK` 的结果才进入 Hook 编辑器；取消/无结果/无对应请求均丢弃。
+  - 启动失败会清除 pending，防止下次无关 ActivityResult 被当作 DEX 方法结果。
+- 本批修复：
+  - 成功导入精确方法后置 `migrationChildActive=true`；退出 Hook 自定义规则页/应用列表时返回原 Dia “开发与监控 → Dex 查找与解析”分类，而不是跳过分类回到套件首页。
+  - MainActivity 对返回包名增加 255 字符和包名格式校验；方法描述符限制 4096 字符；再次从 PackageManager 读取目标应用并校验仍安装、debuggable、非系统应用及 `DeveloperHookRule.parse`。
+  - MainActivity 与 DEX 子页面都排除 `FLAG_UPDATED_SYSTEM_APP`，不只排除基础系统应用；更新系统应用不能作为 Hook 目标导入。
+  - DEX 选择器启动异常时清理 pending 并给出可见错误。
+- 提交：
+  - `f9bca2493017a4b7e48efb6044a47eeebae5fbd8` — ActivityResult 返回 Hook 后保留 Dia 分类返回链，并增加目标包/描述符边界。
+  - `fcd4859bbb22e695cbdcad597efe77c43c4d7ff3` — DEX 子页不向 updated-system app 提供 Hook 方法选择。
+  - `8f95edf7a8e00cf94cb81f0cfd20640e75c7160d` — 回归脚本覆盖 pending 请求保存/恢复、结果归属、Dia 返回层级与输入边界。
+- 验证：最新 HEAD 静态核对 10 项通过（pending 字段/Bundle/结果门控、启动路由、成功后 migration child、包名格式/长度、描述符长度、系统/更新系统应用排除、回归断言）。未运行完整 Shell 脚本、Gradle、模拟器或真机选择器取消/重建/返回测试。
+- 下一步：继续补齐三套原生页面的返回栈/ActivityResult 测试，再集中运行 DEX Hook picker 与 DEX browser 两条针对性脚本；随后继续 Hook 主 Tab 运行态页面。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
