@@ -45,6 +45,9 @@ public final class FxHookObservationLogsActivity extends Activity {
     private TextView count;
     private TextView outputView;
     private EditText search;
+    private ScrollView logScroll;
+    private String restoredSearch = "";
+    private int restoredScrollY;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -73,6 +76,10 @@ public final class FxHookObservationLogsActivity extends Activity {
         super.onCreate(state);
         targetPackage = getIntent().getStringExtra(EXTRA_TARGET_PACKAGE);
         targetLabel = getIntent().getStringExtra(EXTRA_TARGET_LABEL);
+        if (state != null) {
+            restoredSearch = state.getString("fx_hook_observe_search", "");
+            restoredScrollY = Math.max(0, state.getInt("fx_hook_observe_scroll_y", 0));
+        }
         if (!isSafePackageName(targetPackage)) {
             Toast.makeText(this, "OBSERVE 日志目标包名无效，无法读取。", Toast.LENGTH_LONG).show();
             finish();
@@ -156,7 +163,9 @@ public final class FxHookObservationLogsActivity extends Activity {
         count.setPadding(dp(16), dp(4), dp(16), dp(4));
         root.addView(count);
 
+        search.setText(restoredSearch);
         ScrollView scroll = new ScrollView(this);
+        logScroll = scroll;
         scroll.setFillViewport(true);
         outputView = text("正在读取…", 11, 0xff263443, false);
         outputView.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -165,6 +174,7 @@ public final class FxHookObservationLogsActivity extends Activity {
         scroll.addView(outputView);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+        scroll.post(() -> scroll.scrollTo(0, restoredScrollY));
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count,
@@ -231,9 +241,11 @@ public final class FxHookObservationLogsActivity extends Activity {
 
     private void render() {
         if (outputView == null || search == null || count == null) return;
+        final int previousScrollY = logScroll == null ? 0 : logScroll.getScrollY();
         if (rawOutput.isEmpty()) {
             outputView.setText("暂无可显示的 OBSERVE 记录。");
             count.setText("匹配记录：0");
+            if (logScroll != null) logScroll.post(() -> logScroll.scrollTo(0, previousScrollY));
             return;
         }
         String needle = search.getText() == null ? ""
@@ -251,6 +263,14 @@ public final class FxHookObservationLogsActivity extends Activity {
         if (truncated) visible = visible.substring(0, DISPLAY_LIMIT) + "\n…（显示内容已截断）";
         count.setText("匹配记录：" + matched + (truncated ? " · 显示已截断" : ""));
         outputView.setText(matched == 0 ? "没有符合条件的 OBSERVE 记录。" : visible);
+        if (logScroll != null) logScroll.post(() -> logScroll.scrollTo(0, previousScrollY));
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putString("fx_hook_observe_search",
+                search == null || search.getText() == null ? "" : search.getText().toString());
+        outState.putInt("fx_hook_observe_scroll_y", logScroll == null ? 0 : logScroll.getScrollY());
+        super.onSaveInstanceState(outState);
     }
 
     @Override protected void onDestroy() {
