@@ -76,7 +76,7 @@ assert "open.putExtra(FxYulongRescueActivity.EXTRA_OPENED_FROM_NOTIFICATION, tru
 assert "Intent open=new Intent(this,FxYulongShieldActivity.class);" in service, "floating bubble must continue opening the Shield Hub"
 assert "getIntent().getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false)" in rescue
 assert "Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP" in rescue
-assert "// When opened from the Shield Hub, finish back to the existing Hub" in rescue
+assert "// Hub-launched rescue screens simply finish to the existing caller." in rescue, "Hub-origin Rescue Center must return to its existing caller"
 assert "finish();" in rescue, "Hub-origin Rescue Center must finish rather than create a duplicate Hub"
 assert "FxYulongWarningActivity.class" in scan
 assert "FxYulongVirusDatabaseActivity.class" in hub
