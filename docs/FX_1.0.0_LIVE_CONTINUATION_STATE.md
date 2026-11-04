@@ -2560,3 +2560,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `scripts/tests/fx-imported-suite-native-routing-regression.sh`：逐一检查上述 7 个页面必须选择索引 1，并禁止仍使用索引 5。
 - 静态复读源码确认 7 个页面均已改为索引 1，回归脚本包含对应断言。尚未运行 Shell 回归、Gradle、模拟器或真机测试；不宣称测试通过。
 - 下一步：继续修复 FX 原生页面的导航/状态恢复问题，优先 Dia / 游龙插件实际页面体验；固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 游龙广告主页面滚动位置恢复
+
+- 修复前分支 HEAD：`a42e04a5647dbf34c67e133ebbe4f21d91efe7f5`。
+- 修复 `FxYulongAdActivity` 原生页面 Activity 重建时滚动位置丢失：将 ScrollView 提升为 Activity 字段；保存 `scrollY` 到 Bundle；重建后等待设备端配置读取及列表绑定完成，再通过 ScrollView.post 恢复位置；用户主动切换游龙子页面时清零待恢复位置并回到页面顶部，避免把旧页面位置带到新页面。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`；`scripts/tests/fx-yulong-ad-activity-state-regression.sh`。
+- 提交：`0a8b4d978429cc5fde75e7dbe0d1d6c28f2b7bac`（页面滚动恢复）；`15cd96f8df02cf7d088aa25fc5ea4b236bbcba30`（回归断言）。
+- 已重新从 GitHub 读取源码与回归脚本，并逐项确认 Bundle 保存/恢复、异步配置加载后恢复、页面切换清零等断言均存在。仅做远端源码静态核对；尚未实际执行 shell 回归脚本、Gradle、模拟器或真机测试。
+- 当前最新 HEAD（写入本记录前）：`15cd96f8df02cf7d088aa25fc5ea4b236bbcba30`。
+- 下一步：继续游龙原生子页面状态与交互检查，优先检查列表搜索/分页/批量编辑的重建行为；不打最终包，不改变 FX 1.0.0 版本号。
