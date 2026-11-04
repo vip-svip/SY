@@ -21,6 +21,10 @@ public final class FxDiaMonitorEventParser {
     private static final Pattern TAG = Pattern.compile("\\[DIA_([A-Z0-9_]{1,24})\\]");
     private static final Pattern FIELD = Pattern.compile("([A-Za-z][A-Za-z0-9]*)=([^\\s]{1,192})");
     private static final Pattern SAFE_VALUE = Pattern.compile("[A-Za-z0-9_.$:/+@%\\-]{1,160}");
+    private static final Pattern HOST_LABEL = Pattern.compile("(?i)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?");
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9_.$-]{1,160}");
+    private static final Pattern COMPONENT = Pattern.compile("[A-Za-z0-9_.$/-]{1,160}");
+    private static final Pattern PACKAGE_NAME = Pattern.compile("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+");
     private static final Pattern NUMBER = Pattern.compile("-?[0-9]{1,12}");
 
     private static final String[] CATEGORIES = {
@@ -190,9 +194,66 @@ public final class FxDiaMonitorEventParser {
                 "inputBytes", "outputBytes", "timeoutMs", "requestCode", "id", "keyCode")) {
             return NUMBER.matcher(value).matches();
         }
-        // The field allowlist excludes content-bearing keys (SQL, headers, tokens,
-        // payloads, stacks and command arguments); this grammar blocks whitespace,
-        // control characters, delimiters and URL query/path data in remaining values.
+        // Host/endpoint fields are authorities only: no scheme, user-info, path,
+        // query or fragment may reach the UI.
+        if (oneOf(key, "host", "endpoint")) return isSafeAuthority(value);
+        if ("intentPackage".equals(key)) return PACKAGE_NAME.matcher(value).matches();
+        if ("component".equals(key)) return COMPONENT.matcher(value).matches();
+        if (oneOf(key, "method", "class", "loader", "exception", "family", "algorithm",
+                "stage", "activity", "name", "action", "view", "parent", "child")) {
+            return IDENTIFIER.matcher(value).matches();
+        }
         return SAFE_VALUE.matcher(value).matches();
+    }
+
+    private static boolean isSafeAuthority(String value) {
+        if (value == null || value.isEmpty() || value.length() > 260) return false;
+        String host = value;
+        String port = null;
+        if (value.charAt(0) == '[') {
+            int close = value.indexOf(']');
+            if (close < 0) return false;
+            String address = value.substring(1, close);
+            if (address.indexOf(':') < 0 || !address.matches("[0-9A-Fa-f:.]{2,45}")) return false;
+            String suffix = value.substring(close + 1);
+            if (!suffix.isEmpty()) {
+                if (suffix.charAt(0) != ':' || suffix.length() == 1) return false;
+                port = suffix.substring(1);
+            }
+        } else {
+            int colon = value.lastIndexOf(':');
+            if (colon >= 0) {
+                if (value.indexOf(':') != colon || colon == 0 || colon == value.length() - 1) return false;
+                host = value.substring(0, colon);
+                port = value.substring(colon + 1);
+            }
+            if (host.isEmpty() || host.length() > 253) return false;
+            if (host.matches("[0-9.]+")) {
+                String[] octets = host.split("\\.", -1);
+                if (octets.length != 4) return false;
+                for (String octet : octets) {
+                    if (octet.isEmpty() || octet.length() > 3) return false;
+                    try {
+                        if (Integer.parseInt(octet) > 255) return false;
+                    } catch (NumberFormatException invalid) {
+                        return false;
+                    }
+                }
+            } else {
+                for (String label : host.split("\\.", -1)) {
+                    if (!HOST_LABEL.matcher(label).matches()) return false;
+                }
+            }
+        }
+        if (port != null) {
+            if (!port.matches("[0-9]{1,5}")) return false;
+            try {
+                int number = Integer.parseInt(port);
+                if (number < 1 || number > 65535) return false;
+            } catch (NumberFormatException invalid) {
+                return false;
+            }
+        }
+        return true;
     }
 }
