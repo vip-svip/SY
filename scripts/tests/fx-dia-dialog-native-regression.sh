@@ -27,6 +27,9 @@ imports = re.findall(
     r"^import de\.privacyguard\.adhook\.imported\.dia\.FxDiaDialogMatchPolicy;$",
     hook, re.M)
 assert len(imports) == 1, f"Dialog policy import count must be one, got {len(imports)}"
+key_policy_import = "import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;"
+assert parser.count(key_policy_import) == 1, "Parser must import the ActivityKey policy exactly once"
+assert ser.count(key_policy_import) == 1, "Serializer must import the ActivityKey policy exactly once"
 
 # Native per-app UI and configuration publication.
 assert 'case "对话框与通知":' in ui and 'showAppList("Dialog处理")' in ui
