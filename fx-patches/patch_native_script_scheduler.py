@@ -62,7 +62,7 @@ def replace_uninstall_block(uninstall: Path) -> bool:
             raise SystemExit("partial or duplicate QuickJS uninstall markers detected")
         start = text.index(BEGIN)
         end = text.index(END, start) + len(END)
-        line_end = text.find("\\n", end)
+        line_end = text.find("\n", end)
         if line_end < 0:
             line_end = len(text)
         else:
@@ -78,7 +78,7 @@ def replace_uninstall_block(uninstall: Path) -> bool:
             raise SystemExit("legacy QuickJS scheduler uninstall block is missing or ambiguous")
         start = text.index(LEGACY_BEGIN)
         end_marker = text.index(LEGACY_END, start)
-        line_end = text.find("\\n", end_marker)
+        line_end = text.find("\n", end_marker)
         if line_end < 0:
             line_end = len(text)
         else:
