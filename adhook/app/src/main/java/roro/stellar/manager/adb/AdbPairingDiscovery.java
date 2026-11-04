@@ -17,6 +17,7 @@ import java.util.Set;
  */
 public final class AdbPairingDiscovery implements AutoCloseable {
     public static final String SERVICE_TYPE = "_adb-tls-pairing._tcp.";
+    public static final String CONNECT_SERVICE_TYPE = "_adb-tls-connect._tcp.";
 
     public interface Listener {
         void onStarted();
@@ -44,6 +45,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
 
     private final NsdManager manager;
     private final Listener listener;
+    private final String serviceType;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ArrayDeque<NsdServiceInfo> resolveQueue = new ArrayDeque<>();
     private final Set<String> knownNames = new HashSet<>();
@@ -54,8 +56,19 @@ public final class AdbPairingDiscovery implements AutoCloseable {
     private boolean closed;
 
     public AdbPairingDiscovery(Context context, Listener listener) {
-        if (context == null || listener == null) {
-            throw new IllegalArgumentException("NSD context and listener are required");
+        this(context, SERVICE_TYPE, listener);
+    }
+
+    /** The same serialized resolver is shared by the original pairing and post-pairing connect services. */
+    public AdbPairingDiscovery(Context context, String requestedServiceType, Listener listener) {
+        if (context == null || listener == null || requestedServiceType == null) {
+            throw new IllegalArgumentException("NSD context, service type and listener are required");
+        }
+        String normalized = requestedServiceType.endsWith(".")
+                ? requestedServiceType : requestedServiceType + ".";
+        if (!SERVICE_TYPE.equalsIgnoreCase(normalized)
+                && !CONNECT_SERVICE_TYPE.equalsIgnoreCase(normalized)) {
+            throw new IllegalArgumentException("Unsupported ADB DNS-SD service type");
         }
         Object service = context.getApplicationContext().getSystemService(Context.NSD_SERVICE);
         if (!(service instanceof NsdManager)) {
@@ -63,6 +76,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
         }
         manager = (NsdManager) service;
         this.listener = listener;
+        this.serviceType = normalized;
     }
 
     public synchronized void start() {
@@ -90,7 +104,7 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             }
 
             @Override public void onServiceFound(NsdServiceInfo serviceInfo) {
-                if (serviceInfo == null || !isPairingService(serviceInfo.getServiceType())) return;
+                if (serviceInfo == null || !isExpectedService(serviceInfo.getServiceType())) return;
                 synchronized (AdbPairingDiscovery.this) {
                     if (closed || !knownNames.add(serviceInfo.getServiceName())) return;
                     resolveQueue.addLast(serviceInfo);
@@ -109,17 +123,17 @@ public final class AdbPairingDiscovery implements AutoCloseable {
             }
         };
         try {
-            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
+            manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
         } catch (RuntimeException failure) {
             started = false;
             fail("ADB 无线配对服务发现启动失败：" + failure.getClass().getSimpleName(), -1);
         }
     }
 
-    private boolean isPairingService(String type) {
+    private boolean isExpectedService(String type) {
         if (type == null) return false;
         String normalized = type.endsWith(".") ? type : type + ".";
-        return SERVICE_TYPE.equalsIgnoreCase(normalized);
+        return serviceType.equalsIgnoreCase(normalized);
     }
 
     private void resolveNext() {
