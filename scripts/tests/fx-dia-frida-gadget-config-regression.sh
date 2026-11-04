@@ -32,6 +32,24 @@ required = {
     "ADB forwarding command": 'adb forward tcp:',
     "local Gadget connection target": 'frida-ps -H 127.0.0.1:',
 }
+config_method = source[source.index("private void saveGadgetListenConfig()"):
+                         source.index("private int selectedGadgetPort()")]
+root_call = config_method.index("runRoot(command, 20000L")
+pref_write = config_method.index('getSharedPreferences(PREFS, MODE_PRIVATE).edit()')
+if pref_write < root_call:
+    raise SystemExit("FAIL: Gadget UI preferences are persisted before Root confirms the config file write")
+if ".commit()" not in config_method or "if (!preferencesSaved)" not in config_method:
+    raise SystemExit("FAIL: Gadget UI config index must synchronously confirm persistence after Root success")
+deploy_method = source[source.index("private void deployGadgetToTarget("):
+                         source.index("private void confirmRemoveGadgetFromTarget()")]
+deploy_root = deploy_method.index("runRoot(command, 45000L")
+deploy_pref = deploy_method.index('getSharedPreferences(PREFS, MODE_PRIVATE).edit()')
+if deploy_pref < deploy_root or ".commit()" not in deploy_method:
+    raise SystemExit("FAIL: Gadget target process preference must only persist after confirmed deployment")
+if "本机进程配置索引保存失败" not in deploy_method:
+    raise SystemExit("FAIL: Gadget deployment preference persistence failure is not surfaced")
+if "本机 UI 配置索引保存失败" not in config_method:
+    raise SystemExit("FAIL: Gadget config preference persistence failure is not surfaced")
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: missing {label}: {needle}")
