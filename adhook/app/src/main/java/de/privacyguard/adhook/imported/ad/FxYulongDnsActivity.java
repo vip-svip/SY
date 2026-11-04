@@ -141,6 +141,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 page = 1;
+                pendingScrollY = 0;
+                pendingScrollRestore = false;
                 render();
                 if (scroll != null) scroll.scrollTo(0, 0);
             }
