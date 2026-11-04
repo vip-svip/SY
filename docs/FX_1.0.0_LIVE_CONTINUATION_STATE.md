@@ -3536,3 +3536,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 明确禁止 FX 主代理抢占 Android VPN 槽、停止第三方 VPN、flush 全局防火墙规则或覆盖第三方路由；保存并只撤销 FX 自己创建的路由/防火墙/DNS 规则。
 - 将“FX 代理 + 第三方应用 VPN 同时运行”列为核心验收目标，要求识别 VPN 接口/路由/UID 策略，避免回环、重复加密、DNS 泄漏和路由黑洞；支持官方链式集成，并对封闭 VPN 的兼容限制如实分级，不能声称所有第三方 VPN 无条件兼容。
 - 产品方案提交：`4ae83e4102560110cc55bfebba4555636a30a250`。这是需求/架构基线更新，尚未代表内核级代理代码已实现或真机验证。
+
+
+## 2026-11-05 — 三种全局 Skin 的源码实现
+
+- 用户要求三种可切换全局界面模式必须将实现方案和源码写入仓库，不能只写概念文档。
+- 已新增 `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：定义 ClassicWebCompat / FXLiquidNative / MiuixStyle，保留既有存储 ID（classic/glass/miuix），兼容旧 web 值，统一读写 `fx_ui/mode`。
+- 已更新 `FxDesignModePanel.kt`：三模式选择器改为明确产品名称，并声明换肤不得重启网络、Hook、脚本服务。
+- 已更新 `MainActivity.java`：统一模式 ID 规范化；ClassicWebCompat 显示 APK 内置 WebUI 并由底部 Tab 导航；FXLiquidNative/MiuixStyle 隐藏 WebView、使用原生页面；切换逻辑仅调整展示层。
+- 已更新产品重构方案，记录源码路径、全局路由、状态保留、安全边界和三模式验收矩阵。
+- 提交：`2f450063134e9d0b2a98598a2f0d63f46e5a1e12`（FxUiMode）；`8f8fab0529575c811c4b2bdbaa7da64ac31eaf7a`（模式选择器）；`60b691a441f37cfb61aa27c223254efc59747753`（MainActivity 路由）；`a7a640e0d22dcc2f7eb3b7ff1e42a7b3dbbb12a2`（产品方案）。
+- 当前状态：源码已提交，尚未完成 Gradle 编译、自动化 UI 测试和真机三模式切换验收；不得标记为已完全验收。
