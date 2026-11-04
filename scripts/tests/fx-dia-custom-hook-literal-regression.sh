@@ -60,6 +60,9 @@ python3 - "$LOGS" <<'PY'
 import pathlib, sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 for token in (
+    "extends FxNativeTabActivity",
+    "setContentViewWithNativeTabs(root, 4);",
+    'button("‹ 返回", this::finish)',
     'state.getString("fx_hook_observe_search", "")',
     'state.getInt("fx_hook_observe_scroll_y", 0)',
     'search.setText(restoredSearch)',
