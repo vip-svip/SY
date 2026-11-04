@@ -2791,3 +2791,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 失败路线：不采用手写 CSV 拼接；以后白名单写入统一使用 `FxYulongWhitelistPolicy.serialize()`，不允许调用方绕过条目/长度上限。此前 create_blob/create_tree 接口连续出现 GitHub GraphQL 错误，改用 Contents API 逐文件提交；未强推或回滚分支。
 - 未完成：风险详情页尚未展示病毒库来源/版本/命中规则 ID（Finding 当前模型字段需先核实原始数据库结构）；扫描和批量清理的 Android 系统确认仍未真机验收。
 - 下一批：① 检查 `FxYulongScanEngine.Finding` 到风险详情页的字段映射并补齐可信命中证据展示；② 完成 Shield 名单编辑页搜索/筛选状态的定向交互回归；③ 定位 Hook 原生 UI Host 回归中的 `built Hook APK missing` 调用链，不重复修改产品断言。
+
+
+## 2026-11-05 — Dia 通知页路由回归修正（保持原生功能不变）
+
+- 修改前 HEAD：`d911b6dd898e4f109a25731e82ac658ab24c65ba`。
+- Actions：`41912872925` 已运行到游龙安全护盾定向回归脚本，失败于脚本第 156 行：`Dia feature has lost its matching native settings panel: notifyPanel`。
+- 根因：回归脚本错误地要求 Dia 通知页也调用全局 `notifyPanel`。当前真实设计中，Dia 的“通知监听与权限提示”有独立 per-app 通知策略，正确路由是 `showAppList("通知保护")`；`notifyPanel` 是通用 FX 隐私页的共享设置分类，不是 Dia 通知页的目标页面。传感器和网络页面则分别走 `sensorPanel`、`netPanel`。
+- 修复：把过时的三项统一面板断言改为逐项验证真实路由：通知→按应用通知策略；传感器→sensorPanel；网络→netPanel。没有删除功能，也没有更改 MainActivity 的产品行为。
+- 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 验证：已从当前 MainActivity 确认三条路由均存在；更新后的 Actions 尚未完成。不得将源码对照视为回归通过。
+- 下一步：读取新 Actions 首个失败；若通过，继续 Shield 风险详情证据字段与名单搜索/筛选状态恢复。Hook Host 回归仍需独立追踪，不能把 APK-only 检查的 SKIP 记为 APK 验收。
+- 固定 FX 1.0.0；不生成最终 APK 或 KernelSU ZIP。
