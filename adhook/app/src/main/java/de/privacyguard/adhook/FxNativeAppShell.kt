@@ -76,7 +76,7 @@ private fun FxNativeAppShell(
                 // Keep the six-tab bar and the active page above the soft keyboard.
                 // Applying this to the shared host covers every migrated native page.
                 .imePadding()
-                .background(if (mode == "miuix") miuixColors.background else Color(0xFFF4F6F8))
+                .background(when (mode) { "miuix" -> miuixColors.background; "glass" -> Color(0xFFE8EEF4); else -> Color(0xFFF4F6F8) })
         ) {
             // Record the real page beneath the translucent navigation surface.
             // Unlike a gradient placeholder, this samples the actual AndroidView content.
@@ -91,7 +91,7 @@ private fun FxNativeAppShell(
                     .layerBackdrop(backdrop),
                 update = {}
             )
-            val barShape = RoundedCornerShape(26.dp)
+            val barShape = RoundedCornerShape(when (mode) { "classic" -> 10.dp; "miuix" -> 18.dp; else -> 26.dp })
             // Glass mode is rendered exclusively by the upstream LiquidBottomTabs
             // component below; this modifier is only for the classic and Miuix bars.
             val barModifier = if (mode == "miuix") {
