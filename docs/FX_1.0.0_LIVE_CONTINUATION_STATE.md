@@ -1805,3 +1805,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：源码静态断言确认滚动容器引用、Bundle 保存、页面创建后恢复和实例/附着保护；`fx-dia-frida-page-navigation-regression.sh` 增加相应断言。未在完整工作树运行 Shell/Python 回归、Gradle、模拟器或真机旋转/滚动测试。
 - 并行已保留：同一阶段 Hook LSPosed 作用域申请/移除过期回调保护提交 `06a64f5fc5a06fbe52832e617bb61d0b332b23bf` 与测试 `bdf289305edea28d6d5c1eb370a85894abc08912`；状态文档此前记录提交 `b3d02e3a820ca08034a09ab2f4008fda3c3d8cc4`。
 - 下一批：检查 Dia Frida 脚本库与全屏编辑器之间的草稿/名称/取消返回闭环，以及 Frida 管理页当前脚本是否在打开脚本库、编辑器后按预期恢复；优先补完整用户可见编辑流程。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 脚本库新建弹窗草稿/旋转恢复
+
+- 本批起始 HEAD：`a8f9e3feabadeed07d0c9cba1d35d93b1362efda`。
+- 发现脚本库“新建脚本”弹窗没有生命周期状态：输入名称后旋转/Activity 重建会丢失草稿；从外部入口自动打开新建弹窗时，重建期间也不能可靠恢复当前输入。
+- 修改 `FxDiaScriptLibraryActivity.java`：
+  - 保存新建弹窗是否待恢复，以及脚本名称草稿；Activity 重建后先异步重载脚本库，再恢复原弹窗和输入。
+  - 名称输入限制 64 字符，与 `FxDiaScriptLibraryPolicy` 校验一致。
+  - 显式取消/提交后清除弹窗恢复状态；配置变更触发的 Dialog cancel 不清除草稿。
+  - 保留初始 `open_new_script` 意图消费、编辑器回传目标名称、脚本库搜索和滚动恢复、JSON SAF 导入/导出逻辑。
+- 提交：
+  - `e3e973e70835ad4b21e3261cbcbe234c403e5de0` — `fix(dia): restore Frida script create dialog draft`。
+  - `9517b39b7fed6d09b5f44e66b74bd834061c62c7` — `test(dia): cover Frida script create dialog restoration`。
+- 验证等级：源码静态断言确认弹窗 pending 状态、名称草稿 Bundle 保存/恢复、异步 reload 后重开、64 字符限制及配置变更取消保护；`fx-dia-frida-script-library-saf-regression.sh` 增加对应断言。未执行 Shell/Python 回归、Gradle、模拟器或真机旋转/编辑器回传。
+- 下一步：Frida 主页面“保存脚本到库”名称弹窗仍需同样的草稿恢复/输入上限核对；之后把 Frida 管理页、脚本库、全屏编辑器的返回链作为一个页面组做一次 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
