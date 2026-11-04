@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-assert 'android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"' in manifest
+ACTIVITY="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/StellarPermissionRequestActivity.java"
 SERVICE="$ROOT/adhook/app/src/main/java/roro/stellar/manager/authorization/StellarAuthorizationService.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 fail(){ echo "FAIL: $*" >&2; exit 1; }

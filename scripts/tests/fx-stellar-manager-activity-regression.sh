@@ -70,7 +70,7 @@ assert "getPackagesForUid(uid)" in service and "packageBelongsToUid(sourcePackag
 assert "POST_NOTIFICATIONS" in service and "NotificationManager.IMPORTANCE_HIGH" in service
 for key in ("REPLY_ALLOWED", "REPLY_ONE_TIME", "REPLY_PERMISSION"):
     assert key in service, f"original permission response Bundle key missing: {key}"
-assert "android:name=\\"roro.stellar.manager.authorization.StellarPermissionRequestActivity\\"" in manifest
+assert 'android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"' in manifest
 permission_activity = manifest.split('android:name="roro.stellar.manager.authorization.StellarPermissionRequestActivity"',1)[1].split("</activity>",1)[0]
 assert 'android:exported="true"' in permission_activity
 assert 'android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"' in permission_activity
