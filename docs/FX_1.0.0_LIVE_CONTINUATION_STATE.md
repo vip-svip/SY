@@ -829,3 +829,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 定向静态核对：读取最新 `AdVisibilityHook.java`，确认重复 import 修复后只剩一条；读取 Dialog UI、配置 parser/serializer、匹配策略及 JUnit 测试，确认上述接线存在。新增回归脚本已提交，但本会话未在仓库工作树运行该脚本，也未运行 Gradle/JUnit/Android 编译或 LSPosed 真机测试。
 - 固定版本仍为 FX 1.0.0；未打包最终 APK/KernelSU ZIP。
 - 下一步具体任务：① 运行 `fx-dia-dialog-native-regression.sh` 和 Dialog/Parser JUnit；② 继续从原始 Dia smali 追踪 `ToastDisableHook`、`KeyEventHook` 和自动布局监听语义，分别实现安全的逐应用 Toast 过滤与按键模式（不可混用 Dialog 匹配开关）；③ 回到 Frida 监听/代理原生导航返回链。
+
+
+
+## 2026-11-05 — Dialog 回归脚本收敛与最新分支续接
+
+- 本节更新前实时 HEAD：`b1ff141799f41728c878f43353b1908c39fe7a0d`；最近提交：`b1ff141799f41728c878f43353b1908c39fe7a0d`（修正 Dialog 回归断言）。
+- 最近连续提交：
+  - `157226b0b7f085d8ff757add1669fd7753675a98` — 修复 `AdVisibilityHook.java` 重复导入。
+  - `8a98d7dad079407c2aa2b44ad0f48e2c0e701855` — 新增 Dialog 原生链静态回归脚本。
+  - `473b32c8a928dceb82590dc2aac3ad1dad4e320f` — 写入续接记录。
+  - `19875fbbd7dee94bd580321aaab0581cb4be1ce7`、`b1ff141799f41728c878f43353b1908c39fe7a0d` — 校正并收紧静态回归断言。
+- 最新源码复核：`AdVisibilityHook.java` 中 `FxDiaDialogMatchPolicy` import 计数为 1；回归脚本已包含匹配日志不记录正文、Hook 检查异常 fail-open 等契约。
+- 本批验证结果：只完成 GitHub 最新 blob 静态检查；回归脚本尚未在检出工作树执行，Gradle/JUnit、Android 编译、LSPosed 设备行为均未执行。不得写成“测试通过”。
+- 下一步优先：① 用仓库 CI/可执行工作树运行 `sh scripts/tests/fx-dia-dialog-native-regression.sh`；② 追踪原始 `ToastDisableHook` 与 `KeyEventHook`，拆成独立、逐应用、默认关闭的能力；③ 再补原始自动布局监听，最后回到 Frida 页面返回链。
+- 明确禁止：不得把现有 `Dialog.show()` Hook 说成完整 WindowManager 覆盖；不得默认阻止系统/FX 自身窗口；不得将通知监听设置作为 Dialog/Toast 的替代；固定 FX 1.0.0，不打包最终 APK/KernelSU ZIP。
