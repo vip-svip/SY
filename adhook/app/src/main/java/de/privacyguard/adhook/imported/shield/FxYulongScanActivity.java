@@ -124,7 +124,7 @@ public final class FxYulongScanActivity extends Activity {
         if (state.getBoolean(STATE_SCAN_REQUIRES_RESCAN, false)
                 || findingCount > MAX_SAVED_FINDINGS) {
             restoreRequiresRescan = true;
-            status.setText(status.getText() + "\\n上次命中 " + findingCount
+            status.setText(status.getText() + "\n上次命中 " + findingCount
                     + " 项，超过页面状态恢复上限；为防止丢失部分风险项，请重新扫描后再进行批量处理。");
             resultRows.addView(text("上次扫描结果过多，未恢复不完整列表。请重新扫描以查看全部风险项。",
                     13, 0xffa32620, true));
@@ -147,7 +147,7 @@ public final class FxYulongScanActivity extends Activity {
                 || severities.size() != findingCount || reasons.size() != findingCount
                 || packages.size() > MAX_SAVED_FINDINGS) {
             restoreRequiresRescan = true;
-            status.setText(status.getText() + "\\n上次扫描状态数据不完整，请重新扫描；旧结果不会用于批量处理。");
+            status.setText(status.getText() + "\n上次扫描状态数据不完整，请重新扫描；旧结果不会用于批量处理。");
             resultRows.addView(text("扫描结果状态不完整，已禁用批量处理。请重新扫描。",
                     13, 0xffa32620, true));
             updateBatchCleanup();
@@ -177,7 +177,7 @@ public final class FxYulongScanActivity extends Activity {
                     13, lastScanComplete ? 0xff607080 : 0xffa32620, !lastScanComplete));
         }
         if (restoreRequiresRescan) {
-            status.setText(status.getText() + "\\n部分状态无法恢复；请重新扫描后再执行批量处理。");
+            status.setText(status.getText() + "\n部分状态无法恢复；请重新扫描后再执行批量处理。");
         }
         updateBatchCleanup();
     }
@@ -249,7 +249,7 @@ public final class FxYulongScanActivity extends Activity {
             lastScanComplete = result.scanComplete;
             status.setText(result.message + " 扫描 " + result.scanned + " 个应用；名单 " + result.databaseEntries
                     + " 条；确定风险 " + result.certainCount + "；可能风险 " + result.suspectCount
-                    + "。\\n内容特征扫描：" + (result.contentScanEnabled
+                    + "。\n内容特征扫描：" + (result.contentScanEnabled
                     ? (result.contentDatabaseReady ? ("已检查 " + result.contentScanned + " 个 APK"
                         + (result.contentReadFailures > 0 ? "；读取失败 " + result.contentReadFailures + " 个" : "")
                         + (result.contentTruncated ? "；达到预算上限，扫描未完成" : ""))
