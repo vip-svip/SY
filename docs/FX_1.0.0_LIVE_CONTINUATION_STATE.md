@@ -3258,3 +3258,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 产品提交：`04c95d7f0af69338ea061c6987fee295a9c8d228`；回归提交：`4f507a2f48855ad607dbe2965a9e6f747a182931`。
 - 验证：源码回读确认 Root 调用先于偏好提交；回归脚本新增顺序、同步提交和错误提示断言。Actions 尚待读取；Android Gradle/JUnit/Root 真机未验证。
 - 下一步：读取 Frida server/Gadget targeted Actions；继续目标进程选择、server 状态回读、Gadget 会话取消/停止与页面重建的 UI 闭环。
+
+
+## 2026-11-05 — Frida log regression path
+
+- Updated the host regression to read `FxDiaSessionLogActivity.java` because the parent activity only routes to that page. The dedicated activity owns the file validation checks.
+- Test commit: `7f58c5c302cde657cb2e7e2a8fc9677dc294dc20`. Awaiting Actions.
