@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -114,6 +115,7 @@
         </activity>
         <activity android:name="roro.stellar.manager.authorization.FxStellarCommandShortcutActivity" android:exported="false" android:excludeFromRecents="true" />
         <activity android:name="roro.stellar.manager.authorization.FxStellarManagerActivity" android:exported="false" />
+        <activity android:name="roro.stellar.manager.authorization.FxStellarSecureSettingsActivity" android:exported="false" />
         <service
             android:name="roro.stellar.manager.authorization.StellarAuthorizationService"
             android:enabled="true"

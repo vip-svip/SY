@@ -4,6 +4,11 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 JAVA="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 LISTS="$ROOT/scripts/native-managed-lists.sh"
 test -s "$LISTS"
+MODULE_LISTS="$ROOT/fx-module/scripts/native-managed-lists.sh"
+test -s "$MODULE_LISTS"
+cmp -s "$LISTS" "$MODULE_LISTS" || { echo "FAIL: KernelSU payload native-managed-lists.sh differs from Android UI backend" >&2; exit 1; }
+sh -n "$LISTS"
+sh -n "$MODULE_LISTS"
 test -s "$JAVA"
 SHELL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 grep -Fq 'fontSize = 15.sp' "$SHELL"

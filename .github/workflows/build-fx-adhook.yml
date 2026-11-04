@@ -71,6 +71,7 @@ jobs:
             source_root="$(dirname "$module_prop")"
           fi
           cp -a "$source_root/." fx-module/
+          install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
 
 
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
@@ -260,6 +261,7 @@ jobs:
           sh scripts/tests/fx-dia-frida-binary-import-regression.sh
           sh scripts/tests/fx-stellar-control-shell-regression.sh
           sh scripts/tests/fx-stellar-manager-activity-regression.sh
+          sh scripts/tests/fx-stellar-secure-settings-regression.sh
           sh scripts/tests/fx-stellar-command-shortcut-regression.sh
           sh scripts/tests/fx-stellar-permission-request-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
