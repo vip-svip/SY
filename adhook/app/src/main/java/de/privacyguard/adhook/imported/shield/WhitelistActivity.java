@@ -74,6 +74,7 @@ public class WhitelistActivity extends Activity {
     private TextView emptySub;
     private TextView countText;
     private TextView sectionTitle;
+    private String whitelistDataWarning = "";
     private EditText searchInput;
     private String query = "";
 
@@ -402,23 +403,24 @@ public class WhitelistActivity extends Activity {
     // ============================================================
     private void loadWhitelist() {
         currentWhitelist.clear();
-        // 2026-11-02（用户需求）：彻底删除“自动把系统应用加入白名单”功能。
-        // 旧版本已经写入的系统应用在这里被过滤并清理，不再保留。
+        // 系统应用不自动进入用户白名单。统一使用扫描侧同一解析器，
+        // 避免 UI 展示的信任集合与风险扫描实际使用的集合不一致。
         String raw = prefs.getString("whitelist_pkgs", "");
+        if (raw == null) raw = "";
+        Set<String> parsed = FxYulongWhitelistPolicy.parse(raw);
+        whitelistDataWarning = !raw.trim().isEmpty() && parsed.isEmpty()
+                ? "原白名单为空、格式无效或超过安全上限；扫描侧不会信任超限名单。"
+                : "";
         boolean removedSystem = false;
-        if (!raw.isEmpty()) {
-            for (String p : raw.split(",")) {
-                String t = p.trim();
-                if (t.isEmpty()) continue;
-                if (isSystemPackage(t)) {
-                    removedSystem = true;
-                    continue;
-                }
-                currentWhitelist.add(t);
+        for (String packageName : parsed) {
+            if (isSystemPackage(packageName)) {
+                removedSystem = true;
+                continue;
             }
+            currentWhitelist.add(packageName);
         }
-        if (removedSystem) {
-            saveWhitelist();
+        if (removedSystem && !saveWhitelist()) {
+            whitelistDataWarning = "系统应用条目已从当前显示中过滤，但本地白名单写入失败。";
         }
     }
 
@@ -433,14 +435,21 @@ public class WhitelistActivity extends Activity {
         }
     }
 
-    private void saveWhitelist() {
-        StringBuilder sb = new StringBuilder();
-        for (String p : currentWhitelist) {
-            if (sb.length() > 0) sb.append(",");
-            sb.append(p);
+    private boolean saveWhitelist() {
+        String serialized = FxYulongWhitelistPolicy.serialize(currentWhitelist);
+        if (serialized == null) {
+            Toast.makeText(this, "白名单超过 " + FxYulongWhitelistPolicy.MAX_ENTRIES
+                    + " 个应用或 " + FxYulongWhitelistPolicy.MAX_RAW_CHARS
+                    + " 个字符，未保存任何部分数据。", Toast.LENGTH_LONG).show();
+            return false;
         }
-        prefs.edit().putString("whitelist_pkgs", sb.toString()).apply();
-
+        boolean saved = prefs.edit().putString("whitelist_pkgs", serialized).commit();
+        if (!saved) {
+            Toast.makeText(this, "白名单保存失败，原有配置保持不变。", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        whitelistDataWarning = "";
+        return true;
     }
 
     // ============================================================
@@ -475,13 +484,17 @@ public class WhitelistActivity extends Activity {
             }
         }
 
-        countText.setText(String.valueOf(currentWhitelist.size()));
+        countText.setText(currentWhitelist.size()
+                + (whitelistDataWarning.isEmpty() ? "" : "\\n" + whitelistDataWarning));
         sectionTitle.setText("已加入白名单 (" + currentWhitelist.size() + ")");
 
         if (visible.isEmpty()) {
             emptyHint.setVisibility(View.VISIBLE);
             whitelistContainer.setVisibility(View.GONE);
-            if (currentWhitelist.isEmpty()) {
+            if (currentWhitelist.isEmpty() && !whitelistDataWarning.isEmpty()) {
+                emptyTitle.setText("原白名单数据未能安全读取");
+                emptySub.setText(whitelistDataWarning + " 请重新选择应用创建有效白名单。");
+            } else if (currentWhitelist.isEmpty()) {
                 emptyTitle.setText("还没有加入白名单应用");
                 emptySub.setText("点击右上角「添加」，可搜索并多选应用");
             } else {
@@ -584,8 +597,11 @@ public class WhitelistActivity extends Activity {
         remove.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                currentWhitelist.remove(item.packageName);
-                saveWhitelist();
+                if (!currentWhitelist.remove(item.packageName)) return;
+                if (!saveWhitelist()) {
+                    currentWhitelist.add(item.packageName);
+                    return;
+                }
                 refreshWhitelistUI();
             }
         });
