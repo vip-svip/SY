@@ -2,10 +2,14 @@ package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ComponentName;
+import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.service.quicksettings.TileService;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -105,6 +109,13 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 button("计划任务", () -> openPage("计划任务")),
                 button("VPN 与 Root Proxy", () -> openPage("VPN 与 Root Proxy")));
 
+        card(body, "系统快捷开关",
+                "通过 Android 系统的“添加磁贴”确认流程，将游龙广告过滤或 FX VPN 加入快捷设置面板。磁贴由系统托管；添加不会自动启动过滤或 VPN。",
+                button("添加“游龙广告过滤”快捷开关", () ->
+                        requestQuickSettingsTile(FxYulongAdTileService.class, "游龙广告过滤")),
+                button("添加“FX VPN”快捷开关", () ->
+                        requestQuickSettingsTile(FxYulongVpnTileService.class, "FX VPN")));
+
         card(body, "界面、主题与语言",
                 "FX 已合并为单一原生应用，界面主题、语言和强调色属于 FX 应用级偏好；不会再创建第二套游龙 Activity 主题配置。");
         card(body, "关于",
@@ -113,6 +124,37 @@ public final class FxYulongAdGeneralActivity extends Activity {
                         + "网络架构：FX 单一 VPN/TUN + Root DNS Proxy 回退；不安装游龙原版第二个 VpnService。\n"
                         + "配置和备份仅保存在本机，导入导出由用户通过 Android 文件选择器授权。");
         refreshBatteryStatus();
+    }
+
+    private void requestQuickSettingsTile(Class<? extends TileService> serviceClass, String label) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(this, "当前 Android 版本不支持应用内添加快捷磁贴；请从系统快捷设置编辑器添加。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            ComponentName component = new ComponentName(this, serviceClass);
+            TileService.requestAddTileService(
+                    this,
+                    component,
+                    label,
+                    Icon.createWithResource(this, android.R.drawable.ic_menu_view),
+                    getMainExecutor(),
+                    result -> {
+                        String message;
+                        if (result == TileService.RESULT_TILE_ADDED) {
+                            message = label + "已添加到快捷设置。";
+                        } else if (result == TileService.RESULT_TILE_ALREADY_ADDED) {
+                            message = label + "已经存在，无需重复添加。";
+                        } else if (result == TileService.RESULT_TILE_NOT_ADDED) {
+                            message = "未添加" + label + "；系统或用户取消了请求。";
+                        } else {
+                            message = "系统未能添加" + label + "（结果码 " + result + "）。";
+                        }
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    });
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "无法请求添加快捷磁贴：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void openPage(String page) {
