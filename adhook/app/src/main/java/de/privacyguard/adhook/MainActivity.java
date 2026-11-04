@@ -87,7 +87,10 @@ public final class MainActivity extends ComponentActivity {
     private static final String STATE_HOOK_APP_LIST_QUERY = "fx_hook_app_list_query";
     private static final String STATE_HOOK_APP_LIST_SCROLL_Y = "fx_hook_app_list_scroll_y";
     private static final String STATE_HOOK_APP_LIST_VISIBLE_COUNT = "fx_hook_app_list_visible_count";
+    private static final String STATE_HOOK_TARGET_SCROLL_Y = "fx_hook_target_scroll_y";
     private String hookAppListQuery = "";
+    private int hookTargetScrollY;
+    private boolean hookTargetScrollRestorePending;
     private int hookAppListScrollY;
     private int hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
     private String selectedPackage;
@@ -276,6 +279,9 @@ public final class MainActivity extends ComponentActivity {
             migrationChildActive = state.getBoolean("fx_migration_child_active", false);
             if ("target".equals(restoreHookKind) || "target_custom_rules".equals(restoreHookKind)) {
                 pendingRestorePackage = state.getString("fx_selected_package");
+                hookTargetScrollY = Math.max(0, state.getInt(STATE_HOOK_TARGET_SCROLL_Y, 0));
+                hookTargetScrollRestorePending = "target".equals(restoreHookKind)
+                        || customHookReturnToTarget;
             }
             if ("target_custom_rules".equals(restoreHookKind)) {
                 customHookRulesTargetPackage = state.getString("fx_selected_package");
@@ -476,6 +482,9 @@ public final class MainActivity extends ComponentActivity {
         outState.putBoolean("fx_migration_child_active", migrationChildActive);
         if (hookUiVisible) {
             if (isHookAppListVisible()) captureHookAppListState();
+            if (hookTargetVisible && !hookCustomRulesPageVisible && nativeScroll != null) {
+                hookTargetScrollY = Math.max(0, nativeScroll.getScrollY());
+            }
             if (activePrivacySection != null) outState.putString("fx_privacy_section", activePrivacySection);
             boolean restoringTarget = hookTargetVisible || pendingRestorePackage != null;
             String hookScreen = hookHubVisible ? "hub"
@@ -514,6 +523,7 @@ public final class MainActivity extends ComponentActivity {
                     ? pendingRestorePackage : selectedPackage;
             if (("target".equals(hookScreen) || "target_custom_rules".equals(hookScreen)) && targetPackage != null) {
                 outState.putString("fx_selected_package", targetPackage);
+                outState.putInt(STATE_HOOK_TARGET_SCROLL_Y, Math.max(0, hookTargetScrollY));
             }
         }
         outState.putString(STATE_HOOK_APP_LIST_QUERY,
@@ -4828,6 +4838,14 @@ public final class MainActivity extends ComponentActivity {
     private void showAppList() { showAppList(null); }
 
     private void showAppList(String privacySection) {
+        // Category focus is a one-time navigation request. Restoration of an existing
+        // target must keep its saved detail scroll instead of jumping back to the category.
+        boolean restoringTarget = pendingRestorePackage != null;
+        pendingPrivacySection = restoringTarget ? null : privacySection;
+        if (!restoringTarget) {
+            hookTargetScrollY = 0;
+            hookTargetScrollRestorePending = false;
+        }
         boolean sameSection = activePrivacySection == null
                 ? privacySection == null : activePrivacySection.equals(privacySection);
         if (!sameSection) {
@@ -4836,7 +4854,6 @@ public final class MainActivity extends ComponentActivity {
             hookAppListVisibleCount = MAX_APP_ROWS_PER_PAGE;
         }
         activePrivacySection = privacySection;
-        pendingPrivacySection = privacySection;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         pauseAndDetachWebView();
@@ -5151,6 +5168,14 @@ public final class MainActivity extends ComponentActivity {
     private String key(String feature) { return selectedPackage + ":" + feature; }
     private boolean get(String feature) { return getPreferences(0).getBoolean(key(feature), false); }
     private void showTarget(ApplicationInfo ai) {
+        // Rebuilding the same target page (e.g. a status refresh) must not discard
+        // the current detail position. The custom-rule page maintains its own scroll.
+        if (hookTargetVisible && !hookCustomRulesPageVisible && !hookTargetScrollRestorePending
+                && selectedPackage != null && ai != null
+                && selectedPackage.equals(ai.packageName) && nativeScroll != null) {
+            hookTargetScrollY = Math.max(0, nativeScroll.getScrollY());
+            hookTargetScrollRestorePending = true;
+        }
         cancelAppIconLoad();
         try {
             // The package may have been uninstalled after the background app index was built.
@@ -5619,6 +5644,10 @@ public final class MainActivity extends ComponentActivity {
         manageRules.setAllCaps(false);
         manageRules.setText("打开自定义 Hook 规则管理");
         manageRules.setOnClickListener(v -> {
+            if (nativeScroll != null) {
+                hookTargetScrollY = Math.max(0, nativeScroll.getScrollY());
+                hookTargetScrollRestorePending = true;
+            }
             hookCustomRulesPageVisible = true;
             customHookReturnToTarget = true;
             showTarget(ai);
@@ -5636,6 +5665,7 @@ public final class MainActivity extends ComponentActivity {
         back.setOnClickListener(v -> showAppList(activePrivacySection));
         content.addView(back,new LinearLayout.LayoutParams(-1,-2));
         focusPendingPrivacySection();
+        restoreHookTargetScrollAfterBuild();
     }
  
 
@@ -5796,6 +5826,7 @@ public final class MainActivity extends ComponentActivity {
         back.setText("返回 Dialog 应用列表");
         back.setOnClickListener(v -> showAppList("Dialog处理"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        restoreHookTargetScrollAfterBuild();
     }
 
     private void showDiaToastTarget(ApplicationInfo target) {
@@ -5919,6 +5950,7 @@ public final class MainActivity extends ComponentActivity {
         back.setText("返回 Toast 应用列表");
         back.setOnClickListener(v -> showAppList("Toast过滤"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        restoreHookTargetScrollAfterBuild();
     }
 
     private void showDiaKeyControlTarget(ApplicationInfo target) {
@@ -6084,6 +6116,7 @@ public final class MainActivity extends ComponentActivity {
         back.setText("返回按键控制应用列表");
         back.setOnClickListener(v -> showAppList("按键控制"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        restoreHookTargetScrollAfterBuild();
     }
 
     private void showCustomHookRulesPage(ApplicationInfo target, boolean targetDebuggable) {
@@ -6217,8 +6250,25 @@ public final class MainActivity extends ComponentActivity {
         showAppList("自定义 Hook");
     }
 
+    private void restoreHookTargetScrollAfterBuild() {
+        // Specialized Dialog/Toast/Key pages do not contain the generic privacy sections.
+        // Consume any pending category focus once the selected target page is built.
+        pendingPrivacySection = null;
+        if (!hookTargetScrollRestorePending || hookCustomRulesPageVisible || nativeScroll == null) return;
+        final ScrollView targetScroll = nativeScroll;
+        final String packageName = selectedPackage;
+        final int restoreY = Math.max(0, hookTargetScrollY);
+        hookTargetScrollRestorePending = false;
+        targetScroll.post(() -> {
+            if (isFinishing() || isDestroyed() || !hookTargetVisible || hookCustomRulesPageVisible
+                    || targetScroll != nativeScroll || packageName == null
+                    || !packageName.equals(selectedPackage)) return;
+            targetScroll.scrollTo(0, restoreY);
+        });
+    }
+
     private void focusPendingPrivacySection() {
-        final String requested = activePrivacySection;
+        final String requested = pendingPrivacySection;
         if (requested == null || nativeScroll == null) return;
         pendingPrivacySection = null;
         nativeScroll.post(() -> {
