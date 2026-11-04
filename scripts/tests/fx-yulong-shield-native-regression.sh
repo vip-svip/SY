@@ -113,9 +113,9 @@ rescue_route = main[rescue_route_start:rescue_route_start + 420]
 assert "FxYulongRescueActivity.class" in rescue_route, \
     "Shield floating rescue entry must open its dedicated recovery page, not the Shield overview"
 assert "FxYulongRescueActivity.java" in shield, "Dedicated rescue Activity source missing"
-assert r'"\\n累计提醒："' not in shield, "Shield status must not show literal backslash-n"
-assert r'"\n累计提醒："' in shield, "Shield status must retain a Java newline escape"
-assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in shield, "Recovery note must render on a new line"
+assert r'"\\n累计提醒："' not in hub, "Shield status must not show a literal backslash followed by n"
+assert r'"\n累计提醒："' in hub, "Shield status must retain a Java newline escape"
+assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in hub, "Recovery note must render on a new line"
 assert 'case "位置与 GPS":' in main and 'showAppList("位置隐私")' in main, \
     "Dia GPS settings must open the per-target location/GPS editor"
 assert 'case "Wi-Fi 模拟":' in main and 'showAppList("Wi-Fi 环境模拟")' in main, \
