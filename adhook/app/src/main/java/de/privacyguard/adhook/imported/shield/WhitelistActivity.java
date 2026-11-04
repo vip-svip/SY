@@ -117,8 +117,8 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         setContentViewWithNativeTabs(root, 5);
         if (savedInstanceState != null) {
             query = savedInstanceState.getString(STATE_QUERY, "");
-            whitelistPage = Math.max(1, Math.min(200, savedInstanceState.getInt(STATE_PAGE, 1)));
             searchInput.setText(query);
+            whitelistPage = Math.max(1, Math.min(200, savedInstanceState.getInt(STATE_PAGE, 1)));
             final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
             whitelistScroll.post(() -> whitelistScroll.scrollTo(0, restoreY));
         }
