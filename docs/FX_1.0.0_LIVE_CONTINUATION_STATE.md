@@ -1145,3 +1145,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未更改名单格式、正式写入时机、六 Tab 顺序或 FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
 - 下一批：将管控应用选择弹窗迁为可恢复的 DialogFragment 或等价 Activity 状态模型，保留搜索、分页、暂存多选和确认/取消语义；随后继续检查病毒库/扫描/救援页面返回链。
 
+## 2026-11-05 — 最新并行提交接管记录（Shield 六 Tab 与 Dia ActivityKey）
+
+- 本节更新前实时 HEAD：`c2d2725ba1da4df678f15c0c91f60ad6eecdba08`；分支 `fx-v1.0.0-unified-hook-integration`，固定 FX 1.0.0。
+- 接管时发现其他并行工作线已在本批之后继续提交，以下改动均以最新分支源码复核，不重复覆盖：
+  - `70863a9ca71ffd574835c1ed5b7c22e96e60dab7` — Shield 白名单管理页接入六 Tab 宿主。
+  - `8d9a2738b9a5aedd94c1b56826e5b7c9b0d9e46b` — Shield 白名单选择器接入六 Tab 宿主。
+  - `ded04cea3d0c49d0a4a5fe85006282e9e2ea6915` — Shield 管控列表接入六 Tab 宿主。
+  - `a21864178c71b97458ef1e09fd3fc9e00e726093` — Shield 白名单/管控页六 Tab 回归覆盖。
+  - `a2254ac15d4ed3660d02c824d37c666b5fd503d4` — Dia ActivityKey 触发链接入应用与 Dialog 动作。
+  - `ebf7ee32c650c5f6856e7e7acbff8eb8076a57f1` — ActivityKey 手势状态按包隔离。
+- 最新源码核对：`FxYulongShieldActivity`、`WhitelistActivity`、`WhitelistPickerActivity`、`BlacklistActivity` 均继承 `FxNativeTabActivity`；Shield Hub 使用 `setContentViewWithNativeTabs(root, 5)`，未新增底栏或改变设置 Tab 的索引。之前完成的滚动/查询/分页/选择暂存状态保存仍在最新文件中。
+- Dia ActivityKey 已从“仅观察模板”的旧阶段继续演进到独立策略接线；仍需检查其原始调用条件、按包隔离边界、手势误触保护和目标进程实际触发，不能把静态接线直接等同于真机行为完成。
+- 本批没有对上述并行提交做重复修改；未触发整套 Actions。先前网络环境无法解析 github.com，无法在本执行容器克隆仓库运行 Shell 回归；最新源码仅完成文件级静态核对。
+- 下一批：优先将管控应用选择 AlertDialog 的暂存勾选/搜索/分页状态纳入 Activity 重建恢复；随后对 Dia ActivityKey 逐项核验触发策略与目标包边界，再继续 Shield 病毒库、扫描、救援页面返回链。
+- 未生成 APK / KernelSU ZIP，未改变六 Tab 顺序与 FX 1.0.0 版本。
+
