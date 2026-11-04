@@ -75,11 +75,13 @@ private fun FxDesignModePanel(
             ) {
                 Text("选择 FX 全局界面模式")
                 Text(
-                    "三种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
+                    "五种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
                 )
                 ModeCard(FxUiMode.CLASSIC_WEB_COMPAT.storageId, FxUiMode.CLASSIC_WEB_COMPAT.title, FxUiMode.CLASSIC_WEB_COMPAT.description, currentMode, onModeSelected, backdrop, false)
                 ModeCard(FxUiMode.FX_LIQUID_NATIVE.storageId, FxUiMode.FX_LIQUID_NATIVE.title, FxUiMode.FX_LIQUID_NATIVE.description, currentMode, onModeSelected, backdrop, true)
                 ModeCard(FxUiMode.MIUIX_STYLE.storageId, FxUiMode.MIUIX_STYLE.title, FxUiMode.MIUIX_STYLE.description, currentMode, onModeSelected, backdrop, false)
+                ModeCard(FxUiMode.HUAWEI_HARMONY_STYLE.storageId, FxUiMode.HUAWEI_HARMONY_STYLE.title, FxUiMode.HUAWEI_HARMONY_STYLE.description, currentMode, onModeSelected, backdrop, false)
+                ModeCard(FxUiMode.IOS_CUPERTINO_STYLE.storageId, FxUiMode.IOS_CUPERTINO_STYLE.title, FxUiMode.IOS_CUPERTINO_STYLE.description, currentMode, onModeSelected, backdrop, false)
             }
         }
     }
