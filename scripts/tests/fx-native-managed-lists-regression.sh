@@ -47,8 +47,11 @@ printf '%s\n' "$initial" | grep -qx 'FXLIST1' || fail "rule list header missing"
 printf '%s\n' "$initial" | grep -Fq '0|https://original.example/filter.txt|Original|1' || fail "existing subscription missing"
 printf '%s\n' "$initial" | grep -Fq '1|https://disabled.example/filter.txt|Disabled|0' || fail "disabled subscription missing"
 
+# A stale PID-bearing lock must be reclaimed before the first mutation.
+printf '999999999\n' > "$LOCK"
 added=$(run add ruleList https://new.example/filter.txt New)
-printf '%s\n' "$added" | grep -qx 'applied=1' || fail "rule add did not apply"
+printf '%s\n' "$added" | grep -qx 'applied=1' || fail "rule add did not apply after stale lock recovery"
+[ ! -e "$LOCK" ] || fail "stale lock was not reclaimed and released"
 list=$(run list ruleList)
 printf '%s\n' "$list" | grep -Fq '3|https://new.example/filter.txt|New|1' || fail "new subscription missing from list"
 [ "$(printf '%s\n' "$list" | grep -F -c 'https://new.example/filter.txt')" -eq 1 ] || fail "new subscription was inserted more than once across repeated sections"
@@ -87,6 +90,20 @@ list=$(run list ruleList)
 if printf '%s\n' "$list" | grep -Fq 'https://original.example/filter.txt'; then fail "delete did not remove selected row"; fi
 printf '%s\n' "$list" | grep -Fq '0|https://disabled.example/filter.txt|Disabled|1' || fail "post-delete indexes were not rebuilt"
 
+# A lock-path symlink is rejected without touching its target or user data.
+outside_lock_target="$TMP/outside-lock-target"
+printf 'external lock data\n' > "$outside_lock_target"
+before_symlink=$(sha256sum "$CONF" | awk '{print $1}')
+ln -s "$outside_lock_target" "$LOCK"
+if run add domainList symlink.example 'Must not write' >/dev/null 2>&1; then
+  fail "symbolic-link lock path was accepted"
+fi
+[ -L "$LOCK" ] || fail "symbolic-link lock path was replaced"
+[ "$(cat "$outside_lock_target")" = 'external lock data' ] || fail "symbolic-link target was modified"
+after_symlink=$(sha256sum "$CONF" | awk '{print $1}')
+[ "$before_symlink" = "$after_symlink" ] || fail "symlink lock rejection changed settings.conf"
+rm "$LOCK"
+
 run add domainList second.example 'Second allow' >/dev/null
 run add blockList second-block.example 'Second block' >/dev/null
 printf '%s\n' "$(run list domainList)" | grep -Fq '1|second.example|Second allow|1' || fail "domain allow list add failed"
@@ -115,13 +132,37 @@ python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text(encoding="utf-8")
-for token in ('umask 077', 'mktemp "$CONF.native-list.XXXXXX"',
-              'mktemp "$CONF.native-list-rollback.XXXXXX"',
-              'mktemp "$CONF.restore.XXXXXX"', 'trap cleanup EXIT',
+for token in ('umask 077', 'set -C', '_nl_read_lock_owner()', '_nl_unlock()',
+              'kill -0', '.stale.$.', 'legacy ownerless managed-list lock',
+              'refusing to follow it', 'trap cleanup EXIT',
               'normalize_domain()', 'normalize_value()', 'value_exists()'):
     assert token in s, f"managed list safety invariant missing: {token}"
-assert '$CONF.native-list.$' not in s and '$CONF.restore.$' not in s
-print("PASS: managed list backend uses private random temp paths and strict validators")
+assert '$CONF.native-list.
+python3 - "$SCRIPT" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
+assert "grep -Eq" in normalize, "URL subscription validation is missing"
+assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
+assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
+print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
+PY
+echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
+ not in s and '$CONF.restore.
+python3 - "$SCRIPT" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+normalize = source.split("normalize_value() {", 1)[1].split("\nlist_rows() {", 1)[0]
+assert "grep -Eq" in normalize, "URL subscription validation is missing"
+assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned to the caller"
+assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
+print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
+PY
+echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"
+ not in s
+print("PASS: managed list backend uses atomic PID lock, stale-owner recovery and strict validators")
 PY
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path

@@ -27,7 +27,7 @@ cleanup() {
   [ -z "$TMP_FILE" ] || rm -f "$TMP_FILE" 2>/dev/null || :
   [ -z "$BACKUP_FILE" ] || rm -f "$BACKUP_FILE" 2>/dev/null || :
   [ -z "$RESTORE_FILE" ] || rm -f "$RESTORE_FILE" 2>/dev/null || :
-  if [ "$LOCK_HELD" = 1 ]; then rmdir "$LOCK" 2>/dev/null || :; LOCK_HELD=0; fi
+  _nl_unlock || :
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -182,17 +182,123 @@ update_row() {
   chmod 600 "$TMP_FILE" && mv -f "$TMP_FILE" "$CONF" || return 1
   TMP_FILE=
 }
-with_lock() {
-  tries=0
-  while ! mkdir "$LOCK" 2>/dev/null; do
-    tries=$((tries+1))
-    [ "$tries" -lt 20 ] || { echo "managed-list update is busy" >&2; return 10; }
+# Read a lock owner without following symlinks. The directory form is
+# accepted only for compatibility with a legacy PID-bearing lock.
+_nl_read_lock_owner() {
+  _nl_path=$1
+  [ ! -L "$_nl_path" ] || return 1
+  if [ -d "$_nl_path" ]; then
+    [ ! -L "$_nl_path/pid" ] && [ -f "$_nl_path/pid" ] || return 1
+    cat "$_nl_path/pid" 2>/dev/null
+  elif [ -f "$_nl_path" ]; then
+    cat "$_nl_path" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+_nl_remove_lock_path() {
+  _nl_path=$1
+  [ ! -L "$_nl_path" ] || return 1
+  if [ -d "$_nl_path" ]; then
+    rm -rf "$_nl_path" 2>/dev/null
+  elif [ -f "$_nl_path" ]; then
+    rm -f "$_nl_path" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+_nl_unlock() {
+  [ "$LOCK_HELD" = 1 ] || return 0
+  _nl_owner=$(_nl_read_lock_owner "$LOCK" 2>/dev/null || :)
+  if [ "$_nl_owner" = "$" ]; then
+    _nl_release="$LOCK.release.$"
+    _nl_release_try=0
+    while { [ -e "$_nl_release" ] || [ -L "$_nl_release" ]; } && [ "$_nl_release_try" -lt 20 ]; do
+      _nl_release_try=$((_nl_release_try + 1))
+      _nl_release="$LOCK.release.$.$_nl_release_try"
+    done
+    if [ ! -e "$_nl_release" ] && [ ! -L "$_nl_release" ] &&
+       mv "$LOCK" "$_nl_release" 2>/dev/null; then
+      _nl_release_owner=$(_nl_read_lock_owner "$_nl_release" 2>/dev/null || :)
+      if [ "$_nl_release_owner" = "$" ]; then
+        _nl_remove_lock_path "$_nl_release" || :
+      elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+        mv "$_nl_release" "$LOCK" 2>/dev/null || :
+      fi
+    fi
+  fi
+  LOCK_HELD=0
+  return 0
+}
+
+_nl_acquire_lock() {
+  _nl_tries=0
+  _nl_retries=${FX_MANAGED_LIST_LOCK_RETRIES:-20}
+  case "$_nl_retries" in ''|*[!0-9]*|0) _nl_retries=20 ;; esac
+  [ "$_nl_retries" -le 120 ] 2>/dev/null || _nl_retries=120
+
+  while :; do
+    if [ -L "$LOCK" ]; then
+      echo "managed-list lock path is a symbolic link; refusing to follow it" >&2
+      return 10
+    fi
+
+    if [ ! -e "$LOCK" ]; then
+      if ( umask 077; set -C; printf '%s\n' "$" > "$LOCK" ) 2>/dev/null; then
+        LOCK_HELD=1
+        return 0
+      fi
+    else
+      _nl_owner=$(_nl_read_lock_owner "$LOCK" 2>/dev/null || :)
+      case "$_nl_owner" in
+        ''|0|*[!0-9]*)
+          # Do not remove an ownerless legacy mkdir lock. It may still belong
+          # to an older process which has not yet written any PID metadata.
+          ;;
+        *)
+          if ! kill -0 "$_nl_owner" 2>/dev/null; then
+            _nl_owner2=$(_nl_read_lock_owner "$LOCK" 2>/dev/null || :)
+            if [ "$_nl_owner2" = "$_nl_owner" ] &&
+               ! kill -0 "$_nl_owner2" 2>/dev/null; then
+              _nl_stale="$LOCK.stale.$.$_nl_tries"
+              if [ ! -e "$_nl_stale" ] && [ ! -L "$_nl_stale" ] &&
+                 mv "$LOCK" "$_nl_stale" 2>/dev/null; then
+                _nl_moved_owner=$(_nl_read_lock_owner "$_nl_stale" 2>/dev/null || :)
+                if [ "$_nl_moved_owner" = "$_nl_owner" ] &&
+                   ! kill -0 "$_nl_moved_owner" 2>/dev/null; then
+                  _nl_remove_lock_path "$_nl_stale" || :
+                elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+                  # The lock changed between the last read and rename. Restore
+                  # it instead of deleting a potentially live owner's lock.
+                  mv "$_nl_stale" "$LOCK" 2>/dev/null || :
+                fi
+              fi
+              continue
+            fi
+          fi
+          ;;
+      esac
+    fi
+
+    _nl_tries=$((_nl_tries + 1))
+    if [ "$_nl_tries" -ge "$_nl_retries" ]; then
+      if [ -d "$LOCK" ]; then
+        echo "legacy ownerless managed-list lock remains; refusing unsafe automatic removal" >&2
+      else
+        echo "managed-list update is busy or has no verifiable owner" >&2
+      fi
+      return 10
+    fi
     sleep 1
   done
-  LOCK_HELD=1
+}
+
+with_lock() {
+  _nl_acquire_lock || return $?
   if "$@"; then rc=0; else rc=$?; fi
-  rmdir "$LOCK" 2>/dev/null || :
-  LOCK_HELD=0
+  _nl_unlock
   return "$rc"
 }
 mutate_transaction() {
