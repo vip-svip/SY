@@ -844,3 +844,41 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批验证结果：只完成 GitHub 最新 blob 静态检查；回归脚本尚未在检出工作树执行，Gradle/JUnit、Android 编译、LSPosed 设备行为均未执行。不得写成“测试通过”。
 - 下一步优先：① 用仓库 CI/可执行工作树运行 `sh scripts/tests/fx-dia-dialog-native-regression.sh`；② 追踪原始 `ToastDisableHook` 与 `KeyEventHook`，拆成独立、逐应用、默认关闭的能力；③ 再补原始自动布局监听，最后回到 Frida 页面返回链。
 - 明确禁止：不得把现有 `Dialog.show()` Hook 说成完整 WindowManager 覆盖；不得默认阻止系统/FX 自身窗口；不得将通知监听设置作为 Dialog/Toast 的替代；固定 FX 1.0.0，不打包最终 APK/KernelSU ZIP。
+
+## 2026-11-05 — Dia Dialog 双入口拦截、逐应用原生配置与定向回归
+
+- 本节更新前实时分支 HEAD：`78cdea7fba9f3a5c5c960b25df524683668ec558`；分支仍为 `fx-v1.0.0-unified-hook-integration`，固定版本 FX 1.0.0。
+- 本节更正并取代前一节“仅覆盖 `Dialog.show()`”的旧边界描述：当前代码同时接入 `Dialog.show()` 前置检查和可用的 `WindowManagerImpl.addView()` 前置检查；设备级覆盖仍待验收，不能宣称涵盖所有 OEM / Android 版本的 Window 实现。
+- 原生配置链：
+  - Dia「对话框与通知」入口进入逐应用 `Dialog处理` 列表；与 NotificationListener 通知保护完全分离。
+  - 目标详情页有独立启停、文本关键字、资源 ID、拦截提示开关；表单草稿支持 Activity 重建恢复。
+  - 保存时由 `FxDiaDialogMatchPolicy.parseTerms` 规范化；空规则拒绝启用；非 debuggable 目标禁用编辑/发布；`publishConfig()` 再次核验目标标志位。
+  - 配置字段为 `dialog_match`、`dialog_text_terms_b64`、`dialog_id_terms_b64`、`dialog_notify`；Parser / Serializer 有解析、校验及逐应用往返。
+- 当前执行器：
+  - API-101 对包名做二次 debuggable / 受保护包检查，要求规则启用且至少一条显式文本或 ID。
+  - `Dialog.show()` 在原始 show 前检查普通 Dialog 的 View 树；匹配时取消 show，不匹配则继续原调用。
+  - 反射发现 `android.view.WindowManagerImpl` 中接收 View 与 LayoutParams 的可用 `addView` 重载，在挂载前再次做有界匹配；命中后阻止 addView。
+  - 文本规则是不区分大小写的字面包含（不是正则）；资源 ID 支持完整名称、entry name、十进制和十六进制精确匹配。
+  - 匹配检查限制 512 节点 / 深度 16；全屏宽高均为 MATCH_PARENT 的窗口跳过；反射、树访问及 UI 检查异常均 fail-open；提示 Toast 按包名 3 秒限频；日志只记包名与匹配类型，不记录 Dialog 正文。
+- 规则上限说明已纠正：文本与资源 ID 两类各最多 32 条、单条最多 96 字符；两个输入框分别最多 1 KiB。
+- 本批相关提交（连续历史，含并行提交）：
+  - `72bbd0e8f10d0f60a5fb46cfebda5742ceb5a522` — 逐应用 Dialog 原生表单及配置发布。
+  - `a9fe52921a89d3cfdbd2553c6efd1892592c7598`、`8bdefeb462b0c9e3dcbae06ed3584baed4971f49` — `dialog_notify` Parser / Serializer 接线。
+  - `8e192b83529b956220194fab08d611e9bdb4abb2`、`a1edec7e7b6676f6fefad23691bf661638eadb9a` — 逐应用运行时拦截、WindowManager addView 路径、全屏跳过和幂等安装保护。
+  - `9ea5c93b72fa72cd9014838da5ac0f79046aa0a8`、`1eb3ac2100c0ef39e8e630c912b32a8a0b4408dd` — 表单草稿恢复、按应用查看匹配事件。
+  - `4b9898d1c09ab1149027d2fedf341d7b3424230e`、`e51b89d473a116b1838127e11577d20aad00acd8` — 修正规则上限说明及运行状态日志标识。
+  - `c2ee7c3cd394e98348783f338c57daa76ce74f7d`、`7531241a462ac6463862c93f54c733c56ebc849f` — Parser 校验与 Serializer 往返测试。
+  - `0343a8744c86f3673f96b078d18f7a7466dea9b3`、`78cdea7fba9f3a5c5c960b25df524683668ec558` — 修正 Dialog 与四个既有 GPS 配置 Parser 用例的换行转义，确保构造真实多行配置。
+  - `65c16bf476427c3eda1afa147d0e73cc726ae26f`、`8a98d7dad079407caa2b44ad0f48e2c0e701855`、`b1ba02536b9bec3e8c0815c3338f4f0b11542392`、`38e719830b86bfb4fe8b49688e145f885727076d` — 独立 JDK Host 测试、原生链静态回归、执行入口及断言修正。
+- 改动路径：`MainActivity.java`、`AdVisibilityHook.java`、`UnifiedHookConfigParser.java`、`UnifiedHookConfigSerializer.java`、`FxDiaDialogMatchPolicy.java`、相应 Parser / Serializer / Policy 测试，以及 `scripts/tests/FxDiaDialogMatchPolicyHostTest.java`、`scripts/tests/fx-dia-dialog-native-regression.sh`。
+- 验证：
+  - 当前分支文件级静态契约核对 18 项全部通过，覆盖 UI 路由、逐应用/debuggable 发布、Parser/Serializer、WindowManager/Dialog 双入口、全屏排除、fail-open、提示限频及测试覆盖。
+  - 从当前分支读取的纯 Java Policy 与 Host 测试源码在临时 JDK 目录执行 `javac -Xlint:all -Werror`，19 项 Host 断言通过（换行、去重、字面文本/资源 ID 匹配、空规则、UTF-8/条数/长度限制、不可变列表）。
+  - **尚未**在完整仓库工作树运行 `sh scripts/tests/fx-dia-dialog-native-regression.sh`；未运行 Gradle / JUnit runner、Android 编译、模拟器或 LSPosed 真机窗口拦截。Host 测试不替代这些验收。
+- 原始 Dialog 尚未完整迁移：`alert_auto`、`disable_alert_mode`、`alert_enabled` 条件 / 按键模式、`alert_close_ex` 扩展关闭行为、独立 `ToastDisableHook` 过滤、动态布局监听均未完成。当前 `dialog_notify` 只是在拦截成功后发限频提示，不能替代 Toast 过滤。
+- 本批未触发整套 Actions，未生成 APK / KernelSU ZIP，未更改六 Tab 顺序和 FX 1.0.0 版本号。
+- 失败路线：Git Data 写入接口平台错误后采用 Contents API 顺序提交；遇到并行分支推进时重新读取 HEAD/blob SHA，未强推或覆盖。回归脚本出现过错误字段名，已按当前 Hook 字段修正；新增 Dialog 及四个 GPS Parser 用例的字面 `\\n` 分隔符已修复。
+- 下一批直接任务：
+  1. 追踪 Dia 原版 `ToastDisableHook` 的 Hook 点、匹配字段、作用域和绕过条件，新增独立默认关闭、逐应用 Toast 过滤设置与执行器，不复用 Dialog 提示开关。
+  2. 追踪 `KeyEventHook` 与 `alert_auto` / `disable_alert_mode` 的调用链，先复原原始模式语义，再做显式启用的安全迁移。
+  3. 核对动态布局监听及 Dialog 规则的设备覆盖；随后回到 Frida 监听 / 代理页面原生导航返回链。
