@@ -1449,3 +1449,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前 HEAD 文件级静态核验 9 项全部通过：三类 Compose 生命周期 owner、Tab 范围、CLEAR_TOP/SINGLE_TOP intent、MainActivity onNewIntent、intent 0–5 限制、Settings=6、Hook=5、前四 Tab 更新与渲染、回归脚本包含相应断言。
 - 未运行 Shell 回归脚本、Gradle/JUnit、Android 编译、模拟器或真机点按；静态核验不等于实际返回栈验收。尚需真机验证：主 Activity 不在栈中时新建行为、深层 Activity 多次快速点 Tab、页面含未保存表单时切 Tab 的退出提示/草稿保存。
 - 下一批：检查 Backup / SAF / GPS Picker 的 Activity Result 在旋转重建后的状态恢复；然后进入 Hook 首页与应用详情 UI 的真实权限状态闭环。固定 FX 1.0.0，不打包。
+
+
+## 2026-11-05 — Dia Hook 的 Dialog / 通知 / Toast 原生入口拆分
+
+- 本批开始前实时 HEAD：`4f6bab4b8804626e1ef8a00506662a6a9c7d448b`。
+- 问题：Dia 的“Hook 功能”原页面目录只显示一个“对话框与通知”入口，但实际路由只打开 Dialog 过滤编辑器；Toast 文本过滤已有独立原生编辑器但不在 Dia 页面树中，通知监听与权限提示虽有现成逐应用配置控件也没有独立 Dia 入口。
+- 修改 `MainActivity.java` 的 Dia Hook 功能目录，拆分为三个独立四级页面入口：
+  - `对话框处理` → 既有 `showDiaDialogTarget`；
+  - `通知监听与权限提示` → 既有逐应用 `通知保护` 配置与原生 Hook 发布路径；
+  - `Toast 文本过滤` → 既有 `showDiaToastTarget`。
+- 保留旧 `对话框与通知` 路由别名，避免恢复旧导航状态时断路；未复制或替换现有规则/发布后端。
+- 提交：
+  - `b0a7490e296c81dd0c4662d1db783b85f83b6886` — 增加独立 Dialog、通知与 Toast 页面入口和路由。
+  - `1bfc59b45dc0d67f1f76d9a2ff5599e2787cd3a4` — Dia 原生页回归脚本增加三个入口及真实控件锚点断言，并清除重复 DEX Browser 测试条目。
+- 验证：本批静态断言确认目录项、三条路由、Dialog/Toast 专用目标编辑器、通知两个真实配置键均存在；回归脚本内容已更新。未在完整工作树执行脚本，未运行 Gradle/Android 编译、UI 自动化或真机 Hook/通知行为。
+- 下一步：检查 Dia 目录内其余 Hook/隐私入口是否出现同类“菜单命名与落地页面不一致”；之后回到 FX Hook 主 Tab 的首页/应用列表/应用详情状态闭环。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
