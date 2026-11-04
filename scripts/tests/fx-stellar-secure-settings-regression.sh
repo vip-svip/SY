@@ -41,7 +41,10 @@ assert "WRITE_SECURE_SETTINGS" in activity and "明确授予" in activity and "�
 assert "new ArrayBlockingQueue<>(2)" in activity and "RejectedExecutionException" in activity
 assert "worker.shutdownNow()" in activity, "Root worker must stop with Activity lifecycle"
 assert "ACTION_APPLICATION_DEVELOPMENT_SETTINGS" in activity, "manual Wireless debugging settings route missing"
-assert "mDNS" in activity and "libadb.so" in activity and "不会将打开开发者选项伪装成已配对" in activity, "unmigrated protocol boundary must remain truthful"
+assert "原版无线 ADB 配对" in activity and "AdbPairingActivity.class" in activity, "migrated pairing screen must be reachable from Stellar secure settings"
+assert "TLS 1.3" in activity and "SPAKE2" in activity and "PeerInfo" in activity and "mDNS" in activity, "secure settings must disclose the migrated pairing protocol"
+assert "API 31+" in activity and "配对成功不会自动授予 WRITE_SECURE_SETTINGS" in activity, "pairing version boundary and separate permission grant must remain explicit"
+assert "runPermissionChange(true)" in activity and "明确授予" in activity, "secure-settings grant must remain a separate user-confirmed action"
 assert "new Intent(this,FxStellarSecureSettingsActivity.class)" in manager
 print("PASS: Stellar secure-settings grant is Root-backed, user-confirmed, verified, revocable and explicitly distinct from automatic ADB pairing")
 PY
