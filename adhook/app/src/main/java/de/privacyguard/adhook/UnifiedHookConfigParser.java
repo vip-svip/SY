@@ -547,6 +547,8 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("dialog match rules require dialog_match=1");
             if (dialogNotify && !dialogMatchEnabled)
                 throw new IllegalArgumentException("dialog notification requires dialog_match=1");
+            if (keyFinishTrigger >= 0 && keyFinishTrigger == keyDialogToggleTrigger)
+                throw new IllegalArgumentException("Dia key actions must use distinct triggers");
             if (keyDialogToggleTrigger >= 0 && !dialogMatchEnabled)
                 throw new IllegalArgumentException("Dialog key toggle requires an enabled per-app Dialog rule set");
             List<String> toastTextTerms = FxDiaDialogMatchPolicy.parseTerms(toastTextTermsRaw);
