@@ -4511,7 +4511,7 @@ public final class MainActivity extends ComponentActivity {
         new Thread(() -> {
             RootAccess.Result result = RootAccess.execute("id -u; if [ -s /data/adb/modules/privacyguard/module.prop ] && grep -qx 'version=1.0.0' /data/adb/modules/privacyguard/module.prop; then if [ -e /data/adb/modules/privacyguard/disable ]; then echo FX_MODULE=disabled; elif [ -e /data/adb/modules/privacyguard/remove ]; then echo FX_MODULE=remove-pending; else echo FX_MODULE=enabled; fi; else echo FX_MODULE=missing; fi; (command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) && echo KSU_TOOL=present || echo KSU_TOOL=not-found");
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed() || state.getParent() == null) return;
                 if (result.exitCode == 0 && result.output.trim().startsWith("0")) {
                     String moduleState = result.output.contains("FX_MODULE=enabled") ? "模块启用标记存在"
                             : result.output.contains("FX_MODULE=disabled") ? "模块已禁用"
