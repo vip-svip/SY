@@ -36,6 +36,8 @@ pages = {
     "FxDiaGpsPickerActivity.java": ".imported.dia.FxDiaGpsPickerActivity",
 }
 assert "import androidx.compose.foundation.layout.navigationBarsPadding" in shell, "native tab shell must import Android navigation insets"
+assert 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' in shell, "native shell must keep the fixed six primary tabs in the required order"
+assert "selectedIndex.coerceIn(0, 5)" in shell, "native shell must clamp tab selection to the six-tab range"
 assert shell.count(".navigationBarsPadding()") == 3, "page content and both bottom bar variants must account for navigation insets"
 assert shell.index(".navigationBarsPadding()") < shell.index(".padding(bottom = 72.dp)"), "native page viewport must reserve system navigation and tab bar"
 bar_section = shell[shell.index('if (mode == "glass")'):]
