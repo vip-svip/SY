@@ -61,9 +61,38 @@ public final class FxYulongAdGeneralActivity extends Activity {
     private final BroadcastReceiver taskerResultReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (intent == null || !FxYulongAdTaskerReceiver.ACTION_RESULT.equals(intent.getAction())) return;
-            refreshTaskerResultStatus();
+            // Older receiver builds did not include this flag; keep their existing
+            // persisted-receipt refresh behavior for backward compatibility.
+            if (intent.getBooleanExtra("receipt_persisted", true)) {
+                refreshTaskerResultStatus();
+                return;
+            }
+
+            String action = boundedTaskerText(intent.getStringExtra("source_action"), 160);
+            String target = boundedTaskerText(intent.getStringExtra("target"), 40);
+            String detail = boundedTaskerText(intent.getStringExtra("detail"), 360);
+            boolean success = intent.getBooleanExtra("success", false);
+            int exitCode = intent.getIntExtra("exit_code", 127);
+            int requested = intent.getIntExtra("requested_enabled", -1);
+            StringBuilder display = new StringBuilder();
+            display.append("收到本次实时命令回执，但未能保存到本地历史。")
+                    .append("\\n控制目标：").append("vpn".equals(target) ? "FX VPN" : "广告过滤")
+                    .append(" · 请求：").append(requested == 1 ? "开启/启动" : requested == 0 ? "关闭/停止" : "未知")
+                    .append("\\n动作：").append(action)
+                    .append("\\n命令结果：").append(success ? "执行成功" : "执行失败")
+                    .append(" · 退出码：").append(exitCode);
+            if (!detail.isEmpty()) display.append("\\n回执详情：").append(detail);
+            display.append("\\n关闭或重启页面后，本次未持久化的回执将无法恢复。");
+            if (taskerResultStatus != null) taskerResultStatus.setText(display.toString());
         }
     };
+
+    private static String boundedTaskerText(String value, int maxChars) {
+        if (value == null) return "";
+        String trimmed = value.trim();
+        return trimmed.length() > maxChars
+                ? trimmed.substring(0, maxChars) + "…" : trimmed;
+    }
 
     private void submitWorker(Runnable task) {
         try {
