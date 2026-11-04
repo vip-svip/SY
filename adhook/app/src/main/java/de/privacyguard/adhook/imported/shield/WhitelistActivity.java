@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -49,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *   · 加入应用的选择器支持搜索、全选/取消全选；
  *   · 页面改为卡片式，减少「一层套一层」的旧样式。
  */
-public class WhitelistActivity extends Activity {
+public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivity {
 
     /** 2026-10-30：按用户要求清空内置信任应用。 */
     public static final Set<String> DEFAULT_TRUSTED_PKGS = Collections.emptySet();
@@ -111,7 +110,7 @@ public class WhitelistActivity extends Activity {
         root.addView(buildHeader());
         root.addView(buildContent());
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         if (savedInstanceState != null) {
             query = savedInstanceState.getString(STATE_QUERY, "");
             searchInput.setText(query);
