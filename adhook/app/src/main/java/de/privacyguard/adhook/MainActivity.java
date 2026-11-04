@@ -6606,7 +6606,11 @@ public final class MainActivity extends ComponentActivity {
                         if(k.equals("clipboard_isolate")) anyClipboardIso=true;
                     }
                 }
-                if (enabled(p, "location_simulate")) {
+                // These identity/location transforms are intentionally limited to
+                // debuggable user targets. UI disabling is not sufficient: stale
+                // preferences can survive an app update that removes debuggable.
+                boolean targetDebuggable = (ai.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                if (targetDebuggable && enabled(p, "location_simulate")) {
                     String lat = getPreferences(0).getString(p + ":location_lat", "");
                     String lon = getPreferences(0).getString(p + ":location_lon", "");
                     String accuracy = getPreferences(0).getString(p + ":location_accuracy", "5");
@@ -6617,18 +6621,18 @@ public final class MainActivity extends ComponentActivity {
                             .append(",location_accuracy=").append(accuracy);
                     has = true;
                 }
-                if (enabled(p, "location_provider_enabled_simulate")) {
+                if (targetDebuggable && enabled(p, "location_provider_enabled_simulate")) {
                     row.append(",location_provider_enabled_simulate=1");
                     has = true;
                 }
-                if (enabled(p, "android_id_simulate")) {
+                if (targetDebuggable && enabled(p, "android_id_simulate")) {
                     String value = getPreferences(0).getString(p + ":android_id", "");
                     if (!value.matches("(?i)[0-9a-f]{16}"))
                         throw new IllegalStateException("Android ID 测试值必须为 16 位十六进制字符串：" + p);
                     row.append(",android_id=").append(value.toLowerCase(java.util.Locale.ROOT));
                     has = true;
                 }
-                if (enabled(p, "time_zone_simulate")) {
+                if (targetDebuggable && enabled(p, "time_zone_simulate")) {
                     String value = getPreferences(0).getString(p + ":time_zone", "");
                     boolean known = false;
                     for (String id : java.util.TimeZone.getAvailableIDs()) if (id.equals(value)) { known = true; break; }
