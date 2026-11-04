@@ -99,9 +99,10 @@ public final class FxDiaActivityBrowserActivity extends Activity {
             info = activityInfo;
             componentState = state;
             applicationEnabled = appEnabled;
-            enabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                    || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
-                        && activityInfo.enabled && appEnabled);
+            enabled = appEnabled
+                    && (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                            && activityInfo.enabled));
         }
     }
     private int dp(float value) {
