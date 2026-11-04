@@ -42,12 +42,12 @@ framework = section("private void loadFrameworkDex()", "private void loadDex()")
 apk = section("private void loadDex()", "private void render()")
 for body in (framework, apk):
     assert "worker.execute(() -> {" in body, "DEX parsing must remain on the bounded I/O worker"
+    assert "RejectedExecutionException" in body, "DEX queue saturation must be reported"
     assert "request != dexGeneration" in body, "stale DEX parse results must not replace a newer selection"
 assert "FxDiaDexIndex.readDex(input," in framework, "Framework DEX reads must pass a cancellation callback"
 assert "FxDiaDexIndex.readApks(paths," in apk, "APK/split APK reads must pass a cancellation callback"
 assert "Thread.currentThread().isInterrupted() || request != dexGeneration" in framework
 assert "Thread.currentThread().isInterrupted() || request != dexGeneration" in apk
-    assert "RejectedExecutionException" in body, "DEX queue saturation must be reported"
 
 render = section("private void render()", "private void DexClassRow(")
 assert "searchWorker.execute(() -> {" in render, "class/member filtering must run off the UI thread"
