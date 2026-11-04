@@ -77,3 +77,20 @@ assert "worker.shutdownNow()" in source and "generation++" in source, \
     "log refresh worker must still be cancelled on Activity teardown"
 PY
 echo "PASS: Hook OBSERVE search filter and log scroll position survive Activity recreation"
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+for token in (
+    'state.getBoolean("fx_custom_rule_import_open", false)',
+    'outState.putBoolean("fx_custom_rule_import_open", true)',
+    'customRuleImportDialogOpen = true',
+    'customRuleImportDialogOpen = false',
+    'else if (customRuleImportRestorePending)',
+    'showCustomRuleImportDialog();',
+    'setOnCancelListener(dialog -> {',
+):
+    assert token in source, f"custom-rule import dialog recreation missing {token}"
+assert "customRuleImportRestorePending = false;" in source, \
+    "cancel/submit must clear pending import-dialog restoration state"
+PY
+echo "PASS: Hook custom-rule JSON import dialog reopens with its persisted draft after Activity recreation"
