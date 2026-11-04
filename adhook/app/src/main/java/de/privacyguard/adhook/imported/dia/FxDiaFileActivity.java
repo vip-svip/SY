@@ -165,6 +165,9 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             getContentResolver().takePersistableUriPermission(uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             treeUri = uri; pathStack.clear(); pathStack.add(DocumentsContract.getTreeDocumentId(uri));
+            pendingRestoreDisplayedEntries = -1;
+            pendingRestoreScrollY = 0;
+            if (directorySearch != null) directorySearch.setText("");
             prefs().edit().putString("tree_uri", uri.toString()).apply(); loadDirectory();
         } catch (Throwable e) { fileStatus.setText("保存目录授权失败：" + e.getClass().getSimpleName()); }
     }
@@ -178,7 +181,11 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             directorySearch.setText(directoryQuery);
         }
         String saved = prefs().getString("tree_uri", "");
-        if (saved.isEmpty()) return;
+        if (saved.isEmpty()) {
+            pendingRestoreDisplayedEntries = -1;
+            pendingRestoreScrollY = 0;
+            return;
+        }
         try {
             treeUri = Uri.parse(saved);
             getContentResolver().takePersistableUriPermission(treeUri,
@@ -200,6 +207,8 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         } catch (Throwable e) {
             treeUri = null;
             pathStack.clear();
+            pendingRestoreDisplayedEntries = -1;
+            pendingRestoreScrollY = 0;
             fileStatus.setText("目录授权已失效，请重新选择。");
         }
     }
@@ -603,6 +612,8 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         if(requestCode==PICK_TREE){
             try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                 treeUri=uri;pathStack.clear();pathStack.add(DocumentsContract.getTreeDocumentId(uri));
+                pendingRestoreDisplayedEntries = -1;
+                pendingRestoreScrollY = 0;
                 if (directorySearch != null) directorySearch.setText("");
                 prefs().edit().putString("tree_uri",uri.toString()).apply();loadDirectory();
             }catch(Throwable e){fileStatus.setText("保存目录授权失败："+e.getClass().getSimpleName());}
