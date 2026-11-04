@@ -3640,3 +3640,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - CI 接入：`62eea8ed6b37906b2616f05790de2ba5db870e6f`
 - 验证边界：本轮完成源码写入和 CI 接入；当前会话没有执行本地 Gradle/Android 构建，也没有 GitHub Actions run 结果，不能宣称回归已通过。
 - 尚未完成：来源应用功能仍有内部迁移页面/导航代码，必须逐项接入 Ad/VPN/隐私/脚本/Hook 对应业务页后再退役；本轮只移除了设置中的来源应用入口，不代表来源功能已全部迁移。五种 Skin 中 HUAWEI/iOS 的真实 renderer 仍未完成。
+
+
+- 追加 UI 诚实状态修正：设置页不再把五种 Skin 描述成全部可切换；明确当前只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三种可选，HUAWEI HarmonyStyle 与 iOS CupertinoStyle 尚未接入 Renderer。回归脚本同步检查这一边界，避免“计划中”被误报为“已上线”。
+- 本次新增状态修正提交：`b64c400366ce82bc4691ea445af235ea2b0dee3c`；回归断言提交：`1e88a747c94f03ff636bfdaeca1d869eff6e34da`。
