@@ -172,6 +172,6 @@ grep -Fq 'KeyProperties.ENCRYPTION_PADDING_NONE' "$ANDROID_KEY" || fail "Android
 grep -Fq '"adbkey"' "$ROOT/adhook/app/src/main/java/roro/stellar/manager/adb/PreferenceAdbKeyStore.java" || fail "original SharedPreferences key name changed"
 grep -Fq 'Build.VERSION.SDK_INT < 31' "$TLS_EXPORTER" || fail "TLS exporter must fail closed below public API 31"
 grep -Fq 'SSLSockets.exportKeyingMaterial' "$TLS_EXPORTER" || fail "TLS exporter must use the public Android SDK API"
-grep -Fq '"adb-label\\u0000"' "$TLS_EXPORTER" || fail "original TLS exporter label changed"
+grep -Fq 'LABEL = "adb-label' "$TLS_EXPORTER" || fail "original TLS exporter label changed"
 grep -Fq 'LENGTH_BYTES = 64' "$TLS_EXPORTER" || fail "original TLS exporter length changed"
 echo "PASS: AndroidKeyStore alias/purposes, adbkey preference and public SDK TLS exporter contract"
