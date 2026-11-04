@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Dedicated native viewer for the selected application's FX Hook OBSERVE records.
@@ -39,6 +40,8 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
     private String rawOutput = "";
     private int generation;
     private boolean destroyed;
+    private final AtomicBoolean refreshInFlight = new AtomicBoolean(false);
+    private Button refreshButton;
 
     private TextView status;
     private TextView count;
@@ -153,8 +156,8 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
         controls.addView(search);
 
         LinearLayout actions = new LinearLayout(this);
-        actions.addView(button("刷新日志", this::refresh),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        refreshButton = button("刷新日志", this::refresh);
+        actions.addView(refreshButton, new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清除筛选", () -> search.setText("")),
                 new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(actions);
@@ -190,33 +193,46 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
 
     private void refresh() {
         if (destroyed || targetPackage == null) return;
+        if (!refreshInFlight.compareAndSet(false, true)) {
+            if (status != null) status.setText("日志读取正在进行，请等待当前请求完成。");
+            return;
+        }
         final int request = ++generation;
+        if (refreshButton != null) refreshButton.setEnabled(false);
         status.setText("正在读取最近 5000 条系统日志中的 FX Hook OBSERVE 记录…");
         try {
             worker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(
-                        observationCommand(), 20000L, ROOT_OUTPUT_LIMIT);
+                RootAccess.Result result;
+                try {
+                    result = RootAccess.execute(observationCommand(), 20000L, ROOT_OUTPUT_LIMIT);
+                } catch (RuntimeException failure) {
+                    result = RootAccess.failure(126,
+                            "读取 OBSERVE 日志异常：" + failure.getClass().getSimpleName());
+                }
+                final RootAccess.Result completed = result;
                 runOnUiThread(() -> {
+                    refreshInFlight.set(false);
+                    if (refreshButton != null) refreshButton.setEnabled(true);
                     if (destroyed || isFinishing() || isDestroyed()
                             || request != generation) return;
-                    if (result == null) {
+                    if (completed == null) {
                         rawOutput = "";
                         status.setText("读取 OBSERVE 日志失败：Root 没有返回结果。");
                         render();
                         return;
                     }
-                    String output = result.output == null ? "" : result.output.trim();
+                    String output = completed.output == null ? "" : completed.output.trim();
                     if (output.contains("FX_HOOK_MODULE_UNAVAILABLE")) {
                         rawOutput = "";
                         status.setText("未找到可用的 privacyguard KernelSU 模块，无法读取 Hook 日志。");
                     } else if (output.contains("LOGCAT_UNAVAILABLE")) {
                         rawOutput = "";
                         status.setText("当前系统没有可用的 logcat 命令。");
-                    } else if (result.exitCode != 0) {
+                    } else if (completed.exitCode != 0) {
                         rawOutput = "";
                         String detail = output.length() > 180 ? output.substring(0, 180) : output;
-                        status.setText("读取 OBSERVE 日志失败（退出码 " + result.exitCode
-                                + (result.denied ? "，Root 权限被拒绝" : "")
+                        status.setText("读取 OBSERVE 日志失败（退出码 " + completed.exitCode
+                                + (completed.denied ? "，Root 权限被拒绝" : "")
                                 + (detail.isEmpty() ? "）。" : "）：" + detail));
                     } else {
                         rawOutput = output;
@@ -229,6 +245,8 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
                 });
             });
         } catch (RejectedExecutionException full) {
+            refreshInFlight.set(false);
+            if (refreshButton != null) refreshButton.setEnabled(true);
             status.setText("读取队列繁忙，本次刷新未执行，请稍后重试。");
         }
     }
@@ -279,6 +297,7 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
     @Override protected void onDestroy() {
         destroyed = true;
         generation++;
+        refreshInFlight.set(false);
         worker.shutdownNow();
         super.onDestroy();
     }
