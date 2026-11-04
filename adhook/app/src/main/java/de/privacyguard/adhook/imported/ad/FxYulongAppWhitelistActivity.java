@@ -35,7 +35,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Yulong 7.0.1 app whitelist: excludes selected UIDs from FX ad/DNS filtering. */
-public final class FxYulongAppWhitelistActivity extends Activity {
+public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int APP_PAGE_SIZE = 50;
     private static final String STATE_APP_PAGE = "fx_yulong_whitelist_app_page";
     private static final String STATE_QUERY = "fx_yulong_whitelist_query";
@@ -185,7 +185,7 @@ public final class FxYulongAppWhitelistActivity extends Activity {
         body.setPadding(0, dp(4), 0, dp(20));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
 
         TextView intro = text(
                 "加入白名单的应用会绕过 FX 广告/DNS 过滤通道。FX TUN 模式通过 sing-box exclude_uid 排除应用；第三方 VPN 兼容模式通过 FX Root DNS Proxy 的 UID 放行规则排除应用。此名单独立于分应用代理名单和网络阻断名单。",
