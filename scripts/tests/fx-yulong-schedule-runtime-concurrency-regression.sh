@@ -60,6 +60,7 @@ end=00:00
 days=1,2,3,4,5,6,7
 EOF
 printf 'yulong_ad_schedule_active=0\n' > "$PG/state"
+MP="$MOD"
 export MP PG
 . "$MOD/scripts/util.sh"
 i=0
