@@ -1631,3 +1631,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批提交：`cea857d66ac5287c81a7c62501eb769d666e0eaa`、`80632e56d05209669f9b8f1125deb0bf84bdd369`（OBSERVE 日志状态恢复）；`e954a5dee4c53e125681c6616ef076635ca537fa`（日志状态回归）；`00c68b31361886fb174aaceec04a924080a9d0b2`（导入弹窗自动恢复）；`f7d0095a1b00e2be69f22b7fe4d4397421be307a`（导入弹窗恢复回归）。并行提交 `56bcee860cd6354d90a30a5d67e0958642b9bf29` / `fff554492b88983e0616b7c18a2b283e8f8027aa`（编辑器弹窗恢复）和 `9be657d5cf736069af94c391d94233b0eb9faf8a` / `42b27efbded2aac1182e41e77d8b21b2591c91b0`（导入失败快照回滚）均已保留。
 - 验证等级：最新 HEAD 静态检查确认导入弹窗 Bundle 保存/恢复、目标页恢复后重开、取消/提交清标记、OBSERVE 搜索/滚动保存恢复和首轮 render 位置保护，以及对应回归断言均存在。未运行完整 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机旋转/导入/Root 日志交互。
 - 未解决：规则分组管理/重命名/移动等多级弹窗尚未统一做旋转恢复；导出弹窗可重新生成但复制交互未作旋转状态恢复。下一批先核对并修复分组对话框状态/持久化，再做 Hook/Dia Host 回归可运行性检查。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook OBSERVE 日志页固定六 Tab 与导入回滚复核
+
+- 本批开始时分支实时 HEAD：`f7d0095a1b00e2be69f22b7fe4d4397421be307a`。
+- 将 `FxHookObservationLogsActivity` 从普通 `Activity` 改为 `FxNativeTabActivity`，通过 `setContentViewWithNativeTabs(root, 4)` 固定显示六 Tab 并选中 Hook；原有标题、返回按钮、目标包名、Root 日志读取/过滤、搜索、状态提示、搜索词与滚动恢复均保留。
+- 回归脚本 `scripts/tests/fx-dia-custom-hook-literal-regression.sh` 增加日志页使用共享六 Tab 宿主、第五 Tab 和状态恢复锚点。导入失败回滚相关锚点位于独立 `scripts/tests/fx-hook-native-ui-regression.sh`，已复核其检查规则快照和 `rollback.commit()`；未重复把相同断言复制到错误的测试脚本。
+- 本批关联提交：
+  - `f466c9ad774f4c5fce856d166e31b69e8a36c698` — `feat(hook): keep observation log viewer in six-tab shell`。
+  - `b08ce2fe6c24667d97706062a5514b3e92b30471` — `test(hook): require six-tab shell for observation logs`。
+  - 同期并行工作线：`9be657d5cf736069af94c391d94233b0eb9faf8a` 修复 JSON 导入提交失败时恢复原规则；`42b27efbded2aac1182e41e77d8b21b2591c91b0` 在 `fx-hook-native-ui-regression.sh` 加入快照/回滚检查。
+- 静态核验：最新源码确认日志页继承共享宿主、选中索引 4、保留返回动作和 Root 日志通路；确认导入前规则状态快照和失败回滚提交；两套回归脚本分别覆盖日志宿主/状态恢复与导入回滚。未在完整 checkout 运行脚本，未运行 Gradle/Android 编译、模拟器、UI 自动化或真机日志/故障注入验证。
+- 下一步：继续检查自定义 Hook 规则分组新增/重命名/删除/移动后筛选与滚动恢复；随后集中评估 Hook/Dia Host 回归脚本能否在当前仓库测试链路直接运行。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
