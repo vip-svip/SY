@@ -46,6 +46,7 @@ public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNat
     private int appPage = 1;
     private int pendingScrollY;
     private boolean pendingScrollRestore;
+    private int scrollRestoreGeneration;
 
     private static final class Row {
         final String pkg, label;
@@ -115,6 +116,8 @@ public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNat
             @Override public void beforeTextChanged(CharSequence s,int st,int c,int a) {}
             @Override public void onTextChanged(CharSequence s,int st,int before,int count) {
                 appPage = 1;
+                scrollRestoreGeneration++;
+                pendingScrollY = 0;
                 pendingScrollRestore = false;
                 if (scroll != null) scroll.scrollTo(0, 0);
                 render();
@@ -196,8 +199,10 @@ public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNat
     private void restoreScrollIfNeeded() {
         if (!pendingScrollRestore || scroll == null) return;
         final int restoreY = pendingScrollY;
+        final int generation = ++scrollRestoreGeneration;
         scroll.post(() -> {
             if (destroying || isFinishing() || isDestroyed()
+                    || generation != scrollRestoreGeneration
                     || !pendingScrollRestore || scroll == null) return;
             scroll.scrollTo(0, restoreY);
             pendingScrollRestore = false;
@@ -245,6 +250,7 @@ public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNat
     }
     @Override protected void onDestroy() {
         destroying = true;
+        scrollRestoreGeneration++;
         refreshGeneration.incrementAndGet();
         if (refreshTask != null) refreshTask.cancel(true);
         worker.shutdownNow();
