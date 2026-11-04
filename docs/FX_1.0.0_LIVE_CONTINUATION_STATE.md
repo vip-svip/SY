@@ -2390,3 +2390,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`bbd261b7c3abae65b3d65dcccfe5e643f0b28f94`（实现）；`b010f60b7f21be1beb1c4ac20fa7520c5f54fd5d`（回归断言）。
 - 验证等级：源码静态检查；未运行 Shell 回归、Gradle、UI 自动化或真机四个主 Tab 长页面切换/旋转测试。
 - 下一步：继续对四个原生主 Tab 的页面恢复与滚动锚点做一次成组回归；随后核对 Hook/Settings 与主 Tab 互相切换时是否错误保留/清除子页面状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾风险详情页滚动恢复
+
+- 发现：`FxYulongWarningActivity` 风险详情页使用局部 ScrollView，Activity 重建后无法恢复用户正在阅读的风险原因/处理说明位置；页面此前没有保存滚动状态。
+- 修复：将详情 ScrollView 纳入 Activity 字段；新增 Bundle 滚动位置键；在 `onSaveInstanceState` 保存，并在视图布局后恢复；保留 onResume 对目标安装状态的实时复核，不保存/恢复过期的安装状态。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java`；`scripts/tests/fx-yulong-shield-native-regression.sh`；本状态文件。
+- 提交：`2d3de0cff52d550103e268dc4503a1c8095d94ae`（UI 状态恢复）；`6010d23759d4698ffc82678a611043cc700eee43`（回归断言）。
+- 与本批上一项合并验收：黑名单多页 picker 选择暂存已限制为 100 项，超限明确拒绝并提示，确保可被 Bundle 完整保存；提交 `ec7ac4610fb7c21c879a1f46c192b470c5489d18`，测试 `802f759ff271582a82af82aa530b7ba0e1367830`。
+- 静态核验：最新 WarningActivity、BlacklistActivity 和 Shield 回归脚本均重新读取，滚动字段/保存/恢复、暂存上限/提示、相应断言均存在。未运行 Shell/Python/Gradle、模拟器或真机旋转测试。
+- 仍需完成：设备上验证风险详情长内容滚动恢复；黑名单选择器 99/100/101 项边界、搜索/翻页/取消/确认操作；名单管理器与扫描页返回后的刷新一致性。
+- 本批读取时分支 HEAD：`6010d23759d4698ffc82678a611043cc700eee43`。状态文件提交后将更新分支 HEAD。
+- 下一步：检查白名单选择器和黑名单选择器是否在列表内容变化后保留无效暂存项，接着检查六 Tab 选中态与 Activity 返回链。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
