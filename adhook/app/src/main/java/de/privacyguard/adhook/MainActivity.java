@@ -5441,10 +5441,15 @@ public final class MainActivity extends ComponentActivity {
         content.addView(details);
 
         final String packageNameKey = selectedPackage;
+        final String draftEnabledKey = packageNameKey + ":dialog_draft_enabled";
+        final String draftTextKey = packageNameKey + ":dialog_draft_text_terms";
+        final String draftIdsKey = packageNameKey + ":dialog_draft_id_terms";
+        final String draftNotifyKey = packageNameKey + ":dialog_draft_notify";
         Switch enabled = new Switch(this);
         enabled.setText("启用此应用的 Dialog 规则");
         enabled.setPadding(dp(18), dp(10), dp(18), dp(10));
-        enabled.setChecked(getPreferences(0).getBoolean(packageNameKey + ":dialog_match_enabled", false));
+        enabled.setChecked(getPreferences(0).getBoolean(draftEnabledKey,
+                getPreferences(0).getBoolean(packageNameKey + ":dialog_match_enabled", false)));
         enabled.setEnabled(targetDebuggable);
         content.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
 
@@ -5461,7 +5466,8 @@ public final class MainActivity extends ComponentActivity {
         textTerms.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         textTerms.setHint("例如：更新失败\n请先登录");
-        textTerms.setText(getPreferences(0).getString(packageNameKey + ":dialog_text_terms", ""));
+        textTerms.setText(getPreferences(0).getString(draftTextKey,
+                getPreferences(0).getString(packageNameKey + ":dialog_text_terms", "")));
         textTerms.setEnabled(targetDebuggable);
         content.addView(textTerms, new LinearLayout.LayoutParams(-1, -2));
 
@@ -5478,16 +5484,38 @@ public final class MainActivity extends ComponentActivity {
         idTerms.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         idTerms.setHint("例如：com.example:id/alert_close\nbtn_cancel");
-        idTerms.setText(getPreferences(0).getString(packageNameKey + ":dialog_id_terms", ""));
+        idTerms.setText(getPreferences(0).getString(draftIdsKey,
+                getPreferences(0).getString(packageNameKey + ":dialog_id_terms", "")));
         idTerms.setEnabled(targetDebuggable);
         content.addView(idTerms, new LinearLayout.LayoutParams(-1, -2));
 
         Switch notify = new Switch(this);
         notify.setText("拦截成功后显示提示");
         notify.setPadding(dp(18), dp(10), dp(18), dp(10));
-        notify.setChecked(getPreferences(0).getBoolean(packageNameKey + ":dialog_notify", false));
+        notify.setChecked(getPreferences(0).getBoolean(draftNotifyKey,
+                getPreferences(0).getBoolean(packageNameKey + ":dialog_notify", false)));
         notify.setEnabled(targetDebuggable);
         content.addView(notify, new LinearLayout.LayoutParams(-1, -2));
+
+        // Persist the editable draft separately so rotation/navigation cannot discard unsaved rules.
+        enabled.setOnCheckedChangeListener((button, checked) ->
+                getPreferences(0).edit().putBoolean(draftEnabledKey, checked).apply());
+        textTerms.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(draftTextKey, value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        idTerms.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(draftIdsKey, value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        notify.setOnCheckedChangeListener((button, checked) ->
+                getPreferences(0).edit().putBoolean(draftNotifyKey, checked).apply());
 
         Button save = new Button(this);
         save.setAllCaps(false);
@@ -5520,6 +5548,10 @@ public final class MainActivity extends ComponentActivity {
                     .putString(packageNameKey + ":dialog_text_terms", normalizedText)
                     .putString(packageNameKey + ":dialog_id_terms", normalizedIds)
                     .putBoolean(packageNameKey + ":dialog_notify", notify.isChecked())
+                    .remove(draftEnabledKey)
+                    .remove(draftTextKey)
+                    .remove(draftIdsKey)
+                    .remove(draftNotifyKey)
                     .commit();
             if (!saved) {
                 Toast.makeText(this, "Dialog 设置未能写入本地存储，未发布配置。",
