@@ -55,6 +55,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
     private Button applyButton;
     private Button restoreButton;
     private boolean busy;
+    private FxDiaWifiProxyState.Status proxyStatus = FxDiaWifiProxyState.Status.UNKNOWN;
 
     private SharedPreferences prefs() { return getSharedPreferences(PREFS, MODE_PRIVATE); }
 
@@ -94,9 +95,12 @@ public final class FxDiaWifiProxyActivity extends Activity {
     }
 
     private void updateButtons() {
-        boolean active = prefs().getBoolean("active", false);
+        boolean managed = prefs().getBoolean("active", false);
         if (applyButton != null) applyButton.setEnabled(!busy);
-        if (restoreButton != null) restoreButton.setEnabled(!busy && active);
+        if (restoreButton != null) {
+            restoreButton.setEnabled(!busy && managed
+                    && FxDiaWifiProxyState.mayRestore(proxyStatus));
+        }
     }
 
     @Override protected void onCreate(Bundle state) {
@@ -235,6 +239,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
                     .putString("port", portInput.getText().toString().trim())
                     .putString("previous", newPrevious)
                     .putString("applied", target).apply();
+            proxyStatus = FxDiaWifiProxyState.Status.ACTIVE;
             status.setText("系统全局 HTTP 代理已启用并核对成功： " + target);
             updateButtons();
         });
@@ -274,6 +279,7 @@ public final class FxDiaWifiProxyActivity extends Activity {
             }
             prefs().edit().putBoolean("active", false)
                     .remove("previous").remove("applied").apply();
+            proxyStatus = FxDiaWifiProxyState.Status.DISABLED;
             status.setText("已恢复启用 FX 前保存的系统代理值。");
             updateButtons();
         });
@@ -291,18 +297,44 @@ public final class FxDiaWifiProxyActivity extends Activity {
                 .setPositiveButton("解除管理", (dialog, which) -> {
                     prefs().edit().putBoolean("active", false)
                             .remove("previous").remove("applied").apply();
+                    proxyStatus = FxDiaWifiProxyState.Status.DISABLED;
                     status.setText("已解除 FX 管理；系统当前代理值保持不变。");
                     updateButtons();
                 }).show();
     }
 
     private void refreshStatus() {
+        final boolean managed = prefs().getBoolean("active", false);
+        final String expected = prefs().getString("applied", "");
         runRoot("settings get global http_proxy 2>/dev/null | tr -d '\\r'", result -> {
-            if (result.exitCode == 0) {
-                String current = result.output == null ? "" : result.output.trim();
-                status.setText("global http_proxy = " + (current.isEmpty() ? "(未设置)" : current)
-                        + (prefs().getBoolean("active", false) ? "\nFX 管理状态：启用" : "\nFX 管理状态：未启用"));
-            } else status.setText("无法读取系统代理：" + safe(result.output));
+            if (result.exitCode != 0) {
+                proxyStatus = FxDiaWifiProxyState.Status.UNKNOWN;
+                status.setText("无法读取系统代理：" + safe(result.output)
+                        + "\\n为避免覆盖外部代理，恢复操作已暂时禁用。");
+                updateButtons();
+                return;
+            }
+
+            String current = result.output == null ? "" : result.output.trim();
+            proxyStatus = FxDiaWifiProxyState.evaluate(managed, current, expected, true);
+            String shown = current.isEmpty() || "null".equals(current) ? "(未设置)" : current;
+            String stateText;
+            switch (proxyStatus) {
+                case ACTIVE:
+                    stateText = "FX 管理状态：启用，系统值与 FX 写入记录一致";
+                    break;
+                case EXTERNALLY_CHANGED:
+                    stateText = "管理冲突：系统代理已被外部更改，FX 不会覆盖当前值；可解除 FX 管理";
+                    break;
+                case UNKNOWN:
+                    stateText = "状态未知：无法读取系统值";
+                    break;
+                default:
+                    stateText = "FX 管理状态：未启用";
+                    break;
+            }
+            status.setText("global http_proxy = " + shown + "\\n" + stateText);
+            updateButtons();
         });
     }
 

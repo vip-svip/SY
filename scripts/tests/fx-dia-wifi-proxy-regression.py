@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Regression for Dia system HTTP proxy Activity and Quick Settings Tile."""
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyActivity.java").read_text(encoding="utf-8")
 activity = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyActivity.java").read_text(encoding="utf-8")
 tile = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyTileService.java").read_text(encoding="utf-8")
+state = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyState.java").read_text(encoding="utf-8")
+java_test = ROOT / "scripts/tests/FxDiaWifiProxyStateHostTest.java"
 slash = chr(92)
 
 def assert_proxy_contract(label, source):
@@ -18,6 +23,29 @@ def assert_proxy_contract(label, source):
 
 assert_proxy_contract("Dia Wi-Fi proxy Activity", activity)
 assert_proxy_contract("Dia Wi-Fi proxy Quick Settings Tile", tile)
+assert "FxDiaWifiProxyState.evaluate(managed, current, expected, true)" in activity, \
+    "Activity must compare the live system value with FX's applied value"
+assert "FxDiaWifiProxyState.mayRestore(proxyStatus)" in activity, \
+    "Activity must disable restoration when FX no longer owns the live value"
+assert "EXTERNALLY_CHANGED" in activity and "FX 不会覆盖当前值" in activity, \
+    "Activity must disclose external proxy ownership conflicts"
+assert "FxDiaWifiProxyState.evaluate" in tile and "queryLiveState()" in tile, \
+    "Quick Settings Tile must derive state from the live system proxy"
+assert "refreshTile(after)" in tile and "refreshTile(before)" in tile, \
+    "Tile must render both successful and refused transitions from live state"
+assert "EXTERNALLY_CHANGED" in tile and "未执行" in tile, \
+    "Tile must refuse to overwrite externally changed proxy state"
+assert "Status evaluate(boolean managed" in state and "Status.UNKNOWN" in state, \
+    "shared classifier must distinguish unobservable state"
+javac, java = shutil.which("javac"), shutil.which("java")
+if not javac or not java:
+    raise AssertionError("JDK host compiler/runtime required for proxy state regression")
+with tempfile.TemporaryDirectory(prefix="fx-proxy-host-") as output:
+    subprocess.run([javac, "-d", output,
+                    str(ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyState.java"),
+                    str(java_test)], check=True)
+    subprocess.run([java, "-cp", output,
+                    "de.privacyguard.adhook.imported.dia.FxDiaWifiProxyStateHostTest"], check=True)
 assert r'host.split("\\.", -1)' in tile, "Tile host validation must split DNS labels on literal dots"
 assert "value.replace('" + slash + "n', ' ').replace('" + slash + "r', ' ')" in tile, "Tile log sanitizer must use valid Java newline character literals"
 for token in ('putString("previous", newPrevious)', 'putString("applied", target)', '.remove("previous").remove("applied")'):

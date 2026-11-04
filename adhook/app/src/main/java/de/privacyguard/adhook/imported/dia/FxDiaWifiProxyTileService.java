@@ -41,36 +41,59 @@ public final class FxDiaWifiProxyTileService extends TileService {
     private String quote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
-    private void refreshTile() {
-        refreshTile(prefs().getBoolean("active", false));
-    }
-
-    private void refreshTile(boolean active) {
+    private void refreshTile(FxDiaWifiProxyState.Status state) {
         Tile tile = getQsTile();
         if (tile == null) return;
+        boolean active = state == FxDiaWifiProxyState.Status.ACTIVE;
         tile.setState(active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
         tile.setLabel("FX 系统代理");
-        tile.setSubtitle(active ? "已启用" : "已关闭");
-        tile.setContentDescription(active
-                ? "FX 系统 HTTP 代理已启用，点击恢复原设置"
-                : "FX 系统 HTTP 代理已关闭或已被外部更改，点击启用");
+        switch (state) {
+            case ACTIVE:
+                tile.setSubtitle("已启用");
+                tile.setContentDescription("FX 系统 HTTP 代理与记录一致，点击恢复原设置");
+                break;
+            case EXTERNALLY_CHANGED:
+                tile.setSubtitle("系统值已外部更改");
+                tile.setContentDescription("系统代理已被外部更改，FX 不会覆盖；请打开 FX 系统代理页面解除管理");
+                break;
+            case UNKNOWN:
+                tile.setSubtitle("状态未知");
+                tile.setContentDescription("无法读取系统代理状态，请检查 KernelSU Root 授权");
+                break;
+            default:
+                tile.setSubtitle("已关闭");
+                tile.setContentDescription("FX 系统 HTTP 代理已关闭，点击启用");
+                break;
+        }
         tile.updateTile();
+    }
+
+    private FxDiaWifiProxyState.Status queryLiveState() {
+        String current = readCurrentProxy();
+        if (current == null) return FxDiaWifiProxyState.Status.UNKNOWN;
+        return FxDiaWifiProxyState.evaluate(prefs().getBoolean("active", false),
+                current, prefs().getString("applied", ""), true);
+    }
+
+    private String readCurrentProxy() {
+        RootAccess.Result result = RootAccess.execute(
+                "settings get global http_proxy 2>/dev/null | tr -d '\\r'", 12000L, 4096);
+        if (result.exitCode != 0 || result.output == null) return null;
+        return result.output.trim();
+    }
+
+    private void showMessage(String message) {
+        new android.os.Handler(getMainLooper()).post(() ->
+                android.widget.Toast.makeText(this, message,
+                        android.widget.Toast.LENGTH_LONG).show());
     }
 
     @Override public void onStartListening() {
         super.onStartListening();
         submitWorker(() -> {
-            RootAccess.Result result = RootAccess.execute(
-                    "settings get global http_proxy 2>/dev/null | tr -d '\\r'", 12000L, 4096);
-            boolean active = false;
-            if (result.exitCode == 0 && result.output != null) {
-                String current = result.output.trim();
-                String expected = prefs().getString("applied", "");
-                active = prefs().getBoolean("active", false) && current.equals(expected);
-            }
-            final boolean liveActive = active;
+            FxDiaWifiProxyState.Status live = queryLiveState();
             android.os.Handler handler = new android.os.Handler(getMainLooper());
-            handler.post(() -> refreshTile(liveActive));
+            handler.post(() -> refreshTile(live));
         });
     }
 
@@ -81,10 +104,23 @@ public final class FxDiaWifiProxyTileService extends TileService {
 
     private void toggleProxy() {
         SharedPreferences p = prefs();
-        boolean active = p.getBoolean("active", false);
         String expected = p.getString("applied", "");
         String previous = p.getString("previous", "null");
         String target;
+        String current = readCurrentProxy();
+        if (current == null) {
+            showMessage("无法读取系统代理，未执行切换；请检查 KernelSU Root 授权。");
+            refreshTile(FxDiaWifiProxyState.Status.UNKNOWN);
+            return;
+        }
+        FxDiaWifiProxyState.Status before = FxDiaWifiProxyState.evaluate(
+                p.getBoolean("active", false), current, expected, true);
+        if (before == FxDiaWifiProxyState.Status.EXTERNALLY_CHANGED) {
+            showMessage("系统代理已被其他程序或用户更改。FX 为避免覆盖外部设置，本次切换未执行；请打开代理管理页面解除 FX 管理。");
+            refreshTile(before);
+            return;
+        }
+        boolean active = FxDiaWifiProxyState.mayRestore(before);
 
         if (active) {
             String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
@@ -99,8 +135,11 @@ public final class FxDiaWifiProxyTileService extends TileService {
             RootAccess.Result result = RootAccess.execute(command, 20000L, 8192);
             if (result.exitCode == 0 && result.output != null && result.output.contains("FX_PROXY_RESTORED")) {
                 p.edit().putBoolean("active", false).remove("previous").remove("applied").apply();
-            } else if (Build.VERSION.SDK_INT >= 24) {
+            } else {
                 android.util.Log.w("FXDiaProxyTile", "restore failed: " + safe(result.output));
+                showMessage(result.output != null && result.output.contains("FX_PROXY_CONFLICT")
+                        ? "系统代理在切换期间被外部更改，FX 未恢复或覆盖。"
+                        : "恢复系统代理失败：" + safe(result.output));
             }
         } else {
             try {
@@ -137,14 +176,13 @@ public final class FxDiaWifiProxyTileService extends TileService {
                         .putString("previous", extract(result.output, "PREVIOUS="))
                         .putString("applied", target).apply();
             } else {
-                if (Build.VERSION.SDK_INT >= 24)
-                    android.util.Log.w("FXDiaProxyTile", "apply failed: " + safe(result.output));
+                android.util.Log.w("FXDiaProxyTile", "apply failed: " + safe(result.output));
+                showMessage("启用系统代理失败：" + safe(result.output));
             }
         }
-        if (Build.VERSION.SDK_INT >= 24) {
-            android.os.Handler handler = new android.os.Handler(getMainLooper());
-            handler.post(this::refreshTile);
-        }
+        FxDiaWifiProxyState.Status after = queryLiveState();
+        android.os.Handler handler = new android.os.Handler(getMainLooper());
+        handler.post(() -> refreshTile(after));
     }
 
     private String extract(String output, String prefix) {
