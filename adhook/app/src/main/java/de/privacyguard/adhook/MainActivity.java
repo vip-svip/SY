@@ -147,6 +147,7 @@ public final class MainActivity extends ComponentActivity {
     private String customRuleGroupDialogValue;
     private boolean customRuleGroupDialogRestorePending;
     private boolean lastCustomRuleGroupRollbackSaved = true;
+    private boolean lastCustomRuleGroupCommitAttempted;
     private int customRuleGroupDialogSlot = -1;
     private int customRuleGroupDialogChoice;
     private int customRuleEditorEditingSlot = -1;
@@ -6245,6 +6246,7 @@ public final class MainActivity extends ComponentActivity {
      */
     private boolean commitCustomRuleGroupUpdate(java.util.Set<String> updatedGroups,
                                                   java.util.Map<String, String> updatedAssignments) {
+        lastCustomRuleGroupCommitAttempted = false;
         if (selectedPackage == null || updatedGroups == null || updatedAssignments == null) return false;
         android.content.SharedPreferences preferences = getPreferences(0);
         String groupsKey = selectedPackage + ":dev_rule_groups";
@@ -6267,6 +6269,7 @@ public final class MainActivity extends ComponentActivity {
             else update.putString(entry.getKey(), entry.getValue());
         }
         update.putStringSet(groupsKey, new java.util.HashSet<>(updatedGroups));
+        lastCustomRuleGroupCommitAttempted = true;
         if (update.commit()) {
             lastCustomRuleGroupRollbackSaved = true;
             return true;
@@ -6438,9 +6441,11 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     if (!renameCustomRuleGroup(oldName, newName)) {
+                        String reason = lastCustomRuleGroupCommitAttempted
+                                ? customRuleGroupCommitFailureMessage("分组重命名")
+                                : "新名称可能已存在，或当前分组已不可用；原配置未写入。";
                         new AlertDialog.Builder(this)
-                                .setMessage("重命名失败：新名称可能已存在，或"
-                                        + customRuleGroupCommitFailureMessage("分组重命名"))
+                                .setMessage("重命名失败：" + reason)
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
