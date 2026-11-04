@@ -3377,3 +3377,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Actions `41917824964` 的 Dia Crash Report 回归另有失败：`native dump directory has no explicit cleanup path`。需对照当前 `FxDiaNativeCrashCapture` 与 `FxDiaCrashDumpDirectory` 的实际职责，确认是产品缺口还是旧测试引用过期；不得删除安全清理检查来换绿灯。
 - 本轮 UI 证据：System Expand 安装来源搜索 Actions `41916108180` SUCCESS；File Browser 基础分页/SAF Host 回归 `41916426607` SUCCESS；DNS cache/log UI 定向回归 `41917559211` SUCCESS。File Browser 搜索与 DNS 旋转恢复竞态的后续回归多次被并行 push 的 concurrency 取消；Backup 表单状态回归也曾取消，已通过单 job rerun 继续执行，需核实最终结果。
 - 下一批：优先读取 File Browser/Backup rerun 结果；随后按真实代码核实 Frida session worker 和 Crash Report cleanup 两个 CI 阻塞。不要重复触发整套 Actions。
+
+
+## 2026-11-05 — Session log worker regression
+
+- The Activity already uses a one-thread `ThreadPoolExecutor`, one-item `ArrayBlockingQueue`, `AbortPolicy`, queue-full feedback and lifecycle shutdown. The old test expected a constructor string without accounting for line breaks.
+- Replaced the literal with a whitespace-tolerant regular expression and retained the overload/lifecycle checks.
+- Test commit: `2d45d8b193983f4ff986902bc7ce0b5d8c2e81e0`. Actions pending.
