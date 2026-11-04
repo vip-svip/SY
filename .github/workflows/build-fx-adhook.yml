@@ -218,6 +218,7 @@ jobs:
           sh scripts/tests/fx-yulong-firewall-activity-regression.sh
           sh scripts/tests/fx-yulong-app-whitelist-activity-regression.sh
           sh scripts/tests/fx-yulong-app-whitelist-runtime-regression.sh
+          python3 scripts/tests/fx-yulong-app-whitelist-patcher-regression.py
           python3 scripts/tests/fx-yulong-app-stats-regression.py
           sh scripts/tests/fx-dia-file-browser-io-regression.sh
           sh scripts/tests/fx-dia-dex-browser-performance-regression.sh

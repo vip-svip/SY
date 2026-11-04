@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Patch Yulong 7.0.1 app-whitelist bypass into all FX DNS/TUN ingress paths."""
 from pathlib import Path
+import shutil
 import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module").resolve()
