@@ -416,6 +416,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 button("部署 Gadget 到当前目标应用", () -> confirmDeployGadgetToTarget()),
                 button("移除当前目标的 FX Gadget 部署", () -> confirmRemoveGadgetFromTarget()),
                 button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume()),
+                button("刷新 Gadget 会话状态", () -> checkGadgetSession()),
                 button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog()),
                 button("停止 Gadget 会话", () -> stopGadgetSession()),
                 button("复制 ADB 连接命令", () -> copyGadgetConnectCommand()));
@@ -2985,6 +2986,89 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 setStatus("Frida CLI 不可执行或 Python 依赖不完整；请检查 frida-tools 安装及其 shebang 运行环境。\n" + result.output);
             } else {
                 setStatus("Frida CLI Gadget 会话启动失败（退出码 " + result.exitCode + "）。\n请确认 CLI 与 Gadget 版本匹配、目标已加载相同端口。\n日志：" + logPath + "\n" + result.output);
+            }
+        });
+    }
+
+
+    private void checkGadgetSession() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择创建该 Gadget 会话时使用的 debuggable 目标应用。");
+            return;
+        }
+        final int port;
+        try {
+            port = selectedGadgetPort();
+        } catch (IllegalArgumentException invalid) {
+            setStatus(invalid.getMessage());
+            return;
+        }
+        final String expectedProcess;
+        try {
+            expectedProcess = selectedGadgetProcess();
+        } catch (IllegalArgumentException invalid) {
+            setStatus(invalid.getMessage());
+            return;
+        }
+        final String expectedCli = currentFridaCliPath();
+        if (!validPath(expectedCli)) {
+            setStatus("当前 Frida CLI 路径无效，无法核验该 Gadget 会话归属。");
+            return;
+        }
+
+        String dir = "/data/adb/privacyguard/dia-frida/logs";
+        String pidPath = dir + "/gadget-" + port + ".pid";
+        String scriptPath = dir + "/gadget-" + port + ".js";
+        String pipePath = dir + "/gadget-" + port + ".stdin";
+        String command = "set -eu; "
+                + "for path in /data /data/adb /data/adb/privacyguard /data/adb/privacyguard/dia-frida; do "
+                + "[ -d \\"$path\\" ] && [ ! -L \\"$path\\" ] || { echo FX_GADGET_STATE_PARENT_UNSAFE; exit 21; }; done; "
+                + "dir=" + quote(dir) + "; pidfile=" + quote(pidPath) + "; "
+                + "script=" + quote(scriptPath) + "; pipe=" + quote(pipePath) + "; port=" + port + "; "
+                + "[ ! -L \\"$dir\\" ] || { echo FX_GADGET_STATE_DIR_UNSAFE; exit 21; }; "
+                + "if [ ! -d \\"$dir\\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
+                + "[ ! -L \\"$pidfile\\" ] || { echo FX_GADGET_PIDFILE_SYMLINK_REJECTED; exit 22; }; "
+                + "if [ ! -e \\"$pidfile\\" ]; then echo FX_GADGET_SESSION_NOT_RUNNING; exit 0; fi; "
+                + "[ -f \\"$pidfile\\" ] && [ -s \\"$pidfile\\" ] || { echo FX_GADGET_PIDFILE_INVALID; exit 22; }; "
+                + "cli_pid=$(sed -n '1p' \\"$pidfile\\"); feed_pid=$(sed -n '2p' \\"$pidfile\\"); "
+                + "cli=$(sed -n '3p' \\"$pidfile\\"); stored_pkg=$(sed -n '4p' \\"$pidfile\\"); "
+                + "stored_port=$(sed -n '5p' \\"$pidfile\\"); stored_process=$(sed -n '6p' \\"$pidfile\\"); "
+                + "case \\"$cli_pid:$feed_pid\\" in *[!0-9:]*|:*) echo FX_GADGET_PIDFILE_INVALID; exit 22;; esac; "
+                + "case \\"$stored_port\\" in ''|*[!0-9]*) echo FX_GADGET_PIDFILE_INVALID; exit 22;; esac; "
+                + "[ \\"$stored_pkg\\" = " + quote(targetPackage) + " ] && [ \\"$stored_port\\" = \\"$port\\" ] "
+                + "&& [ \\"$stored_process\\" = " + quote(expectedProcess) + " ] "
+                + "&& [ \\"$cli\\" = " + quote(expectedCli) + " ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
+                + "pid_active() { case \\"$1\\" in ''|*[!0-9]*) return 1;; esac; "
+                + "[ -r \\"/proc/$1/stat\\" ] || return 1; "
+                + "state=$(sed 's/^.*) //' \\"/proc/$1/stat\\" 2>/dev/null | cut -d ' ' -f1); "
+                + "case \\"$state\\" in Z|X|x) return 1;; esac; kill -0 \\"$1\\" 2>/dev/null; }; "
+                + "cli_state=stopped; if pid_active \\"$cli_pid\\"; then "
+                + "cmd=$(tr '\\000' ' ' < \\"/proc/$cli_pid/cmdline\\" 2>/dev/null || :); "
+                + "case \\"$cmd\\" in *" + quote(expectedCli) + "*'127.0.0.1:" + port + "'*Gadget*" + quote(scriptPath)
+                + "*) cli_state=running;; *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;; esac; fi; "
+                + "feed_state=stopped; if pid_active \\"$feed_pid\\"; then "
+                + "feed_cmd=$(tr '\\000' ' ' < \\"/proc/$feed_pid/cmdline\\" 2>/dev/null || :); "
+                + "case \\"$feed_cmd\\" in *'fx-gadget-feed-" + port + "'*" + quote(pipePath)
+                + "*) feed_state=running;; *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
+                + "if [ \\"$cli_state\\" = running ] && [ \\"$feed_state\\" = running ]; then "
+                + "echo FX_GADGET_SESSION_RUNNING; "
+                + "elif [ \\"$cli_state\\" = stopped ] && [ \\"$feed_state\\" = stopped ]; then "
+                + "echo FX_GADGET_SESSION_STALE_RECORD; "
+                + "else echo FX_GADGET_SESSION_DEGRADED; fi; "
+                + "printf 'cli_pid=%s\\nfeeder_pid=%s\\ncli=%s\\nprocess=%s\\n' "
+                + "\\"$cli_pid\\" \\"$feed_pid\\" \\"$cli_state\\" \\"$feed_state\\"";
+        runRoot(command, 12000L, result -> {
+            String output = result.output == null ? "" : result.output;
+            if (result.exitCode == 0 && output.contains("FX_GADGET_SESSION_RUNNING")) {
+                setStatus("Gadget 会话运行中；CLI 与 stdin feeder 均通过 PID/命令行归属校验。\\n" + output);
+            } else if (result.exitCode == 0 && output.contains("FX_GADGET_SESSION_NOT_RUNNING")) {
+                setStatus("当前端口没有 FX Gadget 会话记录。\\n" + output);
+            } else if (result.exitCode == 0 && output.contains("FX_GADGET_SESSION_STALE_RECORD")) {
+                setStatus("发现已停止进程的 Gadget 旧记录；本次只报告，不自动删除。请检查日志后手动清理/重新连接。\\n" + output);
+            } else if (result.exitCode == 0 && output.contains("FX_GADGET_SESSION_DEGRADED")) {
+                setStatus("Gadget 会话处于部分进程退出状态；不会自动杀进程或清除记录。\\n" + output);
+            } else {
+                setStatus("Gadget 会话状态核验失败（退出码 " + result.exitCode + "）。\\n" + output);
             }
         });
     }

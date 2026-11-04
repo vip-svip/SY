@@ -20,6 +20,8 @@ required = {
     "Gadget attach action is reachable from UI": 'button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume())',
     "Gadget message/console log action is reachable from UI": 'button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog())',
     "Gadget session stop action is reachable from UI": 'button("停止 Gadget 会话", () -> stopGadgetSession())',
+    "Gadget session status refresh is reachable from UI": 'button("刷新 Gadget 会话状态", () -> checkGadgetSession())',
+    "Gadget session status checker exists": "private void checkGadgetSession()" in source,
     "separate Frida CLI path helper": "currentFridaCliPath()",
     "attach validates CLI executable path": "if (!validPath(cli))",
     "target is revalidated as debuggable": "ApplicationInfo.FLAG_DEBUGGABLE",
@@ -69,8 +71,22 @@ for label, needle in required.items():
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 attach = source[source.index("private void attachToGadgetAndResume()"):
                  source.index("private void stopGadgetSession()")]
+check = source[source.index("private void checkGadgetSession()"):source.index("private void stopGadgetSession()")]
 stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
+
+for label, needle in (
+    ("status checker rejects symlinked session directories", 'if [ -L \\"$dir\\" ]'),
+    ("status checker rejects symlinked PID records", "FX_GADGET_PIDFILE_SYMLINK_REJECTED"),
+    ("status checker validates stored target identity", "FX_GADGET_SESSION_TARGET_CONFLICT"),
+    ("status checker verifies live PID state", "pid_active()"),
+    ("status checker validates CLI command identity", "FX_GADGET_CLI_PID_CONFLICT"),
+    ("status checker validates stdin feeder identity", "FX_GADGET_FEEDER_PID_CONFLICT"),
+    ("status checker distinguishes degraded and stale sessions", "FX_GADGET_SESSION_DEGRADED"),
+    ("status checker is read-only", "rm -f" not in check and "kill \\"$" not in check),
+):
+    if needle not in check:
+        raise SystemExit(f"FAIL: Gadget session status contract missing: {label}")
 show = source[source.index("private void showGadgetSessionLog()"):
                source.index("private void copyGadgetConnectCommand()")]
 for label, needle in (

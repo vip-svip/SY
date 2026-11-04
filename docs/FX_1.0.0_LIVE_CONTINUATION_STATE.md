@@ -3384,3 +3384,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The Activity already uses a one-thread `ThreadPoolExecutor`, one-item `ArrayBlockingQueue`, `AbortPolicy`, queue-full feedback and lifecycle shutdown. The old test expected a constructor string without accounting for line breaks.
 - Replaced the literal with a whitespace-tolerant regular expression and retained the overload/lifecycle checks.
 - Test commit: `2d45d8b193983f4ff986902bc7ce0b5d8c2e81e0`. Actions pending.
+
+
+## 2026-11-05 — Gadget status refresh
+
+- Added a session status refresh action and its regression checks.
+- Android device validation is pending.
