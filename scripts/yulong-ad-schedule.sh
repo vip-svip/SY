@@ -29,7 +29,11 @@ proc_start_time() {
 acquire_runtime_lock() {
   _lock_tries=0
   _lock_missing=0
-  _lock_self_start=$(proc_start_time "$" 2>/dev/null || :)
+  _lock_self_stat=
+  IFS= read -r _lock_self_stat < /proc/self/stat || { log "cannot read current process identity"; return 31; }
+  _lock_self_pid=${_lock_self_stat%% *}
+  case "$_lock_self_pid" in ''|*[!0-9]*) log "cannot parse current process PID"; return 31 ;; esac
+  _lock_self_start=$(proc_start_time "$_lock_self_pid" 2>/dev/null || :)
   case "$_lock_self_start" in ''|*[!0-9]*) log "cannot establish process identity for scheduler lock"; return 31 ;; esac
   while ! mkdir "$RUNTIME_LOCK" 2>/dev/null; do
     if [ -d "$RUNTIME_LOCK" ] && [ ! -L "$RUNTIME_LOCK" ]; then
@@ -70,8 +74,8 @@ acquire_runtime_lock() {
     fi
     sleep 0.2
   done
-  _lock_owner_tmp="$RUNTIME_LOCK/owner.$"
-  if (umask 077; printf '%s %s\n' "$" "$_lock_self_start" > "$_lock_owner_tmp" && mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"); then
+  _lock_owner_tmp="$RUNTIME_LOCK/owner.$_lock_self_pid"
+  if (umask 077; printf '%s %s\n' "$_lock_self_pid" "$_lock_self_start" > "$_lock_owner_tmp" && mv -f "$_lock_owner_tmp" "$RUNTIME_OWNER"); then
     RUNTIME_LOCK_HELD=1
     RUNTIME_LOCK_START=$_lock_self_start
     return 0
@@ -86,7 +90,7 @@ release_runtime_lock() {
     _release_record=$(cat "$RUNTIME_OWNER" 2>/dev/null || :)
     _release_pid=$(printf '%s\n' "$_release_record" | awk '{print $1}')
     _release_start=$(printf '%s\n' "$_release_record" | awk '{print $2}')
-    if [ "$_release_pid" = "$" ] && [ "$_release_start" = "$RUNTIME_LOCK_START" ]; then
+    if [ "$_release_pid" = "$_lock_self_pid" ] && [ "$_release_start" = "$RUNTIME_LOCK_START" ]; then
       rm -f "$RUNTIME_OWNER" 2>/dev/null || :
       rmdir "$RUNTIME_LOCK" 2>/dev/null || :
     fi

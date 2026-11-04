@@ -61,6 +61,7 @@ days=1,2,3,4,5,6,7
 EOF
 printf 'yulong_ad_schedule_active=0\n' > "$PG/state"
 export MP PG
+. "$MOD/scripts/util.sh"
 i=0
 while [ "$i" -lt 8 ]; do
   (sh "$SCHEDULE" start > "$TMP/start.$i.log" 2>&1) &
@@ -141,6 +142,17 @@ sh "$SCHEDULE" evaluate >/dev/null
   echo "FAIL: malformed weekday data did not fail open to active filtering" >&2
   exit 1
 }
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "IFS= read -r _lock_self_stat < /proc/self/stat" in source, "lock must read its own PID from procfs"
+assert "lock_self_pid=" + chr(36) + "{_lock_self_stat%% *}" in source, "current PID extraction must be valid shell parameter expansion"
+assert '"$RUNTIME_LOCK/owner.$_lock_self_pid"' in source, "temporary lock owner must be scoped to current PID"
+assert 'printf \'%s %s\\n\' "$_lock_self_pid"' in source, "owner record must store current PID"
+assert '"$_release_pid" = "$_lock_self_pid"' in source, "release must confirm owner PID and process start time"
+print("PASS: scheduler lock owner uses the live process PID and start time")
+PY
 python3 - "$CONTROL" <<'PY'
 from pathlib import Path
 import sys
