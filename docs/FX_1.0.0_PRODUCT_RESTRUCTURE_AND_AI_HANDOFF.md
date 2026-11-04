@@ -577,6 +577,8 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 | ClassicWebCompat | `classic` | 经典兼容配色、低圆角导航与兼容布局；不改变业务服务 |
 | FXLiquidNative | `glass` | 原生页面、液态玻璃导航、Backdrop 模糊/折射效果 |
 | MiuixStyle | `miuix` | Miuix Theme、系统动态配色、Miuix 风格导航和卡片 |
+| HUAWEI HarmonyStyle | `huawei` | HarmonyColor/Shape/Typography/Spacing tokens 与 Harmony Renderer；Android 公共 API 回退 |
+| iOS CupertinoStyle | `ios` | CupertinoColor/Shape/Typography/Spacing tokens 与 Cupertino Renderer；FX 自有 Compose 控件 |
 
 源码入口：
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、旧 ID 迁移、读取/持久化。
