@@ -595,8 +595,11 @@ watch_lock_process_is_ours() {
   # Match the exact script argument anywhere in argv. Some Android shell
   # launchers add a wrapper argument before the script path, so argv[2] is
   # not a stable identity contract.
-  _lock_args=$(tr '\000' '\n' < "/proc/$_lock_pid/cmdline" 2>/dev/null) || return 1
-  printf '%s\n' "$_lock_args" | grep -Fqx "$SCRIPT_PATH"
+  _lock_cmdline=$(tr '\000' ' ' < "/proc/$_lock_pid/cmdline" 2>/dev/null) || return 1
+  # Some su/shell launchers preserve the script path inside a command argument
+  # rather than exposing it as a standalone argv element.
+  case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac
+  return 1
 }
 watch_lock_acquire() {
   [ ! -L "$WATCH_LOCK" ] || {

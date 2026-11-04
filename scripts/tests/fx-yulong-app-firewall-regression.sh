@@ -265,7 +265,7 @@ assert "set -C" in lock, "watcher lock is not created with noclobber"
 assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
 assert "chmod 600" in lock, "watcher lock is not private"
 assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
-assert 'grep -Fqx "$SCRIPT_PATH"' in matcher, "lock identity must match the script argv token, not assume a fixed argv position"
+assert 'case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac' in matcher, "lock identity must recognize wrapped shell invocations containing the exact script path"
 assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
 assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
 assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
@@ -470,7 +470,21 @@ done
 v2run stop-watch > "$V2/watch-stop-race.out" 2>&1 &
 stopping=$!
 wait "$starting" || { cat "$V2/watch-start-race.out" >&2; fail "watcher start failed during start/stop race"; }
-wait "$stopping" || { cat "$V2/watch-stop-race.out" >&2; fail "watcher stop failed during start/stop race"; }
+wait "$stopping" || {
+  cat "$V2/watch-stop-race.out" >&2
+  _race_owner=$(cat "$WATCH_LOCK_PATH" 2>/dev/null || true)
+  echo "race lock owner: $_race_owner" >&2
+  echo "race expected script: $V2/module/scripts/yulong-app-firewall.sh" >&2
+  case "$_race_owner" in ''|*[!0-9]*) : ;; *)
+    if [ -r "/proc/$_race_owner/cmdline" ]; then
+      echo "race owner cmdline:" >&2
+      tr '\000' '\n' < "/proc/$_race_owner/cmdline" >&2 || :
+      ps -o pid=,ppid=,args= -p "$_race_owner" >&2 || :
+    fi
+    ;;
+  esac
+  fail "watcher stop failed during start/stop race"
+}
 [ ! -e "$WATCH_PIDFILE" ] || fail "stop racing with start left a live watcher PID file"
 [ ! -e "$WATCH_LOCK_PATH" ] || fail "watcher lifecycle lock remained after start/stop race"
 [ "$(wc -l < "$MOCK_WATCH_SPAWN_LOG" | tr -d ' ')" -eq 1 ] || fail "start/stop race spawned unexpected watcher count"
