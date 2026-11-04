@@ -108,6 +108,11 @@ for panel in ("notifyPanel", "sensorPanel", "netPanel"):
     assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia feature has lost its matching native settings panel: {panel}"
 assert 'case "设备属性":' in main and 'showAppList("设备标识模拟")' in main, \
     "Dia device identity must open the per-target identity editor, not a global device panel"
+rescue_route_start = main.index('case "悬浮救援入口":')
+rescue_route = main[rescue_route_start:rescue_route_start + 420]
+assert "FxYulongRescueActivity.class" in rescue_route, \
+    "Shield floating rescue entry must open its dedicated recovery page, not the Shield overview"
+assert "FxYulongRescueActivity" in shield, "Dedicated rescue Activity source missing"
 assert 'case "位置与 GPS":' in main and 'showAppList("位置隐私")' in main, \
     "Dia GPS settings must open the per-target location/GPS editor"
 assert 'case "Wi-Fi 模拟":' in main and 'showAppList("Wi-Fi 环境模拟")' in main, \
