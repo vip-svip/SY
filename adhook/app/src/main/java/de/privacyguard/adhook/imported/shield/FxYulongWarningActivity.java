@@ -194,6 +194,9 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         } catch (PackageManager.NameNotFoundException removed) {
             showMessage("目标应用已不存在", "应用可能已卸载或更新；请重新扫描后再处理。");
             return;
+        } catch (SecurityException | RuntimeException lookupFailure) {
+            showMessage("无法核实目标应用", "Android 未允许 FX 读取该应用信息；白名单保持不变，请检查应用可见性和系统状态后重试。");
+            return;
         }
 
         SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -207,9 +210,13 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         Set<String> packages = new LinkedHashSet<>();
         for (String entry : raw.split(",")) {
             String value = entry == null ? "" : entry.trim();
-            if (value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
-                packages.add(value);
+            if (value.isEmpty()) continue;
+            if (!value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
+                showMessage("白名单数据异常", "现有白名单包含无法识别的条目（" + value
+                        + "）。为避免静默丢失旧配置，本次没有修改任何白名单数据。请先在白名单管理页核实原始内容。");
+                return;
             }
+            packages.add(value);
         }
         if (packages.contains(packageName)) {
             showMessage("已在白名单中", appLabel + " 已经在用户白名单里，无需重复添加。");
