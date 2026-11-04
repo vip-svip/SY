@@ -58,6 +58,7 @@ public final class AdbPairingActivity extends Activity {
     private boolean pairing;
     private boolean connectDiscoveryMode;
     private boolean restoredSelectionPending;
+    private boolean interruptedPairingOnRestore;
     private String restoredServiceName = "";
 
 
@@ -152,13 +153,14 @@ public final class AdbPairingActivity extends Activity {
             restoredSelectionPending = !restoredServiceName.isEmpty();
             boolean resumeConnect = saved.getBoolean("connect_discovery_mode", false);
             boolean resumeDiscovery = saved.getBoolean("discovery_was_active", false);
-            if (saved.getBoolean("pairing_was_active", false)) {
+            interruptedPairingOnRestore = saved.getBoolean("pairing_was_active", false);
+            if (interruptedPairingOnRestore) {
                 status.setText("页面重建中断了正在进行的 ADB 配对。为保护配对码，FX 不会保存或自动重放该凭据；请重新输入配对码后重试。");
             }
             if (resumeDiscovery) {
                 if (resumeConnect) startConnectDiscovery(operationGeneration.get());
                 else startDiscovery();
-            } else if (!restoredServiceName.isEmpty()) {
+            } else if (!restoredServiceName.isEmpty() && !interruptedPairingOnRestore) {
                 status.setText("已恢复上次选中的 ADB 设备标识；请重新扫描并验证设备仍在广播后继续。");
             }
         }
@@ -170,7 +172,8 @@ public final class AdbPairingActivity extends Activity {
         out.putBoolean("connect_discovery_mode", connectDiscoveryMode);
         out.putBoolean("pairing_was_active", pairing);
         out.putString("selected_service_name",
-                selectedDevice == null ? "" : selectedDevice.serviceName);
+                selectedDevice != null ? selectedDevice.serviceName
+                        : (restoredSelectionPending ? restoredServiceName : ""));
     }
 
     private void restoreSelectedDeviceIfMatching(AdbPairingDiscovery.Device device) {
@@ -201,7 +204,9 @@ public final class AdbPairingActivity extends Activity {
             discovery = new AdbPairingDiscovery(getApplicationContext(),
                     new AdbPairingDiscovery.Listener() {
                         @Override public void onStarted() {
-                            if (!destroyed) status.setText("扫描中：等待 Android 无线调试设备广播…");
+                            if (!destroyed) status.setText(interruptedPairingOnRestore
+                                    ? "上次配对因页面重建而中断；配对码未保存，请重新输入。正在扫描无线调试设备…"
+                                    : "扫描中：等待 Android 无线调试设备广播…");
                         }
 
                         @Override public void onDeviceFound(AdbPairingDiscovery.Device device) {
@@ -211,7 +216,9 @@ public final class AdbPairingActivity extends Activity {
                             renderDevices();
                             status.setText(selectedDevice == device
                                     ? "已恢复上次选择的设备。请重新确认目标并输入本次配对码。"
-                                    : "已发现 " + devices.size() + " 个配对服务。选择目标设备后输入配对码。");
+                                    : "已发现 " + devices.size() + " 个配对服务。选择目标设备后输入配对码。"
+                                        + (interruptedPairingOnRestore
+                                            ? "（上次配对因页面重建中断，请重新输入配对码。）" : ""));
                         }
 
                         @Override public void onDeviceLost(String serviceName) {
@@ -263,6 +270,9 @@ public final class AdbPairingActivity extends Activity {
 
     private void selectDevice(AdbPairingDiscovery.Device device) {
         if (pairing || device == null) return;
+        // A deliberate tap supersedes any target waiting for re-resolution.
+        restoredSelectionPending = false;
+        restoredServiceName = "";
         selectedDevice = device;
         renderDevices();
         if (connectDiscoveryMode) {
