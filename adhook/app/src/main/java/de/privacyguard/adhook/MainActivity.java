@@ -837,25 +837,40 @@ public final class MainActivity extends ComponentActivity {
             webView.onResume();
             webView.resumeTimers();
         }
-        // The bundled WebView is retained as a hidden compatibility/runtime bridge only.
-        // All visible management pages below are native Android views; no WebView pixels
-        // are exposed to the user or accessibility tree.
-        webView.setVisibility(View.INVISIBLE);
-        webView.setAlpha(0f);
-        webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        root.addView(webView, new LinearLayout.LayoutParams(1, 1));
+        // ClassicWebCompat displays the original bundled WebUI as the actual page.
+        // Native skins keep WebView hidden as a compatibility bridge and render native pages.
+        nativePageScroll = null;
+        nativePageContent = null;
+        if (FxUiMode.CLASSIC_WEB_COMPAT.getStorageId().equals(uiMode)) {
+            webView.setVisibility(View.VISIBLE);
+            webView.setAlpha(1f);
+            webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+            pendingWebPage = webPageForBottomTab(lastWebTabIndex);
+        } else {
+            webView.setVisibility(View.INVISIBLE);
+            webView.setAlpha(0f);
+            webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            root.addView(webView, new LinearLayout.LayoutParams(1, 1));
 
-        nativePageScroll = new ScrollView(this);
-        nativePageScroll.setFillViewport(true);
-        nativePageScroll.setClipToPadding(false);
-        nativePageScroll.setPadding(0, 0, 0, dp(84));
-        nativePageContent = new LinearLayout(this);
-        nativePageContent.setOrientation(LinearLayout.VERTICAL);
-        nativePageContent.setPadding(0, dp(8), 0, dp(12));
-        nativePageScroll.addView(nativePageContent, new ScrollView.LayoutParams(-1, -2));
-        root.addView(nativePageScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            nativePageScroll = new ScrollView(this);
+            nativePageScroll.setFillViewport(true);
+            nativePageScroll.setClipToPadding(false);
+            nativePageScroll.setPadding(0, 0, 0, dp(84));
+            nativePageContent = new LinearLayout(this);
+            nativePageContent.setOrientation(LinearLayout.VERTICAL);
+            nativePageContent.setPadding(0, dp(8), 0, dp(12));
+            nativePageScroll.addView(nativePageContent, new ScrollView.LayoutParams(-1, -2));
+            root.addView(nativePageScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        }
         mountNativeShell(root);
-        renderNativePage(lastWebTabIndex);
+        if (!FxUiMode.CLASSIC_WEB_COMPAT.getStorageId().equals(uiMode)) {
+            renderNativePage(lastWebTabIndex);
+        } else if (webUiReady) {
+            String pending = pendingWebPage;
+            pendingWebPage = null;
+            navigateWebPage(pending == null ? webPageForBottomTab(lastWebTabIndex) : pending);
+        }
         if (webUiReady) applyWebUiMode();
         if (!webViewLoaded) {
             checkRoot(rootStatus, false, () -> {
@@ -2941,8 +2956,17 @@ public final class MainActivity extends ComponentActivity {
             }
             selectedBottomTab = index;
             lastWebTabIndex = index;
-            if (hookUiVisible || settingsUiVisible || nativePageContent == null) showWebDashboard();
-            else renderNativePage(index);
+            if (FxUiMode.CLASSIC_WEB_COMPAT.getStorageId().equals(uiMode)) {
+                boolean classicPageMounted = !hookUiVisible && !settingsUiVisible
+                        && webView != null && webView.getVisibility() == View.VISIBLE
+                        && webView.getParent() != null;
+                if (classicPageMounted) navigateWebPage(webPageForBottomTab(index));
+                else showWebDashboard();
+            } else if (hookUiVisible || settingsUiVisible || nativePageContent == null) {
+                showWebDashboard();
+            } else {
+                renderNativePage(index);
+            }
         }
     }
 
@@ -3186,7 +3210,7 @@ public final class MainActivity extends ComponentActivity {
                 "打开安全护盾", () -> showImportedSuite("yulong-shield"));
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("以下模式选择器由 Kotlin + Jetpack Compose 原生渲染。Miuix 使用官方 Miuix 组件；Liquid Glass 使用 Kyant Backdrop 的背景采样、模糊与 Lens 效果。六个主页面均由 Android 原生视图承载；内置 WebView 仅作为尚未替换完毕的兼容运行桥，不显示网页像素。");
+        note.setText("三种全局模式：ClassicWebCompat 显示内置原版 WebUI；FXLiquidNative 使用原生页面与 Kyant Backdrop 液态导航；MiuixStyle 使用原生页面与 Miuix 组件。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
@@ -4840,9 +4864,7 @@ public final class MainActivity extends ComponentActivity {
         worker.start();
     }
     private String normalizeUiMode(String mode) {
-        if ("miuix".equals(mode) || "glass".equals(mode) || "web".equals(mode)
-                || "classic".equals(mode)) return mode;
-        return "classic";
+        return FxUiMode.normalizeStorageId(mode);
     }
 
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
