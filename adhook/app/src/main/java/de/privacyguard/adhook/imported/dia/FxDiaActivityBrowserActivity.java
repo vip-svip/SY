@@ -99,6 +99,11 @@ public final class FxDiaActivityBrowserActivity extends Activity {
             componentState = state;
             enabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
                     || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && activityInfo.enabled);
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
+                    || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED) {
+                enabled = false;
+            }
         }
     }
 
@@ -271,7 +276,7 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         if (destroyed || appsLoading) return;
         appsLoading = true;
         final int request = ++appGeneration;
-        final String keepPackage = selected != null
+        final String keepPackage = selected != null && preserveSelection
                 ? selected.packageName : pendingRestorePackage;
         status.setText("正在后台读取用户应用清单…");
         try {
@@ -406,33 +411,6 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         }
     }
 
-    private void selectApp(ApplicationInfo app) {
-        if (app == null || !isSafePackage(app.packageName)) return;
-        selected = app;
-        target.setText(appLabel(app) + "\n" + app.packageName);
-        activitySearch.setText("");
-        activities.clear();
-        activityPage = 0;
-        activityRows.removeAllViews();
-        activityCount.setText("正在读取 Activity 入口…");
-        status.setText("目标已选择；正在读取系统组件状态。");
-        renderAppList();
-        loadActivities();
-    }
-
-    private void clearSelection() {
-        selected = null;
-        pendingRestorePackage = null;
-        activityGeneration++;
-        activitiesLoading = false;
-        activities.clear();
-        target.setText("尚未选择应用。");
-        status.setText("已清除当前目标选择；不会修改目标应用组件状态。");
-        activityRows.removeAllViews();
-        activityCount.setText("请从用户应用列表中选择目标。");
-        renderAppList();
-    }
-
     private void loadActivities() {
         if (destroyed) return;
         if (selected == null || !isSafePackage(selected.packageName)) {
@@ -507,7 +485,6 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                     }
                     activities.clear();
                     activities.addAll(loaded);
-                    activityPage = 0;
                     status.setText("已读取 " + activities.size()
                             + (launcherOnly ? " 个启动器入口。" : " 个 Activity 声明。"));
                     renderActivities();
