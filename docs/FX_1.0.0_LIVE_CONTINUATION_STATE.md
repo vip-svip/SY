@@ -2166,3 +2166,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：当前 HEAD 静态复核确认三条路径使用同一 timeout/generation helper、对应 postDelayed、finish 清理、目标页面切换/Activity 销毁 cancel 及现有目标包/View 身份检查；测试脚本已增加同一契约的断言。未执行 Shell 回归、Gradle 编译、模拟器、Manager 审批回调或 Binder 故障注入。
 - 注意：Binder 调用可能在底层不响应中断；当前实现保证 UI 不会永久显示 Loading，超时状态说明结果未知。重复手动重试仍应以实际刷新状态核对结果，不能把超时视为操作未执行。
 - 下一步：核对 Hook Hub 的 Root / LSPosed / Accessibility 三种授权状态是否采用同一“配置状态与真实运行态分离”口径；随后按现有 Hook/Dia 测试入口执行能运行的 Host 与静态检查。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 病毒库管理页滚动状态恢复
+
+- 本批起始 HEAD：`38a05fa53b2a10a3663ebed3d3f46b9cb753b216`。
+- 病毒库管理页包含多类名单明细和高级 APK 内容库状态，原 ScrollView 未保存位置；Activity 重建后回到页面顶部。
+- 修改 `FxYulongVirusDatabaseActivity.java`：保存真实 ScrollView 引用；Bundle 保存 `fx_shield_virus_db_scroll_y`；页面完成名单/内容库状态渲染后恢复滚动；恢复回调检查 Activity 生命周期及 ScrollView 实例，避免旧页面回调滚动新页面。
+- 修改 `fx-yulong-shield-native-regression.sh`：增加状态键、真实容器、保存/恢复和实例保护断言。
+- 提交：`a54008ea5eae58823535a63f86a5e8b2e766fbfe`（实现）；`38a05fa53b2a10a3663ebed3d3f46b9cb753b216`（回归断言）。
+- 验证等级：源码静态检查；未运行 Shell/Python、Gradle、UI 自动化或真机旋转/滚动测试。
+- 下一步：回到 Dia Frida 编辑器返回归属和 SAF Worker 生命周期，随后按页面批次继续游龙安全护盾剩余风险详情/告警/名单原生页面。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
