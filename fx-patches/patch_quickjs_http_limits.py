@@ -118,7 +118,13 @@ old = ("HTTP bridge 仅允许 " + tick + "http://" + tick + " 与 " +
 new = ("HTTP bridge 仅允许 " + tick + "http://" + tick + " 与 " +
        tick + "https://" + tick + "，URL 最多 4096 字符、请求体最多 1 MiB、"
        "请求头合计最多 16 KiB，单次 " + host_api + " 请求超时会限制在 1–20 秒、响应最多 8 MiB")
-if old not in readme:
+if new in readme:
+    if readme.count(new) != 1 or old in readme:
+        raise SystemExit("QuickJS README HTTP limits documentation is duplicated or inconsistent")
+elif old in readme:
+    if readme.count(old) != 1:
+        raise SystemExit("QuickJS README HTTP limits documentation anchor is ambiguous")
+    readme_path.write_text(readme.replace(old, new, 1), encoding="utf-8")
+else:
     raise SystemExit("QuickJS README HTTP limits documentation anchor missing")
-readme_path.write_text(readme.replace(old, new, 1), encoding="utf-8")
 print("Applied FX QuickJS HTTP URL/header/body limits and synchronized runtime documentation.")
