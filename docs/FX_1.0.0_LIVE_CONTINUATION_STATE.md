@@ -3057,3 +3057,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java`、`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`、本状态文件。
 - 验证：保留已有 Host 测试对有效多字节 UTF-8 和非法字节拒绝的覆盖；新增静态回归断言，要求两条 SAF 入口实际调用严格解码器。等待 Actions。
 - 下一步：复跑 SAF/Frida 页面回归；核对文件选择取消、Activity 重建时 SAF URI/确认弹窗状态；随后推进 Frida Server/Gadget 页面生命周期与返回链。未做真机 SAF 文件提供器验收。
+
+
+## 2026-11-05 — Dia Frida 脚本库导入确认修复
+
+- 基于最新提交链完成：产品代码提交 `279a71854bdad98c6b628027204df7310366f209`；回归断言提交 `3cfe8354d0dffa85a6b470e116dd7d550ced44df`。
+- 页面：Dia 23.11 → Frida → JS 脚本库 → SAF JSON 导入预览/确认。
+- 缺陷：预览 UI 已列出同名脚本覆盖清单，但确认回调使用不带确认名单的 Store 重载；Store 按安全契约拒绝未经明确授权的覆盖，导致用户确认后仍导入失败。
+- 修复：确认回调传入预览中显示的 `preview.overwrittenNames`。Store 在同步锁内重新读取并校验；预览后新增的同名冲突仍拒绝并要求重新预览。
+- 改动路径：`FxDiaScriptLibraryActivity.java`、`fx-dia-script-library-regression.sh`、本状态文件。
+- 验证：静态检查确认 UI 预览名单进入 Store 显式确认参数；新增回归断言。尚未执行本地 JVM、Android Gradle、UI 自动化或真机。对应 Actions 待读取。
+- 未完成：SAF 在不同 DocumentsProvider 上的设备行为未验收；脚本导入不会自动执行。
+- 下一批：读取当前 Dia targeted Actions 后续首错；继续 Frida 脚本库/编辑器的冲突、保存/返回状态和 Frida server/injector/gadget 会话页。
