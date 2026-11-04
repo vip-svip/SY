@@ -192,6 +192,34 @@ run pkg-set "$PKG" 0
 listing=$(run list)
 if printf '%s\n' "$listing" | grep -Fq "$PKG"; then fail "removing package must also remove its scopes and always-allow commands"; fi
 
+# Shield whitelist replacement must update the Stellar package policy as one
+# bounded operation, deduplicate entries, and revoke grants for removed apps.
+KEEP_PKG=com.example.keep
+DROP_PKG=com.example.drop
+NEW_PKG=com.example.new
+run pkg-set "$KEEP_PKG" 1
+run scope-set "$KEEP_PKG" FILESYSTEM_READ_COMMAND 1
+run always-set "$KEEP_PKG" 'ps' 1
+run pkg-set "$DROP_PKG" 1
+run scope-set "$DROP_PKG" FILESYSTEM_READ_COMMAND 1
+run always-set "$DROP_PKG" 'ps' 1
+sync_result=$(run pkg-sync "$KEEP_PKG" "$NEW_PKG" "$KEEP_PKG")
+printf '%s\n' "$sync_result" | grep -Fq 'success=1 package_count=2' || fail "Shield package sync did not report the deduplicated package count"
+[ "$(cat "$TMP/stellar_guard/command_whitelist.txt")" = "$(printf '%s\n%s' "$KEEP_PKG" "$NEW_PKG")" ] || fail "Shield package sync did not replace the package policy exactly"
+grep -Fq "$(printf '%s\t%s' "$KEEP_PKG" FILESYSTEM_READ_COMMAND)" "$TMP/stellar_guard/scope_grants.txt" || fail "sync discarded a retained package scope"
+! grep -Fq "$DROP_PKG" "$TMP/stellar_guard/scope_grants.txt" || fail "sync retained a removed package scope"
+grep -Fq "$(printf '%s\t%s' "$KEEP_PKG" ps)" "$TMP/stellar_guard/command_always_allow.txt" || fail "sync discarded a retained command grant"
+! grep -Fq "$DROP_PKG" "$TMP/stellar_guard/command_always_allow.txt" || fail "sync retained a removed package command grant"
+if run pkg-sync "$KEEP_PKG;touch /tmp/fx-stellar-sync-injected"; then
+  fail "Shield package sync accepted shell metacharacters in a package name"
+fi
+[ ! -e /tmp/fx-stellar-sync-injected ] || fail "package sync evaluated a shell-injection payload"
+run pkg-sync
+[ ! -s "$TMP/stellar_guard/command_whitelist.txt" ] || fail "empty Shield whitelist sync did not clear Stellar package authorization"
+[ ! -s "$TMP/stellar_guard/scope_grants.txt" ] || fail "empty Shield whitelist sync did not revoke old scopes"
+[ ! -s "$TMP/stellar_guard/command_always_allow.txt" ] || fail "empty Shield whitelist sync did not revoke old command grants"
+! find "$TMP/stellar_guard" -maxdepth 1 -name 'pkg-sync.*' -print -quit | grep -q . || fail "package sync temporary file leaked"
+
 # Remove the populated state directory first; otherwise ln -s creates a link
 # inside that directory and the test never exercises the intended path.
 rm -rf "$TMP/stellar_guard"
