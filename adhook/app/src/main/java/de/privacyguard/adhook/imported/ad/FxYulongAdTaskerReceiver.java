@@ -43,7 +43,9 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                     || "yulong-vpn-control.sh".equals(requiredScript))) {
             throw new IllegalArgumentException("不支持的游龙控制脚本。");
         }
-        return "[ ! -L '/data' ] && [ ! -L '/data/adb' ] && [ -d '/data/adb' ] || exit 71; "
+        return "[ ! -L '/data' ] && [ ! -L '/data/adb' ] && [ -d '/data/adb' ] "
+                + "&& [ ! -L '/data/adb/modules' ] && [ ! -L '/data/adb/modules_update' ] "
+                + "|| exit 71; "
                 + "MP=''; for d in /data/adb/modules/privacyguard "
                 + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
                 + "/data/adb/modules/pg; do "
