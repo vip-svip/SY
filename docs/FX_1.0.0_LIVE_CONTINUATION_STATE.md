@@ -1333,3 +1333,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器或真机 Tab 点击/返回验收；本批 6 项是从最新 GitHub 文件读取后的静态检查。
 - 未更改六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
 - 下一批继续：Dia Signature / System Expand / Wi-Fi Proxy 的原生入口与返回链；并检查 Shield Batch Cleanup 的系统确认结果回传及 Screen Filter Accessibility 服务状态是否准确反映真实连接状态。
+
+
+## 2026-11-05 — Dia GPS Picker / Session Log 六 Tab 回归覆盖
+
+- 本批期间并行工作线已先后将 `FxDiaGpsPickerActivity` 与 `FxDiaSessionLogActivity` 接入 `FxNativeTabActivity`，复核最新 HEAD 后不重复改动页面代码。
+- 本批提交 `cc825166105ad72751522da35ebb5b85637caa1a`：扩展 `scripts/tests/fx-dia-native-tab-regression.sh`，将 GPS Picker 与 Session Log 加入页面集合，并加入坐标/配对状态、搜索条件、滚动位置状态保存锚点检查。
+- 验证：最新分支源码确认两页均使用共享六 Tab 宿主；回归脚本文本断言已加入。尚未在完整 checkout 环境实际运行脚本，未运行 Gradle、模拟器或真机测试。
+- 并行冲突记录：旧文件 SHA 更新返回 409；重新读取最新分支后确认两页已由并行工作线完成，因此不覆盖页面实现。
+- 下一步：检查 Dia Global Settings 与剩余独立页面导航；随后处理 Shield Batch Cleanup / Screen Filter，并做统一六 Tab 返回链与恢复验收。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
