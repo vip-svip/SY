@@ -45,6 +45,7 @@ public final class AdbPairingActivity extends Activity {
     private volatile AdbPairingClient activeClient;
     private volatile boolean destroyed;
     private boolean pairing;
+    private boolean connectDiscoveryMode;
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -105,7 +106,10 @@ public final class AdbPairingActivity extends Activity {
 
         status = text("尚未开始扫描。请先在 Android 开发者选项中开启无线调试。", 13,
                 0xff334155, true);
-        scanButton = button("扫描附近的 ADB 配对服务", this::startDiscovery);
+        scanButton = button("扫描附近的 ADB 配对服务", () -> {
+            if (connectDiscoveryMode) startConnectDiscovery(operationGeneration.get());
+            else startDiscovery();
+        });
         devicesSummary = text("尚未发现设备", 12, 0xff617080, false);
         deviceRows = new LinearLayout(this);
         deviceRows.setOrientation(LinearLayout.VERTICAL);
@@ -132,6 +136,9 @@ public final class AdbPairingActivity extends Activity {
     private void startDiscovery() {
         if (destroyed || pairing) return;
         stopDiscovery();
+        connectDiscoveryMode = false;
+        pairButton.setText("配对所选设备");
+        scanButton.setText("扫描附近的 ADB 配对服务");
         devices.clear();
         selectedDevice = null;
         renderDevices();
@@ -190,14 +197,14 @@ public final class AdbPairingActivity extends Activity {
             Button row = button((selected ? "✓ " : "") + device.toString(),
                     () -> selectDevice(device));
             row.setTextSize(12);
-            row.setEnabled(!pairing);
+            row.setEnabled(!pairing && !connectDiscoveryMode);
             deviceRows.addView(row);
         }
-        pairButton.setEnabled(!pairing && selectedDevice != null);
+        pairButton.setEnabled(!pairing && !connectDiscoveryMode && selectedDevice != null);
     }
 
     private void selectDevice(AdbPairingDiscovery.Device device) {
-        if (pairing || device == null) return;
+        if (pairing || connectDiscoveryMode || device == null) return;
         selectedDevice = device;
         renderDevices();
         status.setText("已选择 " + device.serviceName + " · " + device.host + ":" + device.port);
@@ -254,7 +261,8 @@ public final class AdbPairingActivity extends Activity {
                         if (destroyed || generation != operationGeneration.get()) return;
                         status.setText("ADB 无线配对成功。SPAKE2 已验证对端，PeerInfo 已加密交换。"
                                 + (saved ? " 配对状态已保存。" : " 但本地状态保存失败，请重新打开页面核验。")
-                                + " 如需 WRITE_SECURE_SETTINGS，请返回 Stellar 页面单独确认授予。");
+                                + " 正在查找配对后的 ADB connect 服务；不会自动执行命令或授予系统权限。");
+                        startConnectDiscovery(generation);
                     });
                 } catch (Exception failure) {
                     final String detail = failure.getMessage() == null
@@ -279,6 +287,89 @@ public final class AdbPairingActivity extends Activity {
             scanButton.setEnabled(true);
             renderDevices();
             status.setText("ADB 配对任务队列繁忙，本次操作未开始。");
+        }
+    }
+
+    /**
+     * Original Stellar behavior: after the pairing port closes, discover the
+     * separate _adb-tls-connect._tcp endpoint and retain its address/port.
+     * This migration deliberately stops at endpoint discovery; it does not
+     * claim to provide an ADB Shell session or silently execute pm grant.
+     */
+    private void startConnectDiscovery(final long generation) {
+        if (destroyed || generation != operationGeneration.get()) return;
+        stopDiscovery();
+        connectDiscoveryMode = true;
+        selectedDevice = null;
+        devices.clear();
+        pairButton.setText("ADB Shell 命令通道尚未迁入");
+        pairButton.setEnabled(false);
+        scanButton.setText("重新扫描 ADB connect 服务");
+        scanButton.setEnabled(false);
+        renderDevices();
+        status.setText("配对已完成，正在扫描 _adb-tls-connect._tcp…");
+        try {
+            discovery = new AdbPairingDiscovery(getApplicationContext(),
+                    AdbPairingDiscovery.CONNECT_SERVICE_TYPE,
+                    new AdbPairingDiscovery.Listener() {
+                        @Override public void onStarted() {
+                            if (!destroyed && generation == operationGeneration.get()) {
+                                status.setText("ADB 配对已完成；正在发现 connect 端点…");
+                            }
+                        }
+
+                        @Override public void onDeviceFound(AdbPairingDiscovery.Device device) {
+                            if (destroyed || generation != operationGeneration.get() || device == null) return;
+                            devices.put(device.serviceName, device);
+                            boolean saved = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
+                                    .edit()
+                                    .putString("connect_service_name", device.serviceName)
+                                    .putString("connect_host", device.host)
+                                    .putInt("connect_port", device.port)
+                                    .putLong("connect_discovered_at", System.currentTimeMillis())
+                                    .commit();
+                            renderDevices();
+                            status.setText("已发现配对后的 ADB connect 端点：" + device.host + ":" + device.port
+                                    + (saved ? "，端点信息已保存。" : "，但端点信息保存失败。")
+                                    + " 当前尚未迁入 ADB Shell 命令通道；不会把端点发现冒充成 Shell 已连接。"
+                                    + " WRITE_SECURE_SETTINGS 仍需返回 Stellar 页面单独确认。");
+                        }
+
+                        @Override public void onDeviceLost(String serviceName) {
+                            if (destroyed || generation != operationGeneration.get()) return;
+                            devices.remove(serviceName);
+                            String savedName = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
+                                    .getString("connect_service_name", "");
+                            if (serviceName.equals(savedName)) {
+                                getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE).edit()
+                                        .remove("connect_service_name")
+                                        .remove("connect_host")
+                                        .remove("connect_port")
+                                        .remove("connect_discovered_at")
+                                        .commit();
+                            }
+                            renderDevices();
+                            status.setText("ADB connect 服务已停止广播；已移除过期端点。");
+                        }
+
+                        @Override public void onError(String message, int errorCode) {
+                            if (destroyed || generation != operationGeneration.get()) return;
+                            scanButton.setEnabled(true);
+                            status.setText("ADB 配对成功，但 connect 服务发现失败：" + message
+                                    + "（错误码 " + errorCode + "）。可点击重新扫描；ADB Shell 尚未连接。");
+                        }
+
+                        @Override public void onStopped() {
+                            if (!destroyed && generation == operationGeneration.get()) {
+                                scanButton.setEnabled(true);
+                            }
+                        }
+                    });
+            discovery.start();
+        } catch (RuntimeException failure) {
+            scanButton.setEnabled(true);
+            status.setText("ADB 配对成功，但启动 connect 服务发现失败："
+                    + failure.getClass().getSimpleName() + "；ADB Shell 尚未连接。");
         }
     }
 
