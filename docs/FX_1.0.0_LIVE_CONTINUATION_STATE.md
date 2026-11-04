@@ -2888,3 +2888,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `e7ad99e5b77f1ed36d0cdc1e366a56c604d09397`。
 - 验证：对照 `BlacklistActivity.loadBlacklist()` 第 272–286 行；未执行真机，等待本轮 Actions。
 - 下一步：继续定位 Shield 回归后续断言，避免将静态核对误报为完整通过。
+
+
+## 2026-11-05 — Shield 风险证据回归脚本补齐源码读取变量
+
+- 基于当前分支 HEAD：`4b1b5d181ba5bec4da103441c7aae329c405640a`。
+- Actions：`41913734663` 已通过黑名单损坏状态累计断言，随后在新增风险证据断言处失败：`NameError: name 'virus_db' is not defined`。
+- 根因：风险证据功能和断言已加入脚本末尾，但 Python 测试前置变量块仍只读取 blacklist_activity / blacklist_policy / protection_service，没有读取 virus_db、scan_activity、warning_activity 与 VirusDb JUnit 测试文件。属于测试脚本初始化缺项，不是产品源码运行失败。
+- 修复：在同一前置变量块中从 Shield 源码字典绑定病毒库、扫描页、风险详情页源码，并从 repo_root 读取 `FxYulongVirusDbTest.java`；末尾证据断言继续保持，不删除测试。
+- 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 验证：确认所需四个文件在当前 HEAD 均存在且名称与读取路径一致；等待本次 Actions 执行。尚未运行 Gradle/JUnit/真机。
+- 下一步：读取新 Actions 第一条失败；通过后切到白名单/黑名单列表页真实搜索、分页和返回状态检查，不继续无限修测试断言。
