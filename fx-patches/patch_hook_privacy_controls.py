@@ -37,7 +37,7 @@ def has_conflict_aware_location_control(source):
     start = source.find("private void addLocationAccessBlockToggle(TextView conflictStatus)")
     if start < 0 or call not in source:
         return False
-    end = source.find("\\n    private ", start + 1)
+    end = source.find("\n    private ", start + 1)
     helper = source[start:end] if end > start else source[start:]
     return all(marker in helper for marker in (
         'sw.setText("限制位置访问")',
