@@ -10,14 +10,17 @@ POLICY_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/
 PARSER_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java"
 SER_TEST="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigSerializerTest.java"
 HOST_TEST="$ROOT/scripts/tests/FxDiaDialogMatchPolicyHostTest.java"
+KEY_POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java"
+KEY_REGISTRY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicyRegistry.java"
+KEY_HOST_TEST="$ROOT/scripts/tests/FxDiaKeyGesturePolicyHostTest.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for f in "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" "$HOST_TEST"; do
+for f in "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" "$HOST_TEST" "$KEY_POLICY" "$KEY_REGISTRY" "$KEY_HOST_TEST"; do
     [ -s "$f" ] || fail "missing Dialog source: $f"
 done
-python3 - "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" <<'PY'
+python3 - "$HOOK" "$PARSER" "$SER" "$UI" "$POLICY" "$POLICY_TEST" "$PARSER_TEST" "$SER_TEST" "$KEY_POLICY" "$KEY_REGISTRY" "$KEY_HOST_TEST" <<'PY'
 from pathlib import Path
 import re, sys
-hook, parser, ser, ui, policy, policy_test, parser_test, ser_test = [
+hook, parser, ser, ui, policy, policy_test, parser_test, ser_test, key_policy, key_registry, key_host_test = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 imports = re.findall(
@@ -101,13 +104,60 @@ for case in (
     "serializerRoundTripsDialogRulesAndFeedbackPerTarget",
     "serializerRejectsDialogFeedbackWithoutEnabledMatcher"):
     assert case in ser_test, f"missing Serializer test: {case}"
-print("PASS: Dialog UI/config/runtime source contracts")
+
+# Native ActivityKey page, config contract and LSPosed dispatch.
+assert 'case "按键控制":' in ui and 'showAppList("按键控制")' in ui
+assert "showDiaKeyControlTarget(ai)" in ui
+assert "动作一：关闭当前 Activity" in ui and "动作二：暂停 / 恢复当前应用的 Dialog 规则" in ui
+assert "key_finish_trigger" in ui and "key_dialog_toggle_trigger" in ui
+assert "keyFinishTrigger == keyDialogToggleTrigger" in ui
+assert "Dialog 切换动作需要先有有效的 debuggable Dialog 规则" in ui
+assert "FLAG_UPDATED_SYSTEM_APP" in ui and "不会强制停止进程" in ui
+assert "key_finish_trigger" in parser and "key_dialog_toggle_trigger" in parser
+assert "trigger < -1 || trigger > 6" in parser
+assert "keyDialogToggleTrigger >= 0 && !dialogMatchEnabled" in parser
+assert "Dia key actions must use distinct triggers" in parser
+assert "key_finish_trigger" in ser and "key_dialog_toggle_trigger" in ser
+assert "target.keyFinishTrigger == target.keyDialogToggleTrigger" in ser
+assert "Dialog key toggle requires enabled Dialog rules" in ser
+assert 'Activity.class.getDeclaredMethod("dispatchKeyEvent", KeyEvent.class)' in hook
+assert 'Activity.class.getDeclaredMethod("onKeyLongPress"' in hook
+assert "diaKeyGesturePolicies.forPackage(packageName)" in hook
+assert "activity.finish();" in hook
+assert "diaKeyDialogActive.put(packageName, next)" in hook
+assert "Boolean.FALSE.equals(diaKeyDialogActive.get(packageName))" in hook
+assert "must never prevent native key dispatch" in hook
+assert "computeIfAbsent(packageName" in key_registry
+assert "TRIGGER_VOLUME_DOWN_UP_CHORD" in key_policy
+assert "MIN_DOUBLE_PRESS_GAP_MS = 200L" in key_policy
+assert "CHORD_WINDOW_MS = 400L" in key_policy
+for case in (
+    "parsesPerAppActivityKeyActions",
+    "legacyTargetsKeepActivityKeyActionsDisabled",
+    "rejectsActivityKeyTriggerOutOfRange",
+    "rejectsDialogKeyToggleWithoutDialogRules",
+    "rejectsTwoActivityKeyActionsUsingTheSameTrigger"):
+    assert case in parser_test, f"missing ActivityKey Parser test: {case}"
+for case in (
+    "serializerRoundTripsPerAppActivityKeyActions",
+    "serializerRejectsDialogKeyToggleWithoutDialogRules",
+    "serializerRejectsTwoActivityKeyActionsUsingTheSameTrigger"):
+    assert case in ser_test, f"missing ActivityKey Serializer test: {case}"
+for marker in (
+    "Back long press emits trigger 5",
+    "volume-down/up chord emits trigger 6",
+    "repeat key-down event is ignored",
+    "registry allocates independent gesture state per package",
+    "removing a package resets its previous gesture timestamps"):
+    assert marker in key_host_test, f"missing key Host case: {marker}"
+print("PASS: Dialog, Toast and ActivityKey UI/config/runtime source contracts")
 PY
 
 command -v javac >/dev/null 2>&1 || fail "JDK is required for Dialog policy host tests"
 command -v java >/dev/null 2>&1 || fail "JRE is required for Dialog policy host tests"
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT HUP INT TERM
-javac -Xlint:all -Werror -d "$OUT" "$POLICY" "$HOST_TEST"
+javac -Xlint:all -Werror -d "$OUT" "$POLICY" "$HOST_TEST" "$KEY_POLICY" "$KEY_REGISTRY" "$KEY_HOST_TEST"
 java -cp "$OUT" de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicyHostTest
-echo "PASS: Dia Dialog and per-app Toast integration regression"
+java -cp "$OUT" de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicyHostTest
+echo "PASS: Dia Dialog, per-app Toast and ActivityKey integration regression"
