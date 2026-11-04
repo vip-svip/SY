@@ -71,6 +71,7 @@ frida = (dia_dir / "FxDiaFridaActivity.java").read_text(encoding="utf-8")
 library = (dia_dir / "FxDiaScriptLibraryActivity.java").read_text(encoding="utf-8")
 assert "FxDiaInspectorActivity.class" in browser
 assert "FxDiaCodeEditorActivity.class" in library
-assert "FxDiaScriptLibraryActivity.class" in frida
+assert 'button("打开 Frida 脚本库", () -> showFridaScriptLibrary())' in frida, "Frida page must retain its native script-library entry"
+assert "private void showFridaScriptLibrary()" in frida, "Frida script-library screen must remain implemented in the native page"
 print("PASS: Dia browser/Frida/script library/inspector/editor/JSON/monitor pages retain six-tab shell and native routes")
 PY
