@@ -53,6 +53,13 @@ public final class FxYulongRiskScanDispatcher {
                                  boolean contentScan, Runnable completion) {
         Context app = context.getApplicationContext();
         SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // The same stored user whitelist is applied to foreground/install scans
+        // before claiming the cooldown or reading the virus database. A whitelisted
+        // app must not continue producing automatic risk notifications.
+        if (FxYulongWhitelistPolicy.isWhitelisted(app, packageName)) {
+            finish(completion);
+            return;
+        }
         if (!claimPackage(prefs, packageName)) {
             finish(completion);
             return;
