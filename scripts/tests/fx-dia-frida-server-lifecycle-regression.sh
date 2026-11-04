@@ -18,6 +18,15 @@ guards = body("private String serverProcessGuards()", "private void startServer(
 start = body("private void startServer()", "private void stopServer()")
 stop = body("private void stopServer()", "private void chooseTarget()")
 check = body("private void checkRuntime()", "private String serverProcessGuards()")
+root_wrapper = body("private void runRoot(", "private void setStatus(")
+for label, needle in (
+    ("Root broker exceptions are caught", "catch (RuntimeException error)"),
+    ("Root broker empty result is handled", "if (result == null)"),
+    ("Root broker exceptions reach the UI", "Root 命令执行异常："),
+    ("empty Root result is never reported as success", "Root broker 未返回执行结果"),
+):
+    if needle not in root_wrapper:
+        raise SystemExit(f"FAIL: shared Frida Root wrapper lacks failure handling: {label}")
 
 required_guards = {
     "PID liveness rejects zombies": "Z|X|x",
