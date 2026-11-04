@@ -199,11 +199,13 @@ public final class FxStellarSecureSettingsActivity extends Activity {
                 status,
                 button("刷新权限状态", this::refreshStatus),
                 grantButton, revokeButton);
-        card(body, "原版无线 ADB 配对迁移边界",
-                "原版自动配对依赖 mDNS 服务发现、ADB TLS 配对协议和 libadb.so 原生加密上下文；这些协议层尚未迁入本页。当前页只完成其最终 WRITE_SECURE_SETTINGS 授权动作，不会将打开开发者选项伪装成已配对，也不会扫描局域网设备。",
+        card(body, "原版无线 ADB 配对",
+                "FX 已迁入原版 libadb SPAKE2、TLS 1.3、ADB PeerInfo 与 mDNS 配对服务发现。自动配对使用 Android 12/API 31+ 的公开 TLS exporter；更旧系统仍可从 Android 系统页面手动完成配对。配对成功不会自动授予 WRITE_SECURE_SETTINGS。",
+                button("扫描并自动配对 ADB 设备", () ->
+                        startActivity(new Intent(this, roro.stellar.manager.adb.AdbPairingActivity.class))),
                 button("打开 Android 开发者选项 / 无线调试", this::openWirelessDebuggingSettings));
-        card(body, "手动无线调试路径",
-                "在 Android 开发者选项中启用“无线调试”，再由系统提供的“使用配对码配对设备”界面完成配对。FX 不读取或上传配对码；系统配对是否成功由 Android 自己显示。");
+        card(body, "配对后的权限授予",
+                "完成 ADB TLS/SPAKE2 配对后，如确实需要系统安全设置能力，请返回本页单独点击“通过 FX Root 授予 WRITE_SECURE_SETTINGS”。此操作仍需你明确确认，并会核验 PackageManager 实际权限状态。");
         setContentView(root);
         refreshStatus();
     }
