@@ -62,6 +62,7 @@ public final class FxYulongRescueOverlayService extends Service {
 
     private Notification notification(){
         Intent open=new Intent(this,FxYulongRescueActivity.class);
+        open.putExtra(FxYulongRescueActivity.EXTRA_OPENED_FROM_NOTIFICATION, true);
         PendingIntent pi=PendingIntent.getActivity(this,0x5962,open,
                 PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
