@@ -111,8 +111,25 @@ def main() -> None:
         old_mode = target.stat().st_mode & 0o777 if target.exists() else 0o755
         atomic_write(target, payload, old_mode | 0o111)
     uninstall_changed = replace_uninstall_block(uninstall)
+
+    # Published Release archives still contain a PID-only shutdown regression
+    # from the pre-cooperative scheduler. Replace that stale test with the
+    # current start-time/owner-record PID-reuse simulation in every build lane.
+    pid_reuse_test = root / "scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh"
+    staged_test = module / "scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh"
+    if not pid_reuse_test.is_file():
+        raise SystemExit("canonical QuickJS PID-reuse regression source is missing")
+    if staged_test.is_symlink():
+        raise SystemExit(f"refusing PID-reuse regression symlink: {staged_test}")
+    test_payload = pid_reuse_test.read_bytes()
+    test_changed = not staged_test.is_file() or staged_test.read_bytes() != test_payload
+    if test_changed:
+        old_test_mode = staged_test.stat().st_mode & 0o777 if staged_test.exists() else 0o755
+        atomic_write(staged_test, test_payload, old_test_mode | 0o111)
+
     print("QuickJS scheduler staged=" + ("updated" if changed else "current")
-          + "; uninstall stop hook=" + ("updated" if uninstall_changed else "current"))
+          + "; uninstall stop hook=" + ("updated" if uninstall_changed else "current")
+          + "; PID-reuse regression=" + ("updated" if test_changed else "current"))
 
 if __name__ == "__main__":
     main()
