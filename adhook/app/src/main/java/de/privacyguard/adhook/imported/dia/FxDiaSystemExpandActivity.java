@@ -256,7 +256,7 @@ public final class FxDiaSystemExpandActivity extends Activity {
                 button("打开开发者选项", this::openDeveloperOptions));
 
         row(body, "允许从未知来源安装",
-                "改用 Android 原生的逐来源应用授权。选择声明 REQUEST_INSTALL_PACKAGES 的应用后，由系统设置页完成授权；FX 不会绕过 PackageInstaller 的未知来源校验，也不会开启全局安装权限。",
+                "改用 Android 原生的逐来源应用授权。选择声明 REQUEST_INSTALL_PACKAGES 的应用后，由系统设置页完成授权；FX 不会绕过PackageInstaller 的未知来源校验，也不会开启全局安装权限。",
                 button("选择来源应用", this::chooseInstallSource));
 
         row(body, "重启 Package Installer",
