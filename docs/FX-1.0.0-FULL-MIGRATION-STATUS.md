@@ -835,9 +835,9 @@ After each implementation batch:
 - Successful results return to the UI thread and retain the existing package/label persistence, target selection, Gadget default process and multi-process Frida-inject behavior. Queue saturation now displays an explicit retry message.
 - Added and registered `fx-dia-frida-target-loader-regression.py` alongside the Dia inspector responsiveness regression. Build/host validation is pending; no physical-device frame-time measurement is claimed.
 
-## 2026-11-04 — Dia Frida process identity revalidation
+## 2026-11-04 — Root Proxy VPN route revalidation before DNS redirect
 
-- The target process picker now resolves the currently installed target package UID and filters candidate PID/name rows against `/proc/PID/status` before showing them.
-- The actual Frida-inject path resolves the target UID again immediately before injection and checks each PID's live UID after rechecking its package/process name. A PID/name match with a different UID is skipped and logged; no injection is attempted for that process.
-- This preserves the user-installed + debuggable target restriction and closes the PID-reuse/name-only identity gap for both manually selected and automatically enumerated processes.
-- Added and registered `fx-dia-frida-process-identity-regression.py` to assert UID resolution and enforcement before the injector call. Host/source validation only; actual process attach remains device-pending.
+- Added a second full interface/IPv4 route proof after Unbound and AdGuard Home startup and the local DNS health probe, immediately before attaching the dual-stack NAT redirects.
+- If the VPN interface goes down, its route changes to another interface, or its source IPv4 changes during service startup, the Root Proxy now stops both DNS engines, removes only FXYRP-owned rules/state and fails open instead of redirecting clients into a stale tunnel.
+- Extended the Root Proxy runtime regression with a route mock that passes the initial two destination checks, then switches the first route to Wi-Fi during DNS engine startup. The test asserts the second proof runs and that no active metadata, egress marker or NAT hook survives.
+- Host runtime simulation only; third-party VPN reconnect timing and Unbound egress still require physical-device validation.

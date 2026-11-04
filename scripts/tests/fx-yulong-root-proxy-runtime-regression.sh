@@ -27,9 +27,18 @@ case "$*" in
   "-o link show dev tun0") echo '7: tun0: <POINTOPOINT,UP,LOWER_UP> mtu 1500' ;;
   "-o -4 addr show dev tun0 scope global") echo '7: tun0 inet 10.23.4.5/32 scope global tun0' ;;
   "route get 198.41.0.4 from 10.23.4.5")
+    route_count=0
+    [ ! -r "$MOCK_ROUTE_COUNT" ] || route_count=$(cat "$MOCK_ROUTE_COUNT")
+    route_count=$((route_count+1)); printf '%s\n' "$route_count" > "$MOCK_ROUTE_COUNT"
+    if [ "${MOCK_ROUTE_FAIL_RECHECK:-0}" = 1 ] && [ "$route_count" -gt 2 ]; then
+      echo '198.41.0.4 from 10.23.4.5 dev wlan0'; exit 0
+    fi
     [ "${MOCK_ROUTE_FAIL:-0}" = 1 ] && { echo '198.41.0.4 from 10.23.4.5 dev wlan0'; exit 0; }
     echo '198.41.0.4 from 10.23.4.5 dev tun0 src 10.23.4.5 uid 0' ;;
   "route get 199.9.14.201 from 10.23.4.5")
+    route_count=0
+    [ ! -r "$MOCK_ROUTE_COUNT" ] || route_count=$(cat "$MOCK_ROUTE_COUNT")
+    route_count=$((route_count+1)); printf '%s\n' "$route_count" > "$MOCK_ROUTE_COUNT"
     [ "${MOCK_ROUTE_FAIL_SECOND:-0}" = 1 ] && { echo '199.9.14.201 from 10.23.4.5 dev wlan0'; exit 0; }
     echo '199.9.14.201 from 10.23.4.5 dev tun0 src 10.23.4.5 uid 0' ;;
   *) echo "unexpected ip invocation: $*" >&2; exit 64 ;;
@@ -120,7 +129,8 @@ run_proxy(){
   CASE_DIR=$1; shift
   env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" \
     MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
-    MOCK_ENGINE_LOG="$CASE_DIR/engines.log" "$@" sh "$MOD/scripts/yulong-root-proxy.sh" ensure "$MOD" "$CASE_DIR/state" tun0 10042
+    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
+    "$@" sh "$MOD/scripts/yulong-root-proxy.sh" ensure "$MOD" "$CASE_DIR/state" tun0 10042
 }
 assert_stopped(){
   case_dir=$1
@@ -182,7 +192,7 @@ for line in \
 done
 [ ! -e "$CASE_DIR/state/yulong-root-proxy.lock" ] || fail "success leaked lock"
 
-for scenario in route route2 package-manager unbound adguard probe; do
+for scenario in route route2 package-manager unbound adguard probe route-recheck; do
   prepare_case "$scenario"
   case "$scenario" in
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
@@ -191,6 +201,12 @@ for scenario in route route2 package-manager unbound adguard probe; do
     unbound) if run_proxy "$CASE_DIR" MOCK_UNBOUND_FAIL=1 >/dev/null 2>&1; then fail "Unbound failure accepted"; fi ;;
     adguard) if run_proxy "$CASE_DIR" MOCK_ADGUARD_FAIL=1 >/dev/null 2>&1; then fail "AdGuard failure accepted"; fi ;;
     probe) if run_proxy "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1 >/dev/null 2>&1; then fail "DNS probe failure accepted"; fi ;;
+    route-recheck)
+      if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL_RECHECK=1 >/dev/null 2>&1; then
+        fail "VPN egress change during DNS engine startup was accepted"
+      fi
+      [ "$(cat "$CASE_DIR/route-count")" -gt 2 ] || fail "second route proof was not reached"
+      ;;
   esac
   assert_stopped "$CASE_DIR" "$scenario fail-open"
 done

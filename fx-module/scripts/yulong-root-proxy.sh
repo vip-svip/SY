@@ -315,6 +315,18 @@ _ensure_locked() {
              | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
     _stop_locked; _log "post-start DNS probe failed; fail-open"; return 1;
   fi
+  # DNS engines take time to start. Re-prove the VPN route and address after
+  # their health probe, immediately before redirecting app DNS packets.
+  _rechecked_egress=$(_resolve_vpn_egress "$_iface") || {
+    _stop_locked
+    _log "VPN egress could not be revalidated after DNS startup; fail-open"
+    return 1
+  }
+  if [ "$_rechecked_egress" != "$_egress" ]; then
+    _stop_locked
+    _log "VPN egress changed during DNS startup ($_egress -> $_rechecked_egress); fail-open"
+    return 1
+  fi
   _activate_chains "$_uid" "$_whitelist_uids" || {
     _stop_locked; _log "dual-stack DNS NAT setup failed; fail-open"; return 1;
   }
