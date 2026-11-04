@@ -157,6 +157,26 @@ assert_stopped(){
   grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop Unbound"
 }
 
+# CONF overrides cannot redirect whitelist reads or persistent updates outside PG.
+prepare_case conf-override
+printf 'external-config\n' > "$CASE_DIR/outside.conf"
+if env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/outside.conf" PATH="$BIN:$PATH" \
+    sh "$MOD/scripts/yulong-root-proxy.sh" >/dev/null 2>&1; then
+  fail "Root Proxy accepted a CONF path outside its private state directory"
+fi
+grep -Fqx external-config "$CASE_DIR/outside.conf" || fail "rejected CONF override was modified"
+
+# Every existing ancestor of PG must be a real directory.
+prepare_case parent-symlink
+mkdir "$CASE_DIR/real-parent"
+ln -s "$CASE_DIR/real-parent" "$CASE_DIR/parent-link"
+if env MP="$MOD" PG="$CASE_DIR/parent-link/state" CONF="$CASE_DIR/parent-link/state/settings.conf" \
+    PATH="$BIN:$PATH" sh "$MOD/scripts/yulong-root-proxy.sh" >/dev/null 2>&1; then
+  fail "Root Proxy accepted PG below a symlinked parent"
+fi
+[ ! -e "$CASE_DIR/real-parent/state" ] || fail "Root Proxy created external state through a symlinked parent"
+rm "$CASE_DIR/parent-link"
+
 # Refuse symlinked state directory/config/log/markers before any I/O.
 prepare_case pg-symlink
 mkdir "$CASE_DIR/outside"; echo keep-state > "$CASE_DIR/outside/sentinel"

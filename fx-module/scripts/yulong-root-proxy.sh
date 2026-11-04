@@ -37,14 +37,46 @@ _reject_symlink_components() {
   done
   return 0
 }
+_validate_real_parent_chain() {
+  _state_candidate=$1
+  case "$_state_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_state_candidate" in /|*/|*//* ) return 1 ;; esac
+  _state_final=${_state_candidate##*/}
+  case "$_state_final" in ''|.|..) return 1 ;; esac
+  _state_parent=${_state_candidate%/*}
+  [ -n "$_state_parent" ] || _state_parent=/
+  _state_rest=${_state_parent#/}
+  _state_walk=
+  while [ -n "$_state_rest" ]; do
+    case "$_state_rest" in
+      */*) _state_component=${_state_rest%%/*}; _state_rest=${_state_rest#*/} ;;
+      *) _state_component=$_state_rest; _state_rest= ;;
+    esac
+    case "$_state_component" in ''|.|..) return 1 ;; esac
+    _state_walk="$_state_walk/$_state_component"
+    [ -d "$_state_walk" ] && [ ! -L "$_state_walk" ] || return 1
+  done
+  return 0
+}
+_validate_real_parent_chain "$PG" || {
+  echo "Root Proxy state directory has a missing or unsafe parent" >&2
+  exit 22
+}
+[ ! -L "$PG" ] || { echo "Root Proxy state directory is unsafe" >&2; exit 21; }
+if [ ! -e "$PG" ]; then mkdir "$PG" || { echo "cannot create Root Proxy state directory" >&2; exit 21; }; fi
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "Root Proxy state directory is missing or unsafe" >&2; exit 21; }
+[ "$CONF" = "$PG/settings.conf" ] || {
+  echo "Root Proxy settings path must be inside the private state directory" >&2
+  exit 21
+}
 for _state_path in "$PG" "$CONF" "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$LOCK" "$LOG"; do
   _reject_symlink_components "$_state_path" || {
     echo "unsafe Root Proxy state path: $_state_path" >&2
     exit 22
   }
 done
-mkdir -p "$PG"
-[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "Root Proxy state directory is missing or unsafe" >&2; exit 21; }
+[ -f "$CONF" ] || { echo "Root Proxy settings.conf missing or unsafe" >&2; exit 21; }
+[ ! -e "$LOCK" ] || [ -f "$LOCK" ] || { echo "Root Proxy lock path is not a regular file" >&2; exit 22; }
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
