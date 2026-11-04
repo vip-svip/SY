@@ -373,14 +373,14 @@ else:
     raise SystemExit("could not isolate showSettings() method")
 PY
 )"
-printf '%s' "$privacy_block" | grep -q 'addNativeSettingsCategory("传感器", "sensorPanel")'
-printf '%s' "$privacy_block" | grep -q 'addNativeSettingsCategory("通知与剪贴板", "notifyPanel")'
-printf '%s' "$vpn_block" | grep -q 'addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel")'
+printf '%s' "$privacy_block" | grep -Fq 'addNativeSettingsCategory("传感器", "sensorPanel")' || fail "native privacy page is missing the Sensor settings category"
+printf '%s' "$privacy_block" | grep -Fq 'addNativeSettingsCategory("通知与剪贴板", "notifyPanel")' || fail "native privacy page is missing the Notifications/Clipboard category"
+printf '%s' "$vpn_block" | grep -Fq 'addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel")' || fail "native VPN page is missing the DNS/routing settings category"
 if printf '%s' "$settings_block" | grep -Eq 'addNativeSettingsCategory|VPN / DNS|传感器|通知与剪贴板|Root / 模块隐藏'; then
   echo "FAIL: feature settings leaked into the Settings destination" >&2
   exit 1
 fi
-printf '%s' "$settings_block" | grep -q '界面模式'
+printf '%s' "$settings_block" | grep -Fq '界面模式' || fail "Settings destination lost the interface-mode control"
 # Native Script CRUD, state rollback and QuickJS execution must use module commands, not WebView mutation calls.
 grep -Fq 'editNativeScript(index, valueText, note, rows, status)' "$main_activity"
 grep -Fq 'private void editNativeScript(int index' "$main_activity"

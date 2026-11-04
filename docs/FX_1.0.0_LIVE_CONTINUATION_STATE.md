@@ -2758,3 +2758,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：回归脚本改为检查当前单参数完成方法及 FutureTask 所有权字段/赋值，保留 generation 超时、取消和过期回调断言。未删除任务保护。
 - 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 下一步：重跑 targeted Host 回归；若仍退出，继续定位第一个不匹配的源断言。
+
+
+## 2026-11-05 — Hook 原生 UI 回归脚本 Host-only 后半段失败定位
+
+- 基于分支 HEAD：`889297fe626278ddc50adbedf1803f3722c2e8a0`。
+- Actions：`41912530483` 已通过 APK 条件跳过并打印 Host-only SKIP，但脚本仍以 exit 1 结束，没有 FAIL 文本；故障位于后续未附错误消息的裸 grep / Python 检查之一。
+- 修改：为隐私传感器分类、通知/剪贴板分类、VPN DNS 分类和 Settings 界面模式四项裸 grep 添加明确失败信息，并改用固定字符串匹配，避免静默退出和正则解释差异。
+- 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 验证：目标源码块的对应字符串已静态核对存在；本次是诊断性回归改进，尚未执行成功的 Actions。
+- 下一步：读取下一次 Actions 第一条明确错误；修复后继续检查剩余 Hook/Dia/Shield 页面。
