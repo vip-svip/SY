@@ -218,17 +218,12 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
             return;
         }
 
-        Set<String> packages = new LinkedHashSet<>();
-        for (String entry : raw.split(",")) {
-            String value = entry == null ? "" : entry.trim();
-            if (value.isEmpty()) continue;
-            if (!value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) {
-                showMessage("白名单数据异常", "现有白名单包含无法识别的条目（" + value
-                        + "）。为避免静默丢失旧配置，本次没有修改任何白名单数据。请先在白名单管理页核实原始内容。");
-                return;
-            }
-            packages.add(value);
+        if (!FxYulongWhitelistPolicy.isWellFormed(raw)) {
+            showMessage("白名单数据异常",
+                    "现有白名单含无效条目或超过安全上限。为避免静默丢失旧配置，本次没有修改任何白名单数据。");
+            return;
         }
+        Set<String> packages = new LinkedHashSet<>(FxYulongWhitelistPolicy.parse(raw));
         if (packages.contains(packageName)) {
             showMessage("已在白名单中", appLabel + " 已经在用户白名单里，无需重复添加。");
             return;
