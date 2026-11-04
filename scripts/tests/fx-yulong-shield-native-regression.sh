@@ -168,6 +168,10 @@ assert "FxYulongShieldActivity.class" in rescue_route, \
 assert "FxYulongRescueActivity.java" in shield, "Dedicated rescue Activity source missing"
 assert "FxYulongRescueActivity.class" in hub and "打开救援中心" in hub, \
     "The hub must retain a separate path into the original recovery actions"
+assert "private ScrollView shieldScroll;" in hub, "Shield hub scroll container must survive Activity recreation"
+assert 'STATE_SCROLL_Y = "fx_yulong_shield_scroll_y"' in hub, "Shield hub scroll state key is missing"
+assert "onSaveInstanceState(Bundle outState)" in hub and "outState.putInt(STATE_SCROLL_Y" in hub, "Shield hub scroll position is not saved"
+assert "state.getInt(STATE_SCROLL_Y, 0)" in hub and "shieldScroll.scrollTo(0, restoreY)" in hub, "Shield hub scroll position is not restored"
 assert r'"\\n累计提醒："' not in hub, "Shield status must not show a literal backslash followed by n"
 assert r'"\n累计提醒："' in hub, "Shield status must retain a Java newline escape"
 assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in hub, "Recovery note must render on a new line"
