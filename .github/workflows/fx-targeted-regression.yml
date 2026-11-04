@@ -140,6 +140,21 @@ jobs:
             run_py scripts/tests/fx-dia-wifi-proxy-regression.py
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxHookObservationLogsActivity|fx-hook-observation-logs) ]]; then
+            run_sh scripts/tests/fx-hook-observation-logs-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxNativeTabActivity|FxDiaActivityBrowserActivity|FxDiaCrashReportActivity|FxDiaFileActivity|FxDiaGlobalSettingsActivity|FxDiaInspectorActivity|FxDiaJsonActivity|FxDiaMonitorEventsActivity|FxDiaSessionLogActivity|FxDiaSignatureActivity|FxDiaSystemExpandActivity) ]]; then
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_sh scripts/tests/fx-dia-crash-report-regression.sh
+            run_sh scripts/tests/fx-dia-file-browser-io-regression.sh
+            run_sh scripts/tests/fx-dia-global-settings-registration-regression.sh
+            run_sh scripts/tests/fx-dia-inspector-regression.sh
+            run_sh scripts/tests/fx-dia-monitor-event-view-regression.sh
+            run_sh scripts/tests/fx-dia-system-expand-installer-regression.sh
+            run_sh scripts/tests/fx-dia-system-expand-navigation-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaDexBrowserActivity|fx-dia-dex-document-browser) ]]; then
             run_sh scripts/tests/fx-dia-dex-document-browser-regression.sh
           fi
@@ -169,5 +184,9 @@ jobs:
           done <<<"$changed"
 
           if [[ "$ran" -eq 0 ]]; then
-            echo "No mapped host regression for this path set; full Gradle/build validation remains PR/manual only."
+            if grep -Eq '^(adhook/app/src/main|adhook/app/src/test|fx-module/scripts|fx-patches)/' <<<"$changed"; then
+              echo "ERROR: changed source path has no targeted Host regression mapping." >&2
+              exit 2
+            fi
+            echo "No source path changed; no Host regression was required."
           fi
