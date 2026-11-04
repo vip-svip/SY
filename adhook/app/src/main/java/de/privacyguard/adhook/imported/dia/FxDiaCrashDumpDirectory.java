@@ -41,11 +41,11 @@ public final class FxDiaCrashDumpDirectory {
             File absoluteTarget = target.getAbsoluteFile();
             File canonicalTarget = target.getCanonicalFile();
             if (!absoluteTarget.equals(canonicalTarget)) return false;
+            // Validate containment even when the callback's file no longer exists;
+            // a missing external path is not an owned Breakpad output path.
+            if (!canonicalDirectory.equals(canonicalTarget.getParentFile())) return false;
             if (!target.exists()) return true;
-            if (!target.isFile()
-                    || !canonicalDirectory.equals(canonicalTarget.getParentFile())) {
-                return false;
-            }
+            if (!target.isFile()) return false;
             return target.delete() || !target.exists();
         } catch (java.io.IOException | SecurityException unsafePath) {
             return false;
