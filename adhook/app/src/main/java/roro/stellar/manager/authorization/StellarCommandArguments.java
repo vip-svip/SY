@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  * this layer prevents shell syntax from being interpreted at the outer su boundary.
  */
 final class StellarCommandArguments {
+    private static final int MAX_INPUT_LENGTH = 8192;
     private static final Pattern PACKAGE =
             Pattern.compile("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");
     private static final Set<String> SCOPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -44,7 +45,7 @@ final class StellarCommandArguments {
     }
 
     private static List<String> tokenize(String raw) {
-        if (raw == null || raw.isEmpty() || raw.length() > StellarAuthorizationService.MAX_SHELL_ARGS)
+        if (raw == null || raw.isEmpty() || raw.length() > MAX_INPUT_LENGTH)
             throw new IllegalArgumentException("empty or oversized request");
         List<String> args = new ArrayList<>(4);
         int i = 0;
