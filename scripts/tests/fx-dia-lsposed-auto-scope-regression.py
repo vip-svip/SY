@@ -12,7 +12,7 @@ def section(source, start_sig, end_sig):
     return source[start:end]
 
 helper = section(main, "private void maybeAutoRequestLsposedScope(", "private void addLsposedScopeControls(")
-target = section(main, "private void showTarget(ApplicationInfo ai)", "private void buildNativePrivacyPage(")
+target = section(main, "private void showTarget(ApplicationInfo ai)", "private void focusPendingPrivacySection(")
 assert 'getBoolean("lsp_sync", false)' in helper, "auto scope must remain explicit opt-in"
 assert "FxLsposedScopeBridge.isConnected()" in helper
 assert "FxLsposedScopeBridge.snapshot(packageName)" in helper, "current scope must be read before requesting"
