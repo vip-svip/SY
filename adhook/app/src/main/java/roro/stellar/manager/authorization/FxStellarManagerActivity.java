@@ -471,15 +471,17 @@ public final class FxStellarManagerActivity extends Activity {
        ?"将把经过校验的 FX libstellar.so 启动脚本原子写入 /data/adb/service.d/stellar.sh。设备完成启动后，脚本会定位本 FX 包的本机库并执行 Stellar。此操作需要 Root；不会打开 ADB、修改 tcpip 端口或自动授予 WRITE_SECURE_SETTINGS。"
        :"将删除 FX 管理的 /data/adb/service.d/stellar.sh，之后重启不再由此脚本启动 Stellar。不会删除 FX APK 或其他启动脚本。")
      .setNegativeButton("取消",(dialog,which)->{
-      bootScriptUpdating=false;
+      bootScriptUpdating=true;
       button.setChecked(!enabled);
+      bootScriptUpdating=false;
       button.setEnabled(true);
      })
      .setPositiveButton(enabled?"安装并启用":"移除并关闭",(dialog,which)->applyBootScriptMode(enabled))
      .setOnCancelListener(dialog->{
       if(bootScriptUpdating){
-       bootScriptUpdating=false;
+       bootScriptUpdating=true;
        button.setChecked(!enabled);
+       bootScriptUpdating=false;
        button.setEnabled(true);
       }
      }).show();
@@ -525,8 +527,8 @@ public final class FxStellarManagerActivity extends Activity {
   root(command,result->{
    String marker=install?"success=1 boot_script=installed":"success=1 boot_script=removed";
    if(result.exitCode!=0||result.output==null||!result.output.contains(marker)){
-    bootScriptUpdating=false;
     bootScriptSwitch.setChecked(!install);
+    bootScriptUpdating=false;
     bootScriptSwitch.setEnabled(true);
     bootScriptStatus.setText((install?"安装":"移除")+"失败；boot_mode 未修改。Root 退出码 "
        +result.exitCode+"："+(result.output==null?"":result.output));
@@ -536,15 +538,15 @@ public final class FxStellarManagerActivity extends Activity {
    if(!saved){
     if(install){
      root("boot-script remove",rollback->{
-      bootScriptUpdating=false;
       bootScriptSwitch.setChecked(false);
+      bootScriptUpdating=false;
       bootScriptSwitch.setEnabled(true);
       bootScriptStatus.setText("启动脚本已安装，但 boot_mode 偏好写入失败；已尝试回滚脚本。"
         +(rollback.exitCode==0?"回滚成功。":"回滚失败，请手动检查 service.d。"));
      });
     }else{
-     bootScriptUpdating=false;
      bootScriptSwitch.setChecked(true);
+     bootScriptUpdating=false;
      bootScriptSwitch.setEnabled(true);
      bootScriptStatus.setText("启动脚本已删除，但 boot_mode=NONE 写入失败；请刷新后确认状态。");
     }
