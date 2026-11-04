@@ -324,12 +324,18 @@ public final class AdbPairingActivity extends Activity {
                         return;
                     }
                     client.start();
+                    String pairedGuid = client.getDeviceGuid();
                     boolean saved = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
                             .edit()
                             .putBoolean("paired", true)
                             .putString("service_name", target.serviceName)
                             .putString("host", target.host)
                             .putInt("port", target.port)
+                            .putString("device_guid", pairedGuid)
+                            .remove("connect_service_name")
+                            .remove("connect_host")
+                            .remove("connect_port")
+                            .remove("connect_discovered_at")
                             .putLong("paired_at", System.currentTimeMillis())
                             .commit();
                     runOnUiThread(() -> {
@@ -387,7 +393,14 @@ public final class AdbPairingActivity extends Activity {
         scanButton.setText("重新扫描 ADB connect 服务");
         scanButton.setEnabled(false);
         renderDevices();
-        status.setText("配对已完成，正在扫描 _adb-tls-connect._tcp…");
+        final String expectedGuid = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
+                .getString("device_guid", "");
+        if (expectedGuid == null || expectedGuid.isEmpty()) {
+            scanButton.setEnabled(true);
+            status.setText("缺少已配对设备 GUID，不能安全匹配 connect 服务；请重新配对。");
+            return;
+        }
+        status.setText("配对设备 GUID 已核验，正在扫描对应的 _adb-tls-connect._tcp 服务…");
         try {
             discovery = new AdbPairingDiscovery(getApplicationContext(),
                     AdbPairingDiscovery.CONNECT_SERVICE_TYPE,
@@ -400,6 +413,10 @@ public final class AdbPairingActivity extends Activity {
 
                         @Override public void onDeviceFound(AdbPairingDiscovery.Device device) {
                             if (destroyed || generation != operationGeneration.get() || device == null) return;
+                            if (!expectedGuid.equals(device.serviceName)) {
+                                status.setText("发现其他 ADB connect 广播，但 GUID 与当前已配对设备不匹配；已忽略。");
+                                return;
+                            }
                             devices.put(device.serviceName, device);
                             boolean saved = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
                                     .edit()
