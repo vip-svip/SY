@@ -43,11 +43,11 @@ decode(){ printf '%s' "$1" | base64 -d 2>/dev/null; }
 to_minutes(){
   _h=${1%:*}; _m=${1#*:}
   # POSIX shell can treat leading-zero values as octal; normalize HH/MM first.
-  _h=$(printf '%s\\n' "$_h" | sed 's/^0*//')
-  _m=$(printf '%s\\n' "$_m" | sed 's/^0*//')
+  _h=$(printf '%s\n' "$_h" | sed 's/^0*//')
+  _m=$(printf '%s\n' "$_m" | sed 's/^0*//')
   [ -n "$_h" ] || _h=0
   [ -n "$_m" ] || _m=0
-  printf '%s\\n' "$((_h * 60 + _m))"
+  printf '%s\n' "$((_h * 60 + _m))"
 }
 atomic_replace(){
   _dst=$1; _src=$2
