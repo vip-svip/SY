@@ -292,6 +292,26 @@ for item in required:
 print("PASS: watcher child atomically publishes its own PID; starter verifies child identity under lock")
 PY
 
+# Watcher lock signals must release only the exact owner-held atomic file lock.
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    "watch_lock_signal_exit() {",
+    "trap 'watch_lock_signal_exit 129' HUP",
+    "trap 'watch_lock_signal_exit 130' INT",
+    "trap 'watch_lock_signal_exit 143' TERM",
+)
+for item in required:
+    if item not in source:
+        raise SystemExit("FAIL: watcher signal cleanup missing: " + item)
+body = source.split("watch_lock_signal_exit() {", 1)[1].split("watch_lock_run() {", 1)[0]
+if "watch_lock_release" not in body or 'exit "$_watch_signal_status"' not in body:
+    raise SystemExit("FAIL: watcher signal handler does not release its owned lock before exiting")
+print("PASS: HUP/INT/TERM release the watcher-owned PID lock file")
+PY
+
 # Signal handlers must exit into the sole EXIT cleanup handler.
 grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE" || fail "EXIT lock cleanup handler missing"
 grep -Fqx "  trap 'exit 129' HUP" "$SOURCE" || fail "HUP exit handler missing"
