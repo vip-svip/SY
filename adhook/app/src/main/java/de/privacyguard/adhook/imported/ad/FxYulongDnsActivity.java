@@ -113,7 +113,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         LinearLayout body = new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 1);
 
         status = text("正在读取本机查询日志…", 13, 0xff526170, false);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索域名、类型或拦截原因");
