@@ -5296,26 +5296,93 @@ public final class MainActivity extends ComponentActivity {
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    new AlertDialog.Builder(this).setTitle("删除分组")
-                            .setMessage("删除分组“" + chosen + "”？其中的规则会移动到“默认”，不会删除 Hook 规则。")
-                            .setNegativeButton("取消", null)
-                            .setPositiveButton("删除分组", (d, w) -> {
-                                for (int slot = 1; slot <= 64; slot++) {
-                                    String key = selectedPackage + ":dev_rule_group_" + slot;
-                                    if (chosen.equals(getPreferences(0).getString(key, "默认")))
-                                        getPreferences(0).edit().putString(key, "默认").apply();
-                                }
-                                java.util.LinkedHashSet<String> latest = getCustomRuleGroups();
-                                latest.remove(chosen);
-                                getPreferences(0).edit().putStringSet(
-                                        selectedPackage + ":dev_rule_groups",
-                                        new java.util.HashSet<>(latest)).apply();
-                                ApplicationInfo target = findApp(selectedPackage);
-                                if (target != null) showTarget(target);
-                            }).show();
+                    showCustomRuleGroupActions(chosen);
                 })
                 .setNeutralButton("新增分组", (dialog, which) -> showAddCustomRuleGroupDialog())
                 .setNegativeButton("关闭", null).show();
+    }
+
+    private void showCustomRuleGroupActions(String groupName) {
+        new AlertDialog.Builder(this).setTitle("规则分组 · " + groupName)
+                .setItems(new String[]{"重命名分组", "删除分组"}, (dialog, which) -> {
+                    if (which == 0) {
+                        showRenameCustomRuleGroupDialog(groupName);
+                    } else {
+                        new AlertDialog.Builder(this).setTitle("删除分组")
+                                .setMessage("删除分组“" + groupName + "”？其中的规则会移动到“默认”，不会删除 Hook 规则。")
+                                .setNegativeButton("取消", null)
+                                .setPositiveButton("删除分组", (d, w) -> deleteCustomRuleGroup(groupName))
+                                .show();
+                    }
+                })
+                .setNegativeButton("取消", null).show();
+    }
+
+    private boolean renameCustomRuleGroup(String oldName, String newName) {
+        if (oldName == null || "默认".equals(oldName) || !validCustomRuleGroupName(newName))
+            return false;
+        String normalized = newName.trim();
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        if (!groups.contains(oldName)) return false;
+        if (oldName.equals(normalized)) return true;
+        if ("默认".equals(normalized) || groups.contains(normalized)) return false;
+
+        groups.remove(oldName);
+        groups.add(normalized);
+        android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
+        for (int slot = 1; slot <= 64; slot++) {
+            String key = selectedPackage + ":dev_rule_group_" + slot;
+            if (oldName.equals(getPreferences(0).getString(key, "默认")))
+                edit.putString(key, normalized);
+        }
+        edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
+        return edit.commit();
+    }
+
+    private void showRenameCustomRuleGroupDialog(String oldName) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(oldName);
+        input.setSelection(input.getText().length());
+        input.setHint("新分组名称（最多 24 个字符）");
+        new AlertDialog.Builder(this).setTitle("重命名规则分组").setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (dialog, which) -> {
+                    String newName = input.getText().toString().trim();
+                    if (!validCustomRuleGroupName(newName) || "默认".equals(newName)) {
+                        new AlertDialog.Builder(this).setMessage("分组名称无效；不能重命名系统保留的“默认”分组。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    if (!renameCustomRuleGroup(oldName, newName)) {
+                        new AlertDialog.Builder(this).setMessage("重命名失败：新名称可能已存在，或本地配置未能保存。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    ApplicationInfo target = findApp(selectedPackage);
+                    if (target != null) showTarget(target);
+                }).show();
+    }
+
+    private void deleteCustomRuleGroup(String groupName) {
+        if (groupName == null || "默认".equals(groupName)) return;
+        java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
+        if (!groups.contains(groupName)) return;
+        groups.remove(groupName);
+        android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
+        for (int slot = 1; slot <= 64; slot++) {
+            String key = selectedPackage + ":dev_rule_group_" + slot;
+            if (groupName.equals(getPreferences(0).getString(key, "默认")))
+                edit.putString(key, "默认");
+        }
+        edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
+        if (!edit.commit()) {
+            new AlertDialog.Builder(this).setMessage("分组删除失败：本地配置未能保存。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        ApplicationInfo target = findApp(selectedPackage);
+        if (target != null) showTarget(target);
     }
 
     private void showCustomRuleGroupPicker(int slot) {

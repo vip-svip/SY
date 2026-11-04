@@ -812,3 +812,11 @@ After each implementation batch:
 - Previously the early return skipped service synchronization and recovery-alarm recalculation entirely. A user who revoked Usage Access after enabling foreground monitoring could then toggle shake rescue without starting/restarting its sensor service.
 - Extended the Shield native regression to assert the downgrade occurs before the `protect || shake` decision, only `protect_on` is cleared, and the independent shake path still reaches service/alarm synchronization.
 - Static/host regression only; Android permission revocation and sensor behavior remain device-validation items.
+
+## 2026-11-04 — Dia RuleGroupDataStore rename parity
+
+- Compared the original Dia DEX inventory, which includes `RuleGroupDataStore`, `RuleGroupListActivity` and `modify_rule_group`, with FX's per-app custom Hook group implementation.
+- FX already supported group creation, moving rules, deletion-to-default and JSON import/export, but the management dialog lacked the original rename operation.
+- Added a rename action for non-default groups. The rename validates the 24-character group-name contract, rejects duplicates and the reserved `默认` name, updates all 64 possible rule-slot assignments, and commits the group index and rule mappings with one SharedPreferences editor transaction.
+- Deletion retains the existing behavior (rules move to `默认` rather than being deleted) and now persists that reassignment plus group-index removal in one commit with an explicit failure message.
+- Added and registered a focused source regression for add/rename/delete, duplicate/default guards, full-slot reassignment and preservation of per-rule moves. CI validation is pending; this is not device verification of LSPosed injection.
