@@ -61,6 +61,9 @@ public class BlacklistActivity extends Activity {
     private static final int BLACKLIST_PAGE_SIZE = 50;
     private int blacklistPage = 1;
     private LinearLayout blacklistContainer;
+    private ScrollView blacklistScroll;
+    private static final String STATE_PAGE = "fx_shield_blacklist_page";
+    private static final String STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y";
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
 
@@ -71,6 +74,8 @@ public class BlacklistActivity extends Activity {
         pm = getPackageManager();
         prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadBlacklist();
+
+        if (savedInstanceState != null) blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1));
 
         // ===== 根布局 =====
         LinearLayout root = new LinearLayout(this);
@@ -106,8 +111,8 @@ public class BlacklistActivity extends Activity {
         root.addView(header);
 
         // ------- 内容区 -------
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        blacklistScroll = new ScrollView(this);
+        blacklistScroll.setFillViewport(true);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -201,13 +206,23 @@ public class BlacklistActivity extends Activity {
         blacklistContainer.setPadding(0, dp(16), 0, 0);
         content.addView(blacklistContainer);
 
-        scroll.addView(content);
-        root.addView(scroll);
+        blacklistScroll.addView(content);
+        root.addView(blacklistScroll);
 
         setContentView(root);
+        if (savedInstanceState != null) {
+            final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
+            blacklistScroll.post(() -> blacklistScroll.scrollTo(0, restoreY));
+        }
 
         refreshBlacklistUI();
         loadAppsAsync();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putInt(STATE_PAGE, Math.max(1, blacklistPage));
+        if (blacklistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, blacklistScroll.getScrollY()));
+        super.onSaveInstanceState(outState);
     }
 
     private int getStatusBarHeight() {
