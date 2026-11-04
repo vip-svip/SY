@@ -1261,3 +1261,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未覆盖 Dia File / Backup / Global Settings / GPS Picker / Wi-Fi Proxy / Session Log 等更多独立页面；这些仍需依据原路由优先级逐组接入。Shield Batch Cleanup / Screen Filter 亦未覆盖。
 - 下一批：先将 Dia File / Backup / Global Settings 选 1–3 页接入六 Tab，并核验 FileProvider/Document URI 的读写持久权限；随后处理 GPS Picker / Wi-Fi Proxy / Session Log，再完成 Shield Batch Cleanup / Screen Filter。
 - 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
+
+## 2026-11-05 — Dia 九个核心独立 Activity 统一六 Tab
+
+- 本节更新前实时 HEAD：`5161b42ce192e514c05e7d7228867e08b2eae231`；固定分支、FX 1.0.0 不变。
+- 在上一批七个工具页面基础上，继续接入：
+  - `FxDiaBackupActivity.java` — `dd2511b3d6338290709fc9a81161e18fe142fb22`。
+  - `FxDiaGlobalSettingsActivity.java` — `f74e6f9ccce768162fd5caa59c35894863b1a863`。
+- 同期并行工作线已接入 Crash Report 与 Dex Browser（最新源码确认已继承 `FxNativeTabActivity`），本批不重复修改。
+- 更新 `scripts/tests/fx-dia-six-tab-regression.sh`：`af3f2fe9371c58e36db37c3c5748df2f53a44221`，现在覆盖九个 Dia Activity：Activity Browser、Frida、Script Library、Inspector、Code Editor、JSON、Monitor Events、Backup、Global Settings。
+- 当前 HEAD 静态核对 5 项全部通过：九页共享六 Tab 宿主、无旧根布局绕过、Manifest 九项声明、回归脚本九页覆盖、Browser/Inspector 与 Library/Editor/Frida 既有路由仍在。
+- Backup 页保留原有两个 Activity Result 文件选择请求；本批未改文件导入/导出逻辑，只更换宿主根 View。仍需设备验证文件选择器返回与 Activity 重建行为。
+- 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器/真机导航及文件选择器结果回传；5 项为当前 GitHub 源码静态核验。
+- 下一批：继续接入 Dia Session Log / Crash Report / Dex Browser 的剩余深层页面（若最新并行分支未完成则复用），核对文件与导出回传；随后接入 Shield Batch Cleanup / Screen Filter。
+- 未改变六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
