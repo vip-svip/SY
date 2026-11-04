@@ -3,12 +3,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook/imported/dia"
-python3 - "$APP/AndroidManifest.xml" "$JAVA" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" <<'PY'
+python3 - "$APP/AndroidManifest.xml" "$JAVA" "$APP/java/de/privacyguard/adhook/MainActivity.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, dia_dir, shell_path = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+manifest_path, dia_dir, main_path, shell_path = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4])
+main = main_path.read_text(encoding="utf-8")
 shell = shell_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 android = "{http://schemas.android.com/apk/res/android}"
@@ -69,7 +70,8 @@ for filename, component in pages.items():
 browser = (dia_dir / "FxDiaActivityBrowserActivity.java").read_text(encoding="utf-8")
 frida = (dia_dir / "FxDiaFridaActivity.java").read_text(encoding="utf-8")
 library = (dia_dir / "FxDiaScriptLibraryActivity.java").read_text(encoding="utf-8")
-assert "FxDiaInspectorActivity.class" in browser
+assert "FxDiaInspectorActivity.class" in main, "MainActivity must retain the Dia Inspector route"
+assert "PackageManager.GET_ACTIVITIES" in browser, "Dia Activity Browser must retain component inventory browsing"
 assert "FxDiaCodeEditorActivity.class" in library
 assert 'button("打开 Frida 脚本库", () -> showFridaScriptLibrary())' in frida, "Frida page must retain its native script-library entry"
 assert "private void showFridaScriptLibrary()" in frida, "Frida script-library screen must remain implemented in the native page"
