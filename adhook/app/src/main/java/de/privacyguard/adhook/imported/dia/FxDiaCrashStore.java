@@ -161,14 +161,14 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
                     ? callbackThread.getName() : crashThreadName.trim();
             StringBuilder message = new StringBuilder("Native / Breakpad 崩溃");
             if (minidumpPath != null && !minidumpPath.trim().isEmpty()) {
-                message.append("\\nMinidump: ").append(minidumpPath);
+                message.append("\nMinidump: ").append(minidumpPath);
             }
             if (nativeInfo != null && !nativeInfo.trim().isEmpty()) {
-                message.append("\\n").append(FxDiaCrashRecord.bounded(nativeInfo, 4096));
+                message.append("\n").append(FxDiaCrashRecord.bounded(nativeInfo, 4096));
             }
-            String stack = "Native thread trace:\\n"
+            String stack = "Native thread trace:\n"
                     + FxDiaCrashRecord.bounded(nativeThreadTrack, 48 * 1024)
-                    + "\\nJVM thread snapshot:\\n"
+                    + "\nJVM thread snapshot:\n"
                     + FxDiaCrashRecord.bounded(jvmThreadTrack, 48 * 1024);
             FxDiaCrashRecord record = new FxDiaCrashRecord(
                     System.currentTimeMillis(), callbackThread.getId(), processName,

@@ -15,13 +15,14 @@ JNI_WRAPPER="$APP/java/com/babyte/breakpad/BaByteBreakpad.java"
 JNI_CALLBACK="$APP/java/com/babyte/breakpad/callback/NativeCrashCallback.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
 HOST_JNI_TEST="$ROOT/scripts/tests/DiaBreakpadJniContractHostTest.java"
+WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
 POLICY="$DIA/FxDiaCrashCapturePolicy.java"
 REDACTOR="$DIA/FxDiaCrashRedactor.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
-python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
+python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET

@@ -25,8 +25,8 @@ public class FxDiaCrashRecordTest {
     @Test public void nativeCrashCallbackDataIsIncludedInExistingReport() {
         FxDiaCrashRecord record = new FxDiaCrashRecord(
                 1000L, 7L, "fx", "RenderThread", "Device",
-                "Native / Breakpad 崩溃\\nMinidump: private/minidump.dmp",
-                "Native thread trace:\\nlibnative.so!crash\\nJVM thread snapshot:\\nstack frame");
+                "Native / Breakpad 崩溃\nMinidump: private/minidump.dmp",
+                "Native thread trace:\nlibnative.so!crash\nJVM thread snapshot:\nstack frame");
         String raw = record.format(false);
         assertTrue(raw.contains("Native / Breakpad 崩溃"));
         assertTrue(raw.contains("private/minidump.dmp"));
