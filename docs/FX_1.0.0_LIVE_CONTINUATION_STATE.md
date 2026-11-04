@@ -3576,3 +3576,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 回归脚本复核发现原断言引用了不存在的 `RoundedCornerShape(when (mode)` 写法，且错误地要求模式标题字面量出现在选择器文件。已修正为检查真实 enum 选择入口、Liquid/Miuix/Classic 分支、Classic WebView 挂载及 Tab 路由，避免静态门禁自身误报。
 - 修正回归脚本提交：`aaf22d600fbf80d31fd40f39ee8f6c2ce20dc94a`。工作流已接入该脚本，但本轮未执行 Actions/Gradle，不能标记测试通过。
+
+
+## 2026-11-05 — 新增 HUAWEI 与 iOS 全局界面模式接管要求
+
+- 用户要求在跨 AI 接管提示词中加入 HUAWEI 和 iOS 界面模式及实现方法。
+- 全局 Skin 目标由三种扩展为五种：ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle。
+- HUAWEI 模式定义为 Android APK 内的 HarmonyOS 风格 Skin：通过 Jetpack Compose 独立 Design Tokens 与组件 Renderer 实现卡片层级、服务卡片式信息组织、留白、图标/字号网格、动效和系统栏适配；不得依赖 HMS/HarmonyOS 私有 API，不得伪称 HarmonyOS 原生应用。
+- iOS 模式定义为 Android APK 内的 Cupertino 风格 Skin：通过 Compose 自有组件实现导航栏、标签栏、分组列表、Form、Toggle、Sheet、ActionSheet 和层级模糊；遵循公开 HIG 的交互原则，不调用 Apple 私有 API，不分发未经许可的 SF Symbols/字体/系统资源，不得伪称 iOS 原生客户端。
+- 两种新模式须加入统一 FxUiMode 稳定 ID（建议 huawei/ios）、统一 Skin Host、tokens、六 Tab 页面适配、深浅色/字体缩放/无障碍/WindowInsets/返回手势和截图回归；换肤不能重启 VPN、内核级代理、DNS、Hook 或脚本服务。
+- 本次仅更新产品方案与 AI 接管提示词，不代表 HUAWEI/iOS Skin 已有源码实现。现有 FxUiMode.kt、FxDesignModePanel.kt、FxNativeAppShell.kt 当前仍只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三模式，后续必须继续修改源码、测试和编译。
+- 产品方案提交：8c0ec08a52c1d54d9b1e5e4825c627c7a33ec835。
+- 验证：已从 GitHub 读取更新响应；尚未完成新增两种模式源码、Gradle 编译、截图/UI 自动化或设备验收。
