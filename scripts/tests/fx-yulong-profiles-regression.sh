@@ -170,7 +170,7 @@ esac
 AGH
 cat > "$PATCH_MOD/fxrules/anti_fraud_96110.txt" <<'RULES'
 DOMAIN,gjfzpt.cn,REJECT
-DOMAIN, fzapp-test-tyy.gjfzpt.cn,REJECT
+DOMAIN,fzapp-test-tyy.gjfzpt.cn,REJECT
 DOMAIN,oss.gjfzpt.cn,REJECT
 DOMAIN,fzapp.gjfzpt.cn,REJECT
 DOMAIN,fzapph5.gjfzpt.cn,REJECT
@@ -188,6 +188,7 @@ python3 "$PATCHER" "$PATCH_MOD"
 python3 - "$PATCH_MOD" <<'PY'
 from pathlib import Path
 import sys
+import subprocess
 m=Path(sys.argv[1])
 agh=(m/"scripts/adguardhome.sh").read_text(encoding="utf-8")
 service=(m/"service.sh").read_text(encoding="utf-8")
