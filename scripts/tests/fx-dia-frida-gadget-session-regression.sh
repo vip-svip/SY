@@ -2,12 +2,15 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
+SESSION_LOG="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Dia Frida Activity source missing" >&2; exit 1; }
+[ -s "$SESSION_LOG" ] || { echo "FAIL: Dia Frida session log Activity source missing" >&2; exit 1; }
 
-python3 - "$ACTIVITY" <<'PY'
+python3 - "$ACTIVITY" "$SESSION_LOG" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+session_log = Path(sys.argv[2]).read_text(encoding="utf-8")
 required = {
     "Gadget attach action is reachable from UI": 'button("连接 Gadget、加载当前脚本并恢复 WAIT", () -> attachToGadgetAndResume())',
     "Gadget message/console log action is reachable from UI": 'button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog())',
@@ -104,6 +107,16 @@ for label, needle in (
 ):
     if needle not in existing_guard:
         raise SystemExit(f"FAIL: {label}")
+if "new ArrayBlockingQueue<>(1)" not in session_log:
+    raise SystemExit("FAIL: Frida session log worker queue must be bounded")
+if "ThreadPoolExecutor(1, 1, 30L" not in session_log:
+    raise SystemExit("FAIL: Frida session log worker must use a single bounded worker")
+if "new ThreadPoolExecutor.AbortPolicy()" not in session_log:
+    raise SystemExit("FAIL: Frida session log worker must reject overload explicitly")
+if "catch (RejectedExecutionException full)" not in session_log:
+    raise SystemExit("FAIL: Frida session log UI must surface queue saturation")
+if "worker.shutdownNow();" not in session_log:
+    raise SystemExit("FAIL: Frida session log worker must stop with Activity lifecycle")
 if "ps -A -o PID,NAME" in attach:
     raise SystemExit("FAIL: Gadget process matching must not rely on the ps NAME column")
 if "session_pid_active()" not in attach or "Z|X|x" not in attach:
