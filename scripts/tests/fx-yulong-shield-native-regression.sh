@@ -95,8 +95,25 @@ for tag in ("activity", "service", "receiver", "provider"):
     duplicates = sorted(name for name in set(names) if name and names.count(name) > 1)
     assert not duplicates, f"Unified manifest duplicates {tag} components: {duplicates}"
 
-assert not any(p in manifest_text for p in ("com.youlong.hd", "com.youlong.ad", "dialog.box")), \
-    "A source APK/package was registered instead of an in-app Activity"
+# Legacy package strings are valid in Intent actions used for explicit migration
+# compatibility; only the APK package and declared component names must belong
+# to the unified FX application.
+assert manifest.attrib.get("package") == "de.privacyguard.adhook", \
+    "Unified manifest must declare the FX application package, not an original source package"
+for tag in ("activity", "service", "receiver", "provider"):
+    for node in manifest.findall("./application/" + tag):
+        component_name = node.attrib.get(A + "name", "")
+        assert not any(source_pkg in component_name for source_pkg in
+                       ("com.youlong.hd", "com.youlong.ad", "dialog.box")), \
+            f"Original application component was registered instead of migrated in-app component: {tag} {component_name}"
+command_guard = next((node for node in manifest.findall("./application/activity")
+                      if node.attrib.get(A + "name", "").endswith("FxStellarCommandGuardActivity")), None)
+assert command_guard is not None, "Stellar command-guard in-app Activity is missing"
+assert command_guard.attrib.get(A + "permission") == "android.permission.INTERACT_ACROSS_USERS_FULL", \
+    "Stellar command guard must remain signature-protected"
+assert any(item.attrib.get(A + "name") == "com.youlong.hd.intent.action.COMMAND_GUARD"
+           for item in command_guard.findall("./intent-filter/action")), \
+    "Original Stellar command-guard action must remain compatible"
 
 for label in ("Dia 23.11", "游龙广告插件 7.0.1", "游龙安全护盾 9.9.60"):
     assert label in main, f"Settings migration entry missing: {label}"
