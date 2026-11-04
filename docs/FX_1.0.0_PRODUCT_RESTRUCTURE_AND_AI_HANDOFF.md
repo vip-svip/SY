@@ -524,3 +524,24 @@ P6：整合验收、耗电/防泄漏/升级/回滚/真机验证。
 - 新增需求先更新本文件，再按页面/功能批次实现。
 - 若实现遇到 Android 平台限制、许可问题或安全风险，写明具体边界和可用替代方案，不要默默删除需求或谎称完成。
 - 每批代码提交同步更新 `docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`。
+
+
+## 三种全局界面模式：源码落地约定
+
+FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不同的主题状态：
+
+| 模式 | 存储 ID | 渲染职责 |
+|---|---|---|
+| ClassicWebCompat | `classic` | 经典兼容配色、低圆角导航与兼容布局；不改变业务服务 |
+| FXLiquidNative | `glass` | 原生页面、液态玻璃导航、Backdrop 模糊/折射效果 |
+| MiuixStyle | `miuix` | Miuix Theme、系统动态配色、Miuix 风格导航和卡片 |
+
+源码入口：
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、旧 ID 迁移、读取/持久化。
+- `FxDesignModePanel.kt`：设置页三模式选择面板。
+- `FxNativeAppShell.kt`：全局六 Tab Shell、三套导航外观与背景配色。
+- `MainActivity.java`：启动时读取统一模式；切换时同步保存并重建当前界面，不调用 VPN/DNS/代理/Hook/脚本服务启停接口。
+
+切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换三种模式，服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix` ID 必须兼容。
+
+注意：本次源码已建立统一模式模型、选择面板、全局 Shell 的三种差异化视觉和持久化切换；这不等于三个模式所有页面均已完成逐页视觉验收。ClassicWebCompat 当前仍沿用现有 native 页面容器与兼容样式，若要求恢复完整旧 WebUI 的逐页行为，必须另做页面级迁移/回归，不能仅凭模式名称宣称完成。
