@@ -36,5 +36,12 @@ grep -Fq 'REQUEST_CODE_FULL_EDITOR = 0x3039' "$FRIDA" || fail "Frida page did no
 grep -Fq '打开全屏代码编辑器' "$FRIDA" || fail "Frida page lacks original full-screen editor entry"
 grep -Fq 'FxDiaCodeEditorActivity.RESULT_CODE_EDITOR' "$FRIDA" || fail "Frida page does not receive the original editor result"
 grep -Fq 'script.setText(editedSource)' "$FRIDA" || fail "Frida page does not restore returned source"
+grep -Fq 'STATE_FULL_EDITOR_PENDING' "$FRIDA" || fail "Frida caller does not persist the pending editor request across recreation"
+grep -Fq 'MessageDigest.getInstance("SHA-256")' "$FRIDA" || fail "Frida editor source snapshot fingerprint is missing"
+grep -Fq 'pendingFullEditorTargetPackage = targetPackage;' "$FRIDA" || fail "Frida editor request does not capture its target package"
+grep -Fq 'pendingFullEditorSourceSha256 = sourceFingerprint;' "$FRIDA" || fail "Frida editor request does not capture the source revision"
+grep -Fq '!java.util.Objects.equals(requestedTarget, targetPackage)' "$FRIDA" || fail "Frida editor result is not rejected after target change"
+grep -Fq '!requestedFingerprint.equals(currentFingerprint)' "$FRIDA" || fail "Frida editor result can overwrite a newer script revision"
+grep -Fq 'outState.putBoolean(STATE_FULL_EDITOR_PENDING, fullEditorPending)' "$FRIDA" || fail "Frida editor pending request is not saved during rotation"
 
-echo "PASS: Dia Sora CodeEditor page, JavaLanguage, 0x3039 result contract, unsaved-change flow and Frida caller wiring"
+echo "PASS: Dia Sora CodeEditor page, JavaLanguage, 0x3039 result contract, unsaved-change flow, source fingerprint and target ownership"
