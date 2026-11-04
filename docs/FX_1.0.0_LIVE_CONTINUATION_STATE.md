@@ -3248,3 +3248,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`FxYulongDnsActivity.java`、`fx-yulong-dns-cache-regression.sh`。提交：`2a0fc45d98423c6cb20f441c8a916b796e7ba9d4`、`6abe8006fe003789045d2de5162cdd309f4b5dcd`。
 - 验证：源码静态检查确认分页、过滤、查询重置、页码恢复与计数 UI；定向 Actions 等待本轮结果。Android UI 自动化/真机滚动与旋转未验证。
 - 下一批：读取 DNS 页面回归结果；随后检查游龙广告 Firewall/Whitelist/Stats 页的空状态、筛选与返回恢复，继续补齐三套应用原生页面覆盖。固定 FX 1.0.0，不打最终包。
+
+
+## 2026-11-05 — Dia Frida server 启动路径偏好写入顺序修复
+
+- 页面：Dia 23.11 → Frida → frida-server 启动/状态检查。
+- 发现同类状态一致性缺陷：`startServer()` 在 Root 执行前就把新 `server_path` 写入 SharedPreferences；若 Root 授权失败、二进制不可执行、PID/目录守卫拒绝或启动失败，页面重开仍会显示这条未成功验证的路径。
+- 修复：将 `server_path` 持久化移动到 Root 返回成功之后，使用 `commit()` 检查结果；Root 失败不改变旧路径。偏好索引写入失败时明确说明 Root 操作结果与本机索引状态，不冒充完整保存成功。显式“保存路径”按钮仍保留原有独立保存语义。
+- 产品提交：`04c95d7f0af69338ea061c6987fee295a9c8d228`；回归提交：`4f507a2f48855ad607dbe2965a9e6f747a182931`。
+- 验证：源码回读确认 Root 调用先于偏好提交；回归脚本新增顺序、同步提交和错误提示断言。Actions 尚待读取；Android Gradle/JUnit/Root 真机未验证。
+- 下一步：读取 Frida server/Gadget targeted Actions；继续目标进程选择、server 状态回读、Gadget 会话取消/停止与页面重建的 UI 闭环。
