@@ -820,3 +820,10 @@ After each implementation batch:
 - Added a rename action for non-default groups. The rename validates the 24-character group-name contract, rejects duplicates and the reserved `默认` name, updates all 64 possible rule-slot assignments, and commits the group index and rule mappings with one SharedPreferences editor transaction.
 - Deletion retains the existing behavior (rules move to `默认` rather than being deleted) and now persists that reassignment plus group-index removal in one commit with an explicit failure message.
 - Added and registered a focused source regression for add/rename/delete, duplicate/default guards, full-slot reassignment and preservation of per-rule moves. CI validation is pending; this is not device verification of LSPosed injection.
+
+## 2026-11-04 — Yulong Tasker independent action concurrency
+
+- Replaced the Tasker receiver's process-wide pending flag with separate `AD_REQUEST_PENDING` and `VPN_REQUEST_PENDING` gates. Repeated operations within one plane remain serialized, but ad-filter enable/disable no longer rejects an independent VPN start/stop request.
+- Kept the existing ad Activity/Quick Settings Tile transaction lease for ad-master changes, and retained the module's own VPN lifecycle lock for VPN routing. No second Android `VpnService` was introduced.
+- Updated the registered Tasker concurrency regression to verify operation-to-gate selection and all four release paths.
+- GitHub Actions validation for this batch is pending. The change is source/host-regression scoped; simultaneous actions against real Android Root/VPN runtimes still require device verification.
