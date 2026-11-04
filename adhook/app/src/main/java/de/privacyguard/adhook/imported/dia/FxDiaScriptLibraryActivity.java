@@ -504,7 +504,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                             clearPendingImportUri();
                             submitIo(() -> {
                                 try {
-                                    int count = FxDiaScriptLibraryStore.mergeImport(this, json);
+                                    int count = FxDiaScriptLibraryStore.mergeImport(this, json, preview.overwrittenNames);
                                     JSONObject loaded = FxDiaScriptLibraryStore.read(this);
                                     runOnUiThread(() -> {
                                         if (isFinishing() || isDestroyed()) return;
