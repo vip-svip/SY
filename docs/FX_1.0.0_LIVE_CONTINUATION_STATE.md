@@ -3565,3 +3565,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 补充修正：ClassicWebCompat 的实际可见 WebUI 页面范围明确为 VPN、Ad/Hosts、隐私、脚本四个业务页；Hook 与设置由同一原生宿主承载并采用 Classic 外观，避免文档夸大为六页全部来自旧 WebUI。
 - 新增单元测试 `adhook/app/src/test/java/de/privacyguard/adhook/FxUiModeTest.kt`，覆盖三种枚举、稳定存储 ID、旧 `web` 别名迁移、未知值回退和显示名称映射。
 - 单元测试源码已提交：`7c31f43e7086eccc7b0587f38578d81d50275e8b`；文档准确性修订提交：`b0c85901437b2a7e4144958efbbc76c87b877534`。
+
+
+## 2026-11-05 — 三模式界面增加自动回归门禁
+
+- 新增 `scripts/tests/fx-global-ui-modes-regression.sh`，检查统一模式枚举/旧 ID 兼容、三个模式选择入口、Liquid/Miuix/Classic Shell 分支、统一持久化调用。
+- 将该回归脚本加入 `.github/workflows/build-fx-adhook.yml` 的静态迁移检查步骤，避免后续改动静默移除三模式接线。
+- 测试脚本提交：`5e9121fa6b0c26e072c4f520f14afce7b67f1d8e`；CI 接入提交：`b9db142c5ce27ce1a0088566812311b7a51bee7f`。
+- 当前未能从本轮连接器触发 Actions，也没有 Gradle 编译结果；此处只确认源码和工作流配置已写入，不能报告 CI 通过。下一步应获取该分支 PR 触发的 workflow run，读取具体 job 日志，先修复编译/静态回归失败，再做安装和运行中切换验证。
