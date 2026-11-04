@@ -63,6 +63,14 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private ScrollView blacklistScroll;
     private static final String STATE_PAGE = "fx_shield_blacklist_page";
     private static final String STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y";
+    private static final String STATE_PICKER_OPEN = "fx_shield_blacklist_picker_open";
+    private static final String STATE_PICKER_QUERY = "fx_shield_blacklist_picker_query";
+    private static final String STATE_PICKER_PAGE = "fx_shield_blacklist_picker_page";
+    private static final String STATE_PICKER_STAGED = "fx_shield_blacklist_picker_staged";
+    private boolean pickerDialogOpen;
+    private String pickerQuery = "";
+    private int pickerPage = 1;
+    private final Set<String> pickerStaged = new HashSet<>();
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
 
@@ -74,7 +82,14 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         prefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         loadBlacklist();
 
-        if (savedInstanceState != null) blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1));
+        if (savedInstanceState != null) {
+            blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1));
+            pickerDialogOpen = savedInstanceState.getBoolean(STATE_PICKER_OPEN, false);
+            pickerQuery = savedInstanceState.getString(STATE_PICKER_QUERY, "");
+            pickerPage = Math.max(1, savedInstanceState.getInt(STATE_PICKER_PAGE, 1));
+            ArrayList<String> staged = savedInstanceState.getStringArrayList(STATE_PICKER_STAGED);
+            if (staged != null && staged.size() <= 100) pickerStaged.addAll(staged);
+        }
 
         // ===== 根布局 =====
         LinearLayout root = new LinearLayout(this);
@@ -220,6 +235,10 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt(STATE_PAGE, Math.max(1, blacklistPage));
+        outState.putBoolean(STATE_PICKER_OPEN, pickerDialogOpen);
+        outState.putString(STATE_PICKER_QUERY, pickerQuery.length() > 256 ? pickerQuery.substring(0, 256) : pickerQuery);
+        outState.putInt(STATE_PICKER_PAGE, Math.max(1, Math.min(100, pickerPage)));
+        if (pickerStaged.size() <= 100) outState.putStringArrayList(STATE_PICKER_STAGED, new ArrayList<>(pickerStaged));
         if (blacklistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, blacklistScroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
@@ -315,6 +334,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                     appByPackage.clear();
                     appByPackage.putAll(loadedIndex);
                     refreshBlacklistUI();
+                    if (pickerDialogOpen) showAppPicker(true);
                 });
             });
         } catch (RejectedExecutionException full) {
@@ -325,7 +345,15 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         }
     }
 
-    private void showAppPicker() {
+    private void showAppPicker() { showAppPicker(false); }
+
+    private void showAppPicker(boolean restoring) {
+        if (!restoring) {
+            pickerDialogOpen = true;
+            pickerQuery = "";
+            pickerPage = 1;
+            pickerStaged.clear();
+        }
         if (appsLoading) {
             Toast.makeText(this, "正在读取应用列表，请稍后再试。", Toast.LENGTH_SHORT).show();
             return;
@@ -343,8 +371,8 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             return;
         }
 
-        final Set<String> staged = new HashSet<>();
-        final int[] page = {1};
+        final Set<String> staged = pickerStaged;
+        final int[] page = {Math.max(1, Math.min(100, pickerPage))};
         final int pageSize = 50;
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -352,6 +380,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         EditText search = new EditText(this);
         search.setSingleLine(true);
         search.setHint("搜索应用名称或包名");
+        search.setText(pickerQuery);
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
         TextView count = new TextView(this);
         count.setTextColor(0xff687681);
@@ -409,12 +438,15 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
                 page[0] = 1;
+                pickerPage = 1;
+                pickerQuery = value == null ? "" : value.toString();
                 render[0].run();
             }
             @Override public void afterTextChanged(Editable value) { }
         });
         more.setOnClickListener(v -> {
-            page[0]++;
+            page[0] = Math.min(100, page[0] + 1);
+            pickerPage = page[0];
             render[0].run();
         });
         dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
@@ -426,6 +458,14 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                     dialog.dismiss();
                 }));
         render[0].run();
+        dialog.setOnDismissListener(ignored -> {
+            if (!isChangingConfigurations()) {
+                pickerDialogOpen = false;
+                pickerQuery = "";
+                pickerPage = 1;
+                pickerStaged.clear();
+            }
+        });
         dialog.show();
     }
 
