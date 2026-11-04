@@ -271,7 +271,10 @@ public final class AdVisibilityHook extends XposedModule {
         // Continue with automatic Ad recognition even when Remote Files are absent.
         // All optional per-app policy flags below remain false unless a valid config loaded.
         final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;
-        final boolean debuggableTarget = (param.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        final int applicationFlags = param.getApplicationInfo().flags;
+        final boolean debuggableTarget = (applicationFlags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        final boolean systemTarget = (applicationFlags & (ApplicationInfo.FLAG_SYSTEM
+                | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
         if (debuggableTarget) debuggablePackages.add(pkg);
         else debuggablePackages.remove(pkg);
         // Custom Hook is explicitly enabled per app and restricted to debuggable builds.
@@ -320,7 +323,9 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
         final boolean dialogMatchForPackage = target != null
                 && target.dialogMatchEnabled && debuggableTarget;
-        final boolean toastFilterForPackage = target != null
+        // Never filter system or updated-system applications, even if a stale or
+        // manually crafted Remote Files entry contains a Toast opt-in.
+        final boolean toastFilterForPackage = !systemTarget && target != null
                 && target.toastFilterEnabled && !target.toastTextTerms.isEmpty();
         if (!adsForPackage && !dialogMatchForPackage && !toastFilterForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
