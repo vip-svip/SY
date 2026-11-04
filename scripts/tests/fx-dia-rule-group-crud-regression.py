@@ -29,9 +29,11 @@ assert '"默认".equals(oldName)' in rename and "validCustomRuleGroupName(newNam
 assert "groups.contains(normalized)" in rename and '"默认".equals(normalized)' in rename
 assert 'for (int slot = 1; slot <= 64; slot++)' in rename
 assert 'edit.putString(key, normalized)' in rename
+assert 'oldName.equals(assigned.trim())' in rename, "rename must migrate legacy whitespace-padded rule assignments"
 assert 'edit.putStringSet(selectedPackage + ":dev_rule_groups"' in rename and "edit.commit()" in rename
 assert "input.setText(oldName)" in rename_dialog and "renameCustomRuleGroup(oldName, newName)" in rename_dialog
 assert '"默认".equals(groupName)' in delete and 'edit.putString(key, "默认")' in delete
+assert 'groupName.equals(assigned.trim())' in delete, "delete must release legacy whitespace-padded rule assignments to Default"
 assert "edit.commit()" in delete
 assert "showCustomRuleGroupPicker(int slot)" in source and "showCustomRuleGroupPicker(slot)" in source
 assert "renderCustomRules()" in source and "ensureCustomRuleGroup(groupName)" in source
