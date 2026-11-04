@@ -67,10 +67,12 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private static final String STATE_PICKER_QUERY = "fx_shield_blacklist_picker_query";
     private static final String STATE_PICKER_PAGE = "fx_shield_blacklist_picker_page";
     private static final String STATE_PICKER_STAGED = "fx_shield_blacklist_picker_staged";
+    private static final String STATE_PICKER_SCROLL_Y = "fx_shield_blacklist_picker_scroll_y";
     private boolean pickerDialogOpen;
     private String pickerQuery = "";
     private int pickerPage = 1;
     private final Set<String> pickerStaged = new HashSet<>();
+    private ScrollView pickerScroll;
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
 
@@ -238,6 +240,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         outState.putBoolean(STATE_PICKER_OPEN, pickerDialogOpen);
         outState.putString(STATE_PICKER_QUERY, pickerQuery.length() > 256 ? pickerQuery.substring(0, 256) : pickerQuery);
         outState.putInt(STATE_PICKER_PAGE, Math.max(1, Math.min(100, pickerPage)));
+        if (pickerScroll != null) outState.putInt(STATE_PICKER_SCROLL_Y, Math.max(0, pickerScroll.getScrollY()));
         if (pickerStaged.size() <= 100) outState.putStringArrayList(STATE_PICKER_STAGED, new ArrayList<>(pickerStaged));
         if (blacklistScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, blacklistScroll.getScrollY()));
         super.onSaveInstanceState(outState);
@@ -348,6 +351,10 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private void showAppPicker() { showAppPicker(false); }
 
     private void showAppPicker(boolean restoring) {
+        if (!restoring && appsLoading) {
+            Toast.makeText(this, "正在读取应用列表，请稍后再试。", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (!restoring) {
             pickerDialogOpen = true;
             pickerQuery = "";
@@ -363,6 +370,8 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             if (!currentBlacklist.contains(item.packageName)) candidates.add(item);
         }
         if (candidates.isEmpty()) {
+            pickerDialogOpen = false;
+            pickerStaged.clear();
             new AlertDialog.Builder(this)
                     .setTitle("提示")
                     .setMessage("没有可加入管控的应用")
@@ -387,6 +396,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         count.setTextSize(12);
         content.addView(count);
         ScrollView scroll = new ScrollView(this);
+        pickerScroll = scroll;
         LinearLayout rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(rows);
@@ -458,7 +468,12 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                     dialog.dismiss();
                 }));
         render[0].run();
+        if (restoring) {
+            final int restorePickerY = Math.max(0, getIntent().getIntExtra(STATE_PICKER_SCROLL_Y, 0));
+            scroll.post(() -> scroll.scrollTo(0, restorePickerY));
+        }
         dialog.setOnDismissListener(ignored -> {
+            pickerScroll = null;
             if (!isChangingConfigurations()) {
                 pickerDialogOpen = false;
                 pickerQuery = "";
