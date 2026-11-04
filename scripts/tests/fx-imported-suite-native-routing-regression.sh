@@ -5,7 +5,7 @@ MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$MAIN" ] || fail "MainActivity source missing"
 grep -Fq 'private void handleImportedNativeTabIntent(Intent intent)' "$MAIN" || fail "native-tab shortcut handler missing"
-grep -Fq 'if (tab >= 0 && tab <= 3) openImportedNativeTab(tab);' "$MAIN" || fail "native tab shortcut is not range-checked"
+grep -Fq 'if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);' "$MAIN" || fail "six-tab shortcut is not range-checked and routed through native tab selection"
 grep -Fq 'handleImportedNativeTabIntent(getIntent());' "$MAIN" || fail "cold-start native tab route missing"
 grep -Fq 'handleImportedNativeTabIntent(intent);' "$MAIN" || fail "singleTop native tab route missing"
 grep -Fq 'case "VPN 保护": case "VPN 状态": case "自动重连":' "$MAIN" || fail "Yulong VPN feature group not routed"
