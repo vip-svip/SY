@@ -429,7 +429,11 @@ assert "MAX_ENTRIES = 10000" in blacklist_policy
 assert "isWellFormed(String raw)" in blacklist_policy
 assert "if (!isWellFormed(raw)) return Collections.emptySet();" in blacklist_policy
 assert "serialize(Iterable<String> packageNames)" in blacklist_policy
-assert "return FxYulongBlacklistPolicy.parse(values);" in protection_service, "Protection service must reject malformed blacklist atomically"
+assert 'Set<String> blacklist = split(prefs);' in protection_service, "Protection service must load blacklist through guarded preference access"
+assert 'private Set<String> split(SharedPreferences prefs)' in protection_service
+assert 'FxYulongBlacklistPolicy.parse(prefs.getString("blacklist_pkgs", ""))' in protection_service
+assert "catch (RuntimeException corruptPreference)" in protection_service, "Wrong-type blacklist preference must not crash foreground warning service"
+assert "return java.util.Collections.emptySet();" in protection_service, "Unreadable blacklist preference must fail open instead of enforcing a partial list"
 assert 'blacklistDataCorrupt = !raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw)' in blacklist_activity
 assert "if (blacklistDataCorrupt)" in blacklist_activity and "已阻止覆盖" in blacklist_activity
 assert 'prefs.edit().putString("blacklist_pkgs", serialized).commit()' in blacklist_activity, "Blacklist writes must be checked and synchronous"
