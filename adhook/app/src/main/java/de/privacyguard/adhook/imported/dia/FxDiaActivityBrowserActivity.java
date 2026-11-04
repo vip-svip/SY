@@ -50,6 +50,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
     private static final String STATE_ACTIVITY_QUERY = "fx_dia_browser_activity_query";
     private static final String STATE_APP_PAGE = "fx_dia_browser_app_page";
     private static final String STATE_ACTIVITY_PAGE = "fx_dia_browser_activity_page";
+    private static final String STATE_SCROLL_Y = "fx_dia_browser_scroll_y";
 
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
@@ -68,6 +69,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
     private LinearLayout activityRows;
     private LinearLayout appPager;
     private LinearLayout activityPager;
+    private ScrollView pageScroll;
     private EditText appSearch;
     private EditText activitySearch;
     private TextView appCount;
@@ -88,6 +90,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
     private int appPage;
     private int activityPage;
     private String pendingRestorePackage;
+    private int restoredScrollY;
 
     private static final class ActivityEntry {
         final ActivityInfo info;
@@ -153,6 +156,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
             pendingRestorePackage = state.getString(STATE_SELECTED_PACKAGE);
             appPage = Math.max(0, state.getInt(STATE_APP_PAGE, 0));
             activityPage = Math.max(0, state.getInt(STATE_ACTIVITY_PAGE, 0));
+            restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
         }
 
         LinearLayout root = new LinearLayout(this);
@@ -170,6 +174,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
+        pageScroll = scroll;
         scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -244,6 +249,15 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 activitySearch, activityCount, activityRows, activityPager);
 
         setContentViewWithNativeTabs(root, 5);
+        if (restoredScrollY > 0) {
+            final int restoreY = restoredScrollY;
+            scroll.post(() -> {
+                if (!destroyed && !isFinishing() && !isDestroyed()
+                        && pageScroll == scroll && scroll.getParent() != null) {
+                    scroll.scrollTo(0, restoreY);
+                }
+            });
+        }
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count,
                                                     int after) { }
@@ -682,6 +696,8 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 activitySearch == null ? "" : activitySearch.getText().toString());
         outState.putInt(STATE_APP_PAGE, appPage);
         outState.putInt(STATE_ACTIVITY_PAGE, activityPage);
+        outState.putInt(STATE_SCROLL_Y, pageScroll == null
+                ? restoredScrollY : Math.max(0, pageScroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
 
