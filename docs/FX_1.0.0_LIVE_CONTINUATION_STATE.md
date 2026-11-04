@@ -2468,3 +2468,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态复核：从最新分支重新读取 MainActivity、DEX 回归脚本、Policy、Policy Host 测试、WhitelistActivity、WhitelistPickerActivity、WarningActivity 和 Shield 回归脚本；请求标记/恢复/消费/异常回滚、CSV 整体校验、损坏标记、写入拒绝和回归断言全部匹配。未运行 Shell/Host JUnit/Gradle/UI 自动化/设备测试；不声称运行测试通过。
 - 未完成：黑名单 CSV 仍使用宽松分割与异步 `apply()`，需检查原始数据损坏时的覆盖风险；白名单/黑名单页面的真实 Android 返回链与重建流程仍需设备验证。
 - 下一批直接任务：① 为黑名单增加有界完整性解析与写入失败回显，防止损坏条目被静默覆盖；② 检查安全护盾名单页面在切换/返回后的数据刷新；③ 继续未迁移的 Dia/游龙广告原生页面批次。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — 安全护盾黑名单 CSV 完整性与写入原子性修复
+
+- 本批起始依据是实时分支最新状态；发现黑名单 UI 与前台守护服务分别宽松分割 CSV，非法条目会被部分接受；UI 写入使用异步 `apply()`，且删除/清空/批量加入操作没有检查持久化是否成功，可能出现界面显示已变更但磁盘未确认、或后续保存时覆盖异常原始名单。
+- 新增 `FxYulongBlacklistPolicy`：统一 1 MiB 原始文本上限、10,000 条上限、255 字符包名限制；整份 CSV 任一条目无效即整体拒绝，不返回部分名单；序列化拒绝非法条目/超限集合。
+- 修改 `BlacklistActivity`：加载时识别损坏数据并在页面显示警告；损坏状态禁止新增、清空和移除；持久化改为检查 `commit()` 结果；批量加入、单项移除、清空在保存失败时回滚内存集合。
+- 修改 `FxYulongProtectionService`：前台守护改用同一原子解析策略；遇到损坏/超限名单时不部分执行，安全地不触发名单提醒，避免误报/错误拦截。
+- 新增 `FxYulongBlacklistPolicyTest`，覆盖合法解析/去重、整表拒绝、空字段、null/空值、超大输入、条数上限、序列化拒绝非法项和往返一致性；扩展 `fx-yulong-shield-native-regression.sh` 保护 UI、服务和策略一致性。
+- 改动路径：`FxYulongBlacklistPolicy.java`、`BlacklistActivity.java`、`FxYulongProtectionService.java`、`FxYulongBlacklistPolicyTest.java`、`scripts/tests/fx-yulong-shield-native-regression.sh`、本状态文件。
+- 提交：`8b6ca25d4bb5b139fa715c9fb5df5724c4a413e8`（新增策略）；`c7b9fff2fb7be3e13f6168d43e2766a6db09f3ed`（UI 完整性与 commit 写入）；`97c31af840245bbcdd2498f1d7ed8e2cbb6dc8c5`（失败回滚/损坏写入门禁）；`9103e1f909c899ac81ddda204f5ddb72a53b7bce`（守护服务统一解析）；`3d0566c8eebf4b80e494466c57c24d896f0db692`（Policy Host 测试）；`1bd9ae1485c541176173f71d67ddbb49335a316e`（Shield 回归断言）；`c65d230cd5249f0d683bf3035fd098672a6c0946`（null 偏好值保护）。
+- 静态核验：重新读取策略、Activity、Service、JUnit 测试与 Shell 回归脚本，确认有界解析、整表拒绝、损坏提示、写入 commit、失败回滚及服务共用解析均匹配。未运行 JUnit/Gradle/Shell/模拟器/真机测试；不可宣称运行测试通过。
+- 剩余事项：检查黑名单数据从旧版迁移时的真实格式兼容；设备验证损坏名单 fail-open 的用户提示和恢复流程；测试 commit 失败故障注入与 10,000/10,001 条边界。
+- 本次读取时分支 HEAD：`c75e31229f4dd8cedd904ec0442f7b5cefb6410e`。
+- 下一批：回到 Dia / 游龙广告插件原生页面，优先修复页面导航、列表/表单状态恢复和真实交互闭环；固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
