@@ -64,22 +64,42 @@ for token in ("files.keys()", "hashes.keys()", "Base64.getDecoder().decode(encod
 transaction_start = source.index("private String buildTransactionalRestoreCommand(")
 transaction_end = source.index("private void restoreBackupBytes(", transaction_start)
 transaction = source[transaction_start:transaction_end]
-for token in ("rollback(){", "FX_DIA_RESTORE_ROLLBACK_FAILED", "settings.old", ".existed", "_fx_mutating=1", "_fx_committed=1", "trap rollback EXIT"):
-    assert token in transaction, "transactional Root rollback contract missing: " + token
+for token in ("rollback(){", "cleanup_txn(){", "FX_DIA_RESTORE_ROLLBACK_FAILED",
+              "FX_DIA_RESTORE_CLEANUP_PENDING", "settings.old", ".existed",
+              "_fx_mutating=1", "_fx_committed=1", "trap rollback EXIT",
+              "_fx_txn_created=0", "_fx_stxn_created=0"):
+    assert token in transaction, "transactional Root rollback/cleanup contract missing: " + token
 assert transaction.count("RootAccess.execute") == 0, "Root transaction builder must only build a quoted shell command"
-assert r'CONF=\"$PG/settings.conf\"' in transaction, "generated shell variables must use shell quotes, not literal backslash-quote bytes"
+assert r'CONF=\"$PG/settings.conf\"' in transaction, "generated shell variables must use shell quotes"
 assert r'CONF=\\\"' not in transaction, "Java source must not over-escape generated shell quotes"
+assert 'append("mkdir -p \\"$DIR\\"' not in transaction, "transaction must never recursively create/follow a symlinked parent"
+assert 'append("rm -rf \\"$TXN\\" \\"$STXN\\"' not in transaction, "unconditional paired cleanup must be removed"
+assert transaction.count('if [ \\"$_fx_txn_created\\" -eq 1 ]; then') == 1
+assert transaction.count('if [ \\"$_fx_stxn_created\\" -eq 1 ]; then') == 1
+assert transaction.index('mkdir \\"$TXN\\" || exit 45; _fx_txn_created=1;') < transaction.index('mkdir \\"$STXN\\" || exit 46; _fx_stxn_created=1;')
+cleanup_start = transaction.index("cleanup_txn(){")
+cleanup_end = transaction.index("rollback(){", cleanup_start)
+cleanup = transaction[cleanup_start:cleanup_end]
+assert '[ -d \\"$PG\\" ] && [ ! -L \\"$PG\\" ]' in cleanup
+assert '[ -d \\"$DIR\\" ] && [ ! -L \\"$DIR\\" ]' in cleanup
+assert 'rm -rf \\"$TXN\\"' in cleanup and 'rm -rf \\"$STXN\\"' in cleanup
+assert 'if [ \\"$_fx_txn_created\\" -eq 1 ]; then' in cleanup
+assert 'if [ \\"$_fx_stxn_created\\" -eq 1 ]; then' in cleanup
+assert '[ -d \\"$PG\\" ] && [ ! -L \\"$PG\\" ] || exit 41;' in transaction
+assert '[ -d \\"$DIR\\" ] && [ ! -L \\"$DIR\\" ] || exit 44;' in transaction
+assert '[ ! -e \\"$TXN\\" ] && [ ! -L \\"$TXN\\" ]' in transaction
+assert '[ ! -e \\"$STXN\\" ] && [ ! -L \\"$STXN\\" ]' in transaction
+assert 'rm -rf \\"$TXN\\" \\"$STXN\\" ||' not in transaction
+assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must not touch Stellar files absent from an older/partial backup"
+assert transaction.count("if (stellarFiles.containsKey(name))") >= 1, "commit loop must only replace staged Stellar files"
+assert 'echo FX_DIA_RESTORE_COMMITTED' in transaction, "successful transaction must retain explicit commit marker"
 rollback_loop_start = transaction.index("rollback(){")
 rollback_loop_end = transaction.index("$_fx_config_swapped", rollback_loop_start)
 rollback_loop = transaction[rollback_loop_start:rollback_loop_end]
-assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from an older/partial backup"
+assert "if (!stellarFiles.containsKey(name)) continue;" in rollback_loop, "rollback must not delete Stellar files absent from this backup"
 assert "FX_DIA_RESTORE_ROLLBACK_FAILED TXN=" in transaction, "rollback failures must preserve recovery snapshots and report their paths"
-assert r'rm -rf \"$TXN\" \"$STXN\" || echo FX_DIA_RESTORE_CLEANUP_PENDING' in transaction, "snapshot cleanup must happen only after rollback succeeds"
-assert r'rm -rf \"$TXN\" \"$STXN\"; ' not in transaction, "rollback must not unconditionally delete recovery snapshots"
-
-assert transaction.count("if (!stellarFiles.containsKey(name)) continue;") == 1, "rollback must never touch Stellar files absent from this backup"
-assert transaction.count("if (stellarFiles.containsKey(name))") >= 1, "commit loop must only replace staged Stellar files"
-assert "|| :; echo FX_DIA_RESTORE_COMMITTED" in transaction, "post-commit cache cleanup failure must not report an already-committed restore as failed"
+assert "if [ ! -d \\"$PG\\" ] || [ -L \\"$PG\\" ]" in transaction, "rollback must refuse to traverse a replaced PG directory"
+assert "if [ ! -d \\"$DIR\\" ] || [ -L \\"$DIR\\" ]" in transaction, "rollback must refuse to traverse a replaced Stellar directory"
 assert helper.index("staged.put(entry.getKey(), cache);") < helper.index("new java.io.FileOutputStream(cache, false)"), "partially written staged files must be tracked for cleanup"
-print("PASS: Dia backup import validates module bytes, preferences and all allowlisted Stellar hashes before any Root write")
+print("PASS: Dia backup restore stages private transactions, rejects symlinked parents and cleans only directories it created")
 PY
