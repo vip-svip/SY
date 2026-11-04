@@ -55,8 +55,16 @@ for label, needle in required_start.items():
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
 if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
-cleanup_guard = r'''if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" ] && [ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ] && server_pid_matches \"$spawned_pid\"; then kill -TERM'''
-if cleanup_guard not in start:
+cleanup_pid_guard = r'''if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" '''
+cleanup_start_guard = r'''&& [ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ] '''
+cleanup_owner_guard = r'''&& server_pid_matches \"$spawned_pid\"; then kill -TERM \"$spawned_pid\"'''
+for label, needle in (("cleanup PID/starttime guard", cleanup_pid_guard),
+                      ("cleanup starttime recheck", cleanup_start_guard),
+                      ("cleanup executable identity and TERM", cleanup_owner_guard)):
+    if needle not in start:
+        raise SystemExit(f"FAIL: startup cleanup may signal only an unchanged process: {label}")
+if not (start.index(cleanup_pid_guard) < start.index(cleanup_start_guard) < start.index(cleanup_owner_guard)):
+    raise SystemExit("FAIL: startup cleanup must verify PID starttime and executable before TERM")
     raise SystemExit("FAIL: startup cleanup must verify both original starttime and exact executable before TERM")
 
 required_stop = {
