@@ -29,6 +29,8 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
     private static final String STATE_REASONS = "fx_batch_reasons";
     private static final String STATE_REMOVED = "fx_batch_removed";
     private static final String STATE_INDEX = "fx_batch_index";
+    private static final String STATE_QUEUE_INVALID = "fx_batch_queue_invalid";
+    private static final String STATE_QUEUE_ERROR = "fx_batch_queue_error";
 
     private final ArrayList<String> packages = new ArrayList<>();
     private final ArrayList<String> labels = new ArrayList<>();
@@ -40,6 +42,8 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
     private TextView current;
     private Button uninstall;
     private Button next;
+    private boolean queueInvalid;
+    private String queueError = "批量清理队列数据无效。请返回扫描页重新选择风险应用。";
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -111,7 +115,21 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
     }
 
     private void restoreQueue(Bundle source) {
-        if (source == null) return;
+        packages.clear();
+        labels.clear();
+        reasons.clear();
+        noLongerInstalled.clear();
+        index = 0;
+        if (source == null) {
+            invalidateQueue("未收到批量清理队列。请返回扫描页重新选择风险应用。");
+            return;
+        }
+        if (source.getBoolean(STATE_QUEUE_INVALID, false)) {
+            invalidateQueue(source.getString(STATE_QUEUE_ERROR,
+                    "批量清理队列此前已判定无效。请返回扫描页重新选择风险应用。"));
+            return;
+        }
+
         ArrayList<String> inputPackages = source.getStringArrayList(
                 source.containsKey(STATE_PACKAGES) ? STATE_PACKAGES : "packages");
         ArrayList<String> inputLabels = source.getStringArrayList(
@@ -119,28 +137,72 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
         ArrayList<String> inputReasons = source.getStringArrayList(
                 source.containsKey(STATE_REASONS) ? STATE_REASONS : "reasons");
 
-        if (inputPackages == null || inputLabels == null) return;
-        int count = Math.min(Math.min(inputPackages.size(), inputLabels.size()), MAX_QUEUE_ITEMS);
-        for (int i = 0; i < count; i++) {
+        if (inputPackages == null || inputLabels == null || inputReasons == null
+                || inputPackages.isEmpty() || inputPackages.size() > MAX_QUEUE_ITEMS
+                || inputLabels.size() != inputPackages.size()
+                || inputReasons.size() != inputPackages.size()) {
+            invalidateQueue("批量清理队列缺少数据、字段数量不一致或超过 "
+                    + MAX_QUEUE_ITEMS + " 项上限。未执行任何清理。");
+            return;
+        }
+
+        HashSet<String> uniquePackages = new HashSet<>();
+        for (int i = 0; i < inputPackages.size(); i++) {
             String pkg = inputPackages.get(i);
-            if (pkg == null || !pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
-                    || packages.contains(pkg)) continue;
-            packages.add(pkg);
             String label = inputLabels.get(i);
-            labels.add(label == null || label.trim().isEmpty() ? pkg : label);
-            String reason = inputReasons != null && inputReasons.size() > i
-                    ? inputReasons.get(i) : "";
-            reasons.add(reason == null ? "" : reason);
+            String reason = inputReasons.get(i);
+            if (pkg == null || !pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+                    || !uniquePackages.add(pkg)
+                    || label == null || label.length() > 1024
+                    || reason == null || reason.length() > 1024) {
+                invalidateQueue("批量清理队列包含无效包名、重复项目或超长字段。未执行任何清理。");
+                return;
+            }
         }
 
         ArrayList<String> removed = source.getStringArrayList(STATE_REMOVED);
+        if (removed != null) {
+            for (String pkg : removed) {
+                if (pkg == null || !uniquePackages.contains(pkg)) {
+                    invalidateQueue("批量清理队列的已移除项目状态不一致。请重新扫描。");
+                    return;
+                }
+            }
+        }
+        int restoredIndex = source.getInt(STATE_INDEX, 0);
+        if (restoredIndex < 0 || restoredIndex > inputPackages.size()) {
+            invalidateQueue("批量清理队列当前位置无效。请重新扫描。");
+            return;
+        }
+
+        packages.addAll(inputPackages);
+        for (int i = 0; i < inputLabels.size(); i++) {
+            String label = inputLabels.get(i);
+            labels.add(label.trim().isEmpty() ? inputPackages.get(i) : label);
+        }
+        reasons.addAll(inputReasons);
         if (removed != null) noLongerInstalled.addAll(removed);
-        index = source.getInt(STATE_INDEX, 0);
+        index = restoredIndex;
     }
+
+    private void invalidateQueue(String message) {
+        queueInvalid = true;
+        queueError = message == null || message.trim().isEmpty()
+                ? "批量清理队列无效。请返回扫描页重新选择风险应用。" : message;
+        packages.clear();
+        labels.clear();
+        reasons.clear();
+        noLongerInstalled.clear();
+        index = 0;
+    }
+
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_QUEUE_INVALID, queueInvalid);
+        outState.putString(STATE_QUEUE_ERROR, queueError);
+        if (queueInvalid) return;
         outState.putStringArrayList(STATE_PACKAGES, new ArrayList<>(packages));
         outState.putStringArrayList(STATE_LABELS, new ArrayList<>(labels));
         outState.putStringArrayList(STATE_REASONS, new ArrayList<>(reasons));
@@ -165,6 +227,13 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
     }
 
     private void render() {
+        if (queueInvalid) {
+            state.setText(queueError);
+            current.setText("为避免根据不完整或不匹配的数据卸载应用，已禁用全部清理操作。");
+            uninstall.setEnabled(false);
+            next.setEnabled(false);
+            return;
+        }
         advancePastMissingApps();
         if (index >= packages.size()) {
             state.setText("队列完成。已不存在 " + noLongerInstalled.size()
