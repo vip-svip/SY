@@ -534,14 +534,16 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         }
         if (restoreSaveScriptDialog) scroll.post(this::showSaveFridaScriptDialog);
         if (restoreTargetPickerPending) {
-            restoreTargetPickerPending = false;
             scroll.post(() -> {
-                if (!isFinishing() && !isDestroyed()) chooseTarget();
+                if (isFinishing() || isDestroyed()) return;
+                restoreTargetPickerPending = false;
+                chooseTarget();
             });
         } else if (restoreProcessPickerPending) {
-            restoreProcessPickerPending = false;
             scroll.post(() -> {
-                if (!isFinishing() && !isDestroyed()) chooseTargetProcesses();
+                if (isFinishing() || isDestroyed()) return;
+                restoreProcessPickerPending = false;
+                chooseTargetProcesses();
             });
         }
     }
@@ -686,8 +688,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         outState.putBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, restoreSaveScriptDialog);
         outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64
                 ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
-        outState.putBoolean(STATE_TARGET_PICKER_OPEN, targetPickerOpen || targetLoading);
-        outState.putBoolean(STATE_PROCESS_PICKER_OPEN, processPickerOpen);
+        outState.putBoolean(STATE_TARGET_PICKER_OPEN,
+                targetPickerOpen || targetLoading || restoreTargetPickerPending);
+        outState.putBoolean(STATE_PROCESS_PICKER_OPEN,
+                processPickerOpen || restoreProcessPickerPending);
         outState.putBoolean(STATE_PROCESS_PICKER_HAS_STAGED_SELECTION,
                 processPickerOpen && hasPendingProcessPickerSelection);
         if (processPickerOpen && hasPendingProcessPickerSelection) {
@@ -1617,8 +1621,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     java.util.Set<String> staged = hasPendingProcessPickerSelection
                             ? new java.util.LinkedHashSet<>(pendingProcessPickerPids)
                             : new java.util.LinkedHashSet<>(selectedProcessPids);
-                    for (int i = 0; i < pids.size(); i++)
-                        checked[i] = staged.isEmpty() || staged.contains(pids.get(i));
+                    for (int i = 0; i < pids.size(); i++) {
+                        checked[i] = hasPendingProcessPickerSelection
+                                ? staged.contains(pids.get(i))
+                                : (selectedProcessPids.isEmpty()
+                                        || selectedProcessPids.contains(pids.get(i)));
+                    }
                     pendingProcessPickerPids.clear();
                     for (int i = 0; i < pids.size(); i++)
                         if (checked[i]) pendingProcessPickerPids.add(pids.get(i));
