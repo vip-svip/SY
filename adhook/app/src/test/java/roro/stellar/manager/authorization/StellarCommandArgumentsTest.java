@@ -29,6 +29,21 @@ public class StellarCommandArgumentsTest {
                 "always-set 'com.example.app' 'id -u' 1").contains("'always-set'"));
     }
 
+    @Test
+    public void acceptsOnlyFixedBootScriptOperations() {
+        assertTrue(StellarCommandArguments.buildScriptCommand("boot-script install")
+                .endsWith(" 'boot-script' 'install'"));
+        assertTrue(StellarCommandArguments.buildScriptCommand("boot-script remove")
+                .endsWith(" 'boot-script' 'remove'"));
+        assertTrue(StellarCommandArguments.buildScriptCommand("boot-script status")
+                .endsWith(" 'boot-script' 'status'"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsArbitraryBootScriptCommand() {
+        StellarCommandArguments.buildScriptCommand("boot-script 'sh -c id'");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsCommandSeparatorInjection() {
         StellarCommandArguments.buildScriptCommand("list; id");
