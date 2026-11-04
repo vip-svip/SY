@@ -3518,3 +3518,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文档提交：`a4c116e75f5d64c39cb2942be86da7e4811e3fb4`；AI 接管提示词同步提交：`00282fb0370923c1678bdc5f189ff00b88f1aa02`。
 - 以上为需求文档更新，未声称各内核已集成或各脚本平台已实现。具体内核纳入版本须根据 ABI、许可证、构建来源、维护状态和设备测试决定。
 - 下一步：以当前最新 HEAD 为准，读取现有 VPN/TUN 实现和 Gradle/NDK 构建结构，设计 Core Provider 接口并先接入默认内核；同时盘点现有配置格式和脚本 runtime，按平台建立兼容矩阵。
+
+
+## 2026-11-05 — 扩展补齐其他脚本、过滤规则与内核生态
+
+- 用户要求不能只列举少数脚本平台和代理内核；已补充 Surfboard、Tampermonkey、Violentmonkey、Greasemonkey，以及 AdGuard、uBlock Origin、Adblock Plus、Hosts、PAC、DNS blocklist、URL Rewrite 等规则生态。
+- 内核候选扩展为 sing-box、Mihomo、Xray-core、V2Fly/v2ray-core、dae、Leaf、Brook，并将 Hysteria 2、TUIC、VLESS/VMess、Trojan、Shadowsocks、SOCKS、HTTP(S) 明确分类为协议能力，而非独立内核。
+- 增加过滤规则 parser/validator、内核类型分类（完整代理核心/协议插件/TUN 组件/规则运行时）和逐版本能力矩阵要求。候选项目不代表已集成，纳入前必须核对维护状态、Android/ARM64、许可证和构建来源。
+- 产品方案更新提交：`2cba7819fe4fdf1f5bec6d1ea001e4f0460f8511`；AI 接管提示词同步提交：`bcda2e0638c9acc3538d404cb225ed4862d2f4b1`。
+- 下一步仍是实际工程接入：读取现有 VPN/TUN/Gradle/NDK 代码，确定首个默认内核和 Core Provider 接口；再逐步增加其他 provider，避免一次性塞入未经验证的多个二进制。
