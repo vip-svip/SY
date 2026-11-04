@@ -2975,6 +2975,17 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         return "/data/adb/privacyguard/dia-frida/logs/" + targetPackage + ".log";
     }
 
+    private String checkedSessionLogDirectoryPrefix() {
+        String baseDir = "/data/adb/privacyguard";
+        String diaDir = baseDir + "/dia-frida";
+        String logDir = diaDir + "/logs";
+        return "if [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
+                + " || [ -L " + quote(baseDir) + " ] || [ ! -d " + quote(baseDir) + " ]"
+                + " || [ -L " + quote(diaDir) + " ] || [ ! -d " + quote(diaDir) + " ]"
+                + " || [ -L " + quote(logDir) + " ] || [ ! -d " + quote(logDir) + " ]; then "
+                + "echo FX_DIA_LOG_PATH_UNAVAILABLE; exit 21; fi; ";
+    }
+
     private void showSessionLog() {
         if (targetPackage == null || targetPackage.trim().isEmpty()) {
             setStatus("请先选择 debuggable 目标应用。");
@@ -3008,12 +3019,26 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         new AlertDialog.Builder(this).setTitle("清空 Frida 会话日志")
                 .setMessage("只清空 FX 为当前目标创建的会话日志，不会删除脚本或 Frida 服务。")
                 .setNegativeButton("取消", null)
-                .setPositiveButton("清空", (dialog, which) ->
-                        runRoot("if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
-                                + " ]; then : > " + quote(log) + " && chmod 600 " + quote(log)
-                                + "; fi; echo log-cleared", 12000L,
-                                result -> setStatus("日志清理退出码 " + result.exitCode
-                                        + "\\n" + result.output))).show();
+                .setPositiveButton("清空", (dialog, which) -> {
+                    setStatus("正在安全清空当前目标日志…");
+                    String command = checkedSessionLogDirectoryPrefix()
+                            + "if [ -f " + quote(log) + " ] && [ ! -L " + quote(log)
+                            + " ]; then : > " + quote(log) + " && chmod 600 " + quote(log)
+                            + " && echo FX_DIA_LOG_CLEARED; else "
+                            + "echo FX_DIA_LOG_MISSING_OR_UNSAFE; exit 22; fi";
+                    runRoot(command, 12000L, result -> {
+                        if (result != null && result.exitCode == 0
+                                && result.output != null
+                                && result.output.contains("FX_DIA_LOG_CLEARED")) {
+                            setStatus("当前目标的 FX Frida 日志已清空。");
+                        } else {
+                            String detail = result == null || result.output == null
+                                    ? "Root 操作失败。" : result.output.trim();
+                            if (detail.length() > 240) detail = detail.substring(0, 240);
+                            setStatus("清空失败，日志未被确认清空：" + detail);
+                        }
+                    });
+                }).show();
     }
 
     @Override protected void onDestroy() {
