@@ -1,6 +1,8 @@
 package de.privacyguard.adhook
 
+import android.graphics.Bitmap
 import android.view.View
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -38,6 +44,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 fun installFxNativeAppShell(
     view: ComposeView,
@@ -46,8 +54,9 @@ fun installFxNativeAppShell(
     mode: String,
     onTabSelected: (Int) -> Unit
 ) {
+    val wallpaperPath = FxWallpaperStore.currentPath(view.context)
     view.setContent {
-        FxNativeAppShell(pageContent, selectedIndex, mode, onTabSelected)
+        FxNativeAppShell(pageContent, selectedIndex, mode, wallpaperPath, onTabSelected)
     }
 }
 
@@ -56,11 +65,19 @@ private fun FxNativeAppShell(
     pageContent: View,
     selectedIndex: Int,
     mode: String,
+    wallpaperPath: String?,
     onTabSelected: (Int) -> Unit
 ) {
     val labels = listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")
     val controller = remember { ThemeController(ColorSchemeMode.System) }
     val backdrop = rememberLayerBackdrop()
+    val context = LocalContext.current
+    val wallpaperBitmap by produceState<Bitmap?>(initialValue = null, wallpaperPath) {
+        value = if (wallpaperPath.isNullOrBlank()) null else withContext(Dispatchers.IO) {
+            FxWallpaperStore.loadForDisplay(context)
+        }
+    }
+    val wallpaperImage = remember(wallpaperBitmap) { wallpaperBitmap?.asImageBitmap() }
     var selected by remember { mutableIntStateOf(selectedIndex.coerceIn(0, 5)) }
     // Keep this provider stable across recompositions. LiquidBottomTabs keys its
     // gesture/callback effects by this function; an inline lambda resets them on
@@ -78,6 +95,25 @@ private fun FxNativeAppShell(
                 .imePadding()
                 .background(when (mode) { "miuix" -> miuixColors.background; "glass" -> Color(0xFFE8EEF4); "huawei" -> Color(0xFFF1F5FA); "ios" -> Color(0xFFF2F2F7); else -> Color(0xFFF4F6F8) })
         ) {
+            wallpaperImage?.let { image ->
+                Image(
+                    bitmap = image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    alpha = 0.86f
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        when (mode) {
+                            "ios" -> Color.White.copy(alpha = 0.30f)
+                            "huawei" -> Color(0xFFF1F5FA).copy(alpha = 0.25f)
+                            "miuix" -> Color(0xFFF3F5FA).copy(alpha = 0.28f)
+                            else -> Color.White.copy(alpha = 0.24f)
+                        }
+                    )
+                )
+            }
             // Record the real page beneath the translucent navigation surface.
             // Unlike a gradient placeholder, this samples the actual AndroidView content.
             AndroidView(
