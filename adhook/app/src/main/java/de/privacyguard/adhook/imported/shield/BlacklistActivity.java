@@ -73,6 +73,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private int pickerPage = 1;
     private final Set<String> pickerStaged = new HashSet<>();
     private ScrollView pickerScroll;
+    private int pickerScrollY;
     private LinearLayout emptyHint;
     private TextView trustAllBtn;
 
@@ -89,6 +90,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             pickerDialogOpen = savedInstanceState.getBoolean(STATE_PICKER_OPEN, false);
             pickerQuery = savedInstanceState.getString(STATE_PICKER_QUERY, "");
             pickerPage = Math.max(1, savedInstanceState.getInt(STATE_PICKER_PAGE, 1));
+            pickerScrollY = Math.max(0, savedInstanceState.getInt(STATE_PICKER_SCROLL_Y, 0));
             ArrayList<String> staged = savedInstanceState.getStringArrayList(STATE_PICKER_STAGED);
             if (staged != null && staged.size() <= 100) pickerStaged.addAll(staged);
         }
@@ -469,7 +471,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 }));
         render[0].run();
         if (restoring) {
-            final int restorePickerY = Math.max(0, getIntent().getIntExtra(STATE_PICKER_SCROLL_Y, 0));
+            final int restorePickerY = pickerScrollY;
             scroll.post(() -> scroll.scrollTo(0, restorePickerY));
         }
         dialog.setOnDismissListener(ignored -> {
