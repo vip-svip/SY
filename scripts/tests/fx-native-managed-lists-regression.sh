@@ -91,7 +91,7 @@ if printf '%s\n' "$list" | grep -Fq 'https://original.example/filter.txt'; then 
 printf '%s\n' "$list" | grep -Fq '0|https://disabled.example/filter.txt|Disabled|1' || fail "post-delete indexes were not rebuilt"
 
 # A live owner must remain in place and must block writes without touching user data.
-printf '%s\\n' "$PPID" > "$LOCK"
+printf '%s\n' "$PPID" > "$LOCK"
 before_live=$(sha256sum "$CONF" | awk '{print $1}')
 if FX_MANAGED_LIST_LOCK_RETRIES=1 run add domainList live-lock.example 'Must wait' >/dev/null 2>&1; then
   fail "live PID lock was accepted"
@@ -160,8 +160,8 @@ run add blockList parallel-b.example 'Parallel B' &
 parallel_b_pid=$!
 if ! wait "$parallel_a_pid"; then fail "first concurrent managed-list writer failed"; fi
 if ! wait "$parallel_b_pid"; then fail "second concurrent managed-list writer failed"; fi
-printf '%s\\n' "$(run list domainList)" | grep -Fq 'parallel-a.example|Parallel A|1' || fail "first concurrent update was lost"
-printf '%s\\n' "$(run list blockList)" | grep -Fq 'parallel-b.example|Parallel B|1' || fail "second concurrent update was lost"
+printf '%s\n' "$(run list domainList)" | grep -Fq 'parallel-a.example|Parallel A|1' || fail "first concurrent update was lost"
+printf '%s\n' "$(run list blockList)" | grep -Fq 'parallel-b.example|Parallel B|1' || fail "second concurrent update was lost"
 
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
