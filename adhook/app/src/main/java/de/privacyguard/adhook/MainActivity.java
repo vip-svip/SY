@@ -6867,7 +6867,28 @@ public final class MainActivity extends ComponentActivity {
                         if (candidates.size() > 64)
                             throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
 
-                        android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
+                        android.content.SharedPreferences rulePreferences = getPreferences(0);
+                        String hookEnabledKey = selectedPackage + ":dev_hook_enabled";
+                        String groupsKey = selectedPackage + ":dev_rule_groups";
+                        boolean hadHookEnabled = rulePreferences.contains(hookEnabledKey);
+                        boolean previousHookEnabled = rulePreferences.getBoolean(hookEnabledKey, false);
+                        boolean hadGroupSet = rulePreferences.contains(groupsKey);
+                        java.util.Set<String> previousGroupSet = new java.util.HashSet<>(
+                                rulePreferences.getStringSet(groupsKey, java.util.Collections.emptySet()));
+                        java.util.Map<String, ?> previousValues = rulePreferences.getAll();
+                        java.util.Map<String, Object> previousRuleState = new java.util.HashMap<>();
+                        for (int n = 1; n <= 64; n++) {
+                            for (String suffix : new String[]{"", "_base", "_group"}) {
+                                String key = selectedPackage + ":dev_rule_" + n + suffix;
+                                Object value = previousValues.get(key);
+                                if (value instanceof String) previousRuleState.put(key, value);
+                            }
+                        }
+                        Object previousImportDraft = previousValues.get(importDraftKey);
+                        if (previousImportDraft instanceof String)
+                            previousRuleState.put(importDraftKey, previousImportDraft);
+
+                        android.content.SharedPreferences.Editor editor = rulePreferences.edit();
                         for (int n = 1; n <= 64; n++) {
                             editor.remove(selectedPackage + ":dev_rule_" + n);
                             editor.remove(selectedPackage + ":dev_rule_base_" + n);
@@ -6885,8 +6906,28 @@ public final class MainActivity extends ComponentActivity {
                         allGroups.addAll(baseGroups);
                         editor.putStringSet(selectedPackage + ":dev_rule_groups", allGroups);
                         editor.remove(importDraftKey);
-                        if (!editor.commit())
-                            throw new IllegalStateException("规则导入失败：本地配置未能完整写入，原有规则未确认更新。");
+                        if (!editor.commit()) {
+                            // SharedPreferences updates its in-memory map before disk I/O.
+                            // Restore the previous rule set in memory and retry persistence.
+                            android.content.SharedPreferences.Editor rollback = rulePreferences.edit();
+                            for (int n = 1; n <= 64; n++) {
+                                rollback.remove(selectedPackage + ":dev_rule_" + n);
+                                rollback.remove(selectedPackage + ":dev_rule_base_" + n);
+                                rollback.remove(selectedPackage + ":dev_rule_group_" + n);
+                            }
+                            rollback.remove(importDraftKey);
+                            for (java.util.Map.Entry<String, Object> entry : previousRuleState.entrySet()) {
+                                rollback.putString(entry.getKey(), (String) entry.getValue());
+                            }
+                            if (hadHookEnabled) rollback.putBoolean(hookEnabledKey, previousHookEnabled);
+                            else rollback.remove(hookEnabledKey);
+                            if (hadGroupSet) rollback.putStringSet(groupsKey, previousGroupSet);
+                            else rollback.remove(groupsKey);
+                            boolean rollbackSaved = rollback.commit();
+                            throw new IllegalStateException(rollbackSaved
+                                    ? "规则导入失败：磁盘提交未成功，原有规则已恢复。请检查存储空间后重试。"
+                                    : "规则导入失败：磁盘提交与回滚提交均未确认成功。当前进程内已恢复原规则；请勿退出应用，先检查存储空间并重新打开规则页核对。");
+                        }
 
                         ApplicationInfo currentTarget = findApp(selectedPackage);
                         if (currentTarget != null) showTarget(currentTarget);
