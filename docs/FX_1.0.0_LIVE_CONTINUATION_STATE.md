@@ -724,3 +724,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 
 - 当前分支实时 HEAD（追加状态后待复核）：`ce3a91d11defd59e9cb0d26400caf47f426e94a6`。
+
+
+## 2026-11-05 — Dia Activity Browser 分页重构与 Root 组件启停回滚修复
+
+- 本批实际接续到的分支头：`82bbc762d172b553c6fc085e5207c7718b68cfff`（其前一 UI 重构为 `585303b7bb0b09b95a141c501133e36b11d9818d`）。
+- 代码提交：
+  - `585303b7bb0b09b95a141c501133e36b11d9818d` — Dia Activity Browser 改为完整原生双列表：应用列表每页 50 个、Activity 列表每页 80 个；两区独立搜索；保留目标包名、搜索文本、分页索引的 Activity 重建恢复。
+  - `82bbc762d172b553c6fc085e5207c7718b68cfff` — 保持 selected package 与分页状态恢复，并显式处理 Activity 的 DISABLED / DISABLED_USER / DISABLED_UNTIL_USED 状态。
+  - `b79e11734e3270cf58c53e18c637b6c4b6e26711` — 修复分页重构遗漏的 `submitWorker()` 编译阻断；恢复 Root 任务有界队列入口；组件取消/系统取消/队列拒绝/Root 异常/非零退出均安全回滚，程序性回滚不再触发第二次 Root 命令；加入应用整体 enabled 状态。
+  - `7efb929ec5bbf5d997b22085b1fec34b21d2b438` — 清除目标选择时重复的 Activity 请求代次递增。
+  - `9265e335569d45efb55373b01732747a0a1ce2e3` — 应用整体禁用优先于显式组件 enabled 标记；包被禁用时其 Activity 不显示为启用。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`。
+- 已核对的真实行为：
+  - 应用清单和 Activity 声明/状态后台读取；分页搜索均在本地完成。
+  - 启动器隐藏视图和全 Activity 视图使用同一 Activity Browser，分别按 MAIN/LAUNCHER intent 或完整 Activity 声明过滤。
+  - 页面重建恢复当前目标、应用/Activity 搜索与分页；返回前台刷新已安装应用列表并尽量恢复目标选择。
+  - 启用/禁用操作仍要求用户逐项确认，使用当前 Android user id，组件参数 shell quote；Root 任务只允许排队执行，队列拒绝回滚。
+  - Dialog Back/点外部取消/显式取消都只恢复原 Switch，不会误发相反的 Root 命令；Root 执行抛错/返回非零/无结果也恢复原状态。只有命令执行后重新读 PackageManager，UI 才刷新为新组件状态。
+  - PackageManager 的组件启用状态和父应用整体 enabled 状态都参与最终展示；父应用禁用时，即使组件有显式 ENABLED override，也不会显示为可实际启用。
+- 定向静态复核：最新 ActivityBrowser、Manifest、MainActivity Dia 菜单路由、Gradle 重新读取；上述编译阻断、队列入口、队列拒绝回滚、监听器回滚保护、取消/系统取消、Root exception/nonzero、目标代次保护、父应用禁用边界、分页搜索、状态恢复、Manifest 注册和固定版本共 11 项检查全部通过。代码仍未运行 Java/Android 编译或 Gradle。
+- 重要修复历史：分页重构 `585303b` 曾调用已删除的 `submitWorker()`，会导致编译失败；本批 `b79e117` 已恢复该方法，不再留下未定义引用。
+- 同期已合入的 Dia GPS 发布范围修复（非本批重复改动）：`283216a8b97059f2ddadd39762466d5286c88eb9` 在 `publishConfig()` 再次核对 debuggable，只对 debuggable 目标发布 GPS 坐标、provider 状态、Android ID 和时区模拟；测试源码 `scripts/tests/fx-dia-device-simulation-scope-regression.sh`（提交 `ce3a91d11defd59e9cb0d26400caf47f426e94a6`）。其测试脚本本会话未运行，不能声称该脚本已执行。
+- 固定 Gradle 版本仍为 `versionCode 10000` / `versionName 1.0.0`；没有触发整套 Actions，也没有生成最终 APK/KernelSU ZIP。
+- 真机待验：Android 不同 OEM / 多用户 / 工作资料对 MATCH_DISABLED_COMPONENTS、pm enable/disable-user 和 PackageManager 组件缓存的表现；尤其禁用唯一 MAIN/LAUNCHER Activity 后需确认可从 FX 页面恢复。
+- 下一批直接任务：① 对照 Dia 原始 Dialog 专用页面/脚本/规则，检查是否只有通知监听/阻断映射而缺少真正 Dialog 处理；② 不把通知 Hook 文案冒充 Dialog 能力，确认可迁移的真实事件/显示能力再实现页面；③ 随后回到 Frida 监听/代理页面的原生导航返回链。
