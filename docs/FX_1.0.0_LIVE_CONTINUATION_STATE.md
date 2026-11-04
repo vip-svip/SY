@@ -3209,3 +3209,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`FxDiaActivityBrowserActivity.java`、`fx-dia-native-tab-regression.sh`、本状态文件。
 - 验证：新增静态回归断言覆盖保存键、恢复读取、视图实例绑定、布局后滚动和父节点检查；尚未执行 Android 旋转/真机 UI 验收。
 - 下一步：检查 Activity Browser 刷新目标/卸载时搜索与分页夹取；继续 Dia 文件/备份页面组。
+
+
+## 2026-11-05 — Frida 目标进程身份回归按捕获包名变量对齐
+
+- Actions `41916591419` 已通过 Gadget session mock 和 libXposed wiring，随后 `fx-dia-frida-process-identity-regression.py` 在进程选择器首轮身份读取断言失败。
+- 根因：Activity 在启动进程枚举前把当前目标包名快照到 `requestedPackage`，随后用 `getApplicationInfo(requestedPackage, 0)` 读取 UID；测试仍要求旧的 `targetPackage` 字段引用。捕获快照是正确的并发隔离行为，后续回调也会重新读取并核对 UID/调试标记。
+- 修复：回归断言改为匹配 `requestedPackage` 快照；保留 UID 绑定、`/proc/<pid>/status` 核验、目标重装后 UID 变化丢弃旧 PID、generation 取消保护等全部门禁。
+- 改动：`scripts/tests/fx-dia-frida-process-identity-regression.py`，提交 `17268d7dc6a19494057e750f3ed636905b1acaad`。
+- 尚待：新 Actions 结果；未执行设备上的真实 Root 进程枚举或注入。
