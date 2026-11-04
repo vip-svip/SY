@@ -43,8 +43,12 @@ public final class AdbPacketCodecSmoke {
                 "unknown frame type must be rejected");
         check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0, 0})) == null,
                 "zero payload must be rejected");
-        check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0x40, 0})) == null,
-                "payload at the exclusive 0x4000 upper bound must be rejected");
+        PairingPacketHeader maximum = PairingPacketHeader.readFrom(
+                ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0x40, 0}));
+        check(maximum != null && maximum.getPayload() == 0x4000,
+                "original inclusive 0x4000 maximum payload must be accepted");
+        check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0x40, 1})) == null,
+                "payload above the inclusive 0x4000 maximum must be rejected");
         check(PairingPacketHeader.readFrom(ByteBuffer.wrap(new byte[]{1, 0, 0, 0, 0})) == null,
                 "truncated frame header must be rejected");
 
@@ -87,6 +91,6 @@ javac -d "$TMP/classes" "$HEADER" "$PEER" "$TMP/src/roro/stellar/manager/adb/Adb
     || fail "ADB pairing packet codec sources do not compile"
 java -cp "$TMP/classes" roro.stellar.manager.adb.AdbPacketCodecSmoke \
     || fail "ADB pairing packet codec round-trip/bounds smoke test failed"
-grep -Fq 'payload >= MAX_PAYLOAD' "$HEADER" || fail "frame length bound is not exclusive at 0x4000"
+grep -Fq 'payload > MAX_PAYLOAD' "$HEADER" || fail "frame length bound must include 0x4000 and reject larger packets"
 grep -Fq 'RECORD_LENGTH = DATA_LENGTH + 1' "$PEER" || fail "peer-info wire record width changed"
 echo "PASS: original ADB pairing header/PeerInfo packet contract"
