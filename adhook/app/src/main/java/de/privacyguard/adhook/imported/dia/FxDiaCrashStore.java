@@ -50,16 +50,36 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
 
     public static boolean isCaptureEnabled(Context context) {
         SharedPreferences p = prefs(context);
-        return p.getBoolean("capture_enabled", true)
-                && !p.getBoolean("disable_java_crash_capture", false)
-                && !legacyPrefs(context).getBoolean("disable_java_crash_capture", false);
+        SharedPreferences legacy = legacyPrefs(context);
+        return FxDiaCrashCapturePolicy.isEnabled(
+                p.getBoolean("capture_enabled", true),
+                p.getBoolean("disable_java_crash_capture", false),
+                legacy.getBoolean("disable_java_crash_capture", false));
     }
 
-    public static void setCaptureEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean("capture_enabled", enabled).commit();
-        if (enabled && context.getApplicationContext() instanceof Application) {
+    public static boolean setCaptureEnabled(Context context, boolean enabled) {
+        SharedPreferences current = prefs(context);
+        if (!enabled) {
+            return current.edit().putBoolean("capture_enabled", false).commit();
+        }
+
+        // Explicitly re-enabling in FX supersedes the original Dia opt-out.
+        // Clear the legacy veto first; if that persistence fails, do not claim
+        // that capture has been enabled.
+        if (!legacyPrefs(context).edit()
+                .remove("disable_java_crash_capture").commit()) {
+            return false;
+        }
+        boolean saved = current.edit()
+                .remove("disable_java_crash_capture")
+                .putBoolean("capture_enabled", true)
+                .commit();
+        if (!saved) return false;
+
+        if (context.getApplicationContext() instanceof Application) {
             install((Application) context.getApplicationContext());
         }
+        return true;
     }
 
     public static boolean hasPendingReport(Context context) {

@@ -75,8 +75,13 @@ public final class FxDiaCrashReportActivity extends Activity {
         Switch captureSwitch = new Switch(this);
         captureSwitch.setText("启用 FX Java 崩溃捕获");
         captureSwitch.setChecked(FxDiaCrashStore.isCaptureEnabled(this));
-        captureSwitch.setOnCheckedChangeListener((button, enabled) ->
-                FxDiaCrashStore.setCaptureEnabled(this, enabled));
+        captureSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (!FxDiaCrashStore.setCaptureEnabled(this, enabled)) {
+                button.setChecked(!enabled);
+                Toast.makeText(this, "无法保存崩溃捕获设置，请检查应用存储空间。",
+                        Toast.LENGTH_LONG).show();
+            }
+        });
         body.addView(captureSwitch);
         statusView = text("", 13, 0xff526170, false);
         body.addView(statusView);

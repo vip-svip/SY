@@ -22,6 +22,14 @@ public class FxDiaCrashRecordTest {
         assertFalse(hex.contains("stack line one\nline two"));
     }
 
+
+    @Test public void explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared() {
+        assertFalse(FxDiaCrashCapturePolicy.isEnabled(true, false, true));
+        assertFalse(FxDiaCrashCapturePolicy.isEnabled(true, true, false));
+        assertFalse(FxDiaCrashCapturePolicy.isEnabled(false, false, false));
+        assertTrue(FxDiaCrashCapturePolicy.isEnabled(true, false, false));
+    }
+
     @Test public void recordFieldsAreBounded() {
         String huge = "x".repeat(FxDiaCrashRecord.MAX_STACK_CHARS + 100);
         FxDiaCrashRecord record = new FxDiaCrashRecord(1L, 1L, huge, huge, huge, huge, huge);
