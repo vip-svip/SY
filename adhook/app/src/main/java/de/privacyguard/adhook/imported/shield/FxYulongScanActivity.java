@@ -122,6 +122,7 @@ public final class FxYulongScanActivity extends Activity {
             warning.putExtra("package_name", finding.packageName);
             warning.putExtra("app_label", finding.label);
             warning.putExtra("reason", finding.reason);
+            warning.putExtra("severity", finding.severity.name());
             startActivity(warning);
         }));
         item.addView(action("核实后打开系统卸载确认",()->confirmUninstall(finding)));
