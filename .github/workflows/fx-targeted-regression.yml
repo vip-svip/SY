@@ -77,9 +77,12 @@ jobs:
           done <<<"$changed"
 
           ran=0
+          declare -A done_tests=()
           run_sh() {
             local file="$1"
+            [[ -n "${done_tests[$file]:-}" ]] && return 0
             [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            done_tests["$file"]=1
             echo "::group::bash $file"
             bash "$file"
             echo "::endgroup::"
@@ -87,7 +90,9 @@ jobs:
           }
           run_py() {
             local file="$1"
+            [[ -n "${done_tests[$file]:-}" ]] && return 0
             [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            done_tests["$file"]=1
             echo "::group::python $file"
             python3 "$file"
             echo "::endgroup::"
@@ -96,6 +101,11 @@ jobs:
 
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaFridaActivity|FxDiaScriptLibraryActivity|FxDiaCodeEditorActivity|fx-dia-frida-) ]]; then
             run_sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
+            run_sh scripts/tests/fx-dia-frida-binary-import-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
+            run_py scripts/tests/fx-dia-frida-libxposed-wiring-regression.py
             run_py scripts/tests/fx-dia-frida-process-identity-regression.py
             run_sh scripts/tests/fx-dia-frida-server-lifecycle-regression.sh
             run_sh scripts/tests/fx-dia-frida-page-navigation-regression.sh
