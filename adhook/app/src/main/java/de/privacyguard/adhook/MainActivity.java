@@ -169,7 +169,14 @@ public final class MainActivity extends ComponentActivity {
     private final Handler hookTargetScopeHandler = new Handler(Looper.getMainLooper());
     private Runnable hookTargetScopeTimeout;
     private int hookTargetScopeTimeoutGeneration = -1;
-    private volatile Thread hookTargetScopeWorker;
+    private final java.util.concurrent.ThreadPoolExecutor hookTargetScopeExecutor =
+            new java.util.concurrent.ThreadPoolExecutor(1, 1, 30L, java.util.concurrent.TimeUnit.SECONDS,
+                    new java.util.concurrent.ArrayBlockingQueue<>(1), runnable -> {
+                        Thread thread = new Thread(runnable, "fx-lsposed-scope");
+                        thread.setDaemon(true);
+                        return thread;
+                    }, new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+    private volatile java.util.concurrent.FutureTask<Void> hookTargetScopeFuture;
     private int hookTargetScopeWorkerGeneration = -1;
     // Keep only the newest Root authorization check eligible to update the Hook UI.
     private volatile Thread hookRootCheckThread;
@@ -4494,6 +4501,7 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onDestroy() {
         cancelHookTargetScopeOperation();
+        hookTargetScopeExecutor.shutdownNow();
         hookRootCheckGeneration++;
         Thread rootCheck = hookRootCheckThread;
         hookRootCheckThread = null;
@@ -7375,34 +7383,38 @@ public final class MainActivity extends ComponentActivity {
                         "已向 LSPosed Manager 发送作用域申请；等待用户批准…",
                         "LSPosed Manager 30 秒内未返回作用域申请结果。是否已批准尚未确认；请刷新作用域状态核对。",
                         30000L);
-                try {
-                    FxLsposedScopeBridge.requestScope(packageName, new FxLsposedScopeBridge.RequestCallback() {
-                        @Override public void onApproved(java.util.List<String> approved) {
-                            runOnUiThread(() -> {
-                                finishHookTargetScopeOperation(operationGeneration, null);
-                                if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
-                                if (approved != null && approved.contains(packageName)) {
-                                    state.setText("LSPosed 已批准此应用作用域。是否已经注入仍需以目标进程运行状态为准。");
-                                } else {
-                                    state.setText("LSPosed 请求已返回，但批准列表未包含此应用；请检查 Manager 提示后刷新。");
-                                }
-                                refreshLsposedScopeStatus(state, packageName);
-                            });
-                        }
+                executeHookTargetScopeOperation(operationGeneration, state, packageName, () -> {
+                    try {
+                        FxLsposedScopeBridge.requestScope(packageName, new FxLsposedScopeBridge.RequestCallback() {
+                            @Override public void onApproved(java.util.List<String> approved) {
+                                runOnUiThread(() -> {
+                                    finishHookTargetScopeOperation(operationGeneration);
+                                    if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
+                                    if (approved != null && approved.contains(packageName)) {
+                                        state.setText("LSPosed 已批准此应用作用域。是否已经注入仍需以目标进程运行状态为准。");
+                                    } else {
+                                        state.setText("LSPosed 请求已返回，但批准列表未包含此应用；请检查 Manager 提示后刷新。");
+                                    }
+                                    refreshLsposedScopeStatus(state, packageName);
+                                });
+                            }
 
-                        @Override public void onFailed(String message) {
-                            runOnUiThread(() -> {
-                                finishHookTargetScopeOperation(operationGeneration, null);
-                                if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
-                                state.setText("LSPosed 作用域申请失败：" + message);
-                            });
-                        }
-                    });
-                } catch (RuntimeException error) {
-                    finishHookTargetScopeOperation(operationGeneration, null);
-                    if (isCurrentHookScopeOperation(state, packageName, operationGeneration))
-                        state.setText("无法提交作用域申请：" + error.getMessage());
-                }
+                            @Override public void onFailed(String message) {
+                                runOnUiThread(() -> {
+                                    finishHookTargetScopeOperation(operationGeneration);
+                                    if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
+                                    state.setText("LSPosed 作用域申请失败：" + message);
+                                });
+                            }
+                        });
+                    } catch (RuntimeException error) {
+                        runOnUiThread(() -> {
+                            finishHookTargetScopeOperation(operationGeneration);
+                            if (isCurrentHookScopeOperation(state, packageName, operationGeneration))
+                                state.setText("无法提交作用域申请：" + error.getMessage());
+                        });
+                    }
+                });
             };
             if (systemPackage) {
                 new AlertDialog.Builder(this)
@@ -7429,19 +7441,20 @@ public final class MainActivity extends ComponentActivity {
         content.addView(remove);
         refreshLsposedScopeStatus(state, packageName);
     }
-
     private void clearHookTargetScopePendingWork() {
         if (hookTargetScopeTimeout != null) {
             hookTargetScopeHandler.removeCallbacks(hookTargetScopeTimeout);
             hookTargetScopeTimeout = null;
             hookTargetScopeTimeoutGeneration = -1;
         }
-        Thread worker = hookTargetScopeWorker;
-        hookTargetScopeWorker = null;
+        java.util.concurrent.FutureTask<Void> task = hookTargetScopeFuture;
+        hookTargetScopeFuture = null;
         hookTargetScopeWorkerGeneration = -1;
-        if (worker != null) worker.interrupt();
+        if (task != null) {
+            task.cancel(true);
+            hookTargetScopeExecutor.remove(task);
+        }
     }
-
     private void cancelHookTargetScopeOperation() {
         hookTargetScopeGeneration++;
         clearHookTargetScopePendingWork();
@@ -7461,10 +7474,13 @@ public final class MainActivity extends ComponentActivity {
                 hookTargetScopeTimeoutGeneration = -1;
             }
             if (hookTargetScopeWorkerGeneration == request) {
-                Thread worker = hookTargetScopeWorker;
-                hookTargetScopeWorker = null;
+                java.util.concurrent.FutureTask<Void> task = hookTargetScopeFuture;
+                hookTargetScopeFuture = null;
                 hookTargetScopeWorkerGeneration = -1;
-                if (worker != null) worker.interrupt();
+                if (task != null) {
+                    task.cancel(true);
+                    hookTargetScopeExecutor.remove(task);
+                }
             }
             state.setText(timeoutMessage);
         };
@@ -7474,32 +7490,45 @@ public final class MainActivity extends ComponentActivity {
         return request;
     }
 
-    private void finishHookTargetScopeOperation(int request, Thread worker) {
+    private void finishHookTargetScopeOperation(int request) {
         if (hookTargetScopeTimeoutGeneration == request) {
             if (hookTargetScopeTimeout != null)
                 hookTargetScopeHandler.removeCallbacks(hookTargetScopeTimeout);
             hookTargetScopeTimeout = null;
             hookTargetScopeTimeoutGeneration = -1;
         }
-        if (hookTargetScopeWorkerGeneration == request && hookTargetScopeWorker == worker) {
-            hookTargetScopeWorker = null;
+        if (hookTargetScopeWorkerGeneration == request) {
+            hookTargetScopeFuture = null;
             hookTargetScopeWorkerGeneration = -1;
         }
     }
 
+    private void executeHookTargetScopeOperation(int request, TextView state,
+                                                  String packageName, Runnable operation) {
+        java.util.concurrent.FutureTask<Void> task =
+                new java.util.concurrent.FutureTask<>(operation, null);
+        hookTargetScopeFuture = task;
+        hookTargetScopeWorkerGeneration = request;
+        try {
+            hookTargetScopeExecutor.execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException full) {
+            finishHookTargetScopeOperation(request);
+            if (isCurrentHookScopeOperation(state, packageName, request))
+                state.setText("LSPosed 操作队列繁忙（已有请求尚未结束）。当前状态未确认，请稍后重试。");
+        }
+    }
     private void refreshLsposedScopeStatus(TextView state, String packageName) {
         final int request = beginHookTargetScopeOperation(state, packageName,
                 "正在读取 LSPosed 服务和当前目标作用域…",
                 "读取 LSPosed 作用域超时（12 秒）。Binder 可能无响应；请检查 LSPosed Manager 后重试。",
                 12000L);
-        final Thread[] workerRef = new Thread[1];
-        Thread worker = new Thread(() -> {
+        executeHookTargetScopeOperation(request, state, packageName, () -> {
             FxLsposedScopeBridge.Snapshot snapshot;
             try {
                 snapshot = FxLsposedScopeBridge.snapshot(packageName);
             } catch (RuntimeException error) {
                 runOnUiThread(() -> {
-                    finishHookTargetScopeOperation(request, workerRef[0]);
+                    finishHookTargetScopeOperation(request);
                     if (!isCurrentHookScopeOperation(state, packageName, request)) return;
                     state.setText("读取 LSPosed 作用域失败：" + error.getClass().getSimpleName());
                 });
@@ -7507,7 +7536,7 @@ public final class MainActivity extends ComponentActivity {
             }
             final FxLsposedScopeBridge.Snapshot result = snapshot;
             runOnUiThread(() -> {
-                finishHookTargetScopeOperation(request, workerRef[0]);
+                finishHookTargetScopeOperation(request);
                 if (!isCurrentHookScopeOperation(state, packageName, request)) return;
                 if (!result.connected) {
                     state.setText(result.error);
@@ -7515,18 +7544,12 @@ public final class MainActivity extends ComponentActivity {
                 }
                 state.setText("框架：" + result.frameworkName + " " + result.frameworkVersion
                         + " · Service API " + result.apiVersion
-                        + "\n当前作用域：" + (result.targetInScope ? "已包含此应用" : "尚未包含此应用")
-                        + "\n已授权包数量：" + result.scopeCount
-                        + "\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
+                        + "\\n当前作用域：" + (result.targetInScope ? "已包含此应用" : "尚未包含此应用")
+                        + "\\n已授权包数量：" + result.scopeCount
+                        + "\\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
             });
-        }, "fx-lsposed-scope-status");
-        worker.setDaemon(true);
-        workerRef[0] = worker;
-        hookTargetScopeWorker = worker;
-        hookTargetScopeWorkerGeneration = request;
-        worker.start();
+        });
     }
-
     private boolean isCurrentHookScopeOperation(TextView state, String packageName, int generation) {
         return !isFinishing() && !isDestroyed()
                 && generation == hookTargetScopeGeneration
@@ -7540,8 +7563,7 @@ public final class MainActivity extends ComponentActivity {
                 "正在向 LSPosed 移除此应用作用域…",
                 "移除作用域超时（15 秒）。当前状态未确认；请刷新作用域状态核对后再重试。",
                 15000L);
-        final Thread[] workerRef = new Thread[1];
-        Thread worker = new Thread(() -> {
+        executeHookTargetScopeOperation(operationGeneration, state, packageName, () -> {
             String failure = null;
             try {
                 FxLsposedScopeBridge.removeScope(packageName);
@@ -7550,19 +7572,13 @@ public final class MainActivity extends ComponentActivity {
             }
             final String result = failure;
             runOnUiThread(() -> {
-                finishHookTargetScopeOperation(operationGeneration, workerRef[0]);
+                finishHookTargetScopeOperation(operationGeneration);
                 if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
                 state.setText(result == null ? "已提交作用域移除。" : "移除失败：" + result);
                 refreshLsposedScopeStatus(state, packageName);
             });
-        }, "fx-lsposed-scope-remove");
-        worker.setDaemon(true);
-        workerRef[0] = worker;
-        hookTargetScopeWorker = worker;
-        hookTargetScopeWorkerGeneration = operationGeneration;
-        worker.start();
+        });
     }
-
     private ApplicationInfo findApp(String pkg) {
         for(ApplicationInfo ai:apps) if(ai.packageName.equals(pkg)) return ai;
         return null;
