@@ -368,7 +368,8 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 Socket 连接观察", () -> loadDiaMonitorTemplate("socket")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
                 button("载入正则/资源 ID 自动点击", () -> loadDiaMonitorTemplate("click-auto")),
-                button("载入匹配弹窗移除", () -> loadDiaMonitorTemplate("viewgroup-remove")),
+                button("配置匹配弹窗移除规则…", this::configureDialogRemoveTemplate),
+                button("载入空白弹窗移除模板", () -> loadDiaMonitorTemplate("viewgroup-remove")),
                 button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
                 button("载入 Fragment 生命周期观察", () -> loadDiaMonitorTemplate("fragment")),
                 button("载入线程/启动调用栈观察", () -> loadDiaMonitorTemplate("thread")),
@@ -1484,6 +1485,169 @@ public final class FxDiaFridaActivity extends Activity {
         } catch (Exception error) {
             setStatus("读取帮助文档失败：" + error.getMessage());
         }
+    }
+
+    private void configureDialogRemoveTemplate() {
+        if (targetPackage == null || targetPackage.trim().isEmpty()) {
+            setStatus("请先选择 debuggable 目标应用。");
+            return;
+        }
+        try {
+            ApplicationInfo info = getPackageManager().getApplicationInfo(targetPackage, 0);
+            if ((info.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                    || (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                setStatus("匹配弹窗移除只允许用户安装的 debuggable 自有测试应用。");
+                return;
+            }
+        } catch (Throwable unavailable) {
+            setStatus("目标应用已卸载或不可用，拒绝配置弹窗移除规则。");
+            return;
+        }
+
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(6), dp(18), dp(4));
+
+        TextView note = text(
+                "仅检查目标应用新增到窗口根容器的 ViewGroup 子项。可使用 TextView 文本正则和资源 ID 匹配；规则为空时不生成可执行规则。每次最多 5 次移除、最多 1,500 个节点、深度 28、最多 64 个待检查根节点。",
+                12, 0xff64748b, false);
+        form.addView(note);
+
+        EditText keywords = new EditText(this);
+        keywords.setGravity(Gravity.TOP | Gravity.START);
+        keywords.setMinLines(4);
+        keywords.setMaxLines(7);
+        keywords.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        keywords.setHint("每行一个 Java 正则，匹配 TextView 文本；最多 12 条\n例如：^(立即\u786e认|确定退出)$");
+        keywords.setText(prefs.getString("dialog_remove_regex_rules", ""));
+        form.addView(text("关键词正则", 13, 0xff334155, true));
+        form.addView(keywords);
+
+        EditText ids = new EditText(this);
+        ids.setGravity(Gravity.TOP | Gravity.START);
+        ids.setMinLines(3);
+        ids.setMaxLines(6);
+        ids.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        ids.setHint("每行一个 resourceEntryName 或十进制资源 ID；最多 12 条\n例如：dialog_confirm");
+        ids.setText(prefs.getString("dialog_remove_resource_ids", ""));
+        form.addView(text("资源 ID", 13, 0xff334155, true));
+        form.addView(ids);
+
+        android.widget.CheckBox broadScope = new android.widget.CheckBox(this);
+        broadScope.setText("允许检查任意 ViewGroup 父容器（高风险）");
+        broadScope.setChecked(false);
+        broadScope.setPadding(0, dp(4), 0, dp(4));
+        form.addView(broadScope);
+        TextView scopeWarning = text(
+                "默认只移除 DecorView / android.R.id.content 的直接子项。开启任意父容器会扩大删除范围，可能误删普通业务 UI；仅在隔离测试应用中使用。",
+                12, 0xff9a3412, false);
+        form.addView(scopeWarning);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Dia · 配置匹配弹窗移除")
+                .setView(form)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("验证规则并载入脚本", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    List<String> regexRules = new ArrayList<>();
+                    List<String> resourceRules = new ArrayList<>();
+                    for (String line : keywords.getText().toString().split("\\r?\\n")) {
+                        String value = line.trim();
+                        if (value.isEmpty()) continue;
+                        if (value.length() > 160 || regexRules.size() >= 12) {
+                            setStatus("关键词规则每条最多 160 字符，最多 12 条；没有载入脚本。");
+                            return;
+                        }
+                        try {
+                            java.util.regex.Pattern.compile(value, java.util.regex.Pattern.CASE_INSENSITIVE);
+                        } catch (java.util.regex.PatternSyntaxException invalid) {
+                            setStatus("关键词正则无效：" + value + " · " + invalid.getDescription());
+                            return;
+                        }
+                        if (!regexRules.contains(value)) regexRules.add(value);
+                    }
+                    for (String line : ids.getText().toString().split("\\r?\\n")) {
+                        String value = line.trim();
+                        if (value.isEmpty()) continue;
+                        boolean namedId = value.matches("[A-Za-z_][A-Za-z0-9_]*");
+                        boolean numericId = value.matches("[0-9]{1,10}");
+                        if (value.length() > 160 || (!namedId && !numericId)
+                                || resourceRules.size() >= 12) {
+                            setStatus("资源 ID 只允许 resourceEntryName 或十进制资源 ID，最多 12 条；没有载入脚本。");
+                            return;
+                        }
+                        if (!resourceRules.contains(value)) resourceRules.add(value);
+                    }
+                    if (regexRules.isEmpty() && resourceRules.isEmpty()) {
+                        setStatus("至少填写一条关键词正则或资源 ID。规则留空时仅保留空白模板，不会执行移除。");
+                        return;
+                    }
+                    Runnable applyRules = () -> {
+                        try {
+                            String template = readDiaTemplateAsset("dia/fx_dialog_remove_template.js");
+                            org.json.JSONArray regexJson = new org.json.JSONArray();
+                            for (String value : regexRules) regexJson.put(value);
+                            org.json.JSONArray idJson = new org.json.JSONArray();
+                            for (String value : resourceRules) idJson.put(value);
+                            template = replaceExactlyOnce(template,
+                                    "var ALERT_KEYWORD_PATTERNS = [];",
+                                    "var ALERT_KEYWORD_PATTERNS = " + regexJson.toString() + ";");
+                            template = replaceExactlyOnce(template,
+                                    "var ALERT_VIEW_IDS = [];",
+                                    "var ALERT_VIEW_IDS = " + idJson.toString() + ";");
+                            template = replaceExactlyOnce(template,
+                                    "var ALLOW_ANY_PARENT = false;",
+                                    "var ALLOW_ANY_PARENT = " + broadScope.isChecked() + ";");
+                            if (template.length() > MAX_FRIDA_SOURCE_BYTES) {
+                                setStatus("生成的弹窗规则脚本超过 48 KiB，未载入。");
+                                return;
+                            }
+                            boolean saved = prefs.edit()
+                                    .putString("dialog_remove_regex_rules", String.join("\\n", regexRules))
+                                    .putString("dialog_remove_resource_ids", String.join("\\n", resourceRules))
+                                    .putBoolean("dialog_remove_any_parent", broadScope.isChecked())
+                                    .commit();
+                            if (!saved) {
+                                setStatus("规则本地保存失败；脚本未载入。");
+                                return;
+                            }
+                            script.setText(template);
+                            setStatus("已验证并载入 " + regexRules.size() + " 条正则、"
+                                    + resourceRules.size() + " 条资源 ID。脚本尚未注入；请检查目标和规则后手动注入。"
+                                    + (broadScope.isChecked()
+                                        ? " 注意：当前规则会检查任意 ViewGroup 父容器。"
+                                        : " 扫描范围仍限 DecorView/content 根容器直接子项。"));
+                            dialog.dismiss();
+                        } catch (Exception error) {
+                            setStatus("生成弹窗移除脚本失败：" + error.getClass().getSimpleName()
+                                    + "：" + error.getMessage());
+                        }
+                    };
+                    if (broadScope.isChecked()) {
+                        new AlertDialog.Builder(this)
+                                .setTitle("扩大弹窗移除范围？")
+                                .setMessage("允许任意 ViewGroup 父容器会增加误删普通 UI 的风险。只允许在隔离的自有 debuggable 测试应用中使用。确认继续？")
+                                .setNegativeButton("返回修改", null)
+                                .setPositiveButton("确认扩大范围", (confirm, which) -> applyRules.run())
+                                .show();
+                    } else {
+                        applyRules.run();
+                    }
+                }));
+        dialog.show();
+    }
+
+    private String replaceExactlyOnce(String source, String placeholder, String replacement) {
+        int first = source.indexOf(placeholder);
+        if (first < 0 || source.indexOf(placeholder, first + placeholder.length()) >= 0) {
+            throw new IllegalStateException("弹窗模板结构已变化，无法安全生成规则脚本。");
+        }
+        return source.substring(0, first) + replacement
+                + source.substring(first + placeholder.length());
     }
 
     private void loadDiaMonitorTemplate(String kind) {
