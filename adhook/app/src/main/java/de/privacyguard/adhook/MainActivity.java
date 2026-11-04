@@ -3378,9 +3378,8 @@ public final class MainActivity extends ComponentActivity {
                     showAppList("应用版本模拟");
                     return;
                 case "按键控制":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
+                    markMigrationChild(suite, category, page);
+                    showAppList("按键控制");
                     return;
                 case "应用选择": case "目标应用": case "模块配置": case "模块功能":
                     markMigrationChild(suite, category, page);
@@ -4983,6 +4982,10 @@ public final class MainActivity extends ComponentActivity {
             showDiaToastTarget(ai);
             return;
         }
+        if ("按键控制".equals(activePrivacySection)) {
+            showDiaKeyControlTarget(ai);
+            return;
+        }
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
@@ -5648,6 +5651,168 @@ public final class MainActivity extends ComponentActivity {
         Button back = new Button(this);
         back.setText("返回 Toast 应用列表");
         back.setOnClickListener(v -> showAppList("Toast过滤"));
+        content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void showDiaKeyControlTarget(ApplicationInfo target) {
+        hookUiVisible = true;
+        settingsUiVisible = false;
+        hookTargetVisible = true;
+        hookHubVisible = false;
+        selectedBottomTab = 4;
+        base("按键控制 · " + selectedLabel);
+
+        final String packageNameKey = selectedPackage;
+        final boolean userTarget = (target.flags & (ApplicationInfo.FLAG_SYSTEM
+                | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0;
+        final boolean debuggableTarget = (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        final String finishKey = packageNameKey + ":key_finish_trigger";
+        final String dialogKey = packageNameKey + ":key_dialog_toggle_trigger";
+        final String finishDraftKey = packageNameKey + ":key_finish_trigger_draft";
+        final String dialogDraftKey = packageNameKey + ":key_dialog_toggle_trigger_draft";
+
+        TextView packageName = new TextView(this);
+        packageName.setText(selectedPackage);
+        packageName.setTextColor(0xff687582);
+        packageName.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(packageName);
+
+        TextView scope = new TextView(this);
+        scope.setText(userTarget
+                ? "按键动作只绑定当前应用 Activity，不消费系统按键事件；未配置时完全不安装按键 Hook。"
+                : "系统或更新系统应用不允许启用 FX 按键动作，以免影响系统导航、音量和辅助功能。");
+        scope.setTextColor(0xff697681);
+        scope.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(scope);
+        addLsposedScopeControls(selectedPackage,
+                (target.flags & (ApplicationInfo.FLAG_SYSTEM
+                        | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
+
+        final String[] triggerLabels = {
+                "禁用",
+                "音量下键双击（间隔 200ms–2s）",
+                "返回键双击（2s 内）",
+                "音量下键三击（每击间隔大于 200ms）",
+                "返回键三击（2s 内）",
+                "音量上键双击（间隔 200ms–2s）",
+                "返回键长按",
+                "音量下键 + 音量上键组合（400ms 内）"
+        };
+        final int[] triggerValues = {-1, 0, 1, 2, 3, 4, 5, 6};
+        final int storedFinish = getPreferences(0).getInt(finishDraftKey,
+                getPreferences(0).getInt(finishKey, -1));
+        final int storedDialog = getPreferences(0).getInt(dialogDraftKey,
+                getPreferences(0).getInt(dialogKey, -1));
+
+        section("动作一：关闭当前 Activity");
+        TextView finishNote = new TextView(this);
+        finishNote.setText("触发后调用当前目标 Activity.finish()，不会强制停止进程，也不会退出整个应用。");
+        finishNote.setTextColor(0xff697681);
+        finishNote.setPadding(dp(18), 0, dp(18), dp(8));
+        content.addView(finishNote);
+        Spinner finishSpinner = new Spinner(this);
+        ArrayAdapter<String> finishAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, triggerLabels);
+        finishAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        finishSpinner.setAdapter(finishAdapter);
+        int finishSelection = 0;
+        for (int i = 0; i < triggerValues.length; i++) {
+            if (triggerValues[i] == storedFinish) { finishSelection = i; break; }
+        }
+        finishSpinner.setSelection(finishSelection);
+        finishSpinner.setEnabled(userTarget);
+        content.addView(finishSpinner, new LinearLayout.LayoutParams(-1, -2));
+
+        boolean dialogConfigured = false;
+        try {
+            boolean dialogEnabled = getPreferences(0).getBoolean(
+                    packageNameKey + ":dialog_match_enabled", false);
+            List<String> textTerms = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                    .parseTerms(getPreferences(0).getString(
+                            packageNameKey + ":dialog_text_terms", ""));
+            List<String> idTerms = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                    .parseTerms(getPreferences(0).getString(
+                            packageNameKey + ":dialog_id_terms", ""));
+            dialogConfigured = debuggableTarget && dialogEnabled
+                    && (!textTerms.isEmpty() || !idTerms.isEmpty());
+        } catch (IllegalArgumentException invalidDraft) {
+            dialogConfigured = false;
+        }
+
+        section("动作二：暂停 / 恢复当前应用的 Dialog 规则");
+        TextView dialogNote = new TextView(this);
+        dialogNote.setText(dialogConfigured
+                ? "只临时切换当前应用已发布的 Dialog 规则，不删除关键词、资源 ID 或持久化配置。再次触发恢复规则。"
+                : "需要先在“对话框与通知”页面为此 debuggable 应用启用至少一条 Dialog 文本或资源 ID 规则，才能配置此动作。");
+        dialogNote.setTextColor(0xff697681);
+        dialogNote.setPadding(dp(18), 0, dp(18), dp(8));
+        content.addView(dialogNote);
+        Spinner dialogSpinner = new Spinner(this);
+        ArrayAdapter<String> dialogAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, triggerLabels);
+        dialogAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        dialogSpinner.setAdapter(dialogAdapter);
+        int dialogSelection = 0;
+        for (int i = 0; i < triggerValues.length; i++) {
+            if (triggerValues[i] == storedDialog) { dialogSelection = i; break; }
+        }
+        dialogSpinner.setSelection(dialogSelection);
+        dialogSpinner.setEnabled(userTarget && debuggableTarget);
+        content.addView(dialogSpinner, new LinearLayout.LayoutParams(-1, -2));
+
+        finishSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long id) {
+                if (position >= 0 && position < triggerValues.length) {
+                    getPreferences(0).edit().putInt(finishDraftKey, triggerValues[position]).apply();
+                }
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+        dialogSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long id) {
+                if (position >= 0 && position < triggerValues.length) {
+                    getPreferences(0).edit().putInt(dialogDraftKey, triggerValues[position]).apply();
+                }
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        Button save = new Button(this);
+        save.setAllCaps(false);
+        save.setText("保存并发布按键动作");
+        save.setEnabled(userTarget);
+        save.setOnClickListener(v -> {
+            int finishTrigger = triggerValues[Math.max(0,
+                    Math.min(triggerValues.length - 1, finishSpinner.getSelectedItemPosition()))];
+            int dialogTrigger = triggerValues[Math.max(0,
+                    Math.min(triggerValues.length - 1, dialogSpinner.getSelectedItemPosition()))];
+            if (finishTrigger >= 0 && finishTrigger == dialogTrigger) {
+                Toast.makeText(this, "两个独立动作不能使用同一个触发器，请分别选择。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (dialogTrigger >= 0 && (!dialogConfigured || !debuggableTarget)) {
+                Toast.makeText(this, "Dialog 切换动作需要先配置有效的 debuggable Dialog 规则。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            boolean saved = getPreferences(0).edit()
+                    .putInt(finishKey, finishTrigger)
+                    .putInt(dialogKey, dialogTrigger)
+                    .remove(finishDraftKey)
+                    .remove(dialogDraftKey)
+                    .commit();
+            if (!saved) {
+                Toast.makeText(this, "按键动作未能写入本地存储，未发布。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            publishConfig();
+        });
+        content.addView(save, new LinearLayout.LayoutParams(-1, -2));
+
+        Button back = new Button(this);
+        back.setText("返回按键控制应用列表");
+        back.setOnClickListener(v -> showAppList("按键控制"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
     }
 
