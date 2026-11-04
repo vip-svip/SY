@@ -188,7 +188,29 @@ monday_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add defa
 monday_id=${monday_schedule#created=}
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id" >/dev/null
 FX_PROFILE_TEST_DOW=1 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/monday-evaluate.out"
-grep -Fq 'switched=default' "$T/monday-evaluate.out" || fail "Monday=1 schedule did not switch at noon"
+grep -Fq 'switched=default' "$T/monday-evaluate.out" || {
+  echo "--- Monday evaluation output ---" >&2
+  cat "$T/monday-evaluate.out" >&2
+  echo "--- date shim values ---" >&2
+  FX_PROFILE_TEST_DOW=1 "$T/bin/date" +%w >&2
+  FX_PROFILE_TEST_TIME=12:00 "$T/bin/date" +%H:%M >&2
+  echo "--- profile schedule state ---" >&2
+  cat "$PROFILE_PG/yulong-profile-schedules.tsv" >&2
+  echo "--- active profile state ---" >&2
+  grep -E '^yulong_active_profile=' "$PROFILE_PG/settings.conf" >&2 || :
+  fail "Monday=1 schedule did not switch at noon"
+}
+# Verify zero-padded hours/minutes are parsed as decimal, never invalid octal.
+early_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 08:05 08:45 1)
+early_id=${early_schedule#created=}
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+FX_PROFILE_TEST_DOW=1 FX_PROFILE_TEST_TIME=08:30 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/zero-padded-hour-minute.out"
+grep -Fq "switched=$custom_id" "$T/zero-padded-hour-minute.out" || fail "08:05–08:45 schedule did not match with decimal time parsing"
+midnight_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 00:05 00:10 1)
+midnight_id=${midnight_schedule#created=}
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+FX_PROFILE_TEST_DOW=1 FX_PROFILE_TEST_TIME=00:07 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/zero-padded-minute.out"
+grep -Fq "switched=$custom_id" "$T/zero-padded-minute.out" || fail "00:05–00:10 schedule did not match with decimal minute parsing"
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch "$custom_id" >/dev/null
 FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-outside.out"
 grep -Fq 'no_matching_profile_schedule' "$T/sunday-outside.out" || fail "overnight schedule matched outside its window"
@@ -196,7 +218,10 @@ sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-set "$date_schedule_id" 1 
 FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=12:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/equal-time.out"
 grep -Fq 'no_matching_profile_schedule' "$T/equal-time.out" || fail "equal start/end incorrectly matched as all-day"
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$monday_id" >/dev/null
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$early_id" >/dev/null
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$midnight_id" >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-remove "$date_schedule_id" >/dev/null
+
 
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-delete "$custom_id" >/dev/null
