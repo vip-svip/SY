@@ -265,6 +265,13 @@ assert "volumeKeyButton" in volume_ui and "volumeCountButton" in volume_ui
 
 hub = shield["FxYulongShieldActivity.java"]
 db_page = shield["FxYulongVirusDatabaseActivity.java"]
+assert '"病毒库完整同步完成（"' in db_page, "Virus list UI must distinguish a complete sync"
+assert '"病毒库部分同步（"' in db_page, "Virus list UI must report partial list success"
+assert '"病毒库同步失败，原有缓存已保留"' in db_page, "Total list failure must state that cached data was retained"
+assert "int successfulLists = 0;" in db_page and "item.ok" in db_page, "Virus list outcome must use per-list success results"
+assert "contentSyncSucceeded = contentReady" in db_page, "Ready stale content cache must not be mistaken for a successful refresh"
+assert "getLastSuccessAt() > previousContentSuccess" in db_page, "Content DB success must be based on this refresh attempt"
+assert "本次同步未成功；旧版 APK 特征缓存仍可用" in db_page, "Content DB failure with a usable old cache must be explicit"
 scan_page = shield["FxYulongScanActivity.java"]
 batch_cleanup = shield["FxYulongBatchCleanupActivity.java"]
 engine = shield["FxYulongScanEngine.java"]
