@@ -126,3 +126,26 @@ assert '.putString(key, group).commit()' in source[picker_start:picker_end], \
     "moving a rule between groups must report a synchronous persistence result"
 PY
 echo "PASS: Hook add/rename/move group forms preserve drafts and commit group changes atomically"
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+for token in (
+    'outState.putInt("fx_custom_rule_group_dialog_slot", customRuleGroupDialogSlot)',
+    'outState.putInt("fx_custom_rule_group_dialog_choice", customRuleGroupDialogChoice)',
+    'state.getInt("fx_custom_rule_group_dialog_slot", -1)',
+    'state.getInt("fx_custom_rule_group_dialog_choice", 0)',
+    'else if ("list".equals(mode)) showCustomRuleGroupsDialog()',
+    'else if ("actions".equals(mode) && value != null) showCustomRuleGroupActions(value)',
+    'else if ("delete".equals(mode) && value != null) showDeleteCustomRuleGroupConfirmation(value)',
+    'else if ("picker".equals(mode) && customRuleGroupDialogSlot > 0)',
+    'customRuleGroupDialogChoice = which',
+    'private void showDeleteCustomRuleGroupConfirmation(String groupName)',
+):
+    assert token in source, f"rule group nested-dialog state missing {token}"
+picker_start = source.index("private void showCustomRuleGroupPicker(int slot, int restoreChoice)")
+picker_end = source.index("\n    private ", picker_start + 20)
+picker = source[picker_start:picker_end]
+assert "restoreChoice" in picker and "customRuleGroupDialogChoice = which" in picker
+assert "commitCustomRuleGroupUpdate(" in picker or ".putString(key, group).commit()" in picker
+PY
+echo "PASS: Hook rule-group list/actions/delete/picker dialogs restore their route and picker selection"
