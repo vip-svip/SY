@@ -3,12 +3,14 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
-[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
-python3 - "$MAIN" "$ACTIVITY" <<'PY'
+EDITOR="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCodeEditorActivity.java"
+[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] && [ -s "$EDITOR" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
+python3 - "$MAIN" "$ACTIVITY" "$EDITOR" <<'PY'
 from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 frida = Path(sys.argv[2]).read_text(encoding="utf-8")
+editor = Path(sys.argv[3]).read_text(encoding="utf-8")
 route_start = main.index('case "运行日志":')
 route = main[route_start:route_start + 500]
 if "FxDiaFridaActivity.class" not in route or '.putExtra("dia_page", page)' not in route:
@@ -53,6 +55,15 @@ checks = {
     "rotation does not clear pending save dialog": "if (!isChangingConfigurations()) clearSaveScriptDialogState();" in frida,
     "run log page opens target log": 'body.post(() -> {\n                if (targetPackage == null) chooseTarget();\n                else showSessionLog();\n            });' in frida,
     "script editor page opens full-screen editor": 'else if ("脚本编辑器".equals(title)) {\n            body.post(this::openFullScreenCodeEditor);' in frida,
+    "full-screen editor request records target identity": "pendingFullEditorTargetPackage = targetPackage;" in frida,
+    "full-screen editor request records source fingerprint": "pendingFullEditorSourceSha256 = sourceFingerprint;" in frida,
+    "full-screen editor pending state survives parent recreation": "outState.putBoolean(STATE_FULL_EDITOR_PENDING, fullEditorPending)" in frida and "state.getBoolean(STATE_FULL_EDITOR_PENDING, false)" in frida,
+    "full-screen editor validates source fingerprint on return": "requestedFingerprint.equals(currentFingerprint)" in frida,
+    "full-screen editor validates target on return": "Objects.equals(requestedTarget, targetPackage)" in frida,
+    "stale full-screen editor return is rejected": "全屏编辑器的旧返回结果已丢弃" in frida,
+    "editor page restores working source and baseline": "state.getString(STATE_SOURCE, intentSource)" in editor and "state.getString(STATE_BASELINE" in editor,
+    "editor returns code only on successful save": "setResult(RESULT_CODE_EDITOR, result);" in editor and "private void saveAndReturn()" in editor,
+    "editor enforces source byte limit": "utf8Length(source) > MAX_SOURCE_BYTES" in editor,
 }
 for label, ok in checks.items():
     if not ok:
