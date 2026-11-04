@@ -35,7 +35,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Native control screens for migrated Yulong AdBlock 7.0.1. */
-public final class FxYulongAdActivity extends Activity {
+public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTabActivity {
  private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
          TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
          r -> new Thread(r, "fx-yulong-ad-ui"), new ThreadPoolExecutor.AbortPolicy());
@@ -152,7 +152,7 @@ public final class FxYulongAdActivity extends Activity {
    page=getIntent().getStringExtra("suite_page");
    if(page==null)page="首页与防护";
   }
-  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
+  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回",this::finish));h.addView(txt("游龙广告插件 7.0.1",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
  @Override protected void onSaveInstanceState(Bundle out){
   out.putString(STATE_PAGE,page);
   Bundle drafts=new Bundle();
