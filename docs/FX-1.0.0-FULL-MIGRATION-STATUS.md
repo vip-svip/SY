@@ -827,3 +827,10 @@ After each implementation batch:
 - Kept the existing ad Activity/Quick Settings Tile transaction lease for ad-master changes, and retained the module's own VPN lifecycle lock for VPN routing. No second Android `VpnService` was introduced.
 - Updated the registered Tasker concurrency regression to verify operation-to-gate selection and all four release paths.
 - GitHub Actions validation for this batch is pending. The change is source/host-regression scoped; simultaneous actions against real Android Root/VPN runtimes still require device verification.
+
+## 2026-11-04 — Dia Frida target picker responsiveness
+
+- Moved Frida's installed-app enumeration, debuggable/non-system filtering, application-label lookup and sorting off the Activity main thread onto the existing bounded worker.
+- Repeated taps while a scan is active no longer enqueue duplicate PackageManager scans. A generation token rejects late callbacks after the target-picker request becomes stale or the Activity is destroyed.
+- Successful results return to the UI thread and retain the existing package/label persistence, target selection, Gadget default process and multi-process Frida-inject behavior. Queue saturation now displays an explicit retry message.
+- Added and registered `fx-dia-frida-target-loader-regression.py` alongside the Dia inspector responsiveness regression. Build/host validation is pending; no physical-device frame-time measurement is claimed.
