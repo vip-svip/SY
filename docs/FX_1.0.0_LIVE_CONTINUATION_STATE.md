@@ -774,3 +774,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 当前 FX 的 Dia 路由 `对话框与通知` 仅跳到 per-app `通知保护`，而 Hook 中的 `Dialog.show` observer 只用于广告 View 扫描，不等于原版 Dialog 自动处理；该功能尚未迁移。
   - 下一步必须实现独立 per-app Dialog/Toast 原生配置与真实 Hook 执行器，至少先支持显式文本/ID 规则、明确启停、限额/防误匹配、Toast 过滤和状态回执；不要把通知监听开关冒充 Dialog 功能。对原版按键触发模式先继续解析语义，再决定安全迁移方式。
 - 并行工作线：Dialog 原版 smali/Preference XML 已定位；下一轮先实现独立纯 Java 匹配策略与配置 parser/serializer，再接 Hook 执行器和 MainActivity 页面路由。共享 `AdVisibilityHook.java` / `MainActivity.java` 修改前必须重新读取最新 blob。
+
+
+## 2026-11-05 — Dia Dialog 入口纠正
+
+- 提交：`10463057e4cc876d286237b2269b581db324de19`。
+- 修复：Dia「对话框与通知」不再错误跳入逐应用「通知保护」设置，而是进入 FX 内置、按目标应用隔离的 Dia Frida 工具页，页面标题为「Dialog 观察与规则」。
+- 功能边界：通知保护仍作为独立隐私 Hook 功能；Dialog 观察/弹窗规则不再被错误标记为通知功能已迁移。现有匹配弹窗移除脚本仍要求规则显式配置、目标应用 debuggable、用户手动注入；本次未启用自动移除，也未更改其规则模板。
+- 核验：从最新分支读取 MainActivity，确认该路由指向 FxDiaFridaActivity 且标题正确；未运行 Android 编译、UI 自动化或真机测试。
+- 未完成：Dia Dialog 页面尚未有独立规则表单/状态保存，仍依赖 Frida 页现有模板编辑器；后续继续补独立配置体验，并核验原始 Dialog 的全部语义。
+- 下一步：继续 Hook 自定义规则语法和实际执行适配器核验，不把仅能编辑/保存的规则误报为已执行。
+
