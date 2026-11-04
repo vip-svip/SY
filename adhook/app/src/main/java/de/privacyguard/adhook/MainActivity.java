@@ -126,6 +126,14 @@ public final class MainActivity extends ComponentActivity {
     private boolean customHookReturnToTarget;
     private boolean hookHubVisible;
     private boolean settingsUiVisible;
+    private boolean hookAuthorizationRefreshPending;
+    private TextView hookHubRemoteStatus;
+    private TextView hookHubRootState;
+    private TextView hookHubLsposedState;
+    private TextView hookHubAccessibilityState;
+    private TextView hookTargetScopeState;
+    private String hookTargetScopePackage;
+    private int hookTargetScopeGeneration;
     // Preserve the Settings > migration suite > category > page return chain.
     private String migrationSuite;
     private String migrationCategory;
@@ -338,14 +346,30 @@ public final class MainActivity extends ComponentActivity {
             } catch (PackageManager.NameNotFoundException removed) {
                 Toast.makeText(this, "目标应用已卸载，已返回应用列表并保留原配置。",
                         Toast.LENGTH_LONG).show();
+                hookCustomRulesPageVisible = false;
+                customHookReturnToTarget = false;
                 showAppList(activePrivacySection);
             }
         } else if (isHookAppListVisible() && appsLoaded && appLoaderThread == null) {
             refreshHookAppList();
         }
+
+        if (hookAuthorizationRefreshPending) {
+            hookAuthorizationRefreshPending = false;
+            if (hookHubVisible) {
+                refreshHookHubAuthorizationStates();
+            } else if (hookTargetVisible && selectedPackage != null
+                    && hookTargetScopeState != null
+                    && selectedPackage.equals(hookTargetScopePackage)) {
+                refreshLsposedScopeStatus(hookTargetScopeState, selectedPackage);
+            }
+        }
     }
 
     @Override protected void onPause() {
+        if (hookUiVisible && (hookHubVisible || hookTargetVisible)) {
+            hookAuthorizationRefreshPending = true;
+        }
         unregisterPackageChangeReceiver();
         stopNativeVpnPolling();
         if (webView != null) {
@@ -2802,6 +2826,7 @@ public final class MainActivity extends ComponentActivity {
         TextView remoteStatus = new TextView(this);
         remoteStatus.setText("正在读取设备端 Remote Files 状态…");
         remoteStatus.setPadding(dp(18), dp(10), dp(18), dp(12));
+        hookHubRemoteStatus = remoteStatus;
         content.addView(remoteStatus);
         Button refreshRemote = new Button(this);
         refreshRemote.setText("刷新 Remote Files 状态");
@@ -2812,6 +2837,7 @@ public final class MainActivity extends ComponentActivity {
         TextView rootState = new TextView(this);
         rootState.setText("正在检查 Root 授权与 FX 模块状态…");
         rootState.setPadding(dp(18), dp(12), dp(18), dp(12));
+        hookHubRootState = rootState;
         content.addView(rootState);
         Button refreshRoot = new Button(this);
         refreshRoot.setText("刷新 Root 状态");
@@ -2824,15 +2850,10 @@ public final class MainActivity extends ComponentActivity {
         checkRoot(rootState, false);
         section("LSPosed");
         TextView ls = new TextView(this);
-        ls.setText((isLsposedManagerInstalled()
-                ? "已检测到 LSPosed Manager。"
-                : "未检测到 LSPosed Manager。")
-                + (FxLsposedScopeBridge.isConnected()
-                    ? "\nlibXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
-                    : "\nlibXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
-                + "\n作用域批准不等于目标进程已经注入。");
         ls.setPadding(dp(18), dp(12), dp(18), dp(12));
+        hookHubLsposedState = ls;
         content.addView(ls);
+        refreshHookHubLsposedStatus(ls);
         Button manager = new Button(this);
         manager.setText("打开 LSPosed Manager");
         manager.setOnClickListener(v -> openLsposedManager());
@@ -2843,18 +2864,10 @@ public final class MainActivity extends ComponentActivity {
         content.addView(targets);
         section("Android 无障碍");
         TextView accessibility = new TextView(this);
-        boolean accessibilityEnabled = isAccessibilityEnabled();
-        android.content.SharedPreferences accessibilityPrefs =
-                getSharedPreferences("fx_accessibility", MODE_PRIVATE);
-        boolean accessibilityConnected = FxAccessibilityService.isConnected()
-                && accessibilityPrefs.getBoolean("service_connected", false)
-                && accessibilityPrefs.getInt("service_pid", -1) == android.os.Process.myPid();
-        accessibility.setText(!accessibilityEnabled
-                ? "无障碍服务：未启用（需由用户在系统设置中手动开启）"
-                : accessibilityConnected ? "无障碍服务：系统已启用，FX 服务已连接"
-                : "无障碍服务：系统已启用，等待 FX 服务连接");
         accessibility.setPadding(dp(18), dp(12), dp(18), dp(12));
+        hookHubAccessibilityState = accessibility;
         content.addView(accessibility);
+        refreshHookHubAccessibilityStatus(accessibility);
         Button settings = new Button(this);
         settings.setText("打开无障碍设置");
         settings.setOnClickListener(v -> {
@@ -2863,13 +2876,49 @@ public final class MainActivity extends ComponentActivity {
         });
         content.addView(settings);
         Button status = new Button(this);
-        status.setText("刷新无障碍 / LSPosed 检测");
-        status.setOnClickListener(v -> showHookHub());
+        status.setText("刷新 Root / LSPosed / 无障碍状态");
+        status.setOnClickListener(v -> refreshHookHubAuthorizationStates());
         content.addView(status);
         Button back = new Button(this);
         back.setText("返回 FX 控制中心");
         back.setOnClickListener(v -> showWebDashboard());
         content.addView(back);
+    }
+
+    private void refreshHookHubAuthorizationStates() {
+        if (!hookHubVisible || isFinishing() || isDestroyed()) return;
+        if (hookHubRemoteStatus != null) refreshHookRemoteStatus(hookHubRemoteStatus);
+        if (hookHubRootState != null) checkRoot(hookHubRootState, false);
+        if (hookHubLsposedState != null) refreshHookHubLsposedStatus(hookHubLsposedState);
+        if (hookHubAccessibilityState != null)
+            refreshHookHubAccessibilityStatus(hookHubAccessibilityState);
+    }
+
+    private void refreshHookHubLsposedStatus(TextView state) {
+        if (state == null) return;
+        boolean managerInstalled = isLsposedManagerInstalled();
+        boolean serviceConnected = FxLsposedScopeBridge.isConnected();
+        state.setText((managerInstalled
+                ? "已检测到 LSPosed Manager。"
+                : "未检测到 LSPosed Manager。")
+                + (serviceConnected
+                    ? "\nlibXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
+                    : "\nlibXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
+                + "\n作用域批准不等于目标进程已经注入。");
+    }
+
+    private void refreshHookHubAccessibilityStatus(TextView state) {
+        if (state == null) return;
+        boolean enabled = isAccessibilityEnabled();
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("fx_accessibility", MODE_PRIVATE);
+        boolean connected = enabled && FxAccessibilityService.isConnected()
+                && prefs.getBoolean("service_connected", false)
+                && prefs.getInt("service_pid", -1) == android.os.Process.myPid();
+        state.setText(!enabled
+                ? "无障碍服务：未启用（需由用户在系统设置中手动开启）"
+                : connected ? "无障碍服务：系统已启用，FX 服务已连接"
+                : "无障碍服务：系统已启用，等待 FX 服务连接");
     }
 
     private void addModeOption(RadioGroup group, int id, String title, String detail) {
@@ -6118,6 +6167,9 @@ public final class MainActivity extends ComponentActivity {
         TextView state = new TextView(this);
         state.setPadding(dp(18), dp(8), dp(18), dp(10));
         state.setText("正在读取 LSPosed 服务和当前目标作用域…");
+        hookTargetScopeState = state;
+        hookTargetScopePackage = packageName;
+        hookTargetScopeGeneration++;
         content.addView(state);
 
         Button refresh = new Button(this);
@@ -6184,11 +6236,27 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void refreshLsposedScopeStatus(TextView state, String packageName) {
+        final int request = ++hookTargetScopeGeneration;
         state.setText("正在读取 LSPosed 服务和当前目标作用域…");
         Thread worker = new Thread(() -> {
-            FxLsposedScopeBridge.Snapshot snapshot = FxLsposedScopeBridge.snapshot(packageName);
+            FxLsposedScopeBridge.Snapshot snapshot;
+            try {
+                snapshot = FxLsposedScopeBridge.snapshot(packageName);
+            } catch (RuntimeException error) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || request != hookTargetScopeGeneration
+                            || state != hookTargetScopeState
+                            || !packageName.equals(hookTargetScopePackage)
+                            || !packageName.equals(selectedPackage) || state.getParent() == null) return;
+                    state.setText("读取 LSPosed 作用域失败：" + error.getClass().getSimpleName());
+                });
+                return;
+            }
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed() || request != hookTargetScopeGeneration
+                        || state != hookTargetScopeState
+                        || !packageName.equals(hookTargetScopePackage)
+                        || !packageName.equals(selectedPackage) || state.getParent() == null) return;
                 if (!snapshot.connected) {
                     state.setText(snapshot.error);
                     return;
@@ -6200,6 +6268,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
             });
         }, "fx-lsposed-scope-status");
+        worker.setDaemon(true);
         worker.start();
     }
 
