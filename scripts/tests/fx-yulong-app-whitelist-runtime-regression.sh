@@ -26,6 +26,16 @@ printf 'id=privacyguard\n' > "$MODULE/module.prop"
 cat > "$MODULE/scripts/apply.sh" <<'SH'
 #!/system/bin/sh
 printf '%s\n' "$*" >> "$FX_TEST_APPLY_LOG"
+if [ "$FX_TEST_VERIFY_LOCK_PID" = 1 ]; then
+  lock_pid=$(cat "$LOCK/pid") || exit 90
+  case "$lock_pid" in ''|*[!0-9]*) exit 91 ;; esac
+  kill -0 "$lock_pid" 2>/dev/null || exit 92
+  [ "$(stat -c %a "$LOCK/pid")" = 600 ] || exit 93
+  for backup in "$CONF".yulong-white-rollback.*; do
+    [ -f "$backup" ] || continue
+    [ "$(stat -c %a "$backup")" = 600 ] || exit 94
+  done
+fi
 [ "$FX_TEST_APPLY_FAIL" != 1 ]
 SH
 chmod 0755 "$MODULE/scripts/apply.sh"
@@ -36,7 +46,7 @@ enabled=1
 CONF
 chmod 0600 "$STATE/settings.conf"
 export FX_TEST_APPLY_LOG="$TMP/apply.log"
-export FX_TEST_APPLY_FAIL=0
+export FX_TEST_APPLY_FAIL=0 FX_TEST_VERIFY_LOCK_PID=1
 export MP="$MODULE" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/whitelist.lock"
 
 # Environment overrides must be expanded by the shell, not treated as literal text.
@@ -150,7 +160,36 @@ rmdir "$LOCK"
   echo "FAIL: lock recovery changed the sentinel target" >&2; exit 1;
 }
 
-if grep -Eq 'CONF\.yulong-white(-rollback)?\.\$\$|CONF\.restore\.\$\$' "$SCRIPT"; then
+grep -Fq '"$" > "$_YW_PID_TEMP"' "$SCRIPT" || {
+  echo "FAIL: whitelist lock owner does not record the current PID" >&2; exit 1;
+}
+if grep -Fq 'cp -p "$CONF" "$backup"' "$SCRIPT" || grep -Fq 'cp -p "$backup" "$_YW_RESTORE"' "$SCRIPT"; then
+  echo "FAIL: private rollback files inherit the source config mode" >&2; exit 1;
+fi
+if grep -Eq 'CONF\.yulong-white(-rollback)?\.\$\$|CONF\.restore\.\$\
+  echo "FAIL: predictable whitelist temp names remain" >&2; exit 1
+fi
+for template in 'mktemp "$CONF.yulong-white.XXXXXX"' \
+                'mktemp "$CONF.yulong-white-rollback.XXXXXX"' \
+                'mktemp "$CONF.restore.XXXXXX"'; do
+  grep -Fq "$template" "$SCRIPT" || {
+    echo "FAIL: missing randomized whitelist transaction file: $template" >&2; exit 1;
+  }
+done
+
+# Unsafe settings.conf symlink is rejected without following its target.
+mv "$CONF" "$STATE/settings.real"
+ln -s "$STATE/settings.real" "$CONF"
+if sh "$SCRIPT" list; then
+  echo "FAIL: whitelist accepted a symlink settings.conf" >&2
+  exit 1
+fi
+[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || {
+  echo "FAIL: whitelist settings guard changed the sentinel target" >&2; exit 1;
+}
+
+echo "PASS: Yulong whitelist uses private atomic temp/rollback files, rejects symlink paths, preserves stale-lock recovery and stages identical Release source"
+ "$SCRIPT"; then
   echo "FAIL: predictable whitelist temp names remain" >&2; exit 1
 fi
 for template in 'mktemp "$CONF.yulong-white.XXXXXX"' \

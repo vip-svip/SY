@@ -142,7 +142,7 @@ mutate_transaction() {
   [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; return 21; }
   _YW_BACKUP=$(mktemp "$CONF.yulong-white-rollback.XXXXXX") || return 1
   backup=$_YW_BACKUP
-  if ! cp -p "$CONF" "$backup" || ! chmod 600 "$backup"; then
+  if ! cat "$CONF" > "$backup" || ! chmod 600 "$backup"; then
     rm -f "$backup"; _YW_BACKUP=; return 1
   fi
   if ! write_item "$pkg" "$enabled"; then
@@ -158,7 +158,7 @@ mutate_transaction() {
     echo "unable to create private whitelist rollback file" >&2
     return 11
   }
-  if cp -p "$backup" "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \
+  if cat "$backup" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \
       && [ -f "$CONF" ] && [ ! -L "$CONF" ] \
       && [ -f "$_YW_RESTORE" ] && [ ! -L "$_YW_RESTORE" ] \
       && mv -f "$_YW_RESTORE" "$CONF"; then
