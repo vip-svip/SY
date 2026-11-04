@@ -11,17 +11,14 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 
-worker_start = source.index("private final ThreadPoolExecutor worker")
-worker_end = source.index("private final List<ApplicationInfo> apps", worker_start)
-worker = source[worker_start:worker_end]
-assert "new ArrayBlockingQueue<>(16)" in worker, "Root work queue must stay bounded"
-assert "new ThreadPoolExecutor.AbortPolicy()" in worker, "queue saturation must be rejected, not silently discarded"
-
 root_start = source.index("private void root(")
 root_end = source.index("private String appLabel", root_start)
 root = source[root_start:root_end]
-assert "catch(RejectedExecutionException full)" in root, "Root queue rejection must be handled"
+assert "MAX_PENDING_ROOT_REQUESTS = 16" in source, "Activity request queue must stay bounded"
+assert "rootQueue.size()+rootCallbacks.size()>=MAX_PENDING_ROOT_REQUESTS" in root, "Activity must reject excess pending Root requests"
 assert "RootAccess.failure(75," in root, "queue saturation must be surfaced as an explicit failure result"
+assert "flushRootRequests();" in root, "accepted requests must be forwarded to the private Binder queue"
+
 
 load_start = source.index("private void loadApplications()")
 load_end = source.index("private void updateTargetLabel()", load_start)
