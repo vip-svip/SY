@@ -229,9 +229,9 @@ public final class FxYulongAdGeneralActivity extends Activity {
         });
         taskerResultStatus = text("尚无自动化执行回执。", 12, 0xff526170, false);
         card(body, "Tasker / 自动化广播",
-                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。Receiver 可调用 Root，因此必须先保存一个已安装的授权发送应用包名，再手动开启开关。仅 Android 14+ 能通过系统 API 校验真实广播发起应用；更低版本直接拒绝执行。最近回执不代表服务当前仍在运行。",
+                "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。Receiver 可调用 Root，因此需要验证并保存已安装自动化应用的包名与 APK 签名 SHA-256，再手动开启开关。仅 Android 14+ 可校验真实广播发送方、UID 包映射和固定签名；签名改变后必须重新授权，Android 14 以下直接拒绝执行。最近回执不代表服务当前仍在运行。",
                 taskerSenderPackageInput,
-                button("验证并保存授权应用包名", this::saveTaskerSenderPackage),
+                button("验证包名并固定 APK 签名", this::saveTaskerSenderPackage),
                 taskerSecurityStatus,
                 taskerExternalControl,
                 button("复制：开启广告过滤", () -> copyTaskerAction("开启广告过滤", FxYulongAdTaskerReceiver.ACTION_ENABLE)),
@@ -417,7 +417,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
             boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
             taskerResultStatus.setText(allowed
-                    ? "已允许指定发送方 " + allowedPackage + "；尚未收到执行回执。"
+                    ? "已授权发送方 " + allowedPackage + "（包名/UID/签名固定）；尚未收到执行回执。"
                     : "外部自动化控制当前关闭；未授权广播不会执行 Root 操作。尚无最近执行回执。");
             return;
         }
@@ -441,7 +441,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (!detail.isEmpty()) display.append("\n回执详情：").append(detail);
         display.append("\n外部自动化授权：")
                 .append(prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
-                        ? "已开启（仅接受 " + allowedPackage + " 且系统发送包名/UID 映射匹配的请求）"
+                        ? "已开启（仅接受 " + allowedPackage + " 且发送包名、UID 映射、固定签名均匹配的请求）"
                         : "已关闭（后续外部请求将在 Root 执行前被拒绝）");
         display.append("\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
         taskerResultStatus.setText(display.toString());
