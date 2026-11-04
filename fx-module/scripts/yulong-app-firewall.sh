@@ -380,6 +380,7 @@ WATCH_PIDFILE="$PG/yulong-app-firewall.pid"
 WATCH_LOG="$PG/yulong-app-firewall.log"
 WATCH_LOCK="$PG/yulong-app-firewall-watch.lock"
 WATCH_LOCK_OWNED=0
+WATCH_LOCK_START=
 SCRIPT_PATH="$MP/scripts/yulong-app-firewall.sh"
 WATCH_INTERVAL=${WATCH_INTERVAL:-10}
 case "$WATCH_INTERVAL" in ''|*[!0-9]*) WATCH_INTERVAL=10 ;; esac
@@ -607,6 +608,38 @@ watch_lock_process_is_ours() {
   fi
   return 1
 }
+watch_lock_pid_start_time() {
+  _watch_start_pid=$1
+  case "$_watch_start_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$_watch_start_pid/stat" ] || return 1
+  _watch_stat_tail=$(sed 's/^.*) //' "/proc/$_watch_start_pid/stat" 2>/dev/null) || return 1
+  _watch_start_time=$(printf '%s\n' "$_watch_stat_tail" | awk '{print $20}')
+  case "$_watch_start_time" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$_watch_start_time"
+}
+watch_lock_owner_is_ours() {
+  _watch_owner_pid=$1
+  watch_lock_pid_live "$_watch_owner_pid" || return 1
+  _watch_owner_marker=$(sed -n '2p' "$WATCH_LOCK" 2>/dev/null || true)
+  case "$_watch_owner_marker" in
+    FXYWLOCK2)
+      _watch_owner_script=$(sed -n '3p' "$WATCH_LOCK" 2>/dev/null || true)
+      _watch_owner_start=$(sed -n '4p' "$WATCH_LOCK" 2>/dev/null || true)
+      [ "$_watch_owner_script" = "$SCRIPT_PATH" ] || return 1
+      case "$_watch_owner_start" in ''|*[!0-9]*) return 1 ;; esac
+      _watch_live_start=$(watch_lock_pid_start_time "$_watch_owner_pid") || return 1
+      [ "$_watch_live_start" = "$_watch_owner_start" ]
+      ;;
+    '')
+      # Backward compatibility for old PID-only locks. Do not weaken the
+      # identity check; old owners must still expose the exact script path.
+      watch_lock_process_is_ours "$_watch_owner_pid"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 watch_lock_acquire() {
   [ ! -L "$WATCH_LOCK" ] || {
     echo "firewall watcher lock path is unsafe" >&2
@@ -655,7 +688,8 @@ watch_lock_acquire() {
         echo "firewall watcher lock is not a regular file" >&2
         return 1
       }
-      _watch_lock_owner=$(cat "$WATCH_LOCK" 2>/dev/null || true)
+      _watch_lock_record=$(cat "$WATCH_LOCK" 2>/dev/null || true)
+      _watch_lock_owner=$(sed -n '1p' "$WATCH_LOCK" 2>/dev/null || true)
       case "$_watch_lock_owner" in
         '') : ;;
         *[!0-9]*)
@@ -664,22 +698,28 @@ watch_lock_acquire() {
           ;;
         *)
           if watch_lock_pid_live "$_watch_lock_owner"; then
-            watch_lock_process_is_ours "$_watch_lock_owner" || {
-              echo "firewall watcher lock belongs to an unrelated process" >&2
+            watch_lock_owner_is_ours "$_watch_lock_owner" || {
+              echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
               return 1
             }
-          elif [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_owner" ]; then
+          elif [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]; then
             rm -f "$WATCH_LOCK"
           fi
           ;;
       esac
     else
-      # POSIX noclobber makes file creation exclusive and writes the owner PID
-      # in the same redirection. There is no separate mkdir/owner.pid publish gap.
-      if (umask 077; set -C; printf '%s\n' "$$" > "$WATCH_LOCK") 2>/dev/null; then
+      # Publish PID, script path and /proc start time together. The start
+      # time prevents PID reuse; the script path avoids fragile argv parsing.
+      _watch_lock_start=$(watch_lock_pid_start_time "$") || {
+        echo "unable to read current watcher lock owner start time" >&2
+        return 1
+      }
+      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
+      if ( (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
         WATCH_LOCK_OWNED=1
+        WATCH_LOCK_START=$_watch_lock_start
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ] \
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ] \
             && chmod 600 "$WATCH_LOCK"; then
           trap 'watch_lock_signal_exit 129' HUP
           trap 'watch_lock_signal_exit 130' INT
@@ -687,10 +727,11 @@ watch_lock_acquire() {
           return 0
         fi
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]; then
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
           rm -f "$WATCH_LOCK"
         fi
         WATCH_LOCK_OWNED=0
+        WATCH_LOCK_START=
         echo "unable to verify firewall watcher lock ownership" >&2
         return 1
       fi
@@ -705,11 +746,13 @@ watch_lock_acquire() {
 }
 watch_lock_release() {
   [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
+  _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$WATCH_LOCK_START")
   if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-      && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]; then
+      && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
     rm -f "$WATCH_LOCK"
   fi
   WATCH_LOCK_OWNED=0
+  WATCH_LOCK_START=
 }
 watch_lock_signal_exit() {
   _watch_signal_status=$1
