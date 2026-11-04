@@ -12,6 +12,7 @@ import android.app.Application;
 import de.privacyguard.hook.DiaFridaGadgetLoader;
 import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
 import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
+import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicyRegistry;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import dalvik.system.DexFile;
@@ -159,7 +160,8 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<String> debuggablePackages = ConcurrentHashMap.newKeySet();
     private final Set<String> diaKeyGesturePackages = ConcurrentHashMap.newKeySet();
     private final Map<String, Boolean> diaKeyDialogActive = new ConcurrentHashMap<>();
-    private final FxDiaKeyGesturePolicy diaKeyGesturePolicy = new FxDiaKeyGesturePolicy();
+    private final FxDiaKeyGesturePolicyRegistry diaKeyGesturePolicies =
+            new FxDiaKeyGesturePolicyRegistry();
     private volatile boolean diaKeyGestureDispatchHookInstalled;
     private volatile boolean diaKeyGestureLongPressHookInstalled;
     // Settings.Secure.getString is process-global. Register one interceptor per process;
@@ -288,6 +290,7 @@ public final class AdVisibilityHook extends XposedModule {
                 && (target.keyFinishTrigger >= 0 || target.keyDialogToggleTrigger >= 0);
         if (keyGestureForPackage) {
             diaKeyGesturePackages.add(pkg);
+            diaKeyGesturePolicies.forPackage(pkg);
             if (target.keyDialogToggleTrigger >= 0) {
                 diaKeyDialogActive.putIfAbsent(pkg, target.dialogMatchEnabled);
             } else {
@@ -295,6 +298,7 @@ public final class AdVisibilityHook extends XposedModule {
             }
         } else {
             diaKeyGesturePackages.remove(pkg);
+            diaKeyGesturePolicies.remove(pkg);
             diaKeyDialogActive.remove(pkg);
         }
         // Custom Hook is explicitly enabled per app and restricted to debuggable builds.
@@ -2140,7 +2144,10 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 String packageName = activity.getPackageName();
                                 UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
                                 if (target != null) {
-                                    List<Integer> triggers = diaKeyGesturePolicy.onKeyDown(
+                                    FxDiaKeyGesturePolicy gesturePolicy =
+                                            diaKeyGesturePolicies.forPackage(packageName);
+                                    if (gesturePolicy == null) return chain.proceed();
+                                    List<Integer> triggers = gesturePolicy.onKeyDown(
                                             event.getKeyCode(), event.getEventTime(), event.getRepeatCount());
                                     for (Integer trigger : triggers) {
                                         handleDiaKeyGesture(activity, packageName, trigger);
@@ -2176,9 +2183,13 @@ private boolean targetDeveloperOptIn(String packageName) {
                             String packageName = activity.getPackageName();
                             UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
                             if (target != null) {
-                                for (Integer trigger : diaKeyGesturePolicy.onLongPress(
-                                        (Integer) args.get(0))) {
-                                    handleDiaKeyGesture(activity, packageName, trigger);
+                                FxDiaKeyGesturePolicy gesturePolicy =
+                                        diaKeyGesturePolicies.forPackage(packageName);
+                                if (gesturePolicy != null) {
+                                    for (Integer trigger : gesturePolicy.onLongPress(
+                                            (Integer) args.get(0))) {
+                                        handleDiaKeyGesture(activity, packageName, trigger);
+                                    }
                                 }
                             }
                         }
