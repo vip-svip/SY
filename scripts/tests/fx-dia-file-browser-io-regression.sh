@@ -20,6 +20,10 @@ assert "new ArrayBlockingQueue<>(8)" in source, "file browser I/O queue must be 
 assert "new Thread(r, \"fx-dia-file-io\")" in source, "worker threads must be named"
 assert source.count("new Thread(") == 1, "raw per-action Threads must be removed"
 assert "private void submitIo(String operation, Runnable task)" in source
+assert "pendingRestoreDisplayedEntries = -1;" in source, "user search changes must discard the previous restored page depth"
+assert "pendingRestoreScrollY = 0;" in source, "user search changes must discard the previous restored scroll position"
+restore_tree = section("private void restoreTree(Bundle state)", "private static final class Entry")
+assert restore_tree.index("directorySearch.setText(restoredQuery)") < restore_tree.index("pendingRestoreDisplayedEntries ="), "restored query must be applied before saved pagination/scroll values"
 assert "private List<Entry> filteredDirectoryEntries()" in source, "directory search filter is missing"
 assert "directorySearch.setHint(\"搜索当前目录的文件名或类型\")" in source, "directory search UI is missing"
 assert "entry.name.toLowerCase(Locale.ROOT).contains(query)" in source
