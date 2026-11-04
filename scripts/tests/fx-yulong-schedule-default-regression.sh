@@ -26,6 +26,9 @@ EOF
 cat > "$TMP/uninstall.sh" <<'EOF'
 #!/bin/sh
 PG=/data/adb/privacyguard
+if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+  sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$PG/yulong-ad-schedule.log" 2>&1 || :
+fi
 XDIR=/data/local/tmp/privacyguard
 EOF
 python3 "$PATCHER" "$TMP"
@@ -48,7 +51,10 @@ assert entries == [
     "fxfile://96110_candidate|96110 candidate|0",
 ], "schedule state must not leak into FX anti-fraud list"
 assert "yulong_ad_schedule_active=1" in conf, "schedule state default was not restored"
-assert 'stop "$MODDIR" "$PG" uninstall' in uninstall, "uninstall must stop the schedule watcher without re-applying rules"
+assert 'stop "$MODDIR" "$PG" uninstall' in uninstall, "uninstall must pass the dedicated no-reapply mode"
+assert uninstall.count('sh "$MODDIR/scripts/yulong-ad-schedule.sh"') == 1, "uninstall must contain one authoritative schedule stop hook"
+assert 'stop >> "$PG/yulong-ad-schedule.log"' not in uninstall, "legacy best-effort stop hook must be removed"
+assert 'preserving $PG and aborting uninstall' in uninstall, "uninstall must preserve state when watcher shutdown cannot be confirmed"
 assert uninstall.index("PG=/data/adb/privacyguard") < uninstall.index("# Stop Yulong ad schedule before uninstall cleanup.") < uninstall.index("XDIR="), "schedule watcher must stop before uninstall cleanup begins"
 assert "is_our_watcher()" in schedule and "/proc/$_watch_pid/cmdline" in schedule, "schedule stop must verify PID ownership before signalling"
 assert 'if [ "$_uninstall_mode" = "uninstall" ]; then' in schedule, "uninstall stop mode must skip schedule state re-apply"

@@ -20,8 +20,15 @@ elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
 fi
 unset _FX_SCHEDULER_STATE_DIR
 # FX_QUICKJS_SCHEDULER_STOP_END
-if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
-  sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1 || :
+# Stop Yulong ad schedule before uninstall; never re-apply ad rules during removal.
+if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
+  if ! sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" uninstall >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1; then
+    _mitm_warn "could not confirm stopping Yulong ad schedule watcher; preserving state and aborting cleanup"
+    exit 1
+  fi
+elif [ -s "$STATE_DIR/yulong-ad-schedule.pid" ]; then
+  _mitm_warn "Yulong ad schedule PID record exists but scheduler is missing; preserving state and aborting cleanup"
+  exit 1
 fi
 if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
   sh "$MODDIR/scripts/yulong-app-firewall.sh" uninstall >/dev/null 2>&1 || :

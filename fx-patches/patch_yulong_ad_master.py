@@ -153,6 +153,14 @@ fi
 
 old_stop = 'if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" >/dev/null 2>&1 || :; fi\n'
 uninstall_text = uninstall_text.replace(old_stop, "")
+# Remove historical best-effort schedule stops from multiline release layouts too.
+# The single authoritative uninstall-mode block below must be the only schedule stop.
+uninstall_text = re.sub(
+    r'(?ms)^if \[ -(?:f|x) "\$MODDIR/scripts/yulong-ad-schedule\.sh" \]; then\s*\n[ \t]*sh "\$MODDIR/scripts/yulong-ad-schedule\.sh" stop[^\n]*\nfi\n?',
+    "",
+    uninstall_text,
+)
+
 if "# Stop Yulong ad schedule before uninstall cleanup." not in uninstall_text:
     marker = "PG=/data/adb/privacyguard\n"
     if marker not in uninstall_text:
