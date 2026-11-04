@@ -352,7 +352,9 @@ jobs:
           sh scripts/tests/fx-hook-package-change-sync-regression.sh
           sh scripts/tests/fx-dia-frida-binary-import-regression.sh
           sh scripts/tests/fx-stellar-control-shell-regression.sh
+          sh scripts/tests/fx-stellar-boot-script-shell-regression.sh
           sh scripts/tests/fx-stellar-manager-activity-regression.sh
+          sh scripts/tests/fx-stellar-boot-script-ui-regression.sh
           sh scripts/tests/fx-stellar-manager-provider-regression.sh
           sh scripts/tests/fx-stellar-adb-native-regression.sh
           sh scripts/tests/fx-stellar-native-launcher-regression.sh
