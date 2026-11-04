@@ -125,6 +125,8 @@ rename_end = source.index("\n    private ", rename_start + 20)
 rename = source[rename_start:rename_end]
 assert '":dev_rule_group_rename_draft:" + oldName' in rename
 assert "input.addTextChangedListener(" in rename
+assert "new android.text.InputFilter.LengthFilter(24)" in add
+assert "new android.text.InputFilter.LengthFilter(24)" in rename
 picker_start = source.index("private void showCustomRuleGroupPicker(int slot)")
 picker_end = source.index("\n    private ", picker_start + 20)
 assert "commitCustomRuleGroupUpdate(" in source[picker_start:picker_end], \
