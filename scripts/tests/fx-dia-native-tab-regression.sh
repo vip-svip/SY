@@ -14,6 +14,8 @@ $DIA/FxDiaCrashReportActivity.java
 $DIA/FxDiaMonitorEventsActivity.java
 $DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaJsonActivity.java
+$DIA/FxDiaDexBrowserActivity.java
+$DIA/FxDiaFileActivity.java
 "
 fail() { echo "FAIL: $*" >&2; exit 1; }
 for file in "$BASE" "$MAIN" $PAGES; do
@@ -35,5 +37,11 @@ for page in pages:
     assert "setContentViewWithNativeTabs(root, 5);" in page
     assert "setContentView(root);" not in page
     assert "onCreate(" in page
-print("PASS: nine Dia independent pages retain the shared six-tab shell")
+file_page = next(p for p in pages if "class FxDiaFileActivity" in p)
+for token in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission",
+              "DocumentsContract.createDocument", "onActivityResult(",
+              "loadDirectory(", "submitIo("):
+    assert token in file_page, f"File/ELF behavior missing: {token}"
+print("PASS: Dia independent pages retain the shared six-tab shell")
+print("PASS: File/ELF SAF grant, import/export, directory and worker paths remain")
 PY
