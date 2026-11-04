@@ -466,7 +466,7 @@ grep -Fq 'private final Handler hookTargetScopeHandler = new Handler(Looper.getM
 grep -Fq 'private int beginHookTargetScopeOperation(TextView state, String packageName,' "$main_activity"
 grep -Fq 'hookTargetScopeHandler.postDelayed(timeout, Math.max(1000L, timeoutMillis));' "$main_activity"
 grep -Fq 'private void finishHookTargetScopeOperation(int request)' "$main_activity"
-grep -Fq 'private java.util.concurrent.FutureTask<Void> hookTargetScopeFuture;' "$main_activity"
+grep -Fq 'private volatile java.util.concurrent.FutureTask<Void> hookTargetScopeFuture;' "$main_activity"
 grep -Fq 'hookTargetScopeFuture = task;' "$main_activity"
 grep -Fq 'private void cancelHookTargetScopeOperation()' "$main_activity"
 grep -Fq '读取 LSPosed 作用域超时（12 秒）' "$main_activity"

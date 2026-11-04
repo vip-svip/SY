@@ -2768,3 +2768,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
 - 验证：目标源码块的对应字符串已静态核对存在；本次是诊断性回归改进，尚未执行成功的 Actions。
 - 下一步：读取下一次 Actions 第一条明确错误；修复后继续检查剩余 Hook/Dia/Shield 页面。
+
+
+## 2026-11-05 — 修正 Hook 作用域 FutureTask 字段断言修饰符
+
+- Actions：`41912691652` 通过源码前段与 APK 检查分流（APK 明确 SKIP），随后无显式错误文本退出。
+- 静态逐项对照定位：新加的 FutureTask 所有权断言少写了源码实际存在的 `volatile` 修饰符，导致 grep 不匹配；实际字段为 `private volatile java.util.concurrent.FutureTask<Void> hookTargetScopeFuture;`。
+- 修复：测试断言按真实字段声明更新，不更改并发实现。
+- 改动：`scripts/tests/fx-hook-native-ui-regression.sh`、本状态文件。
+- 下一步：继续 targeted Host 回归，检查下一个失败断言；本轮多次失败均是过期/不精确测试契约，不能记录为源码功能通过。
