@@ -3496,3 +3496,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Actions `41920295990` 首错：状态检查只读断言把布尔表达式放进 `(label, needle)` 元组，循环随后执行 `needle in check`，触发 TypeError。已将只读条件改为独立 if，继续检查 `rm -f` 和 `kill "$` 均不出现在状态查询命令中。提交：`bfb148197093cc94415cceb97c94da02d359a0a0`。
 - Actions `41920329579` 首错：六 Tab 回归仍把 `FxDiaInspectorActivity` 错误归到 Activity Browser 页面；当前 Inspector 是 MainActivity 的独立 Dia 原生路由，Activity Browser 是组件清单浏览页。已将脚本输入增加 MainActivity，改为检查 Inspector 主导航入口，同时检查 Browser 仍读取 `PackageManager.GET_ACTIVITIES`。提交：`f5fd00bdb14e7fe2aa1fae5b37e96aef799e63b2`。
 - 下一步：读取新 Actions；不再把 Inspector 页面路由强行要求放在 Activity Browser 内。
+
+
+## 2026-11-05 — 产品重构总方案与跨 AI 接管提示词
+
+- 新增需求基线：`docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md`。
+- 文档提交：`3801390df82d93aa61ab8976c67bdcdea9a02180`。
+- 新增三种可切换 UI 模式：游龙工具 10.0.2 经典网页模式、原生液态玻璃模式、Miuix/澎湃风格模式；三者共用业务层、服务、状态和数据。
+- 新增壁纸选择/预览/模糊/遮罩/持久授权/失效回退要求；新增 Ad 多层架构、VPN/防泄漏/MITM/证书、隐私/安全护盾、Dia/GKD/Hook、QuickJS/Loon/Shadowrocket/浏览器脚本需求矩阵。
+- 新文档明确技术边界：Android VPN 不能承诺 iOS 同等生命周期/零耗电；系统证书不保证所有应用无警告；Root/LSP 与位置模拟不能承诺绝对隐身；浏览器扩展按浏览器真实 API 支持；不得绕过付费授权。
+- 本次仅提交需求与接管提示词，不代表新增功能已实现、构建或真机验证。游龙工具 10.0.2 APK 原件是否可访问、五份源码 intake 是否成功解压，仍须按文档 P0 步骤核实。
+- 下一步：先读取新 HEAD 与 intake workflow run/artifact；核实 10.0.2 APK 原件。随后开始 P1 三 Skin/壁纸框架和六 Tab 适配，按页面组提交代码。
