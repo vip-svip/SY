@@ -183,6 +183,18 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - Focused local synthetic verification passed the allow/reject matrix and TRIE v2 encode/decode round-trip. The checked-in regression is also wired into the manual KernelSU source-import pipeline; no KernelSU ZIP was built.
 
 
+## 2026-11-04 continuation — Stellar local operation audit
+
+- Added an audit-log view and clear action inside the Shield Stellar manager. It displays successful FX-local runtime-permission, AppOps and allowlisted secure-setting actions, capped at 500 records; it is not represented as the original Stellar daemon/Binder's full service log.
+- Added logs and clear-logs commands to the Stellar Root controller. Clearing uses a same-directory randomized temporary file and atomic replacement.
+- The audit log contains only successful operations recorded by the FX shell controller, rejects symlinked state files, and is not a substitute for Binder service telemetry.
+- Added host regression coverage for 500-record retention, read/clear and secure log-file paths. Targeted validation is pending the next Actions run.
+- No APK build, installation or device test is implied by this source change.
+
+### Remaining Stellar Binder boundary
+- Original IStellarService and StellarProvider expose asynchronous Binder readiness, permission-request callbacks, confirmation-result dispatch, service logs, remote processes and service metadata.
+- FX's Root-backed safe command manager is a restricted replacement for selected controls, not a drop-in Binder client and not full Binder/daemon parity. Keep that gap open until a compatible in-process/service transport is implemented and verified.
+
 ## 2026-11-04 continuation — Dia MethodActivity safe void method suppression
 
 - Compared the original MethodActivity.smali and Module.smali: the original per-target method_empty preference feeds a ClassLoader observer that replaces configured methods with XC_MethodReplacement.DO_NOTHING when its separate method master is on.

@@ -41,7 +41,7 @@ public final class FxStellarManagerActivity extends Activity {
  private final Set<String> packages=new HashSet<>(), scopes=new HashSet<>(), always=new HashSet<>();
  private String target="";
  private LinearLayout body;
- private TextView state, selectedLabel;
+ private TextView state, selectedLabel, auditOutput;
  private LinearLayout alwaysRows;
  private boolean syncing;
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
@@ -199,6 +199,13 @@ public final class FxStellarManagerActivity extends Activity {
   alwaysRows = new LinearLayout(this);
   alwaysRows.setOrientation(LinearLayout.VERTICAL);
   body.addView(alwaysRows);
+  addCard("Stellar 操作记录",
+    "只显示 FX 本地授权管理器成功执行的运行时权限、AppOps 和安全设置变更；最多保留 500 条，不代表原 Stellar Binder 守护服务的完整运行日志。",
+    button("刷新操作记录",this::loadAuditLogs),
+    button("清除操作记录",this::confirmClearAuditLogs));
+  auditOutput=text("尚未读取操作记录。",11,0xff526170,false);
+  auditOutput.setTextIsSelectable(true);
+  body.addView(auditOutput);
   body.addView(button("撤销当前应用全部 Stellar 授权",()->{
     if(target.isEmpty())return;
     new AlertDialog.Builder(this).setTitle("撤销授权").setMessage("同时移除应用白名单、能力作用域和始终允许命令？")
@@ -257,7 +264,26 @@ public final class FxStellarManagerActivity extends Activity {
     })).show();
  }
  private void apply(String op,String name){root(op,r->{if(r.exitCode==0)state.setText(name+"已保存。");else state.setText(name+"失败："+(r.output==null?"":r.output));refresh();});}
- private void refresh(){
+  private void loadAuditLogs(){
+  root("logs",r->{
+   if(auditOutput==null)return;
+   if(r.exitCode!=0){auditOutput.setText("操作记录读取失败："+(r.output==null?"":r.output));return;}
+   String value=r.output==null?"":r.output.trim();
+   if("FXSTELLARLOG_EMPTY".equals(value))auditOutput.setText("当前没有本地授权操作记录。");
+   else if(value.startsWith("FXSTELLARLOG1\n"))auditOutput.setText(value.substring("FXSTELLARLOG1\n".length()));
+   else auditOutput.setText(value);
+  });
+ }
+ private void confirmClearAuditLogs(){
+  new AlertDialog.Builder(this).setTitle("清除 Stellar 操作记录")
+   .setMessage("只删除 FX 本地授权管理器的操作记录，不会撤销应用授权，也不会清除系统或守护服务的其他日志。")
+   .setNegativeButton("取消",null)
+   .setPositiveButton("清除",(dialog,which)->root("clear-logs",r->{
+    if(r.exitCode==0){if(auditOutput!=null)auditOutput.setText("操作记录已清除。");state.setText("Stellar 本地操作记录已清除。");}
+    else state.setText("清除操作记录失败："+(r.output==null?"":r.output));
+   })).show();
+ }
+private void refresh(){
   root("list",r->{
     if(r.exitCode!=0){state.setText("Stellar 策略读取失败："+r.output);return;}
     packages.clear();scopes.clear();always.clear();if(alwaysRows!=null)alwaysRows.removeAllViews();

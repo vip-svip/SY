@@ -64,6 +64,31 @@ valid_appop(){
   esac
 }
 valid_appop_mode(){ case "$1" in allow|ignore|deny|default|foreground) return 0 ;; *) return 1 ;; esac; }
+append_action_log(){
+  line=$1
+  [ -f "$DIR/action.log" ] && [ ! -L "$DIR/action.log" ] || return 1
+  tmp=$(mktemp "$DIR/action.log.XXXXXX") || return 1
+  tail -n 499 "$DIR/action.log" > "$tmp" || { rm -f "$tmp"; return 1; }
+  printf '%s\n' "$line" >> "$tmp" || { rm -f "$tmp"; return 1; }
+  if [ -f "$tmp" ] && [ ! -L "$tmp" ] && chmod 0600 "$tmp" \
+      && [ -f "$DIR/action.log" ] && [ ! -L "$DIR/action.log" ] \
+      && mv -f "$tmp" "$DIR/action.log"; then return 0; fi
+  rm -f "$tmp"; return 1
+}
+read_action_log(){
+  [ -f "$DIR/action.log" ] && [ ! -L "$DIR/action.log" ] || { echo "Stellar action log is missing or unsafe" >&2; return 21; }
+  [ -s "$DIR/action.log" ] || { echo FXSTELLARLOG_EMPTY; return 0; }
+  echo FXSTELLARLOG1
+  tail -n 200 "$DIR/action.log"
+}
+clear_action_log(){
+  [ -f "$DIR/action.log" ] && [ ! -L "$DIR/action.log" ] || { echo "Stellar action log is missing or unsafe" >&2; return 21; }
+  tmp=$(mktemp "$DIR/action.log.clear.XXXXXX") || return 1
+  if [ -f "$tmp" ] && [ ! -L "$tmp" ] && chmod 0600 "$tmp" \
+      && [ -f "$DIR/action.log" ] && [ ! -L "$DIR/action.log" ] \
+      && mv -f "$tmp" "$DIR/action.log"; then echo "cleared=1"; return 0; fi
+  rm -f "$tmp"; return 1
+}
 permission_action(){
   pkg=$1; action=$2; permission=$3
   valid_pkg "$pkg" && valid_runtime_permission "$permission" || { echo "permission or package is not in the safe runtime allowlist" >&2; return 2; }
@@ -72,8 +97,9 @@ permission_action(){
   case "$action" in grant|revoke) ;; *) return 2 ;; esac
   pm path "$pkg" >/dev/null 2>&1 || { echo "target package is not installed" >&2; return 5; }
   if [ "$action" = grant ]; then pm grant "$pkg" "$permission" || return $?; else pm revoke "$pkg" "$permission" || return $?; fi
-  printf '[%s] permission %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$action" "$pkg" "$permission" >> "$DIR/action.log"
-  chmod 0600 "$DIR/action.log" 2>/dev/null || :
+  log_entry=$(printf '[%s] permission %s %s %s' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$action" "$pkg" "$permission")
+  append_action_log "$log_entry" || echo "warning: operation succeeded but audit log update failed" >&2
+  unset log_entry
   echo "success=1 action=$action package=$pkg permission=$permission"
 }
 appops_action(){
@@ -85,8 +111,9 @@ appops_action(){
   if command -v cmd >/dev/null 2>&1; then cmd appops set "$pkg" "$operation" "$mode" || return $?
   elif command -v appops >/dev/null 2>&1; then appops set "$pkg" "$operation" "$mode" || return $?
   else echo "AppOps command is unavailable" >&2; return 6; fi
-  printf '[%s] appops %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$pkg" "$operation" "$mode" >> "$DIR/action.log"
-  chmod 0600 "$DIR/action.log" 2>/dev/null || :
+  log_entry=$(printf '[%s] appops %s %s %s' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$pkg" "$operation" "$mode")
+  append_action_log "$log_entry" || echo "warning: operation succeeded but audit log update failed" >&2
+  unset log_entry
   echo "success=1 package=$pkg appop=$operation mode=$mode"
 }
 restore_secure_setting(){
@@ -141,8 +168,9 @@ secure_setting_action(){
     echo "secure setting write could not be confirmed and rollback failed" >&2
     return 8
   fi
-  printf '[%s] secure-setting %s=%s by %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$key" "$value" "$pkg" >> "$DIR/action.log"
-  chmod 0600 "$DIR/action.log" 2>/dev/null || :
+  log_entry=$(printf '[%s] secure-setting %s=%s by %s' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$key" "$value" "$pkg")
+  append_action_log "$log_entry" || echo "warning: operation succeeded but audit log update failed" >&2
+  unset log_entry
   echo "success=1 package=$pkg secure_setting=$key value=$actual"
 }
 run_readonly(){
@@ -184,6 +212,14 @@ set_pkg(){
 }
 cmd="$1"
 case "$cmd" in
+  logs)
+    [ "$#" -eq 1 ] || exit 2
+    with_lock read_action_log
+    ;;
+  clear-logs)
+    [ "$#" -eq 1 ] || exit 2
+    with_lock clear_action_log
+    ;;
   list)
     echo STELLARFX1
     while IFS= read -r p; do [ -n "$p" ] && valid_pkg "$p" && echo "PKG|$p"; done < "$PKGS"

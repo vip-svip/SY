@@ -82,6 +82,24 @@ secure_result=$(run secure-setting "$PKG" show_ime_with_hard_keyboard 1)
 printf '%s\\n' "$secure_result" | grep -Fq 'success=1 package=com.example.stellarclient secure_setting=show_ime_with_hard_keyboard value=1' || fail "secure-setting write was not confirmed"
 [ "$(settings get secure show_ime_with_hard_keyboard)" = 1 ] || fail "mock Android setting did not retain the written value"
 
+# The Shield UI reads a bounded local audit log, not Binder daemon telemetry.
+: > "$TMP/stellar_guard/action.log"
+i=1
+while [ "$i" -le 501 ]; do
+  printf 'seed-%03d\n' "$i" >> "$TMP/stellar_guard/action.log"
+  i=$((i+1))
+done
+secure_result=$(run secure-setting "$PKG" show_ime_with_hard_keyboard 1)
+[ "$(wc -l < "$TMP/stellar_guard/action.log" | tr -d ' ')" = 500 ] || fail "Stellar action log did not retain 500 entries"
+grep -Fq 'seed-003' "$TMP/stellar_guard/action.log" || fail "bounded log discarded entries too early"
+grep -Fq 'seed-501' "$TMP/stellar_guard/action.log" || fail "bounded log did not retain newest prior entry"
+! grep -Fq 'seed-001' "$TMP/stellar_guard/action.log" || fail "bounded log retained stale entries"
+logs=$(run logs)
+printf '%s\n' "$logs" | grep -Fqx 'FXSTELLARLOG1' || fail "Stellar log protocol header missing"
+printf '%s\n' "$logs" | grep -Fq 'secure-setting show_ime_with_hard_keyboard=1' || fail "successful secure-setting action missing from log"
+run clear-logs >/dev/null
+[ "$(run logs)" = FXSTELLARLOG_EMPTY ] || fail "clear-logs did not empty the audit file"
+
 # A backend command can mutate Android's setting and still return failure.
 # FX must restore the exact pre-write value rather than leave a half-applied change.
 if MOCK_SETTINGS_FAIL_AFTER_WRITE=0 sh "$TMP/control.sh" secure-setting "$PKG" show_ime_with_hard_keyboard 0 >/dev/null 2>&1; then
