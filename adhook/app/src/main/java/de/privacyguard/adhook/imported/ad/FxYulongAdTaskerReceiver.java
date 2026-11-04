@@ -37,12 +37,24 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
     public static final String LEGACY_ACTION_START = "app.pwhs.blockads.TASKER_START";
     public static final String LEGACY_ACTION_STOP = "app.pwhs.blockads.TASKER_STOP";
 
-    private static String modulePrefix() {
-        return "MP=''; for d in /data/adb/modules/privacyguard "
+    private static String modulePrefix(String requiredScript) {
+        if (requiredScript == null
+                || !("yulong-ad-control.sh".equals(requiredScript)
+                    || "yulong-vpn-control.sh".equals(requiredScript))) {
+            throw new IllegalArgumentException("不支持的游龙控制脚本。");
+        }
+        return "[ ! -L '/data' ] && [ ! -L '/data/adb' ] && [ -d '/data/adb' ] || exit 71; "
+                + "MP=''; for d in /data/adb/modules/privacyguard "
                 + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
                 + "/data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
+                + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
+                + "&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
+                + "&& grep -qx 'id=privacyguard' \"$d/module.prop\" "
+                + "&& grep -qx 'version=1.0.0' \"$d/module.prop\" "
+                + "&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ] "
+                + "&& [ -f \"$d/scripts/" + requiredScript + "\" ] "
+                + "&& [ ! -L \"$d/scripts/" + requiredScript + "\" ]; then "
+                + "MP=\"$d\"; break; fi; done; "
                 + "[ -n \"$MP\" ] || exit 20; ";
     }
 
@@ -116,7 +128,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
                             ? "sh \"$MP/scripts/yulong-ad-control.sh\" ad-master " + enabled
                             : "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard "
                                     + (enabled == 1 ? "start" : "stop");
-                    RootAccess.Result result = RootAccess.execute(modulePrefix() + operation,
+                    RootAccess.Result result = RootAccess.execute(modulePrefix(adFilterAction ? "yulong-ad-control.sh" : "yulong-vpn-control.sh") + operation,
                             adFilterAction ? 90000L : 150000L, 512 * 1024);
                     code = result.exitCode;
                     output = result.output == null ? "" : result.output.trim();
