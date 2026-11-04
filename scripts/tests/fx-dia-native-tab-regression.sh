@@ -14,7 +14,6 @@ $DIA/FxDiaCrashReportActivity.java
 $DIA/FxDiaMonitorEventsActivity.java
 $DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaJsonActivity.java
-$DIA/FxDiaDexBrowserActivity.java
 $DIA/FxDiaFileActivity.java
 $DIA/FxDiaGpsPickerActivity.java
 $DIA/FxDiaSessionLogActivity.java
@@ -38,6 +37,20 @@ assert "index < 0 || index > 5" in base
 assert 'putExtra("fx_open_native_tab", index)' in base
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
 assert "handleImportedNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
+
+# Dia Hook category must expose the independently migrated Dialog, Notification and Toast screens.
+assert '{"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤",' in main
+assert 'case "对话框处理": case "对话框与通知":' in main
+assert 'showAppList("Dialog处理");' in main
+assert 'case "通知监听与权限提示":' in main
+assert 'showAppList("通知保护");' in main
+assert 'case "Toast 文本过滤": case "Toast 过滤":' in main
+assert 'showAppList("Toast过滤");' in main
+assert 'if ("Dialog处理".equals(activePrivacySection))' in main
+assert 'if ("Toast过滤".equals(activePrivacySection))' in main
+assert 'section("通知保护");' in main
+assert 'toggle("阻止通知监听注册", "notification_listen_block", false);' in main
+assert 'toggle("隐藏通知权限提示", "notification_permission_hide", false);' in main
 route_start = main.index("private void handleNativeTabSelection(int index)")
 route_end = main.index("private void styleBottomItem", route_start)
 route = main[route_start:route_end]
