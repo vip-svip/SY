@@ -13,6 +13,10 @@ required = [
     'private static final String STATE_PAGE="fx_yulong_ad_page";',
     'private static final String STATE_DRAFTS="fx_yulong_ad_drafts";',
     'private static final String STATE_SCROLL_Y="fx_yulong_ad_scroll_y";',
+    'private Bundle captureDrafts(){',
+    'out.putBundle(STATE_DRAFTS,captureDrafts());',
+    'private void open(String p){Bundle drafts=captureDrafts();page=p;',
+    'render();restoreDrafts(drafts);bind();}',
     'private ScrollView pageScroll;',
     'private int pendingPageScrollY;',
     'private boolean pendingPageScrollRestore;',
@@ -97,5 +101,5 @@ for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
-print("PASS: Yulong Ad drafts, page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
+print("PASS: Yulong Ad drafts survive page switching and recreation; page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
 PY
