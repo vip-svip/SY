@@ -8,6 +8,12 @@ PAGES="
 $DIA/FxDiaActivityBrowserActivity.java
 $DIA/FxDiaFridaActivity.java
 $DIA/FxDiaScriptLibraryActivity.java
+$DIA/FxDiaInspectorActivity.java
+$DIA/FxDiaCodeEditorActivity.java
+$DIA/FxDiaCrashReportActivity.java
+$DIA/FxDiaMonitorEventsActivity.java
+$DIA/FxDiaDexBrowserActivity.java
+$DIA/FxDiaJsonActivity.java
 "
 fail() { echo "FAIL: $*" >&2; exit 1; }
 for file in "$BASE" "$MAIN" $PAGES; do
@@ -29,5 +35,5 @@ for page in pages:
     assert "setContentViewWithNativeTabs(root, 5);" in page
     assert "setContentView(root);" not in page
     assert "onCreate(" in page
-print("PASS: Dia Activity Browser, Frida and Script Library retain the shared six-tab shell")
+print("PASS: nine Dia independent pages retain the shared six-tab shell")
 PY
