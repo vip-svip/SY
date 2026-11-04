@@ -157,4 +157,23 @@ if "pg_yulong_whitelist_vpn6 || _IPTQ_WRITE_FAIL=1" not in apply:
     apply = apply.replace(vpn6_anchor, vpn6_anchor + "    pg_yulong_whitelist_vpn6 || _IPTQ_WRITE_FAIL=1\n", 1)
 
 apply_path.write_text(apply, encoding="utf-8")
-print("Applied Yulong app whitelist to TUN, IPv4/IPv6 PGNAT, PGVPN/PGVPN6, and external-VPN Root DNS paths.")
+
+# Keep the same reviewed, hardened whitelist implementation in source and
+# restored Release module trees; never ship a stale archive copy.
+repo = Path(__file__).resolve().parent.parent
+whitelist_source = repo / "scripts/yulong-app-whitelist.sh"
+whitelist_test_source = repo / "scripts/tests/fx-yulong-app-whitelist-runtime-regression.sh"
+whitelist_target = module / "scripts/yulong-app-whitelist.sh"
+whitelist_test_target = module / "scripts/tests/v1.0.0-yulong-app-whitelist-runtime-regression.sh"
+if not whitelist_source.is_file() or whitelist_source.stat().st_size < 3000:
+    raise SystemExit("reviewed Yulong app-whitelist source missing or unexpectedly small")
+if not whitelist_test_source.is_file() or whitelist_test_source.stat().st_size < 1500:
+    raise SystemExit("Yulong app-whitelist regression missing or unexpectedly small")
+whitelist_target.parent.mkdir(parents=True, exist_ok=True)
+whitelist_test_target.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(whitelist_source, whitelist_target)
+shutil.copy2(whitelist_test_source, whitelist_test_target)
+whitelist_target.chmod(0o755)
+whitelist_test_target.chmod(0o755)
+
+print("Applied Yulong app whitelist to TUN, IPv4/IPv6 PGNAT, PGVPN/PGVPN6 and external-VPN Root DNS; staged the hardened atomic whitelist writer and regression.")
