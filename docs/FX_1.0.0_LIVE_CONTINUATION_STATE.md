@@ -3390,3 +3390,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Added a session status refresh action and its regression checks.
 - Android device validation is pending.
+
+
+## 2026-11-05 — 游龙安全护盾白名单选择提交前复核
+
+- 页面组：安全护盾 → 白名单管理 → 添加应用选择器。
+- 发现缺陷：选择器在 Activity 重建时恢复 `selected` 包名；用户可能在后台卸载应用或该包在恢复后不可见。原 `saveSelected()` 只调用 `isSystemPackage()`，而该方法在 `getApplicationInfo()` 失败时返回 false，导致已卸载/不可用包被当作普通用户应用写入白名单。成功提示也直接显示 `selected.size()`，可能把未实际新增的条目计入。
+- 修复：保存前通过 PackageManager 重新验证每个暂存包仍已安装、不是 FX 自身、且符合用户应用条件；失效项跳过，不产生写入。只在实际新增数大于零时保存，成功文案显示真实新增数并提示跳过数量。管理页和选择器的系统应用判断统一允许 `FLAG_UPDATED_SYSTEM_APP`，与应用列表筛选一致。
+- 产品提交：`d4b6127c7dcbe5f0c279a92736c41928b4ce7682`（WhitelistActivity）、`23b97b2b8d2929c0f6d9541181dc890f6bf6d815`、`05dee9be090c5c559ffafb23a50dfbbb94c43f69`、`809bc08d23e3f56d99d05c9e3dc7bdad5a6466d5`（WhitelistPickerActivity）。
+- 回归提交：`60ce61cd2d041968c86b876593c50754f4512fae`，覆盖 PackageManager 复核、失效项拒写、真实新增计数和更新系统应用策略。
+- 验证：源码与静态回归断言已提交；Actions 尚待读取。未执行 Android Gradle/JUnit、应用卸载并旋转的 UI 自动化或真机。
+- 下一步：读取安全护盾名单/扫描定向回归；继续风险详情、批量清理和扫描不完整状态 UI 的真实错误回显。
