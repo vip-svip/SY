@@ -41,6 +41,8 @@ public final class FxAccessibilityService extends AccessibilityService {
         changed.putExtra("package_name", pkg);
         changed.putExtra("event_time", now);
         sendBroadcast(changed);
+        de.privacyguard.adhook.imported.shield.FxYulongRiskScanDispatcher
+                .onForegroundPackageChanged(this, pkg);
     }
 
     @Override public boolean onKeyEvent(KeyEvent event) {
