@@ -3438,7 +3438,9 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             if (page.equals("用户应用") || page.equals("系统应用") || page.equals("按应用设置")) {
-                showImportedVpnAppManager();
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class)
+                        .putExtra("suite_page", page));
                 return;
             }
             if (page.equals("应用网络拦截")) {

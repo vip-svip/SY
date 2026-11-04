@@ -568,4 +568,25 @@ grep -Fq 'reconcile_watch_lifecycle' "$RESTORE/scripts/yulong-app-firewall.sh" |
 [ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
 [ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"
 
+python3 - "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" <<'PY'
+from pathlib import Path
+import sys
+main = Path(sys.argv[1]).read_text(encoding="utf-8")
+firewall = Path(sys.argv[2]).read_text(encoding="utf-8")
+start = main.index('if (category.equals("应用管理"))')
+end = main.index('if (category.equals("HTTPS 与证书"))', start)
+route = main[start:end]
+for page in ("用户应用", "系统应用", "按应用设置"):
+    assert f'page.equals("{page}")' in route, f"original app-management route missing: {page}"
+assert "FxYulongFirewallActivity.class" in route, "original app categories must open the migrated per-app firewall, not the VPN route picker"
+assert '.putExtra("suite_page", page)' in route, "original page identifier must reach the firewall filter"
+assert "showImportedVpnAppManager();" not in route, "VPN route management must not impersonate the legacy Wi-Fi/mobile firewall"
+assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must read the original page identifier"
+assert '"用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0' in firewall
+assert 'appFilterMode == 1 ? systemApp : appFilterMode == 2 && !systemApp' in firewall, "user/system package classification must be applied before rendering"
+assert "FLAG_SYSTEM" in firewall and "FLAG_UPDATED_SYSTEM_APP" in firewall
+assert '"游龙广告插件 · " + suitePage' in firewall, "native firewall page must preserve original menu title"
+print("PASS: Yulong 用户应用/系统应用/按应用设置 preserve original page identity and open the real Wi-Fi/mobile firewall filters")
+PY
+
 echo "PASS: Yulong per-app firewall preserves legacy rows, separates Wi-Fi/mobile, enforces inclusive local-time schedules, reconciles UIDs, and owns its watcher lifecycle"
