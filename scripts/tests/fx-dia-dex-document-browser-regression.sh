@@ -24,6 +24,8 @@ grep -Fq 'pendingDiaDexHookPicker = true;' "$MAIN" || fail "DEX picker launch mu
 grep -Fq 'outState.putBoolean("fx_pending_dia_dex_hook_picker", pendingDiaDexHookPicker);' "$MAIN" || fail "pending DEX picker request must survive Activity recreation"
 grep -Fq 'pendingDiaDexHookPicker = state.getBoolean("fx_pending_dia_dex_hook_picker", false);' "$MAIN" || fail "pending DEX picker request is not restored"
 grep -Fq 'if (!requestPending || resultCode != RESULT_OK || data == null) return;' "$MAIN" || fail "DEX picker result must be ignored unless its request is still pending"
+grep -Fq 'catch (RuntimeException launchFailure)' "$MAIN" || fail "failed DEX picker launch must roll back pending request state"
+grep -Fq 'pendingDiaDexHookPicker = false;' "$MAIN" || fail "DEX picker pending request must be cleared after result or launch failure"
 grep -Fq 'target.setText(String.valueOf(label) + "\n" + packageName);' "$DEX" || fail "restored application label must use an actual line break"
 grep -Fq 'loadDexDocument(documentUri, documentName)' "$DEX" || fail "restored standalone DEX URI is not re-parsed"
 grep -Fq 'loadFrameworkDex();' "$DEX" || fail "Framework DEX source is not restored"
