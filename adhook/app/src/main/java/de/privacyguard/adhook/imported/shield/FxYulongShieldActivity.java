@@ -163,16 +163,16 @@ public final class FxYulongShieldActivity extends Activity {
         String warningTime = shieldPrefs.getString("protect_last_warn_time", "");
         int warningCount = shieldPrefs.getInt("protect_warn_count", 0);
         card("实时守护状态",
-                protectionState + "\\n累计提醒：" + warningCount
-                        + (warningTime.isEmpty() ? "" : "\\n最近提醒：" + warningTime)
-                        + "\\n" + warning);
+                protectionState + "\n累计提醒：" + warningCount
+                        + (warningTime.isEmpty() ? "" : "\n最近提醒：" + warningTime)
+                        + "\n" + warning);
         boolean recoveryEnabled = shieldPrefs.getBoolean("protect_on", false)
                 || shieldPrefs.getBoolean("shake_trigger_on", false);
         card("开机与低频后台恢复",
                 (recoveryEnabled
                         ? "已启用：系统启动时按用户保存的开关恢复；运行期间每 15 分钟安排一次低频检查。"
                         : "未启用：守护与救援触发均关闭时，不安排后台恢复 Alarm。")
-                        + "\\n只恢复用户主动开启的 FX 守护/救援服务，不会自动开启无障碍权限。",
+                        + "\n只恢复用户主动开启的 FX 守护/救援服务，不会自动开启无障碍权限。",
                 action("重新计算恢复计划", () -> {
                     FxYulongKeepAliveReceiver.refreshSchedule(this);
                     Toast.makeText(this, "后台恢复计划已重新计算。", Toast.LENGTH_SHORT).show();
@@ -185,8 +185,8 @@ public final class FxYulongShieldActivity extends Activity {
         String lastPackage = shieldPrefs.getString("automatic_scan_last_package", "");
         String lastTime = shieldPrefs.getString("automatic_scan_last_time", "");
         card("最近自动检测",
-                lastScan + (lastPackage.isEmpty() ? "" : "\\n包名：" + lastPackage)
-                        + (lastTime.isEmpty() ? "" : "\\n时间：" + lastTime),
+                lastScan + (lastPackage.isEmpty() ? "" : "\n包名：" + lastPackage)
+                        + (lastTime.isEmpty() ? "" : "\n时间：" + lastTime),
                 action("打开完整应用扫描", () -> startActivity(new Intent(this,
                         FxYulongScanActivity.class))));
         android.widget.Switch protection = new android.widget.Switch(this);
