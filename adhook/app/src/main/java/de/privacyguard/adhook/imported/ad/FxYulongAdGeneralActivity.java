@@ -306,8 +306,15 @@ public final class FxYulongAdGeneralActivity extends Activity {
             android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(
                     packageName, PackageManager.GET_SIGNING_CERTIFICATES);
             if (info.signingInfo == null) return "";
-            android.content.pm.Signature[] signers = info.signingInfo.getApkContentsSigners();
+            android.content.pm.Signature[] signers = info.signingInfo.hasMultipleSigners()
+                    ? info.signingInfo.getApkContentsSigners()
+                    : info.signingInfo.getSigningCertificateHistory();
             if (signers == null || signers.length == 0) return "";
+            // For a single signer, Android returns rotation history oldest-to-newest.
+            // Pin only the current signer; multiple-signer apps pin the complete set.
+            if (!info.signingInfo.hasMultipleSigners()) {
+                signers = new android.content.pm.Signature[]{signers[signers.length - 1]};
+            }
             byte[][] certificates = new byte[signers.length][];
             for (int i = 0; i < signers.length; i++) {
                 certificates[i] = signers[i] == null ? null : signers[i].toByteArray();
