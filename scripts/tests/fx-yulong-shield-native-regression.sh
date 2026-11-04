@@ -190,7 +190,8 @@ assert 'STATE_SCROLL_Y = "fx_yulong_shield_scroll_y"' in hub, "Shield hub scroll
 assert "onSaveInstanceState(Bundle outState)" in hub and "outState.putInt(STATE_SCROLL_Y" in hub, "Shield hub scroll position is not saved"
 assert "state.getInt(STATE_SCROLL_Y, 0)" in hub and "shieldScroll.scrollTo(0, restoreY)" in hub, "Shield hub scroll position is not restored"
 assert r'"\\n累计提醒："' not in hub, "Shield status must not show a literal backslash followed by n"
-assert r'"\n累计提醒："' in hub, "Shield status must retain a Java newline escape"
+assert '"累计提醒：" +' in hub, "Shield status must retain the cumulative reminder label"
+assert r'"\n最近提醒："' in hub, "Recent reminder timestamp must start on a new line"
 assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in hub, "Recovery note must render on a new line"
 assert 'case "位置与 GPS":' in main and 'showAppList("位置隐私")' in main, \
     "Dia GPS settings must open the per-target location/GPS editor"
