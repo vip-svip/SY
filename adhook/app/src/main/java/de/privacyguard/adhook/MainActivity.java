@@ -7303,12 +7303,13 @@ public final class MainActivity extends ComponentActivity {
         request.setText("向 LSPosed 申请此应用的 Hook 作用域");
         request.setOnClickListener(v -> {
             Runnable action = () -> {
+                final int operationGeneration = ++hookTargetScopeGeneration;
                 state.setText("已向 LSPosed Manager 发送作用域申请；等待用户批准…");
                 try {
                     FxLsposedScopeBridge.requestScope(packageName, new FxLsposedScopeBridge.RequestCallback() {
                         @Override public void onApproved(java.util.List<String> approved) {
                             runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
+                                if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
                                 if (approved != null && approved.contains(packageName)) {
                                     state.setText("LSPosed 已批准此应用作用域。是否已经注入仍需以目标进程运行状态为准。");
                                 } else {
@@ -7320,13 +7321,14 @@ public final class MainActivity extends ComponentActivity {
 
                         @Override public void onFailed(String message) {
                             runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
+                                if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
                                 state.setText("LSPosed 作用域申请失败：" + message);
                             });
                         }
                     });
                 } catch (RuntimeException error) {
-                    state.setText("无法提交作用域申请：" + error.getMessage());
+                    if (isCurrentHookScopeOperation(state, packageName, operationGeneration))
+                        state.setText("无法提交作用域申请：" + error.getMessage());
                 }
             };
             if (systemPackage) {
@@ -7392,7 +7394,16 @@ public final class MainActivity extends ComponentActivity {
         worker.start();
     }
 
+    private boolean isCurrentHookScopeOperation(TextView state, String packageName, int generation) {
+        return !isFinishing() && !isDestroyed()
+                && generation == hookTargetScopeGeneration
+                && state == hookTargetScopeState
+                && packageName != null && packageName.equals(hookTargetScopePackage)
+                && packageName.equals(selectedPackage) && state.getParent() != null;
+    }
+
     private void removeLsposedScope(String packageName, TextView state) {
+        final int operationGeneration = ++hookTargetScopeGeneration;
         state.setText("正在向 LSPosed 移除此应用作用域…");
         Thread worker = new Thread(() -> {
             String failure = null;
@@ -7403,11 +7414,12 @@ public final class MainActivity extends ComponentActivity {
             }
             final String result = failure;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;
                 state.setText(result == null ? "已提交作用域移除。" : "移除失败：" + result);
                 refreshLsposedScopeStatus(state, packageName);
             });
         }, "fx-lsposed-scope-remove");
+        worker.setDaemon(true);
         worker.start();
     }
 
