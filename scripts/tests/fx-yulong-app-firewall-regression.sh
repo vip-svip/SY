@@ -258,18 +258,16 @@ python3 - "$SOURCE" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = (
-    'if (umask 077; set -C; printf \\'%s\\\\n\\' "$$" > "$WATCH_LOCK") 2>/dev/null; then',
-    '[ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$$" ]',
-    'chmod 600 "$WATCH_LOCK"',
-    'if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ]',
-    'rm -f "$WATCH_LOCK"',
-)
-for item in required:
-    if item not in source:
-        raise SystemExit("FAIL: atomic watcher lock contract missing: " + item)
-if 'printf \\'%s\\\\n\\' "$$" > "$WATCH_LOCK_PID"' in source:
-    raise SystemExit("FAIL: obsolete two-step WATCH_LOCK_PID contract remains")
+lock = source.split("watch_lock_acquire() {", 1)[1].split("watch_lock_release() {", 1)[0]
+release = source.split("watch_lock_release() {", 1)[1].split("watch_lock_signal_exit() {", 1)[0]
+assert "set -C" in lock, "watcher lock is not created with noclobber"
+assert "printf" in lock and '"$$"' in lock and '"$WATCH_LOCK"' in lock,     "exclusive lock does not publish the real shell PID"
+assert "chmod 600" in lock, "watcher lock is not private"
+assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
+assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
+assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
+assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
+assert '"$WATCH_LOCK"' in release and '"$$"' in release,     "lock release does not verify exact PID ownership"
 print("PASS: watcher atomically creates, verifies and releases its PID-bearing lock file")
 PY
 
