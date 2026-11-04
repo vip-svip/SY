@@ -246,3 +246,11 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The shared full-screen Sora editor now accepts an explicit source-language extra. The original Java editor keeps the bundled Java tokenizer; the Frida caller selects JavaScript mode and no longer applies Java token highlighting to JS source.
 - The current APK only bundles Sora core plus language-java. In JS mode the editor deliberately remains in Sora's default plain-text language and labels that mode honestly; source save/return limits and the 0x3039-compatible result contract are unchanged. A future grammar module is not claimed as included.
 - Regression coverage checks both language paths and confirms that only the Java path installs JavaLanguage.
+
+
+## 2026-11-04 — Dia LSPosed dynamic target scope
+
+- Compared the original Dia `LScopeProvider`/`LScope` Binder flow with the modern libXposed Service contract. FX uses the official `io.github.libxposed:service` provider/helper rather than copying the old `dialog.box` authority or package identity.
+- Added `FxHookApplication` registration for `XposedServiceHelper`, a process-singleton `FxLsposedScopeBridge`, and per-target Hook UI controls to read current scope, request LSPosed Manager approval, and remove that target's scope. Requests for system apps require a separate confirmation.
+- The default `META-INF/xposed/scope.list` remains empty and `staticScope=false`; FX does not silently add targets on install. The screen distinguishes approved module scope from actual target-process injection.
+- Added `scripts/tests/fx-dia-lsposed-scope-regression.py` to the manual validation workflow. Compile/CI and real OnePlus 12 LSPosed behavior remain to be verified; no final APK/KernelSU ZIP has been built.
