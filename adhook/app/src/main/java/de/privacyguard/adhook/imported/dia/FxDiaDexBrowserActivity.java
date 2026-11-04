@@ -75,6 +75,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
     private String restoredQuery = "";
     private int restoredScrollY;
     private boolean restoreScrollPending;
+    private boolean restoringSourceState;
     private ScrollView resultScroll;
 
     private static final class SearchHit {
@@ -172,12 +173,15 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 exportGeneration++;
                 detailGeneration++;
+                resetResultScrollRestoration();
                 render();
             }
             @Override public void afterTextChanged(Editable s) {}
         });
         loadInstalledApps();
-        restoreSourceAfterRecreation(state);
+        restoringSourceState = true;
+        try { restoreSourceAfterRecreation(state); }
+        finally { restoringSourceState = false; }
     }
 
     private void restoreSourceAfterRecreation(Bundle state) {
@@ -232,6 +236,12 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         outState.putInt(STATE_SCROLL_Y,
                 Math.max(0, resultScroll == null ? restoredScrollY : resultScroll.getScrollY()));
         super.onSaveInstanceState(outState);
+    }
+
+    private void resetResultScrollRestoration() {
+        restoreScrollPending = false;
+        restoredScrollY = 0;
+        if (resultScroll != null) resultScroll.scrollTo(0, 0);
     }
 
     private void restoreResultScrollAfterRender() {
@@ -292,6 +302,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         }
         final Uri uri = data.getData();
         final String name = documentName(uri);
+        resetResultScrollRestoration();
         int grantFlags = data.getFlags();
         boolean persisted = false;
         if ((grantFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
@@ -424,6 +435,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
                 .setItems(labels, (dialog, which) -> {
                     releaseDocumentPermission();
+                    resetResultScrollRestoration();
                     sourceKind = "installed-selected";
                     selected = apps.get(which);
                     dexGeneration++;
@@ -435,6 +447,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
     }
 
     private void loadFrameworkDex() {
+        if (!restoringSourceState) resetResultScrollRestoration();
         releaseDocumentPermission();
         sourceKind = "framework";
         selected = null;
@@ -478,6 +491,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
 
     private void loadDex() {
         if (selected == null) { summary.setText("请先选择应用。"); return; }
+        if (!restoringSourceState) resetResultScrollRestoration();
         releaseDocumentPermission();
         sourceKind = "installed-loaded";
         final ApplicationInfo app = selected;
