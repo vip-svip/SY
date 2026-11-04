@@ -308,6 +308,38 @@ public final class FxDiaSystemExpandActivity extends Activity {
         }
         try {
             worker.execute(() -> {
+                // Re-read immediately after the user's confirmation. A new install
+                // session may have started while the confirmation dialog was open.
+                try {
+                    List<PackageInstaller.SessionInfo> currentSessions =
+                            getPackageManager().getPackageInstaller().getAllSessions();
+                    if (currentSessions == null) {
+                        runOnUiThread(() -> unavailable("安装会话状态未知",
+                                "系统未返回会话清单；为避免中断安装，FX 已取消强制停止。"));
+                        return;
+                    }
+                    int activeNow = 0;
+                    int committedNow = 0;
+                    int stagedNow = 0;
+                    for (PackageInstaller.SessionInfo session : currentSessions) {
+                        if (session == null) throw new IllegalStateException("会话清单包含未知项目");
+                        if (session.isActive()) activeNow++;
+                        if (Build.VERSION.SDK_INT >= 29 && session.isCommitted()) committedNow++;
+                        if (Build.VERSION.SDK_INT >= 30 && session.isStagedSessionActive()) stagedNow++;
+                    }
+                    if (!FxDiaInstallerRestartPolicy.isSafeToRestart(
+                            true, activeNow, committedNow, stagedNow)) {
+                        runOnUiThread(() -> unavailable("安装会话状态已变化",
+                                "确认窗口打开后检测到新的活动/已提交安装会话；FX 已取消强制停止。"));
+                        return;
+                    }
+                } catch (Throwable sessionError) {
+                    String detail = sessionError.getClass().getSimpleName()
+                            + (sessionError.getMessage() == null ? "" : ": " + sessionError.getMessage());
+                    runOnUiThread(() -> unavailable("无法再次确认安装会话",
+                            "会话状态读取失败；为避免中断安装，FX 已取消强制停止。\n" + detail));
+                    return;
+                }
                 RootAccess.Result result = RootAccess.execute(
                         "am force-stop " + packageName, 15000L, 8192);
                 runOnUiThread(() -> {
