@@ -78,7 +78,7 @@ after_invalid_edit=$(sha256sum "$CONF" | awk '{print $1}')
 
 run edit ruleList 3 https://edited.example/filter.txt Edited 1 >/dev/null
 list=$(run list ruleList)
-printf '%s\n' "$list" | grep -Fq '2|https://edited.example/filter.txt|Edited|1' || fail "edit did not persist"
+printf '%s\n' "$list" | grep -Fq '3|https://edited.example/filter.txt|Edited|1' || fail "edit did not persist at its stable index across legacy duplicate sections"
 run toggle ruleList 1 1 >/dev/null
 list=$(run list ruleList)
 printf '%s\n' "$list" | grep -Fq '1|https://disabled.example/filter.txt|Disabled|1' || fail "toggle did not persist"
