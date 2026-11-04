@@ -41,6 +41,11 @@ public final class FxDiaMonitorEventsActivity extends Activity {
     public static final String EXTRA_TARGET_NAME = "fx_dia_monitor_target_name";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
     private static final long REFRESH_INTERVAL_MS = 15000L;
+    private static final int MAX_RESTORED_SEARCH_CHARS = 256;
+    private static final String STATE_SEARCH = "fx_dia_monitor_state_search";
+    private static final String STATE_CATEGORY = "fx_dia_monitor_state_category";
+    private static final String STATE_AUTO_REFRESH = "fx_dia_monitor_state_auto_refresh";
+    private static final String STATE_SCROLL_Y = "fx_dia_monitor_state_scroll_y";
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "fx-dia-monitor-events");
@@ -69,6 +74,11 @@ public final class FxDiaMonitorEventsActivity extends Activity {
     private EditText search;
     private Switch autoRefreshSwitch;
     private LinearLayout rows;
+    private ScrollView logScroll;
+    private boolean restoringUiState;
+    private boolean eventsLoaded;
+    private boolean pendingScrollRestore;
+    private int restoredScrollY;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -105,6 +115,7 @@ public final class FxDiaMonitorEventsActivity extends Activity {
         if (targetName == null || targetName.trim().isEmpty()) targetName = targetPackage;
         logPath = "/data/adb/privacyguard/dia-frida/logs/" + targetPackage + ".log";
         buildPage();
+        restoreUiState(state);
         loadEvents(true);
     }
 
@@ -174,6 +185,7 @@ public final class FxDiaMonitorEventsActivity extends Activity {
         autoRefreshSwitch.setText("每 15 秒自动刷新");
         autoRefreshSwitch.setTextSize(12);
         autoRefreshSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (restoringUiState) return;
             main.removeCallbacks(autoRefresh);
             if (checked) {
                 loadEvents(true);
@@ -188,13 +200,13 @@ public final class FxDiaMonitorEventsActivity extends Activity {
         count.setPadding(dp(16), dp(5), dp(16), dp(5));
         root.addView(count);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
+        logScroll = new ScrollView(this);
+        logScroll.setFillViewport(true);
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setPadding(dp(8), dp(3), dp(8), dp(12));
-        scroll.addView(rows);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        logScroll.addView(rows);
+        root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
 
         category.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -236,11 +248,13 @@ public final class FxDiaMonitorEventsActivity extends Activity {
                         status.setText("读取监控事件失败："
                                 + (detail.isEmpty() ? "没有错误详情。" : detail));
                         events = new ArrayList<>();
+                        eventsLoaded = true;
                         renderEvents();
                         return;
                     }
                     String output = result.output == null ? "" : result.output;
                     events = FxDiaMonitorEventParser.parse(output);
+                    eventsLoaded = true;
                     String updated = new SimpleDateFormat("HH:mm:ss", Locale.ROOT)
                             .format(new Date());
                     status.setText("最近读取：" + updated + " · 事件读取成功；仅展示安全字段。");
@@ -249,6 +263,8 @@ public final class FxDiaMonitorEventsActivity extends Activity {
             });
         } catch (RejectedExecutionException full) {
             status.setText("读取队列繁忙，本次刷新未执行；请稍后重试。");
+            eventsLoaded = true;
+            renderEvents();
         }
     }
 
@@ -293,6 +309,52 @@ public final class FxDiaMonitorEventsActivity extends Activity {
             empty.setPadding(dp(16), dp(18), dp(16), dp(18));
             rows.addView(empty);
         }
+        restorePendingScrollPosition();
+    }
+
+    private void restoreUiState(Bundle state) {
+        if (state == null) return;
+        restoringUiState = true;
+        String query = state.getString(STATE_SEARCH, "");
+        if (query == null) query = "";
+        if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
+            query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
+        }
+        search.setText(query);
+        search.setSelection(search.getText().length());
+        int savedCategory = state.getInt(STATE_CATEGORY, 0);
+        if (savedCategory >= 0 && savedCategory < category.getCount()) {
+            category.setSelection(savedCategory);
+        }
+        autoRefreshSwitch.setChecked(state.getBoolean(STATE_AUTO_REFRESH, false));
+        restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+        pendingScrollRestore = true;
+        restoringUiState = false;
+    }
+
+    private void restorePendingScrollPosition() {
+        if (!eventsLoaded || !pendingScrollRestore || logScroll == null) return;
+        final int scrollY = restoredScrollY;
+        pendingScrollRestore = false;
+        logScroll.post(() -> {
+            if (!destroyed && logScroll != null) logScroll.scrollTo(0, scrollY);
+        });
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (search != null) {
+            String query = search.getText() == null ? "" : search.getText().toString();
+            if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
+                query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
+            }
+            outState.putString(STATE_SEARCH, query);
+        }
+        if (category != null) outState.putInt(STATE_CATEGORY, category.getSelectedItemPosition());
+        if (autoRefreshSwitch != null) {
+            outState.putBoolean(STATE_AUTO_REFRESH, autoRefreshSwitch.isChecked());
+        }
+        if (logScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, logScroll.getScrollY()));
     }
 
     @Override protected void onResume() {
