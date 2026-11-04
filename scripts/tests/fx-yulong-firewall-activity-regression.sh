@@ -24,6 +24,18 @@ require('RootAccess.Result rejected = RootAccess.failure(', "rejected Root tasks
 assert 'RootAccess.execute("");' not in source, "queue saturation must not call RootAccess.execute with a fake empty command"
 require('"后台任务繁忙，本次防火墙操作未执行。"', "queue saturation failure must explain that the firewall operation was not run")
 require("private void loadAppsAsync()", "asynchronous app inventory entrypoint is missing")
+require("private boolean appsLoaded;", "successfully loaded package snapshot is not tracked")
+require("private final BroadcastReceiver packageChangeReceiver", "firewall app list has no package lifecycle receiver")
+require("Intent.ACTION_PACKAGE_ADDED", "package install events are not observed")
+require("Intent.ACTION_PACKAGE_REMOVED", "package removal events are not observed")
+require("Intent.ACTION_PACKAGE_REPLACED", "package update completion is not observed")
+require("Intent.ACTION_PACKAGE_FULLY_REMOVED", "full package removal is not observed")
+require('filter.addDataScheme("package")', "package URI filter is missing")
+require("Context.RECEIVER_NOT_EXPORTED", "modern Android receiver is not registered as not-exported")
+require("intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)", "package update transitional events are not filtered")
+require("private void refreshPackageInventory()", "Root package state is not re-read after package changes")
+require("if (appsLoaded) refreshPackageInventory();", "missed package broadcasts are not reconciled on Activity resume")
+require("unregisterPackageChangeReceiver();", "package receiver is not released on pause/destroy")
 require("appWorker.execute(() -> {", "PackageManager inventory is not dispatched off the UI thread")
 require("pm.getInstalledApplications(0)", "installed applications are not loaded")
 require("pm.getApplicationLabel(info)", "application labels are not resolved")
@@ -37,5 +49,5 @@ render = source[source.index("private void renderRows()"):source.index("@Overrid
 assert "getInstalledApplications(" not in render, "PackageManager inventory is still executed while rendering rows"
 assert "getApplicationLabel(" not in render, "application labels are still loaded while rendering rows"
 assert "for (ApplicationInfo info : apps)" in render, "paged renderer lost the application row loop"
-print("PASS: Yulong firewall accepts multi-control cards, loads applications off-main-thread, pages rows and releases workers")
+print("PASS: Yulong firewall reloads installed apps after package lifecycle events/resume, pages rows and releases workers")
 PY

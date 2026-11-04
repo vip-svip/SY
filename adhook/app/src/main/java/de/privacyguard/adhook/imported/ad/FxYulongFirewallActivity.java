@@ -3,10 +3,16 @@ package de.privacyguard.adhook.imported.ad;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.TimePickerDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.net.TrafficStats;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -66,7 +72,29 @@ public final class FxYulongFirewallActivity extends Activity {
     }
     private final Map<String, FirewallRule> rules = new HashMap<>();
     private boolean loading = true;
+    private boolean appsLoaded;
+    private boolean refreshAfterLoad;
+    private boolean packageChangeReceiverRegistered;
     private boolean suppressMaster;
+    private final BroadcastReceiver packageChangeReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            String action = intent.getAction();
+            Uri data = intent.getData();
+            String packageName = data == null ? null : data.getSchemeSpecificPart();
+            if (packageName == null || packageName.isEmpty()
+                    || packageName.equals(getPackageName()) || "android".equals(packageName)) return;
+            boolean added = Intent.ACTION_PACKAGE_ADDED.equals(action);
+            boolean removed = Intent.ACTION_PACKAGE_REMOVED.equals(action)
+                    || Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action);
+            boolean replaced = Intent.ACTION_PACKAGE_REPLACED.equals(action);
+            if (!added && !removed && !replaced) return;
+            // Android reports an app update as remove/add with EXTRA_REPLACING.
+            // Wait for PACKAGE_REPLACED so the temporary uninstall is not shown.
+            if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false) && (added || removed)) return;
+            refreshPackageInventory();
+        }
+    };
     private String suitePage = "应用网络拦截";
     private int appFilterMode;
 
@@ -209,6 +237,71 @@ public final class FxYulongFirewallActivity extends Activity {
         lp.setMargins(dp(12), dp(5), dp(12), dp(5)); rows.addView(card, lp);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        registerPackageChangeReceiver();
+        // Package broadcasts are not delivered while the Activity is paused.
+        // Re-read the authoritative Root list when returning from another app.
+        if (appsLoaded) refreshPackageInventory();
+    }
+
+    @Override protected void onPause() {
+        unregisterPackageChangeReceiver();
+        super.onPause();
+    }
+
+    private void registerPackageChangeReceiver() {
+        if (packageChangeReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        filter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        filter.addDataScheme("package");
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(packageChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(packageChangeReceiver, filter);
+            }
+            packageChangeReceiverRegistered = true;
+        } catch (RuntimeException error) {
+            // Returning to the Activity still reconciles packages in onResume.
+            android.util.Log.w("FXYulongFirewall", "Package receiver registration failed", error);
+        }
+    }
+
+    private void unregisterPackageChangeReceiver() {
+        if (!packageChangeReceiverRegistered) return;
+        packageChangeReceiverRegistered = false;
+        try {
+            unregisterReceiver(packageChangeReceiver);
+        } catch (IllegalArgumentException alreadyDetached) {
+            // Activity teardown may race a framework receiver detach.
+        }
+    }
+
+    private void refreshPackageInventory() {
+        if (destroyed || isFinishing() || isDestroyed()) return;
+        if (loading) {
+            refreshAfterLoad = true;
+            return;
+        }
+        loading = true;
+        master.setEnabled(false);
+        status.setText("检测到应用安装状态变化，正在刷新防火墙应用列表…");
+        runRoot("list", result -> {
+            if (result.exitCode != 0) {
+                loading = false;
+                master.setEnabled(appsLoaded);
+                status.setText("应用列表刷新失败，保留上次列表：" + safeOutput(result.output));
+                return;
+            }
+            parseList(result.output);
+            loadAppsAsync();
+        });
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         String requestedPage = getIntent() == null ? null : getIntent().getStringExtra("suite_page");
@@ -343,6 +436,7 @@ public final class FxYulongFirewallActivity extends Activity {
                     if (destroyed || isFinishing() || isDestroyed()) return;
                     if (loadFailure != null) {
                         loading = false;
+                        refreshAfterLoad = false;
                         master.setEnabled(false);
                         status.setText("无法读取应用列表：" + loadFailure.getClass().getSimpleName());
                         renderRows();
@@ -356,10 +450,15 @@ public final class FxYulongFirewallActivity extends Activity {
                         if (!rules.containsKey(info.packageName)) rules.put(info.packageName, new FirewallRule());
                     }
                     loading = false;
+                    appsLoaded = true;
                     master.setEnabled(true);
                     status.setText("已读取 " + apps.size() + " 个" + ("用户应用".equals(suitePage) ? "用户应用" : "系统应用".equals(suitePage) ? "系统应用" : "应用") + "；列表按需分页加载。");
                     appPage = 1;
                     renderRows();
+                    if (refreshAfterLoad) {
+                        refreshAfterLoad = false;
+                        refreshPackageInventory();
+                    }
                 });
             });
         } catch (java.util.concurrent.RejectedExecutionException closing) {
@@ -427,6 +526,7 @@ public final class FxYulongFirewallActivity extends Activity {
         }), new LinearLayout.LayoutParams(-1, -2));
     }
     @Override protected void onDestroy() {
+        unregisterPackageChangeReceiver();
         destroyed = true;
         worker.shutdownNow();
         appWorker.shutdownNow();
