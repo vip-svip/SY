@@ -206,7 +206,19 @@ while [ "$i" -lt 6 ]; do
 done
 wait
 watchers=$(ps -eo pid=,args= | awk -v script="$WATCH_MOD/scripts/yulong-profile-schedule.sh" 'index($0,script) && index($0," watch ") && $0 !~ /awk/ {n++} END{print n+0}')
-[ "$watchers" -eq 1 ] || fail "concurrent profile scheduler starts created $watchers watchers"
+[ "$watchers" -eq 1 ] || {
+  echo "FAIL: concurrent profile scheduler starts created $watchers watchers" >&2
+  echo "--- scheduler start logs ---" >&2
+  for log in "$T"/start.*.log; do
+    [ -f "$log" ] || continue
+    echo "### $log" >&2
+    cat "$log" >&2
+  done
+  echo "--- scheduler state ---" >&2
+  ls -la "$WATCH_PG" >&2
+  [ ! -f "$WATCH_PG/yulong-profile-schedule.log" ] || cat "$WATCH_PG/yulong-profile-schedule.log" >&2
+  exit 1
+}
 [ -s "$WATCH_PG/yulong-profile-schedule.pid" ] || fail "profile watcher PID was not stored"
 sh "$WATCH_MOD/scripts/yulong-profile-schedule.sh" stop "$WATCH_MOD" "$WATCH_PG" >/dev/null
 i=0
