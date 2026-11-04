@@ -861,3 +861,11 @@ After each implementation batch:
 - Missing/corrupt markers, changed or unavailable VPN route, a detached v4/v6 redirect, or failed local DNS health now return `active=0` with a machine-readable `reason`. Status is read-only; it does not alter third-party VPN settings, detach rules or silently repair state.
 - Added runtime regressions for a healthy active session, a missing IPv4 redirect while metadata remains, and a VPN route that no longer resolves through the recorded tunnel. The status command must not report either stale case as active.
 - Host simulation only. A live process crash / real Android iptables drift and external-VPN reconnect still require device validation.
+
+## 2026-11-04 — Dia Frida script staging and session-log path hardening
+
+- Frida-inject now rejects symlinked path components under `/data/adb/privacyguard`, creates the private Dia script/log directories with a restrictive umask, and checks script/log destinations before use.
+- Script source is decoded into a same-directory private temporary file, chmodded to 0600 and atomically moved into place. This avoids direct redirection through a pre-existing symlink or partially overwriting a script after a failed base64 decode.
+- The session log viewer now reads only a regular non-symlink file. The command builder's Java escaping was checked so runtime shell quotes are actual quoting characters, not literal backslash-quote sequences.
+- Temp cleanup is idempotent after the successful rename clears the temp variable; HUP/INT/TERM exit into the single EXIT cleanup handler. The Frida process-identity regression now pins these staging, log-reader and cleanup contracts.
+- Source/host regression only. Frida injection and storage behavior must still be exercised on the Android device.
