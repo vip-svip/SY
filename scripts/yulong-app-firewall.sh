@@ -16,10 +16,48 @@ NET_CLASS=${NET_CLASS:-/sys/class/net}
 _FW_TEMP=
 _FW_BACKUP=
 _FW_RESTORE=
-mkdir -p "$PG"
+
+# Reject a symlink in any existing ancestor before touching the state directory.
+# Writable files are fixed direct children of the private FX state directory.
+_fw_validate_parent_chain() {
+  _fw_candidate=$1
+  case "$_fw_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_fw_candidate" in /|*/|*//* ) return 1 ;; esac
+  _fw_final=${_fw_candidate##*/}
+  case "$_fw_final" in ''|.|..) return 1 ;; esac
+  _fw_parent=${_fw_candidate%/*}
+  [ -n "$_fw_parent" ] || _fw_parent=/
+  _fw_rest=${_fw_parent#/}
+  _fw_walk=
+  while [ -n "$_fw_rest" ]; do
+    case "$_fw_rest" in
+      */*) _fw_component=${_fw_rest%%/*}; _fw_rest=${_fw_rest#*/} ;;
+      *) _fw_component=$_fw_rest; _fw_rest= ;;
+    esac
+    case "$_fw_component" in ''|.|..) return 1 ;; esac
+    _fw_walk="$_fw_walk/$_fw_component"
+    [ -d "$_fw_walk" ] && [ ! -L "$_fw_walk" ] || return 1
+  done
+  return 0
+}
+
+_fw_validate_parent_chain "$PG" || {
+  echo "FX firewall state directory has a missing or unsafe parent" >&2
+  exit 21
+}
+[ ! -L "$PG" ] || { echo "FX firewall state directory is unsafe" >&2; exit 21; }
+if [ ! -e "$PG" ]; then
+  mkdir "$PG" || { echo "cannot create FX firewall state directory" >&2; exit 21; }
+fi
 [ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX firewall state directory is unsafe" >&2; exit 21; }
+[ "$CONF" = "$PG/settings.conf" ] || { echo "FX firewall settings path must be the module state file" >&2; exit 21; }
+[ "$ACTIVE" = "$PG/yulong-firewall-active" ] || { echo "FX firewall active path must be inside module state" >&2; exit 22; }
+[ "$LOCK" = "$PG/yulong-firewall.lock" ] || { echo "FX firewall lock path must be inside module state" >&2; exit 23; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf is missing or unsafe" >&2; exit 21; }
 [ ! -L "$ACTIVE" ] || { echo "FX firewall active marker is unsafe" >&2; exit 22; }
+[ ! -e "$ACTIVE" ] || [ -f "$ACTIVE" ] || { echo "FX firewall active marker is not a regular file" >&2; exit 22; }
+[ ! -L "$LOCK" ] || { echo "FX firewall operation lock is unsafe" >&2; exit 23; }
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "FX firewall operation lock is not a directory" >&2; exit 23; }
 
 valid_package() {
   case "$1" in ''|*[!A-Za-z0-9_.-]*) return 1 ;; esac

@@ -16,10 +16,48 @@ NET_CLASS=${NET_CLASS:-/sys/class/net}
 _FW_TEMP=
 _FW_BACKUP=
 _FW_RESTORE=
-mkdir -p "$PG"
+
+# Reject a symlink in any existing ancestor before touching the state directory.
+# Writable files are fixed direct children of the private FX state directory.
+_fw_validate_parent_chain() {
+  _fw_candidate=$1
+  case "$_fw_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_fw_candidate" in /|*/|*//* ) return 1 ;; esac
+  _fw_final=${_fw_candidate##*/}
+  case "$_fw_final" in ''|.|..) return 1 ;; esac
+  _fw_parent=${_fw_candidate%/*}
+  [ -n "$_fw_parent" ] || _fw_parent=/
+  _fw_rest=${_fw_parent#/}
+  _fw_walk=
+  while [ -n "$_fw_rest" ]; do
+    case "$_fw_rest" in
+      */*) _fw_component=${_fw_rest%%/*}; _fw_rest=${_fw_rest#*/} ;;
+      *) _fw_component=$_fw_rest; _fw_rest= ;;
+    esac
+    case "$_fw_component" in ''|.|..) return 1 ;; esac
+    _fw_walk="$_fw_walk/$_fw_component"
+    [ -d "$_fw_walk" ] && [ ! -L "$_fw_walk" ] || return 1
+  done
+  return 0
+}
+
+_fw_validate_parent_chain "$PG" || {
+  echo "FX firewall state directory has a missing or unsafe parent" >&2
+  exit 21
+}
+[ ! -L "$PG" ] || { echo "FX firewall state directory is unsafe" >&2; exit 21; }
+if [ ! -e "$PG" ]; then
+  mkdir "$PG" || { echo "cannot create FX firewall state directory" >&2; exit 21; }
+fi
 [ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX firewall state directory is unsafe" >&2; exit 21; }
+[ "$CONF" = "$PG/settings.conf" ] || { echo "FX firewall settings path must be the module state file" >&2; exit 21; }
+[ "$ACTIVE" = "$PG/yulong-firewall-active" ] || { echo "FX firewall active path must be inside module state" >&2; exit 22; }
+[ "$LOCK" = "$PG/yulong-firewall.lock" ] || { echo "FX firewall lock path must be inside module state" >&2; exit 23; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf is missing or unsafe" >&2; exit 21; }
 [ ! -L "$ACTIVE" ] || { echo "FX firewall active marker is unsafe" >&2; exit 22; }
+[ ! -e "$ACTIVE" ] || [ -f "$ACTIVE" ] || { echo "FX firewall active marker is not a regular file" >&2; exit 22; }
+[ ! -L "$LOCK" ] || { echo "FX firewall operation lock is unsafe" >&2; exit 23; }
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "FX firewall operation lock is not a directory" >&2; exit 23; }
 
 valid_package() {
   case "$1" in ''|*[!A-Za-z0-9_.-]*) return 1 ;; esac
@@ -619,24 +657,31 @@ watch_lock_pid_start_time() {
 }
 watch_lock_owner_is_ours() {
   _watch_owner_pid=$1
+  # Return 0 for a live owner, 1 for a stale/reused PID (safe to reclaim if
+  # the lock record has not changed), and 2 for an actual foreign/malformed
+  # owner. Keep this as a single liveness/identity decision: checking kill -0
+  # once in the caller and again here races with a starter exiting normally.
   watch_lock_pid_live "$_watch_owner_pid" || return 1
   _watch_owner_marker=$(sed -n '2p' "$WATCH_LOCK" 2>/dev/null || true)
   case "$_watch_owner_marker" in
     FXYWLOCK2)
       _watch_owner_script=$(sed -n '3p' "$WATCH_LOCK" 2>/dev/null || true)
       _watch_owner_start=$(sed -n '4p' "$WATCH_LOCK" 2>/dev/null || true)
-      [ "$_watch_owner_script" = "$SCRIPT_PATH" ] || return 1
-      case "$_watch_owner_start" in ''|*[!0-9]*) return 1 ;; esac
+      [ "$_watch_owner_script" = "$SCRIPT_PATH" ] || return 2
+      case "$_watch_owner_start" in ''|*[!0-9]*) return 2 ;; esac
       _watch_live_start=$(watch_lock_pid_start_time "$_watch_owner_pid") || return 1
-      [ "$_watch_live_start" = "$_watch_owner_start" ]
+      [ "$_watch_live_start" = "$_watch_owner_start" ] || return 1
+      return 0
       ;;
     '')
-      # Backward compatibility for old PID-only locks. Do not weaken the
-      # identity check; old owners must still expose the exact script path.
-      watch_lock_process_is_ours "$_watch_owner_pid"
+      # Backward compatibility for old PID-only locks. A live foreign process
+      # is a hard conflict; an exited owner is an ordinary stale lock.
+      if watch_lock_process_is_ours "$_watch_owner_pid"; then return 0; fi
+      watch_lock_pid_live "$_watch_owner_pid" && return 2
+      return 1
       ;;
     *)
-      return 1
+      return 2
       ;;
   esac
 }
@@ -697,30 +742,70 @@ watch_lock_acquire() {
           return 1
           ;;
         *)
-          if watch_lock_pid_live "$_watch_lock_owner"; then
-            watch_lock_owner_is_ours "$_watch_lock_owner" || {
-              echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
-              return 1
-            }
-          elif [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]; then
-            rm -f "$WATCH_LOCK"
-          fi
+          _watch_owner_state=0
+          watch_lock_owner_is_ours "$_watch_lock_owner" || _watch_owner_state=$?
+          case "$_watch_owner_state" in
+            0)
+              # A live owner of this script holds the lifecycle lock.
+              ;;
+            1)
+              # The PID exited or was reused between lock creation and this
+              # check. Reclaim only the exact unchanged record we inspected.
+              if [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]; then
+                rm -f "$WATCH_LOCK"
+              fi
+              ;;
+            *)
+              # The exclusive lock path is visible before its four-line
+              # ownership record is fully written. Settle an initially invalid
+              # snapshot before classifying a live owner as foreign.
+              sleep 0.02
+              _watch_lock_settled=$(cat "$WATCH_LOCK" 2>/dev/null || true)
+              if [ "$_watch_lock_settled" != "$_watch_lock_record" ]; then
+                :
+              else
+                _watch_owner_state=0
+                watch_lock_owner_is_ours "$_watch_lock_owner" || _watch_owner_state=$?
+                case "$_watch_owner_state" in
+                  0) : ;;
+                  1)
+                    if [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_settled" ]; then
+                      rm -f "$WATCH_LOCK"
+                    fi
+                    ;;
+                  *)
+                    echo "firewall watcher lock belongs to an unrelated process (pid=$_watch_lock_owner)" >&2
+                    return 1
+                    ;;
+                esac
+              fi
+              ;;
+          esac
           ;;
       esac
     else
-      # Publish PID, script path and /proc start time together. The start
-      # time prevents PID reuse; the script path avoids fragile argv parsing.
+      # Prepare the complete ownership record under a unique private name,
+      # then publish it with one same-directory hard link. A contender can
+      # never observe a truncated/partially-written lock record.
       _watch_lock_start=$(watch_lock_pid_start_time "$$") || {
         echo "unable to read current watcher lock owner start time" >&2
         return 1
       }
       _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
-      if (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
+      _watch_lock_tmp=$(mktemp "$WATCH_LOCK.tmp.XXXXXX") || return 1
+      if ! {
+        printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp" &&
+        chmod 600 "$_watch_lock_tmp"
+      }; then
+        rm -f "$_watch_lock_tmp"
+        return 1
+      fi
+      if ln "$_watch_lock_tmp" "$WATCH_LOCK" 2>/dev/null; then
+        rm -f "$_watch_lock_tmp"
         WATCH_LOCK_OWNED=1
         WATCH_LOCK_START=$_watch_lock_start
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
-            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ] \
-            && chmod 600 "$WATCH_LOCK"; then
+            && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
           trap 'watch_lock_signal_exit 129' HUP
           trap 'watch_lock_signal_exit 130' INT
           trap 'watch_lock_signal_exit 143' TERM
@@ -735,6 +820,7 @@ watch_lock_acquire() {
         echo "unable to verify firewall watcher lock ownership" >&2
         return 1
       fi
+      rm -f "$_watch_lock_tmp"
     fi
     _watch_lock_tries=$((_watch_lock_tries + 1))
     [ "$_watch_lock_tries" -lt "$WATCH_LOCK_MAX_TRIES" ] || {

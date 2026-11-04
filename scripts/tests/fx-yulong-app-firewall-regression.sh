@@ -101,11 +101,59 @@ export MOCK_PACKAGE_LIST="$PACKAGE_LIST" NET_CLASS MOCK_TIME=12:00
 export PATH="$TMP/bin:$PATH"
 CONF="$PG/settings.conf"
 ACTIVE="$PG/yulong-firewall-active"
-export CONF ACTIVE
+LOCK="$PG/yulong-firewall.lock"
+export CONF ACTIVE LOCK
 run(){ sh "$TMP/module/scripts/yulong-app-firewall.sh" "$@"; }
 
 SENTINEL="$TMP/sentinel"
 printf 'do-not-overwrite\n' > "$SENTINEL"
+
+# Reject final and ancestor state-directory symlinks before touching external files.
+mkdir "$TMP/external-state"
+cp "$CONF" "$TMP/external-state/settings.conf"
+ln -s "$TMP/external-state" "$TMP/state-link"
+if env MP="$MP" PG="$TMP/state-link" CONF="$TMP/state-link/settings.conf" \
+    ACTIVE="$TMP/state-link/yulong-firewall-active" LOCK="$TMP/state-link/yulong-firewall.lock" \
+    NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+  fail "firewall accepted a symlinked PG directory"
+fi
+cmp -s "$CONF" "$TMP/external-state/settings.conf" || fail "PG symlink changed external settings"
+[ ! -e "$TMP/external-state/yulong-firewall.lock" ] || fail "PG symlink created an external lock"
+rm "$TMP/state-link"
+
+mkdir "$TMP/real-parent"
+ln -s "$TMP/real-parent" "$TMP/parent-link"
+if env MP="$MP" PG="$TMP/parent-link/state" CONF="$TMP/parent-link/state/settings.conf" \
+    ACTIVE="$TMP/parent-link/state/yulong-firewall-active" LOCK="$TMP/parent-link/state/yulong-firewall.lock" \
+    NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+  fail "firewall accepted PG below a symlinked parent"
+fi
+[ ! -e "$TMP/real-parent/state" ] || fail "symlinked parent created external firewall state"
+rm "$TMP/parent-link"
+
+# Reject environment path overrides that redirect any persistent write outside PG.
+for var in CONF ACTIVE LOCK; do
+  case "$var" in
+    CONF) value="$TMP/outside-settings.conf";;
+    ACTIVE) value="$TMP/outside-active";;
+    LOCK) value="$TMP/outside-lock";;
+  esac
+  if env MP="$MP" PG="$PG" CONF="${CONF}" ACTIVE="${ACTIVE}" LOCK="${LOCK}" \
+      NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+    fail "firewall accepted an external $var override"
+  fi
+  [ ! -e "$value" ] || fail "rejected $var override created external state"
+done
+
+# Reject symlinks at the active marker and operation lock themselves.
+ln -s "$SENTINEL" "$ACTIVE"
+if run list >/dev/null 2>&1; then fail "firewall accepted a symlinked active marker"; fi
+[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "active marker symlink target changed"
+rm -f "$ACTIVE"
+ln -s "$SENTINEL" "$LOCK"
+if run list >/dev/null 2>&1; then fail "firewall accepted a symlinked operation lock"; fi
+[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "operation lock symlink target changed"
+rm -f "$LOCK"
 WRAPPER_PID_FILE="$TMP/wrapper.pid"
 export WRAPPER_PID_FILE
 
@@ -250,8 +298,14 @@ for pattern in 'mktemp "$CONF.yulong-master.XXXXXX"' 'mktemp "$CONF.yulong-list.
                'mktemp "$ACTIVE.XXXXXX"'; do
   grep -Fq "$pattern" "$SOURCE" || fail "missing unique temp creation: $pattern"
 done
+grep -Fq '_fw_validate_parent_chain "$PG"' "$SOURCE" || fail "state parent chain symlink validation missing"
+grep -Fq '[ "$CONF" = "$PG/settings.conf" ]' "$SOURCE" || fail "settings path not pinned inside PG"
+grep -Fq '[ "$ACTIVE" = "$PG/yulong-firewall-active" ]' "$SOURCE" || fail "active path not pinned inside PG"
+grep -Fq '[ "$LOCK" = "$PG/yulong-firewall.lock" ]' "$SOURCE" || fail "operation lock path not pinned inside PG"
+! grep -Fq 'mkdir -p "$PG"' "$SOURCE" || fail "unsafe recursive state directory creation remains"
 grep -Fq '[ -f "$CONF" ] && [ ! -L "$CONF" ]' "$SOURCE" || fail "settings.conf symlink guard missing"
 grep -Fq '[ ! -L "$ACTIVE" ]' "$SOURCE" || fail "active marker symlink guard missing"
+grep -Fq '[ ! -L "$LOCK" ]' "$SOURCE" || fail "operation lock symlink guard missing"
 
 # The watcher lifecycle lock atomically publishes a complete private owner record via same-directory hard link.
 python3 - "$SOURCE" <<'PY'
