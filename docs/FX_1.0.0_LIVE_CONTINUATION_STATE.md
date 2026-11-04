@@ -3129,3 +3129,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCrashReportActivity.java`、`scripts/tests/fx-dia-crash-report-regression.sh`、本状态文件。
 - 验证：回归新增 scrollY、pending unreadable marker、仅成功读取后清标记、旧 ScrollView 回调防护等断言；尚未运行新 Actions/Gradle/JUnit/模拟器/真机。
 - 下一步：读取本提交 Actions；随后检查 Dia CrashReport 清理确认/分享返回链，以及 Frida SAF 导入旋转/进程恢复；固定 FX 1.0.0，不打最终包。
+
+
+## 2026-11-05 — CrashReport 回归脚本 Manifest XML 文本解析修复
+
+- Actions `41916353780` 在 `fx-dia-crash-report-regression.sh` 的 Manifest 检查处失败：`ET.parse(manifest_path)` 将已经由 `Path.read_text()` 读取的 XML 内容当作路径，触发 `OSError: File name too long`。
+- 修复：改用 `ET.fromstring(manifest_path)` 解析内存中的 XML 文本；产品代码未变。
+- 改动路径：`scripts/tests/fx-dia-crash-report-regression.sh`。
+- 验证：等待新 Actions 继续执行 CrashReport 状态恢复、JNI/Breakpad host tests；不把 XML parser 修复本身记为产品验收。
