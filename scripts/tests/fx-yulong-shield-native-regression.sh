@@ -309,6 +309,9 @@ assert 'getBoolean("content_scan_enabled", false)' in scan_page
 assert "Intent.ACTION_DELETE" in scan_page and 'setPositiveButton("打开系统确认"' in scan_page
 
 warning_page = shield["FxYulongWarningActivity.java"]
+assert 'STATE_SCROLL_Y = "fx_yulong_warning_scroll_y"' in warning_page, "Warning detail page scroll state key missing"
+assert "onSaveInstanceState(Bundle outState)" in warning_page and "outState.putInt(STATE_SCROLL_Y" in warning_page, "Warning detail page must save scroll position"
+assert "warningScroll.scrollTo(0, restoreY)" in warning_page, "Warning detail page must restore scroll position after recreation"
 for token in (
     "private void refreshTargetAvailability()",
     "@Override protected void onResume()",
