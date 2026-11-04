@@ -239,6 +239,18 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         dialog.show();
     }
 
+    private static final class ActivityEntry {
+        final ActivityInfo info;
+        final int componentState;
+        final boolean applicationEnabled;
+
+        ActivityEntry(ActivityInfo info, int componentState, boolean applicationEnabled) {
+            this.info = info;
+            this.componentState = componentState;
+            this.applicationEnabled = applicationEnabled;
+        }
+    }
+
     private final class AppPickerAdapter extends BaseAdapter implements Filterable {
         private final List<ApplicationInfo> visible = new ArrayList<>(apps);
 
@@ -296,18 +308,18 @@ public final class FxDiaActivityBrowserActivity extends Activity {
 
     private void loadActivities() {
         if (selected == null) { status.setText("请先选择应用。"); return; }
-        ApplicationInfo app = selected;
         final int request = ++activityGeneration;
-        final String targetPackage = app.packageName;
+        final String targetPackage = selected.packageName;
         rows.removeAllViews();
-        status.setText("正在读取 Activity 声明与组件状态…");
+        status.setText("正在后台读取 Activity 声明与组件状态…");
         boolean accepted = submitWorker(() -> {
-            List<ActivityInfo> result = new ArrayList<>();
+            List<ActivityEntry> result = new ArrayList<>();
             String error = null;
             try {
                 PackageManager pm = getPackageManager();
                 PackageInfo info = pm.getPackageInfo(targetPackage,
                         PackageManager.GET_ACTIVITIES | PackageManager.MATCH_DISABLED_COMPONENTS);
+                boolean appEnabled = info.applicationInfo == null || info.applicationInfo.enabled;
                 if (info.activities != null) {
                     java.util.Set<String> launcherNames = new java.util.HashSet<>();
                     if (launcherOnly) {
@@ -325,74 +337,103 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                     }
                     for (ActivityInfo item : info.activities) {
                         if (Thread.currentThread().isInterrupted()) return;
-                        if (item != null && (!launcherOnly || launcherNames.contains(item.name))) result.add(item);
+                        if (item == null || (launcherOnly && !launcherNames.contains(item.name))) continue;
+                        int state = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
+                        try {
+                            state = pm.getComponentEnabledSetting(
+                                    new ComponentName(targetPackage, item.name));
+                        } catch (RuntimeException ignored) { }
+                        result.add(new ActivityEntry(item, state, appEnabled));
                     }
                 }
-                result.sort(Comparator.comparing(item -> item.name == null ? "" : item.name));
+                result.sort(Comparator.comparing(entry ->
+                        entry.info.name == null ? "" : entry.info.name));
             } catch (Throwable failure) {
                 error = failure.getClass().getSimpleName() + ": " + failure.getMessage();
             }
-            final List<ActivityInfo> activities = result;
+            final List<ActivityEntry> activities = result;
             final String failure = error;
             runOnUiThread(() -> {
                 if (destroyed || isFinishing() || isDestroyed()
                         || request != activityGeneration || selected == null
                         || !targetPackage.equals(selected.packageName)) return;
                 if (failure != null) { status.setText("读取失败：" + failure); return; }
-                status.setText("已读取 " + activities.size() + " 个 Activity 声明。");
-                for (ActivityInfo info : activities) addActivityRow(targetPackage, info);
+                status.setText("已读取 " + activities.size() + " 个 Activity 声明与组件状态。");
+                for (ActivityEntry entry : activities) addActivityRow(targetPackage, entry);
                 if (activities.isEmpty()) rows.addView(text("该应用没有声明符合当前视图的 Activity。", 13, 0xff718091, false));
             });
         });
         if (!accepted) status.setText("后台任务未能启动；请重试读取 Activity 入口。");
     }
 
-    private void addActivityRow(String packageName, ActivityInfo info) {
+    private void addActivityRow(String packageName, ActivityEntry entry) {
+        ActivityInfo info = entry.info;
         String className = info.name;
         if (className == null || !className.matches("[A-Za-z0-9_.$]+")) return;
-        ComponentName component = new ComponentName(packageName, className);
-        int state;
-        try { state = getPackageManager().getComponentEnabledSetting(component); }
-        catch (Throwable ignored) { state = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT; }
+        int state = entry.componentState;
         boolean enabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && info.enabled);
+                || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                    && info.enabled && entry.applicationEnabled);
         if (state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) enabled = false;
+                || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
+                || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED) enabled = false;
 
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(12), dp(7), dp(12), dp(7)); row.setBackgroundColor(0xffffffff);
         TextView name = text(className, 13, 0xff17212b, true);
         TextView meta = text("exported=" + info.exported + " · manifestEnabled=" + info.enabled
-                + " · state=" + state, 10, 0xff718091, false);
+                + " · appEnabled=" + entry.applicationEnabled + " · componentState=" + state,
+                10, 0xff718091, false);
         Switch toggle = new Switch(this); toggle.setText("启用此 Activity");
         toggle.setChecked(enabled);
+        final boolean[] changingProgrammatically = {false};
         toggle.setOnCheckedChangeListener((button, wanted) -> {
+            if (changingProgrammatically[0]) return;
             button.setEnabled(false);
             String componentArg = packageName + "/" + className;
             String command = "user_id=$(am get-current-user 2>/dev/null); "
                     + "case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; "
                     + (wanted ? "pm enable --user \"$user_id\" " : "pm disable-user --user \"$user_id\" ")
                     + quote(componentArg);
+            Runnable rollback = () -> {
+                changingProgrammatically[0] = true;
+                button.setChecked(!wanted);
+                changingProgrammatically[0] = false;
+                button.setEnabled(true);
+            };
             new AlertDialog.Builder(this).setTitle(wanted ? "启用 Activity？" : "禁用 Activity？")
                     .setMessage("这会修改目标应用的组件状态。禁用启动入口可能导致目标应用无法正常打开；可返回 FX 再次启用。")
-                    .setNegativeButton("取消", (d, w) -> {
-                        button.setChecked(!wanted);
-                        button.setEnabled(true);
-                    })
-                    .setPositiveButton("继续", (d, w) -> submitWorker(() -> {
-                        RootAccess.Result applied = RootAccess.execute(command, 30000L, 65536);
-                        runOnUiThread(() -> {
-                            if (isFinishing() || isDestroyed()) return;
-                            button.setEnabled(true);
-                            if (applied.exitCode != 0) {
-                                button.setChecked(!wanted);
-                                status.setText("组件状态修改失败：" + applied.output);
-                            } else {
-                                status.setText(wanted ? "Activity 已启用。" : "Activity 已禁用。");
-                                loadActivities();
+                    .setNegativeButton("取消", (d, w) -> rollback.run())
+                    .setPositiveButton("继续", (d, w) -> {
+                        boolean queued = submitWorker(() -> {
+                            RootAccess.Result applied = null;
+                            String failure = null;
+                            try {
+                                applied = RootAccess.execute(command, 30000L, 65536);
+                            } catch (RuntimeException error) {
+                                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
                             }
+                            final RootAccess.Result result = applied;
+                            final String operationFailure = failure;
+                            runOnUiThread(() -> {
+                                if (destroyed || isFinishing() || isDestroyed()) return;
+                                button.setEnabled(true);
+                                if (operationFailure != null || result == null || result.exitCode != 0) {
+                                    rollback.run();
+                                    String detail = operationFailure != null ? operationFailure
+                                            : result == null ? "Root 未返回结果"
+                                            : (result.output == null ? "" : result.output.trim());
+                                    if (detail.length() > 300) detail = detail.substring(0, 300) + "…";
+                                    status.setText("组件状态修改失败：" + detail);
+                                    return;
+                                }
+                                status.setText(wanted ? "Activity 启用命令已执行，正在重新读取系统状态…"
+                                        : "Activity 禁用命令已执行，正在重新读取系统状态…");
+                                loadActivities();
+                            });
                         });
-                    })).show();
+                        if (!queued) rollback.run();
+                    }).show();
         });
         row.addView(name); row.addView(meta); row.addView(toggle);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
