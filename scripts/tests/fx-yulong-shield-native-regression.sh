@@ -108,6 +108,7 @@ for panel in ("notifyPanel", "sensorPanel", "netPanel"):
     assert f'showNativeSettingsGroup("{panel}"' in main, f"Dia feature has lost its matching native settings panel: {panel}"
 assert 'case "设备属性":' in main and 'showAppList("设备标识模拟")' in main, \
     "Dia device identity must open the per-target identity editor, not a global device panel"
+hub = shield["FxYulongShieldActivity.java"]
 rescue_route_start = main.index('case "悬浮救援入口":')
 rescue_route = main[rescue_route_start:rescue_route_start + 420]
 assert "FxYulongRescueActivity.class" in rescue_route, \
