@@ -289,7 +289,8 @@ grep -q "^launchable-activity:" "$BADGING_FILE" || fail "APK has no launcher act
 grep -q "uses-permission: name='android.permission.QUERY_ALL_PACKAGES'" "$BADGING_FILE" || fail "APK package visibility permission absent"
 # Verify the actual APK, not just source-tree declarations, contains both LSPosed entrypoints.
 LEGACY_INIT="$(unzip -p "$APK" assets/xposed_init 2>/dev/null || true)"
-[ "$LEGACY_INIT" = "de.privacyguard.hook.MainHook" ] || fail "legacy Xposed API entrypoint missing from APK"
+printf '%s\n' "$LEGACY_INIT" | grep -Fxq 'de.privacyguard.hook.MainHook' || fail "legacy MainHook Xposed entrypoint missing from APK"
+printf '%s\n' "$LEGACY_INIT" | grep -Fxq 'de.privacyguard.hook.DiaFridaTargetHook' || fail "Dia Frida Xposed target-loader entrypoint missing from APK"
 MODERN_INIT="$(unzip -p "$APK" META-INF/xposed/java_init.list 2>/dev/null || true)"
 [ "$MODERN_INIT" = "de.privacyguard.adhook.AdVisibilityHook" ] || fail "modern libxposed API entrypoint missing from APK"
 MODULE_PROP="$(unzip -p "$APK" META-INF/xposed/module.prop 2>/dev/null || true)"
@@ -298,7 +299,7 @@ printf '%s\n' "$MODULE_PROP" | grep -qx 'targetApiVersion=101' || fail "modern l
 DEX_TMP="$CHECK_TMP/dex"
 mkdir -p "$DEX_TMP"
 unzip -q "$APK" 'classes*.dex' -d "$DEX_TMP" || fail "APK DEX payload could not be extracted"
-for required_class in 'de/privacyguard/hook/MainHook' 'de/privacyguard/adhook/AdVisibilityHook'; do
+for required_class in 'de/privacyguard/hook/MainHook' 'de/privacyguard/hook/DiaFridaTargetHook' 'de/privacyguard/adhook/AdVisibilityHook'; do
   class_found=0
   for dex_file in "$DEX_TMP"/classes*.dex; do
     [ -f "$dex_file" ] || continue
