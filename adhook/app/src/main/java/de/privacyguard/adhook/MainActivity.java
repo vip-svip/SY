@@ -6762,6 +6762,10 @@ public final class MainActivity extends ComponentActivity {
         EditText input = new EditText(this);
         input.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
         input.setMinLines(8);
+        // Bound the untrusted pasted document before it is copied into SharedPreferences on each edit.
+        input.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(16384)
+        });
         input.setHint("Paste FX portable rule-group JSON with format, sourcePackage and rules fields.");
         input.setText(getPreferences(0).getString(importDraftKey, ""));
         input.addTextChangedListener(new android.text.TextWatcher() {
@@ -6788,6 +6792,8 @@ public final class MainActivity extends ComponentActivity {
                     customRuleImportRestorePending = false;
                     try {
                         String raw = input.getText().toString().trim();
+                        if (raw.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536)
+                            throw new IllegalArgumentException("规则组 JSON 超过 64 KiB 上限，请拆分后导入。");
                         org.json.JSONArray array;
                         String sourcePackage = selectedPackage;
                         java.util.Set<String> importedGroupNames = new java.util.LinkedHashSet<>();
