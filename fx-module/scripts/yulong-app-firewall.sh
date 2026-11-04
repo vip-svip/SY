@@ -715,7 +715,7 @@ watch_lock_acquire() {
         return 1
       }
       _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
-      if ( (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
+      if (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
         WATCH_LOCK_OWNED=1
         WATCH_LOCK_START=$_watch_lock_start
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
