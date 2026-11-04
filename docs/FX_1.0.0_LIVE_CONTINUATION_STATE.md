@@ -3283,3 +3283,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：产品逻辑 `a7e1170318ebe63a901213d57f047be4ae602cd0`；格式修正 `b8eb881cd1828bbdcce9befb1553ad50e4da6081`；回归 `ef9a5aa898f2b73d1821cdf0c0f40b045b60fa11`。
 - 验证：源码已复核计数路径与状态文案；回归脚本新增 malformed 计数断言。待 Actions；未做真实 AdGuard Home querylog 注入损坏行的设备验证。
 - 下一步：检查游龙广告 Firewall/Whitelist 页面对应用卸载、包替换、UID 变化时的配置关联与状态刷新；然后继续安全护盾名单/扫描 UI 页面组。
+
+
+## 2026-11-05 — Dia Frida Gadget 会话日志拒绝特殊文件
+
+- 页面：Dia 23.11 → Frida → Gadget 消息/控制台日志查看器。
+- 缺陷：查看器仅拒绝符号链接，随后直接对 `-s` 成立的目标执行 `tail`；没有显式拒绝目录、FIFO、设备节点等非普通文件，也没有检查读取权限。
+- 修复：先拒绝符号链接；路径不存在时显示空日志；存在时必须为普通文件且可读，否则输出 `FX_GADGET_LOG_TYPE_REJECTED` 并退出；只有非空普通文件才读取最近 500 行。日志目录父路径检查保持不变。
+- 产品提交：`a87f9b33ec824d7b0adafa1e5d6e45218ce10fd5`；回归提交：`ff8469ed946db18470611a2aa93cf538ca655e23`。
+- 验证：源码与测试断言已提交；Actions 尚待读取。未在 Android 设备上构造 FIFO/设备节点进行 Root 行为测试。
+- CI 待排查：`41917087777` 在 `fx-dia-frida-process-identity-regression.py` 第 60 行失败，称 `FxDiaSessionLogActivity` 缺少 symlink/regular/non-empty 检查；当前文件 blob `ce4e2523e7f488a3588c6cae6b7130af584bf831` 中三项检查均存在。下一轮应打印 CI 实际读取路径和缺失 token，或检查唯一 `refreshLog()` 方法片段，不能继续改产品文件猜测。
+- 下一步：读取 Gadget config/session/server 定向 Actions；解决上述 CI 文件读取断言来源不一致；继续 Frida Server/Gadget 会话状态回显和 Activity 重建。
