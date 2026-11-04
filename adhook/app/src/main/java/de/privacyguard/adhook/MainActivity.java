@@ -6353,6 +6353,73 @@ public final class MainActivity extends ComponentActivity {
             priority.setText(existing[3]);
         }
 
+        // Recover the unfinished editor form after Activity recreation or reopening the page.
+        final String draftPrefix = selectedPackage + ":dev_rule_editor_draft_" + editingSlot + "_";
+        final String draftIdentity = editingSlot > 0 && presetDescriptor != null
+                ? presetDescriptor : "new";
+        boolean recoverDraft = draftIdentity.equals(getPreferences(0).getString(
+                draftPrefix + "identity", null));
+        if (recoverDraft) {
+            id.setText(getPreferences(0).getString(draftPrefix + "id", id.getText().toString()));
+            descriptor.setText(getPreferences(0).getString(draftPrefix + "descriptor",
+                    descriptor.getText().toString()));
+            literalValue.setText(getPreferences(0).getString(draftPrefix + "literal", ""));
+            group.setText(getPreferences(0).getString(draftPrefix + "group", group.getText().toString()));
+            priority.setText(getPreferences(0).getString(draftPrefix + "priority",
+                    priority.getText().toString()));
+            syntax.setSelection(Math.max(0, Math.min(syntaxLabels.length - 1,
+                    getPreferences(0).getInt(draftPrefix + "syntax", initialSyntax))));
+            int savedAction = getPreferences(0).getInt(draftPrefix + "action", action.getSelectedItemPosition());
+            action.setSelection(Math.max(0, Math.min(actionOptions.length - 1, savedAction)));
+        }
+        Runnable persistEditorDraft = () -> getPreferences(0).edit()
+                .putString(draftPrefix + "identity", draftIdentity)
+                .putString(draftPrefix + "id", id.getText().toString())
+                .putString(draftPrefix + "descriptor", descriptor.getText().toString())
+                .putString(draftPrefix + "literal", literalValue.getText().toString())
+                .putString(draftPrefix + "group", group.getText().toString())
+                .putString(draftPrefix + "priority", priority.getText().toString())
+                .putInt(draftPrefix + "syntax", syntax.getSelectedItemPosition())
+                .putInt(draftPrefix + "action", action.getSelectedItemPosition())
+                .apply();
+        android.text.TextWatcher draftWatcher = new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                persistEditorDraft.run();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        };
+        id.addTextChangedListener(draftWatcher);
+        descriptor.addTextChangedListener(draftWatcher);
+        literalValue.addTextChangedListener(draftWatcher);
+        group.addTextChangedListener(draftWatcher);
+        priority.addTextChangedListener(draftWatcher);
+        android.widget.AdapterView.OnItemSelectedListener draftSelectionListener =
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                         View view, int position, long itemId) {
+                        persistEditorDraft.run();
+                    }
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+                };
+        syntax.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long itemId) {
+                descriptor.setHint(syntaxHints[Math.max(0, Math.min(syntaxHints.length - 1, position))]);
+                persistEditorDraft.run();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+        action.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 View view, int position, long itemId) {
+                literalValue.setEnabled("RETURN_LITERAL".equals(actionOptions[position]));
+                literalValue.setAlpha(literalValue.isEnabled() ? 1.0f : 0.55f);
+                persistEditorDraft.run();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
         TextView help = new TextView(this);
         help.setText("支持 Java 精确签名（返回类型可用冒号或箭头分隔）、Frida .overload() 精确重载写法（必须显式补返回类型）、Smali/JVM 描述符和旧式零参数 boolean 签名。"
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
@@ -6475,6 +6542,10 @@ public final class MainActivity extends ComponentActivity {
                                     new java.util.HashSet<>(groups));
                     if (editingSlot <= 0) {
                         editor.putBoolean(selectedPackage + ":dev_hook_enabled", true);
+                    }
+                    for (String field : new String[]{"identity", "id", "descriptor", "literal",
+                            "group", "priority", "syntax", "action"}) {
+                        editor.remove(draftPrefix + field);
                     }
                     if (!editor.commit()) {
                         new AlertDialog.Builder(this).setMessage("规则保存失败：本地配置未能提交，请重试。")
