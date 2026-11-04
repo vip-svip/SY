@@ -60,9 +60,13 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
     private static final int BLACKLIST_PAGE_SIZE = 50;
     private static final int MAX_PICKER_STAGED = 100;
     private int blacklistPage = 1;
+    private String blacklistQuery = "";
+    private EditText blacklistSearchInput;
+    private TextView blacklistEmptyText;
     private LinearLayout blacklistContainer;
     private ScrollView blacklistScroll;
     private static final String STATE_PAGE = "fx_shield_blacklist_page";
+    private static final String STATE_QUERY = "fx_shield_blacklist_query";
     private static final String STATE_SCROLL_Y = "fx_shield_blacklist_scroll_y";
     private static final String STATE_PICKER_OPEN = "fx_shield_blacklist_picker_open";
     private static final String STATE_PICKER_QUERY = "fx_shield_blacklist_picker_query";
@@ -91,6 +95,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         if (savedInstanceState != null) {
             blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1));
+            blacklistQuery = savedInstanceState.getString(STATE_QUERY, "");
             pickerDialogOpen = savedInstanceState.getBoolean(STATE_PICKER_OPEN, false);
             pickerQuery = savedInstanceState.getString(STATE_PICKER_QUERY, "");
             pickerPage = Math.max(1, savedInstanceState.getInt(STATE_PICKER_PAGE, 1));
@@ -221,13 +226,30 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         emptyHint.setOrientation(LinearLayout.VERTICAL);
         emptyHint.setGravity(Gravity.CENTER);
         emptyHint.setPadding(0, dp(20), 0, 0);
-        TextView emptyText = new TextView(this);
-        emptyText.setText("暂无管控应用\n所有应用都不会被拦截");
-        emptyText.setTextColor(0xFFBBBBBB);
-        emptyText.setTextSize(15);
-        emptyText.setGravity(Gravity.CENTER);
-        emptyHint.addView(emptyText);
+        blacklistEmptyText = new TextView(this);
+        blacklistEmptyText.setText("暂无管控应用\n所有应用都不会被拦截");
+        blacklistEmptyText.setTextColor(0xFFBBBBBB);
+        blacklistEmptyText.setTextSize(15);
+        blacklistEmptyText.setGravity(Gravity.CENTER);
+        emptyHint.addView(blacklistEmptyText);
         content.addView(emptyHint);
+
+        blacklistSearchInput = new EditText(this);
+        blacklistSearchInput.setSingleLine(true);
+        blacklistSearchInput.setTextSize(14);
+        blacklistSearchInput.setHint("搜索已加入管控的应用名称或包名");
+        blacklistSearchInput.setPadding(dp(14), dp(10), dp(14), dp(10));
+        blacklistSearchInput.setBackgroundColor(Color.WHITE);
+        blacklistSearchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                blacklistQuery = value == null ? "" : value.toString().trim();
+                blacklistPage = 1;
+                refreshBlacklistUI();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        content.addView(blacklistSearchInput);
 
         // 已加入管控列表容器
         blacklistContainer = new LinearLayout(this);
@@ -240,6 +262,9 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         setContentViewWithNativeTabs(root, 5);
         if (savedInstanceState != null) {
+            blacklistSearchInput.setText(blacklistQuery);
+            // setText invokes the watcher; restore the saved result page afterwards.
+            blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1));
             final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
             blacklistScroll.post(() -> blacklistScroll.scrollTo(0, restoreY));
         }
@@ -250,6 +275,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt(STATE_PAGE, Math.max(1, blacklistPage));
+        outState.putString(STATE_QUERY, blacklistSearchInput == null ? blacklistQuery : blacklistSearchInput.getText().toString());
         outState.putBoolean(STATE_PICKER_OPEN, pickerDialogOpen);
         outState.putString(STATE_PICKER_QUERY, pickerQuery.length() > 256 ? pickerQuery.substring(0, 256) : pickerQuery);
         outState.putInt(STATE_PICKER_PAGE, Math.max(1, Math.min(100, pickerPage)));
@@ -609,35 +635,52 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         Collections.sort(blacklisted, Comparator.comparing(item ->
                 item.label == null ? item.packageName : item.label, String.CASE_INSENSITIVE_ORDER));
 
-        if (blacklisted.isEmpty()) {
+        String q = blacklistQuery.toLowerCase(Locale.getDefault());
+        List<AppItem> filtered = new ArrayList<>();
+        for (AppItem item : blacklisted) {
+            String label = item.label == null ? "" : item.label.toLowerCase(Locale.getDefault());
+            String pkg = item.packageName == null ? "" : item.packageName.toLowerCase(Locale.getDefault());
+            if (q.isEmpty() || label.contains(q) || pkg.contains(q)) filtered.add(item);
+        }
+
+        if (filtered.isEmpty()) {
             blacklistPage = 1;
             blacklistContainer.setVisibility(View.GONE);
+            emptyHint.setVisibility(View.VISIBLE);
+            blacklistEmptyText.setText(blacklisted.isEmpty()
+                    ? "暂无管控应用\n所有应用都不会被拦截"
+                    : "没有匹配的管控应用\n换个关键词试试");
             return;
         }
 
+        emptyHint.setVisibility(View.GONE);
         blacklistContainer.setVisibility(View.VISIBLE);
         TextView listTitle = new TextView(this);
-        listTitle.setText("已加入管控 (" + blacklisted.size() + ")");
+        listTitle.setText("已加入管控 (" + filtered.size() + " / " + blacklisted.size() + ")");
         listTitle.setTextColor(0xff333333);
         listTitle.setTextSize(16);
         listTitle.setTypeface(null, Typeface.BOLD);
         listTitle.setPadding(0, dp(12), 0, dp(12));
         blacklistContainer.addView(listTitle);
 
-        int limit = Math.min(blacklisted.size(), Math.max(1, blacklistPage) * BLACKLIST_PAGE_SIZE);
+        int maxPages = Math.max(1, (filtered.size() + BLACKLIST_PAGE_SIZE - 1) / BLACKLIST_PAGE_SIZE);
+        blacklistPage = Math.max(1, Math.min(blacklistPage, maxPages));
+        int limit = Math.min(filtered.size(), blacklistPage * BLACKLIST_PAGE_SIZE);
         for (int i = 0; i < limit; i++) {
-            blacklistContainer.addView(buildBlacklistRow(blacklisted.get(i)));
+            blacklistContainer.addView(buildBlacklistRow(filtered.get(i)));
         }
-        if (limit < blacklisted.size()) {
+        if (limit < filtered.size()) {
             TextView more = new TextView(this);
-            more.setText("加载更多（剩余 " + (blacklisted.size() - limit) + " 个）");
+            more.setText("加载更多（已显示 " + limit + " / " + filtered.size() + "）");
             more.setTextColor(0xff1565c0);
             more.setTextSize(14);
             more.setGravity(Gravity.CENTER);
             more.setPadding(dp(12), dp(14), dp(12), dp(14));
             more.setOnClickListener(v -> {
-                blacklistPage++;
+                int restoreY = blacklistScroll == null ? 0 : blacklistScroll.getScrollY();
+                blacklistPage = Math.min(maxPages, blacklistPage + 1);
                 refreshBlacklistUI();
+                if (blacklistScroll != null) blacklistScroll.post(() -> blacklistScroll.scrollTo(0, restoreY));
             });
             blacklistContainer.addView(more);
         }
