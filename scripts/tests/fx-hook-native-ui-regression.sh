@@ -383,6 +383,7 @@ grep -Fq 'customRuleGroupDialogRestorePending = customRuleGroupDialogMode != nul
 grep -Fq 'if (customRuleGroupDialogRestorePending)' "$main_activity"
 grep -Fq 'dev_rule_group_add_draft' "$main_activity"
 grep -Fq 'dev_rule_group_rename_draft:' "$main_activity"
+[ "$(grep -Fc 'new android.text.InputFilter.LengthFilter(24)' "$main_activity")" -eq 2 ] || fail "rule group add/rename inputs must enforce their 24-character name limit"
 grep -Fq 'lastCustomRuleGroupCommitAttempted = false;' "$main_activity"
 grep -Fq 'lastCustomRuleGroupCommitAttempted = true;' "$main_activity"
 grep -Fq 'String reason = lastCustomRuleGroupCommitAttempted' "$main_activity"
