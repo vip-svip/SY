@@ -406,3 +406,12 @@ grep -Fq 'private void cancelCustomRuleGroupAddDialog()' "$main_activity"
 grep -Fq 'if (returnToPicker && slot > 0) showCustomRuleGroupPicker(slot, choice);' "$main_activity"
 grep -Fq 'showCustomRuleGroupPicker(pickerSlot, preferredIndex);' "$main_activity"
 grep -Fq 'retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice)' "$main_activity"
+
+# Root authorization refreshes are generation-guarded; stale su results cannot overwrite newer UI state.
+grep -Fq 'private volatile Thread hookRootCheckThread;' "$main_activity"
+grep -Fq 'private int hookRootCheckGeneration;' "$main_activity"
+grep -Fq 'final int requestGeneration = ++hookRootCheckGeneration;' "$main_activity"
+grep -Fq 'if (previous != null) previous.interrupt();' "$main_activity"
+grep -Fq 'if (requestGeneration != hookRootCheckGeneration' "$main_activity"
+grep -Fq 'hookRootCheckGeneration++;' "$main_activity"
+grep -Fq 'if (rootCheck != null) rootCheck.interrupt();' "$main_activity"
