@@ -101,14 +101,14 @@ public final class FxYulongDailySummaryActivity extends de.privacyguard.adhook.F
                 == android.content.pm.PackageManager.PERMISSION_GRANTED;
         card(body,"后台守护实际状态",
                 (protectionServiceRunning ? "安全守护/救援前台服务：当前运行中" : "安全守护/救援前台服务：当前未运行")
-                +"\\n"+(rescueOverlayRunning?"悬浮救援服务：当前运行中":"悬浮救援服务：当前未运行")
-                +"\\n"+(p.getBoolean("protect_on",false)?"名单监测配置：已开启":"名单监测配置：已关闭")
-                +"\\n"+(p.getBoolean("shake_trigger_on",false)?"摇动触发配置：已开启":"摇动触发配置：已关闭")
-                +"\\n"+(p.getBoolean("volume_trigger_on",false)?"音量触发配置：已开启":"音量触发配置：已关闭")
-                +"\\n"+(notificationPermission?"通知权限：已授予":"通知权限：未授予，通知不可显示"));
+                +"\n"+(rescueOverlayRunning?"悬浮救援服务：当前运行中":"悬浮救援服务：当前未运行")
+                +"\n"+(p.getBoolean("protect_on",false)?"名单监测配置：已开启":"名单监测配置：已关闭")
+                +"\n"+(p.getBoolean("shake_trigger_on",false)?"摇动触发配置：已开启":"摇动触发配置：已关闭")
+                +"\n"+(p.getBoolean("volume_trigger_on",false)?"音量触发配置：已开启":"音量触发配置：已关闭")
+                +"\n"+(notificationPermission?"通知权限：已授予":"通知权限：未授予，通知不可显示"));
         card(body,"统计口径",
                 "计数仅来自 FX 已迁入的本机扫描和管控提醒事件。没有记录到的事件不会推算；本页不访问第三方统计服务器。");
         body.addView(button("打开完整应用扫描",()->startActivity(new Intent(this,FxYulongScanActivity.class))));
-        body.addView(button("返回安全护盾首页",()->startActivity(new Intent(this,FxYulongShieldActivity.class))));
+        body.addView(button("返回安全护盾首页",this::finish));
     }
 }
