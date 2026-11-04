@@ -239,6 +239,7 @@ public final class MainActivity extends ComponentActivity {
     private static final int REQUEST_DIA_GPS_PICKER = 4110;
     private static final int REQUEST_DIA_DEX_HOOK_PICKER = 4111;
     private String pendingDiaGpsTargetPackage;
+    private boolean pendingDiaDexHookPicker;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
     private String pendingNativeScriptExport;
@@ -266,6 +267,7 @@ public final class MainActivity extends ComponentActivity {
                     state.getInt("fx_selected_bottom_tab", lastWebTabIndex)));
             pendingWebPage = webPageForBottomTab(lastWebTabIndex);
             pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target");
+            pendingDiaDexHookPicker = state.getBoolean("fx_pending_dia_dex_hook_picker", false);
             String savedExport = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
                     .getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null);
             if (state.getBoolean("fx_pending_native_script_export", false) && savedExport != null) {
@@ -484,6 +486,7 @@ public final class MainActivity extends ComponentActivity {
         if (pendingDiaGpsTargetPackage != null) {
             outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);
         }
+        outState.putBoolean("fx_pending_dia_dex_hook_picker", pendingDiaDexHookPicker);
         outState.putBoolean("fx_pending_native_script_export", "pending".equals(pendingNativeScriptExport));
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
@@ -3651,6 +3654,7 @@ public final class MainActivity extends ComponentActivity {
                             de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
                     return;
                 case "Dex 查找与解析":
+                    pendingDiaDexHookPicker = true;
                     Intent dexBrowser = new Intent(this,
                             de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
                     dexBrowser.putExtra("allow_hook_method_pick", true);
@@ -4561,7 +4565,9 @@ public final class MainActivity extends ComponentActivity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_DIA_DEX_HOOK_PICKER) {
-            if (resultCode != RESULT_OK || data == null) return;
+            boolean requestPending = pendingDiaDexHookPicker;
+            pendingDiaDexHookPicker = false;
+            if (!requestPending || resultCode != RESULT_OK || data == null) return;
             String targetPackage = data.getStringExtra("fx_dex_hook_package");
             String descriptor = data.getStringExtra("fx_dex_hook_descriptor");
             ApplicationInfo targetInfo = null;
