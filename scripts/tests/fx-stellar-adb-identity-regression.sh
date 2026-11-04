@@ -171,7 +171,7 @@ grep -Fq 'SHA1_DIGEST_INFO_PREFIX' "$SRC/AdbAuthSignature.java" || fail "ADB AUT
 grep -Fq 'paddingLength = MODULUS_BYTES - 3 - digestInfoLength' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH PKCS#1 v1.5 padding length is not derived from RSA-2048 block size"
 grep -Fq 'Cipher.getInstance("RSA/ECB/NoPadding")' "$SRC/AdbAuthSignature.java" || fail "ADB AUTH raw RSA primitive is missing"
 ! grep -Fq 'ADB_AUTH_PADDING' "$SRC/AdbKey.java" || fail "obsolete malformed AUTH padding remains in AdbKey"
-grep -Fq 'SSLContext.getInstance("TLSv1.3")' "$SRC/AdbKey.java" || fail "ADB TLS context is not pinned to TLS 1.3"
+grep -Fq 'SSLContext.getInstance("TLSv1.3")' "$SRC/AdbTlsContext.java" || fail "dedicated ADB TLS context is not pinned to TLS 1.3"
 
 grep -Fq 'settings' "$SRC/AdbKey.java" || fail "original device-protected preference file name changed"
 grep -Fq 'adbkey' "$SRC/PreferenceAdbKeyStore.java" || fail "original ADB preference key changed"
