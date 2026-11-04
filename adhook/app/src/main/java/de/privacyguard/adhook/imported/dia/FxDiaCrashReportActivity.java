@@ -110,6 +110,9 @@ public final class FxDiaCrashReportActivity extends Activity {
         actions.addView(button("分享报告", this::shareReport),
                 new LinearLayout.LayoutParams(0, -2, 1));
         body.addView(actions);
+        body.addView(text(
+                "复制和分享会自动脱敏常见令牌、密码、Cookie、Authorization 和 URL 凭据；本地报告视图仍保留原始内容供诊断。脱敏不能识别所有自定义秘密，分享前仍应检查。",
+                11, 0xff607080, false));
         body.addView(button("清除崩溃记录", this::confirmClear));
         body.addView(button("关闭", this::finish));
         setContentView(root);
@@ -132,7 +135,8 @@ public final class FxDiaCrashReportActivity extends Activity {
     }
 
     private String reportText() {
-        return record == null ? "" : record.format(hexStack != null && hexStack.isChecked());
+        return record == null ? "" : FxDiaCrashRedactor.redact(
+                record.format(hexStack != null && hexStack.isChecked()));
     }
 
     private void copyReport() {
@@ -146,8 +150,8 @@ public final class FxDiaCrashReportActivity extends Activity {
             Toast.makeText(this, "剪贴板服务不可用。", Toast.LENGTH_LONG).show();
             return;
         }
-        clipboard.setPrimaryClip(ClipData.newPlainText("FX crash report", content));
-        Toast.makeText(this, "崩溃报告已复制。", Toast.LENGTH_SHORT).show();
+        clipboard.setPrimaryClip(ClipData.newPlainText("FX crash report (redacted)", content));
+        Toast.makeText(this, "已复制自动脱敏的崩溃报告。", Toast.LENGTH_SHORT).show();
     }
 
     private void shareReport() {
@@ -158,7 +162,7 @@ public final class FxDiaCrashReportActivity extends Activity {
         }
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_SUBJECT, "FX 1.0.0 崩溃报告");
+        send.putExtra(Intent.EXTRA_SUBJECT, "FX 1.0.0 崩溃报告（已自动脱敏）");
         send.putExtra(Intent.EXTRA_TEXT, content);
         try {
             startActivity(Intent.createChooser(send, "选择分享方式"));

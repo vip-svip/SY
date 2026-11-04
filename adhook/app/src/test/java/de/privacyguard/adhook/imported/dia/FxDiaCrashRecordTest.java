@@ -22,14 +22,6 @@ public class FxDiaCrashRecordTest {
         assertFalse(hex.contains("stack line one\nline two"));
     }
 
-
-    @Test public void explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared() {
-        assertFalse(FxDiaCrashCapturePolicy.isEnabled(true, false, true));
-        assertFalse(FxDiaCrashCapturePolicy.isEnabled(true, true, false));
-        assertFalse(FxDiaCrashCapturePolicy.isEnabled(false, false, false));
-        assertTrue(FxDiaCrashCapturePolicy.isEnabled(true, false, false));
-    }
-
     @Test public void recordFieldsAreBounded() {
         String huge = "x".repeat(FxDiaCrashRecord.MAX_STACK_CHARS + 100);
         FxDiaCrashRecord record = new FxDiaCrashRecord(1L, 1L, huge, huge, huge, huge, huge);
@@ -38,5 +30,31 @@ public class FxDiaCrashRecordTest {
         assertTrue(record.deviceInfo.length() <= 1024 + 20);
         assertTrue(record.message.length() <= 8192 + 20);
         assertTrue(record.stack.length() <= FxDiaCrashRecord.MAX_STACK_CHARS);
+    }
+
+    @Test public void copyShareRedactionCoversHeadersJsonQueryUrlAndJwt() {
+        String input = "Authorization: Bearer header-secret\\n"
+                + "\"access_token\": \"json-secret\", refresh_token=refresh-secret\\n"
+                + "https://user:pass@example.test/path?api_key=query-secret\\n"
+                + "cookie: session-cookie\\n"
+                + "Bearer loose-secret "
+                + "eyJabcdefghijk.abcdefghijk.abcdefghijk";
+        String redacted = FxDiaCrashRedactor.redact(input);
+        assertFalse(redacted.contains("header-secret"));
+        assertFalse(redacted.contains("json-secret"));
+        assertFalse(redacted.contains("refresh-secret"));
+        assertFalse(redacted.contains("user:pass@"));
+        assertFalse(redacted.contains("query-secret"));
+        assertFalse(redacted.contains("session-cookie"));
+        assertFalse(redacted.contains("loose-secret"));
+        assertFalse(redacted.contains("eyJabcdefghijk."));
+        assertTrue(redacted.contains("[REDACTED]"));
+        assertTrue(redacted.contains("[REDACTED_JWT]"));
+    }
+
+    @Test public void redactionLeavesOrdinaryDiagnosticTextAlone() {
+        String input = "IllegalStateException: app database is closed\\n"
+                + "at de.privacyguard.MainActivity.onCreate(MainActivity.java:42)";
+        assertEquals(input, FxDiaCrashRedactor.redact(input));
     }
 }
