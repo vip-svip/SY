@@ -20,6 +20,8 @@ pages = {
     "FxYulongScanActivity.java": ".imported.shield.FxYulongScanActivity",
     "FxYulongIntegrityActivity.java": ".imported.shield.FxYulongIntegrityActivity",
     "FxYulongRescueActivity.java": ".imported.shield.FxYulongRescueActivity",
+    "FxYulongBatchCleanupActivity.java": ".imported.shield.FxYulongBatchCleanupActivity",
+    "FxYulongScreenFilterActivity.java": ".imported.shield.FxYulongScreenFilterActivity",
     "WhitelistActivity.java": ".imported.shield.WhitelistActivity",
     "WhitelistPickerActivity.java": ".imported.shield.WhitelistPickerActivity",
     "BlacklistActivity.java": ".imported.shield.BlacklistActivity",
