@@ -288,7 +288,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
 
     private void evaluateForeground(String packageName, SharedPreferences prefs) {
         if (packageName == null || packageName.isEmpty() || packageName.equals(getPackageName())) return;
-        Set<String> blacklist = split(prefs.getString("blacklist_pkgs", ""));
+        Set<String> blacklist = split(prefs);
         // Manual scans, automatic risk dispatch and real-time foreground warnings
         // must all use the same bounded, fail-open user whitelist policy.
         Set<String> whitelist = FxYulongWhitelistPolicy.load(this);
@@ -321,10 +321,17 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         showWarning(packageName, label, message);
     }
 
-    private Set<String> split(String values) {
-        // A malformed/oversized legacy list is rejected atomically. The service
-        // then fails open instead of partially enforcing a possibly truncated list.
-        return FxYulongBlacklistPolicy.parse(values);
+    private Set<String> split(SharedPreferences prefs) {
+        // A malformed/oversized legacy list or a preference type error is rejected
+        // atomically. The service fails open instead of partially enforcing it.
+        try {
+            return FxYulongBlacklistPolicy.parse(prefs.getString("blacklist_pkgs", ""));
+        } catch (RuntimeException corruptPreference) {
+            android.util.Log.w("FX-YulongShield",
+                    "Cannot read blacklist preference; foreground warnings are disabled for this poll.",
+                    corruptPreference);
+            return java.util.Collections.emptySet();
+        }
     }
 
     private void createChannels() {
