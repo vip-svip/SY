@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.shield;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
@@ -44,7 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 不显示系统应用。
  * "我都很信任" 按钮清空管控列表。
  */
-public class BlacklistActivity extends Activity {
+public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivity {
 
     private PackageManager pm;
     private SharedPreferences prefs;
@@ -209,7 +208,7 @@ public class BlacklistActivity extends Activity {
         blacklistScroll.addView(content);
         root.addView(blacklistScroll);
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         if (savedInstanceState != null) {
             final int restoreY = Math.max(0, savedInstanceState.getInt(STATE_SCROLL_Y, 0));
             blacklistScroll.post(() -> blacklistScroll.scrollTo(0, restoreY));
