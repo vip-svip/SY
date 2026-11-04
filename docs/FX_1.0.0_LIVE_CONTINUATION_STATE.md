@@ -1669,3 +1669,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`1e1fdf3c9053ed1b60b45cc9db840d14a91a1ac7`（分组草稿/同步保存）；`79a10d0842ba966b769031cf10fc0a5ebccfefe8`（新增/重命名/移动回归断言）。
 - 验证等级：从最新 HEAD 重新读取 MainActivity 与回归脚本，静态确认新增/重命名状态保存恢复、输入草稿、同步新增提交、重命名提交、移动提交和测试断言存在；未运行完整 Shell/Python 脚本、Gradle、模拟器或真机旋转/存储故障测试。
 - 未完成：规则组列表/动作/删除确认/移动选择器自身尚未完整保存弹窗层级与选中项；新增/重命名文本输入过滤尚未做 UI 交互验证。下一批继续完成剩余分组弹窗恢复，再做 Hook/Dia Host 回归可运行性检查。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook 规则分组弹窗层级恢复与事务回滚
+
+- 本批起始 HEAD：`99e7452621a0f1dbda39561c04b152f4dd24b0cb`；期间有并行 Hook 变更，已在最新 MainActivity 上顺序整合。
+- 规则分组管理列表、分组动作、删除确认和规则移动选择器均记录 Bundle 状态；重建后按原弹窗层级重开。移动选择器另外保存/恢复当前选中项和目标规则槽位，分组列表变化时将选中索引限制在有效范围。
+- 分组新增、重命名输入草稿按目标包隔离并可恢复；新增/重命名/移动均通过统一 `commitCustomRuleGroupUpdate` 事务写入。该事务在 SharedPreferences commit 失败时恢复原分组集合和逐规则分组映射，并再次同步提交回滚；页面区分分组冲突与本地写入/回滚失败，避免显示未经确认的成功状态。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-custom-hook-literal-regression.sh`；本状态文件。
+- 提交：`1e1fdf3c9053ed1b60b45cc9db840d14a91a1ac7`（分组草稿/初始同步写入）；`9afea97346485793816e41985ab2b3f3d779681c`（分组弹窗/选择器状态恢复）；`c23124dbb81f621c327d3ffb7e306f68f616178d`（事务失败回滚）；`aa615e5feeaa5ed0375a40e64ba04dcc5bb234d3`（冲突与写入失败状态区分）；`d1def1b6e0f1ddeb09933c8d6543c008fd03d8bd`、`f23781e7ebb702554219fa2b5745fceea91a9bef`（分组弹窗/事务回归断言）。
+- 验证等级：最新 HEAD 静态检查确认 Bundle mode/value/slot/choice、列表/actions/delete/picker 恢复分支、选择索引恢复、目标包草稿、统一事务 commit 与失败回滚路径及测试断言存在。未运行完整 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机旋转/写盘故障注入。
+- 失败路线：一次测试断言仍检查旧的直接 `putString().commit()`，而并行实现已统一到 `commitCustomRuleGroupUpdate`；已根据实际源码契约更新断言，不改变产品逻辑。没有重复触发完整 Actions。
+- 下一步：核对分组新增/重命名输入长度过滤与删除/移动冲突提示；随后在可用环境执行 Hook/Dia Host 回归脚本并读取具体失败日志。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
