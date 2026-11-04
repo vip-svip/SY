@@ -57,7 +57,7 @@ object FxWallpaperStore {
         }
 
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSizeFor(sourceWidth, sourceHeight, MAX_EDGE * 2)
+            inSampleSize = sampleSizeFor(sourceWidth, sourceHeight, MAX_EDGE)
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         var decoded = resolver.openInputStream(uri)?.use { input ->
