@@ -132,18 +132,26 @@ fi
 rm "$TMP/parent-link"
 
 # Reject environment path overrides that redirect any persistent write outside PG.
-for var in CONF ACTIVE LOCK; do
-  case "$var" in
-    CONF) value="$TMP/outside-settings.conf";;
-    ACTIVE) value="$TMP/outside-active";;
-    LOCK) value="$TMP/outside-lock";;
-  esac
-  if env MP="$MP" PG="$PG" CONF="${CONF}" ACTIVE="${ACTIVE}" LOCK="${LOCK}" \
-      NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
-    fail "firewall accepted an external $var override"
-  fi
-  [ ! -e "$value" ] || fail "rejected $var override created external state"
-done
+value="$TMP/outside-settings.conf"
+if env MP="$MP" PG="$PG" CONF="$value" ACTIVE="$ACTIVE" LOCK="$LOCK" \
+    NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+  fail "firewall accepted an external CONF override"
+fi
+[ ! -e "$value" ] || fail "rejected CONF override created external settings"
+
+value="$TMP/outside-active"
+if env MP="$MP" PG="$PG" CONF="$CONF" ACTIVE="$value" LOCK="$LOCK" \
+    NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+  fail "firewall accepted an external ACTIVE override"
+fi
+[ ! -e "$value" ] || fail "rejected ACTIVE override created external marker"
+
+value="$TMP/outside-lock"
+if env MP="$MP" PG="$PG" CONF="$CONF" ACTIVE="$ACTIVE" LOCK="$value" \
+    NET_CLASS="$NET_CLASS" sh "$TMP/module/scripts/yulong-app-firewall.sh" list >/dev/null 2>&1; then
+  fail "firewall accepted an external LOCK override"
+fi
+[ ! -e "$value" ] || fail "rejected LOCK override created external lock"
 
 # Reject symlinks at the active marker and operation lock themselves.
 ln -s "$SENTINEL" "$ACTIVE"
