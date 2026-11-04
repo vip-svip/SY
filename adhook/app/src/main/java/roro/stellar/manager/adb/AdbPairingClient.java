@@ -4,8 +4,6 @@ import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -34,7 +32,7 @@ public final class AdbPairingClient implements Closeable {
     private static final int READ_TIMEOUT_MS = 30_000;
     private static final int EXPORTER_LENGTH = 64;
     private static final String EXPORTER_LABEL = "adb-label\0";
-    private static final int MAX_PAIRING_FRAME = 0x4000;
+    private static final int MAX_PAIRING_FRAME = PairingPacketHeader.MAX_PAYLOAD - 1;
 
     private final String host;
     private final int port;
@@ -63,7 +61,7 @@ public final class AdbPairingClient implements Closeable {
 
     private static String validateHost(String value) {
         if (value == null || value.isEmpty() || value.length() > 253
-                || value.indexOf('/') >= 0 || value.indexOf('\\0') >= 0
+                || value.indexOf('/') >= 0 || value.indexOf((char) 0) >= 0
                 || value.indexOf(' ') >= 0) {
             throw new IllegalArgumentException("Invalid ADB pairing host");
         }
@@ -167,22 +165,20 @@ public final class AdbPairingClient implements Closeable {
 
     private static byte[] exportKeyingMaterial(SSLSocket socket, String label, int length)
             throws IOException {
+        if (!AdbTlsKeyingMaterial.LABEL.equals(label)
+                || length != AdbTlsKeyingMaterial.LENGTH_BYTES) {
+            throw new IOException("Unexpected ADB TLS exporter label or output size");
+        }
         try {
-            Class<?> conscrypt = Class.forName("com.android.org.conscrypt.Conscrypt");
-            Method method = conscrypt.getMethod(
-                    "exportKeyingMaterial", SSLSocket.class, String.class, byte[].class, int.class);
-            Object result = method.invoke(null, socket, label, null, length);
-            if (!(result instanceof byte[])) {
-                throw new IOException("Conscrypt TLS exporter returned no byte array");
-            }
-            return (byte[]) result;
-        } catch (InvocationTargetException wrapped) {
-            Throwable cause = wrapped.getCause();
-            throw new IOException("Conscrypt could not export the ADB pairing TLS key material", cause);
-        } catch (ReflectiveOperationException | SecurityException failure) {
+            return AdbTlsKeyingMaterial.export(socket);
+        } catch (UnsupportedOperationException unsupported) {
             throw new IOException(
-                    "This Android build does not expose the Conscrypt TLS exporter required by ADB pairing",
-                    failure);
+                    "Automatic ADB pairing requires the public TLS exporter API (Android 12/API 31+)",
+                    unsupported);
+        } catch (javax.net.ssl.SSLException failure) {
+            throw failure;
+        } catch (RuntimeException failure) {
+            throw new IOException("Android TLS key exporter failed", failure);
         }
     }
 
