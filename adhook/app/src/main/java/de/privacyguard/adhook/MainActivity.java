@@ -4999,9 +4999,14 @@ public final class MainActivity extends ComponentActivity {
                         String restorePackage = pendingRestorePackage;
                         pendingRestorePackage = null;
                         ApplicationInfo target = findApp(restorePackage);
-                        if (target != null) showTarget(target);
-                        else Toast.makeText(MainActivity.this,
-                                "上次配置的应用已卸载，已返回应用列表。", Toast.LENGTH_LONG).show();
+                        if (target != null) {
+                            showTarget(target);
+                        } else {
+                            hookTargetScrollY = 0;
+                            hookTargetScrollRestorePending = false;
+                            Toast.makeText(MainActivity.this,
+                                    "上次配置的应用已卸载，已返回应用列表。", Toast.LENGTH_LONG).show();
+                        }
                     }
                 }
             });
