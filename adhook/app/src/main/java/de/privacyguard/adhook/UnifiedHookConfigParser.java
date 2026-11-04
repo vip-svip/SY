@@ -455,7 +455,7 @@ public final class UnifiedHookConfigParser {
                     case "android_id_simulate": androidIdSimulation = on; break;
                     case "time_zone_simulate": timeZoneSimulation = on; break;
                     case "app_version_simulate": appVersionSimulation = on; break;
-                    case "notification_listen_block": notificationListenBlock = on;
+                    case "notification_listen_block": notificationListenBlock = on; break;
                     case "notification_permission_hide": notificationPermissionHideTarget = on; break;
                     case "mic_silence": microphoneSilence = on; break;
                     case "camera_access_block": cameraAccessBlock = on; break;
