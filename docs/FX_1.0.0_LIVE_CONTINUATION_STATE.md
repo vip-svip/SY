@@ -2967,3 +2967,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-custom-hook-literal-regression.sh`、本状态文件。
 - 验证：脚本语法修复已提交 `802b279a892f49548ece036f782d8404f127df4e`；等待对应 Actions 结果。
 - 失败路线：不依赖易错的反斜杠续行；用括号明确表达多行条件。
+
+
+## 2026-11-05 — Dia 自定义 Hook 分组移动回归定位修正
+
+- 失败 Actions：`41914691387`（HEAD `802b279a892f49548ece036f782d8404f127df4e`），Python 语法修复后，literal regression 失败于“moving a rule between groups must use the checked atomic persistence path”。
+- 根因：测试只提取 `showCustomRuleGroupPicker(int slot)` 的单参数委托方法；实际移动操作位于重载 `showCustomRuleGroupPicker(int slot, int restoreChoice)` 中，委托方法只有一行转发，自然不含提交调用。
+- 修复：测试改为提取包含真实单选、取消、新建分组与“移动”回调的双参数重载；保留 `commitCustomRuleGroupUpdate(...)` 原子持久化断言。
+- 改动路径：`scripts/tests/fx-dia-custom-hook-literal-regression.sh`。
+- 验证：已核对 MainActivity 的移动回调先构造 assignments，再检查 `commitCustomRuleGroupUpdate(...)` 返回值；测试只调整方法提取范围。下一轮 Actions 结果待读取。
+- 失败路线：不把原子提交调用移回仅作委托的单参数方法；按实际重载实现检查。
