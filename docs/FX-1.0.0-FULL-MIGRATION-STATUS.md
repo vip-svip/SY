@@ -938,3 +938,10 @@ Added direct Sunday 06:59 and 07:00 checks to ensure the original half-open over
 - Added an independent `FxYulongVpnTileService` that reads the verified `status.sh` JSON (`vpn_on` / `vpn_mode`), invokes the existing `yulong-vpn-control.sh start|stop` lifecycle and verifies the resulting state. Unknown Root status fails closed; missing-node and Root failures are surfaced in the tile subtitle; its worker queue is bounded.
 - Kept `FxYulongAdTileService` as a separate ad-filter master tile. The VPN tile does not alter the ad-master flag, rule lists, DNS configuration or subscriptions. This preserves the distinct VPN and filtering responsibilities without a second VpnService.
 - Added manifest registration and a host static migration regression. Quick Settings panel rendering and actual device-side VPN start/stop remain device-pending; no device verification is claimed.
+
+
+## 2026-11-04 — Yulong AdBlock JSON backup/import validation and rollback
+
+The native General Settings backup/import path validates its full payload before any Root mutation: supported HTTPS/builtin list sources, domain rows and notes, a strict DNS-flag allowlist, IPv4 VPN resolver values, bounded custom/global DNS endpoints, and unique 1–7 ad-schedule weekdays. Custom DNS round-trips IPv4, HTTPS/DoH, TLS/DoT and QUIC/DoQ endpoints; global DNS remains IPv4-only. Invalid supplied VPN DNS values are rejected rather than silently skipped.
+
+The import transaction now creates private same-directory temporary backups instead of predictable PID-named files. Failure restores settings and the separate ad-filter schedule, reapplies the normal FX runtime, and preserves the backup files with exit code 35 when restoration or runtime re-apply cannot be confirmed. A plain-Java host regression covers domain/source/note/DNS endpoint validation; a source regression verifies the Root transaction contract. Device-level Root import/rollback remains unverified.

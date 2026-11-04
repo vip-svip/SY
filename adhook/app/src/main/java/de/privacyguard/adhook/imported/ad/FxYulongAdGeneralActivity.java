@@ -23,6 +23,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -294,30 +296,122 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 || json.optJSONArray("blockDomains") == null || json.optJSONObject("dnsFlags") == null
                 || json.optJSONObject("dnsConfig") == null || json.optJSONObject("schedule") == null)
             throw new IllegalArgumentException("备份缺少必需的数据段。");
-        if (json.getJSONArray("rules").length() > 500
-                || json.getJSONArray("allowDomains").length() > 3000
-                || json.getJSONArray("blockDomains").length() > 3000)
+        JSONArray rules = json.getJSONArray("rules");
+        JSONArray allow = json.getJSONArray("allowDomains");
+        JSONArray block = json.getJSONArray("blockDomains");
+        if (rules.length() > 500 || allow.length() > 3000 || block.length() > 3000)
             throw new IllegalArgumentException("备份条目超过上限。");
-        for (int i=0;i<json.getJSONArray("rules").length();i++) {
-            JSONObject row=json.getJSONArray("rules").getJSONObject(i);
-            String source=row.getString("source"), title=row.getString("title");
-            if (!(source.startsWith("https://") || source.startsWith("builtin://"))
-                    || source.length()>2048 || title.trim().isEmpty() || title.length()>180)
-                throw new IllegalArgumentException("第 "+(i+1)+" 条过滤源无效。");
+        if (json.has("adMaster") && !(json.opt("adMaster") instanceof Boolean))
+            throw new IllegalArgumentException("广告总开关格式错误。");
+
+        for (int i = 0; i < rules.length(); i++) {
+            JSONObject row = rules.getJSONObject(i);
+            String source = requireOptionalString(row, "source", "");
+            String title = requireOptionalString(row, "title", "");
+            if (!FxYulongAdBackupValidation.isValidSource(source)
+                    || !FxYulongAdBackupValidation.isValidText(title))
+                throw new IllegalArgumentException("第 " + (i + 1) + " 条过滤源无效。");
+            validateOptionalBoolean(row, "enabled", "过滤源启用状态");
         }
-        for (String key : new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
-                "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
-                "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
-            if (json.getJSONObject("dnsFlags").has(key)
-                    && !(json.getJSONObject("dnsFlags").get(key) instanceof Boolean))
-                throw new IllegalArgumentException("DNS 开关格式错误："+key);
-        JSONObject schedule=json.getJSONObject("schedule");
-        String start=schedule.optString("start","22:00"), end=schedule.optString("end","07:00");
-        String days=schedule.optString("days","1,2,3,4,5,6,7");
-        if (!start.matches("([01][0-9]|2[0-3]):[0-5][0-9]")
-                || !end.matches("([01][0-9]|2[0-3]):[0-5][0-9]")
-                || !days.matches("[1-7](,[1-7])*"))
+        validateDomainRows(allow, "白名单");
+        validateDomainRows(block, "黑名单");
+
+        JSONObject dnsFlags = json.getJSONObject("dnsFlags");
+        Set<String> allowedDnsFlags = new HashSet<>(java.util.Arrays.asList(
+                "dns_engine_adguardhome", "dns_forward", "custom_dns", "global_dns",
+                "block_quic", "block_dot", "block_plain_dns", "block_ipv6",
+                "block_track_domains", "vpn_external_dns_proxy", "vpn_external_compat",
+                "dns_querylog_enabled"));
+        java.util.Iterator<String> flagKeys = dnsFlags.keys();
+        while (flagKeys.hasNext()) {
+            String key = flagKeys.next();
+            if (!allowedDnsFlags.contains(key))
+                throw new IllegalArgumentException("不支持的 DNS 开关：" + key);
+            if (!(dnsFlags.opt(key) instanceof Boolean))
+                throw new IllegalArgumentException("DNS 开关格式错误：" + key);
+        }
+
+        JSONObject dns = json.getJSONObject("dnsConfig");
+        validateDnsServers(dns.optJSONArray("customServers"), false, "自定义 DNS");
+        validateDnsServers(dns.optJSONArray("globalServers"), true, "全局 DNS");
+        validateOptionalIpv4(dns, "vpnRemote", "VPN 远端 DNS");
+        validateOptionalIpv4(dns, "vpnCn", "VPN 国内 DNS");
+
+        JSONObject schedule = json.getJSONObject("schedule");
+        validateOptionalBoolean(schedule, "enabled", "过滤计划启用状态");
+        String startTime = requireOptionalString(schedule, "start", "22:00");
+        String endTime = requireOptionalString(schedule, "end", "07:00");
+        String days = requireOptionalString(schedule, "days", "1,2,3,4,5,6,7");
+        if (!startTime.matches("([01][0-9]|2[0-3]):[0-5][0-9]")
+                || !endTime.matches("([01][0-9]|2[0-3]):[0-5][0-9]")
+                || !validScheduleDays(days))
             throw new IllegalArgumentException("过滤计划时间/星期格式无效。");
+    }
+
+    private void validateDomainRows(JSONArray rows, String label) throws Exception {
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.getJSONObject(i);
+            String domain = requireOptionalString(row, "domain", "");
+            String note = requireOptionalString(row, "note", "FX " + label);
+            if (!FxYulongAdBackupValidation.isValidDomain(domain)
+                    || !FxYulongAdBackupValidation.isValidText(note))
+                throw new IllegalArgumentException(label + "第 " + (i + 1) + " 条域名或备注无效。");
+            validateOptionalBoolean(row, "enabled", label + "条目启用状态");
+        }
+    }
+
+    private void validateDnsServers(JSONArray array, boolean ipv4Only, String label) throws Exception {
+        if (array == null) return;
+        if (array.length() > 3) throw new IllegalArgumentException(label + "最多 3 个端点。");
+        for (int i = 0; i < array.length(); i++) {
+            Object raw = array.get(i);
+            if (!(raw instanceof String)
+                    || !FxYulongAdBackupValidation.isValidDnsEndpoint((String) raw, ipv4Only))
+                throw new IllegalArgumentException(label + "第 " + (i + 1) + " 个端点无效。");
+        }
+    }
+
+    private void validateOptionalIpv4(JSONObject object, String key, String label) throws Exception {
+        if (!object.has(key)) return;
+        Object raw = object.get(key);
+        if (!(raw instanceof String) || (!((String) raw).isEmpty()
+                && !FxYulongAdBackupValidation.isValidIpv4((String) raw)))
+            throw new IllegalArgumentException(label + "地址无效。");
+    }
+
+    private void validateOptionalBoolean(JSONObject object, String key, String label) {
+        if (object.has(key) && !(object.opt(key) instanceof Boolean))
+            throw new IllegalArgumentException(label + "格式错误。");
+    }
+
+    private String requireOptionalString(JSONObject object, String key, String fallback) {
+        if (!object.has(key)) return fallback;
+        Object raw = object.opt(key);
+        if (!(raw instanceof String)) throw new IllegalArgumentException(key + " 必须是字符串。");
+        return (String) raw;
+    }
+
+    private boolean validScheduleDays(String days) {
+        if (days == null || days.isEmpty()) return false;
+        Set<String> seen = new HashSet<>();
+        for (String day : days.split(",", -1)) {
+            if (!day.matches("[1-7]") || !seen.add(day)) return false;
+        }
+        return true;
+    }
+
+    private String dnsCsv(JSONArray array, boolean ipv4Only) throws Exception {
+        List<String> values = new ArrayList<>();
+        if (array == null) return "";
+        if (array.length() > 3) throw new IllegalArgumentException("每类 DNS 最多 3 个端点。");
+        for (int i = 0; i < array.length(); i++) {
+            Object raw = array.get(i);
+            if (!(raw instanceof String)
+                    || !FxYulongAdBackupValidation.isValidDnsEndpoint((String) raw, ipv4Only))
+                throw new IllegalArgumentException("DNS 端点无效：" + String.valueOf(raw));
+            values.add((String) raw);
+        }
+        return String.join(",", values);
     }
 
     private String quote(String value) { return "'" + value.replace("'", "'\\''") + "'"; }
@@ -351,13 +445,26 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 command.append("MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do ")
                         .append("if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; ")
                         .append("[ -n \"$MP\" ] || exit 20; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; PLAN=$PG/yulong-ad-schedule.conf; ")
-                        .append("B1=$PG/yulong-ad-import-settings.rollback.$$; B2=$PG/yulong-ad-import-schedule.rollback.$$; ")
-                        .append("test -f \"$CONF\" && test ! -L \"$CONF\"; cp -p \"$CONF\" \"$B1\"; ")
-                        .append("HAD_PLAN=0; if [ -f \"$PLAN\" ] && [ ! -L \"$PLAN\" ]; then cp -p \"$PLAN\" \"$B2\"; HAD_PLAN=1; fi; ")
-                        .append("COMMITTED=0; rollback(){ rc=$?; if [ \"$COMMITTED\" != 1 ]; then ")
-                        .append("cp -p \"$B1\" \"$CONF.restore.$$\" && chmod 600 \"$CONF.restore.$$\" && mv -f \"$CONF.restore.$$\" \"$CONF\" || :; ")
-                        .append("if [ \"$HAD_PLAN\" = 1 ]; then cp -p \"$B2\" \"$PLAN.restore.$$\" && chmod 600 \"$PLAN.restore.$$\" && mv -f \"$PLAN.restore.$$\" \"$PLAN\" || :; else rm -f \"$PLAN\"; fi; ")
-                        .append("sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1 || :; fi; rm -f \"$B1\" \"$B2\"; exit $rc; }; trap rollback EXIT; ");
+                        .append("test -d \"$PG\" && test ! -L \"$PG\" && test -f \"$CONF\" && test ! -L \"$CONF\" || exit 21; ")
+                        .append("B1=$(mktemp \"$PG/yulong-ad-import-settings.rollback.XXXXXX\") || exit 22; B2=''; ")
+                        .append("cp -p \"$CONF\" \"$B1\" || { rm -f \"$B1\"; exit 23; }; ")
+                        .append("HAD_PLAN=0; if [ -L \"$PLAN\" ]; then rm -f \"$B1\"; echo \"refusing symlink schedule file\" >&2; exit 24; fi; ")
+                        .append("if [ -f \"$PLAN\" ]; then B2=$(mktemp \"$PG/yulong-ad-import-schedule.rollback.XXXXXX\") || { rm -f \"$B1\"; exit 25; }; ")
+                        .append("cp -p \"$PLAN\" \"$B2\" || { rm -f \"$B1\" \"$B2\"; exit 26; }; HAD_PLAN=1; fi; ")
+                        .append("COMMITTED=0; rollback(){ rc=$?; trap - EXIT HUP INT TERM; ROLLBACK_FAILED=0; R1=''; R2=''; ")
+                        .append("if [ \"$COMMITTED\" != 1 ]; then ")
+                        .append("R1=$(mktemp \"$CONF.restore.XXXXXX\") || ROLLBACK_FAILED=1; ")
+                        .append("if [ \"$ROLLBACK_FAILED\" = 0 ] && cp -p \"$B1\" \"$R1\" && chmod 600 \"$R1\" && mv -f \"$R1\" \"$CONF\"; then :; else ")
+                        .append("[ -z \"$R1\" ] || rm -f \"$R1\"; ROLLBACK_FAILED=1; fi; ")
+                        .append("if [ \"$HAD_PLAN\" = 1 ]; then R2=$(mktemp \"$PLAN.restore.XXXXXX\") || ROLLBACK_FAILED=1; ")
+                        .append("if [ \"$ROLLBACK_FAILED\" = 0 ] && cp -p \"$B2\" \"$R2\" && chmod 600 \"$R2\" && mv -f \"$R2\" \"$PLAN\"; then :; else ")
+                        .append("[ -z \"$R2\" ] || rm -f \"$R2\"; ROLLBACK_FAILED=1; fi; else ")
+                        .append("if [ -L \"$PLAN\" ]; then ROLLBACK_FAILED=1; else rm -f \"$PLAN\" || ROLLBACK_FAILED=1; fi; fi; ")
+                        .append("if [ \"$ROLLBACK_FAILED\" = 0 ]; then if sh \"$MP/scripts/apply.sh\" fast >/dev/null 2>&1; then ")
+                        .append("rm -f \"$B1\"; [ -z \"$B2\" ] || rm -f \"$B2\"; echo \"rollback=restored_and_applied\" >&2; ")
+                        .append("else ROLLBACK_FAILED=1; echo \"rollback files restored but runtime apply failed\" >&2; fi; fi; ")
+                        .append("if [ \"$ROLLBACK_FAILED\" != 0 ]; then echo \"ROLLBACK_FAILED: preserved backup files $B1 $B2\" >&2; exit 35; fi; exit \"$rc\"; ")
+                        .append("fi; rm -f \"$B1\"; [ -z \"$B2\" ] || rm -f \"$B2\"; exit \"$rc\"; }; trap rollback EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; ");
                 for(String line:lines(current.output)){
                     String[] p=line.split("\\|",-1); if(p.length<2)continue;
                     if("RULE".equals(p[0]))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" rule-remove ").append(quote(p[1])).append("; ");
@@ -394,13 +501,13 @@ public final class FxYulongAdGeneralActivity extends Activity {
                             .append(quote(key)).append(" ").append(value?"1":"0").append("; ");
                 }
                 JSONObject dns=json.getJSONObject("dnsConfig");
-                String custom=csv(dns.optJSONArray("customServers")==null?new JSONArray():dns.getJSONArray("customServers"));
-                String global=csv(dns.optJSONArray("globalServers")==null?new JSONArray():dns.getJSONArray("globalServers"));
+                String custom=dnsCsv(dns.optJSONArray("customServers"), false);
+                String global=dnsCsv(dns.optJSONArray("globalServers"), true);
                 if(!custom.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-config-set custom ").append(quote(custom)).append("; ");
                 if(!global.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-config-set global ").append(quote(global)).append("; ");
                 String remote=dns.optString("vpnRemote",""), cn=dns.optString("vpnCn","");
-                if(!remote.isEmpty()&&validIpv4(remote))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set remote_dns ").append(quote(remote)).append("; ");
-                if(!cn.isEmpty()&&validIpv4(cn))command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set cn_dns ").append(quote(cn)).append("; ");
+                if(!remote.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set remote_dns ").append(quote(remote)).append("; ");
+                if(!cn.isEmpty())command.append("sh \"$MP/scripts/yulong-ad-control.sh\" dns-vpn-set cn_dns ").append(quote(cn)).append("; ");
                 command.append("sh \"$MP/scripts/yulong-ad-control.sh\" ad-master ").append(json.optBoolean("adMaster",true)?"1":"0").append("; ");
                 JSONObject schedule=json.getJSONObject("schedule");
                 command.append("sh \"$MP/scripts/yulong-ad-control.sh\" schedule-set ")
