@@ -62,6 +62,8 @@ load_apps = source[source.index("private void loadAppsAsync()"):source.index("pr
 assert "appPage = 1;" not in load_apps, "package inventory refresh must not discard the current page"
 require("restoreScrollIfNeeded();", "restored firewall list state is never applied after rendering")
 require("appWorker.shutdownNow();", "background app worker is not released on Activity destruction")
+destroy = source[source.index("@Override protected void onDestroy()"):]
+assert "scrollRestoreGeneration++;" in destroy, "Activity destruction must invalidate pending scroll callbacks"
 render = source[source.index("private void renderRows()"):source.index("@Override protected void onDestroy()")]
 assert "getInstalledApplications(" not in render, "PackageManager inventory is still executed while rendering rows"
 assert "getApplicationLabel(" not in render, "application labels are still loaded while rendering rows"
