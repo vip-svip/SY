@@ -3669,3 +3669,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 追加完成原生业务页面基础表面适配：`MainActivity.uiSurfaceColor()`、`roundedDrawable()`、`uiPanelDrawable()` 现在对 HUAWEI/iOS 使用独立表面色、圆角和细边框，不再回落到 Classic 的默认卡片外观。提交 `ffd27e991328043b4a46771d48b1c7aa57a909c0`。
 - 五模式回归脚本增加 MainActivity 页面表面断言，提交 `921a37d3f732b176c21caeb2d9205f825b9f80a0`。
+
+
+## 2026-11-05 — 将游龙广告插件核心功能入口并入 FX 的 Ad 页面
+
+- 修改 `MainActivity.buildNativeHostsPage()`，在 Ad 页面内新增“广告过滤完整功能”分组，提供 FX 内部入口：
+  - 广告过滤控制中心（`FxYulongAdActivity`）
+  - 通用设置与备份恢复（`FxYulongAdGeneralActivity`）
+  - 拦截统计与每日摘要（`FxYulongAdSummaryActivity`）
+  - 应用网络防火墙（`FxYulongFirewallActivity`）
+  - 应用广告过滤白名单（`FxYulongAppWhitelistActivity`）
+- 上述 Activity 均已在同一 FX APK Manifest 内声明；本次让这些功能从 Ad 业务页可达，不再依赖“设置→迁移应用”入口。
+- 提交：`dfb66743da8d83480c51859cadd69ec122b0905f`；导航回归增加功能可达性断言：`a5ec96960a3abb7708585a7f06199e068d1e34d8`。
+- 边界：这批完成的是五个既有原生功能页的 Ad 内入口整合；不代表游龙广告插件所有功能已经全部迁移完成，也不代表这些 Activity 已全部合并成同一 Compose 页面。后续继续把独立 Activity 的业务状态和页面逐步收敛到 Ad 页面栈。
