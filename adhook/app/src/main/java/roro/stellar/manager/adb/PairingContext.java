@@ -36,20 +36,10 @@ public final class PairingContext implements AutoCloseable {
             initialMessage = nativeMsg(pointer);
         } catch (RuntimeException | LinkageError failure) {
             nativePtr = 0L;
-            try {
-                nativeDestroy(pointer);
-            } catch (RuntimeException | LinkageError ignored) {
-                // Preserve the original creation failure.
-            }
             throw failure;
         }
         if (initialMessage == null || initialMessage.length == 0) {
             nativePtr = 0L;
-            try {
-                nativeDestroy(pointer);
-            } catch (RuntimeException | LinkageError ignored) {
-                // A missing initial SPAKE2 message is a failed context.
-            }
             throw new IllegalStateException("libadb did not produce the initial SPAKE2 message");
         }
         msg = initialMessage.clone();
