@@ -92,6 +92,14 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
         divider();
     }
 
+    private void addStoredSwitch(String title, String summary, String key, boolean defaultValue) {
+        Switch control = new Switch(this);
+        control.setChecked(preferences.getBoolean(key, defaultValue));
+        control.setOnCheckedChangeListener((button, enabled) ->
+                preferences.edit().putBoolean(key, enabled).apply());
+        row(title, summary, control, null);
+    }
+
     private void addUnavailableSwitch(String title, String summary, String key, boolean defaultValue) {
         Switch control = new Switch(this);
         control.setChecked(preferences.getBoolean(key, defaultValue));
@@ -146,8 +154,8 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
         body.addView(notice);
 
         section("提示显示");
-        addUnavailableSwitch("显示 Xposed 激活提示",
-                "原版依赖 Dia 主界面的 activeVersionName() 检查和提示横幅。FX 尚未迁入该激活版本检测与提示组件；此项只保留原始偏好状态，不开放一个不会生效的开关。",
+        addStoredSwitch("显示 LSPosed 激活状态提示",
+                "在 Dia 功能入口显示 FX Hook 当前是否收到 LSPosed 官方服务 Binder。该状态只说明框架服务可用，不代表任一目标进程已注入；目标应用作用域仍须在 LSPosed Manager 中确认。",
                 "active_tip", true);
         addUnavailableSwitch("显示原生模块激活提示",
                 "原始 APK 的 my_settings.xml 声明了 native_active_tip，但完整 Smali 检索未发现该键的读取/消费逻辑。FX 保留该原始键状态，不把无消费路径的偏好伪装成有效开关。",
