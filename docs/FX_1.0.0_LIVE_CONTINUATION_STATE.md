@@ -3264,3 +3264,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Updated the host regression to read `FxDiaSessionLogActivity.java` because the parent activity only routes to that page. The dedicated activity owns the file validation checks.
 - Test commit: `7f58c5c302cde657cb2e7e2a8fc9677dc294dc20`. Awaiting Actions.
+
+
+## 2026-11-05 — Frida target-loader 回归匹配可搜索 Adapter
+
+- Actions `41917255787` 已通过 Gadget session mock、libXposed wiring、进程 UID 身份、server lifecycle 和 Frida page navigation；随后 target-loader 回归仍期待旧 `targets.get(which)` 列表选择。
+- 现在目标选择器通过 `ArrayAdapter<Target>` 过滤，点击回调使用 `adapter.getItem(position)`，再以 `selected.packageName` 更新目标；该行为保留包名身份且支持搜索。
+- 修复：回归断言匹配 Adapter 选择路径，未改变 PackageManager 后台枚举、generation 丢弃、目标状态保存或 worker 约束。
+- 改动：`scripts/tests/fx-dia-frida-target-loader-regression.py`，提交 `705107a3b1fe32b77acde22c7e5bee88f43de75c`。新 Actions 待验证。
