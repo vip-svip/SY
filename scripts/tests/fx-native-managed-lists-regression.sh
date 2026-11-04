@@ -56,7 +56,7 @@ if run add domainList 'bad|value' note >/dev/null 2>&1; then fail "separator inj
 if run add blockList "line
 break" note >/dev/null 2>&1; then fail "control-character injection was accepted"; fi
 
-run edit ruleList 2 https://edited.example/filter.txt Edited >/dev/null
+run edit ruleList 2 https://edited.example/filter.txt Edited 1 >/dev/null
 list=$(run list ruleList)
 printf '%s\n' "$list" | grep -Fq '2|https://edited.example/filter.txt|Edited|1' || fail "edit did not persist"
 run toggle ruleList 1 1 >/dev/null
@@ -74,7 +74,10 @@ printf '%s\n' "$(run list blockList)" | grep -Fq '1|second-block.example|Second 
 [ "$(stat -c '%a' "$CONF")" = 600 ] || fail "settings.conf mode is not 0600"
 grep -qx 'full' "$APPLY_LOG" || fail "rule mutations did not use full apply"
 grep -qx 'fast' "$APPLY_LOG" || fail "domain/block mutations did not use fast apply"
+[ "$(stat -c '%a' "$CONF")" = 600 ] || fail "settings.conf mode is not 0600"
 [ ! -e "$LOCK" ] || fail "managed list lock was not released"
+find "$PG" -maxdepth 1 -type f -name 'settings.conf.native-list.*' -print | grep -q . && fail "random candidate temp file was not cleaned"
+find "$PG" -maxdepth 1 -type f -name 'settings.conf.native-list-rollback.*' -print | grep -q . && fail "random rollback file was not cleaned"
 
 before=$(sha256sum "$CONF" | awk '{print $1}')
 if APPLY_FAIL=1 run edit ruleList 0 https://rollback.example/filter.txt Rollback 1 >/dev/null 2>&1; then
