@@ -925,3 +925,8 @@ After each implementation batch:
 The original Yulong ProfileScheduleWorker converts Android Calendar weekday values by subtracting one before matching the stored weekday CSV. The persisted mapping is Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5 and Saturday=6. This differs from the separate Yulong ad-filter timer's Monday=1 through Sunday=7 convention. The worker uses half-open time windows; overnight intervals are supported; equal start/end is an empty interval and does not match.
 
 Profile switching now installs missing HTTPS filter-source rows into FX's existing [list:rule] before applying the selected source state. It leaves FX-native non-URL rows and the separate [list:fx] 96110 anti-fraud section unchanged. Host regression covers source installation, native-row preservation, Sunday/Monday schedule matching and equal-time behavior.
+
+
+## 2026-11-04 — explicit overnight end-boundary regression
+
+Added direct Sunday 06:59 and 07:00 checks to ensure the original half-open overnight interval remains active before its end and is inactive at the exact end. This complements the already-added 08:05–08:45 and 00:05–00:10 decimal parsing cases. The source conversion passed a local POSIX dash smoke check; no Actions run has yet validated the newest test tree.

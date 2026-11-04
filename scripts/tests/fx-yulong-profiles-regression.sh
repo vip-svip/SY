@@ -200,6 +200,12 @@ grep -Fq 'switched=default' "$T/monday-evaluate.out" || {
   grep -E '^yulong_active_profile=' "$PROFILE_PG/settings.conf" >&2 || :
   fail "Monday=1 schedule did not switch at noon"
 }
+# Verify the original half-open overnight interval immediately before and at 07:00.
+sh "$PROFILE_MOD/scripts/yulong-profiles.sh" profile-switch default >/dev/null
+FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=06:59 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-before-end.out"
+grep -Fq "switched=$custom_id" "$T/sunday-before-end.out" || fail "Sunday 06:59 did not remain inside the overnight interval"
+FX_PROFILE_TEST_DOW=0 FX_PROFILE_TEST_TIME=07:00 sh "$PROFILE_MOD/scripts/yulong-profiles.sh" evaluate > "$T/sunday-at-end.out"
+grep -Fq 'no_matching_profile_schedule' "$T/sunday-at-end.out" || fail "Sunday 07:00 was not excluded by the half-open end boundary"
 # Verify zero-padded hours/minutes are parsed as decimal, never invalid octal.
 early_schedule=$(sh "$PROFILE_MOD/scripts/yulong-profiles.sh" schedule-add "$custom_id" 08:05 08:45 1)
 early_id=${early_schedule#created=}
