@@ -6318,6 +6318,8 @@ public final class MainActivity extends ComponentActivity {
         final String draftKey = selectedPackage + ":dev_rule_group_add_draft";
         EditText input = new EditText(this);
         input.setSingleLine(true);
+        input.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(24)});
         input.setText(getPreferences(0).getString(draftKey, ""));
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
@@ -6419,6 +6421,8 @@ public final class MainActivity extends ComponentActivity {
         final String draftKey = selectedPackage + ":dev_rule_group_rename_draft:" + oldName;
         EditText input = new EditText(this);
         input.setSingleLine(true);
+        input.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(24)});
         input.setText(getPreferences(0).getString(draftKey, oldName));
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
