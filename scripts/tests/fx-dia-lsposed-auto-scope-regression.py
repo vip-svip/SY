@@ -28,7 +28,7 @@ assert "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken)" in help
     "late callbacks must remove only their own token, never a newer request"
 assert "AUTO_SCOPE_EXECUTOR.execute(() -> {" in helper and "new Thread(" not in helper, \
     "scope sync must use the shared bounded executor rather than one thread per target"
-assert "new ArrayBlockingQueue<>(8)" in main and "new ThreadPoolExecutor.AbortPolicy()" in main, \
+assert "new java.util.concurrent.ArrayBlockingQueue<>(8)" in main and "new java.util.concurrent.ThreadPoolExecutor.AbortPolicy()" in main, \
     "scope sync executor must have a bounded queue and reject overload"
 assert "RejectedExecutionException full" in helper and "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName)" in helper, \
     "queue rejection must release the per-package pending guard for retry"
