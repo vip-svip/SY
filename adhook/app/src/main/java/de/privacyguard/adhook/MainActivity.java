@@ -143,6 +143,9 @@ public final class MainActivity extends ComponentActivity {
     private boolean customRuleEditorRestorePending;
     private boolean customRuleImportDialogOpen;
     private boolean customRuleImportRestorePending;
+    private String customRuleGroupDialogMode;
+    private String customRuleGroupDialogValue;
+    private boolean customRuleGroupDialogRestorePending;
     private int customRuleEditorEditingSlot = -1;
     private String customRuleEditorPresetDescriptor;
     private boolean hookHubVisible;
@@ -275,6 +278,9 @@ public final class MainActivity extends ComponentActivity {
                 customRuleEditorPresetDescriptor = state.getString("fx_custom_rule_editor_preset");
                 customRuleImportRestorePending = state.getBoolean("fx_custom_rule_import_open", false);
                 customRuleImportDialogOpen = customRuleImportRestorePending;
+                customRuleGroupDialogMode = state.getString("fx_custom_rule_group_dialog_mode");
+                customRuleGroupDialogValue = state.getString("fx_custom_rule_group_dialog_value");
+                customRuleGroupDialogRestorePending = customRuleGroupDialogMode != null;
                 if (customRuleEditorPresetDescriptor != null
                         && customRuleEditorPresetDescriptor.length() > 4096) {
                     customRuleEditorPresetDescriptor = null;
@@ -467,6 +473,11 @@ public final class MainActivity extends ComponentActivity {
             if (hookCustomRulesPageVisible) {
                 if (customRuleImportDialogOpen || customRuleImportRestorePending) {
                     outState.putBoolean("fx_custom_rule_import_open", true);
+                }
+                if (customRuleGroupDialogMode != null || customRuleGroupDialogRestorePending) {
+                    outState.putString("fx_custom_rule_group_dialog_mode", customRuleGroupDialogMode);
+                    if (customRuleGroupDialogValue != null)
+                        outState.putString("fx_custom_rule_group_dialog_value", customRuleGroupDialogValue);
                 }
                 if (customRuleEditorDialogOpen || customRuleEditorRestorePending) {
                     outState.putBoolean("fx_custom_rule_editor_open", true);
@@ -6146,6 +6157,12 @@ public final class MainActivity extends ComponentActivity {
         } else if (customRuleImportRestorePending) {
             customRuleImportRestorePending = false;
             showCustomRuleImportDialog();
+        } else if (customRuleGroupDialogRestorePending) {
+            String mode = customRuleGroupDialogMode;
+            String value = customRuleGroupDialogValue;
+            customRuleGroupDialogRestorePending = false;
+            if ("add".equals(mode)) showAddCustomRuleGroupDialog();
+            else if ("rename".equals(mode) && value != null) showRenameCustomRuleGroupDialog(value);
         }
     }
 
@@ -6209,30 +6226,55 @@ public final class MainActivity extends ComponentActivity {
         return groups;
     }
 
-    private void ensureCustomRuleGroup(String groupName) {
-        if (!validCustomRuleGroupName(groupName)) return;
+    private boolean ensureCustomRuleGroup(String groupName) {
+        if (!validCustomRuleGroupName(groupName)) return false;
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         groups.add(groupName.trim());
-        getPreferences(0).edit().putStringSet(
+        return getPreferences(0).edit().putStringSet(
                 selectedPackage + ":dev_rule_groups",
-                new java.util.HashSet<>(groups)).apply();
+                new java.util.HashSet<>(groups)).commit();
+    }
+
+    private void clearCustomRuleGroupDialogState() {
+        customRuleGroupDialogMode = null;
+        customRuleGroupDialogValue = null;
+        customRuleGroupDialogRestorePending = false;
     }
 
     private void showAddCustomRuleGroupDialog() {
+        customRuleGroupDialogMode = "add";
+        customRuleGroupDialogValue = null;
+        customRuleGroupDialogRestorePending = false;
+        final String draftKey = selectedPackage + ":dev_rule_group_add_draft";
         EditText input = new EditText(this);
         input.setSingleLine(true);
+        input.setText(getPreferences(0).getString(draftKey, ""));
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(draftKey, value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
         input.setHint("例如：网络监控、会员状态、设备模拟");
         new AlertDialog.Builder(this).setTitle("新增规则分组")
                 .setView(input)
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
+                .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
                 .setPositiveButton("新增", (dialog, which) -> {
+                    clearCustomRuleGroupDialogState();
                     String value = input.getText().toString().trim();
                     if (!validCustomRuleGroupName(value)) {
                         new AlertDialog.Builder(this).setMessage("分组名称无效，最长 24 个字符。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    ensureCustomRuleGroup(value);
+                    if (!ensureCustomRuleGroup(value)) {
+                        new AlertDialog.Builder(this).setMessage("创建分组失败：本地配置未能提交。")
+                                .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    getPreferences(0).edit().remove(draftKey).apply();
                     new AlertDialog.Builder(this).setMessage("已创建分组：" + value)
                             .setPositiveButton("继续管理", (d, w) -> showCustomRuleGroupsDialog())
                             .setNegativeButton("关闭", null).show();
@@ -6297,14 +6339,27 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showRenameCustomRuleGroupDialog(String oldName) {
+        customRuleGroupDialogMode = "rename";
+        customRuleGroupDialogValue = oldName;
+        customRuleGroupDialogRestorePending = false;
+        final String draftKey = selectedPackage + ":dev_rule_group_rename_draft:" + oldName;
         EditText input = new EditText(this);
         input.setSingleLine(true);
-        input.setText(oldName);
+        input.setText(getPreferences(0).getString(draftKey, oldName));
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                getPreferences(0).edit().putString(draftKey, value == null ? "" : value.toString()).apply();
+            }
+            @Override public void afterTextChanged(android.text.Editable value) { }
+        });
         input.setSelection(input.getText().length());
         input.setHint("新分组名称（最多 24 个字符）");
         new AlertDialog.Builder(this).setTitle("重命名规则分组").setView(input)
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
+                .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
                 .setPositiveButton("保存", (dialog, which) -> {
+                    clearCustomRuleGroupDialogState();
                     String newName = input.getText().toString().trim();
                     if (!validCustomRuleGroupName(newName) || "默认".equals(newName)) {
                         new AlertDialog.Builder(this).setMessage("分组名称无效；不能重命名系统保留的“默认”分组。")
@@ -6316,6 +6371,7 @@ public final class MainActivity extends ComponentActivity {
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
+                    getPreferences(0).edit().remove(draftKey).apply();
                     ApplicationInfo target = findApp(selectedPackage);
                     if (target != null) showTarget(target);
                 }).show();
@@ -6357,7 +6413,10 @@ public final class MainActivity extends ComponentActivity {
                 .setNegativeButton("取消", null)
                 .setPositiveButton("移动", (dialog, which) -> {
                     String group = names[chosen[0]];
-                    getPreferences(0).edit().putString(key, group).apply();
+                    if (!getPreferences(0).edit().putString(key, group).commit()) {
+                        Toast.makeText(this, "移动规则失败：本地配置未能提交。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     ApplicationInfo target = findApp(selectedPackage);
                     if (target != null) showTarget(target);
                 }).show();
