@@ -30,7 +30,11 @@ print("PASS: ADB pairing activity is internal and original network permissions a
 PY
 
 grep -Fq 'SERVICE_TYPE = "_adb-tls-pairing._tcp."' "$DISCOVERY" || fail "original ADB TLS pairing DNS-SD service type changed"
-grep -Fq 'manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD' "$DISCOVERY" || fail "NSD discovery is not started through Android NsdManager"
+grep -Fq 'CONNECT_SERVICE_TYPE = "_adb-tls-connect._tcp."' "$DISCOVERY" || fail "original post-pair ADB connect DNS-SD service type is missing"
+grep -Fq 'this(context, SERVICE_TYPE, listener)' "$DISCOVERY" || fail "default resolver must retain the original pairing service"
+grep -Fq 'AdbPairingDiscovery(Context context, String requestedServiceType' "$DISCOVERY" || fail "mDNS resolver cannot select the post-pair connect service"
+grep -Fq 'manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD' "$DISCOVERY" || fail "NSD discovery does not use the validated requested service type"
+grep -Fq 'isExpectedService(String type)' "$DISCOVERY" || fail "NSD callbacks must reject results from a different service type"
 grep -Fq 'manager.resolveService(next' "$DISCOVERY" || fail "NSD service result is not resolved to an address/port"
 grep -Fq 'ArrayDeque<NsdServiceInfo>' "$DISCOVERY" || fail "mDNS resolution must use a bounded-in-flight queue"
 grep -Fq 'if (closed || !started || resolving || resolveQueue.isEmpty()) return;' "$DISCOVERY" || fail "NSD resolution is not serialized"
@@ -55,6 +59,14 @@ grep -Fq 'code.matches("[0-9]{6}")' "$PAIRING" || fail "UI must validate the ori
 grep -Fq 'new AdbPairingClient(target.host, target.port, code, key)' "$PAIRING" || fail "selected mDNS device is not passed to the pairing client"
 grep -Fq 'client.start()' "$PAIRING" || fail "UI does not execute the TLS/SPAKE2 pairing sequence"
 grep -Fq 'AdbKey.getOrCreate(getApplicationContext())' "$PAIRING" || fail "pairing UI does not use the persistent original ADB host key"
+grep -Fq 'startConnectDiscovery(generation)' "$PAIRING" || fail "successful SPAKE2 pairing must continue with original ADB connect DNS-SD discovery"
+grep -Fq 'AdbPairingDiscovery.CONNECT_SERVICE_TYPE' "$PAIRING" || fail "post-pair discovery does not use _adb-tls-connect._tcp"
+grep -Fq 'putString("connect_service_name"' "$PAIRING" || fail "resolved ADB connect service name is not persisted"
+grep -Fq 'putString("connect_host"' "$PAIRING" || fail "resolved ADB connect host is not persisted"
+grep -Fq 'putInt("connect_port"' "$PAIRING" || fail "resolved ADB connect port is not persisted"
+grep -Fq 'remove("connect_port")' "$PAIRING" || fail "lost ADB connect service does not clear stale endpoint state"
+grep -Fq 'ADB Shell 命令通道尚未迁入' "$PAIRING" || fail "UI must not claim that endpoint discovery is an active ADB Shell session"
+
 grep -Fq 'pairingCode.setText("")' "$PAIRING" || fail "pairing code remains in the visible input after starting"
 grep -Fq 'client.close()' "$PAIRING" || fail "pairing client is not closed after the attempt"
 grep -Fq 'stopDiscovery();' "$PAIRING" || fail "mDNS discovery is not stopped when the UI is destroyed"
