@@ -834,3 +834,10 @@ After each implementation batch:
 - Repeated taps while a scan is active no longer enqueue duplicate PackageManager scans. A generation token rejects late callbacks after the target-picker request becomes stale or the Activity is destroyed.
 - Successful results return to the UI thread and retain the existing package/label persistence, target selection, Gadget default process and multi-process Frida-inject behavior. Queue saturation now displays an explicit retry message.
 - Added and registered `fx-dia-frida-target-loader-regression.py` alongside the Dia inspector responsiveness regression. Build/host validation is pending; no physical-device frame-time measurement is claimed.
+
+## 2026-11-04 — Dia Frida process identity revalidation
+
+- The target process picker now resolves the currently installed target package UID and filters candidate PID/name rows against `/proc/PID/status` before showing them.
+- The actual Frida-inject path resolves the target UID again immediately before injection and checks each PID's live UID after rechecking its package/process name. A PID/name match with a different UID is skipped and logged; no injection is attempted for that process.
+- This preserves the user-installed + debuggable target restriction and closes the PID-reuse/name-only identity gap for both manually selected and automatically enumerated processes.
+- Added and registered `fx-dia-frida-process-identity-regression.py` to assert UID resolution and enforcement before the injector call. Host/source validation only; actual process attach remains device-pending.
