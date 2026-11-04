@@ -13,6 +13,9 @@ frida = Path(sys.argv[2]).read_text(encoding="utf-8")
 editor = Path(sys.argv[3]).read_text(encoding="utf-8")
 route_start = main.index('case "运行日志":')
 route = main[route_start:route_start + 500]
+target_picker_start = frida.index("private void showTargetPicker(List<Target> targets)")
+target_picker_end = frida.index("private void clearPendingProcessPickerState()", target_picker_start)
+target_picker = frida[target_picker_start:target_picker_end]
 if "FxDiaFridaActivity.class" not in route or '.putExtra("dia_page", page)' not in route:
     raise SystemExit("FAIL: Dia run-log page must open the Frida target-session log screen")
 if "showNativeRuntimeLogs()" in route:
@@ -22,17 +25,22 @@ checks = {
     "target picker open state saved": "outState.putBoolean(STATE_TARGET_PICKER_OPEN" in frida,
     "target picker open state restored": 'state.getBoolean(STATE_TARGET_PICKER_OPEN, false)' in frida,
     "target picker reopens after Activity recreation": "if (restoreTargetPickerPending)" in frida and "chooseTarget();" in frida,
-    "target picker cancellation clears pending state": '.setOnCancelListener(dialog -> targetPickerOpen = false)' in frida,
+    "target picker cancellation clears pending state": "pickerDialog.setOnCancelListener(dialog -> {" in target_picker and "targetPickerOpen = false;" in target_picker,
+    "target picker searches app names and package names": "adapter.getFilter().filter(targetPickerQuery)" in target_picker and "search.setHint(\"搜索应用名称或包名\")" in target_picker,
+    "target picker displays package identity": 'return label + "\\n" + packageName;' in frida,
+    "target picker shows empty search state": "list.setEmptyView(empty);" in target_picker,
+    "target picker search query saved": "outState.putString(STATE_TARGET_PICKER_QUERY" in frida,
+    "target picker search query restored": "state.getString(STATE_TARGET_PICKER_QUERY" in frida,
     "process picker open state saved": "outState.putBoolean(STATE_PROCESS_PICKER_OPEN" in frida,
     "process picker open state restored": 'state.getBoolean(STATE_PROCESS_PICKER_OPEN, false)' in frida,
     "process picker staged PID selection saved": "outState.putStringArrayList(STATE_PROCESS_PICKER_STAGED_PIDS" in frida,
     "process picker staged PID selection restored": "state.getStringArrayList(STATE_PROCESS_PICKER_STAGED_PIDS)" in frida,
     "process picker Root result validates target and generation": "operationGeneration != processPickerGeneration" in frida and "!requestedPackage.equals(targetPackage)" in frida,
     "switching targets invalidates the old process-picker request": (
-        'processPickerGeneration++;\n                    processPickerOpen = false;\n'
-        '                    clearPendingProcessPickerState();\\n'
-        '                    targetPackage = targets.get(which).packageName;'
-    ) in frida,
+        "processPickerGeneration++;" in target_picker
+        and "clearPendingProcessPickerState();" in target_picker
+        and "targetPackage = selected.packageName;" in target_picker
+    ),
     "process picker multi-choice stages PID changes": "pendingProcessPickerPids.add(pid)" in frida and "pendingProcessPickerPids.remove(pid)" in frida,
     "process picker explicit empty selection retained": "checked[i] = hasPendingProcessPickerSelection" in frida and "staged.contains(pids.get(i))" in frida,
     "delayed picker restoration remains saved until runnable": "targetPickerOpen || targetLoading || restoreTargetPickerPending" in frida and "processPickerOpen || restoreProcessPickerPending" in frida,
