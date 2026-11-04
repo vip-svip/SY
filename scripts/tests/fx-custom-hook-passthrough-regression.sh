@@ -24,4 +24,7 @@ grep -Fq '(parts.length == 5 ? " " + parts[4] : "")' "$MAIN" || fail "custom Hoo
 grep -Fq 'DeveloperHookRule.normalizeDescriptor(rawDescriptor, selectedPackage)' "$MAIN" || fail "custom Hook editor has no live signature normalization preview"
 grep -Fq '签名有效 · JVM：' "$MAIN" || fail "custom Hook editor normalized signature preview missing"
 grep -Fq '签名尚未通过校验' "$MAIN" || fail "custom Hook editor invalid signature feedback missing"
+grep -Fq 'Runnable refreshValidation = () ->' "$MAIN" || fail "custom Hook editor live validation callback missing"
+grep -Fq 'validationStatus.setText("校验通过 · "' "$MAIN" || fail "custom Hook editor valid-signature feedback missing"
+grep -Fq 'refreshValidation.run();' "$MAIN" || fail "custom Hook editor validation refresh missing"
 echo "PASS: custom Hook passthrough actions are exact-type, debuggable-only, explicit-opt-in and fail-closed"

@@ -2669,3 +2669,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：源码静态核对；targeted 回归脚本新增实时规范化、有效结果和无效反馈断言。Shell 回归、Android 单元测试、Gradle 构建、UI 自动化、安装及真机测试尚未运行。
 - 失败路线：无；沿用现有解析器而非新增第二套 parser。
 - 下一批：① 检查 Hook 编辑器保存/旋转/返回后草稿与预览一致；② Dia SAF URI 恢复后的导入确认/取消回归；③ 六 Tab 页面返回链定向回归。
+
+
+## 2026-11-05 — Hook 自定义规则编辑器实时校验回显
+
+- 本批基于最新分支 HEAD：`d04c631e27e44fd0a18fcc15e384f576c6af67bd`。
+- 页面：Hook → 应用详情 → 自定义 Hook → 新增/编辑规则对话框。
+- 修改：编辑器新增实时校验状态。规则 ID、Java/Frida/Smali/旧式签名、动作、优先级或 RETURN_LITERAL 常量变化时即时调用现有 DeveloperHookRule.parse；显示未通过提示、目标不可用提示，或解析后的 JVM 描述符与动作；非 debuggable 应用即使签名解析成功，也明确显示仅允许 OBSERVE。该反馈不替代保存时的最终校验，不放宽运行时限制。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-custom-hook-passthrough-regression.sh`、`docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`。
+- 验证：源码锚点唯一性检查；回归脚本新增实时校验回调、成功回显和编辑变更触发断言。尚未执行 Shell、JUnit、Gradle、模拟器或真机测试。
+- 固定 FX 1.0.0；不改变 Hook 动作白名单、Root 权限、目标包范围或运行时门禁；不生成最终 APK / KernelSU ZIP。
+- 下一步：Dia 原生脚本编辑器返回/覆盖链；游龙安全护盾名单和扫描详情；随后执行对应 targeted 回归脚本并修复失败项。

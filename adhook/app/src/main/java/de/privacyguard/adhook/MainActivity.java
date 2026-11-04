@@ -6896,10 +6896,42 @@ public final class MainActivity extends ComponentActivity {
                 .putInt(draftPrefix + "syntax", syntax.getSelectedItemPosition())
                 .putInt(draftPrefix + "action", action.getSelectedItemPosition())
                 .apply();
+        TextView validationStatus = new TextView(this);
+        validationStatus.setTextSize(12);
+        validationStatus.setPadding(0, dp(6), 0, dp(6));
+        Runnable refreshValidation = () -> {
+            String candidateId = id.getText().toString().trim();
+            String candidateDescriptor = descriptor.getText().toString().trim();
+            String candidateAction = String.valueOf(action.getSelectedItem()).trim().toUpperCase(Locale.ROOT);
+            String candidatePriority = priority.getText().toString().trim();
+            String candidateLiteral = literalValue.getText().toString();
+            String candidate = candidateId + "|" + candidateDescriptor + "|" + candidateAction
+                    + "|" + candidatePriority
+                    + ("RETURN_LITERAL".equals(candidateAction) ? "|" + candidateLiteral : "");
+            ApplicationInfo validationTarget = findApp(selectedPackage);
+            DeveloperHookRule parsed = validationTarget == null ? null
+                    : DeveloperHookRule.parse(candidate, selectedPackage);
+            boolean targetDebuggable = validationTarget != null
+                    && (validationTarget.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+            if (validationTarget == null) {
+                validationStatus.setText("目标应用不可用；请返回应用列表刷新。");
+                validationStatus.setTextColor(0xff9b2c2c);
+            } else if (parsed == null) {
+                validationStatus.setText("尚未通过校验：检查规则 ID、完整签名、动作、常量和优先级。");
+                validationStatus.setTextColor(0xff9b2c2c);
+            } else if (!targetDebuggable && parsed.action != DeveloperHookRule.Action.OBSERVE) {
+                validationStatus.setText("签名格式有效，但非 debuggable 目标仅允许 OBSERVE。");
+                validationStatus.setTextColor(0xff9b2c2c);
+            } else {
+                validationStatus.setText("校验通过 · " + parsed.descriptor + " · " + parsed.action.name());
+                validationStatus.setTextColor(0xff237347);
+            }
+        };
         android.text.TextWatcher draftWatcher = new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
                 persistEditorDraft.run();
+                refreshValidation.run();
             }
             @Override public void afterTextChanged(android.text.Editable value) { }
         };
@@ -6913,6 +6945,7 @@ public final class MainActivity extends ComponentActivity {
                                                  View view, int position, long itemId) {
                 descriptor.setHint(syntaxHints[Math.max(0, Math.min(syntaxHints.length - 1, position))]);
                 persistEditorDraft.run();
+                refreshValidation.run();
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
@@ -6922,6 +6955,7 @@ public final class MainActivity extends ComponentActivity {
                 literalValue.setEnabled("RETURN_LITERAL".equals(actionOptions[position]));
                 literalValue.setAlpha(literalValue.isEnabled() ? 1.0f : 0.55f);
                 persistEditorDraft.run();
+                refreshValidation.run();
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
@@ -6975,7 +7009,9 @@ public final class MainActivity extends ComponentActivity {
         form.addView(literalValue);
         form.addView(group);
         form.addView(priority);
+        form.addView(validationStatus);
         form.addView(help);
+        refreshValidation.run();
 
         new AlertDialog.Builder(this)
                 .setTitle(editingSlot > 0 ? "编辑自定义 Hook 规则" : "新增自定义 Hook 规则")
