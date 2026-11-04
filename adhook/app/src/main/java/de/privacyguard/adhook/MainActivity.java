@@ -3055,7 +3055,7 @@ public final class MainActivity extends ComponentActivity {
     private String[][] importedSuiteSections(String suite) {
         if ("dia".equals(suite)) return new String[][] {
             {"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "系统扩展", "Activity 入口与禁用", "隐藏应用"},
-            {"Hook 功能", "方法 Hook", "对话框与通知", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
+            {"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
             {"设备模拟", "设备属性", "位置与 GPS", "Wi-Fi 模拟", "网络类型模拟", "时间与时区", "应用版本", "签名信息"},
             {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
             {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "Socket 监控", "Intent 监控", "Activity 启动入口观察", "崩溃报告", "Shell/Process 监控", "方法堆栈", "View 点击监控", "按文本/ID 自动点击", "按文本/ID 移除匹配弹窗", "ViewGroup 层级监控", "Fragment 生命周期", "Thread 启动监控", "ClassLoader 监控", "SQL 监控", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
@@ -3385,12 +3385,17 @@ public final class MainActivity extends ComponentActivity {
                     markMigrationChild(suite, category, page);
                     showAppList();
                     return;
-                case "对话框与通知":
+                case "对话框处理": case "对话框与通知":
                     markMigrationChild(suite, category, page);
-                    // Keep Dialog filtering independent from Notification and Toast filtering.
+                    // Keep Dialog rules independent from Notification and Toast filtering.
                     showAppList("Dialog处理");
                     return;
-                case "Toast 过滤": case "Toast文本过滤": case "Toast 禁用":
+                case "通知监听与权限提示":
+                    markMigrationChild(suite, category, page);
+                    // Reuse the existing per-app notification policies and native publisher.
+                    showAppList("通知保护");
+                    return;
+                case "Toast 文本过滤": case "Toast 过滤": case "Toast文本过滤": case "Toast 禁用":
                     markMigrationChild(suite, category, page);
                     showAppList("Toast过滤");
                     return;
