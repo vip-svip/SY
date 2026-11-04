@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Original Yulong Shield manual scan page; scan is read-only and removal is user-confirmed. */
 public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeTabActivity {
+    private static final int REQUEST_BATCH_CLEANUP = 0x59b2;
     private static final int MAX_SAVED_FINDINGS = 128;
     private static final int MAX_BATCH_SELECTION = 100;
     private static final String STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y";
@@ -330,6 +331,18 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
                 && !selectedForCleanup.isEmpty());
     }
 
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_BATCH_CLEANUP) return;
+        selectedForCleanup.clear();
+        restoreRequiresRescan = true;
+        lastScanComplete = false;
+        lastScanStatus = "批量清理队列已返回；原扫描结果可能已过期。请重新扫描后再处理。";
+        status.setText(lastScanStatus);
+        status.setTextColor(0xffa32620);
+        updateBatchCleanup();
+    }
+
     private void openBatchCleanup() {
         if (restoreRequiresRescan) {
             Toast.makeText(this, "上次扫描状态未完整恢复，请重新扫描后再进行批量处理。",
@@ -352,7 +365,7 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         intent.putStringArrayListExtra("packages", packages);
         intent.putStringArrayListExtra("labels", labels);
         intent.putStringArrayListExtra("reasons", reasons);
-        startActivity(intent);
+        startActivityForResult(intent, REQUEST_BATCH_CLEANUP);
     }
 
     private void confirmUninstall(FxYulongScanEngine.Finding finding){
