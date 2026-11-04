@@ -1620,3 +1620,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 静态验证：当前 HEAD 重新读取导入方法和回归脚本，确认规则槽/动作/分组/启用标记/导入草稿快照、失败回滚提交及用户提示均存在。未执行 Shell 回归、Gradle/JUnit、模拟器或真机存储故障注入。
 - 失败路线：一次 MainActivity 更新因并行提交返回 409；重新获取最新 HEAD/blob SHA 后重放成功，没有覆盖并行的 Hook 观察日志和编辑器恢复提交。
 - 下一步：核对自定义规则新增/编辑弹窗旋转时的草稿身份隔离与保存冲突；然后运行一次可执行的 Hook/Dia Host 回归（只读失败日志，不重复触发整套 Actions）。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — FX Hook JSON 导入弹窗重建与 OBSERVE 日志返回状态
+
+- 本批起始分支 HEAD：`9e6c4937e68df9df1de92c7a4bcad5974f2b9e1f`；期间并行完成自定义规则编辑器弹窗重建和导入失败快照回滚，本批基于每次重新读取的最新文件 SHA 合并，保留了并行修改。
+- JSON 导入弹窗：新增打开/待恢复状态，写入 Activity Bundle；目标应用自定义规则页恢复完成后自动重开导入弹窗，输入内容由此前新增的目标包级草稿恢复；取消、返回取消和提交时清理弹窗恢复标记。
+- OBSERVE 日志页：保存/恢复搜索关键词和滚动位置；第一次异步刷新结果渲染也优先应用恢复位置，避免刷新先于滚动恢复时跳回顶部。保留原 Root 命令、目标包精确过滤、输出大小限制与 Activity 销毁时取消 worker。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`adhook/app/src/main/java/de/privacyguard/adhook/FxHookObservationLogsActivity.java`；`scripts/tests/fx-dia-custom-hook-literal-regression.sh`；本状态文件。
+- 本批提交：`cea857d66ac5287c81a7c62501eb769d666e0eaa`、`80632e56d05209669f9b8f1125deb0bf84bdd369`（OBSERVE 日志状态恢复）；`e954a5dee4c53e125681c6616ef076635ca537fa`（日志状态回归）；`00c68b31361886fb174aaceec04a924080a9d0b2`（导入弹窗自动恢复）；`f7d0095a1b00e2be69f22b7fe4d4397421be307a`（导入弹窗恢复回归）。并行提交 `56bcee860cd6354d90a30a5d67e0958642b9bf29` / `fff554492b88983e0616b7c18a2b283e8f8027aa`（编辑器弹窗恢复）和 `9be657d5cf736069af94c391d94233b0eb9faf8a` / `42b27efbded2aac1182e41e77d8b21b2591c91b0`（导入失败快照回滚）均已保留。
+- 验证等级：最新 HEAD 静态检查确认导入弹窗 Bundle 保存/恢复、目标页恢复后重开、取消/提交清标记、OBSERVE 搜索/滚动保存恢复和首轮 render 位置保护，以及对应回归断言均存在。未运行完整 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机旋转/导入/Root 日志交互。
+- 未解决：规则分组管理/重命名/移动等多级弹窗尚未统一做旋转恢复；导出弹窗可重新生成但复制交互未作旋转状态恢复。下一批先核对并修复分组对话框状态/持久化，再做 Hook/Dia Host 回归可运行性检查。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
