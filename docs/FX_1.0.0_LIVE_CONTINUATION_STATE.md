@@ -1190,3 +1190,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证边界：本批 Activity shell 仅做源码接线断言；未运行六 Tab 脚本、Android 编译、模拟器或设备导航。ActivityKey 21 项纯 Java Host 测试已运行；未运行 LSPosed 设备测试。Firewall 纯 Java Host 测试 11 项另已在前批通过。
 - 下一批：接入 Dia Activity Browser / Frida / Script Library 中 1–3 个核心 Activity；审查 ActivityKey 触发时间窗与原版一致性、Dialog toggle 状态是否同步；继续接入 Shield Batch Cleanup / Screen Filter。
 - 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
+
+## 2026-11-05 — Shield 六 Tab 七页覆盖与管控选择弹窗重建恢复
+
+- 本节更新前实时 HEAD：`122b870223dfa2bb4a0416e5d7d4886a20d29bd8`；指定分支与 FX 1.0.0 未改变。
+- 纠正上一节“管控应用添加弹窗状态仍未保存”的旧记录：已完成等价 Activity 状态模型，不改名单持久化协议：
+  - 保存弹窗是否打开、搜索词（最多 256 字符）、加载分页、暂存包名集合、弹窗内 ScrollView 纵向位置。
+  - Activity 重建后等待后台应用清单加载成功，再恢复同一个选择弹窗、筛选词、页数、暂存勾选和滚动位置。
+  - 旋转 / 配置变化时旧 Dialog 的 dismiss 回调不清除恢复草稿；用户主动取消或关闭时清除草稿；只有“确定加入”回调才把暂存包名合并到正式管控名单。
+  - 应用清单尚未加载时用户点击添加不会错误标记为“弹窗已打开”，避免加载完成后出现意外自动弹窗。
+- 代码提交：
+  - `f610a5379b3eea7882097a4a3046f9b550c7e3d7` — 保存管控选择弹窗打开状态、搜索词、分页和暂存勾选。
+  - `e62dec847a6761fe4ed8fdb6a88036c02832231e` — 加入弹窗内滚动位置恢复。
+  - `9048fe0f05634a8f82af5a266b224c6afc6bd6d7` — 从 savedInstanceState 恢复弹窗滚动位置。
+  - `7994c04103190bf248ef96b5284bc59cc6200f5f` — 主动关闭/无候选应用时清理暂存状态。
+  - `1ddbbdcdc1d3f12662bdf9dad4bbaa60fa1d2141` — 定向回归增加弹窗状态恢复、取消不提交与确认才提交断言。
+- 当前最新 HEAD 静态核对 10 项全部通过：五个状态键；Bundle 保存；Bundle 恢复；后台清单完成后重开弹窗；弹窗内滚动恢复；配置变化保留暂存；主动关闭清理暂存；正式名单只在确认回调更新；Shield 七个 Activity 六 Tab 壳接线；回归脚本包含新断言。
+- Shield 七个独立页面覆盖（病毒库、扫描、完整性、救援、白名单管理、白名单选择器、管控列表）均使用 `FxNativeTabActivity`，并由 `fx-yulong-shield-six-tab-regression.sh` 检查；Hub 另保留六 Tab 宿主及各子页面路由。
+- 验证边界：只完成最新 GitHub 源码静态核对；没有完整仓库工作树，未实际运行 Shell 回归、Gradle/JUnit、Android 编译、旋转/进程回收模拟器或真机验收。不可将静态断言称为运行测试通过。
+- 未改变名单格式、确认/取消语义、六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+- 下一批直接任务：检查病毒库同步按钮在旋转/重建时是否可能重复提交、结果回执是否丢失；随后检查 Shield 子页面返回链和 Dia 核心独立 Activity 六 Tab 接入。
