@@ -2281,3 +2281,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`bb79a47200723c6435c77c5924c649318f2e09d7`（实现）；`99abdab26a4df70b054539dcfd73a344c87a5d72`（回归断言）。
 - 验证等级：源码静态断言；未运行 Host Shell、Gradle、UI 自动化、真实 SAF 长文件读取取消或 Root 安装中断故障注入。
 - 下一步：继续核对 Frida Server / Inject 运行生命周期是否在页面离开时仅停止本页发起的会话、不误停用户手动启动的实例；随后检查安全护盾名单管理页面编辑/保存/返回状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia DEX picker 请求归属与 Activity 重建保护
+
+- 本批基于最新实时文件读取；MainActivity 原始 Blob：`cba332fd957a10a952fd173a36379ce9d706705b`。
+- 发现：DEX picker 的 Activity Result 处理仅校验返回数据中的目标包/方法签名，没有验证当前 MainActivity 是否确实仍有一个待完成的 DEX picker 请求。Activity 重建后，缺少可恢复的请求归属标记。
+- 修复：新增 `pendingDiaDexHookPicker`；启动 picker 时置为 true；保存到 `Bundle`，重建时恢复；结果回调首先消费并清除标记，只有原请求仍待处理且结果成功时才进入既有目标应用、debuggable 用户应用及方法签名校验。未放宽任何 Hook 安全边界。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-dex-document-browser-regression.sh`；本状态文件。
+- 提交：
+  - `8c1ea1269fea15631a09930a5cdea8592bce41a1` — 请求生命周期实现。
+  - `1e1ebd30fe75379b9865bb5ee37eb87ef71cb941` — 增加请求保存、恢复、消费的静态回归断言。
+- 验证：重新从指定分支读取 MainActivity 与回归脚本，逐项核对启动标记、Bundle 保存、Bundle 恢复、结果消费和脚本断言，均匹配。尚未执行完整 Shell 回归、Gradle 编译、模拟器或真机 Activity 重建测试；不标记为运行测试通过。
+- 未完成/风险：若系统在启动内部 picker 时抛出 ActivityNotFoundException 或其他启动异常，当前请求标记需要异常回滚；需补充启动失败回滚与测试。还需在设备上验证进程回收后 picker 返回的 Activity Result 行为。
+- 下一批：优先补齐 picker 启动异常回滚，然后转入游龙安全护盾风险详情/告警/名单编辑页面组的真实页面状态闭环；继续推进六 Tab 主壳。固定 FX 1.0.0，不打包最终 APK / KernelSU ZIP。
