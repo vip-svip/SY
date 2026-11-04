@@ -1180,23 +1180,35 @@ public final class FxDiaFridaActivity extends Activity {
                 + "server=" + quote(server) + "; pidfile=" + quote(SERVER_PID) + "; "
                 + serverProcessGuards()
                 + "if [ -L \"$pidfile\" ]; then echo server=unsafe-pidfile; "
-                + "elif [ -f \"$pidfile\" ]; then pid=$(sed -n '1p' \"$pidfile\"); "
+                + "elif [ -f \"$pidfile\" ]; then "
+                + "pid=$(sed -n '1p' \"$pidfile\"); stored_server=$(sed -n '2p' \"$pidfile\"); "
+                + "stored_port=$(sed -n '3p' \"$pidfile\"); stored_start=$(sed -n '4p' \"$pidfile\"); "
                 + "case \"$pid\" in ''|*[!0-9]*) echo server=invalid-pid-record;; "
-                + "*) if server_pid_matches \"$pid\"; then echo server=running; "
-                + "elif server_pid_live \"$pid\"; then echo server=pid-conflict; "
+                + "*) if [ \"$stored_server\" != \"$server\" ] || [ \"$stored_port\" != 27042 ]; then echo server=pid-record-conflict; "
+                + "elif server_pid_live \"$pid\"; then "
+                + "case \"$stored_start\" in ''|*[!0-9]*) echo server=legacy-owner-unverified;; "
+                + "*) current_start=$(server_pid_starttime \"$pid\" 2>/dev/null || :); "
+                + "if [ \"$current_start\" != \"$stored_start\" ]; then echo server=pid-reused; "
+                + "elif server_pid_matches \"$pid\"; then echo server=running; "
+                + "else echo server=pid-conflict; fi;; esac; "
                 + "else echo server=stale-pid; fi;; esac; "
                 + "else echo server=stopped; fi";
         runRoot(command, 12000L, result ->
                 setStatus("退出码 " + result.exitCode + "\n" + result.output));
     }
 
-    private String serverProcessGuards() {
+        private String serverProcessGuards() {
         return "server_pid_live() { "
                 + "fx_server_pid=\"$1\"; case \"$fx_server_pid\" in ''|*[!0-9]*) return 1;; esac; "
                 + "[ -r \"/proc/$fx_server_pid/stat\" ] || return 1; "
                 + "state=$(sed 's/^.*) //' \"/proc/$fx_server_pid/stat\" 2>/dev/null | cut -d ' ' -f1); "
                 + "case \"$state\" in Z|X|x) return 1;; esac; "
                 + "kill -0 \"$fx_server_pid\" 2>/dev/null; }; "
+                + "server_pid_starttime() { "
+                + "fx_server_pid=\"$1\"; case \"$fx_server_pid\" in ''|*[!0-9]*) return 1;; esac; "
+                + "fields=$(sed 's/^.*) //' \"/proc/$fx_server_pid/stat\" 2>/dev/null) || return 1; "
+                + "start=$(printf '%s\\n' \"$fields\" | awk '{print $20}'); "
+                + "case \"$start\" in ''|*[!0-9]*) return 1;; esac; printf '%s\\n' \"$start\"; }; "
                 + "server_pid_matches() { "
                 + "fx_server_pid=\"$1\"; server_pid_live \"$fx_server_pid\" || return 1; "
                 + "[ -r \"/proc/$fx_server_pid/cmdline\" ] || return 1; "
@@ -1205,7 +1217,7 @@ public final class FxDiaFridaActivity extends Activity {
                 + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '3p')\" = \"127.0.0.1:27042\" ]; }; ";
     }
 
-    private void startServer() {
+        private void startServer() {
         String server = currentServerPath();
         if (!validPath(server)) {
             setStatus("frida-server 路径无效。");
@@ -1219,19 +1231,25 @@ public final class FxDiaFridaActivity extends Activity {
                 + "mkdir -p \"$state\"; test -d \"$state\" && test ! -L \"$state\"; chmod 700 \"$state\"; "
                 + "[ ! -L \"$pidfile\" ] && [ ! -L \"$lock\" ] && [ ! -L \"$log\" ] || { echo FX_FRIDA_UNSAFE_STATE; exit 21; }; "
                 + "mkdir \"$lock\" 2>/dev/null || { echo FX_FRIDA_SERVER_START_BUSY; exit 10; }; "
-                + "tmp=; spawned_pid=; "
+                + "tmp=; spawned_pid=; spawned_start=; "
                 + "cleanup_start() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; "
-                + "if [ -n \"$spawned_pid\" ] && server_pid_matches \"$spawned_pid\"; then kill -TERM \"$spawned_pid\" 2>/dev/null || :; fi; "
+                + "if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" ] "
+                + "&& [ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ] "
+                + "&& server_pid_matches \"$spawned_pid\"; then kill -TERM \"$spawned_pid\" 2>/dev/null || :; fi; "
                 + "rmdir \"$lock\" 2>/dev/null || :; }; "
                 + "trap cleanup_start 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
                 + "test -x \"$server\" && test ! -L \"$server\" || { echo FX_FRIDA_SERVER_PATH_INVALID; exit 20; }; "
                 + serverProcessGuards()
                 + "if [ -e \"$pidfile\" ]; then "
                 + "[ -f \"$pidfile\" ] && [ ! -L \"$pidfile\" ] || { echo FX_FRIDA_PID_RECORD_UNSAFE; exit 22; }; "
-                + "old_pid=$(sed -n '1p' \"$pidfile\"); old_server=$(sed -n '2p' \"$pidfile\"); old_port=$(sed -n '3p' \"$pidfile\"); "
+                + "old_pid=$(sed -n '1p' \"$pidfile\"); old_server=$(sed -n '2p' \"$pidfile\"); "
+                + "old_port=$(sed -n '3p' \"$pidfile\"); old_start=$(sed -n '4p' \"$pidfile\"); "
                 + "case \"$old_pid\" in ''|*[!0-9]*) echo FX_FRIDA_PID_RECORD_INVALID; exit 22;; esac; "
                 + "[ \"$old_server\" = \"$server\" ] && [ \"$old_port\" = 27042 ] || { echo FX_FRIDA_PID_RECORD_CONFLICT; exit 23; }; "
                 + "if server_pid_live \"$old_pid\"; then "
+                + "case \"$old_start\" in ''|*[!0-9]*) echo FX_FRIDA_PID_RECORD_LEGACY_UNVERIFIED; exit 24;; esac; "
+                + "current_start=$(server_pid_starttime \"$old_pid\" 2>/dev/null || :); "
+                + "[ \"$current_start\" = \"$old_start\" ] || { echo FX_FRIDA_PID_REUSED; exit 25; }; "
                 + "server_pid_matches \"$old_pid\" || { echo FX_FRIDA_PID_OWNER_CONFLICT; exit 24; }; "
                 + "echo server=already-running pid=$old_pid; exit 0; "
                 + "fi; rm -f \"$pidfile\"; fi; "
@@ -1240,15 +1258,19 @@ public final class FxDiaFridaActivity extends Activity {
                 + "if [ -n \"$existing_pids\" ]; then echo server=already-running-unmanaged; echo pids=\"$existing_pids\"; exit 0; fi; "
                 + "tmp=$(mktemp \"$state/.dia-frida-server.pid.XXXXXX\"); [ -f \"$tmp\" ] && [ ! -L \"$tmp\" ]; "
                 + "nohup \"$server\" -l 127.0.0.1:27042 >> \"$log\" 2>&1 </dev/null & pid=$!; spawned_pid=$pid; "
-                + "printf '%s\\n%s\\n%s\\n' \"$pid\" \"$server\" 27042 > \"$tmp\"; chmod 600 \"$tmp\"; "
+                + "spawned_start=$(server_pid_starttime \"$pid\" 2>/dev/null || :); "
+                + "case \"$spawned_start\" in ''|*[!0-9]*) echo FX_FRIDA_SERVER_STARTTIME_UNAVAILABLE; exit 25;; esac; "
+                + "printf '%s\\n%s\\n%s\\n%s\\n' \"$pid\" \"$server\" 27042 \"$spawned_start\" > \"$tmp\"; chmod 600 \"$tmp\"; "
                 + "mv -f \"$tmp\" \"$pidfile\"; tmp=; sleep 1; "
-                + "if ! server_pid_matches \"$pid\"; then rm -f \"$pidfile\"; echo FX_FRIDA_SERVER_START_FAILED; exit 25; fi; "
-                + "spawned_pid=; echo server=started pid=$pid;";
+                + "current_start=$(server_pid_starttime \"$pid\" 2>/dev/null || :); "
+                + "[ \"$current_start\" = \"$spawned_start\" ] && server_pid_matches \"$pid\" || { "
+                + "echo FX_FRIDA_SERVER_START_FAILED; exit 25; }; "
+                + "spawned_pid=; spawned_start=; echo server=started pid=$pid;";
         runRoot(command, 20000L, result ->
                 setStatus("启动退出码 " + result.exitCode + "\n" + result.output));
     }
 
-    private void stopServer() {
+        private void stopServer() {
         String command = "set -eu; umask 077; state=/data/adb/privacyguard; "
                 + "pidfile=" + quote(SERVER_PID) + "; lock=\"$state/.dia-frida-server.lock\"; "
                 + "mkdir -p \"$state\"; test -d \"$state\" && test ! -L \"$state\"; "
@@ -1258,25 +1280,33 @@ public final class FxDiaFridaActivity extends Activity {
                 + "trap cleanup_stop 0; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
                 + "if [ ! -e \"$pidfile\" ]; then echo no-fx-owned-server; exit 0; fi; "
                 + "[ -f \"$pidfile\" ] && [ ! -L \"$pidfile\" ] || { echo FX_FRIDA_PID_RECORD_UNSAFE; exit 22; }; "
-                + "pid=$(sed -n '1p' \"$pidfile\"); server=$(sed -n '2p' \"$pidfile\"); port=$(sed -n '3p' \"$pidfile\"); "
+                + "pid=$(sed -n '1p' \"$pidfile\"); server=$(sed -n '2p' \"$pidfile\"); "
+                + "port=$(sed -n '3p' \"$pidfile\"); expected_start=$(sed -n '4p' \"$pidfile\"); "
                 + "case \"$pid\" in ''|*[!0-9]*) echo FX_FRIDA_PID_RECORD_INVALID; exit 22;; esac; "
                 + "case \"$server\" in /*) ;; *) echo FX_FRIDA_PID_RECORD_INVALID; exit 22;; esac; "
                 + "case \"$server\" in *[!A-Za-z0-9_./-]*|*..*) echo FX_FRIDA_PID_RECORD_INVALID; exit 22;; esac; "
                 + "[ \"$port\" = 27042 ] || { echo FX_FRIDA_PID_RECORD_INVALID; exit 22; }; "
+                + "case \"$expected_start\" in ''|*[!0-9]*) echo FX_FRIDA_PID_RECORD_LEGACY_UNVERIFIED; exit 24;; esac; "
                 + serverProcessGuards()
                 + "if server_pid_live \"$pid\"; then "
+                + "actual_start=$(server_pid_starttime \"$pid\" 2>/dev/null || :); "
+                + "[ \"$actual_start\" = \"$expected_start\" ] || { echo FX_FRIDA_PID_REUSED; exit 25; }; "
                 + "server_pid_matches \"$pid\" || { echo FX_FRIDA_PID_OWNER_CONFLICT; exit 23; }; "
                 + "kill -TERM \"$pid\" 2>/dev/null || { echo FX_FRIDA_SERVER_STOP_SIGNAL_FAILED; exit 24; }; "
                 + "_wait=0; while server_pid_live \"$pid\"; do "
+                + "actual_start=$(server_pid_starttime \"$pid\" 2>/dev/null || :); "
+                + "[ \"$actual_start\" = \"$expected_start\" ] || { echo FX_FRIDA_PID_REUSED; exit 25; }; "
                 + "server_pid_matches \"$pid\" || { echo FX_FRIDA_PID_REUSED; exit 25; }; "
                 + "[ \"$_wait\" -lt 50 ] || { echo FX_FRIDA_SERVER_STOP_TIMEOUT; exit 26; }; "
                 + "sleep 0.1; _wait=$((_wait+1)); done; fi; "
+                + "[ ! -L \"$pidfile\" ] && [ \"$(sed -n '1p' \"$pidfile\")\" = \"$pid\" ] "
+                + "&& [ \"$(sed -n '4p' \"$pidfile\")\" = \"$expected_start\" ] || { echo FX_FRIDA_PID_RECORD_CHANGED; exit 27; }; "
                 + "rm -f \"$pidfile\"; echo server=stopped";
         runRoot(command, 12000L, result ->
                 setStatus("停止退出码 " + result.exitCode + "\n" + result.output));
     }
 
-    private static final class Target {
+        private static final class Target {
         final String packageName, label;
         Target(String p, String l) { packageName = p; label = l; }
     }
