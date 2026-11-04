@@ -3035,3 +3035,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
 - 验证：等待本提交 Actions；目前仅完成源码结构对照，不宣称测试通过。
 - 下一步：读取本提交 Actions；通过后回到 Dia SAF/Frida 原生页面批次，避免继续把回归脚本修复当作产品功能交付。
+
+
+## 2026-11-05 — Dia Frida / 备份恢复 Host targeted 回归通过
+
+- Actions：`41915342024`，触发提交 `5a773e952d952a7066fc83c462208b858a308829`，Host regression job SUCCESS。
+- 本次实际执行并通过：`fx-dia-backup-restore-preflight-regression.sh`（备份恢复事务、PG/Stellar 目录替换与符号链接守卫、部分旧备份缺失文件时不误删）；`fx-dia-script-library-regression.sh`（共享 Frida 脚本库校验/序列化、覆盖确认名单、严格 UTF-8 与名称/源码/数量限制）。日志明确输出 Frida store 与 limits 两条 PASS，整个 Host job 成功。
+- Shield 主 UI、六 Tab、worker bounds 的 Host 回归此前在 `41913976722` 成功；Hook 原生 UI 的单独完整回归仍需从最新变更后再跑一次，不能把单个脚本前段 PASS 记作整套通过。
+- 仍未完成 Android Gradle/JUnit、APK/DEX 实际制品、模拟器/真机、备份实际恢复及系统权限验收。Host-only APK 制品检查为 SKIP，不是 APK 通过。
+- 下一批：① Hook/Dia 原生 UI 合并回归复跑；② Shield 白名单/黑名单分页和选择页状态恢复 targeted 回归；③ Dia SAF 文件选择与覆盖确认旋转/进程恢复的设备级验收。固定 FX 1.0.0，不生成最终 APK 或 KernelSU ZIP。
