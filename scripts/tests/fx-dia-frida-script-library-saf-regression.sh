@@ -2,6 +2,7 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
+LIBRARY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Dia Frida Activity source missing" >&2; exit 1; }
 python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
@@ -45,4 +46,20 @@ if "pendingFridaLibraryExportFileName = staged.getName()" not in source:
 if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
 print("PASS: Dia Frida script library supports bounded SAF JSON import/export, cancellation and rotation state")
+
+library = Path(sys.argv[1].replace("FxDiaFridaActivity.java", "FxDiaScriptLibraryActivity.java")).read_text(encoding="utf-8")
+for label, needle in {
+    "search query saved": "out.putString(STATE_SEARCH",
+    "search query restored": 'state.getString(STATE_SEARCH, "")',
+    "scroll offset saved": "out.putInt(STATE_SCROLL_Y",
+    "scroll offset restored after async reload": "libraryScroll.post(() -> libraryScroll.scrollTo(0, restoredScrollY))",
+    "initial new-script request state saved": "out.putBoolean(STATE_OPENING_INITIAL_EDITOR, openingInitialEditor)",
+    "initial new-script request state restored": "state.getBoolean(STATE_OPENING_INITIAL_EDITOR",
+    "editor return target preserved": "out.putString(STATE_EDITING_NAME, editingName)",
+}.items():
+    if needle not in library:
+        raise SystemExit(f"FAIL: script library state restoration missing {label}: {needle}")
+if "openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR" not in library:
+    raise SystemExit("FAIL: rotation can replay the initial new-script request")
+print("PASS: Dia Frida script-library search, scroll, pending editor return and initial-create intent survive recreation")
 PY

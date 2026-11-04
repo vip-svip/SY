@@ -37,14 +37,21 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final int REQUEST_IMPORT = 0x3a12;
     private static final int REQUEST_EXPORT = 0x3a13;
     private static final String STATE_EDITING_NAME = "fx_dia_script_library_editing_name";
+    private static final String STATE_SEARCH = "fx_dia_script_library_search";
+    private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
+    private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(4),
             r -> { Thread t = new Thread(r, "fx-dia-script-library"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
 
     private LinearLayout rows;
+    private ScrollView libraryScroll;
     private EditText search;
     private TextView status;
+    private String restoredSearch = "";
+    private int restoredScrollY;
+    private boolean restoreScrollPending;
     private JSONObject scripts = new JSONObject();
     private String editingName;
     private boolean openingInitialEditor;
@@ -98,9 +105,17 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        if (state != null) editingName = state.getString(STATE_EDITING_NAME);
-        openingInitialEditor = getIntent() != null
-                && getIntent().getBooleanExtra("open_new_script", false);
+        if (state != null) {
+            editingName = state.getString(STATE_EDITING_NAME);
+            restoredSearch = state.getString(STATE_SEARCH, "");
+            restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            restoreScrollPending = true;
+            openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR,
+                    getIntent() != null && getIntent().getBooleanExtra("open_new_script", false));
+        } else {
+            openingInitialEditor = getIntent() != null
+                    && getIntent().getBooleanExtra("open_new_script", false);
+        }
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -114,6 +129,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
+        libraryScroll = scroll;
         scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -128,6 +144,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         search = new EditText(this);
         search.setSingleLine(true);
         search.setHint("搜索脚本名称");
+        search.setText(restoredSearch);
         body.addView(search, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -163,6 +180,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 if (isFinishing() || isDestroyed()) return;
                 scripts = loaded;
                 renderRows();
+                if (restoreScrollPending && libraryScroll != null) {
+                    restoreScrollPending = false;
+                    libraryScroll.post(() -> libraryScroll.scrollTo(0, restoredScrollY));
+                }
                 setStatus("已读取 " + scripts.length() + " 个本地脚本。数据保存在 FX 私有应用配置中。");
                 if (openingInitialEditor) {
                     openingInitialEditor = false;
@@ -437,6 +458,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     @Override protected void onSaveInstanceState(Bundle out) {
         if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
+        out.putString(STATE_SEARCH,
+                search == null || search.getText() == null ? "" : search.getText().toString());
+        out.putInt(STATE_SCROLL_Y, libraryScroll == null ? 0 : libraryScroll.getScrollY());
+        out.putBoolean(STATE_OPENING_INITIAL_EDITOR, openingInitialEditor);
         super.onSaveInstanceState(out);
     }
 

@@ -1741,3 +1741,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `474749b65b61f96ebddf6a03664aadab17ec3397` — `test(hook): cover new group return to move picker`。
 - 源码静态验证：重新读取当前 HEAD 后确认返回标记声明、Bundle 保存/恢复、选择器新增入口、取消回跳、新分组索引选择、失败重试上下文均存在；`scripts/tests/fx-hook-native-ui-regression.sh` 包含对应断言。未在完整 checkout 执行 Shell 脚本，未运行 Gradle、模拟器、UI 自动化或真机旋转/写盘故障注入。
 - 下一步：运行可用的 Hook Native UI 回归（若当前没有完整 checkout，则先核对 Host 测试依赖与可运行入口）；随后进入 Hook 目标页 Root/LSPosed/Accessibility 实际状态显示和授权回读闭环。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia Frida 脚本库页面状态恢复
+
+- `FxDiaScriptLibraryActivity` 现在保存/恢复脚本名称搜索词和列表滚动位置；异步脚本库重载完成并重新渲染列表后再恢复滚动，避免先恢复空列表位置造成跳回顶部。
+- 修复 `open_new_script` 一次性入口在 Activity 重建时从原始 Intent 重复读取的问题：初始新建请求现在以 Bundle 状态为准，已消费后保存为 false，避免从编辑器返回时再次弹出新建对话框。
+- 保留当前编辑脚本名称，确保编辑器 Activity Result 返回时仍能关联原脚本；SAF 导入/导出仍走原系统文档选择器和既有大小/校验限制。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java`；`scripts/tests/fx-dia-frida-script-library-saf-regression.sh`；本状态文件。
+- 验证等级：源码静态确认搜索/滚动保存恢复、异步重载后恢复位置、初始新建意图消费状态和编辑器回传名称均存在；回归脚本增加对应断言。未运行 Shell/Python 回归、Gradle、UI 自动化、模拟器或真机 SAF/旋转交互。
+- 下一步：检查 Frida 管理主页面的脚本编辑器草稿、目标/脚本导航返回和多个 SAF request 的重建恢复；随后执行 Dia Frida 页面组针对性 Host 回归。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
