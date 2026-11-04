@@ -1083,3 +1083,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证边界：没有运行 Android 编译、JUnit/Gradle 或设备导航；静态接线核对不等于 Activity 运行验收。上一批 Firewall 纯 Java Host 用例 11 项已执行通过，但与本批壳接线不同。
 - 下一批具体任务：接入游龙广告 General Settings 页面；随后把 Dia 的核心深层独立 Activity（Frida/脚本库/Activity Browser）与 Shield Scan/Integrity/Rescue 中优先的 1–3 页接上同一六 Tab 壳。保留它们原有返回/结果 Intent 及滚动状态，不改固定六 Tab 顺序或 FX 1.0.0 版本。
 - 本批和此前均未生成最终 APK / KernelSU ZIP。
+
+## 2026-11-05 — 安全护盾白名单 / 管控列表页面状态恢复
+
+- 本节更新前实时 HEAD：`d3bdba1fcd938c4eaffc1c1e63bb272718274309`；固定分支 `fx-v1.0.0-unified-hook-integration`，固定版本 FX 1.0.0。
+- 核对安全护盾四级页面发现：Hub 已恢复滚动位置；扫描页已有完整扫描结果 / 选择状态保存；白名单管理和管控列表则未保存自身列表位置，白名单搜索词也会在 Activity 重建后丢失。
+- 已修复白名单管理：
+  - 将列表 ScrollView 提升为 Activity 字段。
+  - 保存并恢复搜索词与纵向滚动位置；恢复搜索词走原 TextWatcher / 列表刷新路径，不引入另一份搜索状态。
+  - 保持原有白名单 SharedPreferences 键、异步标签加载、原生添加选择器和移除行为不变。
+- 已修复管控列表：
+  - 将列表 ScrollView 提升为 Activity 字段。
+  - 保存并恢复当前分页与纵向滚动位置，重建后继续显示同一批列表区域。
+  - 保持原有管控名单数据键、分页大小、异步应用加载和系统应用排除逻辑不变。
+- 提交：
+  - `a04630b0ec1cd000784fd024bf0df6b7ab59e005` — 白名单搜索词与滚动状态恢复。
+  - `e5181c4262fd52d53d55cf675932d000ce6ce9d9` — 管控列表分页与滚动状态恢复。
+  - `9f6d52a07ae7ffe8bf835dbe79c4793dd0189624` — 安全护盾回归脚本增加两页状态恢复断言。
+- 改动路径：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/WhitelistActivity.java`
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/BlacklistActivity.java`
+  - `scripts/tests/fx-yulong-shield-native-regression.sh`
+- 验证：当前分支重新读取 Hub、白名单、管控列表和回归脚本，静态核对 7 项：Hub 保存/恢复、白名单查询/滚动恢复、管控分页/滚动恢复、回归断言、旧 ScrollView 局部变量引用清理，全部通过。尚未运行完整 Shield Shell 回归、Gradle/JUnit、Android 编译、旋转或进程回收模拟器测试、真机验收。
+- 未改变六 Tab 顺序、任何名单语义或 FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+- 下一批：检查白名单选择器和管控应用选择弹窗在 Activity 重建 / 搜索后是否保留暂存勾选与列表位置；再继续游龙安全护盾病毒库、扫描结果与救援中心的导航返回链。Dia 原版 KeyEventHook 仍需从导入资源/原始 APK 证据溯源，不能把 Frida 观察模板当成拦截实现。
+
