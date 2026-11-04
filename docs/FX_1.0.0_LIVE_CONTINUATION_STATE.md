@@ -749,3 +749,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 固定 Gradle 版本仍为 `versionCode 10000` / `versionName 1.0.0`；没有触发整套 Actions，也没有生成最终 APK/KernelSU ZIP。
 - 真机待验：Android 不同 OEM / 多用户 / 工作资料对 MATCH_DISABLED_COMPONENTS、pm enable/disable-user 和 PackageManager 组件缓存的表现；尤其禁用唯一 MAIN/LAUNCHER Activity 后需确认可从 FX 页面恢复。
 - 下一批直接任务：① 对照 Dia 原始 Dialog 专用页面/脚本/规则，检查是否只有通知监听/阻断映射而缺少真正 Dialog 处理；② 不把通知 Hook 文案冒充 Dialog 能力，确认可迁移的真实事件/显示能力再实现页面；③ 随后回到 Frida 监听/代理页面的原生导航返回链。
+
+
+## 2026-11-05 — Dia GPS 坐标页恢复、解析和 Hook 配置契约收紧
+
+- 本批起始分支 HEAD：`e67a0bbc20631e54cf4204679b3aa2a986c90baf`；本状态更新前 HEAD：`10463057e4cc876d286237b2269b581db324de19`。
+- 原始依据：从资料库 `/FX/Dia_23.11.apk` 还原并检查原始 Manifest、`mod_ex_anti_detection.xml`、`mod_ex_dialog.xml`、`mod_ex_notify_and_tips.xml`、`mod_ex_device_props.xml` 和相关 smali。确认 GPS 地图页使用高德经度/纬度顺序；FX 现有 per-app GPS 表单/Hook 已有实际发布和消费路径。
+- 代码提交：
+  - `8959ac1800cc73aa6bd65ca6a88053e6aaef31d1` — GPS Picker 保存/恢复输入框、状态和 WebView 导航状态；恢复失败时重新加载地图；校验经纬度范围。
+  - `dd8d5a61901a53e172459613ef618a9186169a4b` — Picker 的坐标解析和返回路径统一使用纯 Java parser。
+  - `c76db417da64830eaa18222ab7f088f4340dc175` — 新增 `FxDiaGpsCoordinateParser`，统一处理高德“经度,纬度”、中文逗号、空白分隔、有限数值和经纬度范围。
+  - `a3ae21c06c60af81939ea59251e6f022af5a50e2` — 新增 GPS 坐标 parser JUnit 覆盖。
+  - `80ead23c5e03ac230d0441c7f8cd9ddea02b97d0` — 配置解析器拒绝未开启模拟时残留的 `location_accuracy`，与经纬度字段一样 fail-closed。
+  - `c51622d5821fc63f3bc37dafae70a8d183c5b41b`、`d181e2d33729aac59c01d3e86fac8d8afd9f3bad` — 修正 Hook 注释和 UI 说明：Fused 回调返回的 Location 对象只在目标读取 Location getter 时显示测试值；不声称拦截回调注册、系统 GNSS/provider 或路线。
+  - `667dd09ac64ddcae5f1fef783a24d74c792101d3` — 新增 `UnifiedHookLocationConfigTest`，覆盖 per-app 坐标/精度解析、默认精度、provider 状态独立开关、序列化往返、缺字段/越界/NaN/Infinity、与 location access block 冲突及旧配置不启用模拟。
+- 改动路径：`FxDiaGpsPickerActivity.java`、`FxDiaGpsCoordinateParser.java`、`FxDiaGpsCoordinateParserTest.java`、`UnifiedHookConfigParser.java`、`UnifiedHookLocationConfigTest.java`、`AdVisibilityHook.java`、`MainActivity.java`。
+- 定向验证：
+  - 从最新提交重新读取 Picker、parser、Hook、UI 和测试源码；检查状态 Bundle key、WebView restore fallback、GCJ-02 提示、两个坐标入口共用 parser、parser 数值/范围检查、配置 parser 的 accuracy 关联检查及 9 个 GPS config JUnit 用例声明。
+  - 使用 JDK 临时 Host harness 编译与仓库当前 `FxDiaGpsCoordinateParser` 相同的纯 Java 实现，10 项运行断言通过（经纬度顺序、中文逗号、分离字段、空/缺项/多项、NaN/Infinity、纬度/经度范围）。这是临时 Host harness，不是仓库 Gradle/JUnit 任务。
+  - 未运行 Android/Gradle 编译、JUnit runner、LSPosed 真机 Hook、Fused provider 真实回调或地图联网验收；设备级未验收。
+- 固定版本 FX 1.0.0；没有修改系统定位权限、GNSS 或系统级定位；未打包最终 APK/KernelSU ZIP；未触发完整 Actions。
+- 原始 Dialog 对照发现的明确缺口（下一批最高优先级）：
+  - 原版 `mod_ex_dialog.xml` 有 `alert_close_ex`、`alert`、`alert_auto`、`disable_alert_mode`、`alert_enabled`、`alert_keyword`、`alert_id`、`toast` 等配置；原版通过 `ViewGroupHook`、`WindowManagerHook`、`KeyEventHook`、`ToastDisableHook` 执行按文本/ID 匹配的弹窗处理和 Toast 过滤。
+  - 当前 FX 的 Dia 路由 `对话框与通知` 仅跳到 per-app `通知保护`，而 Hook 中的 `Dialog.show` observer 只用于广告 View 扫描，不等于原版 Dialog 自动处理；该功能尚未迁移。
+  - 下一步必须实现独立 per-app Dialog/Toast 原生配置与真实 Hook 执行器，至少先支持显式文本/ID 规则、明确启停、限额/防误匹配、Toast 过滤和状态回执；不要把通知监听开关冒充 Dialog 功能。对原版按键触发模式先继续解析语义，再决定安全迁移方式。
+- 并行工作线：Dialog 原版 smali/Preference XML 已定位；下一轮先实现独立纯 Java 匹配策略与配置 parser/serializer，再接 Hook 执行器和 MainActivity 页面路由。共享 `AdVisibilityHook.java` / `MainActivity.java` 修改前必须重新读取最新 blob。
