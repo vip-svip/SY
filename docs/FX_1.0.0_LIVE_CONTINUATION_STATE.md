@@ -1362,3 +1362,32 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交 `6022096bc97ee368de26733a8a2ec5b28c4c740a` 扩展 Dia 原生页回归脚本，覆盖 Wi-Fi Proxy 六 Tab 页面与受保护恢复/后台线程销毁锚点。
 - 静态核验已完成；尚未运行 Shell 脚本、Gradle/Android 编译或真机 Root HTTP 代理写入/恢复验证。不得将静态锚点视为真实系统代理验收。
 - Dia 23.11 主要独立工具页面目前大部分已接入共享六 Tab；下一阶段重点转为六 Tab 返回栈、页面状态恢复、VPN/Root 真实行为和设备级验证。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
+
+## 2026-11-05 — Dia / Shield 独立页面六 Tab 覆盖扩展
+
+- 本节更新前实时 HEAD：`d2c0aecaec9e34df43512826a58fddd2eeb4fed0`。
+- 最新源码核对确认 Dia 目录中以下 17 个独立 Activity 均使用 `FxNativeTabActivity` 并调用 `setContentViewWithNativeTabs(root, 5)`，不再绕过底部导航：
+  1. Activity Browser
+  2. Frida 工具
+  3. Script Library
+  4. Inspector
+  5. Code Editor
+  6. JSON Editor
+  7. Monitor Events
+  8. Backup / Restore
+  9. Global Settings
+  10. Session Log
+  11. Crash Report
+  12. DEX Browser
+  13. SAF File / ELF
+  14. Signature Inspector
+  15. System Expand
+  16. Wi-Fi Proxy
+  17. GPS Picker
+- System Expand 与 Signature / Wi-Fi Proxy 的宿主接入由并行工作线推进；本批没有重复改写已接入页面。Batch Cleanup / Screen Filter 已在前节接入 Shield 六 Tab。
+- 更新 `scripts/tests/fx-dia-six-tab-regression.sh`：`29c35b5f3495df64def5c51cad1edfd6b8bff732`，将上述 17 个页面纳入逐页 Manifest / 宿主 / 根安装点检查；原有 Browser→Inspector、Script Library→Code Editor、Frida→Script Library 路由断言保留。
+- 最新 HEAD 静态核验 6 项通过：17 页共享宿主、无旧裸根绕过、回归脚本列全、Backup 文件选择 Activity Result 入口保留、Wi-Fi Proxy 共享壳、System Expand 共享壳。
+- Shield Batch Cleanup / Screen Filter 页面也已使用共享宿主；对应 `fx-yulong-shield-six-tab-regression.sh` 已增加两页。未改变原服务逻辑、权限开关或危险操作默认值。
+- 验证边界：未实际运行 Shell 脚本、Gradle/JUnit、Android 编译、模拟器/真机六 Tab 点击与返回栈验收；本节仅记录最新 GitHub 源码静态核验。
+- 下一批继续：核对独立 Activity 的 Tab 点击回跳与 CLEAR_TOP 返回链是否对所有页面一致；检查 Backup / SAF / GPS Picker 的 Activity Result 在重建后的状态恢复；随后处理 Shield 的服务状态与权限真实性。
+- 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
