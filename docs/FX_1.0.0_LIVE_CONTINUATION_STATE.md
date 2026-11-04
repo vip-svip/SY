@@ -3086,3 +3086,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：将 `ET.parse(manifest_path).getroot()` 改为 `ET.fromstring(manifest_path)`；上游 shell 已将 Manifest 读成文本，直接解析文本才符合数据类型。
 - 改动路径：`scripts/tests/fx-dia-system-expand-navigation-regression.sh`。
 - 验证：修复后将重新执行 SystemExpand 页面状态恢复与 Manifest private/exported 断言；本轮还未有新 Actions 结果。
+
+ 
+## 2026-11-05 — Dia System Expand 安装来源选择器原生搜索与空状态
+
+- 页面：Dia 23.11 → 系统扩展 → 未知来源安装授权。
+- 原缺陷：安装来源通过无搜索的 `AlertDialog.setItems()` 展示；应用数量较多时只能滚动查找，也没有筛选无匹配状态。
+- 实现：原生 EditText + ListView 搜索弹窗，ArrayAdapter Filter 按显示名称/包名匹配；空结果显示提示；选择结果仍只打开 Android 对应应用的 `ACTION_MANAGE_UNKNOWN_APP_SOURCES`，不代替系统授权；取消无副作用。
+- 改动：`FxDiaSystemExpandActivity.java`、`fx-dia-system-expand-installer-regression.sh`、本状态文件。产品代码提交：`049d503cedb29a051380ed9e788160a0142dca40`；定向断言提交：`f0922170e5b6fb37f219e553b132eb9a71d1a0bd`。
+- 验证：源码锚点与唯一替换检查；回归新增搜索、过滤、空状态、行点击路由、旧无搜索列表移除断言。Actions 待执行；尚未运行 Android Gradle、UI 自动化、模拟器或真机。
+- 未完成：筛选查询在 Activity 重建后不恢复；System Expand 滚动恢复已由前一批补入，尚未做设备旋转验收。
+- 失败路线：不再使用不可搜索的固定 `setItems(labels,...)`；不绕过 Android 逐应用授权页面。
+- 下一批：补选择器查询状态恢复，并完成 System Expand / Wi-Fi Proxy 返回链交互检查；随后进入 Dia 原生文件/备份页面批次。固定 FX 1.0.0，不打最终包。
