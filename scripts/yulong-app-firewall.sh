@@ -710,12 +710,12 @@ watch_lock_acquire() {
     else
       # Publish PID, script path and /proc start time together. The start
       # time prevents PID reuse; the script path avoids fragile argv parsing.
-      _watch_lock_start=$(watch_lock_pid_start_time "$") || {
+      _watch_lock_start=$(watch_lock_pid_start_time "$$") || {
         echo "unable to read current watcher lock owner start time" >&2
         return 1
       }
-      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
-      if (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
+      _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start")
+      if (umask 077; set -C; printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$WATCH_LOCK") 2>/dev/null; then
         WATCH_LOCK_OWNED=1
         WATCH_LOCK_START=$_watch_lock_start
         if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
@@ -746,7 +746,7 @@ watch_lock_acquire() {
 }
 watch_lock_release() {
   [ "$WATCH_LOCK_OWNED" = 1 ] || return 0
-  _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$" FXYWLOCK2 "$SCRIPT_PATH" "$WATCH_LOCK_START")
+  _watch_lock_expected=$(printf '%s\n%s\n%s\n%s\n' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$WATCH_LOCK_START")
   if [ -f "$WATCH_LOCK" ] && [ ! -L "$WATCH_LOCK" ] \
       && [ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_expected" ]; then
     rm -f "$WATCH_LOCK"
