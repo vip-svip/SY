@@ -42,7 +42,7 @@ import de.privacyguard.adhook.RootAccess;
  * Package inventory and Activity metadata are loaded off the UI thread; both pages
  * support local search, bounded pagination and state restoration.
  */
-public final class FxDiaActivityBrowserActivity extends Activity {
+public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int APP_PAGE_SIZE = 50;
     private static final int ACTIVITY_PAGE_SIZE = 80;
     private static final String STATE_SELECTED_PACKAGE = "fx_dia_browser_selected_package";
@@ -243,7 +243,7 @@ public final class FxDiaActivityBrowserActivity extends Activity {
                         : "显示目标应用声明的 Activity、导出属性、Manifest 状态和系统当前组件状态。列表最多每页显示 80 项。",
                 activitySearch, activityCount, activityRows, activityPager);
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count,
                                                     int after) { }
