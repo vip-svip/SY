@@ -20,8 +20,12 @@ assert 'createDeviceProtectedStorageContext()' in manager, "Stellar boot setting
 assert 'getSharedPreferences("settings",MODE_PRIVATE)' in manager, "boot mode must preserve the original Stellar settings file name"
 assert 'getString("boot_mode","NONE")' in manager, "new FX installs must default to the original NONE boot mode"
 assert 'putString("boot_mode",install?"SCRIPT":"NONE").commit()' in manager, "boot_mode may only change after the script operation succeeds"
-assert 'root("boot-script install"' in manager and 'root("boot-script remove"' in manager and 'root("boot-script status"' in manager, \
-    "install/remove/status must travel through the protected Stellar root broker"
+assert 'String command="boot-script "+(install?"install":"remove")' in manager, \
+    "install/remove must map to the fixed boot-script backend actions"
+assert 'root(command,result->' in manager, \
+    "install/remove must travel through the protected Stellar root broker"
+assert 'root("boot-script status",result->' in manager, \
+    "status must travel through the protected Stellar root broker"
 assert 'success=1 boot_script=installed' in manager and 'success=1 boot_script=removed' in manager, \
     "UI must verify the exact backend result before reporting boot mode changes"
 assert 'boot mode preference write failed' not in manager, "failure messaging must remain localized and explicit"
