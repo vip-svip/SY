@@ -3328,3 +3328,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 产品提交：`d74ff8eda54e68a12c0627f491583c0e630f0a05`；回归提交：`ef612178a46ffa25bde7d111ea1817cca5bad979`。
 - 验证：源码及回归断言已提交；Actions 尚待读取。未运行 Android UI 压力测试或真机连续点击验证。
 - 下一步：检查 Frida server/Gadget 回归链；继续检查 Dia 原生页面后台任务是否有无界执行器，并优先完成 UI 状态/返回链，而不是重复全仓扫描。
+
+
+## 2026-11-05 — Frida Gadget log special-file guard retained
+
+- Restored the Gadget log reader's explicit checks after reviewing the searchable process-picker change: missing file returns an empty-state message; existing targets must be regular readable files; symlinks, directories and special files are rejected before `tail`.
+- Product commit: `30068f1e71aaf20951726a737e0a8e5d23207b9b`.
+- Added regression coverage for the `FX_GADGET_LOG_TYPE_REJECTED` marker and regular/readable file guards. Test commit: `8fce550edb02a95681086062996d0cb364d1f9bf`.
+- The searchable multi-select process picker retains the pending PID set across filters and restores query/selection after Activity recreation. Selecting a different target clears the previous process query and pending selection.
+- Actions and device validation pending; do not claim real Root/FIFO/symlink device tests.
+
+## 2026-11-05 — Continuation state history restored
+
+- Reinstated the missing historical records for Gadget log special-file rejection and File Browser/DNS stale search-scroll restoration so the live state remains a complete continuation log after a concurrent state-file rewrite.
+- File Browser/DNS changes remain committed in `b9eb001ecdc03fd299685866bb1fd080d3365e5c`, `836ff829d7891f0b948dd3c2d6281c64416e69af`, `b7c30f5fa66a79c878647c12ef286f353bd50b0f`, and `5bd0768644562c9747dedb6be8676551cbb156ad`.
