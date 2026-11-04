@@ -17,7 +17,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /** Native Dia crash report viewer; copy and share are explicit user actions. */
-public final class FxDiaCrashReportActivity extends Activity {
+public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private FxDiaCrashRecord record;
     private boolean unreadablePendingReport;
     private CheckBox hexStack;
@@ -119,7 +119,7 @@ public final class FxDiaCrashReportActivity extends Activity {
                 11, 0xff607080, false));
         body.addView(button("清除崩溃记录", this::confirmClear));
         body.addView(button("关闭", this::finish));
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
         updateNativeCaptureStatus();
         render();
     }
