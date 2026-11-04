@@ -43,14 +43,16 @@ with tempfile.TemporaryDirectory(prefix="fx-yulong-trusted-patcher-") as tmp:
     util = (scripts / "util.sh").read_text(encoding="utf-8")
     defaults = (scripts / "default.conf").read_text(encoding="utf-8")
 
-    assert service.count("yulong-trusted-network.sh") == 1, "trusted watcher must be inserted once"
+    assert service.count('if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then') == 1, "trusted watcher guard must be inserted once"
+    assert service.count('sh "$MODDIR/scripts/yulong-trusted-network.sh" start') == 1, "trusted watcher start command must be inserted once"
     assert service.count("yulong-ad-schedule.sh") == 1, "weekly scheduler must be inserted once"
     assert service.index("yulong-trusted-network.sh") < service.index("yulong-ad-schedule.sh") < service.index("jsruntime/scheduler.sh"),         "Yulong watchers must start before the JS scheduler without replacing it"
     assert util.count("yulong_ad_schedule_active") == 1, "weekly schedule gate must be present exactly once"
     assert util.count("yulong_ad_trusted_active") == 1, "trusted Wi-Fi gate must be present exactly once"
     assert defaults.count("yulong_ad_schedule_active=1") == 1, "weekly schedule default must be unique"
     assert defaults.count("yulong_ad_trusted_active=1") == 1, "trusted Wi-Fi default must be unique"
-    assert uninstall.count("yulong-trusted-network.sh") == 1, "uninstall must stop trusted watcher exactly once"
+    assert uninstall.count('if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then') == 1, "uninstall trusted watcher guard must be inserted once"
+    assert uninstall.count('sh "$MODDIR/scripts/yulong-trusted-network.sh" uninstall') == 1, "uninstall must stop trusted watcher exactly once"
     assert 'yulong-trusted-network.sh" uninstall' in uninstall, "uninstall must restore owned Yulong rule gate"
 
     apply_patch()
