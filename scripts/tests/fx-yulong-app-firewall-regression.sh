@@ -273,10 +273,24 @@ for line in source.splitlines():
 print("PASS: firewall watcher writes, verifies and releases its actual owner PID")
 PY
 
-# Start must retain the lifecycle lock until nohup has exec'd the exact watcher.
-grep -Fq 'while [ "$_watch_start_wait" -lt 30 ]; do' "$SOURCE" || fail "watcher startup releases lifecycle lock before identity confirmation"
-grep -Fq 'if watch_is_ours "$pid"; then' "$SOURCE" || fail "watcher startup does not confirm exact process identity under lock"
-grep -Fq 'retaining PID record' "$SOURCE" || fail "ambiguous live watcher PID could be discarded and duplicated"
+# The watch-loop child, not its parent, publishes the PID after process startup.
+python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    'printf \'%s\\n\' "$" > "$_watch_pid_tmp"',
+    'chmod 600 "$_watch_pid_tmp"',
+    'mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"',
+    'while [ "$_watch_start_wait" -lt 50 ]; do',
+    '[ "$(cat "$WATCH_PIDFILE" 2>/dev/null || true)" = "$pid" ]',
+    '&& kill -0 "$pid" 2>/dev/null && watch_is_ours "$pid"; then',
+)
+for item in required:
+    if item not in source:
+        raise SystemExit("FAIL: watcher child-readiness contract missing: " + item)
+print("PASS: watcher child atomically publishes its own PID; starter verifies child identity under lock")
+PY
 
 # Signal handlers must exit into the sole EXIT cleanup handler.
 grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE" || fail "EXIT lock cleanup handler missing"
