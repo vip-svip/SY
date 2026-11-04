@@ -13,12 +13,12 @@ from pathlib import Path
 import sys
 project, app, props, workflow = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "com.android.application' version '9.1.1'" in project, "AGP must support Android API 37"
-assert "org.jetbrains.kotlin.android' version '2.2.21'" in project
-assert "org.jetbrains.kotlin.plugin.compose' version '2.2.21'" in project
+assert "org.jetbrains.kotlin.android' version '2.4.21'" in project
+assert "org.jetbrains.kotlin.plugin.compose' version '2.4.21'" in project
 assert "compileSdk 37" in app, "libXposed 102 requires compileSdk 37"
 assert "jvmTarget = '17'" in app
 assert "android.builtInKotlin=false" in props and "android.newDsl=false" in props, \
-    "retain the existing Kotlin 2.2.21 / legacy DSL compatibility while upgrading AGP"
+    "retain the existing Kotlin 2.4.21 / legacy DSL compatibility while upgrading AGP"
 assert "gradle-version: '9.3.1'" in workflow, "AGP 9.1.1 requires Gradle 9.3.1"
 assert "platforms;android-37" in workflow and "build-tools;36.0.0" in workflow
 assert "$SDK_ROOT/build-tools/36.0.0/apksigner" in workflow
