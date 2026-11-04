@@ -22,6 +22,8 @@ pages = {
     "FxYulongRescueActivity.java": ".imported.shield.FxYulongRescueActivity",
     "FxYulongBatchCleanupActivity.java": ".imported.shield.FxYulongBatchCleanupActivity",
     "FxYulongScreenFilterActivity.java": ".imported.shield.FxYulongScreenFilterActivity",
+    "FxYulongDailySummaryActivity.java": ".imported.shield.FxYulongDailySummaryActivity",
+    "FxYulongWarningActivity.java": ".imported.shield.FxYulongWarningActivity",
     "WhitelistActivity.java": ".imported.shield.WhitelistActivity",
     "WhitelistPickerActivity.java": ".imported.shield.WhitelistPickerActivity",
     "BlacklistActivity.java": ".imported.shield.BlacklistActivity",
@@ -54,6 +56,8 @@ assert "STATE_FINDING_PACKAGES" in scan and "onSaveInstanceState" in scan
 assert "Intent.ACTION_DELETE" in scan and 'setPositiveButton("打开系统确认"' in scan
 assert "Intent.ACTION_DELETE" in rescue
 assert "FxYulongRescueActivity.class" in hub
+assert "FxYulongDailySummaryActivity.class" in hub
+assert "FxYulongWarningActivity.class" in hub
 assert "FxYulongVirusDatabaseActivity.class" in hub
 for key in ("STATE_PICKER_OPEN", "STATE_PICKER_QUERY", "STATE_PICKER_PAGE", "STATE_PICKER_STAGED", "STATE_PICKER_SCROLL_Y"):
     assert key in black, f"Blacklist picker state missing: {key}"
