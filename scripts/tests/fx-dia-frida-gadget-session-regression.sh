@@ -107,16 +107,21 @@ for label, needle in (
 ):
     if needle not in existing_guard:
         raise SystemExit(f"FAIL: {label}")
-if "new ArrayBlockingQueue<>(1)" not in session_log:
-    raise SystemExit("FAIL: Frida session log worker queue must be bounded")
-if "new ThreadPoolExecutor(" not in session_log or "1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1)" not in session_log:
-    raise SystemExit("FAIL: Frida session log worker must use a single bounded worker with a one-item queue")
-if "new ThreadPoolExecutor.AbortPolicy()" not in session_log:
-    raise SystemExit("FAIL: Frida session log worker must reject overload explicitly")
-if "catch (RejectedExecutionException full)" not in session_log:
-    raise SystemExit("FAIL: Frida session log UI must surface queue saturation")
-if "worker.shutdownNow();" not in session_log:
-    raise SystemExit("FAIL: Frida session log worker must stop with Activity lifecycle")
+root_worker = source[source.index("private final ThreadPoolExecutor worker ="):
+                      source.index("private void ensureFridaWorkerActive()")]
+if "ThreadPoolExecutor(1, 1, 30L" not in root_worker or "new ArrayBlockingQueue<>(12)" not in root_worker:
+    raise SystemExit("FAIL: Frida Root operations must share one bounded serial worker")
+if "new ThreadPoolExecutor.AbortPolicy()" not in root_worker:
+    raise SystemExit("FAIL: Frida Root worker must reject overload explicitly")
+if "submitWorker(() ->" not in source[source.index("private void runRoot("):
+                                   source.index("private void setStatus(")]:
+    raise SystemExit("FAIL: Frida Root commands must route through the shared bounded worker")
+if "catch (RejectedExecutionException full)" not in source:
+    raise SystemExit("FAIL: Frida UI must surface queue saturation")
+if "worker.shutdownNow();" not in source[source.index("@Override protected void onDestroy()"):]:
+    raise SystemExit("FAIL: Frida Root worker must stop with Activity lifecycle")
+if "runRoot(command, 12000L" not in show:
+    raise SystemExit("FAIL: Gadget log reads must use the shared Root worker")
 if "ps -A -o PID,NAME" in attach:
     raise SystemExit("FAIL: Gadget process matching must not rely on the ps NAME column")
 if "session_pid_active()" not in attach or "Z|X|x" not in attach:
