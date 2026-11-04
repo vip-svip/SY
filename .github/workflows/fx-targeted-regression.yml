@@ -1,0 +1,143 @@
+name: FX Targeted Host Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - '.github/workflows/build-fx-adhook.yml'
+      - '.github/workflows/fx-targeted-regression.yml'
+      - 'adhook/app/src/main/**'
+      - 'adhook/app/src/test/**'
+      - 'fx-module/scripts/**'
+      - 'fx-patches/**'
+      - 'scripts/tests/**'
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - 'adhook/app/src/main/**'
+      - 'adhook/app/src/test/**'
+      - 'fx-module/scripts/**'
+      - 'fx-patches/**'
+      - 'scripts/tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-targeted-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select and run only affected host regressions
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            base="$PUSH_BEFORE"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+              changed="$(git diff --name-only HEAD^ HEAD)"
+            else
+              changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
+            fi
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            changed="$(git diff --name-only "$PR_BASE" "$GITHUB_SHA")"
+          else
+            changed="ALL"
+          fi
+
+          if grep -Eq '^\.github/workflows/(build-fx-adhook|fx-targeted-regression)\.yml$' <<<"$changed"; then
+            changed="ALL"
+          fi
+          echo "Changed paths:"
+          printf '%s\n' "$changed"
+
+          # Catch syntax errors in changed host scripts without invoking a full Android build.
+          while IFS= read -r file; do
+            [[ -f "$file" ]] || continue
+            case "$file" in
+              *.sh) bash -n "$file" ;;
+              *.py) python3 -m py_compile "$file" ;;
+            esac
+          done <<<"$changed"
+
+          ran=0
+          run_sh() {
+            local file="$1"
+            [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            echo "::group::bash $file"
+            bash "$file"
+            echo "::endgroup::"
+            ran=1
+          }
+          run_py() {
+            local file="$1"
+            [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            echo "::group::python $file"
+            python3 "$file"
+            echo "::endgroup::"
+            ran=1
+          }
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaFridaActivity|FxDiaScriptLibraryActivity|FxDiaCodeEditorActivity|fx-dia-frida-) ]]; then
+            run_sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
+            run_py scripts/tests/fx-dia-frida-process-identity-regression.py
+            run_sh scripts/tests/fx-dia-frida-server-lifecycle-regression.sh
+            run_sh scripts/tests/fx-dia-frida-page-navigation-regression.sh
+            run_py scripts/tests/fx-dia-frida-target-loader-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls) ]]; then
+            run_sh scripts/tests/fx-hook-native-ui-regression.sh
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_sh scripts/tests/fx-dia-custom-hook-literal-regression.sh
+            run_py scripts/tests/fx-dia-lsposed-scope-regression.py
+            run_py scripts/tests/fx-dia-lsposed-auto-scope-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaDexBrowserActivity|fx-dia-dex-document-browser) ]]; then
+            run_sh scripts/tests/fx-dia-dex-document-browser-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (imported/shield/|FxYulong|Blacklist|Whitelist|VirusDb|fx-yulong-shield) ]]; then
+            run_sh scripts/tests/fx-yulong-shield-native-regression.sh
+            run_sh scripts/tests/fx-yulong-shield-six-tab-regression.sh
+            run_sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_yulong_root_proxy) ]]; then
+            run_sh scripts/tests/fx-atomic-cache-lock-release-regression.sh
+            run_sh fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh
+          fi
+
+          # If only an individual regression file changed, execute that file directly.
+          while IFS= read -r file; do
+            [[ -f "$file" ]] || continue
+            case "$file" in
+              scripts/tests/*.sh|fx-module/scripts/tests/*.sh)
+                run_sh "$file"
+                ;;
+              scripts/tests/*.py)
+                run_py "$file"
+                ;;
+            esac
+          done <<<"$changed"
+
+          if [[ "$ran" -eq 0 ]]; then
+            echo "No mapped host regression for this path set; full Gradle/build validation remains PR/manual only."
+          fi
