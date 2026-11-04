@@ -357,7 +357,7 @@ public final class FxDiaFridaActivity extends Activity {
         TextView warning = text("注入要求：Root 可执行权限、frida-server 正在本机回环地址监听、frida-inject 可执行、目标应用处于前台/运行状态且为 debuggable。", 12, 0xff7a5b20, false);
         warning.setPadding(dp(16), dp(6), dp(16), dp(14));
         card(body, "Dia 开发监控模板",
-                "仅对可调试测试应用启用。Intent/View/Fragment/线程模板只记录类型、类名、资源 ID 和耗时，不读取文本、参数值、Intent extras 或命令内容；内存快照会包含进程私有内存，请只对自有测试应用使用。",
+                "仅对自有可调试测试应用启用。观察模板不会读取 Intent extras/URI 或命令内容；自动点击模板会触发真实按钮事件，默认无匹配规则，须明确填写正则/资源 ID 并手动注入。不要对支付、授权、删除等敏感操作配置自动点击。",
                 button("载入 HTTP 连接监控", () -> loadDiaMonitorTemplate("http")),
                 button("载入 WebView 导航监控", () -> loadDiaMonitorTemplate("webview-http")),
                 button("载入 SQLite 调用监控", () -> loadDiaMonitorTemplate("sql")),
@@ -367,6 +367,7 @@ public final class FxDiaFridaActivity extends Activity {
                 button("载入 Activity 创建入口观察", () -> loadDiaMonitorTemplate("appentry")),
                 button("载入 Socket 连接观察", () -> loadDiaMonitorTemplate("socket")),
                 button("载入 View 点击观察", () -> loadDiaMonitorTemplate("click")),
+                button("载入正则/资源 ID 自动点击", () -> loadDiaMonitorTemplate("click-auto")),
                 button("载入 ViewGroup 层级观察", () -> loadDiaMonitorTemplate("viewgroup")),
                 button("载入 Fragment 生命周期观察", () -> loadDiaMonitorTemplate("fragment")),
                 button("载入线程/启动调用栈观察", () -> loadDiaMonitorTemplate("thread")),
@@ -441,6 +442,8 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("stack");
         } else if ("View 点击监控".equals(title)) {
             loadDiaMonitorTemplate("click");
+        } else if ("按文本/ID 自动点击".equals(title)) {
+            loadDiaMonitorTemplate("click-auto");
         } else if ("ViewGroup 层级监控".equals(title)) {
             loadDiaMonitorTemplate("viewgroup");
         } else if ("Fragment 生命周期".equals(title)) {
@@ -1859,6 +1862,14 @@ public final class FxDiaFridaActivity extends Activity {
                         + "  };\\n"
                         + "});";
                 break;
+            case "click-auto":
+                try {
+                    source = readDiaTemplateAsset("dia/fx_auto_click_template.js");
+                } catch (Exception error) {
+                    setStatus("读取自动点击模板失败：" + error.getMessage());
+                    return;
+                }
+                break;
             case "memory":
                 source = "Java.perform(function () {\\n"
                         + "  var ActivityThread = Java.use('android.app.ActivityThread');\\n"
@@ -1873,7 +1884,21 @@ public final class FxDiaFridaActivity extends Activity {
                 return;
         }
         script.setText(source);
-        setStatus("监控模板已载入；请先检查目标类/方法，再手动执行注入。");
+        if ("click-auto".equals(kind)) {
+            setStatus("自动点击模板已载入：规则默认为空；仅对自有测试应用填写正则/资源 ID 后手动注入。");
+        } else {
+            setStatus("监控模板已载入；请先检查目标类/方法，再手动执行注入。");
+        }
+    }
+
+    private String readDiaTemplateAsset(String assetName) throws Exception {
+        try (InputStream in = getAssets().open(assetName)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        }
     }
 
     private String gadgetConfigTarget(String libraryPath) {

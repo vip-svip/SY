@@ -119,3 +119,10 @@ This makes the current CI package build successful, but the build still depends 
 - The workflow host regression creates a temporary scripts/util.sh with pg_get/pg_set and exports MP/PG for child shell scripts, but later calls pg_set directly in the parent test shell without sourcing util.sh there. This made the suite stop at the no-external-VPN rollback case with `pg_set: not found`, before later checks or Android build.
 - Source the same temporary helper in the test process after its fixture is created. Production controller behavior is unchanged; the test now exercises the actual helper contract it already declared.
 - Verification scope: source-level fixture correction and shell syntax to be checked; full GitHub workflow and device behavior are not represented as passed.
+
+## 2026-11-05 — Dia regex/resource-ID automatic click migration
+
+- The original ClickBtnHook/ViewHelper implements active matching and clicking (TextView regex or resource ID, delayed main-thread performClick); FX previously had only a passive View.performClick observer. Added a separate native Dia page and executable Frida asset to restore this behavior without replacing the existing observer.
+- The template is inert by default: both regex and ID rule arrays are empty. The user must edit explicit rules in the script editor and manually inject into the selected test target. It checks clickable/enabled/visible state, uses the Android UI thread, logs no button text, clamps delay to 0–10 seconds, and bounds scans to 1,500 nodes/depth 28 and eight scheduled clicks per process.
+- The Dia monitor regression now verifies the page, loader, default-off rules, bounds, UI-thread execution and Node syntax. The original ViewGroup dialog-removal behavior is still separate and is not claimed as migrated here.
+- Verification scope remains source regression and JavaScript syntax until the Android APK and a permitted target-app runtime are exercised.
