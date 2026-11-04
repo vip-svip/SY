@@ -12,6 +12,17 @@ ROOT = Path(sys.argv[2])
 required = [
     'private static final String STATE_PAGE="fx_yulong_ad_page";',
     'private static final String STATE_DRAFTS="fx_yulong_ad_drafts";',
+    'private static final String STATE_SCROLL_Y="fx_yulong_ad_scroll_y";',
+    'private ScrollView pageScroll;',
+    'private int pendingPageScrollY;',
+    'private boolean pendingPageScrollRestore;',
+    'pendingPageScrollY=Math.max(0,b.getInt(STATE_SCROLL_Y,0));',
+    'pendingPageScrollRestore=true;',
+    'out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));',
+    'private void restorePageScrollIfNeeded()',
+    'pageScroll.scrollTo(0,y);',
+    'pendingPageScrollRestore=false;',
+    'private void open(String p){page=p;pendingPageScrollRestore=false;pendingPageScrollY=0;if(pageScroll!=null)pageScroll.scrollTo(0,0);render();bind();}',
     'private final java.util.Map<String,EditText> draftFields=new java.util.LinkedHashMap<>();',
     'private EditText draftField(String key)',
     'field.setTag("fx-yulong-ad-draft:"+key);',
@@ -86,5 +97,5 @@ for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
-print("PASS: Yulong Ad drafts and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
+print("PASS: Yulong Ad drafts, page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
 PY
