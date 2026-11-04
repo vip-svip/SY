@@ -17,6 +17,7 @@ LOCK_PID=
 LOCK_START=
 BACKUP_CONF=
 BACKUP_PROFILES=
+BACKUP_SCHEDULES=
 TMP=
 fail(){ echo "$*" >&2; return "${2:-1}"; }
 valid_id(){ case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; [ "${#1}" -le 48 ]; }
@@ -71,6 +72,7 @@ cleanup(){
   [ -z "$TMP" ] || rm -f "$TMP" 2>/dev/null || :
   [ -z "$BACKUP_CONF" ] || rm -f "$BACKUP_CONF" 2>/dev/null || :
   [ -z "$BACKUP_PROFILES" ] || rm -f "$BACKUP_PROFILES" 2>/dev/null || :
+  [ -z "$BACKUP_SCHEDULES" ] || rm -f "$BACKUP_SCHEDULES" 2>/dev/null || :
   release_lock
 }
 trap cleanup 0
@@ -129,7 +131,7 @@ ensure_store(){
   mkdir -p "$PG" 2>/dev/null || return 1
   [ ! -L "$PG" ] && [ ! -L "$PROFILES" ] && [ ! -L "$SCHEDULES" ] || return 1
   if [ ! -s "$PROFILES" ]; then
-    _current_urls=$(pg_list rule | awk -F'|' '$1!="" && $3=="1" {print $1}' | LC_ALL=C sort -u)
+    _current_urls=$(pg_list rule | awk -F'|' '$1 ~ /^https:\/\// && $3=="1" {print $1}' | LC_ALL=C sort -u)
     _current_b64=$(encode "$_current_urls")
     _safe=$(pg_get yulong_safe_search_enabled 0); valid_bool "$_safe" || _safe=0
     _yt=$(pg_get yulong_youtube_restricted_mode 0); valid_bool "$_yt" || _yt=0
@@ -191,7 +193,7 @@ profile_list_locked(){
   done < "$SCHEDULES"
 }
 current_urls_file(){
-  pg_list rule | awk -F'|' '$1!="" && $3=="1" {print $1}' | LC_ALL=C sort -u > "$1"
+  pg_list rule | awk -F'|' '$1 ~ /^https:\/\// && $3=="1" {print $1}' | LC_ALL=C sort -u > "$1"
 }
 rollback_profile_state(){
   _restore_conf=$(mktemp "$CONF.profile-restore.XXXXXX") || { BACKUP_CONF=; BACKUP_PROFILES=; return 34; }
@@ -349,10 +351,40 @@ profile_delete_locked(){
   _kind=$(printf '%s\n' "$_row" | cut -d'|' -f3)
   [ "$_kind" = CUSTOM ] || { echo "built-in profiles cannot be deleted" >&2; return 2; }
   [ "$(pg_get yulong_active_profile default)" != "$_id" ] || { echo "switch away from the active profile first" >&2; return 2; }
-  _tmp=$(mktemp "$PROFILES.tmp.XXXXXX") || return 1
-  awk -F'|' -v id="$_id" '$1!=id {print}' "$PROFILES" > "$_tmp" && atomic_replace "$PROFILES" "$_tmp" || { rm -f "$_tmp"; return 1; }
-  _stmp=$(mktemp "$SCHEDULES.tmp.XXXXXX") || return 1
-  awk -F'|' -v id="$_id" 'NR==1 || $2!=id {print}' "$SCHEDULES" > "$_stmp" && atomic_replace "$SCHEDULES" "$_stmp" || { rm -f "$_stmp"; return 1; }
+  # Profile records and their weekly schedules form one logical object. Keep
+  # rollback copies until both candidate files have been atomically replaced.
+  BACKUP_PROFILES=$(mktemp "$PROFILES.delete-backup.XXXXXX") || return 1
+  BACKUP_SCHEDULES=$(mktemp "$SCHEDULES.delete-backup.XXXXXX") || return 1
+  cp -p "$PROFILES" "$BACKUP_PROFILES" && cp -p "$SCHEDULES" "$BACKUP_SCHEDULES" || return 1
+  _tmp=$(mktemp "$PROFILES.delete-candidate.XXXXXX") || return 1
+  _stmp=$(mktemp "$SCHEDULES.delete-candidate.XXXXXX") || { rm -f "$_tmp"; return 1; }
+  awk -F'|' -v id="$_id" '$1!=id {print}' "$PROFILES" > "$_tmp" || { rm -f "$_tmp" "$_stmp"; return 1; }
+  awk -F'|' -v id="$_id" 'NR==1 || $2!=id {print}' "$SCHEDULES" > "$_stmp" || { rm -f "$_tmp" "$_stmp"; return 1; }
+  chmod 600 "$_tmp" "$_stmp" || { rm -f "$_tmp" "$_stmp"; return 1; }
+  if ! mv -f "$_tmp" "$PROFILES"; then
+    rm -f "$_tmp" "$_stmp"
+    return 1
+  fi
+  if ! mv -f "$_stmp" "$SCHEDULES"; then
+    rm -f "$_stmp"
+    _restore_profile=$(mktemp "$PROFILES.delete-restore.XXXXXX") || {
+      echo "profile table changed but schedule deletion failed; preserved backup: $BACKUP_PROFILES" >&2
+      BACKUP_PROFILES=
+      return 34
+    }
+    if cp -p "$BACKUP_PROFILES" "$_restore_profile" && chmod 600 "$_restore_profile" && mv -f "$_restore_profile" "$PROFILES"; then
+      rm -f "$BACKUP_PROFILES" "$BACKUP_SCHEDULES"
+      BACKUP_PROFILES=; BACKUP_SCHEDULES=
+      echo "profile delete aborted; original profile and schedules restored" >&2
+      return 1
+    fi
+    rm -f "$_restore_profile" 2>/dev/null || :
+    echo "profile delete rollback failed; preserved backups: $BACKUP_PROFILES $BACKUP_SCHEDULES" >&2
+    BACKUP_PROFILES=; BACKUP_SCHEDULES=
+    return 34
+  fi
+  rm -f "$BACKUP_PROFILES" "$BACKUP_SCHEDULES"
+  BACKUP_PROFILES=; BACKUP_SCHEDULES=
   echo "deleted=$_id"
 }
 schedule_add_locked(){
@@ -384,9 +416,10 @@ schedule_set_locked(){
 schedule_remove_locked(){
   ensure_store || return 1
   _id=$1; valid_id "$_id" || return 2
+  awk -F'|' -v id="$_id" '$1==id {found=1} END{exit !found}' "$SCHEDULES" || { echo "schedule not found: $_id" >&2; return 3; }
   _tmp=$(mktemp "$SCHEDULES.tmp.XXXXXX") || return 1
   awk -F'|' -v id="$_id" 'NR==1 || $1!=id {print}' "$SCHEDULES" > "$_tmp" || { rm -f "$_tmp"; return 1; }
-  atomic_replace "$SCHEDULES" "$_tmp" || return 1
+  atomic_replace "$SCHEDULES" "$_tmp"
 }
 profile_evaluate_locked(){
   ensure_store || return 1
