@@ -27,7 +27,7 @@ assert "RejectedExecutionException full" in choose, "bounded queue saturation mu
 assert "showTargetPicker(result)" in choose, "successful async load must continue into the picker"
 assert "getInstalledApplications" not in picker and "getApplicationLabel" not in picker, \
     "showTargetPicker must not perform PackageManager work on the UI thread"
-assert "targetPackage = targets.get(which).packageName" in picker
+assert "Target selected = adapter.getItem(position);" in picker and "targetPackage = selected.packageName;" in picker
 assert 'putString("target_package", targetPackage)' in picker and 'putString("target_name", targetName)' in picker
 assert "targetLoadGeneration++" in destroy and "worker.shutdownNow()" in destroy, \
     "Activity destruction must invalidate pending picker callbacks and close the worker"
