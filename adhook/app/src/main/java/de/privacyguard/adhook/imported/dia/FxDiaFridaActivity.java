@@ -1745,6 +1745,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             targetPickerSearch = null;
             processPickerGeneration++;
             processPickerOpen = false;
+            processPickerQuery = "";
             clearPendingProcessPickerState();
             targetPackage = selected.packageName;
             targetName = selected.label;
@@ -3059,8 +3060,11 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         String command = "set -eu; " + checkedSessionLogDirectoryPrefix()
                 + "path=" + quote(log) + "; "
                 + "[ ! -L \"$path\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
-                + "if [ -s \"$path\" ]; then tail -n 500 \"$path\"; "
-                + "else echo '当前端口尚无 Gadget 会话消息/console 输出。'; fi";
+                + "if [ ! -e \"$path\" ]; then echo '当前端口尚无 Gadget 会话消息/console 输出。'; "
+                + "elif [ ! -f \"$path\" ] || [ ! -r \"$path\" ]; then "
+                + "echo FX_GADGET_LOG_TYPE_REJECTED; exit 6; "
+                + "elif [ -s \"$path\" ]; then tail -n 500 \"$path\"; "
+                + "else echo 'Gadget 会话日志文件为空。'; fi";
         runRoot(command, 12000L, result -> {
             TextView viewer = text(result.output == null ? "" : result.output,
                     12, 0xff334155, false);
