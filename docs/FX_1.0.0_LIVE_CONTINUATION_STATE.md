@@ -1210,3 +1210,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证边界：只完成最新 GitHub 源码静态核对；没有完整仓库工作树，未实际运行 Shell 回归、Gradle/JUnit、Android 编译、旋转/进程回收模拟器或真机验收。不可将静态断言称为运行测试通过。
 - 未改变名单格式、确认/取消语义、六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
 - 下一批直接任务：检查病毒库同步按钮在旋转/重建时是否可能重复提交、结果回执是否丢失；随后检查 Shield 子页面返回链和 Dia 核心独立 Activity 六 Tab 接入。
+
+## 2026-11-05 — Dia Activity Browser / Frida / Script Library 原生页统一六 Tab
+
+- 本批开始前实时 HEAD：122b870223dfa2bb4a0416e5d7d4886a20d29bd8。
+- 三个 Dia 独立原生 Activity 接入既有 `FxNativeTabActivity` 共享六 Tab 壳：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java` — 7f5de8f020811675405e057f4633872e537ca3a0。
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java` — 761a370b5b6f64d5f4dfbb175fd58b467b514418。
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java` — 1492f47b0024f5c85211f064cba8e1bd73dad748。
+- 只替换 Activity 宿主和 `setContentView(root)` 为 `setContentViewWithNativeTabs(root, 5)`；不改三页原有包/Activity 查询分页、Frida Gadget 工具表单、脚本库编辑与存储、异步工作队列和返回行为。
+- 新增定向回归入口：`scripts/tests/fx-dia-native-tab-regression.sh` — 1871003c5ccfc0a402f84c984249310e3cb1fd19。脚本核对共享 Compose 壳的 Lifecycle/ViewModel/SavedState owner、0–5 Tab 范围、MainActivity 返回路由和三页 Activity 接线。
+- 静态源码核对：3 个目标页均继承 FxNativeTabActivity、调用共享壳、无旧 setContentView(root)；保留原 onCreate 与页面 View 构建。脚本已提交，但本轮未从完整仓库工作树执行。
+- 并行最新进度：`e0f79afacf9d8c8b7af8b1ad25ef6ef624b48699` 将 Dia Inspector Activity 接入六 Tab。当前 Dia 独立原生页的六 Tab 覆盖至少包括 Activity Browser、Frida、Script Library、Inspector。
+- 仍未完成：Dia Crash Report / Monitor Events / Dex Browser / Code Editor / Backup / Global Settings 等独立页面尚需按原版使用频率逐组迁移；游龙安全护盾的 Batch Cleanup / Screen Filter 等仍待接入。
+- 验证边界：无 Android Gradle 编译、模拟器/真机点按、Activity 结果回传和状态旋转验收；本批只做源码断言。ActivityKey 另有 21 项纯 Java Host 测试通过，但不代表 LSPosed 按键行为验收。
+- 当前分支 HEAD（本节记录时）：4f9be614e7776e3c31776de300d48831a11b3dba。HEAD 前最近提交：4f9be614e7776e3c31776de300d48831a11b3dba feat(dia): add six-tab shell to native code editor；e0f79afacf9d8c8b7af8b1ad25ef6ef624b48699 feat(dia): add six-tab shell to inspector；1871003c5ccfc0a402f84c984249310e3cb1fd19 test(dia): add native six-tab page integration regression；1492f47b0024f5c85211f064cba8e1bd73dad748 feat(ui): keep six-tab shell on Dia script library；761a370b5b6f64d5f4dfbb175fd58b467b514418 feat(ui): keep six-tab shell on Dia Frida tools；7f5de8f020811675405e057f4633872e537ca3a0 feat(ui): keep six-tab shell on Dia Activity Browser；67d40827a19d6de6ce1b1022210c213d9ace8c32 docs(shield): record picker restoration and six-tab coverage；122b870223dfa2bb4a0416e5d7d4886a20d29bd8 docs(fx): record ActivityKey isolation and Shield UI progress；1ddbbdcdc1d3f12662bdf9dad4bbaa60fa1d2141 test(shield): cover blacklist picker state restoration；d0fa825d3510620070bc2b1c016ee7c5ab58fd34 test(dia): cover ActivityKey Serializer validation and round trip。
+- 下一批具体任务：继续接入 Dia Crash Report / Monitor Events / Dex Browser 里 1–3 个核心页；逐一保留 Activity Result、文件选择、导出、返回栈。之后核对 Inspector 的 LSPosed Hook 权限与状态展示不误导，再推进 Shield Batch Cleanup / Screen Filter。
+- 固定 FX 1.0.0；未生成 APK / KernelSU ZIP。
