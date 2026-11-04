@@ -1,6 +1,12 @@
 name: FX 1.0.0 KernelSU package
 on:
   workflow_dispatch:
+    inputs:
+      migration_complete:
+        description: "Only allow final APK/KernelSU packaging after every original app migration and acceptance gate is complete."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -8,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   package:
-    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true && github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
     permissions:
       actions: read
       contents: write
