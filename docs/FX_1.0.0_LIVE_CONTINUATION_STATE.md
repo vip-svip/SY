@@ -1275,3 +1275,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未运行完整 Shell 回归、Gradle/JUnit、Android 编译、模拟器/真机导航及文件选择器结果回传；5 项为当前 GitHub 源码静态核验。
 - 下一批：继续接入 Dia Session Log / Crash Report / Dex Browser 的剩余深层页面（若最新并行分支未完成则复用），核对文件与导出回传；随后接入 Shield Batch Cleanup / Screen Filter。
 - 未改变六 Tab 顺序、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia DEX Browser / File & ELF 页面统一六 Tab
+
+- 本批开始时目标分支 HEAD：`33fade6bb740c4e3a254b2a8a3b36cd78f4f1abe`；提交期间检测到并行提交推进，后续均以最新 HEAD 为父提交追加，没有强推或覆盖。
+- Dia DEX Browser 已由并行工作线接入 `FxNativeTabActivity`（本批复核时已存在，未重复修改）；其原有 SAF 文档选择、DEX 检查、详情与导出工作队列保持原样。
+- 本批将 `FxDiaFileActivity.java` 从普通 Activity 宿主切换为 `FxNativeTabActivity`，根页面改由 `setContentViewWithNativeTabs(root, 5)` 安装六 Tab 外壳；页面内部的用户授权 SAF 目录管理、导入/导出、目录浏览、文件预览/删除及 SO 库只读检查逻辑未删改。
+- 提交记录：
+  - `fda4b980504f514998f02dbea443eaa90dc6a255` — File/ELF 页面六 Tab 宿主接入。
+  - `8733d6d6b1f74817ccf7620dedf8893cf662b261` — 扩展 Dia 原生页回归脚本，纳入 DEX Browser 与 File/ELF，并检查 SAF 授权、文档创建、Activity Result、目录加载和 IO worker 锚点。
+- 静态验证：类继承、共享壳唯一安装点、移除旧 `setContentView(root)`、DEX/File 回归条目及 SAF/worker 关键锚点均通过源码断言。未在完整工作树执行 Shell 脚本，未执行 Gradle 编译、模拟器/真机 Activity Result 与旋转验收。
+- 仍未完成：Dia Global Settings / GPS Picker / Wi-Fi Proxy / Session Log 等独立页面；Shield Batch Cleanup / Screen Filter；六 Tab 全局返回栈与实际设备验收。
+- 下一步：继续迁移 Dia Global Settings / GPS Picker 中最常用的 1–2 页；随后处理 Shield Batch Cleanup / Screen Filter。固定 FX 1.0.0，不生成 APK / KernelSU ZIP。
