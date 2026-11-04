@@ -29,6 +29,7 @@ required = {
     ".imported.shield.FxYulongShieldActivity",
     ".imported.shield.FxYulongVirusDatabaseActivity",
     ".imported.shield.FxYulongScanActivity",
+    ".imported.shield.FxYulongBatchCleanupActivity",
     ".imported.shield.WhitelistActivity",
     ".imported.shield.WhitelistPickerActivity",
     ".imported.shield.BlacklistActivity",
@@ -265,6 +266,7 @@ assert "volumeKeyButton" in volume_ui and "volumeCountButton" in volume_ui
 hub = shield["FxYulongShieldActivity.java"]
 db_page = shield["FxYulongVirusDatabaseActivity.java"]
 scan_page = shield["FxYulongScanActivity.java"]
+batch_cleanup = shield["FxYulongBatchCleanupActivity.java"]
 engine = shield["FxYulongScanEngine.java"]
 db = shield["FxYulongVirusDb.java"]
 content_db = shield["FxYulongVirusContentDb.java"]
@@ -294,6 +296,25 @@ assert "FxYulongVirusContentDb.inspectApk" in engine
 assert "catch (Throwable itemError)" in engine
 assert 'getBoolean("content_scan_enabled", false)' in scan_page
 assert "Intent.ACTION_DELETE" in scan_page and 'setPositiveButton("打开系统确认"' in scan_page
+
+# Batch cleanup must reject malformed or truncated queue payloads atomically.
+for token in (
+    "inputPackages == null || inputLabels == null || inputReasons == null",
+    "inputPackages.size() > MAX_QUEUE_ITEMS",
+    "inputLabels.size() != inputPackages.size()",
+    "inputReasons.size() != inputPackages.size()",
+    "!uniquePackages.add(pkg)",
+    "!uniquePackages.contains(pkg)",
+    "restoredIndex < 0 || restoredIndex > inputPackages.size()",
+    "STATE_QUEUE_INVALID",
+    "if (queueInvalid) return;",
+    "if (queueInvalid) {",
+    "uninstall.setEnabled(false);",
+    "next.setEnabled(false);",
+):
+    assert token in batch_cleanup, f"Batch cleanup queue integrity guard missing: {token}"
+assert "Math.min(Math.min(inputPackages.size(), inputLabels.size()), MAX_QUEUE_ITEMS)" not in batch_cleanup, \
+    "Batch cleanup must not silently truncate mismatched queue fields"
 assert "pm uninstall" not in engine and "su -c" not in engine
 assert "private LinearLayout body" in scan_page and "private LinearLayout resultRows" in scan_page
 assert 'STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y"' in scan_page, "Shield scan result list must have an explicit scroll restoration key"
