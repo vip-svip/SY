@@ -34,7 +34,7 @@ assert name in activities, "Stellar secure-settings page must be registered"
 assert activities[name].attrib.get(android + "exported") == "false", "Root grant UI must remain private"
 assert "FxStellarSecureSettingsActivity.class" in manager, "Stellar manager must expose the migrated grant page"
 assert "RootAccess.execute(permissionCommand(grant)" in activity, "grant/revoke must use the FX Root bridge"
-assert "pm grant" in activity and "pm revoke" in activity and "FX_PERMISSION_COMMAND_SUCCEEDED" in activity
+assert 'grant ? "grant" : "revoke"' in activity and '+ "pm " + op + ' in activity and "FX_PERMISSION_COMMAND_SUCCEEDED" in activity, "grant/revoke command must map both user-confirmed operations through the Root backend"
 assert "pm check-permission" not in activity, "do not depend on a non-portable pm check-permission command"
 assert "FX_PERMISSION_VERIFIED" in activity and "permissionGranted() == grant" in activity, "grant/revoke must be verified, not assumed"
 assert "WRITE_SECURE_SETTINGS" in activity and "明确授予" in activity and "明确撤销" in activity, "privileged permission changes require explicit user confirmation"
