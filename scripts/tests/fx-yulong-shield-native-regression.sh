@@ -281,6 +281,32 @@ batch_cleanup = shield["FxYulongBatchCleanupActivity.java"]
 engine = shield["FxYulongScanEngine.java"]
 db = shield["FxYulongVirusDb.java"]
 content_db = shield["FxYulongVirusContentDb.java"]
+
+# Five-list cache metadata distinguishes attempts from successful cache writes.
+for token in (
+    'K_LAST_ATTEMPT = "last_attempt_time"',
+    'K_LAST_SUCCESS = "last_success_time"',
+    'K_SERVER_REACHABLE = "server_reachable"',
+    'K_LAST_ERROR = "last_error"',
+    'K_LIST_META_PREFIX = "list_status_"',
+    "lastAttempt = sp.getLong(K_LAST_ATTEMPT, 0L)",
+    "serverReachabilityKnown = sp.contains(K_LAST_ATTEMPT)",
+    "status.lastAttemptAt = sp.getLong(prefix + \"last_attempt_at\", 0L)",
+    'System.currentTimeMillis() - lastAttempt < MIN_FETCH_INTERVAL_MS',
+    "lastFetchTime = lastSuccess;",
+    'editor.putString(K_LAST_ERROR, lastError)',
+    'if (!t.matches("[A-Za-z0-9_]+(',
+    'return new LinkedHashSet<>();',
+    'lower.contains("<html")',
+    'lower.contains("bad gateway")',
+    'lower.startsWith("[{")',
+):
+    assert token in db, f"Virus DB cache/parser safety contract missing: {token}"
+assert "serverReachabilityKnown && sp.getBoolean(K_SERVER_REACHABLE, false)" in db, \
+    "Legacy cache without explicit reachability metadata must not claim online state"
+assert "item.statusLabel()" in db_page, "Per-list cache status must survive Activity recreation"
+assert "getLastAttempt()" in db_page and "getLastSuccess()" in db_page
+assert "isServerReachabilityKnown()" in db_page, "Legacy server reachability must display as unknown"
 white, picker, black = (shield[x] for x in (
     "WhitelistActivity.java", "WhitelistPickerActivity.java", "BlacklistActivity.java"))
 
