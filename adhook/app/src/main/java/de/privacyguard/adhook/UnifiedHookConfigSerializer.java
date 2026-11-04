@@ -138,6 +138,21 @@ public final class UnifiedHookConfigSerializer {
                 throw new IllegalArgumentException("toast text rules require toastFilterEnabled");
             }
 
+            if (target.keyFinishTrigger < -1 || target.keyFinishTrigger > 6
+                    || target.keyDialogToggleTrigger < -1 || target.keyDialogToggleTrigger > 6) {
+                throw new IllegalArgumentException("invalid Dia key trigger");
+            }
+            if (target.keyFinishTrigger >= 0) {
+                out.append(",key_finish_trigger=").append(target.keyFinishTrigger);
+            }
+            if (target.keyDialogToggleTrigger >= 0) {
+                if (!target.dialogMatchEnabled || (target.dialogTextTerms.isEmpty()
+                        && target.dialogIdTerms.isEmpty())) {
+                    throw new IllegalArgumentException("Dialog key toggle requires enabled Dialog rules");
+                }
+                out.append(",key_dialog_toggle_trigger=").append(target.keyDialogToggleTrigger);
+            }
+
             if (target.locationSimulation) {
                 if (Double.isNaN(target.simulatedLatitude) || Double.isInfinite(target.simulatedLatitude)
                         || target.simulatedLatitude < -90d || target.simulatedLatitude > 90d
