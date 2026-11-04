@@ -198,6 +198,28 @@ run list > "$TMP/list"
 grep -qx 'FXYULONGFW2' "$TMP/list" || fail "firewall list protocol header missing"
 grep -qx 'master=0' "$TMP/list" || fail "firewall default master state is not disabled"
 
+# Root must revalidate package existence and the caller's UID before mutating
+# a per-app rule. A stale UI row after uninstall/reinstall must not overwrite
+# the saved package rule with an obsolete or unrelated UID.
+if run rule com.example.blocked 99999 1 1 1 0 22:00 06:00 > "$TMP/uid-mismatch.out" 2>&1; then
+  fail "firewall accepted a stale/mismatched package UID"
+fi
+grep -Fq "package UID changed" "$TMP/uid-mismatch.out" || fail "UID mismatch rejection was not explained"
+if grep -Fq "com.example.blocked|99999|" "$CONF"; then
+  fail "UID mismatch changed the persisted firewall rule"
+fi
+printf 'package:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+if run set com.example.blocked 10123 1 > "$TMP/package-missing.out" 2>&1; then
+  fail "firewall accepted a package that is no longer installed"
+fi
+grep -Fq "no longer installed" "$TMP/package-missing.out" || fail "missing package rejection was not explained"
+printf 'package:com.example.blocked uid:10123\\npackage:com.example.allowed uid:10124\\n' > "$PACKAGE_LIST"
+export MOCK_PACKAGE_LIST_FAIL=1
+if run rule com.example.blocked 10123 1 1 1 0 22:00 06:00 > "$TMP/uid-snapshot-failed.out" 2>&1; then
+  fail "firewall accepted a rule mutation when package UID verification failed"
+fi
+unset MOCK_PACKAGE_LIST_FAIL
+
 # Exercise the old predictable temp names with sentinel symlinks in place.
 run_with_predictable_symlink_sentinels set com.example.blocked 10123 1
 [ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "firewall config writer followed a predictable temp symlink"
