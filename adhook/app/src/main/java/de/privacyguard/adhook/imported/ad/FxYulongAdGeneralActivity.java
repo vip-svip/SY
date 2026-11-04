@@ -157,7 +157,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        scroll.addView(body); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 1);
 
         batteryStatus = text("正在读取系统省电策略…", 12, 0xff526170, false);
         card(body, "后台运行与电池优化",
