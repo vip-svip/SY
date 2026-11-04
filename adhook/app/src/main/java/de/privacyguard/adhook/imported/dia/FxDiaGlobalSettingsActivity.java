@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -15,6 +17,12 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import de.privacyguard.adhook.R;
+import de.privacyguard.adhook.RootAccess;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Dia 23.11 global settings, migrated into the unified FX application.
@@ -36,8 +44,24 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
             "language_setting", "app_update", "data_backup", "system_expand",
             "internal_community", "about"
     };
+    private static final String FRAMEWORK_RESTART_COMMAND =
+            "stop; fx_stop_rc=$?; start; fx_start_rc=$?; "
+                    + "printf 'FX_STOP_RC=%s\\nFX_START_RC=%s\\n' "
+                    + "\\\"$fx_stop_rc\\\" \\ \"$fx_start_rc\\\"; "
+                    + "[ \\"$fx_stop_rc\\" -eq 0 ] && [ \\"$fx_start_rc\\" -eq 0 ]";
+    private static final ThreadPoolExecutor FRAMEWORK_RESTART_EXECUTOR =
+            new ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<>(1),
+                    task -> {
+                        Thread thread = new Thread(task, "fx-dia-framework-restart");
+                        thread.setDaemon(true);
+                        return thread;
+                    }, new ThreadPoolExecutor.AbortPolicy());
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences preferences;
     private LinearLayout body;
+    private TextView frameworkRestartStatus;
+    private boolean frameworkRestartBusy;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -124,6 +148,51 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
                 .show();
     }
 
+    private void confirmFrameworkRestart() {
+        if (frameworkRestartBusy) {
+            showUnavailable("框架重启正在执行", "请勿重复触发。重启命令返回后会显示执行结果；框架重启本身可能导致 FX 界面随应用进程退出。");
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("确认快速重启框架服务？")
+                .setMessage("此操作复刻 Dia 23.11 的 stop;start 框架服务层重启，不是整机重启。Android 框架会短暂停止并重新启动，所有正在运行的应用及 unsaved state、VPN 连接、LSPosed/Hook 会中断。请先保存工作。需要 KernelSU Root 授权。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认重启框架服务", (dialog, which) -> executeFrameworkRestart())
+                .show();
+    }
+
+    private void executeFrameworkRestart() {
+        if (frameworkRestartBusy) return;
+        frameworkRestartBusy = true;
+        frameworkRestartStatus.setText("正在向 Root shell 提交 stop;start 框架重启命令…");
+        try {
+            FRAMEWORK_RESTART_EXECUTOR.execute(() -> {
+                RootAccess.Result result = RootAccess.execute(
+                        FRAMEWORK_RESTART_COMMAND, 30000L, 16 * 1024);
+                mainHandler.post(() -> {
+                    frameworkRestartBusy = false;
+                    if (isFinishing() || isDestroyed()) return;
+                    boolean stopOk = result.output != null && result.output.contains("FX_STOP_RC=0");
+                    boolean startOk = result.output != null && result.output.contains("FX_START_RC=0");
+                    if (result.exitCode == 0 && stopOk && startOk) {
+                        frameworkRestartStatus.setText(
+                                "Root shell 已返回 stop=0、start=0。框架服务重启命令已执行；设备可能仍在恢复应用服务。");
+                        Toast.makeText(this, "框架服务重启命令已执行。", Toast.LENGTH_LONG).show();
+                    } else {
+                        String detail = result.output == null ? "" : result.output.trim();
+                        if (detail.length() > 700) detail = detail.substring(0, 700);
+                        frameworkRestartStatus.setText(
+                                "框架服务重启未能确认成功（退出码 " + result.exitCode + "）。"
+                                        + (detail.isEmpty() ? "请确认 KernelSU Root 授权和系统 stop/start 命令可用。" : "\\n" + detail));
+                    }
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            frameworkRestartBusy = false;
+            frameworkRestartStatus.setText("后台执行队列繁忙，本次框架重启未提交。请稍后重试。");
+        }
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -166,9 +235,11 @@ public final class FxDiaGlobalSettingsActivity extends Activity {
                 "开启后，进入用户应用的 Hook 配置页时，FX 会先读取 LSPosed 当前作用域；若尚未包含该应用，则通过官方 libXposed 服务向 LSPosed Manager 提交申请。系统应用不会自动申请，Manager 仍须批准；作用域批准不代表目标进程已注入。",
                 "lsp_sync", false);
         addAction("快速重启系统",
-                "原版实际是仅重启框架服务层，不是重启 Android 系统。FX 尚未迁入原版重启实现；点击只显示安全说明，不执行 Root 命令。",
-                () -> showUnavailable("快速重启系统尚未迁移",
-                        "原版操作会中断框架服务并可能影响 Hook/模块状态。FX 当前没有经过验证的框架专用重启实现，因此不会执行重启或伪装成功。"));
+                "执行 Dia 23.11 原版的 stop;start 框架服务层重启命令，不会重启内核或整台设备。需要 KernelSU Root 授权；正在运行的应用、VPN 和 Hook 会被中断。",
+                this::confirmFrameworkRestart);
+        frameworkRestartStatus = text("框架服务重启：尚未执行。", 12, 0xff687583, false);
+        frameworkRestartStatus.setPadding(dp(16), dp(4), dp(16), dp(8));
+        body.addView(frameworkRestartStatus);
 
         section("应用与数据");
         addUnavailableAction("设置语言",
