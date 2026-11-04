@@ -6510,7 +6510,8 @@ public final class MainActivity extends ComponentActivity {
                     }
                     getPreferences(0).edit().remove(draftKey).apply();
                     ApplicationInfo target = findApp(selectedPackage);
-                    if (target != null) showTarget(target);
+                    if (target != null) showCustomHookRulesPage(target,
+                            (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
                 }).show();
     }
 
@@ -6547,7 +6548,8 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         ApplicationInfo target = findApp(selectedPackage);
-        if (target != null) showTarget(target);
+        if (target != null) showCustomHookRulesPage(target,
+                (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
     }
 
     private void showCustomRuleGroupPicker(int slot) {
@@ -6592,7 +6594,8 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     ApplicationInfo target = findApp(selectedPackage);
-                    if (target != null) showTarget(target);
+                    if (target != null) showCustomHookRulesPage(target,
+                            (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
                 }).show();
     }
 
@@ -6913,7 +6916,8 @@ public final class MainActivity extends ComponentActivity {
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    showTarget(target);
+                    showCustomHookRulesPage(target,
+                            (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
                 }).show();
     }
 
@@ -7627,7 +7631,8 @@ public final class MainActivity extends ComponentActivity {
                                     return;
                                 }
                                 ApplicationInfo target = findApp(selectedPackage);
-                                if (target != null) showTarget(target);
+                                if (target != null) showCustomHookRulesPage(target,
+                                        (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
                             }).show());
                     actions.addView(moveGroup, new LinearLayout.LayoutParams(0, -2, 1));
                     actions.addView(editRule, new LinearLayout.LayoutParams(0, -2, 1));
