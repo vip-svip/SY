@@ -172,6 +172,10 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean appVersionSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
+    private volatile boolean diaToastHooksInstalled;
+    private final Set<Method> diaToastHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Map<Toast, DiaToastPayload> diaToastPayloads =
+            Collections.synchronizedMap(new WeakHashMap<>());
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
@@ -316,11 +320,14 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
         final boolean dialogMatchForPackage = target != null
                 && target.dialogMatchEnabled && debuggableTarget;
-        if (!adsForPackage && !dialogMatchForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
+        final boolean toastFilterForPackage = target != null
+                && target.toastFilterEnabled && !target.toastTextTerms.isEmpty();
+        if (!adsForPackage && !dialogMatchForPackage && !toastFilterForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
         // Global observers must get another chance on each eligible package load;
         // a failed registration must not be hidden by the per-package idempotency guard.
         if (adsForPackage || dialogMatchForPackage) installAdViewHooks();
         if (dialogMatchForPackage) installDiaDialogWindowHooks();
+        if (toastFilterForPackage) installDiaToastHooks();
         // Retry privacy registration independently from the one-shot package guard.
         if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
         if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
@@ -1854,6 +1861,179 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     /** Install process-global framework observers once; resolve app scope per callback. */
+    private static final class DiaToastPayload {
+        final String packageName;
+        final CharSequence text;
+        final View view;
+        DiaToastPayload(String packageName, CharSequence text, View view) {
+            this.packageName = packageName;
+            this.text = text;
+            this.view = view;
+        }
+    }
+
+    private UnifiedHookConfigParser.Target toastRulesFor(String packageName) {
+        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
+                || packageName.startsWith("com.android.")) return null;
+        UnifiedHookConfigParser.Target target = targets.get(packageName);
+        return target == null || !target.toastFilterEnabled || target.toastTextTerms.isEmpty()
+                ? null : target;
+    }
+
+    private void rememberDiaToast(Toast toast, String packageName,
+                                  CharSequence text, View view) {
+        if (toast == null) return;
+        DiaToastPayload previous = diaToastPayloads.get(toast);
+        if (packageName == null && previous != null) packageName = previous.packageName;
+        if (text == null && previous != null) text = previous.text;
+        if (view == null && previous != null) view = previous.view;
+        diaToastPayloads.put(toast, new DiaToastPayload(packageName, text, view));
+    }
+
+    private String findToastTextMatch(View view, List<String> terms, int[] budget, int depth) {
+        if (view == null || terms == null || terms.isEmpty()
+                || budget[0]-- <= 0 || depth > 16) return null;
+        if (view instanceof TextView
+                && FxDiaDialogMatchPolicy.matchesText(((TextView) view).getText(), terms)) {
+            return "view";
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            int children = Math.min(group.getChildCount(), Math.max(0, budget[0]));
+            for (int i = 0; i < children && budget[0] > 0; i++) {
+                String match = findToastTextMatch(group.getChildAt(i), terms, budget, depth + 1);
+                if (match != null) return match;
+            }
+        }
+        return null;
+    }
+
+    private synchronized void installDiaToastHooks() {
+        if (diaToastHooksInstalled) return;
+        boolean showInstalled = false;
+        int captureHooksInstalled = 0;
+        try {
+            Method show = Toast.class.getDeclaredMethod("show");
+            if (!diaToastHookedMethods.contains(show)) {
+                hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    Object instance = chain.getThisObject();
+                    if (instance instanceof Toast) {
+                        Toast toast = (Toast) instance;
+                        try {
+                            DiaToastPayload payload = diaToastPayloads.get(toast);
+                            View view = toast.getView();
+                            if (view == null && payload != null) view = payload.view;
+                            String packageName = payload == null ? null : payload.packageName;
+                            if ((packageName == null || packageName.isEmpty()) && view != null) {
+                                packageName = view.getContext().getPackageName();
+                            }
+                            UnifiedHookConfigParser.Target rules = toastRulesFor(packageName);
+                            if (rules != null) {
+                                String matched = findToastTextMatch(view, rules.toastTextTerms,
+                                        new int[]{512}, 0);
+                                if (matched == null && payload != null
+                                        && FxDiaDialogMatchPolicy.matchesText(
+                                                payload.text, rules.toastTextTerms)) {
+                                    matched = "text";
+                                }
+                                if (matched != null) {
+                                    // Never log Toast text or matched rule contents.
+                                    logFx(Log.INFO, "dia-toast-block package=" + packageName
+                                            + " source=" + matched);
+                                    return null;
+                                }
+                            }
+                        } catch (Throwable failure) {
+                            // A failed or inaccessible Toast must never break its caller.
+                            logFx(Log.DEBUG, "Toast text filter failed open: "
+                                    + failure.getClass().getSimpleName());
+                        }
+                    }
+                    return chain.proceed();
+                });
+                diaToastHookedMethods.add(show);
+            }
+            showInstalled = diaToastHookedMethods.contains(show);
+
+            for (Method method : Toast.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?>[] types = method.getParameterTypes();
+                boolean isMakeText = "makeText".equals(name)
+                        && Modifier.isStatic(method.getModifiers())
+                        && Toast.class.isAssignableFrom(method.getReturnType())
+                        && types.length == 3
+                        && android.content.Context.class.isAssignableFrom(types[0])
+                        && (CharSequence.class.isAssignableFrom(types[1]) || types[1] == int.class)
+                        && types[2] == int.class;
+                boolean isSetText = "setText".equals(name) && types.length == 1
+                        && (CharSequence.class.isAssignableFrom(types[0]) || types[0] == int.class);
+                boolean isSetView = "setView".equals(name) && types.length == 1
+                        && View.class.isAssignableFrom(types[0]);
+                if (!isMakeText && !isSetText && !isSetView) continue;
+                if (diaToastHookedMethods.contains(method)) {
+                    captureHooksInstalled++;
+                    continue;
+                }
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        try {
+                            List<Object> args = chain.getArgs();
+                            if (isMakeText && result instanceof Toast && args.size() >= 3) {
+                                android.content.Context context =
+                                        args.get(0) instanceof android.content.Context
+                                                ? (android.content.Context) args.get(0) : null;
+                                CharSequence text = null;
+                                Object value = args.get(1);
+                                if (value instanceof CharSequence) text = (CharSequence) value;
+                                else if (value instanceof Integer && context != null) {
+                                    try { text = context.getText((Integer) value); }
+                                    catch (Throwable ignored) { }
+                                }
+                                rememberDiaToast((Toast) result,
+                                        context == null ? null : context.getPackageName(), text, null);
+                            } else if (chain.getThisObject() instanceof Toast && isSetText
+                                    && !args.isEmpty()) {
+                                Toast toast = (Toast) chain.getThisObject();
+                                CharSequence text = args.get(0) instanceof CharSequence
+                                        ? (CharSequence) args.get(0) : null;
+                                if (args.get(0) instanceof Integer) {
+                                    View view = toast.getView();
+                                    if (view != null) {
+                                        try { text = view.getResources().getText((Integer) args.get(0)); }
+                                        catch (Throwable ignored) { }
+                                    }
+                                }
+                                rememberDiaToast(toast, null, text, null);
+                            } else if (chain.getThisObject() instanceof Toast && isSetView
+                                    && !args.isEmpty() && args.get(0) instanceof View) {
+                                View view = (View) args.get(0);
+                                rememberDiaToast((Toast) chain.getThisObject(),
+                                        view.getContext().getPackageName(), null, view);
+                            }
+                        } catch (Throwable failure) {
+                            logFx(Log.DEBUG, "Toast text capture unavailable: "
+                                    + failure.getClass().getSimpleName());
+                        }
+                        return result;
+                    });
+                    diaToastHookedMethods.add(method);
+                    captureHooksInstalled++;
+                } catch (Throwable failure) {
+                    logFx(Log.DEBUG, "Toast capture method unavailable: "
+                            + failure.getClass().getSimpleName());
+                }
+            }
+            diaToastHooksInstalled = showInstalled && captureHooksInstalled > 0;
+            logFx(Log.INFO, "Dia Toast hooks installed capture=" + captureHooksInstalled
+                    + ", show=" + showInstalled);
+        } catch (Throwable failure) {
+            diaToastHooksInstalled = false;
+            logFx(Log.WARN, "Dia Toast hooks unavailable: "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
     private UnifiedHookConfigParser.Target dialogRulesFor(String packageName) {
         if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
                 || !debuggablePackages.contains(packageName)) return null;
