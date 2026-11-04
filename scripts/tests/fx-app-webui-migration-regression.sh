@@ -120,6 +120,15 @@ grep -Fq 'legacyDuplicateKeys' "$ACTIVITY" || fail "native Hook publisher does n
 for feature in exif_strip mic_silence notification_listen_block notification_permission_hide sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit; do
   grep -Fq "\"$feature\"" "$ACTIVITY" || fail "native per-app Hook UI is missing supported feature: $feature"
 done
+
+# Location access uses a dedicated control to enforce mutual exclusion with GPS simulation.
+grep -Fq 'addLocationAccessBlockToggle(locationConflictStatus);' "$ACTIVITY" || fail "GPS privacy page does not mount the location access switch"
+grep -Fq 'private void addLocationAccessBlockToggle(TextView conflictStatus)' "$ACTIVITY" || fail "dedicated location access switch implementation missing"
+grep -Fq 'sw.setText("限制位置访问")' "$ACTIVITY" || fail "location access switch label missing"
+grep -Fq 'selectedPackage + ":location_access_block"' "$ACTIVITY" || fail "location access setting is not package-scoped"
+grep -Fq '.putBoolean(selectedPackage + ":location_access_block", checked)' "$ACTIVITY" || fail "location access switch does not persist its actual state"
+grep -Fq 'if (locationAccessBlocked && (enabled || providerEnabled))' "$ACTIVITY" || fail "GPS coordinate/provider simulation conflict guard missing"
+grep -Fq 'has_conflict_aware_location_control' "$ROOT/fx-patches/patch_hook_privacy_controls.py" || fail "API-101 migration checker rejects the dedicated guarded location switch"
 keys_block=$(sed -n '/String\[\] keys=/,/};/p' "$ACTIVITY")
 for feature in privacy exif_strip clipboard_read_block clipboard_isolate wifi_scan_block notification_listen_block notification_permission_hide mic_silence camera_access_block location_access_block mic_access_block media_store_query_block sensor_accel sensor_gyro sensor_light sensor_magnet sensor_pressure sensor_prox sensor_rate_limit member_diag; do
   printf '%s' "$keys_block" | grep -Fq "\"$feature\"" || fail "native publisher does not serialize Hook feature: $feature"
