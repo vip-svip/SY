@@ -1975,6 +1975,9 @@ public final class MainActivity extends ComponentActivity {
         final int pageIndex = Math.max(0, Math.min(3, index));
         final int renderGeneration = ++nativePageRenderGeneration;
         nativeRenderedPageIndex = pageIndex;
+        // A new tab must not inherit the previous tab's viewport before its own
+        // saved position is restored after the new native content has been laid out.
+        nativePageScroll.scrollTo(0, 0);
         nativePageContent.removeAllViews();
         content = nativePageContent;
         nativeVpnControls = null;
@@ -2014,6 +2017,16 @@ public final class MainActivity extends ComponentActivity {
             default:
                 content.addView(title("FX", 22));
                 break;
+        }
+        final int restoreY = nativeTabScrollPositions[pageIndex];
+        if (restoreY > 0) {
+            nativePageScroll.post(() -> {
+                if (renderGeneration != nativePageRenderGeneration
+                        || nativeRenderedPageIndex != pageIndex
+                        || nativePageContent == null
+                        || nativePageContent.getParent() != nativePageScroll) return;
+                nativePageScroll.scrollTo(0, restoreY);
+            });
         }
     }
 
