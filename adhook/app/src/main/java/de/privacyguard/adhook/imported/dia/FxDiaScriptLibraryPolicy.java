@@ -1,5 +1,8 @@
 package de.privacyguard.adhook.imported.dia;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
 /** Validation rules shared by the native Dia Frida script-library page. */
@@ -10,6 +13,19 @@ public final class FxDiaScriptLibraryPolicy {
     public static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
 
     private FxDiaScriptLibraryPolicy() { }
+
+    /** Decode imported JSON without silently replacing malformed UTF-8 bytes. */
+    public static String decodeUtf8(byte[] bytes) {
+        if (bytes == null) throw new IllegalArgumentException("JSON 数据为空。");
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes)).toString();
+        } catch (CharacterCodingException malformed) {
+            throw new IllegalArgumentException("JSON 文件不是有效的 UTF-8 编码。", malformed);
+        }
+    }
 
     public static String normalizeName(String raw) {
         return raw == null ? "" : raw.trim();
