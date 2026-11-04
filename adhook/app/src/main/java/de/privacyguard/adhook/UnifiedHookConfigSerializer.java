@@ -142,6 +142,10 @@ public final class UnifiedHookConfigSerializer {
                     || target.keyDialogToggleTrigger < -1 || target.keyDialogToggleTrigger > 6) {
                 throw new IllegalArgumentException("invalid Dia key trigger");
             }
+            if (target.keyFinishTrigger >= 0
+                    && target.keyFinishTrigger == target.keyDialogToggleTrigger) {
+                throw new IllegalArgumentException("Dia key actions must use distinct triggers");
+            }
             if (target.keyFinishTrigger >= 0) {
                 out.append(",key_finish_trigger=").append(target.keyFinishTrigger);
             }
