@@ -186,9 +186,24 @@ if [ -f "$MODDIR/scripts/remove_adhook_app.sh" ]; then
 fi
 '''
 if kernel_source.count(hook_cleanup) == 0:
-    if kernel_source.count(legacy_cleanup) != 1:
-        raise SystemExit("existing late Hook cleanup block changed; refusing duplicate or misplaced cleanup")
-    kernel_source = kernel_source.replace(legacy_cleanup, hook_cleanup, 1)
+    # Some Release archives already contain the ownership-safe remover but add
+    # trusted-network / firewall shutdown between STATE_DIR and REMOVER. Accept
+    # that reviewed shape by checking the unique assignment, unique invocation,
+    # and that package removal occurs before user-data cleanup.
+    remover_assignment = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"'
+    remover_invocation = 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"'
+    cleanup_marker = 'rm -rf "$PG" "$XDIR"'
+    has_single_owned_remover = (
+        kernel_source.count(remover_assignment) == 1
+        and kernel_source.count(remover_invocation) == 1
+        and kernel_source.count('STATE_DIR="$PG"') == 1
+        and kernel_source.find(remover_invocation) >= 0
+        and kernel_source.find(cleanup_marker) > kernel_source.find(remover_invocation)
+    )
+    if not has_single_owned_remover:
+        if kernel_source.count(legacy_cleanup) != 1:
+            raise SystemExit("existing late Hook cleanup block changed; refusing duplicate or misplaced cleanup")
+        kernel_source = kernel_source.replace(legacy_cleanup, hook_cleanup, 1)
 
 kernel_uninstall.write_text(kernel_source, encoding="utf-8")
 kernel_uninstall.chmod(0o755)
