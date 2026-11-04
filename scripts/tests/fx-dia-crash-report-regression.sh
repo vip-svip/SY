@@ -34,7 +34,7 @@ main, manifest_path, application, store, record, activity, unit, redactor, forma
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
-manifest = ET.parse(manifest_path).getroot()
+manifest = ET.fromstring(manifest_path)
 declared = {node.attrib.get(ns + "name", ""): node for node in manifest.findall("./application/activity")}
 name = ".imported.dia.FxDiaCrashReportActivity"
 assert name in declared, "native Dia crash report Activity is not registered"
