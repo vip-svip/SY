@@ -271,9 +271,15 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
     private void loadBlacklist() {
         currentBlacklist.clear();
-        String raw = prefs.getString("blacklist_pkgs", "");
+        String raw = "";
+        try {
+            raw = prefs.getString("blacklist_pkgs", "");
+        } catch (RuntimeException wrongTypeOrReadFailure) {
+            blacklistDataCorrupt = true;
+        }
         if (raw == null) raw = "";
-        blacklistDataCorrupt = !raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw);
+        blacklistDataCorrupt = blacklistDataCorrupt
+                || (!raw.isEmpty() && !FxYulongBlacklistPolicy.isWellFormed(raw));
         blacklistDataWarning = blacklistDataCorrupt
                 ? "原管控名单格式异常或超过安全上限；为避免覆盖旧配置，当前禁止修改。"
                 : "";
