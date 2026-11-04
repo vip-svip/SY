@@ -20,6 +20,9 @@ pages = {
     "FxYulongScanActivity.java": ".imported.shield.FxYulongScanActivity",
     "FxYulongIntegrityActivity.java": ".imported.shield.FxYulongIntegrityActivity",
     "FxYulongRescueActivity.java": ".imported.shield.FxYulongRescueActivity",
+    "WhitelistActivity.java": ".imported.shield.WhitelistActivity",
+    "WhitelistPickerActivity.java": ".imported.shield.WhitelistPickerActivity",
+    "BlacklistActivity.java": ".imported.shield.BlacklistActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
