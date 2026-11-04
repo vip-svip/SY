@@ -341,7 +341,6 @@ jobs:
           sh scripts/tests/fx-global-ui-modes-regression.sh
           sh scripts/tests/fx-unified-navigation-regression.sh
           sh scripts/tests/fx-wallpaper-regression.sh
-          sh scripts/tests/fx-wallpaper-regression.sh
           sh scripts/tests/fx-app-webui-migration-regression.sh
           sh scripts/tests/fx-yulong-ad-activity-state-regression.sh
           sh scripts/tests/fx-yulong-shield-native-regression.sh "$PWD/fx-patches/merge_hook_single_apk.py"
