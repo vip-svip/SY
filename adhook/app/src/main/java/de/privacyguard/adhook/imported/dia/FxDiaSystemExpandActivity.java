@@ -1,6 +1,5 @@
 package de.privacyguard.adhook.imported.dia;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -39,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  * Package Installer restart is guarded by the live PackageInstaller session list;
  * unknown session state fails closed and a root force-stop always requires confirmation.
  */
-public final class FxDiaSystemExpandActivity extends Activity {
+public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
             r -> { Thread t = new Thread(r, "fx-dia-install-source-picker"); t.setDaemon(true); return t; },
@@ -408,7 +407,7 @@ public final class FxDiaSystemExpandActivity extends Activity {
                 "先检查 Android 全部安装会话；只在无活动/已提交/staged 会话且用户二次确认后，才通过 KernelSU Root 强制停止默认安装处理程序。",
                 button("检查并重启", this::checkPackageInstallerBeforeRestart));
 
-        setContentView(root);
+        setContentViewWithNativeTabs(root, 5);
     }
 
     @Override protected void onDestroy() {
