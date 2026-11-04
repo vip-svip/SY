@@ -61,40 +61,49 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     }
 
     public static boolean setCaptureEnabled(Context context, boolean enabled) {
-        SharedPreferences current = prefs(context);
-        if (!enabled) {
-            return current.edit().putBoolean("capture_enabled", false).commit();
-        }
+        if (context == null) return false;
+        synchronized (STORAGE_LOCK) {
+            SharedPreferences current = prefs(context);
+            if (!enabled) {
+                return current.edit().putBoolean("capture_enabled", false).commit();
+            }
 
-        // Explicitly re-enabling in FX supersedes the original Dia opt-out.
-        // Clear the legacy veto first; if that persistence fails, do not claim
-        // that capture has been enabled.
-        if (!legacyPrefs(context).edit()
-                .remove("disable_java_crash_capture").commit()) {
-            return false;
-        }
-        boolean saved = current.edit()
-                .remove("disable_java_crash_capture")
-                .putBoolean("capture_enabled", true)
-                .commit();
-        if (!saved) return false;
+            // Explicitly re-enabling in FX supersedes the original Dia opt-out.
+            // Clear the legacy veto first; if that persistence fails, do not claim
+            // that capture has been enabled.
+            if (!legacyPrefs(context).edit()
+                    .remove("disable_java_crash_capture").commit()) {
+                return false;
+            }
+            boolean saved = current.edit()
+                    .remove("disable_java_crash_capture")
+                    .putBoolean("capture_enabled", true)
+                    .commit();
+            if (!saved) return false;
 
-        if (context.getApplicationContext() instanceof Application) {
-            Application application = (Application) context.getApplicationContext();
-            install(application);
-            FxDiaNativeCrashCapture.install(application);
+            if (context.getApplicationContext() instanceof Application) {
+                Application application = (Application) context.getApplicationContext();
+                install(application);
+                FxDiaNativeCrashCapture.install(application);
+            }
+            return true;
         }
-        return true;
     }
 
     public static boolean hasPendingReport(Context context) {
-        return prefs(context).getBoolean("has_crash", false)
-                || legacyPrefs(context).getBoolean("has_crash", false);
+        if (context == null) return false;
+        synchronized (STORAGE_LOCK) {
+            return prefs(context).getBoolean("has_crash", false)
+                    || legacyPrefs(context).getBoolean("has_crash", false);
+        }
     }
 
     public static void clearPendingFlag(Context context) {
-        prefs(context).edit().putBoolean("has_crash", false).commit();
-        legacyPrefs(context).edit().putBoolean("has_crash", false).commit();
+        if (context == null) return;
+        synchronized (STORAGE_LOCK) {
+            prefs(context).edit().putBoolean("has_crash", false).commit();
+            legacyPrefs(context).edit().putBoolean("has_crash", false).commit();
+        }
     }
 
     public static FxDiaCrashRecord read(Context context) {
@@ -198,6 +207,10 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
                     System.currentTimeMillis(), callbackThread.getId(), processName,
                     crashingThread, device, message.toString(), stack);
             synchronized (STORAGE_LOCK) {
+                if (!isCaptureEnabled(target)) {
+                    FxDiaCrashDumpDirectory.deleteDirectDump(target.getFilesDir(), minidumpPath);
+                    return false;
+                }
                 write(target, record);
                 markPending(target, record.timestampMs);
             }
@@ -221,8 +234,10 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
             if (error != null && isCaptureEnabled(app) && HANDLING.compareAndSet(false, true)) {
                 FxDiaCrashRecord record = capture(thread, error);
                 synchronized (STORAGE_LOCK) {
-                    write(app, record);
-                    markPending(app, record.timestampMs);
+                    if (isCaptureEnabled(app)) {
+                        write(app, record);
+                        markPending(app, record.timestampMs);
+                    }
                 }
             }
         } catch (Throwable ignored) {
