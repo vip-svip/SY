@@ -58,6 +58,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class MainActivity extends ComponentActivity {
     private static final java.util.Set<String> AUTO_SCOPE_REQUESTS_IN_FLIGHT =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ThreadPoolExecutor AUTO_SCOPE_EXECUTOR =
+            new java.util.concurrent.ThreadPoolExecutor(
+                    1, 1, 30L, java.util.concurrent.TimeUnit.SECONDS,
+                    new java.util.concurrent.ArrayBlockingQueue<>(8),
+                    r -> {
+                        Thread thread = new Thread(r, "fx-lsposed-auto-scope");
+                        thread.setDaemon(true);
+                        return thread;
+                    }, new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
     private LinearLayout root;
     private EditText search;
     private final List<ApplicationInfo> apps = new ArrayList<>();
@@ -5783,42 +5792,50 @@ public final class MainActivity extends ComponentActivity {
         if (!FxLsposedScopeBridge.isConnected()
                 || !AUTO_SCOPE_REQUESTS_IN_FLIGHT.add(packageName)) return;
 
-        Thread worker = new Thread(() -> {
-            try {
-                FxLsposedScopeBridge.Snapshot current =
-                        FxLsposedScopeBridge.snapshot(packageName);
-                if (!current.connected || current.targetInScope) {
-                    AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
-                    return;
-                }
-                FxLsposedScopeBridge.requestScope(packageName,
-                        new FxLsposedScopeBridge.RequestCallback() {
-                    @Override public void onApproved(java.util.List<String> approvedPackages) {
+        final java.lang.ref.WeakReference<MainActivity> activityRef =
+                new java.lang.ref.WeakReference<>(this);
+        try {
+            AUTO_SCOPE_EXECUTOR.execute(() -> {
+                try {
+                    FxLsposedScopeBridge.Snapshot current =
+                            FxLsposedScopeBridge.snapshot(packageName);
+                    if (!current.connected || current.targetInScope) {
                         AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
-                        if (approvedPackages == null || !approvedPackages.contains(packageName)) return;
-                        runOnUiThread(() -> {
-                            if (isFinishing() || isDestroyed()) return;
-                            Toast.makeText(MainActivity.this,
-                                    "LSPosed 已批准 " + packageName
-                                            + " 的作用域；目标进程仍需重新启动后验证注入。",
-                                    Toast.LENGTH_LONG).show();
-                        });
+                        return;
                     }
+                    FxLsposedScopeBridge.requestScope(packageName,
+                            new FxLsposedScopeBridge.RequestCallback() {
+                        @Override public void onApproved(java.util.List<String> approvedPackages) {
+                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                            if (approvedPackages == null || !approvedPackages.contains(packageName)) return;
+                            MainActivity activity = activityRef.get();
+                            if (activity == null) return;
+                            activity.runOnUiThread(() -> {
+                                if (activity.isFinishing() || activity.isDestroyed()) return;
+                                Toast.makeText(activity,
+                                        "LSPosed 已批准 " + packageName
+                                                + " 的作用域；目标进程仍需重新启动后验证注入。",
+                                        Toast.LENGTH_LONG).show();
+                            });
+                        }
 
-                    @Override public void onFailed(String message) {
-                        AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
-                        android.util.Log.w("FX-LSPosed",
-                                "Automatic scope request failed for " + packageName + ": " + message);
-                    }
-                });
-            } catch (RuntimeException error) {
-                AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
-                android.util.Log.w("FX-LSPosed",
-                        "Automatic scope request unavailable for " + packageName, error);
-            }
-        }, "fx-lsposed-auto-scope");
-        worker.setDaemon(true);
-        worker.start();
+                        @Override public void onFailed(String message) {
+                            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                            android.util.Log.w("FX-LSPosed",
+                                    "Automatic scope request failed for " + packageName + ": " + message);
+                        }
+                    });
+                } catch (RuntimeException error) {
+                    AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+                    android.util.Log.w("FX-LSPosed",
+                            "Automatic scope request unavailable for " + packageName, error);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException full) {
+            AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName);
+            android.util.Log.w("FX-LSPosed",
+                    "Automatic scope queue is full; the request can be retried for " + packageName);
+        }
     }
 
     private void addLsposedScopeControls(String packageName, boolean systemPackage) {
