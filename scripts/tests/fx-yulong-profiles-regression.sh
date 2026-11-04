@@ -4,10 +4,14 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 PROFILE_SOURCE="$ROOT/scripts/yulong-profiles.sh"
 SCHED_SOURCE="$ROOT/scripts/yulong-profile-schedule.sh"
 PATCHER="$ROOT/fx-patches/patch_yulong_profiles.py"
+AD_UI="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
+DAY_MAP="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongScheduleDayMapping.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$PROFILE_SOURCE" ] || fail "ProtectionProfile controller missing"
 [ -s "$SCHED_SOURCE" ] || fail "ProfileSchedule watcher missing"
 [ -s "$PATCHER" ] || fail "profile migration patcher missing"
+[ -s "$AD_UI" ] || fail "native profile schedule UI missing"
+[ -s "$DAY_MAP" ] || fail "profile weekday mapping helper missing"
 sh -n "$PROFILE_SOURCE" || fail "profile controller shell syntax invalid"
 sh -n "$SCHED_SOURCE" || fail "profile scheduler shell syntax invalid"
 T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-profiles.XXXXXX")
@@ -443,4 +447,16 @@ done
 [ "$watchers" -eq 0 ] || fail "profile scheduler stop left a watcher"
 [ ! -e "$WATCH_PG/yulong-profile-schedule.pid" ] || fail "profile scheduler stop left PID state"
 [ ! -e "$WATCH_PG/yulong-profile-schedule.runtime.lock" ] || fail "profile scheduler leaked runtime lock"
+python3 - "$AD_UI" "$DAY_MAP" <<'PY'
+from pathlib import Path
+import sys
+ui = Path(sys.argv[1]).read_text(encoding="utf-8")
+mapping = Path(sys.argv[2]).read_text(encoding="utf-8")
+assert "workerDayForUiIndex(i)" in ui, "schedule save must map Monday-first UI values to Yulong Calendar indexes"
+assert "isUiDaySelected(ds,i)" in ui, "schedule load must map Yulong Calendar indexes back to Monday-first checkboxes"
+assert "defaultWeekCsv()" in ui, "new schedule default must use Sunday=0 rather than Sunday=7"
+assert "周日=0、周一=1" in ui, "schedule UI must disclose original Yulong weekday numbering"
+assert "表示空时间段" in ui and "表示所选日期全天" not in ui, "equal start/end UI copy must match the original empty interval behavior"
+print("PASS: native profile schedule UI round-trips Yulong Sunday=0..Saturday=6 weekday IDs")
+PY
 echo "PASS: Yulong ProtectionProfile CRUD, transactional switching, SafeSearch flags, independent schedules and single-watcher lifecycle"

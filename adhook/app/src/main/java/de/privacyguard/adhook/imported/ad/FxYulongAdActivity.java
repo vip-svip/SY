@@ -730,11 +730,11 @@ private void saveVpnDns(String key,EditText input){
   for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(labels[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
   TextView state=txt("正在读取计划任务…",12,0xff526170,false);
   card("每周自动计划",
-       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示所选日期全天。",
+       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
        enabled,start,end,daysBox,
        btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
-         for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i+1);}
+         for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(FxYulongScheduleDayMapping.workerDayForUiIndex(i));}
          if(selected.length()==0){new AlertDialog.Builder(this).setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
          String command="schedule-set "+(enabled.isChecked()?"1":"0")+" "+q(start.getText().toString().trim())+" "+q(end.getText().toString().trim())+" "+q(selected.toString());
          root(command,r->{
@@ -748,7 +748,7 @@ private void saveVpnDns(String key,EditText input){
        }),
        btn("重新读取计划",()->loadSchedule(enabled,start,end,days,state)));
   card("当前计划状态",
-       "星期编号：周一=1 至周日=7。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
+       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
        state);
   loadSchedule(enabled,start,end,days,state);
  }
@@ -756,7 +756,7 @@ private void saveVpnDns(String key,EditText input){
        android.widget.CheckBox[] days,TextView state){
   root("schedule-get",r->{
     if(r.exitCode!=0){state.setText("读取失败："+safe(r.output));return;}
-    String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1",watcher="0";
+    String en="0",st="22:00",ed="07:00",ds=FxYulongScheduleDayMapping.defaultWeekCsv(),active="1",watcher="0";
     for(String line:r.output.split("\\r?\\n")){
       int pos=line.indexOf('=');if(pos<0)continue;
       String key=line.substring(0,pos),value=line.substring(pos+1);
@@ -768,10 +768,8 @@ private void saveVpnDns(String key,EditText input){
       else if("watcher".equals(key))watcher=value;
     }
     enabled.setChecked("1".equals(en));start.setText(st);end.setText(ed);
-    String[] selected=ds.split(",");
     for(int i=0;i<7;i++){
-      days[i].setChecked(false);
-      for(String d:selected)if(String.valueOf(i+1).equals(d.trim()))days[i].setChecked(true);
+      days[i].setChecked(FxYulongScheduleDayMapping.isUiDaySelected(ds,i));
     }
     state.setText("计划："+("1".equals(en)?"已启用":"已关闭")
        +"；当前游龙过滤："+("1".equals(active)?"生效":"按计划暂停"));
@@ -1478,11 +1476,11 @@ private void saveVpnDns(String key,EditText input){
   for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(labels[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
   TextView state=txt("正在读取计划任务…",12,0xff526170,false);
   card("每周自动计划",
-       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示所选日期全天。",
+       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
        enabled,start,end,daysBox,
        btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
-         for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(i+1);}
+         for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(FxYulongScheduleDayMapping.workerDayForUiIndex(i));}
          if(selected.length()==0){new AlertDialog.Builder(this).setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
          String command="schedule-set "+(enabled.isChecked()?"1":"0")+" "+q(start.getText().toString().trim())+" "+q(end.getText().toString().trim())+" "+q(selected.toString());
          root(command,r->{
@@ -1496,7 +1494,7 @@ private void saveVpnDns(String key,EditText input){
        }),
        btn("重新读取计划",()->loadSchedule(enabled,start,end,days,state)));
   card("当前计划状态",
-       "星期编号：周一=1 至周日=7。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
+       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
        state);
   loadSchedule(enabled,start,end,days,state);
  }
@@ -1504,7 +1502,7 @@ private void saveVpnDns(String key,EditText input){
        android.widget.CheckBox[] days,TextView state){
   root("schedule-get",r->{
     if(r.exitCode!=0){state.setText("读取失败："+safe(r.output));return;}
-    String en="0",st="22:00",ed="07:00",ds="1,2,3,4,5,6,7",active="1",watcher="0";
+    String en="0",st="22:00",ed="07:00",ds=FxYulongScheduleDayMapping.defaultWeekCsv(),active="1",watcher="0";
     for(String line:r.output.split("\\r?\\n")){
       int pos=line.indexOf('=');if(pos<0)continue;
       String key=line.substring(0,pos),value=line.substring(pos+1);
@@ -1516,10 +1514,8 @@ private void saveVpnDns(String key,EditText input){
       else if("watcher".equals(key))watcher=value;
     }
     enabled.setChecked("1".equals(en));start.setText(st);end.setText(ed);
-    String[] selected=ds.split(",");
     for(int i=0;i<7;i++){
-      days[i].setChecked(false);
-      for(String d:selected)if(String.valueOf(i+1).equals(d.trim()))days[i].setChecked(true);
+      days[i].setChecked(FxYulongScheduleDayMapping.isUiDaySelected(ds,i));
     }
     state.setText("计划："+("1".equals(en)?"已启用":"已关闭")
        +"；当前游龙过滤："+("1".equals(active)?"生效":"按计划暂停"));
