@@ -44,7 +44,7 @@ required = [
 for token in required:
     assert token in s, f"missing Yulong editor recreation invariant: {token}"
 open_start = s.index("private void open(String p)")
-open_end = s.index("\\n  private ", open_start)
+open_end = s.index("\n  private ", open_start)
 open_method = s[open_start:open_end]
 assert open_method.index("captureDrafts()") < open_method.index("page=p;")
 assert "pendingPageScrollRestore=false" in open_method and "pendingPageScrollY=0" in open_method
