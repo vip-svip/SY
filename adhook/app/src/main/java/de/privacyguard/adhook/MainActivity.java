@@ -146,6 +146,7 @@ public final class MainActivity extends ComponentActivity {
     private String customRuleGroupDialogMode;
     private String customRuleGroupDialogValue;
     private boolean customRuleGroupDialogRestorePending;
+    private boolean lastCustomRuleGroupRollbackSaved = true;
     private int customRuleGroupDialogSlot = -1;
     private int customRuleGroupDialogChoice;
     private int customRuleEditorEditingSlot = -1;
@@ -6237,13 +6238,66 @@ public final class MainActivity extends ComponentActivity {
         return groups;
     }
 
+    /**
+     * Commit a group-set update and its per-rule assignments as one SharedPreferences
+     * transaction. If disk persistence fails, restore the prior in-memory values and
+     * retry the rollback so callers can report whether the old state was persisted.
+     */
+    private boolean commitCustomRuleGroupUpdate(java.util.Set<String> updatedGroups,
+                                                  java.util.Map<String, String> updatedAssignments) {
+        if (selectedPackage == null || updatedGroups == null || updatedAssignments == null) return false;
+        android.content.SharedPreferences preferences = getPreferences(0);
+        String groupsKey = selectedPackage + ":dev_rule_groups";
+        boolean hadGroupSet = preferences.contains(groupsKey);
+        java.util.Set<String> previousGroups = new java.util.HashSet<>(
+                preferences.getStringSet(groupsKey, java.util.Collections.emptySet()));
+        java.util.Map<String, String> previousAssignments = new java.util.HashMap<>();
+        java.util.Set<String> existingAssignmentKeys = new java.util.HashSet<>();
+        for (String key : updatedAssignments.keySet()) {
+            if (key == null || !key.startsWith(selectedPackage + ":dev_rule_group_")) return false;
+            if (preferences.contains(key)) {
+                existingAssignmentKeys.add(key);
+                previousAssignments.put(key, preferences.getString(key, "默认"));
+            }
+        }
+
+        android.content.SharedPreferences.Editor update = preferences.edit();
+        for (java.util.Map.Entry<String, String> entry : updatedAssignments.entrySet()) {
+            if (entry.getValue() == null) update.remove(entry.getKey());
+            else update.putString(entry.getKey(), entry.getValue());
+        }
+        update.putStringSet(groupsKey, new java.util.HashSet<>(updatedGroups));
+        if (update.commit()) {
+            lastCustomRuleGroupRollbackSaved = true;
+            return true;
+        }
+
+        // SharedPreferences updates memory before disk I/O. Restore the old values
+        // explicitly and check the rollback commit rather than assuming false means
+        // nothing changed.
+        android.content.SharedPreferences.Editor rollback = preferences.edit();
+        for (String key : updatedAssignments.keySet()) {
+            if (existingAssignmentKeys.contains(key))
+                rollback.putString(key, previousAssignments.get(key));
+            else rollback.remove(key);
+        }
+        if (hadGroupSet) rollback.putStringSet(groupsKey, previousGroups);
+        else rollback.remove(groupsKey);
+        lastCustomRuleGroupRollbackSaved = rollback.commit();
+        return false;
+    }
+
+    private String customRuleGroupCommitFailureMessage(String operation) {
+        return lastCustomRuleGroupRollbackSaved
+                ? operation + "失败：原分组配置已恢复，请检查存储空间后重试。"
+                : operation + "失败：保存与回滚提交均未确认；当前进程内已恢复原值，请勿退出应用，先检查存储空间并核对规则分组。";
+    }
+
     private boolean ensureCustomRuleGroup(String groupName) {
         if (!validCustomRuleGroupName(groupName)) return false;
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         groups.add(groupName.trim());
-        return getPreferences(0).edit().putStringSet(
-                selectedPackage + ":dev_rule_groups",
-                new java.util.HashSet<>(groups)).commit();
+        return commitCustomRuleGroupUpdate(groups, java.util.Collections.emptyMap());
     }
 
     private void clearCustomRuleGroupDialogState() {
@@ -6283,7 +6337,8 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     if (!ensureCustomRuleGroup(value)) {
-                        new AlertDialog.Builder(this).setMessage("创建分组失败：本地配置未能提交。")
+                        new AlertDialog.Builder(this)
+                                .setMessage(customRuleGroupCommitFailureMessage("创建分组"))
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6342,17 +6397,16 @@ public final class MainActivity extends ComponentActivity {
 
         groups.remove(oldName);
         groups.add(normalized);
-        android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
+        java.util.Map<String, String> assignments = new java.util.HashMap<>();
         for (int slot = 1; slot <= 64; slot++) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
             String assigned = getPreferences(0).getString(key, "默认");
             // Older releases could persist surrounding whitespace even though
             // the displayed group index is normalized by getCustomRuleGroups().
             if (assigned != null && oldName.equals(assigned.trim()))
-                edit.putString(key, normalized);
+                assignments.put(key, normalized);
         }
-        edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
-        return edit.commit();
+        return commitCustomRuleGroupUpdate(groups, assignments);
     }
 
     private void showRenameCustomRuleGroupDialog(String oldName) {
@@ -6384,7 +6438,9 @@ public final class MainActivity extends ComponentActivity {
                         return;
                     }
                     if (!renameCustomRuleGroup(oldName, newName)) {
-                        new AlertDialog.Builder(this).setMessage("重命名失败：新名称可能已存在，或本地配置未能保存。")
+                        new AlertDialog.Builder(this)
+                                .setMessage("重命名失败：新名称可能已存在，或"
+                                        + customRuleGroupCommitFailureMessage("分组重命名"))
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6413,16 +6469,16 @@ public final class MainActivity extends ComponentActivity {
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         if (!groups.contains(groupName)) return;
         groups.remove(groupName);
-        android.content.SharedPreferences.Editor edit = getPreferences(0).edit();
+        java.util.Map<String, String> assignments = new java.util.HashMap<>();
         for (int slot = 1; slot <= 64; slot++) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
             String assigned = getPreferences(0).getString(key, "默认");
             if (assigned != null && groupName.equals(assigned.trim()))
-                edit.putString(key, "默认");
+                assignments.put(key, "默认");
         }
-        edit.putStringSet(selectedPackage + ":dev_rule_groups", new java.util.HashSet<>(groups));
-        if (!edit.commit()) {
-            new AlertDialog.Builder(this).setMessage("分组删除失败：本地配置未能保存。")
+        if (!commitCustomRuleGroupUpdate(groups, assignments)) {
+            new AlertDialog.Builder(this)
+                    .setMessage(customRuleGroupCommitFailureMessage("分组删除"))
                     .setPositiveButton("知道了", null).show();
             return;
         }
@@ -6460,8 +6516,11 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("移动", (dialog, which) -> {
                     clearCustomRuleGroupDialogState();
                     String group = names[chosen[0]];
-                    if (!getPreferences(0).edit().putString(key, group).commit()) {
-                        Toast.makeText(this, "移动规则失败：本地配置未能提交。", Toast.LENGTH_LONG).show();
+                    java.util.Map<String, String> assignments = new java.util.HashMap<>();
+                    assignments.put(key, group);
+                    if (!commitCustomRuleGroupUpdate(getCustomRuleGroups(), assignments)) {
+                        Toast.makeText(this, customRuleGroupCommitFailureMessage("移动规则"),
+                                Toast.LENGTH_LONG).show();
                         return;
                     }
                     ApplicationInfo target = findApp(selectedPackage);
