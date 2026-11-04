@@ -59,6 +59,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private ScrollView scroll;
     private int pendingScrollY;
     private boolean pendingScrollRestore;
+    private int scrollRestoreGeneration;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
     private static final class FirewallRule {
@@ -307,6 +308,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         loading = true;
         inventoryReady = false;
         master.setEnabled(false);
+        scrollRestoreGeneration++;
         if (scroll != null) {
             pendingScrollY = Math.max(0, scroll.getScrollY());
             pendingScrollRestore = true;
@@ -387,10 +389,11 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 appPage = 1;
+                scrollRestoreGeneration++;
                 pendingScrollY = 0;
-                pendingScrollRestore = true;
+                pendingScrollRestore = false;
                 renderRows();
-                restoreScrollIfNeeded();
+                if (scroll != null) scroll.scrollTo(0, 0);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -505,9 +508,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private void restoreScrollIfNeeded() {
         if (!pendingScrollRestore || scroll == null) return;
         final int restoreY = pendingScrollY;
+        final int generation = ++scrollRestoreGeneration;
         scroll.post(() -> {
             if (destroyed || isFinishing() || isDestroyed() || scroll == null
-                    || !pendingScrollRestore) return;
+                    || generation != scrollRestoreGeneration || !pendingScrollRestore) return;
             scroll.scrollTo(0, restoreY);
             pendingScrollRestore = false;
         });
@@ -585,6 +589,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     @Override protected void onDestroy() {
         unregisterPackageChangeReceiver();
         destroyed = true;
+        scrollRestoreGeneration++;
         worker.shutdownNow();
         appWorker.shutdownNow();
         super.onDestroy();
