@@ -45,11 +45,20 @@ for filename, component in pages.items():
 scan = (shield_dir / "FxYulongScanActivity.java").read_text(encoding="utf-8")
 rescue = (shield_dir / "FxYulongRescueActivity.java").read_text(encoding="utf-8")
 hub = (shield_dir / "FxYulongShieldActivity.java").read_text(encoding="utf-8")
+black = (shield_dir / "BlacklistActivity.java").read_text(encoding="utf-8")
 assert "STATE_FINDING_PACKAGES" in scan and "onSaveInstanceState" in scan
 assert "Intent.ACTION_DELETE" in scan and 'setPositiveButton("打开系统确认"' in scan
 assert "Intent.ACTION_DELETE" in rescue
 assert "FxYulongRescueActivity.class" in hub
 assert "FxYulongVirusDatabaseActivity.class" in hub
+for key in ("STATE_PICKER_OPEN", "STATE_PICKER_QUERY", "STATE_PICKER_PAGE", "STATE_PICKER_STAGED", "STATE_PICKER_SCROLL_Y"):
+    assert key in black, f"Blacklist picker state missing: {key}"
+assert "pickerDialogOpen = savedInstanceState.getBoolean(STATE_PICKER_OPEN, false)" in black
+assert "if (pickerDialogOpen) showAppPicker(true)" in black, "picker must reopen after app inventory is restored"
+assert "scroll.post(() -> scroll.scrollTo(0, restorePickerY))" in black
+assert "if (!isChangingConfigurations())" in black, "configuration recreation must not discard picker draft"
+assert "currentBlacklist.addAll(staged)" in black, "only explicit confirmation may commit staged packages"
+assert "pickerStaged.clear();" in black, "dismissed/cancelled picker draft must be cleared"
 assert "FxYulongScanActivity.class" in hub
 print("PASS: Shield database/scan/integrity/rescue pages retain six-tab shell and existing navigation/result/removal contracts")
 PY
