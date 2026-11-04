@@ -2909,3 +2909,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`scripts/tests/fx-yulong-shield-native-regression.sh`，提交 `42a0b1e8bda8bf761c002ad3b3876a7f0e21781a`。
 - 验证：已确认测试引用的源文件均存在；实际证据字段已在 `FxYulongVirusDb.MatchEvidence`、扫描状态保存/恢复、风险详情 UI 与单测中实现。等待本轮 Actions。
 - 下一步：执行完证据字段回归后，继续修复下一条真实首错；不把测试脚本成功等同于 Android UI/真机验收。
+
+
+## 2026-11-05 — Shield 六 Tab 返回导航断言对齐
+
+- Actions `41913864161` 中 Shield 原生主回归已输出 PASS，随后六 Tab 回归失败于 Rescue Center 返回导航的旧注释断言。
+- 当前 `FxYulongRescueActivity.returnToShieldHub()` 在 Hub 启动场景调用 `finish()` 返回既有调用者；源码注释为 `Hub-launched rescue screens simply finish to the existing caller.`。通知启动场景仍使用 `FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_SINGLE_TOP` 返回 Shield Hub。
+- 仅更新测试注释断言，未更改产品导航行为；改动文件 `scripts/tests/fx-yulong-shield-six-tab-regression.sh`，提交 `5dad0d655baca72478430e0cffd681c1e9451d5f`。
+- 已对照 RescueActivity 第 141–148 行及 OverlayService 两个启动入口；新 Actions 尚待执行。
+- 下一步读取六 Tab 与 Shield worker-bound 回归的首个失败。Shield 主回归在 `41913864161` 中实际 PASS；六 Tab 尚未通过。
