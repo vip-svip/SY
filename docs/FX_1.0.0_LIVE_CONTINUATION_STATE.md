@@ -2996,3 +2996,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：测试断言更新为当前 UI 文案，不改产品文案或安全条件。
 - 改动路径：`scripts/tests/fx-dia-dialog-native-regression.sh`。
 - 验证：已对照 `MainActivity.showDiaKeyControlTarget()` 确认该文案在无有效 Debug Dialog 规则时触发；等待下一次 Actions。
+
+
+## 2026-11-05 — 修复 Dia 备份回滚预检脚本的 Python 字符串语法
+
+- Actions：`41915000056` 通过 Hook 原生页面和 Hook 分组回归，随后在 `fx-dia-backup-restore-preflight-regression.sh` 的 Python heredoc 出现 `SyntaxError`。
+- 根因：回滚路径断言使用双引号包裹含 `\\"` 的 shell 文本，反斜杠层级导致 Python 字符串提前结束。不是备份/回滚产品代码运行失败。
+- 修复：将两条 PG/Stellar 路径断言改为单引号外层，保留 shell 双引号的逐字匹配；不删除目录 symlink 防护断言。
+- 改动：`scripts/tests/fx-dia-backup-restore-preflight-regression.sh`、本状态文件。
+- 下一步：重新运行 Hook/Dia targeted Host 回归；首个实际断言失败再修产品代码或更新过期测试契约。
