@@ -112,7 +112,7 @@ rescue_route_start = main.index('case "悬浮救援入口":')
 rescue_route = main[rescue_route_start:rescue_route_start + 420]
 assert "FxYulongRescueActivity.class" in rescue_route, \
     "Shield floating rescue entry must open its dedicated recovery page, not the Shield overview"
-assert "FxYulongRescueActivity" in shield, "Dedicated rescue Activity source missing"
+assert "FxYulongRescueActivity.java" in shield, "Dedicated rescue Activity source missing"
 assert r'"\\n累计提醒："' not in shield, "Shield status must not show literal backslash-n"
 assert r'"\n累计提醒："' in shield, "Shield status must retain a Java newline escape"
 assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in shield, "Recovery note must render on a new line"
