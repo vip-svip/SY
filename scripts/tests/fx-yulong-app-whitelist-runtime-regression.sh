@@ -49,11 +49,65 @@ export FX_TEST_APPLY_LOG="$TMP/apply.log"
 export FX_TEST_APPLY_FAIL=0 FX_TEST_VERIFY_LOCK_PID=1
 export MP="$MODULE" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/whitelist.lock"
 
+# The state-directory leaf and every ancestor must be real directories.
+mkdir "$TMP/external-state"
+cp "$CONF" "$TMP/external-state/settings.conf"
+ln -s "$TMP/external-state" "$TMP/state-link"
+if env MP="$MODULE" PG="$TMP/state-link" CONF="$TMP/state-link/settings.conf" \
+    LOCK="$TMP/state-link/yulong-app-whitelist.lock" sh "$SCRIPT" list >/dev/null 2>&1; then
+  echo "FAIL: whitelist accepted a symlinked PG directory" >&2; exit 1
+fi
+cmp -s "$CONF" "$TMP/external-state/settings.conf" || {
+  echo "FAIL: PG symlink changed external settings" >&2; exit 1;
+}
+rm "$TMP/state-link"
+
+mkdir "$TMP/real-parent"
+ln -s "$TMP/real-parent" "$TMP/parent-link"
+if env MP="$MODULE" PG="$TMP/parent-link/state" CONF="$TMP/parent-link/state/settings.conf" \
+    LOCK="$TMP/parent-link/state/yulong-app-whitelist.lock" sh "$SCRIPT" list >/dev/null 2>&1; then
+  echo "FAIL: whitelist accepted PG below a symlinked parent" >&2; exit 1
+fi
+[ ! -e "$TMP/real-parent/state" ] || {
+  echo "FAIL: symlinked parent created an external whitelist state directory" >&2; exit 1;
+}
+rm "$TMP/parent-link"
+
+# Environment overrides cannot redirect the settings file or lock outside PG.
+if env MP="$MODULE" PG="$STATE" CONF="$TMP/outside-settings.conf" LOCK="$LOCK" sh "$SCRIPT" list >/dev/null 2>&1; then
+  echo "FAIL: whitelist accepted an external CONF override" >&2; exit 1
+fi
+if env MP="$MODULE" PG="$STATE" CONF="$CONF" LOCK="$TMP/outside-lock" sh "$SCRIPT" list >/dev/null 2>&1; then
+  echo "FAIL: whitelist accepted an external LOCK override" >&2; exit 1
+fi
+[ ! -e "$TMP/outside-settings.conf" ] && [ ! -e "$TMP/outside-lock" ] || {
+  echo "FAIL: rejected whitelist path override created external state" >&2; exit 1;
+}
+
+# A lock symlink is rejected before any lock recovery or configuration write.
+ln -s "$TMP/sentinel" "$LOCK"
+if sh "$SCRIPT" list >/dev/null 2>&1; then
+  echo "FAIL: whitelist accepted a symlinked lock path" >&2; exit 1
+fi
+rm "$LOCK"
+
 # Environment overrides must be expanded by the shell, not treated as literal text.
 LIST=$(sh "$SCRIPT" list)
 if grep -Fq '\${' "$SCRIPT"; then
   echo "FAIL: whitelist script contains escaped shell parameter expansions" >&2
   exit 1
+fi
+grep -Fq '_yw_validate_parent_chain "$PG"' "$SCRIPT" || {
+  echo "FAIL: whitelist state parent chain validation missing" >&2; exit 1;
+}
+grep -Fq '[ "$CONF" = "$PG/settings.conf" ]' "$SCRIPT" || {
+  echo "FAIL: whitelist settings path is not pinned inside PG" >&2; exit 1;
+}
+grep -Fq '[ "$LOCK" = "$PG/yulong-app-whitelist.lock" ]' "$SCRIPT" || {
+  echo "FAIL: whitelist lock path is not pinned inside PG" >&2; exit 1;
+}
+if grep -Fq 'mkdir -p "$PG"' "$SCRIPT"; then
+  echo "FAIL: unsafe recursive whitelist state directory creation remains" >&2; exit 1
 fi
 
 # A killed writer must not leave a permanent directory lock.

@@ -20,10 +20,45 @@ _YW_BACKUP=
 _YW_RESTORE=
 _YW_PID_TEMP=
 umask 077
-mkdir -p "$PG"
-[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX state directory is unsafe" >&2; exit 21; }
+
+# Reject symlinked ancestors before creating or reading the private FX state.
+# Configuration and lock paths are fixed direct children of PG.
+_yw_validate_parent_chain() {
+  _yw_candidate=$1
+  case "$_yw_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_yw_candidate" in /|*/|*//* ) return 1 ;; esac
+  _yw_final=${_yw_candidate##*/}
+  case "$_yw_final" in ''|.|..) return 1 ;; esac
+  _yw_parent=${_yw_candidate%/*}
+  [ -n "$_yw_parent" ] || _yw_parent=/
+  _yw_rest=${_yw_parent#/}
+  _yw_walk=
+  while [ -n "$_yw_rest" ]; do
+    case "$_yw_rest" in
+      */*) _yw_component=${_yw_rest%%/*}; _yw_rest=${_yw_rest#*/} ;;
+      *) _yw_component=$_yw_rest; _yw_rest= ;;
+    esac
+    case "$_yw_component" in ''|.|..) return 1 ;; esac
+    _yw_walk="$_yw_walk/$_yw_component"
+    [ -d "$_yw_walk" ] && [ ! -L "$_yw_walk" ] || return 1
+  done
+  return 0
+}
+
+_yw_validate_parent_chain "$PG" || {
+  echo "FX whitelist state directory has a missing or unsafe parent" >&2
+  exit 21
+}
+[ ! -L "$PG" ] || { echo "FX whitelist state directory is unsafe" >&2; exit 21; }
+if [ ! -e "$PG" ]; then
+  mkdir "$PG" || { echo "cannot create FX whitelist state directory" >&2; exit 21; }
+fi
+[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX whitelist state directory is unsafe" >&2; exit 21; }
+[ "$CONF" = "$PG/settings.conf" ] || { echo "FX whitelist settings path must be inside PG" >&2; exit 21; }
+[ "$LOCK" = "$PG/yulong-app-whitelist.lock" ] || { echo "FX whitelist lock path must be inside PG" >&2; exit 21; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; exit 21; }
 [ ! -L "$LOCK" ] || { echo "FX whitelist lock path is unsafe" >&2; exit 21; }
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "FX whitelist lock path is not a directory" >&2; exit 21; }
 
 valid_package() {
   case "$1" in ''|*[!A-Za-z0-9_.-]*) return 1 ;; esac
