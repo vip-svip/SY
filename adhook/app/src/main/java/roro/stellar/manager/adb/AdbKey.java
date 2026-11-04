@@ -16,7 +16,6 @@ import javax.net.ssl.SSLContext;
 /** Stable host identity and TLS context for the original Stellar ADB pairing flow. */
 public final class AdbKey {
     private static final String IDENTITY = "youlong";
-    private static final byte[] ADB_AUTH_PADDING = createAdbAuthPadding();
 
     private final java.security.KeyPair keyPair;
     private final RSAPrivateKey privateKey;
@@ -80,13 +79,6 @@ public final class AdbKey {
         return pair;
     }
 
-    private static byte[] createAdbAuthPadding() {
-        byte[] padding = new byte[236];
-        padding[0] = 0;
-        padding[1] = 1;
-        Arrays.fill(padding, 2, padding.length, (byte) 0xff);
-        return padding;
-    }
 
     public SSLContext getSslContext() { return sslContext; }
     public RSAPrivateKey getPrivateKey() { return privateKey; }
@@ -94,18 +86,11 @@ public final class AdbKey {
     public X509Certificate getCertificate() { return certificate; }
 
     /**
-     * Original ADB AUTH signature: raw RSA private operation over the 236-byte
-     * 00 01 FF... block followed by the 20-byte daemon challenge. This is not
-     * SHA1withRSA DigestInfo encoding.
+     * ADB AUTH token is already a 20-byte SHA-1 prehash. Encode the SHA-1
+     * DigestInfo inside EMSA-PKCS1-v1_5 and perform one RSA private operation.
      */
     public byte[] sign(byte[] token) throws GeneralSecurityException {
-        if (token == null || token.length != 20) {
-            throw new GeneralSecurityException("ADB AUTH challenge must be exactly 20 bytes");
-        }
-        Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, privateKey);
-        cipher.update(ADB_AUTH_PADDING);
-        return cipher.doFinal(token);
+        return AdbAuthSignature.sign(privateKey, token);
     }
 
     /** ADB peer-info record contains Base64(524-byte adb_rsa_pubkey) + comment + NUL. */
