@@ -1506,3 +1506,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`829326a84c235924c5ff6f66c1c58820abaef767`（保存/恢复 GPS 目标包名）；`6f06af1dbd9cc1058b8934359884b2dbe251750f`（Dia 六 Tab 回归脚本检查目标包名状态与返回结果归属）。
 - 静态验证：当前 HEAD 对主 Activity 的状态保存/恢复、Picker 状态字段、Activity Result 目标包名校验及回归断言全部通过。未运行 Shell/Python/Java Host 测试、Gradle、模拟器或真机旋转/SAF 结果验收。
 - 下一步：完成一次集中 Dia Host 回归可运行性检查；随后转到 Hook 自定义规则页的草稿、导入导出与页面返回状态。固定 FX 1.0.0，不提前打包 APK / KernelSU ZIP。
+
+
+## 2026-11-05 — Dia GPS Picker Activity Result 重建竞态补强
+
+- 本批基于实时 HEAD `d502dd68f98b71b0b7da5e384ffbdac0caf7c52c` 继续；此前已提交的 `fx_pending_dia_gps_target` 状态保存/恢复保持不变。
+- 发现并修复第二层时序问题：MainActivity 重建后通过异步应用列表恢复目标应用时，GPS Picker 的 Activity Result 可能先于列表加载完成返回。旧代码仅接受 `selectedPackage`，会把合法结果丢弃。
+- 现在允许结果目标匹配 `selectedPackage` 或 `pendingRestorePackage`；若目标仍在异步恢复中，先写入该目标独立的 GPS 偏好，再由原有 app-list restore callback 打开目标，避免重复打开页面。原包名隔离、经纬度范围校验和“仅保存、需用户再次发布”行为不变。
+- 提交：`3c458f1f30d04ab8ceed4a12e222c541ece6ac23`（处理异步恢复竞态）；`3617d84a64f8c8c9da9dfacccb74d4e2b39f0996`（回归脚本断言目标恢复期间接收结果且延迟打开目标）。
+- 本批改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`；`scripts/tests/fx-dia-native-tab-regression.sh`；本状态文件。
+- 验证：从当前 HEAD 重新读取源码和测试脚本，静态断言通过：pending target 保存/恢复、接受 pendingRestorePackage、延迟打开避免重复导航、测试覆盖均存在。未运行 Shell/Python/Java Host 测试、Gradle、模拟器或真机旋转与 SAF 交互。
+- 失败路线：第一次基于旧 MainActivity blob SHA 更新时遇到 GitHub 409（并行提交已更新同一路径）；已重新读取分支最新 HEAD 和 blob SHA 后重放补丁成功。以后不得复用旧 SHA。
+- 下一步：核对 MainActivity 的 SAF 导入/导出回调中暂存 payload 的重建恢复，特别是脚本 JSON 导出；随后进行 Dia 页面组一次针对性 Host 回归可运行性检查。固定 FX 1.0.0，不生成最终 APK / KernelSU ZIP。
