@@ -1063,3 +1063,23 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批未改变六 Tab、原生页面功能、FX 1.0.0 版本号，未生成 APK / KernelSU ZIP。
 - 下一批继续安全护盾原生 UI：逐项核对病毒库管理、扫描结果、白名单/管控列表、救援中心之间的返回链和筛选/搜索状态恢复；然后继续补全 Dia 23.11 按键原始实现证据，不凭 Frida 观察模板推断 KeyEventHook。
 
+## 2026-11-05 — 游龙广告主控制、DNS 日志与每日总结页统一六 Tab 导航
+
+- 本批代码开始前 HEAD：d026623bdf019d7595d58ec8a62528911f9b1857（期间最新并行提交 43682f20962886988873d0fb6761b73ac02f6793 只修正 Dia ActivityKey 测试断言，不改本批页面）。
+- 复用上批新增的 `FxNativeTabActivity`，把三个独立 Activity 的 root View 放入原 FX 六 Tab Compose 外壳，初始选中 Settings=5：
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java` — 60f7b122a85bf82de170266856da44245ed06267。
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java` — 19fba759646dbd16a97334c0c6a351ed2f9f8125。
+  - `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java` — edd2a00fb579596aee5fd69f4d89aa17284404fe。
+- 每页保留既有标题、返回按钮、ScrollView、搜索/日志、表单、Root 执行和异步数据工作队列；本批只替换 Activity 宿主类型和根 View 安装入口，不改 Ad/DNS/统计业务逻辑及配置协议。
+- 页面通过上批 `FxNativeTabActivity` 统一六个底栏目的与返回主 Activity 行为；主 Activity 外部 Tab 接收器已经支持 0–5，不新增第二套导航。
+- 静态核验：三文件各只有一个根 setContentView(root)，更新后均 extends FxNativeTabActivity、调用 setContentViewWithNativeTabs(root, 5)，且不再直接 setContentView(root)。未运行 Android/Gradle 编译、六 Tab 脚本、模拟器或真机点击验收。
+- 最新并行 Dia/Shield 工作线（本轮读取确认）：
+  - 2a58a386752fcc560e0677b51889b19fb73adafe：增加有界 ActivityKey 手势策略。
+  - d026623bdf019d7595d58ec8a62528911f9b1857：ActivityKey Host 覆盖。
+  - c99ee9a7158b469002348281ab65c01c258a3641：修复安全护盾 Hub ScrollView 状态恢复。
+  - 9658496e1d68fbe8cc4af09c4a6380950e897ee4：补充 Hub 滚动状态静态断言。
+  - 43682f20962886988873d0fb6761b73ac02f6793：修正 ActivityKey 手势 Host 测试断言。以上为并行提交，本批未重复修改。
+- 当前独立 Activity 六 Tab 覆盖已扩展到 Yulong App Stats / App Whitelist / Firewall / Ad Controls / DNS Logs / Daily Summary 六页；尚未覆盖 General settings、Dia Browser/Frida/Script/Inspector、Shield Scan/Integrity/Rescue 等独立 Activity。
+- 验证边界：没有运行 Android 编译、JUnit/Gradle 或设备导航；静态接线核对不等于 Activity 运行验收。上一批 Firewall 纯 Java Host 用例 11 项已执行通过，但与本批壳接线不同。
+- 下一批具体任务：接入游龙广告 General Settings 页面；随后把 Dia 的核心深层独立 Activity（Frida/脚本库/Activity Browser）与 Shield Scan/Integrity/Rescue 中优先的 1–3 页接上同一六 Tab 壳。保留它们原有返回/结果 Intent 及滚动状态，不改固定六 Tab 顺序或 FX 1.0.0 版本。
+- 本批和此前均未生成最终 APK / KernelSU ZIP。
