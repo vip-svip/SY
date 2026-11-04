@@ -158,7 +158,7 @@ run_with_legacy_temp_symlinks(){
   [ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "Stellar mutation followed a legacy predictable temp symlink"
 }
 run_with_legacy_temp_symlinks scope-set "$PKG" FILESYSTEM_READ_COMMAND 1
-grep -Fq "$(printf 'SCOPE|%s|FILESYSTEM_READ_COMMAND' "$PKG")" "$TMP/stellar_guard/scope_grants.txt" || fail "scope update did not commit with a planted temp symlink"
+grep -Fq "$(printf '%s\t%s' "$PKG" FILESYSTEM_READ_COMMAND)" "$TMP/stellar_guard/scope_grants.txt" || fail "scope update did not commit with a planted temp symlink"
 run_with_legacy_temp_symlinks always-set "$PKG" 'ps' 1
 grep -Fq "$(printf '%s\t%s' "$PKG" ps)" "$TMP/stellar_guard/command_always_allow.txt" || fail "always-allow update did not commit with a planted temp symlink"
 run_with_legacy_temp_symlinks pkg-set "$PKG" 0
