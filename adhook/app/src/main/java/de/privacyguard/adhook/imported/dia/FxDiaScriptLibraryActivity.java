@@ -40,6 +40,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final String STATE_SEARCH = "fx_dia_script_library_search";
     private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
     private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
+    private static final String STATE_CREATE_DIALOG_PENDING = "fx_dia_script_library_create_dialog_pending";
+    private static final String STATE_CREATE_NAME_DRAFT = "fx_dia_script_library_create_name_draft";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(4),
             r -> { Thread t = new Thread(r, "fx-dia-script-library"); t.setDaemon(true); return t; },
@@ -55,6 +57,9 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private JSONObject scripts = new JSONObject();
     private String editingName;
     private boolean openingInitialEditor;
+    private boolean createDialogRestorePending;
+    private String createNameDraft = "";
+    private EditText createNameInput;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -112,6 +117,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             restoreScrollPending = true;
             openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR,
                     getIntent() != null && getIntent().getBooleanExtra("open_new_script", false));
+            createDialogRestorePending = state.getBoolean(STATE_CREATE_DIALOG_PENDING, false);
+            createNameDraft = state.getString(STATE_CREATE_NAME_DRAFT, "");
         } else {
             openingInitialEditor = getIntent() != null
                     && getIntent().getBooleanExtra("open_new_script", false);
@@ -188,6 +195,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 if (openingInitialEditor) {
                     openingInitialEditor = false;
                     createScript();
+                } else if (createDialogRestorePending) {
+                    createScript();
                 }
             });
         });
@@ -235,17 +244,35 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         }
     }
 
+    private void clearCreateScriptDialogState() {
+        createDialogRestorePending = false;
+        createNameDraft = "";
+        createNameInput = null;
+    }
+
     private void createScript() {
+        createDialogRestorePending = true;
         EditText input = new EditText(this);
+        createNameInput = input;
         input.setSingleLine(true);
         input.setHint("脚本名称，最多 64 个字符");
-        new AlertDialog.Builder(this).setTitle("新建 Frida JavaScript")
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
+        input.setText(createNameDraft);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                createNameDraft = value == null ? "" : value.toString();
+            }
+            @Override public void afterTextChanged(Editable value) { }
+        });
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("新建 Frida JavaScript")
                 .setMessage("新脚本会先打开本地编辑器。保存回传后才写入私有脚本库，不会自动注入目标进程。")
                 .setView(input)
-                .setNegativeButton("取消", null)
-                .setPositiveButton("继续", (dialog, which) -> {
+                .setNegativeButton("取消", (d, which) -> clearCreateScriptDialogState())
+                .setPositiveButton("继续", (d, which) -> {
                     String name = FxDiaScriptLibraryPolicy.normalizeName(
                             input.getText() == null ? "" : input.getText().toString());
+                    clearCreateScriptDialogState();
                     String error = FxDiaScriptLibraryPolicy.validateName(name);
                     if (error != null) {
                         setStatus(error);
@@ -265,7 +292,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                             .setNegativeButton("取消", null)
                             .setPositiveButton("编辑现有脚本", (d, w) ->
                                     openEditor(name, scripts.optString(name, ""))).show();
-                }).show();
+                }).create();
+        dialog.setOnCancelListener(ignored -> {
+            if (!isChangingConfigurations()) clearCreateScriptDialogState();
+        });
+        dialog.show();
     }
 
     private void openEditor(String name, String source) {
@@ -458,6 +489,11 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     @Override protected void onSaveInstanceState(Bundle out) {
         if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
+        if (createNameInput != null && createNameInput.getText() != null)
+            createNameDraft = createNameInput.getText().toString();
+        out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
+        out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft.length() > 64
+                ? createNameDraft.substring(0, 64) : createNameDraft);
         out.putString(STATE_SEARCH,
                 search == null || search.getText() == null ? "" : search.getText().toString());
         out.putInt(STATE_SCROLL_Y, libraryScroll == null ? 0 : libraryScroll.getScrollY());
