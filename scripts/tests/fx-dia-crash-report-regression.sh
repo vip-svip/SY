@@ -65,11 +65,11 @@ assert "FxDiaCrashDumpDirectory.deleteDirectDump(app.getFilesDir(), minidumpPath
 assert "if (!FxDiaCrashStore.isCaptureEnabled(app))" in native_capture, "native callback must apply the unified Java/Native capture switch"
 assert "Breakpad 原生处理器在当前进程内不能卸载" in activity, "UI must explain native callback behavior after disable"
 assert "statusLine(this)" in activity, "native library availability is not shown"
-assert "clearMinidumps(context)" in native_capture, "native dump directory has no explicit cleanup path"
-assert "FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
+assert "public static boolean clearMinidumps(Context context)" in native_capture, "native dump directory has no explicit cleanup API"
+assert "return FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
 assert "if (!directory.exists() && !directory.mkdir() && !directory.isDirectory())" in dump_directory, "native dump cleanup must recreate a missing Breakpad output path"
 assert "return directory.delete()" not in dump_directory, "native dump cleanup must preserve the output directory for the registered handler"
-assert "remaining != null && remaining.length == 0" in dump_directory, "successful dump cleanup must verify all direct files were removed"
+assert "if (remaining == null || remaining.length != 0) return false" in dump_directory, "successful dump cleanup must verify all direct files were removed"
 assert "public static boolean prune(File filesRoot, int maxFiles, long maxAgeMs, long nowMs)" in dump_directory, "native retention must use the path-safe helper"
 assert "isDirectRegularFile(directory, entry)" in dump_directory, "prune must reject symlinked or nested dump entries"
 assert "FxDiaCrashDumpDirectory.prune(filesRoot, 5" in native_capture, "native callback must use path-safe retention"
@@ -81,10 +81,10 @@ assert "FxDiaNativeCrashCapture.clearMinidumps(context)" in store, "crash clear 
 assert "if (FxDiaCrashStore.clear(this))" in activity, "UI must only report a fully successful clear"
 assert "可能已有部分文件被删除" in activity and "不会报告清除成功" in activity, "failed partial cleanup must not claim that the report was preserved or cleared"
 assert "符号链接或意外子目录" in activity, "clear confirmation must disclose path-safety refusal"
-for token in ("getCanonicalFile()", "entry.isFile()", "canonicalDirectory.equals(canonicalEntry.getParentFile())",
-              "if (!entry.delete()) return false", "return target.delete() || !target.exists()",
+for token in ("getCanonicalFile()", "entry.isFile()", "directory.equals(canonical.getParentFile())",
+              "!entry.delete()) return false", "return target.delete() || !target.exists()",
               "public static boolean deleteDirectDump(File filesRoot, String minidumpPath)",
-              "canonicalDirectory.equals(canonicalTarget.getParentFile())"):
+              "directory.equals(target.getCanonicalFile().getParentFile())"):
     assert token in dump_directory, f"safe minidump deletion invariant missing: {token}"
 assert "Java_com_babyte_breakpad_BaByteBreakpad_initBreakpadNative" in workflow, "workflow does not verify original JNI symbol"
 assert "getPackageName()" in store and "Build.MODEL" in store, "process/device metadata is missing"
