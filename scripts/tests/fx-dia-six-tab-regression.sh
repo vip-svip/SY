@@ -25,6 +25,7 @@ pages = {
     "FxDiaMonitorEventsActivity.java": ".imported.dia.FxDiaMonitorEventsActivity",
     "FxDiaBackupActivity.java": ".imported.dia.FxDiaBackupActivity",
     "FxDiaGlobalSettingsActivity.java": ".imported.dia.FxDiaGlobalSettingsActivity",
+    "FxDiaSessionLogActivity.java": ".imported.dia.FxDiaSessionLogActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
