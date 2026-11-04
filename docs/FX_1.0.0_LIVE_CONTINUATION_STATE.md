@@ -1108,3 +1108,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未改变六 Tab 顺序、任何名单语义或 FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
 - 下一批：检查白名单选择器和管控应用选择弹窗在 Activity 重建 / 搜索后是否保留暂存勾选与列表位置；再继续游龙安全护盾病毒库、扫描结果与救援中心的导航返回链。Dia 原版 KeyEventHook 仍需从导入资源/原始 APK 证据溯源，不能把 Frida 观察模板当成拦截实现。
 
+## 2026-11-05 — 游龙安全护盾病毒库、完整性与救援页面统一六 Tab 外壳
+
+- 本批更新前实时 HEAD：`303b5db69ddf09b89d76af2df3f98657d58e723d`；固定分支 `fx-v1.0.0-unified-hook-integration`，版本固定 FX 1.0.0。
+- 已把三个此前仍使用独立 Activity 根布局的核心页接入既有 `FxNativeTabActivity`，底栏初始选中“设置”（索引 5），页面本身的标题、返回按钮、ScrollView、表单、Root/系统设置跳转和业务流程保留：
+  - `FxYulongVirusDatabaseActivity.java` — `257e0955d5b3cf4b3b85bd99102845742ca7e81e`。
+  - `FxYulongRescueActivity.java` — `d3bdba1fcd938c4eaffc1c1e63bb272718274309`。
+  - `FxYulongIntegrityActivity.java` — `afa7a1e679ea61ce1d747804776701e240270b42`。
+- 对照当前实时 HEAD，扫描页 `FxYulongScanActivity` 已在先前并行提交中接入同一宿主；本批未重复修改。安全护盾 Hub、病毒库、扫描、完整性、救援中心现在均可显示 FX 六 Tab 外壳。
+- 新增定向回归入口 `scripts/tests/fx-yulong-shield-six-tab-regression.sh` — `931c3953bf08504a4ab860b303b67129ea652f24`。检查 Manifest 声明、四个独立页面的共享宿主与单一根 View 安装点，并保护扫描结果状态保存、系统确认卸载路径、Hub 子页面路由。
+- 最新 HEAD 文件级静态核验 10 项全部通过：数据库/扫描/完整性/救援页宿主、无绕过壳的旧 `setContentView(root)`、扫描结果状态保存、系统确认卸载入口、Hub 路由、Manifest 声明及回归脚本覆盖。
+- 验证边界：本批没有完整仓库工作树，未实际运行新增 Shell 回归脚本、Gradle/JUnit、Android 编译、模拟器或真机六 Tab 点击/返回验收。静态契约通过不代表 Android 编译或设备验收通过。
+- 未更改六 Tab 顺序、原始业务逻辑、FX 1.0.0 版本号；未生成 APK / KernelSU ZIP。
+- 下一批具体任务：
+  1. 检查白名单选择器 / 管控应用选择器在 Activity 重建、搜索后暂存勾选和滚动位置是否保留；继续修复 Shield 页面组的返回链和状态恢复。
+  2. 核对病毒库页与扫描页的状态提示、后台任务旋转后回执及重复触发保护，避免 Activity 销毁后丢失任务结果。
+  3. 继续接入 Dia 核心独立 Activity 的六 Tab 外壳；原版 `KeyEventHook` 没有可靠字节码证据前，不实现猜测版 `alert_auto`。
