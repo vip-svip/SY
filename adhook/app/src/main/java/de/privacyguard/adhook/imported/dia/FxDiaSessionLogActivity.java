@@ -1,0 +1,278 @@
+package de.privacyguard.adhook.imported.dia;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import de.privacyguard.adhook.RootAccess;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+
+/** Native viewer and guarded clear operation for the current Dia Frida session log. */
+public final class FxDiaSessionLogActivity extends Activity {
+    private static final String EXTRA_TARGET_PACKAGE = "fx_dia_session_log_target_package";
+    private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
+    private static final int MAX_ROOT_OUTPUT = 512 * 1024;
+    private static final String BASE_DIR = "/data/adb/privacyguard";
+    private static final String DIA_DIR = BASE_DIR + "/dia-frida";
+    private static final String LOG_DIR = DIA_DIR + "/logs";
+
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "fx-dia-session-log");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private String targetPackage;
+    private String targetName;
+    private String logPath;
+    private String logContent = "";
+    private int requestGeneration;
+    private boolean destroyed;
+
+    private TextView status;
+    private TextView outputView;
+    private EditText search;
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        if (bold) view.setTypeface(android.graphics.Typeface.DEFAULT,
+                android.graphics.Typeface.BOLD);
+        view.setPadding(dp(5), dp(6), dp(5), dp(6));
+        return view;
+    }
+
+    private Button button(String label, Runnable action) {
+        Button view = new Button(this);
+        view.setAllCaps(false);
+        view.setText(label);
+        view.setOnClickListener(v -> action.run());
+        return view;
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        targetPackage = getIntent().getStringExtra(EXTRA_TARGET_PACKAGE);
+        targetName = getIntent().getStringExtra(EXTRA_TARGET_NAME);
+        if (!isSafePackageName(targetPackage)) {
+            Toast.makeText(this, "运行日志目标包名无效，无法读取日志。", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        if (targetName == null || targetName.trim().isEmpty()) targetName = targetPackage;
+        logPath = LOG_DIR + "/" + targetPackage + ".log";
+        buildPage();
+        refreshLog();
+    }
+
+    private static boolean isSafePackageName(String value) {
+        return value != null && value.length() <= 255
+                && value.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")
+                && !value.contains("..");
+    }
+
+    private String quote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    private String checkedDirectoryPrefix() {
+        return "if [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
+                + " || [ -L " + quote(BASE_DIR) + " ] || [ ! -d " + quote(BASE_DIR) + " ]"
+                + " || [ -L " + quote(DIA_DIR) + " ] || [ ! -d " + quote(DIA_DIR) + " ]"
+                + " || [ -L " + quote(LOG_DIR) + " ] || [ ! -d " + quote(LOG_DIR) + " ]; then "
+                + "echo FX_DIA_LOG_PATH_UNAVAILABLE; exit 21; fi; ";
+    }
+
+    private void buildPage() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff7f8fa);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(8), dp(4), dp(12), dp(4));
+        header.addView(button("‹ 返回", this::finish));
+        header.addView(text("Dia 23.11 · Frida 运行日志", 18, 0xff17212b, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+
+        root.addView(text("目标应用：" + targetName + "\n包名：" + targetPackage,
+                12, 0xff526170, false));
+
+        TextView warning = text(
+                "这里显示当前目标的原始 Frida 会话日志，可能包含自定义脚本输出或应用调试信息。分享前请检查并删除敏感内容。",
+                12, 0xff8a5b20, false);
+        warning.setPadding(dp(16), dp(4), dp(16), dp(4));
+        root.addView(warning);
+
+        status = text("尚未读取日志。", 12, 0xff526170, false);
+        status.setPadding(dp(16), dp(5), dp(16), dp(5));
+        root.addView(status);
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setPadding(dp(10), dp(2), dp(10), dp(4));
+        search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("筛选日志行");
+        controls.addView(search);
+        LinearLayout actions = new LinearLayout(this);
+        actions.addView(button("刷新日志", this::refreshLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(button("清空当前日志", this::confirmClearLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(actions);
+        root.addView(controls);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        outputView = text("正在读取…", 11, 0xff263443, false);
+        outputView.setTypeface(android.graphics.Typeface.MONOSPACE);
+        outputView.setTextIsSelectable(true);
+        outputView.setPadding(dp(12), dp(8), dp(12), dp(18));
+        scroll.addView(outputView);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count,
+                                                    int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before,
+                                                int count) { renderLog(); }
+            @Override public void afterTextChanged(Editable editable) { }
+        });
+    }
+
+    private void refreshLog() {
+        if (destroyed || logPath == null) return;
+        final int request = ++requestGeneration;
+        status.setText("正在读取最近 500 行日志…");
+        final String command = checkedDirectoryPrefix()
+                + "if [ -f " + quote(logPath) + " ] && [ ! -L " + quote(logPath)
+                + " ] && [ -r " + quote(logPath) + " ] && [ -s " + quote(logPath)
+                + " ]; then tail -n 500 " + quote(logPath)
+                + "; else echo FX_DIA_NO_LOG; fi";
+        submit(() -> {
+            RootAccess.Result result = RootAccess.execute(command, 15000L, MAX_ROOT_OUTPUT);
+            runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()
+                        || request != requestGeneration) return;
+                if (result == null || result.exitCode != 0) {
+                    String detail = result == null || result.output == null
+                            ? "Root 读取失败。" : result.output.trim();
+                    if (detail.length() > 240) detail = detail.substring(0, 240);
+                    logContent = "";
+                    status.setText("读取日志失败：" + (detail.isEmpty() ? "没有错误详情。" : detail));
+                    renderLog();
+                    return;
+                }
+                String value = result.output == null ? "" : result.output;
+                if (value.contains("FX_DIA_LOG_PATH_UNAVAILABLE")) {
+                    logContent = "";
+                    status.setText("日志目录不存在、不可访问或包含符号链接；为保护路径安全，拒绝读取。");
+                } else if (value.contains("FX_DIA_NO_LOG")) {
+                    logContent = "";
+                    status.setText("当前目标还没有会话日志。");
+                } else {
+                    logContent = value;
+                    int lines = value.isEmpty() ? 0 : value.split("\\r?\\n", -1).length;
+                    String time = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
+                    status.setText("最近读取：" + time + " · 返回 " + lines + " 行（最多 500 行）。");
+                }
+                renderLog();
+            });
+        });
+    }
+
+    private void renderLog() {
+        if (outputView == null || search == null) return;
+        String needle = search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        if (logContent.isEmpty()) {
+            outputView.setText("暂无可显示的运行日志。");
+            return;
+        }
+        StringBuilder filtered = new StringBuilder();
+        int total = 0;
+        for (String line : logContent.split("\\r?\\n", -1)) {
+            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
+            if (total++ > 0) filtered.append('\n');
+            filtered.append(line);
+        }
+        outputView.setText(total == 0 ? "没有符合条件的日志行。" : filtered.toString());
+    }
+
+    private void confirmClearLog() {
+        new AlertDialog.Builder(this)
+                .setTitle("清空 Frida 会话日志")
+                .setMessage("只清空 FX 为当前目标创建的会话日志，不会删除脚本、目标应用配置或 Frida 服务。此操作不可撤销。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清空日志", (dialog, which) -> clearLog())
+                .show();
+    }
+
+    private void clearLog() {
+        final int request = ++requestGeneration;
+        status.setText("正在安全清空当前目标日志…");
+        final String command = checkedDirectoryPrefix()
+                + "if [ -f " + quote(logPath) + " ] && [ ! -L " + quote(logPath)
+                + " ]; then : > " + quote(logPath) + " && chmod 600 " + quote(logPath)
+                + " && echo FX_DIA_LOG_CLEARED; else echo FX_DIA_LOG_MISSING_OR_UNSAFE; exit 22; fi";
+        submit(() -> {
+            RootAccess.Result result = RootAccess.execute(command, 15000L, 64 * 1024);
+            runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()
+                        || request != requestGeneration) return;
+                if (result != null && result.exitCode == 0
+                        && result.output != null && result.output.contains("FX_DIA_LOG_CLEARED")) {
+                    logContent = "";
+                    if (search != null) search.setText("");
+                    status.setText("当前目标的 FX Frida 日志已清空。");
+                    renderLog();
+                    Toast.makeText(this, "日志已清空。", Toast.LENGTH_SHORT).show();
+                } else {
+                    String detail = result == null || result.output == null
+                            ? "Root 操作失败。" : result.output.trim();
+                    if (detail.length() > 240) detail = detail.substring(0, 240);
+                    status.setText("清空失败，日志未被确认清空：" + detail);
+                }
+            });
+        });
+    }
+
+    private void submit(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            status.setText("后台队列繁忙，本次操作未执行，请稍后重试。");
+        }
+    }
+
+    @Override protected void onDestroy() {
+        destroyed = true;
+        requestGeneration++;
+        worker.shutdownNow();
+        super.onDestroy();
+    }
+}
