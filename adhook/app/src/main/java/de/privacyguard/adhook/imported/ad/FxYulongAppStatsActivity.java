@@ -26,7 +26,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Per-application cumulative UID traffic counters, independent of VPN and DNS. */
-public final class FxYulongAppStatsActivity extends Activity {
+public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int APP_PAGE_SIZE = 40;
     private static final String STATE_APP_PAGE = "fx_yulong_app_stats_page";
     private static final String STATE_QUERY = "fx_yulong_app_stats_query";
@@ -97,7 +97,7 @@ public final class FxYulongAppStatsActivity extends Activity {
         scroll=new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0,dp(4),0,dp(18)); scroll.addView(body);
-        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentView(root);
+        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 5);
 
         search=new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         if (state != null) {
