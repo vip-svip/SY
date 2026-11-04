@@ -85,7 +85,25 @@ grep -q 'android.intent.action.MAIN' "$ROOT/adhook/app/src/main/AndroidManifest.
 grep -q 'android.intent.category.LAUNCHER' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "launcher category missing"
 grep -q 'QUERY_ALL_PACKAGES' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "installed-app visibility permission missing"
 grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/adhook/app/src/main/AndroidManifest.xml" || fail "Hook forms do not resize around the on-screen keyboard"
-grep -q 'android:windowSoftInputMode="adjustResize"' "$ROOT/fx-patches/merge_hook_single_apk.py" || fail "unified APK manifest generator drops keyboard resize behavior"
+python3 - "$ROOT/fx-patches/merge_hook_single_apk.py" <<'PY'
+from pathlib import Path
+import sys
+
+generator = Path(sys.argv[1]).read_text(encoding="utf-8")
+# The merger uses ElementTree rather than hand-writing XML attributes. Assert
+# the exact semantic attribute/value assignment on the unique launcher node,
+# and assert it serializes that same mutated manifest tree.
+assert 'launcher_activities[0].set(ANDROID + "windowSoftInputMode", "adjustResize")' in generator, (
+    "unified APK manifest generator must preserve adjustResize on the launcher Activity"
+)
+assert 'ET.tostring(manifest_root, encoding="unicode"' in generator, (
+    "unified APK manifest generator must serialize the mutated manifest tree"
+)
+assert 'merged_root = ET.parse(manifest)' in generator, (
+    "unified APK manifest generator must reparse the written manifest for verification"
+)
+print("PASS: unified APK manifest generator retains launcher adjustResize semantics")
+PY
 grep -q "createNewFile()" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "legacy Android export can overwrite an existing file"
 grep -q "createUniqueFile(dir, safeName)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "export filename collision handling missing"
 grep -q '公共 Download/FX/' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootBridge.java" || fail "Android 10+ public export location is not reported accurately"
