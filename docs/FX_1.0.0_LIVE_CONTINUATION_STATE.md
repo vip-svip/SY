@@ -816,3 +816,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   3. 新增 Dia 原生 Dialog 页面：按已选应用读写目标级配置；支持规则增删改、自动/手动条件、拦截提示和运行状态；不得复用 Notification 开关。
   4. 加入 Parser/Serializer、匹配器纯 JVM 单测及 Shell 回归；先运行定向测试，再进行 Android 编译。
 - 失败路线记录：把“对话框与通知”直接路由到 Frida Dialog 页面无法覆盖原始 WindowManager Hook；仅靠现有 Dialog.show 广告扫描器也不具备拦截语义。下一批必须新增独立执行链，不再尝试重命名现有功能。
+
+
+## 2026-11-05 — Dia Dialog 原生规则链核对与编译阻断清理
+
+- 本批起始 HEAD：`a1edec7e7b6676f6fefad23691bf661638eadb9a`；并行工作线随后推进到 `fa56c2c8144a80628239a175da083734196335a2`，本批基于当时最新 blob 做并发安全更新。
+- 本批代码提交：
+  - `157226b0b7f085d8ff757add1669fd7753675a98` — 删除 `AdVisibilityHook.java` 中重复的 `FxDiaDialogMatchPolicy` 导入（复核最终只剩一条）。
+  - `8a98d7dad079407c2aa2b44ad0f48e2c0e701855` — 新增 `scripts/tests/fx-dia-dialog-native-regression.sh`，覆盖 Dialog UI/配置/运行时连接、单次导入、匹配预算、fail-open、提示限频及匹配器测试契约。
+- 当前已存在的 Dialog 实际链路（不是本批新造）：逐应用原生 Dialog 表单 -> SharedPreferences 持久化 -> per-app 配置发布 -> Parser/Serializer 校验 -> LSPosed `Dialog.show()` Hook -> 明确文本/资源 ID 匹配 -> 匹配时阻止原始 show 调用；异常时 fail-open；反馈 Toast 按应用 3 秒限频；日志不记录对话框正文。
+- 已确认限制：当前仅覆盖 `Dialog.show()` 普通 Dialog 路径，不等于通用 `WindowManager.addView` 拦截；全屏窗口跳过；原版按键触发/自动布局监测、独立 Toast 过滤尚未迁移。不要宣称覆盖所有 Window/Toast。
+- 定向静态核对：读取最新 `AdVisibilityHook.java`，确认重复 import 修复后只剩一条；读取 Dialog UI、配置 parser/serializer、匹配策略及 JUnit 测试，确认上述接线存在。新增回归脚本已提交，但本会话未在仓库工作树运行该脚本，也未运行 Gradle/JUnit/Android 编译或 LSPosed 真机测试。
+- 固定版本仍为 FX 1.0.0；未打包最终 APK/KernelSU ZIP。
+- 下一步具体任务：① 运行 `fx-dia-dialog-native-regression.sh` 和 Dialog/Parser JUnit；② 继续从原始 Dia smali 追踪 `ToastDisableHook`、`KeyEventHook` 和自动布局监听语义，分别实现安全的逐应用 Toast 过滤与按键模式（不可混用 Dialog 匹配开关）；③ 回到 Frida 监听/代理原生导航返回链。
