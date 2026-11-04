@@ -45,6 +45,28 @@ jobs:
           gh run download 41538478144 --repo vip-svip/SY --name fx-apk-source-intake --dir "$source_dir"
           dia_root="$(find "$source_dir" -type d -name Dia_23.11_src -print -quit)"
           [[ -n "$dia_root" ]] || { echo "::error::Dia 23.11 source intake directory is missing."; exit 1; }
+
+          # Original Stellar ADB pairing's SPAKE2 JNI is supplied by the
+          # user-provided 9.9.60 source intake. Stage both shipped Android ABIs
+          # into the single APK's standard jniLibs source set.
+          stellar_root="$(find "$source_dir" -type d -name '*_9.9.60_src' -print -quit)"
+          [[ -n "$stellar_root" ]] || { echo "::error::Original 9.9.60 Stellar source intake directory is missing."; exit 1; }
+          for abi in arm64-v8a armeabi-v7a; do
+            native_source="$stellar_root/lib/$abi/libadb.so"
+            native_target="adhook/app/src/main/jniLibs/$abi/libadb.so"
+            [[ -s "$native_source" ]] || { echo "::error::Missing original Stellar JNI library: $native_source"; exit 1; }
+            install -D -m 0644 "$native_source" "$native_target"
+          done
+          readelf -h adhook/app/src/main/jniLibs/arm64-v8a/libadb.so | grep -Eq 'Class:[[:space:]]+ELF64'
+          readelf -h adhook/app/src/main/jniLibs/arm64-v8a/libadb.so | grep -Eq 'Machine:[[:space:]]+AArch64'
+          readelf -h adhook/app/src/main/jniLibs/armeabi-v7a/libadb.so | grep -Eq 'Class:[[:space:]]+ELF32'
+          readelf -h adhook/app/src/main/jniLibs/armeabi-v7a/libadb.so | grep -Eq 'Machine:[[:space:]]+ARM'
+          for abi in arm64-v8a armeabi-v7a; do
+            readelf -d "adhook/app/src/main/jniLibs/$abi/libadb.so" | grep -Fq 'liblog.so'
+            readelf -d "adhook/app/src/main/jniLibs/$abi/libadb.so" | grep -Fq 'libc.so'
+            sha256sum "adhook/app/src/main/jniLibs/$abi/libadb.so"
+          done
+
           stage_dia_asset() {
             local source_rel="$1" target_rel="$2" source_file
             source_file="$dia_root/assets/$source_rel"
