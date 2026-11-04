@@ -40,9 +40,18 @@ public final class FxDiaInspectorActivity extends Activity {
             });
         }
     }
-    private final List<ApplicationInfo> apps=new ArrayList<>();
+    private static final class TargetApp {
+        final ApplicationInfo info;
+        final String label;
+        TargetApp(ApplicationInfo app, String text) { info = app; label = text; }
+    }
+    private final List<TargetApp> apps = new ArrayList<>();
     private String mode="database", targetPackage;
     private TextView target,status,output;
+    private boolean appsLoading;
+    private boolean appsLoaded;
+    private long appLoadGeneration;
+    private Runnable appsReadyCallback;
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private TextView text(String s,int size,int color,boolean bold){
         TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);
@@ -80,24 +89,89 @@ public final class FxDiaInspectorActivity extends Activity {
                             new android.content.Intent(this, FxDiaFridaActivity.class)
                                     .putExtra("dia_page", "内存快照"))));
         }
-        loadApps();
+        loadApps(null);
     }
-    private void loadApps(){
-        apps.clear();
-        try{
-            for(ApplicationInfo app:getPackageManager().getInstalledApplications(0)){
-                if(app.packageName==null||app.packageName.equals(getPackageName()))continue;
-                if((app.flags&ApplicationInfo.FLAG_DEBUGGABLE)==0||(app.flags&ApplicationInfo.FLAG_SYSTEM)!=0)continue;
-                apps.add(app);
-            }
-            apps.sort(Comparator.comparing(a->{try{return String.valueOf(getPackageManager().getApplicationLabel(a)).toLowerCase(Locale.ROOT);}catch(Throwable e){return a.packageName.toLowerCase(Locale.ROOT);}}));
-        }catch(Throwable e){status.setText("读取应用列表失败："+e.getClass().getSimpleName());}
+    private void loadApps(Runnable whenReady) {
+        if (appsLoaded) {
+            if (whenReady != null) whenReady.run();
+            return;
+        }
+        if (whenReady != null) appsReadyCallback = whenReady;
+        if (appsLoading) {
+            status.setText("正在后台读取可调试应用列表…");
+            return;
+        }
+        appsLoading = true;
+        final long generation = ++appLoadGeneration;
+        status.setText("正在后台读取可调试应用列表…");
+        final android.content.pm.PackageManager packageManager = getPackageManager();
+        final String ownPackage = getPackageName();
+        try {
+            worker.execute(() -> {
+                List<TargetApp> loaded = new ArrayList<>();
+                String failure = null;
+                try {
+                    for (ApplicationInfo app : packageManager.getInstalledApplications(0)) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (app.packageName == null || app.packageName.equals(ownPackage)) continue;
+                        if ((app.flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0
+                                || (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0) continue;
+                        String label;
+                        try { label = String.valueOf(packageManager.getApplicationLabel(app)); }
+                        catch (RuntimeException unavailable) { label = app.packageName; }
+                        loaded.add(new TargetApp(app, label));
+                    }
+                    loaded.sort(Comparator.comparing(item -> item.label.toLowerCase(Locale.ROOT)));
+                } catch (RuntimeException error) {
+                    failure = error.getClass().getSimpleName();
+                }
+                if (Thread.currentThread().isInterrupted()) return;
+                final String loadFailure = failure;
+                final List<TargetApp> result = loaded;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || generation != appLoadGeneration) return;
+                    appsLoading = false;
+                    if (loadFailure != null) {
+                        appsReadyCallback = null;
+                        status.setText("读取应用列表失败：" + loadFailure);
+                        return;
+                    }
+                    apps.clear();
+                    apps.addAll(result);
+                    appsLoaded = true;
+                    status.setText("可调试用户应用：" + apps.size());
+                    Runnable callback = appsReadyCallback;
+                    appsReadyCallback = null;
+                    if (callback != null) callback.run();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            appsLoading = false;
+            appsReadyCallback = null;
+            status.setText("后台任务队列繁忙，应用列表未读取；请稍后重试。");
+        }
     }
-    private void chooseTarget(){
-        if(apps.isEmpty())loadApps();if(apps.isEmpty()){status.setText("没有可调试的用户应用。");return;}
-        String[] labels=new String[apps.size()];
-        for(int i=0;i<apps.size();i++){String label;try{label=String.valueOf(getPackageManager().getApplicationLabel(apps.get(i)));}catch(Throwable e){label=apps.get(i).packageName;}labels[i]=label+"\n"+apps.get(i).packageName;}
-        new AlertDialog.Builder(this).setTitle("选择 debuggable 目标").setItems(labels,(d,w)->{targetPackage=apps.get(w).packageName;target.setText(labels[w]);status.setText("目标已选择；点击读取。");}).setNegativeButton("取消",null).show();
+    private void chooseTarget() {
+        loadApps(this::showTargetPicker);
+    }
+    private void showTargetPicker() {
+        if (apps.isEmpty()) {
+            status.setText("没有可调试的用户应用。");
+            return;
+        }
+        final List<TargetApp> choices = new ArrayList<>(apps);
+        String[] labels = new String[choices.size()];
+        for (int i = 0; i < choices.size(); i++) {
+            TargetApp choice = choices.get(i);
+            labels[i] = choice.label + "\n" + choice.info.packageName;
+        }
+        new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
+                .setItems(labels, (dialog, which) -> {
+                    TargetApp selected = choices.get(which);
+                    targetPackage = selected.info.packageName;
+                    target.setText(labels[which]);
+                    status.setText("目标已选择；点击读取。");
+                }).setNegativeButton("取消", null).show();
     }
     private void inspect(){
         if(TextUtils.isEmpty(targetPackage)){status.setText("请先选择 debuggable 目标应用。");return;}
@@ -126,5 +200,10 @@ public final class FxDiaInspectorActivity extends Activity {
         android.content.ClipboardManager cb=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(cb==null)return;
         cb.setPrimaryClip(android.content.ClipData.newPlainText("Dia inspector",output.getText()));status.setText("结果已复制。");
     }
-    @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy() {
+        appLoadGeneration++;
+        appsReadyCallback = null;
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }
