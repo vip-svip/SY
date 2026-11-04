@@ -6,6 +6,8 @@
 
 - Repository：`vip-svip/SY`
 - Branch：`fx-v1.0.0-unified-hook-integration`
+- 本轮最新 HEAD：`587d6be585b7b7436c7960043c76b73ecdf3fdfa`（`docs(fx): record Dia Host regression success`）。
+- 最近 Dia Host 回归：run `41915416366`，HEAD `6a99665a29b18406360a5e5df4e1d2e795d1d030`，SUCCESS；不是当前 HEAD 的 Gradle/设备验证。
 - 历史功能基线 HEAD：`6d69cd05c993d041fbebe6ea85d04aeb0eb4ba1a`（历史检查点，不是本轮最新 HEAD）。
 - 上一轮状态文档记录的 HEAD：`1b17e21e2ab1c3c355ab817a0c8711643d880d32`（历史检查点；本轮工作前已从分支文件重新核对）。
 - Hook OBSERVE 日志页代码检查点：`28cf54337bb86a1af9a9d102be959c9e036e283e`（随后分支继续前进；当前轮次最新代码提交见下文）。
