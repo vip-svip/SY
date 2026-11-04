@@ -896,3 +896,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 未完成事项：三套应用仍有部分四级页面路由到通用页或明确 pending 页；Dia 与游龙安全护盾深层页面映射/返回链仍需逐组对照原版。应用白名单页仍需 Android 生命周期实测。
 - 排除路线：曾怀疑 Hook/设置页面底栏会消失；复核确认 base() 已挂载同一六 Tab Compose 外壳，故不做重复修补。
 - 下一批具体任务：继续补齐游龙广告“应用管理”页面组的原生交互与恢复（白名单页已处理，Firewall 页已有分页/查询/滚动恢复；核查应用统计页）；并行工作线应把 Toast Parser/Serializer 接到独立默认关闭、逐应用 UI 与执行器，不能复用 Dialog 提示开关。
+
+## 2026-11-05 — 游龙广告应用统计分页与页面恢复
+
+- 本批代码提交前 HEAD：bb843fb3ec14d054b636c3b53fda697d14d58e06。
+- 本批代码提交：752497bc7d8e07e7d76272671c3c855e7d1e93de（feat(ui): paginate Yulong per-app traffic statistics）。
+- 改动路径：adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppStatsActivity.java。
+- 完成：应用统计列表按每页 40 项创建 View；增加加载更多入口；保存并恢复搜索词、当前页码和滚动位置；数据刷新完成后恢复滚动；搜索修改时重置到第一页和顶部。统计数据继续来自 TrafficStats 按 UID 的累计收发字节，未更改统计口径。
+- 定向静态核验：7 项源码断言通过，覆盖分页上限、加载更多、搜索重置、状态保存/恢复、异步加载后恢复、翻页后保持滚动，以及 TrafficStats/唯一 UID 汇总逻辑未被替换。
+- 验证边界：未运行 Gradle / Android 编译、自动化 UI 或真机测试；分页交互及屏幕旋转仍需 Android 生命周期验收。
+- 当前实时分支 HEAD（本次写入状态文件前读取）：8946cb888d49b9bd7320445675c2f2c4c16f83a5。
+- 最近提交：8946cb888d49b9bd7320445675c2f2c4c16f83a5 feat(privacy): add native per-app Toast filtering page；752497bc7d8e07e7d76272671c3c855e7d1e93de feat(ui): paginate Yulong per-app traffic statistics；bb843fb3ec14d054b636c3b53fda697d14d58e06 docs(fx): record Yulong whitelist UI restoration；f93aafda36277583e727c244b1ab7851fe40d4ad feat(privacy): serialize per-app Toast filter rules；1725569d71e01afb7daacdf591a96eb59cc50328 feat(privacy): parse per-app Toast filtering rules；41f601c53b9d1b85d80a3ff8df766ff2639e8991 fix(ui): restore Yulong app whitelist list state；4fed76d48d0f1c6b1b9a4935085d43dada1566e4 docs(fx): record Dialog addView runtime and regression status；78cdea7fba9f3a5c5c960b25df524683668ec558 fix(test): use real newlines in GPS config parser fixtures。
+- 未完成事项：游龙广告应用管理组的应用统计和白名单页已补分页/状态恢复；Firewall 页面已有相近的分页、搜索和滚动恢复，但其用户应用/系统应用/按应用设置入口需进一步验证筛选一致性与原版导航。Dia / 游龙安全护盾深层页面仍有 pending 入口，尚未逐项完成原版对照。
+- 下一批具体任务：核对 Firewall 页面按“用户应用 / 系统应用 / 按应用设置”路由是否实际过滤正确、返回栈是否完整；随后转向 Dia 原生页面，不重复改已经具备恢复链的白名单和统计页面。
