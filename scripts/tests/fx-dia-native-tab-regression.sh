@@ -74,6 +74,8 @@ assert 'pendingDiaGpsTargetPackage = state.getString("fx_pending_dia_gps_target"
 assert 'outState.putString("fx_pending_dia_gps_target", pendingDiaGpsTargetPackage);' in main
 assert "REQUEST_DIA_GPS_PICKER" in main and "pendingDiaGpsTargetPackage = selectedPackage;" in main
 assert "target.equals(selectedPackage)" in main, "GPS result must remain scoped to the original selected app"
+assert "target.equals(pendingRestorePackage)" in main, "GPS result must survive while the selected app is still restoring"
+assert "if (!targetEditorRestoring)" in main, "GPS result must defer opening the target until asynchronous app-list restoration completes"
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
     assert "setContentViewWithNativeTabs(root, 5);" in page
