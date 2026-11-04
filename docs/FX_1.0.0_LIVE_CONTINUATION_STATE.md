@@ -3198,3 +3198,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：初始身份检查改为断言 `getApplicationInfo(requestedPackage, 0)` 与 `targetUid = targetInfo.uid`，保留回调时再次校验 requestedPackage/UID 的断言。
 - 改动路径：`scripts/tests/fx-dia-frida-process-identity-regression.py`。
 - 验证：已对照当前 `chooseTargetProcesses()` 真实实现；Actions 重跑结果待读取。
+
+
+## 2026-11-05 — Dia Activity Browser 搜索/分页后滚动位置恢复
+
+- 基于实时分支连续提交：产品代码 `c83a92d2d0ce0c885dac66aa73cda43a7e85d4bb`；回归 `28c5d3a8ed7eec3fec603eccaf1e7da437e59182`。
+- 页面组：Dia 23.11 → Activity 入口与禁用 / 隐藏应用。
+- 已有实现保存目标包名、应用搜索、Activity 搜索和两个分页索引，但未保存整个页面 ScrollView 的垂直位置；Activity 重建后视口跳回顶部。
+- 修复：增加 `fx_dia_browser_scroll_y`，保存/恢复 ScrollView 的 scrollY；恢复回调在布局后执行，并检查 Activity 未销毁、仍为当前 ScrollView 实例且仍挂在页面树中。
+- 改动路径：`FxDiaActivityBrowserActivity.java`、`fx-dia-native-tab-regression.sh`、本状态文件。
+- 验证：新增静态回归断言覆盖保存键、恢复读取、视图实例绑定、布局后滚动和父节点检查；尚未执行 Android 旋转/真机 UI 验收。
+- 下一步：检查 Activity Browser 刷新目标/卸载时搜索与分页夹取；继续 Dia 文件/备份页面组。
