@@ -35,6 +35,9 @@ required = {
     "large script draft restore": "readTransientFridaScriptDraft()",
     "large script draft atomic write": "atomic.finishWrite(output)",
     "large script draft rollback": "atomic.failWrite(output)",
+    "large draft cache requires Bundle ownership marker": "if (state == null || !state.getBoolean(STATE_SCRIPT_DRAFT_FILE, false))",
+    "corrupt draft cache removed after read failure": "// Do not let a corrupt/oversized cache be retried as a valid draft forever.",
+    "failed or oversized new draft removes previous cache": "// A failed write can roll back to an older AtomicFile.",
     "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
 }
