@@ -268,7 +268,19 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 directoryEntries.clear();
                 directoryEntries.addAll(found);
                 directoryTruncated = wasTruncated;
-                appendDirectoryPage();
+                if (pendingRestoreDisplayedEntries >= 0) {
+                    int restoreCount = Math.min(pendingRestoreDisplayedEntries,
+                            filteredDirectoryEntries().size());
+                    pendingRestoreDisplayedEntries = -1;
+                    if (restoreCount == 0) {
+                        appendDirectoryPage();
+                    } else {
+                        while (displayedEntries < restoreCount) appendDirectoryPage();
+                    }
+                } else {
+                    appendDirectoryPage();
+                }
+                restorePageScroll();
             });
         });
     }
@@ -306,13 +318,15 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                     + MAX_DIRECTORY_ENTRIES + " 项。";
         }
         fileStatus.setText(summary);
-        if (pendingRestoreScrollY > 0 && pageScroll != null) {
-            final int restoreY = pendingRestoreScrollY;
-            pendingRestoreScrollY = 0;
-            pageScroll.post(() -> {
-                if (!destroyed && pageScroll != null) pageScroll.scrollTo(0, restoreY);
-            });
-        }
+    }
+
+    private void restorePageScroll() {
+        if (pendingRestoreScrollY <= 0 || pageScroll == null) return;
+        final int restoreY = pendingRestoreScrollY;
+        pendingRestoreScrollY = 0;
+        pageScroll.post(() -> {
+            if (!destroyed && pageScroll != null) pageScroll.scrollTo(0, restoreY);
+        });
     }
 
     private Uri docUri(Entry entry) {
