@@ -2845,3 +2845,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：已对比 GitHub 返回的 Java 源码行和测试脚本字面量；raw string 能保留源码中的双反斜杠。尚未有本修复对应的 Actions 结果。
 - 失败路线：不修改解析器、不移除 JSON 错误对象拦截；不再用普通 Python 字符串表达含多层反斜杠的 Java 正则。
 - 下一步：继续读取 Shield 定向回归第一条失败；通过后检查 Finding 的可信命中证据映射和名单筛选状态恢复。
+
+
+## 2026-11-05 — Shield 扫描页滚动回调生命周期断言对齐
+
+- Actions：`41913381189` 已越过病毒库缓存/解析器断言，失败于扫描页滚动回调断言。
+- 根因：`FxYulongScanActivity` 的延迟滚动恢复实际同时检查 Activity 未 finishing、未 destroyed、当前 `scanScroll` 仍是同一容器且容器仍挂载；测试只匹配旧版以 `if (scanScroll == scroll...)` 开头的条件，未包含前置生命周期保护。
+- 修复：测试改为匹配完整的生命周期 + 容器身份保护条件；保留防止旧页面回调移动新页面的约束。
+- 改动路径：`scripts/tests/fx-yulong-shield-native-regression.sh`；测试提交 `a2bf288a40a15c0409eda2e2c2bc07fa7ca2019c`。本状态文件待同步。
+- 验证：对照 `FxYulongScanActivity` 第 104–108 行确认恢复 Runnable 的实际条件；本次 Actions 尚待执行。
+- 失败路线：不删生命周期保护，不弱化为仅检查容器引用；测试按当前更严格的实现契约精确匹配。
+- 下一步：继续追踪 Shield 定向脚本下一条失败；后续切换实际页面功能，不无限停留在测试断言。
