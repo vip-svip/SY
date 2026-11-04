@@ -143,7 +143,7 @@ WRAPPER_PID="$TMP/stellar-wrapper.pid"
 run_with_legacy_temp_symlinks(){
   sh -c '
     root=$1; sentinel=$2; control=$3; shift 3
-    pid=$
+    pid=$$
     for name in command_whitelist.txt command_always_allow.txt scope_grants.txt; do
       ln -s "$sentinel" "$root/stellar_guard/$name.tmp.$pid"
     done
@@ -161,8 +161,14 @@ run_with_legacy_temp_symlinks scope-set "$PKG" FILESYSTEM_READ_COMMAND 1
 grep -Fq "$(printf '%s\t%s' "$PKG" FILESYSTEM_READ_COMMAND)" "$TMP/stellar_guard/scope_grants.txt" || fail "scope update did not commit with a planted temp symlink"
 run_with_legacy_temp_symlinks always-set "$PKG" 'ps' 1
 grep -Fq "$(printf '%s\t%s' "$PKG" ps)" "$TMP/stellar_guard/command_always_allow.txt" || fail "always-allow update did not commit with a planted temp symlink"
-run_with_legacy_temp_symlinks pkg-set "$PKG" 0
-[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "package revoke changed the sentinel target"
+SYMLINK_PKG=com.example.stellarprobe
+run_with_legacy_temp_symlinks pkg-set "$SYMLINK_PKG" 1
+listing=$(run list)
+printf '%s\n' "$listing" | grep -Fqx "PKG|$SYMLINK_PKG" || fail "package add did not survive planted legacy temp symlinks"
+run_with_legacy_temp_symlinks pkg-set "$SYMLINK_PKG" 0
+listing=$(run list)
+if printf '%s\n' "$listing" | grep -Fq "$SYMLINK_PKG"; then fail "package revoke did not remove its probe authorization"; fi
+[ "$(cat "$SENTINEL")" = "do-not-overwrite" ] || fail "package add/revoke changed the sentinel target"
 for name in command_whitelist.txt command_always_allow.txt scope_grants.txt; do
   ! find "$TMP/stellar_guard" -maxdepth 1 -name "$name.fx.*" -print -quit | grep -q . || fail "Stellar temporary state file leaked: $name"
 done
