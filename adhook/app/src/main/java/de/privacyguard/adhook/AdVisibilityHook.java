@@ -1889,9 +1889,18 @@ private boolean targetDeveloperOptIn(String packageName) {
                                   CharSequence text, View view) {
         if (toast == null) return;
         DiaToastPayload previous = diaToastPayloads.get(toast);
-        if (packageName == null && previous != null) packageName = previous.packageName;
+        if ((packageName == null || packageName.isEmpty()) && previous != null) {
+            packageName = previous.packageName;
+        }
+        if ((packageName == null || packageName.isEmpty()) && processPackages.size() == 1) {
+            packageName = processPackages.iterator().next();
+        }
         if (text == null && previous != null) text = previous.text;
         if (view == null && previous != null) view = previous.view;
+        if (text != null) {
+            int count = Math.min(text.length(), FxDiaDialogMatchPolicy.MAX_TEXT_CHARS);
+            text = text.subSequence(0, count).toString();
+        }
         diaToastPayloads.put(toast, new DiaToastPayload(packageName, text, view));
     }
 
@@ -1909,6 +1918,19 @@ private boolean targetDeveloperOptIn(String packageName) {
                 String match = findToastTextMatch(group.getChildAt(i), terms, budget, depth + 1);
                 if (match != null) return match;
             }
+        }
+        return null;
+    }
+
+    private android.content.Context resolveToastContext(Toast toast) {
+        if (toast == null) return null;
+        try {
+            Field contextField = Toast.class.getDeclaredField("mContext");
+            contextField.setAccessible(true);
+            Object context = contextField.get(toast);
+            if (context instanceof android.content.Context) return (android.content.Context) context;
+        } catch (Throwable ignored) {
+            // Newer Android releases may move or remove Toast's internal Context field.
         }
         return null;
     }
@@ -1931,6 +1953,14 @@ private boolean targetDeveloperOptIn(String packageName) {
                             String packageName = payload == null ? null : payload.packageName;
                             if ((packageName == null || packageName.isEmpty()) && view != null) {
                                 packageName = view.getContext().getPackageName();
+                            }
+                            if (packageName == null || packageName.isEmpty()) {
+                                android.content.Context context = resolveToastContext(toast);
+                                if (context != null) packageName = context.getPackageName();
+                            }
+                            if ((packageName == null || packageName.isEmpty())
+                                    && processPackages.size() == 1) {
+                                packageName = processPackages.iterator().next();
                             }
                             UnifiedHookConfigParser.Target rules = toastRulesFor(packageName);
                             if (rules != null) {
@@ -2003,13 +2033,14 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 CharSequence text = args.get(0) instanceof CharSequence
                                         ? (CharSequence) args.get(0) : null;
                                 if (args.get(0) instanceof Integer) {
-                                    View view = toast.getView();
-                                    if (view != null) {
-                                        try { text = view.getResources().getText((Integer) args.get(0)); }
+                                    android.content.Context context = resolveToastContext(toast);
+                                    if (context != null) {
+                                        try { text = context.getText((Integer) args.get(0)); }
                                         catch (Throwable ignored) { }
                                     }
                                 }
-                                rememberDiaToast(toast, null, text, null);
+                                // A failed resource lookup must not retain text from a previous Toast.
+                                rememberDiaToast(toast, null, text == null ? "" : text, null);
                             } else if (chain.getThisObject() instanceof Toast && isSetView
                                     && !args.isEmpty() && args.get(0) instanceof View) {
                                 // Replacing the view invalidates any text captured from an earlier
