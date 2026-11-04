@@ -656,8 +656,6 @@ public final class FxDiaActivityBrowserActivity extends Activity {
         activityCount.setText("正在读取 Activity 入口…");
         status.setText("目标已选择；正在读取系统组件状态。");
         renderAppList();
-        activityGeneration++;
-        activitiesLoading = false;
         loadActivities();
     }
 
