@@ -57,6 +57,9 @@ assert 'tmp=$(mktemp ' in inject and 'base64 -d > ' in inject and 'mv -f ' in in
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
 viewer = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java").read_text(encoding="utf-8")
+gadget_viewer = body("private void showGadgetSessionLog()", "private void copyGadgetConnectCommand()")
+assert "FX_GADGET_LOG_TYPE_REJECTED" in gadget_viewer, "Gadget viewer must reject special/non-regular log targets"
+assert "elif [ ! -f" in gadget_viewer and "[ ! -r" in gadget_viewer, "Gadget viewer must require a readable regular file before tailing"
 assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
     "session log viewer must refuse symlink and non-regular log targets"
 assert r'\\\"' not in inject, "Java command builder must emit shell quoting, not literal backslash-quote characters"
