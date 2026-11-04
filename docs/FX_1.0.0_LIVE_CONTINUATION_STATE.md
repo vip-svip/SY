@@ -3149,3 +3149,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：静态源码检查确认搜索过滤、路径/query/分页/滚动保存恢复和有界 SAF path 校验均存在。Actions `41916426607` 正在执行；较早 run `41916386132` 在 Dia Crash Report 回归处失败，日志显示测试脚本把内存 XML 文本传给 `ElementTree.parse` 当文件路径；当前分支脚本已使用 `ElementTree.fromstring`，该失败不属于 FileActivity 产品代码，等待当前 run 确认。
 - 未验证：Android Gradle/JUnit、SAF 提供器兼容、旋转/进程重建视觉、真实文件读写真机验收。
 - 下一批：读取当前 Actions 结果；随后集中处理 Dia 文件浏览器的 SAF URI 读写取消/权限撤销交互，或转到备份页面导入/导出弹窗的恢复链。固定 FX 1.0.0，不打最终包。
+
+
+## 2026-11-05 — CrashReport encrypt_stack 偏好所有者断言修正
+
+- Actions `41916475490` 在 CrashReport Host 回归中失败：`crash store invariant missing: "encrypt_stack"`。
+- 根因：`encrypt_stack` 是 Dia 崩溃报告展示格式偏好，由 `FxDiaCrashReportActivity` 从原版 `digXposed` SharedPreferences 读取/写入；`FxDiaCrashStore` 负责崩溃捕获与持久化，不拥有该展示开关。测试错误地要求 Store 也包含该键。
+- 修复：从 Store 的 token 列表移除 `encrypt_stack`，保留 `digXposed` 旧偏好读取断言及 Activity 对 `encrypt_stack` 的实际读写断言。
+- 改动路径：`scripts/tests/fx-dia-crash-report-regression.sh`。
+- 验证：已对照 Activity 和 Store 的职责边界；下一次 Actions 将继续执行 CrashReport Host/JNI/导出格式测试。
