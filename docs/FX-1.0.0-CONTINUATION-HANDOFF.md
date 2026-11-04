@@ -285,3 +285,9 @@ Branch checkpoint before this handoff update: `9f9dedcda9d1deeeed29ada177a617d70
 - The watcher implementation was upgraded from a lock directory plus owner.pid file to a single exclusive POSIX noclobber lock file containing the owner PID. CI still asserted the superseded WATCH_LOCK_PID directory-owner design and failed before running the rest of the host suite.
 - Updated the regression to assert the current implementation's atomic file creation, PID ownership verification, restrictive permissions and owner-only release. This is a test-contract correction, not a relaxation of the single-owner invariant.
 - The current CI run must validate the complete host suite and APK compile before this migration batch is considered verified.
+
+
+## 2026-11-04 — Build-time Hook Manager authority UI restore
+
+- Added an idempotent source-restoration patcher and placed it immediately after the dual-entry Hook APK merge in CI. It ensures the Hook hub visibly states that LSPosed module enablement and per-target scope are separate Manager approvals; FX only submits requests and reads results.
+- This is an actual native Hook page message, not a Settings-page relocation or a relaxed regression assertion. The patcher fails closed if the Hook hub structure changes unexpectedly.
