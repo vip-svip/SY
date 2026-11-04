@@ -391,10 +391,14 @@ if [ "$_spawn_count" -ne 1 ]; then
 fi
 [ -s "$WATCH_PIDFILE" ] || fail "per-app schedule watcher PID file missing after concurrent start"
 [ "$(stat -c %a "$WATCH_PIDFILE")" = 600 ] || fail "watcher PID record is not private"
-[ "$(cat "$WATCH_PIDFILE")" = "$(cat "$WATCH_PIDFILE")" ] || fail "watcher PID readiness marker changed during publication"
 watch_pid=$(cat "$WATCH_PIDFILE")
 case "$watch_pid" in ''|*[!0-9]*) fail "watcher PID is malformed" ;; esac
 kill -0 "$watch_pid" 2>/dev/null || fail "schedule watcher is not alive"
+watch_cmd=$(tr '\000' ' ' < "/proc/$watch_pid/cmdline" 2>/dev/null || true)
+case "$watch_cmd" in
+  *"$V2/module/scripts/yulong-app-firewall.sh"*' watch-loop'*) ;;
+  *) fail "published watcher PID is not the child watch-loop process" ;;
+esac
 if ! grep -Fq 'already-running' "$V2/watch-start-a.out" && ! grep -Fq 'already-running' "$V2/watch-start-b.out"; then
   fail "concurrent start did not observe the active watcher"
 fi
