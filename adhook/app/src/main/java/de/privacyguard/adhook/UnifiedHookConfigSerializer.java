@@ -78,6 +78,81 @@ public final class UnifiedHookConfigSerializer {
                     .append(",ad_id_unify=").append(target.adIdUnify ? '1' : '0')
                     .append(",app_version_simulate=").append(target.appVersionSimulation ? '1' : '0')
                     .append(",dev_hook_enabled=").append(target.developerHooksEnabled ? '1' : '0');
+
+            if (target.wifiSimulation) {
+                if (target.simulatedWifiSsid == null && target.simulatedWifiBssid == null) {
+                    throw new IllegalArgumentException("Wi-Fi simulation requires an SSID or BSSID");
+                }
+                out.append(",wifi_simulate=1");
+                if (target.simulatedWifiSsid != null) {
+                    out.append(",wifi_ssid=").append(target.simulatedWifiSsid);
+                }
+                if (target.simulatedWifiBssid != null) {
+                    out.append(",wifi_bssid=").append(target.simulatedWifiBssid);
+                }
+            } else if (target.simulatedWifiSsid != null || target.simulatedWifiBssid != null) {
+                throw new IllegalArgumentException("Wi-Fi values require wifi_simulate=1");
+            }
+
+            if (target.networkTypeSimulation) {
+                if (!"wifi".equals(target.simulatedNetworkType)
+                        && !"cellular".equals(target.simulatedNetworkType)) {
+                    throw new IllegalArgumentException("network type simulation requires wifi or cellular");
+                }
+                out.append(",network_type_simulate=1,network_type=")
+                        .append(target.simulatedNetworkType);
+            } else if (target.simulatedNetworkType != null) {
+                throw new IllegalArgumentException("network type requires network_type_simulate=1");
+            }
+
+            if (target.locationSimulation) {
+                if (Double.isNaN(target.simulatedLatitude) || Double.isInfinite(target.simulatedLatitude)
+                        || target.simulatedLatitude < -90d || target.simulatedLatitude > 90d
+                        || Double.isNaN(target.simulatedLongitude) || Double.isInfinite(target.simulatedLongitude)
+                        || target.simulatedLongitude < -180d || target.simulatedLongitude > 180d
+                        || Float.isNaN(target.simulatedAccuracy) || Float.isInfinite(target.simulatedAccuracy)
+                        || target.simulatedAccuracy < 0f || target.simulatedAccuracy > 1000f) {
+                    throw new IllegalArgumentException("invalid simulated location");
+                }
+                out.append(",location_simulate=1,location_lat=")
+                        .append(Double.toString(target.simulatedLatitude))
+                        .append(",location_lon=").append(Double.toString(target.simulatedLongitude))
+                        .append(",location_accuracy=").append(Float.toString(target.simulatedAccuracy));
+            }
+            if (target.locationProviderEnabledSimulation) {
+                out.append(",location_provider_enabled_simulate=1");
+            }
+
+            if (target.androidIdSimulation) {
+                if (target.simulatedAndroidId == null
+                        || !target.simulatedAndroidId.matches("(?i)[0-9a-f]{16}")) {
+                    throw new IllegalArgumentException("invalid simulated Android ID");
+                }
+                out.append(",android_id_simulate=1,android_id=")
+                        .append(target.simulatedAndroidId.toLowerCase(java.util.Locale.ROOT));
+            } else if (target.simulatedAndroidId != null) {
+                throw new IllegalArgumentException("Android ID requires android_id_simulate=1");
+            }
+
+            if (target.timeZoneSimulation) {
+                if (target.simulatedTimeZone == null || target.simulatedTimeZone.isEmpty()) {
+                    throw new IllegalArgumentException("time-zone simulation requires a time zone");
+                }
+                out.append(",time_zone_simulate=1,time_zone=").append(target.simulatedTimeZone);
+            } else if (target.simulatedTimeZone != null) {
+                throw new IllegalArgumentException("time_zone requires time_zone_simulate=1");
+            }
+
+            if (target.developerVipMethod != null) {
+                out.append(",dev_test_vip_method=").append(target.developerVipMethod);
+            }
+            if (target.developerLoginMethod != null) {
+                out.append(",dev_test_login_method=").append(target.developerLoginMethod);
+            }
+            if (target.developerHideUpdateMethod != null) {
+                out.append(",dev_test_hide_update_method=").append(target.developerHideUpdateMethod);
+            }
+
             if (target.appVersionSimulation) {
                 if (target.simulatedVersionName == null || target.simulatedVersionName.isEmpty()
                         || target.simulatedVersionName.getBytes(StandardCharsets.UTF_8).length > 128

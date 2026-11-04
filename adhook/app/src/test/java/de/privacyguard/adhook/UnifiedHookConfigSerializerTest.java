@@ -16,6 +16,79 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void serializerRoundTripsWifiNetworkLocationIdentityTimezoneAndDeveloperMethods() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, true, false, false);
+        target.wifiSimulation = true;
+        target.simulatedWifiSsid = "FX Lab 5G";
+        target.simulatedWifiBssid = "02:00:00:00:00:01";
+        target.networkTypeSimulation = true;
+        target.simulatedNetworkType = "cellular";
+        target.locationSimulation = true;
+        target.simulatedLatitude = 35.681236d;
+        target.simulatedLongitude = 139.767125d;
+        target.simulatedAccuracy = 12.5f;
+        target.locationProviderEnabledSimulation = true;
+        target.androidIdSimulation = true;
+        target.simulatedAndroidId = "0123456789ABCDEF";
+        target.timeZoneSimulation = true;
+        target.simulatedTimeZone = "Asia/Tokyo";
+        target.developerVipMethod = "com.example.app.AccountState#isVip()Z";
+        target.developerLoginMethod = "com.example.app.AccountState#isLoggedIn()Z";
+        target.developerHideUpdateMethod = "com.example.app.UpdatePolicy#shouldShow()Z";
+        targets.put("com.example.app", target);
+
+        String encoded = UnifiedHookConfigSerializer.serialize(false, true, targets);
+        UnifiedHookConfigParser.Target parsed =
+                UnifiedHookConfigParser.parse(encoded).targets.get("com.example.app");
+
+        assertTrue(encoded.contains("wifi_simulate=1"));
+        assertTrue(encoded.contains("wifi_ssid=FX Lab 5G"));
+        assertTrue(encoded.contains("wifi_bssid=02:00:00:00:00:01"));
+        assertTrue(parsed.wifiSimulation);
+        assertEquals("FX Lab 5G", parsed.simulatedWifiSsid);
+        assertEquals("02:00:00:00:00:01", parsed.simulatedWifiBssid);
+
+        assertTrue(parsed.networkTypeSimulation);
+        assertEquals("cellular", parsed.simulatedNetworkType);
+        assertTrue(parsed.locationSimulation);
+        assertEquals(35.681236d, parsed.simulatedLatitude, 0.0000001d);
+        assertEquals(139.767125d, parsed.simulatedLongitude, 0.0000001d);
+        assertEquals(12.5f, parsed.simulatedAccuracy, 0f);
+        assertTrue(parsed.locationProviderEnabledSimulation);
+        assertTrue(parsed.androidIdSimulation);
+        assertEquals("0123456789abcdef", parsed.simulatedAndroidId);
+        assertTrue(parsed.timeZoneSimulation);
+        assertEquals("Asia/Tokyo", parsed.simulatedTimeZone);
+        assertEquals("com.example.app.AccountState#isVip()Z", parsed.developerVipMethod);
+        assertEquals("com.example.app.AccountState#isLoggedIn()Z", parsed.developerLoginMethod);
+        assertEquals("com.example.app.UpdatePolicy#shouldShow()Z", parsed.developerHideUpdateMethod);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsEnabledWifiSimulationWithoutValue() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, false, false, false);
+        target.wifiSimulation = true;
+        targets.put("com.example.app", target);
+        UnifiedHookConfigSerializer.serialize(false, false, targets);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void serializerRejectsEnabledLocationSimulationWithInvalidCoordinates() {
+        Map<String, UnifiedHookConfigParser.Target> targets = new LinkedHashMap<>();
+        UnifiedHookConfigParser.Target target = new UnifiedHookConfigParser.Target(
+                false, false, false, false, true, false, false);
+        target.locationSimulation = true;
+        target.simulatedLatitude = 91d;
+        target.simulatedLongitude = 0d;
+        targets.put("com.example.app", target);
+        UnifiedHookConfigSerializer.serialize(false, true, targets);
+    }
+
+    @Test
     public void serializerRoundTripsClipboardIsolationMasterAndTarget() {
         UnifiedHookConfigParser.Result input = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=1\nclipboard_isolate_enabled=1\n" +
