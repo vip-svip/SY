@@ -1527,6 +1527,12 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
                 .setItems(labels, (dialog, which) -> {
                     targetPickerOpen = false;
+                    // A process enumeration belongs to the previously selected package.
+                    // Invalidate it before changing the target so its callback cannot
+                    // leave the next target's process picker permanently busy.
+                    processPickerGeneration++;
+                    processPickerOpen = false;
+                    clearPendingProcessPickerState();
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
                     monitorEventGeneration++;
