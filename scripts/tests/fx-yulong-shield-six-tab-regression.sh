@@ -55,6 +55,16 @@ assert "Intent.ACTION_DELETE" in scan and 'setPositiveButton("打开系统确认
 assert "Intent.ACTION_DELETE" in rescue
 assert "FxYulongRescueActivity.class" in hub
 assert "FxYulongDailySummaryActivity.class" in hub
+
+# Rescue Center can be launched from either the Shield Hub or the persistent notification.
+service = (shield_dir / "FxYulongRescueOverlayService.java").read_text(encoding="utf-8")
+assert "Intent open=new Intent(this,FxYulongRescueActivity.class);" in service
+assert "open.putExtra(FxYulongRescueActivity.EXTRA_OPENED_FROM_NOTIFICATION, true);" in service
+assert "Intent open=new Intent(this,FxYulongShieldActivity.class);" in service, "floating bubble must continue opening the Shield Hub"
+assert "getIntent().getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false)" in rescue
+assert "Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP" in rescue
+assert "// When opened from the Shield Hub, finish back to the existing Hub" in rescue
+assert "finish();" in rescue, "Hub-origin Rescue Center must finish rather than create a duplicate Hub"
 assert "FxYulongWarningActivity.class" in scan
 assert "FxYulongVirusDatabaseActivity.class" in hub
 for key in ("STATE_PICKER_OPEN", "STATE_PICKER_QUERY", "STATE_PICKER_PAGE", "STATE_PICKER_STAGED", "STATE_PICKER_SCROLL_Y"):
