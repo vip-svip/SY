@@ -3078,3 +3078,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动路径：`scripts/tests/fx-dia-frida-libxposed-wiring-regression.py`、本状态文件。
 - 验证：已对照当前源码 loader 调用位置早于 `UnifiedHookConfigParser.Target` 获取；等待 Actions 复跑 Frida 页面组。
 - 下一步：读取当前 Actions 后续首错；继续 Frida Server/Gadget 会话页的目标进程、取消、停止、错误与 Activity 重建返回链。
+
+
+## 2026-11-05 — SystemExpand 导航回归 XML 解析修复
+
+- Actions `41915871403`（触发提交 `b6d487838aa51a0ba711f233a2109c4287880f5e`）在 `fx-dia-system-expand-navigation-regression.sh` 的 Manifest 检查处失败：`ET.parse()` 把已读取的 XML 内容字符串误当作文件路径，产生 `OSError: File name too long`。
+- 修复：将 `ET.parse(manifest_path).getroot()` 改为 `ET.fromstring(manifest_path)`；上游 shell 已将 Manifest 读成文本，直接解析文本才符合数据类型。
+- 改动路径：`scripts/tests/fx-dia-system-expand-navigation-regression.sh`。
+- 验证：修复后将重新执行 SystemExpand 页面状态恢复与 Manifest private/exported 断言；本轮还未有新 Actions 结果。
