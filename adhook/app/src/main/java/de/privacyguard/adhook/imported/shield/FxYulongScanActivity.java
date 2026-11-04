@@ -87,11 +87,14 @@ public final class FxYulongScanActivity extends Activity {
                     +" 条；确定风险 "+result.certainCount+"；可能风险 "+result.suspectCount
                     +"。\n内容特征扫描："+(result.contentScanEnabled
                     ? (result.contentDatabaseReady ? ("已检查 "+result.contentScanned+" 个 APK"
-                        +(result.contentTruncated?"（达到 8 秒预算，内容扫描未完成）":""))
+                        +(result.contentReadFailures > 0 ? "；读取失败 "+result.contentReadFailures+" 个" : "")
+                        +(result.contentTruncated?"；达到预算上限，扫描未完成":""))
                         : "已启用但内容特征库未就绪")
                     : "未启用（默认关闭）"));
             if(result.findings.isEmpty()){
-                resultRows.addView(text("没有命中当前名单。这不代表设备绝对安全。",13,0xff607080,false));
+                resultRows.addView(text(
+                        FxYulongScanCompleteness.noFindingMessage(result.scanComplete),
+                        13, result.scanComplete ? 0xff607080 : 0xffa32620, !result.scanComplete));
                 return;
             }
             for(FxYulongScanEngine.Finding f:result.findings)addFinding(f);

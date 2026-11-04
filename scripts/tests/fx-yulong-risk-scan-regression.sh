@@ -5,8 +5,15 @@ ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilitySer
 DISPATCH="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRiskScanDispatcher.java"
 INSTALL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongInstallScanReceiver.java"
 UI="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java"
+SCAN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java"
+CONTENT_DB="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongVirusContentDb.java"
+CONTENT_ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java"
+COMPLETENESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanCompleteness.java"
+HOST_TEST="$ROOT/scripts/tests/FxYulongScanCompletenessHostTest.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$ACCESS" "$DISPATCH" "$INSTALL" "$UI"; do [ -s "$file" ] || fail "auto-risk source missing: $file"; done
+for file in "$ACCESS" "$DISPATCH" "$INSTALL" "$UI" "$SCAN" "$CONTENT_DB" "$CONTENT_ACTIVITY" "$COMPLETENESS" "$HOST_TEST"; do
+  [ -s "$file" ] || fail "auto-risk source missing: $file"
+done
 grep -Fq 'onForegroundPackageChanged(this, pkg)' "$ACCESS" || fail "foreground package events are not scanned"
 grep -Fq 'onPackageInstalled' "$INSTALL" || fail "package install/update event path is missing"
 grep -Fq 'onVirusDatabaseUpdated' "$DISPATCH" || fail "virus database updates must trigger a full installed-app scan"
@@ -22,4 +29,21 @@ grep -Fq 'Intent.ACTION_DELETE' "$DISPATCH" || fail "direct mode must open Andro
 grep -Fq 'getBoolean("automatic_install_scan_enabled", true)' "$UI" || fail "install scanning must preserve original default-on behavior"
 grep -Fq 'autoRiskScan' "$UI" || fail "automatic foreground scan toggle is missing"
 grep -Fq 'ACTION_ACCESSIBILITY_SETTINGS' "$UI" || fail "foreground scan must link to user-enabled accessibility"
+grep -Fq 'public final int contentReadFailures' "$SCAN" || fail "content-scan read failures are not preserved"
+grep -Fq 'verdict.unavailable' "$SCAN" || fail "unreadable APK input is silently treated as clean"
+grep -Fq 'contentReadFailures++' "$SCAN" || fail "inspection exceptions are not reflected in scan status"
+grep -Fq 'result.scanComplete' "$CONTENT_ACTIVITY" || fail "empty result UI does not distinguish incomplete scans"
+grep -Fq 'FxYulongScanCompleteness.isComplete' "$SCAN" || fail "aggregate scan lacks fail-closed completeness logic"
+grep -Fq 'this.unavailable = unavailable' "$CONTENT_DB" || fail "content verdict discards unreadable input state"
+grep -Fq 'v != null && !v.truncated && !v.unavailable' "$CONTENT_DB" || fail "incomplete verdicts must not be cached as CLEAN"
+grep -Fq 'r.truncated = true' "$CONTENT_DB" || fail "token-entry read failures must mark inspection incomplete"
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanEngine.java" <<'PY'
+from pathlib import Path
+import sys
+s = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "contentReadFailures = 0" in s
+assert "contentTruncated, this.contentReadFailures" in s
+assert "未完成的项目不能视为安全" in s
+print("PASS: Shield scan reports partial APK-content inspection without claiming completion")
+PY
 echo "PASS: Yulong auto-risk scan covers foreground and install events with bounded per-package cooldown and user-confirmed removal"

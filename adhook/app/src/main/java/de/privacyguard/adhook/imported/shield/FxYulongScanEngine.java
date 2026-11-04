@@ -52,10 +52,20 @@ public final class FxYulongScanEngine {
         public final boolean contentTruncated;
         /** False when PackageManager could not provide a complete installed-app inventory. */
         public final boolean inventoryComplete;
+        public final int contentReadFailures;
+        public final boolean scanComplete;
 
         Result(int scanned, int entries, List<Finding> findings, int certain, int suspect,
                String message, boolean contentEnabled, boolean contentReady,
                int contentScanned, boolean contentTruncated, boolean inventoryComplete) {
+            this(scanned, entries, findings, certain, suspect, message, contentEnabled,
+                    contentReady, contentScanned, contentTruncated, inventoryComplete, 0);
+        }
+
+        Result(int scanned, int entries, List<Finding> findings, int certain, int suspect,
+               String message, boolean contentEnabled, boolean contentReady,
+               int contentScanned, boolean contentTruncated, boolean inventoryComplete,
+               int contentReadFailures) {
             this.scanned = scanned;
             this.databaseEntries = entries;
             this.findings = Collections.unmodifiableList(findings);
@@ -67,6 +77,10 @@ public final class FxYulongScanEngine {
             this.contentScanned = contentScanned;
             this.contentTruncated = contentTruncated;
             this.inventoryComplete = inventoryComplete;
+            this.contentReadFailures = Math.max(0, contentReadFailures);
+            this.scanComplete = FxYulongScanCompleteness.isComplete(
+                    inventoryComplete, contentEnabled, contentReady,
+                    contentTruncated, this.contentReadFailures);
         }
     }
 
@@ -114,6 +128,7 @@ public final class FxYulongScanEngine {
             int certain = 0;
             int suspect = 0;
             int contentScanned = 0;
+            int contentReadFailures = 0;
             boolean contentTruncated = false;
             boolean contentReady = false;
             boolean inventoryComplete = false;
@@ -173,7 +188,9 @@ public final class FxYulongScanEngine {
                                 contentScanned++;
                                 if (verdict.truncated) {
                                     contentTruncated = true;
-                                } else if (verdict.level == FxYulongVirusContentDb.BLOCK) {
+                                }
+                                if (verdict.unavailable) contentReadFailures++;
+                                if (verdict.level == FxYulongVirusContentDb.BLOCK) {
                                     certain++;
                                     findings.add(new Finding(pkg, label, Severity.CERTAIN,
                                             "内容特征命中：" + verdict.reason));
@@ -183,7 +200,8 @@ public final class FxYulongScanEngine {
                                             "内容特征告警：" + verdict.reason));
                                 }
                             } catch (Throwable itemError) {
-                                // Keep scanning the remaining apps if one APK is malformed or unreadable.
+                                // Continue with other apps, but never report an unreadable APK as clean.
+                                contentReadFailures++;
                             }
                         }
                     }
@@ -200,6 +218,10 @@ public final class FxYulongScanEngine {
                 } else if (onlyPackage != null && !installed.containsKey(onlyPackage)) {
                     message = "目标应用未出现在当前安装清单中，无法确认扫描结果；请重新扫描。";
                     inventoryComplete = false;
+                } else if (enableContentScan && contentReady
+                        && (contentTruncated || contentReadFailures > 0)) {
+                    message = "扫描未完成：内容检查达到预算上限或有 "
+                            + contentReadFailures + " 个 APK 无法完整读取；未完成的项目不能视为安全。";
                 }
             } catch (Throwable error) {
                 message = "扫描失败：" + error.getClass().getSimpleName()
@@ -210,7 +232,7 @@ public final class FxYulongScanEngine {
             if (callback != null) callback.onResult(
                     new Result(scanned, entries, findings, certain, suspect, message,
                             enableContentScan, contentReady, contentScanned, contentTruncated,
-                            inventoryComplete));
+                            inventoryComplete, contentReadFailures));
             });
         } catch (RejectedExecutionException full) {
             if (callback != null) callback.onResult(new Result(0, 0,

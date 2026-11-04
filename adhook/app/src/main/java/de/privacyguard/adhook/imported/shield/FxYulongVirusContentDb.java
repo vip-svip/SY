@@ -168,17 +168,20 @@ public final class FxYulongVirusContentDb {
         public final int level;
         public final String family;
         public final String reason;
-        /**
-         * 2026-10-24 新增：本次判定是否因时间/字节预算被截断。
-         * true 表示结果不完整（未命中也只能算 CLEAN，不缓存）。
-         */
         public final boolean truncated;
+        /** True when package metadata or the APK input could not be read. */
+        public final boolean unavailable;
 
         Verdict(int level, String family, String reason, boolean truncated) {
+            this(level, family, reason, truncated, false);
+        }
+
+        Verdict(int level, String family, String reason, boolean truncated, boolean unavailable) {
             this.level = level;
             this.family = family == null ? "" : family;
             this.reason = reason == null ? "" : reason;
             this.truncated = truncated;
+            this.unavailable = unavailable;
         }
     }
 
@@ -1067,12 +1070,12 @@ public final class FxYulongVirusContentDb {
      */
     static Verdict inspectApk(Context ctx, String pkg, long deadlineMs) {
         if (ctx == null || pkg == null || pkg.isEmpty()) {
-            return new Verdict(CLEAN, "", "参数为空", false);
+            return new Verdict(CLEAN, "", "参数为空", false, true);
         }
         ensureLoaded(ctx);
         final Db d = cache;
         if (d == null || d.isEmpty()) {
-            return new Verdict(CLEAN, "", "内容特征库未就绪", false);
+            return new Verdict(CLEAN, "", "内容特征库未就绪", false, true);
         }
 
         final PackageManager pm = ctx.getPackageManager();
@@ -1086,7 +1089,7 @@ public final class FxYulongVirusContentDb {
             }
         } catch (Throwable tr) {
             Log.w(TAG, "inspectApk: 读取包信息失败 " + pkg + " → " + tr.getMessage());
-            return new Verdict(CLEAN, "", "无法读取包信息", false);
+            return new Verdict(CLEAN, "", "无法读取包信息", false, true);
         }
 
         // 判定缓存：包名 + versionCode + lastUpdateTime + 特征库版本。
@@ -1148,14 +1151,19 @@ public final class FxYulongVirusContentDb {
             }
 
             if (sourceDir == null) {
-                return remember(cacheKey, warnVerdict != null
-                        ? warnVerdict
-                        : new Verdict(CLEAN, "", "无法读取 APK 文件", false));
-            }            File apkFile = new File(sourceDir);
+                return warnVerdict != null
+                        ? new Verdict(warnVerdict.level, warnVerdict.family,
+                                warnVerdict.reason + "（APK 文件不可读取）",
+                                warnVerdict.truncated, true)
+                        : new Verdict(CLEAN, "", "无法读取 APK 文件", false, true);
+            }
+            File apkFile = new File(sourceDir);
             if (!apkFile.isFile()) {
-                return remember(cacheKey, warnVerdict != null
-                        ? warnVerdict
-                        : new Verdict(CLEAN, "", "APK 文件不存在", false));
+                return warnVerdict != null
+                        ? new Verdict(warnVerdict.level, warnVerdict.family,
+                                warnVerdict.reason + "（APK 文件不存在）",
+                                warnVerdict.truncated, true)
+                        : new Verdict(CLEAN, "", "APK 文件不存在", false, true);
             }
 
             // ---------------- ② APK 整包哈希 ----------------
@@ -1321,12 +1329,17 @@ public final class FxYulongVirusContentDb {
                     return remember(cacheKey, new Verdict(WARN, weakFamily,
                             dn(weakDisplay, weakFamily) + "：弱信号累计 " + weak + " 项（结构/包名形态/通用字符串）", false));
                 }
+                if (ts != null && ts.truncated) {
+                    // Preserve a positive partial warning, but mark it incomplete and do not cache it.
+                    if (warnVerdict != null) {
+                        return new Verdict(warnVerdict.level, warnVerdict.family,
+                                warnVerdict.reason + "（内容扫描未完成）", true,
+                                warnVerdict.unavailable);
+                    }
+                    return truncatedVerdict();
+                }
                 if (warnVerdict != null) {
                     return remember(cacheKey, warnVerdict);
-                }
-                if (ts != null && ts.truncated) {
-                    // token 扫描没跑完 → 结果不完整，不缓存
-                    return truncatedVerdict();
                 }
                 String cleanWhy = weak > 0 ? "未命中特征（弱信号 " + weak + " 项）" : "未命中特征";
                 return remember(cacheKey, new Verdict(CLEAN, weakFamily, cleanWhy, false));
@@ -1337,7 +1350,7 @@ public final class FxYulongVirusContentDb {
             }
         } catch (Throwable tr) {
             Log.w(TAG, "inspectApk: 内容检测异常 " + pkg + " → " + tr.getClass().getSimpleName(), tr);
-            return new Verdict(CLEAN, "", "内容检测异常（已忽略）", false);
+            return new Verdict(CLEAN, "", "内容检测异常（已忽略）", false, true);
         }
     }
 
@@ -1791,6 +1804,7 @@ public final class FxYulongVirusContentDb {
                     scanEntryStream(in, d, r, hitHigh, hitLow, maxTokenBytes, deadlineMs);
                 } catch (Throwable tr) {
                     Log.w(TAG, "token 扫描条目失败: " + name, tr);
+                    r.truncated = true;
                 } finally {
                     closeQuietly(in);
                 }
@@ -2095,7 +2109,7 @@ public final class FxYulongVirusContentDb {
 
     /** 缓存判定结果（截断的结果不缓存，避免把不完整结果固化；同时落盘一份） */
     private static Verdict remember(String key, Verdict v) {
-        if (v != null && !v.truncated) {
+        if (v != null && !v.truncated && !v.unavailable) {
             try {
                 if (VERDICT_CACHE.size() > VERDICT_CACHE_MAX) VERDICT_CACHE.clear();
                 VERDICT_CACHE.put(key, v);
