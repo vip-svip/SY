@@ -13,7 +13,7 @@ sh -n "$SOURCE" || fail "scheduler shell syntax invalid"
 sh -n "$MOD/scripts/jsruntime/scheduler.sh" || fail "staged scheduler shell syntax invalid"
 grep -Fqx '# FX_QUICKJS_SCHEDULER_STOP_BEGIN' "$MOD/uninstall.sh" || fail "module uninstall does not stop QuickJS scheduler"
 grep -Fqx '# FX_QUICKJS_SCHEDULER_STOP_END' "$MOD/uninstall.sh" || fail "module uninstall stop block is incomplete"
-[ "$(grep -Fc 'scripts/jsruntime/scheduler.sh' "$MOD/uninstall.sh")" -eq 1 ] || fail "uninstall stop hook is duplicated"
+[ "$(grep -Fc '# FX_QUICKJS_SCHEDULER_STOP_BEGIN' "$MOD/uninstall.sh")" -eq 1 ] || fail "uninstall stop hook is duplicated"
 
 T=$(mktemp -d "${TMPDIR:-/tmp}/fx-qjs-scheduler.XXXXXX")
 cleanup(){
@@ -73,6 +73,6 @@ first=$(sha256sum "$FIXTURE/scripts/jsruntime/scheduler.sh" "$FIXTURE/uninstall.
 python3 "$PATCHER" "$FIXTURE" >/dev/null || fail "second staging patch failed"
 second=$(sha256sum "$FIXTURE/scripts/jsruntime/scheduler.sh" "$FIXTURE/uninstall.sh")
 [ "$first" = "$second" ] || fail "scheduler patch is not idempotent"
-[ "$(grep -Fc 'scripts/jsruntime/scheduler.sh' "$FIXTURE/uninstall.sh")" -eq 1 ] || fail "patcher duplicated uninstall hook"
+[ "$(grep -Fc '# FX_QUICKJS_SCHEDULER_STOP_BEGIN' "$FIXTURE/uninstall.sh")" -eq 1 ] || fail "patcher duplicated uninstall hook"
 sh -n "$FIXTURE/uninstall.sh" || fail "patched uninstall shell syntax invalid"
 echo "PASS: QuickJS scheduler staging, ownership lifecycle, unrelated-PID refusal, symlink rejection and uninstall cleanup"
