@@ -165,6 +165,7 @@ public final class AdbPairingActivity extends Activity {
 
                         @Override public void onError(String message, int errorCode) {
                             if (destroyed) return;
+                            scanButton.setEnabled(true);
                             status.setText(message + "（错误码 " + errorCode + "）");
                         }
 
@@ -224,6 +225,7 @@ public final class AdbPairingActivity extends Activity {
     private void startPairing(AdbPairingDiscovery.Device target, String code) {
         if (destroyed || pairing) return;
         pairing = true;
+        pairingCode.setText("");
         final long generation = operationGeneration.incrementAndGet();
         scanButton.setEnabled(false);
         pairButton.setEnabled(false);
@@ -232,7 +234,7 @@ public final class AdbPairingActivity extends Activity {
             pairWorker.execute(() -> {
                 AdbPairingClient client = null;
                 try {
-                    AdbKey key = AdbKey.getOrCreate(this);
+                    AdbKey key = AdbKey.getOrCreate(getApplicationContext());
                     client = new AdbPairingClient(target.host, target.port, code, key);
                     activeClient = client;
                     if (destroyed || generation != operationGeneration.get()) {
@@ -240,7 +242,7 @@ public final class AdbPairingActivity extends Activity {
                         return;
                     }
                     client.start();
-                    getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
+                    boolean saved = getSharedPreferences("fx_stellar_adb_pairing", MODE_PRIVATE)
                             .edit()
                             .putBoolean("paired", true)
                             .putString("service_name", target.serviceName)
@@ -251,9 +253,10 @@ public final class AdbPairingActivity extends Activity {
                     runOnUiThread(() -> {
                         if (destroyed || generation != operationGeneration.get()) return;
                         status.setText("ADB 无线配对成功。SPAKE2 已验证对端，PeerInfo 已加密交换。"
+                                + (saved ? " 配对状态已保存。" : " 但本地状态保存失败，请重新打开页面核验。")
                                 + " 如需 WRITE_SECURE_SETTINGS，请返回 Stellar 页面单独确认授予。");
                     });
-                } catch (Throwable failure) {
+                } catch (Exception failure) {
                     final String detail = failure.getMessage() == null
                             ? failure.getClass().getSimpleName() : failure.getMessage();
                     runOnUiThread(() -> {
