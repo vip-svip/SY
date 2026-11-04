@@ -1,6 +1,10 @@
 package de.privacyguard.adhook.imported.dia;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
 import android.app.AlertDialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -17,6 +21,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -34,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 /** Read-only DEX class-name browser migrated from Dia 23.11. */
 public final class FxDiaDexBrowserActivity extends Activity {
+    private static final int REQUEST_DEX_DOCUMENT = 0xD3A;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
             r -> new Thread(r, "fx-dia-dex-io"), new ThreadPoolExecutor.AbortPolicy());
@@ -116,6 +122,8 @@ public final class FxDiaDexBrowserActivity extends Activity {
                 target, button("选择已安装应用", this::chooseApp),
                 button("读取 DEX 类名", this::loadDex),
                 button("浏览 Dia 原版 Android Framework DEX", this::loadFrameworkDex));
+        card(body, "独立 DEX 文件", "读取本地或文档提供方中的 DEX 文件，建立只读索引；不会加载或运行文件内容。",
+                button("选择 DEX 文件", this::chooseDexDocument));
         card(body, "搜索", "结果只显示类名、方法/字段签名和来源 APK，不读取目标应用私有数据库或进程内存。",
                 filter, summary, button("导出当前匹配的类/方法/字段签名", this::exportMatches));
         body.addView(results);
@@ -129,6 +137,81 @@ public final class FxDiaDexBrowserActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
         loadInstalledApps();
+    }
+
+    private void chooseDexDocument() {
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("*/*");
+        picker.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
+                "application/vnd.android.dex", "application/octet-stream"
+        });
+        try {
+            startActivityForResult(picker, REQUEST_DEX_DOCUMENT);
+        } catch (RuntimeException error) {
+            summary.setText("无法打开文件选择器：" + error.getClass().getSimpleName());
+        }
+    }
+
+    private String documentName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(uri,
+                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0 && cursor.getString(index) != null) return cursor.getString(index);
+            }
+        } catch (RuntimeException ignored) { }
+        return "selected.dex";
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_DEX_DOCUMENT) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            summary.setText("没有选择 DEX 文件。");
+            return;
+        }
+        final Uri uri = data.getData();
+        final String name = documentName(uri);
+        final int request = ++dexGeneration;
+        searchGeneration++;
+        exportGeneration++;
+        detailGeneration++;
+        selected = null;
+        classes.clear();
+        target.setText("DEX 文件：" + name);
+        summary.setText("正在后台只读解析 DEX 文件…");
+        results.removeAllViews();
+        try {
+            worker.execute(() -> {
+                Map<String, FxDiaDexIndex.DexClass> found = new java.util.TreeMap<>();
+                String failure = null;
+                try (InputStream input = getContentResolver().openInputStream(uri)) {
+                    if (input == null) throw new IOException("文件提供方没有返回数据流");
+                    found.putAll(FxDiaDexIndex.readDex(input,
+                            () -> Thread.currentThread().isInterrupted() || request != dexGeneration));
+                } catch (Throwable error) {
+                    failure = error.getClass().getSimpleName() + ": " + error.getMessage();
+                }
+                final String message = failure;
+                runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed() || request != dexGeneration) return;
+                    classes.clear();
+                    if (message == null) classes.addAll(found.values());
+                    int methods = 0, fields = 0;
+                    for (FxDiaDexIndex.DexClass item : classes) {
+                        methods += item.methods.size();
+                        fields += item.fields.size();
+                    }
+                    summary.setText(message == null
+                            ? "解析完成：" + classes.size() + " 个类 · " + methods + " 个方法 · " + fields + " 个字段。文件仅用于索引预览。"
+                            : "解析失败：" + message);
+                    render();
+                });
+            });
+        } catch (RejectedExecutionException full) {
+            summary.setText("DEX 后台队列繁忙，请稍后重试。");
+        }
     }
 
     private void loadInstalledApps() {
