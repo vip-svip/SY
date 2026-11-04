@@ -148,6 +148,7 @@ private fun FxNativeAppShell(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .height(72.dp)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                         .then(barModifier)
