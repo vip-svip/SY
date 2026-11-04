@@ -94,10 +94,18 @@ public final class StellarAuthorizationService extends Service {
                     "Stellar Binder 请求无效或超过大小限制；未执行。"));
             return true;
         }
+        final String command;
+        try {
+            command = StellarCommandArguments.buildScriptCommand(args);
+        } catch (IllegalArgumentException invalid) {
+            sendResult(replyTo, requestId, RootAccess.failure(2,
+                    "Stellar Binder 命令参数不符合允许格式；未执行。"));
+            return true;
+        }
         try {
             commands.execute(() -> {
                 RootAccess.Result result = RootAccess.execute(
-                        buildCommand(args), COMMAND_TIMEOUT_MS, OUTPUT_LIMIT);
+                        command, COMMAND_TIMEOUT_MS, OUTPUT_LIMIT);
                 sendResult(replyTo, requestId, result);
             });
         } catch (RejectedExecutionException full) {
@@ -237,16 +245,6 @@ public final class StellarAuthorizationService extends Service {
         try {
             replyTo.send(response);
         } catch (RemoteException ignored) { }
-    }
-
-    private String buildCommand(String args) {
-        return "MP=''; for d in /data/adb/modules/privacyguard "
-                + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
-                + "/data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; "
-                + "sh \"$MP/scripts/yulong-stellar-control.sh\" " + args;
     }
 
     @Override public void onDestroy() {
