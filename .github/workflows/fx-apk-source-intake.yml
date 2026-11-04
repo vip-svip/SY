@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type EXTRACT to download and inspect the three private Release ZIPs"
+        description: "Type EXTRACT to download and inspect all five Release ZIPs"
         required: true
         type: string
 permissions:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: fx-v1.0.0-unified-hook-integration
-      - name: Download, verify and safely extract all three archives
+      - name: Download, verify and safely extract all five archives
         env:
           APK_ACCESS_TOKEN: ${{ secrets.APK_ACCESS_TOKEN }}
         shell: bash
@@ -40,6 +40,8 @@ jobs:
           download_asset 703364725 Dia_23.11_src.zip c6bd92b62ee0cd197f6cef86227c3f644450ab04b1f7b00654b97a29a71e07e7
           download_asset 703362245 _7.0.1_src.zip 836288c4278aaceda8fc40237539c65a8f8fef0e746fa336c3c263940ce89f02
           download_asset 703363287 _9.9.60_src.zip c92853041383bb420472e97da9e3e35b33de24faf29be39d04f2312ce673512a
+          download_asset 711054121 _10.10.62_src.zip f21eeccfa00084c7295ee3682aa4048d1d3c0ec0f3057caf7dbbe504be675026
+          download_asset 711053284 GKD-XA_1.4.8_src.zip 9e9881cf8e5895a13e147888671ff0f550946ddde44c06852163e6e294cc5757
           python3 - <<'PY'
           import pathlib, zipfile
           base = pathlib.Path("intake")
@@ -60,7 +62,7 @@ jobs:
           python3 - <<'PY'
           import pathlib, re
           root = pathlib.Path("intake")
-          out = ["# FX APK source intake report", "", "All three release archives were downloaded and SHA-256 verified before extraction.", ""]
+          out = ["# FX APK source intake report", "", "All five release archives were downloaded and SHA-256 verified before extraction.", ""]
           markers = {"settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts", "AndroidManifest.xml", "gradlew", "pom.xml", "package.json"}
           for folder in sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("_extracted")):
               files = [p for p in folder.rglob("*") if p.is_file()]
