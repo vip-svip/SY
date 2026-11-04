@@ -427,42 +427,61 @@ public final class FxDiaFridaActivity extends Activity {
             loadDiaMonitorTemplate("classloader");
         } else if ("JS 脚本列表".equals(title)) {
             body.post(this::showFridaScriptLibrary);
+        } else if ("脚本编辑器".equals(title)) {
+            body.post(this::openFullScreenCodeEditor);
+        } else if ("运行日志".equals(title)) {
+            body.post(() -> {
+                if (targetPackage == null) chooseTarget();
+                else showSessionLog();
+            });
         }
 
         // Restore transient editor/target state after page templates have been applied.
         // EditText widgets are created dynamically and have no stable view IDs, so
         // Android's automatic view-state restoration cannot preserve their contents.
-        if (state != null) restoreTransientState(state);
+        restoreTransientState(state);
     }
 
     private void restoreTransientState(Bundle state) {
-        if (state == null) return;
-        if (serverPath != null) serverPath.setText(state.getString("fx_frida_server_path",
-                serverPath.getText().toString()));
-        if (injectorPath != null) injectorPath.setText(state.getString("fx_frida_injector_path",
-                injectorPath.getText().toString()));
-        if (fridaCliPath != null) fridaCliPath.setText(state.getString("fx_frida_cli_path",
-                fridaCliPath.getText().toString()));
-        if (gadgetPath != null) gadgetPath.setText(state.getString("fx_frida_gadget_path",
-                gadgetPath.getText().toString()));
-        if (gadgetPort != null) gadgetPort.setText(state.getString("fx_frida_gadget_port",
-                gadgetPort.getText().toString()));
-        if (gadgetProcess != null) gadgetProcess.setText(state.getString("fx_frida_gadget_process",
-                gadgetProcess.getText().toString()));
-        if (script != null) script.setText(state.getString("fx_frida_script", script.getText().toString()));
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (state != null) {
+            if (serverPath != null) serverPath.setText(state.getString("fx_frida_server_path",
+                    serverPath.getText().toString()));
+            if (injectorPath != null) injectorPath.setText(state.getString("fx_frida_injector_path",
+                    injectorPath.getText().toString()));
+            if (fridaCliPath != null) fridaCliPath.setText(state.getString("fx_frida_cli_path",
+                    fridaCliPath.getText().toString()));
+            if (gadgetPath != null) gadgetPath.setText(state.getString("fx_frida_gadget_path",
+                    gadgetPath.getText().toString()));
+            if (gadgetPort != null) gadgetPort.setText(state.getString("fx_frida_gadget_port",
+                    gadgetPort.getText().toString()));
+            if (gadgetProcess != null) gadgetProcess.setText(state.getString("fx_frida_gadget_process",
+                    gadgetProcess.getText().toString()));
+            if (script != null) script.setText(state.getString("fx_frida_script", script.getText().toString()));
+        }
 
-        String savedPackage = state.getString("fx_frida_target_package");
+        String savedPackage = state == null
+                ? prefs.getString("target_package", null)
+                : state.getString("fx_frida_target_package",
+                        prefs.getString("target_package", null));
+        String savedName = state == null
+                ? prefs.getString("target_name", savedPackage)
+                : state.getString("fx_frida_target_name",
+                        prefs.getString("target_name", savedPackage));
         if (savedPackage != null && !savedPackage.trim().isEmpty()) {
             try {
                 ApplicationInfo info = getPackageManager().getApplicationInfo(savedPackage, 0);
                 if ((info.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
                         && (info.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
                     targetPackage = savedPackage;
-                    targetName = state.getString("fx_frida_target_name", savedPackage);
+                    targetName = savedName == null || savedName.trim().isEmpty()
+                            ? savedPackage : savedName;
+                    prefs.edit().putString("target_package", targetPackage)
+                            .putString("target_name", targetName).apply();
                     targetLabel.setText(targetName + "\\n" + targetPackage);
                     selectedProcessPids.clear();
-                    ArrayList<String> restoredPids =
-                            state.getStringArrayList("fx_frida_selected_pids");
+                    ArrayList<String> restoredPids = state == null ? null
+                            : state.getStringArrayList("fx_frida_selected_pids");
                     if (restoredPids != null) {
                         for (String pid : restoredPids) {
                             if (pid != null && pid.matches("[0-9]{1,10}"))
@@ -475,20 +494,28 @@ public final class FxDiaFridaActivity extends Activity {
                     } else {
                         targetLabel.append("\\n进程：注入时自动枚举");
                     }
+                } else {
+                    prefs.edit().remove("target_package").remove("target_name").apply();
+                    targetPackage = null;
+                    targetName = null;
+                    selectedProcessPids.clear();
+                    targetLabel.setText("上次选择的目标已不再是可调试用户应用，请重新选择。");
                 }
             } catch (PackageManager.NameNotFoundException ignored) {
+                prefs.edit().remove("target_package").remove("target_name").apply();
                 targetPackage = null;
                 targetName = null;
                 selectedProcessPids.clear();
                 targetLabel.setText("上次选择的目标应用已卸载，需重新选择。");
             }
         }
-        if (gadgetLoadMode != null) {
+        if (state != null && gadgetLoadMode != null) {
             int checked = state.getInt("fx_frida_gadget_load_mode", 0);
             if (gadgetLoadMode.getChildCount() > checked && checked >= 0)
                 gadgetLoadMode.check(gadgetLoadMode.getChildAt(checked).getId());
         }
-        if (status != null) status.setText(state.getString("fx_frida_status", "已恢复上次编辑状态。"));
+        if (state != null && status != null)
+            status.setText(state.getString("fx_frida_status", "已恢复上次编辑状态。"));
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
@@ -1197,6 +1224,10 @@ public final class FxDiaFridaActivity extends Activity {
                 .setItems(labels, (dialog, which) -> {
                     targetPackage = targets.get(which).packageName;
                     targetName = targets.get(which).label;
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .putString("target_package", targetPackage)
+                            .putString("target_name", targetName)
+                            .apply();
                     selectedProcessPids.clear();
                     gadgetProcess.setText(targetPackage);
                     targetLabel.setText(targetName + "\\n" + targetPackage

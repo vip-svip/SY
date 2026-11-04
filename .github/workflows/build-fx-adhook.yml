@@ -172,6 +172,7 @@ jobs:
               print(f'PASS: normalized restored TMPDIR fixture: {path.name}')
           PY
           sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
+          sh scripts/tests/fx-dia-frida-page-navigation-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
           cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh

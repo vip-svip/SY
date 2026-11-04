@@ -3250,7 +3250,9 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "运行日志":
                     markMigrationChild(suite, category, page);
-                    showNativeRuntimeLogs();
+                    startActivity(new Intent(this,
+                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                            .putExtra("dia_page", page));
                     return;
                 case "全局设置":
                     startActivity(new Intent(this,
