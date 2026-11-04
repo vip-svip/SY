@@ -11,7 +11,7 @@
         android:id="@+id/fx_yulong_widget_open"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="FX 广告过滤"
+        android:text="FX VPN 快捷控制"
         android:textStyle="bold"
         android:textSize="15sp"
         android:textColor="#17212B"
@@ -28,7 +28,7 @@
         android:id="@+id/fx_yulong_widget_count"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="今日拦截：日志未启用"
+        android:text="节点：未选择"
         android:textSize="11sp"
         android:textColor="#617080"
         android:paddingBottom="4dp" />
@@ -36,6 +36,6 @@
         android:id="@+id/fx_yulong_widget_toggle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="切换过滤状态"
+        android:text="启动 VPN"
         android:textAllCaps="false" />
 </LinearLayout>
