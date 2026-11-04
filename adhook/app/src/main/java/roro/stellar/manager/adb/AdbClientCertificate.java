@@ -15,8 +15,8 @@ import java.security.cert.X509Certificate;
 
 /**
  * Builds the original Stellar ADB client certificate shape without relying on
- * hidden platform internals: v3, serial 1, empty issuer/subject, 1970..2048
- * validity and SHA256withRSA signature.
+ * hidden platform internals: v3, serial 1, CN=youlong issuer/subject, 1970..2048
+ * validity and SHA256withRSA signature. Non-empty DNs are required by standard X.509 parsers.
  */
 public final class AdbClientCertificate {
     private static final byte[] SIGNATURE_ALGORITHM = sequence(
@@ -33,7 +33,8 @@ public final class AdbClientCertificate {
 
         byte[] version = tagged(0xa0, integer(BigInteger.valueOf(2)));
         byte[] serial = integer(BigInteger.ONE);
-        byte[] emptyName = sequence();
+        byte[] issuerName = distinguishedName("youlong");
+        byte[] subjectName = distinguishedName("youlong");
         byte[] validity = sequence(
                 tagged(0x17, "700101000000Z".getBytes(StandardCharsets.US_ASCII)),
                 tagged(0x17, "480101000000Z".getBytes(StandardCharsets.US_ASCII)));
@@ -43,7 +44,7 @@ public final class AdbClientCertificate {
         }
 
         byte[] tbsCertificate = sequence(version, serial, SIGNATURE_ALGORITHM,
-                emptyName, validity, emptyName, subjectPublicKeyInfo);
+                issuerName, validity, subjectName, subjectPublicKeyInfo);
         Signature signer = Signature.getInstance("SHA256withRSA");
         signer.initSign(privateKey);
         signer.update(tbsCertificate);
@@ -63,6 +64,15 @@ public final class AdbClientCertificate {
         certificate.verify(publicKey);
         certificate.checkValidity(new java.util.Date());
         return certificate;
+    }
+
+    private static byte[] distinguishedName(String commonName) {
+        byte[] commonNameOid = oid(new byte[]{0x55, 0x04, 0x03}); // 2.5.4.3
+        byte[] commonNameValue = tagged(0x0c,
+                commonName.getBytes(StandardCharsets.UTF_8)); // UTF8String
+        byte[] attribute = sequence(commonNameOid, commonNameValue);
+        byte[] relativeName = tagged(0x31, attribute); // SET OF AttributeTypeAndValue
+        return sequence(relativeName); // Name ::= SEQUENCE OF RDN
     }
 
     private static byte[] integer(BigInteger value) {
