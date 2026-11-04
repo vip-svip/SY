@@ -42,4 +42,38 @@ public final class FxYulongVirusDbTest {
     @Test public void totalCountsAllFiveLists() {
         assertEquals(6, sample().total());
     }
+
+    @Test public void malformedHtmlAndErrorPayloadsAreRejected() {
+        assertTrue(FxYulongVirusDb.parse("<html><body>502 Bad Gateway</body></html>", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("{\\"error\\":\\"Bad Gateway\\"}", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[{\\"error\\":\\"temporary\\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("503 Service Unavailable", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("502 Bad Gateway", true).isEmpty());
+    }
+
+    @Test public void packageParserAcceptsOnlyCompleteDottedIdentifiers() {
+        assertEquals(new HashSet<>(Arrays.asList("com.example.good", "org.sample.client")),
+                FxYulongVirusDb.parse("[\\"com.example.good\\",\\"org.sample.client\\"]", true));
+        assertTrue(FxYulongVirusDb.parse("com.example.good\\ninvalid package token", true).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("https://cdn.example.com/error.html", true).isEmpty());
+    }
+
+    @Test public void listStatusSeparatesOldCacheFromLatestAttempt() {
+        FxYulongVirusDb.ListStatus status =
+                new FxYulongVirusDb.ListStatus("certainPkg", "100% 病毒包名", "https://example.invalid/list");
+        status.count = 42;
+        status.updatedAt = 1000L;
+        assertEquals("本地缓存可用（更新时间未知）", status.statusLabel());
+
+        status.lastAttemptAt = 2000L;
+        status.ok = false;
+        assertEquals("最近同步失败，沿用旧缓存", status.statusLabel());
+
+        status.count = 0;
+        status.updatedAt = 0L;
+        assertEquals("最近同步失败，无可用缓存", status.statusLabel());
+
+        status.ok = true;
+        assertEquals("最近同步成功", status.statusLabel());
+    }
 }
