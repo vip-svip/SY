@@ -97,7 +97,7 @@ public final class FxYulongAppStatsActivity extends de.privacyguard.adhook.FxNat
         scroll=new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0,dp(4),0,dp(18)); scroll.addView(body);
-        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 5);
+        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 1);
 
         search=new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         if (state != null) {
