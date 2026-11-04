@@ -163,6 +163,9 @@ public final class MainActivity extends ComponentActivity {
     private TextView hookTargetScopeState;
     private String hookTargetScopePackage;
     private int hookTargetScopeGeneration;
+    // Keep only the newest Root authorization check eligible to update the Hook UI.
+    private volatile Thread hookRootCheckThread;
+    private int hookRootCheckGeneration;
     // Preserve the Settings > migration suite > category > page return chain.
     private String migrationSuite;
     private String migrationCategory;
@@ -4474,6 +4477,10 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onDestroy() {
+        hookRootCheckGeneration++;
+        Thread rootCheck = hookRootCheckThread;
+        hookRootCheckThread = null;
+        if (rootCheck != null) rootCheck.interrupt();
         unregisterPackageChangeReceiver();
         nativeVpnHandler.removeCallbacksAndMessages(null);
         nativeVpnExecutor.shutdownNow();
@@ -4687,25 +4694,32 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void checkRoot(TextView state, boolean request, Runnable afterCheck) {
+        if (state == null || isFinishing() || isDestroyed()) return;
+        final int requestGeneration = ++hookRootCheckGeneration;
+        Thread previous = hookRootCheckThread;
+        if (previous != null) previous.interrupt();
         state.setText(request ? "正在请求 KernelSU 授权…" : "正在检查 Root…");
-        new Thread(() -> {
+        Thread worker = new Thread(() -> {
             String command = "uid=$(id -u 2>/dev/null || echo unknown); echo FX_ROOT_UID=$uid; "
                     + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                     + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                    + "if [ -d \\"$d\\" ] && [ ! -L \\"$d\\" ] && [ -f \\"$d/module.prop\\" ] "
-                    + "&& [ ! -L \\"$d/module.prop\\" ] && grep -qx 'id=privacyguard' \\"$d/module.prop\\"; "
-                    + "then MP=\\"$d\\"; break; fi; done; "
-                    + "if [ -n \\"$MP\\" ]; then version=$(sed -n 's/^version=//p' \\"$MP/module.prop\\" | head -n 1); "
-                    + "if [ -e \\"$MP/remove\\" ]; then echo FX_MODULE=remove-pending; "
-                    + "elif [ -e \\"$MP/disable\\" ]; then echo FX_MODULE=disabled; "
-                    + "elif [ \\"$version\\" = '1.0.0' ]; then echo FX_MODULE=enabled; "
+                    + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] && [ -f \"$d/module.prop\" ] "
+                    + "&& [ ! -L \"$d/module.prop\" ] && grep -qx 'id=privacyguard' \"$d/module.prop\"; "
+                    + "then MP=\"$d\"; break; fi; done; "
+                    + "if [ -n \"$MP\" ]; then version=$(sed -n 's/^version=//p' \"$MP/module.prop\" | head -n 1); "
+                    + "if [ -e \"$MP/remove\" ]; then echo FX_MODULE=remove-pending; "
+                    + "elif [ -e \"$MP/disable\" ]; then echo FX_MODULE=disabled; "
+                    + "elif [ \"$version\" = '1.0.0' ]; then echo FX_MODULE=enabled; "
                     + "else echo FX_MODULE=version-mismatch; fi; "
                     + "echo FX_MODULE_PATH=$MP; else echo FX_MODULE=missing; fi; "
                     + "(command -v ksud >/dev/null 2>&1 || test -x /data/adb/ksu/bin/ksud) "
                     + "&& echo KSU_TOOL=present || echo KSU_TOOL=not-found";
             RootAccess.Result result = RootAccess.execute(command);
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed() || state.getParent() == null) return;
+                // A slower prior request must never overwrite a newer authorization result.
+                if (requestGeneration != hookRootCheckGeneration
+                        || isFinishing() || isDestroyed() || state.getParent() == null) return;
+                hookRootCheckThread = null;
                 boolean rootGranted = result.exitCode == 0 && result.output.contains("FX_ROOT_UID=0");
                 if (rootGranted) {
                     String moduleState = result.output.contains("FX_MODULE=enabled") ? "模块启用标记存在"
@@ -4725,9 +4739,10 @@ public final class MainActivity extends ComponentActivity {
                 }
                 if (afterCheck != null) afterCheck.run();
             });
-        }, "fx-root-check").start();
+        }, "fx-root-check-" + requestGeneration);
+        hookRootCheckThread = worker;
+        worker.start();
     }
-
     private String normalizeUiMode(String mode) {
         if ("miuix".equals(mode) || "glass".equals(mode) || "web".equals(mode)
                 || "classic".equals(mode)) return mode;
