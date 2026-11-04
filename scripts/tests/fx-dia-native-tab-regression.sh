@@ -80,6 +80,7 @@ assert "if (!targetEditorRestoring)" in main, "GPS result must defer opening the
 for token in ("NATIVE_SCRIPT_EXPORT_PREFS", "NATIVE_SCRIPT_EXPORT_PAYLOAD", "MAX_NATIVE_SCRIPT_EXPORT_BYTES", "fx_pending_native_script_export"):
     assert token in main, f"missing SAF export persistence contract: {token}"
 assert "putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit()" in main
+assert "512 * 1024" in main, "SAF export payload must remain bounded below Binder transaction limits"
 assert "getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null)" in main
 assert "finally {\n                clearPendingNativeScriptExport();\n            }" in main
 assert "clearPendingNativeScriptExport();" in main, "cancel/launch failure must clear staged export payload"
