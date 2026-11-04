@@ -11,12 +11,16 @@ done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE classic glass miuix; do
   grep -Fq "$token" "$mode" || { echo "FAIL: mode model missing $token"; exit 1; }
 done
-for token in ClassicWebCompat FXLiquidNative MiuixStyle; do
+for token in FxUiMode.CLASSIC_WEB_COMPAT FxUiMode.FX_LIQUID_NATIVE FxUiMode.MIUIX_STYLE; do
   grep -Fq "$token" "$panel" || { echo "FAIL: settings panel missing $token"; exit 1; }
 done
-grep -Fq 'LiquidBottomTabs(' "$shell"
-grep -Fq 'MiuixTheme(' "$shell"
-grep -Fq 'RoundedCornerShape(when (mode)' "$shell"
+grep -Fq 'LiquidBottomTabs(' "$shell" || { echo "FAIL: liquid renderer missing"; exit 1; }
+grep -Fq 'MiuixTheme(' "$shell" || { echo "FAIL: Miuix renderer missing"; exit 1; }
+grep -Fq 'mode == "glass"' "$shell" || { echo "FAIL: liquid mode branch missing"; exit 1; }
+grep -Fq 'mode == "miuix"' "$shell" || { echo "FAIL: Miuix mode branch missing"; exit 1; }
+grep -Fq 'mode == "classic"' "$shell" || { echo "FAIL: classic mode branch missing"; exit 1; }
+grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
+grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
 grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
 grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
