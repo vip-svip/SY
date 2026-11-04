@@ -94,3 +94,35 @@ assert "customRuleImportRestorePending = false;" in source, \
     "cancel/submit must clear pending import-dialog restoration state"
 PY
 echo "PASS: Hook custom-rule JSON import dialog reopens with its persisted draft after Activity recreation"
+python3 - "$MAIN" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "customRuleGroupDialogRestorePending" in source
+assert 'state.getString("fx_custom_rule_group_dialog_mode")' in source
+assert 'outState.putString("fx_custom_rule_group_dialog_mode", customRuleGroupDialogMode)' in source
+assert 'else if (customRuleGroupDialogRestorePending)' in source
+assert 'private void clearCustomRuleGroupDialogState()' in source
+add_start = source.index("private void showAddCustomRuleGroupDialog()")
+add_end = source.index("\n    private ", add_start + 20)
+add = source[add_start:add_end]
+for token in (
+    '":dev_rule_group_add_draft"',
+    'getPreferences(0).getString(draftKey, "")',
+    'input.addTextChangedListener(',
+    'if (!ensureCustomRuleGroup(value))',
+):
+    assert token in add, f"add-group draft/commit behavior missing {token}"
+ensure_start = source.index("private boolean ensureCustomRuleGroup(")
+ensure_end = source.index("\n    private ", ensure_start + 20)
+assert ".commit()" in source[ensure_start:ensure_end], "group creation must synchronously commit"
+rename_start = source.index("private void showRenameCustomRuleGroupDialog(String oldName)")
+rename_end = source.index("\n    private ", rename_start + 20)
+rename = source[rename_start:rename_end]
+assert '":dev_rule_group_rename_draft:" + oldName' in rename
+assert "input.addTextChangedListener(" in rename
+picker_start = source.index("private void showCustomRuleGroupPicker(int slot)")
+picker_end = source.index("\n    private ", picker_start + 20)
+assert '.putString(key, group).commit()' in source[picker_start:picker_end], \
+    "moving a rule between groups must report a synchronous persistence result"
+PY
+echo "PASS: Hook add/rename/move group forms preserve drafts and commit group changes atomically"
