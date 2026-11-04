@@ -253,7 +253,7 @@ public final class MainActivity extends ComponentActivity {
         if (intent == null || !intent.hasExtra("fx_open_native_tab")) return;
         int tab = intent.getIntExtra("fx_open_native_tab", -1);
         intent.removeExtra("fx_open_native_tab");
-        if (tab >= 0 && tab <= 3) openImportedNativeTab(tab);
+        if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);
     }
 
     private void handleLegacyVpnShortcut(Intent intent) {
