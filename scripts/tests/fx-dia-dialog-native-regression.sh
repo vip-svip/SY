@@ -25,5 +25,7 @@ assert "dialogMatchEnabled" in ser and "dialog rules/feedback require dialogMatc
 assert "showDiaDialogTarget" in ui and "保存并发布 Dialog 规则" in ui
 assert "parseTerms" in policy and "MAX_TERMS = 32" in policy and "MAX_RAW_UTF8_BYTES = 1024" in policy
 assert "matchesResourceIdExactly" in test and "rejectsRawRuleTextOverOneKiB" in test
+assert 'logFx(Log.INFO, "dia-dialog-match package="' in hook
+assert 'dialog match inspection failed' in hook
 print("PASS: Dialog UI/config/runtime contracts, bounded matcher, fail-open, throttled feedback and single import")
 PY
