@@ -1243,6 +1243,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("摄像头访问保护", "按应用限制摄像头访问；策略由 Hook 目标配置发布。", "配置摄像头保护", () -> showAppList("设备访问"));
         addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", () -> showAppList("传感器保护"));
         addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", () -> showAppList("通知保护"));
+        addNativeActionCard("Toast 文本过滤", "逐应用过滤明确命中的 Toast 文本；使用不区分大小写的字面关键词，不是正则。必须填写关键词，不提供空规则全屏蔽；自定义 View 按可读取文本匹配。", "配置 Toast 过滤", () -> showAppList("Toast过滤"));
         addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", () -> showAppList("媒体隐私"));
         addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", () -> showAppList("会员诊断"));
 
@@ -3387,8 +3388,12 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 case "对话框与通知":
                     markMigrationChild(suite, category, page);
-                    // Keep Dialog filtering independent from the Notification privacy hooks.
+                    // Keep Dialog filtering independent from Notification and Toast filtering.
                     showAppList("Dialog处理");
+                    return;
+                case "Toast 过滤": case "Toast文本过滤": case "Toast 禁用":
+                    markMigrationChild(suite, category, page);
+                    showAppList("Toast过滤");
                     return;
                 case "剪贴板":
                     markMigrationChild(suite, category, page);
@@ -4974,6 +4979,10 @@ public final class MainActivity extends ComponentActivity {
             showDiaDialogTarget(ai, targetDebuggable);
             return;
         }
+        if ("Toast过滤".equals(activePrivacySection)) {
+            showDiaToastTarget(ai);
+            return;
+        }
         base(selectedLabel);
         TextView pkg=new TextView(this); pkg.setText(selectedPackage); pkg.setTextColor(0xff687582);
         pkg.setPadding(dp(18),0,dp(18),dp(12)); content.addView(pkg);
@@ -5516,6 +5525,128 @@ public final class MainActivity extends ComponentActivity {
         Button back = new Button(this);
         back.setText("返回 Dialog 应用列表");
         back.setOnClickListener(v -> showAppList("Dialog处理"));
+        content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void showDiaToastTarget(ApplicationInfo target) {
+        hookUiVisible = true;
+        settingsUiVisible = false;
+        hookTargetVisible = true;
+        hookHubVisible = false;
+        selectedBottomTab = 2;
+        base("Toast 文本过滤 · " + selectedLabel);
+
+        final String packageNameKey = selectedPackage;
+        final String enabledKey = packageNameKey + ":toast_filter_enabled";
+        final String termsKey = packageNameKey + ":toast_text_terms";
+        final String draftEnabledKey = packageNameKey + ":toast_filter_draft_enabled";
+        final String draftTermsKey = packageNameKey + ":toast_filter_draft_terms";
+        final boolean userTarget = (target.flags & ApplicationInfo.FLAG_SYSTEM) == 0;
+
+        TextView packageName = new TextView(this);
+        packageName.setText(selectedPackage);
+        packageName.setTextColor(0xff687582);
+        packageName.setPadding(dp(18), 0, dp(18), dp(10));
+        content.addView(packageName);
+
+        TextView scope = new TextView(this);
+        scope.setText(userTarget
+                ? "逐应用生效：检查当前应用通过 Toast.makeText / setText 提交的文本，以及可读取的自定义 Toast View。无法读取的系统渲染 Toast 或视图树会安全放行。"
+                : "系统应用默认不允许启用 Toast 过滤。为避免误伤系统提示、权限告警和输入法反馈，本页面仅提供只读说明。");
+        scope.setTextColor(0xff697681);
+        scope.setPadding(dp(18), dp(4), dp(18), dp(12));
+        content.addView(scope);
+        addLsposedScopeControls(selectedPackage,
+                (target.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+
+        section("Toast 过滤范围");
+        TextView details = new TextView(this);
+        details.setText("按当前目标包隔离。每行一个关键词，采用不区分大小写的字面包含匹配，不执行正则表达式。最多 32 条、每条最多 96 字符、输入总量最多 1 KiB。启用时必须至少填写一条规则；空关键词不会屏蔽全部 Toast。匹配时仅取消当前 Toast，不记录 Toast 正文。");
+        details.setTextColor(0xff697681);
+        details.setPadding(dp(18), dp(2), dp(18), dp(12));
+        content.addView(details);
+
+        Switch enabled = new Switch(this);
+        enabled.setText("启用此应用的 Toast 文本过滤");
+        enabled.setPadding(dp(18), dp(10), dp(18), dp(10));
+        enabled.setChecked(getPreferences(0).getBoolean(
+                packageNameKey + ":toast_filter_draft_enabled",
+                getPreferences(0).getBoolean(enabledKey, false)));
+        enabled.setEnabled(userTarget);
+        content.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView ruleLabel = new TextView(this);
+        ruleLabel.setText("Toast 文本关键词（每行一条）");
+        ruleLabel.setTextColor(0xff263443);
+        ruleLabel.setPadding(dp(18), dp(12), dp(18), dp(4));
+        content.addView(ruleLabel);
+
+        EditText terms = new EditText(this);
+        terms.setSingleLine(false);
+        terms.setMinLines(3);
+        terms.setMaxLines(8);
+        terms.setGravity(Gravity.TOP | Gravity.START);
+        terms.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        terms.setHint("例如：签到成功\n今日已领取\n活动推广");
+        terms.setText(getPreferences(0).getString(
+                packageNameKey + ":toast_filter_draft_terms",
+                getPreferences(0).getString(termsKey, "")));
+        terms.setEnabled(userTarget);
+        content.addView(terms, new LinearLayout.LayoutParams(-1, -2));
+
+        // Keep a recoverable UI draft independently from the published target config.
+        enabled.setOnCheckedChangeListener((button, checked) ->
+                getPreferences(0).edit().putBoolean(draftEnabledKey, checked).apply());
+        terms.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable value) {
+                getPreferences(0).edit().putString(draftTermsKey,
+                        value == null ? "" : value.toString()).apply();
+            }
+        });
+
+        Button save = new Button(this);
+        save.setAllCaps(false);
+        save.setText("保存并发布 Toast 过滤规则");
+        save.setEnabled(userTarget);
+        save.setOnClickListener(v -> {
+            boolean shouldEnable = enabled.isChecked();
+            final List<String> rules;
+            try {
+                rules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                        .parseTerms(terms.getText() == null ? "" : terms.getText().toString());
+            } catch (IllegalArgumentException invalid) {
+                new AlertDialog.Builder(this).setTitle("Toast 规则无效")
+                        .setMessage(invalid.getMessage())
+                        .setPositiveButton("确定", null).show();
+                return;
+            }
+            if (shouldEnable && rules.isEmpty()) {
+                Toast.makeText(this, "启用前至少填写一条 Toast 关键词；空规则不会拦截全部提示。",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            String normalized = String.join("\n", rules);
+            boolean saved = getPreferences(0).edit()
+                    .putBoolean(enabledKey, shouldEnable)
+                    .putString(termsKey, normalized)
+                    .remove(draftEnabledKey)
+                    .remove(draftTermsKey)
+                    .commit();
+            if (!saved) {
+                Toast.makeText(this, "Toast 规则未能写入本地存储，未发布配置。",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            publishConfig();
+        });
+        content.addView(save, new LinearLayout.LayoutParams(-1, -2));
+
+        Button back = new Button(this);
+        back.setText("返回 Toast 应用列表");
+        back.setOnClickListener(v -> showAppList("Toast过滤"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
     }
 
@@ -6859,6 +6990,20 @@ public final class MainActivity extends ComponentActivity {
                     }
                     row.append(",dialog_notify=")
                             .append(getPreferences(0).getBoolean(p + ":dialog_notify", false) ? '1' : '0');
+                    has = true;
+                }
+                boolean toastFilterEnabled = (ai.flags & ApplicationInfo.FLAG_SYSTEM) == 0
+                        && getPreferences(0).getBoolean(p + ":toast_filter_enabled", false);
+                if (toastFilterEnabled) {
+                    List<String> toastTerms = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
+                            .parseTerms(getPreferences(0).getString(p + ":toast_text_terms", ""));
+                    if (toastTerms.isEmpty()) {
+                        throw new IllegalStateException("Toast 过滤已启用，但没有有效关键词：" + p);
+                    }
+                    String encodedToastTerms = java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(String.join("\n", toastTerms)
+                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    row.append(",toast_filter=1,toast_text_terms_b64=").append(encodedToastTerms);
                     has = true;
                 }
                 boolean customEnabled=false;
