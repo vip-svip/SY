@@ -26,6 +26,13 @@ pages = {
     "FxDiaBackupActivity.java": ".imported.dia.FxDiaBackupActivity",
     "FxDiaGlobalSettingsActivity.java": ".imported.dia.FxDiaGlobalSettingsActivity",
     "FxDiaSessionLogActivity.java": ".imported.dia.FxDiaSessionLogActivity",
+    "FxDiaCrashReportActivity.java": ".imported.dia.FxDiaCrashReportActivity",
+    "FxDiaDexBrowserActivity.java": ".imported.dia.FxDiaDexBrowserActivity",
+    "FxDiaFileActivity.java": ".imported.dia.FxDiaFileActivity",
+    "FxDiaSignatureActivity.java": ".imported.dia.FxDiaSignatureActivity",
+    "FxDiaSystemExpandActivity.java": ".imported.dia.FxDiaSystemExpandActivity",
+    "FxDiaWifiProxyActivity.java": ".imported.dia.FxDiaWifiProxyActivity",
+    "FxDiaGpsPickerActivity.java": ".imported.dia.FxDiaGpsPickerActivity",
 }
 for filename, component in pages.items():
     assert any(name == component or name.endswith(component) for name in declared), (
