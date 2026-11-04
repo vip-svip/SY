@@ -67,7 +67,7 @@ assert "Breakpad 原生处理器在当前进程内不能卸载" in activity, "UI
 assert "statusLine(this)" in activity, "native library availability is not shown"
 assert "public static boolean clearMinidumps(Context context)" in native_capture, "native dump directory has no explicit cleanup API"
 assert "return FxDiaCrashDumpDirectory.clear(context.getFilesDir())" in native_capture, "native dump cleanup does not use the path-safe deleter"
-assert "if (!directory.exists() && !directory.mkdir() && !directory.isDirectory())" in dump_directory, "native dump cleanup must recreate a missing Breakpad output path"
+assert "if (!directory.exists() && create && !directory.mkdir() && !directory.isDirectory())" in dump_directory, "native dump cleanup must recreate a missing Breakpad output path when creation is requested"
 assert "return directory.delete()" not in dump_directory, "native dump cleanup must preserve the output directory for the registered handler"
 assert "if (remaining == null || remaining.length != 0) return false" in dump_directory, "successful dump cleanup must verify all direct files were removed"
 assert "public static boolean prune(File filesRoot, int maxFiles, long maxAgeMs, long nowMs)" in dump_directory, "native retention must use the path-safe helper"
