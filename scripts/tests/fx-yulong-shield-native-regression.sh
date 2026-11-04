@@ -284,6 +284,9 @@ for source, label in ((white, "WhitelistActivity"), (picker, "WhitelistPickerAct
     assert "com.youlong.hd" not in source, f"{label} still references source package"
 assert '"whitelist_pkgs"' in white and '"whitelist_pkgs"' in picker, \
     "Whitelist manager and picker must share the original whitelist key"
+assert "RootAccess" not in white and "yulong-stellar-control.sh" not in white \
+    and "pkg-sync" not in white, \
+    "Shield risk-exemption whitelist must remain separate from Stellar Root privilege authorization"
 assert '"blacklist_pkgs"' in black, "Blacklist manager must preserve the original blacklist key"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
 
