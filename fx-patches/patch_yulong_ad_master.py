@@ -113,15 +113,25 @@ if not uninstall.is_file():
     raise SystemExit("restored FX uninstall.sh missing")
 uninstall_text = uninstall.read_text(encoding="utf-8")
 if "yulong-trusted-network.sh" not in uninstall_text:
-    remover_marker = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"\n'
-    if remover_marker not in uninstall_text:
-        raise SystemExit("FX uninstall Hook remover anchor missing")
     trusted_stop = '''# Stop trusted Wi-Fi pause and restore its owned gate before uninstall.
 if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
   sh "$MODDIR/scripts/yulong-trusted-network.sh" uninstall >/dev/null 2>&1 || :
 fi
 '''
-    uninstall_text = uninstall_text.replace(remover_marker, trusted_stop + remover_marker, 1)
+    # Release layouts contain a REMOVER assignment, while minimal fixtures and
+    # early layouts may not. In every form, anchor cleanup immediately after the
+    # persistent state directory is known and before any data/chain cleanup.
+    state_markers = ('PG=/data/adb/privacyguard\\n',
+                     'STATE_DIR=/data/adb/privacyguard\\n')
+    insertion = next((marker for marker in state_markers if marker in uninstall_text), None)
+    if insertion is None:
+        remover_marker = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"\\n'
+        if remover_marker in uninstall_text:
+            uninstall_text = uninstall_text.replace(remover_marker, trusted_stop + remover_marker, 1)
+        else:
+            raise SystemExit("uninstall state/remover insertion anchors are missing; refusing unsafe watcher cleanup")
+    else:
+        uninstall_text = uninstall_text.replace(insertion, insertion + trusted_stop, 1)
     uninstall.write_text(uninstall_text, encoding="utf-8")
     uninstall.chmod(0o755)
 
