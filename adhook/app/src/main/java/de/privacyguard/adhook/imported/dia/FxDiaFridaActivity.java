@@ -63,10 +63,16 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String STATE_SCRIPT_DRAFT_FILE = "fx_frida_script_draft_file";
     private static final String SCRIPT_DRAFT_CACHE_NAME = "fx-dia-frida-script-state.js";
     private static final int MAX_FRIDA_DRAFT_BYTES = 512 * 1024;
+    private volatile boolean activityDestroyed;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12),
             r -> { Thread t = new Thread(r, "fx-dia-frida"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
+
+    private void ensureFridaWorkerActive() throws InterruptedException {
+        if (activityDestroyed || Thread.currentThread().isInterrupted())
+            throw new InterruptedException("Frida 页面已结束，后台任务已取消。");
+    }
 
     private void submitWorker(Runnable task) {
         try {
@@ -1022,6 +1028,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 byte[] buffer = new byte[8192];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
+                    ensureFridaWorkerActive();
                     if (output.size() > MAX_LIBRARY_JSON_BYTES - count)
                         throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB。");
                     output.write(buffer, 0, count);
@@ -1077,6 +1084,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 byte[] buffer = new byte[8192];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
+                    ensureFridaWorkerActive();
                     if (output.size() > 512 * 1024 - count)
                         throw new IllegalArgumentException("脚本超过 512 KiB 限制。");
                     output.write(buffer, 0, count);
@@ -1205,6 +1213,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     int count;
                     long total = 0;
                     while ((count = input.read(buffer)) != -1) {
+                        ensureFridaWorkerActive();
                         total += count;
                         if (total > MAX_LIBRARY_JSON_BYTES)
                             throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB。");
@@ -1272,6 +1281,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     byte[] buffer = new byte[32768];
                     int count;
                     while ((count = input.read(buffer)) != -1) {
+                        ensureFridaWorkerActive();
                         if (total > maxBytes - count)
                             throw new IllegalStateException("文件超过 " + (maxBytes / 1024 / 1024) + " MiB 限制。");
                         int copy = Math.min(count, header.length - headerCount);
@@ -1349,6 +1359,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         + "actual=$(sha256sum \"$dst\" | awk '{print $1}'); "
                         + "[ \"$actual\" = " + quote(sha) + " ]; test -x \"$dst\"; "
                         + "printf 'installed=%s\\nsha256=%s\\nbytes=%s\\n' \"$dst\" \"$actual\" " + total;
+                ensureFridaWorkerActive();
                 RootAccess.Result result = RootAccess.execute(command, 60000L, 256 * 1024);
                 if (result.exitCode != 0)
                     throw new IllegalStateException("Root 安装失败（退出码 " + result.exitCode + "）："
@@ -3006,6 +3017,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
 
     @Override protected void onDestroy() {
+        activityDestroyed = true;
         targetLoadGeneration++;
         targetLoading = false;
         targetPickerOpen = false;
