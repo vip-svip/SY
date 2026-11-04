@@ -189,8 +189,9 @@ public final class FxYulongAdGeneralActivity extends Activity {
         taskerExternalControl = new Switch(this);
         taskerExternalControl.setText("允许指定自动化应用执行 Root 操作");
         boolean senderReady = Build.VERSION.SDK_INT >= 34
-                && isAutomationSenderInstalled(taskerPrefs.getString(
-                        FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, ""));
+                && isAutomationSenderPinned(
+                        taskerPrefs.getString(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, ""),
+                        taskerPrefs.getString(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_CERT_SHA256, ""));
         boolean storedAllowed = taskerPrefs.getBoolean(
                 FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
         if (!senderReady && storedAllowed) {
@@ -203,7 +204,9 @@ public final class FxYulongAdGeneralActivity extends Activity {
             if (updatingTaskerControlSwitch) return;
             String allowed = taskerPrefs.getString(
                     FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, "");
-            if (checked && (Build.VERSION.SDK_INT < 34 || !isAutomationSenderInstalled(allowed))) {
+            if (checked && (Build.VERSION.SDK_INT < 34 || !isAutomationSenderPinned(
+                    allowed, taskerPrefs.getString(
+                            FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_CERT_SHA256, "")))) {
                 updatingTaskerControlSwitch = true;
                 button.setChecked(false);
                 updatingTaskerControlSwitch = false;
@@ -297,6 +300,30 @@ public final class FxYulongAdGeneralActivity extends Activity {
         }
     }
 
+    private String getAutomationSenderSignerDigest(String packageName) {
+        if (!isAutomationSenderInstalled(packageName)) return "";
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            if (info.signingInfo == null) return "";
+            android.content.pm.Signature[] signers = info.signingInfo.getApkContentsSigners();
+            if (signers == null || signers.length == 0) return "";
+            byte[][] certificates = new byte[signers.length][];
+            for (int i = 0; i < signers.length; i++) {
+                certificates[i] = signers[i] == null ? null : signers[i].toByteArray();
+            }
+            return FxYulongTaskerCallerPolicy.signerDigest(certificates);
+        } catch (PackageManager.NameNotFoundException | SecurityException unavailable) {
+            return "";
+        }
+    }
+
+    private boolean isAutomationSenderPinned(String packageName, String expectedDigest) {
+        if (expectedDigest == null || expectedDigest.isEmpty()) return false;
+        String currentDigest = getAutomationSenderSignerDigest(packageName);
+        return !currentDigest.isEmpty() && expectedDigest.equals(currentDigest);
+    }
+
     private void saveTaskerSenderPackage() {
         if (taskerSenderPackageInput == null) return;
         String packageName = taskerSenderPackageInput.getText().toString().trim();
@@ -305,6 +332,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (packageName.isEmpty()) {
             boolean saved = prefs.edit()
                     .remove(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE)
+                    .remove(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_CERT_SHA256)
                     .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
                     .commit();
             if (!saved) {
@@ -327,8 +355,14 @@ public final class FxYulongAdGeneralActivity extends Activity {
             Toast.makeText(this, "该包名未安装或不可见；请核对自动化应用包名。", Toast.LENGTH_LONG).show();
             return;
         }
+        String signerDigest = getAutomationSenderSignerDigest(packageName);
+        if (signerDigest.isEmpty()) {
+            Toast.makeText(this, "无法读取该自动化应用的签名证书；为安全起见，不保存授权。", Toast.LENGTH_LONG).show();
+            return;
+        }
         boolean saved = prefs.edit()
                 .putString(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, packageName)
+                .putString(FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_CERT_SHA256, signerDigest)
                 .putBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false)
                 .commit();
         if (!saved) {
@@ -352,8 +386,12 @@ public final class FxYulongAdGeneralActivity extends Activity {
                 getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
         String allowedPackage = prefs.getString(
                 FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_PACKAGE, "");
-        boolean senderReady = Build.VERSION.SDK_INT >= 34
-                && isAutomationSenderInstalled(allowedPackage);
+        String allowedSignerDigest = prefs.getString(
+                FxYulongAdTaskerReceiver.PREF_ALLOWED_SENDER_CERT_SHA256, "");
+        boolean senderInstalled = isAutomationSenderInstalled(allowedPackage);
+        boolean signerPinned = senderInstalled
+                && isAutomationSenderPinned(allowedPackage, allowedSignerDigest);
+        boolean senderReady = Build.VERSION.SDK_INT >= 34 && signerPinned;
         boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
         if (taskerExternalControl != null) {
             taskerExternalControl.setEnabled(senderReady);
@@ -368,10 +406,12 @@ public final class FxYulongAdGeneralActivity extends Activity {
         if (taskerSecurityStatus != null) {
             String message = Build.VERSION.SDK_INT < 34
                     ? "安全状态：Android 14 以下无法可靠验证广播发起应用，Root 自动化已禁用。"
-                    : !isAutomationSenderInstalled(allowedPackage)
+                    : !senderInstalled
                         ? "安全状态：未指定有效且已安装的自动化发送方；Root 自动化不会执行。"
-                        : "安全状态：仅接受包名 " + allowedPackage
-                            + " 且系统 UID 映射匹配的广播；仍需手动开启下方授权开关。";
+                        : !signerPinned
+                            ? "安全状态：授权应用的签名证书无法读取或已变化；请重新验证并保存包名，再手动授权。"
+                            : "安全状态：仅接受包名 " + allowedPackage
+                                + "、UID 映射与已固定的签名证书均匹配的广播；仍需手动开启下方授权开关。";
             taskerSecurityStatus.setText(message);
         }
         if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
