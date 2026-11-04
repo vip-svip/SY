@@ -3644,3 +3644,24 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 追加 UI 诚实状态修正：设置页不再把五种 Skin 描述成全部可切换；明确当前只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三种可选，HUAWEI HarmonyStyle 与 iOS CupertinoStyle 尚未接入 Renderer。回归脚本同步检查这一边界，避免“计划中”被误报为“已上线”。
 - 本次新增状态修正提交：`b64c400366ce82bc4691ea445af235ea2b0dee3c`；回归断言提交：`1e88a747c94f03ff636bfdaeca1d869eff6e34da`。
+
+
+## 2026-11-05 — HUAWEI HarmonyStyle 与 iOS CupertinoStyle 首批源码接入
+
+- 将全局 Skin 从三项扩展为五项：
+  - `huawei` / `HUAWEI HarmonyStyle`
+  - `ios` / `iOS CupertinoStyle`
+- 修改 `FxUiMode.kt`：新增两种稳定 storage ID、Renderer 类型、显示名称、说明和导入别名；旧 classic/glass/miuix ID 保持兼容。
+- 修改 `FxDesignModePanel.kt`：五种模式全部显示在全局模式选择器。
+- 修改 `FxNativeAppShell.kt`：新增 Harmony 与 Cupertino 的全局背景、底栏表面、圆角和选中态视觉分支；没有使用 HarmonyOS/iOS 私有 API。
+- 修改 `MainActivity.java`：设置说明准确区分已接入的全局导航/表面 Skin 与仍在进行的逐页组件适配；模式选择区域增加可滚动高度。
+- 修改 `FxUiModeTest.kt`：断言五种模式数量、ID 和别名。
+- 更新 `scripts/tests/fx-global-ui-modes-regression.sh` 与 `scripts/tests/fx-unified-navigation-regression.sh`，覆盖五种模式及迁移入口删除要求。
+- 相关提交：
+  - `9fe04d05557e3b108042834dfd8cb1a77b9c2c2d` FxUiMode
+  - `448b0ef97eeb551f2e945c1abb395853b447eb78` 模式选择器
+  - `32cc683d6d70f414175294414c7302b83fc6a9eb` 全局导航 Skin
+  - `9ef319549fa32eae4e714ed8b0f3d91783e11d33` 单元测试
+  - `a8887983951f2fbbd8f5e9d023ad8c8346bb5693` 设置状态与面板高度
+  - `3eb168192fd4be9924eab55222ee8ecd0f0b009d` 五模式回归脚本
+- 当前边界：本批实现的是模式持久化、选择器和全局导航/表面 Skin，不等于六个 Tab 内所有页面已完成 HUAWEI/iOS 逐页视觉重构；尚未执行 Gradle 编译、单测或真机验证。不能报告构建通过。
