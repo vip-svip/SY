@@ -30,8 +30,8 @@ assert "AUTO_SCOPE_EXECUTOR.execute(() -> {" in helper and "new Thread(" not in 
     "scope sync must use the shared bounded executor rather than one thread per target"
 assert "new java.util.concurrent.ArrayBlockingQueue<>(8)" in main and "new java.util.concurrent.ThreadPoolExecutor.AbortPolicy()" in main, \
     "scope sync executor must have a bounded queue and reject overload"
-assert "RejectedExecutionException full" in helper and "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName)" in helper, \
-    "queue rejection must release the per-package pending guard for retry"
+assert "RejectedExecutionException full" in helper and "AUTO_SCOPE_REQUESTS_IN_FLIGHT.remove(packageName, requestToken)" in helper, \
+    "queue rejection must release only its own per-package pending token for retry"
 assert "WeakReference<MainActivity>" in helper, "asynchronous Manager callback must not keep a destroyed Activity alive"
 assert "maybeAutoRequestLsposedScope(ai)" in target, "automatic request must be wired to explicit target selection"
 assert 'addStoredSwitch("自动申请 LSPosed 作用域"' in settings
