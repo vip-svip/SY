@@ -2571,3 +2571,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已重新从 GitHub 读取源码与回归脚本，并逐项确认 Bundle 保存/恢复、异步配置加载后恢复、页面切换清零等断言均存在。仅做远端源码静态核对；尚未实际执行 shell 回归脚本、Gradle、模拟器或真机测试。
 - 当前最新 HEAD（写入本记录前）：`15cd96f8df02cf7d088aa25fc5ea4b236bbcba30`。
 - 下一步：继续游龙原生子页面状态与交互检查，优先检查列表搜索/分页/批量编辑的重建行为；不打最终包，不改变 FX 1.0.0 版本号。
+
+
+## 2026-11-05 — 六 Tab 原生套件快捷入口回归断言修正
+
+- Targeted run `41910532515` 失败于 `fx-imported-suite-native-routing-regression.sh`：测试仍要求旧四页范围 `0..3` 和旧 `openImportedNativeTab` 路由；当前实现已固定六 Tab，快捷入口应允许 `0..5` 并统一调用 `handleNativeTabSelection(tab)`。
+- 核对 `MainActivity.handleImportedNativeTabIntent` 后确认当前代码已对六个 Tab 做边界检查并走统一选择器；因此修正过期测试断言，不回退六 Tab 功能。
+- 提交：`31aefc8bd9a5bcc1584fd02edb5dae3883e831d5`。
+- 验证等级：静态核对 MainActivity 的 0..5 边界、统一路由与测试断言一致；修复后的 targeted run 待读取。
+- 下一步：确认六 Tab/Shield/Frida targeted Host 回归完成；继续 Frida SAF 导入 URI 重建恢复。固定 FX 1.0.0，不提前打包最终 APK / KernelSU ZIP。
