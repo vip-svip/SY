@@ -281,18 +281,26 @@ public final class FxDiaBackupActivity extends Activity {
             runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())callback.accept(r);});});
     }
     private String rootModuleCommand(){
-        return "PG=/data/adb/privacyguard; [ ! -L \"$PG\" ] || exit 19; [ -d \"$PG\" ] || exit 20; "
+        return "[ -d /data ] && [ ! -L /data ] || exit 17; "
+                +"[ -d /data/adb ] && [ ! -L /data/adb ] || exit 18; "
+                +"PG=/data/adb/privacyguard; [ ! -L \"$PG\" ] || exit 19; [ -d \"$PG\" ] || exit 20; "
                 +"[ ! -L \"$PG/settings.conf\" ] || exit 21; [ -f \"$PG/settings.conf\" ] && [ -s \"$PG/settings.conf\" ] || exit 20; "
                 +"base64 \"$PG/settings.conf\" | tr -d '\\n'";
     }
 
     private String rootStellarFilesCommand(){
-        return "DIR=/data/local/tmp/stellar_guard; "
-                +"[ ! -L \"$DIR\" ] || exit 40; "
+        return "[ -d /data ] && [ ! -L /data ] || exit 36; "
+                +"[ ! -L /data/local ] || exit 37; "
+                +"[ ! -e /data/local ] || [ -d /data/local ] || exit 38; "
+                +"[ ! -L /data/local/tmp ] || exit 39; "
+                +"[ ! -e /data/local/tmp ] || [ -d /data/local/tmp ] || exit 40; "
+                +"[ -d /data/local/tmp ] || exit 0; "
+                +"DIR=/data/local/tmp/stellar_guard; "
+                +"[ ! -L \"$DIR\" ] || exit 41; "
                 +"[ -d \"$DIR\" ] || exit 0; "
                 +"for f in command_whitelist.txt command_always_allow.txt scope_grants.txt; do "
-                +"[ ! -L \"$DIR/$f\" ] || exit 41; "
-                +"[ ! -e \"$DIR/$f\" ] || [ -f \"$DIR/$f\" ] || exit 42; "
+                +"[ ! -L \"$DIR/$f\" ] || exit 42; "
+                +"[ ! -e \"$DIR/$f\" ] || [ -f \"$DIR/$f\" ] || exit 43; "
                 +"if [ -f \"$DIR/$f\" ]; then "
                 +"printf 'STELLARFILE|%s|' \"$f\"; base64 \"$DIR/$f\" | tr -d '\\n'; printf '\\n'; "
                 +"fi; done";

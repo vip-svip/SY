@@ -117,5 +117,13 @@ assert "MAX_BACKUP_BYTES" in source[source.index("private byte[] downloadRawGith
 assert '"raw.githubusercontent.com".equalsIgnoreCase(host)' in policy
 assert "uri.getRawUserInfo() == null" in policy
 assert "(port == -1 || port == 443)" in policy
+assert '[ -d /data ] && [ ! -L /data ]' in module_reader, "module backup must reject symlinked /data ancestor"
+assert '[ -d /data/adb ] && [ ! -L /data/adb ]' in module_reader, "module backup must reject symlinked /data/adb ancestor"
+assert '[ -d /data ] && [ ! -L /data ]' in stellar_reader, "Stellar backup must reject symlinked /data ancestor"
+assert '[ ! -L /data/local ]' in stellar_reader, "Stellar backup must reject symlinked /data/local"
+assert '[ ! -e /data/local ] || [ -d /data/local ]' in stellar_reader, "Stellar backup must reject non-directory /data/local"
+assert '[ ! -L /data/local/tmp ]' in stellar_reader, "Stellar backup must reject symlinked /data/local/tmp"
+assert '[ ! -e /data/local/tmp ] || [ -d /data/local/tmp ]' in stellar_reader, "Stellar backup must reject non-directory /data/local/tmp"
+assert '[ -d /data/local/tmp ] || exit 0' in stellar_reader, "missing Stellar parent must be treated as no existing backup state"
 print("PASS: Dia backup restore stages private transactions, rejects symlinked parents and cleans only directories it created")
 PY
