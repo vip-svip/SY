@@ -50,6 +50,8 @@ public final class DeveloperExecutableDescriptor {
      */
     public static String fromJavaSignature(String value, String packageName) {
         if (value == null || packageName == null || value.length() > 768) return null;
+        String frida = fromFridaOverloadSignature(value, packageName);
+        if (frida != null) return frida;
         int open = value.indexOf('(');
         int close = value.indexOf(')', open + 1);
         if (open <= 0 || close < open || close != value.lastIndexOf(')')) return null;
@@ -69,7 +71,12 @@ public final class DeveloperExecutableDescriptor {
                 args.add(descriptor);
             }
         }
-        String result = javaTypeDescriptor(value.substring(close + 1).trim(), true);
+        String returnText = value.substring(close + 1).trim();
+        if (returnText.startsWith(":")) returnText = returnText.substring(1).trim();
+        else if (returnText.startsWith("->")) returnText = returnText.substring(2).trim();
+        else if (returnText.regionMatches(true, 0, "returns ", 0, 8))
+            returnText = returnText.substring(8).trim();
+        String result = javaTypeDescriptor(returnText, true);
         if (result == null || ("<init>".equals(name) && !"V".equals(result))) return null;
         StringBuilder out = new StringBuilder("L").append(owner.replace('.', '/')).append(";->")
                 .append(name).append('(');
@@ -77,6 +84,61 @@ public final class DeveloperExecutableDescriptor {
         out.append(')').append(result);
         String descriptor = out.toString();
         return parse(descriptor, packageName) == null ? null : descriptor;
+    }
+
+    /**
+     * Frida Java bridge overload form with an explicit return type:
+     * com.example.app.Auth.isReady.overload('java.lang.String', 'int[]') -> boolean
+     *
+     * Frida .overload() does not report the method return type. FX therefore
+     * requires ':'/'->'/'returns' plus a result type to keep the final method
+     * descriptor exact and fully verifiable.
+     */
+    private static String fromFridaOverloadSignature(String value, String packageName) {
+        final String marker = ".overload(";
+        int markerAt = value.indexOf(marker);
+        if (markerAt <= 0 || markerAt != value.lastIndexOf(marker)) return null;
+        int open = markerAt + marker.length() - 1;
+        int close = value.indexOf(')', open + 1);
+        if (close < 0 || close != value.lastIndexOf(')')) return null;
+
+        String ownerAndMethod = value.substring(0, markerAt).trim();
+        int split = ownerAndMethod.lastIndexOf('.');
+        if (split <= 0 || split == ownerAndMethod.length() - 1) return null;
+        String owner = ownerAndMethod.substring(0, split).trim();
+        String method = ownerAndMethod.substring(split + 1).trim();
+        if (!method.matches("[A-Za-z_$][A-Za-z0-9_$]*|<init>")) return null;
+
+        String returnText = value.substring(close + 1).trim();
+        if (returnText.startsWith("->")) returnText = returnText.substring(2).trim();
+        else if (returnText.startsWith(":")) returnText = returnText.substring(1).trim();
+        else if (returnText.regionMatches(true, 0, "returns ", 0, 8))
+            returnText = returnText.substring(8).trim();
+        else return null;
+        if (returnText.isEmpty()) return null;
+
+        String argsText = value.substring(open + 1, close).trim();
+        List<String> args = new ArrayList<>();
+        if (!argsText.isEmpty()) {
+            for (String raw : argsText.split(",", -1)) {
+                String arg = raw.trim();
+                if ((arg.startsWith("'") && arg.endsWith("'"))
+                        || (arg.startsWith("\"") && arg.endsWith("\""))) {
+                    if (arg.length() < 2) return null;
+                    arg = arg.substring(1, arg.length() - 1).trim();
+                }
+                if (arg.isEmpty() || arg.contains("'") || arg.contains("\"")
+                        || arg.contains("<") || arg.contains(">")) return null;
+                args.add(arg);
+            }
+        }
+        StringBuilder javaSignature = new StringBuilder(owner).append('#').append(method).append('(');
+        for (int i = 0; i < args.size(); i++) {
+            if (i > 0) javaSignature.append(',');
+            javaSignature.append(args.get(i));
+        }
+        javaSignature.append(")->").append(returnText);
+        return fromJavaSignature(javaSignature.toString(), packageName);
     }
 
     private static String javaTypeDescriptor(String type, boolean allowVoid) {

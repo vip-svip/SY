@@ -77,6 +77,23 @@ public class DeveloperHookRuleTest {
                 "com.example.vpn"));
     }
 
+    @Test public void acceptsFridaOverloadAndColonReturnSyntaxForObserve() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "trace|com.example.vpn.Trace.dispatch.overload('java.lang.String', 'int[]') -> java.lang.Object|OBSERVE|25",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Trace;->dispatch(Ljava/lang/String;[I)Ljava/lang/Object;", rule.descriptor);
+        assertEquals(DeveloperHookRule.Action.OBSERVE, rule.action);
+    }
+
+    @Test public void acceptsJavaColonReturnSyntaxForNoOpVoid() {
+        DeveloperHookRule rule = DeveloperHookRule.parse(
+                "stop|com.example.vpn.Worker#refresh(java.lang.String): void|NO_OP_VOID|5",
+                "com.example.vpn");
+        assertNotNull(rule);
+        assertEquals("Lcom/example/vpn/Worker;->refresh(Ljava/lang/String;)V", rule.descriptor);
+    }
+
     @Test public void acceptsDottedSyntaxAndFalseAction() {
         DeveloperHookRule rule = DeveloperHookRule.parse(
                 "update|com.example.vpn.update.UpdatePolicy.shouldShowUpdate()Z|false|10",

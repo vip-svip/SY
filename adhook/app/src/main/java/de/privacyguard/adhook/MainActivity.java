@@ -5132,7 +5132,8 @@ public final class MainActivity extends ComponentActivity {
         EditText descriptor = new EditText(this);
         descriptor.setSingleLine(false);
         descriptor.setMinLines(2);
-        descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[])java.lang.Object\n"
+        descriptor.setHint("Java：com.example.Foo#run(java.lang.String,int[]): java.lang.Object\n"
+                + "Frida：com.example.Foo.run.overload('java.lang.String','int[]') -> java.lang.Object\n"
                 + "Smali：Lcom/example/Foo;->run(Ljava/lang/String;[I)Ljava/lang/Object;\n"
                 + "旧式：com.example.Foo#isReady()Z");
         EditText action = new EditText(this);
@@ -5151,7 +5152,7 @@ public final class MainActivity extends ComponentActivity {
         priority.setHint("优先级（-1000 至 1000）");
 
         TextView help = new TextView(this);
-        help.setText("支持 Java 精确签名、Smali/JVM 描述符和旧式零参数 boolean 签名。"
+        help.setText("支持 Java 精确签名（返回类型可用冒号或箭头分隔）、Frida .overload() 精确重载写法（必须显式补返回类型）、Smali/JVM 描述符和旧式零参数 boolean 签名。"
                 + "RETURN_TRUE/FALSE 仅支持零参数 boolean；RETURN_NULL 仅支持对象/数组；"
                 + "RETURN_ZERO 仅支持数值原语；RETURN_EMPTY_STRING 仅支持 String。"
                 + "NO_OP_VOID 只接受精确 void 方法，会跳过方法主体，可能破坏应用逻辑。"
