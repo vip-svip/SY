@@ -30,7 +30,7 @@ public final class BackupValidatorHostTest {
         expect(FxYulongAdBackupValidation.isValidText("user note"), true, "plain note");
         expect(FxYulongAdBackupValidation.isValidText("a|b"), false, "field separator");
         expect(FxYulongAdBackupValidation.isValidText("line1\nline2"), false, "newline");
-        expect(FxYulongAdBackupValidation.isValidText("bad\u0000note"), false, "NUL");
+        expect(FxYulongAdBackupValidation.isValidText("bad" + ((char) 0) + "note"), false, "NUL");
         expect(FxYulongAdBackupValidation.isValidText("x".repeat(181)), false, "oversized note");
         expect(FxYulongAdBackupValidation.isValidSource("https://filters.example/list.txt"), true, "HTTPS source");
         expect(FxYulongAdBackupValidation.isValidSource("builtin://fx-native"), true, "builtin source");

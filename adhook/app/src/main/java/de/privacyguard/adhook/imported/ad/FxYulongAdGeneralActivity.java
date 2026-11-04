@@ -332,6 +332,10 @@ public final class FxYulongAdGeneralActivity extends Activity {
         }
 
         JSONObject dns = json.getJSONObject("dnsConfig");
+        validateOptionalBoolean(dns, "customEnabled", "自定义 DNS 启用状态");
+        validateOptionalBoolean(dns, "globalEnabled", "全局 DNS 启用状态");
+        if (dns.optJSONArray("customServers") == null || dns.optJSONArray("globalServers") == null)
+            throw new IllegalArgumentException("DNS 服务器列表缺失。");
         validateDnsServers(dns.optJSONArray("customServers"), false, "自定义 DNS");
         validateDnsServers(dns.optJSONArray("globalServers"), true, "全局 DNS");
         validateOptionalIpv4(dns, "vpnRemote", "VPN 远端 DNS");
@@ -515,7 +519,7 @@ public final class FxYulongAdGeneralActivity extends Activity {
                         .append(quote(schedule.optString("start","22:00"))).append(" ")
                         .append(quote(schedule.optString("end","07:00"))).append(" ")
                         .append(quote(schedule.optString("days","1,2,3,4,5,6,7"))).append("; ");
-                command.append("COMMITTED=1; rm -f \"$B1\" \"$B2\"; trap - EXIT; echo import=success");
+                command.append("COMMITTED=1; rm -f \"$B1\"; [ -z \"$B2\" ] || rm -f \"$B2\"; trap - EXIT; echo import=success");
                 if(command.length()>120000)throw new IllegalArgumentException("恢复命令超过安全长度限制。");
                 RootAccess.Result result=RootAccess.execute(command.toString(),180000L,1024*1024);
                 if(result.exitCode!=0)throw new IllegalStateException("设备端回滚/导入失败："+safe(result.output));
