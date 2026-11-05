@@ -4460,27 +4460,27 @@ public final class MainActivity extends ComponentActivity {
         if (FxWallpaperStore.currentPath(this) != null) return 0x00000000;
         if ("miuix".equals(uiMode)) return 0xfff3f5fa;
         if ("glass".equals(uiMode)) return 0xffe8eef4;
-        if ("huawei".equals(uiMode)) return 0xfff1f5fa;
-        if ("ios".equals(uiMode)) return 0xfff2f2f7;
+        if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.BACKGROUND;
+        if ("ios".equals(uiMode)) return CupertinoSkinTokens.CupertinoColorTokens.BACKGROUND;
         return 0xfff4f6f8;
     }
     private int uiSurfaceColor() {
         if ("miuix".equals(uiMode)) return 0xffeaf0fb;
         if ("glass".equals(uiMode)) return 0xddefffff;
-        if ("huawei".equals(uiMode)) return 0xfff8fbff;
-        if ("ios".equals(uiMode)) return 0xffffffff;
+        if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.SURFACE;
+        if ("ios".equals(uiMode)) return CupertinoSkinTokens.CupertinoColorTokens.SURFACE;
         return 0xffffffff;
     }
     private int uiPrimaryTextColor() {
         if ("glass".equals(uiMode)) return 0xff24394c;
         if ("miuix".equals(uiMode)) return 0xff202b3c;
-        if ("huawei".equals(uiMode)) return 0xff1d2f43;
-        if ("ios".equals(uiMode)) return 0xff1c1c1e;
+        if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.PRIMARY_TEXT;
+        if ("ios".equals(uiMode)) return CupertinoSkinTokens.CupertinoColorTokens.PRIMARY_TEXT;
         return 0xff17212b;
     }
     private int uiSecondaryTextColor() {
-        if ("huawei".equals(uiMode)) return 0xff64788f;
-        if ("ios".equals(uiMode)) return 0xff6c6c70;
+        if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.SECONDARY_TEXT;
+        if ("ios".equals(uiMode)) return CupertinoSkinTokens.CupertinoColorTokens.SECONDARY_TEXT;
         if ("miuix".equals(uiMode) || "glass".equals(uiMode)) return 0xff718091;
         return 0xff66727e;
     }
@@ -4489,16 +4489,16 @@ public final class MainActivity extends ComponentActivity {
         d.setColor(color);
         int radius = "glass".equals(uiMode) ? 24
                 : "miuix".equals(uiMode) ? 20
-                : "huawei".equals(uiMode) ? 16
-                : "ios".equals(uiMode) ? 18 : 8;
+                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyShapeTokens.CARD_RADIUS_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoShapeTokens.CARD_RADIUS_DP : 8;
         d.setCornerRadius(dp(radius));
         if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
         return d;
     }
     private android.graphics.drawable.Drawable uiPanelDrawable() {
         int stroke = "glass".equals(uiMode) ? 0x66ffffff
-                : "huawei".equals(uiMode) ? 0x222878d0
-                : "ios".equals(uiMode) ? 0x1f8e8e93 : 0;
+                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.DIVIDER
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.DIVIDER : 0;
         return roundedDrawable(uiSurfaceColor(), stroke);
     }
     private void applyWebUiMode() {
@@ -7978,11 +7978,11 @@ public final class MainActivity extends ComponentActivity {
         TextView t=title(s,16);
         int surface = "miuix".equals(uiMode) ? 0xffe5ecf8
                 : "glass".equals(uiMode) ? 0xccefffff
-                : "huawei".equals(uiMode) ? 0xffeaf2fc
-                : "ios".equals(uiMode) ? 0xffe5e5ea : 0xffe9eef3;
+                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.SURFACE_VARIANT
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.SURFACE_VARIANT : 0xffe9eef3;
         int stroke = "glass".equals(uiMode) ? 0x66ffffff
-                : "huawei".equals(uiMode) ? 0x332878d0
-                : "ios".equals(uiMode) ? 0x1f8e8e93 : 0;
+                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.DIVIDER
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.DIVIDER : 0;
         t.setBackground(roundedDrawable(surface, stroke));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12), dp(10), dp(12), dp(4));
