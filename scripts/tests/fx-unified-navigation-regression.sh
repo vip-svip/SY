@@ -62,7 +62,7 @@ assert "Ad/Hosts" not in activity and "Ad / Hosts" not in activity, "Ad is the o
 assert "ad:'Ad'" in activity and "ad:'广告'" not in activity, "ClassicWebCompat must label the second tab Ad in Chinese locale too"
 assert "if(id==='pageHosts')id='pageAd';" in activity, "legacy DOM ID must normalize to Ad"
 assert 'var navTab=\'" + tab + "\';' in activity
-ad_start = activity.index("    private void buildNativeHostsPage()")
+ad_start = activity.index("    private void buildNativeAdPage()")
 ad_end = activity.index("    private void refreshHostsStatus(", ad_start)
 ad_page = activity[ad_start:ad_end]
 for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
