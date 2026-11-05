@@ -703,17 +703,19 @@ case "$tout" in *"partial"*) ;; *) fail "--text did not render conservative verd
 pass "--text mode consistent"
 
 echo "== case 12: production ignores caller-forged module root =="
-# The repository checkout does not contain module.prop at its root; the real
-# installed script derives its own module root. A forged clean fixture must
-# not turn an unverifiable production tree into a slot-free certification.
+# Place the executable under a real module root containing a deliberate
+# VpnService violation. A caller-supplied clean root must not hide that source.
+mkdir -p "$TMP/mod_real/scripts"
+cp -a "$TMP/mod_bad/." "$TMP/mod_real/"
+cp "$ARB" "$TMP/mod_real/scripts/fx-vpn-coexistence-arbiter.sh"
 _out=$(env -u FX_ARB_TESTING FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
   FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
   FX_ARB_SELF_UID=10000 FX_ARB_PROC_NET_DIR="$TMP/net_free" \
-  sh "$ARB" 2>&1)
+  sh "$TMP/mod_real/scripts/fx-vpn-coexistence-arbiter.sh" 2>&1)
 rc=$?
-[ "$rc" -eq 2 ] || fail "production must ignore caller-supplied module root and fail closed, got rc=$rc: $_out"
-[ "$(field "$_out" "['verdict']")" = "unknown" ] || fail "forged module root was trusted: $_out"
-[ "$(field "$_out" "['vpn_service_slot_used']")" = "None" ] || fail "unverified derived module root must not claim slot-free"
-pass "caller-controlled module root cannot forge the production slot invariant"
+[ "$rc" -eq 3 ] || fail "production must ignore caller-supplied clean module root and detect its own VpnService violation, got rc=$rc: $_out"
+[ "$(field "$_out" "['verdict']")" = "incompatible" ] || fail "forged module root hid the real module slot violation: $_out"
+[ "$(field "$_out" "['vpn_service_slot_used']")" = "True" ] || fail "real module root must be scanned despite caller override"
+pass "caller-controlled module root cannot hide a real VpnService violation"
 
 echo "PASS: coexistence arbiter grades all levels, fails safe, and never mutates network state"
