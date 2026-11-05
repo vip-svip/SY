@@ -21,6 +21,9 @@ import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 shell = Path(sys.argv[2]).read_text(encoding="utf-8")
 host = Path(sys.argv[3]).read_text(encoding="utf-8")
+root = Path(sys.argv[4])
+def source(relative):
+    return (root / relative).read_text(encoding="utf-8")
 dia_browser = Path(sys.argv[4]).read_text(encoding="utf-8")
 dia_backup = Path(sys.argv[5]).read_text(encoding="utf-8")
 dia_editor = Path(sys.argv[6]).read_text(encoding="utf-8")
@@ -54,6 +57,58 @@ assert "restoreMigrationNavigation();" not in restore
 assert 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")' in shell
 assert "Ad/Hosts" not in shell and "Ad / Hosts" not in shell
 assert "FxUiMode.read(this).getStorageId()" in host
+
+# Source functions must be reachable inside the correct FX business tab; imported
+# Activity pages are implementation details, not separate source-app navigation.
+shield = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java")
+dia_settings = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGlobalSettingsActivity.java")
+ad_main = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java")
+ad_general = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java")
+ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java")
+assert 'FxYulongShieldActivity.class' in activity[activity.index("private void buildNativePrivacyPage()"):activity.index("private void refreshNativePrivacyStatus(")]
+assert 'section("安全防护中心")' in activity
+assert 'section("Hook 工具与调试")' in activity
+for feature in ("FxDiaFridaActivity.class", "FxDiaScriptLibraryActivity.class",
+                "FxDiaDexBrowserActivity.class", "FxDiaMonitorEventsActivity.class",
+                "FxDiaBackupActivity.class", "FxDiaGlobalSettingsActivity.class"):
+    assert feature in activity[activity.index("private void showHookHub()"):activity.index("private void refreshHookHubAuthorizationStates()")], f"Hook tab cannot reach {feature}"
+assert 'text("Ad · 广告过滤控制中心"' in ad_main and 'btn("‹ 返回 Ad"' in ad_main
+assert '游龙广告插件 7.0.1' not in ad_main
+assert 'text("Ad · 通用设置与备份恢复"' in ad_general
+assert '游龙广告插件 7.0.1' not in ad_general and '自己的四级页面' not in ad_general
+assert 'text("Ad · 本机防护总结"' in ad_summary and '游龙广告插件' not in ad_summary
+assert 'text("隐私 · 安全防护中心"' in shield
+assert 'action("‹ 返回隐私"' in shield
+assert 'setContentViewWithNativeTabs(root, 2);' in shield
+assert 'text("Hook · 工具与运行设置"' in dia_settings
+assert 'setContentViewWithNativeTabs(root, 4);' in dia_settings
+assert '关于 Dia 23.11' not in dia_settings and 'Dia · 全局设置' not in dia_settings
+
+shield_pages = (
+    "FxYulongShieldActivity", "FxYulongScreenFilterActivity", "FxYulongDailySummaryActivity",
+    "FxYulongVirusDatabaseActivity", "FxYulongScanActivity", "FxYulongIntegrityActivity",
+    "FxYulongRescueActivity", "FxYulongWarningActivity", "FxYulongBatchCleanupActivity",
+    "WhitelistActivity", "WhitelistPickerActivity", "BlacklistActivity"
+)
+for page in shield_pages:
+    path = root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield" / f"{page}.java"
+    page_text = path.read_text(encoding="utf-8")
+    assert "setContentViewWithNativeTabs(root, 2);" in page_text, f"{page} must highlight Privacy tab"
+
+dia_hook_pages = (
+    "FxDiaActivityBrowserActivity", "FxDiaBackupActivity", "FxDiaCodeEditorActivity",
+    "FxDiaCrashReportActivity", "FxDiaDexBrowserActivity", "FxDiaFileActivity",
+    "FxDiaFridaActivity", "FxDiaGlobalSettingsActivity", "FxDiaGpsPickerActivity",
+    "FxDiaInspectorActivity", "FxDiaJsonActivity", "FxDiaMonitorEventsActivity",
+    "FxDiaSessionLogActivity", "FxDiaSignatureActivity", "FxDiaSystemExpandActivity",
+    "FxDiaWifiProxyActivity"
+)
+for page in dia_hook_pages:
+    path = root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia" / f"{page}.java"
+    page_text = path.read_text(encoding="utf-8")
+    assert "setContentViewWithNativeTabs(root, 4);" in page_text, f"{page} must highlight Hook tab"
+script_library = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java")
+assert "setContentViewWithNativeTabs(root, 3);" in script_library, "JS script library belongs to Script tab"
 assert '"huawei".equals(mode)' not in host and '"ios".equals(mode)' not in host
 
 # Dia-derived user-facing tools are presented as FX Hook or FX Settings pages.
