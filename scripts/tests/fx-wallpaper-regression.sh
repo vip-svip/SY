@@ -42,6 +42,8 @@ assert 'FxNativeSkin.apply(this, pageContent);' in host
 mount_start = activity.index("private void mountNativeShell(View pageContent)")
 mount_end = activity.index("private void handleNativeTabSelection(", mount_start)
 assert "FxNativeSkin.apply(this, pageContent);" in activity[mount_start:mount_end]
+assert "pageContent.post(() -> {" in activity[mount_start:mount_end]
+assert "pageContent.getParent() != null" in activity[mount_start:mount_end]
 assert 'wallpaperActive ? 0x00000000 : palette.background' in skin
 for background in ('case 0xfff7f8fa:', 'case 0xfff4f6f8:', 'case 0xfff0f3f7:'):
     assert background in skin
