@@ -116,7 +116,26 @@ jobs:
             # fast-forward only; no force push or lost commits are permitted.
             git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
             git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
-            git merge --no-edit -X ours "origin/$recovery_branch"
+            merge_status=0
+            git merge --allow-unrelated-histories --no-commit -X ours "origin/$recovery_branch" || merge_status=$?
+            unmerged=$(git diff --name-only --diff-filter=U | LC_ALL=C sort)
+            if [[ -n "$unmerged" ]]; then
+              expected=$(printf '%s\\n' fx-module/module.prop fx-module/post-fs-data.sh | LC_ALL=C sort)
+              if [[ "$unmerged" != "$expected" ]]; then
+                echo "::error::Unexpected source-import merge conflicts:"
+                printf '%s\\n' "$unmerged"
+                exit 1
+              fi
+              # These two installer metadata files are branch-owned. Keep the
+              # current integration versions; the import contributes missing
+              # runtime files only.
+              git checkout --ours -- fx-module/module.prop fx-module/post-fs-data.sh
+              git add fx-module/module.prop fx-module/post-fs-data.sh
+            elif [[ "$merge_status" -ne 0 ]]; then
+              echo "::error::Unrelated source-history merge failed without resolvable file conflicts."
+              exit "$merge_status"
+            fi
+            git commit --no-edit
           else
             git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           fi
