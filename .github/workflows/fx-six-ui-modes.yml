@@ -1,0 +1,87 @@
+name: FX Six UI Modes
+
+# Guards the six-mode contract of the FX 1.0.0 handoff: one independent default
+# mode plus exactly five skins (classic, glass, miuix, huawei, ios), declared in a
+# fixed order with six distinct renderers, and the six primary tabs that host them.
+#
+# fx-targeted-regression.yml only runs these mode regressions when a change
+# happens to touch the UI source paths, or when the changed set resolves to ALL,
+# so the contract could regress unnoticed. This workflow runs unconditionally on
+# the integration branch. It is source-level only: no Android SDK, no Release
+# archive, and no network mutation.
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-six-ui-modes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  six-ui-modes:
+    name: six-ui-modes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Parse the mode regressions before running them
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/tests/fx-global-ui-modes-regression.sh
+          bash -n scripts/tests/fx-unified-navigation-regression.sh
+
+      - name: Run the six-mode source regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/tests/fx-global-ui-modes-regression.sh
+
+      - name: Run the unified six-tab navigation regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/tests/fx-unified-navigation-regression.sh
+
+      - name: Verify the six-mode enum and unit-test contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          enum=adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt
+          unit=adhook/app/src/test/java/de/privacyguard/adhook/FxUiModeTest.kt
+          test -s "$enum"
+          test -s "$unit"
+
+          for id in default classic glass miuix huawei ios; do
+            grep -Fq "\"$id\"" "$enum" || { echo "::error::FxUiMode is missing the stable storage id $id"; exit 1; }
+            grep -Fq "\"$id\"" "$unit" || { echo "::error::FxUiModeTest does not cover $id"; exit 1; }
+          done
+
+          renderers=$(grep -c 'Renderer\.' "$enum" || true)
+          test "$renderers" -ge 6 || { echo "::error::FxUiMode must bind six modes to six renderers"; exit 1; }
+
+          grep -Fq 'assertEquals(6' "$unit" || { echo "::error::FxUiModeTest no longer asserts exactly six modes"; exit 1; }
+
+          entries=$(grep -cE '^    [A-Z_]+\($' "$enum" || true)
+          test "$entries" -eq 6 || { echo "::error::FxUiMode must declare exactly six entries, found $entries"; exit 1; }
+
+          previous=0
+          for id in default classic glass miuix huawei ios; do
+            line=$(grep -nF "\"$id\"" "$enum" | head -1 | cut -d: -f1)
+            test "$line" -gt "$previous" || { echo "::error::FxUiMode storage ids are not declared in the required order"; exit 1; }
+            previous="$line"
+          done
+
+          echo "six-mode enum order, $entries entries, $renderers renderer bindings and the unit-test contract are aligned"
+          echo "six-mode contract: PASS" >> "$GITHUB_STEP_SUMMARY"
