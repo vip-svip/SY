@@ -6026,3 +6026,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：源码回读通过；对应 `FX Six UI Modes` 与 `FX Targeted Host Regression` Actions 已排队（run `42102008681`、`42102008707`），尚无通过结论。未运行 Gradle、APK 构建、模拟器或真机测试。
 - 不改变业务服务、VPN、DNS、Hook 或脚本生命周期；不改变产品版本号。
 - 下一批：检查六种模式在各主 Tab/二级页的 renderer 覆盖和真实页面回归，不将选择器本身的完成误报为全应用皮肤覆盖完成。
+
+## 2026-11-06 — KernelSU Hook APK payload路径防符号链接
+
+- 本批修改：`scripts/install_adhook_app.sh` 在 APK 哈希计算与 PackageManager 调用前，验证模块根目录、所选 APK 和 checksum sidecar 的完整路径链；拒绝任何符号链接祖先、APK 末端符号链接、checksum 末端符号链接及不规则文件。即使 symlink 指向字节完全匹配的 APK/摘要，也不会进入安装流程。
+- 回归扩展：`scripts/tests/adhook-app-installer-regression.sh` 增加 system-app APK 与 SHA-256 sidecar 符号链接用例，并断言拒绝发生在 PackageManager 之前；保留现有 overlay、legacy fallback、签名迁移和卸载所有权测试。
+- 验证边界：代码与回归用例已推送；等待当前分支 GitHub Actions 定向 Host Regression 结果。Android 真机安装、SELinux、系统包识别与设备升级/卸载流程仍需设备验证，不在此处声称已通过。
