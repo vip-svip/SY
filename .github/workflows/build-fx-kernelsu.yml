@@ -486,19 +486,27 @@ jobs:
           BUILD_VARIANT="release"
           echo "Hook APK signing mode: $SIGNING_MODE (persistent PKCS12 vault)" >> "$GITHUB_STEP_SUMMARY"
 
-          mkdir -p fx-module/optional
+          mkdir -p fx-module/optional fx-module/system/app/FX
           cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
+          # The KernelSU/Magisk ZIP must carry the APK as a systemless system app.
+          # /system/app is intentional: this APK is not platform-signed and is not privileged.
+          install -m 0644 "$BUILT_APK" fx-module/system/app/FX/FX.apk
+          chmod 0755 fx-module/system fx-module/system/app fx-module/system/app/FX
           BUILT_APK_SHA="$(sha256sum "$BUILT_APK" | awk '{print $1}')"
           EMBEDDED_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          SYSTEM_APK_SHA="$(sha256sum fx-module/system/app/FX/FX.apk | awk '{print $1}')"
           test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
+          test "$BUILT_APK_SHA" = "$SYSTEM_APK_SHA"
           (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
+          (cd fx-module/system/app/FX && sha256sum FX.apk > FX.apk.sha256)
           {
             echo "Build variant: $BUILD_VARIANT"
             echo "Signing mode: $SIGNING_MODE"
             echo "Build/signing mode: $SIGNING_MODE"
             echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
             echo "versionCode: 10000"
-            echo "Deployment: one ordinary application package installed by PackageManager"
+            echo "Deployment: systemless /system/app/FX/FX.apk overlay; PackageManager fallback only when overlay is unavailable"
+            echo "Privilege boundary: system app, not a privileged app; no platform signature or privileged permission grant is implied"
           } > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt
           sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh
@@ -596,6 +604,10 @@ jobs:
           # from the exact APK entry that will be installed by the module.
           unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
           unzip -tq "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -p dist/FX-v1.0.0.zip system/app/FX/FX.apk > "$RUNNER_TEMP/FX-system-app-overlay.apk"
+          unzip -p dist/FX-v1.0.0.zip system/app/FX/FX.apk.sha256 > "$RUNNER_TEMP/FX-system-app-overlay.apk.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c FX-system-app-overlay.apk.sha256)
+          cmp -s "$RUNNER_TEMP/FX-system-app-overlay.apk" "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
           unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-vpn-final-ui.html"
           test -s "$RUNNER_TEMP/fx-vpn-final-ui.html"
           grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-vpn-final-ui.html"
