@@ -214,6 +214,8 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+          # Consolidate legacy and native Hook controls into the single FX Hook UI card.
+          python3 fx-patches/unify_hook_ui.py fx-module
           # Keep the restored Release module on the reviewed POSIX atomic
           # per-URL cache lock before executing subscription concurrency tests.
           python3 -m py_compile fx-patches/patch_subfetch_file_lock.py fx-patches/patch_subfetch_legacy_lock_tests.py
