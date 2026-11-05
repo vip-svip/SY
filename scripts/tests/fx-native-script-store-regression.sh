@@ -6,7 +6,7 @@ T=$(mktemp -d "${TMPDIR:-/tmp}/fx-native-script-store.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 MOD="$T/module"
 PG="$T/pg"
-mkdir -p "$MOD/scripts/jsruntime" "$PG"
+mkdir -p "$MOD/scripts/jsruntime" "$MOD/webroot" "$PG"
 printf 'id=privacyguard\nversion=1.0.0\n' > "$MOD/module.prop"
 cp "$ROOT/fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
 chmod 755 "$MOD/scripts/jsruntime/native-list.sh"
@@ -94,12 +94,23 @@ while [ "$i" -le 140 ]; do
 done
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 151 ] || fail "catalog truncated above 128 entries or former aggregate limit"
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
-grep -Fq 'function pgDecodeScriptValue(s)' "$ROOT/fx-module/webroot/index.html" || fail "WebUI parser lacks local-source decoder"
-grep -Fq "FXSRC_B64:'+pgB64(e.v)" "$ROOT/fx-module/webroot/index.html" || fail "WebUI serializer does not preserve local JS source"
-before_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}')
-python3 "$ROOT/fx-patches/patch_native_script_store.py" "$ROOT/fx-module" >/dev/null
-after_patch=$(sha256sum "$ROOT/fx-module/webroot/index.html" | awk '{print $1}')
+# The targeted Host lane has no release archive; use a minimal canonical parser fixture.
+if [ -s "$ROOT/fx-module/webroot/index.html" ]; then
+  cp "$ROOT/fx-module/webroot/index.html" "$MOD/webroot/index.html"
+else
+  cat > "$MOD/webroot/index.html" <<'HTML'
+var v=(p[0]||'').replace(/\\n/g,'\n');
+out.push(pgSan(e.v)+'|'+pgSan(e.note)+'|'+(e.on?1:0))
+function pgParse(text){
+HTML
+fi
+python3 "$ROOT/fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
+grep -Fq 'function pgDecodeScriptValue(s)' "$MOD/webroot/index.html" || fail "WebUI parser lacks local-source decoder"
+grep -Fq "FXSRC_B64:'+pgB64(e.v)" "$MOD/webroot/index.html" || fail "WebUI serializer does not preserve local JS source"
+before_patch=$(sha256sum "$MOD/webroot/index.html" | awk '{print $1}')
+python3 "$ROOT/fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
+after_patch=$(sha256sum "$MOD/webroot/index.html" | awk '{print $1}')
 [ "$before_patch" = "$after_patch" ] || fail "native script patcher is not idempotent"
-[ -x "$ROOT/fx-module/scripts/jsruntime/local-run.sh" ] || fail "native QuickJS local runner was not installed"
-cmp -s "$ROOT/fx-patches/native-script-run.sh" "$ROOT/fx-module/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
+[ -x "$MOD/scripts/jsruntime/local-run.sh" ] || fail "native QuickJS local runner was not installed"
+cmp -s "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
 echo "PASS: native script-list backend supports CRUD, preserves unrelated config, round-trips multiline source and installs the local runner"
