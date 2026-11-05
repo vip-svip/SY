@@ -106,12 +106,11 @@ for page in shield_pages:
     assert "setContentViewWithNativeTabs(root, 2);" in page_text, f"{page} must highlight Privacy tab"
 
 dia_hook_pages = (
-    "FxDiaActivityBrowserActivity", "FxDiaBackupActivity", "FxDiaCodeEditorActivity",
-    "FxDiaCrashReportActivity", "FxDiaDexBrowserActivity", "FxDiaFileActivity",
-    "FxDiaFridaActivity", "FxDiaGlobalSettingsActivity", "FxDiaGpsPickerActivity",
-    "FxDiaInspectorActivity", "FxDiaJsonActivity", "FxDiaMonitorEventsActivity",
-    "FxDiaSessionLogActivity", "FxDiaSignatureActivity", "FxDiaSystemExpandActivity",
-    "FxDiaWifiProxyActivity"
+    "FxDiaActivityBrowserActivity", "FxDiaCodeEditorActivity", "FxDiaCrashReportActivity",
+    "FxDiaDexBrowserActivity", "FxDiaFileActivity", "FxDiaFridaActivity",
+    "FxDiaGlobalSettingsActivity", "FxDiaGpsPickerActivity", "FxDiaInspectorActivity",
+    "FxDiaJsonActivity", "FxDiaMonitorEventsActivity", "FxDiaSessionLogActivity",
+    "FxDiaSignatureActivity", "FxDiaSystemExpandActivity"
 )
 for page in dia_hook_pages:
     path = root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia" / f"{page}.java"
@@ -119,6 +118,8 @@ for page in dia_hook_pages:
     assert "setContentViewWithNativeTabs(root, 4);" in page_text, f"{page} must highlight Hook tab"
 script_library = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java")
 assert "setContentViewWithNativeTabs(root, 3);" in script_library, "JS script library belongs to Script tab"
+assert "setContentViewWithNativeTabs(root, 5);" in dia_backup, "unified data backup belongs to Settings"
+assert "setContentViewWithNativeTabs(root, 0);" in dia_wifi, "system HTTP proxy belongs to VPN"
 assert '"huawei".equals(mode)' not in host and '"ios".equals(mode)' not in host
 
 # Dia-derived user-facing tools are presented as FX Hook or FX Settings pages.
