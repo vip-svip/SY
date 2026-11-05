@@ -556,6 +556,23 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "hidden nested helper must not claim slot is free"
 pass "symlinked scripts directory cannot hide unscanned shell helpers"
 
+echo "== case 8h: failed source inventory command cannot certify slot-free =="
+mkdir -p "$TMP/fakebin"
+cat > "$TMP/fakebin/find" <<'EOF'
+#!/system/bin/sh
+exit 1
+EOF
+chmod 0755 "$TMP/fakebin/find"
+_out=$(PATH="$TMP/fakebin:$PATH" \
+  FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
+  sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 2 ] || fail "failed source inventory must return unknown rc=2, got $rc: $_out"
+[ "$(field "$_out" "['verdict']")" = "unknown" ] || fail "failed source inventory was treated as complete: $_out"
+[ "$(field "$_out" "['vpn_service_slot_used']")" = "None" ] || fail "failed source inventory must not claim slot-free"
+pass "source inventory command failure fails closed"
+
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_missing" "$TMP/mod_clean")
