@@ -914,11 +914,13 @@ public final class MainActivity extends ComponentActivity {
         card.setPadding(dp(16), dp(12), dp(16), dp(8));
         card.setBackground(uiPanelDrawable());
         TextView title = new TextView(this);
+        title.setTag("fx-card-title");
         title.setText(heading);
         title.setTextSize(15);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setTextColor(uiPrimaryTextColor());
         TextView detail = new TextView(this);
+        detail.setTag("fx-card-body");
         detail.setText(description);
         detail.setTextSize(12);
         detail.setTextColor(uiSecondaryTextColor());
@@ -943,6 +945,7 @@ public final class MainActivity extends ComponentActivity {
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setTextColor(0xff17212b);
         TextView description = new TextView(this);
+        description.setTag("fx-card-body");
         description.setText(summary);
         description.setTextSize(12);
         description.setTextColor(0xff718091);
