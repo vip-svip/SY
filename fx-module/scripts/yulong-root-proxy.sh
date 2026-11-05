@@ -668,7 +668,7 @@ _reconcile_locked() {
     # A crash can occur after NAT hooks/markers are published but before the
     # authoritative metadata rename. Never leave those redirects attached
     # without metadata that proves the owning VPN interface and UID.
-    if [ -e "$ACTIVE" ] || [ -e "$EGRESS ]" \
+    if [ -e "$ACTIVE" ] || [ -e "$EGRESS" ] \
         || iptables -t nat -C OUTPUT -j FXYRP4_A >/dev/null 2>&1 \
         || iptables -t nat -C OUTPUT -j FXYRP4_B >/dev/null 2>&1 \
         || ip6tables -t nat -C OUTPUT -j FXYRP6_A >/dev/null 2>&1 \
