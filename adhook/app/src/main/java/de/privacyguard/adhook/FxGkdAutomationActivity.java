@@ -160,6 +160,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         packageInput.setHint("目标应用包名，例如 com.example.app");
         packageInput.setInputType(InputType.TYPE_CLASS_TEXT);
         form.addView(packageInput);
+        form.addView(action("从已安装的用户应用中选择", () -> showPackagePicker(packageInput)));
 
         EditText selectorInput = new EditText(this);
         selectorInput.setHint("GKD 选择器，例如 [text='Skip']");
@@ -219,6 +220,36 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     Toast.makeText(this, "本地 GKD 规则已保存。", Toast.LENGTH_SHORT).show();
                 }));
         dialog.show();
+    }
+
+    private void showPackagePicker(EditText packageInput) {
+        final List<ApplicationInfo> candidates = new java.util.ArrayList<>();
+        try {
+            for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
+                if (isInstalledUserApplication(info.packageName)) candidates.add(info);
+                if (candidates.size() >= 500) break;
+            }
+        } catch (RuntimeException failure) {
+            Toast.makeText(this, "读取已安装应用失败：" + failure.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, "没有找到可配置的普通用户应用。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        candidates.sort((left, right) -> getApplicationLabel(left).toString()
+                .compareToIgnoreCase(getApplicationLabel(right).toString()));
+        CharSequence[] labels = new CharSequence[candidates.size()];
+        for (int index = 0; index < candidates.size(); index++) {
+            ApplicationInfo info = candidates.get(index);
+            labels[index] = getApplicationLabel(info) + "\\n" + info.packageName;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("选择 GKD 规则目标应用")
+                .setItems(labels, (dialog, which) ->
+                        packageInput.setText(candidates.get(which).packageName))
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private boolean isInstalledUserApplication(String pkg) {
