@@ -146,12 +146,10 @@ if legacy_guard_test.is_file():
     for index, line in enumerate(test_lines):
         if "TUN external-VPN conflict guard missing" not in line:
             continue
-        if "grep" not in line:
-            raise SystemExit("legacy TUN conflict assertion is not a recognizable shell grep")
-        test_lines[index] = (
-            "grep -Fq 'fx_select_vpn_effective_mode() {' "
-            + '"$ROOT/scripts/apply.sh" || { echo "FAIL: TUN external-VPN conflict guard missing" >&2; exit 1; }'
-        )
+        # This release assertion encodes the removed inline guard. The
+        # repository-owned fx-vpn-tun-external-fallback regression checks the
+        # replacement helper and its real runtime behavior instead.
+        test_lines[index] = "# Legacy inline TUN guard assertion superseded by effective-mode regression."
         changed_test = True
     if changed_test:
         legacy_guard_test.write_text("\\n".join(test_lines) + "\\n", encoding="utf-8")
