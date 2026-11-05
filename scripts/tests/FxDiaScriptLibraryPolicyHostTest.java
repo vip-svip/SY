@@ -13,7 +13,7 @@ public final class FxDiaScriptLibraryPolicyHostTest {
                 "names should be trimmed");
         expect(FxDiaScriptLibraryPolicy.validateName("") != null, "empty name rejected");
         expect(FxDiaScriptLibraryPolicy.validateName("bad|name") != null, "pipe name rejected");
-        expect(FxDiaScriptLibraryPolicy.validateName("line\\nname") != null,
+        expect(FxDiaScriptLibraryPolicy.validateName("line\nname") != null,
                 "control characters rejected");
 
         char[] longName = new char[4096];

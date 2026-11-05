@@ -4942,3 +4942,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Added Host JVM regression coverage for long names and multi-megabyte source validation; updated static regression to reject reintroduction of arbitrary capacity constants.
 - Verification status at commit time: GitHub source readback and pre-commit transformation assertions; Host JVM and Android Gradle tests await CI execution. No APK build, device install, or real Frida injection is claimed.
 - Follow-up: review the separate Frida editor/Activity state transport's 48 KiB / 512 KiB caps and replace Binder-sized source handoff with file-backed transfer before removing those distinct runtime/editor safeguards.
+
+
+- Post-commit review correction: the Java Host test's control-character fixture is encoded as an actual newline escape (not a literal backslash sequence), and the full conflict preview no longer appends the obsolete “等” suffix after listing every conflict.

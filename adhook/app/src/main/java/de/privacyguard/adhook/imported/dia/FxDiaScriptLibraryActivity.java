@@ -493,7 +493,6 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 if (!preview.overwrittenNames.isEmpty()) {
                     message += "\n同名脚本将被覆盖（" + preview.overwrittenNames.size() + " 个）："
                             + String.join("、", preview.overwrittenNames);
-                    if (preview.overwrittenNames.size() > 5) message += " 等";
                 }
                 fxDialogBuilder().setTitle("确认导入脚本库")
                         .setMessage(message + "\n不会自动执行导入的脚本。")
