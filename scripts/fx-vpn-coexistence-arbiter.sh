@@ -41,9 +41,15 @@ FX_ARB_SELF_UID=${FX_ARB_SELF_UID:-}
 FX_ARB_SELF_VPN=false
 FX_ARB_SELF_IF=""
 FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
-FX_ARB_MODULE_ROOT=${FX_ARB_MODULE_ROOT:-}
-# In production the arbiter is executed from the active FX module's scripts/
-# directory. Derive that exact module root unless a regression injects one.
+# A caller-controlled module root could point the static slot scan at an
+# unrelated clean directory and falsely certify that FX does not use VpnService.
+# Permit fixture injection only in the regression harness; production always
+# derives the module root from this script's own installed location.
+if [ "${FX_ARB_TESTING:-0}" = "1" ]; then
+  FX_ARB_MODULE_ROOT=${FX_ARB_MODULE_ROOT:-}
+else
+  FX_ARB_MODULE_ROOT=
+fi
 if [ -z "$FX_ARB_MODULE_ROOT" ]; then
   case "$0" in
     */scripts/fx-vpn-coexistence-arbiter.sh)
