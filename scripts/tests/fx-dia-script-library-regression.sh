@@ -51,6 +51,7 @@ activity, store, frida, policy, host = [Path(p).read_text(encoding="utf-8") for 
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES" not in activity, "script-library import must not impose an arbitrary byte limit"
 assert "InputFilter.LengthFilter(64)" not in activity, "script names must not have an arbitrary UI length cap"
+assert "createNameDraft.length() > 64" not in activity, "script names must not be truncated when Activity state is saved"
 assert "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())" in activity, "JSON import must use strict UTF-8 decoding"
 assert "newDecoder()" in policy and "CodingErrorAction.REPORT" in policy, "JSON decoder must reject malformed UTF-8 instead of silently replacing bytes"
 assert "malformed UTF-8 must be rejected" in host, "host policy test must cover malformed UTF-8 rejection"
