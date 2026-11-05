@@ -45,6 +45,7 @@ case "${3:-}" in
   -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
+    printf "delete-fault env=%s target=%s\\n" "${MOCK_FAIL_DELETE_CHAIN:-<unset>}" "${6:-<unset>}" >> "$MOCK_LOG"
     [ "${MOCK_FAIL_DELETE_CHAIN:-}" != ANY ] && [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
     tmp=$(mktemp "$MOCK_HOOKS4.tmp.XXXXXX") || exit 1; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
@@ -70,6 +71,7 @@ case "${3:-}" in
     printf '%s\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
+    printf "delete-fault env=%s target=%s\\n" "${MOCK_FAIL_DELETE_CHAIN:-<unset>}" "${6:-<unset>}" >> "$MOCK_LOG"
     [ "${MOCK_FAIL_DELETE_CHAIN:-}" != ANY ] && [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
     tmp="$MOCK_HOOKS6.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
