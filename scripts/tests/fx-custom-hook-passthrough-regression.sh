@@ -81,7 +81,7 @@ for signature in (
     "protected void onDestroy()",
 ):
     start = source.index(signature)
-    next_override = source.find("\\n    @Override", start + len(signature))
+    next_override = source.find("\n    @Override", start + len(signature))
     if next_override < 0:
         next_override = len(source)
     assert "flushCustomRuleImportDraftWrite();" in source[start:next_override], (
