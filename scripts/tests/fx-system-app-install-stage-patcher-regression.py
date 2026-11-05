@@ -52,6 +52,9 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         'fx_system_app_path_is_safe "$fx_system_app_state_dir"',
         '_fx_marker_tmp=$(mktemp "$fx_system_app_marker.tmp.XXXXXX" 2>/dev/null) || _fx_marker_tmp=',
         'fx_system_app_mark_retry() {',
+        'mktemp "$fx_system_app_retry.tmp.XXXXXX"',
+        'mktemp "$_fx_overlay_dir/.FX.apk.fxstage.XXXXXX"',
+        'mktemp "$_fx_overlay_sum.tmp.XXXXXX"',
         'mktemp "$fx_system_app_marker.tmp.XXXXXX"',
     ):
         assert required in patched, f"missing system-app stage contract: {required}"
