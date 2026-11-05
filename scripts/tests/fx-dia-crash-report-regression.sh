@@ -108,7 +108,7 @@ assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference mus
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
               "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled",
               "boolean hadPendingReport = FxDiaCrashStore.hasPendingReport(this)",
-              "unreadablePendingReport = hadPendingReport && record == null",
+              "hadPendingReport && record == null",
               "crash.log 无法解析或超过 512 KiB 上限",
               "原始 crash.log 保留在 FX 私有 files 目录"):
     assert token in activity, f"native report operation missing: {token}"
