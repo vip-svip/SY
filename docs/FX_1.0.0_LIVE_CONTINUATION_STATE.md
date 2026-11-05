@@ -6134,3 +6134,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI：`FX Six UI Modes` 在功能提交 `361a0e1` 成功；该提交的 Targeted Host 失败于既有 Miuix Card 组件契约（run `42102963704`），已修复。修复提交 `153cf09` 的 Targeted Host run 被后续并行提交取消；后续 `2eb061cf` 的 Six UI Modes 成功（run `42103301447`），其 Targeted Host run `42103301422` 同样因新提交而取消。故最终 Miuix Card 兼容修复尚无完成的 Targeted Host 结果。
 - 未运行 Gradle/Android 编译、APK 构建、模拟器、安装或真机验证；不得将源码静态回归描述为设备验收。
 - 下一批：在并行提交暂歇时补跑 Targeted Host；继续检查六种模式在六个主 Tab 与二级页的 renderer 覆盖和皮肤切换不触碰后台服务的回归。
+
+## 2026-11-06 — FX Hook Kotlin source/Frida signature support
+
+- `DeveloperExecutableDescriptor.java` now maps explicit Kotlin source aliases to exact JVM descriptors: primitive aliases, `String`, `Any`, `Unit` return, primitive arrays, and erased Kotlin collection interfaces.
+- Generic arguments remain rejected unless the caller supplies the erased type; `Unit` is rejected as a parameter. Existing package scoping and descriptor resolution remain unchanged.
+- Added JUnit coverage in `DeveloperExecutableDescriptorTest.java` and a JDK-only Host regression (`scripts/tests/FxKotlinHookSignatureHostTest.java`, run by `scripts/tests/fx-kotlin-hook-signature-regression.sh`).
+- Documented supported Kotlin forms in `docs/FX-HOOK-DEVELOPER-CUSTOM-RULES.md` and connected the regression to `fx-targeted-regression.yml`.
+- Commits: `0850121972c87017e1bdcaf00f49f97882feb921` (parser), `2eb061cf48e7bcb73486b2a2eeb36d557deba1df` (JUnit tests), `16067ae9648609f388c5e775b0e5dc2d574e7ff2` / `5251cb214e0eb6b70e502947251cfcdd9e45eca7` (Host test), `1ca95d7d963b967ee93becc04b94ed94ea272ffa` (docs), `6adb8ddb38a961c3051094f9e3db73a961fc8113` (CI).
+- Verification: all six modified/new files were re-read from the branch and SHA-checked. Targeted Host Actions run `42103395746` was queued at the time of this update; no pass is claimed yet. Android Gradle build, LSPosed injection and real-device Hook execution were not performed.
