@@ -31,6 +31,7 @@ second_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
 [ "$first_sha" = "$second_sha" ] || fail "Hosts cache patcher changed apply.sh on its second pass"
 sh -n "$MOD/scripts/apply.sh" || fail "patched apply.sh shell syntax invalid"
 grep -Fq '# FX_HOSTS_FILE_LOCK_V3' "$MOD/scripts/apply.sh" || fail "V3 lock marker missing"
+grep -Fq 'if [ "$_hf_release_owner" = "$" ]; then' "$MOD/scripts/apply.sh" || fail "Hosts release must verify exact PID ownership"
 if grep -Fq 'rm -rf "$_hf_path"' "$MOD/scripts/apply.sh"; then
   fail "legacy lock cleanup still recursively removes unknown directory contents"
 fi
@@ -111,7 +112,7 @@ apply_hosts_cache() {
 PARTIAL_APPLY
 python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher could not repair an incomplete V3 marker"
 grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$PARTIAL/scripts/apply.sh" || fail "incomplete V3 marker was not repaired with atomic release rename"
-grep -Fq 'if [ "$_hf_release_owner" = "$" ]; then' "$PARTIAL/scripts/apply.sh" || fail "repaired V3 lock is missing exact PID ownership validation"
+grep -Fq 'if [ "$_hf_release_owner" = "$$" ]; then' "$PARTIAL/scripts/apply.sh" || fail "repaired V3 lock is missing exact PID ownership validation"
 partial_sha=$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')
 python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher second pass on repaired V3 marker failed"
 [ "$partial_sha" = "$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')" ] || fail "repaired V3 lock patch is not idempotent"
