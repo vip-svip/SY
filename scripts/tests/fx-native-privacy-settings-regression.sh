@@ -34,30 +34,6 @@ if [ ! -s "$MODULE/webroot/index.html" ] || [ ! -s "$MODULE/scripts/default.conf
   echo "SKIP: module-backed privacy writer checks require restored FX module archive; app-side status contract passed."
   exit 0
 fi
-if [ ! -s "$MODULE/webroot/index.html" ] || [ ! -s "$MODULE/scripts/default.conf" ]; then
-python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-start = source.index("private void refreshNativePrivacyStatus(TextView target)")
-end = source.index("\n    private ", start + 1)
-method = source[start:end]
-for required in (
-    'json.has("root")',
-    '"未知（状态接口未提供）"',
-    'isAccessibilityEnabled()',
-    'FxAccessibilityService.isConnected()',
-    'getBoolean("service_connected", false)',
-    'getInt("service_pid", -1) == android.os.Process.myPid()',
-    '"\\\\nAccessibility：" + accessibilityStatus',
-):
-    assert required in method, "privacy authorization summary missing live-state contract: " + required
-assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, "reported Root state must remain distinct from unavailable Root state"
-print("PASS: privacy authorization summary distinguishes unknown Root state and reports system-enabled/FX-connected Accessibility state")
-PY
-  echo "SKIP: module-backed privacy settings behavior requires restored FX module archive; static authorization checks passed."
-  exit 0
-fi
 [ -s "$MODULE/webroot/index.html" ] || fail "complete module WebUI source missing"
 [ -s "$MODULE/scripts/default.conf" ] || fail "module default.conf missing"
 [ -s "$ROOT/scripts/native-vpn-config.sh" ] || fail "canonical native VPN config writer missing"
