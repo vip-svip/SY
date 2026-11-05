@@ -259,6 +259,10 @@ jobs:
             run_py scripts/tests/fx-vpn-watchdog-patcher-regression.py
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (DeveloperExecutableDescriptor|fx-kotlin-hook-signature) ]]; then
+            run_sh scripts/tests/fx-kotlin-hook-signature-regression.sh
+          fi
+
           # If only an individual regression file changed, execute that file directly.
           while IFS= read -r file; do
             [[ -f "$file" ]] || continue
