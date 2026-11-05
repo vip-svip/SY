@@ -31,7 +31,8 @@ _sl_read_lock_owner() {
   _sl_path=$1
   [ ! -L "$_sl_path" ] || return 1
   if [ -d "$_sl_path" ]; then
-    [ ! -L "$_sl_path/pid" ] || return 1
+    # A legacy directory lock is readable only in its original PID-file layout.
+    [ -f "$_sl_path/pid" ] && [ ! -L "$_sl_path/pid" ] || return 1
     cat "$_sl_path/pid" 2>/dev/null
   elif [ -f "$_sl_path" ]; then
     cat "$_sl_path" 2>/dev/null
@@ -44,7 +45,15 @@ _sl_remove_owned_lock_path() {
   _sl_path=$1
   [ ! -L "$_sl_path" ] || return 1
   if [ -d "$_sl_path" ]; then
-    rm -rf "$_sl_path" 2>/dev/null
+    # Only a directory containing one ordinary, non-symlink PID file is known.
+    # Preserve FIFOs, links, nested paths and every other unexpected entry.
+    [ -f "$_sl_path/pid" ] && [ ! -L "$_sl_path/pid" ] || return 1
+    for _sl_entry in "$_sl_path"/* "$_sl_path"/.[!.]* "$_sl_path"/..?*; do
+      [ -e "$_sl_entry" ] || [ -L "$_sl_entry" ] || continue
+      [ "$_sl_entry" = "$_sl_path/pid" ] || return 1
+    done
+    rm -f "$_sl_path/pid" 2>/dev/null || return 1
+    rmdir "$_sl_path" 2>/dev/null
   elif [ -f "$_sl_path" ]; then
     rm -f "$_sl_path" 2>/dev/null
   else

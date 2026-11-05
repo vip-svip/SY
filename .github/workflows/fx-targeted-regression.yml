@@ -13,7 +13,6 @@ on:
       - 'fx-module/scripts/**'
       - 'fx-patches/**'
       - 'scripts/tests/**'
-      - 'scripts/yulong-ad-dns-summary.sh'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -102,6 +101,10 @@ jobs:
             ran=1
           }
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (patch_subfetch_file_lock|patch_subfetch_legacy_lock_tests|fx-subfetch-package-integration-regression|build-fx-adhook|build-fx-kernelsu) ]]; then
+            run_py scripts/tests/fx-subfetch-package-integration-regression.py
+          fi
+
           if [[ "$changed" == "ALL" ]] || grep -Eq '(^|/)\.gitmodules$|(^|/)vendor/GKD-XA(/|$)|FX_GKD_XA_1\.4\.8_INTEGRATION_PLAN\.md|fx-gkd-xa-source-lock-regression\.sh' <<<"$changed"; then
             run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
           fi
@@ -138,10 +141,6 @@ jobs:
 
           if [[ "$changed" == "ALL" || "$changed" =~ (FxHookConfigPublisher|UnifiedHookConfigParser|UnifiedHookConfigSerializer|HookTargetConfigParser|UnifiedHookConfigParserTest|UnifiedHookConfigSerializerTest|HookTargetConfigParserTest|AdVisibilityHook|fx-hook-config-stream-publish) ]]; then
             run_sh scripts/tests/fx-hook-config-stream-publish-regression.sh
-          fi
-
-          if [[ "$changed" == "ALL" || "$changed" =~ (yulong-ad-dns-summary|fx-yulong-ad-dns-summary-regression) ]]; then
-            run_sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxDiaDexBrowserActivity|FxUiMode|FxDesignModePanel|FxNativeSkin|SkinTokens|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls|ensure_lsposed_manager_notice) ]]; then

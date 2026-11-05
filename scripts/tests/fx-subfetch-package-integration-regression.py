@@ -26,4 +26,20 @@ for workflow_path in WORKFLOWS:
     assert "patch_subfetch_file_lock.py fx-module" in text
     assert "patch_subfetch_legacy_lock_tests.py fx-module" in text
 
-print("PASS: APK and KernelSU packaging both apply the reviewed subfetch lock patch and run concurrency/stale-lock regressions")
+# A legacy lock directory is removable only after verifying its sole ordinary PID file.
+patcher = (ROOT / "fx-patches/patch_subfetch_file_lock.py").read_text(encoding="utf-8")
+read_owner = patcher[patcher.index("_sl_read_lock_owner() {"):patcher.index("_sl_remove_owned_lock_path() {")]
+remove_lock = patcher[patcher.index("_sl_remove_owned_lock_path() {"):patcher.index("subfetch_unlock() {")]
+assert '[ -f "$_sl_path/pid" ]' in read_owner and '[ ! -L "$_sl_path/pid" ]' in read_owner
+assert '[ -f "$_sl_path/pid" ]' in remove_lock and '[ ! -L "$_sl_path/pid" ]' in remove_lock
+assert "for _sl_entry in " in remove_lock and '[ "$_sl_entry" = "$_sl_path/pid" ] || return 1' in remove_lock
+assert 'rmdir "$_sl_path"' in remove_lock and 'rm -rf "$_sl_path"' not in remove_lock
+assert 'rm -rf "$_sl_path"' not in patcher
+
+generator = (ROOT / "fx-patches/patch_subfetch_legacy_lock_tests.py").read_text(encoding="utf-8")
+for marker in ("unknown-directory", ".sentinel", "mkfifo", "timeout 2", "symlink-pid-directory", "fifo-directory"):
+    assert marker in generator, f"generated lock safety regression missing {marker}"
+escaped_tmpdir = chr(92) + "$" + "{TMPDIR"
+assert escaped_tmpdir not in generator, "generated stale-lock fixtures must expand TMPDIR"
+
+print("PASS: APK and KernelSU subscription lock patch and safety regression contracts")

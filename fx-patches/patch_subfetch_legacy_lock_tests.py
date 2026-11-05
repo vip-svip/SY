@@ -26,9 +26,76 @@ if grep -Fq 'mv "$_sl_stale" "$LOCK"' "$F"; then fail "unverified quarantine mus
 if grep -Eq 'rm -f "\$LOCK/pid"|rmdir "\$LOCK"' "$F"; then fail "stale reaper must not unlink a pid and directory separately"; fi
 sh -n "$F" || fail "subfetch shell syntax invalid"
 
+# Exercise the production helpers against hostile filesystem entries.
+command -v mkfifo >/dev/null 2>&1 || fail "mkfifo is required for FIFO lock regression"
+command -v timeout >/dev/null 2>&1 || fail "timeout is required to bound FIFO owner reads"
+HELPER_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/fx-subfetch-lock-helpers.XXXXXX")
+sed -n '/^_sl_read_lock_owner() {/,/^}/p' "$F" > "$HELPER_ROOT/read-owner.sh"
+sed -n '/^_sl_remove_owned_lock_path() {/,/^}/p' "$F" > "$HELPER_ROOT/remove-lock.sh"
+[ -s "$HELPER_ROOT/read-owner.sh" ] && [ -s "$HELPER_ROOT/remove-lock.sh" ] || fail "production lock helpers could not be extracted"
+. "$HELPER_ROOT/read-owner.sh"
+. "$HELPER_ROOT/remove-lock.sh"
+
+mkdir "$HELPER_ROOT/valid-directory"
+printf '%s\n' "$" > "$HELPER_ROOT/valid-directory/pid"
+[ "$(_sl_read_lock_owner "$HELPER_ROOT/valid-directory")" = "$" ] || fail "ordinary legacy PID directory owner was not read"
+_sl_remove_owned_lock_path "$HELPER_ROOT/valid-directory" || fail "ordinary PID-only lock directory was not removed"
+[ ! -e "$HELPER_ROOT/valid-directory" ] || fail "ordinary PID-only lock directory remains"
+
+printf '%s\n' "$" > "$HELPER_ROOT/valid-file"
+[ "$(_sl_read_lock_owner "$HELPER_ROOT/valid-file")" = "$" ] || fail "ordinary file-lock owner was not read"
+_sl_remove_owned_lock_path "$HELPER_ROOT/valid-file" || fail "ordinary file lock was not removed"
+[ ! -e "$HELPER_ROOT/valid-file" ] || fail "ordinary file lock remains"
+
+mkdir "$HELPER_ROOT/unknown-directory"
+printf '%s\n' "$" > "$HELPER_ROOT/unknown-directory/pid"
+printf 'preserve\n' > "$HELPER_ROOT/unknown-directory/sentinel"
+printf 'hidden\n' > "$HELPER_ROOT/unknown-directory/.sentinel"
+if _sl_remove_owned_lock_path "$HELPER_ROOT/unknown-directory"; then
+  fail "lock directory with unknown entries was recursively removed"
+fi
+[ -s "$HELPER_ROOT/unknown-directory/pid" ] && [ -s "$HELPER_ROOT/unknown-directory/sentinel" ] && [ -s "$HELPER_ROOT/unknown-directory/.sentinel" ] || fail "unknown lock-directory contents were modified"
+
+printf '%s\n' "$" > "$HELPER_ROOT/pid-target"
+mkdir "$HELPER_ROOT/symlink-pid-directory"
+ln -s "$HELPER_ROOT/pid-target" "$HELPER_ROOT/symlink-pid-directory/pid"
+if _sl_read_lock_owner "$HELPER_ROOT/symlink-pid-directory" >/dev/null 2>&1; then
+  fail "legacy lock reader followed a symlinked PID file"
+fi
+if _sl_remove_owned_lock_path "$HELPER_ROOT/symlink-pid-directory"; then
+  fail "legacy lock remover accepted a symlinked PID file"
+fi
+[ -L "$HELPER_ROOT/symlink-pid-directory/pid" ] && [ -s "$HELPER_ROOT/pid-target" ] || fail "symlinked PID fixture was modified"
+
+mkdir "$HELPER_ROOT/symlink-target"
+printf '%s\n' "$" > "$HELPER_ROOT/symlink-target/pid"
+ln -s "$HELPER_ROOT/symlink-target" "$HELPER_ROOT/symlink-lock"
+if _sl_read_lock_owner "$HELPER_ROOT/symlink-lock" >/dev/null 2>&1; then
+  fail "legacy lock reader followed a symlinked lock directory"
+fi
+if _sl_remove_owned_lock_path "$HELPER_ROOT/symlink-lock"; then
+  fail "legacy lock remover accepted a symlinked lock directory"
+fi
+[ -s "$HELPER_ROOT/symlink-target/pid" ] || fail "symlinked lock target was modified"
+
+mkdir "$HELPER_ROOT/fifo-directory"
+mkfifo "$HELPER_ROOT/fifo-directory/pid"
+set +e
+timeout 2 sh -c '. "$1"; _sl_read_lock_owner "$2" >/dev/null 2>&1' sh "$HELPER_ROOT/read-owner.sh" "$HELPER_ROOT/fifo-directory"
+_fifo_read_rc=$?
+set -e
+[ "$_fifo_read_rc" -ne 0 ] || fail "legacy lock reader accepted a FIFO PID"
+[ "$_fifo_read_rc" -ne 124 ] || fail "legacy lock reader blocked while opening a FIFO PID"
+if _sl_remove_owned_lock_path "$HELPER_ROOT/fifo-directory"; then
+  fail "legacy lock remover accepted a FIFO PID"
+fi
+[ -p "$HELPER_ROOT/fifo-directory/pid" ] || fail "FIFO PID fixture was removed"
+
+rm -rf "$HELPER_ROOT"
+
 run_stale_case() {
   kind=$1
-  T=$(mktemp -d "\${TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")
+  T=$(mktemp -d "${TMPDIR:-/tmp}/fx-subfetch-stale-$kind.XXXXXX")
   trap 'rm -rf "$T"' EXIT HUP INT TERM
   mkdir -p "$T/state/subs" "$T/bin"
   url="https://example.invalid/stale-$kind"
