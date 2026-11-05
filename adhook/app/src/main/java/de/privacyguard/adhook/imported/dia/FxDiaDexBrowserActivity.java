@@ -439,7 +439,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
             String label = appLabels.getOrDefault(apps.get(i).packageName, apps.get(i).packageName);
             labels[i] = label + "\n" + apps.get(i).packageName;
         }
-        new AlertDialog.Builder(this).setTitle("选择要分析的 APK")
+        fxDialogBuilder().setTitle("选择要分析的 APK")
                 .setItems(labels, (dialog, which) -> {
                     releaseDocumentPermission();
                     resetResultScrollRestoration();
@@ -713,7 +713,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                     output.setMinLines(10);
                     output.setGravity(Gravity.TOP | Gravity.START);
                     output.setTextIsSelectable(true);
-                    AlertDialog.Builder detailDialog = new AlertDialog.Builder(this)
+                    AlertDialog.Builder detailDialog = fxDialogBuilder()
                             .setTitle("DEX 成员 · " + item.javaName())
                             .setView(output)
                             .setNegativeButton("关闭", null)
@@ -772,7 +772,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
                             summary.setText("当前类没有符合条件的具体 Java 方法。请缩小搜索范围，或确认选择的是 debuggable 用户应用。");
                             return;
                         }
-                        new AlertDialog.Builder(this).setTitle("选择精确方法 · " + candidates.size() + " 个")
+                        fxDialogBuilder().setTitle("选择精确方法 · " + candidates.size() + " 个")
                                 .setItems(labels, (dialog, which) -> {
                                     if (request != detailGeneration || selected == null
                                             || !targetPackage.equals(selected.packageName)) {
