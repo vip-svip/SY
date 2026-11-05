@@ -1612,7 +1612,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "mv -f \"$tmp\" \"$script\"; tmp=; chmod 600 \"$script\"; "
                 + ": >> \"$log\"; chmod 600 \"$log\"; mkfifo -m 600 \"$pipe\"; "
                 + "nohup \"$cli\" -H \"127.0.0.1:$port\" -n Gadget -l \"$script\" < \"$pipe\" >> \"$log\" 2>&1 & cli_pid=$!; "
-                + "nohup sh -c 'while :; do state=$(sed 's/^.*) //' \"/proc/$1/stat\" 2>/dev/null | cut -d " " -f1); case \"$state\" in Z|X|x) exit 0;; esac; kill -0 \"$1\" 2>/dev/null || exit 0; sleep 1; done' \"fx-gadget-feed-$port\" \"$cli_pid\" \"$pipe\" > \"$pipe\" 2>/dev/null < /dev/null & feed_pid=$!; "
+                + "nohup sh -c 'while :; do state=$(cat \"/proc/$1/stat\" 2>/dev/null); state=${state##*) }; state=${state%% *}; case \"$state\" in Z|X|x) exit 0;; esac; kill -0 \"$1\" 2>/dev/null || exit 0; sleep 1; done' \"fx-gadget-feed-$port\" \"$cli_pid\" \"$pipe\" > \"$pipe\" 2>/dev/null < /dev/null & feed_pid=$!; "
                 + "pid_tmp=$(mktemp \"$dir/.gadget-$port.pid.XXXXXX\"); "
                 + "printf '%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli\" \"$pkg\" \"$port\" \"$process\" > \"$pid_tmp\"; "
                 + "chmod 600 \"$pid_tmp\"; mv -f \"$pid_tmp\" \"$pidfile\"; pid_tmp=; "
