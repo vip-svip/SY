@@ -621,7 +621,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 ### 4.1 分层
 
-- **Presentation**：五套可切换 UI 皮肤（默认模式另计）（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
+- **Presentation**：六种界面模式（独立 Default 默认模式 + 五种可切换皮肤：ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
 - **Domain**：Ad、VPN、Privacy、Hook、Script、Settings 等产品业务接口和用例；来源 APK 导入/差异比对仅属于开发期 Source Intake 流程，不是用户业务域。
 - **Data**：Room/现有配置存储适配器、规则仓库、节点仓库、脚本仓库、壁纸仓库；保留旧配置迁移器。
 - **Platform**：VpnService/TUN、DNS、Root broker、Hosts writer、Accessibility、LSPosed bridge、PackageManager、证书管理、通知/Tile/Widget。
