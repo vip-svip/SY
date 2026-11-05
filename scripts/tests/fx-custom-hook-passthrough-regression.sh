@@ -41,7 +41,7 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 start = source.index("private void showCustomRuleImportDialog()")
-end = source.index("\\n    private ", start + 20)
+end = source.index("\n    private ", start + 20)
 dialog = source[start:end]
 assert "LengthFilter" not in dialog, "custom Hook JSON import still has an editor character ceiling"
 assert "65536" not in dialog and "64 KiB" not in dialog, "custom Hook JSON import still has a fixed payload ceiling"
