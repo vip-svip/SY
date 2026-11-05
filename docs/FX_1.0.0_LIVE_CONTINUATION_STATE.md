@@ -4153,3 +4153,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 继续将共享 token 接入主要页面中的分组标题、表单行和动态列表，优先 Ad / 隐私；保留原来的动作回调、持久化和权限语义。
 2. 检查导入的 Ad / Shield Activity 中自定义 GradientDrawable、Radio/CheckBox、Dialog 和列表行，按组件类型添加有限、可回归的 renderer 规则，禁止无差别递归重绘未知背景。
 3. 在当前环境可执行时先跑 `fx-global-ui-modes-regression.sh`、`fx-unified-navigation-regression.sh` 和 `fx-imported-suite-back-navigation-regression.sh`；此后才推进 Gradle build/UI automation，严格记录未验证层级。
+
+
+## 2026-11-05 — GKD 本地规则 JSON 导入/导出接入
+
+- 在 `FxGkdRuleStore.kt` 增加版本化规则文件：
+  - format：`FX-GKD-LOCAL-RULES`
+  - schema_version：1
+  - 最大文件大小：256 KiB；单文件规则数量上限：128
+  - 导出仅包含 id/package/selector/cooldown/enabled 等规则配置，不包含页面文本、截图、触发历史、凭据或无障碍服务状态。
+  - 导入采用 merge，不覆盖原规则；要求目标仍安装且为普通用户应用、selector 通过上游 GKD 编译校验、cooldown 在 1–60 秒；重复的 package+selector 跳过。
+  - 导入强制将新规则 disabled，不信任输入文件中的 enabled 字段；用户需逐条检查并手动启用。
+- 在 `FxGkdAutomationActivity.java` 增加系统文档选择器导入/导出按钮；导入时再次做 256 KiB 流式限额，导出生成 `FX-GKD-Local-Rules.json`。
+- 规则列表刷新现在保留总开关、添加规则和导入/导出控件，只替换规则列表区域（固定保留 7 个顶部控件）。
+- 静态回归 `fx-gkd-automation-regression.sh` 增加格式、schema、尺寸限制、import/export 入口、导入默认关闭、目标包验证及失败回滚断言。
+- 对应提交：`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`（Store codec）、`81609ed4e21fa5a8d35...（Activity document picker UI，以 GitHub 当前完整 SHA 为准）、`41971a2df424...（import/export 静态测试，以 GitHub 当前完整 SHA 为准）、`d91a6cf71eab...（package-selector 去重键回归）。
+- 本轮 GKD Actions run `41984962613` 正在运行（触发 head d91a6cf71eab）；截至本次状态更新，尚未取得最新 Android App compile 和 FX GKD unit test 的最终结果。旧 run 曾因后续 push 被 concurrency 取消；不能据此宣称构建失败或通过。
+- 尚未完成：上游订阅管理、规则组/分类/排除项、规则刷新与版本、复杂动作、触发记录/日志、快照与 AI Provider、Room 数据迁移、Shizuku/AIDL、后台/开机/通知/Tile 生命周期。当前导入/导出仅是 FX 自有本地 JSON 格式，不兼容宣称为 GKD 原版备份文件。
