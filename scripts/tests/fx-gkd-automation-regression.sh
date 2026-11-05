@@ -54,6 +54,14 @@ assert "it.enabled && it.packageName == packageName" in store
 assert "fun isRuleEnabled(context: Context, id: String, packageName: String)" in store, "per-rule package-scoped enable check is missing"
 assert "isInstalledUserApplication(service, eventPackage)" in runtime
 assert "MAX_RULES = 128" in store
+assert "MAX_IMPORT_BYTES = 256 * 1024" in store
+assert 'EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"' in store
+assert "EXPORT_SCHEMA_VERSION = 1" in store
+assert "fun exportJson(context: Context): String" in store
+assert "fun importJson(context: Context, raw: String): FxGkdImportResult" in store
+assert "enabled = false" in store, "import must never auto-enable file-provided rules"
+assert "isInstalledUserApplication(context, packageName)" in store
+assert "规则写入失败，原有规则保持不变。" in store
 assert "MIN_COOLDOWN_MS = 1_000L" in store and "MAX_COOLDOWN_MS = 60_000L" in store
 assert "FxGkdSelectorEngine.compile(expression)" in store
 
@@ -89,7 +97,13 @@ for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this,
     assert token in activity, f"GKD local rule UI contract missing: {token}"
 assert "规则状态保存失败，已恢复原状态。" in activity, "failed per-rule writes must restore the displayed switch state"
 assert "规则删除失败，原数据保持不变。" in activity, "failed deletes must not imply success"
-assert "body.getChildCount() > 6" in activity, "rule refresh must not remove the master switch/add-rule button"
+assert "body.getChildCount() > 7" in activity, "rule refresh must not remove master, add, import and export controls"
+assert "REQUEST_IMPORT_GKD_RULES" in activity and "REQUEST_EXPORT_GKD_RULES" in activity
+assert "Intent.ACTION_OPEN_DOCUMENT" in activity and "Intent.ACTION_CREATE_DOCUMENT" in activity
+assert "MAX_GKD_IMPORT_BYTES" in activity
+assert "FxGkdRuleStore.importJson(this, json)" in activity
+assert "FxGkdRuleStore.exportJson(this)" in activity
+assert "所有新导入规则均已关闭" in activity
 assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
 assert "showPackagePicker(EditText packageInput)" in activity
