@@ -6096,3 +6096,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 后续协作提交 `bba5e10275de0b847c49c848ce827f393c009596` 修正只读 link fixture 的 Shell 转义；未覆盖或回退本批 arbiter 代码。
 - 最新 HEAD 对应 Actions：`FX VPN Coexistence Arbiter` run `42102744421` SUCCESS（脚本语法、完整共存分级回归、只读性扫描、runner 网络 smoke test 均通过）；`FX Targeted Host Regression` run `42102745222` SUCCESS；`FX Six UI Modes` run `42102744474` SUCCESS。
 - `FX Module Runtime Regression` run `42102744532` 记录时仍在执行，VPN/DNS/TUN/Root Proxy 专项结果未定。无 Android 真机证据，不将 CI 结果等同设备验收。
+
+
+## 2026-11-06 — Local DNS health-probe boundary and integration regression
+
+- Code commit: `fccbdc974b8f44a89b9af017e34ce74d89b33d1c`; regression test commit: `60216b7d79f1df326250b65cc07e393200a6f74a`; workflow integration commit: `9391c0d59824d26a4897c92a3989355684ce71cc`.
+- Changed `scripts/localdns-probe.c`: enforce IPv4 loopback-only destinations (127.0.0.0/8), strictly parse numeric port/timeout arguments (reject trailing text, overflow and extra arguments), and validate DNS response ID, QR, opcode, RD, TC, QDCOUNT and echoed question before treating NOERROR/NXDOMAIN as healthy.
+- Added `scripts/tests/localdns-probe-regression.py`: compiles the probe with `-Wall -Wextra -Werror` and exercises a real UDP loopback responder, NOERROR/NXDOMAIN acceptance, missing RD, truncated response, non-loopback rejection and malformed CLI arguments.
+- Updated `.github/workflows/build-unbound-android-arm64.yml` to run the host integration regression before the Android NDK cross-build and to trigger when the regression test changes.
+- Verification: GitHub write responses succeeded; all three code/test/workflow files were fetched again from the target branch and their new blob SHAs/content markers verified. The Actions result for commit `9391c0d59824d26a4897c92a3989355684ce71cc` has not yet been observed. No local execution, Android cross-build, installation or real-device DNS test is claimed.
+- Scope: this closes the probe's unintended ability to send health checks to arbitrary IPv4 destinations; it does not change DNS routing, redirect device traffic or alter user VPN/firewall state.
+- Next: inspect the triggered workflow result and fix any test/build failures; then resume the next existing UI/backend batch from the branch's latest HEAD. Real-device recursive DNS reachability and third-party VPN coexistence remain unverified.
