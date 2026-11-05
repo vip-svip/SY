@@ -6,6 +6,8 @@ on:
       - fx-v1.0.0-unified-hook-integration
     paths:
       - .github/workflows/fx-module-source-recovery.yml
+      - 'fx-module/**'
+      - 'docs/fx-module-recovery/**'
   workflow_dispatch:
 
 permissions:
