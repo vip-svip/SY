@@ -81,7 +81,7 @@ print("PASS: Harmony/Cupertino tagged renderers dedupe layout redraws by mode an
 PY
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$harmony_renderer" || { echo "FAIL: Harmony renderer may recolor semantic actions"; exit 1; }
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer may recolor semantic actions"; exit 1; }
-for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 't.setTag("fx-section:" + s)'; do
+for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 'group.setTag("fx-card-group")' 't.setTag("fx-section:" + s)'; do
   grep -Fq "$role" "$activity" || { echo "FAIL: shared native component role missing: $role"; exit 1; }
 done
 for token in \
@@ -105,6 +105,8 @@ for role in 'role.startsWith("fx-title:")' 'role.startsWith("fx-section:")' '"fx
   grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony component role renderer missing: $role"; exit 1; }
   grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino component role renderer missing: $role"; exit 1; }
 done
+grep -Fq '"fx-card-group".equals(role)' "$harmony_renderer" || { echo "FAIL: Harmony renderer misses grouped action surfaces"; exit 1; }
+grep -Fq '"fx-card-group".equals(role)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer misses grouped action surfaces"; exit 1; }
 for role in 'title.setTag("fx-card-title")' 'detail.setTag("fx-card-body")' 'description.setTag("fx-card-body")' 'sw.setTag("fx-switch-row")'; do
   grep -Fq "$role" "$activity" || { echo "FAIL: shared native page is missing component role assignment: $role"; exit 1; }
 done
@@ -305,7 +307,7 @@ import sys
 
 for name in sys.argv[1:3]:
     source = Path(name).read_text(encoding="utf-8")
-    fields = re.findall(r"static final (?:int|float|long|boolean|String)\\s+(\\w+)\\s*=", source)
+    fields = re.findall(r"static final (?:int|float|long|boolean|String)\s+(\w+)\s*=", source)
     duplicates = [key for key, count in Counter(fields).items() if count > 1]
     assert not duplicates, f"{name}: duplicate Java token fields: {duplicates}"
 
