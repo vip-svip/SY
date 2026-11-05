@@ -1025,7 +1025,7 @@ public final class MainActivity extends ComponentActivity {
 
         section("广告过滤完整功能");
         TextView yulongIntro = new TextView(this);
-        yulongIntro.setText("已将游龙广告插件的原生功能页接入 FX 的 Ad 业务域。以下页面属于 FX 内部功能，不再作为独立迁移应用入口。");
+        yulongIntro.setText("Ad 的广告过滤、DNS、应用防火墙、白名单、统计与备份功能均在 FX 内统一管理，不会启动来源 APK 或第二套过滤服务。");
         yulongIntro.setTextColor(0xff718091);
         yulongIntro.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(yulongIntro);
@@ -1037,6 +1037,10 @@ public final class MainActivity extends ComponentActivity {
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class))));
         yulongActions.addView(nativeAction("广告拦截统计与每日摘要", () ->
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class))));
+        yulongActions.addView(nativeAction("DNS 查询日志", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class))));
+        yulongActions.addView(nativeAction("分应用流量统计", () ->
+                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class))));
         yulongActions.addView(nativeAction("应用网络防火墙", () ->
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class))));
         yulongActions.addView(nativeAction("应用广告过滤白名单", () ->
