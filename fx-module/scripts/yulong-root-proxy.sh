@@ -490,7 +490,9 @@ with_lock() {
     _path=$1
     [ ! -L "$_path" ] || return 1
     if [ -d "$_path" ]; then
-      [ ! -L "$_path/pid" ] || return 1
+      # Never read a FIFO, device, or other special file as a legacy PID.
+      # In particular, cat on a FIFO would block every DNS proxy operation.
+      [ -f "$_path/pid" ] && [ ! -L "$_path/pid" ] || return 1
       cat "$_path/pid" 2>/dev/null
     elif [ -f "$_path" ]; then
       cat "$_path" 2>/dev/null
