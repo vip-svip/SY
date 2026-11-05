@@ -6625,3 +6625,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：`patch_subfetch_file_lock.py` 的 V2 token 恢复 `$$`；`patch_atomic_cache_lock_release.py` 对 V2 订阅锁进行只读完整性验证并跳过旧目录/PID 重写；其 V2 release-owner 检查要求精确当前 PID。回归脚本调整为先完成 subfetch V2、再运行共享补丁验证、最后升级 Hosts V3，匹配真实打包顺序。
 - 相关提交：`eb93c93c83d7bb4575083d90ae5a59d50cc8563e`（subfetch V2 token）；`a0d7e12e4229f4639dca01a59fcc44bdb6cd8e3c`（共享补丁 PID 检查）；`ffa56953f2c6377a0e4af19a34a3a74c352398d8`（回归顺序）。
 - 最新 Hook migration / Runtime / Host 回归已在新提交触发，结果尚未确认；不得将旧失败运行算作修复后失败或成功。
+
+
+## 2026-11-06 — Android ARM64 本地递归 DNS 构建产物
+
+- GitHub Actions run `42110174209` SUCCESS；构建官方 NLnet Labs Unbound `1.26.2`，源码 SHA-256 `d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7`，使用 Android NDK r26b，ARM64/AArch64，Android linker `/system/bin/linker64`。
+- 构建并上传：`unbound`、`unbound-checkconf`、`unbound-anchor`、`fx-dns-probe`、root hints、DNSSEC trust-anchor seed、配置与逐文件 SHA-256。Unbound 与 probe ELF 均通过 AArch64/linker 检查；未发现 OpenSSL/Expat 动态 `.so` 依赖。
+- `unbound` SHA-256：`85d56bd11402498691a36adf3cf1330f04e146587bf9475c80e92181cf07eee1`；`unbound-checkconf`：`df011c43659bb9bdad4e66e7e988d612b239b41546d948333aa2046fee2acdd6`；`unbound-anchor`：`1bb7c1d0e4a30fcd7a454379d017424e91604774ee8b1d8b1a25e2a121bcb88a`；`fx-dns-probe`：`78ffcedf9711fe7ae268b526e6090a4821a4963809504e62ebe8d79a1d246336`。
+- Artifact：`fx-unbound-android-arm64-v1.26.2`，ID `13454875393`，大小约 9.5 MB；Actions artifact ZIP SHA-256 `0bfd30034cae8597d4e006acdb63decbea22e6da9bd3c92ed490309192d8d600`。
+- 配置回归通过：loopback-only recursive cache、DNSSEC trust anchor、bundled root hints。
+- 限制：当前证明的是交叉编译、ELF、依赖和配置检查；没有证明移动网络可直连根 DNS/权威 DNS，也没有真机网络运行结果。后续必须保留 runtime probe、VPN egress 绑定和 fail-open 回滚。
