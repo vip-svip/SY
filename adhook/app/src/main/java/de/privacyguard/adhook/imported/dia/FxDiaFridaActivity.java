@@ -3341,7 +3341,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         String baseDir = "/data/adb/privacyguard";
         String diaDir = baseDir + "/dia-frida";
         String logDir = diaDir + "/logs";
-        return "if [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
+        return "if [ -L '/data' ] || [ ! -d '/data' ]"
+                + " || [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
                 + " || [ -L " + quote(baseDir) + " ] || [ ! -d " + quote(baseDir) + " ]"
                 + " || [ -L " + quote(diaDir) + " ] || [ ! -d " + quote(diaDir) + " ]"
                 + " || [ -L " + quote(logDir) + " ] || [ ! -d " + quote(logDir) + " ]; then "
