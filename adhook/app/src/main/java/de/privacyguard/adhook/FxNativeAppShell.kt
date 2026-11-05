@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.view.View
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -101,13 +103,22 @@ private fun FxNativeAppShell(
 
     MiuixTheme(controller = controller) {
         val miuixColors = MiuixTheme.colorScheme
+        val tokens = fxComposeShellTokens(
+            mode,
+            miuixColors.background,
+            miuixColors.surface,
+            Color(0xFF3478F6),
+            miuixColors.onPrimaryContainer,
+            miuixColors.onSurfaceContainerVariant,
+            miuixColors.primaryContainer
+        )
         Box(
             Modifier
                 .fillMaxSize()
                 // Keep the six-tab bar and the active page above the soft keyboard.
                 // Applying this to the shared host covers every migrated native page.
                 .imePadding()
-                .background(when (mode) { "miuix" -> miuixColors.background; "glass" -> Color(0xFFE8EEF4); "huawei" -> Color(0xFFF1F5FA); "ios" -> Color(0xFFF2F2F7); else -> Color(0xFFF4F6F8) })
+                .background(tokens.pageBackground)
         ) {
             wallpaperImage?.let { image ->
                 Image(
@@ -119,12 +130,7 @@ private fun FxNativeAppShell(
                 )
                 Box(
                     Modifier.fillMaxSize().background(
-                        when (mode) {
-                            "ios" -> Color.White.copy(alpha = 0.30f)
-                            "huawei" -> Color(0xFFF1F5FA).copy(alpha = 0.25f)
-                            "miuix" -> Color(0xFFF3F5FA).copy(alpha = 0.28f)
-                            else -> Color.White.copy(alpha = 0.24f)
-                        }
+                        tokens.wallpaperOverlay
                     )
                 )
             }
@@ -137,21 +143,23 @@ private fun FxNativeAppShell(
                     // Reserve the Android navigation gesture area and the persistent tab bar.
                     // The bar remains an overlay so Liquid Glass can sample the page backdrop.
                     .navigationBarsPadding()
-                    .padding(bottom = 72.dp)
+                    .padding(bottom = tokens.tabBarHeightDp.dp)
                     .layerBackdrop(backdrop),
                 update = {}
             )
-            val barShape = RoundedCornerShape(when (mode) { "classic" -> 10.dp; "miuix" -> 18.dp; "huawei" -> 16.dp; "ios" -> 22.dp; else -> 26.dp })
-            // Glass mode is rendered exclusively by the upstream LiquidBottomTabs
-            // component below; this modifier is only for the classic and Miuix bars.
-            val barModifier = if (mode == "miuix") {
-                Modifier.background(miuixColors.surface, barShape)
-            } else {
-                Modifier.background(
-                    when (mode) { "classic" -> Color(0xFFF7F8FA); "huawei" -> Color(0xFFF9FBFE); "ios" -> Color(0xF9FFFFFF); else -> Color.White.copy(alpha = 0.94f) },
-                    barShape
+            val barShape = RoundedCornerShape(tokens.barCornerRadiusDp.dp)
+            // Each non-liquid Skin supplies an independent surface, border and
+            // geometry token set. The Liquid Skin keeps its dedicated lens renderer.
+            val barModifier = Modifier
+                .clip(barShape)
+                .background(tokens.barBackground, barShape)
+                .then(
+                    if (tokens.barBorder != Color.Transparent) {
+                        Modifier.border(1.dp, tokens.barBorder, barShape)
+                    } else {
+                        Modifier
+                    }
                 )
-            }
 
             if (mode == "glass") {
                 // Upstream Kyant LiquidBottomTabs supports arbitrary tab counts;
@@ -172,8 +180,11 @@ private fun FxNativeAppShell(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .height(72.dp)
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(tokens.tabBarHeightDp.dp)
+                        .padding(
+                            horizontal = tokens.horizontalInsetDp.dp,
+                            vertical = tokens.verticalInsetDp.dp
+                        )
                 ) {
                     labels.forEachIndexed { index, label ->
                         LiquidBottomTab(
@@ -190,8 +201,8 @@ private fun FxNativeAppShell(
                         ) {
                             Text(
                                 text = label,
-                                color = if (selected == index) Color(0xFF0088FF) else Color(0xFF526170),
-                                fontSize = 12.sp,
+                                color = if (selected == index) tokens.selectedText else tokens.inactiveText,
+                                fontSize = tokens.labelSizeSp.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -203,25 +214,26 @@ private fun FxNativeAppShell(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .height(72.dp)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .height(tokens.tabBarHeightDp.dp)
+                        .padding(
+                            horizontal = tokens.horizontalInsetDp.dp,
+                            vertical = tokens.verticalInsetDp.dp
+                        )
                         .then(barModifier)
                         .padding(horizontal = 4.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(tokens.itemSpacingDp.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     labels.forEachIndexed { index, label ->
                         val active = selected == index
-                        val tabShape = RoundedCornerShape(when (mode) { "ios" -> 18.dp; "huawei" -> 14.dp; else -> 20.dp })
-                        val tabModifier = if (active && mode == "miuix") {
-                            Modifier.background(miuixColors.primaryContainer, tabShape)
-                        } else if (active) {
-                            Modifier.background(Color(0x223478F6), tabShape)
+                        val tabShape = RoundedCornerShape(tokens.tabCornerRadiusDp.dp)
+                        val tabModifier = if (active) {
+                            Modifier.clip(tabShape).background(tokens.selectedTabBackground, tabShape)
                         } else Modifier
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(64.dp)
+                                .height(tokens.tabItemHeightDp.dp)
                                 .then(tabModifier)
                                 .semantics { this.selected = active }
                                 .clickable(role = Role.Tab) {
@@ -232,15 +244,8 @@ private fun FxNativeAppShell(
                         ) {
                             Text(
                                 text = label,
-                                color = when {
-                                    mode == "miuix" && active -> miuixColors.onPrimaryContainer
-                                    mode == "ios" && active -> Color(0xFF007AFF)
-                                    mode == "huawei" && active -> Color(0xFF2878D0)
-                                    mode == "miuix" -> miuixColors.onSurfaceContainerVariant
-                                    active -> Color(0xFF1769AA)
-                                    else -> Color(0xFF526170)
-                                },
-                                fontSize = 15.sp,
+                                color = if (active) tokens.selectedText else tokens.inactiveText,
+                                fontSize = tokens.labelSizeSp.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
