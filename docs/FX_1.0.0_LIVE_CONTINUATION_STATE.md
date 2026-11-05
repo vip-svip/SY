@@ -5676,3 +5676,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回读 `build-fx-kernelsu.yml` 发现 canonical installer/remover 被连续同步两次：一组位于 system-app patcher 之前，另一组位于 patcher 之后并有 `cmp`。保留有字节核验且紧邻安装器回归的后者，删除前置重复复制。
 - 安装器 regression 现在要求每条 copy 命令恰好出现一次，并固定顺序为 installer copy → remover copy → 两个 cmp → installer regression，防止重复 staging 或先测后同步。
 - 本批只清理 build pipeline 和加固测试；APK / ZIP 构建仍遵守 migration gate。待当前 HEAD 的 Host Regression 验证测试代码，再在允许的最终验收阶段运行 KernelSU package。
+
+
+### Hook 安装器 Root 状态和日志路径防符号链接（2026-11-06）
+
+- `scripts/install_adhook_app.sh` 现在在创建和打开文件前逐级检查 STATE_DIR、TMP_DIR、日志父目录的路径组件；拒绝相对路径、`..`、任意层级符号链接、日志文件符号链接和非普通日志文件。目录创建后再次检查状态/临时目录，失败则在执行 PackageManager 前终止。
+- 安装器状态与临时文件创建使用 `umask 077`；APK 暂存文件后续仍显式设置 PackageManager 安装所需权限，所有 ownership marker 保持 0600。
+- 扩展 `adhook-app-installer-regression.sh`：分别用 symlink state root、symlink parent、symlink temp root 和 symlink log file 作为攻击夹具，验证安装被拒绝且所有链接目标 sentinel 保持不变。
+- 该提交待最新 Host/Module Runtime 回归；未进行 Android 设备上 Root 安装、SELinux、PackageManager 或更新/卸载验证。

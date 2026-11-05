@@ -256,4 +256,37 @@ grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "module uninstall r
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "system-overlay ownership marker survived module uninstall"
 [ ! -s "$TMP/pm/uninstall-calls" ] || fail "system-overlay cleanup invoked pm uninstall instead of module unmount"
 unset FX_ADHOOK_FAKE_SYSTEM_OVERLAY
+# Root state, temp and log paths must not traverse symlinks, even when the
+# symlink points to an otherwise writable-looking directory or file.
+PATH_GUARD="$TMP/path-guard"
+mkdir -p "$PATH_GUARD/state-target" "$PATH_GUARD/tmp-target" "$PATH_GUARD/safe-state" "$PATH_GUARD/safe-tmp"
+printf 'keep-state-target\n' > "$PATH_GUARD/state-target/sentinel"
+printf 'keep-parent-target\n' > "$PATH_GUARD/tmp-target/sentinel"
+printf 'keep-log-target\n' > "$PATH_GUARD/log-target"
+ln -s "$PATH_GUARD/state-target" "$PATH_GUARD/state-link"
+ln -s "$PATH_GUARD/tmp-target" "$PATH_GUARD/tmp-link"
+ln -s "$PATH_GUARD/tmp-target" "$PATH_GUARD/parent-link"
+if FX_ADHOOK_STATE_DIR="$PATH_GUARD/state-link" FX_ADHOOK_TMP_DIR="$PATH_GUARD/safe-tmp" \
+   FX_ADHOOK_LOG="$PATH_GUARD/state-link/install.log" sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then
+  fail "installer accepted a symlinked state directory"
+fi
+grep -Fxq 'keep-state-target' "$PATH_GUARD/state-target/sentinel" || fail "state symlink target was modified"
+[ ! -e "$PATH_GUARD/state-target/install.log" ] || fail "installer opened a log through a symlinked state directory"
+if FX_ADHOOK_STATE_DIR="$PATH_GUARD/parent-link/state" FX_ADHOOK_TMP_DIR="$PATH_GUARD/safe-tmp" \
+   FX_ADHOOK_LOG="$PATH_GUARD/parent-link/state/install.log" sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then
+  fail "installer accepted a symlink in a state-directory parent"
+fi
+grep -Fxq 'keep-parent-target' "$PATH_GUARD/tmp-target/sentinel" || fail "symlinked parent target was modified"
+if FX_ADHOOK_STATE_DIR="$PATH_GUARD/safe-state" FX_ADHOOK_TMP_DIR="$PATH_GUARD/tmp-link" \
+   FX_ADHOOK_LOG="$PATH_GUARD/safe-state/install.log" sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then
+  fail "installer accepted a symlinked temporary directory"
+fi
+grep -Fxq 'keep-parent-target' "$PATH_GUARD/tmp-target/sentinel" || fail "temporary symlink target was modified"
+ln -s "$PATH_GUARD/log-target" "$PATH_GUARD/safe-state/install.log"
+if FX_ADHOOK_STATE_DIR="$PATH_GUARD/safe-state" FX_ADHOOK_TMP_DIR="$PATH_GUARD/safe-tmp" \
+   FX_ADHOOK_LOG="$PATH_GUARD/safe-state/install.log" sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then
+  fail "installer accepted a symlinked log file"
+fi
+grep -Fxq 'keep-log-target' "$PATH_GUARD/log-target" || fail "installer appended through a symlinked log file"
+
 echo "PASS: system-overlay fail-closed deployment, legacy fallback, system-app detection, overlay-safe uninstall, signature safety, ownership-safe cleanup, and stale-marker handling"
