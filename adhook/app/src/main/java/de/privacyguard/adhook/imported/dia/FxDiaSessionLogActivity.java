@@ -78,6 +78,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
 
     private Button button(String label, Runnable action) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> action.run());
@@ -127,12 +128,15 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
         header.addView(button("‹ 返回 Hook", this::finish));
-        header.addView(text("Hook · Frida 运行日志", 18, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("Hook · Frida 运行日志", 18, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
-        root.addView(text("目标应用：" + targetName + "\n包名：" + targetPackage,
-                12, 0xff526170, false));
+        TextView targetIdentity = text("目标应用：" + targetName + "\n包名：" + targetPackage,
+                12, 0xff526170, false);
+        targetIdentity.setTag("fx-card-detail");
+        root.addView(targetIdentity);
 
         TextView warning = text(
                 "这里显示当前目标的原始 Frida 会话日志，可能包含自定义脚本输出或应用调试信息。分享前请检查并删除敏感内容。",
@@ -141,10 +145,12 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         root.addView(warning);
 
         status = text("尚未读取日志。", 12, 0xff526170, false);
+        status.setTag("fx-card-detail");
         status.setPadding(dp(16), dp(5), dp(16), dp(5));
         root.addView(status);
 
         LinearLayout controls = new LinearLayout(this);
+        controls.setTag("fx-card-group");
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(10), dp(2), dp(10), dp(4));
         search = new EditText(this);
@@ -152,6 +158,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         search.setHint("筛选日志行");
         controls.addView(search);
         LinearLayout actions = new LinearLayout(this);
+        actions.setTag("fx-card-group");
         actions.addView(button("刷新日志", this::refreshLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清空当前日志", this::confirmClearLog),
