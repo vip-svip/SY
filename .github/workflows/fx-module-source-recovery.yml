@@ -103,9 +103,15 @@ jobs:
             git fetch origin \
               "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME" \
               "+refs/heads/fx-module-source-recovery:refs/remotes/origin/fx-module-source-recovery"
-            git checkout -B fx-module-source-recovery origin/fx-module-source-recovery
-            git merge --no-edit "origin/$GITHUB_REF_NAME"
-            git push origin "HEAD:refs/heads/fx-module-source-recovery"
+            source_sha="$(git rev-parse origin/fx-module-source-recovery)"
+            # Use the latest integration tree as the first parent and prefer it
+            # for any same-path conflict. The recovered branch contributes only
+            # files absent from the current source tree, preventing stale release
+            # copies from overwriting newer work already merged by other agents.
+            git checkout -B fx-module-source-recovery "origin/$GITHUB_REF_NAME"
+            git merge --allow-unrelated-histories -X ours --no-edit origin/fx-module-source-recovery
+            git push --force-with-lease="refs/heads/fx-module-source-recovery:$source_sha" \
+              origin "HEAD:refs/heads/fx-module-source-recovery"
             echo "::notice::Merged the latest shared integration HEAD into fx-module-source-recovery."
             exit 0
           fi
