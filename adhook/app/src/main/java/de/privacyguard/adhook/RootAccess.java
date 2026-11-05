@@ -34,11 +34,19 @@ public final class RootAccess {
         return execute(command, 20000L, DEFAULT_OUTPUT_LIMIT);
     }
 
-    /** Execute a root command while streaming a bounded payload to its stdin. */
+    /** Compatibility overload for callers that already own an in-memory payload. */
     public static Result executeWithInput(String command, byte[] input, long timeoutMs, int outputLimit) {
-        if (command == null || command.length() == 0 || command.length() > 131072
-                || input == null || input.length > 8 * 1024 * 1024) {
-            return new Result(2, "Root 命令无效或输入超过 8 MiB 安全上限", false);
+        if (input == null) {
+            return new Result(2, "Root 命令或输入流无效", false);
+        }
+        return executeWithInput(command, new java.io.ByteArrayInputStream(input), timeoutMs, outputLimit);
+    }
+
+    /** Stream an arbitrary-size payload to Root stdin without buffering the complete input. */
+    public static Result executeWithInput(String command, java.io.InputStream input,
+                                          long timeoutMs, int outputLimit) {
+        if (command == null || command.length() == 0 || command.length() > 131072 || input == null) {
+            return new Result(2, "Root 命令或输入流无效", false);
         }
         Process process = null;
         Thread drain = null;
@@ -67,10 +75,17 @@ public final class RootAccess {
             }, "fx-root-input-output");
             drain.setDaemon(true);
             drain.start();
-            final byte[] payload = input;
+            final java.io.InputStream payload = input;
             writer = new Thread(() -> {
                 try (java.io.OutputStream stream = running.getOutputStream()) {
-                    stream.write(payload);
+                    byte[] buffer = new byte[64 * 1024];
+                    int count;
+                    while ((count = payload.read(buffer)) != -1) {
+                        if (Thread.currentThread().isInterrupted()) {
+                            throw new java.io.IOException("Root input stream cancelled");
+                        }
+                        stream.write(buffer, 0, count);
+                    }
                     stream.flush();
                 } catch (Exception error) {
                     writeFailure.set(error);
