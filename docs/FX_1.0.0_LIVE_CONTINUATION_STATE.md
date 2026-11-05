@@ -4538,3 +4538,37 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. 检查 Dia Backup / JSON / Inspector / Signature / Activity Browser / Wi-Fi Proxy 的剩余自定义弹窗与空/加载/错误状态，继续用共同 Dialog Renderer。
 3. 继续把共享 Skin tokens 接到未覆盖的表单、Spinner、搜索、多行编辑器和列表；有新的动态页时增加最小回归覆盖。
 
+
+## 2026-11-05 — Shield / Dia 非主页面弹窗覆盖补齐
+
+### 实际实现
+- Shield 主中心 `FxYulongShieldActivity` 的 6 个确认/权限提示框已切换为 FX Builder。
+- Shield 子页当前回读情况：Blacklist 4 个 Builder + 1 个 `showFxDialog` 自定义 OnShow；Scan 1 个 Builder；Batch Cleanup 1 个；Warning 3 个；Rescue 2 个；Screen Filter 2 个。Virus Database、Daily Summary、Integrity、Whitelist、Whitelist Picker 当前未发现独立 AlertDialog Builder / Dialog / PopupWindow 自建入口。此结论为本次源码关键字和类内容核对，不替代完整运行时 UI 覆盖。
+- Dia 子页继续补齐：
+  - `FxDiaMonitorEventsActivity`：监控详情使用 FX Builder，显示转发给 `showFxDialog`。
+  - `FxDiaSessionLogActivity`：清空当前目标 Frida 日志确认框使用 FX Builder。
+  - `FxDiaSystemExpandActivity`：3 个确认/状态弹窗使用 FX Builder；安装来源 picker 创建后用 `showFxDialog(pickerDialog)`。
+  - `FxDiaScriptLibraryActivity`：4 个 Builder 使用 FX Builder；新建脚本对话框创建后使用 `showFxDialog(dialog)`，保留原取消状态清理监听。
+- Dia Wi-Fi Proxy 的 3 个系统代理确认框已接入；剩余 Activity Browser / Inspector / Signature / File / Crash Report / Wi-Fi Proxy 均在导航回归中加入 Builder 门禁。
+- `scripts/tests/fx-unified-navigation-regression.sh` 现在覆盖 Shield 主中心及五个子页，以及 Frida、DEX、Hook 设置、Activity Browser、Inspector、Signature、File、Crash Report、Wi-Fi Proxy、Monitor Events、Session Log、System Expand、Script Library 的共享 modal builder 路径和自定义显示路径。
+
+### 关键提交
+- `8898bef2ed0ecb6e4207974705e3eb17133f49ba` — Shield 主控制中心 6 个 AlertDialog 改用 FX Builder。
+- `dd16f847f3948a5ba0a617f2f4c76ac1cfdd296a` — Shield 弹窗专项回归。
+- `e0a5b7150cbe3cf642e9e83ee657fb7bd39428ff` — Dia Wi-Fi Proxy 3 个系统代理确认框改用 FX Builder。
+- `d96c19d96f128a1cd63394f63f2fed737e700bda` — Monitor Events 详情弹窗统一。
+- `5bf93c8411d763ef360eda5ddf030164fff34879` — Session Log 清理确认框统一。
+- `5302a8a501d8c237fa19b9d3ea56ea4090e533d4` — System Expand 弹窗和安装来源 picker 统一。
+- `5c46c9a90ae0c79bff69c56c3754b821a432679f` — Frida Script Library 创建/导入/删除对话框统一。
+- `2131778f18b7843a81bdfb8f5581c6fd7b3e05ee` — Dia Monitor / Session / System Expand / Script Library modal 回归。
+
+### 验证边界
+- 已完成 GitHub 源码回读确认上述调用路径及回归断言存在；没有在当前工具环境执行 Shell regression、JUnit、Gradle 构建、APK 安装、UI 自动化或真机视觉验收。
+- 不能把“直接 Builder 关键字消失”写成弹窗视觉通过；仍需检查 AndroidX/platform Dialog、键盘弹出、长文本滚动、无障碍读屏、按钮语义色和屏幕尺寸。
+- 当前分支 HEAD / CI status 必须实时读取；不能沿用早前被取消的 Host run 或把旧 HEAD 的成功当成本轮通过。
+
+### 下一批
+1. 继续核对 Shield 页面自定义菜单/弹窗以外的表单、搜索、加载/错误状态和动态列表行，优先标记剩余非语义控件。
+2. 继续检查 Dia / Hook 文件/签名/Inspector 页面里的自定义 PopupWindow、系统选择器、AlertDialog 以外的 Dialog 子类。
+3. 针对最新 HEAD 跑定向 Host regression；若自动触发 Actions，读取实际 job 结果并区分 Host / Gradle / 真机级别。
+
