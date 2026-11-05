@@ -154,7 +154,7 @@ new_sub_unlock = '''subfetch_unlock() {
     done
     if [ ! -e "$_sl_release" ] && mv "$LOCK" "$_sl_release" 2>/dev/null; then
       _sl_release_owner=$(cat "$_sl_release/pid" 2>/dev/null || :)
-        'if [ "$_sl_release_owner" = "$$" ]',
+      if [ "$_sl_release_owner" = "$$" ]; then rm -rf "$_sl_release" 2>/dev/null || :; fi
     fi
   fi
   LOCK_HELD=0
@@ -171,7 +171,7 @@ if "FX_SUBFETCH_FILE_LOCK_V2" in subfetch_source:
         '_sl_read_lock_owner "$_sl_stale"',
         '_sl_read_lock_owner "$_sl_release"',
         'if [ "$_sl_moved_owner" = "$_sl_owner" ]',
-        'if [ "$_sl_release_owner" = ',
+        'if [ "$_sl_release_owner" = "$$" ]',
     )
     missing_v2 = [token for token in required_v2 if token not in subfetch_source]
     if missing_v2:
