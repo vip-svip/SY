@@ -32,9 +32,21 @@ cat > "$TMP/bin/iptables" <<'IPTABLES'
 #!/bin/sh
 echo "iptables $*" >> "$MOCK_LOG"
 case "${3:-}" in
+  -S)
+    if [ "${4:-}" = OUTPUT ]; then
+      printf '%s\n' '-P OUTPUT ACCEPT'
+      while IFS= read -r hook; do [ -n "$hook" ] && printf '%s\n' "-A OUTPUT -j $hook"; done < "$MOCK_HOOKS4"
+    else
+      printf '%s\n' '-N FXYUL_A' '-N FXYUL_B'
+      while IFS= read -r hook; do [ -n "$hook" ] && printf '%s\n' "-A OUTPUT -j $hook"; done < "$MOCK_HOOKS4"
+    fi
+    exit 0 ;;
   -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS4"; exit $? ;;
   -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
-  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS4.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
+  -D)
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
+    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
+    tmp="$MOCK_HOOKS4.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
 IPTABLES
@@ -42,12 +54,24 @@ cat > "$TMP/bin/ip6tables" <<'IP6TABLES'
 #!/bin/sh
 echo "ip6tables $*" >> "$MOCK_LOG"
 case "${3:-}" in
+  -S)
+    if [ "${4:-}" = OUTPUT ]; then
+      printf '%s\n' '-P OUTPUT ACCEPT'
+      while IFS= read -r hook; do [ -n "$hook" ] && printf '%s\n' "-A OUTPUT -j $hook"; done < "$MOCK_HOOKS6"
+    else
+      printf '%s\n' '-N FXYUL_A' '-N FXYUL_B'
+      while IFS= read -r hook; do [ -n "$hook" ] && printf '%s\n' "-A OUTPUT -j $hook"; done < "$MOCK_HOOKS6"
+    fi
+    exit 0 ;;
   -C) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; grep -qx "${6:-}" "$MOCK_HOOKS6"; exit $? ;;
   -I)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1
     if [ -n "${MOCK_FAIL_IPV6_ONCE:-}" ] && [ -e "$MOCK_FAIL_IPV6_ONCE" ]; then rm -f "$MOCK_FAIL_IPV6_ONCE"; exit 1; fi
     printf '%s\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
-  -D) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1; tmp="$MOCK_HOOKS6.tmp.$$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
+  -D)
+    [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
+    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
+    tmp="$MOCK_HOOKS6.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0
 IP6TABLES
@@ -501,8 +525,19 @@ fi
 # Uninstall uses the same lock as apply and mutation, so it cannot race an
 # in-flight chain swap and leave an orphaned active firewall rule.
 grep -Fq 'uninstall) stop_watch || :; with_lock clear_all ;;' "$SOURCE" || fail "uninstall does not stop the owned watcher under the firewall lock"
+# A failed OUTPUT detach must fail closed and retain the active marker
+# so a later uninstall retry can identify and clean the still-attached rules.
+export MOCK_FAIL_DELETE_CHAIN=FXYUL_B
+if run uninstall > "$TMP/uninstall-detach-failed.out" 2>&1; then
+  fail "uninstall accepted a failed OUTPUT hook deletion"
+fi
+unset MOCK_FAIL_DELETE_CHAIN
+[ -s "$ACTIVE" ] || fail "failed teardown discarded the active marker"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
+grep -Fq 'cannot detach FX firewall OUTPUT hook: FXYUL_B' "$TMP/uninstall-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
+
 run uninstall
-[ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state"
+[ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state after successful retry"
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "uninstall left an IPv4 OUTPUT jump"
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "uninstall left an IPv6 OUTPUT jump"
 [ ! -d "$PG/yulong-firewall.lock" ] || fail "uninstall left the firewall operation lock behind"
