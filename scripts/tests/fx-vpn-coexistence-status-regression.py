@@ -231,7 +231,7 @@ def main() -> int:
 
         print("== case 9: defensive wording when arbiter is unreadable ==")
         st = tmp / "s9"
-        r = run_writer(pub, tmp, module, st, {"FX_COEXIST_ARBITER": str(tmp / "nope.sh"),
+        r = run_writer(pub, tmp, module, st, {"FX_COEXIST_ARBITER": "/dev/null",
                                               "FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": "5"})
         check(r.returncode == 0, "writer exit 0 when arbiter missing")
         _, d = read_status(st)

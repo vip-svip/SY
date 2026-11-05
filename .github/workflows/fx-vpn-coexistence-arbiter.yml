@@ -62,6 +62,14 @@ jobs:
       - name: Smoke-run the arbiter against the live runner network
         run: |
           set -euo pipefail
+          set +e
           out=$(sh scripts/fx-vpn-coexistence-arbiter.sh)
+          arbiter_status=$?
+          set -e
+          if [[ "$arbiter_status" -ne 0 && "$arbiter_status" -ne 2 ]]; then
+            echo "Arbiter returned an unexpected operational error: $arbiter_status" >&2
+            exit "$arbiter_status"
+          fi
           echo "$out"
           printf '%s' "$out" | python3 scripts/tests/fx-vpn-coexistence-arbiter-live-assert.py
+          echo "Arbiter exit status: $arbiter_status (2 is an allowed fail-closed unknown)"

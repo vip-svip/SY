@@ -5590,3 +5590,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 状态发布器增加一致性约束：slot=true 强制 verdict=incompatible；slot=false 才保留 arbiter verdict；slot 缺失/null/非法时强制 verdict=unknown。避免旧版或缺失模块扫描的 arbiter 仍发布 partial/kernel_only。
 - Live arbiter smoke assertion 修正为接受“仓库 checkout 不含完整已安装模块树”时的 `vpn_service_slot_used:null` + verdict unknown；只有扫描证据为 false 时，才要求无隧道/可读接口显示 kernel_only。
 - 上一个提交 `53512fa05345` 的 Arbiter regression 主要场景通过，但 live runner smoke 因未提供完整模块根而返回 exit 2；Module Runtime workflow 在状态发布器回归处失败。上述均为本提交修复对象，不能记为通过。
+
+
+### VPN 槽位状态验证边界修正（2026-11-06）
+
+- CI 复查 `574c83d64640`：状态发布器的 true/false/null 断言已全部通过；仅“arbiter 不可用”用例的 `FX_COEXIST_ARBITER` 环境变量覆盖仍读到原模块夹具，改用确定存在但输出为空的 `/dev/null`，验证无有效 arbiter JSON 时应降级到 local/unknown/null。
+- Live smoke workflow 原先在 `set -e` 下执行 arbiter，合法的 fail-closed 退出码 2 会令 shell 提前结束，未把 JSON 交给 live assertion。现在仅接受退出码 0 或 2，再由 Python 校验状态与退出码一致；当 slot 为 null 时必须 verdict=unknown 且 exit=2。
+- 本轮之前的 Host 失败只在 case 9 的 source 标签断言；arbiter fixture 的 true/false/null 案例和六套 UI 均已通过，完整 Runtime finalize 步骤因同一 Host 测试失败而停止，待本修正提交重新验证。

@@ -41,6 +41,8 @@ def main() -> int:
         failures.append("kernel dataplane must NOT hold the Android VPN slot")
     if slot is None and d.get("verdict") != "unknown":
         failures.append("an unverified module tree must produce an unknown verdict")
+    if slot is None and d.get("exit") != 2:
+        failures.append("an unverified module tree must use fail-closed exit code 2")
     if d.get("verdict") not in ALLOWED:
         failures.append(f"unexpected verdict {d.get('verdict')!r}")
     if d.get("verdict") == "incompatible":
