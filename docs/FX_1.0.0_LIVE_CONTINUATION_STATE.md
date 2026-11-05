@@ -4820,3 +4820,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已读可用的《FX_1.0.0_UI优先自主推进与中断续接执行总指令.md》《FX_1.0.0_UI优先提速与自主开工提示词.md》及新对话启动提示词；它们确认 UI 优先、垂直功能闭环、不得虚报测试和真机结果。
 - `.gitmodules` 确认 `vendor/GKD-XA` 指向 `https://github.com/84593320z/GKD-XA.git`。本批没有读取该子模块的完整树，也没有把缺失的源码压缩包当作已检查。
 - 因此，本轮仅对当前 VPN/DNS 源码实施了定向修复；Dia、GKD-XA、游龙广告/安全护盾原始 APK 的全量 Manifest/Smali/资源对照仍未完成，后续需使用已存在 APK 或取得缺失源码包后按页面批次继续。
+
+
+## 2026-11-05 — Targeted Host regression: minimal module overlay handling
+
+- GitHub Actions run `42012278340` for commit `f8801a08cbe0267a5050c0dc6546a47b1a627689` completed successfully: `host-regressions` = `success`.
+- Root cause in the earlier failing runs `42011463160`–`42011727328`: `scripts/tests/fx-atomic-cache-lock-release-regression.sh` treated the tracked `fx-module/` overlay as a complete restored Release module and required `scripts/apply.sh` + `scripts/subfetch.sh`, which are intentionally supplied by the Release archive rather than tracked in this minimal overlay.
+- Updated the regression entrypoint to detect this known source-layout boundary. In a minimal checkout it now explicitly skips only the Release-archive Hosts/subscription cache-lock portion, runs the tracked Root Proxy lock regression, and exits successfully only if that Root Proxy test passes. It does not create placeholder scripts or weaken the module-backed Release checks.
+- CI log confirms: Root Proxy atomic lock, stale/live owner, concurrent serialization and independent local-DNS engine ownership regression passed. The separate Root Proxy regression and VPN external-fallback regression also ran in the targeted workflow.
+- Full Hosts/subscription cache-lock coverage remains dependent on the restored FX Release module in the module-backed build lane; it is not claimed as tested by this host-only run.
