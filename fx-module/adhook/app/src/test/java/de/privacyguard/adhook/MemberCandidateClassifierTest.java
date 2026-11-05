@@ -1,0 +1,152 @@
+package de.privacyguard.adhook;
+
+import org.junit.Test;
+import java.lang.reflect.Method;
+import static org.junit.Assert.*;
+
+public class MemberCandidateClassifierTest {
+    static class Sample {
+        boolean isVip() { return false; }
+        String getSubscriptionTier() { return "free"; }
+        long getValidUntil() { return 0L; }
+        Object getProfile() { return new Object(); }
+        void unrelated() {}
+    }
+
+    @Test public void classifiesCommonReturnTypesWithoutInvokingMethods() throws Exception {
+        assertEquals(MemberCandidateClassifier.Kind.BOOLEAN,
+                inspect("isVip").kind);
+        assertEquals(MemberCandidateClassifier.Kind.STRING,
+                inspect("getSubscriptionTier").kind);
+        assertEquals(MemberCandidateClassifier.Kind.LONG,
+                inspect("getValidUntil").kind);
+        assertEquals(MemberCandidateClassifier.Kind.OBJECT,
+                inspect("getProfile").kind);
+    }
+
+    @Test public void unrelatedMethodsAreNotCandidates() throws Exception {
+        MemberCandidateClassifier.Candidate candidate = inspect("unrelated");
+        assertFalse(candidate.isWorthInspecting());
+    }
+
+
+    enum MembershipState { FREE, VIP }
+
+    static class ObfuscatedStateHolder {
+        boolean a;
+        long b;
+        boolean a() { return a; }
+        long b() { return b; }
+    }
+
+    static class IncompleteStateHolder {
+        boolean a;
+        boolean a() { return a; }
+    }
+
+    static class ContinuationMarker {}
+
+    @Test public void classifiesEnumAndKotlinSuspendLikeSignatures() throws Exception {
+        Method enumGetter = SampleWithEnum.class.getDeclaredMethod("getState");
+        assertEquals(MemberCandidateClassifier.Kind.ENUM,
+                MemberCandidateClassifier.inspect(enumGetter).kind);
+        Method suspendLike = SampleWithSuspend.class.getDeclaredMethod(
+                "loadState", ContinuationMarker.class);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                MemberCandidateClassifier.inspect(suspendLike).kind);
+    }
+
+    static class SampleWithEnum {
+        MembershipState getState() { return MembershipState.FREE; }
+    }
+
+    static class SampleWithSuspend {
+        Object loadState(ContinuationMarker continuation) { return null; }
+    }
+
+    @Test public void detectsConservativeObfuscatedFieldAndMethodShapes() {
+        assertTrue(MemberCandidateClassifier.hasObfuscatedStateShape(ObfuscatedStateHolder.class));
+        assertFalse(MemberCandidateClassifier.hasObfuscatedStateShape(IncompleteStateHolder.class));
+    }
+
+
+    static class FakeLiveData {}
+    static class FakeCompletionStage {}
+    static class FakeDeferred {}
+    static class SampleAsync {
+        FakeLiveData getLiveData() { return null; }
+        FakeCompletionStage getCompletionStage() { return null; }
+        FakeDeferred getDeferred() { return null; }
+    }
+
+    @Test public void recognizesCommonAsyncContainerSignatures() throws Exception {
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getLiveData").kind);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getCompletionStage").kind);
+        assertEquals(MemberCandidateClassifier.Kind.ASYNC_FLOW,
+                inspectAsync("getDeferred").kind);
+    }
+
+    private MemberCandidateClassifier.Candidate inspectAsync(String name) throws Exception {
+        return MemberCandidateClassifier.inspect(SampleAsync.class.getDeclaredMethod(name));
+    }
+
+    static class SampleField {
+        boolean vip;
+        long expiresAt;
+    }
+
+    @Test public void classifiesFieldMetadataWithoutReadingFieldValues() throws Exception {
+        assertEquals(MemberCandidateClassifier.Kind.BOOLEAN,
+                MemberCandidateClassifier.inspect(SampleField.class.getDeclaredField("vip")).kind);
+        assertEquals(MemberCandidateClassifier.Kind.LONG,
+                MemberCandidateClassifier.inspect(SampleField.class.getDeclaredField("expiresAt")).kind);
+    }
+
+    @Test public void runtimeObservationClassifiesOnlyValueType() {
+        assertEquals(MemberCandidateClassifier.Kind.BOOLEAN,
+                MemberCandidateClassifier.kindOfRuntimeValue(Boolean.TRUE));
+        assertEquals(MemberCandidateClassifier.Kind.LONG,
+                MemberCandidateClassifier.kindOfRuntimeValue(Long.valueOf(123456L)));
+        assertEquals(MemberCandidateClassifier.Kind.STRING,
+                MemberCandidateClassifier.kindOfRuntimeValue("secret-token-must-not-be-logged"));
+        assertEquals(MemberCandidateClassifier.Kind.UNKNOWN,
+                MemberCandidateClassifier.kindOfRuntimeValue(null));
+    }
+
+    static class NoisyMembershipClass {
+        String getName() { return "private profile name"; }
+        boolean isActive() { return false; }
+        Object getContext() { return null; }
+    }
+
+    static class ObfuscatedMethods {
+        boolean a() { return false; }
+        long b() { return 0L; }
+        String c() { return "not auto-observed"; }
+    }
+
+    @Test public void autoObservationFiltersUnrelatedGetters() throws Exception {
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("getName"), true, false));
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("getContext"), true, false));
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                NoisyMembershipClass.class.getDeclaredMethod("isActive"), true, false));
+    }
+
+    @Test public void obfuscatedShapeAllowsOnlyScalarStateMethods() throws Exception {
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("a"), false, true));
+        assertTrue(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("b"), false, true));
+        assertFalse(MemberCandidateClassifier.shouldObserveMethod(
+                ObfuscatedMethods.class.getDeclaredMethod("c"), false, true));
+    }
+
+    private MemberCandidateClassifier.Candidate inspect(String name) throws Exception {
+        Method method = Sample.class.getDeclaredMethod(name);
+        return MemberCandidateClassifier.inspect(method);
+    }
+}
