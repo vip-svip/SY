@@ -108,10 +108,12 @@ install_one(){
   _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
   [ -n "$_actual" ] || { log_msg "ERROR: cannot calculate unified APK digest"; return 1; }
   if [ -s "$_apk.sha256" ]; then _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256"); [ "$_expected" = "$_actual" ] || { log_msg "ERROR: unified APK checksum mismatch; refusing install"; return 1; }; fi
+  _is_system_app=0
   if package_present "$_pkg"; then
     _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
     _system_path=$(printf '%s\n' "$_paths" | awk '/^\/system\// || /^\/product\// || /^\/vendor\// {print; exit}')
     if [ -n "$_system_path" ] || package_is_system "$_pkg"; then
+      _is_system_app=1
       _system_installed_path=$(printf '%s\n' "$_paths" | awk 'NR==1 {print; exit}')
       _installed_digest=$(sha256sum "$_system_installed_path" 2>/dev/null | awk 'NR==1 {print $1}')
       if [ -n "$_installed_digest" ] && [ "$_installed_digest" = "$_actual" ]; then
@@ -170,6 +172,11 @@ install_one(){
       break
     fi
     if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
+      if [ "$_is_system_app" = 1 ]; then
+        log_msg "ERROR: signing certificate changed for a system app; refusing uninstall/migration to protect the system package and app data. Build with the stable FX signing identity."
+        rm -f "$_stage"
+        return 1
+      fi
       log_msg "WARN: Android rejected in-place update because the APK signing certificate changed; attempting data-preserving migration"
       if force_replace_signature_mismatch "$_pkg" "$_stage" "$_log_lines"; then
         _installed=1
