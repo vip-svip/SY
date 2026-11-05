@@ -44,13 +44,13 @@ printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 0
 
 # net_tcp6_busy: upstream DNS port 5353 is bound on IPv6 TCP.
 mkdir -p "$TMP/net_tcp6_busy"
-for f in tcp tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_tcp6_busy/$f"; done
-printf '%s\\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 5 1\\n' "$HDR" > "$TMP/net_tcp6_busy/tcp6"
+for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_tcp6_busy/$f"; done
+printf '%s\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 5 1\n' "$HDR" > "$TMP/net_tcp6_busy/tcp6"
 
 # net_udp6_busy: upstream DNS port 5353 is bound on IPv6 UDP.
 mkdir -p "$TMP/net_udp6_busy"
-for f in tcp tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_udp6_busy/$f"; done
-printf '%s\\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 6 1\\n' "$HDR" > "$TMP/net_udp6_busy/udp6"
+for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_udp6_busy/$f"; done
+printf '%s\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 6 1\n' "$HDR" > "$TMP/net_udp6_busy/udp6"
 
 # net_filter_dns_busy: AdGuard Home's client-facing DNS port 53 is occupied by TCP.
 mkdir -p "$TMP/net_filter_dns_busy"
