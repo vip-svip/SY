@@ -158,17 +158,31 @@ assert any(item.attrib.get(A + "name") == "com.youlong.hd.intent.action.COMMAND_
            for item in command_guard.findall("./intent-filter/action")), \
     "Original Stellar command-guard action must remain compatible"
 
+# One FX product: old source-app launchers and migration page trees must not return.
+settings_start = main.index("private void showSettings()")
+settings_end = main.index("private void showNativeWallpaperDialog()", settings_start)
+settings = main[settings_start:settings_end]
+assert "迁移应用" not in settings
 for label in ("Dia 23.11", "游龙广告插件 7.0.1", "游龙安全护盾 9.9.60"):
-    assert label in main, f"Settings migration entry missing: {label}"
-for name in ("showImportedSuite", "showImportedSuiteCategory", "openImportedSuitePage"):
-    assert name in main, f"3rd/4th-level navigation missing: {name}"
-# Dia pages must route to their matching native feature surface. General FX
-# privacy groups are not substitutes for Dia's target-specific editors or tools.
-assert 'case "通知监听与权限提示":' in main and 'showAppList("通知保护")' in main, "Dia notification page must open the per-app notification policy editor"
-assert 'case "传感器":' in main and 'showNativeSettingsGroup("sensorPanel"' in main, "Dia sensor page must open the native sensor panel"
-assert 'case "网络与代理":' in main and 'showNativeSettingsGroup("netPanel"' in main, "Dia network page must open the native network panel"
-assert 'case "设备属性":' in main and 'showAppList("设备标识模拟")' in main, \
-    "Dia device identity must open the per-target identity editor, not a global device panel"
+    assert label not in settings, f"Settings must not expose source-app entry: {label}"
+for name in ("showImportedSuite", "showImportedSuiteCategory", "openImportedSuitePage",
+             "importedSuiteTitle", "importedSuiteSections"):
+    assert name not in main, f"obsolete source-app navigation returned: {name}"
+
+# Shield is reached from Privacy; source-derived policies stay in their real FX business tabs.
+privacy_start = main.index("private void buildNativePrivacyPage()")
+privacy_end = main.index("private void refreshNativePrivacyStatus(", privacy_start)
+privacy_page = main[privacy_start:privacy_end]
+assert "FxYulongShieldActivity.class" in privacy_page, "Privacy must directly expose the integrated security center"
+assert 'addNativeActionCard("通知监听与权限提示"' in privacy_page and 'showAppList("通知保护")' in privacy_page, \
+    "notification-listener controls must remain in the Privacy destination"
+assert 'addNativeActionCard("Toast 文本过滤"' in privacy_page and 'showAppList("Toast过滤")' in privacy_page, \
+    "Toast filtering must remain in the Privacy destination"
+for token in ('addNativeSettingsCategory("传感器", "sensorPanel")',
+              'addNativeSettingsCategory("网络隐私", "netPanel")',
+              'addNativeSettingsCategory("设备标识", "devicePanel")'):
+    assert token in privacy_page, f"Privacy controls missing from the integrated settings groups: {token}"
+assert "Settings migration entry missing" not in main
 hub = shield["FxYulongShieldActivity.java"]
 rescue_route_start = main.index('case "悬浮救援入口":')
 rescue_route = main[rescue_route_start:rescue_route_start + 420]
