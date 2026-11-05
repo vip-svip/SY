@@ -6744,3 +6744,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Commit: `2008184a8f0cc54ada4d0115eeac363ee60ca608` (`fx-module/scripts/unbound.sh`).
 - `_owned_pid()` now reads `/proc/PID/cmdline` as NUL-delimited argv entries and requires exact entries for the managed Unbound executable and configuration path. It no longer accepts a flattened command line where an unrelated argument merely contains those paths as substrings.
 - No shell checks, regression tests, build, CI, or device validation were run in this batch, per the current request.
+
+
+## 2026-11-06 — VPN control integration batch
+
+- `3dfc6c1`: VPN controller now refuses symlink/non-regular log targets and creates its log with private permissions before append.
+- `b92027b` / `dfacf88`: controller status JSON now includes the live VPN coexistence arbiter report, preserving the arbiter's machine-readable `unknown`/`incompatible` result even when its exit code is non-zero. Corrected the JSON envelope match in the follow-up commit.
+- No checks, tests, build, CI, or device validation were run in this batch, per the current request.
