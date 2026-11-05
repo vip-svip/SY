@@ -13,7 +13,7 @@
 
 ## 权威纠偏：六种界面模式、VPN 共存、系统应用部署与容量策略
 
-本节是本文件及跨 AI 执行提示词的最新权威要求。若本文其他位置、历史状态记录或旧提示词仍写“五种可切换皮肤（默认模式独立保留）”并将液态玻璃称为默认界面，均按历史记录/旧口径理解，不得覆盖本节。
+本节是本文件及跨 AI 执行提示词的最新权威要求。若本文其他位置或历史状态记录仍沿用“五种模式”的旧计数，或将液态玻璃称为默认界面，均按历史记录/旧口径理解，不得覆盖本节。
 
 ### A. 六种界面模式（默认模式 + 五种皮肤）
 
@@ -155,14 +155,14 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 - 手势与系统栏：用 Android 公共 WindowInsets、BackHandler 和 Compose 手势实现页面内交互；不得拦截系统返回/辅助功能手势，不伪造 iOS 状态栏、控制中心或系统弹窗。
 - 验收：在 Android 设备上逐页检查导航栏、标签栏、列表分组、Sheet、键盘、深浅色、字号缩放和 TalkBack；所有控件仍调用同一 FX 业务状态与真实操作。
 
-### 1.7 五种可切换 Skin（默认模式独立保留） 的统一源码实现方法
+### 1.7 五种皮肤（默认模式另计） 的统一源码实现方法
 
 - 统一模型：扩展 FxUiMode，为新增模式分配稳定 ID（建议 huawei、ios），新增 default ID 作为首次安装默认值；保留既有 default、classic、glass、miuix、huawei、ios ID 的原有含义；未知/损坏值安全回退 default，不覆盖已有有效用户设置。
 - Renderer：将模式到页面的映射集中在 FxNativeAppShell/统一 Skin Host，不允许各 Activity 私自读取偏好或各自维护不同的模式 ID。
 - Design tokens：新增独立 HarmonyOS 与 Cupertino token 集，禁止把所有模式写成散落的 if (mode == ...) 色值；共用语义组件接口，模式仅替换 token 和 renderer。
 - 页面迁移：先完成六个 Tab 的共享组件，再逐页覆盖主页面、列表、表单、编辑器、弹窗、空状态、错误状态；旧页面无法适配时明确记录兼容边界。
 - 状态与服务：模式切换只更新 Presentation 层；不得停止/重建 VPN、内核级代理、DNS、Hook、脚本或定时任务，不清空页面状态、滚动位置和编辑草稿。
-- 测试：为五种可切换皮肤（默认模式独立保留）建立枚举/存储迁移单测、Skin token 单测、六 Tab renderer 回归、截图基线、无障碍语义、字体缩放、深浅色、横竖屏、窗口尺寸和服务运行中换肤测试。截图测试不得代替功能测试。
+- 测试：为五种皮肤（默认模式另计）建立枚举/存储迁移单测、Skin token 单测、六 Tab renderer 回归、截图基线、无障碍语义、字体缩放、深浅色、横竖屏、窗口尺寸和服务运行中换肤测试。截图测试不得代替功能测试。
 - 兼容策略：Default、ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle 是同一个 Android APK 的五套 Presentation Skin；未来如开发真正 iOS 客户端，应单独建立 iOS 工程并复用协议/业务契约，不能把 Android Compose Skin 视作 iOS 原生实现。
 
 ### 1.8 壁纸功能
@@ -196,7 +196,7 @@ DEX 可核验的原版壁纸交互：
 FX 当前源码接线（实现状态以实时状态文档为准）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxWallpaperStore.kt`：私有存储、缩放、JPEG、预览解码、恢复默认。
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：Settings 壁纸弹窗、系统图片选择器、后台保存、恢复默认和 WebView 透明背景。
-- `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：五种可切换 Skin（默认模式独立保留） 共用壁纸层、IO 解码和 Bitmap 生命周期。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：五种皮肤（默认模式另计） 共用壁纸层、IO 解码和 Bitmap 生命周期。
 - `adhook/app/src/test/java/de/privacyguard/adhook/FxWallpaperStoreTest.kt` 与 `scripts/tests/fx-wallpaper-regression.sh`：图片缩放/采样测试与端到端源码契约回归。
 - 壁纸数据不上传、不放公共目录、不保留长期外部 URI 授权；失败写入不替换旧图。未完成 Gradle/设备验证前，不得称为真机验收通过。
 
@@ -605,7 +605,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 ### 4.1 分层
 
-- **Presentation**：五套可切换 UI Skin（另含独立默认模式）（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
+- **Presentation**：五套可切换 UI 皮肤（默认模式另计）（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
 - **Domain**：Ad、VPN、Privacy、Hook、Script、Settings 等产品业务接口和用例；来源 APK 导入/差异比对仅属于开发期 Source Intake 流程，不是用户业务域。
 - **Data**：Room/现有配置存储适配器、规则仓库、节点仓库、脚本仓库、壁纸仓库；保留旧配置迁移器。
 - **Platform**：VpnService/TUN、DNS、Root broker、Hosts writer、Accessibility、LSPosed bridge、PackageManager、证书管理、通知/Tile/Widget。
@@ -614,34 +614,37 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 ### 4.2 六种界面模式（默认模式 + 五种皮肤）的实现与源码约束
 
-**五种可切换皮肤（默认模式独立保留）是同一个 APK 的全局 Skin，不是五个应用，也不是网络运行模式。**
+**五种皮肤（默认模式另计）是同一个 APK 的全局 Skin，不是五个应用，也不是网络运行模式。**
 
 | 模式 | 内部存储 ID（兼容 1.0.0） | 页面渲染实现 |
 |---|---|---|
+| Default（默认模式） | `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer，不等同液态玻璃。 |
 | ClassicWebCompat | `classic` | 显示 APK 内置原版 WebUI；VPN、Ad、隐私、脚本四个业务页面使用原版 WebUI 页面内容；Hook 与设置继续由同一原生宿主承载并使用 Classic 外观。WebView 仅由受信任的本地 AssetLoader 加载，不访问远程页面。 |
 | FXLiquidNative | `glass` | 原生 Android 页面 + Jetpack Compose + Kyant Backdrop 液态背景采样/模糊/Lens 导航。 |
 | MiuixStyle | `miuix` | 原生 Android 页面 + MiuixTheme/Miuix 组件、系统配色和对应导航样式。 |
+| HUAWEI HarmonyStyle | `huawei` | Harmony tokens 与独立 renderer；使用 Android 公共 API。 |
+| iOS CupertinoStyle | `ios` | Cupertino tokens 与独立 renderer；使用 FX 自有 Compose 控件。 |
 
 **本轮代码落点（必须保留并继续完善）：**
-- `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、稳定存储 ID、旧值迁移（`web` → `classic`）、模式读取/保存入口和 Renderer 类型。
-- `adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt`：设置页五种可切换皮肤（默认模式独立保留）原生选择器；展示统一名称、当前选中态和模式说明。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、稳定存储 ID、旧值迁移（`web` → `classic`）、模式读取/保存入口和 Renderer 类型；默认模式 `default` 首次安装默认选中。
+- `adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt`：设置页六种界面模式原生选择器（默认 + 五皮肤）；展示统一名称、当前选中态和模式说明。
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt`：六 Tab 原生外壳；Liquid/Miuix/Classic 的导航皮肤由同一组件根据模式选择。
-- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：全局模式路由；ClassicWebCompat 将内置 WebView 作为可见页面，两个 Native 模式隐藏 WebView 并挂载原生页面；模式变化只重建 UI，不调用网络/Hook/脚本服务启停接口。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：全局模式路由；ClassicWebCompat 将内置 WebView 作为可见页面，五种 Native 模式（default、glass、miuix、huawei、ios）隐藏 WebView 并挂载对应原生 renderer；模式变化只重建 UI，不调用网络/Hook/脚本服务启停接口。
 - `adhook/app/build.gradle`：Compose、Miuix、Kyant Backdrop 和 Capsule 依赖；新增 Skin 依赖必须核对许可证并更新第三方声明。
 
 **全局切换行为：**
-1. 冷启动读取 `fx_ui/mode`，旧值兼容映射到三个稳定 ID；未知/损坏值安全回落 Default；旧的有效 ID 继续映射原皮肤。
+1. 冷启动读取 `fx_ui/mode`，旧值兼容映射到既有稳定 ID（classic、glass、miuix、huawei、ios）；未知/损坏值安全回落 Default；旧的有效 ID 继续映射原皮肤。
 2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和业务子页面返回上下文。
 3. ClassicWebCompat 的四个业务页由 WebView 显示 APK 内置 AssetLoader 资源；Hook 与设置使用同一 Classic 外观的原生宿主。禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
 4. FXLiquidNative 使用 Compose 原生导航与液态背景效果；MiuixStyle 使用 Miuix 主题组件。两者共享同一 Domain/Repository/状态源，不复制业务逻辑。
-5. 五种可切换皮肤（默认模式独立保留）共享相同六个 Tab：VPN、Ad、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
+5. 五种皮肤（默认模式另计）共享相同六个 Tab：VPN、Ad、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
 6. 切换过程中不得 stop/start/reconfigure VPN、内核级代理、DNS、Root 规则、LSPosed、Accessibility 或脚本任务。UI 观察状态变化，不拥有服务生命周期。
 7. 动画/Backdrop 不可用或低内存时允许降级为静态背景，但不得切换业务模式或丢失页面功能。
 
 **验收矩阵：**
-- 五种可切换皮肤（默认模式独立保留）冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
+- 六种界面模式冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
 - 在每个模式中逐个进入六个 Tab，页面、返回栈和功能权限一致；ClassicWebCompat WebView 无越权导航。
-- 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换五种可切换皮肤（默认模式独立保留）；服务 PID/连接状态/配置哈希不因换肤改变。
+- 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换六种界面模式；服务 PID/连接状态/配置哈希不因换肤改变。
 - 每种模式分别测试底部栏点击/手势、无障碍语义、键盘弹出、滚动恢复、Hook 列表和各业务二级页面。
 - 不能只凭模式选择器显示选中就判定完成；必须有构建日志、UI 自动化/截图对照和设备实测记录。
 
@@ -687,7 +690,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 未授权或不兼容项显示原因，不允许静默显示开启。
 
 ### 设置 Tab
-- 外观与个性化（五种可切换皮肤（默认模式独立保留）、壁纸、主题、动效）。
+- 外观与个性化（五种皮肤（默认模式另计）、壁纸、主题、动效）。
 - 权限中心、备份恢复、通知与诊断偏好、关于。
 - 不出现“迁移应用”、来源应用启动器或重复业务入口；业务功能必须归入 VPN、Ad、隐私、脚本、Hook 对应页面。
 
@@ -700,11 +703,11 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 对 10.0.2 APK、游龙 10.10.62 源码、7.0.1/9.9.60 源码做差异映射；10.0.2 UI/壁纸以 APK 资源为依据。
 - 产出页面映射表、功能矩阵、协议/权限矩阵；不在证据缺失时宣称完整迁移。
 
-### P1 — UI 基础与五种可切换皮肤（默认模式独立保留）框架
+### P1 — UI 基础与五种皮肤（默认模式另计）框架
 - 固定六 Tab 和返回栈；建立 Skin interface/design tokens。
 - 实现模式切换、设置入口、壁纸选择/预览/回退和低性能降级。
-- 先迁移主壳和最常用页面；旧 Web 兼容模式保留。五种可切换 Skin（默认模式独立保留） 均须接入统一 Skin Host 与六 Tab renderer；HUAWEI/iOS 不得只增加选择器枚举，必须提供独立 tokens、真实组件 renderer 和逐页适配。
-- 完成五种可切换 Skin（默认模式独立保留） 下的六 Tab 基础布局与无数据/错误/权限状态，并对 HUAWEI/iOS 单独覆盖状态栏、导航栏、返回手势、字体缩放、无障碍、横竖屏和大屏布局。
+- 先迁移主壳和最常用页面；旧 Web 兼容模式保留。五种皮肤（默认模式另计） 均须接入统一 Skin Host 与六 Tab renderer；HUAWEI/iOS 不得只增加选择器枚举，必须提供独立 tokens、真实组件 renderer 和逐页适配。
+- 完成五种皮肤（默认模式另计） 下的六 Tab 基础布局与无数据/错误/权限状态，并对 HUAWEI/iOS 单独覆盖状态栏、导航栏、返回手势、字体缩放、无障碍、横竖屏和大屏布局。
 
 ### P2 — 来源功能逐项归并（仅限开发期，不形成来源应用入口）
 - Dia、游龙广告各版本、游龙安全护盾、GKD-XA 分别建立页面映射。
@@ -728,7 +731,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 应用更新、VPN/隐私检测、开屏、位置模拟按合法且可验证的系统能力实现。
 
 ### P6 — 整合验收
-- 五套可切换 UI（另含独立默认模式） 模式下六 Tab 页面巡检。
+- 五套可切换 UI（默认模式另计） 模式下六 Tab 页面巡检。
 - 配置迁移、升级、回滚、权限撤销、进程重建。
 - 网络防泄漏和耗电实测。
 - 静态检查、单测、Android 构建、UI 自动化、安装、真机分级记录。
@@ -792,13 +795,13 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 
 源码入口：
 - `adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt`：唯一模式枚举、旧 ID 迁移、读取/持久化。
-- `FxDesignModePanel.kt`：设置页五种可切换皮肤（默认模式独立保留）选择面板。
+- `FxDesignModePanel.kt`：设置页五种皮肤（默认模式另计）选择面板。
 - `FxNativeAppShell.kt`：全局六 Tab Shell、五套导航外观与背景配色。
 - `MainActivity.java`：启动时读取统一模式；切换时同步保存并重建当前界面，不调用 VPN/DNS/代理/Hook/脚本服务启停接口。
 
-切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换五种可切换皮肤（默认模式独立保留），服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix` ID 必须兼容。
+切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换五种皮肤（默认模式另计），服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix/huawei/ios` 有效 ID 必须兼容；`default` 为首次安装默认 ID。
 
-注意：当前源码已建立五种可切换皮肤（默认模式独立保留）模型、持久化与选择面板；Shell 已有五种导航/背景外观，FxNativeSkin 已覆盖主 Activity 和共享迁入 Activity 的基础页面表面。HUAWEI/iOS 的全局 Skin 仍属基础接入，六个 Tab 的完整控件 token 化、深浅色/字体缩放/大屏/无障碍逐页验收尚未完成。ClassicWebCompat 当前显示 FX APK 中打包的 WebUI 页面；虽然已检查游龙工具 10.0.2 APK 的壁纸与界面模式行为，但其原始完整 UI 资源/交互并未全部复刻，禁止把兼容入口名称写成 10.0.2 完整界面已逐页还原。
+注意：当前源码已建立旧五皮肤模型、持久化与选择面板；default 独立默认模式仍需实现并验收；Shell 已有五种导航/背景外观，FxNativeSkin 已覆盖主 Activity 和共享迁入 Activity 的基础页面表面。HUAWEI/iOS 的全局 Skin 仍属基础接入，六个 Tab 的完整控件 token 化、深浅色/字体缩放/大屏/无障碍逐页验收尚未完成。ClassicWebCompat 当前显示 FX APK 中打包的 WebUI 页面；虽然已检查游龙工具 10.0.2 APK 的壁纸与界面模式行为，但其原始完整 UI 资源/交互并未全部复刻，禁止把兼容入口名称写成 10.0.2 完整界面已逐页还原。
 
 
 ## 11. 整体重构纠偏（本节优先级高于历史描述）
@@ -808,7 +811,7 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 1. **取消“迁移应用”产品入口**：FX 是整合后的单一产品，不是旧 APK 集合启动器。Dia、游龙广告插件、游龙安全护盾、GKD 等只作为研发源码来源；其功能按 Ad/VPN/隐私/脚本/Hook 归属整合。最终 UI 不得出现“迁移应用”Tab、设置入口、来源应用列表或跳转回旧 APK 的操作。
 2. **第二 Tab 统一命名为 Ad**：底部、顶部标题、面包屑、页面标题和导航配置均只显示“Ad”。Hosts 是 Ad 内部功能页，不得把主 Tab 写成“Ad/Hosts”。
 3. **最终六 Tab 唯一结构**：VPN、Ad、隐私、脚本、Hook、设置。不得增加来源应用 Tab 或第二入口；设置永远第六。
-4. **设置边界**：只放全局外观/五种可切换皮肤（默认模式独立保留）/壁纸/主题/动效、权限中心、备份恢复、通知与诊断偏好、关于。业务操作不得迁入设置；“迁移应用”必须删除，不是改名或隐藏。
+4. **设置边界**：只放全局外观/五种皮肤（默认模式另计）/壁纸/主题/动效、权限中心、备份恢复、通知与诊断偏好、关于。业务操作不得迁入设置；“迁移应用”必须删除，不是改名或隐藏。
 5. **整合验收**：逐个核对旧来源的功能和设置项，确认其在 FX 对应业务域有真实页面、状态和后端；保留来源版本映射仅供开发追踪。不能以删除旧入口为由丢失功能。
 6. **APK 10.0.2 UI 与壁纸**：ClassicWebCompat 必须以用户提供的游龙工具_10.0.2.apk 真实资源和页面为依据；壁纸能力归入设置→外观与个性化，壁纸只改变 UI 背景。若 APK 原件缺失，记录证据阻塞，不得臆造原版细节。
 7. **旧段落清理**：任何旧文案中出现“Ad/Hosts”作为 Tab 名、“设置下的迁移应用”、“迁移来源应用独立三级入口”都视为过期要求，开发 AI 必须同步清理对应 UI、路由、测试断言和文档。
@@ -824,15 +827,15 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 - **隐私（2）**：安全防护中心及屏幕滤镜、每日安全总结、病毒库、扫描、风险详情、批量清理、完整性、救援、白名单/管控名单等 Shield 子页统一高亮“隐私”；通知监听/权限提示策略与 Toast 文本过滤也保留在隐私页，返回按钮回到隐私业务链。
 - **脚本（3）**：Frida JavaScript 脚本库归脚本页；浏览器 UserScript/扩展和其他脚本生态能力也归此页。
 - **Hook（4）**：已安装应用列表与逐应用 Hook；Dia 来源的 Frida 环境/注入、DEX 浏览与方法选取、Activity 入口、文件/so、JSON、Inspector、监控事件、Frida 会话日志、签名信息、系统扩展、Hook 工具全局设置、自定义 Hook、Dialog 对话框 Hook 和按键动作 Hook。Dialog/按键从 Hook Hub 进入逐应用目标配置，页面始终高亮 Hook；用户可见名称以“Hook”命名，不暴露 Dia 旧应用品牌。
-- **设置（5）**：五种可切换 Skin（默认模式独立保留）、壁纸、主题/动效、全局权限/诊断偏好、FX 统一备份恢复、关于。备份页由设置入口直达；不要重复出现在 Hook 工具页。
+- **设置（5）**：五种皮肤（默认模式另计）、壁纸、主题/动效、全局权限/诊断偏好、FX 统一备份恢复、关于。备份页由设置入口直达；不要重复出现在 Hook 工具页。
 
 当前代码入口：
 - MainActivity.buildNativeAdPage()：Ad 主页面及广告来源功能子页入口。
 - MainActivity.buildNativePrivacyPage()：安全防护中心入口。
 - MainActivity.showHookHub()：Hook 工具与调试入口、授权状态。
 - MainActivity.buildNativeScriptPage()：Frida JavaScript 脚本库入口。
-- MainActivity.showSettings()：壁纸/五种可切换 Skin（默认模式独立保留）/全局备份恢复等系统级配置。
-- FxNativeTabActivity：通过统一 FxUiMode.read() 和共享 Shell 提供五种可切换 Skin（默认模式独立保留）；每个子页必须明确业务 Tab 索引。
+- MainActivity.showSettings()：壁纸/五种皮肤（默认模式另计）/全局备份恢复等系统级配置。
+- FxNativeTabActivity：通过统一 FxUiMode.read() 和共享 Shell 提供六种界面模式；每个子页必须明确业务 Tab 索引。
 
 回归要求：验证 Settings 无迁移应用、六个主 Tab 标签固定、Ad/Shield/Dia 页面不暴露旧来源品牌、Shield/Toast/通知隐私策略选中隐私、Frida/Dia Dialog/Dia 按键 Hook 工具选中 Hook、Frida JS 脚本库选中脚本、备份选中设置、HTTP 代理选中 VPN；这些页面映射必须在业务页中真实可达，不可只保留死的旧路由。
 
@@ -865,7 +868,7 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 
 - 最终用户产品只有一个 FX APK、一个启动入口、六个固定 Tab：VPN、Ad、隐私、脚本、Hook、设置。
 - 禁止“迁移应用”页面、来源 APK 启动器、来源套件首页/分类树、来源应用并列入口。Dia、游龙广告插件、游龙安全护盾、GKD-XA 只保留在开发证据、许可证、功能映射与诊断记录中。
-- 设置仅放外观与个性化（五种可切换 Skin（默认模式独立保留）/壁纸/主题/动效）、权限、统一备份恢复、通知/诊断偏好和关于；Root/模块/LSPosed 的业务控制归隐私或 Hook，不得以“迁移应用”为父级。
+- 设置仅放外观与个性化（五种皮肤（默认模式另计）/壁纸/主题/动效）、权限、统一备份恢复、通知/诊断偏好和关于；Root/模块/LSPosed 的业务控制归隐私或 Hook，不得以“迁移应用”为父级。
 - 第二 Tab 的所有可见标签必须是 Ad。Hosts 是 Ad 内的页面/编辑器/重定向层。旧 WebView 的 pageHosts 仅允许作为历史 DOM ID 兼容别名；新的主导航和路由必须使用 pageAd。
 - Tab 索引：VPN=0、Ad=1、隐私=2、脚本=3、Hook=4、设置=5。不得添加“Ad/Hosts”并列标题。
 
@@ -885,7 +888,7 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 - Hook：Dia 工具中的部分页面已映射到 Hook，Frida/LSPosed 能力必须区分页面入口、Runtime 存在、目标进程注入和真实执行；不能用配置已保存替代注入成功。
 - GKD-XA：目前仓库锁定上游 v1.4.8 源码并有融合计划；不等于其 UI、selector、数据库、Accessibility runtime 已并入 FX APK。
 - 脚本：已有 Frida JS 脚本库入口；Loon/Shadowrocket 等代理脚本、MITM request/response 和浏览器 UserScript/扩展必须分别证明解析、API 适配和实际执行，不得只做格式导入。
-- UI：五种可切换 Skin（默认模式独立保留） 的模式 ID、选择器和全局导航基础分支已存在；HUAWEI/iOS 独立组件 tokens、六 Tab 逐页 renderer、截图与设备验收仍未全部完成。
+- UI：五种皮肤（默认模式另计） 的模式 ID、选择器和全局导航基础分支已存在；HUAWEI/iOS 独立组件 tokens、六 Tab 逐页 renderer、截图与设备验收仍未全部完成。
 - 壁纸：已按 10.0.2 已核验的“壁纸随心换”上传/恢复契约建设 FX 私有壁纸层；裁剪/定位/模糊/遮罩等超出原版证据的功能必须标注为 FX 扩展，不可误称为 10.0.2 原版能力。
 
 ### 永久禁止的完成声明
@@ -919,7 +922,7 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 
 ## B. 六种界面模式（默认模式 + 五种皮肤）与游龙壁纸
 
-五种可切换皮肤（默认模式独立保留）为同一 APK 的全局 Skin，所有六个 Tab、二级页面、表单、列表、Dialog、Sheet、编辑器、空/加载/错误状态均需覆盖：
+五种皮肤（默认模式另计）为同一 APK 的全局 Skin，所有六个 Tab、二级页面、表单、列表、Dialog、Sheet、编辑器、空/加载/错误状态均需覆盖：
 
 | 显示名称 | 内部模式/ID | 实现要求 |
 |---|---|---|
@@ -929,14 +932,14 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 | 华为界面（Harmony 风格） | HUAWEI HarmonyStyle / huawei | Harmony tokens 与 renderer，普通 Android 设备可用，不冒充鸿蒙原生 |
 | iOS 界面（Cupertino 风格） | iOS CupertinoStyle / ios | Cupertino tokens 与 renderer，不冒充 iOS 原生或获得 Apple 私有系统能力 |
 
-五种可切换皮肤（默认模式独立保留）共享完全相同的业务状态、服务、权限、数据库和路由。切换 Skin 不得停止/重启 VPN、内核级代理、DNS、Hosts、Hook、Frida、GKD、证书或脚本服务；不得丢失当前 Tab、滚动位置、编辑草稿和连接状态。
+五种皮肤（默认模式另计）共享完全相同的业务状态、服务、权限、数据库和路由。切换 Skin 不得停止/重启 VPN、内核级代理、DNS、Hosts、Hook、Frida、GKD、证书或脚本服务；不得丢失当前 Tab、滚动位置、编辑草稿和连接状态。
 
 ### B1. 壁纸功能（参考游龙工具 10.0.2）
 
 - 在 设置 → 外观与个性化 → 壁纸 中提供“壁纸随心换”入口；支持上传本地图片、预览、恢复默认、清除自定义壁纸。
 - 原版已核验契约：SharedPreferences `native_wallpaper_prefs` / `wallpaper_path`；复制至应用私有 files；最长边 1920 px；JPEG quality 85；文件名 `native_wallpaper_<timestamp>.jpg`。
 - FX 可增加裁剪、缩放、定位、模糊、遮罩透明度、深浅色适配，但必须标为 FX 扩展，不能伪称原版功能。
-- 壁纸仅改变五种可切换 Skin（默认模式独立保留） 的 UI 背景，不得进入 WebView 远程资源、不上传服务器、不改变网络/安全功能；敏感页面自动保证文字对比度。
+- 壁纸仅改变五种皮肤（默认模式另计） 的 UI 背景，不得进入 WebView 远程资源、不上传服务器、不改变网络/安全功能；敏感页面自动保证文字对比度。
 - URI/文件失效、损坏、权限撤销或升级后应安全回退默认壁纸，失败保存不得覆盖旧壁纸。
 
 ## C. Ad：六类广告过滤能力与游龙广告插件完整功能
@@ -1009,7 +1012,7 @@ Hook 为第五 Tab，采用“已安装应用列表 → 应用详情 → 工具/
 - 主内容：卡片/列表/详情页按业务密度自适应；支持窄屏、大屏、横竖屏、键盘、系统字体缩放和 TalkBack。
 - 底部：六个 Tab 固定且可见；不能被滚动内容覆盖或消失；当前项高亮；图标/文字一致。
 - 全局搜索与通知入口按实际功能设计，不增加第七个业务 Tab。
-- 五种可切换 Skin（默认模式独立保留） 使用同一导航与业务组件契约，只替换 tokens/renderer。
+- 五种皮肤（默认模式另计） 使用同一导航与业务组件契约，只替换 tokens/renderer。
 
 ### VPN 首页
 1. 连接总卡片：状态、当前节点/模式、连接/断开主按钮、实际数据面类型。
