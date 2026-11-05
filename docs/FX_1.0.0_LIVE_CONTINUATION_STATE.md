@@ -5353,3 +5353,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Regression harness refinement: the status cleanup-failure test now corrupts the active interface metadata to force the validation/fail-open branch deterministically before injecting firewall detach failure; it no longer depends on DNS-probe fault propagation.
 
 - Fixture metadata is written with `printf '%s\\n'` arguments so the invalid interface is a real first-line field rather than a literal backslash sequence.
+
+## 2026-11-06 — Disabled Root Proxy ensure propagates cleanup failure
+
+- Baseline HEAD: 87d56337aba65761a514e61c2c6af6034b784b4c.
+- `_ensure_locked()` previously ignored `_stop_locked()` failure when the proxy was disabled and returned success, even if an FX-owned OUTPUT DNS redirect remained attached and its recovery metadata/resolver had intentionally been preserved.
+- Disabled ensure now returns non-zero when firewall cleanup is incomplete. Added a runtime regression that activates the proxy, disables it while injecting an iptables detach failure, verifies marker/resolver preservation, then retries successfully after the fault is removed.
+- No Android device validation is implied.

@@ -309,6 +309,17 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=port53_redirect_active || fail "Private DNS off coverage was not reported"
 
 
+# ensure must not report a disabled proxy as clean while firewall cleanup fails.
+prepare_case ensure-disabled-cleanup-failure
+run_proxy "$CASE_DIR" >/dev/null || fail "disabled ensure case setup failed"
+if run_proxy "$CASE_DIR" MOCK_ENABLED=0 MOCK_FAIL_IPV4_DETACH=1 >/dev/null 2>&1; then
+  fail "ensure reported success while disabled cleanup left an OUTPUT hook attached"
+fi
+grep -Fqx FXYRP4_A "$CASE_DIR/hooks4" || fail "disabled ensure failure removed no IPv4 recovery hook"
+[ -s "$CASE_DIR/state/yulong-root-proxy-active.meta" ] || fail "disabled ensure failure discarded active metadata"
+! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "disabled ensure stopped Unbound while redirect may remain"
+run_proxy "$CASE_DIR" MOCK_ENABLED=0 >/dev/null || fail "disabled ensure cleanup retry failed"
+assert_stopped "$CASE_DIR" "disabled ensure cleanup retry"
 # If iptables refuses to detach an active OUTPUT jump, retain metadata and
 # keep its local DNS target alive; a later stop must be able to retry safely.
 prepare_case cleanup-detach-retry

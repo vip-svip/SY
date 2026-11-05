@@ -376,7 +376,10 @@ _activate_chains() {
 _ensure_locked() {
   _iface="$1"; _uid="$2"
   if ! _is_enabled; then
-    _stop_locked
+    if ! _stop_locked; then
+      _log "disabled by settings, but Root Proxy cleanup is incomplete"
+      return 1
+    fi
     _log "disabled by settings or DNS forwarding off"
     return 0
   fi
