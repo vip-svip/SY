@@ -128,6 +128,7 @@ assert create < render_call < restore < load, \
 general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
 dns = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java").read_text(encoding="utf-8")
 summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
+ad_summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java").read_text(encoding="utf-8")
 dns_required = [
     'private static final String STATE_SEARCH = "fx_dns_search";',
     'private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";',
@@ -160,11 +161,21 @@ assert "if (clearButton != null) clearButton.setEnabled(false);" in dns, \
 
 for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"),
                                 ("DNS log", dns, "ArrayBlockingQueue<>(16)"),
-                                ("daily summary", summary, "ArrayBlockingQueue<>(1)")):
+                                ("Ad protection summary", ad_summary, "ArrayBlockingQueue<>(1)")):
     assert capacity in source, f"{label} worker queue must remain bounded"
     assert "new ThreadPoolExecutor.AbortPolicy()" in source, f"{label} worker must fail closed on queue saturation"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
+
+# The separate Privacy daily summary is local-only; do not require a Root worker.
+assert "SharedPreferences" in summary and "getSharedPreferences" in summary, \
+    "Privacy daily summary must read local persisted counters"
+assert "isServiceRunning(FxYulongProtectionService.class)" in summary, \
+    "Privacy daily summary must report the protection service state"
+assert "isServiceRunning(FxYulongRescueOverlayService.class)" in summary, \
+    "Privacy daily summary must report the rescue overlay state"
+assert "RootAccess" not in summary and "ThreadPoolExecutor" not in summary, \
+    "Privacy daily summary must not add unnecessary privileged background work"
 
 # Summary combines the active module configuration and local retained DNS
 # counters through Root; stale generations must never overwrite a newer refresh.

@@ -5818,3 +5818,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `42098783855`（HEAD `8329a212`）System App Install Stage workflow 在行为测试阶段失败：临时 fixture 创建了 canonical `tmp/scripts/`，但没有创建 `tmp/fx-module/scripts/`；生产 patcher 因模块 scripts 目录不存在而正确跳过同步，后续测试却读取缺失目标文件。
 - 在合成模块 fixture 中创建独立的 `fx-module/scripts/` 目标目录，使 patcher 按生产语义把 canonical installer/remover 复制到模块目录；测试仍核对字节一致性和实际注入 Shell 阶段行为。
 - 不放宽 patcher 对模块 scripts 缺失时的保守跳过行为，也不改变 installer/remover 逻辑。此修正等待新的 System App Install Stage、Host 与 KernelSU package CI。
+
+
+### Ad / 隐私两种“总结”页面测试目标分离（2026-11-06）
+
+- 最新 Host 失败 `42098905295` 的断言为 `daily summary worker queue must remain bounded`。追踪最近协作提交确认：回归脚本将 `summary` 路径改为隐私页 `FxYulongDailySummaryActivity`，但仍沿用 Ad 页原有 Root worker 队列断言。
+- 将测试拆分为 `ad_summary`（`imported/ad/FxYulongAdSummaryActivity`）：验证 1 槽位有界 Root worker、AbortPolicy、拒绝处理及销毁关闭；`summary`（`imported/shield/FxYulongDailySummaryActivity`）：验证本地 SharedPreferences 和实际服务状态，不要求 Root worker。
+- 这样保留两页各自真实数据来源与生命周期要求，不新增无必要线程。当前 HEAD 的 Host/Module Runtime 结果待本提交后重新检查。
