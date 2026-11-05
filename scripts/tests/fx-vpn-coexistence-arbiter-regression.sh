@@ -418,6 +418,16 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "new module helper must be reported as slot-using"
 pass "all top-level module shell helpers are included in the VpnService invariant scan"
 
+echo "== case 8c: dangling module helper symlink cannot be skipped by the source scan =="
+cp -a "$TMP/mod_clean/." "$TMP/mod_symlink/"
+ln -s "$TMP/does-not-exist.sh" "$TMP/mod_symlink/scripts/extra-helper.sh"
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_symlink")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 2 ] || fail "dangling helper symlink must fail closed as unknown, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "unknown" ] || fail "dangling helper symlink was skipped by slot scan: $out"
+[ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "unreadable helper source must not claim slot is free"
+pass "dangling helper symlink is counted and fails closed"
+
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_missing" "$TMP/mod_clean")
