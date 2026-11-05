@@ -204,6 +204,10 @@ jobs:
             run_sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (patch_vpn_coexistence_status|fx-vpn-coexistence-status-regression) ]]; then
+            run_py scripts/tests/fx-vpn-coexistence-status-regression.py
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
             run_sh scripts/tests/fx-native-script-store-regression.sh
             run_sh scripts/tests/fx-native-script-local-run-regression.sh
