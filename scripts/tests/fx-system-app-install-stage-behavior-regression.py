@@ -246,6 +246,68 @@ def main() -> None:
         assert not (state9 / "system-app-apk.sha256").exists(), "symlinked parent must not receive a marker"
         print("  ok: symlinked overlay parent refused")
 
+
+        case("case 10: symlinked state ancestor is rejected without writing outside the state root")
+        module10 = tmp / "c10/module"
+        state_root10 = tmp / "c10/state-root"
+        outside_state10 = tmp / "c10/outside-state"
+        make_payload(module10, "state-parent")
+        state_root10.mkdir(parents=True)
+        outside_state10.mkdir()
+        state_link10 = state_root10 / "redirect"
+        state_link10.symlink_to(outside_state10, target_is_directory=True)
+        state10 = state_link10 / "fx-state"
+        rejected_state = run_stage(stage, tmp, module10, state10)
+        assert rejected_state.returncode != 0, "symlinked state ancestor must fail closed"
+        assert not outside_state10.joinpath("fx-state").exists(), "state path followed a symlinked ancestor"
+        print("  ok: symlinked state ancestor refused")
+
+        case("case 11: pre-planted marker temp symlink cannot redirect installer root write")
+        module11 = tmp / "c11/module"
+        state11 = tmp / "c11/state"
+        make_payload(module11, "marker-temp")
+        state11.mkdir(parents=True)
+        marker_sentinel = tmp / "c11/marker-sentinel"
+        marker_sentinel.write_text("keep-marker\\n", encoding="utf-8")
+        pidfile = tmp / "c11/installer.pid"
+        gate = tmp / "c11/go"
+        wrapper = tmp / "c11/wrapper.sh"
+        wrapper.write_text(
+            'printf "%s\\n" "$" > "$PIDFILE"\\n'
+            'while [ ! -e "$GATE" ]; do sleep 0.01; done\\n'
+            'exec sh "$HARNESS"\\n',
+            encoding="utf-8",
+        )
+        harness = tmp / "c11/harness.sh"
+        harness.write_text(HARNESS, encoding="utf-8")
+        env11 = {
+            "MODPATH": str(module11), "STAGE_LIB": str(stage),
+            "FX_SYSTEM_APP_STATE_DIR": str(state11),
+            "PIDFILE": str(pidfile), "GATE": str(gate),
+            "HARNESS": str(harness),
+            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        }
+        child = subprocess.Popen(["sh", str(wrapper)], env=env11, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            import time
+            for _ in range(300):
+                if pidfile.exists():
+                    break
+                time.sleep(0.01)
+            assert pidfile.exists(), "installer wrapper did not publish PID"
+            marker_tmp = state11 / f"system-app-apk.sha256.tmp.{pidfile.read_text().strip()}"
+            marker_tmp.symlink_to(marker_sentinel)
+            gate.touch()
+            out, err = child.communicate(timeout=5)
+            assert child.returncode != 0, f"pre-planted marker temp symlink must fail closed: {out}{err}"
+            assert marker_sentinel.read_text(encoding="utf-8") == "keep-marker\\n", "marker temp symlink redirected a privileged write"
+            assert not (state11 / "system-app-apk.sha256").exists(), "marker must not be committed after temp collision"
+            print("  ok: pre-planted marker temp symlink refused")
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
     print("PASS: install-stage system-app deployment validates, stages, fails closed and stays idempotent")
 
 
