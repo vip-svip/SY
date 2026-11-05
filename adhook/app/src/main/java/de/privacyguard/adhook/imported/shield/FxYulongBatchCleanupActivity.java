@@ -85,8 +85,8 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(8), dp(12), dp(8));
-        header.addView(button("‹ 返回扫描", this::finish));
-        header.addView(text("批量清理 · 逐项确认", 19, 0xff17212b, true),
+        header.addView(button("‹ 返回隐私", this::finish));
+        header.addView(text("隐私 · 批量清理 · 逐项确认", 19, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
