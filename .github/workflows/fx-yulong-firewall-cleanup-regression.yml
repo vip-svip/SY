@@ -6,6 +6,8 @@ on:
       - fx-v1.0.0-unified-hook-integration
     paths:
       - "fx-module/scripts/yulong-app-firewall.sh"
+      - "scripts/yulong-app-firewall.sh"
+      - "fx-patches/patch_yulong_app_firewall.py"
       - "scripts/tests/fx-yulong-app-firewall-regression.sh"
       - ".github/workflows/fx-yulong-firewall-cleanup-regression.yml"
   workflow_dispatch:
