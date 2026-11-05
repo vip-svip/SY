@@ -110,6 +110,9 @@ object FxGkdSelectorRuntime {
         fastQuery: Boolean = true,
     ): AccessibilityNodeInfo? {
         val options = MatchOptions(fastQuery = fastQuery)
+        if (compiled.selector.isMatchRoot) {
+            return compiled.selector.match(root, ACCESSIBILITY_ADAPTER, options)
+        }
         compiled.selector.match(root, ACCESSIBILITY_ADAPTER, options)?.let { return it }
         return ACCESSIBILITY_ADAPTER.querySelector(root, compiled.selector, options)
     }
@@ -129,6 +132,10 @@ object FxGkdSelectorRuntime {
         val output = ArrayList<AccessibilityNodeInfo>(minOf(safeLimit, 16))
         val seen = HashSet<AccessibilityNodeInfo>()
         val options = MatchOptions(fastQuery = fastQuery)
+        if (compiled.selector.isMatchRoot) {
+            val rootMatch = compiled.selector.match(root, ACCESSIBILITY_ADAPTER, options)
+            return if (rootMatch == null) emptyList() else listOf(rootMatch)
+        }
 
         fun collect(node: AccessibilityNodeInfo?) {
             if (node == null || output.size >= safeLimit || !seen.add(node)) return
