@@ -199,19 +199,35 @@ status_path.chmod(0o755)
 legacy_tun_test = module / "scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh"
 if legacy_tun_test.is_file():
     test_source = legacy_tun_test.read_text(encoding="utf-8")
-    old_needle = '''grep -Fq 'if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -n "$_PG_EXT_VPN_IF" ]; }; then' "$ROOT/scripts/apply.sh" || {'''
-    new_needle = '''grep -Fq 'fx_select_vpn_effective_mode() {' "$ROOT/scripts/apply.sh" &&
+    old_test = '''# TUN mode must fail safe when an external VPN is active or its state is uncertain.
+grep -Fq 'if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -n "$_PG_EXT_VPN_IF" ]; }; then' "$ROOT/scripts/apply.sh" || {
+  echo 'FAIL: TUN external-VPN conflict guard missing' >&2; exit 1;
+}
+'''
+    new_test = '''# TUN mode must select a verified effective dataplane and fail closed otherwise.
+grep -Fq 'fx_select_vpn_effective_mode() {' "$ROOT/scripts/apply.sh" &&
 grep -Fq 'external_android_vpn_tun_to_redirect' "$ROOT/scripts/apply.sh" &&
-grep -Fq 'TUN fallback refused because external VPN state or ownership is not fully verified' "$ROOT/scripts/apply.sh" || {'''
-    if old_needle in test_source:
-        test_source = test_source.replace(old_needle, new_needle, 1)
-        test_source = test_source.replace(
-            "FAIL: TUN external-VPN conflict guard missing",
-            "FAIL: TUN external-VPN effective-mode guard missing",
-            1,
-        )
-    elif new_needle not in test_source:
-        raise SystemExit("legacy TUN regression has an unknown external-VPN guard assertion")
+grep -Fq 'TUN fallback refused because external VPN state or ownership is not fully verified' "$ROOT/scripts/apply.sh" || {
+  echo 'FAIL: TUN external-VPN effective-mode guard missing' >&2; exit 1;
+}
+'''
+    if old_test in test_source:
+        test_source = test_source.replace(old_test, new_test, 1)
+    elif new_test not in test_source:
+        # Release ZIP variants change whitespace around this shell assertion.
+        # Replace the whole grep/|| block by its semantic equivalent instead
+        # of failing on harmless formatting differences.
+        lines = test_source.splitlines()
+        error_line = next((i for i, line in enumerate(lines)
+                           if "FAIL: TUN external-VPN conflict guard missing" in line), None)
+        if error_line is None:
+            raise SystemExit("legacy TUN regression has no identifiable external-VPN guard assertion")
+        start = next((i for i in range(error_line, -1, -1) if "grep -Fq" in lines[i]), None)
+        end = next((i for i in range(error_line, len(lines)) if lines[i].strip() == "}"), None)
+        if start is None or end is None or start > error_line:
+            raise SystemExit("legacy TUN external-VPN assertion boundaries are ambiguous")
+        lines[start:end + 1] = new_test.rstrip().splitlines()
+        test_source = "\\n".join(lines) + "\\n"
     legacy_tun_test.write_text(test_source, encoding="utf-8")
 
 print("Applied guarded TUN-to-REDIRECT coexistence fallback and effective-mode status.")
