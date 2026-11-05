@@ -6279,3 +6279,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - FX Module Runtime Regression run `42104989565`（checkout `4b7c816005273dbc79c45356dcb8aa900ee376c3`）中，Release 模块恢复、VPN/DNS/Root Proxy patch 步骤 SUCCESS；外部 VPN/TUN/DNS/watchdog 回归步骤 SUCCESS；Root Proxy/native VPN 集成回归步骤也 SUCCESS。但 workflow 最终结论是 CANCELLED（被后续 push 中断），故只记录上述步骤通过，不记录为完整 Module Runtime SUCCESS。
 - FX VPN shell regression run `42104989387` 在同一 checkout 上为 SUCCESS；其中 Root Proxy 真实脚本 Host fixture 验证双栈规则、路由/UID 证明、状态路径符号链接保护、独立 DNS ownership 和 fail-open rollback。
 - 验证等级仍不包含 Android Gradle 最终 APK 构建、KernelSU ZIP 生成/安装、真实设备 SELinux enforcement、Android Framework 多 VpnService、第三方 VPN 实机链式路由或运营商 IPv6 兼容性测试。
+
+
+## 2026-11-06 — DNS Root 模块发现测试迁移到共享命令构造器
+
+- 测试修复提交：`6683f4d2b7f2d2cc86b83cec31a254a64edabbb6`、`740ab96913390fc3a6a31538e37131527f398dd1`。
+- `FxYulongDnsActivity` 已通过 `FxYulongRootModuleCommand.command(...)` 统一构造 Root 命令；旧测试仍在 Activity 的 `shell()` 中寻找内联的 `/data/adb/modules` 路径校验，导致在代码正确集中化后误报。
+- 更新 `fx-yulong-dns-cache-regression.sh`：确认 Activity 委托给共享 builder；对 builder 的 `prefix()` 验证 /data、modules、modules_update、module.prop、util.sh、scripts 路径及 symlink 拒绝；对完整 helper 验证 Ad control 脚本 allowlist；DNS 操作参数仍须显式 allowlist。
+- 首次测试修订将动态脚本名误放在 prefix 子串中检查，CI 指出后已修正为在 helper 的 allowlist 中验证。
+- GitHub Actions：`FX Targeted Host Regression` 在 `740ab969` 成功（run `42105645188`，job `127519614084`）；日志确认 `fx-yulong-dns-cache-regression.sh` 实际执行，DNS cache flush 顺序、失败传播、forward-only、锁所有权和共享 Root path/allowlist 静态断言均通过。
+- 该改动只更新测试契约；共享 Root builder 的生产实现由此前 `00b291ce` 集中化提交提供。
