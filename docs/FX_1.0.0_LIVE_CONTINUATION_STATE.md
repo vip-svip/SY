@@ -3848,3 +3848,34 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ### 下一批
 - 继续五 Skin 页面级适配，重点检查表单、列表、弹窗、RadioGroup、编辑器、统计/扫描页面，不只停留在底部导航和通用控件。
 - 继续核对来源功能映射：旧来源名称不得回到用户主导航；功能必须真实归到 Ad/VPN/隐私/脚本/Hook。
+
+
+## 2026-11-05 — 固定 GKD-XA v1.4.8 上游源码并建立融合门禁
+
+### 来源核验
+- 上游仓库：84593320z/GKD-XA。
+- Release：v1.4.8，发布时间 2026-10-31。
+- Annotated tag v1.4.8 解析至 commit：8a6ce935da11671dac7e1a7595416ec99ee07436。
+- 官方 Release APK SHA-256：fb03dea5c206c063deb9f2a2031c7d3ca9e3b014052f9a91916af4e6c689e6fa（本批锁定源码，不以 APK 替代源码）。
+- 许可证：GPL-3.0。必须保留版权/许可证/修改记录和组合分发源代码义务。
+
+### FX GitHub 落地
+- 新增 .gitmodules：vendor/GKD-XA → https://github.com/84593320z/GKD-XA.git。
+- 新增 Git submodule gitlink：vendor/GKD-XA 固定至 8a6ce935da11671dac7e1a7595416ec99ee07436。
+- 新增 docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md：记录上游模块、权限/服务边界、GPL 义务、构建冲突、FX Tab 归属和验收门槛。
+- 新增 scripts/tests/fx-gkd-xa-source-lock-regression.sh：验证 submodule URL、gitlink SHA 和未完成状态声明。
+- 在 .github/workflows/fx-targeted-regression.yml 增加对 .gitmodules、vendor/GKD-XA、融合计划或锁定脚本变更的定向回归。
+
+### 源码审计关键发现
+- GKD-XA 不是一个普通 Accessibility 开关。它包含 gkd-app、gkd-aidl、gkd-db、gkd-hidden-api、gkd-selector 五个模块。
+- gkd-app 自带 Application、MainActivity/AppRoot/ViewModel、Manifest 服务/Receiver/Provider/Tile/Job 和运行时初始化；不能把整个 app 模块当普通 Activity 直接复制进 FX。
+- FX 当前：AGP 9.1.1、Kotlin 2.4.21、Java/JVM 17、compileSdk37/minSdk28。GKD-XA v1.4.8：AGP 9.4.1、Kotlin 2.4.20、Java/JVM 21、compileSdk37/minSdk26。必须先解决 Gradle/JDK 兼容，不能跳过 spike。
+- GKD-XA Accessibility runtime 与 FX 已有 Root/LSPosed/Accessibility 存在多套运行时风险。必须设计单一事件/动作 orchestrator，防止重复点击、重复截图和后台耗电。
+- GKD 主要功能映射：应用规则/选择器/自动化/快照 → Hook；规则脚本/AI 编辑 → 脚本；明确广告跳过规则才进入 Ad；全局偏好/权限/备份 → 设置。
+- 当前 FX 源码没有 GKD-XA runtime 文件，只有 submodule 指针；本次不声称完整功能已经迁入。
+
+### 验证状态
+- 已通过 GitHub 回读确认 .gitmodules、gitlink、实施计划和 source-lock regression 已存在；submodule SHA 精确匹配 v1.4.8。
+- 已将 source-lock regression 接入 targeted Host workflow。
+- 尚未看到本提交对应的最新 Actions 成功结果；尚未做 Gradle 兼容 spike、单 APK 构建、运行时移植、数据库迁移、无障碍合并或真机验证。
+- 下一批应执行 Gradle/Manifest compatibility spike，先确定 JDK/AGP/Kotlin 构建图，再开始迁入 selector/订阅模块。不能把 GKD-XA 的 APK release asset 放进 FX，不能开第二 launcher。
