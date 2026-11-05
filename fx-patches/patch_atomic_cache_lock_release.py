@@ -142,7 +142,19 @@ if "FX_HOSTS_FILE_LOCK_V3" in apply_source:
     if 'rm -f "$_hf_lock/pid"' in apply_source or 'rmdir "$_hf_lock"' in apply_source:
         raise SystemExit(f"{apply_file}: V3 Hosts lock retains legacy PID-first cleanup")
 else:
+    apply_source = apply_file.read_text(encoding="utf-8")
+if old_hf_unlock in apply_source:
     replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
+elif (
+    '_hf_release="$_hf_lock.release.$"' in apply_source
+    and 'mv "$_hf_lock" "$_hf_release"' in apply_source
+    and '_hf_release_owner=$(cat "$_hf_release/pid" 2>/dev/null || :)' in apply_source
+    and 'rm -f "$_hf_lock/pid"' not in apply_source
+    and 'rmdir "$_hf_lock"' not in apply_source
+):
+    print("Hosts cache lock already uses owner-checked atomic directory release.")
+else:
+    raise SystemExit(f"{apply_file}: Hosts lock must release by atomic rename")
     replace_once(
         apply_file,
         '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
