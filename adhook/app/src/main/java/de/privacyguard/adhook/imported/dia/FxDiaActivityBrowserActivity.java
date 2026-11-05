@@ -494,6 +494,8 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                     }
                     result.sort(Comparator.comparing(entry ->
                             entry.info.name == null ? "" : entry.info.name));
+                } catch (PackageManager.NameNotFoundException error) {
+                    failure = "NameNotFoundException: " + safeError(error.getMessage());
                 } catch (RuntimeException error) {
                     failure = error.getClass().getSimpleName() + ": " + safeError(error.getMessage());
                 }
