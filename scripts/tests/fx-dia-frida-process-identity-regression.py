@@ -64,11 +64,11 @@ assert 'base64 -d > ' not in inject, "script source must not be embedded in the 
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
 viewer = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java").read_text(encoding="utf-8")
-gadget_viewer = body("private void showGadgetSessionLog()", "private void copyGadgetConnectCommand()")
-assert "FX_GADGET_LOG_TYPE_REJECTED" in gadget_viewer, "Gadget viewer must reject special/non-regular log targets"
-assert "elif [ ! -f" in gadget_viewer and "[ ! -r" in gadget_viewer, "Gadget viewer must require a readable regular file before tailing"
-assert "[ ! -L " in viewer and "[ -f " in viewer and "[ -s " in viewer, \
-    "session log viewer must refuse symlink and non-regular log targets"
+gadget_route = body("private void showGadgetSessionLog()", "private void copyGadgetConnectCommand()")
+assert "FxDiaSessionLogActivity.class" in gadget_route and "fx_dia_session_log_gadget_port" in gadget_route, \
+    "Gadget log action must route to the native session log viewer with its selected port"
+assert 'if [ -f ' in viewer and '&& [ ! -L ' in viewer and '&& [ -r ' in viewer and '&& [ -s ' in viewer, \
+    "native session log viewer must require a readable, non-empty regular file and reject symlinks"
 assert r'\\\"' not in inject, "Java command builder must emit shell quoting, not literal backslash-quote characters"
 assert r'[ ! -L \"$log\" ]' in inject, "session log symlink guard must keep a syntactically complete test bracket"
 assert "trap '[ -z " in inject and "|| rm -f " in inject and "' EXIT" in inject, \
