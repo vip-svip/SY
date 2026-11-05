@@ -5311,3 +5311,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The pending refresh flag remains available for the per-target LSPosed scope route; duplicate Hook-hub refresh is avoided.
 - Added source-contract regression coverage for the lifecycle branch and all four refresh calls.
 - Static source validation only; Android lifecycle/UI and real permission transitions still require device testing.
+
+
+## 2026-11-06 — Root Proxy reconcile cleans orphaned DNS redirects
+
+- Baseline HEAD: `73b7bb6b84acd629a4cfaf36178e43cda2cd6b8f`.
+- Fixed a crash-recovery gap in `_reconcile_locked()`: when the authoritative active metadata file was missing, reconcile previously returned `active=0` without checking whether FXYRP OUTPUT hooks or companion markers were still present. A crash between NAT activation and metadata publication could therefore leave redirects attached without a validated VPN owner/interface record.
+- Reconcile now detects active/egress markers and any attached FX-owned IPv4/IPv6 OUTPUT hook; if found without metadata it runs the existing fail-open cleanup, which removes only FX-owned chains and preserves independently enabled local DNS engines.
+- Added runtime regression scenarios for lost metadata after activation and orphan hooks without marker files.
+- CI execution is required for the new scenarios; no Android device test is implied.

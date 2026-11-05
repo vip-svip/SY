@@ -664,7 +664,21 @@ _status_locked() {
   echo "active=1"
 }
 _reconcile_locked() {
-  if [ ! -e "$ACTIVE_META" ]; then echo "active=0"; return 0; fi
+  if [ ! -e "$ACTIVE_META" ]; then
+    # A crash can occur after NAT hooks/markers are published but before the
+    # authoritative metadata rename. Never leave those redirects attached
+    # without metadata that proves the owning VPN interface and UID.
+    if [ -e "$ACTIVE" ] || [ -e "$EGRESS ]" \
+        || iptables -t nat -C OUTPUT -j FXYRP4_A >/dev/null 2>&1 \
+        || iptables -t nat -C OUTPUT -j FXYRP4_B >/dev/null 2>&1 \
+        || ip6tables -t nat -C OUTPUT -j FXYRP6_A >/dev/null 2>&1 \
+        || ip6tables -t nat -C OUTPUT -j FXYRP6_B >/dev/null 2>&1; then
+      _log "active metadata missing while FX-owned DNS redirect state remains; fail-open cleanup"
+      _stop_locked
+    fi
+    echo "active=0"
+    return 0
+  fi
   [ -f "$ACTIVE_META" ] && [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata during package event"; return 1; }
   _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
   _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null)

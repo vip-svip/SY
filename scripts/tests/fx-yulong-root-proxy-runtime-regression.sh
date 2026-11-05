@@ -191,6 +191,13 @@ run_status(){
     MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
     "$@" sh "$MOD/scripts/yulong-root-proxy.sh" status
 }
+run_reconcile(){
+  CASE_DIR=$1; shift
+  env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" \
+    MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
+    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
+    "$@" sh "$MOD/scripts/yulong-root-proxy.sh" reconcile
+}
 run_stop(){
   CASE_DIR=$1; shift
   env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" "$@" sh "$MOD/scripts/yulong-root-proxy.sh" stop "$MOD" "$CASE_DIR/state"
@@ -298,6 +305,23 @@ printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=opportunistic_privat
 MOCK_PRIVATE_DNS_MODE=off; export MOCK_PRIVATE_DNS_MODE
 status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=port53_redirect_active || fail "Private DNS off coverage was not reported"
+
+
+# Reconcile must remove redirects if the metadata commit was lost after activation.
+prepare_case reconcile-missing-metadata
+run_proxy "$CASE_DIR" >/dev/null || fail "reconcile metadata case setup failed"
+rm -f "$CASE_DIR/state/yulong-root-proxy-active.meta"
+reconcile_out=$(run_reconcile "$CASE_DIR")
+printf '%s\\n' "$reconcile_out" | grep -Fqx active=0 || fail "missing metadata reconcile did not report inactive"
+assert_stopped "$CASE_DIR" "reconcile missing metadata"
+
+# Even without marker files, attached FX-owned OUTPUT hooks are enough to require cleanup.
+prepare_case reconcile-orphan-hooks
+printf '%s\\n' FXYRP4_A > "$CASE_DIR/hooks4"
+printf '%s\\n' FXYRP6_A > "$CASE_DIR/hooks6"
+reconcile_out=$(run_reconcile "$CASE_DIR")
+printf '%s\\n' "$reconcile_out" | grep -Fqx active=0 || fail "orphan-hook reconcile did not report inactive"
+assert_stopped "$CASE_DIR" "reconcile orphan hooks"
 
 # A failed status proof must actively remove stale FX redirects and state.
 prepare_case status-missing-v4
