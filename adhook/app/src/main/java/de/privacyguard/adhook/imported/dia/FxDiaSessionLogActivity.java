@@ -121,7 +121,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     }
 
     private String checkedDirectoryPrefix() {
-        return "if [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
+        return "if [ -L '/data' ] || [ ! -d '/data' ]"
+                + " || [ -L '/data/adb' ] || [ ! -d '/data/adb' ]"
                 + " || [ -L " + quote(BASE_DIR) + " ] || [ ! -d " + quote(BASE_DIR) + " ]"
                 + " || [ -L " + quote(DIA_DIR) + " ] || [ ! -d " + quote(DIA_DIR) + " ]"
                 + " || [ -L " + quote(LOG_DIR) + " ] || [ ! -d " + quote(LOG_DIR) + " ]; then "

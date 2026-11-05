@@ -5952,3 +5952,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 新增 Release patcher Host 检查中的 quarantine 路径模板补齐第二个 `$`，与生产 patcher 实际生成的 `$$` PID 分量完全一致。
 - 仅更新测试字面量，不改变 subfetch 行为；当前分支中 KernelSU 与 APK 构建工作流均已接入该锁迁移步骤。
+
+
+### Dia Frida 会话日志页补齐 /data 根目录检查（2026-11-06）
+
+- `FxDiaSessionLogActivity` 的刷新与清空共用 `checkedDirectoryPrefix()`，此前已拒绝 `/data/adb`、FX 状态目录、Dia 目录和 logs 目录的符号链接，但未验证最上层 `/data` 是否为真实目录。
+- 现对 `/data` 先检查 `-d` 且非符号链接，再执行已有的下层目录检查；读日志与清空日志都使用同一 fail-closed guard。
+- 更新 Dia monitor/session regression，验证 session guard 包含 `/data` 与 `/data/adb` 拒绝条件。尚未进行设备端路径异常注入测试或 APK 构建。
