@@ -602,3 +602,20 @@ for token in ("Default（独立默认原生模式）", "ClassicWebCompat", "FXLi
     assert token in settings, f"settings mode explanation missing {token}"
 print("PASS: LSPosed live Binder state stays visible when legacy activation hint is disabled; six modes are named accurately.")
 PY
+
+# Top-level Hook tab selection exits nested Hook routes and keeps tab state consistent.
+python3 - "$main_activity" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private void handleNativeTabSelection(int index)")
+end = source.index("private void styleBottomItem", start)
+method = source[start:end]
+assert "if (index == 4)" in method
+hook = method[method.index("if (index == 4)"):method.index("} else if (index >= 0")]
+assert "selectedBottomTab = 4;" in hook
+assert "showAppList();" in hook
+assert "leaves the the" not in hook
+assert "                selectedBottomTab = 4;" not in hook
+print("PASS: top-level Hook tab exits nested routes with consistent selected-tab state.")
+PY

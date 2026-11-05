@@ -3159,9 +3159,9 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 5;
             showSettings();
         } else if (index == 4) {
-            // Selecting the top-level Hook tab leaves the the nested Hook navigation stack.
+            // Selecting the top-level Hook tab leaves any nested Hook route.
             // Hook target routes remain inside the Hook destination.
-                selectedBottomTab = 4;
+            selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
             if (!hookUiVisible && !settingsUiVisible && nativePageContent != null) {

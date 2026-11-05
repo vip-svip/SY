@@ -5294,3 +5294,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Extended `scripts/tests/fx-hook-native-ui-regression.sh` with executable Python source-contract checks proving that the legacy `active_tip` preference controls only the Manager hint, never hides the live Binder status, and that the displayed status retains the injection-state disclaimer.
 - The same regression checks that the settings explanation names independent Default plus all five skins.
 - This is a source-contract regression, not an Android UI/device test. CI must execute it before claiming regression coverage.
+
+
+## 2026-11-06 — Hook top-level tab navigation cleanup
+
+- Baseline HEAD: `cf559eb694698231cc6ba095ec17640103feea2e`.
+- Cleaned the Hook tab branch in `handleNativeTabSelection(4)`: removed duplicated wording and aligned the selected-tab assignment with the branch scope.
+- Added a source-contract regression ensuring the top-level Hook tab sets index 4 and returns to the app list, rather than retaining a nested Hook route.
+- This is static source regression coverage; Android navigation behavior still requires Gradle/UI/device validation.
