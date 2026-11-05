@@ -83,6 +83,7 @@ run_arb() {
   _out=$(
     FX_ARB_LINK_FILE="$TMP/links.txt" \
     FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
+    FX_ARB_SELF_UID=10000 \
     FX_ARB_PROC_NET_DIR="$_net" \
     FX_ARB_MODULE_ROOT="$_mod" \
     sh "$ARB" 2>&1
@@ -252,6 +253,16 @@ for spec in "5353:7890:7890:dns_filter=proxy" "5353:53:5353:dns=proxy" "53:53:53
 done
 pass "all three service-port collision pairs are enumerated"
 
+echo "== case 1f: FX package UID owns active VPN -> incompatible, never third-party =="
+r=$(run_arb "$LINKS_TUN" "tun0|10000" "$TMP/net_free" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 3 ] || fail "FX-owned VpnInfo must return rc=3, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "incompatible" ] || fail "FX-owned VPN must be incompatible"
+[ "$(field "$out" "['vpn_owner']")" = "fx_uid" ] || fail "FX-owned VPN must be identified by package UID"
+[ "$(field "$out" "['active_vpn_if']")" = "tun0" ] || fail "FX-owned active interface was lost"
+[ "$(field "$out" "['external_vpn']")" = "False" ] || fail "FX-owned VPN must not be mislabeled third-party"
+pass "FX package UID occupying Android VPN slot is incompatible"
+
 echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
@@ -262,12 +273,13 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['external_uid']")" = "10123" ] || fail "external_uid mismatch"
 pass "owner UID is observed without overstating data-plane proof"
 
-echo "== case 3: external VPN without owner uid cannot prove chain binding =="
+echo "== case 3: active VPN without owner UID -> unknown, never guess third-party =="
 r=$(run_arb "$LINKS_TUN" "tun0|" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
-[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
-[ "$(field "$out" "['verdict']")" = "partial" ] || fail "missing owner UID must not certify chained routing: $(field "$out" "['verdict']")"
-pass "outer-tunnel binding remains unverified"
+[ "$rc" -eq 2 ] || fail "missing owner UID must return rc=2, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "unknown" ] || fail "missing owner UID must fail closed"
+[ "$(field "$out" "['probe']")" = "ambiguous" ] || fail "missing owner UID must be ambiguous"
+pass "active VPN without owner UID fails closed"
 
 echo "== case 3b: multiple injected VPN ownership rows are ambiguous =="
 r=$(run_arb "$LINKS_TUN" "$(printf '%s\\n' 'tun0|10123' 'tun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
@@ -366,7 +378,17 @@ ConnectivityService:
     VpnInfo{ownerUid=10123 vpnIface=tun0 primaryUnderlyingIface=wlan0}
 DUMP
 EOF
-chmod 0755 "$TMP/fakebin/dumpsys"
+cat > "$TMP/fakebin/am" <<'EOF'
+#!/bin/sh
+[ "$1" = "get-current-user" ] || exit 2
+printf '%s\\n' 0
+EOF
+cat > "$TMP/fakebin/cmd" <<'EOF'
+#!/bin/sh
+[ "$1 $2 $3" = "package list packages" ] || exit 2
+printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+EOF
+chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd"
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
 _out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
   FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
@@ -374,7 +396,22 @@ rc=$?
 [ "$rc" -eq 0 ] || fail "production VpnInfo probe failed: $_out"
 [ "$(field "$_out" "['external_if']")" = "tun0" ] || fail "dumpsys interface not recognized"
 [ "$(field "$_out" "['external_uid']")" = "10123" ] || fail "dumpsys owner UID not recognized"
-pass "production Android VpnInfo probe returns interface and owner UID"
+[ "$(field "$_out" "['vpn_owner']")" = "external" ] || fail "production PackageManager UID comparison failed to identify third-party VPN"
+pass "production Android VpnInfo and PackageManager UID probe identify third-party owner"
+
+echo "== case 5c2: production PackageManager UID match identifies FX-owned VpnService =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+printf '%s\\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10000 vpnIface=tun0}'
+EOF
+printf '%s\\n' "$LINKS_TUN" > "$TMP/links.txt"
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 3 ] || fail "FX-owned production VpnInfo must return rc=3, got $rc: $_out"
+[ "$(field "$_out" "['vpn_owner']")" = "fx_uid" ] || fail "PackageManager UID match did not identify FX-owned VPN"
+[ "$(field "$_out" "['verdict']")" = "incompatible" ] || fail "FX-owned production VpnService must be incompatible"
+pass "production PackageManager UID match detects FX-owned VpnService"
 
 echo "== case 5d: successful dumpsys with no active VPN is a clean empty result =="
 cat > "$TMP/fakebin/dumpsys" <<'EOF'
