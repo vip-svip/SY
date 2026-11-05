@@ -366,20 +366,37 @@ _resolve_vpn_egress() {
   printf '%s\n' "$_link" | grep -Eq '<[^>]*UP[^>]*>' || {
     _log "tunnel interface is not UP: $_if"; return 1;
   }
-  _ip=$(ip -o -4 addr show dev "$_if" scope global 2>/dev/null \
-        | awk '$3=="inet" {sub(/\/.*/,"",$4); print $4; exit}')
-  [ -n "$_ip" ] && _valid_ipv4 "$_ip" || {
-    _log "no valid global IPv4 address on tunnel: $_if"; return 1;
+  # Android VPN interfaces may expose more than one global IPv4 address.
+  # Do not assume the first address is the one selected by policy routing:
+  # test each candidate as an explicit source and publish only one that
+  # consistently resolves every authoritative destination through this TUN.
+  _addresses=$(ip -o -4 addr show dev "$_if" scope global 2>/dev/null \
+        | awk '$3=="inet" {sub(/\/.*/,"",$4); print $4}')
+  [ -n "$_addresses" ] || {
+    _log "no global IPv4 address on tunnel: $_if"; return 1;
   }
-  for _dest in 198.41.0.4 199.9.14.201 192.33.4.12 199.7.91.13 192.5.5.241 192.112.36.4; do
-    _route=$(ip route get "$_dest" from "$_ip" 2>/dev/null) || {
-      _log "route lookup failed through tunnel source $_ip for $_dest"; return 1;
-    }
-    _route_uses_if "$_route" "$_if" "$_ip" || {
-      _log "route for $_dest from $_ip does not use $_if: $_route"; return 1;
-    }
+  for _ip in $_addresses; do
+    _valid_ipv4 "$_ip" || continue
+    _route_ok=1
+    for _dest in 198.41.0.4 199.9.14.201 192.33.4.12 199.7.91.13 192.5.5.241 192.112.36.4; do
+      _route=$(ip route get "$_dest" from "$_ip" 2>/dev/null) || {
+        _log "route lookup failed through tunnel source $_ip for $_dest"
+        _route_ok=0
+        break
+      }
+      if ! _route_uses_if "$_route" "$_if" "$_ip"; then
+        _log "route for $_dest from $_ip does not use $_if: $_route"
+        _route_ok=0
+        break
+      fi
+    done
+    if [ "$_route_ok" = 1 ]; then
+      printf '%s\n' "$_ip"
+      return 0
+    fi
   done
-  printf '%s\n' "$_ip"
+  _log "no global IPv4 source on $_if passed all authoritative route checks"
+  return 1
 }
 _build_chain4() {
   _chain="$1"; _uid="$2"; _whitelist_uids="$3"
