@@ -226,7 +226,7 @@ fx_arb_json() {
   printf '"vpn_service_slot_used":%s,' "$FX_ARB_SLOT_USED"
   printf '"dns":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
     "$FX_ARB_DNS_PORT" "$FX_ARB_DNS_OWNER" "$FX_ARB_PROXY_PORT" "$FX_ARB_PROXY_OWNER"
-  printf '"dataplane":"kernel","reasons":"%s"}\n' "$_san"
+  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
 }
 
 fx_arb_text() {
