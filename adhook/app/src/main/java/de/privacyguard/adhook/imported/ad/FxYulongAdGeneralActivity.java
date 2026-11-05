@@ -246,6 +246,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         card(body, "Tasker / 自动化广播",
                 "兼容原游龙 Tasker 动作名，并提供 FX 广播动作。Receiver 可调用 Root，因此需要验证并保存已安装自动化应用的包名与 APK 签名 SHA-256，再手动开启开关。仅 Android 14+ 可校验真实广播发送方、UID 包映射和固定签名；签名改变后必须重新授权，Android 14 以下直接拒绝执行。最近回执不代表服务当前仍在运行。",
                 taskerSenderPackageInput,
+                button("选择已安装应用", this::chooseTaskerSenderApp),
                 button("验证包名并固定 APK 签名", this::saveTaskerSenderPackage),
                 taskerSecurityStatus,
                 taskerExternalControl,
@@ -338,6 +339,65 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         } catch (PackageManager.NameNotFoundException | SecurityException unavailable) {
             return "";
         }
+    }
+
+    /**
+     * Lists launcher-visible apps without requesting broad package visibility.
+     * Selection only fills the package field; pinning the signer and enabling
+     * Root automation remain two separate, explicit user actions.
+     */
+    private void chooseTaskerSenderApp() {
+        if (taskerSenderPackageInput == null) return;
+        Intent launcher = new Intent(Intent.ACTION_MAIN);
+        launcher.addCategory(Intent.CATEGORY_LAUNCHER);
+        final List<android.content.pm.ResolveInfo> resolved;
+        try {
+            resolved = getPackageManager().queryIntentActivities(
+                    launcher, PackageManager.MATCH_DEFAULT_ONLY);
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "无法读取可见的已安装应用列表；仍可手动输入包名。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        java.util.TreeMap<String, String> choices =
+                new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (android.content.pm.ResolveInfo item : resolved) {
+            if (item == null || item.activityInfo == null) continue;
+            String packageName = item.activityInfo.packageName;
+            if (!FxYulongTaskerCallerPolicy.isValidPackageName(packageName)
+                    || getPackageName().equals(packageName)) continue;
+            CharSequence rawLabel;
+            try {
+                rawLabel = item.loadLabel(getPackageManager());
+            } catch (RuntimeException unavailableLabel) {
+                rawLabel = packageName;
+            }
+            String label = rawLabel == null ? packageName : rawLabel.toString().trim();
+            if (label.isEmpty()) label = packageName;
+            String row = label + " · " + packageName;
+            choices.put(row, packageName);
+        }
+        if (choices.isEmpty()) {
+            Toast.makeText(this,
+                    "没有发现可见且带桌面启动入口的应用；可手动输入完整包名。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] labels = choices.keySet().toArray(new String[0]);
+        String[] packages = choices.values().toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle("选择自动化应用")
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= packages.length
+                            || taskerSenderPackageInput == null) return;
+                    taskerSenderPackageInput.setText(packages[which]);
+                    taskerSenderPackageInput.setSelection(
+                            taskerSenderPackageInput.getText().length());
+                    Toast.makeText(this, "已填入包名；请继续验证并固定 APK 签名。",
+                            Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private boolean isAutomationSenderPinned(String packageName, String expectedDigest) {
