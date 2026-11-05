@@ -5351,3 +5351,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - No production behavior change in this test-only correction.
 
 - Regression harness refinement: the status cleanup-failure test now corrupts the active interface metadata to force the validation/fail-open branch deterministically before injecting firewall detach failure; it no longer depends on DNS-probe fault propagation.
+
+- Fixture metadata is written with `printf '%s\\n'` arguments so the invalid interface is a real first-line field rather than a literal backslash sequence.
