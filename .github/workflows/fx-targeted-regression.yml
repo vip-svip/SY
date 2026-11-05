@@ -76,6 +76,7 @@ jobs:
             changed="ALL"
           fi
           echo "Changed paths:"
+          echo "Changed paths:"
           printf '%s\n' "$changed"
 
           # Catch syntax errors in changed host scripts without invoking a full Android build.
