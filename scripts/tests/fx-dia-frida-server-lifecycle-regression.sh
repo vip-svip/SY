@@ -84,6 +84,8 @@ if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
 cleanup_block = start[start.index("cleanup_start()"):start.index("trap cleanup_start")]
 cleanup_pidfile_tokens = (
+    "kill -TERM ",
+    "! server_pid_live ",
     "[ -f ",
     "[ ! -L ",
     "expected_record=$(printf",
