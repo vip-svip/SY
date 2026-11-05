@@ -220,7 +220,7 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
     }
 
     private void confirmClearBlacklist() {
-        new AlertDialog.Builder(this).setTitle("清空管控名单")
+        fxDialogBuilder().setTitle("清空管控名单")
                 .setMessage("此操作会清空 FX 安全护盾保存的管控名单，不会卸载或修改任何应用。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("确认清空", (d, w) -> {
