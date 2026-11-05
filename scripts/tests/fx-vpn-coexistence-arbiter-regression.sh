@@ -201,7 +201,7 @@ tout=$(FX_ARB_LINK_CMD="cat '$TMP/links.txt'" FX_ARB_VPNINFO_CMD="cat '$TMP/info
        sh "$ARB" --text 2>&1)
 rc=$?
 [ "$rc" -eq 0 ] || fail "--text expected rc=0, got $rc: $tout"
-case "$tout" in *"full_parallel"*) ;; *) fail "--text did not render verdict: $tout" ;; esac
+case "$tout" in *"partial"*) ;; *) fail "--text did not render conservative verdict: $tout" ;; esac
 pass "--text mode consistent"
 
 echo "PASS: coexistence arbiter grades all levels, fails safe, and never mutates network state"
