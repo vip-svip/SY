@@ -48,6 +48,12 @@ class FxNativeSkinPaletteTest {
     }
 
     @Test
+    fun cardDescriptionTypographyUsesDistinctReadableTokens() {
+        assertEquals(13.5f, HarmonySkinTokens.HarmonyTypographyTokens.CARD_DESCRIPTION_SP, 0f)
+        assertEquals(13f, CupertinoSkinTokens.CupertinoTypographyTokens.CARD_DESCRIPTION_SP, 0f)
+    }
+
+    @Test
     fun harmonyAndCupertinoGeometryAndInputsRemainDistinct() {
         val harmony = HarmonySkinRenderer.palette()
         val cupertino = CupertinoSkinRenderer.palette()
