@@ -78,10 +78,23 @@ ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad
 assert 'FxYulongShieldActivity.class' in activity[activity.index("private void buildNativePrivacyPage()"):activity.index("private void refreshNativePrivacyStatus(")]
 assert 'section("安全防护中心")' in activity
 assert 'section("Hook 工具与调试")' in activity
-for feature in ("FxDiaFridaActivity.class", "FxDiaScriptLibraryActivity.class",
-                "FxDiaDexBrowserActivity.class", "FxDiaMonitorEventsActivity.class",
-                "FxDiaBackupActivity.class", "FxDiaGlobalSettingsActivity.class"):
-    assert feature in activity[activity.index("private void showHookHub()"):activity.index("private void refreshHookHubAuthorizationStates()")], f"Hook tab cannot reach {feature}"
+hook_hub = activity[activity.index("private void showHookHub()"):activity.index("private void refreshHookHubAuthorizationStates()")]
+for feature in ("FxDiaFridaActivity.class", "FxDiaDexBrowserActivity.class",
+                "FxDiaMonitorEventsActivity.class", "FxDiaActivityBrowserActivity.class",
+                "FxDiaFileActivity.class", "FxDiaJsonActivity.class",
+                "FxDiaInspectorActivity.class", "FxDiaSignatureActivity.class",
+                "FxDiaCrashReportActivity.class", "FxDiaSystemExpandActivity.class",
+                "FxDiaGlobalSettingsActivity.class"):
+    assert feature in hook_hub, f"Hook tab cannot reach {feature}"
+settings_start = activity.index("private void showSettings()")
+settings_end = activity.index("private String importedSuiteTitle(", settings_start)
+assert 'section("备份与恢复")' in activity[settings_start:settings_end]
+assert 'FxDiaBackupActivity.class' in activity[settings_start:settings_end]
+script_start = activity.index("private void buildNativeScriptPage()")
+script_end = activity.index("private void ", script_start+20)
+assert 'FxDiaScriptLibraryActivity.class' in activity[script_start:script_end]
+assert "FxDiaScriptLibraryActivity.class" not in hook_hub
+assert "FxDiaBackupActivity.class" not in hook_hub
 assert 'text("Ad · 广告过滤控制中心"' in ad_main and 'btn("‹ 返回 Ad"' in ad_main
 assert '游龙广告插件 7.0.1' not in ad_main
 assert 'text("Ad · 通用设置与备份恢复"' in ad_general
