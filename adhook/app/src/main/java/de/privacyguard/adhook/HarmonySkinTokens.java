@@ -25,7 +25,7 @@ final class HarmonySkinTokens {
     }
 
     static final class HarmonyShapeTokens {
-        static final int NAV_BAR_RADIUS_DP = 16;
+        static final int NAV_BAR_RADIUS_DP = 18;
         static final int TAB_RADIUS_DP = 14;
         static final int CARD_RADIUS_DP = 20;
         static final int ACTION_RADIUS_DP = 16;
@@ -41,7 +41,7 @@ final class HarmonySkinTokens {
 
     static final class HarmonySpacingTokens {
         static final int NAV_HEIGHT_DP = 72;
-        static final int NAV_OUTER_HORIZONTAL_DP = 12;
+        static final int NAV_OUTER_HORIZONTAL_DP = 10;
         static final int NAV_OUTER_VERTICAL_DP = 4;
         static final int NAV_INNER_HORIZONTAL_DP = 4;
         static final int NAV_INNER_VERTICAL_DP = 3;
