@@ -53,6 +53,12 @@ assert 'getBoolean(KEY_MASTER_ENABLED, false)' in store
 assert "it.enabled && it.packageName == packageName" in store
 assert "fun isRuleEnabled(context: Context, id: String, packageName: String)" in store, "per-rule package-scoped enable check is missing"
 assert "isInstalledUserApplication(service, eventPackage)" in runtime
+assert "if (raw == cachedRulesRaw) return cachedRules" in store, "GKD event hot path reparses persisted rules on every event"
+assert "cachedRulesRaw = raw" in store and "cachedRules = parsed" in store
+write_rules_start = store.index("private fun writeRules(")
+write_rules = store[write_rules_start:]
+assert "if (committed)" in write_rules
+assert "cachedRules = rules.toList()" in write_rules and "cachedRulesRaw = array.toString()" in write_rules
 assert "MAX_RULES = 128" in store
 assert "MAX_IMPORT_BYTES = 256 * 1024" in store
 assert 'EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"' in store
