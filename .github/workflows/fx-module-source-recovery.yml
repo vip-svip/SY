@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   recover:
@@ -48,10 +48,10 @@ jobs:
             }
           done
           sha256sum "$source_root/scripts/vpn-external-watchdog.sh"
-          cp -a "$source_root/scripts" recovered-fx-module/
-          for file in module.prop customize.sh service.sh post-fs-data.sh uninstall.sh; do
-            [[ ! -f "$source_root/$file" ]] || cp -a "$source_root/$file" recovered-fx-module/
-          done
+          # Recover the entire canonical module tree, including bin/, libs,
+          # optional payloads and legacy scripts; overlay current branch sources
+          # immediately afterwards so no newer reviewed fix is rolled back.
+          cp -a "$source_root/." recovered-fx-module/
           # Merge current branch-owned module overlays over the historical Release baseline.
           if [[ -d fx-module/scripts ]]; then
             cp -a fx-module/scripts/. recovered-fx-module/scripts/
@@ -92,3 +92,35 @@ jobs:
           path: recovered-fx-module/
           if-no-files-found: error
           retention-days: 1
+      - name: Commit recovered module source into the integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/fx-module-recovery
+          for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
+            [[ ! -s "recovered-fx-module/$file" ]] || {
+              install -m 0644 "recovered-fx-module/$file" "docs/fx-module-recovery/$file"
+              rm "recovered-fx-module/$file"
+            }
+          done
+          mkdir -p fx-module
+          cp -a recovered-fx-module/. fx-module/
+          git add fx-module docs/fx-module-recovery
+          if git diff --cached --quiet; then
+            echo "Recovered module source already matches the branch."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin "$GITHUB_REF_NAME"
+            git rebase "origin/$GITHUB_REF_NAME"
+            if git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"; then
+              exit 0
+            fi
+            echo "Concurrent branch update detected; retrying push ($attempt/5)."
+            sleep 2
+          done
+          echo "::error::Unable to publish recovered sources after concurrent updates."
+          exit 1
