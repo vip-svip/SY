@@ -77,6 +77,23 @@ grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$cupertino_rendere
 for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 't.setTag("fx-section:" + s)'; do
   grep -Fq "$role" "$activity" || { echo "FAIL: shared native component role missing: $role"; exit 1; }
 done
+for token in \
+  'HarmonySkinTokens.HarmonyColorTokens.TOP_BAR_BACKGROUND' \
+  'CupertinoSkinTokens.CupertinoColorTokens.TOP_BAR_BACKGROUND' \
+  'HarmonySkinTokens.HarmonyColorTokens.CARD_SURFACE' \
+  'CupertinoSkinTokens.CupertinoColorTokens.CARD_SURFACE' \
+  'HarmonySkinTokens.HarmonyColorTokens.CARD_STROKE' \
+  'CupertinoSkinTokens.CupertinoColorTokens.CARD_STROKE' \
+  'HarmonySkinTokens.HarmonyShapeTokens.SECTION_RADIUS_DP' \
+  'CupertinoSkinTokens.CupertinoShapeTokens.SECTION_RADIUS_DP' \
+  'HarmonySkinTokens.HarmonyTypographyTokens.PAGE_TITLE_SP' \
+  'CupertinoSkinTokens.CupertinoTypographyTokens.PAGE_TITLE_SP' \
+  'HarmonySkinTokens.HarmonySpacingTokens.SECTION_VERTICAL_PADDING_DP' \
+  'CupertinoSkinTokens.CupertinoSpacingTokens.SECTION_VERTICAL_PADDING_DP' \
+  'HarmonySkinTokens.HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP' \
+  'CupertinoSkinTokens.CupertinoSpacingTokens.CARD_HORIZONTAL_PADDING_DP'; do
+  grep -Fq "$token" "$activity" || { echo "FAIL: MainActivity does not apply shared native layout token $token"; exit 1; }
+done
 for role in 'role.startsWith("fx-title:")' 'role.startsWith("fx-section:")' '"fx-card".equals(role)' '"fx-action-row".equals(role)'; do
   grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony component role renderer missing: $role"; exit 1; }
   grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino component role renderer missing: $role"; exit 1; }
