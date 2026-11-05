@@ -198,27 +198,6 @@ public final class HookConfigParserHostTest {
             throw new AssertionError("legacy parser did not preserve large target sets or privacy isolation");
         }
         StringBuilder developerRules = new StringBuilder(
-                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
-                        + "com.example.vpn,dev_hook_enabled=1");
-        for (int i = 1; i <= 96; i++) {
-            developerRules.append(",dev_rule_").append(i).append("=rule").append(i)
-                    .append("|com.example.vpn.Rule").append(i)
-                    .append("#isEnabled()Z|OBSERVE|").append(i);
-        }
-        developerRules.append('\\n');
-        UnifiedHookConfigParser.Result parsedRules =
-                UnifiedHookConfigParser.parse(developerRules.toString());
-        if (parsedRules.targets.get("com.example.vpn").developerRules.size() != 96) {
-            throw new AssertionError("parser capped Developer Hook rules below 96");
-        }
-        String serializedRules = UnifiedHookConfigSerializer.serialize(false, false, parsedRules.targets);
-        if (!serializedRules.contains("dev_rule_b64_96=")
-                || UnifiedHookConfigParser.parse(serializedRules)
-                        .targets.get("com.example.vpn").developerRules.size() != 96) {
-            throw new AssertionError("serializer/parser failed the 96-rule round trip");
-        }
-        System.out.println("PASS: Developer Hook parser and serializer round-trip 96 rules for one target");
-        StringBuilder developerRules = new StringBuilder(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
                         + "com.example.owned,dev_hook_enabled=1");
         for (int i = 1; i <= 96; i++) {
