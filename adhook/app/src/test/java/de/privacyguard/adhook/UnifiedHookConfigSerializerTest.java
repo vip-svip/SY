@@ -287,12 +287,20 @@ public class UnifiedHookConfigSerializerTest {
                 + "[list:targets]\ncom.example.app,ads_splash=1,ads_splash=0\n");
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void parserRejectsConfigOver64KiB() {
-        StringBuilder oversized = new StringBuilder("schema_version=1\nads_enabled=1\n"
-                + "privacy_enabled=0\n[list:targets]\n");
-        while (oversized.length() <= 65536) oversized.append("#padding\n");
-        UnifiedHookConfigParser.parse(oversized.toString());
+    @Test
+    public void parserAcceptsConfigOver64KiB() {
+        StringBuilder large = new StringBuilder("schema_version=1\nads_enabled=1\nprivacy_enabled=0\n");
+        while (large.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65536) {
+            large.append("#padding\n");
+        }
+        large.append("[list:targets]\ncom.example.large,ads_splash=1\n");
+        String config = large.toString();
+        assertTrue(config.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536);
+
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config);
+        assertTrue(parsed.isAdsEnabledFor("com.example.large"));
+        String serialized = UnifiedHookConfigSerializer.serialize(true, false, parsed.targets);
+        assertTrue(UnifiedHookConfigParser.parse(serialized).isAdsEnabledFor("com.example.large"));
     }
 
     @Test
