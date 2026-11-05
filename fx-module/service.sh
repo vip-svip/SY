@@ -15,8 +15,45 @@ if [ ! -f "$MODDIR/module.prop" ]; then
 fi
 PG_MODDIR=$MODDIR
 # <<< pg-moddir
+# >>> fx-service-state-dir-guard
+pg_path_components_are_safe() {
+  _pg_path=$1
+  case "$_pg_path" in /*) : ;; *) return 1 ;; esac
+  case "$_pg_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
+  _pg_rest=${_pg_path#/}
+  _pg_current=
+  while [ -n "$_pg_rest" ]; do
+    case "$_pg_rest" in
+      */*) _pg_part=${_pg_rest%%/*}; _pg_rest=${_pg_rest#*/} ;;
+      *) _pg_part=$_pg_rest; _pg_rest= ;;
+    esac
+    case "$_pg_part" in ''|.|..) return 1 ;; esac
+    _pg_current="$_pg_current/$_pg_part"
+    [ ! -L "$_pg_current" ] || return 1
+  done
+  return 0
+}
+pg_ensure_state_dir() {
+  _pg_state_dir=$1
+  pg_path_components_are_safe "$_pg_state_dir" || return 1
+  _pg_parent=${_pg_state_dir%/*}
+  [ -n "$_pg_parent" ] || _pg_parent=/
+  [ -d "$_pg_parent" ] && [ ! -L "$_pg_parent" ] || return 1
+  if [ -e "$_pg_state_dir" ]; then
+    [ -d "$_pg_state_dir" ] && [ ! -L "$_pg_state_dir" ] || return 1
+  else
+    (umask 077; mkdir "$_pg_state_dir") || return 1
+  fi
+  pg_path_components_are_safe "$_pg_state_dir" &&
+    [ -d "$_pg_state_dir" ] && [ ! -L "$_pg_state_dir" ]
+}
+# <<< fx-service-state-dir-guard
+
 PG=/data/adb/privacyguard
-mkdir -p "$PG" 2>/dev/null
+if ! pg_ensure_state_dir "$PG"; then
+  echo "FX boot service: refusing unsafe or unavailable private state directory" >&2
+  exit 1
+fi
 
 # ZIP extraction can preserve an overly restrictive mode on the bundled ARM64 QuickJS.
 # Repair it before any later runtime task is started; failure is logged and does not
