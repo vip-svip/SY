@@ -940,6 +940,7 @@ public final class MainActivity extends ComponentActivity {
         card.setPadding(dp(14), dp(10), dp(14), dp(10));
         card.setBackground(uiPanelDrawable());
         TextView title = new TextView(this);
+        title.setTag("fx-card-title");
         title.setText(heading);
         title.setTextSize(15);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
