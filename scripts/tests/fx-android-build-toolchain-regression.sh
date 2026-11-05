@@ -35,6 +35,8 @@ assert "$SDK_ROOT/build-tools/36.0.0/aapt" in workflow
 assert "gradle-version: '9.3.1'" in package_workflow, "KernelSU package workflow must use Gradle 9.3.1 for AGP 9.1.1"
 assert '"platforms;android-37" "build-tools;36.0.0"' in package_workflow, "KernelSU package workflow must install Android API 37 and Build Tools 36"
 assert 'APKSIGNER="$SDK_ROOT/build-tools/36.0.0/apksigner"' in package_workflow, "APK signing verification must use installed Build Tools 36"
+assert "gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleRelease" in package_workflow, \
+    "final package must assemble the release variant rather than shipping the debug smoke APK"
 assert "gradle-version: '9.3.1'" in workflow
 assert "packages: platform-tools platforms;android-37.0 build-tools;36.0.0" in workflow
 assert "gradle --no-daemon -Pandroid.useAndroidX=true -p adhook :app:testDebugUnitTest :app:assembleDebug" in workflow
