@@ -6348,3 +6348,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 在 `FxUiModeTest` 增加精确映射断言：default→NATIVE_DEFAULT、classic→WEB_COMPAT、glass→NATIVE_LIQUID、miuix→NATIVE_MIUIX、huawei→NATIVE_HARMONY、ios→NATIVE_CUPERTINO。原有六个 renderer 必须互不相同、稳定 ID 顺序、名称及旧别名迁移断言均保留。
 - GitHub 回读：测试文件已确认包含新测试；本轮未运行 Gradle/JUnit。该提交关联的 workflow run 查询为空，故 CI 未确认。
 - 这属于枚举配置契约测试，不证明六个 renderer 的每个页面都已完整实现或 UI 真机视觉一致。后续需补跨页面导航/功能入口覆盖，并运行 `./gradlew :app:testDebugUnitTest :app:assembleDebug` 与 release 构建；当前 Android Gradle/SDK/依赖解析环境尚未在本轮执行。
+
+
+## 2026-11-06 — VPN kernel-only 状态措辞收紧
+
+- 实现提交：`a4bb63dd37d433e1b1d92c07956eace2d03af0b7`。
+- 回归提交：`7c5fc05797ad199d58c35c74eeb2f27cd2c08008`。
+- 修正：无外部 VPN 时，不再把“内核数据面未占 Android VPN 槽”表述成“数据面正在运行”；现在明确说明数据面配置在 VPN 槽之外，但实时流量路径仍未验证。
+- 回归覆盖：断言 `kernel_only` 的 `route_probe` 必须是 `unverified`，且理由必须披露实时流量路径未验证。
+- 回读：实现文件与回归文件均已重新读取；新增断言已确认存在。
+- CI：目标 Host Regression 工作流配置了该分支 push 触发，且 `scripts/tests/**` 属于触发路径；当前 GitHub 工具不能查询 push runs，故 CI 结果未确认。
+- 本轮未执行本地 shell 回归、Gradle、Android 构建或真机流量测试。
+- 并发协作：状态文件与回归文件均遇到并发 409；均重新读取最新 blob 后再提交/恢复，未强制覆盖其他 AI 的修改。
