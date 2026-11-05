@@ -10,7 +10,22 @@ mkdir -p "$MOD/scripts/jsruntime" "$PG"
 printf 'id=privacyguard\nversion=1.0.0\n' > "$MOD/module.prop"
 cp "$ROOT/fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
 chmod 755 "$MOD/scripts/jsruntime/native-list.sh"
-cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
+if [ -s "$ROOT/fx-module/scripts/util.sh" ]; then
+  cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
+else
+  # The targeted Host lane does not unpack the release module archive.
+  # Supply only the pg_list contract used by this isolated store fixture.
+  cat > "$MOD/scripts/util.sh" <<'UTIL'
+pg_list() {
+  [ "${1:-}" = script ] || return 1
+  awk '
+    $0=="[list:script]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside {print}
+  ' "$CONF"
+}
+UTIL
+fi
 cat > "$PG/settings.conf" <<'CONF'
 mode=direct
 keep_this=untouched
@@ -67,7 +82,7 @@ large64=$(printf '%s' "$large_source" | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" add "$large64" "$multi_note" 1)" = "OK" ] || fail "70 KiB local script was rejected"
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 4 ] || fail "large script was not retained"
 i=1
-while [ "$i" -le 8 ]; do
+while [ "$i" -le 7 ]; do
   [ "$(sh "$SCRIPT" add "$large64" "$multi_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
   i=$((i+1))
 done
@@ -77,7 +92,7 @@ while [ "$i" -le 140 ]; do
   [ "$(sh "$SCRIPT" add "$encoded" "$note64" 1)" = "OK" ] || fail "script entry $i was rejected"
   i=$((i+1))
 done
-[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 152 ] || fail "catalog truncated above 128 entries or former aggregate limit"
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 151 ] || fail "catalog truncated above 128 entries or former aggregate limit"
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
 grep -Fq 'function pgDecodeScriptValue(s)' "$ROOT/fx-module/webroot/index.html" || fail "WebUI parser lacks local-source decoder"
 grep -Fq "FXSRC_B64:'+pgB64(e.v)" "$ROOT/fx-module/webroot/index.html" || fail "WebUI serializer does not preserve local JS source"

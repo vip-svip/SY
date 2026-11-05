@@ -9,7 +9,22 @@ mkdir -p "$MOD/scripts/jsruntime" "$PG"
 printf 'id=privacyguard\nversion=1.0.0\n' > "$MOD/module.prop"
 cp "$ROOT/fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
 cp "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh"
-cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
+if [ -s "$ROOT/fx-module/scripts/util.sh" ]; then
+  cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
+else
+  # The targeted Host lane does not unpack the release module archive.
+  # Supply only the pg_list contract used by this isolated store fixture.
+  cat > "$MOD/scripts/util.sh" <<'UTIL'
+pg_list() {
+  [ "${1:-}" = script ] || return 1
+  awk '
+    $0=="[list:script]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside {print}
+  ' "$CONF"
+}
+UTIL
+fi
 chmod 755 "$MOD/scripts/jsruntime/"*.sh
 cat > "$MOD/scripts/jsruntime/runner.sh" <<'RUNNER'
 #!/bin/sh
