@@ -4237,3 +4237,30 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 对 Dialog/按键逐项核对目标配置、发布和 Hook runtime，补齐缺失的真实调用链与可观测状态。
 2. 继续五 Skin × 六 Tab 页面级组件适配，优先 Harmony/Cupertino 的 List/Form/Switch/Dialog/Sheet/编辑器，而非只改导航色值。
 3. 推进 Ad 五层过滤真实链路和 VPN Root 数据面与第三方 VPN 共存；安全回滚、防 DNS/IPv6/WebRTC 泄漏优先。
+
+## 2026-11-05 — 统一导航、五 Skin 页面 Tokens 与 GKD 本地规则传输续接
+
+### 本批真实源码与 UI 改动
+- 主导航继续固定为 VPN / Ad / 隐私 / 脚本 / Hook / 设置；第二 Tab 只显示 Ad，Hosts 仍是 Ad 内部功能页。Settings 保持全局外观、壁纸、备份、权限、许可和运行诊断，不恢复“迁移应用”来源 Hub。
+- MainActivity.showDiaDialogTarget() 修正为 selectedBottomTab = 4，标题使用“Hook · Dialog 处理”，返回入口为“返回 Hook 应用列表”；避免从 Hook 工具进入 Dialog 目标配置后错误高亮隐私。Toast 与通知配置仍从隐私页进入并保持 index=2。
+- fx-dia-native-tab-regression.sh 已补充检查 Hook Hub 的 Dialog/按键入口、隐私页的 Toast/通知入口、目标页路由与实际 Tab 归属。对应 MainActivity commit：f46b57b2356496ee2f479a4ce1dd69508b31a5f6；回归脚本 commit：e1734620ce23ba5d1659ed0da3424f7d60de8498。
+- Harmony / Cupertino tokens 继续扩展至页面背景、分组、卡片和列表行；共享 renderer 继续区分 Harmony/Cupertino 的表面、边框、字号、间距与圆角。相关提交：964466323a5ae830f88e7035eeaaf1ff0052d01b、d19f94bad82f33539aec434244fa785a076ccf84、0c803a4593a868bab6b822fa88bcb8dacafe1026、c89e33d8971339aa4f5e0b0e21545a2daa8c86ec、18ee23bf3a445921edc4aaf4dcb98d175c6740cc。
+- addNativeActionGroup() 已用于 Ad 本地 Hosts/订阅/广告功能、隐私状态、脚本操作、VPN 节点订阅操作和 Settings 系统级卡片分组；动作回调保持原样。相关提交：92d6a13d4c76bcede6fef71e1aadda432f73faeb、ddf55b2745fcddf3c203945a008829bd7e35cb8a、bfe13a3f01216e08ef80390abe9e2552dc0ebb73、035506d9e247d3773b370c514810b88a16d5d430、e58246adf378d3dc29a9013c14e64623b8286f07、ad2c8539973b14f370bc7f8694d8a210cbf0d1b7。
+- 唯一正式跨 AI 提示词去除了已废止的重复 Master Prompt 路径，明确自身是唯一执行入口：b0c231e63959dd8f8f54ddfb1afed639b60967b8。产品方案和两份 UI 执行档继续以统一六 Tab/来源功能归并为准。
+
+### GKD 本地 JSON 规则传输
+- FxGkdRuleStore.kt 提供 FX 自有格式 FX-GKD-LOCAL-RULES / schema v1，文件 256 KiB、规则 128 条上限；导入只 merge，不覆盖原规则，目标包必须是仍安装的普通用户应用，selector 必须通过编译校验，package+selector 去重，所有新导入规则强制 disabled。
+- FxGkdAutomationActivity.java 已接入 ACTION_OPEN_DOCUMENT / ACTION_CREATE_DOCUMENT 的 JSON 导入导出；导入按流式字节计数限额，成功后刷新规则、失效运行时缓存并重新配置单一 FX AccessibilityService。
+- fx-gkd-automation-regression.sh 新增 UI 文件选择器、版本/大小/目标应用/selector/去重/导入默认关闭/不自动开启总开关等安全契约检查。Store、Activity 与回归提交历史已在 GKD 专项章节记录。
+- 修复该回归中把布尔断言误放进字符串 token tuple 的测试脚本问题：6d2ebd3650f1dd296884f2f6420ffec28e038fe6。该测试修复之后的 GKD Selector Compatibility run 41985350088 在本次记录时仍为 in_progress；不得提前标记 GKD workflow 通过。
+
+### CI、验证和限制
+- Host Regression run 41985280861（HEAD ad2c8539973b14f370bc7f8694d8a210cbf0d1b7）成功，验证其当时受影响的主导航、五 Skin 和 Settings/操作分组静态契约。较早 Host run 41985075861（HEAD ddf55b2745fcddf3c203945a008829bd7e35cb8a）成功，覆盖 Ad/隐私/脚本分组和当时路由检查。
+- Dialog 目标页修正与新增的 Dialog/Toast 归属断言之后的 Host run 41985225377 被后续 push concurrency cancel；当前不能声称该新断言已在 CI 通过。新 GKD regression fix 的 workflow 正在执行；以完成后的 job 结果为准。
+- 41985350065 Host run 因并发提交被取消，不计为通过。Canceled 与 queued 都不计为 PASS。
+- 未执行 Android Gradle 主应用全量 assemble、APK 安装、五 Skin × 六 Tab UI 自动化/截图或真机验收。源码和 Host 静态回归不能代表视觉/设备验收。
+
+### 下一批直接实施
+1. 完成当前 GKD Selector Compatibility job，若有失败只修对应具体根因；随后为 GKD JSON codec 补充可执行的 Android 单元测试/纯 Kotlin codec 测试，不只依赖 grep。
+2. 继续 Harmony / Cupertino 在 Ad 与隐私页的表单行、列表控件、Dialog/Sheet 的真实 renderer 覆盖，维持业务回调与状态语义。
+3. 对 Hook/Privacy 的目标页 Tab、标题、返回路径做一次定向 UI 回归；确认 Dialog Hook=Hook、Toast/通知=隐私，不恢复来源应用目录。
