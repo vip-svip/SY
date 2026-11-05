@@ -79,7 +79,8 @@ POST_FS_OVERLAY_REQUIRED = (
     '[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || retry',
     '[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || retry',
     '[ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry',
-    'set -C; printf',
+    'mktemp "$RETRY_MARKER.tmp.XXXXXX"',
+    'mktemp "$DEPLOYMENT_MARKER.tmp.XXXXXX"',
     '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]',
 )
 
@@ -107,10 +108,16 @@ fx_system_app_mark_retry() {
   mkdir -p "$fx_system_app_state_dir" 2>/dev/null || return 0
   [ -d "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_state_dir" ] || return 0
   [ ! -L "$fx_system_app_retry" ] || return 0
-  _fx_retry_tmp="$fx_system_app_retry.tmp.$$"
-  [ ! -e "$_fx_retry_tmp" ] && [ ! -L "$_fx_retry_tmp" ] || return 0
-  ( umask 077; set -C; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_fx_retry_tmp" ) 2>/dev/null &&
-    mv -f "$_fx_retry_tmp" "$fx_system_app_retry" 2>/dev/null || rm -f "$_fx_retry_tmp" 2>/dev/null || :
+  _fx_retry_tmp=$(mktemp "$fx_system_app_retry.tmp.XXXXXX" 2>/dev/null) || return 0
+  [ -f "$_fx_retry_tmp" ] && [ ! -L "$_fx_retry_tmp" ] && fx_system_app_path_is_safe "$_fx_retry_tmp" || {
+    [ -f "$_fx_retry_tmp" ] && [ ! -L "$_fx_retry_tmp" ] && rm -f "$_fx_retry_tmp" 2>/dev/null || :
+    return 0
+  }
+  if ! ( umask 077; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_fx_retry_tmp" ) 2>/dev/null ||
+     ! chmod 0600 "$_fx_retry_tmp" 2>/dev/null ||
+     ! mv -f "$_fx_retry_tmp" "$fx_system_app_retry" 2>/dev/null; then
+    [ -f "$_fx_retry_tmp" ] && [ ! -L "$_fx_retry_tmp" ] && rm -f "$_fx_retry_tmp" 2>/dev/null || :
+  fi
 }
 
 fx_system_app_digest() {
@@ -220,12 +227,15 @@ fx_system_app_stage() {
       fx_system_app_note "ERROR: cannot create $_fx_overlay_dir"
       return 1
     }
-    _fx_tmp="$_fx_overlay_dir/.FX.apk.fxstage.$"
-    _fx_sum_tmp="$_fx_overlay_sum.tmp.$"
-    if ! fx_system_app_path_is_safe "$_fx_tmp" || ! fx_system_app_path_is_safe "$_fx_sum_tmp" ||
-       [ -e "$_fx_tmp" ] || [ -L "$_fx_tmp" ] || [ -e "$_fx_sum_tmp" ] || [ -L "$_fx_sum_tmp" ]; then
-      ui_print "  [!] 系统应用临时路径已存在或不安全，拒绝部署"
-      fx_system_app_note "ERROR: unsafe or pre-existing overlay staging path"
+    _fx_tmp=$(mktemp "$_fx_overlay_dir/.FX.apk.fxstage.XXXXXX" 2>/dev/null) || _fx_tmp=''
+    _fx_sum_tmp=$(mktemp "$_fx_overlay_sum.tmp.XXXXXX" 2>/dev/null) || _fx_sum_tmp=''
+    if [ -z "$_fx_tmp" ] || [ -z "$_fx_sum_tmp" ] ||
+       ! fx_system_app_path_is_safe "$_fx_tmp" || ! fx_system_app_path_is_safe "$_fx_sum_tmp" ||
+       [ ! -f "$_fx_tmp" ] || [ -L "$_fx_tmp" ] || [ ! -f "$_fx_sum_tmp" ] || [ -L "$_fx_sum_tmp" ]; then
+      [ -f "$_fx_tmp" ] && [ ! -L "$_fx_tmp" ] && rm -f "$_fx_tmp" 2>/dev/null || :
+      [ -f "$_fx_sum_tmp" ] && [ ! -L "$_fx_sum_tmp" ] && rm -f "$_fx_sum_tmp" 2>/dev/null || :
+      ui_print "  [!] 系统应用临时路径创建失败或不安全，拒绝部署"
+      fx_system_app_note "ERROR: unsafe or unavailable overlay staging temporary file"
       return 1
     fi
     if ! cp "$_fx_fallback" "$_fx_tmp" 2>/dev/null; then
@@ -234,7 +244,7 @@ fx_system_app_stage() {
       fx_system_app_note "ERROR: cannot stage overlay payload"
       return 1
     fi
-    ( umask 022; set -C; printf '%s  FX.apk\n' "$_fx_fallback_digest" > "$_fx_sum_tmp" ) 2>/dev/null || {
+    ( umask 022; printf '%s  FX.apk\n' "$_fx_fallback_digest" > "$_fx_sum_tmp" ) 2>/dev/null || {
       rm -f "$_fx_tmp" "$_fx_sum_tmp" 2>/dev/null
       ui_print "  [!] 写入覆盖层校验清单失败"
       fx_system_app_note "ERROR: cannot write overlay checksum sidecar"
@@ -284,10 +294,11 @@ fx_system_app_stage() {
   fi
 
   # 记录部署摘要：独占创建临时文件，避免预置 symlink 劫持 root 写入。
-  _fx_marker_tmp="$fx_system_app_marker.tmp.$$"
-  if ! fx_system_app_path_is_safe "$_fx_marker_tmp" ||
-     [ -e "$_fx_marker_tmp" ] || [ -L "$_fx_marker_tmp" ] ||
-          ! ( umask 077; set -C; printf '%s\n' "$_fx_actual" > "$_fx_marker_tmp" ) 2>/dev/null ||
+  _fx_marker_tmp=$(mktemp "$fx_system_app_marker.tmp.XXXXXX" 2>/dev/null) || _fx_marker_tmp=''
+  if [ -z "$_fx_marker_tmp" ] ||
+     ! fx_system_app_path_is_safe "$_fx_marker_tmp" ||
+     [ ! -f "$_fx_marker_tmp" ] || [ -L "$_fx_marker_tmp" ] ||
+     ! ( umask 077; printf '%s\n' "$_fx_actual" > "$_fx_marker_tmp" ) 2>/dev/null ||
      ! chmod 0600 "$_fx_marker_tmp" 2>/dev/null ||
      ! mv -f "$_fx_marker_tmp" "$fx_system_app_marker" 2>/dev/null; then
     [ -f "$_fx_marker_tmp" ] && [ ! -L "$_fx_marker_tmp" ] && rm -f "$_fx_marker_tmp" 2>/dev/null || :
