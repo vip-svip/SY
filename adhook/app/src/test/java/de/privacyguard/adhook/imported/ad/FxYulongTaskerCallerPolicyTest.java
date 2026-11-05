@@ -70,6 +70,31 @@ public final class FxYulongTaskerCallerPolicyTest {
         assertTrue(FxYulongTaskerCallerPolicy.isValidPackageName("com._vendor.automation2"));
     }
 
+    @Test public void signerDigestRejectsDuplicateAndOversizedSignerSets() {
+        assertEquals("", FxYulongTaskerCallerPolicy.signerDigest(
+                new byte[][]{{1, 2, 3}, {1, 2, 3}}));
+        byte[][] oversized = new byte[9][];
+        for (int index = 0; index < oversized.length; index++) {
+            oversized[index] = new byte[]{(byte) (index + 1)};
+        }
+        assertEquals("", FxYulongTaskerCallerPolicy.signerDigest(oversized));
+    }
+
+    @Test public void authorizationRejectsNonCanonicalSignerSets() {
+        String ascending = SIGNER_A + "," + SIGNER_B;
+        String descending = SIGNER_B + "," + SIGNER_A;
+        String duplicate = SIGNER_A + "," + SIGNER_A;
+        assertTrue(FxYulongTaskerCallerPolicy.isAuthorized(
+                34, AUTOMATION, 10234, AUTOMATION,
+                new String[]{AUTOMATION}, ascending, ascending));
+        assertFalse(FxYulongTaskerCallerPolicy.isAuthorized(
+                34, AUTOMATION, 10234, AUTOMATION,
+                new String[]{AUTOMATION}, descending, descending));
+        assertFalse(FxYulongTaskerCallerPolicy.isAuthorized(
+                34, AUTOMATION, 10234, AUTOMATION,
+                new String[]{AUTOMATION}, duplicate, duplicate));
+    }
+
     @Test public void signerDigestIsStableAcrossSignerOrdering() {
         String first = FxYulongTaskerCallerPolicy.signerDigest(
                 new byte[][]{{1, 2, 3}, {4, 5, 6}});
