@@ -271,11 +271,10 @@ jobs:
 
 
           if [[ "$changed" == "ALL" || "$changed" =~ (native-privacy-settings\.sh|patch_native_privacy_settings|fx-native-privacy-settings-regression) ]]; then
-            if [[ -s fx-module/webroot/index.html && -s fx-module/scripts/default.conf ]]; then
-              run_sh scripts/tests/fx-native-privacy-settings-regression.sh
-            else
-              echo "SKIP: native privacy writer runtime checks require the restored FX module archive; APK build regression runs them after Release staging."
-            fi
+            # The regression always runs its source-only authorization checks;
+            # it self-skips only the module-backed runtime tier when the Release
+            # archive has not yet been restored into this Host checkout.
+            run_sh scripts/tests/fx-native-privacy-settings-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
