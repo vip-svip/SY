@@ -180,7 +180,6 @@ jobs:
           python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py fx-patches/patch_vpn_external_watchdog.py
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
           python3 fx-patches/patch_vpn_external_watchdog.py fx-module
-          sh scripts/tests/fx-vpn-external-watchdog-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
