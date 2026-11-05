@@ -7136,7 +7136,7 @@ public final class MainActivity extends ComponentActivity {
         input.setMinLines(8);
         // Bound the untrusted pasted document before it is copied into SharedPreferences on each edit.
         input.setFilters(new android.text.InputFilter[]{
-                new android.text.InputFilter.LengthFilter(16384)
+                new android.text.InputFilter.LengthFilter(65536)
         });
         input.setHint("Paste FX portable rule-group JSON with format, sourcePackage and rules fields.");
         input.setText(getPreferences(0).getString(importDraftKey, ""));
