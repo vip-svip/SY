@@ -256,6 +256,28 @@ grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "IPv4 OUTPUT jump was not installed"
 grep -qx 'FXYUL_B' "$MOCK_HOOKS6" || fail "IPv6 OUTPUT jump was not installed"
 [ "$(stat -c %a "$ACTIVE")" = 600 ] || fail "active marker is not private"
 
+# Shared Android UIDs cannot be isolated by package name. Distinct saved rules
+# for two packages sharing one UID merge into the effective UID policy.
+cp "$CONF" "$TMP/shared-uid-before.conf"
+printf 'package:com.example.blocked uid:10123\npackage:com.example.shared uid:10123\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
+before_shared_lines=$(wc -l < "$MOCK_LOG")
+run rule com.example.blocked 10123 1 1 0 0 22:00 06:00 > "$TMP/shared-wifi.out"
+run rule com.example.shared 10123 1 0 1 0 22:00 06:00 > "$TMP/shared-mobile.out"
+run list > "$TMP/shared-uid.list"
+grep -Fq 'com.example.blocked|10123|1|1|0|0|22:00|06:00' "$TMP/shared-uid.list" || fail "shared UID Wi-Fi member rule was not preserved"
+grep -Fq 'com.example.shared|10123|1|0|1|0|22:00|06:00' "$TMP/shared-uid.list" || fail "shared UID mobile member rule was not preserved"
+shared_log="$TMP/shared-uid-apply.log"
+tail -n +$((before_shared_lines + 1)) "$MOCK_LOG" > "$shared_log"
+grep -Fq -- '-o wlan+ -m owner --uid-owner 10123 -j REJECT' "$shared_log" || fail "shared UID Wi-Fi policy from first package was not applied"
+grep -Fq -- '-o rmnet+ -m owner --uid-owner 10123 -j REJECT' "$shared_log" || fail "shared UID mobile policy from second package was not merged"
+grep -Fq -- 'ip6tables -t filter -A FXYUL_' "$shared_log" || fail "shared UID IPv6 chain was not rebuilt"
+# Restore the original one-package state before the remaining lifecycle tests.
+cp "$TMP/shared-uid-before.conf" "$CONF"
+chmod 600 "$CONF"
+printf 'package:com.example.blocked uid:10123\npackage:com.example.allowed uid:10124\n' > "$PACKAGE_LIST"
+run apply > "$TMP/shared-uid-restore.out" || fail "original firewall policy could not be restored after shared UID regression"
+grep -Fq 'firewall=1' "$TMP/shared-uid-restore.out" || fail "restored single-package firewall was not reactivated"
+
 # Removing the last selected app is a valid empty policy. It must commit the
 # config mutation and remove both active IPv4/IPv6 chains instead of rolling
 # back to a still-blocking policy.

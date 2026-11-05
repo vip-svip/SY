@@ -5684,3 +5684,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 安装器状态与临时文件创建使用 `umask 077`；APK 暂存文件后续仍显式设置 PackageManager 安装所需权限，所有 ownership marker 保持 0600。
 - 扩展 `adhook-app-installer-regression.sh`：分别用 symlink state root、symlink parent、symlink temp root 和 symlink log file 作为攻击夹具，验证安装被拒绝且所有链接目标 sentinel 保持不变。
 - 该提交待最新 Host/Module Runtime 回归；未进行 Android 设备上 Root 安装、SELinux、PackageManager 或更新/卸载验证。
+
+
+## 2026-11-06 — 游龙防火墙共享 UID 规则并集说明与双栈回归
+
+- 复核 `scripts/yulong-app-firewall.sh`：内核通过 `owner --uid-owner` 匹配流量；配置仍按包保存，但每个共享 UID 成员当前生效的限制分别生成同 UID 的过滤规则，运行时效果是 Wi-Fi / 移动数据拦截条件的并集，无法按包隔离。
+- 更新 `FxYulongFirewallActivity` 的行内说明和确认对话框，明确“任一共享成员当前生效的 Wi-Fi / 移动数据限制都会影响全部共享应用”，不再仅笼统表述为所有应用同时受影响。
+- `fx-yulong-app-firewall-regression.sh` 新增共享 UID 双包场景：一个包只拦 Wi-Fi，另一个包只拦移动数据；验证两个独立配置均保留，且 IPv4/IPv6 规则都按同一 UID 同时生成两类拦截，然后恢复原测试配置继续执行生命周期回归。
+- `fx-yulong-firewall-activity-regression.sh` 增加 UI 文案契约检查。此次仅验证 Host 源码和 mock iptables 行为，不代表 Android 真机包 UID/网络栈验收。

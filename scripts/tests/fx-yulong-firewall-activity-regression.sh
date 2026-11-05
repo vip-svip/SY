@@ -20,6 +20,8 @@ require("FxYulongFirewallAppFilterPolicy.countUidMembers(uid, installedUidSnapsh
 require("private String uidScopeSummary(int uid)", "shared UID effect is not disclosed in the app row")
 require("private void confirmSharedUidScope(", "shared UID changes require explicit confirmation")
 require("继续（影响全部共享应用）", "shared UID confirmation must state the full impact")
+require("最终阻断按全部成员当前生效规则合并", "shared UID list must disclose that active member policies are unioned")
+require("任一成员生效的 Wi-Fi / 移动数据限制都会作用于全部共享应用", "shared UID row must explain aggregate network effects")
 require("此防火墙使用 Android owner UID 匹配，无法只限制其中一个包", "the UI must not claim package isolation for a shared UID")
 require("confirmSharedUidScope(pkg, info.uid, persist, revert)", "the quick rule switch must confirm shared UID scope")
 require("showRuleDialogInternal(packageName, uid)", "the detailed rule form must only open after the shared UID warning")

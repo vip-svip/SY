@@ -215,7 +215,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         if (count <= 1) return "";
         List<String> members = uidPackages.get(uid);
         if (members == null || members.isEmpty()) {
-            return "共享 UID：" + count + " 个应用共用此 UID；网络规则会同时作用于全部共享应用。";
+            return "共享 UID：" + count + " 个应用共用此 UID；最终阻断按全部成员当前生效规则合并：任一成员生效的 Wi-Fi / 移动数据限制都会作用于全部共享应用。";
         }
         StringBuilder names = new StringBuilder();
         int shown = 0;
@@ -226,8 +226,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             shown++;
         }
         if (members.size() > shown) names.append(" 等 ").append(members.size()).append(" 个应用");
-        return "共享 UID（" + count + " 个应用）：规则将同时作用于 " + names
-                + "；Android owner UID 匹配无法只限制其中一个应用。";
+        return "共享 UID（" + count + " 个应用）：" + names
+                + "；最终阻断按全部成员当前生效规则合并，任一成员生效的 Wi-Fi / 移动数据限制都会作用于全部共享应用；Android owner UID 无法只限制其中一个包。";
     }
 
     private void confirmSharedUidScope(String packageName, int uid,
@@ -254,7 +254,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         String selected = labels.getOrDefault(packageName, packageName);
         String message = "所选应用：" + selected + "\nUID：" + uid
                 + "\n检测到 " + count + " 个应用共用此 UID：\n" + names
-                + "\n\n此防火墙使用 Android owner UID 匹配，无法只限制其中一个包。继续后，本规则会同时影响全部共享 UID 应用。";
+                + "\n\n此防火墙使用 Android owner UID 匹配，无法只限制其中一个包。继续后，本规则会同时影响全部共享 UID 应用；最终阻断按所有共享成员当前生效规则合并，任一成员生效的 Wi-Fi / 移动数据限制都会作用于全部共享应用。";
         AlertDialog dialog = fxDialogBuilder().setTitle("共享 UID 网络规则")
                 .setMessage(message)
                 .setCancelable(false)
