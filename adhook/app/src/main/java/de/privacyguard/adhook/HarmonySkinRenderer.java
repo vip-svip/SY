@@ -141,6 +141,31 @@ final class HarmonySkinRenderer {
             subtitle.setLetterSpacing(0.005f);
             return;
         }
+        if (("fx-risk-certain".equals(role) || "fx-risk-suspect".equals(role))
+                && view instanceof ViewGroup) {
+            boolean certain = "fx-risk-certain".equals(role);
+            ViewGroup risk = (ViewGroup) view;
+            risk.setBackground(rounded(
+                    certain ? HarmonyColorTokens.RISK_CERTAIN_SURFACE : HarmonyColorTokens.RISK_SUSPECT_SURFACE,
+                    certain ? HarmonyColorTokens.RISK_CERTAIN_STROKE : HarmonyColorTokens.RISK_SUSPECT_STROKE,
+                    HarmonyShapeTokens.CARD_RADIUS_DP, density));
+            risk.setPadding(dp(HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP, density));
+            return;
+        }
+        if (("fx-risk-title-certain".equals(role) || "fx-risk-title-suspect".equals(role))
+                && view instanceof TextView) {
+            TextView title = (TextView) view;
+            title.setTextColor("fx-risk-title-certain".equals(role)
+                    ? HarmonyColorTokens.RISK_CERTAIN_TEXT : HarmonyColorTokens.RISK_SUSPECT_TEXT);
+            title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.CARD_TITLE_SP);
+            title.setLetterSpacing(0.005f);
+            return;
+        }
         if (("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(HarmonyColorTokens.CARD_SURFACE,
