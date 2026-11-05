@@ -21,6 +21,12 @@ public final class FxKotlinHookSignatureHostTest {
                 "Lcom/example/app/Auth;->load(Ljava/util/List;)Ljava/util/Map;");
         expect("com.example.app.Auth.isReady.overload('kotlin.String') -> kotlin.Boolean",
                 "Lcom/example/app/Auth;->isReady(Ljava/lang/String;)Z");
+        expect("com.example.app.Auth#copy(kotlin.BooleanArray): kotlin.BooleanArray",
+                "Lcom/example/app/Auth;->copy([Z)[Z");
+        expect("com.example.app.Auth#items(kotlin.collections.MutableList): kotlin.collections.Set",
+                "Lcom/example/app/Auth;->items(Ljava/util/List;)Ljava/util/Set;");
+        expect("com.example.app.Auth#echo(kotlin.Any): kotlin.Any",
+                "Lcom/example/app/Auth;->echo(Ljava/lang/Object;)Ljava/lang/Object;");
         reject("com.example.app.Auth#finish(kotlin.Unit): kotlin.Boolean");
         reject("com.example.app.Auth#load(kotlin.collections.List<kotlin.String>): kotlin.Any");
         System.out.println("PASS: Kotlin source and Frida signatures resolve to exact erased JVM descriptors");
