@@ -48,8 +48,8 @@ grep -Fq '[ ! -L "$STATE_DIR" ] || exit 0' "$POST_FS_DATA" || fail "post-fs-data
 grep -Fq '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]' "$POST_FS_DATA" || fail "post-fs-data log writer does not reject a symlinked log directory"
 ! grep -Eq 'pm grant|privapp-permissions' "$POST_FS_DATA" || fail "unprivileged system app must not receive fabricated privileged grants"
 grep -Fq 'pm list packages -s "$1"' "$INSTALLER" || fail "installer does not verify PackageManager system classification"
-grep -Fq '_stage_dir="$TMP_DIR/.fx-unified-hook-$.d"' "$INSTALLER" || fail "installer still uses a predictable shared APK staging file"
-grep -Fq 'umask 077; mkdir "$_stage_dir"' "$INSTALLER" || fail "Hook staging directory is not created exclusively with a private umask"
+grep -Fq '_stage_dir=$(mktemp -d "$TMP_DIR/.fx-unified-hook.XXXXXX" 2>/dev/null)' "$INSTALLER" || fail "installer does not atomically create a private randomized APK staging directory"
+grep -Fq 'umask 077' "$INSTALLER" || fail "Hook staging directory is not created under a private umask"
 grep -Fq 'chmod 0700 "$_stage_dir"' "$INSTALLER" || fail "Hook staging directory is not private"
 grep -Fq 'cleanup_stage()' "$INSTALLER" || fail "private Hook staging directory has no bounded cleanup"
 # The KSU lane restores an older Release ZIP. It must stage the reviewed installer
