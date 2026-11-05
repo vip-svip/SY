@@ -78,6 +78,16 @@ jobs:
           echo "Changed paths:"
           printf '%s\n' "$changed"
 
+          # Mirror canonical installer/remover scripts before module-local regressions.
+          if [[ "$changed" == "ALL" ]] || grep -Eq '^fx-module/scripts/' <<<"$changed"; then
+            install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+            install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+            install -D -m 0755 scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+            cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+            cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+            cmp -s scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          fi
+
           # Catch syntax errors in changed host scripts without invoking a full Android build.
           while IFS= read -r file; do
             [[ -f "$file" ]] || continue
@@ -271,11 +281,10 @@ jobs:
 
 
           if [[ "$changed" == "ALL" || "$changed" =~ (native-privacy-settings\.sh|patch_native_privacy_settings|fx-native-privacy-settings-regression) ]]; then
-            if [[ -s fx-module/webroot/index.html && -s fx-module/scripts/default.conf ]]; then
-              run_sh scripts/tests/fx-native-privacy-settings-regression.sh
-            else
-              echo "SKIP: native privacy writer runtime checks require the restored FX module archive; APK build regression runs them after Release staging."
-            fi
+            # The regression always runs its source-only authorization checks;
+            # it self-skips only the module-backed runtime tier when the Release
+            # archive has not yet been restored into this Host checkout.
+            run_sh scripts/tests/fx-native-privacy-settings-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
@@ -286,6 +295,10 @@ jobs:
 
           if [[ "$changed" == "ALL" || "$changed" =~ (patch_hosts_file_lock|fx-hosts-cache-lock-regression) ]]; then
             run_sh scripts/tests/fx-hosts-cache-lock-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (build-fx-kernelsu|build-unbound-android-arm64|fx-unbound-package-staging-regression) ]]; then
+            run_sh scripts/tests/fx-unbound-package-staging-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_localdns_uninstall_shutdown|patch_yulong_root_proxy|patch_vpn_tun_external_fallback|patch_vpn_external_watchdog) ]]; then
