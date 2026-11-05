@@ -88,6 +88,7 @@ public final class RootAccess {
                 joinQuietly(drain, 1500L);
                 return new Result(124, "Root 输入命令超时；已请求终止并回收 su 进程。", false);
             }
+            try { process.getOutputStream().close(); } catch (Exception ignored) { }
             joinQuietly(writer, 1500L);
             joinQuietly(drain, 2000L);
             if (drain.isAlive()) {

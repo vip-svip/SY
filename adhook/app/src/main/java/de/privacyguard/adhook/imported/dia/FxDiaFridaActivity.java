@@ -201,28 +201,33 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     }
     private void runRootWithInput(String command, byte[] input, long timeout,
                                    java.util.function.Consumer<RootAccess.Result> done) {
-        submitWorker(() -> {
-            final RootAccess.Result result;
-            try {
-                result = RootAccess.executeWithInput(command, input, timeout, 256 * 1024);
-            } catch (RuntimeException error) {
-                java.util.Arrays.fill(input, (byte) 0);
-                runOnUiThread(() -> {
-                    if (!isFinishing() && !isDestroyed()) setStatus("Root 流式脚本传输异常："
-                            + error.getClass().getSimpleName());
-                });
-                return;
-            }
-            java.util.Arrays.fill(input, (byte) 0);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (result == null) {
-                    setStatus("Root 流式传输未返回结果；本次操作未标记为成功。");
+        try {
+            worker.execute(() -> {
+                final RootAccess.Result result;
+                try {
+                    result = RootAccess.executeWithInput(command, input, timeout, 256 * 1024);
+                } catch (RuntimeException error) {
+                    java.util.Arrays.fill(input, (byte) 0);
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && !isDestroyed()) setStatus("Root 流式脚本传输异常："
+                                + error.getClass().getSimpleName());
+                    });
                     return;
                 }
-                done.accept(result);
+                java.util.Arrays.fill(input, (byte) 0);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (result == null) {
+                        setStatus("Root 流式传输未返回结果；本次操作未标记为成功。");
+                        return;
+                    }
+                    done.accept(result);
+                });
             });
-        });
+        } catch (RejectedExecutionException full) {
+            java.util.Arrays.fill(input, (byte) 0);
+            if (status != null) setStatus("后台任务队列繁忙；源码未传输，请稍后重试。");
+        }
     }
 
     private void setStatus(String value) {
