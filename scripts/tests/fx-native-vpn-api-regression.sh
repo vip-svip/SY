@@ -2,6 +2,18 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 HTML="${1:-$ROOT/fx-module/webroot/index.html}"
+# The targeted Host lane has no canonical WebUI because the large, signed Release
+# asset is restored only in build-fx-adhook.yml. Keep the default Host invocation
+# explicit about that limitation; the package lane passes an explicit path and
+# must fail closed if staging did not restore the real HTML.
+if [ ! -s "$HTML" ]; then
+  if [ "$#" -eq 0 ]; then
+    echo "SKIP: canonical FX WebUI is not staged in the lightweight Host lane; build-fx-adhook.yml restores the Release APK and runs this check with an explicit HTML path."
+    exit 0
+  fi
+  fail(){ echo "FAIL: $*" >&2; exit 1; }
+  fail "canonical FX WebUI is missing at explicitly supplied path: $HTML"
+fi
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 # The targeted Host workflow intentionally does not unpack the published
