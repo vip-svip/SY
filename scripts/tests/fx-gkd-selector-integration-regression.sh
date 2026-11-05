@@ -5,6 +5,7 @@ module="$root/adhook/fx-gkd-selector/build.gradle"
 engine="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt"
 unit="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt"
 store="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt"
+activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java"
 automation="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt"
 snapshot="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt"
 service="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java"
@@ -13,7 +14,7 @@ settings="$root/adhook/settings.gradle"
 root_build="$root/adhook/build.gradle"
 readme="$root/adhook/fx-gkd-selector/README.md"
 plan="$root/docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md"
-for file in "$module" "$engine" "$unit" "$store" "$automation" "$snapshot" "$service" "$app_build" "$settings" "$root_build" "$readme" "$plan"; do
+for file in "$module" "$engine" "$unit" "$store" "$activity" "$automation" "$snapshot" "$service" "$app_build" "$settings" "$root_build" "$readme" "$plan"; do
   test -s "$file" || { echo "FAIL: missing GKD single-runtime integration file: $file"; exit 1; }
 done
 
@@ -36,6 +37,7 @@ grep -Fq "selector.validateType(typeModel)" "$engine"
 grep -Fq "querySelectorAll(root, selector" "$engine"
 grep -Fq "matches.take(maximum)" "$engine"
 ! grep -Fq "MAX_RULES" "$store" || { echo "FAIL: GKD local rule storage has an arbitrary count ceiling"; exit 1; }
+! grep -Fq "规则数量可能已达上限" "$activity" || { echo "FAIL: GKD UI still reports the removed rule-count ceiling"; exit 1; }
 grep -Fq "for (index in 0 until array.length())" "$store" || { echo "FAIL: GKD rule parser truncates imported rules"; exit 1; }
 grep -Fq "getBoolean(KEY_MASTER_ENABLED, false)" "$store"
 grep -Fq "FxGkdSelectorEngine.compile(expression)" "$store"
