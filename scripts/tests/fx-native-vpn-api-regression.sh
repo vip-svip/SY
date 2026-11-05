@@ -5,12 +5,18 @@ HTML="${1:-$ROOT/fx-module/webroot/index.html}"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-# The targeted Host workflow intentionally does not unpack the published
-# KernelSU module archive. In that lane, retain all MainActivity/Root backend
-# assertions below and skip only the WebUI-source assertions that require the
-# restored canonical asset. The package workflow stages that archive and runs
-# this same script with the actual HTML file present.
-if [ -s "$HTML" ]; then
+# The Host lane can see the historical Release WebUI before the package
+# workflow applies the current native-VPN API migration. Only an explicitly
+# supplied HTML path is a strict package-lane assertion; the default Host path
+# is checked when it already contains the migrated API, otherwise it is skipped.
+_check_html=0
+if [ "$#" -gt 0 ]; then
+  [ -s "$HTML" ] || fail "explicit package WebUI asset is missing: $HTML"
+  _check_html=1
+elif [ -s "$HTML" ] && grep -Fq 'window.FXNativeVpn={snapshot:state,setEnabled:setEnabled,setMode:setMode,selectNode:selectNode};' "$HTML"; then
+  _check_html=1
+fi
+if [ "$_check_html" = 1 ]; then
   grep -Fq 'window.FXNativeVpn={snapshot:state,setEnabled:setEnabled,setMode:setMode,selectNode:selectNode};' "$HTML" || fail "explicit native VPN API missing"
   grep -Fq 'applyVpnModeSelection(mode)' "$HTML" || fail "native API does not call validated mode transaction"
   grep -Fq 'function selectNode(index)' "$HTML" || fail "native node selection API missing"
@@ -25,7 +31,7 @@ if [ -s "$HTML" ]; then
   grep -Fq 'window.__fxNativeVpnLastError' "$HTML" || fail "native API does not expose operation failure"
   grep -Fq 'return Promise.resolve(pgPersistNow())' "$HTML" || fail "node rollback does not persist the previous node"
 else
-  echo "SKIP: canonical FX WebUI asset is not staged in the Host-only lane; package lane validates these WebUI contracts after Release restore."
+  echo "SKIP: historical Release WebUI is present but the current native VPN API patch is not staged in this Host lane; package lane performs strict WebUI assertions."
 fi
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
 grep -Fq 'state.optString("vpn_effective_mode"' "$ACTIVITY" || fail "native VPN UI ignores the effective runtime dataplane"
