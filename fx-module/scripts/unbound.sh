@@ -141,18 +141,18 @@ _owned_pid() {
   case "$_cmd" in *"$BIN"*"$CFG"*) printf '%s\n' "$_p"; return 0 ;; *) return 1 ;; esac
 }
 _vpn_egress_config() {
-  # Root Proxy publishes this marker only after proving that the selected
-  # third-party VPN tunnel owns the route to multiple authoritative DNS IPs.
-  # Bind Unbound's recursive sockets to that tunnel address so the kernel
-  # cannot silently send root/TLD queries over the device's ordinary network.
+  # Root Proxy currently proves an IPv4 source/route only. Disable IPv6
+  # upstream sockets in this mode so recursive AAAA lookups cannot escape
+  # over an unrelated system IPv6 default route. DNS AAAA records remain
+  # available because the resolver can return them over IPv4 transport.
   _safe_file_or_absent "$EGRESS" || {
     _log "unsafe VPN egress marker; refusing an unbound config without a proven route"
     return 1
   }
   [ -f "$EGRESS" ] || return 0
-  _vpn_ip=$(tr -d '\\r\\n' < "$EGRESS" 2>/dev/null) || return 1
+  _vpn_ip=$(tr -d '\r\n' < "$EGRESS" 2>/dev/null) || return 1
   [ -n "$_vpn_ip" ] || { _log "empty VPN egress marker"; return 1; }
-  printf '%s\\n' "$_vpn_ip" | awk -F. '
+  printf '%s\n' "$_vpn_ip" | awk -F. '
     NF != 4 {ok=0; exit}
     {
       ok=1
@@ -166,7 +166,7 @@ _vpn_egress_config() {
     }
     END {exit(ok ? 0 : 1)}
   ' || { _log "invalid VPN egress marker; refusing unbound startup"; return 1; }
-  printf '  outgoing-interface: %s\\n' "$_vpn_ip"
+  printf '  do-ip6: no\n  outgoing-interface: %s\n' "$_vpn_ip"
 }
 _render_config() {
   _egress_config=$(_vpn_egress_config) || return 1
@@ -184,7 +184,6 @@ server:
 $_egress_config  port: 5353
   access-control: 127.0.0.0/8 allow
   do-ip4: yes
-  do-ip6: yes
   do-udp: yes
   do-tcp: yes
   root-hints: "$ROOT_HINTS"
