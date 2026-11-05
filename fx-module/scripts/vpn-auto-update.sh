@@ -59,7 +59,7 @@ fi
 [ $((_now - _prev)) -lt $((_interval * 3600)) ] && exit 0
 if sh "$MODDIR/scripts/apply.sh" vpn-sub; then
   _tmp=$(mktemp "$PG/.vpn-sub-last.XXXXXX" 2>/dev/null) || _tmp=
-  if [ -n "$_tmp" ] && printf '%s\\n' "$_now" > "$_tmp" 2>/dev/null \\
+  if [ -n "$_tmp" ] && printf '%s\n' "$_now" > "$_tmp" 2>/dev/null \
       && chmod 600 "$_tmp" 2>/dev/null && mv -f "$_tmp" "$_stamp" 2>/dev/null; then
     echo "vpn-auto-update: subscription transaction succeeded; success stamp advanced"
   else
