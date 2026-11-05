@@ -78,8 +78,17 @@ for _state_path in "$PG" "$CONF" "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$LOCK" "$LO
 done
 [ -f "$CONF" ] || { echo "Root Proxy settings.conf missing or unsafe" >&2; exit 21; }
 [ ! -e "$LOCK" ] || [ -f "$LOCK" ] || [ -d "$LOCK" ] || { echo "Root Proxy lock path is not a regular file or legacy lock directory" >&2; exit 22; }
+for _state_file in "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$LOG"; do
+  [ ! -e "$_state_file" ] || [ -f "$_state_file" ] || {
+    echo "Root Proxy refuses a non-regular state file: $_state_file" >&2
+    exit 22
+  }
+done
 
-_log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
+_log() {
+  [ ! -e "$LOG" ] || [ -f "$LOG" ] || return 0
+  printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :
+}
 _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
 _valid_if() {
   # Linux IFNAMSIZ includes the trailing NUL, so an interface name is at
