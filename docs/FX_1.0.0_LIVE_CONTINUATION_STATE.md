@@ -6716,3 +6716,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 在服务入口拒绝 ACTIVE、ACTIVE_META、EGRESS 和 LOG 被 FIFO、设备节点、目录等非普通文件占用；原有符号链接路径拒绝继续保留。避免后续状态读取/写入或日志追加意外阻塞、触碰特殊文件。
 - 日志函数每次追加前也检查目标不存在或为普通文件；LOCK 仍兼容已有普通 PID 文件和历史锁目录，不改变既有锁迁移逻辑。
 - 已回读 GitHub 源码，确认四个状态文件入口保护和日志追加保护存在。未按本轮要求执行静态检查、回归、构建或真机测试。
+
+## 2026-11-06 — Unbound 递归 DNS 外部 VPN 出口绑定移植
+
+- 代码提交：`64e4f4bba604dd709c78011161adb51e89f0fdd2`。
+- 改动路径：`fx-module/scripts/unbound.sh`。
+- 新增对 `/data/adb/privacyguard/unbound-vpn-egress-ip` 的消费：当游龙 Root Proxy 已验证第三方 VPN 隧道接口、源 IPv4 和到多个根 DNS 地址的路由后，Unbound 配置生成器读取该标记并写入 `outgoing-interface`，让递归查询 socket 绑定到该隧道源地址。
+- 未发布出口标记时不增加绑定，保留本地 DNS 独立运行；标记存在但为符号链接、特殊文件、空值或非法/非单播 IPv4 时拒绝生成配置，避免把无效 VPN 状态降级成普通网络递归。
+- Unbound 状态目录准备阶段将 VPN 出口标记纳入安全文件路径检查。
+- 该移植补上 Root Proxy 已验证 VPN 出口与 Unbound 实际递归 socket 之间的配置连接；不代表所有 Android ROM、VPN 隧道和 IPv6 出口均已真机验证。
+- 按用户当前要求，本批未运行静态检查、Shell 检查、构建、回归或真机测试。
