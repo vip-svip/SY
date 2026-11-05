@@ -27,5 +27,5 @@ jobs:
       - name: Validate permission request Java source and regression contract
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/tests/fx-stellar-permission-request-regression.sh
+          sh -n scripts/tests/fx-stellar-permission-request-regression.sh
           sh scripts/tests/fx-stellar-permission-request-regression.sh
