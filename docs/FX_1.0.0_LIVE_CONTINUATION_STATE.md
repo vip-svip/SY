@@ -5344,3 +5344,8 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Follow-up: the disabled/not-active early status branches also now propagate cleanup failure; all status fail-open paths consistently return the cleanup result.
 
 - Test-fixture correction: the status cleanup-failure scenario now also forces the DNS health proof to fail, ensuring status actually enters its fail-open cleanup path before the firewall detach fault is asserted.
+
+## 2026-11-06 — Correct status cleanup failure test precondition
+
+- The first status-path regression attempt injected firewall delete failure but left the health state healthy, so status correctly did not enter cleanup. Corrected the fixture to inject both a DNS health failure and the firewall detach failure.
+- No production behavior change in this test-only correction.
