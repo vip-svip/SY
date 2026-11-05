@@ -104,6 +104,10 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: missing {label}: {needle}")
+if "new String(output.toByteArray(), StandardCharsets.UTF_8)" in source[source.index("private String readTransientFridaScriptDraft()"):source.index("private void deleteTransientFridaScriptDraft()")]:
+    raise SystemExit("FAIL: large Frida draft restore duplicates the entire byte payload in memory")
+if "new java.io.InputStreamReader(" not in source[source.index("private String readTransientFridaScriptDraft()"):source.index("private void deleteTransientFridaScriptDraft()")]:
+    raise SystemExit("FAIL: large Frida draft restore is not incrementally decoded")
 
 store_required = {
     "stable JSON schema": 'public static final String SCHEMA = "FX-DIA-FRIDA-SCRIPTS-1"',
