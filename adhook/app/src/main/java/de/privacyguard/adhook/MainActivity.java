@@ -3004,7 +3004,9 @@ public final class MainActivity extends ComponentActivity {
                             : liveOn ? "status.sh 确认：代理正在运行"
                             : "已保存代理模式，但后端尚未确认运行";
                     if ("external_android_vpn_tun_to_redirect".equals(fallbackReason)) {
-                        live = "外层 Android VPN 共存：TUN 已安全回退到 FX Root REDIRECT；不申请第二个 VpnService";
+                        live = "redirect".equals(effectiveMode) && liveOn
+                                ? "外层 Android VPN 共存：TUN 已安全回退到 FX Root REDIRECT 并确认运行；不申请第二个 VpnService"
+                                : "外层 Android VPN 共存：已选择 FX Root REDIRECT 回退，但后端尚未确认运行；不申请第二个 VpnService";
                     }
                     String node = state.optString("vpn_node", "");
                     nativeVpnState.setText("模式：" + modeLabel + " · 实际：" + effectiveModeLabel + " · " + live
