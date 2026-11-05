@@ -60,6 +60,8 @@ fx_coexist_status_write() {
     _fx_cs_route_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"route_probe":"\([a-z_]*\)".*/\1/p')
   fi
 
+  _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
+
   # 本地保守兜底：绝不把未知说成并行。
   _fx_cs_source="local"
   if [ -n "$_fx_cs_verdict" ]; then
