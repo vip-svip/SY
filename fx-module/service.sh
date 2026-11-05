@@ -78,10 +78,17 @@ while [ "$(getprop sys.boot_completed)" != "1" ] && [ "$i" -lt 60 ]; do
 done
 [ "$(getprop sys.boot_completed)" != "1" ] && echo "[$(date '+%m-%d %H:%M:%S')] boot: sys.boot_completed timeout (120s); applying config anyway" >> "$PG/boot.log"
 
-# Hook APK install is isolated from DNS/VPN startup.
-if [ -f "$MODDIR/scripts/install_adhook_app.sh" ]; then
-  sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR" >> "$PG/boot.log" 2>&1
-  [ "$?" -ne 0 ] && echo "[$(date '+%m-%d %H:%M:%S')] Hook APK install deferred/failed; main FX startup continues" >> "$PG/boot.log"
+# Hook APK PackageManager work must not race the system-app scan. The
+# systemless /system/app overlay was already verified/labeled by post-fs-data;
+# if Android has not completed boot, defer PM work to the next boot service
+# invocation rather than downgrading or racing an incomplete package scan.
+if [ "$(getprop sys.boot_completed)" = "1" ]; then
+  if [ -f "$MODDIR/scripts/install_adhook_app.sh" ]; then
+    sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR" >> "$PG/boot.log" 2>&1
+    [ "$?" -ne 0 ] && echo "[$(date '+%m-%d %H:%M:%S')] Hook APK install deferred/failed; main FX startup continues" >> "$PG/boot.log"
+  fi
+else
+  echo "[$(date '+%m-%d %H:%M:%S')] Hook APK PackageManager work deferred: sys.boot_completed is not 1; main FX startup continues" >> "$PG/boot.log"
 fi
 
 if [ ! -f "$PG/settings.conf" ]; then
