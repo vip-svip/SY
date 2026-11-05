@@ -2977,6 +2977,9 @@ public final class MainActivity extends ComponentActivity {
                     if (result.exitCode != 0) throw new IllegalStateException(result.output);
                     org.json.JSONObject state = new org.json.JSONObject(result.output.trim());
                     String mode = state.optString("vpn_mode", "direct");
+                    String effectiveMode = state.optString("vpn_effective_mode",
+                            "direct".equals(mode) ? "direct" : "unknown");
+                    String fallbackReason = state.optString("vpn_mode_fallback_reason", "");
                     lastNativeVpnMode = mode;
                     if (!state.optBoolean("root_proxy_known", false))
                         throw new IllegalStateException("Root Proxy 状态不可用");
@@ -2986,15 +2989,25 @@ public final class MainActivity extends ComponentActivity {
                             : "global".equals(mode) ? "全局"
                             : "rule".equals(mode) ? "规则"
                             : "tun".equals(mode) ? "TUN" : mode;
+                    String effectiveModeLabel = "direct".equals(effectiveMode) ? "直连"
+                            : "global".equals(effectiveMode) ? "全局"
+                            : "rule".equals(effectiveMode) ? "规则"
+                            : "tun".equals(effectiveMode) ? "TUN"
+                            : "redirect".equals(effectiveMode) ? "Root REDIRECT"
+                            : "inactive".equals(effectiveMode) ? "未运行"
+                            : "unknown".equals(effectiveMode) ? "待确认" : effectiveMode;
                     syncingNativeVpn = true;
                     nativeVpnSwitch.setChecked(!"direct".equals(mode) && liveOn);
                     syncingNativeVpn = false;
                     String live = rootProxyOn ? "FX Root 网络代理保护正在运行"
-                            : "direct".equals(mode) ? "直连：未接管流量"
+                            : "direct".equals(effectiveMode) ? "直连：未接管流量"
                             : liveOn ? "status.sh 确认：代理正在运行"
                             : "已保存代理模式，但后端尚未确认运行";
+                    if ("external_android_vpn_tun_to_redirect".equals(fallbackReason)) {
+                        live = "外层 Android VPN 共存：TUN 已安全回退到 FX Root REDIRECT；不申请第二个 VpnService";
+                    }
                     String node = state.optString("vpn_node", "");
-                    nativeVpnState.setText("模式：" + modeLabel + " · " + live
+                    nativeVpnState.setText("模式：" + modeLabel + " · 实际：" + effectiveModeLabel + " · " + live
                             + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
                     refreshAndroidVpnNetworkStatus();
                     nativeVpnSwitch.setEnabled(true);
