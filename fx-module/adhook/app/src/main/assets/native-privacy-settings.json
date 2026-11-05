@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "panels": [
+    {
+      "id": "notifyPanel",
+      "title": "对话框、通知与剪贴板",
+      "items": [
+        {
+          "key": "block_notif_listen",
+          "title": "阻止通知监听读取",
+          "description": "限制应用注册/读取通知监听数据。可能影响自动化、手表和第三方通知同步。"
+        },
+        {
+          "key": "hide_notif_perm",
+          "title": "隐藏通知权限提示状态",
+          "description": "仅改变应用读取到的通知权限状态，不会替用户授予系统权限。"
+        },
+        {
+          "key": "clipboard",
+          "title": "剪贴板读取保护",
+          "description": "按模块剪贴板策略限制剪贴板读取。"
+        },
+        {
+          "key": "clipboard_isolate",
+          "title": "剪贴板隔离",
+          "description": "启用应用间剪贴板隔离；可能影响跨应用复制粘贴。"
+        },
+        {
+          "key": "block_ime_logging",
+          "title": "输入法日志保护",
+          "description": "限制输入法相关日志与诊断暴露。"
+        }
+      ]
+    },
+    {
+      "id": "sensorPanel",
+      "title": "传感器隐私",
+      "items": [
+        {
+          "key": "sensor_accel",
+          "title": "限制加速度计",
+          "description": "对目标应用隐藏或限制加速度计读取。"
+        },
+        {
+          "key": "sensor_gyro",
+          "title": "限制陀螺仪",
+          "description": "对目标应用隐藏或限制陀螺仪读取。"
+        },
+        {
+          "key": "sensor_magnet",
+          "title": "限制磁场传感器",
+          "description": "对目标应用隐藏或限制磁场传感器读取。"
+        },
+        {
+          "key": "sensor_light",
+          "title": "限制光线传感器",
+          "description": "对目标应用隐藏或限制光线传感器读取。"
+        },
+        {
+          "key": "sensor_prox",
+          "title": "限制距离传感器",
+          "description": "对目标应用隐藏或限制距离传感器读取。"
+        },
+        {
+          "key": "sensor_pressure",
+          "title": "限制气压传感器",
+          "description": "对目标应用隐藏或限制气压传感器读取。"
+        },
+        {
+          "key": "sensor_rate_limit",
+          "title": "限制传感器采样频率",
+          "description": "降低传感器事件采样频率，减少高频侧信道。"
+        }
+      ]
+    },
+    {
+      "id": "devicePanel",
+      "title": "设备属性与标识",
+      "items": [
+        {
+          "key": "spoof_model",
+          "title": "模拟设备型号",
+          "description": "使用模块 spoof_model 配置中的设备型号/设备代号。"
+        },
+        {
+          "key": "spoof_manufacturer",
+          "title": "模拟设备制造商",
+          "description": "使用模块配置中的制造商与品牌值。"
+        },
+        {
+          "key": "spoof_version",
+          "title": "模拟系统版本",
+          "description": "使用模块配置中的 Android release/SDK 值。"
+        },
+        {
+          "key": "spoof_brand",
+          "title": "模拟设备品牌",
+          "description": "使用模块配置中的产品品牌值。"
+        },
+        {
+          "key": "spoof_serial",
+          "title": "模拟设备序列号",
+          "description": "使用模块配置中的测试序列号。"
+        },
+        {
+          "key": "spoof_android_id",
+          "title": "模拟 Android ID",
+          "description": "使用模块配置中的 Android ID 测试值。"
+        },
+        {
+          "key": "spoof_imei",
+          "title": "模拟 IMEI",
+          "description": "仅在模块支持的 LSPosed API 层返回配置值；运营商/系统调用仍受 ROM 与权限约束。"
+        },
+        {
+          "key": "spoof_sim",
+          "title": "模拟 SIM 信息",
+          "description": "使用模块配置中的运营商、国家码与 SIM 序列号。"
+        },
+        {
+          "key": "spoof_fingerprint",
+          "title": "模拟 Build Fingerprint",
+          "description": "使用模块配置中的测试 build fingerprint。"
+        },
+        {
+          "key": "spoof_hardware",
+          "title": "模拟硬件平台信息",
+          "description": "使用模块配置中的 hardware/board platform 值。"
+        },
+        {
+          "key": "spoof_baseband",
+          "title": "模拟基带版本",
+          "description": "使用模块配置中的测试基带版本。"
+        },
+        {
+          "key": "spoof_bt_mac",
+          "title": "模拟蓝牙 MAC",
+          "description": "使用模块配置中的测试蓝牙地址。"
+        },
+        {
+          "key": "spoof_wifi_mac",
+          "title": "模拟 Wi-Fi MAC",
+          "description": "使用模块配置中的测试 Wi-Fi 地址；真实接口地址不因此更改。"
+        },
+        {
+          "key": "spoof_storage",
+          "title": "模拟存储容量",
+          "description": "使用模块配置中的测试总容量值。"
+        },
+        {
+          "key": "spoof_screen",
+          "title": "模拟屏幕参数",
+          "description": "使用模块配置中的测试宽度、高度与 DPI。"
+        },
+        {
+          "key": "spoof_battery",
+          "title": "模拟电池参数",
+          "description": "使用模块配置中的测试容量与健康度。"
+        },
+        {
+          "key": "hide_fingerprint_hw",
+          "title": "隐藏指纹硬件能力",
+          "description": "限制应用识别设备指纹硬件能力。"
+        },
+        {
+          "key": "hide_face_hw",
+          "title": "隐藏人脸硬件能力",
+          "description": "限制应用识别人脸硬件能力。"
+        }
+      ]
+    },
+    {
+      "id": "locationPanel",
+      "title": "位置与 GNSS",
+      "items": [
+        {
+          "key": "mock_location",
+          "title": "启用全局测试定位",
+          "description": "使用模块 [conf:mock_location] 的坐标与精度。仅用于自有测试应用；实际定位结果受系统权限和 ROM 实现影响。"
+        },
+        {
+          "key": "perapp_mock",
+          "title": "启用按应用定位配置",
+          "description": "读取模块 [conf:perapp_mock] 中的包名坐标映射。"
+        },
+        {
+          "key": "gps_accuracy",
+          "title": "启用 GPS 精度模拟",
+          "description": "使用模块 [conf:gps_accuracy] 的精度值。"
+        },
+        {
+          "key": "gnss_spoof",
+          "title": "启用 GNSS 时间模拟",
+          "description": "使用模块 [conf:gnss_spoof] 的时间偏移值。"
+        },
+        {
+          "key": "disable_passive_loc",
+          "title": "限制被动定位",
+          "description": "阻止目标应用从被动定位提供器获取位置更新。"
+        },
+        {
+          "key": "block_agps",
+          "title": "限制辅助 GPS",
+          "description": "限制辅助定位数据请求。"
+        },
+        {
+          "key": "block_cell_info",
+          "title": "限制基站信息读取",
+          "description": "限制应用读取附近小区/基站信息。"
+        },
+        {
+          "key": "loc_leak",
+          "title": "位置泄露域名保护",
+          "description": "将模块位置泄露域名保护加入现有 Hosts/DNS 过滤流程。"
+        }
+      ]
+    },
+    {
+      "id": "netPanel",
+      "title": "网络与代理隐私",
+      "items": [
+        {
+          "key": "net_privacy",
+          "title": "网络广播隐私",
+          "description": "限制局域网广播和设备名相关暴露。"
+        },
+        {
+          "key": "isp_snoop",
+          "title": "运营商嗅探保护",
+          "description": "启用运营商遥测/嗅探域名及相关连接保护。"
+        },
+        {
+          "key": "conn_guard",
+          "title": "连接保护",
+          "description": "启用模块连接防护。"
+        },
+        {
+          "key": "dns_leak",
+          "title": "DNS 泄露保护",
+          "description": "启用 DNS 泄露保护；是否接管由 DNS/VPN 状态决定。"
+        },
+        {
+          "key": "vpn_leak",
+          "title": "VPN 泄露保护",
+          "description": "启用 VPN 泄露保护；可能影响外部 VPN 客户端兼容性。"
+        },
+        {
+          "key": "block_quic",
+          "title": "阻止 QUIC",
+          "description": "阻断 UDP/443，可能使部分网站回退到 TCP。"
+        },
+        {
+          "key": "block_dot",
+          "title": "阻止 DNS-over-TLS",
+          "description": "限制标准 DoT 端口 853。"
+        },
+        {
+          "key": "block_plain_dns",
+          "title": "阻止未加密 DNS",
+          "description": "对传统 53 端口应用 DNS 策略；须保持可用解析器以避免断网。"
+        },
+        {
+          "key": "block_ipv6",
+          "title": "阻止 IPv6 流量",
+          "description": "阻断 IPv6 出站；不支持 IPv6 的网络可能受影响。"
+        },
+        {
+          "key": "block_stun",
+          "title": "限制 STUN",
+          "description": "限制 STUN 探测与 WebRTC 地址暴露。"
+        },
+        {
+          "key": "block_udp_tracking",
+          "title": "阻止 UDP 跟踪",
+          "description": "限制部分 UDP 跟踪流量。"
+        },
+        {
+          "key": "block_webrtc_leak",
+          "title": "WebRTC 泄露保护",
+          "description": "限制 WebRTC 相关地址泄露路径。"
+        },
+        {
+          "key": "disable_tcp_timestamps",
+          "title": "禁用 TCP 时间戳",
+          "description": "调整 TCP 时间戳暴露。"
+        },
+        {
+          "key": "hide_tcp_fingerprint",
+          "title": "规范化 TCP 指纹",
+          "description": "应用模块 TCP 指纹保护策略。"
+        }
+      ]
+    },
+    {
+      "id": "filePanel",
+      "title": "文件与系统接口",
+      "items": [
+        {
+          "key": "fs_isolate",
+          "title": "启用文件路径隔离",
+          "description": "使用模块 [conf:fs_isolate] 中配置的隔离路径。"
+        },
+        {
+          "key": "fs_hide",
+          "title": "隐藏指定文件",
+          "description": "使用模块 [conf:fs_hide] 中配置的路径规则。"
+        },
+        {
+          "key": "fs_rootlist",
+          "title": "隐藏 Root 检测路径",
+          "description": "将配置中的 Root 相关路径对目标应用隐藏。"
+        },
+        {
+          "key": "fs_attrs",
+          "title": "隐藏敏感系统属性",
+          "description": "限制读取模块配置中的敏感属性。"
+        },
+        {
+          "key": "fs_vfs",
+          "title": "隐藏 VFS 探测路径",
+          "description": "限制目标应用探测部分 /proc 路径。"
+        },
+        {
+          "key": "block_mounts",
+          "title": "限制挂载信息读取",
+          "description": "隐藏或过滤挂载信息。"
+        },
+        {
+          "key": "hide_sysfs_nodes",
+          "title": "隐藏 Sysfs 节点",
+          "description": "限制目标应用读取配置中的 Sysfs 节点。"
+        },
+        {
+          "key": "block_pm_query",
+          "title": "限制应用包查询",
+          "description": "限制目标应用查询设备中其他已安装应用。"
+        },
+        {
+          "key": "block_process_list",
+          "title": "限制进程列表读取",
+          "description": "限制目标应用枚举其他进程。"
+        },
+        {
+          "key": "block_net_ifaces",
+          "title": "隐藏网络接口列表",
+          "description": "限制目标应用枚举网络接口。"
+        },
+        {
+          "key": "block_logcat",
+          "title": "限制 Logcat 读取",
+          "description": "限制目标应用读取系统日志。"
+        }
+      ]
+    },
+    {
+      "id": "miscPanel",
+      "title": "时间与系统诊断",
+      "items": [
+        {
+          "key": "boot_time_spoof",
+          "title": "模拟系统启动时间",
+          "description": "使用模块 [conf:boot_time_spoof] 的 uptime 值。"
+        },
+        {
+          "key": "patch_spoof",
+          "title": "模拟安全补丁日期",
+          "description": "使用模块 [conf:patch_spoof] 的 security_patch 值。"
+        },
+        {
+          "key": "props_random",
+          "title": "随机化设备属性",
+          "description": "启用模块属性随机化策略。"
+        },
+        {
+          "key": "usagestats_off",
+          "title": "限制使用情况统计",
+          "description": "限制应用读取使用情况统计。"
+        },
+        {
+          "key": "crash_upload_off",
+          "title": "关闭崩溃报告上传",
+          "description": "限制系统崩溃报告外发。"
+        },
+        {
+          "key": "anr_off",
+          "title": "关闭 ANR 报告上传",
+          "description": "限制 ANR 报告外发。"
+        },
+        {
+          "key": "a11y_hide",
+          "title": "隐藏无障碍服务信息",
+          "description": "限制目标应用枚举其他无障碍服务。"
+        },
+        {
+          "key": "syssvc_hide",
+          "title": "隐藏系统服务名称",
+          "description": "使用模块 [conf:syssvc_hide] 配置的服务名称。"
+        },
+        {
+          "key": "app_info",
+          "title": "应用信息隐私",
+          "description": "启用应用信息保护。"
+        }
+      ]
+    }
+  ]
+}
