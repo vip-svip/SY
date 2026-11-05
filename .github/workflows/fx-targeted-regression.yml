@@ -103,12 +103,9 @@ jobs:
             run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (FxGkdSelectorRuntime|FxGkdSelectorRuntimeTest|fx-gkd-selector|fx-gkd-selector-integration-regression) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxGkd|GkdSelector|gkd-selector|GKD-XA|fx-gkd|FxAccessibilityService|FxGkdAutomationActivity|MainActivity\.java|AndroidManifest\.xml|settings\.gradle|app/build\.gradle) ]]; then
             run_sh scripts/tests/fx-gkd-selector-integration-regression.sh
-          fi
-
-          if [[ "$changed" == "ALL" || "$changed" =~ (FxGkdSelectorRuntime|fx-gkd-selector-runtime) ]]; then
-            run_sh scripts/tests/fx-gkd-selector-runtime-regression.sh
+            run_sh scripts/tests/fx-gkd-automation-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (FxOpenSourceLicensesActivity|fx-open-source-licenses) ]]; then
