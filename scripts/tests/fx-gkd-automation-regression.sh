@@ -5,6 +5,8 @@ service="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilitySe
 runtime="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt"
 scan_throttle="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPackageScanThrottle.kt"
 scan_throttle_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPackageScanThrottleTest.kt"
+pending_scan="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPendingPackageScan.kt"
+pending_scan_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPendingPackageScanTest.kt"
 snapshot="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt"
 store="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt"
 engine="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt"
@@ -15,14 +17,14 @@ service_xml="$root/adhook/app/src/main/res/xml/fx_accessibility_service.xml"
 strings="$root/adhook/app/src/main/res/values/fx_strings.xml"
 unit="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt"
 test "$#" -eq 0
-for file in "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit"; do
+for file in "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$pending_scan" "$pending_scan_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit"; do
   test -s "$file" || { echo "FAIL: missing GKD single-service integration file: $file"; exit 1; }
 done
 
-python3 - "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit" <<'PY'
+python3 - "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$pending_scan" "$pending_scan_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit" <<'PY'
 from pathlib import Path
 import sys
-service, runtime, scan_throttle, scan_throttle_test, snapshot, store, engine, activity, main, manifest, service_xml, strings, unit = [
+service, runtime, scan_throttle, scan_throttle_test, pending_scan, pending_scan_test, snapshot, store, engine, activity, main, manifest, service_xml, strings, unit = [
     Path(value).read_text(encoding="utf-8") for value in sys.argv[1:]
 ]
 
@@ -91,6 +93,20 @@ for token in ("FxGkdRuleStore.isEnabled(service)", "it.source.packageName == eve
 assert "FxGkdPackageScanThrottle(250L)" in runtime, "GKD scan cooldown must be package-scoped"
 assert "scanThrottle.retainPackages(cachedCompiled.map { it.source.packageName }.toSet())" in runtime, "removed GKD package cooldown state is not pruned"
 assert "scanThrottle.clear()" in runtime, "GKD rule invalidation must clear package scan cooldowns"
+assert "gkdPendingScan.request(eventPackage)" in service
+assert "gkdPendingScan.complete()" in service
+assert "private void startGkdScan(String eventPackage)" in service
+assert "private void completeGkdScan()" in service
+assert "gkdMainHandler.post" in service
+assert "gkdServiceDestroyed = true;" in service and "gkdPendingScan.clear();" in service
+assert "AtomicBoolean gkdWorkPending" not in service
+for test_name in ("firstRequestStartsAndLatestPendingRunsAfterCompletion",
+                  "newestPackageReplacesOlderPendingEvents",
+                  "blankPackageDoesNotOccupyTheActiveSlot",
+                  "clearDropsPendingPackageAndReleasesSlot"):
+    assert test_name in pending_scan_test
+assert "latestPendingPackage = requested" in pending_scan
+assert "if (next == null) running = false" in pending_scan
 assert "lastScanAt" not in runtime, "global scan throttle must not starve other enabled packages"
 assert "class FxGkdPackageScanThrottle" in scan_throttle
 for test_name in ("cooldownIsIsolatedByTargetPackage", "removedRulePackagesReleaseTheirCooldownState",

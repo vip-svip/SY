@@ -15,9 +15,11 @@ on:
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPendingPackageScan.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPackageScanThrottle.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPendingPackageScanTest.kt'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPackageScanThrottleTest.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java'
@@ -45,8 +47,10 @@ on:
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPendingPackageScan.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPendingPackageScanTest.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java'
@@ -133,3 +137,4 @@ jobs:
             :app:testDebugUnitTest \
               --tests 'de.privacyguard.adhook.FxGkdSelectorEngineTest' \
               --tests 'de.privacyguard.adhook.FxGkdPackageScanThrottleTest'
+              --tests 'de.privacyguard.adhook.FxGkdPendingPackageScanTest'

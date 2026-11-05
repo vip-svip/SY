@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
@@ -16,7 +18,6 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FX owns one optional AccessibilityService for foreground detection, YouLong
@@ -34,7 +35,9 @@ public final class FxAccessibilityService extends AccessibilityService {
     private static volatile boolean connected;
     private String lastForegroundPackage = "";
     private boolean gkdConfigReceiverRegistered;
-    private final AtomicBoolean gkdWorkPending = new AtomicBoolean(false);
+    private final FxGkdPendingPackageScan gkdPendingScan = new FxGkdPendingPackageScan();
+    private final Handler gkdMainHandler = new Handler(Looper.getMainLooper());
+    private volatile boolean gkdServiceDestroyed;
     private final ExecutorService gkdExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread worker = new Thread(r, "fx-gkd-accessibility");
         worker.setDaemon(true);
@@ -97,49 +100,63 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     private void enqueueGkdScan(String eventPackage) {
-        if (!gkdWorkPending.compareAndSet(false, true)) return;
+        if (gkdServiceDestroyed) return;
+        String startPackage = gkdPendingScan.request(eventPackage);
+        if (startPackage != null) startGkdScan(startPackage);
+    }
 
+    // Coalesce only the package name. Acquire a fresh active-window root on the
+    // main looper when a pending package is selected for scanning.
+    private void startGkdScan(String eventPackage) {
+        if (gkdServiceDestroyed) {
+            gkdPendingScan.clear();
+            return;
+        }
         AccessibilityNodeInfo root;
         try {
             root = getRootInActiveWindow();
         } catch (RuntimeException unavailable) {
-            gkdWorkPending.set(false);
+            completeGkdScan();
             return;
         }
         if (root == null) {
-            gkdWorkPending.set(false);
+            completeGkdScan();
             return;
         }
-
         CharSequence rootPackage;
         try {
             rootPackage = root.getPackageName();
         } catch (RuntimeException staleNode) {
             recycleQuietly(root);
-            gkdWorkPending.set(false);
+            completeGkdScan();
             return;
         }
         if (rootPackage == null || !eventPackage.contentEquals(rootPackage)) {
             recycleQuietly(root);
-            gkdWorkPending.set(false);
+            completeGkdScan();
             return;
         }
-
         try {
             gkdExecutor.execute(() -> {
                 try {
                     FxGkdAutomationRuntime.process(this, eventPackage, root);
                 } catch (RuntimeException failure) {
-                    // A stale or vendor-specific node must not terminate the only
-                    // Accessibility event worker. No screen text is logged.
                     recycleQuietly(root);
                 } finally {
-                    gkdWorkPending.set(false);
+                    completeGkdScan();
                 }
             });
         } catch (RejectedExecutionException stopped) {
             recycleQuietly(root);
-            gkdWorkPending.set(false);
+            completeGkdScan();
+        }
+    }
+
+    private void completeGkdScan() {
+        String nextPackage = gkdPendingScan.complete();
+        if (nextPackage == null) return;
+        if (!gkdMainHandler.post(() -> startGkdScan(nextPackage))) {
+            gkdPendingScan.clear();
         }
     }
 
@@ -244,6 +261,7 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override protected void onServiceConnected() {
+        gkdServiceDestroyed = false;
         volumeTriggerSequence.resetSequence();
         super.onServiceConnected();
         connected = true;
@@ -255,6 +273,9 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onDestroy() {
+        gkdServiceDestroyed = true;
+        gkdPendingScan.clear();
+        gkdMainHandler.removeCallbacksAndMessages(null);
         volumeTriggerSequence.resetSequence();
         FxGkdAutomationRuntime.invalidateRules();
         if (gkdConfigReceiverRegistered) {

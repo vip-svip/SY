@@ -5996,3 +5996,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原 VPN coexistence arbiter 仅探测 DNS 5353 与代理 7890，未检查 AdGuard Home 实际对客户端提供服务的 53 端口。外部进程已占用 53 时，AdGuard DNS 可能无法绑定，但裁决器仍可能将端口冲突漏报。
 - 新增 `dns_filter` 状态（默认端口 53），同时保留既有 `dns`（5353）和 `proxy`（7890）JSON 字段；TCP LISTEN、UDP bind、/proc/net 任一协议/地址族不可读均沿用 fail-closed 端口判定。任何 53/5353/7890 冲突或探测未知都会使共存等级降为 partial。
 - 新增客户端 DNS TCP/UDP 53 占用回归，并验证干净 fixture 中端口默认值与可用状态。当前代码批次以本节对应提交/Actions 实际结果为准；未执行 Android 真机 DNS 接管或第三方 VPN 设备级流量测试。
+
+
+## 2026-11-06 — GKD 跨应用待扫描请求合并
+
+- 原 FX 无障碍服务在一个 GKD 扫描执行期间直接丢弃之后到达的所有目标应用事件，快速切换应用时可能使新目标错过唯一触发事件。
+- 新增 Android-free `FxGkdPendingPackageScan`：一个扫描执行中，只保留最新一个待扫描包名；不保存额外 `AccessibilityNodeInfo`，不堆积无界任务队列。
+- 当前扫描结束后，经主线程 Handler 重新取得活动窗口根节点并再次校验包名；过期窗口请求被安全丢弃。服务销毁时清空待处理包名、移除回调并关闭执行器。
+- 新增 4 个 JVM 单测；同步更新 GKD Host 契约、workflow 文件触发路径和 Gradle 测试选择器。
+- 本批源码先在离线 commit tree 创建，随后将同一变更集移植到最新分支 HEAD；本提交之后的 CI 结论待 Actions 回报。
