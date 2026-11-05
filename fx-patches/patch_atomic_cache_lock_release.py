@@ -146,7 +146,7 @@ else:
 if old_hf_unlock in apply_source:
     replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
 elif (
-    '_hf_release="$_hf_lock.release.$"' in apply_source
+    '_hf_release="$_hf_lock.release.' in apply_source
     and 'mv "$_hf_lock" "$_hf_release"' in apply_source
     and '_hf_release_owner=$(cat "$_hf_release/pid" 2>/dev/null || :)' in apply_source
     and 'rm -f "$_hf_lock/pid"' not in apply_source
