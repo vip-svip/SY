@@ -6162,3 +6162,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - System App Install Stage Actions run `42103559203` 在提交 `7e9664e` 上 SUCCESS：patcher 幂等性、安装期校验/部署、early-boot overlay symlink/digest/marker 测试、打包接线均通过。此前 run `42103453530` 的唯一失败是测试脚本 mktemp 模板引号错误；并行提交 `7e9664e` 修正测试路径后通过。
 - VPN arbiter failed-interface-inventory 回归：`6f5c195e97b9fa182dd0f6f603d920a60883b859` 新增部分 stdout + 非零 ip 退出的 fail-closed 场景；`bba5e10275de0b847c49c848ce827f393c009596` 修正 fixture 转义。VPN Coexistence Arbiter run `42102744421`、Targeted Host run `42102745222`、Six UI Modes run `42102744474` 均 SUCCESS。
 - 验证边界：Miuix Card 最终 Targeted Host 结果仍被后续并行提交取消；Module Runtime run `42103559262` 在当前状态更新时仍运行。未声称 KernelSU 真机安装、SELinux 标签、OnePlus 12 VPN/DNS/TUN 数据面或 LSPosed 实际注入通过。
+
+## 2026-11-05 — FX system-app early-boot overlay hardening
+
+- Implemented in the existing systemless /system/app/FX deployment chain; no new installer or parallel module was created.
+- Canonical early-boot verifier now lives at fx-patches/fx_system_app_post_fs_data.sh; patch_system_app_install_stage.py reads this reviewed source when patching restored KernelSU/Magisk module archives. The tracked fx-module/post-fs-data.sh carries the same managed block.
+- Added lexical path-component checks for the overlay and private state/log paths. Relative paths, parent traversal, and symlinked ancestors are rejected before state/log creation; log file and directory types are checked explicitly.
+- Deployment and retry markers now use private 0600 temporary files with noclobber creation and atomic rename. Pre-existing temporary symlinks cannot redirect the privileged boot-time write. Existing APK digest verification, SELinux label verification, retry semantics, and non-privileged system-app classification are preserved.
+- Added host regression scripts/tests/fx-system-app-overlay-boot-regression.sh covering valid deployment, invalid digest retry, symlinked state ancestor, and pre-created retry-temp symlink protection. The test uses injectable test paths only; production defaults remain /system/app/FX and /data/adb/privacyguard.
+- Updated .github/workflows/fx-system-app-install-stage.yml to watch the canonical verifier and tracked boot script, so future edits run the deployment tests.
+- Verification: FX System App Install Stage run 42103559203, commit 7e9664ea82d3141a28dee484b0ee4df8fcd4868a, SUCCESS. Patcher idempotence, installer behavior, synthetic installer execution, boot script syntax, boot overlay regressions, and KernelSU packaging-stage presence all passed.
+- Not verified: Android device PackageManager recognition, device-specific SELinux policy behavior, reboot persistence, or actual KernelSU/Magisk installation. No APK/ZIP build or real-device test is claimed.
+- Concurrent work continues on the same branch. The branch's live HEAD must be re-read before the next edit; this note records only the completed system-app batch and its exact CI evidence.
+
