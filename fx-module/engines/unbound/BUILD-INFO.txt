@@ -1,0 +1,8 @@
+Component: Unbound recursive/caching DNS resolver.
+Source: official NLnet Labs Unbound 1.26.2, source SHA256 d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7.
+Crypto: static OpenSSL 3.5.9, source SHA256 603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a.
+XML dependency: static Expat 2.9.0, source SHA256 1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051.
+Includes the FX uncached DNS health-probe helper and SHA-256 manifests for binaries/root data.
+Target: Android ARM64, Android NDK r26b, API level 24; ELF interpreter /system/bin/linker64.
+The resolver listens only on loopback port 5353. AdGuard Home remains the local filtering front-end on loopback port 53.
+This artifact build and config check do not prove direct root/authoritative DNS reachability on a mobile network. Runtime health probes and fail-open rollback are required.
