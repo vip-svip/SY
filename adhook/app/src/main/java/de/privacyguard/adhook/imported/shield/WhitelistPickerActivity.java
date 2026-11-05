@@ -157,7 +157,7 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
         root.addView(listView);
 
         root.addView(buildBottomBar());
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         if (!query.isEmpty()) searchInput.setText(query);
 
         loadAppsAsync();
