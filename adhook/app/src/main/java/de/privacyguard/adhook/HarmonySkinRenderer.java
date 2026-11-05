@@ -104,7 +104,7 @@ final class HarmonySkinRenderer {
             detail.setLineSpacing(dp(2, density), 1.05f);
             return;
         }
-        if ("fx-card-detail".equals(role) && view instanceof TextView) {
+        if (("fx-card-detail".equals(role) || "fx-card-body".equals(role)) && view instanceof TextView) {
             TextView detail = (TextView) view;
             detail.setTextColor(HarmonyColorTokens.SECONDARY_TEXT);
             detail.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
