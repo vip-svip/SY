@@ -3905,3 +3905,22 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 继续五 Skin 逐页覆盖：检查 imported Activity 和 MainActivity 动态新增的控件，确保不覆盖警告/错误语义色、不吞掉自定义 Drawable、不重复挂载 layout listener。
 2. 补齐 APK 10.0.2 旧界面页面映射与 wallpaper 行为实机截图验收；ClassicWebCompat 的网页资源只在完整 Release staging lane 验证。
 3. 对 Ad、VPN、隐私、Hook、脚本进行来源功能逐项映射；已有入口不代表该页所有旧功能都已接入真实运行时。
+
+## 2026-11-05 — 保留语义动作按钮颜色，并修复 Host-only DNS 回归脚本边界
+
+### 五 Skin 语义按钮保护
+- FxNativeSkin.applyButtonSkin() 现在先检测按钮当前文字色/纯色背景是否属于明确语义色，再决定是否套用普通主题按钮样式。
+- 危险/错误红色、警告/风险橙色、成功/可信绿色按钮会跳过通用 accent 重绘，避免主题切换把红色“删除/危险”操作染成蓝色普通按钮。
+- 新增 fx-global-ui-modes-regression.sh 静态断言，确保语义色 guard 在通用按钮缓存/重绘前执行，并覆盖红/橙/绿颜色集合。
+- 代码与回归提交：7c84ef556f010fc04f337e449310d1aefcd52bf6、386e27ad491542166e84c5663cd3f4b9e0a8362b。
+- Actions run 41981743883 的 host-regressions = success。
+
+### 修复 DNS summary Host-only 测试参数错误
+- 原 fx-yulong-ad-dns-summary-regression.sh 第 81 行直接读取 $1，但 Targeted Host workflow 无参数调用该脚本，触发 set -u 的 unbound variable。
+- 修复：改用 ${1:-$ROOT/fx-module}；Host-only 且未传模块路径、Release module 文件不在 checkout 时明确输出 SKIP 并退出成功；完整 package lane 显式传入 fx-module 时仍强制检查 AdGuard Home lifecycle script 和 anti-fraud list，不降低包阶段验收。
+- 提交：8768f4af9012f0ef384b95a67674dd8740bd0f89。
+- Actions run 41981818472 的 host-regressions = success；日志明确出现 Host-only 条件下的模块依赖 SKIP，不再有 $1 未定义错误。
+
+### 验证边界
+- 本批通过的是 Host 静态回归：语义按钮 guard、五 Skin、壁纸共享渲染、Ad/Hook/VPN/Script 路由测试均按对应 workflow 条件执行；缺少 Release module staging 的模块运行时检查明确 SKIP。
+- 未执行 Gradle testDebugUnitTest、assembleDebug、安装或真机验收；FxWallpaperStoreTest 源码已补充，但需在后续 Gradle lane 执行。
