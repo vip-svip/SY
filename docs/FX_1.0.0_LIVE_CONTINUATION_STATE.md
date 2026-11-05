@@ -5731,3 +5731,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Activity 初始读取与安装/卸载刷新均须通过严格解析才加载可修改应用列表；响应异常时锁定总开关和规则写入入口、保留旧列表只读，不再默认为“防火墙关闭”。
 - Host 加入纯 Java 协议测试与损坏 `settings.conf` 的 Shell 动态回归；KernelSU workflow 的 patcher 会将 canonical Shell 脚本和回归一并复制到恢复模块。
 - 本批尚未完成 Android Gradle 构建、设备端 Root 列表协议和真实 iptables 网络验收；等待新提交 Host、Module Runtime 与六套 UI Actions。
+
+
+## 2026-11-06 — 游龙 Ad 页面异步回调按页面代次隔离
+
+- `FxYulongAdActivity` 新增页面代次；每次重新渲染/切页都会使旧代次失效，Activity 销毁时也会递增代次。
+- 通用 Root 读取、配置档 Root 读取和配置写入完成回调必须匹配发起时的页面代次与页面标识；过期回调不再更新当前页面的状态、弹出旧错误框或把旧页面数据写入新页面。
+- 设备端写操作仍正常完成；成功后仍刷新桌面 VPN widget 并重新读取当前页配置，避免 UI 回调过期被误解为已取消 Root 操作。
+- `fx-yulong-ad-activity-state-regression.sh` 增加 root/apply/profileRoot 代次契约检查。此批仅有 Host 源码回归，尚无 Android 构建/设备交互和并发 Root 压力验证。

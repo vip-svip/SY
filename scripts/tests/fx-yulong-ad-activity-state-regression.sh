@@ -20,6 +20,24 @@ import sys
 s = Path(sys.argv[1]).read_text(encoding="utf-8")
 ROOT = Path(sys.argv[2])
 
+# Async Root callbacks may update only the page that issued the request.
+assert "private long pageGeneration;" in s, "Ad page generation token is missing"
+assert "private void render(){pageGeneration++;" in s, "page rebuild must invalidate earlier requests"
+for method_name, next_method in (
+    ("private void root(", "private String safe("),
+    ("private void apply(", "@Override protected void onCreate"),
+    ("private void profileRoot(", "private void renderProfiles("),
+):
+    start = s.index(method_name)
+    end = s.index(next_method, start + len(method_name))
+    method = s[start:end]
+    assert "final long requestGeneration=pageGeneration;" in method, f"{method_name} must capture page generation"
+    assert "final String requestPage=page;" in method, f"{method_name} must capture page identity"
+    assert "requestGeneration!=pageGeneration" in method or "requestGeneration==pageGeneration" in method, f"{method_name} must discard stale callbacks"
+assert "boolean samePage=requestGeneration==pageGeneration&&requestPage.equals(page);" in s, "write completion must not update a different page"
+assert "@Override protected void onDestroy(){pageGeneration++;" in s, "destroy must invalidate page callbacks"
+
+
 required = [
     'private static final String STATE_PAGE="fx_yulong_ad_page";',
     'private static final String STATE_DRAFTS="fx_yulong_ad_drafts";',

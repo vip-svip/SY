@@ -44,6 +44,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private int pendingPageScrollY;
  private boolean pendingPageScrollRestore;
  private String page="首页与防护",snapshot="";
+ private long pageGeneration;
  private static final String STATE_PAGE="fx_yulong_ad_page";
  private static final String STATE_DRAFTS="fx_yulong_ad_drafts";
  private static final String STATE_SCROLL_Y="fx_yulong_ad_scroll_y";
@@ -91,16 +92,23 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private String q(String s){return "'"+(s==null?"":s.replace("'","'\\''"))+"'";}
  private String cmd(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; [ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" "+args;}
  private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
+  final long requestGeneration=pageGeneration;
+  final String requestPage=page;
   Runnable task=()->{
    RootAccess.Result result=RootAccess.execute(cmd(args),90000L,512*1024);
-   runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()&&cb!=null)cb.accept(result);});
+   runOnUiThread(()->{
+    if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
+       ||!requestPage.equals(page))return;
+    if(cb!=null)cb.accept(result);
+   });
   };
   try{
    worker.execute(task);
   }catch(RejectedExecutionException full){
    RootAccess.Result busy=RootAccess.failure(125,"后台任务繁忙，请稍后重试。");
    runOnUiThread(()->{
-    if(isFinishing()||isDestroyed())return;
+    if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
+       ||!requestPage.equals(page))return;
     status.setText("后台任务繁忙，请稍后重试。");
     if(cb!=null)cb.accept(busy);
    });
@@ -108,6 +116,8 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  }
  private String safe(String s){return s==null||s.trim().isEmpty()?"请确认 FX Hook Root 权限。":s.trim();}
  private void apply(String args,String label){
+  final long requestGeneration=pageGeneration;
+  final String requestPage=page;
   final boolean masterWrite = args != null && args.matches("^ad-master\\s+[01]$");
   try{
    worker.execute(()->{
@@ -117,35 +127,43 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
      if(masterWrite){
       gateToken=FxYulongAdOperationGate.tryAcquire();
       if(gateToken==0L){
-       runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText("另一入口正在修改广告过滤，请稍后重试。");});
+       runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()
+        &&requestGeneration==pageGeneration&&requestPage.equals(page))
+         status.setText("另一入口正在修改广告过滤，请稍后重试。");});
        return;
       }
      }
      result=RootAccess.execute(cmd(args),90000L,512*1024);
     }catch(Throwable failure){
-     runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText(label+"失败："+failure.getClass().getSimpleName());});
+     runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()
+        &&requestGeneration==pageGeneration&&requestPage.equals(page))
+         status.setText(label+"失败："+failure.getClass().getSimpleName());});
      return;
     }finally{
      if(gateToken!=0L)FxYulongAdOperationGate.release(gateToken);
     }
     runOnUiThread(()->{
      if(isFinishing()||isDestroyed())return;
-     if(result.exitCode==0){
-      FxYulongAdWidgetProvider.refreshAll(this);
-      status.setText(label+"：已保存并应用。");
-     }else{
-      status.setText(label+"失败："+safe(result.output));
-      fxDialogBuilder().setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+     boolean samePage=requestGeneration==pageGeneration&&requestPage.equals(page);
+     if(result.exitCode==0)FxYulongAdWidgetProvider.refreshAll(this);
+     if(samePage){
+      if(result.exitCode==0){
+       status.setText(label+"：已保存并应用。");
+      }else{
+       status.setText(label+"失败："+safe(result.output));
+       fxDialogBuilder().setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+      }
      }
      load();
-     if ("VPN 与 Root Proxy".equals(page)) refreshRootProxyStatus();
+     if(samePage&&"VPN 与 Root Proxy".equals(page))refreshRootProxyStatus();
     });
    });
   }catch(RejectedExecutionException full){
    // The writer lock is acquired only inside the queued worker. A rejected
    // submission never acquired it, so releasing here could unlock another
    // entry point's in-flight operation.
-   status.setText("后台任务繁忙，请稍后重试。");
+   if(requestGeneration==pageGeneration&&requestPage.equals(page))
+    status.setText("后台任务繁忙，请稍后重试。");
   }
  }
  @Override protected void onCreate(Bundle b){
@@ -176,7 +194,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   if(pageScroll!=null)out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));
   super.onSaveInstanceState(out);
  }
- private void render(){trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setTag("fx-card-group");nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("配置档",()->open("保护配置档")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);TextView currentPage=txt("当前页面："+page,13,0xff617080,true);currentPage.setTag("fx-card-detail");body.addView(currentPage);if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
+ private void render(){pageGeneration++;trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setTag("fx-card-group");nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("配置档",()->open("保护配置档")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);TextView currentPage=txt("当前页面："+page,13,0xff617080,true);currentPage.setTag("fx-card-detail");body.addView(currentPage);if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
   rootProxyStatus=txt("正在读取 Root Proxy 实际运行状态…",12,0xff617080,false);
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
@@ -860,16 +878,27 @@ private Boolean adMaster(){
   }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
  private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
- @Override protected void onDestroy(){trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
+ @Override protected void onDestroy(){pageGeneration++;trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
  private void profileRoot(String args,java.util.function.Consumer<RootAccess.Result> cb){
+  final long requestGeneration=pageGeneration;
+  final String requestPage=page;
   Runnable task=()->{
    RootAccess.Result result=RootAccess.execute(profileCmd(args),90000L,512*1024);
-   runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()&&cb!=null)cb.accept(result);});
+   runOnUiThread(()->{
+    if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
+       ||!requestPage.equals(page))return;
+    if(cb!=null)cb.accept(result);
+   });
   };
   try{worker.execute(task);}
   catch(RejectedExecutionException full){
    RootAccess.Result busy=RootAccess.failure(125,"后台任务繁忙，请稍后重试。");
-   runOnUiThread(()->{if(isFinishing()||isDestroyed())return;status.setText("后台任务繁忙，请稍后重试。");if(cb!=null)cb.accept(busy);});
+   runOnUiThread(()->{
+    if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
+       ||!requestPage.equals(page))return;
+    status.setText("后台任务繁忙，请稍后重试。");
+    if(cb!=null)cb.accept(busy);
+   });
   }
  }
  private void renderProfiles(){
