@@ -5418,3 +5418,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 选择应用只填入包名，不固定签名、不打开外部 Root 控制。用户仍必须单独点击“验证包名并固定 APK 签名”，再手动启用授权开关；未出现在列表的应用仍可手动输入包名。
 - 扩展 Tasker/Receiver 回归，检查 launcher 选择流程、包名校验和“选择不等于授权”的交互边界。
 - 验证：待当前提交 GitHub Host / 六套 UI 回归；未进行 Android Gradle 构建、设备端应用列表和 Tasker 广播验收。
+
+
+### Tasker 应用选择器 Host 断言校正（2026-11-06）
+
+- Tasker 选择器回归首次运行时，Host 因将跨行 `queryIntentActivities` 调用误当作单行 token 而失败；已拆成方法名和查询 flag 两项源码断言。
+- 加强安全契约：选择器方法不得写入授权包名、签名摘要或 Root 外部授权开关；签名固定及授权仍由独立显式操作执行。
+- 当前仅修正测试匹配和增加边界断言；待最新 HEAD 的 Targeted Host Regression 再验证。

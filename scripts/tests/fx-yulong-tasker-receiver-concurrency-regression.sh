@@ -39,7 +39,8 @@ for token in (
     'button("选择已安装应用", this::chooseTaskerSenderApp)',
     'new Intent(Intent.ACTION_MAIN)',
     'launcher.addCategory(Intent.CATEGORY_LAUNCHER)',
-    'queryIntentActivities(launcher, PackageManager.MATCH_DEFAULT_ONLY)',
+    'queryIntentActivities(',
+    'PackageManager.MATCH_DEFAULT_ONLY',
     'FxYulongTaskerCallerPolicy.isValidPackageName(packageName)',
     'taskerSenderPackageInput.setText(packages[which])',
     'button("验证包名并固定 APK 签名", this::saveTaskerSenderPackage)',
@@ -50,6 +51,8 @@ picker_end = general.index("private boolean isAutomationSenderPinned", picker_st
 picker = general[picker_start:picker_end]
 assert "saveTaskerSenderPackage()" not in picker, "choosing an app must not silently pin its signer"
 assert "PREF_ALLOW_EXTERNAL" not in picker, "choosing an app must not enable Root automation"
+assert "PREF_ALLOWED_SENDER_PACKAGE" not in picker, "choosing an app must not persist the sender package"
+assert "PREF_ALLOWED_SENDER_CERT_SHA256" not in picker, "choosing an app must not pin the sender signer"
 
 for token in (
     "LEGACY_ACTION_START.equals(action)",
