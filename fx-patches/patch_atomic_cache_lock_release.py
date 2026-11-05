@@ -487,15 +487,16 @@ case "$1" in
 esac
 SH
 """
-if 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\\n' in root_proxy_test_source_text:
+if 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"' not in root_proxy_test_source_text:
+    raise SystemExit(f"{root_proxy_test}: test environment export is missing")
+if 'TMP="$TMP"' not in root_proxy_test_source_text:
     replace_once(
         root_proxy_test,
         'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\\n',
         'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\\n',
         "Root Proxy test exports private temp path",
     )
-elif 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\\n' not in root_proxy_test_source_text:
-    raise SystemExit(f"{root_proxy_test}: TMP path is not exported to engine stub")
+
 if old_root_proxy_sleep_stub in root_proxy_test_source_text:
     replace_once(
         root_proxy_test,
