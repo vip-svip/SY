@@ -239,15 +239,16 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         view.setPadding(dp(4), dp(5), dp(4), dp(5)); return view;
     }
     private Button button(String value, Runnable action) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(value);
+        Button b = new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(value);
         b.setOnClickListener(v -> action.run()); return b;
     }
     private void card(String title, String detail, View... children) {
         LinearLayout card = new LinearLayout(this);
+        card.setTag("fx-card");
         card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(14), dp(10), dp(14), dp(10));
         card.setBackgroundColor(0xfff0f3f7);
-        card.addView(text(title, 16, 0xff17212b, true));
-        card.addView(text(detail, 12, 0xff617080, false));
+        TextView heading = text(title, 16, 0xff17212b, true); heading.setTag("fx-card-title"); card.addView(heading);
+        TextView description = text(detail, 12, 0xff617080, false); description.setTag("fx-card-detail"); card.addView(description);
         if (children != null) {
             for (View child : children) if (child != null) card.addView(child);
         }
