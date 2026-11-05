@@ -40,7 +40,7 @@ status_json() {
   if [ -x "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ]; then
     _fx_candidate=$(MP="$MP" PG="$PG" sh "$MP/scripts/fx-vpn-coexistence-arbiter.sh" 2>/dev/null || true)
     case "$_fx_candidate" in
-      '{"ok":1,'*' }') _fx_coexistence_json=$_fx_candidate ;;
+      '{"ok":1,'*'}') _fx_coexistence_json=$_fx_candidate ;;
     esac
   fi
   if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
