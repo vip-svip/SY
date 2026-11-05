@@ -81,11 +81,10 @@ jobs:
         run: |
           set -euo pipefail
           module="$FX_MODULE_RUNTIME"
-          python3 fx-patches/patch_vpn_external_watchdog.py "$module"
           sh scripts/tests/fx-vpn-external-watchdog-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py "$module"
           python3 fx-patches/patch_yulong_ad_dns_logs.py "$module"
-          for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/localdns-watchdog.sh"; do
+          for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
             test -s "$file"
             sh -n "$file"
           done
