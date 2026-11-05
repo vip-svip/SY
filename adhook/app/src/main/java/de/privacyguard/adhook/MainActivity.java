@@ -941,7 +941,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(card, lp);
     }
 
-    private void buildNativeHostsPage() {
+    private void buildNativeAdPage() {
         content.addView(title("Ad", 22));
         TextView intro = new TextView(this);
         intro.setText("统一管理广告过滤能力。Hosts 是 Ad 内部的一个功能；本地 Hosts 文件、订阅过滤规则与系统实际生效内容分开显示，不把订阅缓存当成本地文件。");
@@ -2012,7 +2012,7 @@ public final class MainActivity extends ComponentActivity {
                 startNativeVpnPolling();
                 break;
             case 1:
-                buildNativeHostsPage();
+                buildNativeAdPage();
                 break;
             case 2:
                 buildNativePrivacyPage();
