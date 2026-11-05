@@ -23,6 +23,7 @@ on:
       - fx-v1.0.0-unified-hook-integration
     paths:
       - '.github/workflows/build-fx-kernelsu.yml'
+      - '.github/workflows/build-fx-adhook.yml'
       - 'adhook/app/src/main/**'
       - 'adhook/app/src/test/**'
       - 'fx-module/scripts/**'
@@ -71,8 +72,237 @@ jobs:
             changed="ALL"
           fi
 
-          if grep -Eq '^\.github/workflows/(build-fx-adhook|build-fx-kernelsu|fx-targeted-regression)\.yml$' <<<"$changed"; then
+          if grep -Eq '^\.github/workflows/(build-fx-adhook|build-fx-kernelsu|fx-targeted-regression)\.yml          echo "Changed paths:"
+          printf '%s\n' "$changed"
+
+          # Catch syntax errors in changed host scripts without invoking a full Android build.
+          while IFS= read -r file; do
+            [[ -f "$file" ]] || continue
+            case "$file" in
+              *.sh) bash -n "$file" ;;
+              *.py) python3 -m py_compile "$file" ;;
+            esac
+          done <<<"$changed"
+
+          ran=0
+          declare -A done_tests=()
+          run_sh() {
+            local file="$1"
+            [[ -n "${done_tests[$file]:-}" ]] && return 0
+            [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            done_tests["$file"]=1
+            echo "::group::bash $file"
+            bash "$file"
+            echo "::endgroup::"
+            ran=1
+          }
+          run_py() {
+            local file="$1"
+            [[ -n "${done_tests[$file]:-}" ]] && return 0
+            [[ -f "$file" ]] || { echo "Missing targeted test: $file" >&2; exit 2; }
+            done_tests["$file"]=1
+            echo "::group::python $file"
+            python3 "$file"
+            echo "::endgroup::"
+            ran=1
+          }
+
+          if [[ "$changed" == "ALL" ]] || grep -Eq '(^|/)\.gitmodules$|(^|/)vendor/GKD-XA(/|$)|FX_GKD_XA_1\.4\.8_INTEGRATION_PLAN\.md|fx-gkd-xa-source-lock-regression\.sh' <<<"$changed"; then
+            run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (install_adhook_app|post-fs-data|adhook-app-installer-regression) ]]; then
+            run_sh scripts/tests/adhook-app-installer-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (patch_system_app_install_stage|fx-system-app-install-stage-patcher) ]]; then
+            run_py scripts/tests/fx-system-app-install-stage-patcher-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx_system_app_post_fs_data|fx-system-app-overlay-boot|post-fs-data) ]]; then
+            run_sh scripts/tests/fx-system-app-overlay-boot-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxGkd|GkdSelector|gkd-selector|GKD-XA|fx-gkd|FxAccessibilityService|FxGkdAutomationActivity|MainActivity\.java|AndroidManifest\.xml|settings\.gradle|app/build\.gradle) ]]; then
+            run_sh scripts/tests/fx-gkd-selector-integration-regression.sh
+            run_sh scripts/tests/fx-gkd-automation-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxOpenSourceLicensesActivity|fx-open-source-licenses) ]]; then
+            run_sh scripts/tests/fx-open-source-licenses-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaFridaActivity|FxDiaScriptLibraryActivity|FxDiaCodeEditorActivity|fx-dia-frida-) ]]; then
+            run_sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
+            run_sh scripts/tests/fx-dia-frida-binary-import-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-config-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
+            run_sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
+            run_py scripts/tests/fx-dia-frida-libxposed-wiring-regression.py
+            run_py scripts/tests/fx-dia-frida-process-identity-regression.py
+            run_sh scripts/tests/fx-dia-frida-server-lifecycle-regression.sh
+            run_sh scripts/tests/fx-dia-frida-page-navigation-regression.sh
+            run_py scripts/tests/fx-dia-frida-target-loader-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxHookConfigPublisher|UnifiedHookConfigParser|UnifiedHookConfigSerializer|HookTargetConfigParser|UnifiedHookConfigParserTest|UnifiedHookConfigSerializerTest|HookTargetConfigParserTest|AdVisibilityHook|fx-hook-config-stream-publish) ]]; then
+            run_sh scripts/tests/fx-hook-config-stream-publish-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongAdSummaryActivity|yulong-ad-dns-summary|fx-yulong-ad-dns-summary-regression) ]]; then
+            run_sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxDiaDexBrowserActivity|FxUiMode|FxDesignModePanel|FxNativeSkin|SkinTokens|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls|ensure_lsposed_manager_notice) ]]; then
+            run_sh scripts/tests/fx-global-ui-modes-regression.sh
+            run_sh scripts/tests/fx-unified-navigation-regression.sh
+            run_sh scripts/tests/fx-hook-native-ui-regression.sh
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_sh scripts/tests/fx-dia-custom-hook-literal-regression.sh
+             run_sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
+            run_sh scripts/tests/fx-custom-hook-passthrough-regression.sh
+            run_sh scripts/tests/fx-dia-dialog-native-regression.sh
+            run_py scripts/tests/fx-dia-wifi-proxy-regression.py
+            run_py scripts/tests/fx-dia-lsposed-scope-regression.py
+            run_py scripts/tests/fx-dia-lsposed-auto-scope-regression.py
+            if [[ -s fx-module/webroot/index.html && -s fx-module/scripts/default.conf ]]; then
+              run_sh scripts/tests/fx-native-privacy-settings-regression.sh
+            else
+              echo "SKIP: fx-native-privacy-settings-regression.sh requires the restored FX module archive; the complete module-backed check runs in build-fx-adhook.yml after Release staging."
+            fi
+            run_sh scripts/tests/fx-native-vpn-api-regression.sh
+            run_sh scripts/tests/fx-native-vpn-config-lock-regression.sh
+            run_sh scripts/tests/fx-vpn-transparent-toggle-regression.sh
+            run_sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh
+            run_sh scripts/tests/fx-yulong-dns-cache-regression.sh
+            run_sh scripts/tests/fx-yulong-vpn-control-regression.sh
+            run_py scripts/tests/fx-yulong-vpn-tile-regression.py
+            run_sh scripts/tests/v1.0.0-fxhook-capture-privacy-wiring-regression.sh
+            run_sh scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
+            run_sh scripts/tests/vpncore-default-node-fallback-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (ensure_lsposed_manager_notice|fx-lsposed-manager-notice-patcher-regression) ]]; then
+            run_py scripts/tests/fx-lsposed-manager-notice-patcher-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongAdTaskerReceiver|FxYulongAdGeneralActivity|FxYulongTasker|fx-yulong-tasker-receiver-concurrency) ]]; then
+            run_sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
+            run_sh scripts/tests/fx-yulong-ad-widget-regression.sh
+          fi
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongRootModuleCommand|FxYulongAdActivity|FxYulongAdGeneralActivity|FxYulongAppWhitelistActivity|FxYulongDnsActivity|FxYulongFirewallActivity|FxYulongAdSummaryActivity|fx-yulong-root-module-command-regression) ]]; then
+            run_sh scripts/tests/fx-yulong-root-module-command-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongFirewallActivity|FxYulongFirewallListParser|FxYulongFirewallListParserHostTest|FxYulongAdActivity|FxYulongFirewallAppFilterPolicy|FxYulongFirewallAppFilterPolicyTest|yulong-app-firewall.sh|fx-yulong-app-firewall-regression|fx-yulong-firewall-activity-regression) ]]; then
+            run_sh scripts/tests/fx-yulong-app-firewall-regression.sh
+            run_sh scripts/tests/fx-yulong-firewall-activity-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaGpsPickerActivity|FxDiaBackupActivity|FxDiaWifiProxyActivity|fx-dia-backup|fx-dia-dialog|fx-dia-wifi-proxy) ]]; then
+            run_sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
+            run_sh scripts/tests/fx-dia-dialog-native-regression.sh
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_py scripts/tests/fx-dia-wifi-proxy-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxHookObservationLogsActivity|fx-hook-observation-logs) ]]; then
+            run_sh scripts/tests/fx-hook-observation-logs-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxWallpaperStore|FxNativeAppShell|FxNativeSkin|MainActivity\.java|fx-wallpaper) ]]; then
+            run_sh scripts/tests/fx-wallpaper-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxNativeTabActivity|FxNativeAppShell|FxDiaActivityBrowserActivity|FxDiaCrashReportActivity|FxDiaFileActivity|FxDiaGlobalSettingsActivity|FxDiaInspectorActivity|FxDiaJsonActivity|FxDiaMonitorEventsActivity|FxDiaSessionLogActivity|FxDiaSignatureActivity|FxDiaSystemExpandActivity) ]]; then
+            run_sh scripts/tests/fx-dia-native-tab-regression.sh
+            run_sh scripts/tests/fx-dia-six-tab-regression.sh
+            run_sh scripts/tests/fx-dia-crash-report-regression.sh
+            run_sh scripts/tests/fx-dia-file-browser-io-regression.sh
+            run_sh scripts/tests/fx-dia-global-settings-registration-regression.sh
+            run_sh scripts/tests/fx-dia-inspector-regression.sh
+            run_sh scripts/tests/fx-dia-monitor-event-view-regression.sh
+            run_sh scripts/tests/fx-dia-system-expand-installer-regression.sh
+            run_sh scripts/tests/fx-dia-system-expand-navigation-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaDexBrowserActivity|fx-dia-dex-document-browser) ]]; then
+            run_sh scripts/tests/fx-dia-dex-document-browser-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (imported/shield/|FxYulong|Blacklist|Whitelist|VirusDb|fx-yulong-shield) ]]; then
+            run_sh scripts/tests/fx-yulong-shield-native-regression.sh
+            run_sh scripts/tests/fx-yulong-shield-six-tab-regression.sh
+            run_sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (patch_vpn_coexistence_status|fx-vpn-coexistence-status-regression) ]]; then
+            run_py scripts/tests/fx-vpn-coexistence-status-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (yulong-vpn-control\.sh|fx-yulong-vpn-control-regression\.sh) ]]; then
+            run_sh scripts/tests/fx-yulong-vpn-control-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-vpn-coexistence-arbiter\.sh|fx-vpn-coexistence-arbiter-regression\.sh) ]]; then
+            run_sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|fx-vpn-coexistence-ui-regression) ]]; then
+            run_py scripts/tests/fx-vpn-coexistence-ui-regression.py
+          fi
+
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
+            run_sh scripts/tests/fx-native-script-store-regression.sh
+            run_sh scripts/tests/fx-native-script-local-run-regression.sh
+            run_sh scripts/tests/fx-native-script-scheduler-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (patch_hosts_file_lock|fx-hosts-cache-lock-regression) ]]; then
+            run_sh scripts/tests/fx-hosts-cache-lock-regression.sh
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_localdns_uninstall_shutdown|patch_yulong_root_proxy|patch_vpn_tun_external_fallback|patch_vpn_external_watchdog) ]]; then
+            run_sh scripts/tests/fx-atomic-cache-lock-release-regression.sh
+            run_sh scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh
+            run_sh fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh
+            run_sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
+            run_sh scripts/tests/fx-root-proxy-uninstall-order-regression.sh
+            run_sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
+            run_py scripts/tests/fx-vpn-watchdog-patcher-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (DeveloperExecutableDescriptor|fx-kotlin-hook-signature) ]]; then
+            run_sh scripts/tests/fx-kotlin-hook-signature-regression.sh
+          fi
+
+          # If only an individual regression file changed, execute that file directly.
+          while IFS= read -r file; do
+            [[ -f "$file" ]] || continue
+            case "$file" in
+              scripts/tests/*.sh|fx-module/scripts/tests/*.sh)
+                run_sh "$file"
+                ;;
+              scripts/tests/*.py)
+                run_py "$file"
+                ;;
+            esac
+          done <<<"$changed"
+
+          if [[ "$ran" -eq 0 ]]; then
+            if grep -Eq '^(adhook/app/src/main|adhook/app/src/test|fx-module/scripts|fx-patches)/' <<<"$changed"; then
+              echo "ERROR: changed source path has no targeted Host regression mapping." >&2
+              exit 2
+            fi
+            echo "No source path changed; no Host regression was required."
+          fi
+ <<<"$changed"; then
             changed="ALL"
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (build-fx-adhook\.yml|build-fx-kernelsu\.yml|fx-android-build-toolchain-regression|adhook/build\.gradle|adhook/app/build\.gradle|adhook/gradle\.properties) ]]; then
+            run_sh scripts/tests/fx-android-build-toolchain-regression.sh
           fi
           echo "Changed paths:"
           printf '%s\n' "$changed"
