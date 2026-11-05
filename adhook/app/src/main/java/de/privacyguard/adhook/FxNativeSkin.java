@@ -436,6 +436,7 @@ public final class FxNativeSkin {
             // Success / trusted
             case 0xff237347:
             case 0xff24734a:
+            case 0xff2e7d32:
                 return true;
             default:
                 return false;
