@@ -4866,3 +4866,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原有两种组合继续保留：两个引擎都独立启用时都保留；两个引擎都未独立启用时都释放。这样覆盖完整 2×2 引擎所有权矩阵，而不是只测“全开/全关”。
 - 提交：`ecaedb06db86c8cdc5a9bb704d23d36016dedfc8`（`test(vpn): cover single-engine local DNS ownership`）。提交后已回读新测试文件 blob SHA `29f2bcffa320e16df81807bb71257983d6145f42`。
 - 该文件路径会触发 `fx-targeted-regression.yml` 的 push host regression；本次新提交的 Actions run ID 尚未从 GitHub API 读取。此前 run `42011770715` 对同一 Root Proxy runtime regression 的原有全开/全关测试通过，不应把此前结果冒充本次新增两项的执行结果。
+
+
+## 2026-11-05 — Local DNS watchdog uninstall stale-PID recovery
+
+- Review of `fx-patches/patch_localdns_uninstall_shutdown.py` found that its fail-closed PID identity check also treated an already-exited watchdog PID as an unknown live process. A stale PID file could therefore block module removal even though there was no process left to stop.
+- Updated the release patcher to distinguish dead PID from live-but-unverifiable PID: a dead PID's non-symlink state record is cleared and uninstall may continue; a symlinked record or a live PID whose command identity is not the expected watchdog still aborts before firewall teardown and preserves state. Existing TERM/KILL identity revalidation for a confirmed watchdog remains intact.
+- Added `scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh`. It creates a minimal release-uninstall fixture, applies the patch twice to check idempotence, validates shell syntax, and exercises dead PID cleanup, live unrelated PID refusal, symlink refusal, and cooperative-helper shutdown failure.
+- Commits:
+  - `061f6ee9fc5c507204846712921a1e9ca61a1a21` — `fix(dns): clear dead local DNS watchdog PID during uninstall`.
+  - `8dd44801a53cae4fae9d95e9edf2301fd9663a9e` — `test(dns): cover local DNS watchdog uninstall ownership`.
+- The first targeted workflow for the patcher-only commit (`42012964957`) failed because the workflow's changed-source mapping did not yet include this new patcher regression; this was a CI mapping gap, not a test failure. After adding the regression entrypoint, run `42013033671` completed with `host-regressions = success`; its log explicitly reports the local DNS watchdog uninstall regression PASS.
+- This is a host shell fixture test. It does not claim real Android uninstall, KernelSU lifecycle, SELinux, or device DNS continuity verification.
