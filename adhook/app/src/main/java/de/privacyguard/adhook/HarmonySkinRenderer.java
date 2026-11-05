@@ -50,9 +50,11 @@ final class HarmonySkinRenderer {
     }
 
     /** Apply Harmony presentation to explicitly tagged shared FX components. */
-    static void applyTaggedComponent(Activity activity, View view) {
-        if (activity == null || view == null || !(view.getTag() instanceof String)) return;
+    static void applyTaggedComponent(Activity activity, View view, FxUiMode mode) {
+        if (activity == null || view == null || mode != FxUiMode.HUAWEI_HARMONY_STYLE
+                || !(view.getTag() instanceof String)) return;
         String role = (String) view.getTag();
+        if (!FxNativeSkin.beginTaggedComponentRender(view, mode, role)) return;
         float density = activity.getResources().getDisplayMetrics().density;
         if (role.startsWith("fx-title:") && view instanceof TextView) {
             int requested = parseRequestedSize(role, 18);
