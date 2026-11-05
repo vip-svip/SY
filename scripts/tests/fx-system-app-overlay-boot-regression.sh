@@ -48,6 +48,12 @@ run_boot "$APP2" "$STATE2"
 [ -s "$STATE2/system-app-retry" ] || { echo "FAIL: invalid digest did not create retry marker" >&2; exit 1; }
 [ "$(stat -c %a "$STATE2/system-app-retry")" = 600 ] || { echo "FAIL: retry marker mode is not 0600" >&2; exit 1; }
 
+echo "== absent system-app overlay creates a retry marker instead of silently skipping =="
+APP_MISSING="$T/not-mounted/system/app/FX"; STATE_MISSING="$T/state-missing"
+run_boot "$APP_MISSING" "$STATE_MISSING"
+[ -s "$STATE_MISSING/system-app-retry" ] || { echo "FAIL: missing overlay did not create a retry marker" >&2; exit 1; }
+[ "$(stat -c %a "$STATE_MISSING/system-app-retry")" = 600 ] || { echo "FAIL: missing-overlay retry marker mode is not 0600" >&2; exit 1; }
+
 echo "== symlinked ancestor is rejected before state/log creation =="
 OUT="$T/outside"; PARENT="$T/parent"
 mkdir -p "$OUT"
