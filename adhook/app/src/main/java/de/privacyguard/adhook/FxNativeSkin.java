@@ -14,6 +14,8 @@ import android.view.ViewTreeObserver;
 import android.widget.TextView;
 import android.widget.Button;
 import android.widget.Switch;
+import android.widget.EditText;
+import android.widget.Spinner;
 import java.util.WeakHashMap;
 
 /**
@@ -30,6 +32,7 @@ final class FxNativeSkin {
     private static final WeakHashMap<View, Boolean> WATCHED = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> BUTTON_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> SWITCH_SKINS = new WeakHashMap<>();
+    private static final WeakHashMap<View, FxUiMode> FORM_SKINS = new WeakHashMap<>();
 
     private static final long REAPPLY_DEBOUNCE_MS = 80L;
 
@@ -97,10 +100,12 @@ final class FxNativeSkin {
         final int accent;
         final int switchOffTrack;
         final int cornerRadiusDp;
+        final int inputBorder;
 
         Palette(int background, int surface, int surfaceVariant, int divider,
                 int primaryText, int secondaryText, int actionBackground,
-                int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp) {
+                int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp,
+                int inputBorder) {
             this.background = background;
             this.surface = surface;
             this.surfaceVariant = surfaceVariant;
@@ -112,6 +117,7 @@ final class FxNativeSkin {
             this.accent = accent;
             this.switchOffTrack = switchOffTrack;
             this.cornerRadiusDp = cornerRadiusDp;
+            this.inputBorder = inputBorder;
         }
     }
 
@@ -141,11 +147,11 @@ final class FxNativeSkin {
             case FX_LIQUID_NATIVE:
                 return new Palette(0xffe8eef4, 0xddefffff, 0xccefffff,
                         0x66ffffff, 0xff24394c, 0xff718091,
-                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24);
+                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24, 0x88ffffff);
             case MIUIX_STYLE:
                 return new Palette(0xfff3f5fa, 0xffeaf0fb, 0xffe5ecf8,
                         0xffd8e1ef, 0xff202b3c, 0xff718091,
-                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20);
+                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20, 0xffcbd7e8);
             case HUAWEI_HARMONY_STYLE:
                 return HarmonySkinRenderer.palette();
             case IOS_CUPERTINO_STYLE:
@@ -154,7 +160,7 @@ final class FxNativeSkin {
             default:
                 return new Palette(0xfff4f6f8, 0xffffffff, 0xffe9eef3,
                         0xffe3e8ee, 0xff17212b, 0xff66727e,
-                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8);
+                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc);
         }
     }
 
@@ -174,6 +180,15 @@ final class FxNativeSkin {
             int oldColor = text.getCurrentTextColor();
             Integer replacement = replacementText(oldColor, palette);
             if (replacement != null && replacement != oldColor) text.setTextColor(replacement);
+        }
+
+        // Form controls are a shared presentation surface across the five Skins.
+        // Their text/hint hierarchy is normalized; only known framework drawables
+        // receive tint so app-owned custom field backgrounds are never replaced.
+        if (view instanceof EditText) {
+            applyTextInputSkin(activity, (EditText) view, mode, palette);
+        } else if (view instanceof Spinner) {
+            applySpinnerSkin(activity, (Spinner) view, mode, palette);
         }
 
         // Switch, CheckBox and RadioButton can also match the generic Button
@@ -254,6 +269,55 @@ final class FxNativeSkin {
             default:
                 return false;
         }
+    }
+
+    private static void applyTextInputSkin(Activity activity, EditText control,
+                                            FxUiMode mode, Palette palette) {
+        synchronized (FORM_SKINS) {
+            if (FORM_SKINS.get(control) == mode) return;
+            FORM_SKINS.put(control, mode);
+        }
+        float density = activity.getResources().getDisplayMetrics().density;
+        control.setTextColor(palette.primaryText);
+        control.setHintTextColor(palette.secondaryText);
+        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                mode == FxUiMode.IOS_CUPERTINO_STYLE ? 16
+                        : mode == FxUiMode.HUAWEI_HARMONY_STYLE ? 15 : 14);
+        control.setMinimumHeight(Math.max(control.getMinimumHeight(),
+                Math.round(48 * density)));
+        tintKnownFormBackground(control, palette);
+    }
+
+    private static void applySpinnerSkin(Activity activity, Spinner control,
+                                         FxUiMode mode, Palette palette) {
+        synchronized (FORM_SKINS) {
+            if (FORM_SKINS.get(control) == mode) return;
+            FORM_SKINS.put(control, mode);
+        }
+        float density = activity.getResources().getDisplayMetrics().density;
+        control.setMinimumHeight(Math.max(control.getMinimumHeight(),
+                Math.round(48 * density)));
+        tintKnownFormBackground(control, palette);
+    }
+
+    private static void tintKnownFormBackground(View control, Palette palette) {
+        Drawable background = control.getBackground();
+        if (background == null) return;
+        // Only tint stock Android wrapper/state backgrounds. App-owned custom
+        // Drawable classes are deliberately left untouched by the global Skin.
+        String className = background.getClass().getName();
+        boolean platformBackground =
+                "android.graphics.drawable.InsetDrawable".equals(className)
+                || "android.graphics.drawable.StateListDrawable".equals(className)
+                || "android.graphics.drawable.RippleDrawable".equals(className)
+                || "android.graphics.drawable.LayerDrawable".equals(className);
+        if (!platformBackground) return;
+        int[][] states = new int[][] {
+                new int[] { android.R.attr.state_focused },
+                new int[] {}
+        };
+        control.setBackgroundTintList(new ColorStateList(
+                states, new int[] { palette.accent, palette.inputBorder }));
     }
 
     private static void applySwitchSkin(Activity activity, Switch control,
