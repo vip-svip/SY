@@ -5707,3 +5707,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `3db79048` 的安装阶段行为回归失败在 `patch_system_app_install_stage.py`：新补丁会从仓库 canonical `scripts/` 同步 installer/remover，但旧的独立行为夹具只创建 `tmp/fx-module/customize.sh`，没有创建对应的 `tmp/scripts/` 源目录。
 - 修正夹具为复制真实 canonical installer/remover 到临时仓库根目录，再执行生产 patcher；同时断言两份脚本已逐字节同步。测试仍从真实注入的 `customize.sh` 提取并执行安装阶段代码，不重写业务逻辑。
 - 本修订仅修复测试夹具布局，等待 System App Install Stage、Host 与 KernelSU package lane 重新验证。
+
+
+### Dia DEX 方法选择器与 Hook 标签页回归更新（2026-11-06）
+
+- 旧导航回归仍查找已移除的 `方法 Hook/函数重写`、`规则组/规则列表` 分支；当前实现由原生 DEX 类/方法浏览入口将经过校验的方法签名带入自定义 Hook 编辑器。
+- 回归现在检查完整往返：只允许 debuggable 用户应用选择具体方法；DEX 浏览页返回包名和 descriptor；MainActivity 再校验目标包状态、debuggable/system 标志及 `DeveloperHookRule` 语法，然后打开自定义 Hook 目标页。
+- 同时验证 Hook app picker 仍选择底部 Hook tab（index 4），返回按钮回到 Hook 应用列表；Targeted Host 映射覆盖 MainActivity 与 FxDiaDexBrowserActivity 改动。
+- 旧 APK migration run `42094851449` 在 Release merge 后执行旧导航断言时失败；本修订只同步回归契约，不改变功能实现。

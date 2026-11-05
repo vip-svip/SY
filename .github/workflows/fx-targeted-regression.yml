@@ -139,12 +139,13 @@ jobs:
             run_sh scripts/tests/fx-hook-config-stream-publish-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxNativeSkin|SkinTokens|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls|ensure_lsposed_manager_notice) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxDiaDexBrowserActivity|FxNativeSkin|SkinTokens|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls|ensure_lsposed_manager_notice) ]]; then
             run_sh scripts/tests/fx-global-ui-modes-regression.sh
             run_sh scripts/tests/fx-unified-navigation-regression.sh
             run_sh scripts/tests/fx-hook-native-ui-regression.sh
             run_sh scripts/tests/fx-dia-native-tab-regression.sh
             run_sh scripts/tests/fx-dia-custom-hook-literal-regression.sh
+             run_sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
             run_sh scripts/tests/fx-custom-hook-passthrough-regression.sh
             run_sh scripts/tests/fx-dia-dialog-native-regression.sh
             run_py scripts/tests/fx-dia-wifi-proxy-regression.py
