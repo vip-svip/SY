@@ -39,8 +39,6 @@ required = {
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
     "Frida script execution size is bounded": "sourceBytes.length > MAX_FRIDA_SOURCE_BYTES",
     "Frida source ceiling is 8 MiB": "MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024",
-    "Root stdin writer failure cannot report success": "if (code == 0) code = 5;",
-    "already-running Gadget path drains streamed source": "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING",
     "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',
@@ -76,6 +74,8 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+assert "if (code == 0) code = 5;" in root_access, "Root stdin writer failure must prevent a false-success result"
+assert "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING" in source, "already-running Gadget path must drain streamed input before returning success"
 assert "if (code == 0) code = 5;" in root_access, "Root stdin writer failure must prevent a false-success result"
 assert "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING" in source, "already-running Gadget path must drain streamed input before returning success"
 attach = source[source.index("private void attachToGadgetAndResume()"):
