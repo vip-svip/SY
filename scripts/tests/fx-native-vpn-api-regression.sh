@@ -31,6 +31,8 @@ grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN 
 grep -Fq 'state.optString("vpn_effective_mode"' "$ACTIVITY" || fail "native VPN UI ignores the effective runtime dataplane"
 grep -Fq 'external_android_vpn_tun_to_redirect' "$ACTIVITY" || fail "native VPN UI does not explain the guarded outer-VPN fallback"
 grep -Fq 'Root REDIRECT' "$ACTIVITY" || fail "native VPN UI does not label the effective root REDIRECT mode"
+grep -Fq 'state.optString("dns_filter_coverage"' "$ACTIVITY" || fail "native VPN UI ignores Private DNS filter coverage"
+grep -Fq 'strict_private_dns_bypasses_redirect' "$ACTIVITY" || fail "native VPN UI does not warn about strict Private DNS bypass"
 grep -Fq 'private void refreshAndroidVpnNetworkStatus()' "$ACTIVITY" || fail "active Android VPN network diagnostic missing"
 grep -Fq 'NetworkCapabilities.TRANSPORT_VPN' "$ACTIVITY" || fail "native VPN UI does not detect active VpnService networks"
 grep -Fq 'connectivity.getAllNetworks()' "$ACTIVITY" || fail "native VPN UI does not enumerate active Android networks"
