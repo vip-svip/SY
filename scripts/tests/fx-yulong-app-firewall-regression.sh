@@ -404,8 +404,19 @@ fi
 unset MOCK_PACKAGE_LIST_FAIL
 [ -f "$ACTIVE" ] || fail "snapshot failure removed last known-good active chain"
 
+# A failed OUTPUT detach must fail closed and retain the active marker
+# so a later disable retry can identify and clean the still-attached rules.
+export MOCK_FAIL_DELETE_CHAIN=FXYUL_B
+if run master 0 > "$TMP/disable-detach-failed.out" 2>&1; then
+  fail "firewall disable accepted a failed OUTPUT hook deletion"
+fi
+unset MOCK_FAIL_DELETE_CHAIN
+[ -s "$ACTIVE" ] || fail "failed teardown discarded the active marker"
+grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
+grep -Fq 'cannot detach FX firewall OUTPUT hook: FXYUL_B' "$TMP/disable-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
+
 run master 0 > "$TMP/disable.out"
-grep -Fq 'firewall=0' "$TMP/disable.out" || fail "firewall did not disable"
+grep -Fq 'firewall=0' "$TMP/disable.out" || fail "firewall did not disable after successful retry"
 [ ! -e "$ACTIVE" ] || fail "disable left an active marker"
 grep -Fq 'iptables -t filter -F FXYUL_A' "$MOCK_LOG" || fail "IPv4 chain cleanup missing"
 grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "IPv6 chain cleanup missing"
@@ -525,17 +536,6 @@ fi
 # Uninstall uses the same lock as apply and mutation, so it cannot race an
 # in-flight chain swap and leave an orphaned active firewall rule.
 grep -Fq 'uninstall) stop_watch || :; with_lock clear_all ;;' "$SOURCE" || fail "uninstall does not stop the owned watcher under the firewall lock"
-# A failed OUTPUT detach must fail closed and retain the active marker
-# so a later uninstall retry can identify and clean the still-attached rules.
-export MOCK_FAIL_DELETE_CHAIN=FXYUL_B
-if run uninstall > "$TMP/uninstall-detach-failed.out" 2>&1; then
-  fail "uninstall accepted a failed OUTPUT hook deletion"
-fi
-unset MOCK_FAIL_DELETE_CHAIN
-[ -s "$ACTIVE" ] || fail "failed teardown discarded the active marker"
-grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
-grep -Fq 'cannot detach FX firewall OUTPUT hook: FXYUL_B' "$TMP/uninstall-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
-
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state after successful retry"
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "uninstall left an IPv4 OUTPUT jump"
