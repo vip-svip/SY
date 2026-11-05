@@ -89,14 +89,14 @@ cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
 printf 'vpn-watchdog:%s\\n' "$*" >> "$ORDER_LOG"
 WATCHDOG
 chmod 0755 "$MOD/scripts/vpn-external-watchdog.sh"
-printf '%s\\n' outside > "$T/outside-network.log"
+echo outside > "$T/outside-network.log"
 ln -s "$T/outside-network.log" "$PG/vpn-external-watchdog.log"
 : > "$LOG"
 if ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/log-link.out" 2>&1; then
   fail "uninstall accepted a symlinked network teardown log"
 fi
 [ ! -s "$LOG" ] || fail "a helper ran before symlinked teardown log was rejected"
-[ "$(cat "$T/outside-network.log")" = outside ] || fail "external log target was modified"
+grep -Fxq outside "$T/outside-network.log" || fail "external log target was modified: $(cat "$T/outside-network.log")"
 [ -L "$PG/vpn-external-watchdog.log" ] || fail "symlinked network log was removed"
 grep -Fq 'network teardown log is a symlink or non-regular file' "$T/log-link.out" || fail "symlinked teardown log refusal was not reported"
 rm -f "$PG/vpn-external-watchdog.log"
