@@ -146,15 +146,12 @@ if legacy_guard_test.is_file():
     for index, line in enumerate(test_lines):
         if "TUN external-VPN conflict guard missing" not in line:
             continue
-        updated_line, count = re.subn(
-            r"grep\\s+-Fq\\s+(['\\\"]).*?\\1",
-            "grep -Fq 'fx_select_vpn_effective_mode() {'",
-            line,
-            count=1,
+        if "grep" not in line:
+            raise SystemExit("legacy TUN conflict assertion is not a recognizable shell grep")
+        test_lines[index] = (
+            "grep -Fq 'fx_select_vpn_effective_mode() {' "
+            + '"$ROOT/scripts/apply.sh" || { echo "FAIL: TUN external-VPN conflict guard missing" >&2; exit 1; }'
         )
-        if count != 1:
-            raise SystemExit("legacy TUN conflict assertion could not be safely updated")
-        test_lines[index] = updated_line
         changed_test = True
     if changed_test:
         legacy_guard_test.write_text("\\n".join(test_lines) + "\\n", encoding="utf-8")
