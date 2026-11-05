@@ -6527,3 +6527,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 
 - IPv6 matrix completion: commit `7f8579535715d3753abd347d729e60de7ff1c800` adds the remaining IPv6 UDP/53 and TCP/7890 fixtures/cases. Together with `b1947d1`, coverage now includes TCP and UDP binds for upstream DNS/5353, client-facing DNS/53, and proxy/7890 on IPv6. GitHub readback verified the regression file blob `c4a6d74d2c5d81d557dee4f9316e4e3228060495`. This remains unexecuted regression coverage until CI/device results are available.
+
+
+## 2026-11-06 — VPN/DNS Runtime CI 全部通过
+
+- 最新已完成验证的提交：`27288908a794bdbc4f2622c503808f38831c5b6f`。
+- GitHub Actions：FX Module Runtime Regression run `42107900836` 成功；全部 18/18 VPN/DNS runtime 回归通过，Root proxy、native VPN API、配置事务锁、Hosts 缓存锁等集成回归全部通过。
+- 同一提交：FX VPN Coexistence Arbiter run `42107900674` 成功；FX Targeted Host Regression run `42107900785` 成功。
+- Runtime 覆盖包括 TUN 与外部 VPN 冲突保护、TUN→REDIRECT 有条件回退、DNS 双端口监听与规则生成、VPN watchdog 生命周期、per-app VPN 列表事务、Root Proxy 路由/UID 证明和独立 DNS 归属。
+- 这组 CI 是 Linux Host 上基于已发布模块包加当前分支补丁的可执行回归，不是 Android 真机实测，也不证明第三方 VPN 的所有设备/ROM/厂商内核均可并行转发。
