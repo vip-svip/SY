@@ -355,15 +355,15 @@ grep -Fxq 'keep-log-target' "$PATH_GUARD/log-target" || fail "installer appended
 # state directory, even when the target contains a valid digest and owner marker.
 REMOVE_TARGET="$PATH_GUARD/remove-target"
 mkdir -p "$REMOVE_TARGET"
-printf 'remove-state-target\\n' > "$REMOVE_TARGET/sentinel"
-printf 'de.privacyguard.adhook\\n' > "$TMP/pm/installed"
-printf 'remove-target APK payload\\n' > "$TMP/pm/de.privacyguard.adhook.apk"
+printf 'remove-state-target\n' > "$REMOVE_TARGET/sentinel"
+printf 'de.privacyguard.adhook\n' > "$TMP/pm/installed"
+printf 'remove-target APK payload\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 REMOVE_DIGEST=$(sha256sum "$TMP/pm/de.privacyguard.adhook.apk" | awk '{print $1}')
-printf '%s\\n' "$REMOVE_DIGEST" > "$REMOVE_TARGET/adhook-apk-fxunifiedhook.sha256"
-printf 'fx-managed-v1\\n' > "$REMOVE_TARGET/adhook-apk-fxunifiedhook.fx-owned"
+printf '%s\n' "$REMOVE_DIGEST" > "$REMOVE_TARGET/adhook-apk-fxunifiedhook.sha256"
+printf 'fx-managed-v1\n' > "$REMOVE_TARGET/adhook-apk-fxunifiedhook.fx-owned"
 ln -s "$REMOVE_TARGET" "$PATH_GUARD/remove-state-link"
 : > "$TMP/pm/uninstall-calls"
-if FX_ADHOOK_LOG="$PATH_GUARD/remove-state-link/adhook-install.log" \\
+if FX_ADHOOK_LOG="$PATH_GUARD/remove-state-link/adhook-install.log" \
    sh "$REMOVER" "$TMP/mod" "$PATH_GUARD/remove-state-link" >/dev/null 2>&1; then
   fail "remover accepted a symlinked ownership state directory"
 fi
@@ -377,11 +377,11 @@ grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "remover uninstalle
 # A symlinked digest marker inside a safe state directory is not ownership proof.
 REMOVE_SAFE="$PATH_GUARD/remove-safe-state"
 mkdir -p "$REMOVE_SAFE" "$PATH_GUARD/remove-marker-target"
-printf '%s\\n' "$REMOVE_DIGEST" > "$PATH_GUARD/remove-marker-target/digest"
+printf '%s\n' "$REMOVE_DIGEST" > "$PATH_GUARD/remove-marker-target/digest"
 ln -s "$PATH_GUARD/remove-marker-target/digest" "$REMOVE_SAFE/adhook-apk-fxunifiedhook.sha256"
-printf 'fx-managed-v1\\n' > "$REMOVE_SAFE/adhook-apk-fxunifiedhook.fx-owned"
+printf 'fx-managed-v1\n' > "$REMOVE_SAFE/adhook-apk-fxunifiedhook.fx-owned"
 : > "$TMP/pm/uninstall-calls"
-if FX_ADHOOK_LOG="$REMOVE_SAFE/adhook-install.log" \\
+if FX_ADHOOK_LOG="$REMOVE_SAFE/adhook-install.log" \
    sh "$REMOVER" "$TMP/mod" "$REMOVE_SAFE" >/dev/null 2>&1; then
   fail "remover accepted a symlinked digest ownership marker"
 fi
