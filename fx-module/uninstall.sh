@@ -2,6 +2,12 @@
 # KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
 STATE_DIR=${PG:-/data/adb/privacyguard}
+# Refuse an aliased or non-directory state root before any log redirection or
+# helper invocation can follow paths outside FX's private state directory.
+if [ -L "$STATE_DIR" ] || { [ -e "$STATE_DIR" ] && [ ! -d "$STATE_DIR" ]; }; then
+  echo "FX uninstall: state directory is a symlink or non-directory; preserving state and aborting cleanup" >&2
+  exit 1
+fi
 _mitm_warn() {
   _msg="PrivacyGuard uninstall warning: $*"
   echo "$_msg" >&2
