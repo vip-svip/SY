@@ -270,7 +270,7 @@ fx_arb_self_uid() {
   if command -v cmd >/dev/null 2>&1; then _packages=$(cmd package list packages -U --user "$_user" de.privacyguard.adhook 2>/dev/null) || _packages=; fi
   if [ -z "$_packages" ] && command -v pm >/dev/null 2>&1; then _packages=$(pm list packages -U --user "$_user" de.privacyguard.adhook 2>/dev/null) || _packages=; fi
   [ -n "$_packages" ] || return 1
-  _uid=$(printf '%s\\n' "$_packages" | awk '
+  _uid=$(printf '%s\n' "$_packages" | awk '
     $1 == "package:de.privacyguard.adhook" { for (i=2; i<=NF; i++) if ($i ~ /^uid:[0-9]+$/) { split($i,a,":"); uid=a[2]; rows++ } }
     END { if (rows == 1 && uid != "") print uid; else exit 1 }
   ') || return 1
@@ -450,7 +450,7 @@ fx_arb_json() {
   case "$FX_ARB_SLOT_USED" in true|false) _slot_json=$FX_ARB_SLOT_USED ;; *) _slot_json=null ;; esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
   printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
-  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\\n' "$_san"
+  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
 }
 
 fx_arb_text() {
