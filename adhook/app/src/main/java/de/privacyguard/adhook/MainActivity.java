@@ -1401,6 +1401,10 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff718091);
         intro.setPadding(dp(18), 0, dp(18), dp(10));
         content.addView(intro);
+        section("安全防护中心");
+        addNativeActionCard("安全防护中心", "统一管理实时守护、应用风险扫描、病毒名单、白名单、救援恢复与安全状态。", "打开安全防护", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class)));
         section("设备授权与 Hook 状态");
         TextView state = new TextView(this);
         state.setText("正在读取 Root、LSPosed 与 Remote Files 状态…");
@@ -3066,6 +3070,38 @@ public final class MainActivity extends ComponentActivity {
         intro.setPadding(dp(18), dp(8), dp(18), dp(16));
         intro.setTextColor(0xff536170);
         content.addView(intro);
+        section("Hook 工具与调试");
+        addNativeActionCard("Frida 环境与注入", "管理 Frida 运行环境、注入会话、Gadget 与脚本执行状态。", "打开 Frida 工具", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                        .putExtra("dia_page", "Frida 环境")));
+        addNativeActionCard("JavaScript 脚本库", "管理 Hook 脚本、编辑与运行记录；脚本执行受目标应用、运行时与权限能力限制。", "打开脚本库", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class)));
+        addNativeActionCard("DEX 类与方法浏览", "扫描目标用户应用的 DEX，并将经过校验的方法签名带入自定义 Hook 编辑器。", "浏览 DEX 并选取方法", () -> {
+            Intent dexBrowser = new Intent(this,
+                    de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
+            dexBrowser.putExtra("allow_hook_method_pick", true);
+            pendingDiaDexHookPicker = true;
+            try {
+                startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER);
+            } catch (RuntimeException launchFailure) {
+                pendingDiaDexHookPicker = false;
+                Toast.makeText(this, "无法打开 DEX 浏览器：" + launchFailure.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+        addNativeActionCard("运行事件与监控", "查看 Frida 运行事件、方法观察与已接入的进程诊断。", "打开事件监控", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaMonitorEventsActivity.class)));
+        addNativeActionCard("Hook 工具备份恢复", "管理 Hook 工具的本地与远端备份；备份导入仍需用户明确选择文件并确认。", "打开备份管理", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class)));
+        addNativeActionCard("Hook 工具与运行设置", "管理 LSPosed 提示、作用域辅助、系统扩展与工具运行偏好。", "打开 Hook 设置", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaGlobalSettingsActivity.class)));
+        addNativeActionCard("系统扩展", "管理 FX 已接入的系统扩展能力；不支持或尚未接入的旧操作会明确标记。", "打开系统扩展", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaSystemExpandActivity.class)));
         section("最近一次配置发布");
         android.content.SharedPreferences publishState =
                 getSharedPreferences("fx_hook_publish", MODE_PRIVATE);
@@ -5155,7 +5191,7 @@ public final class MainActivity extends ComponentActivity {
         hookHubVisible = false;
         boolean hookToolsPage = "自定义 Hook".equals(activePrivacySection);
         selectedPackage = null; selectedBottomTab = activePrivacySection == null || hookToolsPage ? 4 : 2; base("选择应用");
-        Button home = new Button(this); home.setText("授权状态与系统设置"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
+        Button home = new Button(this); home.setText("Hook 授权中心与高级工具"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
         search.setText(hookAppListQuery);
