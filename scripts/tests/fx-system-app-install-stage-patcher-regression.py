@@ -50,9 +50,9 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         '[ ! -L "$fx_system_app_marker" ]',
         '[ ! -L "$fx_system_app_retry" ]',
         'fx_system_app_path_is_safe "$fx_system_app_state_dir"',
-        '_fx_marker_tmp="$fx_system_app_marker.tmp.$$"',
+        '_fx_marker_tmp=$(mktemp "$fx_system_app_marker.tmp.XXXXXX" 2>/dev/null) || _fx_marker_tmp=',
         'fx_system_app_mark_retry() {',
-        'set -C; printf',
+        'mktemp "$fx_system_app_marker.tmp.XXXXXX"',
     ):
         assert required in patched, f"missing system-app stage contract: {required}"
     subprocess.run(["sh", "-n", str(customize)], check=True)
@@ -64,7 +64,8 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         '[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || retry',
         '[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || retry',
         '[ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry',
-        "set -C; printf",
+        'mktemp "$RETRY_MARKER.tmp.XXXXXX"',
+        'mktemp "$DEPLOYMENT_MARKER.tmp.XXXXXX"',
         "FX_SYSTEM_APP_STATE_DIR",
     ):
         assert required in patched_post_fs, f"missing early-boot overlay contract: {required}"
