@@ -6050,3 +6050,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions Module Runtime Regression：run `42102278033`，对应 `4ab0ccee`，读取时仍在运行；VPN/DNS/Root Proxy 集成回归尚未出最终结论。
 - 本批最新读取时分支 HEAD：`7297aca5a243bb5965f61f5d8a83820997706da9`（其后有独立 VPN 文档提交；不得将其归为本批功能代码）。
 - 仍未进行 Android 真机安装、SELinux 标签、PackageManager system classification、OTA/模块升级和卸载设备验收。
+
+## 2026-11-06 — VPN coexistence arbiter port normalization regression expansion
+
+- 测试提交：`01634762fd292781a5a4002470d732b740fb13bf`。
+- 扩展 `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh`，除既有 AdGuard 客户端 DNS 53 端口外，新增 Unbound 上游 DNS 5353 与代理 7890 的前导零十进制归一化断言。
+- 新增 DNS 65536 越界、代理 00000 零端口的 fail-closed 检查：JSON 端口必须为 null、owner 必须为 unknown、共存等级必须降为 partial。
+- GitHub Actions：`FX VPN Coexistence Arbiter` run `42102461771` 在提交 `01634762fd292781a5a4002470d732b740fb13bf` 上通过；Shell 语法、Python 编译、共存裁决回归、只读性检查和 runner 网络 smoke test 均成功。
+- 本批仅增加自动化边界测试，没有修改运行时网络配置；未运行 Gradle/Android 构建、模拟器或真机 VPN/DNS 共存测试。
