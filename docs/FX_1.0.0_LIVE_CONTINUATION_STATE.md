@@ -6524,3 +6524,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI：该 HEAD 的 FX VPN Coexistence Arbiter run `42107900674` 已成功，包含脚本解析、完整 coexistence regression、只读性验证和 runner 网络 smoke test；FX Targeted Host Regression run `42107900785` 已完成成功。
 - FX Module Runtime Regression run `42107900836` 的 patch/finalize 阶段均已成功，外部 VPN/TUN/DNS/watchdog 回归仍在执行中，尚不能宣称整套 Runtime CI 通过。
 - 设备级验证：仍未执行 OnePlus 12/Android 真机测试；该 CI 不证明 Android VPN 真实流量链路、第三方 VPN 并行转发或长期低功耗稳定性。
+
+
+- IPv6 matrix completion: commit `7f8579535715d3753abd347d729e60de7ff1c800` adds the remaining IPv6 UDP/53 and TCP/7890 fixtures/cases. Together with `b1947d1`, coverage now includes TCP and UDP binds for upstream DNS/5353, client-facing DNS/53, and proxy/7890 on IPv6. GitHub readback verified the regression file blob `c4a6d74d2c5d81d557dee4f9316e4e3228060495`. This remains unexecuted regression coverage until CI/device results are available.
