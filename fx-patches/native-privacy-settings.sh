@@ -11,6 +11,26 @@ MP=${MP:-}
 [ -n "$MP" ] && [ -f "$MP/module.prop" ] || { echo "FX module not found" >&2; exit 20; }
 CONF="$PG/settings.conf"
 export MP PG CONF
+# This helper runs as Root. Do not read or mutate settings through a symlinked
+# state path, including an ancestor of /data/adb/privacyguard.
+fx_privacy_path_is_safe() {
+  _fx_path=$1
+  case "$_fx_path" in /*) ;; *) return 1 ;; esac
+  case "$_fx_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
+  _fx_rest=${_fx_path#/}
+  _fx_current=
+  while [ -n "$_fx_rest" ]; do
+    case "$_fx_rest" in
+      */*) _fx_part=${_fx_rest%%/*}; _fx_rest=${_fx_rest#*/} ;;
+      *) _fx_part=$_fx_rest; _fx_rest= ;;
+    esac
+    case "$_fx_part" in ''|.|..) return 1 ;; esac
+    _fx_current="$_fx_current/$_fx_part"
+    [ ! -L "$_fx_current" ] || return 1
+  done
+  return 0
+}
+fx_privacy_path_is_safe "$PG" || { echo "unsafe FX state path" >&2; exit 21; }
 [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ] || { echo "settings.conf unavailable" >&2; exit 21; }
 case "${1:-}" in
   list)
