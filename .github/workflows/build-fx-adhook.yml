@@ -241,9 +241,6 @@ jobs:
           sh scripts/tests/fx-vpn-transparent-toggle-regression.sh fx-module/webroot/index.html
           python3 fx-patches/patch_private_runtime_logs.py fx-module
           python3 fx-patches/patch_vpncore_default_node.py fx-module
-          python3 -m py_compile fx-patches/patch_vpn_tun_external_fallback.py
-          python3 fx-patches/patch_vpn_tun_external_fallback.py fx-module
-          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
@@ -273,7 +270,7 @@ jobs:
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           python3 -m py_compile fx-patches/patch_vpn_tun_external_fallback.py
           python3 fx-patches/patch_vpn_tun_external_fallback.py fx-module
-          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
+          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
           sh scripts/tests/fx-yulong-schedule-runtime-concurrency-regression.sh
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
