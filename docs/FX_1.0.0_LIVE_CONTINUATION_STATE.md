@@ -4572,3 +4572,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. 继续检查 Dia / Hook 文件/签名/Inspector 页面里的自定义 PopupWindow、系统选择器、AlertDialog 以外的 Dialog 子类。
 3. 针对最新 HEAD 跑定向 Host regression；若自动触发 Actions，读取实际 job 结果并区分 Host / Gradle / 真机级别。
 
+
+
+## 2026-11-05 — 新增 qufz / AntiFraudBlock 隐私功能来源审计
+
+### 已完成
+- 核验来源仓库 `vip-svip/qufz` 的 main 分支、README、LICENSE、递归文件树、`MainHook.java`、Manifest、Xposed metadata 和 `docs/REVERSING.md`。
+- 确认它是 OPPO/ColorOS 手机管家专用 LSPosed/libxposed modern 模块：目标包 `com.coloros.phonemanager`；API 102（min 101）；minSdk 33；MIT 许可。
+- 确认其阻断路径为 `AiDetectStatistics` static void 埋点、`AiVoiceDetectDCSUtils.m/n` 云端 DCS 上报、`TrackApi.E` 对 appId 20092 的反诈事件兜底；保留本地风险服务、通知、弹窗和记录。
+- 用户已指定归属 FX 第三 Tab「隐私」，入口规划为「反诈遥测保护」。
+
+### 尚未完成 / 不得误报
+- 尚未把 qufz 源码迁入 FX 仓库或统一 LSPosed 模块。
+- 尚未建立隐私 Tab 实际 UI、模块总开关、目标设备检测、Hook 状态回读和紧急透传控制。
+- 尚未执行 FX Host 回归、Android 编译、APK/LSPosed 模块构建、支持设备真机拦截和本地反诈功能回归。
+- 适用性目前仅有来源仓库记录的 RMX5200 / ColorOS 16 / Android 16 / PhoneManager 17.1.6 实测；其他系统版本必须逐项兼容核验。
+- 当前状态只能标记为「来源审计完成、需求登记完成、代码迁移未开始」，不得把仓库已有 APK 视为 FX 集成产物。
