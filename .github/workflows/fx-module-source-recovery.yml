@@ -105,14 +105,14 @@ jobs:
           # integration branch and has unrelated Git history. Publish the
           # recovered source on a dedicated PR branch rooted at the current
           # integration HEAD, preserving normal fast-forward ancestry.
-          recovery_branch=fx-module-source-recovery-integration
+          recovery_branch=fx-module-source-recovery-pr
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
           if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
             git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
             git checkout -B "$recovery_branch" "origin/$recovery_branch"
-            git merge --allow-unrelated-histories --no-edit "origin/$GITHUB_REF_NAME"
+            git merge --no-edit "origin/$GITHUB_REF_NAME"
           else
             git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           fi
