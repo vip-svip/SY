@@ -159,9 +159,11 @@ for token in ('c.setTag("fx-card")', 'heading.setTag("fx-card-title")',
               'description.setTag("fx-card-detail")', 'b.setTag("fx-action-row")',
               'pageTitle.setTag("fx-title:18")'):
     assert token in daily, f"Shield Daily Summary is missing shared Skin role {token}"
-for token in ('pageTitle.setTag("fx-title:18")', 'resultHeading.setTag("fx-section:风险结果")',
-              'contentScan.setTag("fx-switch-row")', 'scan.setTag("fx-action-row")'):
-    assert token in scan, f"Shield Scan page is missing shared Skin role {token}"
+assert 'pageTitle.setTag("fx-title:18")' in scan, "Shield Scan page title is missing shared Skin role"
+assert 'resultHeading.setTag("fx-section:风险结果")' in scan, "Shield Scan result heading is missing shared Skin role"
+assert 'contentScan.setTag("fx-switch-row")' in scan, "Shield Scan deep-scan toggle is missing shared Skin role"
+assert 'Button b=new Button(this);b.setTag("fx-action-row")' in scan, "Shield Scan action helper is missing shared Skin role"
+assert 'scan=action("开始扫描",this::startScan);' in scan, "Shield Scan action must continue using the Skin-tagged action helper"
 for token in ('b.setTag("fx-action-row")', 'panel.setTag("fx-card")',
               'heading.setTag("fx-card-title")', 'description.setTag("fx-card-detail")',
               'pageTitle.setTag("fx-title:18")', 'enabled.setTag("fx-switch-row")',
