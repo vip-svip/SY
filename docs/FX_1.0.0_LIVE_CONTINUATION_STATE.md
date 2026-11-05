@@ -4128,3 +4128,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Host regression runs `41984541289`（`826f20761f236c627828a2a6a4b7e0e6ffd83dcf`）与 `41984658383`（`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`）成功，包含五 Skin regression、统一导航、Hook 原生 UI 检查通过。Host-only job 未构建 APK，因此 Gradle/JUnit、APK、UI 自动化和真机验收仍未验证。
 - 尚未完成五 Skin 的全部六 Tab 逐页组件；Harmony/Cupertino 的 TopBar、Card、ListItem、Dialog、Sheet、Switch、Search、InsetGroupedList、FormRow、Alert、ActionSheet 等仍需继续开发。ClassicWebCompat 还需对照 10.0.2 原始资源逐页验收。
 - 下一步：优先把 Harmony/Cupertino renderer 扩展到六 Tab 共用的 TopBar、卡片、表单行、开关、列表、Dialog/Sheet，再做截图/UI 自动化；随后进入 Ad 完整真实过滤链或 VPN Root 数据面共存安全链。
+
+
+## 2026-11-05 — 主 Activity 组件 Token 化与纯色 GradientDrawable 页面适配
+
+### 本批源码实现
+- `MainActivity.java`：Ad、隐私和设置等原生主页面共用的背景/表面/主次文本 helper 改为读取 Harmony / Cupertino 的共享 Color Tokens；卡片圆角读取 Shape Tokens；分组标题背景和描边读取 Surface Variant / Divider Tokens。保留 FXLiquid/Miuix 原有路径与交互回调。
+- `FxNativeSkin.java`：除已知旧色值的 `ColorDrawable` 外，增加对纯色 `GradientDrawable` 的安全适配。仅在 `getColor()` 返回非空 ColorStateList 且颜色命中现有旧主题映射时替换；不会压平自定义渐变，也不会改写 selector、ripple 或未知 Drawable。
+- `scripts/tests/fx-global-ui-modes-regression.sh`：增加 MainActivity 使用 Harmony/Cupertino 共享 Color/Shape Tokens 的断言；新增纯色 GradientDrawable 适配路径和未知 Drawable 保留边界断言。
+
+### 相关提交
+- MainActivity 主页面 helper token 化：`0f88b76dab520e7540e8fdd1c7b86e59fe59817d`。
+- MainActivity shared token regression：`3f5e444c19cb8db604dd821bdd57689607d7d39b`。
+- 纯色 GradientDrawable 安全换肤：`bdc2afc36f90c6076403437d77611b1a970d2370`。
+- GradientDrawable regression：`1aed6dc9d3c8ffe34ee2c1d134aee1369ff0015c`。
+
+### 当前验证状态
+- GitHub 回读确认上述源码/测试修改存在，且共享 token 路由没有覆盖 MainActivity 的业务回调。
+- 新增 Drawable 适配只识别 ColorStateList 单色背景；对于多色渐变（`getColor() == null`）、RippleDrawable、selector 及自定义未知颜色，保留原 drawable。
+- 未执行 shell regression、Gradle Kotlin/Java compile、Android 单元测试、APK assemble、安装、UI 自动化或真机视觉验收；源码静态回读不等于测试通过。
+- Harmony/Cupertino 当前已覆盖：共享主导航 tokens、MainActivity 常见页面背景/卡片/分组 helper、已知旧色值的 Android View 基础适配；仍未覆盖所有导入 Activity 的全部自定义行、复杂表单、弹窗、Sheet、编辑器/扫描状态。不能标记六 Tab 页面级换肤完成。
+
+### 下一批直接实施
+1. 继续将共享 token 接入主要页面中的分组标题、表单行和动态列表，优先 Ad / 隐私；保留原来的动作回调、持久化和权限语义。
+2. 检查导入的 Ad / Shield Activity 中自定义 GradientDrawable、Radio/CheckBox、Dialog 和列表行，按组件类型添加有限、可回归的 renderer 规则，禁止无差别递归重绘未知背景。
+3. 在当前环境可执行时先跑 `fx-global-ui-modes-regression.sh`、`fx-unified-navigation-regression.sh` 和 `fx-imported-suite-back-navigation-regression.sh`；此后才推进 Gradle build/UI automation，严格记录未验证层级。
