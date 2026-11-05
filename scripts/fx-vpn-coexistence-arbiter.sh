@@ -232,7 +232,7 @@ fx_arb_android_vpn_info() {
   [ -n "$_dump" ] || return 1
   printf '%s\n' "$_dump" | awk '
     /mVpns:/ { have_vpn_section=1 }
-    /VpnInfo[[:space:]]*\{/ {
+    index($0, "VpnInfo{") {
       rows++
       uid=""
       iface=""
