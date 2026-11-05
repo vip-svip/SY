@@ -218,7 +218,7 @@ jobs:
           python3 fx-patches/patch_vpncore_default_node.py fx-module
           python3 -m py_compile fx-patches/patch_vpn_tun_external_fallback.py
           python3 fx-patches/patch_vpn_tun_external_fallback.py fx-module
-          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
+          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh fx-module
           python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
