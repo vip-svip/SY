@@ -5276,3 +5276,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批补充回归：DNS 查询虽返回 `Name: example.com`，但答案地址为 `127.0.0.1` 时，必须因非可用单播地址而失败；确保不会仅凭存在答案字段就报告 DNS 健康。
 - 新增 `probe-invalid-answer` 场景，复用生产 `_valid_ipv4` 策略校验答案地址。
 - 待本批 CI 验证；不代表完成设备级网络故障注入。
+
+
+## 2026-11-06 — Hook 授权状态可见性与六模式说明纠偏
+
+- 基线 HEAD：`f32aa47202f55887764f582e0af47db4b220ab0b`。
+- 修正 Hook Hub 中旧 `digXposed/active_tip` 偏好造成的状态遮蔽：关闭旧版 Manager 激活提示时，不再把整个 LSPosed 状态 TextView 隐藏；libXposed Binder 的实时连接/未连接状态始终可见。偏好现在只控制 Manager 安装提示行。
+- 设置页界面模式说明改为准确列出六种模式：独立 Default + ClassicWebCompat、FXLiquidNative、MiuixStyle、HarmonyStyle、CupertinoStyle 五种皮肤；明确 Default 不是液态玻璃别名。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 验证：回读源码确认状态视图始终 VISIBLE、提示偏好只控制 managerHint、Binder 状态无条件生成；回读设置页说明确认六种模式和独立 Default。未运行 Gradle/Android 编译、UI 自动化或真机 LSPosed 状态验证。
+- 下一批：继续核对六 Tab 与二级页返回/高亮状态；Hook Root、LSPosed Binder、Accessibility 状态刷新需在页面恢复时及时回读。

@@ -3434,18 +3434,20 @@ public final class MainActivity extends ComponentActivity {
         // banner only, never the actual LSPosed bridge or target-app scope state.
         boolean showActivationTip = getSharedPreferences("digXposed", MODE_PRIVATE)
                 .getBoolean("active_tip", true);
-        state.setVisibility(showActivationTip ? View.VISIBLE : View.GONE);
-        if (!showActivationTip) return;
-
+        // The legacy active_tip preference hides only the Manager-discovery hint.
+        // It must never hide the live libXposed Binder connection state.
+        state.setVisibility(View.VISIBLE);
         boolean managerInstalled = isLsposedManagerInstalled();
         boolean serviceConnected = FxLsposedScopeBridge.isConnected();
-        state.setText((managerInstalled
-                ? "已检测到 LSPosed Manager。"
-                : "未检测到 LSPosed Manager。")
+        String managerHint = showActivationTip
+                ? (managerInstalled ? "已检测到 LSPosed Manager。"
+                        : "未检测到 LSPosed Manager。") + "\\n"
+                : "";
+        state.setText(managerHint
                 + (serviceConnected
-                    ? "\nlibXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
-                    : "\nlibXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
-                + "\n服务连接状态不等同于目标进程注入状态；不代表 FX Hook 已注入。");
+                    ? "libXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
+                    : "libXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
+                + "\\n服务连接状态不等同于目标进程注入状态；不代表 FX Hook 已注入。");
     }
 
     private void refreshHookHubAccessibilityStatus(TextView state) {
@@ -3506,7 +3508,7 @@ public final class MainActivity extends ComponentActivity {
                 "管理壁纸", this::showNativeWallpaperDialog);
         section("界面模式");
         TextView note = new TextView(this);
-        note.setText("五种全局模式均已接入模式选择器与应用级导航外观：ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）、iOS CupertinoStyle（iOS 视觉风格）。当前 HUAWEI/iOS 已实现全局导航与表面基础 Skin，逐页组件适配仍在继续。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
+        note.setText("六种全局模式：Default（独立默认原生模式）、ClassicWebCompat（旧网页界面）、FXLiquidNative（原生液态玻璃）、MiuixStyle（小米澎湃风格）、HUAWEI HarmonyStyle（鸿蒙视觉风格）、iOS CupertinoStyle（iOS 视觉风格）。Default 是首次安装默认模式，不是液态玻璃别名；五种皮肤与默认模式分别选择。当前 HUAWEI/iOS 已实现全局导航与表面基础 Skin，逐页组件适配仍在继续。模式切换只重建界面，不重启 VPN、DNS、代理、Hook 或脚本服务。");
         note.setTextColor(0xff66727e);
         note.setPadding(dp(18), dp(4), dp(18), dp(8));
         content.addView(note);
