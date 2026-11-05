@@ -1,5 +1,6 @@
 #!/system/bin/sh
 # DNS Root Proxy fallback over a validated third-party Android VPN.
+# Status probes are expected to fail open when the validated route disappears.
 # Uses FX's existing AdGuard Home + Unbound; never creates a VpnService.
 # Every uncertain state removes only FXYRP-owned rules and fails open.
 set -eu
