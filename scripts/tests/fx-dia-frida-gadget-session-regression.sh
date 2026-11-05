@@ -193,8 +193,8 @@ if "Runtime.exec" in attach:
     raise SystemExit("FAIL: Frida attach must not bypass the bounded RootAccess command bridge")
 if "runRootWithInput(command, sourceInput, 20000L" not in attach:
     raise SystemExit("FAIL: persistent Gadget command must stream its file-backed source through RootAccess")
-if "nohup sh -c 'while kill -0 " not in attach or "fx-gadget-feed-$port" not in attach:
-    raise SystemExit("FAIL: FIFO feeder must be the fixed CLI-PID-bound helper, not a user-controlled shell payload")
+if "nohup sh -c 'while :; do state=" not in attach or "Z|X|x) exit 0" not in attach or "fx-gadget-feed-$port" not in attach:
+    raise SystemExit("FAIL: FIFO feeder must stop on CLI zombie/dead state and retain its fixed port-specific identity")
 for process_id in ("cli_pid", "feed_pid"):
     escaped_kill = 'kill \\"$' + process_id + '\\"'
     if escaped_kill not in stop:

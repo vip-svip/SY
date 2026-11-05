@@ -5167,3 +5167,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `0be6ae87fb1aa038667ef34bd7a9a83ae7e96824` 修正测试 PID 记录的换行格式，并在清理模拟 feeder 时显式 wait 回收子进程。
 - 对应 FX Targeted Host Regression（运行 `42055263388`）与 FX Module Runtime Regression（运行 `42055263323`）均通过。
 - 该行为回归在 Linux/GitHub Actions 主机上模拟 PID/FIFO 生命周期；不等同于 Android Root Shell、Frida Gadget 远程连接或真机行为验证。
+
+
+## 2026-11-05 — Gadget stdin feeder 识别 CLI 僵尸退出
+
+- 修正 feeder 自身监控循环：除 kill -0 外，读取 /proc/<cli-pid>/stat 的进程状态；遇到 Z、X 或 x 立即退出，避免 CLI 已成为僵尸时 feeder 仍持续占用 FIFO。
+- 保留 feeder 固定端口身份、PID 绑定与现有 FIFO 生命周期管理；回归增加源码契约断言，确保生产 feeder 具备 zombie-aware 退出条件。
+- 本次代码与回归验证覆盖 Linux/GitHub Actions 主机环境；Android Root Shell 和真机进程回收行为仍需设备验证。
