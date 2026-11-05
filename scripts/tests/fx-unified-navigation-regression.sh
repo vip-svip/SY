@@ -211,6 +211,20 @@ for name, page in (
     assert "fxDialogBuilder()" in page, f"{name} dialogs bypass the shared FX Skin builder"
     assert "new AlertDialog.Builder(this)" not in page, f"{name} retains unskinned platform dialogs"
 assert "showFxDialog(dialog);" in dia_browser, "Activity browser custom detail dialog bypasses shared renderer"
+# Structured events, session logs, System Expand and script library use the same
+# Skin-aware Builder; dialogs created before custom dismiss listeners are shown
+# through showFxDialog() without replacing those listeners.
+for name, page in (
+    ("Monitor Events", dia_monitor),
+    ("Session Log", dia_session),
+    ("System Expand", dia_system),
+    ("Frida Script Library", dia_scripts),
+):
+    assert "fxDialogBuilder()" in page, f"{name} dialogs bypass the shared FX Skin builder"
+    assert "new AlertDialog.Builder(this)" not in page, f"{name} retains unskinned platform dialogs"
+assert "showFxDialog(dialog);" in dia_monitor, "Monitor event detail dialog bypasses shared FX renderer"
+assert "showFxDialog(pickerDialog);" in dia_system, "System Expand picker bypasses shared FX renderer"
+assert "showFxDialog(dialog);" in dia_scripts, "Frida Script Library create dialog bypasses shared FX renderer"
 settings_start = activity.index("private void showSettings()")
 settings_end = activity.index("private void showNativeWallpaperDialog()", settings_start)
 assert 'section("备份与恢复")' in activity[settings_start:settings_end]
