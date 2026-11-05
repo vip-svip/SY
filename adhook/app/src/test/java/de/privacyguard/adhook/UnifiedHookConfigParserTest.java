@@ -25,6 +25,25 @@ public class UnifiedHookConfigParserTest {
     }
 
     @Test
+    public void parserAndSerializerRoundTripMoreThanSixtyFourDeveloperRules() {
+        StringBuilder config = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.owned,dev_hook_enabled=1");
+        for (int i = 1; i <= 96; i++) {
+            config.append(",dev_rule_").append(i).append("=rule").append(i)
+                    .append("|com.example.owned.Rule").append(i)
+                    .append("#isEnabled()Z|OBSERVE|").append(i);
+        }
+        config.append('\n');
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config.toString());
+        assertEquals(96, parsed.targets.get("com.example.owned").developerRules.size());
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        assertTrue(serialized.contains("dev_rule_b64_96="));
+        UnifiedHookConfigParser.Result roundTrip = UnifiedHookConfigParser.parse(serialized);
+        assertEquals(96, roundTrip.targets.get("com.example.owned").developerRules.size());
+    }
+
+    @Test
     public void parsesExactDeveloperDebugBooleanHookDescriptors() {
         UnifiedHookConfigParser.Result result = UnifiedHookConfigParser.parse(
                 "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n" +
