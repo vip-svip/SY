@@ -3924,3 +3924,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ### 验证边界
 - 本批通过的是 Host 静态回归：语义按钮 guard、五 Skin、壁纸共享渲染、Ad/Hook/VPN/Script 路由测试均按对应 workflow 条件执行；缺少 Release module staging 的模块运行时检查明确 SKIP。
 - 未执行 Gradle testDebugUnitTest、assembleDebug、安装或真机验收；FxWallpaperStoreTest 源码已补充，但需在后续 Gradle lane 执行。
+
+
+## 2026-11-05 — 10.0.2 参考 APK 原件确认与证据边界
+
+- 从资料库根目录找到并读取 `游龙工具_10.0.2.apk`，原件大小 92,008,250 bytes，SHA-256 `c2d7bb1b8e688232888a927d5b81affcf5c28832f9e6420e27e800e54f5fee75`。
+- ZIP 中有 classes.dex、resources.arsc、AndroidManifest.xml；assets 包含 bizhi.png、index.java、apk.tar.xz 等。index.java/bizhi.png 常规识别为非明文数据，不能直接复制为 webroot HTML 或 PNG。
+- DEX 字符串/类名证据包含 `com.youlong.gj.MiuixScreenKt`、`MiuixUiRoot`、`MiuixWallpaperDialog`；`assets/apk.tar.xz` 内嵌 APK 名称为 hd.apk、ylads.apk、cj.apk。
+- 已有 Wallpaper 复刻契约：壁纸弹窗“壁纸随心换”，上传本地图片、恢复默认；私有文件、最长边 1920、JPEG 85、prefs `native_wallpaper_prefs/wallpaper_path`。FX 已有对应 Store 与全局壁纸壳。
+- 参考 APK 哈希、ZIP 目录和 DEX 结构已经核验；完整 JADX 反编译/资产解密和原版逐页截图仍未完成。ClassicWebCompat 不能声称逐像素复制 10.0.2。
+- 本次资料更新提交：产品审计 `84a6a46f86db`；独立 AI 提示词同步 `d8487dd663de`。
