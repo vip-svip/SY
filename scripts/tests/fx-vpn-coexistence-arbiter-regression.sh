@@ -283,7 +283,7 @@ rc=${r%%|*}; out=${r#*|}
 pass "active VPN without owner UID fails closed"
 
 echo "== case 3b: multiple injected VPN ownership rows are ambiguous =="
-r=$(run_arb "$LINKS_TUN" "$(printf '%s\\n' 'tun0|10123' 'tun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
+r=$(run_arb "$LINKS_TUN" "$(printf '%s\n' 'tun0|10123' 'tun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 2 ] || fail "multiple injected ownership rows must return rc=2, got $rc: $out"
 [ "$(field "$out" "['verdict']")" = "unknown" ] || fail "multiple injected rows must be unknown: $out"
@@ -382,12 +382,12 @@ EOF
 cat > "$TMP/fakebin/am" <<'EOF'
 #!/bin/sh
 [ "$1" = "get-current-user" ] || exit 2
-printf '%s\\n' 0
+printf '%s\n' 0
 EOF
 cat > "$TMP/fakebin/cmd" <<'EOF'
 #!/bin/sh
 [ "$1 $2 $3" = "package list packages" ] || exit 2
-printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+printf '%s\n' 'package:de.privacyguard.adhook uid:10000'
 EOF
 chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd"
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
@@ -403,9 +403,9 @@ pass "production Android VpnInfo and PackageManager UID probe identify third-par
 echo "== case 5c2: production PackageManager UID match identifies FX-owned VpnService =="
 cat > "$TMP/fakebin/dumpsys" <<'EOF'
 #!/bin/sh
-printf '%s\\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10000 vpnIface=tun0}'
+printf '%s\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10000 vpnIface=tun0}'
 EOF
-printf '%s\\n' "$LINKS_TUN" > "$TMP/links.txt"
+printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
 _out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
   FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
 rc=$?
