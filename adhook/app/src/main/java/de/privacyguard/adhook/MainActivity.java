@@ -8146,7 +8146,6 @@ public final class MainActivity extends ComponentActivity {
             StringBuilder managedConfig=new StringBuilder();
             for(String row:legacyManagedRows) managedConfig.append(row).append('\n');
             byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
-            String managedHash=sha256Hex(managedBytes);
             int androidUser=android.os.Process.myUid()/100000;
             String remote="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files/fx-hook-targets.conf";
             if (hookPublisherThread != null && hookPublisherThread.isAlive()) {

@@ -141,7 +141,7 @@ final class FxHookConfigPublisher {
             String target = quote(payload.target), staged = quote(payload.staged), backup = quote(payload.backup);
             command.append("[ ! -L ").append(target).append(" ] && { [ ! -e ").append(target)
                     .append(" ] || [ -f ").append(target)
-                    .append("; } || { echo 'unsafe Hook target'; exit 72; }; ")
+                    .append(" ]; } || { echo 'unsafe Hook target'; exit 72; }; ")
                     .append("[ ! -L ").append(staged).append(" ] && [ ! -e ").append(staged)
                     .append(" ] || { echo 'Hook staging path already exists'; exit 73; }; ")
                     .append("[ ! -L ").append(backup).append(" ] && [ ! -e ").append(backup)
@@ -175,7 +175,7 @@ final class FxHookConfigPublisher {
             String target = quote(payload.target), staged = quote(payload.staged), backup = quote(payload.backup);
             command.append("[ ! -L ").append(target).append(" ] && { [ ! -e ").append(target)
                     .append(" ] || [ -f ").append(target)
-                    .append("; } || { echo 'Hook target changed before commit'; exit 78; }; ")
+                    .append(" ]; } || { echo 'Hook target changed before commit'; exit 78; }; ")
                     .append("[ -f ").append(staged).append(" ] && [ ! -L ").append(staged)
                     .append(" ] || { echo 'Hook staged payload missing'; exit 79; }; ")
                     .append("[ ! -L ").append(backup).append(" ] && [ ! -e ").append(backup)
