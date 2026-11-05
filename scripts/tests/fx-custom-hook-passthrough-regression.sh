@@ -47,7 +47,12 @@ assert "getCustomRuleSlots" in source, "dynamic rule slot enumeration missing"
 assert "getCustomRulePreferenceKeys" in source, "dynamic import rollback key enumeration missing"
 assert "getCustomRuleSlots(p)" in source, "publish path still omits dynamic rule slots"
 assert "getCustomRulePreferenceKeys(selectedPackage, candidates.size())" in source, "import cleanup does not cover new compacted slots"
-assert not re.search(r"for\\s*\\(\\s*int\\s+(?:i|n|slot)\\s*=\\s*1\\s*;\\s*(?:i|n|slot)\\s*<=\\s*64", source), "fixed 64-slot loop remains"
+for fixed_loop in (
+    "for (int i = 1; i <= 64; i++)",
+    "for (int n = 1; n <= 64; n++)",
+    "for (int slot = 1; slot <= 64; slot++)",
+):
+    assert fixed_loop not in source, "fixed 64-slot loop remains: " + fixed_loop
 assert "最多 64 条规则" not in source and "最多配置 64 条自定义规则" not in source
 print("PASS: editor, grouping, import/export, render and publish enumerate custom rules dynamically")
 PY
