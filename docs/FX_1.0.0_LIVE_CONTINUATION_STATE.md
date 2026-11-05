@@ -4962,3 +4962,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ## 2026-11-05 — Remove saved-script name draft truncation
 
 - The first legacy page-navigation CI pass after removing script storage limits found a stale 64-character name truncation in Activity recreation state. Removed it and updated the navigation regression to require complete saved-script name preservation rather than the obsolete bounded-name behavior.
+
+## 2026-11-05 — Dia 弹窗移除规则取消人为数量/长度限制
+
+- 直接修改现有 `FxDiaFridaActivity` 的弹窗移除规则编辑器：移除关键词正则和资源 ID 各自最多 12 条的硬编码限制，以及每条 160 字符的硬编码限制；保留 Java 正则语法编译校验、资源 ID 名称/十进制格式校验、去重、空规则拒绝和脚本生成前的精确模板替换。
+- 更新两个多行输入框提示，不再宣传不存在的规则数量上限。仅改变产品输入限制，不扩大 Hook 执行权限；脚本仍须由用户检查后手动注入。
+- 源码提交：`d94938201a6851e04c0747577eccf73ac856232f`；回归提交：`22f1872345a64356293f0a0c90bfa0c411d06c9e`。
+- 验证状态：GitHub 写入 API 已成功提交两项源码变更；对应 Host regression 等待 GitHub Actions 执行。尚未声称 Android Gradle 构建、设备运行或真机 Hook 验证通过。
+- 下一批：复核 Frida 8 MiB runtime transport 的真实命令/内存边界，采用文件流/分块方案替代纯粹删除保护；继续补齐 VPN 内核数据面和本地 DNS 的设备级验收路径。
