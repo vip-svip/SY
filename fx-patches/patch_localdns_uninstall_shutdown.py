@@ -111,16 +111,30 @@ fi
 '''
         firewall_anchor = 'if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then'
         if firewall_anchor not in source:
-            # Published uninstall variants may inline firewall teardown. The
-            # FWWAIT initialization is the first shared entry into that block.
-            firewall_anchor = 'FWWAIT=""'
-        if source.count(firewall_anchor) != 1:
-            raise SystemExit("local DNS watchdog fallback anchor changed and no unique pre-firewall insertion point exists")
-        source = source.replace(firewall_anchor, guard + "\\n" + firewall_anchor, 1)
+            firewall_anchor = "# A1. 防火墙链"
+        if firewall_anchor not in source:
+            raise SystemExit("local DNS watchdog fallback anchor changed and no safe pre-firewall insertion point exists")
+        source = source.replace(firewall_anchor, guard + "\n" + firewall_anchor, 1)
 else:
     if source.count(old) != 1:
         raise SystemExit("local DNS watchdog fallback is ambiguous")
     source = source.replace(old, new, 1)
+
+# A helper stop may itself read the PID file. Reject symlinks before invoking
+# it, not only in the fallback that runs when the helper is absent.
+_watchdog_anchor = 'if [ -x "$MODDIR/scripts/localdns-watchdog.sh" ]; then'
+_symlink_guard_marker = "# FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_BEGIN"
+_symlink_guard = '''# FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_BEGIN
+_PG_LOCALDNS_EARLY=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
+if [ -L "$_PG_LOCALDNS_EARLY/localdns-watchdog.pid" ]; then
+  PG_KEEP_DATA=1
+  _mitm_warn "local DNS watchdog PID record is a symlink; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+  exit 1
+fi
+# FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_END
+'''
+if _watchdog_anchor in source and _symlink_guard_marker not in source:
+    source = source.replace(_watchdog_anchor, _symlink_guard + _watchdog_anchor, 1)
 
 # The normal helper path must also stop uninstall if it cannot confirm shutdown.
 old_warning = 'could not confirm stopping local DNS watchdog before firewall cleanup; preserving $PG and continuing best-effort cleanup'
