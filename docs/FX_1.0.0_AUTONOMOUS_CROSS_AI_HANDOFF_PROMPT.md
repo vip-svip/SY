@@ -27,7 +27,7 @@
 开始后先做一次快速恢复，不要反复盘点全仓库：
 
 1. 读取 GitHub 实时分支 HEAD、最近提交、docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md。
-2. 读取 docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md、docs/FX_1.0.0_MASTER_AI_HANDOFF_PROMPT.md，以及 docs 下本批相关功能的专项方案。
+2. 读取 docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md 与 docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md；本文件就是唯一正式跨 AI 接管提示词，不要依赖不存在或已合并废止的重复 Master Prompt；再读取 docs 下本批相关功能的专项方案。
 3. 读取资料库 /FX 中的长期交接档、快速推进档、UI 优先执行档、UI 提速提示词和当前可用的 APK/源码 ZIP。缺少文件时如实记录，不得说已经读取。
 4. 对照真实代码、Manifest、资源、测试和功能调用链，只阅读当前批次所需文件。
 5. 核实游龙工具 10.0.2 原件和相关源代码版本。记录文件哈希、包名、版本、来源和许可证。
