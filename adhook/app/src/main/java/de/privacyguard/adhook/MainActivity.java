@@ -7222,7 +7222,7 @@ public final class MainActivity extends ComponentActivity {
                         }
                         if (!sourcePackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
                             throw new IllegalArgumentException("规则组来源包名无效。");
-                        // Import size is bounded above; rule count itself is not capped.
+                        // Rule count and document size are not capped here; validate every imported rule below.
 
                         java.util.Set<String> ids = new java.util.HashSet<>();
                         java.util.List<String> candidates = new java.util.ArrayList<>();
