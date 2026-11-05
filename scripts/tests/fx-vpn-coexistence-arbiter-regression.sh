@@ -387,9 +387,17 @@ EOF
 cat > "$TMP/fakebin/cmd" <<'EOF'
 #!/bin/sh
 [ "$1 $2 $3" = "package list packages" ] || exit 2
-printf '%s\n' 'package:de.privacyguard.adhook uid:10000'
+printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
 EOF
-chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd"
+cat > "$TMP/fakebin/pm" <<'EOF'
+#!/bin/sh
+[ "$1 $2 $3" = "list packages -U" ] || exit 2
+printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+EOF
+chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd" "$TMP/fakebin/pm"
+[ "$(PATH="$TMP/fakebin:$PATH" am get-current-user)" = "0" ] || fail "fake Android current-user provider is invalid"
+[ "$(PATH="$TMP/fakebin:$PATH" cmd package list packages -U --user 0 de.privacyguard.adhook)" = "package:de.privacyguard.adhook uid:10000" ] || fail "fake cmd package UID provider is invalid"
+[ "$(PATH="$TMP/fakebin:$PATH" pm list packages -U --user 0 de.privacyguard.adhook)" = "package:de.privacyguard.adhook uid:10000" ] || fail "fake pm package UID provider is invalid"
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
 _out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
   FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" FX_ARB_SELF_UID=10000 sh "$ARB" 2>&1)
