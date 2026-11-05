@@ -1,6 +1,7 @@
 package de.privacyguard.adhook;
 
 import android.app.Activity;
+import androidx.appcompat.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.drawable.ColorDrawable;
@@ -216,6 +217,29 @@ final class FxNativeSkin {
         FxUiMode mode = FxUiMode.read(activity);
         boolean wallpaperActive = FxWallpaperStore.currentPath(activity) != null;
         transformKnownLegacyTokens(activity, content, mode, palette(mode), wallpaperActive);
+    }
+
+    /**
+     * Show a native FX modal and apply the active Skin after Android has
+     * inflated its title, content and action buttons. A second pass is posted
+     * after the first layout so custom EditText/List rows are included too.
+     */
+    static void showDialog(Activity activity, AlertDialog dialog) {
+        if (activity == null || dialog == null
+                || activity.isFinishing() || activity.isDestroyed()) return;
+        dialog.show();
+        android.view.Window window = dialog.getWindow();
+        if (window == null) return;
+        View decor = window.getDecorView();
+        applyComponents(activity, decor);
+        decor.post(() -> {
+            if (activity.isFinishing() || activity.isDestroyed()
+                    || !dialog.isShowing()) return;
+            android.view.Window currentWindow = dialog.getWindow();
+            if (currentWindow != null) {
+                applyComponents(activity, currentWindow.getDecorView());
+            }
+        });
     }
 
     private static void apply(Activity activity, View pageContent,
