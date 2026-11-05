@@ -63,6 +63,15 @@ class FxGkdSelectorEngineTest {
     }
 
     @Test
+    fun rejectsDeeplyNestedMalformedSelectorWithoutCrashing() {
+        // Remains below the input-length guard so this exercises the upstream parser.
+        val malformed = "(".repeat(200) + "[text='unterminated"
+        val result = FxGkdSelectorEngine.compile(malformed)
+        assertNull(result.selector)
+        assertNotNull(result.error)
+    }
+
+    @Test
     fun respectsSelectorResultLimit() {
         val root = node(1, "android.widget.LinearLayout")
         repeat(20) { index ->
