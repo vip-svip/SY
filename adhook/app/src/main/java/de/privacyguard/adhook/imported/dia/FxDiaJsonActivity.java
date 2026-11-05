@@ -85,7 +85,7 @@ public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabA
         source = new EditText(this); source.setGravity(Gravity.TOP | Gravity.START);
         source.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         source.setMinLines(12);
-        source.setText("{\n  \"name\": \"FX Dia JSON\",\n  \"enabled\": true,\n  \"items\": [1, 2, 3]\n}");
+        source.setText("{\n  \"name\": \"FX Hook JSON\",\n  \"enabled\": true,\n  \"items\": [1, 2, 3]\n}");
         status = text("离线 JSON 编辑器已就绪。", 12, 0xff526170, false);
         result = text("路径查询结果会显示在这里。", 12, 0xff334155, false);
         card(body, "JSON 数据", "仅在本机处理，不会联网或上传。单个文件上限 1 MiB。",
