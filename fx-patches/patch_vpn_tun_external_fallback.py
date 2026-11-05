@@ -32,8 +32,13 @@ helper = '''vpncore_effective_mode() {
 
 '''
 if "vpncore_effective_mode() {" not in v:
-    if v.count(old_a) != 4 or v.count(old_b) != 2:
-        raise SystemExit("vpncore: expected four long and two short vpn_mode reads")
+    long_reads = v.count(old_a)
+    short_reads = v.count(old_b) - long_reads
+    if long_reads != 4 or short_reads != 2:
+        raise SystemExit(
+            "vpncore: expected four long and two short vpn_mode reads; found %d and %d"
+            % (long_reads, short_reads)
+        )
     v = v.replace(old_a, "vpncore_effective_mode()", 4)
     v = v.replace(old_b, "vpncore_effective_mode()", 2)
     v = once(v, "vpncore_outer_tunnel_interface() {", helper + "vpncore_outer_tunnel_interface() {", "vpncore helper")
