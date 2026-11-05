@@ -74,6 +74,8 @@ assert "if (summary == null)" in activity and "为避免误报，本次不展示
 assert "new ArrayBlockingQueue<>(1)" in activity, "summary Root read queue must be bounded to one waiter"
 assert "private void enqueueLatest(Runnable task)" in activity, "summary refresh must replace a stale queued request"
 assert "worker.getQueue().poll();" in activity, "stale summary Root reads are not discarded"
+assert "if (isFinishing() || isDestroyed())" in activity, "summary queue accepts work after Activity teardown"
+assert "worker.execute(task);" in activity, "latest summary request is not submitted after stale queue eviction"
 assert "private int loadGeneration;" in activity and "final int generation = ++loadGeneration;" in activity, "summary refresh generation is missing"
 assert 'root("list", generation' in activity and 'root("dns-log-summary", generation' in activity, "both summary reads must use the same refresh generation"
 assert "generation != loadGeneration" in activity, "late summary results may overwrite a newer refresh"
