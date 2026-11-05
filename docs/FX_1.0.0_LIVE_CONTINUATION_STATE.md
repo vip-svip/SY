@@ -6554,3 +6554,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The failing assertion was `Hosts page save temp-path invariant missing: [ -d "$path" ] && [ ! -L "$path" ]`, emitted from a Python check during the Release-source restoration/patch stage. Dia source intake and DEX staging passed; the step had restored the Release module and run several VPN/Hook/QuickJS/managed-list patches before this assertion. The exact patcher/test emitting this assertion still needs to be isolated; do not claim APK build success from this run.
 - Next action: identify the assertion's source in the staged Release/patch pipeline, compare it with the canonical Hosts page save implementation, then either restore the required path guard or update only a demonstrably stale assertion. Re-run the complete migration lane and require `:app:testDebugUnitTest`, `:app:assembleDebug`, APK signature/package/version checks and the dual system-app/optional APK digest checks to pass.
 - Separate VPN result: arbiter run `42107900674` at `27288908a794bdbc4f2622c503808f38831c5b6f` completed successfully. The arbiter is still observation-only and does not prove live TUN route/return-path/DNS behavior.
+
+
+## 2026-11-06 — 系统应用安装期载荷拒绝符号链接
+
+- 修复提交：`75a0ae31991af995f262443ad59d486053c168f9`；回归提交：`9f73c5d6ee6568dba7b1735f9817ad92d556de9b`。
+- 风险：安装期原逻辑在校验 APK 时使用 `-s`、随后执行 `chown/chmod/chcon`，这些操作可能跟随归档内的符号链接，导致修改 FX 覆盖层之外的目标文件。
+- 修复：新增逐组件绝对路径检查，覆盖 MODPATH、system/app/FX、APK、checksum sidecar 和 optional fallback；检查悬空符号链接；legacy payload staging 临时路径拒绝预存在目标，checksum 临时文件采用 noclobber 独占创建，再原子移动。
+- 新增行为回归：APK 叶节点符号链接指向外部文件、system/app/FX 父目录符号链接指向外部目录；断言安装失败关闭、外部内容/权限不变、不会写入部署成功 marker。
+- GitHub Actions：FX System App Install Stage run `42108697668` 已在提交 `9f73c5d6ee6568dba7b1735f9817ad92d556de9b` 成功，patcher 幂等/shell 检查、真实注入安装阶段行为、安装器执行、早期开机 overlay 验证和打包集成检查全部通过。
+- 仍需真机确认：KernelSU/Magisk 的 systemless overlay 被 PackageManager 识别为 system app、SELinux 实际标签与应用更新/卸载行为，不能由 Host regression 代替。
