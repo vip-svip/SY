@@ -185,10 +185,27 @@ final class FxNativeSkin {
         // wallpaper it must be transparent; child cards remain styled surfaces.
         int rootColor = wallpaperActive ? 0x00000000 : palette.background;
         Drawable rootBackground = pageContent.getBackground();
-        if (!(rootBackground instanceof ColorDrawable)
-                || ((ColorDrawable) rootBackground).getColor() != rootColor) {
+        // Only normalize known neutral root/page colors. Imported screens may
+        // intentionally provide a gradient, selector, ripple or custom Drawable;
+        // the Skin adapter must never replace those user/source-owned backgrounds.
+        if (isKnownPageBackground(rootBackground, palette, rootColor)
+                && (!(rootBackground instanceof ColorDrawable)
+                || ((ColorDrawable) rootBackground).getColor() != rootColor)) {
             pageContent.setBackgroundColor(rootColor);
         }
+    }
+
+    private static boolean isKnownPageBackground(Drawable background, Palette palette,
+                                                  int targetColor) {
+        if (background == null) return true;
+        if (!(background instanceof ColorDrawable)) return false;
+        int color = ((ColorDrawable) background).getColor();
+        return color == targetColor
+                || color == 0xfff7f8fa
+                || color == 0xfff4f6f8
+                || color == 0xffe8eef4
+                || color == 0xfff3f5fa
+                || color == palette.background;
     }
 
     private static Palette palette(FxUiMode mode) {
