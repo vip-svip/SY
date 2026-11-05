@@ -321,7 +321,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             shieldPrefs.edit().putBoolean("automatic_content_scan_enabled", enabled).apply();
         });
         card("安装后自动检测",
-                "监听系统安装与更新广播，调用已迁入的 9.9.60 病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
+                "监听系统安装与更新广播，调用 FX 本地病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
                 installScanSwitch, contentScanSwitch);
         autoRiskScanSwitch = new android.widget.Switch(this);
         autoRiskScanSwitch.setText("自动前台风险扫描");
