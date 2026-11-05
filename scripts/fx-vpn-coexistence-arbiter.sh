@@ -24,7 +24,7 @@
 #   FX_ARB_VPNINFO_CMD  产出 "<iface>|<ownerUid>" 或空
 #   FX_ARB_PROC_NET_DIR 替代 /proc/net（含 tcp tcp6 udp udp6）
 #   FX_ARB_MODULE_ROOT  静态槽位不变量扫描根目录
-#   FX_ARB_DNS_PORT / FX_ARB_PROXY_PORT  本地服务端口
+#   FX_ARB_DNS_PORT / FX_ARB_FILTER_DNS_PORT / FX_ARB_PROXY_PORT  本地服务端口
 # =============================================================================
 set -u
 
@@ -49,11 +49,35 @@ if [ -z "$FX_ARB_MODULE_ROOT" ]; then
 fi
 
 # --- 端口占用：直接读 /proc/net，不依赖 ss/netstat/lsof（Android 常缺） -------
-fx_arb_port_hex() {
+fx_arb_normalize_port() {
   _v=$1
   case "$_v" in ''|*[!0-9]*) return 2 ;; esac
+  # Strip leading zeroes before numeric tests: shell test/printf may interpret
+  # a leading zero as octal. Bound decimal width before arithmetic to avoid
+  # integer overflow from malformed environment values.
+  while [ "${#_v}" -gt 1 ] && [ "${_v#0}" != "$_v" ]; do
+    _v=${_v#0}
+  done
+  [ "${#_v}" -le 5 ] || return 2
   [ "$_v" -ge 1 ] && [ "$_v" -le 65535 ] || return 2
+  printf '%s' "$_v"
+}
+
+fx_arb_port_hex() {
+  _v=$(fx_arb_normalize_port "$1") || return 2
   printf '%04X' "$_v"
+}
+
+# Emit a JSON number only after strict decimal/range validation. Invalid
+# configuration is represented as null, never interpolated into JSON.
+fx_arb_json_port() {
+  _v=$(fx_arb_normalize_port "$1") || { printf 'null'; return 0; }
+  printf '%s' "$_v"
+}
+
+fx_arb_display_port() {
+  _v=$(fx_arb_normalize_port "$1") || { printf 'invalid'; return 0; }
+  printf '%s' "$_v"
 }
 
 # fx_arb_listening <hexport> <file...> -> 0 表示存在监听套接字
@@ -285,7 +309,9 @@ fx_arb_json() {
   esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
   printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
-    "$FX_ARB_DNS_PORT" "$FX_ARB_DNS_OWNER" "$FX_ARB_FILTER_DNS_PORT" "$FX_ARB_FILTER_DNS_OWNER" "$FX_ARB_PROXY_PORT" "$FX_ARB_PROXY_OWNER"
+    "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" \
+    "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" \
+    "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
   printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
 }
 
@@ -294,9 +320,9 @@ fx_arb_text() {
   echo "  verdict : $FX_ARB_VERDICT ($FX_ARB_GRADE_CN)"
   echo "  external: ${FX_ARB_EXT_IF:-none} uid=${FX_ARB_EXT_UID:-none} probe=$FX_ARB_PROBE"
   echo "  slot    : vpn_service_slot_used=$FX_ARB_SLOT_USED (must be false)"
-  echo "  dns upstream : port $FX_ARB_DNS_PORT owner=$FX_ARB_DNS_OWNER"
-  echo "  dns filter   : port $FX_ARB_FILTER_DNS_PORT owner=$FX_ARB_FILTER_DNS_OWNER"
-  echo "  proxy        : port $FX_ARB_PROXY_PORT owner=$FX_ARB_PROXY_OWNER"
+  echo "  dns upstream : port $(fx_arb_display_port "$FX_ARB_DNS_PORT") owner=$FX_ARB_DNS_OWNER"
+  echo "  dns filter   : port $(fx_arb_display_port "$FX_ARB_FILTER_DNS_PORT") owner=$FX_ARB_FILTER_DNS_OWNER"
+  echo "  proxy        : port $(fx_arb_display_port "$FX_ARB_PROXY_PORT") owner=$FX_ARB_PROXY_OWNER"
   echo "  reasons : $FX_ARB_REASONS"
 }
 
