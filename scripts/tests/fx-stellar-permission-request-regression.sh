@@ -10,6 +10,10 @@ python3 - "$ACTIVITY" "$SERVICE" "$MANIFEST" <<'PY'
 from pathlib import Path
 import sys
 activity, service, manifest = (Path(p).read_text(encoding="utf-8") for p in sys.argv[1:])
+assert r'value.replace("\\r", "").replace("\\n", " ")' in activity, "request text must remove CR and flatten line feeds"
+assert r'value.replace("\\\\r", "").replace("\\\\n", " ")' not in activity, "request text must not search for literal backslash sequences"
+assert r'label + "\\n" + sourcePackage' not in activity, "package identity card must render an actual line break"
+assert r'permission + "\\n请求代码' not in activity, "permission details card must render an actual line break"
 for token in ('getIntExtra("uid", -1)', 'getIntExtra("pid", -1)',
               'getIntExtra("requestCode", -1)', 'getStringExtra("sourcePackage")',
               'getStringExtra("permission")', 'replyMessenger.send(response)',
