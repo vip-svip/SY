@@ -5070,3 +5070,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仍未验证：Android Gradle 完整构建、APK 产物安装、KernelSU/Magisk 真机写入、LSPosed 真正读取 Remote Files 并注入目标进程、ROM SELinux 标签实际策略、第三方 VPN 内层流量、设备 IPv4/IPv6 泄漏与功耗。
 - 容量策略范围说明：本轮移除的是聚合配置字节数、目标应用总行数与命令行 Base64 限制。每个目标的自定义开发规则数仍有 64 条限制，Dialog / Toast 规则仍有独立条数、字符长度与输入字节限制；这些仍需逐项审查，不能宣称所有产品容量限制已全部清除。
 - 其他阻断继续保留：尚未取得并核验 _10.10.62_src.zip 原始源码，协议、策略组、DNS、脚本、MITM 和应用分流的源码迁移不能据此声称完成。APK build workflow 的迁移门槛也未绕过或触发。
+
+
+## 2026-11-05 — Dialog / Toast 规则去除用户输入容量上限
+
+- 分支 HEAD（本条状态记录前）：c1e9e807218d4a112801ce47f06c0aba2b04ee05。
+- FxDiaDialogMatchPolicy 移除 1 KiB 总输入字节、32 条唯一规则、96 字符单条规则三项用户配置限制；保留空白跳过、大小写不敏感去重、控制字符拒绝和只读不可变结果。
+- MainActivity 的 Dialog 与 Toast 提示同步移除旧容量上限文案；Dialog/Toast 仍需用户显式启用并至少配置一条有效规则，空规则不会全拦截。
+- MAX_TEXT_CHARS=4096 仍作为运行时待检查 Dialog 文本扫描窗口，限制每次事件的候选文本扫描成本；它不是用户规则条数、规则长度或配置文件大小限制。
+- JUnit 与真实策略 Host 测试改为覆盖 40 条唯一规则、单条超过 96 字符、UTF-8 规则输入超过 1 KiB；控制字符仍应拒绝。
+- FX Targeted Host Regression run 42043603559 completed/success；日志确认 Dialog / Toast / ActivityKey 集成回归通过，Dia Dialog policy Host assertions 20 项通过，ActivityKey Host assertions 27 项通过。
+- FX Module Runtime Regression run 42043603180 completed/success；VPN/DNS runtime regressions 18/18 passed，后续 TUN fallback、Unbound VPN-bound IPv4 egress、Root Proxy dual-stack/UID proof 与独立 DNS 锁回归通过。
+- 当前剩余容量项：每个目标的 Developer Hook 自定义规则仍限制 64 条（parser、serializer、MainActivity slots、导入/导出逻辑都依赖此范围）；需单独迁移为动态 slot/key 遍历和兼容旧 dev_rule_N 字段后才能安全解除。本条不宣称 64 条限制已移除。
+- 尚未运行 Android Gradle 构建、安装 APK 或真机验证；小火箭 _10.10.62_src.zip 原始源码仍未取得。
