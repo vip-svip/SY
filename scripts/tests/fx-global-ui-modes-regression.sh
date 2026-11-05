@@ -13,7 +13,14 @@ cupertino_tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/Cupertin
 harmony_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/HarmonySkinRenderer.java"
 cupertino_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/CupertinoSkinRenderer.java"
 native_skin_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxNativeSkinPaletteTest.kt"
-for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test"; do
+ad_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
+ad_general="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java"
+ad_summary="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java"
+ad_firewall="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
+shield_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java"
+dia_frida="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
+dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$dia_frida" "$dia_scripts"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -135,6 +142,27 @@ for filename in sys.argv[1:]:
 print("PASS: Harmony and Cupertino token names are unique; duplicate Java constants cannot break compilation.")
 PY
 grep -Fq 'control.setMinimumHeight(Math.max(control.getMinimumHeight()' "$skin" || { echo "FAIL: native form controls lack minimum touch height"; exit 1; }
+
+# Imported feature Activities share the same Harmony/Cupertino component renderer.
+# Their helper-built cards and action buttons must carry role tags or the Skin
+# adapter cannot transform those legacy pages.
+for page in "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$dia_frida" "$dia_scripts"; do
+  grep -Fq 'setTag("fx-card")' "$page" || { echo "FAIL: imported feature card is not tagged for global Skin: $page"; exit 1; }
+  grep -Fq 'setTag("fx-card-title")' "$page" || { echo "FAIL: imported feature card title is not tagged for global Skin: $page"; exit 1; }
+  grep -Fq 'setTag("fx-card-detail")' "$page" || { echo "FAIL: imported feature card detail is not tagged for global Skin: $page"; exit 1; }
+  grep -Fq 'setTag("fx-action-row")' "$page" || { echo "FAIL: imported feature actions are not tagged for global Skin: $page"; exit 1; }
+done
+python3 - "$harmony_renderer" "$cupertino_renderer" <<'PY'
+from pathlib import Path
+import sys
+
+for path in sys.argv[1:]:
+    source = Path(path).read_text(encoding="utf-8")
+    assert source.count('if ("fx-card-title".equals(role)') == 1, f"{path}: duplicate/unreachable card title renderer"
+    assert '("fx-card-detail".equals(role) || "fx-card-body".equals(role))' in source, f"{path}: description roles are not unified"
+    assert '("fx-card".equals(role) || "fx-setting-card".equals(role))' in source
+print("PASS: Harmony/Cupertino component renderers process card title/detail tags once.")
+PY
 
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
 grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
