@@ -234,3 +234,10 @@ GKD-XA 上游包含自己的 `Application`、`MainActivity`、`AppRoot`、ViewMo
 业务归属：Hook（应用/每应用规则/选择器/事件/快照/自动化）为主要入口；脚本（脚本与 AI 规则编辑）按真实能力归入；Ad 只接收明确广告跳过规则，不把所有 GKD 规则都算广告；设置承载全局工作模式/权限/备份。全部页面使用 FX 六 Tab 和五 Skin。
 
 权威实施清单：`docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md`。来源锁定回归：`scripts/tests/fx-gkd-xa-source-lock-regression.sh`。当前事实是**源码 submodule 已固定，但 GKD-XA 运行时/服务/UI/数据库/selector 尚未合并进 FX APK**；必须按实际提交和测试逐项更新状态，不能写成已完成。
+
+
+### 10.0.2 APK 参考证据（已取得，不可假称完整解包）
+- 原件 SHA-256：`c2d7bb1b8e688232888a927d5b81affcf5c28832f9e6420e27e800e54f5fee75`；92,008,250 bytes；资料库根目录 `/游龙工具_10.0.2.apk`。
+- DEX 符号包含 `com.youlong.gj.MiuixScreenKt`、`MiuixUiRoot`、`MiuixWallpaperDialog`；确认 10.0.2 包含 Miuix 原生页面和壁纸弹窗。
+- 壁纸行为基线：标题“壁纸随心换”；“上传本地图片”/“恢复默认壁纸”；私有目录、最长边 1920 px、JPEG 85、SharedPreferences `native_wallpaper_prefs/wallpaper_path`。FX 已有 `FxWallpaperStore`、Settings 壁纸控制和共享六 Tab 壁纸层。
+- `assets/index.java` 与 `assets/bizhi.png` 是封装/加密数据而非可直接复制的 HTML/PNG；`assets/apk.tar.xz` 内部列出 `hd.apk`、`ylads.apk`、`cj.apk`。完整资源解密、原版逐页界面提取仍未完成，ClassicWebCompat 不得标记为逐像素复刻。
