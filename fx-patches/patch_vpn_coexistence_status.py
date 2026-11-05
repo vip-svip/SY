@@ -83,8 +83,8 @@ fx_coexist_status_write() {
 
   _fx_cs_tmp="$_fx_cs_json.tmp.$$"
   ( umask 077
-    printf '{"ok":1,"verdict":"%s","grade_cn":"%s","source":"%s","probe":"%s",' \
-      "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe"
+    printf '{"ok":1,"verdict":"%s","grade_cn":"%s","source":"%s","probe":"%s","route_probe":"%s",' \
+      "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe" "$_fx_cs_route_probe"
     printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s",' \
       "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid"
     printf '"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":false}\n' \
