@@ -5028,3 +5028,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：GitHub Actions FX Targeted Host Regression run `42029516063`（HEAD `11a078e`）已 completed/success；FX Module Runtime Regression run `42029515963`（同一代码 HEAD）已 completed/success。Targeted workflow 的成功包含新增 app-side 状态静态断言；Runtime workflow 成功仅代表其现有 VPN/DNS Host 回归通过，不代表 Android 编译、Accessibility 服务真机连接、Root/LSPosed 实际注入或本次隐私 UI 的模块归档行为已通过。
 - 未运行/未验证：Android Gradle 构建、APK 安装、真机无障碍设置切换与 Binder 生命周期、Root/LSPosed 真机状态、模块完整归档测试（等待 runtime workflow）。
 - 下一批：继续核对 Hook 目标应用详情的授权状态与规则发布回读一致性；并行回到本地 DNS/外部 VPN/内核代理真实链路验收矩阵。不得把系统 Accessibility 开关开启等同于目标应用已执行 Hook。
+
+## 2026-11-05 — Hook OBSERVE 日志查询回归补强
+
+- 为 `fx-hook-observation-logs-regression.sh` 增加查询安全合同：目标包名必须先经过包名格式校验，再由 `shellQuote()` 作为固定字符串 grep 参数传入；只筛选 `FX Hook` 标签下的 `dev-observe` / `dia-dialog-match` 记录，并要求包名与 executable 字段精确匹配。避免日志查看器未来退化成宽泛日志搜索或 shell 字符串注入。
+- 本次只强化回归约束，没有改变 Hook 目标应用的执行行为，也没有把 OBSERVE 日志当成实时 Hook 授权或当前进程存活证明。
+- 提交：`e47ebd78f2e9dc1be9a1be2c4ec8e99d60d3a1ac`（首次断言草稿，CI 暴露断言字符串构造错误）；`c4f399d3af20f5c12901327ad1f556a8c95534d3`（修复首轮字符串但 Python token 列表仍错误）；`80a3b88a03f9fd2b644344c8d2f547eb720c324e`（Host 通过的中间版本）；`60f113a2ec65faae34e83eca5408422ce1eaa199`（简化并修正最终断言）。
+- 最终版本 FX Targeted Host Regression run `42030169436` 已 completed/success；日志明确输出两条 PASS：生命周期/边界保护，以及目标包名 shell quoting 与精确日志筛选。FX Module Runtime Regression run `42030169200` 在状态记录时仍在运行；不将其计为通过。
+- 未执行 Android Gradle 完整构建或真机 LSPosed/Hook 注入验证。
