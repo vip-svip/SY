@@ -277,7 +277,11 @@ install_one(){
   rm -f "$_stage" 2>/dev/null
   [ "$_installed" = 1 ] || { log_msg "ERROR: unable to install unified Hook; core FX installation continues"; return 1; }
   if [ -s "$_overlay_apk" ]; then
-    log_msg "WARN: systemless overlay is not visible to PackageManager; installed compatibility copy as an ordinary app"
+    # This path is reachable only for a PackageManager-classified system app
+    # whose updated code path lives under /data/app. Keep the UI/install log
+    # truthful: pm install -r updates the existing system package; it does not
+    # downgrade the package to an ordinary user app.
+    log_msg "updated existing FX system app through PackageManager; system classification retained"
   else
     log_msg "installed unified Hook APK from legacy optional payload as an ordinary app"
   fi
