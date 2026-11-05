@@ -119,6 +119,65 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+      - name: Stage checksum-verified Unbound Android ARM64 runtime
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="build-unbound-android-arm64.yml"
+          run_id="$(gh run list --workflow "$workflow" --repo vip-svip/SY --branch "$GITHUB_REF_NAME" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo "::error::No successful Unbound Android ARM64 build is available."; exit 1; }
+          artifact_sha="$(gh run view "$run_id" --repo vip-svip/SY --json headSha --jq '.headSha')"
+          source_sha="$(git log -1 --format=%H -- .github/workflows/build-unbound-android-arm64.yml .github/dns/Unbound-root.hints scripts/localdns-probe.c scripts/tests/localdns-probe-regression.py)"
+          [[ -n "$source_sha" && "$artifact_sha" = "$source_sha" ]] || {
+            echo "::error::Unbound artifact is stale: artifact=$artifact_sha latest_dns_source=$source_sha"
+            exit 1
+          }
+          source_dir="$RUNNER_TEMP/fx-unbound-artifact"
+          destination="fx-module/engines/unbound"
+          mkdir -p "$source_dir" "$destination"
+          gh run download "$run_id" --repo vip-svip/SY --name fx-unbound-android-arm64-v1.26.2 --dir "$source_dir"
+          for executable in unbound unbound-checkconf unbound-anchor fx-dns-probe; do
+            [[ -s "$source_dir/$executable" && -s "$source_dir/$executable.sha256" ]] || {
+              echo "::error::Unbound artifact is missing $executable or its SHA-256 sidecar."
+              exit 1
+            }
+            expected="$(awk 'NR == 1 { print $1; exit }' "$source_dir/$executable.sha256")"
+            actual="$(sha256sum "$source_dir/$executable" | awk '{print $1}')"
+            [[ "$expected" = "$actual" ]] || { echo "::error::$executable artifact checksum mismatch."; exit 1; }
+            install -m 0755 "$source_dir/$executable" "$destination/$executable"
+            printf '%s  %s\n' "$actual" "$executable" > "$destination/$executable.sha256"
+          done
+          for data_file in root.hints root.key.seed; do
+            [[ -s "$source_dir/$data_file" && -s "$source_dir/$data_file.sha256" ]] || {
+              echo "::error::Unbound artifact is missing $data_file or its SHA-256 sidecar."
+              exit 1
+            }
+            expected="$(awk 'NR == 1 { print $1; exit }' "$source_dir/$data_file.sha256")"
+            actual="$(sha256sum "$source_dir/$data_file" | awk '{print $1}')"
+            [[ "$expected" = "$actual" ]] || { echo "::error::$data_file artifact checksum mismatch."; exit 1; }
+            install -m 0644 "$source_dir/$data_file" "$destination/$data_file"
+            printf '%s  %s\n' "$actual" "$data_file" > "$destination/$data_file.sha256"
+          done
+          install -m 0644 "$source_dir/BUILD-INFO.txt" "$destination/BUILD-INFO.txt"
+          install -m 0644 "$source_dir/FILE.txt" "$destination/FILE.txt"
+          (cd "$destination" && sha256sum unbound unbound-checkconf unbound-anchor fx-dns-probe > BINARY-SHA256SUMS)
+          (cd "$destination" && sha256sum root.hints root.key.seed > DATA-SHA256SUMS)
+          script="fx-module/scripts/unbound.sh"
+          [[ -s "$script" ]] || { echo "::error::FX Unbound lifecycle script is missing."; exit 1; }
+          grep -Fq 'ROOT="$MODDIR/engines/unbound"' "$script"
+          grep -Fq 'BIN="$ROOT/unbound"' "$script"
+          grep -Fq 'CHECKBIN="$ROOT/unbound-checkconf"' "$script"
+          grep -Fq 'ANCHOR="$ROOT/unbound-anchor"' "$script"
+          grep -Fq 'PROBE="$ROOT/fx-dns-probe"' "$script"
+          grep -Fq 'ROOT_HINTS="$ROOT/root.hints"' "$script"
+          grep -Fq 'ROOT_KEY_SEED="$ROOT/root.key.seed"' "$script"
+          grep -Fq 'sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG"' fx-module/scripts/yulong-root-proxy.sh
+          sh -n "$script"
+          grep -q 'Unbound 1.26.2' "$destination/BUILD-INFO.txt"
+          grep -q 'Android ARM64' "$destination/BUILD-INFO.txt"
+          echo "PASS: checksum-verified Unbound 1.26.2 ARM64 daemon, checker, anchor, probe and root data staged at the exact runtime paths used by FX Root Proxy."
       - name: Decode and integrate Yulong 7.0.1 built-in DNS/Hosts rules
         shell: bash
         env:
