@@ -1513,8 +1513,22 @@ public final class MainActivity extends ComponentActivity {
             try {
                 if (result.exitCode != 0) throw new IllegalStateException(result.output);
                 JSONObject json = new JSONObject(result.output.trim());
-                target.setText("Root：" + (json.optBoolean("root", false) ? "已授权" : "未授权")
+                String rootStatus = json.has("root")
+                        ? (json.optBoolean("root", false) ? "已授权" : "未授权")
+                        : "未知（状态接口未提供）";
+                boolean accessibilityEnabled = isAccessibilityEnabled();
+                android.content.SharedPreferences accessibilityPrefs =
+                        getSharedPreferences("fx_accessibility", MODE_PRIVATE);
+                boolean accessibilityConnected = accessibilityEnabled
+                        && FxAccessibilityService.isConnected()
+                        && accessibilityPrefs.getBoolean("service_connected", false)
+                        && accessibilityPrefs.getInt("service_pid", -1) == android.os.Process.myPid();
+                String accessibilityStatus = !accessibilityEnabled ? "系统未启用"
+                        : accessibilityConnected ? "系统已启用，FX 服务已连接"
+                        : "系统已启用，等待 FX 服务连接";
+                target.setText("Root：" + rootStatus
                         + " · LSPosed：" + json.optString("lsposed_status", json.optString("lsposed", "unknown"))
+                        + "\nAccessibility：" + accessibilityStatus
                         + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
