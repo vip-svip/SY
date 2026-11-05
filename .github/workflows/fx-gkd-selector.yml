@@ -12,8 +12,11 @@ on:
       - 'adhook/settings.gradle'
       - 'adhook/fx-gkd-selector/**'
       - 'adhook/app/build.gradle'
-      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt'
-      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorRuntimeTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -25,8 +28,11 @@ on:
       - 'adhook/settings.gradle'
       - 'adhook/fx-gkd-selector/**'
       - 'adhook/app/build.gradle'
-      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt'
-      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorRuntimeTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
   workflow_dispatch:
 
 permissions:
@@ -93,4 +99,4 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
-            :app:testDebugUnitTest --tests 'de.privacyguard.adhook.FxGkdSelectorRuntimeTest'
+            :app:testDebugUnitTest --tests 'de.privacyguard.adhook.FxGkdSelectorEngineTest'
