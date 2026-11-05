@@ -1,0 +1,29 @@
+name: FX Network Uninstall Log Safety
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-module/uninstall.sh"
+      - "scripts/tests/fx-root-proxy-uninstall-order-regression.sh"
+      - ".github/workflows/fx-network-uninstall-log-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-network-uninstall-log-safety-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  uninstall-log-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate uninstall hook syntax
+        run: sh -n fx-module/uninstall.sh
+      - name: Exercise teardown ordering and redirected-log rejection
+        run: sh scripts/tests/fx-root-proxy-uninstall-order-regression.sh
