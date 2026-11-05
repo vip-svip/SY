@@ -154,7 +154,7 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         }
         new AlertDialog.Builder(this)
                 .setTitle("确认快速重启框架服务？")
-                .setMessage("此操作复刻 Dia 23.11 的 stop;start 框架服务层重启，不是整机重启。Android 框架会短暂停止并重新启动，所有正在运行的应用及 unsaved state、VPN 连接、LSPosed/Hook 会中断。请先保存工作。需要 KernelSU Root 授权。")
+                .setMessage("此操作通过 Root 重启 Android 框架服务（stop;start），不是重启内核或整台设备。Android 框架会短暂停止并重新启动，所有正在运行的应用及 unsaved state、VPN 连接、LSPosed/Hook 会中断。请先保存工作。需要 KernelSU Root 授权。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("确认重启框架服务", (dialog, which) -> executeFrameworkRestart())
                 .show();
