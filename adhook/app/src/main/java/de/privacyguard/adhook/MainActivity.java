@@ -899,7 +899,6 @@ public final class MainActivity extends ComponentActivity {
      */
     private void addNativeActionGroup(LinearLayout group) {
         if (group == null) return;
-        group.setOrientation(LinearLayout.VERTICAL);
         group.setPadding(dp(12), dp(8), dp(12), dp(8));
         group.setBackground(uiPanelDrawable());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
@@ -2439,7 +2438,7 @@ public final class MainActivity extends ComponentActivity {
                 new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(nativeAction("更新全部", this::refreshAllNativeVpnSubscriptions),
                 new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(actions);
+        addNativeActionGroup(actions);
         refreshNativeVpnSubscriptions();
     }
 
