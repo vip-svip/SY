@@ -63,6 +63,7 @@ dependencies {
     implementation project(':fx-gkd-selector')
     // GKD-XA v1.4.8 selector/parser engine; no upstream Application or service is packaged.
     implementation 'androidx.activity:activity:1.11.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
     // Reuse the original Stellar TLS pairing certificate/key and ADB RSA key codecs.
     implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
     implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
