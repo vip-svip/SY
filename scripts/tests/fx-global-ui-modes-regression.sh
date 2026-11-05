@@ -5,7 +5,9 @@ mode="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt"
 panel="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt"
 shell="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
 activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
-for f in "$mode" "$panel" "$shell" "$activity"; do
+host="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeTabActivity.java"
+skin="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java"
+for f in "$mode" "$panel" "$shell" "$activity" "$host" "$skin"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -28,4 +30,8 @@ grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FA
 grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
 grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
-echo "PASS: five global UI modes have a shared model, selector, shell renderer and persistence path."
+grep -Fq 'FxNativeSkin.apply(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
+for token in 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
+  grep -Fq "$token" "$skin" || { echo "FAIL: shared native Skin adapter missing $token"; exit 1; }
+done
+echo "PASS: five global UI modes share persistence, shell rendering, and imported native screen tokens."
