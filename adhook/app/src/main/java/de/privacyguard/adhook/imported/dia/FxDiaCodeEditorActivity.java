@@ -92,10 +92,10 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(3), dp(8), dp(3));
-        header.addView(button("‹ 返回", this::onBackPressed));
+        header.addView(button("‹ 返回 Hook", this::onBackPressed));
         boolean javascriptMode = "javascript".equalsIgnoreCase(
                 getIntent() == null ? "" : getIntent().getStringExtra(EXTRA_LANGUAGE));
-        TextView title = text(javascriptMode ? "Dia · JavaScript 脚本编辑器" : "Dia · Java 代码编辑器",
+        TextView title = text(javascriptMode ? "Hook · JavaScript 规则编辑器" : "Hook · Java 代码编辑器",
                 17, 0xff17212b, true);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         header.addView(button("保存并返回", this::saveAndReturn));
@@ -116,7 +116,7 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
         // instead of applying the Java tokenizer to a different language.
         if (!javascriptMode) editor.setEditorLanguage(new JavaLanguage());
         root.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
 
         getWindow().setSoftInputMode(
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
