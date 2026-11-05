@@ -5662,3 +5662,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 在 KernelSU workflow 中补入 canonical `install_adhook_app.sh` / `remove_adhook_app.sh` 后，进一步把两条 `install -D -m 0755` 映射加入 Host installer regression，防止未来 Release restore 再覆盖为旧版脚本。
 - 上一次 KernelSU package run `42096247931` 在该脚本映射处失败；修复后的 workflow 尚未重新执行最终 package。`migration_complete` 仍是显式人工门控，本轮不擅自触发最终 APK/ZIP 构建。
+
+
+### KernelSU 归档安装器同步验证（2026-11-06）
+
+- Package run `42096247931`（commit `22144b49`）已完成 Yulong 规则解码/导入及 210118 域名、3476 cosmetic 规则验证；随后 `adhook-app-installer-regression.sh` 失败，原因是 Release ZIP 恢复会覆盖 `fx-module/scripts/install_adhook_app.sh`，而旧归档副本不包含新系统应用 overlay 优先路径。
+- 后续提交 `6841eda` / `5b197bac` 已在 KernelSU 兼容补丁阶段先把仓库中的 canonical installer/remover 复制到恢复后的 `fx-module/scripts/`，并在最终打包前再次比较两份脚本，防止 Release 遗留副本覆盖新实现。
+- 现将这四项同步/比对约束加入 `adhook-app-installer-regression.sh`，确保未来 Release restore 或 workflow 重排不会移除同步步骤。旧 run 未进入 APK/QuickJS 编译和 ZIP 封装；当前分支新提交仍需回归验证，未声称最终包构建成功。

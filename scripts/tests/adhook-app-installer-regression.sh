@@ -65,6 +65,10 @@ grep -Fq 'not a privileged app; no platform signature or privileged permission g
 ! grep -Fq 'fx-module/system/priv-app/FX' "$WORKFLOW" || fail "unsigned APK must not be staged as a privileged app"
 [ -s "$SERVICE" ] || fail "KernelSU boot service missing"
 grep -Fq 'sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"' "$SERVICE" || fail "boot service does not deploy the FX APK"
+grep -Fq 'install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU restore stage does not replace the Release-era installer with the canonical installer"
+grep -Fq 'install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU restore stage does not replace the Release-era remover with the canonical remover"
+grep -Fq 'cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical installer sync"
+grep -Fq 'cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical remover sync"
 if [ "$MODULE" != "$ROOT" ]; then
   cmp -s "$ROOT/scripts/install_adhook_app.sh" "$INSTALLER" || fail "packaged installer drift"
   cmp -s "$ROOT/scripts/remove_adhook_app.sh" "$REMOVER" || fail "packaged remover drift"
