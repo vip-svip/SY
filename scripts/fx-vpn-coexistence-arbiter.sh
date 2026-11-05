@@ -30,6 +30,9 @@ set -u
 
 FX_ARB_VERSION="1.0.0"
 FX_ARB_DNS_PORT=${FX_ARB_DNS_PORT:-5353}
+# AdGuard Home is the client-facing DNS filter and binds port 53; Unbound
+# remains the independent upstream resolver on 5353. Probe both separately.
+FX_ARB_FILTER_DNS_PORT=${FX_ARB_FILTER_DNS_PORT:-53}
 FX_ARB_PROXY_PORT=${FX_ARB_PROXY_PORT:-7890}
 FX_ARB_LINK_CMD=${FX_ARB_LINK_CMD:-"ip -o link show"}
 FX_ARB_VPNINFO_CMD=${FX_ARB_VPNINFO_CMD:-"vpncore_android_active_vpn_info"}
@@ -192,6 +195,7 @@ fx_arb_decide() {
 
   FX_ARB_SLOT_USED=$(fx_arb_slot_used)
   FX_ARB_DNS_OWNER=$(fx_arb_port_owner "$FX_ARB_DNS_PORT")
+  FX_ARB_FILTER_DNS_OWNER=$(fx_arb_port_owner "$FX_ARB_FILTER_DNS_PORT")
   FX_ARB_PROXY_OWNER=$(fx_arb_port_owner "$FX_ARB_PROXY_PORT")
 
   # 1) 硬性不变量：Root 数据面占槽 = 不兼容（违反"不占 VpnService 槽"）
@@ -223,13 +227,13 @@ fx_arb_decide() {
 
   # 3) 无外部 VPN：内核数据面独立运行（不涉及槽位争用）
   if [ -z "$FX_ARB_EXT_IF" ]; then
-    if [ "$FX_ARB_DNS_OWNER" = "other" ] || [ "$FX_ARB_PROXY_OWNER" = "other" ]; then
+    if [ "$FX_ARB_DNS_OWNER" = "other" ] || [ "$FX_ARB_FILTER_DNS_OWNER" = "other" ] || [ "$FX_ARB_PROXY_OWNER" = "other" ]; then
       FX_ARB_VERDICT="partial"
       FX_ARB_GRADE_CN="部分兼容"
       FX_ARB_REASONS="no external VPN, but a local service port is owned by another process"
       return 0
     fi
-    if [ "$FX_ARB_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_PROXY_OWNER" = "unknown" ]; then
+    if [ "$FX_ARB_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_FILTER_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_PROXY_OWNER" = "unknown" ]; then
       FX_ARB_VERDICT="partial"
       FX_ARB_GRADE_CN="部分兼容"
       FX_ARB_REASONS="no external VPN, but local port state is unreadable"
@@ -242,13 +246,13 @@ fx_arb_decide() {
   fi
 
   # 4) 外部 VPN 存在：只有端口都空闲才算真正并行
-  if [ "$FX_ARB_DNS_OWNER" = "other" ] || [ "$FX_ARB_PROXY_OWNER" = "other" ]; then
+  if [ "$FX_ARB_DNS_OWNER" = "other" ] || [ "$FX_ARB_FILTER_DNS_OWNER" = "other" ] || [ "$FX_ARB_PROXY_OWNER" = "other" ]; then
     FX_ARB_VERDICT="partial"
     FX_ARB_GRADE_CN="部分兼容"
     FX_ARB_REASONS="external VPN on ${FX_ARB_EXT_IF} plus a local port already occupied; one pipeline degraded"
     return 0
   fi
-  if [ "$FX_ARB_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_PROXY_OWNER" = "unknown" ]; then
+  if [ "$FX_ARB_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_FILTER_DNS_OWNER" = "unknown" ] || [ "$FX_ARB_PROXY_OWNER" = "unknown" ]; then
     FX_ARB_VERDICT="partial"
     FX_ARB_GRADE_CN="部分兼容"
     FX_ARB_REASONS="external VPN on ${FX_ARB_EXT_IF} but local port state unreadable"
@@ -280,8 +284,8 @@ fx_arb_json() {
     *) _slot_json=null ;;
   esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
-  printf '"dns":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
-    "$FX_ARB_DNS_PORT" "$FX_ARB_DNS_OWNER" "$FX_ARB_PROXY_PORT" "$FX_ARB_PROXY_OWNER"
+  printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
+    "$FX_ARB_DNS_PORT" "$FX_ARB_DNS_OWNER" "$FX_ARB_FILTER_DNS_PORT" "$FX_ARB_FILTER_DNS_OWNER" "$FX_ARB_PROXY_PORT" "$FX_ARB_PROXY_OWNER"
   printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
 }
 
@@ -290,8 +294,9 @@ fx_arb_text() {
   echo "  verdict : $FX_ARB_VERDICT ($FX_ARB_GRADE_CN)"
   echo "  external: ${FX_ARB_EXT_IF:-none} uid=${FX_ARB_EXT_UID:-none} probe=$FX_ARB_PROBE"
   echo "  slot    : vpn_service_slot_used=$FX_ARB_SLOT_USED (must be false)"
-  echo "  dns     : port $FX_ARB_DNS_PORT owner=$FX_ARB_DNS_OWNER"
-  echo "  proxy   : port $FX_ARB_PROXY_PORT owner=$FX_ARB_PROXY_OWNER"
+  echo "  dns upstream : port $FX_ARB_DNS_PORT owner=$FX_ARB_DNS_OWNER"
+  echo "  dns filter   : port $FX_ARB_FILTER_DNS_PORT owner=$FX_ARB_FILTER_DNS_OWNER"
+  echo "  proxy        : port $FX_ARB_PROXY_PORT owner=$FX_ARB_PROXY_OWNER"
   echo "  reasons : $FX_ARB_REASONS"
 }
 

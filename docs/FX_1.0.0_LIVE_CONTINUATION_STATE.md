@@ -5988,3 +5988,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读验证：生产脚本与测试文件均已按分支 ref 重新读取；生产 validator 与新增测试片段匹配。Gradle/Android 构建未运行；Host 测试尚未由本执行环境直接运行。目标分支的 combined commit status 未返回任何 status 项，不能据此声称 CI 通过或失败；需查看对应 Actions run。
 - 未进行设备真机测试；此项是 Root Proxy 输入验证收紧，不代表第三方 VPN 共存或 DNS 泄漏验收完成。
 - 下一批：继续针对真实 VPN 数据面验证路由/端口/DNS/TUN 交互，并保持 Root Proxy 与独立本地 DNS 的生命周期隔离；随后回到六模式原生页面覆盖与 Hook 运行时完整度。
+
+
+## 2026-11-06 — VPN 共存裁决补齐 AdGuard 客户端 DNS 53 端口探测
+
+- 核对当前 Release runtime 的 `.github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml`：AdGuard Home 客户端 DNS 监听端口为 TCP/UDP 53，上游 Unbound 为 127.0.0.1:5353；Root Proxy 的 IPv4/IPv6 链同样把客户端 TCP/UDP 53 导向本地 127.0.0.1:53。
+- 原 VPN coexistence arbiter 仅探测 DNS 5353 与代理 7890，未检查 AdGuard Home 实际对客户端提供服务的 53 端口。外部进程已占用 53 时，AdGuard DNS 可能无法绑定，但裁决器仍可能将端口冲突漏报。
+- 新增 `dns_filter` 状态（默认端口 53），同时保留既有 `dns`（5353）和 `proxy`（7890）JSON 字段；TCP LISTEN、UDP bind、/proc/net 任一协议/地址族不可读均沿用 fail-closed 端口判定。任何 53/5353/7890 冲突或探测未知都会使共存等级降为 partial。
+- 新增客户端 DNS TCP/UDP 53 占用回归，并验证干净 fixture 中端口默认值与可用状态。当前代码批次以本节对应提交/Actions 实际结果为准；未执行 Android 真机 DNS 接管或第三方 VPN 设备级流量测试。

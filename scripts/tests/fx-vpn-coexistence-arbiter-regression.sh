@@ -42,6 +42,18 @@ for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
 printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\n' \
   "$HDR" > "$TMP/net_udp_busy/udp"
 
+# net_filter_dns_busy: AdGuard Home's client-facing DNS port 53 is occupied by TCP.
+mkdir -p "$TMP/net_filter_dns_busy"
+for f in tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_filter_dns_busy/$f"; done
+printf '%s\\n   0: 0100007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 3 1\\n' \\
+  "$HDR" > "$TMP/net_filter_dns_busy/tcp"
+
+# net_filter_dns_udp_busy: port 53 is occupied by UDP.
+mkdir -p "$TMP/net_filter_dns_udp_busy"
+for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_filter_dns_udp_busy/$f"; done
+printf '%s\\n   0: 0100007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 4 1\\n' \\
+  "$HDR" > "$TMP/net_filter_dns_udp_busy/udp"
+
 # net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
 mkdir -p "$TMP/net_partial"
 for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_partial/$f"; done
@@ -120,7 +132,9 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "kernel_only" ] || fail "expected kernel_only, got $(field "$out" "['verdict']")"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "False" ] || fail "slot must not be used"
 [ "$(field "$out" "['dataplane']")" = "kernel" ] || fail "dataplane must be kernel"
-pass "kernel_only, slot free"
+[ "$(field "$out" "['dns_filter']['port']")" = "53" ] || fail "client-facing DNS filter port must default to 53"
+[ "$(field "$out" "['dns_filter']['owner']")" = "free" ] || fail "DNS filter port 53 should be free in the clean fixture"
+pass "kernel_only, slot free, both DNS ports observed"
 
 echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
@@ -153,7 +167,24 @@ rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "UDP DNS bind was incorrectly reported free: $out"
 [ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "UDP DNS owner must be other"
-pass "partial on UDP port conflict"
+pass "partial on UDP upstream port conflict"
+
+echo "== case 4c: external VPN + AdGuard TCP/53 occupied -> partial =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_filter_dns_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "port 53 TCP conflict must degrade coexistence: $out"
+[ "$(field "$out" "['dns_filter']['port']")" = "53" ] || fail "DNS filter port mismatch"
+[ "$(field "$out" "['dns_filter']['owner']")" = "other" ] || fail "AdGuard TCP/53 conflict was missed"
+pass "partial on client-facing DNS TCP/53 conflict"
+
+echo "== case 4d: external VPN + AdGuard UDP/53 occupied -> partial =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_filter_dns_udp_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "port 53 UDP conflict must degrade coexistence: $out"
+[ "$(field "$out" "['dns_filter']['owner']")" = "other" ] || fail "AdGuard UDP/53 conflict was missed"
+pass "partial on client-facing DNS UDP/53 conflict"
 
 echo "== case 5: link inventory unavailable -> unknown, fail-safe rc=2 =="
 r=$(run_arb "" "" "$TMP/net_free" "$TMP/mod_clean")
@@ -197,6 +228,7 @@ rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "expected partial when port state unreadable, got $(field "$out" "['verdict']")"
 [ "$(field "$out" "['dns']['owner']")" = "unknown" ] || fail "dns owner must be unknown"
+[ "$(field "$out" "['dns_filter']['owner']")" = "unknown" ] || fail "DNS filter owner must be unknown"
 pass "unreadable proc/net does not masquerade as free"
 
 echo "== case 9b: partial proc/net inventory -> unknown port ownership =="
