@@ -308,7 +308,8 @@ jobs:
           done <<<"$changed"
 
           if [[ "$ran" -eq 0 ]]; then
-            if grep -Eq '^(adhook/app/src/main|adhook/app/src/test|fx-module/scripts|fx-patches)/' <<<"$changed"; then
+            # Android unit-test source changes are exercised by build-fx-adhook's Gradle test lane.
+          if grep -Eq '^(adhook/app/src/main|fx-module/scripts|fx-patches)/' <<<"$changed"; then
               echo "ERROR: changed source path has no targeted Host regression mapping." >&2
               exit 2
             fi
