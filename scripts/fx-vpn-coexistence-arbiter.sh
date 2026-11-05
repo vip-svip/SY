@@ -35,6 +35,15 @@ FX_ARB_LINK_CMD=${FX_ARB_LINK_CMD:-"ip -o link show"}
 FX_ARB_VPNINFO_CMD=${FX_ARB_VPNINFO_CMD:-"vpncore_android_active_vpn_info"}
 FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
 FX_ARB_MODULE_ROOT=${FX_ARB_MODULE_ROOT:-}
+# In production the arbiter is executed from the active FX module's scripts/
+# directory. Derive that exact module root unless a regression injects one.
+if [ -z "$FX_ARB_MODULE_ROOT" ]; then
+  case "$0" in
+    */scripts/fx-vpn-coexistence-arbiter.sh)
+      FX_ARB_MODULE_ROOT=${0%/scripts/fx-vpn-coexistence-arbiter.sh}
+      ;;
+  esac
+fi
 
 # --- 端口占用：直接读 /proc/net，不依赖 ss/netstat/lsof（Android 常缺） -------
 fx_arb_port_hex() {
@@ -92,17 +101,51 @@ fx_arb_port_owner() {
 # --- 静态不变量：Root 内核数据面绝不能创建 VpnService（否则会抢槽） -----------
 fx_arb_slot_used() {
   _root=${FX_ARB_MODULE_ROOT:-}
-  [ -n "$_root" ] || { printf 'false'; return 0; }
-  [ -d "$_root" ] || { printf 'unknown'; return 0; }
+  [ -n "$_root" ] || { printf 'unknown'; return 0; }
+  [ -d "$_root" ] && [ ! -L "$_root" ] || { printf 'unknown'; return 0; }
+
+  # Reject symlinked Android module ancestors when running from the real
+  # KernelSU/Magisk module location. Test fixtures may use isolated /tmp roots.
+  case "$_root" in
+    /data/adb/modules/*)
+      for _path in /data /data/adb /data/adb/modules; do
+        [ -d "$_path" ] && [ ! -L "$_path" ] || { printf 'unknown'; return 0; }
+      done
+      ;;
+    /data/adb/modules_update/*)
+      for _path in /data /data/adb /data/adb/modules_update; do
+        [ -d "$_path" ] && [ ! -L "$_path" ] || { printf 'unknown'; return 0; }
+      done
+      ;;
+  esac
+
+  _prop="$_root/module.prop"
+  [ -f "$_prop" ] && [ ! -L "$_prop" ] && [ -r "$_prop" ] \
+    && grep -qx 'id=privacyguard' "$_prop" \
+    && grep -qx 'version=1.0.0' "$_prop" || { printf 'unknown'; return 0; }
+
   _hit=0
+  _missing=0
   for _f in "$_root/scripts/apply.sh" "$_root/scripts/vpncore.sh" \
             "$_root/scripts/yulong-root-proxy.sh" "$_root/scripts/yulong-vpn-control.sh"; do
-    [ -r "$_f" ] || continue
+    if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
+      _missing=1
+      continue
+    fi
     if grep -Eq 'VpnService[[:space:]]*\.[[:space:]]*(prepare|Builder)|VpnService\$Builder' "$_f" 2>/dev/null; then
       _hit=1
     fi
   done
-  if [ "$_hit" = "1" ]; then printf 'true'; else printf 'false'; fi
+
+  # A positive API match is decisive even if another scanned file is absent.
+  # A negative result is valid only when every required dataplane file exists.
+  if [ "$_hit" = "1" ]; then
+    printf 'true'
+  elif [ "$_missing" = "1" ]; then
+    printf 'unknown'
+  else
+    printf 'false'
+  fi
 }
 
 # --- 外部 VPN 探测：接口与 ownerUid 必须来自同一条有效 VpnInfo ----------------
@@ -160,7 +203,16 @@ fx_arb_decide() {
     return 0
   fi
 
-  # 2) 探测不可用/歧义：fail-safe，不谎报并行
+  # 2) 槽位不变量无法完整核实时，不能把数据面标成独立运行。
+  if [ "$FX_ARB_SLOT_USED" = "unknown" ]; then
+    FX_ARB_VERDICT="unknown"
+    FX_ARB_GRADE_CN="探测不可用"
+    FX_ARB_REASONS="unable to verify the FX module dataplane VpnService invariant"
+    FX_ARB_RC=2
+    return 0
+  fi
+
+  # 3) 探测不可用/歧义：fail-safe，不谎报并行
   if [ "$FX_ARB_PROBE" = "unavailable" ] || [ "$FX_ARB_PROBE" = "ambiguous" ]; then
     FX_ARB_VERDICT="unknown"
     FX_ARB_GRADE_CN="探测不可用"
@@ -223,7 +275,11 @@ fx_arb_json() {
     "$FX_ARB_VERSION" "$FX_ARB_VERDICT" "$FX_ARB_GRADE_CN" "$FX_ARB_RC"
   printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s","probe":"%s",' \
     "$_ext" "$FX_ARB_EXT_IF" "$FX_ARB_EXT_UID" "$FX_ARB_PROBE"
-  printf '"vpn_service_slot_used":%s,' "$FX_ARB_SLOT_USED"
+  case "$FX_ARB_SLOT_USED" in
+    true|false) _slot_json=$FX_ARB_SLOT_USED ;;
+    *) _slot_json=null ;;
+  esac
+  printf '"vpn_service_slot_used":%s,' "$_slot_json"
   printf '"dns":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
     "$FX_ARB_DNS_PORT" "$FX_ARB_DNS_OWNER" "$FX_ARB_PROXY_PORT" "$FX_ARB_PROXY_OWNER"
   printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"

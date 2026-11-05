@@ -71,6 +71,27 @@ def build_patched(tmp: Path) -> Path:
     apply_sh.write_text(SYNTHETIC_APPLY, encoding="utf-8")
     for _ in range(2):  # idempotence: installer may re-patch
         subprocess.run([sys.executable, str(PATCHER), str(module)], check=True)
+    arbiter = module / "scripts/fx-vpn-coexistence-arbiter.sh"
+    arbiter.write_text(
+        '#!/system/bin/sh\\n'
+        'slot="${FAKE_SLOT:-false}"\\n'
+        'case "$slot" in\\n'
+        '  true) verdict=incompatible; grade=不兼容; rc=3; slot_json=true ;;\\n'
+        '  false)\\n'
+        '    slot_json=false; rc=0\\n'
+        '    if [ -n "${FAKE_EXT_IF:-}" ]; then verdict=partial; grade=部分兼容; '
+        'else verdict=kernel_only; grade=内核级独立; fi\\n'
+        '    if [ "${FAKE_BLOCKED:-0}" = 1 ] && [ -z "${FAKE_EXT_IF:-}" ]; then '
+        'verdict=unknown; grade=探测不可用; rc=2; fi\\n'
+        '    ;;\\n'
+        '  *) verdict=unknown; grade=探测不可用; rc=2; slot_json=null ;;\\n'
+        'esac\\n'
+        'printf \'{"ok":1,"verdict":"%s","grade_cn":"%s","exit":%s,"probe":"ok",'
+        '"route_probe":"unverified","vpn_service_slot_used":%s}\\\\n\' '
+        '"$verdict" "$grade" "$rc" "$slot_json"\\n',
+        encoding="utf-8",
+    )
+    arbiter.chmod(0o755)
     return module
 
 
@@ -135,7 +156,7 @@ def main() -> int:
             check(d["verdict"] == "kernel_only", f"verdict kernel_only (got {d['verdict']})")
             check(d["external_vpn"] is False, "external_vpn false")
             check(d["dataplane"] == "kernel", "dataplane kernel")
-            check(d["vpn_service_slot_used"] is False, "VPN slot not held")
+            check(d["vpn_service_slot_used"] is False, "verified VPN slot is not held")
 
         print("== case 2: external VPN with uid -> partial (route unverified) ==")
         st = tmp / "s2"
@@ -147,6 +168,7 @@ def main() -> int:
             check(d["route_probe"] == "unverified", "route probe explicitly unverified")
             check(d["external_uid"] == "10123", "owner uid preserved")
             check(d["external_if"] == "tun0", "outer iface preserved")
+            check(d["vpn_service_slot_used"] is False, "verified arbiter slot state is preserved")
 
         print("== case 3: external VPN without uid -> partial (binding unverified) ==")
         st = tmp / "s3"
@@ -170,6 +192,7 @@ def main() -> int:
         if d:
             check(d["verdict"] == "unknown", f"verdict unknown (got {d.get('verdict')})")
             check(d["interception_blocked"] is True, "interception_blocked reflected")
+            check(d["vpn_service_slot_used"] is False, "slot false is based on a complete arbiter fixture")
 
         print("== case 6: file mode is 0600 and content is complete JSON ==")
         st = tmp / "s6"
@@ -197,7 +220,7 @@ def main() -> int:
         fake_arb = mod2 / "scripts/fx-vpn-coexistence-arbiter.sh"
         fake_arb.write_text(
             '#!/system/bin/sh\n'
-            'printf \'{"ok":1,"verdict":"partial","grade_cn":"部分兼容","probe":"ok"}\\n\'\n',
+            'printf \'{"ok":1,"verdict":"partial","grade_cn":"部分兼容","probe":"ok","route_probe":"unverified","vpn_service_slot_used":false}\\n\'\n',
             encoding="utf-8",
         )
         st = tmp / "s8"
@@ -220,6 +243,26 @@ def main() -> int:
             check(d["verdict"] in ("partial", "unknown"),
                   f"local grading stays conservative (got {d.get('verdict')})")
             check(d["route_probe"] == "unverified", "local fallback labels route probe unverified")
+            check(d["verdict"] == "unknown", "missing arbiter must not certify the VPN slot invariant")
+            check(d["vpn_service_slot_used"] is None, "unverified slot state is JSON null")
+
+        print("== case 10: arbiter reports unknown slot -> JSON null and unknown verdict ==")
+        st = tmp / "s10"
+        r = run_writer(pub, tmp, module, st, {"FAKE_EXT_IF": "", "FAKE_SLOT": "unknown"})
+        check(r.returncode == 0, "writer exit 0 with unverified slot")
+        _, d = read_status(st)
+        if d:
+            check(d["verdict"] == "unknown", "unknown slot prevents kernel_only verdict")
+            check(d["vpn_service_slot_used"] is None, "unknown slot is not coerced to false")
+
+        print("== case 11: arbiter detects a VpnService call -> true and incompatible ==")
+        st = tmp / "s11"
+        r = run_writer(pub, tmp, module, st, {"FAKE_EXT_IF": "", "FAKE_SLOT": "true"})
+        check(r.returncode == 0, "writer exit 0 for positive slot detection")
+        _, d = read_status(st)
+        if d:
+            check(d["verdict"] == "incompatible", "positive slot detection is incompatible")
+            check(d["vpn_service_slot_used"] is True, "positive slot evidence is preserved")
 
     if failures:
         print(f"\nFAILED: {len(failures)} assertion(s)", file=sys.stderr)

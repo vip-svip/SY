@@ -5556,3 +5556,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `FxYulongFirewallAppFilterPolicy` 将 Android `FLAG_SYSTEM` 与 `FLAG_UPDATED_SYSTEM_APP` 的位值提取为具名常量，保持 policy 类不依赖 Android SDK、可由 Host JDK 单测执行。
 - 同步静态回归：不再要求位掩码以数字字面量出现，改为分别检查两个具名常量的值及实际参与位判断；分类行为本身不变。
 - `d71d4021` 的具名常量重构后，旧的数字字面量断言会失配；本修订修复测试与实现的表达方式差异。
+
+
+## 2026-11-06 — VPN 共存槽位状态必须来自完整模块证据
+
+- 修正此前槽位状态过度确定的问题：共存状态发布器曾硬编码 `vpn_service_slot_used=false`，而 arbiter 在没有传入模块根目录时也会默认返回 false。现在仅当模块根目录、`module.prop`（ID/version）及四个关键数据面脚本均为可读取的非符号链接普通文件，并完成静态扫描后，才返回 true/false；模块缺失、文件缺失或路径不可信均返回 unknown。
+- Arbiter 在生产调用时从自身 `scripts/fx-vpn-coexistence-arbiter.sh` 路径推导模块根目录；测试仍可注入隔离根目录。若扫描命中 VpnService.prepare/Builder 调用，即使其他扫描文件缺失也报告 true；只有全部必需文件扫描完整且未命中才报告 false。
+- 槽位扫描 unknown 现在使 arbiter verdict 变为 `unknown`、退出码 2，并在 JSON 中输出 `vpn_service_slot_used:null`。状态发布器解析 arbiter 的 true/false/null，不再写入硬编码 false；缺少/旧版本 arbiter 字段也输出 null 并将等级降为未知。
+- MainActivity 只接受 JSON Boolean 类型作为确定槽位证据；缺失、null 或其他类型均展示“FX VpnService 槽位状态未知”。
+- 新增/更新 arbiter 回归：完整模块 fixture、缺少文件 fixture、installed-path 自动发现、阳性 VpnService 命中；状态发布器回归覆盖 true/false/null 和缺少 arbiter；UI 回归覆盖 strict Boolean 读取。
+- 本批尚未在 Android 设备上验证系统实际槽位状态；静态扫描证明的是所列数据面脚本未调用 VpnService API，不证明路由/回程/DNS 数据路径，`route_probe` 仍保留 unverified。
+

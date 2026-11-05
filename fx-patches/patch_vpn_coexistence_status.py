@@ -50,6 +50,7 @@ fx_coexist_status_write() {
   _fx_cs_grade=""
   _fx_cs_probe=""
   _fx_cs_route_probe="unverified"
+  _fx_cs_slot="unknown"
   # apply.sh 使用 MODDIR（不是 MODPATH）；MODDIR 未定义时必须留空而不是崩溃。
   _fx_cs_arb=${FX_COEXIST_ARBITER:-${MODDIR:-}/scripts/fx-vpn-coexistence-arbiter.sh}
   if [ -r "$_fx_cs_arb" ]; then
@@ -58,9 +59,11 @@ fx_coexist_status_write() {
     _fx_cs_grade=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"grade_cn":"\([^"]*\)".*/\1/p')
     _fx_cs_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"probe":"\([a-z_]*\)".*/\1/p')
     _fx_cs_route_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"route_probe":"\([a-z_]*\)".*/\1/p')
+    _fx_cs_slot=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"vpn_service_slot_used":\(true\|false\|null\)[,}].*/\1/p')
   fi
 
   _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
+  case "$_fx_cs_slot" in true|false|null) ;; *) _fx_cs_slot="unknown" ;; esac
 
   # 本地保守兜底：绝不把未知说成并行。
   _fx_cs_source="local"
@@ -87,8 +90,9 @@ fx_coexist_status_write() {
       "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe" "$_fx_cs_route_probe"
     printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s",' \
       "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid"
-    printf '"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":false}\n' \
-      "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)"
+    case "$_fx_cs_slot" in true|false) _fx_cs_slot_json=$_fx_cs_slot ;; *) _fx_cs_slot_json=null ;; esac
+    printf '"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' \
+      "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)" "$_fx_cs_slot_json"
   ) > "$_fx_cs_tmp" 2>/dev/null || { rm -f "$_fx_cs_tmp" 2>/dev/null; return 0; }
 
   # 回读校验后才替换，避免发布半截 JSON。

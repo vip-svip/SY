@@ -89,6 +89,28 @@ LINKS_TUN='1: lo: <LOOPBACK,UP> mtu 65536
 7: tun0: <POINTOPOINT,UP> mtu 1500'
 
 mkdir -p "$TMP/mod_clean/scripts"
+printf 'id=privacyguard\nversion=1.0.0\n' > "$TMP/mod_clean/module.prop"
+for f in apply.sh vpncore.sh yulong-root-proxy.sh yulong-vpn-control.sh; do
+  printf '#!/system/bin/sh\nexit 0\n' > "$TMP/mod_clean/scripts/$f"
+done
+
+# A partial module tree is not evidence that FX avoids the Android VPN slot.
+mkdir -p "$TMP/mod_incomplete/scripts"
+echo "== case 0: incomplete module source -> unknown slot state =="
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_incomplete")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 2 ] || fail "incomplete module scan must return rc=2, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "unknown" ] || fail "incomplete module scan must grade unknown"
+[ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "incomplete module slot must be JSON null"
+pass "incomplete module source fails closed"
+
+# The production default derives the module root from scripts/<arbiter> path.
+cp "$ARB" "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh"
+_auto_out=$(FX_ARB_LINK_CMD="printf '%s\\n' '$LINKS_NO_TUN'" \
+  FX_ARB_VPNINFO_CMD="printf ''" FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT= \
+  sh "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh")
+[ "$(field "$_auto_out" "['vpn_service_slot_used']")" = "False" ] || fail "arbiter did not verify slot status from its installed module path"
+pass "production arbiter auto-discovers its module root"
 
 echo "== case 1: no external VPN, ports free -> kernel_only, slot not used =="
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_clean")
@@ -156,7 +178,7 @@ rc=${r%%|*}; out=${r#*|}
 pass "stale VpnInfo row rejected"
 
 echo "== case 8: root dataplane calls VpnService -> incompatible rc=3 =="
-mkdir -p "$TMP/mod_bad/scripts"
+cp -a "$TMP/mod_clean/." "$TMP/mod_bad/"
 cat > "$TMP/mod_bad/scripts/apply.sh" <<'EOF'
 #!/system/bin/sh
 VpnService.Builder().setSession("fx").establish()

@@ -1579,9 +1579,10 @@ public final class MainActivity extends ComponentActivity {
                         if (!iface.isEmpty()) external += "（" + iface + "）";
                         String externalUid = json.optString("external_uid", "");
                         if (!externalUid.isEmpty()) external += " · UID " + externalUid;
-                        String slotText = !json.has("vpn_service_slot_used")
+                        Object slotValue = json.opt("vpn_service_slot_used");
+                        String slotText = !(slotValue instanceof Boolean)
                                 ? "FX VpnService 槽位状态未知"
-                                : (json.optBoolean("vpn_service_slot_used", true)
+                                : (((Boolean) slotValue)
                                         ? "FX 使用 Android VpnService 槽位"
                                         : "FX 内核数据面不占 Android VpnService 槽位");
                         target.setText("共存等级：" + grade + " · " + verdict
