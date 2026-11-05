@@ -12,6 +12,12 @@ public final class FxExifPrivacyPolicyHostTest {
             "OffsetTime", "OffsetTimeOriginal", "SubSecTimeOriginal",
             "BodySerialNumber", "LensSerialNumber", "CameraOwnerName",
             "ImageUniqueID", "Artist", "Copyright", "Software",
+            "ImageDescription",
+            "DocumentName",
+            "UserComment",
+            "RelatedSoundFile",
+            "HostComputer",
+            "MakerNote",
             "XPAuthor", "XPComment", "XPKeywords", "XPSubject", "XPTitle"
         };
         for (String tag : privateTags)
