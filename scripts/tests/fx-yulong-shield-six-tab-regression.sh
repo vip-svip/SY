@@ -128,5 +128,31 @@ warning = (shield_dir / "FxYulongWarningActivity.java").read_text(encoding="utf-
 for token in ("MAX_PACKAGE_NAME", "MAX_WHITELIST_CHARS", "Intent.ACTION_DELETE",
               "WHITELIST_KEY", "AlertDialog", "package:"):
     assert token in warning, f"warning confirmation/safety contract missing: {token}"
+
+# Global HUAWEI/Cupertino renderers consume explicit semantic roles from Shield.
+batch = (shield_dir / "FxYulongBatchCleanupActivity.java").read_text(encoding="utf-8")
+rescue_page = (shield_dir / "FxYulongRescueActivity.java").read_text(encoding="utf-8")
+assert 'pageTitle.setTag("fx-title:18")' in hub
+for token in ('panel.setTag("fx-card")', 'heading.setTag("fx-card-title")',
+              'description.setTag("fx-card-detail")', 'button.setTag("fx-action-row")',
+              'installScanSwitch.setTag("fx-switch-row")'):
+    assert token in hub, f"Shield hub is missing shared Skin role {token}"
+for token in ('pageTitle.setTag("fx-title:18")', 'view.setTag("fx-action-row")',
+              'safetyNote.setTag("fx-card-body")', 'state.setTag("fx-card-detail")',
+              'current.setTag("fx-card-title")'):
+    assert token in batch, f"Shield batch-cleanup page is missing shared Skin role {token}"
+for token in ('pageTitle.setTag("fx-title:18")', 'p.setTag("fx-card")',
+              'heading.setTag("fx-card-title")', 'description.setTag("fx-card-detail")',
+              'b.setTag("fx-action-row")'):
+    assert token in rescue_page, f"Shield Rescue page is missing shared Skin role {token}"
+for token in ('blacklistEmptyText.setTag("fx-card-detail")', 'emptyHint.setTag("fx-card")',
+              'blacklistContainer.setTag("fx-card-group")', 'listTitle.setTag("fx-section:已加入管控")',
+              'nameTv.setTag("fx-list-title")', 'pkgTv.setTag("fx-list-subtitle")',
+              'removeBtn.setTag("fx-action-row")'):
+    assert token in black, f"Shield Blacklist page is missing shared Skin role {token}"
+for token in ('c.setTag("fx-card")', 'heading.setTag("fx-card-title")',
+              'description.setTag("fx-card-detail")', 'b.setTag("fx-action-row")',
+              'pageTitle.setTag("fx-title:18")'):
+    assert token in daily, f"Shield Daily Summary is missing shared Skin role {token}"
 print("PASS: Shield database/scan/integrity/rescue/daily-summary/warning pages retain six-tab shell and existing navigation/result/removal contracts")
 PY
