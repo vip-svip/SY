@@ -72,39 +72,49 @@ GKD-XA 根工程把 Kotlin JVM target 设为 21，并依赖 Compose、Room 3、K
 - 五种 Skin × Hook 核心页面 UI 自动化/截图验收。
 - GPLv3 对应源代码、版权/许可、修改标记和界面法律声明完整。
 
-## 当前状态（2026-11-05）
+## 当前状态（2026-11-05，最新代码接入）
 
-### 已实际接入的第一阶段
+### 已落地：选择器、单服务事件管线与本地规则首批垂直切片
 
-1. 上游仓库以 Git submodule 锁定在 `8a6ce935da11671dac7e1a7595416ec99ee07436`（GKD-XA v1.4.8），GPL-3.0 许可和原始来源保留。
-2. FX 中只有一个 `:fx-gkd-selector` JVM 17 工程，直接编译上游 `gkd-selector` 的 `commonMain`、`jvmMain`、`commonTest`、`jvmTest`；FX APK 通过 `implementation project(':fx-gkd-selector')` 使用它。未引入上游 `:gkd-app`。
-3. 新增 `FxGkdSelectorRuntime`：
-   - 将 GKD 选择器 parse + type-check，返回结构化错误类别和 source offset。
-   - 把 FX 的 `AccessibilityNodeInfo` 适配为上游 `NodeAdapter`。
-   - 提供只读 `findFirst` / `findAll` 匹配接口。
-   - 设置边界：选择器 8192 字符、节点 child 200、普通遍历 4000 descendants、fast-query 500 results、parent depth 256。
-   - 本 Runtime 不自动点击、不改变目标 App 状态；点击/跳过动作必须由后续用户授权的 FX 规则执行器调度。
-4. 新增 `FxGkdSelectorRuntimeTest`，覆盖可编译语法、属性方法/关系、语法错误位置、未知属性类型检查和输入长度上限。
-5. 独立 CI `.github/workflows/fx-gkd-selector.yml` 使用 JDK 17/Gradle 9.3.1，检出 pinned submodule 并运行上游 selector JVM 测试。Run `41982329993`（commit `2293ff68514a725e69b54fbda6434ff20c3025e7`）已成功，证明 selector JVM module 与其上游测试可构建/运行。
+1. 上游仓库以 Git submodule 锁定在 `8a6ce935da11671dac7e1a7595416ec99ee07436`（GKD-XA v1.4.8），GPL-3.0 原始许可资产及来源记录保留。
+2. FX 只有一个 `:fx-gkd-selector` JVM 17 工程，编译上游 `gkd-selector` 的 `commonMain` / `jvmMain` / tests。没有导入上游 `:gkd-app`，没有第二 Launcher、第二 applicationId 或第二 AccessibilityService。
+3. FX 原生适配层：
+   - `FxGkdSelectorEngine.kt` 使用上游 Selector parser/compiler、属性类型模型和 NodeAdapter；不是简化正则匹配。
+   - `FxGkdAccessibilitySnapshot.kt` 对窗口节点树做有上限的临时快照（最多 700 节点、32 层、每节点最多 80 子节点、文本字段最多 256 字符）；密码和可编辑节点不读取 text/description，不写日志或持久化。
+   - `FxGkdRuleStore.kt` 本地存储最多 128 条手动规则，精确包名范围、selector 校验、每规则 1–60 秒 cooldown；总开关默认关闭。
+   - `FxGkdAutomationRuntime.kt` 只处理明确启用的本地规则和目标包；250ms 扫描节流、最多匹配 12 个候选、动作前重新检查目标仍可见/可点击/非密码/非可编辑，并只支持 ACTION_CLICK。
+4. 运行时已经接入 FX 原有 `FxAccessibilityService`：
+   - 未开启 GKD 总开关或目标包没有启用规则时，不获取窗口树。
+   - 开启后动态订阅 Window State / Window Content Changed / View Scrolled 事件。
+   - 只使用 `getRootInActiveWindow()` 当前窗口，且必须与事件包名一致。
+   - 通过单线程执行队列进行匹配，不新增 GKD 独立服务。
+   - `fx_accessibility_service.xml` 允许 retrieveWindowContent 是必要能力声明；无障碍说明已明确告知用户：只有总开关和逐应用规则都启用才读取树；不读密码/可编辑文本、不截图、不上传。
+5. Hook 页已增加 GKD 自动化入口。独立 `FxGkdAutomationActivity` 目前支持本地包名 + GKD 选择器 + 冷却时间规则创建、语法校验、列表查看、逐条启停与删除，并显示无障碍授权/连接状态。用户必须手动在 Android 系统设置授权无障碍，并手动开启 GKD 总开关。
+6. GPL-3.0 许可和来源条目通过 FX 的开源许可证界面展示；发行法律门禁仍未解除，见下文。
 
-### 仍未完成，不能宣称 GKD 已完整迁入
+### 当前垂直切片明确不包括
 
-- 当前 `FxAccessibilityService` 仍只处理前台包名变化和用户配置的音量触发；尚未调用 `FxGkdSelectorRuntime` 扫描事件节点树。
-- 没有 GKD 订阅/本地规则仓库、应用与规则组配置、同步/导入导出、排除项和并发事务。
-- 没有规则优先级、事件触发器、冷却/去重、动作授权、执行队列、重试/超时和防止重复点击机制。
-- 没有 GKD 快照、历史/日志、AI Provider/模型/预算、安全截图处理。
-- 没有在 Hook Tab 中提供 GKD 规则编辑器、订阅管理和运行状态页面。
-- 没有 GKD 特权 AIDL/Shizuku bridge 的 FX 统一接入，也没有合并原服务、通知、Tile、BootReceiver、备份等生命周期。
-- selector JVM 测试通过不代表 APK Gradle 整体构建、真机 Accessibility 事件匹配或自动化动作已验证。
+- GKD 上游在线/本地订阅下载、刷新/版本、规则组/分类/排除项、应用分组及导入导出。
+- 完整触发条件、重复次数、复杂动作、长按/手势、规则优先级/互斥/高级场景匹配。当前只有安全边界下的 Click。
+- 快照审查/生成 UI、触发历史与诊断、截图处理、AI Provider/模型与预算。
+- GKD 原版 Room 数据层/迁移、Shizuku/AIDL/特权进程、后台/开机/通知/磁贴等生命周期能力。
+- 五 Skin × GKD 所有页面的截图和真机验收；目前页面使用 FX 六 Tab 共享宿主，但逐项视觉验收尚未完成。
 
-### 下一阶段实施顺序
+### 验证分层
 
-1. 把 Selector Runtime 接入 FX 自有 Accessibility 事件分发器（先只读匹配），增加节点快照生命周期、线程调度、事件去重、窗口/包边界、内存/时间上限与撤销授权。
-2. 设计并测试 FX GKD subscription/rule repository：数据版本、事务写入、导入/导出、上游订阅兼容、应用范围/排除项。
-3. 先实现明确用户启用的安全动作执行器，默认关闭；规则和目标 App 范围可查看、可撤销。动作前后做 cooldown、幂等与事件去重，保留运行记录。
-4. 移植 snapshots/history/AI providers 及配套权限，再在 Hook Tab 添加统一 Compose 子页面。
-5. 最后逐项整合 Shizuku/AIDL、后台/开机/通知/Tile 生命周期，确保不重复注册第二套服务或入口。
+- 上游 selector JVM lane 已成功：Run `41982329993` 在 pinned commit 上通过 `:fx-gkd-selector:jvmTest`（这不是 APK 构建证明）。
+- 新版独立 workflow `.github/workflows/fx-gkd-selector.yml` 已增加 FX Android App Kotlin/Java compile、单测编译与 `FxGkdSelectorEngineTest`；等待当前提交的最新 run 结果。
+- Host 回归 `fx-gkd-selector-integration-regression.sh` 与 `fx-gkd-automation-regression.sh` 校验单一服务身份、默认关闭、目标包范围、快照隐私、冷却与 Hook UI；Host 通过不等于 Android 编译或真机测试。
+- 尚未报告当前分支 APK build / device acceptance 通过。必须等待对应 Actions 和后续真机证据，不能提前宣称完整迁移。
 
+### 下一阶段
+
+1. 修正规则存储/事件队列并发与异常恢复测试，验证服务解绑、关闭总开关、撤销单条规则的即时停止。
+2. 加入应用选择器（已安装用户应用列表）和规则导入/导出，保持本地数据有版本、有校验、有备份。
+3. 移植订阅源/规则组/排除项/规则刷新，并与现有 FX Hosts/Ad 数据域严格区分：GKD 规则不默认视为广告规则。
+4. 加入触发历史/诊断，且只记录规则 ID、包名、动作结果与时间，不记录页面原始文本。
+5. 评估上游 Room schema 与 FX 备份恢复，再考虑 AI/快照与特权桥；每一项分别做权限、隐私、耗电、兼容测试。
+6. 逐一测试 AOSP、ColorOS/HyperOS 的服务启动/停止、撤销授权、锁屏/恢复、窗口变化与重复事件；进行五 Skin × Hook 页面 UI 验收。
 
 ### GPL-3.0 许可资产与发行门禁（2026-11-05 更新）
 
