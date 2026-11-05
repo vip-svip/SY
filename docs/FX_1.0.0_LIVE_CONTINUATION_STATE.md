@@ -4371,3 +4371,32 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. 为 EditText/Spinner/搜索框/多行代码编辑器与表单行增加语义标签和控件级回归；保留自定义 Drawable、危险/警告/成功动作颜色和现有输入行为。
 3. 针对最新 HEAD 运行 Dialog/Skin/Ad-only 导航定向 Host 回归；没有 Actions 结果时只记录源码回读，继续推进真实页面覆盖，不重复触发整套 Actions。
 
+
+## 2026-11-05 — Hook 表单 Spinner 统一 Skin 与 Dialog/Frida 过期回归纠正
+
+### 本批实现
+- `MainActivity.java` 新增 `createSkinAwareSpinnerAdapter(List<String>)`。选中项与下拉项都调用当前 FX 主文字 token、14sp、Android 公共字体族 `sans-serif-medium`、统一 padding 和单行布局。
+- 已接入 ActivityKey finish trigger、Dialog toggle trigger、签名语法选择、Hook action 选择、自定义规则组筛选等 Spinner。原来的 item 数值映射、`OnItemSelectedListener`、草稿/保存回调均保留。
+- 修正早期无效写法 `Typeface.MEDIUM`（Android Typeface 不存在此常量），改用 `Typeface.create("sans-serif-medium", Typeface.NORMAL)`；Hook regression 加入正向字体族断言和禁止该无效常量的检查。
+- Hook 页面仍使用原生列表/弹窗/配置存储；Skin adapter 只改文本呈现，不改变触发器语义或执行逻辑。
+
+### 旧测试失败原因与纠正
+- Host run `41986611189`（HEAD `1a967a67dd737f816c93395be88bee1b6cdfdd9c`）失败在 `fx-dia-dialog-native-regression.sh` stdin line 110。失败断言要求旧 `case "按键控制":`；实际 MainActivity 已使用 `if ("按键控制".equals(activePrivacySection))` 并调用 `showDiaKeyControlTarget(ai)`。该断言属于旧路由结构，不是业务路由缺失。后续版本的测试改为检查 Hook Hub 的“按键动作 Hook”卡片、`showAppList("按键控制")` 和真实目标页调用。
+- Host runs `41986776704`（HEAD `ebfcdc1900cf8f2d02859f09a3c6bed633f27462`）与 `41986829015`（HEAD `cca8e4a34451ff219e83133a403593a38a55b75a`）失败于 `fx-dia-frida-page-navigation-regression.sh` stdin line 6：测试仍寻找已经废止的来源菜单 `case "运行日志":`。FX Frida 已整合至 Hook Hub 的“Frida 环境与注入”入口，运行日志通过 Frida 目标上下文深链打开；后续测试已改为检查 Hook Hub 入口和新目标页导航，不再要求来源应用菜单。
+- 上述旧失败都应保留为历史失败证据，不得改写为通过；后续 HEAD 已修正相关测试结构。
+
+### 当前源码回读
+- 最新回读的 `MainActivity.java` 仍保留 `showHookHub()`、ActivityKey 真实目标页条件路由、Skin Spinner adapter；没有 `migrationSuite` 等旧来源应用导航状态，也没有 `Ad/Hosts` Tab 名。
+- `fx-hook-native-ui-regression.sh` 检查 Spinner 的 selected/dropdown renderer、合法字体族及五个表单 Spinner 的共享 adapter。
+- `fx-dia-dialog-native-regression.sh` 使用 Hook Hub 卡片和当前业务路由检查 ActivityKey，不再要求旧 `case` 分支。
+- `fx-dia-frida-page-navigation-regression.sh` 使用 Hook Hub “Frida 环境与注入”入口检查，并保留目标会话日志上下文检查。
+
+### CI 验证
+- 最新已完成 Host job：run `41987056283`，HEAD `e06dbc9b8eefd6444949aa57aeb0eb0453c51335`，`host-regressions = success`。GitHub job API 回读确认该 job 已完成成功。
+- 更早旧断言失败：`41986611189`、`41986776704`、`41986829015`；它们与后续源码/测试纠正前的旧结构对应，不得列为当前版本 PASS。
+- 本轮仍未执行 Android Gradle compile、Android JUnit、APK assemble、安装升级、UI 自动化或真机触控/耗电/服务连续性测试。
+
+### 下一批立即实施
+1. 继续检查 Hook 目标页中剩余的原始 `ArrayAdapter` / Spinner，按实际业务含义统一 Skin 文本 renderer；避免全局机械替换造成行高/长文案截断。
+2. 扩展 Ad / 隐私导入 Activity 的表单、Dialog、列表和加载/空/错误状态 renderer；语义危险色、证书状态、扫描风险色必须保持。
+3. 检查五 Skin 切换时页面状态/草稿/滚动恢复及网络服务不中断；继续严格区分 Host 静态回归与 Android/真机验收。
