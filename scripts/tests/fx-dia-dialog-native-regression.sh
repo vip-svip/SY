@@ -126,8 +126,9 @@ for case in (
     "serializerRejectsDialogFeedbackWithoutEnabledMatcher"):
     assert case in ser_test, f"missing Serializer test: {case}"
 
-# Native ActivityKey page, config contract and LSPosed dispatch.
-assert 'case "按键控制":' in ui and 'showAppList("按键控制")' in ui
+# ActivityKey Hook also belongs to the Hook destination, not a separate Privacy page.
+assert 'addNativeActionCard("按键动作 Hook"' in hook_hub
+assert 'showAppList("按键控制")' in hook_hub
 assert "showDiaKeyControlTarget(ai)" in ui
 assert "动作一：关闭当前 Activity" in ui and "动作二：暂停 / 恢复当前应用的 Dialog 规则" in ui
 assert "key_finish_trigger" in ui and "key_dialog_toggle_trigger" in ui
