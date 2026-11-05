@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final String EXTRA_TARGET_PACKAGE = "fx_dia_session_log_target_package";
     private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
+    private static final String EXTRA_GADGET_PORT = "fx_dia_session_log_gadget_port";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
     private static final String BASE_DIR = "/data/adb/privacyguard";
     private static final String DIA_DIR = BASE_DIR + "/dia-frida";
@@ -47,6 +48,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
             },
             new ThreadPoolExecutor.AbortPolicy());
     private String targetPackage;
+    private boolean gadgetLog;
     private String targetName;
     private String logPath;
     private String logContent = "";
@@ -89,13 +91,20 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         super.onCreate(state);
         targetPackage = getIntent().getStringExtra(EXTRA_TARGET_PACKAGE);
         targetName = getIntent().getStringExtra(EXTRA_TARGET_NAME);
-        if (!isSafePackageName(targetPackage)) {
-            Toast.makeText(this, "运行日志目标包名无效，无法读取日志。", Toast.LENGTH_LONG).show();
-            finish();
-            return;
+        int gadgetPort = getIntent().getIntExtra(EXTRA_GADGET_PORT, -1);
+        if (gadgetPort >= 1024 && gadgetPort <= 65535 && gadgetPort != 27042) {
+            gadgetLog = true;
+            logPath = LOG_DIR + "/gadget-" + gadgetPort + ".log";
+            targetName = "Gadget Listen · 127.0.0.1:" + gadgetPort;
+        } else {
+            if (!isSafePackageName(targetPackage)) {
+                Toast.makeText(this, "运行日志目标包名无效，无法读取日志。", Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            if (targetName == null || targetName.trim().isEmpty()) targetName = targetPackage;
+            logPath = LOG_DIR + "/" + targetPackage + ".log";
         }
-        if (targetName == null || targetName.trim().isEmpty()) targetName = targetPackage;
-        logPath = LOG_DIR + "/" + targetPackage + ".log";
         buildPage();
         restoreUiState(state);
         refreshLog();
@@ -128,18 +137,20 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
         header.addView(button("‹ 返回 Hook", this::finish));
-        TextView pageTitle = text("Hook · Frida 运行日志", 18, 0xff17212b, true);
+        TextView pageTitle = text(gadgetLog ? "Hook · Gadget 消息/控制台" : "Hook · Frida 运行日志", 18, 0xff17212b, true);
         pageTitle.setTag("fx-title:18");
         header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
-        TextView targetIdentity = text("目标应用：" + targetName + "\n包名：" + targetPackage,
+        TextView targetIdentity = text(gadgetLog ? targetName : "目标应用：" + targetName + "\n包名：" + targetPackage,
                 12, 0xff526170, false);
         targetIdentity.setTag("fx-card-detail");
         root.addView(targetIdentity);
 
         TextView warning = text(
-                "这里显示当前目标的原始 Frida 会话日志，可能包含自定义脚本输出或应用调试信息。分享前请检查并删除敏感内容。",
+                gadgetLog
+                        ? "这里显示指定 Gadget Listen 端口的消息/console 输出，可能包含脚本输出或调试信息。分享前请检查并删除敏感内容。"
+                        : "这里显示当前目标的原始 Frida 会话日志，可能包含自定义脚本输出或应用调试信息。分享前请检查并删除敏感内容。",
                 12, 0xff8a5b20, false);
         warning.setPadding(dp(16), dp(4), dp(16), dp(4));
         root.addView(warning);
@@ -307,7 +318,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                         && result.output != null && result.output.contains("FX_DIA_LOG_CLEARED")) {
                     logContent = "";
                     if (search != null) search.setText("");
-                    status.setText("当前目标的 FX Frida 日志已清空。");
+                    status.setText(gadgetLog ? "当前 Gadget 端口的 FX 日志已清空。" : "当前目标的 FX Frida 日志已清空。");
                     renderLog();
                     Toast.makeText(this, "日志已清空。", Toast.LENGTH_SHORT).show();
                 } else {

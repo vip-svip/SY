@@ -31,6 +31,17 @@ if "FxDiaFridaActivity.class" not in frida_route or '.putExtra("dia_page", "Frid
     raise SystemExit("FAIL: FX Hook hub must open the integrated Frida runtime Activity")
 if "showNativeRuntimeLogs()" in frida_route:
     raise SystemExit("FAIL: Frida runtime entry is incorrectly routed to the FX module log viewer")
+if 'button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog())' not in frida:
+    raise SystemExit("FAIL: Gadget message/console log does not expose its native viewer")
+gadget_log_start = frida.index("private void showGadgetSessionLog()")
+gadget_log_end = frida.index("private void copyGadgetConnectCommand()", gadget_log_start)
+gadget_log_route = frida[gadget_log_start:gadget_log_end]
+if "FxDiaSessionLogActivity.class" not in gadget_log_route or "fx_dia_session_log_gadget_port" not in gadget_log_route:
+    raise SystemExit("FAIL: Gadget message/console log is not routed to the searchable native log page")
+if "fxDialogBuilder()" in gadget_log_route or "runRoot(" in gadget_log_route:
+    raise SystemExit("FAIL: Gadget log route still uses the legacy modal Root reader")
+if "EXTRA_GADGET_PORT" not in session or "gadget-" not in session:
+    raise SystemExit("FAIL: native session log page does not validate and resolve Gadget port logs")
 if 'button("查看当前目标注入日志", () -> showSessionLog())' not in frida:
     raise SystemExit("FAIL: Frida runtime page does not expose its target session log")
 session_log_start = frida.index("private void showSessionLog()")

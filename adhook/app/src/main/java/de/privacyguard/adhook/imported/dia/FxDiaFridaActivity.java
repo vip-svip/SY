@@ -3205,29 +3205,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus(invalid.getMessage());
             return;
         }
-        String log = gadgetSessionLogPath(port);
-        String command = "set -eu; " + checkedSessionLogDirectoryPrefix()
-                + "path=" + quote(log) + "; "
-                + "[ ! -L \"$path\" ] || { echo FX_GADGET_LOG_SYMLINK_REJECTED; exit 5; }; "
-                + "if [ ! -e \"$path\" ]; then echo '当前端口尚无 Gadget 会话消息/console 输出。'; "
-                + "elif [ ! -f \"$path\" ] || [ ! -r \"$path\" ]; then "
-                + "echo FX_GADGET_LOG_TYPE_REJECTED; exit 6; "
-                + "elif [ -s \"$path\" ]; then tail -n 500 \"$path\"; "
-                + "else echo 'Gadget 会话日志文件为空。'; fi";
-        runRoot(command, 12000L, result -> {
-            TextView viewer = text(result.output == null ? "" : result.output,
-                    12, 0xff334155, false);
-            viewer.setTextIsSelectable(true);
-            viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
-            ScrollView scroll = new ScrollView(this);
-            scroll.addView(viewer);
-            fxDialogBuilder()
-                    .setTitle("Frida Gadget 消息/控制台 · " + port)
-                    .setView(scroll)
-                    .setPositiveButton("关闭", null)
-                    .show();
-            setStatus("Gadget 会话日志读取退出码 " + result.exitCode);
-        });
+        Intent page = new Intent(this, FxDiaSessionLogActivity.class);
+        page.putExtra("fx_dia_session_log_gadget_port", port);
+        startActivity(page);
     }
 
     private void copyGadgetConnectCommand() {

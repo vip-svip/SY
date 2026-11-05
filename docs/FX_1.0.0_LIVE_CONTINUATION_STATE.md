@@ -5127,3 +5127,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The no-cap policy does not imply infinite device resources. The `.js` source path is file-backed; JSON script-list imports still materialize the JSON document in the app process and therefore remain subject to available heap/storage and parser cost, even though the former arbitrary 1 MiB file-selection rejection was removed.
 - Custom Hook JSON imports now have no fixed editor-character or UTF-8 byte ceiling, and per-target developer rule count has no fixed 64-rule cap. Their editing drafts are persisted with a 400 ms debounce and flushed on dialog submit/cancel plus Activity pause, state-save and destroy.
 - Still unverified: Android Gradle full APK build, APK install, KernelSU/Magisk deployment, LSPosed Remote Files loading and target injection, ROM SELinux behavior, third-party VPN inner traffic, device IPv4/IPv6 leakage, radio/power behavior and on-device large-payload memory behavior. The manual APK gate remains closed while Dia/Yulong source migration acceptance gaps remain.
+
+
+## 2026-11-05 — Dia Frida Gadget 日志统一原生查看器
+
+- 本批基于分支 HEAD `1b46f7c5ac8f4a346d38b0be8947ced730fcaafe` 开始；将 Gadget Listen 的消息/console 日志从 Frida 管理页中的临时弹窗迁入既有原生运行日志页，复用搜索、刷新、最近 500 行读取、确认清空、队列限流与 Activity 状态恢复。
+- Gadget 日志仅接受 1024–65535 且排除 Frida server 默认端口 27042 的端口值；文件路径由应用固定目录与已校验端口构造，不接受 Intent 任意路径。沿用目录/文件符号链接拒绝和 Root 输出大小保护。
+- 目标应用会话日志与 Gadget 端口日志仍是两种独立日志源；页面按模式展示不同标题、身份与清空提示，不混淆目标包名与监听端口。
+- 改动文件：`FxDiaSessionLogActivity.java`、`FxDiaFridaActivity.java`、`fx-dia-frida-page-navigation-regression.sh`。
+- 验证：本提交触发的 Host Regression 将检查 Gadget 日志入口必须打开原生可搜索查看器，且不再在 Frida 主页执行 Root 日志读取/弹窗。Android Gradle 编译、Gadget 真正加载/连接与真机行为尚未验证。
+- 当前分支基线 HEAD：`1b46f7c5ac8f4a346d38b0be8947ced730fcaafe`；本批提交 SHA 以 GitHub 提交后回读为准。
