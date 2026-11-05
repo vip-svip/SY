@@ -4956,7 +4956,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Removed the legacy Frida page's 128 KiB per-script save guard, 64-character saved-script name guard, and 512 KiB standalone JavaScript SAF import/export guards; the original example ZIP loader no longer truncates entries at 128 KiB or stops after 32 examples. Shared store validation still rejects empty names/content, delimiters/control characters, malformed JSON values, and malformed UTF-8.
 - Removed the 512 KiB ceiling from AtomicFile-backed Activity draft persistence; writes remain atomic and corrupt drafts are removed on read failure. Activity state stores only an ownership marker for large drafts, not their full source in the Bundle.
 - Updated the SAF regression to validate actual import/export/cancellation/rotation/overwrite guarantees and reject arbitrary capacity constants instead of requiring old limits.
-- Remaining distinct limitation: full-screen editor Binder/Bundle handoff and Frida runtime command transport still use a 48 KiB guard. File-backed editor handoff and runtime script staging remain the next engineering task; no unlimited runtime injection is claimed.
+- 48 KiB 仅是 Activity Bundle 的内联/文件暂存分流阈值，不是源码容量上限；大草稿与编辑器返回值已使用私有文件传递。Frida Root 运行时当时仍有 8 MiB 上限，该上限已在后续 2026-11-05 的 RootAccess InputStream 改造中移除。
 
 
 ## 2026-11-05 — Remove saved-script name draft truncation
@@ -4969,7 +4969,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新两个多行输入框提示，不再宣传不存在的规则数量上限。仅改变产品输入限制，不扩大 Hook 执行权限；脚本仍须由用户检查后手动注入。
 - 源码提交：`d94938201a6851e04c0747577eccf73ac856232f`；回归提交：`22f1872345a64356293f0a0c90bfa0c411d06c9e`。
 - 验证状态：GitHub 写入 API 已成功提交两项源码变更；对应 Host regression 等待 GitHub Actions 执行。尚未声称 Android Gradle 构建、设备运行或真机 Hook 验证通过。
-- 下一批：复核 Frida 8 MiB runtime transport 的真实命令/内存边界，采用文件流/分块方案替代纯粹删除保护；继续补齐 VPN 内核数据面和本地 DNS 的设备级验收路径。
+- 后续转入 VPN 内核数据面和本地 DNS 的真实验收；Frida 8 MiB runtime transport 已由后续提交完成文件流替代，保留设备存储、内存和 Root 超时等真实资源边界。
 
 ## 2026-11-05 — Frida Root 源码传输改为文件流，移除 8 MiB 硬上限
 
@@ -4988,3 +4988,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 该测试由既有 fx-targeted-regression.yml 的 scripts/tests/** push 触发及 fx-dia-frida- 变更映射执行，无需增加第二个 workflow 或重复工程。
 - 提交：587aeee45121d87bb703b5e19f19a5be316804b4。GitHub 回读已确认测试脚本包含 9 MiB 流完整性和写入失败断言，且旧 byte[] 调用断言不存在。
 - 当前 commit status 接口尚未返回任何 CI status；本条不把源码回读当作测试通过。该 Host test 不代表 Android KernelSU/Magisk root broker、Frida 运行时或真机注入已验证。
+
+## 2026-11-05 — 接续状态校正与当前分支验证边界
+
+- 本次状态快照读取的分支 HEAD：`dc7671b1131b2f05ff380ed65536a4dbc9859218`。期间保留并吸收并行提交 `587aeee45121d87bb703b5e19f19a5be316804b4`：现有 Gadget 回归脚本编译实际 `RootAccess.java`，通过 fake su broker 验证 9 MiB 二进制流 SHA-256/长度完整性及 InputStream 写入失败 fail-closed；随后 `dc7671b` 将生成的 Java 测试源放入临时目录，避免污染工作树。
+- 最新 Frida 回归脚本已增加私有 cache 路径、UTF-8 分块写入、输入路径身份校验、传输后清理和 Activity 销毁清理断言。
+- GitHub commit-status 查询仍未返回 CI checks；9 MiB Host test 已写入并由现有 push workflow 触发，但没有可读取的执行结果，不能标记通过。Android Gradle 构建未运行；构建 workflow 需要手动 dispatch 且 `migration_complete=true`，本次没有绕过迁移验收门槛。
+- 真机未验证：KernelSU/Magisk 安装与系统应用识别、SELinux、开机启动、Android/第三方 VPN 并行链路、内核 TUN/REDIRECT、DNS/IPv4/IPv6 泄漏、网络切换和低功耗常驻。
+- Android 平台限制：每个 Android 用户/配置文件通常只能有一个活动 VpnService VPN；系统 VPN 与第三方 App VPN 不能被 FX 强制同时占槽。FX Root/内核代理不注册 VpnService，可在外层 VPN 已通过接口/UID/路由验证时使用 REDIRECT 链接；封闭 VPN 是否允许链式转发仍依赖厂商/ROM/应用实现。
+- 下一优先级：取得并核验小火箭 10.10.62 第一手源码（本轮仓库与可检索 Library 均未找到源码包），按协议、路由、策略组、DNS、脚本、MITM、应用分流逐项补数据面矩阵；同时完善本地 DNS 与外部 VPN/内核代理的设备验收。不得把源码回读或 Host fixture 结果冒充真机/Gradle 通过。
