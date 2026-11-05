@@ -1,0 +1,32 @@
+name: FX Local DNS Uninstall Safety Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-patches/patch_localdns_uninstall_shutdown.py"
+      - "scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh"
+      - ".github/workflows/fx-localdns-uninstall-safety-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-localdns-uninstall-safety-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  uninstall-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate fail-closed watchdog shutdown and helper ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile fx-patches/patch_localdns_uninstall_shutdown.py
+          sh -n scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh
+          sh scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh
