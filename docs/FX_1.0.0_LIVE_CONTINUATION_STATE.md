@@ -6513,3 +6513,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - New assertions require both listeners to be classified as `owner=other`; a clean IPv4 inventory can no longer hide these IPv6 bind conflicts.
 - GitHub readback verified both fixtures/cases in test blob `2fdd858060fbb5feae49572b0be554873c018f30`. The existing workflow watches the regression path and has a push trigger for this branch.
 - Not yet executed locally or by confirmed CI. This is expanded regression coverage, not a claim of live-device IPv6 or VPN coexistence verification.
+
+
+## 2026-11-06 — 修复源码清单失败漏报，并通过最新 VPN arbiter CI
+
+- 根因：原回归用例通过修改 PATH 注入失败的 `find`，但运行器中的环境传递没有稳定命中目标命令，导致测试没有真正触发源码清单失败；这次 CI 明确复现出 arbiter 错误返回 `kernel_only`。
+- 修复提交：生产扫描器 `a4ef94e9844595019b06faefd32e40661b08eca3`；确定性测试注入 `a36825e5c36c3decf4bf502cb4d96dab591d633f`。
+- 实现：生产环境固定使用系统 `find`；仅在 `FX_ARB_TESTING=1` 的隔离测试进程中允许指定 `FX_ARB_FIND_BIN`，从而准确注入非零退出的扫描器。扫描失败仍必须归类 unknown/null，不得报告 slot-free。
+- 最新分支 HEAD：`27288908a794bdbc4f2622c503808f38831c5b6f`（期间有其他并行提交，未回退或覆盖）。
+- CI：该 HEAD 的 FX VPN Coexistence Arbiter run `42107900674` 已成功，包含脚本解析、完整 coexistence regression、只读性验证和 runner 网络 smoke test；FX Targeted Host Regression run `42107900785` 已完成成功。
+- FX Module Runtime Regression run `42107900836` 的 patch/finalize 阶段均已成功，外部 VPN/TUN/DNS/watchdog 回归仍在执行中，尚不能宣称整套 Runtime CI 通过。
+- 设备级验证：仍未执行 OnePlus 12/Android 真机测试；该 CI 不证明 Android VPN 真实流量链路、第三方 VPN 并行转发或长期低功耗稳定性。
