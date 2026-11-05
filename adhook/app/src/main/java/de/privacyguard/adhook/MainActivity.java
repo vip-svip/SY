@@ -190,7 +190,7 @@ public final class MainActivity extends ComponentActivity {
     // Keep only the newest Root authorization check eligible to update the Hook UI.
     private volatile Thread hookRootCheckThread;
     private int hookRootCheckGeneration;
-    // Settings is reserved for global preferences and never acts as a source-feature hub.
+    // Legacy migration navigation state is ignored; Settings is no longer a source-app hub.
     private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
@@ -2950,8 +2950,9 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 5;
             showSettings();
         } else if (index == 4) {
-            // Selecting Hook opens its app list; target details remain inside the Hook destination.
-            selectedBottomTab = 4;
+            // Selecting the top-level Hook tab leaves the the nested Hook navigation stack.
+            // Hook target routes remain inside the Hook destination.
+                selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
             if (!hookUiVisible && !settingsUiVisible && nativePageContent != null) {
@@ -3058,10 +3059,6 @@ public final class MainActivity extends ComponentActivity {
                 "在 FX Hook 内管理 GKD 本地选择器规则。只有你主动启用总开关并限定具体用户应用后，才会匹配可见控件；首批支持本地规则与 Click。",
                 "打开 GKD 规则", () ->
                         startActivity(new Intent(this, FxGkdAutomationActivity.class)));
-        addNativeActionCard("GKD 辅助自动化",
-                "使用 GKD-XA 选择器引擎管理本地逐应用规则。默认关闭；只有你在规则页开启总开关后才会匹配并执行本地规则。",
-                "管理 GKD 规则", () -> startActivity(
-                        new Intent(this, FxGkdAutomationActivity.class)));
         addNativeActionCard("Frida 环境与注入", "管理 Frida 运行环境、注入会话、Gadget 与脚本执行状态。", "打开 Frida 工具", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
