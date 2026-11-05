@@ -29,9 +29,24 @@ internal object FxGkdRuleStore {
     const val DEFAULT_COOLDOWN_MS = 3_000L
 
     @JvmStatic
+    @Synchronized
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_MASTER_ENABLED, false)
+
+    @JvmStatic
+    @Synchronized
+    fun hasEnabledRule(context: Context, packageName: String): Boolean {
+        if (!isEnabled(context) || !isValidPackageName(packageName)) return false
+        return getRules(context).any { it.enabled && it.packageName == packageName }
+    }
+
+    @JvmStatic
+    @Synchronized
+    fun isRuleEnabled(context: Context, id: String, packageName: String): Boolean {
+        if (!isEnabled(context)) return false
+        return getRules(context).any { it.enabled && it.id == id && it.packageName == packageName }
+    }
 
     @JvmStatic
     fun hasEnabledRule(context: Context, packageName: String): Boolean {
@@ -48,6 +63,7 @@ internal object FxGkdRuleStore {
     }
 
     @JvmStatic
+    @Synchronized
     fun setEnabled(context: Context, enabled: Boolean): Boolean {
         val hasRules = getRules(context).any { it.enabled }
         if (enabled && !hasRules) return false
@@ -56,6 +72,7 @@ internal object FxGkdRuleStore {
     }
 
     @JvmStatic
+    @Synchronized
     fun getRules(context: Context): List<FxGkdRule> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_RULES, "[]") ?: "[]"
@@ -78,6 +95,7 @@ internal object FxGkdRuleStore {
     }
 
     @JvmStatic
+    @Synchronized
     fun addRule(
         context: Context,
         packageName: String,
@@ -103,6 +121,7 @@ internal object FxGkdRuleStore {
     }
 
     @JvmStatic
+    @Synchronized
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
         val rules = getRules(context)
         if (rules.none { it.id == id }) return false
@@ -110,16 +129,12 @@ internal object FxGkdRuleStore {
     }
 
     @JvmStatic
+    @Synchronized
     fun removeRule(context: Context, id: String): Boolean {
         val rules = getRules(context)
         val next = rules.filterNot { it.id == id }
         if (next.size == rules.size) return false
-        if (!writeRules(context, next)) return false
-        if (next.none { it.enabled }) {
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_MASTER_ENABLED, false).commit()
-        }
-        return true
+        return writeRules(context, next)
     }
 
     @JvmStatic
@@ -138,7 +153,10 @@ internal object FxGkdRuleStore {
                 .put("cooldown_ms", rule.cooldownMillis)
                 .put("enabled", rule.enabled))
         }
-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY_RULES, array.toString()).commit()
+        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_RULES, array.toString())
+        if (rules.none { it.enabled }) editor.putBoolean(KEY_MASTER_ENABLED, false)
+        return editor.commit()
     }
 }
