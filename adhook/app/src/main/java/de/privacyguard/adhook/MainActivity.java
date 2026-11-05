@@ -4602,28 +4602,55 @@ public final class MainActivity extends ComponentActivity {
         if (requestCode == REQUEST_NATIVE_SCRIPT_FILE) {
             if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
             Uri uri = data.getData();
-            try (InputStream input = getContentResolver().openInputStream(uri);
-                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-                if (input == null) throw new IllegalStateException("无法读取所选文件");
-                byte[] buffer = new byte[8192];
-                int total = 0, count;
-                while ((count = input.read(buffer)) != -1) {
-                    total += count;
-                    if (total > 1024 * 1024) throw new IllegalStateException("脚本文件超过 1 MiB");
-                    output.write(buffer, 0, count);
+            java.io.File staged = null;
+            try {
+                staged = java.io.File.createTempFile("fx-native-script-", ".src", getCacheDir());
+                try (InputStream input = getContentResolver().openInputStream(uri);
+                     java.io.FileOutputStream output = new java.io.FileOutputStream(staged)) {
+                    if (input == null) throw new IllegalStateException("无法读取所选文件");
+                    byte[] buffer = new byte[64 * 1024];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                    output.flush();
+                    output.getFD().sync();
                 }
+                if (staged.length() <= 0) throw new IllegalStateException("所选脚本文件为空");
                 String name = uri.getLastPathSegment();
-                String content = new String(output.toByteArray(), StandardCharsets.UTF_8);
-                boolean isScriptJson = false;
-                try {
-                    isScriptJson = "FX-SCRIPT-LIST".equals(new JSONObject(content).optString("format"));
-                } catch (Exception ignored) { }
-                if ((name != null && name.toLowerCase(Locale.ROOT).endsWith(".json")) || isScriptJson) {
-                    importNativeScriptDocument(content);
+                boolean isJson = name != null && name.toLowerCase(Locale.ROOT).endsWith(".json");
+                if (!isJson) {
+                    byte[] prefix = new byte[8192];
+                    int count;
+                    try (InputStream probe = new java.io.FileInputStream(staged)) {
+                        count = probe.read(prefix);
+                    }
+                    String header = count > 0 ? new String(prefix, 0, count, StandardCharsets.UTF_8) : "";
+                    isJson = header.contains("FX-SCRIPT-LIST");
+                }
+                if (isJson) {
+                    try (InputStream input = new java.io.FileInputStream(staged);
+                         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        importNativeScriptDocument(new String(output.toByteArray(), StandardCharsets.UTF_8));
+                    }
+                    staged.delete();
                 } else {
-                    addNativeScriptValue(content, name == null ? "文件导入" : name);
+                    String displayName = name == null ? "文件导入" : name;
+                    storeNativeScriptFile(staged, displayName, "1", (success, detail) -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        if (success) {
+                            Toast.makeText(this, "脚本文件已保存到模块配置", Toast.LENGTH_SHORT).show();
+                            if (nativeScriptRows != null && nativeScriptStatus != null)
+                                refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                            syncNativeScriptRuntime();
+                        } else {
+                            Toast.makeText(this, "脚本文件导入失败：" + detail, Toast.LENGTH_LONG).show();
+                        }
+                    });
                 }
             } catch (Exception error) {
+                if (staged != null && staged.exists()) staged.delete();
                 Toast.makeText(this, "脚本导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
             return;
