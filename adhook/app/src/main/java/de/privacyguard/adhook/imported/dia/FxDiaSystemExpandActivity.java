@@ -482,7 +482,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                 "先检查 Android 全部安装会话；只在无活动/已提交/staged 会话且用户二次确认后，才通过 KernelSU Root 强制停止默认安装处理程序。",
                 button("检查并重启", this::checkPackageInstallerBeforeRestart));
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
         if (restoredScrollY > 0) {
             final int restoreY = restoredScrollY;
             scroll.post(() -> {
