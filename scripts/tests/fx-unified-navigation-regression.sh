@@ -57,6 +57,28 @@ for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
                 "FxYulongAdSummaryActivity.class", "FxYulongFirewallActivity.class",
                 "FxYulongAppWhitelistActivity.class"):
     assert feature in ad_page, f"migrated Ad feature is not reachable from Ad tab: {feature}"
+
+# Imported Ad activities are internal screens of the Ad destination; they must
+# not retain the source plugin identity or send users back to an external hub.
+ad_pages = {
+    "FxYulongAdActivity.java": ("Ad · 广告过滤控制中心", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongAdGeneralActivity.java": ("Ad · 通用设置与备份恢复", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongAdSummaryActivity.java": ("Ad · 本机防护总结", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongAppStatsActivity.java": ("Ad · 应用统计", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongAppWhitelistActivity.java": ("Ad · 应用白名单", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongDnsActivity.java": ("DNS 查询日志", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+    "FxYulongFirewallActivity.java": ("suitePage", "返回 Ad", "setContentViewWithNativeTabs(root, 1)"),
+}
+for filename, tokens in ad_pages.items():
+    page = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/" + filename)
+    for token in tokens:
+        assert token in page, f"{filename} is not integrated as an Ad subpage: {token}"
+    assert "游龙广告插件" not in page, f"{filename} still exposes the source app identity"
+
+dia_json = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaJsonActivity.java")
+for token in ("‹ 返回 Hook", "Hook · JSON 操作", "FX Hook JSON", "fx-hook-json.json", "setContentViewWithNativeTabs(root, 4)"):
+    assert token in dia_json, f"JSON editor is not integrated as a Hook tool: {token}"
+assert "FX Dia JSON" not in dia_json and "Dia ·" not in dia_json
 assert "HUAWEI HarmonyStyle" in settings and "iOS CupertinoStyle" in settings
 assert "逐页组件适配仍在继续" in settings
 restore_start = activity.index("        if (restoreHookScreen)")
