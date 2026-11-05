@@ -1,0 +1,51 @@
+package de.privacyguard.adhook;
+
+/**
+ * Harmony-inspired design tokens for the Android FX Skin.
+ * Values are owned by FX and do not bundle or copy HarmonyOS system assets.
+ */
+final class HarmonySkinTokens {
+    private HarmonySkinTokens() { }
+
+    static final class HarmonyColorTokens {
+        static final int BACKGROUND = 0xfff1f5fa;
+        static final int WALLPAPER_TINT = 0xfff1f5fa;
+        static final int NAV_SURFACE = 0xfff9fbfe;
+        static final int SURFACE = 0xfff8fbff;
+        static final int SURFACE_VARIANT = 0xffeaf2fc;
+        static final int SELECTED_TAB_SURFACE = 0x223478d0;
+        static final int DIVIDER = 0x332878d0;
+        static final int PRIMARY_TEXT = 0xff1d2f43;
+        static final int SECONDARY_TEXT = 0xff64788f;
+        static final int ACCENT = 0xff2878d0;
+        static final int ACTION_BACKGROUND = 0xffe8f1fc;
+        static final int ACTION_BORDER = 0xffc9dcf5;
+        static final int SWITCH_OFF_TRACK = 0xffc2ccd8;
+        private HarmonyColorTokens() { }
+    }
+
+    static final class HarmonyShapeTokens {
+        static final int NAV_BAR_RADIUS_DP = 16;
+        static final int TAB_RADIUS_DP = 14;
+        static final int CARD_RADIUS_DP = 20;
+        static final int ACTION_RADIUS_DP = 16;
+        private HarmonyShapeTokens() { }
+    }
+
+    static final class HarmonyTypographyTokens {
+        static final float TAB_LABEL_SP = 15f;
+        static final float ACTION_LABEL_SP = 14f;
+        static final float SWITCH_LABEL_SP = 15f;
+        private HarmonyTypographyTokens() { }
+    }
+
+    static final class HarmonySpacingTokens {
+        static final int NAV_HEIGHT_DP = 72;
+        static final int NAV_OUTER_HORIZONTAL_DP = 12;
+        static final int NAV_OUTER_VERTICAL_DP = 4;
+        static final int NAV_INNER_HORIZONTAL_DP = 4;
+        static final int NAV_INNER_VERTICAL_DP = 3;
+        static final int TAB_HEIGHT_DP = 64;
+        private HarmonySpacingTokens() { }
+    }
+}
