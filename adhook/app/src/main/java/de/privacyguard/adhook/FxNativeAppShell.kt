@@ -161,7 +161,7 @@ private fun FxNativeAppShell(
                     }
                 )
 
-            if (mode == "glass") {
+            if (tokens.useLiquidTabsRenderer) {
                 // Upstream Kyant LiquidBottomTabs supports arbitrary tab counts;
                 // FX keeps all six destinations and gains the original drag/lens animation.
                 LiquidBottomTabs(
