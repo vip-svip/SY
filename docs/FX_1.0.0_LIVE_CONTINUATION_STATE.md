@@ -5334,3 +5334,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Follow-up to the firewall-detach recovery fix at cd276977211be84b8dd4f45a17765a28954cd23a.
 - Status and missing-metadata reconcile now propagate a failed cleanup instead of returning a normal inactive result. Status emits cleanup=failed while preserving the retry markers and resolver.
 - Added a status-path regression that forces iptables detach failure and verifies the error is surfaced, then confirms a subsequent stop clears the state.
+
+## 2026-11-06 — Propagate cleanup failure through Root Proxy status
+
+- CI for the initial cleanup-failure hardening exposed two gaps in its new regression: the mocked detach fault targeted only one alternating IPv4 chain, and status branches discarded `_status_fail_open`'s nonzero result with an unconditional return 0.
+- The fault injection now rejects deletion of either FX-owned IPv4 OUTPUT jump. Every status fail-open branch propagates the cleanup result, so callers can distinguish a fully cleaned inactive state from an incomplete firewall cleanup.
+- The targeted host and module runtime workflows are rerun on this correction; previous failed runs remain recorded rather than being represented as passing.

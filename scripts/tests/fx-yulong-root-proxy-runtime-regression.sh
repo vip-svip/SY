@@ -100,7 +100,7 @@ case "${3:-}" in
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 64
     chain=${6:-}
-    [ "${MOCK_FAIL_IPV4_DETACH:-0}" = 1 ] && [ "$chain" = FXYRP4_A ] && exit 1
+    [ "${MOCK_FAIL_IPV4_DETACH:-0}" = 1 ] && exit 1
     grep -Fxq "$chain" "$MOCK_HOOKS4" || exit 1
     tmp="$MOCK_HOOKS4.tmp.$$"; grep -Fxv "$chain" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
   *) echo "unexpected iptables invocation: $*" >&2; exit 64 ;;

@@ -646,7 +646,7 @@ _status_locked() {
   fi
   for _state_file in "$ACTIVE_META" "$ACTIVE" "$EGRESS"; do
     [ -f "$_state_file" ] && [ ! -L "$_state_file" ] || {
-      _status_fail_open invalid_or_missing_state; return 0
+      _status_fail_open invalid_or_missing_state; return $?
     }
   done
   _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null || :)
@@ -655,29 +655,29 @@ _status_locked() {
   _activated_at=$(sed -n '4p' "$ACTIVE_META" 2>/dev/null || :)
   _active4=$(sed -n '1p' "$ACTIVE" 2>/dev/null || :)
   _active6=$(sed -n '2p' "$ACTIVE" 2>/dev/null || :)
-  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) _status_fail_open invalid_ipv4_chain; return 0 ;; esac
-  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) _status_fail_open invalid_ipv6_chain; return 0 ;; esac
+  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) _status_fail_open invalid_ipv4_chain; return $? ;; esac
+  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) _status_fail_open invalid_ipv6_chain; return $? ;; esac
   _valid_if "$_iface" && _valid_uid "$_uid" && _valid_ipv4 "$_meta_egress" || {
-    _status_fail_open invalid_active_metadata; return 0
+    _status_fail_open invalid_active_metadata; return $?
   }
   _stored_egress=$(tr -d '\r\n' < "$EGRESS" 2>/dev/null || :)
   if [ "$_stored_egress" != "$_meta_egress" ]; then
-    _status_fail_open egress_marker_mismatch; return 0
+    _status_fail_open egress_marker_mismatch; return $?
   fi
   _current_egress=$(_resolve_vpn_egress "$_iface" 2>/dev/null) || {
-    _status_fail_open vpn_route_unavailable; return 0
+    _status_fail_open vpn_route_unavailable; return $?
   }
   if [ "$_current_egress" != "$_meta_egress" ]; then
-    _status_fail_open vpn_egress_changed; return 0
+    _status_fail_open vpn_egress_changed; return $?
   fi
   if ! iptables -t nat -C OUTPUT -j "$_active4" >/dev/null 2>&1; then
-    _status_fail_open ipv4_redirect_missing; return 0
+    _status_fail_open ipv4_redirect_missing; return $?
   fi
   if ! ip6tables -t nat -C OUTPUT -j "$_active6" >/dev/null 2>&1; then
-    _status_fail_open ipv6_redirect_missing; return 0
+    _status_fail_open ipv6_redirect_missing; return $?
   fi
   if ! _local_dns_probe; then
-    _status_fail_open local_dns_probe_failed; return 0
+    _status_fail_open local_dns_probe_failed; return $?
   fi
   echo "interface=$_iface"
   echo "vpn_uid=$_uid"
