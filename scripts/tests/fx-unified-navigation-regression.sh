@@ -87,6 +87,14 @@ script_start_for_group = activity.index("private void buildNativeScriptPage()")
 script_end_for_group = activity.index("private String nativeScriptStoreCommand(", script_start_for_group)
 script_page = activity[script_start_for_group:script_end_for_group]
 assert "addNativeActionGroup(actions)" in script_page, "Script management actions are not grouped into a shared Skin surface"
+assert "group.setOrientation(LinearLayout.VERTICAL)" not in group_helper, "native action-group helper must preserve caller layout orientation"
+vpn_sub_start = activity.index("private void buildNativeVpnSubscriptionPanel()")
+vpn_sub_end = activity.index("private void refreshNativeVpnSubscriptions()", vpn_sub_start)
+vpn_subscriptions = activity[vpn_sub_start:vpn_sub_end]
+assert "actions.setOrientation(LinearLayout.HORIZONTAL)" in vpn_subscriptions
+assert "addNativeActionGroup(actions)" in vpn_subscriptions, "VPN subscription actions must use the shared native group surface"
+assert 'nativeAction("添加订阅 / 节点", this::showNativeVpnSubscriptionDialog)' in vpn_subscriptions
+assert 'nativeAction("更新全部", this::refreshAllNativeVpnSubscriptions)' in vpn_subscriptions
 # Per-app VPN routing belongs to VPN (not Ad or Settings) and is directly reachable.
 vpn_start = activity.index("    private void renderNativePage(int index)")
 vpn_end = activity.index("            case 1:", vpn_start)
