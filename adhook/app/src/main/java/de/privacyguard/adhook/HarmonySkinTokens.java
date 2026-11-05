@@ -33,12 +33,16 @@ final class HarmonySkinTokens {
         static final int NAV_BAR_RADIUS_DP = 18;
         static final int TAB_RADIUS_DP = 14;
         static final int CARD_RADIUS_DP = 20;
+        static final int SECTION_RADIUS_DP = 14;
         static final int ACTION_RADIUS_DP = 16;
         private HarmonyShapeTokens() { }
     }
 
     static final class HarmonyTypographyTokens {
         static final float TAB_LABEL_SP = 15f;
+        static final float PAGE_TITLE_SP = 23f;
+        static final float SECTION_TITLE_SP = 15f;
+        static final float CARD_TITLE_SP = 16f;
         static final float ACTION_LABEL_SP = 14f;
         static final float SWITCH_LABEL_SP = 15f;
         static final float CHOICE_LABEL_SP = 15f;
@@ -59,6 +63,14 @@ final class HarmonySkinTokens {
         static final int ACTION_VERTICAL_PADDING_DP = 10;
         static final int SWITCH_HORIZONTAL_PADDING_DP = 18;
         static final int SWITCH_VERTICAL_PADDING_DP = 12;
+        static final int INPUT_MIN_HEIGHT_DP = 48;
+        static final int TITLE_HORIZONTAL_PADDING_DP = 20;
+        static final int TITLE_VERTICAL_PADDING_DP = 14;
+        static final int SECTION_HORIZONTAL_PADDING_DP = 18;
+        static final int SECTION_VERTICAL_PADDING_DP = 12;
+        static final int CARD_HORIZONTAL_PADDING_DP = 16;
+        static final int CARD_VERTICAL_PADDING_DP = 12;
+        static final int ROW_MIN_HEIGHT_DP = 52;
         static final int INPUT_MIN_HEIGHT_DP = 48;
         private HarmonySpacingTokens() { }
     }
