@@ -61,7 +61,19 @@ if "unbound-vpn-egress-ip" not in fn:
     _FX_OUT_IP=$(tr -d '\\r\\n' < "$_FX_OUT_IP_FILE")
     if ! printf '%s\\n' "$_FX_OUT_IP" | awk -F. '
       NF != 4 {ok=0; exit}
-      {ok=1; for (i=1; i<=4; i++) if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255) ok=0}
+      {
+        ok=1
+        for (i=1; i<=4; i++) {
+          if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255 ||
+              ($i != "0" && $i ~ /^0/)) ok=0
+        }
+        first=$1+0
+        second=$2+0
+        # Match Root Proxy's unicast tunnel-source policy. Reject unspecified,
+        # loopback, link-local, multicast and reserved address space.
+        if (first==0 || first==127 || first>=224 ||
+            (first==169 && second==254)) ok=0
+      }
       END {exit(ok ? 0 : 1)}
     '; then
       _log "invalid external VPN egress marker; refusing Unbound config"
