@@ -116,7 +116,9 @@ ln -s "$T/sentinel" "$STATE4/system-app-retry.tmp.$child_pid"
 touch "$GO"
 wait "$child"
 [ "$(cat "$T/sentinel")" = "keep-me" ] || { echo "FAIL: retry temp symlink target was overwritten" >&2; exit 1; }
-[ ! -e "$STATE4/system-app-retry" ] || { echo "FAIL: unsafe retry temp unexpectedly committed" >&2; exit 1; }
+[ -s "$STATE4/system-app-retry" ] || { echo "FAIL: random retry temp did not commit the retry marker" >&2; exit 1; }
+[ "$(stat -c %a "$STATE4/system-app-retry")" = 600 ] || { echo "FAIL: retry marker mode is not 0600" >&2; exit 1; }
+[ -L "$STATE4/system-app-retry.tmp.$child_pid" ] || { echo "FAIL: pre-planted retry temp symlink was replaced" >&2; exit 1; }
 
 echo "== pre-created deployment marker temp symlink cannot redirect root write =="
 APP5="$T/system5/app/FX"; STATE5="$T/state5"; make_payload "$APP5" bad-marker-temp
@@ -134,7 +136,10 @@ ln -s "$T/marker-sentinel" "$STATE5/system-app-apk.sha256.tmp.$child5_pid"
 touch "$GO5"
 wait "$child5"
 [ "$(cat "$T/marker-sentinel")" = "keep-marker" ] || { echo "FAIL: deployment marker temp symlink target was overwritten" >&2; exit 1; }
-[ -s "$STATE5/system-app-retry" ] || { echo "FAIL: unsafe deployment marker temp did not produce a retry marker" >&2; exit 1; }
-[ ! -e "$STATE5/system-app-apk.sha256" ] || { echo "FAIL: unsafe deployment marker temp unexpectedly committed" >&2; exit 1; }
+[ -s "$STATE5/system-app-apk.sha256" ] || { echo "FAIL: random deployment marker temp did not commit the verified digest" >&2; exit 1; }
+[ "$(cat "$STATE5/system-app-apk.sha256")" = "$(sha256sum "$APP5/FX.apk" | awk '{print $1}')" ] || { echo "FAIL: deployment marker digest mismatch after symlink bypass" >&2; exit 1; }
+[ ! -e "$STATE5/system-app-retry" ] || { echo "FAIL: safe random marker temp left a retry marker" >&2; exit 1; }
+[ "$(stat -c %a "$STATE5/system-app-apk.sha256")" = 600 ] || { echo "FAIL: deployment marker mode is not 0600" >&2; exit 1; }
+[ -L "$STATE5/system-app-apk.sha256.tmp.$child5_pid" ] || { echo "FAIL: pre-planted deployment marker symlink was replaced" >&2; exit 1; }
 
 echo "PASS: early-boot overlay digest, SELinux relabel fallback/failure, atomic markers and symlink regressions"
