@@ -625,7 +625,7 @@ pass "arbiter observes only"
 echo "== case 11: --text mode renders the same verdict =="
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"; printf 'tun0|10123\n' > "$TMP/info.txt"
 tout=$(FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
-       FX_ARB_SELF_UID=10000 FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
+       FX_ARB_SELF_UID=10000 FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" FX_ARB_SELF_UID=10000 \
        sh "$ARB" --text 2>&1)
 rc=$?
 [ "$rc" -eq 0 ] || fail "--text expected rc=0, got $rc: $tout"
