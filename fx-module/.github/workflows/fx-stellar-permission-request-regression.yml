@@ -1,0 +1,31 @@
+name: FX Stellar Permission Request Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "adhook/app/src/main/java/roro/stellar/manager/authorization/StellarPermissionRequestActivity.java"
+      - "adhook/app/src/main/java/roro/stellar/manager/authorization/StellarAuthorizationService.java"
+      - "scripts/tests/fx-stellar-permission-request-regression.sh"
+      - ".github/workflows/fx-stellar-permission-request-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-stellar-permission-request-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  permission-request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate permission request Java source and regression contract
+        run: |
+          set -euo pipefail
+          sh -n scripts/tests/fx-stellar-permission-request-regression.sh
+          sh scripts/tests/fx-stellar-permission-request-regression.sh
