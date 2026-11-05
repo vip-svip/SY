@@ -1,61 +1,82 @@
 package de.privacyguard.adhook;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
- * Optional user-enabled accessibility integration.
- * It forwards only foreground package names and volume-key direction metadata.
- * It never reads node trees/text, clicks controls, consumes keys or inspects passwords.
+ * FX owns one optional AccessibilityService for foreground detection, YouLong
+ * safety helpers and explicitly enabled local GKD rules. GKD node access is
+ * gated by the user's separate master switch and exact per-app rule scope.
  */
 public final class FxAccessibilityService extends AccessibilityService {
     public static final String ACTION_FOREGROUND_PACKAGE_CHANGED =
             "de.privacyguard.adhook.shield.FOREGROUND_PACKAGE_CHANGED";
     public static final String ACTION_VOLUME_KEY =
             "de.privacyguard.adhook.shield.VOLUME_KEY";
+    public static final String ACTION_GKD_CONFIG_CHANGED =
+            "de.privacyguard.adhook.GKD_CONFIG_CHANGED";
+
     private static volatile boolean connected;
     private String lastForegroundPackage = "";
+    private boolean gkdConfigReceiverRegistered;
+    private final AtomicBoolean gkdWorkPending = new AtomicBoolean(false);
+    private final ExecutorService gkdExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread worker = new Thread(r, "fx-gkd-accessibility");
+        worker.setDaemon(true);
+        return worker;
+    });
     private final de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence
             volumeTriggerSequence = new de.privacyguard.adhook.imported.shield.FxYulongVolumeTriggerSequence();
 
+    private final BroadcastReceiver gkdConfigReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (!ACTION_GKD_CONFIG_CHANGED.equals(intent == null ? null : intent.getAction())) return;
+            FxGkdAutomationRuntime.invalidateRules();
+            applyGkdEventSubscription();
+        }
+    };
+
     public static boolean isConnected() { return connected; }
 
-    /**
-     * Called after the user changes local GKD rules. The existing service owns
-     * the single Accessibility lifecycle; this only invalidates its in-memory
-     * compiled-rule cache and never starts another service.
-     */
+    /** Request an in-process service configuration refresh after user rule changes. */
     public static void requestReconfigure(Context context) {
         if (context == null) return;
-        FxGkdAutomationRuntime.invalidateRules();
+        Intent changed = new Intent(ACTION_GKD_CONFIG_CHANGED);
+        changed.setPackage(context.getPackageName());
+        context.sendBroadcast(changed);
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
         final int eventType = event.getEventType();
-        final boolean foregroundChanged = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
-        final boolean automationEvent = foregroundChanged
-                || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-                || eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED;
-        if (!automationEvent) return;
-
-        CharSequence packageName = event.getPackageName();
+        final CharSequence packageName = event.getPackageName();
         if (packageName == null) return;
-        String pkg = packageName.toString().trim();
+        final String pkg = packageName.toString().trim();
         if (pkg.isEmpty() || pkg.equals(getPackageName())) return;
 
-        if (foregroundChanged && !pkg.equals(lastForegroundPackage)) {
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && !pkg.equals(lastForegroundPackage)) {
             lastForegroundPackage = pkg;
             long now = System.currentTimeMillis();
             getSharedPreferences("fx_accessibility", MODE_PRIVATE).edit()
                     .putString("last_foreground_package", pkg)
                     .putLong("last_foreground_at", now).apply();
+
             Intent changed = new Intent(ACTION_FOREGROUND_PACKAGE_CHANGED);
             changed.setPackage(getPackageName());
             changed.putExtra("package_name", pkg);
@@ -65,29 +86,95 @@ public final class FxAccessibilityService extends AccessibilityService {
                     .onForegroundPackageChanged(this, pkg);
         }
 
-        // The GKD master switch is OFF by default. Only a locally configured,
-        // enabled rule for this exact installed package may read an Accessibility
-        // tree and execute its user-authored action.
-        if (!FxGkdRuleStore.hasEnabledRule(this, pkg)) return;
-        AccessibilityNodeInfo root = null;
+        if (!isGkdEventType(eventType) || !FxGkdRuleStore.hasEnabledRule(this, pkg)) return;
+        enqueueGkdScan(pkg);
+    }
+
+    private boolean isGkdEventType(int eventType) {
+        return eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED;
+    }
+
+    private void enqueueGkdScan(String eventPackage) {
+        if (!gkdWorkPending.compareAndSet(false, true)) return;
+
+        AccessibilityNodeInfo root;
         try {
             root = getRootInActiveWindow();
-            if (root == null) return;
-            CharSequence rootPackage = root.getPackageName();
-            if (rootPackage == null || !pkg.equals(rootPackage.toString())) {
-                try { root.recycle(); } catch (RuntimeException ignored) {}
-                return;
-            }
-            // process() takes ownership of and recycles this root on every path.
-            FxGkdAutomationRuntime.process(this, pkg, root);
-            root = null;
         } catch (RuntimeException unavailable) {
-            // Accessibility providers can detach a window between the event and
-            // root lookup. Do not crash the shared FX service.
-        } finally {
-            if (root != null) {
-                try { root.recycle(); } catch (RuntimeException ignored) {}
-            }
+            gkdWorkPending.set(false);
+            return;
+        }
+        if (root == null) {
+            gkdWorkPending.set(false);
+            return;
+        }
+
+        CharSequence rootPackage;
+        try {
+            rootPackage = root.getPackageName();
+        } catch (RuntimeException staleNode) {
+            recycleQuietly(root);
+            gkdWorkPending.set(false);
+            return;
+        }
+        if (rootPackage == null || !eventPackage.contentEquals(rootPackage)) {
+            recycleQuietly(root);
+            gkdWorkPending.set(false);
+            return;
+        }
+
+        try {
+            gkdExecutor.execute(() -> {
+                try {
+                    FxGkdAutomationRuntime.process(this, eventPackage, root);
+                } catch (RuntimeException failure) {
+                    // A stale or vendor-specific node must not terminate the only
+                    // Accessibility event worker. No screen text is logged.
+                    recycleQuietly(root);
+                } finally {
+                    gkdWorkPending.set(false);
+                }
+            });
+        } catch (RejectedExecutionException stopped) {
+            recycleQuietly(root);
+            gkdWorkPending.set(false);
+        }
+    }
+
+    private static void recycleQuietly(AccessibilityNodeInfo node) {
+        if (node == null) return;
+        try {
+            node.recycle();
+        } catch (RuntimeException ignored) {
+            // AccessibilityNodeInfo may already have been recycled by snapshot cleanup.
+        }
+    }
+
+    private void registerGkdConfigReceiver() {
+        if (gkdConfigReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter(ACTION_GKD_CONFIG_CHANGED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(gkdConfigReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(gkdConfigReceiver, filter);
+        }
+        gkdConfigReceiverRegistered = true;
+    }
+
+    private void applyGkdEventSubscription() {
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) return;
+        int wantedEvents = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+        if (FxGkdRuleStore.isEnabled(this)
+                && !FxGkdRuleStore.getRules(this).stream().noneMatch(FxGkdRule::getEnabled)) {
+            wantedEvents |= AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    | AccessibilityEvent.TYPE_VIEW_SCROLLED;
+        }
+        if (info.eventTypes != wantedEvents) {
+            info.eventTypes = wantedEvents;
+            setServiceInfo(info);
         }
     }
 
@@ -135,12 +222,13 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() {
-        // Do not carry a partial volume-key sequence across service interruptions.
         volumeTriggerSequence.resetSequence();
+        FxGkdAutomationRuntime.invalidateRules();
     }
 
     @Override public boolean onUnbind(Intent intent) {
         volumeTriggerSequence.resetSequence();
+        FxGkdAutomationRuntime.invalidateRules();
         connected = false;
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
                 .edit().putBoolean("service_connected", false).remove("service_pid").apply();
@@ -154,10 +242,20 @@ public final class FxAccessibilityService extends AccessibilityService {
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
                 .edit().putBoolean("service_connected", true)
                 .putInt("service_pid", android.os.Process.myPid()).apply();
+        registerGkdConfigReceiver();
+        applyGkdEventSubscription();
     }
 
     @Override public void onDestroy() {
         volumeTriggerSequence.resetSequence();
+        FxGkdAutomationRuntime.invalidateRules();
+        if (gkdConfigReceiverRegistered) {
+            try {
+                unregisterReceiver(gkdConfigReceiver);
+            } catch (IllegalArgumentException ignored) { }
+            gkdConfigReceiverRegistered = false;
+        }
+        gkdExecutor.shutdownNow();
         connected = false;
         getSharedPreferences("fx_accessibility", MODE_PRIVATE)
                 .edit().putBoolean("service_connected", false).remove("service_pid").apply();
