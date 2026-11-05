@@ -3015,18 +3015,9 @@ public final class MainActivity extends ComponentActivity {
                     return kotlin.Unit.INSTANCE;
                 });
         setContentView(shell);
-        final ScrollView targetScroll = nativePageScroll;
-        final int restoreY = nativeTabScrollPositions[pageIndex];
-        if (restoreY > 0) {
-            targetScroll.post(() -> {
-                if (renderGeneration != nativePageRenderGeneration
-                        || nativeRenderedPageIndex != pageIndex
-                        || nativePageScroll != targetScroll
-                        || selectedBottomTab != pageIndex
-                        || hookUiVisible || settingsUiVisible) return;
-                targetScroll.scrollTo(0, restoreY);
-            });
-        }
+        // Native tab scroll restoration is owned by renderNativePage(index),
+        // where the tab index and generation token belong to that render transaction.
+        // This shared shell is also used by Hook and Settings pages and has no tab index.
     }
 
     private void handleNativeTabSelection(int index) {
