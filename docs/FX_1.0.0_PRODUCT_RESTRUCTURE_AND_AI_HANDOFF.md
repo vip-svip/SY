@@ -653,3 +653,12 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 - FxNativeTabActivity：通过统一 FxUiMode.read() 和共享 Shell 提供五 Skin；每个子页必须明确业务 Tab 索引。
 
 回归要求：验证 Settings 无迁移应用、六个主 Tab 标签固定、Ad/Shield/Dia 页面不暴露旧来源品牌、Shield 选中隐私、Dia Hook 工具选中 Hook、Frida JS 脚本库选中脚本、备份选中设置、HTTP 代理选中 VPN；这些页面映射必须在业务页中真实可达，不可只保留死的旧路由。
+
+
+## 12. GKD-XA 1.4.8 来源固定与单 APK 融合约束
+
+用户指定的 GKD-XA 融合版现已固定为 Git submodule `vendor/GKD-XA`，上游 `84593320z/GKD-XA`，tag `v1.4.8`，commit `8a6ce935da11671dac7e1a7595416ec99ee07436`。许可为 GPL-3.0，分发时须保留相应源代码、许可证、版权和修改记录。
+
+GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特权接口、隐藏 API、Kotlin Multiplatform selector、Accessibility runtime、订阅规则、快照与 AI 生成流程。它不能作为第二 APK 或第二主界面接入。先处理 FX (AGP 9.1.1 / Kotlin 2.4.21 / Java17) 与 GKD-XA (AGP9.4.1 / Kotlin2.4.20 / JVM21) 构建差异，完成 Manifest/服务/数据库/权限兼容性 spike，再迁移 selector、订阅仓库、无障碍 runtime 与页面路由。
+
+完整技术与验收要求见 `docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md`。当前只有源代码锁定和审计文档，**GKD-XA 的运行时、服务、UI、数据库与 selector 均未合入 FX APK**。不得把来源锁定说成完整功能迁移。
