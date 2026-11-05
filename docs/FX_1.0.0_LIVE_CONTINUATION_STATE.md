@@ -5259,3 +5259,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批仅为 Host/CI 模拟运行时测试；Android 真机 VPN 切换、DNS 泄漏和功耗测试未执行。
 - 当前硬限制仍然有效：标准 Android 单用户/配置文件通常只有一个活动 VpnService 槽位；Root Proxy 是第三方 VPN 的 DNS 兼容路径，不等于 FX 内核 VPN 独立数据面，也不证明 ROM 级多 VpnService 并行。
 - 下一批：检查 Root Proxy 在 VPN 接口重建、同名接口复用和地址快速轮换时的状态恢复，以及 Unbound 重载/停止失败后的 watchdog 收敛。
+
+
+## 2026-11-06 — Root Proxy DNS probe answer validation
+
+- 基线 HEAD：`ad3fdcefa738f59b6666460c218d66c6c5e59ea7`。
+- 修复 Root Proxy 健康检查的误判：旧检查只要 nslookup 输出中出现任意 IPv4 Address 行就通过，可能把本地解析器自身的 127.0.0.1 Server 地址误当成域名答案。
+- 新增统一 `_local_dns_probe`，只接受 `Name: example.com` 后的有效 IPv4 答案；ensure 和 status 共用同一验证逻辑。
+- 增加启动与 status 回归：模拟 nslookup 仅返回 Server/127.0.0.1、不返回域名答案，必须 fail-open 并清理 FX 自有重定向。
+- 本次功能测试结果以随后 Host Regression 和 FX Module Runtime Regression 为准；Android 真机 DNS 故障注入未执行。

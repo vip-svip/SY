@@ -139,7 +139,11 @@ TIMEOUT
 cat > "$BIN/nslookup" <<'NSLOOKUP'
 #!/bin/sh
 [ "${MOCK_DNS_PROBE_FAIL:-0}" = 0 ] || exit 1
-printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 93.184.216.34\n'
+if [ "${MOCK_DNS_SERVER_ONLY:-0}" = 1 ]; then
+  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\n'
+else
+  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 93.184.216.34\n'
+fi
 NSLOOKUP
 cat > "$MOD/scripts/unbound.sh" <<'UNBOUND'
 #!/system/bin/sh
@@ -322,6 +326,12 @@ status_out=$(run_status "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1)
 printf '%s\n' "$status_out" | grep -Fqx reason=local_dns_probe_failed || fail "failed local DNS probe reason not reported"
 assert_stopped "$CASE_DIR" "status failed local DNS probe"
 
+prepare_case status-dns-server-only
+run_proxy "$CASE_DIR" >/dev/null || fail "status server-only DNS case setup failed"
+status_out=$(run_status "$CASE_DIR" MOCK_DNS_SERVER_ONLY=1)
+printf '%s\n' "$status_out" | grep -Fqx reason=local_dns_probe_failed || fail "server-only DNS response was reported healthy"
+assert_stopped "$CASE_DIR" "status server-only DNS response"
+
 prepare_case status-disabled
 run_proxy "$CASE_DIR" >/dev/null || fail "status disabled case setup failed"
 status_out=$(run_status "$CASE_DIR" MOCK_ENABLED=0)
@@ -336,7 +346,7 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
 assert_stopped "$CASE_DIR" "status orphan hooks"
 
-for scenario in route route2 package-manager unbound adguard probe route-recheck address-recheck; do
+for scenario in route route2 package-manager unbound adguard probe probe-server-only route-recheck address-recheck; do
   prepare_case "$scenario"
   case "$scenario" in
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
@@ -349,6 +359,10 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
       ;;
     adguard) if run_proxy "$CASE_DIR" MOCK_ADGUARD_FAIL=1 >/dev/null 2>&1; then fail "AdGuard failure accepted"; fi ;;
     probe) if run_proxy "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1 >/dev/null 2>&1; then fail "DNS probe failure accepted"; fi ;;
+    probe-server-only)
+      if run_proxy "$CASE_DIR" MOCK_DNS_SERVER_ONLY=1 >/dev/null 2>&1; then
+        fail "resolver server header was mistaken for an answer"
+      fi ;;
     route-recheck)
       if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL_RECHECK=1 >/dev/null 2>&1; then
         fail "VPN egress change during DNS engine startup was accepted"

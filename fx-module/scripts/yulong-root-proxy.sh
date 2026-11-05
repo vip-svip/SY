@@ -101,6 +101,24 @@ _valid_ipv4() {
     END {exit(ok ? 0 : 1)}
   '
 }
+_local_dns_probe() {
+  command -v nslookup >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 || return 1
+  _probe_output=$(timeout 5 nslookup example.com 127.0.0.1 2>&1) || return 1
+  # Ignore the resolver's own Server/Address header and require an answer
+  # address associated with the queried name.
+  _probe_answers=$(printf '%s\n' "$_probe_output" | awk '
+    tolower($0) ~ /^[[:space:]]*name:[[:space:]]*example[.]com([.]?)([[:space:]]|$)/ {
+      answer=1; next
+    }
+    answer && tolower($0) ~ /^[[:space:]]*address([[:space:]]+[0-9]+)?:[[:space:]]*[0-9]+([.][0-9]+){3}([[:space:]]|$)/ {
+      print $NF
+    }
+  ')
+  for _probe_ip in $_probe_answers; do
+    _valid_ipv4 "$_probe_ip" && return 0
+  done
+  return 1
+}
 _is_enabled() {
   [ "$(pg_get vpn_external_dns_proxy 1 2>/dev/null)" = "1" ] \
     && [ "$(pg_get vpn_external_compat 1 2>/dev/null)" = "1" ] \
@@ -381,9 +399,7 @@ _ensure_locked() {
   if ! sh "$MP/scripts/adguardhome.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
     _stop_locked; _log "AdGuard Home failed local DNS health checks; fail-open"; return 1;
   fi
-  if ! command -v nslookup >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 \
-      || ! timeout 5 nslookup example.com 127.0.0.1 2>&1 \
-             | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
+  if ! _local_dns_probe; then
     _stop_locked; _log "post-start DNS probe failed; fail-open"; return 1;
   fi
   # DNS engines take time to start. Re-prove the VPN route and address after
@@ -403,9 +419,7 @@ _ensure_locked() {
   }
   # Recheck after the redirect chains are live, immediately before committing
   # active state. This catches a tunnel address or route change during NAT setup.
-  if ! command -v nslookup >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 \
-      || ! timeout 5 nslookup example.com 127.0.0.1 2>&1 \
-             | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
+  if ! _local_dns_probe; then
     _stop_locked
     _log "post-activation local DNS probe failed; fail-open"
     return 1
@@ -637,9 +651,7 @@ _status_locked() {
   if ! ip6tables -t nat -C OUTPUT -j "$_active6" >/dev/null 2>&1; then
     _status_fail_open ipv6_redirect_missing; return 0
   fi
-  if ! command -v nslookup >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 \
-      || ! timeout 5 nslookup example.com 127.0.0.1 2>&1 \
-             | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
+  if ! _local_dns_probe; then
     _status_fail_open local_dns_probe_failed; return 0
   fi
   echo "interface=$_iface"
