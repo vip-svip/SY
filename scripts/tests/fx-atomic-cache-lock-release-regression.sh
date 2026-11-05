@@ -38,14 +38,14 @@ install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.s
 # idempotent against the exact restored module tree that will be tested.
 python3 "$PATCHER" "$MODULE" || fail "first legacy lock compatibility patch application failed"
 python3 "$PATCHER" "$MODULE" || fail "second legacy lock compatibility patch application failed"
-python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "first Hosts file-lock patch application failed"
-python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "second Hosts file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "first subscription file-lock patch application failed"
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "second subscription file-lock patch application failed"
 # Match the packaging workflow: its shared cache patch runs after the
 # subscription V2 migration. It must preserve V2 instead of demanding
 # the legacy directory/PID unlock anchors that no longer exist.
 python3 "$PATCHER" "$MODULE" || fail "shared cache patcher rejected the already-migrated V2 subscription lock"
+python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "first Hosts file-lock patch application failed"
+python3 "$HOST_FILE_LOCK_PATCHER" "$MODULE" || fail "second Hosts file-lock patch application failed"
 python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "first stale-lock compatibility test patch application failed"
 python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "second stale-lock compatibility test patch application failed"
 sh "$ROOT/scripts/tests/fx-hosts-cache-lock-regression.sh" "$MODULE" || fail "Hosts cache safe lock cleanup regression failed"
