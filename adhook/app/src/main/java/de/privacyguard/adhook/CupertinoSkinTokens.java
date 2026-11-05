@@ -52,6 +52,7 @@ final class CupertinoSkinTokens {
         static final float SWITCH_LABEL_SP = 16f;
         static final float CHOICE_LABEL_SP = 15f;
         static final float INPUT_LABEL_SP = 16f;
+        static final float SPINNER_LABEL_SP = 15f;
         static final float LIST_ROW_TITLE_SP = 15f;
         static final float LIST_ROW_SUBTITLE_SP = 11f;
         private CupertinoTypographyTokens() { }
@@ -71,6 +72,8 @@ final class CupertinoSkinTokens {
         static final int SWITCH_HORIZONTAL_PADDING_DP = 18;
         static final int SWITCH_VERTICAL_PADDING_DP = 12;
         static final int INPUT_MIN_HEIGHT_DP = 44;
+        static final int SPINNER_HORIZONTAL_PADDING_DP = 16;
+        static final int SPINNER_VERTICAL_PADDING_DP = 12;
         static final int TITLE_HORIZONTAL_PADDING_DP = 20;
         static final int TITLE_VERTICAL_PADDING_DP = 14;
         static final int SECTION_HORIZONTAL_PADDING_DP = 18;
