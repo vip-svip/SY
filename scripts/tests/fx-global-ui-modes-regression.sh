@@ -49,6 +49,21 @@ assert "control.setThumbTintList" in source and "control.setTrackTintList" in so
 assert "control.setButtonTintList" in source
 print("PASS: Switch and CheckBox/RadioButton tint adapters are reachable before generic Button styling.")
 PY
+python3 - "$skin" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+for token in (
+    "case 0xff697681:", "case 0xff536170:", "case 0xff263443:",
+    "case 0xff155a9c:", "return p.accent;"
+):
+    assert token in source, f"five-skin text palette token missing: {token}"
+# Semantic alert colors must remain untouched by the neutral text remapper.
+replacement = source[source.index("private static Integer replacementText"):source.index("\n    }\n}", source.index("private static Integer replacementText"))]
+for alert in ("0xff9b2c2c", "0xffff6", "0xff237347", "0xff24734a"):
+    assert alert not in replacement, f"alert/success color should not be remapped: {alert}"
+print("PASS: primary, secondary and accent text tokens map across all five skins while alert colors remain semantic.")
+PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
