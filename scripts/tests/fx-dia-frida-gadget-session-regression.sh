@@ -320,6 +320,12 @@ trap cleanup_start 0
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+session_pid_active() {
+  case "$1" in ''|*[!0-9]*) return 1;; esac
+  state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d ' ' -f1)
+  case "$state" in Z|X|x) return 1;; esac
+  kill -0 "$1" 2>/dev/null
+}
 if [ -s "$pidfile" ]; then
   old_cli=$(sed -n '1p' "$pidfile")
   old_feed=$(sed -n '2p' "$pidfile")
@@ -333,14 +339,44 @@ if [ -s "$pidfile" ]; then
     echo FX_GADGET_SESSION_TARGET_CONFLICT
     exit 30
   }
-  if kill -0 "$old_cli" 2>/dev/null; then
+  if session_pid_active "$old_cli"; then
     old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
     case "$old_cmd" in *"$old_cli_path"*"-H"*"127.0.0.1:$port"*"-n"*Gadget*"-l"*"$script"*)
-      echo FX_GADGET_SESSION_ALREADY_RUNNING
-      exit 0;;
+      if session_pid_active "$old_feed"; then
+        feed_cmd=$(tr '\000' ' ' < /proc/"$old_feed"/cmdline 2>/dev/null || :)
+        case "$feed_cmd" in *"fx-gadget-feed-$port"*"$pipe"*)
+          cat >/dev/null
+          echo FX_GADGET_SESSION_ALREADY_RUNNING
+          exit 0;;
+          *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
+        esac
+      fi
+      echo FX_GADGET_SESSION_DEGRADED
+      exit 32;;
       *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
     esac
   fi
+  if [ -n "$old_feed" ] && session_pid_active "$old_feed"; then
+    feed_cmd=$(tr '\000' ' ' < /proc/"$old_feed"/cmdline 2>/dev/null || :)
+    case "$feed_cmd" in *"fx-gadget-feed-$port"*"$pipe"*)
+      kill "$old_feed" 2>/dev/null || :
+      _feed_wait=0
+      while session_pid_active "$old_feed"; do
+        [ "$_feed_wait" -lt 5 ] || { echo FX_GADGET_FEEDER_STOP_TIMEOUT; exit 26; }
+        sleep 1
+        _feed_wait=$((_feed_wait+1))
+      done;;
+      *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
+    esac
+  fi
+  rm -f "$pidfile"
+  if [ -e "$pipe" ]; then
+    [ -p "$pipe" ] || { echo FX_GADGET_UNSAFE_STALE_PIPE; exit 27; }
+    rm -f "$pipe"
+  fi
+elif [ -e "$pipe" ]; then
+  echo FX_GADGET_ORPHAN_PIPE_NEEDS_CLEANUP
+  exit 28
 fi
 tmp=$(mktemp "$dir/.gadget-$port.XXXXXX")
 printf 'send("message"); console.log("console");\n' > "$tmp"
@@ -517,6 +553,42 @@ grep -Fq FX_GADGET_STOP_TIMEOUT "$T/timeout-stop.result"
   echo "FAIL: timed-out stop must retain the session record and FIFO for recovery" >&2
   exit 1
 }
+kill -KILL "$cli_pid" 2>/dev/null || :
+# Simulate a stale but still-owned feeder after its CLI has exited. Reattach
+# must terminate it and wait; it must not unlink the FIFO while it is alive.
+sleep 1.2
+nohup sh -c 'trap "" TERM; while :; do sleep 1; done' \
+  "fx-gadget-feed-27043" "$cli_pid" "$T/logs/gadget-27043.stdin" \
+  > /dev/null 2>&1 < /dev/null &
+stale_feed=$!
+pid_tmp=$(mktemp "$T/logs/.gadget-27043.pid.XXXXXX")
+{
+  printf '%s\\n%s\\n' "$cli_pid" "$stale_feed"
+  tail -n +3 "$T/logs/gadget-27043.pid"
+} > "$pid_tmp"
+chmod 600 "$pid_tmp"
+mv -f "$pid_tmp" "$T/logs/gadget-27043.pid"
+if "$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/feeder-timeout.result" 2>&1; then
+  echo "FAIL: reattach replaced a FIFO while its stale feeder ignored TERM" >&2
+  exit 1
+fi
+grep -Fq FX_GADGET_FEEDER_STOP_TIMEOUT "$T/feeder-timeout.result"
+[ -s "$T/logs/gadget-27043.pid" ] && [ -p "$T/logs/gadget-27043.stdin" ] || {
+  echo "FAIL: feeder stop timeout must preserve the session record and FIFO" >&2
+  exit 1
+}
+kill -KILL "$stale_feed" 2>/dev/null || :
+_wait=0
+while kill -0 "$stale_feed" 2>/dev/null; do
+  [ "$_wait" -lt 5 ] || { echo "FAIL: stale feeder did not exit after KILL" >&2; exit 1; }
+  sleep 1
+  _wait=$((_wait+1))
+done
+"$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/recovered-start.result"
+grep -Fq FX_GADGET_SESSION_STARTED "$T/recovered-start.result"
+cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
+"$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/stop.result" || :
+grep -Fq FX_GADGET_STOP_TIMEOUT "$T/stop.result"
 kill -KILL "$cli_pid" 2>/dev/null || :
 "$T/stop.sh" "$T/logs" "com.example.debuggable" "$T/frida-ignore-term" "com.example.debuggable:remote" > "$T/stop.result"
 grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
