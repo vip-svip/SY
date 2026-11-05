@@ -76,6 +76,15 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+for label, needle in {
+    "staged source is tracked for cleanup": "pendingRootInputFiles.add(staged)",
+    "failed staging removes partial files": "if (!complete) staged.delete()",
+    "Root transfer validates private cache ownership": "isPrivateFridaRootInput(inputFile)",
+    "Root transfer removes staged files": "deleteFridaRootInput(inputFile)",
+    "Activity teardown removes pending source files": "for (File pendingInput : new ArrayList<>(pendingRootInputFiles))",
+}.items():
+    if needle not in source:
+        raise SystemExit(f"FAIL: Frida file-stream lifecycle missing {label}")
 if "MAX_FRIDA_SOURCE_BYTES" in source or "sourceBytes.length >" in source:
     raise SystemExit("FAIL: Frida runtime still has an arbitrary script-size ceiling")
 if "input.length > 8 * 1024 * 1024" in root_access:
@@ -172,8 +181,8 @@ if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach:
     raise SystemExit("FAIL: Frida attach must not bypass the bounded RootAccess command bridge")
-if "runRootWithInput(command, sourceBytes, 20000L" not in attach:
-    raise SystemExit("FAIL: persistent Gadget command must stream source through the bounded RootAccess worker")
+if "runRootWithInput(command, sourceInput, 20000L" not in attach:
+    raise SystemExit("FAIL: persistent Gadget command must stream its file-backed source through RootAccess")
 if "nohup sh -c 'while kill -0 " not in attach or "fx-gadget-feed-$port" not in attach:
     raise SystemExit("FAIL: FIFO feeder must be the fixed CLI-PID-bound helper, not a user-controlled shell payload")
 for process_id in ("cli_pid", "feed_pid"):
