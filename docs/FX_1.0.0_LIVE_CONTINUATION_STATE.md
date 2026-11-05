@@ -4931,3 +4931,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Dia entrypoint commit: d2c318112ae4c23684406cf71a1b8cb277c721a3 — feat(dia): expose bounded Frida automation templates in Hook hub.
 - Root Proxy CI mapping commit: 5f229a549f0fd60a74d21b6778720b5e616d34ea — ci(vpn): run Root Proxy runtime regression for module changes.
 - Android Gradle/APK build, restored Release ZIP package-lane run, KernelSU/Magisk installation, device VPN coexistence, SELinux and physical-device power/network continuity remain unverified.
+
+
+## 2026-11-05 — Dia / Frida script-library arbitrary capacity limits removed
+
+- Removed fixed 64-script, 128 KiB per-script, 1 MiB library/import/export, and 64-character script-name limits from the shared Dia script-library policy and native/legacy Frida library flows.
+- Preserved the existing `fx_dia_frida/frida_script_library_v1` preference store and `FX-DIA-FRIDA-SCRIPTS-1` JSON schema; no data migration or duplicate store introduced.
+- Preserved non-empty-name/source validation, control-character and delimiter checks, strict UTF-8 decoding, serialized read-modify-write, commit-confirmed persistence, explicit import overwrite preview/confirmation, and SAF URI grant lifecycle.
+- Import preview now lists every same-name conflict instead of truncating the display to five names.
+- Added Host JVM regression coverage for long names and multi-megabyte source validation; updated static regression to reject reintroduction of arbitrary capacity constants.
+- Verification status at commit time: GitHub source readback and pre-commit transformation assertions; Host JVM and Android Gradle tests await CI execution. No APK build, device install, or real Frida injection is claimed.
+- Follow-up: review the separate Frida editor/Activity state transport's 48 KiB / 512 KiB caps and replace Binder-sized source handoff with file-backed transfer before removing those distinct runtime/editor safeguards.

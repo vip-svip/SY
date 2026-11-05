@@ -60,7 +60,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String STATE_FULL_EDITOR_SOURCE_SHA256 = "fx_frida_full_editor_source_sha256";
     private static final int MAX_FRIDA_SOURCE_BYTES = 48 * 1024;
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
-    private static final int MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
     private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
     private static final String STATE_SCRIPT_DRAFT_FILE = "fx_frida_script_draft_file";
@@ -219,8 +218,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private File stagePendingFridaLibraryExport(String json) throws Exception {
         if (json == null) throw new IllegalArgumentException("Frida 脚本库为空。");
         byte[] payload = json.getBytes(StandardCharsets.UTF_8);
-        if (payload.length == 0 || payload.length > MAX_LIBRARY_JSON_BYTES)
-            throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB，无法导出。");
+        if (payload.length == 0)
+            throw new IllegalArgumentException("Frida 脚本库 JSON 为空，无法导出。");
         File staged = File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir());
         try (FileOutputStream output = new FileOutputStream(staged, false)) {
             output.write(payload);
@@ -245,7 +244,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             throw new IllegalArgumentException("Frida 脚本库暂存文件不能是符号链接。");
         File canonical = candidate.getCanonicalFile();
         if (!cacheRoot.equals(canonical.getParentFile()) || !canonical.isFile() || !canonical.canRead()
-                || canonical.length() <= 0 || canonical.length() > MAX_LIBRARY_JSON_BYTES)
+                || canonical.length() <= 0)
             throw new IllegalArgumentException("Frida 脚本库暂存文件不存在或大小无效。");
         return canonical;
     }
@@ -1059,8 +1058,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     ensureFridaWorkerActive();
-                    if (output.size() > MAX_LIBRARY_JSON_BYTES - count)
-                        throw new IllegalArgumentException("Frida 脚本库 JSON 超过 1 MiB。");
                     output.write(buffer, 0, count);
                 }
                 String json = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
@@ -1271,12 +1268,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     if (output == null) throw new IllegalStateException("无法写入所选 JSON 文件。");
                     byte[] buffer = new byte[8192];
                     int count;
-                    long total = 0;
                     while ((count = input.read(buffer)) != -1) {
                         ensureFridaWorkerActive();
-                        total += count;
-                        if (total > MAX_LIBRARY_JSON_BYTES)
-                            throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB。");
                         output.write(buffer, 0, count);
                     }
                     output.flush();

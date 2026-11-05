@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -44,10 +43,6 @@ public final class FxDiaScriptLibraryStore {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String raw = prefs.getString(KEY, "{}");
         if (raw == null || raw.isEmpty()) return new JSONObject();
-        if (raw.getBytes(StandardCharsets.UTF_8).length
-                > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
-            throw new IllegalStateException("Frida 脚本库超过 1 MiB，拒绝加载。");
-        }
         JSONObject root = new JSONObject(raw);
         String schema = root.optString("schema", "");
         if (!schema.isEmpty() && !SCHEMA.equals(schema)) {
@@ -70,9 +65,6 @@ public final class FxDiaScriptLibraryStore {
         if (sourceError != null) throw new IllegalArgumentException(sourceError);
         synchronized (LOCK) {
             JSONObject scripts = readLocked(context);
-            boolean exists = scripts.has(name);
-            String countError = FxDiaScriptLibraryPolicy.validateCount(scripts.length(), exists);
-            if (countError != null) throw new IllegalArgumentException(countError);
             scripts.put(name, source);
             writeLocked(context, scripts);
         }
@@ -100,12 +92,7 @@ public final class FxDiaScriptLibraryStore {
             JSONObject root = new JSONObject();
             root.put("schema", SCHEMA);
             root.put("scripts", readLocked(context));
-            String json = root.toString(2);
-            if (json.getBytes(StandardCharsets.UTF_8).length
-                    > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
-                throw new IllegalStateException("Frida 脚本库 JSON 超过 1 MiB，无法导出。");
-            }
-            return json;
+            return root.toString(2);
         }
     }
 
@@ -162,26 +149,21 @@ public final class FxDiaScriptLibraryStore {
     }
 
     private static JSONObject parseImport(String json) throws Exception {
-        if (json == null || json.getBytes(StandardCharsets.UTF_8).length == 0
-                || json.getBytes(StandardCharsets.UTF_8).length
-                > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
-            throw new IllegalArgumentException("Frida 脚本库 JSON 为空或超过 1 MiB。");
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("Frida 脚本库 JSON 为空。");
         }
         JSONObject root = new JSONObject(json);
         if (!SCHEMA.equals(root.optString("schema", ""))) {
             throw new IllegalArgumentException("JSON schema 不匹配。");
         }
         JSONObject incoming = root.getJSONObject("scripts");
-        if (incoming.length() > FxDiaScriptLibraryPolicy.MAX_SCRIPTS) {
-            throw new IllegalArgumentException("单次最多导入 64 个脚本。");
-        }
         validateScripts(incoming);
         return incoming;
     }
 
     private static void validateScripts(JSONObject scripts) {
-        if (scripts == null || scripts.length() > FxDiaScriptLibraryPolicy.MAX_SCRIPTS) {
-            throw new IllegalArgumentException("脚本库最多保存 64 个脚本。");
+        if (scripts == null) {
+            throw new IllegalArgumentException("脚本库对象为空。");
         }
         Iterator<String> keys = scripts.keys();
         while (keys.hasNext()) {
@@ -203,10 +185,6 @@ public final class FxDiaScriptLibraryStore {
         root.put("schema", SCHEMA);
         root.put("scripts", scripts);
         String raw = root.toString();
-        if (raw.getBytes(StandardCharsets.UTF_8).length
-                > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
-            throw new IllegalArgumentException("Frida 脚本库超过 1 MiB，请删除部分脚本。");
-        }
         boolean saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY, raw).commit();
         if (!saved) throw new IllegalStateException("Android 没有确认脚本库写入成功。");

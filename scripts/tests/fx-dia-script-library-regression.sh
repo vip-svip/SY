@@ -40,7 +40,7 @@ from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 assert 'String.join("\\n", preview.overwrittenNames)' in activity, "import preview must show every same-name script before confirmation"
-assert "preview.overwrittenNames.subList(" not in activity, "import preview must not hide conflicts beyond the first five names"
+assert 'String.join("、", preview.overwrittenNames)' in activity, "import preview must show every same-name script"
 PY
 grep -Fq 'exportJson' "$ACTIVITY" || fail "JSON library export is not connected"
 grep -Fq '不会自动执行' "$ACTIVITY" || fail "script library does not disclose non-executing behavior"
@@ -49,7 +49,8 @@ from pathlib import Path
 import sys
 activity, store, frida, policy, host = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
-assert "MAX_LIBRARY_JSON_BYTES - count" in activity, "import stream must have a hard byte limit"
+assert "MAX_LIBRARY_JSON_BYTES" not in activity, "script-library import must not impose an arbitrary byte limit"
+assert "InputFilter.LengthFilter(64)" not in activity, "script names must not have an arbitrary UI length cap"
 assert "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())" in activity, "JSON import must use strict UTF-8 decoding"
 assert "newDecoder()" in policy and "CodingErrorAction.REPORT" in policy, "JSON decoder must reject malformed UTF-8 instead of silently replacing bytes"
 assert "malformed UTF-8 must be rejected" in host, "host policy test must cover malformed UTF-8 rejection"
@@ -78,6 +79,8 @@ assert "FxDiaScriptLibraryStore.save(this, name, source)" in editor_result, "edi
 assert "Context.MODE_PRIVATE" in store, "script data must remain private to FX"
 assert "commit()" in store, "script writes must confirm persistence"
 assert "validateScripts" in store and "validateSource" in store, "reads and imports must reject invalid entries"
+assert "MAX_" not in policy and "MAX_" not in store and "MAX_LIBRARY_JSON_BYTES" not in frida, "script-library data must not have arbitrary capacity constants"
+assert "scripts.length() >" not in store, "script count must not be capped"
 assert "synchronized (LOCK)" in store, "script-library read/modify/write operations must be serialized"
 assert "instanceof String" in store, "non-string JSON values must be rejected"
 assert "replaceAll(Context context" in store, "shared storage replace API is missing"

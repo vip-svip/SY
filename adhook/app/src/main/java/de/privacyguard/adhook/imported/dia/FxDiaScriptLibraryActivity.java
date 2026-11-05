@@ -282,8 +282,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         EditText input = new EditText(this);
         createNameInput = input;
         input.setSingleLine(true);
-        input.setHint("脚本名称，最多 64 个字符");
-        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
+        input.setHint("脚本名称");
         input.setText(createNameDraft);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
@@ -306,11 +305,6 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                         return;
                     }
                     if (!scripts.has(name)) {
-                        error = FxDiaScriptLibraryPolicy.validateCount(scripts.length(), false);
-                        if (error != null) {
-                            setStatus(error);
-                            return;
-                        }
                         openEditor(name, "");
                         return;
                     }
@@ -482,9 +476,6 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 byte[] buffer = new byte[8192];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
-                    if (output.size() > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES - count) {
-                        throw new IllegalArgumentException("脚本库 JSON 超过 1 MiB。");
-                    }
                     output.write(buffer, 0, count);
                 }
                 json = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
@@ -501,8 +492,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 String message = "将导入 " + preview.count + " 个脚本。";
                 if (!preview.overwrittenNames.isEmpty()) {
                     message += "\n同名脚本将被覆盖（" + preview.overwrittenNames.size() + " 个）："
-                            + String.join("、", preview.overwrittenNames.subList(
-                                    0, Math.min(5, preview.overwrittenNames.size())));
+                            + String.join("、", preview.overwrittenNames);
                     if (preview.overwrittenNames.size() > 5) message += " 等";
                 }
                 fxDialogBuilder().setTitle("确认导入脚本库")
@@ -551,9 +541,6 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
                     if (output == null) throw new IllegalStateException("无法写入所选 JSON 文件。");
                     byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-                    if (bytes.length > FxDiaScriptLibraryPolicy.MAX_LIBRARY_JSON_BYTES) {
-                        throw new IllegalArgumentException("脚本库 JSON 超过 1 MiB。");
-                    }
                     output.write(bytes);
                     output.flush();
                 }
