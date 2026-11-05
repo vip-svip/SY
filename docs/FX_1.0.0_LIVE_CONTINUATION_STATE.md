@@ -6340,3 +6340,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证等级：仅完成 GitHub 写入与回读；本轮未运行 Gradle/JUnit、Android 构建、UI 自动化或真机测试。对新提交查询到的 workflow runs 为空，不报告 CI 通过。
 - VPN 共存裁决器文件在本轮读取后出现并发更新；对其写入收到 GitHub 409，未强制覆盖，已放弃对共享 VPN 文件的修改并以最新分支内容为准。
 - 下一批：补齐六模式跨页面 renderer 覆盖测试，并继续从最新 HEAD 检查 VPN/DNS 实际数据面状态与第三方 VPN 兼容性；设备级网络路径仍需真机证据。
+
+
+## 2026-11-06 — 六模式 renderer 精确映射回归
+
+- 测试提交：`2438452adcaa149b0050f6be82839401ecd5f1e0`。
+- 在 `FxUiModeTest` 增加精确映射断言：default→NATIVE_DEFAULT、classic→WEB_COMPAT、glass→NATIVE_LIQUID、miuix→NATIVE_MIUIX、huawei→NATIVE_HARMONY、ios→NATIVE_CUPERTINO。原有六个 renderer 必须互不相同、稳定 ID 顺序、名称及旧别名迁移断言均保留。
+- GitHub 回读：测试文件已确认包含新测试；本轮未运行 Gradle/JUnit。该提交关联的 workflow run 查询为空，故 CI 未确认。
+- 这属于枚举配置契约测试，不证明六个 renderer 的每个页面都已完整实现或 UI 真机视觉一致。后续需补跨页面导航/功能入口覆盖，并运行 `./gradlew :app:testDebugUnitTest :app:assembleDebug` 与 release 构建；当前 Android Gradle/SDK/依赖解析环境尚未在本轮执行。
