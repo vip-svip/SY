@@ -152,6 +152,23 @@ grep -Fq '搜索规则 ID、方法签名、动作、常量或分组' "$HOOK_ACTI
 grep -Fq 'DeveloperHookRule.normalizeDescriptor(rawDescriptor, selectedPackage)' "$HOOK_ACTIVITY" || fail "custom Hook editor has no live shared-parser validation"
 grep -Fq '签名有效 · JVM：' "$HOOK_ACTIVITY" || fail "custom Hook editor does not show the normalized JVM descriptor"
 grep -Fq '签名尚未通过校验' "$HOOK_ACTIVITY" || fail "custom Hook editor does not explain invalid signatures"
+python3 - "$HOOK_ACTIVITY" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+adapter_start = source.index("private ArrayAdapter<String> createSkinAwareSpinnerAdapter(")
+adapter_end = source.index("private void addNativeActionCard(", adapter_start)
+adapter = source[adapter_start:adapter_end]
+for token in ("getView(int position", "getDropDownView(int position", "uiPrimaryTextColor()", "text.setTextSize", "Typeface.MEDIUM", "setPadding(dp(12), dp(8), dp(12), dp(8))"):
+    assert token in adapter, f"Skin-aware Spinner renderer missing: {token}"
+for spinner in ("finishAdapter", "dialogAdapter", "syntaxAdapter", "actionAdapter"):
+    assert f"{spinner} = createSkinAwareSpinnerAdapter" in source, f"{spinner} does not use the shared Skin-aware adapter"
+group_filter_start = source.index("private void renderCustomRules(")
+group_filter_end = source.index("private ", group_filter_start + 30)
+group_filter = source[group_filter_start:group_filter_end]
+assert "adapter = createSkinAwareSpinnerAdapter(options)" in group_filter, "custom Hook group filter does not use the shared Skin-aware adapter"
+print("PASS: native Hook and Dialog Spinners use shared Skin typography for selected and dropdown rows.")
+PY
 grep -Fq 'addNativeActionGroup(scopeGroup)' "$HOOK_ACTIVITY" || fail "per-app LSPosed scope controls are not grouped by the active Skin"
 grep -Fq 'addNativeActionGroup(ruleActionGroup)' "$HOOK_ACTIVITY" || fail "custom Hook rule actions are not grouped by the active Skin"
 grep -Fq 'addNativeActionGroup(footerGroup)' "$HOOK_ACTIVITY" || fail "custom Hook publish and return actions are not grouped by the active Skin"
