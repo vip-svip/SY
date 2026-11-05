@@ -20,7 +20,8 @@ final class CupertinoSkinRenderer {
                 CupertinoColorTokens.ACCENT,
                 CupertinoColorTokens.SWITCH_OFF_TRACK,
                 CupertinoShapeTokens.ACTION_RADIUS_DP,
-                CupertinoColorTokens.INPUT_BORDER
+                CupertinoColorTokens.INPUT_BORDER,
+                CupertinoShapeTokens.CARD_RADIUS_DP
         );
     }
 }
