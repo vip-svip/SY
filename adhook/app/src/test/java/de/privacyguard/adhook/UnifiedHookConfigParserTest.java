@@ -795,5 +795,34 @@ public class UnifiedHookConfigParserTest {
     }
 
 
-}
 
+    @Test
+    public void acceptsLargeVersionedConfigBeyondFormerByteAndLineLimits() {
+        StringBuilder config = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n");
+        for (int i = 0; i < 2500; i++) {
+            config.append("com.example.target").append(i).append(",privacy=1\n");
+        }
+        assertTrue(config.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536);
+        assertTrue(config.toString().split("\\R", -1).length > 1000);
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config.toString());
+        assertEquals(2500, parsed.targets.size());
+        assertTrue(parsed.isPrivacyEnabledFor("com.example.target2499"));
+    }
+
+    @Test
+    public void acceptsLargeLegacyConfigBeyondFormerByteAndLineLimits() {
+        StringBuilder config = new StringBuilder("hook_ads_enabled=1\n[list:hook_targets]\n");
+        for (int i = 0; i < 2500; i++) {
+            config.append("com.example.legacytarget").append(i)
+                    .append(",splash=1 | retained metadata ").append(i).append("\n");
+        }
+        assertTrue(config.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536);
+        assertTrue(config.toString().split("\\R", -1).length > 1000);
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config.toString());
+        assertEquals(2500, parsed.targets.size());
+        assertTrue(parsed.targets.get("com.example.legacytarget2499").splash);
+        assertFalse(parsed.privacyEnabled);
+    }
+
+}

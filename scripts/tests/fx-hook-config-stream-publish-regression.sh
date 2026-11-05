@@ -1,0 +1,146 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+PUBLISHER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxHookConfigPublisher.java"
+PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
+LEGACY_PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java"
+HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
+ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+for file in "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" "$ROOT_ACCESS"; do
+  [ -s "$file" ] || fail "missing Hook config streaming source: $file"
+done
+python3 - "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" <<'PY'
+from pathlib import Path
+import sys
+main, publisher, parser, legacy, hook = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+for token in ("rows.size()>990", "configBytes.length>65536", "managedBytes.length>65536",
+              "android.util.Base64.encodeToString(configBytes"):
+    assert token not in main, "MainActivity still embeds an old config publication cap: " + token
+assert "FxHookConfigPublisher.publish(configBytes, managedBytes, androidUser)" in main
+assert "RootAccess.executeWithInput(" in publisher and "new ByteArrayInputStream(payload.bytes)" in publisher
+for token in ("sha256sum ", "FX_STAGE_HASH_MISMATCH", "rollback()", "FX_ROLLBACK_FAILED",
+              "FX_COMMIT_HASH_MISMATCH_", "cp -p ", "mv -f "):
+    assert token in publisher, "publisher missing transaction safety contract: " + token
+assert "config exceeds 64 KiB" not in parser and "config exceeds 1000 lines" not in parser
+assert "config exceeds 1000 lines" not in legacy
+assert "InputStreamReader reader" in hook and "remote config exceeds 64 KiB" not in hook
+assert "content.append(chunk, 0, count);" in hook
+print("PASS: Hook config is streamed, SHA-256 checked, rollback protected and has no config byte/target/line cap")
+PY
+
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT INT TERM
+mkdir -p "$T/fake-bin" "$T/classes"
+cat > "$T/fake-bin/su" <<'SU'
+#!/bin/sh
+[ "$1" = "-c" ] || exit 2
+exec /bin/sh -c "$2"
+SU
+cat > "$T/fake-bin/chown" <<'CMD'
+#!/bin/sh
+exit 0
+CMD
+cat > "$T/fake-bin/chcon" <<'CMD'
+#!/bin/sh
+exit 0
+CMD
+cat > "$T/fake-bin/mv" <<'MV'
+#!/bin/sh
+for arg do destination="$arg"; done
+if [ -n "\${FX_FAIL_TRIGGER_FILE:-}" ] && [ -e "$FX_FAIL_TRIGGER_FILE" ]; then
+  case "$destination" in
+    */fx-api101-managed.conf)
+      /bin/rm -f "$FX_FAIL_TRIGGER_FILE"
+      exit 1
+      ;;
+  esac
+fi
+exec /bin/mv "$@"
+MV
+chmod 700 "$T/fake-bin/"*
+cat > "$T/HookConfigPublisherHostTest.java" <<'JAVA'
+package de.privacyguard.adhook;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+
+public final class HookConfigPublisherHostTest {
+    private static byte[] payload(int length, int seed) {
+        byte[] bytes = new byte[length];
+        for (int i = 0; i < bytes.length; i++) bytes[i] = (byte) (i * 31 + seed);
+        return bytes;
+    }
+    private static void write(Path path, byte[] data) throws Exception {
+        Files.createDirectories(path.getParent());
+        Files.write(path, data);
+    }
+    private static void expect(Path path, byte[] expected) throws Exception {
+        byte[] actual = Files.readAllBytes(path);
+        if (!Arrays.equals(expected, actual)) throw new AssertionError("payload mismatch at " + path);
+    }
+    private static void noTransientFiles(FxHookConfigPublisher.Layout layout) throws Exception {
+        for (String path : new String[]{layout.remotePath(), layout.nativePath(), layout.managedPath()}) {
+            Path parent = Paths.get(path).getParent();
+            try (java.util.stream.Stream<Path> entries = Files.list(parent)) {
+                if (entries.anyMatch(entry -> entry.getFileName().toString().contains(".fx-stage-")
+                        || entry.getFileName().toString().contains(".fx-backup-"))) {
+                    throw new AssertionError("temporary or backup file leaked in " + parent);
+                }
+            }
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        Path root = Paths.get(args[0]).toAbsolutePath();
+        byte[] config = payload(256 * 1024, 7);
+        byte[] managed = payload(96 * 1024, 19);
+        FxHookConfigPublisher.Layout success = new FxHookConfigPublisher.Layout(
+                root.resolve("success/data").toString(), 0);
+        write(Paths.get(success.remotePath()), "old remote".getBytes(StandardCharsets.UTF_8));
+        write(Paths.get(success.nativePath()), "old overlay".getBytes(StandardCharsets.UTF_8));
+        write(Paths.get(success.managedPath()), "old ownership".getBytes(StandardCharsets.UTF_8));
+        RootAccess.Result committed = FxHookConfigPublisher.publish(config, managed, success);
+        if (committed.exitCode != 0 || committed.output == null
+                || !committed.output.contains("SHA256=")
+                || !committed.output.contains("API101_OVERLAY_SHA256=")
+                || !committed.output.contains("API101_OWNERSHIP_SHA256=")) {
+            throw new AssertionError("large config publish failed: " + committed.exitCode + " " + committed.output);
+        }
+        expect(Paths.get(success.remotePath()), config);
+        expect(Paths.get(success.nativePath()), config);
+        expect(Paths.get(success.managedPath()), managed);
+        noTransientFiles(success);
+
+        FxHookConfigPublisher.Layout rollback = new FxHookConfigPublisher.Layout(
+                root.resolve("rollback/data").toString(), 0);
+        byte[] oldRemote = "preserve old remote".getBytes(StandardCharsets.UTF_8);
+        byte[] oldNative = "preserve old native".getBytes(StandardCharsets.UTF_8);
+        byte[] oldManaged = "preserve old managed".getBytes(StandardCharsets.UTF_8);
+        write(Paths.get(rollback.remotePath()), oldRemote);
+        write(Paths.get(rollback.nativePath()), oldNative);
+        write(Paths.get(rollback.managedPath()), oldManaged);
+        String trigger = System.getenv("FX_FAIL_TRIGGER_FILE");
+        if (trigger == null || trigger.isEmpty()) throw new AssertionError("missing injected failure trigger");
+        Files.write(Paths.get(trigger), new byte[]{1});
+        RootAccess.Result failed = FxHookConfigPublisher.publish(config, managed, rollback);
+        if (failed.exitCode == 0 || failed.output == null
+                || !failed.output.contains("FX_COMMIT_FAILED_MANAGED")) {
+            throw new AssertionError("injected rename failure not reported: " + failed.exitCode + " " + failed.output);
+        }
+        expect(Paths.get(rollback.remotePath()), oldRemote);
+        expect(Paths.get(rollback.nativePath()), oldNative);
+        expect(Paths.get(rollback.managedPath()), oldManaged);
+        noTransientFiles(rollback);
+        System.out.println("PASS: 256 KiB config and 96 KiB ownership streams; injected third-file rename failure restores all prior files");
+    }
+}
+JAVA
+command -v javac >/dev/null 2>&1 || fail "javac is required"
+command -v java >/dev/null 2>&1 || fail "java is required"
+javac -d "$T/classes" "$ROOT_ACCESS" "$PUBLISHER" "$T/HookConfigPublisherHostTest.java"
+PATH="$T/fake-bin:$PATH" FX_FAIL_TRIGGER_FILE="$T/fail-managed-move" \
+  java -cp "$T/classes" de.privacyguard.adhook.HookConfigPublisherHostTest "$T"

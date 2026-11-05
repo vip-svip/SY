@@ -8141,77 +8141,20 @@ public final class MainActivity extends ComponentActivity {
                .append("clipboard_isolate_enabled=").append(anyClipboardIso?'1':'0').append('\n')
                .append("[list:targets]\n");
             for(String row:rows) cfg.append(row).append('\n');
-            if(rows.size()>990) throw new IllegalStateException("目标应用配置超过 990 条上限，请缩小 Hook 作用范围。");
             byte[] configBytes=cfg.toString().getBytes("UTF-8");
-            if(configBytes.length>65536) throw new IllegalStateException("Hook 配置超过 64 KiB 上限，请减少目标或自定义规则数量。");
             String expectedHash=sha256Hex(configBytes);
-            String encoded=android.util.Base64.encodeToString(configBytes,android.util.Base64.NO_WRAP);
             StringBuilder managedConfig=new StringBuilder();
             for(String row:legacyManagedRows) managedConfig.append(row).append('\n');
             byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
-            if(managedBytes.length>65536) throw new IllegalStateException("Hook 兼容映射超过 64 KiB 上限。");
             String managedHash=sha256Hex(managedBytes);
-            String managedEncoded=android.util.Base64.encodeToString(managedBytes,android.util.Base64.NO_WRAP);
             int androidUser=android.os.Process.myUid()/100000;
-            String moduleDir="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files";
-            String remote=moduleDir+"/fx-hook-targets.conf";
-            String temp=remote+".tmp";
-            String legacyDir="/data/local/tmp/privacyguard";
-            String managedFile=legacyDir+"/fx-api101-managed.conf";
-            String managedTemp=managedFile+".tmp";
-            String pgDir="/data/adb/privacyguard";
-            String nativeOverlay=pgDir+"/fx-native-hook-targets-"+androidUser+".conf";
-            String nativeOverlayTemp=nativeOverlay+".tmp";
-            String command="set -e; umask 077; "
-                    +"for _d in '/data' '/data/adb' '/data/adb/lspd' '/data/adb/lspd/modules' '/data/adb/lspd/modules/"+androidUser+"' '/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook' '"+moduleDir+"' '/data/local' '/data/local/tmp' '"+legacyDir+"' '"+pgDir+"'; do "
-                    +"[ ! -L \"$_d\" ] && { [ ! -e \"$_d\" ] || [ -d \"$_d\" ]; } || { echo 'unsafe Hook directory path' >&2; exit 71; }; done; "
-                    +"mkdir -p '"+moduleDir+"' '"+legacyDir+"' '"+pgDir+"'; "
-                    +"for _f in '"+remote+"' '"+temp+"' '"+remote+".bak' '"+managedFile+"' '"+managedTemp+"' '"+managedFile+".bak' '"+nativeOverlay+"' '"+nativeOverlayTemp+"' '"+nativeOverlay+".bak'; do "
-                    +"[ ! -L \"$_f\" ] && { [ ! -e \"$_f\" ] || [ -f \"$_f\" ]; } || { echo 'unsafe Hook publication file path' >&2; exit 72; }; done; "
-                    +"rm -f '"+temp+"' '"+managedTemp+"' '"+nativeOverlayTemp+"'; "
-                    +"printf '%s' '"+encoded+"' | base64 -d > '"+temp+"'; "
-                    +"printf '%s' '"+encoded+"' | base64 -d > '"+nativeOverlayTemp+"'; "
-                    +"printf '%s' '"+managedEncoded+"' | base64 -d > '"+managedTemp+"'; "
-                    +"test -s '"+temp+"' && test -s '"+nativeOverlayTemp+"'; "
-                    +"actual_tmp=$(sha256sum '"+temp+"' | cut -d ' ' -f1); "
-                    +"actual_native_tmp=$(sha256sum '"+nativeOverlayTemp+"' | cut -d ' ' -f1); "
-                    +"actual_managed_tmp=$(sha256sum '"+managedTemp+"' | cut -d ' ' -f1); "
-                    +"test \"$actual_tmp\" = '"+expectedHash+"' && test \"$actual_native_tmp\" = '"+expectedHash+"' && test \"$actual_managed_tmp\" = '"+managedHash+"'; "
-                    +"chmod 0755 '"+legacyDir+"'; chmod 0644 '"+temp+"' '"+managedTemp+"'; chmod 0600 '"+nativeOverlayTemp+"'; "
-                    +"chown 0:0 '"+temp+"' '"+managedTemp+"' '"+nativeOverlayTemp+"'; "
-                    +"chmod 0755 '"+moduleDir+"'; chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+temp+"' '"+pgDir+"' '"+nativeOverlayTemp+"'; "
-                    +"chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedTemp+"'; sync; "
-                    +"if [ -e '"+remote+"' ]; then cp -p '"+remote+"' '"+remote+".bak'; else rm -f '"+remote+".bak'; fi; "
-                    +"if [ -e '"+managedFile+"' ]; then cp -p '"+managedFile+"' '"+managedFile+".bak'; else rm -f '"+managedFile+".bak'; fi; "
-                    +"if [ -e '"+nativeOverlay+"' ]; then cp -p '"+nativeOverlay+"' '"+nativeOverlay+".bak'; else rm -f '"+nativeOverlay+".bak'; fi; "
-                    +"mv -f '"+managedTemp+"' '"+managedFile+"'; "
-                    +"if ! mv -f '"+nativeOverlayTemp+"' '"+nativeOverlay+"'; then "
-                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
-                    +"if ! mv -f '"+temp+"' '"+remote+"'; then "
-                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
-                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
-                    +"if ! chmod 0644 '"+remote+"' '"+managedFile+"' || ! chmod 0600 '"+nativeOverlay+"' || "
-                    +"! chown 0:0 '"+remote+"' '"+managedFile+"' '"+nativeOverlay+"' || "
-                    +"! chmod 0755 '"+moduleDir+"' || ! chmod 0755 '"+legacyDir+"' || ! chcon u:object_r:magisk_file:s0 '"+moduleDir+"' '"+remote+"' '"+pgDir+"' '"+nativeOverlay+"' || "
-                    +"! chcon u:object_r:shell_data_file:s0 '"+legacyDir+"' '"+managedFile+"'; then "
-                    +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
-                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
-                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; sync; "
-                    +"actual=$(sha256sum '"+remote+"' | cut -d ' ' -f1); "
-                    +"actual_native=$(sha256sum '"+nativeOverlay+"' | cut -d ' ' -f1); "
-                    +"actual_managed=$(sha256sum '"+managedFile+"' | cut -d ' ' -f1); "
-                    +"if [ \"$actual\" != '"+expectedHash+"' ] || [ \"$actual_native\" != '"+expectedHash+"' ] || [ \"$actual_managed\" != '"+managedHash+"' ]; then "
-                    +"if [ -e '"+remote+".bak' ]; then mv -f '"+remote+".bak' '"+remote+"'; else rm -f '"+remote+"'; fi; "
-                    +"if [ -e '"+nativeOverlay+".bak' ]; then mv -f '"+nativeOverlay+".bak' '"+nativeOverlay+"'; else rm -f '"+nativeOverlay+"'; fi; "
-                    +"if [ -e '"+managedFile+".bak' ]; then mv -f '"+managedFile+".bak' '"+managedFile+"'; else rm -f '"+managedFile+"'; fi; exit 1; fi; "
-                    +"printf 'SHA256=%s\\nAPI101_OVERLAY_SHA256=%s\\nAPI101_OWNERSHIP_SHA256=%s\\n' \"$actual\" \"$actual_native\" \"$actual_managed\"";
-            if(command.length()>131072) throw new IllegalStateException("Root 发布命令超过 128 KiB 上限，请减少目标或自定义规则数量。");
+            String remote="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files/fx-hook-targets.conf";
             if (hookPublisherThread != null && hookPublisherThread.isAlive()) {
                 Toast.makeText(this, "Hook 配置正在发布，请等待当前操作完成。", Toast.LENGTH_LONG).show();
                 return;
             }
             Thread publisher = new Thread(() -> {
-                RootAccess.Result result = RootAccess.execute(command, 60000L, 1024 * 1024);
+                RootAccess.Result result = FxHookConfigPublisher.publish(configBytes, managedBytes, androidUser);
                 if (hookPublisherThread == Thread.currentThread()) hookPublisherThread = null;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;

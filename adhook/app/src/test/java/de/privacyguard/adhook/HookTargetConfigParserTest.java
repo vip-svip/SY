@@ -85,4 +85,16 @@ public class HookTargetConfigParserTest {
                 "com.123example.app,splash=1\\n");
     }
 
+
+    @Test
+    public void acceptsMoreThanOneThousandTargetRows() {
+        StringBuilder config = new StringBuilder("hook_ads_enabled=1\n[list:hook_targets]\n");
+        for (int i = 0; i < 1500; i++) {
+            config.append("com.example.largelegacy").append(i).append(",splash=1\n");
+        }
+        HookTargetConfigParser.Result parsed = HookTargetConfigParser.parse(config.toString());
+        assertEquals(1500, parsed.targets.size());
+        assertTrue(parsed.targets.get("com.example.largelegacy1499").splash);
+    }
+
 }

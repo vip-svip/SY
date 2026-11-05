@@ -36,8 +36,8 @@ import android.widget.Toast;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -47,7 +47,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -947,8 +946,6 @@ private boolean targetDeveloperOptIn(String packageName) {
 
     private boolean loadConfig() {
         if (!remoteFilesAvailable) return false;
-        // Bound bytes before decoding so a single giant line cannot grow a StringBuilder
-        // without limit. The wire format is UTF-8 and the 64 KiB limit is byte-based.
         targets.clear();
         adsEnabled = false;
         privacyEnabled = false;
@@ -968,27 +965,17 @@ private boolean targetDeveloperOptIn(String packageName) {
             return false;
         }
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
-             ByteArrayOutputStream bytes = new ByteArrayOutputStream(4096)) {
-            byte[] chunk = new byte[4096];
+             InputStreamReader reader = new InputStreamReader(input,
+                     StandardCharsets.UTF_8.newDecoder()
+                             .onMalformedInput(CodingErrorAction.REPORT)
+                             .onUnmappableCharacter(CodingErrorAction.REPORT))) {
+            StringBuilder content = new StringBuilder(4096);
+            char[] chunk = new char[8192];
             int count;
-            while ((count = input.read(chunk)) != -1) {
-                if (bytes.size() + count > 65536) {
-                    logFx(Log.WARN, "remote config exceeds 64 KiB; rejecting all targets");
-                    return false;
-                }
-                bytes.write(chunk, 0, count);
+            while ((count = reader.read(chunk, 0, chunk.length)) != -1) {
+                content.append(chunk, 0, count);
             }
-            String content;
-            try {
-                content = StandardCharsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT)
-                        .decode(ByteBuffer.wrap(bytes.toByteArray())).toString();
-            } catch (CharacterCodingException malformed) {
-                logFx(Log.WARN, "remote config is not valid UTF-8; rejecting all targets");
-                return false;
-            }
-            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content);
+            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
             // The legacy Ad master/category switches were removed from the UI.
             // A valid published FX config now enables the built-in classifier; the
             // parsed legacy bit is retained only for schema compatibility.

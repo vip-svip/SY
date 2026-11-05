@@ -53,7 +53,6 @@ public final class HookTargetConfigParser {
     public static Result parse(String text) {
         if (text == null) throw new IllegalArgumentException("null config");
         String[] lines = text.split("\\R", -1);
-        if (lines.length > 1001) throw new IllegalArgumentException("config exceeds 1000 lines");
 
         Map<String, Target> parsedTargets = new LinkedHashMap<>();
         boolean masterSeen = false;
