@@ -167,7 +167,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         outputView.setPadding(dp(12), dp(8), dp(12), dp(18));
         logScroll.addView(outputView);
         root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count,
