@@ -135,7 +135,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
       status.setText(label+"：已保存并应用。");
      }else{
       status.setText(label+"失败："+safe(result.output));
-      new AlertDialog.Builder(this).setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+      fxDialogBuilder().setTitle("配置未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
      }
      load();
      if ("VPN 与 Root Proxy".equals(page)) refreshRootProxyStatus();
@@ -312,7 +312,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   }
 
   private void removeTrustedSsid(String ssid) {
-    new AlertDialog.Builder(this).setTitle("移除可信 Wi-Fi")
+    fxDialogBuilder().setTitle("移除可信 Wi-Fi")
             .setMessage("移除后，连接此 SSID 将不再自动暂停FX 广告过滤。")
             .setNegativeButton("取消",null)
             .setPositiveButton("移除",(dialog,which) -> root("trusted-ssid-remove " + q(ssid), result -> {
@@ -612,11 +612,11 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
        txt("备用 DNS（故障回退）",12,0xff617080,true),fallbackServers,
        btn("保存备用 DNS",()->saveDnsServerList("fallback",fallbackServers)),
-       btn("清除备用 DNS",()->new AlertDialog.Builder(this).setTitle("清除备用 DNS")
+       btn("清除备用 DNS",()->fxDialogBuilder().setTitle("清除备用 DNS")
          .setMessage("清除故障回退服务器后，AdGuard Home 将不再使用备用 DNS。是否继续？")
          .setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->root("dns-config-clear fallback",r->{
            if(r.exitCode==0){fallbackServers.setText("");status.setText("备用 DNS 已清除。");}
-           else new AlertDialog.Builder(this).setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+           else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
          })).show()),
        txt("全局 DNS 替换",12,0xff617080,true),globalServers,
        btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
@@ -634,16 +634,16 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 缓存管理","刷新 FX 自己的 AdGuard Home / Unbound 缓存会短暂重启本地解析服务；第三方 VPN 和它的规则不会被停止。",
-       btn("刷新本地 DNS 缓存",()->new AlertDialog.Builder(this).setTitle("刷新本地 DNS 缓存")
+       btn("刷新本地 DNS 缓存",()->fxDialogBuilder().setTitle("刷新本地 DNS 缓存")
          .setMessage("本地 DNS 查询可能短暂重试。FX 会重启自有解析服务并重新应用当前规则；不会操作第三方 VPN。")
          .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush",r->{
-           new AlertDialog.Builder(this).setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
+           fxDialogBuilder().setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
              .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
          })).show()));
   card("第三方 VPN DNS 过滤回退",
        "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
-       btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{new AlertDialog.Builder(this).setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
+       btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{fxDialogBuilder().setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
   loadDnsLists(customServers,globalServers,fallbackServers,remoteDns,cnDns);
 }
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
@@ -669,14 +669,14 @@ private void saveDnsServerList(String kind,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
   root("dns-config-set "+kind+" "+q(value),r->{
     if(r.exitCode==0){status.setText(("custom".equals(kind)?"自定义 DNS":("fallback".equals(kind)?"备用 DNS":"全局 DNS"))+" 已保存并应用。");load();}
-    else new AlertDialog.Builder(this).setTitle("DNS 地址未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+    else fxDialogBuilder().setTitle("DNS 地址未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
   });
 }
 private void saveVpnDns(String key,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
   root("dns-vpn-set "+key+" "+q(value),r->{
     if(r.exitCode==0)status.setText(("remote_dns".equals(key)?"VPN 远端 DNS":"国内直连 DNS")+" 已保存并应用。");
-    else new AlertDialog.Builder(this).setTitle("VPN DNS 未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+    else fxDialogBuilder().setTitle("VPN DNS 未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
   });
 }
  private boolean syncing;
@@ -731,7 +731,7 @@ private void saveVpnDns(String key,EditText input){
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>65536){status.setText("批量域名数据超过 64 KiB，请分批导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
-  new AlertDialog.Builder(this).setTitle(kind.equals("allow")?"批量导入白名单":"批量导入黑名单")
+  fxDialogBuilder().setTitle(kind.equals("allow")?"批量导入白名单":"批量导入黑名单")
       .setMessage("共 "+lines.size()+" 条。后端会先验证所有域名，再原子写入配置并应用；任何失败都会回滚整批。")
       .setNegativeButton("取消",null)
       .setPositiveButton("导入", (dialog,which)->
@@ -756,14 +756,14 @@ private void saveVpnDns(String key,EditText input){
        btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
          for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(FxYulongScheduleDayMapping.workerDayForUiIndex(i));}
-         if(selected.length()==0){new AlertDialog.Builder(this).setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
+         if(selected.length()==0){fxDialogBuilder().setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
          String command="schedule-set "+(enabled.isChecked()?"1":"0")+" "+q(start.getText().toString().trim())+" "+q(end.getText().toString().trim())+" "+q(selected.toString());
          root(command,r->{
            if(r.exitCode==0){
              state.setText("计划已保存并立即重新计算。\n"+safe(r.output));
            }else{
              state.setText("计划保存/应用失败："+safe(r.output));
-             new AlertDialog.Builder(this).setTitle("计划未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+             fxDialogBuilder().setTitle("计划未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
            }
          });
        }),
@@ -819,7 +819,7 @@ private void saveVpnDns(String key,EditText input){
     }
    }
    syncing=false;
-  }if("过滤列表".equals(page)&&entries!=null){entries.removeAllViews();String f=search==null||search.getText()==null?"":search.getText().toString().trim().toLowerCase(Locale.ROOT);for(Row e:rows("RULE")){if(!f.isEmpty()&&!(e.value+" "+e.title).toLowerCase(Locale.ROOT).contains(f))continue;LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt(e.title,13,0xff17212b,true));r.addView(txt(e.value,10,0xff718091,false));Switch sw=new Switch(this);sw.setText("启用此列表");sw.setChecked(e.enabled);sw.setOnCheckedChangeListener((b,on)->apply("rule-set "+q(e.value)+" "+(on?"1":"0"),"规则状态"));r.addView(sw);r.addView(btn("删除",()->new AlertDialog.Builder(this).setTitle("删除过滤列表").setMessage(e.value).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->apply("rule-remove "+q(e.value),"规则删除")).show()));entries.addView(r);}}
+  }if("过滤列表".equals(page)&&entries!=null){entries.removeAllViews();String f=search==null||search.getText()==null?"":search.getText().toString().trim().toLowerCase(Locale.ROOT);for(Row e:rows("RULE")){if(!f.isEmpty()&&!(e.value+" "+e.title).toLowerCase(Locale.ROOT).contains(f))continue;LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt(e.title,13,0xff17212b,true));r.addView(txt(e.value,10,0xff718091,false));Switch sw=new Switch(this);sw.setText("启用此列表");sw.setChecked(e.enabled);sw.setOnCheckedChangeListener((b,on)->apply("rule-set "+q(e.value)+" "+(on?"1":"0"),"规则状态"));r.addView(sw);r.addView(btn("删除",()->fxDialogBuilder().setTitle("删除过滤列表").setMessage(e.value).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->apply("rule-remove "+q(e.value),"规则删除")).show()));entries.addView(r);}}
  else if("DNS 设置".equals(page)||"VPN 与 Root Proxy".equals(page)){syncing=true;for(int i=0;i<body.getChildCount();i++)if(body.getChildAt(i) instanceof LinearLayout){LinearLayout p=(LinearLayout)body.getChildAt(i);for(int j=0;j<p.getChildCount();j++)if(p.getChildAt(j) instanceof Switch){Switch sw=(Switch)p.getChildAt(j);if(sw.getTag() instanceof String){sw.setChecked(dnsValue((String)sw.getTag()).equals("1"));sw.setEnabled(true);}}}syncing=false;}
  else if("域名名单".equals(page)&&entries!=null){entries.removeAllViews();for(Row e:rows("ALLOW"))domainRow(e,true);for(Row e:rows("BLOCK"))domainRow(e,false);if(entries.getChildCount()==0)entries.addView(txt("暂无用户自定义域名名单。",12,0xff718091,false));}}
  private void copyAutomationAction(String value){
@@ -912,7 +912,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
         loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
       });
     }));
-    if("CUSTOM".equals(kind))row.addView(btn("删除此自定义配置档",()->new AlertDialog.Builder(this).setTitle("删除配置档").setMessage("只删除配置档与其周计划，不删除订阅来源。").setNegativeButton("取消",null).setPositiveButton("删除",(dialog,which)->profileRoot("profile-delete "+q(id),deleted->{
+    if("CUSTOM".equals(kind))row.addView(btn("删除此自定义配置档",()->fxDialogBuilder().setTitle("删除配置档").setMessage("只删除配置档与其周计划，不删除订阅来源。").setNegativeButton("取消",null).setPositiveButton("删除",(dialog,which)->profileRoot("profile-delete "+q(id),deleted->{
       result.setText(deleted.exitCode==0?"已删除："+safe(deleted.output):"删除失败："+safe(deleted.output));
       loadProfileState(profileRows,scheduleRows,result,scheduleStart,scheduleEnd,days);
     })).show()));
