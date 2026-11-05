@@ -87,6 +87,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     private Button button(String label, Runnable action) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> action.run());
@@ -95,11 +96,12 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     private void card(LinearLayout parent, String title, String detail, View... children) {
         LinearLayout panel = new LinearLayout(this);
+        panel.setTag("fx-card");
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(8), dp(12), dp(8));
         panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title, 15, 0xff17212b, true));
-        panel.addView(text(detail, 11, 0xff617080, false));
+        TextView heading = text(title, 15, 0xff17212b, true); heading.setTag("fx-card-title"); panel.addView(heading);
+        TextView description = text(detail, 11, 0xff617080, false); description.setTag("fx-card-detail"); panel.addView(description);
         for (View child : children) panel.addView(child);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(10), dp(4), dp(10), dp(4));
