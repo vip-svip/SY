@@ -108,6 +108,7 @@ cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
 printf 'vpn-watchdog:%s\n' "$*" >> "$ORDER_LOG"
 WATCHDOG
 chmod 0755 "$MOD/scripts/vpn-external-watchdog.sh"
+rm -f "$PG/vpn-external-watchdog.log"
 echo outside > "$T/outside-network.log"
 ln -s "$T/outside-network.log" "$PG/vpn-external-watchdog.log"
 : > "$LOG"
