@@ -80,7 +80,7 @@ assert 'vpn_control_source = repo / "scripts/yulong-vpn-control.sh"' in patcher
 assert "vpn_control_target.chmod(0o755)" in patcher
 
 widget = WIDGET.read_text(encoding="utf-8")
-for token in ('"root_proxy_on"', '"root_proxy_known"', "state.protectedNow()", "state.rootProxy"):
+for token in ('"root_proxy_on"', '"root_proxy_known"', "current.protectedNow()", "state.rootProxy"):
     assert token in widget, f"home-screen widget does not consume shared protection state: {token}"
 
 main = MAIN.read_text(encoding="utf-8")
