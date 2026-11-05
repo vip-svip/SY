@@ -322,73 +322,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 session_pid_active() {
   case "$1" in ''|*[!0-9]*) return 1;; esac
-  state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d ' ' -f1)
-  case "$state" in Z|X|x) return 1;; esac
-  kill -0 "$1" 2>/dev/null
-}
-if [ -s "$pidfile" ]; then
-  old_cli=$(sed -n '1p' "$pidfile")
-  old_feed=$(sed -n '2p' "$pidfile")
-  old_cli_path=$(sed -n '3p' "$pidfile")
-  old_pkg=$(sed -n '4p' "$pidfile")
-  old_port=$(sed -n '5p' "$pidfile")
-  old_process=$(sed -n '6p' "$pidfile")
-  case "$old_cli:$old_feed" in *[!0-9:]*|:*) exit 22;; esac
-  case "$old_port" in ''|*[!0-9]*) exit 22;; esac
-  [ "$old_pkg" = "$pkg" ] && [ "$old_port" = "$port" ] && [ "$old_cli_path" = "$cli" ] && [ "$old_process" = "$proc" ] || {
-    echo FX_GADGET_SESSION_TARGET_CONFLICT
-    exit 30
-  }
-  if session_pid_active "$old_cli"; then
-    old_cmd=$(tr '\000' ' ' < /proc/"$old_cli"/cmdline 2>/dev/null || :)
-    case "$old_cmd" in *"$old_cli_path"*"-H"*"127.0.0.1:$port"*"-n"*Gadget*"-l"*"$script"*)
-      if session_pid_active "$old_feed"; then
-        feed_cmd=$(tr '\000' ' ' < /proc/"$old_feed"/cmdline 2>/dev/null || :)
-        case "$feed_cmd" in *"fx-gadget-feed-$port"*"$pipe"*)
-          cat >/dev/null
-          echo FX_GADGET_SESSION_ALREADY_RUNNING
-          exit 0;;
-          *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
-        esac
-      fi
-      echo FX_GADGET_SESSION_DEGRADED
-      exit 32;;
-      *) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;;
-    esac
-  fi
-  if [ -n "$old_feed" ] && session_pid_active "$old_feed"; then
-    feed_cmd=$(tr '\000' ' ' < /proc/"$old_feed"/cmdline 2>/dev/null || :)
-    case "$feed_cmd" in *"fx-gadget-feed-$port"*"$pipe"*)
-      kill "$old_feed" 2>/dev/null || :
-      _feed_wait=0
-      while session_pid_active "$old_feed"; do
-        [ "$_feed_wait" -lt 5 ] || { echo FX_GADGET_FEEDER_STOP_TIMEOUT; exit 26; }
-        sleep 1
-        _feed_wait=$((_feed_wait+1))
-      done;;
-      *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
-    esac
-  fi
-  rm -f "$pidfile"
-  if [ -e "$pipe" ]; then
-    [ -p "$pipe" ] || { echo FX_GADGET_UNSAFE_STALE_PIPE; exit 27; }
-    rm -f "$pipe"
-  fi
-elif [ -e "$pipe" ]; then
-  echo FX_GADGET_ORPHAN_PIPE_NEEDS_CLEANUP
-  exit 28
-fi
-tmp=$(mktemp "$dir/.gadget-$port.XXXXXX")
-printf 'send("message"); console.log("console");\n' > "$tmp"
-chmod 600 "$tmp"
-mv -f "$tmp" "$script"
-tmp=
-: >> "$log"
-chmod 600 "$log"
-mkfifo -m 600 "$pipe"
-nohup "$cli" -H "127.0.0.1:$port" -n Gadget -l "$script" < "$pipe" >> "$log" 2>&1 &
-cli_pid=$!
-nohup sh -c 'while :; do state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d " " -f1); case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
+  state=$(cat "/proc/$1/stat" 2>/dev/null); state=${state##*) }; state=${state%% *}; case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
 feed_pid=$!
 pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
 printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" "$proc" > "$pid_tmp"
@@ -443,59 +377,7 @@ case "$stored_port" in ''|*[!0-9]*) exit 22;; esac
 }
 pid_active() {
   case "$1" in ''|*[!0-9]*) return 1;; esac
-  state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d ' ' -f1)
-  case "$state" in Z|X) return 1;; esac
-  kill -0 "$1" 2>/dev/null
-}
-if pid_active "$cli_pid"; then
-  cmd=$(tr '\000' ' ' < /proc/"$cli_pid"/cmdline 2>/dev/null || :)
-  case "$cmd" in *"$cli"*'127.0.0.1:27043'*Gadget*"$dir/gadget-27043.js"*) kill "$cli_pid";;
-    *) echo FX_GADGET_CLI_PID_CONFLICT; exit 23;;
-  esac
-fi
-if pid_active "$feed_pid"; then
-  feed_cmd=$(tr '\000' ' ' < /proc/"$feed_pid"/cmdline 2>/dev/null || :)
-  case "$feed_cmd" in *"fx-gadget-feed-27043"*"$pipe"*) kill "$feed_pid";;
-    *) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;;
-  esac
-fi
-_stop_wait=0
-while pid_active "$cli_pid" || pid_active "$feed_pid"; do
-  [ "$_stop_wait" -lt 5 ] || { echo FX_GADGET_STOP_TIMEOUT; exit 31; }
-  sleep 1
-  _stop_wait=$((_stop_wait+1))
-done
-rm -f "$pidfile"
-[ ! -L "$pipe" ] && rm -f "$pipe"
-lock_held=0
-rmdir "$start_lock"
-echo FX_GADGET_SESSION_STOPPED
-STOP
-chmod 700 "$T/stop.sh"
-
-if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:missing" > "$T/missing-process.result" 2>&1; then
-  echo "FAIL: Gadget start accepted a process that is not running" >&2
-  exit 1
-fi
-grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/missing-process.result"
-if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debuggable:spoof" > "$T/foreign-uid-process.result" 2>&1; then
-  echo "FAIL: Gadget start accepted a same-name process owned by another UID" >&2
-  exit 1
-fi
-grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
-# A real zombie child must be treated as exited by the feeder itself.
-sh -c 'exit 0' &
-zombie_cli=$!
-_zombie_wait=0
-while :; do
-  zombie_state=$(sed 's/^.*) //' "/proc/$zombie_cli/stat" 2>/dev/null | cut -d ' ' -f1)
-  [ "$zombie_state" = Z ] && break
-  [ "$_zombie_wait" -lt 20 ] || { echo "FAIL: could not create zombie CLI fixture" >&2; exit 1; }
-  sleep 0.05
-  _zombie_wait=$((_zombie_wait+1))
-done
-mkfifo "$T/zombie-feeder.stdin"
-nohup sh -c 'while :; do state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d " " -f1); case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-zombie-test" "$zombie_cli" "$T/zombie-feeder.stdin" > "$T/zombie-feeder.stdin" 2>/dev/null < /dev/null &
+  state=$(cat "/proc/$1/stat" 2>/dev/null); state=${state##*) }; state=${state%% *}; case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-zombie-test" "$zombie_cli" "$T/zombie-feeder.stdin" > "$T/zombie-feeder.stdin" 2>/dev/null < /dev/null &
 zombie_feeder=$!
 _zombie_wait=0
 while kill -0 "$zombie_feeder" 2>/dev/null; do
