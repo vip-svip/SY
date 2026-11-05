@@ -8,6 +8,8 @@ HOST_TEST="$MODULE/scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh"
 SUB_TEST="$MODULE/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh"
 PATCHER="$ROOT/fx-patches/patch_atomic_cache_lock_release.py"
 python3 -m py_compile "$PATCHER" "$ROOT/fx-patches/patch_yulong_root_proxy.py" || { echo "FAIL: cache/Root Proxy patcher Python syntax invalid" >&2; exit 1; }
+grep -Fq 'if [ "$_sl_release_owner" = "$$" ]; then' "$PATCHER" || { echo "FAIL: legacy subscription unlock template lost exact PID ownership check" >&2; exit 1; }
+! grep -Fq 'if [ "$_sl_release_owner" = "$" ]; then' "$PATCHER" || { echo "FAIL: legacy subscription unlock template compares a truncated PID" >&2; exit 1; }
 HOST_FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_hosts_file_lock.py"
 FILE_LOCK_PATCHER="$ROOT/fx-patches/patch_subfetch_file_lock.py"
 LEGACY_TEST_PATCHER="$ROOT/fx-patches/patch_subfetch_legacy_lock_tests.py"
