@@ -124,7 +124,7 @@ mv "$TMP/mod/system/app/FX/FX.apk" "$TMP/overlay-real.apk"
 ln -s "$TMP/overlay-real.apk" "$TMP/mod/system/app/FX/FX.apk"
 : > "$TMP/pm/install-calls"
 out=$(sh "$INSTALLER" "$TMP/mod" 2>&1) && fail "symlinked system-app APK payload unexpectedly succeeded"
-case "$out" in *"module APK payload path is missing or traverses a symlink"*) ;; *) fail "symlinked APK payload was not rejected by the path guard: $out" ;; esac
+case "$out" in *"system-app overlay path is a symlink"*) ;; *) fail "symlinked APK payload was not rejected by the path guard: $out" ;; esac
 [ ! -s "$TMP/pm/install-calls" ] || fail "symlinked APK payload reached PackageManager"
 rm "$TMP/mod/system/app/FX/FX.apk"
 mv "$TMP/overlay-real.apk" "$TMP/mod/system/app/FX/FX.apk"
