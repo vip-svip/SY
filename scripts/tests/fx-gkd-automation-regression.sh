@@ -92,6 +92,11 @@ assert "规则删除失败，原数据保持不变。" in activity, "failed dele
 assert "body.getChildCount() > 6" in activity, "rule refresh must not remove the master switch/add-rule button"
 assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
+assert "showPackagePicker(EditText packageInput)" in activity
+assert "getInstalledApplications(0)" in activity
+assert "candidates.size() >= 500" in activity
+assert "规则状态保存失败，已恢复原状态。" in activity
+assert "规则删除失败，原数据保持不变。" in activity
 
 # Capability declaration is transparent and gesture dispatch stays disabled.
 assert 'android:canRetrieveWindowContent="true"' in service_xml
