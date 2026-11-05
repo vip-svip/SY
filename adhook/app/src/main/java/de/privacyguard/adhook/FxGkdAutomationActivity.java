@@ -84,19 +84,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         masterSwitch.setTextSize(16);
         masterSwitch.setPadding(dp(18), dp(16), dp(18), dp(16));
         masterSwitch.setChecked(FxGkdRuleStore.isEnabled(this));
-        masterSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!FxGkdRuleStore.setEnabled(this, checked)) {
-                button.setChecked(false);
-                Toast.makeText(this,
-                        checked ? "请先添加至少一条有效规则。" : "GKD 设置保存失败。",
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-            FxAccessibilityService.requestReconfigure(this);
-            updateServiceState();
-            Toast.makeText(this, checked ? "GKD 本地规则已启用" : "GKD 自动化已关闭",
-                    Toast.LENGTH_SHORT).show();
-        });
+        masterSwitch.setOnCheckedChangeListener((button, checked) ->
+                updateMasterEnabled((Switch) button, checked));
         body.addView(masterSwitch, new LinearLayout.LayoutParams(-1, -2));
 
         body.addView(action("＋ 添加本地选择器规则", this::showAddRuleDialog));
@@ -243,6 +232,47 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         }
     }
 
+    private void updateMasterEnabled(Switch control, boolean enabled) {
+        if (!FxGkdRuleStore.setEnabled(this, enabled)) {
+            control.setOnCheckedChangeListener(null);
+            control.setChecked(!enabled);
+            control.setOnCheckedChangeListener((button, checked) ->
+                    updateMasterEnabled(control, checked));
+            Toast.makeText(this,
+                    enabled ? "请先添加至少一条有效规则。" : "GKD 设置保存失败。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        FxAccessibilityService.requestReconfigure(this);
+        updateServiceState();
+        Toast.makeText(this, enabled ? "GKD 本地规则已启用" : "GKD 自动化已关闭",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled) {
+        if (!FxGkdRuleStore.setRuleEnabled(this, rule.getId(), enabled)) {
+            control.setOnCheckedChangeListener(null);
+            control.setChecked(!enabled);
+            control.setOnCheckedChangeListener((button, checked) ->
+                    updateRuleEnabled(rule, control, checked));
+            Toast.makeText(this, "规则状态保存失败，已恢复原状态。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        syncMasterSwitch();
+        FxAccessibilityService.requestReconfigure(this);
+        updateServiceState();
+    }
+
+    private void syncMasterSwitch() {
+        if (masterSwitch == null) return;
+        masterSwitch.setOnCheckedChangeListener(null);
+        masterSwitch.setChecked(FxGkdRuleStore.isEnabled(this));
+        masterSwitch.setOnCheckedChangeListener((button, checked) ->
+                updateMasterEnabled(masterSwitch, checked));
+    }
+
     private void renderRules() {
         if (body == null) return;
         // Keep the two notice cards, service status, permission button,
@@ -273,29 +303,19 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             Switch enabled = new Switch(this);
             enabled.setText("启用");
             enabled.setChecked(rule.getEnabled());
-            enabled.setOnCheckedChangeListener((button, checked) -> {
-                FxGkdRuleStore.setRuleEnabled(this, rule.getId(), checked);
-                if (checked) {
-                    // Keep the master switch off until the user explicitly enables it.
-                    FxGkdAutomationRuntime.invalidateRules();
-                } else {
-                    FxGkdAutomationRuntime.invalidateRules();
-                    if (FxGkdRuleStore.getRules(this).stream().noneMatch(FxGkdRule::getEnabled)) {
-                        FxGkdRuleStore.setEnabled(this, false);
-                        if (masterSwitch != null) masterSwitch.setChecked(false);
-                    }
-                }
-                FxAccessibilityService.requestReconfigure(this);
-                updateServiceState();
-            });
+            enabled.setOnCheckedChangeListener((button, checked) ->
+                    updateRuleEnabled(rule, (Switch) button, checked));
             actions.addView(enabled, new LinearLayout.LayoutParams(0, -2, 1));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("删除", (d, which) -> {
-                        FxGkdRuleStore.removeRule(this, rule.getId());
+                        if (!FxGkdRuleStore.removeRule(this, rule.getId())) {
+                            Toast.makeText(this, "规则删除失败，原数据保持不变。", Toast.LENGTH_LONG).show();
+                            return;
+                        }
                         FxGkdAutomationRuntime.invalidateRules();
-                        if (!FxGkdRuleStore.isEnabled(this) && masterSwitch != null) masterSwitch.setChecked(false);
+                        syncMasterSwitch();
                         FxAccessibilityService.requestReconfigure(this);
                         renderRules();
                         updateServiceState();
