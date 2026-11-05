@@ -75,6 +75,19 @@ run_arb() {
   printf '%s|%s' "$_rc" "$_out"
 }
 
+# run_arb_port <DNS|FILTER_DNS|PROXY> <port> -> "<exit>|<json>"
+run_arb_port() {
+  _kind=$1; _port=$2
+  _out=$(env "FX_ARB_${_kind}_PORT=$_port" \
+    FX_ARB_LINK_CMD="cat '$TMP/links.txt'" \
+    FX_ARB_VPNINFO_CMD="cat '$TMP/info.txt'" \
+    FX_ARB_PROC_NET_DIR="$TMP/net_free" \
+    FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
+    sh "$ARB" 2>&1)
+  _rc=$?
+  printf '%s|%s' "$_rc" "$_out"
+}
+
 json_ok() {
   printf '%s' "$1" | python3 -c "
 import sys,json
@@ -135,6 +148,25 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['dns_filter']['port']")" = "53" ] || fail "client-facing DNS filter port must default to 53"
 [ "$(field "$out" "['dns_filter']['owner']")" = "free" ] || fail "DNS filter port 53 should be free in the clean fixture"
 pass "kernel_only, slot free, both DNS ports observed"
+
+echo "== case 1b: leading-zero port is normalized as decimal JSON number =="
+r=$(run_arb_port FILTER_DNS 00053)
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "normalized port unexpectedly failed: $out"
+[ "$(json_ok "$out")" = "OK" ] || fail "leading-zero port produced invalid JSON: $out"
+[ "$(field "$out" "['dns_filter']['port']")" = "53" ] || fail "leading-zero port was not normalized to decimal 53"
+[ "$(field "$out" "['dns_filter']['owner']")" = "free" ] || fail "normalized port did not use port 53 inventory"
+pass "leading-zero port normalized safely"
+
+echo "== case 1c: malformed port cannot inject JSON fields =="
+r=$(run_arb_port FILTER_DNS '53,"injected":true')
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "invalid port should degrade safely, got rc=$rc: $out"
+[ "$(json_ok "$out")" = "OK" ] || fail "invalid port corrupted JSON: $out"
+[ "$(field "$out" "['dns_filter']['port']")" = "None" ] || fail "invalid port must serialize as JSON null"
+[ "$(field "$out" "['dns_filter']['owner']")" = "unknown" ] || fail "invalid port must have unknown ownership"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "invalid port must prevent a clean compatibility grade"
+pass "malformed port rejected and JSON remains valid"
 
 echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
