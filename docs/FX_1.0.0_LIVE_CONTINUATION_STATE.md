@@ -4601,3 +4601,48 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - run 41989284497，HEAD 4ab6f7d6b9bb3e080a4a382d188672a11d5a8dbe，Host job host-regressions = success；日志显示 Dia Frida SAF 脚本库、二进制导入、Gadget 配置/部署/会话、服务器生命周期及 fx-dia-frida-page-navigation-regression.sh 全部通过。
 - run 41989495360，HEAD f1f8295ef1a9108a86f16584757eae20098b25c1，Host job host-regressions = success；日志明确显示 fx-yulong-shield-native-regression.sh、fx-yulong-shield-six-tab-regression.sh 和 Shield worker-bound 回归通过。
 - 以上是指定 commit 的 Host regression 成功证据，不是当前分支 HEAD 的 CI badge，也不是 Gradle/Android JUnit/安装/真机验收。
+
+
+## 2026-11-05 — Shield 全页面组件 Skin 补齐、SeekBar renderer 和 Host 通过
+
+### 本批实际实现
+- Shield Scan：页标题标记 `fx-title:18`；扫描状态与结果已有卡片/section role；复用 action helper 的 `fx-action-row`，避免对局部按钮重复设置不必要的独立 tag。
+- Shield Warning：风险详情页标题标记 `fx-title:18`；原有风险等级、包名、命中理由等语义角色和危险色保留。
+- Shield Screen Filter：
+  - 页标题、卡片、卡片标题/描述、动作按钮、主开关、音量键开关均接入 Skin role。
+  - 亮度/对比度/饱和度/色温滑杆增加 `fx-seekbar` role，值说明为 `fx-card-detail`。
+- Shield Virus Database：
+  - 页标题、动作按钮、同步卡片、状态/摘要文本接入 Skin role。
+  - 远程名单动态列表行标记 `fx-list-row`；名单名/状态/源 URL 分别标记 `fx-list-title`、`fx-list-subtitle`、`fx-card-detail`。
+- Shield Integrity：
+  - 页标题与签名/模块完整性/迁移边界分区接入 Skin role。
+  - 签名报告、模块状态使用卡片正文/详情角色；迁移边界的橙色警告文本保留原语义颜色。
+- 共享 `FxNativeSkin` 新增真实 SeekBar renderer：
+  - 按当前 Skin 的 palette accent 设置 progress 和 thumb tint；
+  - 用 inputBorder / switchOffTrack 设置背景轨道颜色；
+  - 使用 WeakHashMap 按 View 记录模式，避免每次 layout 重复覆盖。
+- ScreenFilter 页面操作回调、权限提示、滑杆存储和即时 APPLY 行为没有改动；VirusDB 动态列表的数据源和后台 worker 没有改动；Integrity 的 Root 只读检查和安全限制没有改动。
+
+### 相关源码/测试提交
+- `4274b8a3389cce8eb42b22a19525a329fdd719b2` — Shield Scan page title role。
+- `ea19d6813836689c6455389d7cf5b102edaac0ca` — Shield Warning page title role。
+- `4a6d0229f807e339b8eaca4ce84ff8cbbb3ae776` — Screen Filter cards/actions/switches/SeekBar tags。
+- `b45b9ba6bb47db5dd46ac8865ab197db060931c6` — Virus Database cards and dynamic row roles。
+- `4e8ae6a2f4597dd7b1b7736d250e94c23e09d332` — Integrity report title/sections/actions/body roles。
+- `2fd53d9d60e38cf024312fe8c993c74c17796158` — shared SeekBar renderer consumes Skin palette.
+- `c3948103311729ab0b4f1bc0e57cd77fa036d36d` — Shield six-tab/component role assertions; initial run exposed assertion mismatch described below.
+- `569ae9262323cbdebd3f93abac0de03b87974d41` — shared Dialog host assertion changed from AlertDialog-specific parameter to android.app.Dialog.
+- `403399854802fdda0d1d089300a1b33074aa9579` — Scan regression changed to verify its actual shared action helper tag rather than requiring a per-field tag.
+
+### Host regression failures and correction
+- run `41991117851` failed because `fx-global-ui-modes-regression.sh` still expected `showFxDialog(AlertDialog)`; actual shared host correctly exposes `showFxDialog(Dialog)` to support platform AlertDialog and TimePickerDialog. Updated the assertion to the shared base type.
+- run `41991210394` failed because the Shield regression expected `scan.setTag("fx-action-row")`; the real page creates the scan button with `scan = action(...)`, and that action helper sets `fx-action-row`. Updated the regression to assert the helper and its use.
+- run `41991591436` was cancelled during replacement by the next targeted push; this was not a source/test failure.
+- run `41991611129`, HEAD `403399854802fdda0d1d089300a1b33074aa9579`, Host job `host-regressions = success`. Its log shows the global five-Skin regression, unified navigation regression, Shield native feature regression, Shield six-tab/component-role regression and Shield worker-bounds regression all passed.
+- This is Host regression evidence for the named commit only; no Gradle assemble/JUnit, APK install, UI automation, or device visual review was performed in this batch.
+
+### 下一批
+1. Continue Skin-role coverage across the remaining Shield subpages (especially whitelist picker, warning detail rows and dynamic scan result rows), while preserving risk/success colors and accessibility semantics.
+2. Apply shared SeekBar/Form renderer to other FX pages that expose sliders or native form widgets; do not create page-local color maps.
+3. Inspect Dia/Hook file, JSON, signature, Activity Browser and backup pages for remaining PopupWindow/custom Dialog paths, then add targeted regression assertions and run a bounded Host batch.
+
