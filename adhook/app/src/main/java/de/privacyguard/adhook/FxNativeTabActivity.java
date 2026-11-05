@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.view.View;
 
 import androidx.activity.ComponentActivity;
+import androidx.appcompat.app.AlertDialog;
 import androidx.compose.ui.platform.ComposeView;
 
 /**
@@ -13,6 +14,22 @@ import androidx.compose.ui.platform.ComposeView;
  */
 public abstract class FxNativeTabActivity extends ComponentActivity {
     private boolean fxTabNavigationStarted;
+
+    /**
+     * FX-owned modal builder. Its show() path applies the active global Skin
+     * after AndroidX inflates the dialog content and action buttons.
+     * Existing callers keep their original listeners and validation callbacks.
+     */
+    protected final AlertDialog.Builder fxDialogBuilder() {
+        return new AlertDialog.Builder(this) {
+            @Override
+            public AlertDialog show() {
+                AlertDialog dialog = create();
+                FxNativeSkin.showDialog(FxNativeTabActivity.this, dialog);
+                return dialog;
+            }
+        };
+    }
 
     protected final void setContentViewWithNativeTabs(View pageContent, int selectedIndex) {
         if (pageContent == null) {
