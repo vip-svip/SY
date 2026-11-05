@@ -127,7 +127,7 @@ public final class FxOpenSourceLicensesActivity extends Activity {
                 String error = null;
                 try {
                     content = readLicense(file);
-                } catch (Throwable failure) {
+                } catch (Exception failure) {
                     content = "";
                     error = failure.getClass().getSimpleName() + ": "
                             + (failure.getMessage() == null ? "读取失败" : failure.getMessage());
