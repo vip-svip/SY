@@ -111,10 +111,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
           if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
-            echo "::notice::The source-import branch already exists; preserving its snapshot without creating or overwriting another branch."
-            exit 0
+            # Refresh the existing PR branch from the latest integration HEAD.
+            # The merge commit keeps the old branch as a parent, so the push is
+            # fast-forward only; no force push or lost commits are permitted.
+            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
+            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
+            git merge --no-edit -X ours "origin/$recovery_branch"
+          else
+            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           fi
-          git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           mkdir -p docs/fx-module-recovery
           for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
             [[ ! -s "recovered-fx-module/$file" ]] || {
