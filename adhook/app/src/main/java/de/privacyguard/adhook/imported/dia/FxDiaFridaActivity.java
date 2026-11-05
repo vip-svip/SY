@@ -149,16 +149,17 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         return view;
     }
     private Button button(String label, Runnable click) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(label);
+        Button b = new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(label);
         b.setOnClickListener(v -> click.run()); return b;
     }
     private void card(LinearLayout parent, String title, String detail, View... children) {
         LinearLayout panel = new LinearLayout(this);
+        panel.setTag("fx-card");
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title, 16, 0xff17212b, true));
-        panel.addView(text(detail, 12, 0xff617080, false));
+        TextView heading = text(title, 16, 0xff17212b, true); heading.setTag("fx-card-title"); panel.addView(heading);
+        TextView description = text(detail, 12, 0xff617080, false); description.setTag("fx-card-detail"); panel.addView(description);
         for (View child : children) panel.addView(child);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(5), dp(12), dp(5));
