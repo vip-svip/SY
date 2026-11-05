@@ -72,7 +72,7 @@ public final class FxDiaInspectorActivity extends de.privacyguard.adhook.FxNativ
         h.addView(text("memory".equals(mode)?"Dia 23.11 · 内存快照":"Dia 23.11 · 数据库监控",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
         root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);
         LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(18));sc.addView(body);
-        root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
+        root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 4);
         target=text("尚未选择目标应用。",13,0xff334155,false);status=text("仅支持用户安装且带 DEBUGGABLE 标记的应用。",13,0xff617080,false);
         output=text("尚无读取结果。",12,0xff344054,false);
         card(body,"目标应用","只检查本机 debuggable 构建；不读取非调试应用私有数据或原始内存。",
