@@ -34,8 +34,8 @@ FX_ARB_DNS_PORT=${FX_ARB_DNS_PORT:-5353}
 # remains the independent upstream resolver on 5353. Probe both separately.
 FX_ARB_FILTER_DNS_PORT=${FX_ARB_FILTER_DNS_PORT:-53}
 FX_ARB_PROXY_PORT=${FX_ARB_PROXY_PORT:-7890}
-FX_ARB_LINK_CMD=${FX_ARB_LINK_CMD:-"ip -o link show"}
-FX_ARB_VPNINFO_CMD=${FX_ARB_VPNINFO_CMD:-"vpncore_android_active_vpn_info"}
+FX_ARB_LINK_FILE=${FX_ARB_LINK_FILE:-}
+FX_ARB_VPNINFO_FILE=${FX_ARB_VPNINFO_FILE:-}
 FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
 FX_ARB_MODULE_ROOT=${FX_ARB_MODULE_ROOT:-}
 # In production the arbiter is executed from the active FX module's scripts/
@@ -181,7 +181,12 @@ fx_arb_probe_external() {
   FX_ARB_EXT_UID=""
   FX_ARB_PROBE="ok"
 
-  _links=$(eval "$FX_ARB_LINK_CMD" 2>/dev/null)
+  if [ -n "$FX_ARB_LINK_FILE" ]; then
+    [ -f "$FX_ARB_LINK_FILE" ] && [ ! -L "$FX_ARB_LINK_FILE" ] && [ -r "$FX_ARB_LINK_FILE" ] || { FX_ARB_PROBE="unavailable"; return 0; }
+    _links=$(cat "$FX_ARB_LINK_FILE" 2>/dev/null) || _links=
+  else
+    _links=$(ip -o link show 2>/dev/null) || _links=
+  fi
   if [ -z "$_links" ]; then
     FX_ARB_PROBE="unavailable"
     return 0
@@ -189,7 +194,12 @@ fx_arb_probe_external() {
   _ifaces=$(printf '%s\n' "$_links" | sed -n 's/^[0-9][0-9]*: \([^:@]*\).*/\1/p' \
     | grep -E '^(tun[0-9]*|vpn[0-9]*|wg[0-9]*|ppp[0-9]*|ipsec[0-9]*|tap[0-9]*|utun[0-9]*|tailscale[0-9]*|zt[[:alnum:]_-]*)$' || true)
 
-  _info=$(eval "$FX_ARB_VPNINFO_CMD" 2>/dev/null || true)
+  if [ -n "$FX_ARB_VPNINFO_FILE" ]; then
+    [ -f "$FX_ARB_VPNINFO_FILE" ] && [ ! -L "$FX_ARB_VPNINFO_FILE" ] && [ -r "$FX_ARB_VPNINFO_FILE" ] || { FX_ARB_PROBE="unavailable"; return 0; }
+    _info=$(cat "$FX_ARB_VPNINFO_FILE" 2>/dev/null) || _info=
+  else
+    _info=$(vpncore_android_active_vpn_info 2>/dev/null) || _info=
+  fi
   if [ -n "$_info" ]; then
     _if=${_info%%|*}
     _uid=${_info#*|}
