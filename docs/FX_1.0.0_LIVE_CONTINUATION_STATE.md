@@ -6299,3 +6299,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-yulong-shield-native-regression.sh` 增加 5s/15s 调度、前台事件时间戳和动态调度调用断言。
 - GitHub Actions：`FX Targeted Host Regression` 在 `1d6fa8d` 成功（run `42105958892`，job `127520719701`）；日志确认 Shield native、六 Tab 与 worker bounds 回归均通过。
 - 这是源代码/Host 回归验证，不是实机电池测量；实际功耗和不同 ROM 的 Accessibility 广播稳定性仍待设备验证。
+
+
+## 2026-11-06 — VPN/DNS Module Runtime 18 项回归通过
+
+- GitHub Actions：`FX Module Runtime Regression` 在 `1d6fa8d39cdcbbe27ffa91695404f9c2f0c28a25` 成功（run `42105958695`，job `127520719072`），日志明确报告 `VPN/DNS runtime regressions: 18/18 passed`。
+- 通过项覆盖：TUN UP/DOWN 检测与外部 VPN 冲突保护；sing-box DNS exact/suffix/whitelist 语义；VpnInfo 唯一 owner UID 与活动隧道验证；三轮 VPN connect/disconnect 状态切换；watchdog 数据面健康检查、恢复限频和 fail-safe；TUN 到 REDIRECT fallback 的外层 VPN 接口/UID/路由证明；Unbound VPN-bound IPv4 egress；Root Proxy 双栈 DNS 规则、状态路径 symlink 防护、独立 DNS 引擎所有权和 fail-open rollback；Hosts cache 锁、同 URL fetch gate、顺序提交及 SHA-256 sidecar。
+- 该运行还通过 Hosts 缓存与 Root Proxy 原子锁、并发串行化、symlink/FIFO 拒绝回归。
+- 验证等级为 GitHub Module Runtime/Host 仿真；不代表 Android Framework 的 VpnService slot、不同 ROM 路由策略、真实 TUN 包流或外部 VPN App 白名单组合已在设备上通过。
