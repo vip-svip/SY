@@ -69,7 +69,7 @@ node=$(pg_get vpn_node "")
 proxy=$(cat "$PG/root-proxy-active" 2>/dev/null || echo 0)
 on=false
 if [ "$mode" != direct ] && [ "$mode" = "$live" ] && [ "$proxy" != 1 ]; then on=true; fi
-printf '{"vpn_mode":"%s","vpn_on":%s,"vpn_node":"%s"}\n' "$mode" "$on" "$node"
+printf '{"vpn_mode":"%s","vpn_on":%s,"vpn_node":"%s","vpn_effective_mode":"redirect","vpn_mode_fallback_reason":"external_android_vpn_tun_to_redirect"}\n' "$mode" "$on" "$node"
 __STATUS__
 
 cat > "$MOD/scripts/yulong-root-proxy.sh" <<'__ROOT_PROXY__'
@@ -99,6 +99,8 @@ grep -Fq 'vpn_mode=global' "$PG/settings.conf" || fail "FX start did not select 
 status_output=$(sh "$SOURCE" "$MOD" "$PG" status)
 printf '%s\n' "$status_output" | grep -Fq '"vpn_on":true' || fail "status did not confirm live FX VPN"
 printf '%s\n' "$status_output" | grep -Fq '"root_proxy_known":true' || fail "status did not report a verified Root Proxy state"
+printf '%s\n' "$status_output" | grep -Fq '"vpn_effective_mode":"redirect"' || fail "controller dropped the effective VPN dataplane field"
+printf '%s\n' "$status_output" | grep -Fq '"vpn_mode_fallback_reason":"external_android_vpn_tun_to_redirect"' || fail "controller dropped the TUN fallback reason"
 printf '%s\n' "$status_output" | grep -Fq '"private_dns_mode":"hostname"' || fail "controller did not expose the Android Private DNS mode"
 printf '%s\n' "$status_output" | grep -Fq '"dns_filter_coverage":"strict_private_dns_bypasses_redirect"' || fail "controller did not expose strict Private DNS bypass coverage"
 sh "$SOURCE" "$MOD" "$PG" stop > "$TMP/fx-stop.out" || fail "FX VPN stop failed"
