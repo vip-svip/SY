@@ -114,8 +114,33 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+_ensure_control_log() {
+  # The control log is append-only state. Never let shell redirection follow
+  # a symlink or write through a FIFO/device planted at the expected path.
+  [ "$LOG" = "$PG/yulong-vpn-control.log" ] || return 1
+  if [ -L "$LOG" ]; then
+    echo "VPN control log is a symbolic link; refusing to write" >&2
+    return 1
+  fi
+  if [ -e "$LOG" ]; then
+    [ -f "$LOG" ] || {
+      echo "VPN control log is not a regular file; refusing to write" >&2
+      return 1
+    }
+  else
+    ( umask 077; set -C; : > "$LOG" ) 2>/dev/null || {
+      echo "cannot safely create VPN control log" >&2
+      return 1
+    }
+  fi
+  chmod 600 "$LOG" 2>/dev/null || {
+    echo "cannot secure VPN control log permissions" >&2
+    return 1
+  }
+}
 apply_mode() {
   target=$1
+  _ensure_control_log || return 1
   if [ "$target" = "direct" ]; then
     sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1
   else
