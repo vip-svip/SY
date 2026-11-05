@@ -153,6 +153,37 @@ public final class DeveloperExecutableDescriptor {
             case "int": base = "I"; break; case "long": base = "J"; break;
             case "float": base = "F"; break; case "double": base = "D"; break;
             case "void": if (!allowVoid || dimensions != 0) return null; base = "V"; break;
+            // Kotlin source aliases map to their exact erased JVM representation.
+            case "kotlin.Boolean": base = "Z"; break;
+            case "kotlin.Byte": base = "B"; break;
+            case "kotlin.Char": base = "C"; break;
+            case "kotlin.Short": base = "S"; break;
+            case "kotlin.Int": base = "I"; break;
+            case "kotlin.Long": base = "J"; break;
+            case "kotlin.Float": base = "F"; break;
+            case "kotlin.Double": base = "D"; break;
+            case "kotlin.Unit":
+                if (!allowVoid || dimensions != 0) return null;
+                base = "V"; break;
+            case "kotlin.String": base = "Ljava/lang/String;"; break;
+            case "kotlin.Any": base = "Ljava/lang/Object;"; break;
+            case "kotlin.IntArray": base = "[I"; break;
+            case "kotlin.BooleanArray": base = "[Z"; break;
+            case "kotlin.ByteArray": base = "[B"; break;
+            case "kotlin.CharArray": base = "[C"; break;
+            case "kotlin.ShortArray": base = "[S"; break;
+            case "kotlin.LongArray": base = "[J"; break;
+            case "kotlin.FloatArray": base = "[F"; break;
+            case "kotlin.DoubleArray": base = "[D"; break;
+            case "kotlin.collections.Iterable": base = "Ljava/lang/Iterable;"; break;
+            case "kotlin.collections.Collection":
+            case "kotlin.collections.MutableCollection": base = "Ljava/util/Collection;"; break;
+            case "kotlin.collections.List":
+            case "kotlin.collections.MutableList": base = "Ljava/util/List;"; break;
+            case "kotlin.collections.Set":
+            case "kotlin.collections.MutableSet": base = "Ljava/util/Set;"; break;
+            case "kotlin.collections.Map":
+            case "kotlin.collections.MutableMap": base = "Ljava/util/Map;"; break;
             // A bare JVM type code is not a Java source type; do not reinterpret legacy ()Z rules as class Z.
             case "V": case "Z": case "B": case "C": case "S": case "I":
             case "J": case "F": case "D": return null;
