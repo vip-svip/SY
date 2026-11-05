@@ -85,6 +85,7 @@ jobs:
           python3 scripts/tests/fx-vpn-watchdog-patcher-regression.py
           python3 fx-patches/patch_yulong_ad_master.py "$module"
           python3 fx-patches/patch_vpn_coexistence_status.py "$module"
+          sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh "$module/scripts/fx-vpn-coexistence-arbiter.sh"
           python3 scripts/tests/fx-vpn-coexistence-status-regression.py
           python3 fx-patches/patch_yulong_ad_dns_logs.py "$module"
           for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/fx-vpn-coexistence-arbiter.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
