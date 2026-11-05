@@ -12,27 +12,11 @@ on:
       - "scripts/tests/fx-vpn-external-watchdog-regression.sh"
       - "scripts/tests/fx-yulong-root-proxy-runtime-regression.sh"
       - "scripts/tests/fx-root-proxy-uninstall-order-regression.sh"
-      - "fx-module/scripts/vpn-external-watchdog.sh"
-      - "fx-module/service.sh"
-      - "fx-module/uninstall.sh"
-      - "scripts/tests/fx-vpn-external-watchdog-regression.sh"
       - ".github/workflows/fx-vpn-shell-regression.yml"
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
     paths:
-      - "fx-module/scripts/yulong-root-proxy.sh"
-      - "fx-module/scripts/vpn-external-watchdog.sh"
-      - "fx-module/service.sh"
-      - "fx-module/uninstall.sh"
-      - "scripts/tests/fx-vpn-external-watchdog-regression.sh"
-      - "scripts/tests/fx-yulong-root-proxy-runtime-regression.sh"
-      - "scripts/tests/fx-root-proxy-uninstall-order-regression.sh"
-      - "fx-module/scripts/vpn-external-watchdog.sh"
-      - "fx-module/service.sh"
-      - "fx-module/uninstall.sh"
-      - "scripts/tests/fx-vpn-external-watchdog-regression.sh"
-      - ".github/workflows/fx-vpn-shell-regression.yml"
 
 permissions:
   contents: read
