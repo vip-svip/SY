@@ -61,8 +61,8 @@ for token in (
     "ACTION_VPN_STOP.equals(action)",
     "yulong-vpn-control.sh",
     "yulong-ad-control.sh",
-    '"String target = adFilterAction ? \"ad_filter\" : \"vpn\";",
-    '"target", target',',
+    'String target = adFilterAction ? "ad_filter" : "vpn";',
+    '"target", target',
 ):
     assert token in receiver, f"Tasker route/action parity missing {token}"
 assert 'ad-master " + enabled' in receiver, "new AD_FILTER actions must only change the ad-filter master"

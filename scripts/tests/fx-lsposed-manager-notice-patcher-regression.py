@@ -78,7 +78,23 @@ def main() -> None:
         )
         assert "unique Hook config publish control" in result.stderr
 
-    print("PASS: LSPosed Manager notice patcher inserts both notices, remains idempotent, and fails closed without partial writes")
+        # Missing Hub anchor is also a hard error with no file mutation.
+        no_hub = """class MainActivity {
+    private void addModeOption() {}
+    private void showHookTarget() {
+        Button save=new Button(this); save.setText("保存并发布 Hook 配置");
+    }
+}
+"""
+        main_java.write_text(no_hub, encoding="utf-8")
+        before = main_java.read_text(encoding="utf-8")
+        result = invoke(root, False)
+        assert main_java.read_text(encoding="utf-8") == before, (
+            "missing Hub anchor must not modify the source"
+        )
+        assert "cannot locate native Hook hub section" in result.stderr
+
+    print("PASS: LSPosed Manager notice patcher inserts both notices, remains idempotent, and fails closed without partial writes on missing Hub/publish anchors")
 
 
 if __name__ == "__main__":

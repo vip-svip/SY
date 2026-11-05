@@ -5453,3 +5453,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 首次提交的定向 Host 回归指出 Summary Activity 的线程池容量仍是旧值 8；最新请求替换逻辑已存在，但队列并未真正收紧。现将容量修正为 1，与单 active + 单 waiter 的设计和测试断言一致。
 - 上一提交 run `42092065276` 的 Host Regression 为 FAILURE，失败位置为 `fx-yulong-ad-dns-summary-regression.sh` 的队列容量断言；当前修订等待新的 Host/UI/Runtime 回归。
+
+
+### Host 回归覆盖补全（2026-11-06）
+
+- Tasker 并发回归的旧断言错误地要求 `target` 三元表达式直接写在 Intent extra 中；修正为分别匹配实际的 `String target = ...` 和 `.putExtra("target", target)`，保持对广告过滤与 VPN 两条控制面的语义检查。
+- LSPosed 管理器提示补丁器回归再补充 Hub 定位锚点缺失用例，确认在 Hub / 发布按钮锚点缺失时都不会将部分改动写回源文件。
+- 此提交仅完善 Host 回归与文档，Android 构建/设备验证仍未执行。
