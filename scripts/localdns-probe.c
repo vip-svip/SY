@@ -63,7 +63,7 @@ int main(int argc,char **argv) {
     flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]); rcode=(uint16_t)(flags&0x000fu);
     qdcount=(uint16_t)(((uint16_t)reply[4]<<8)|reply[5]);
     if(response_id!=id || (flags&0x8000u)==0 || (flags&0x7800u)!=0 ||
-       (flags&0x0100u)==0 || (flags&0x0200u)!=0 || qdcount!=1 ||
+       (flags&0x0100u)==0 || (flags&0x0200u)!=0 || (flags&0x0040u)!=0 || qdcount!=1 ||
        memcmp(reply+12,query+12,n-12)!=0) {
         fputs("invalid DNS response ID/QR/opcode/RD/TC/question fields\n",stderr); return 73;
     }
