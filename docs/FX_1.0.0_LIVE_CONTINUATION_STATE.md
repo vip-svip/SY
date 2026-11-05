@@ -5342,3 +5342,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The targeted host and module runtime workflows are rerun on this correction; previous failed runs remain recorded rather than being represented as passing.
 
 - Follow-up: the disabled/not-active early status branches also now propagate cleanup failure; all status fail-open paths consistently return the cleanup result.
+
+- Test-fixture correction: the status cleanup-failure scenario now also forces the DNS health proof to fail, ensuring status actually enters its fail-open cleanup path before the firewall detach fault is asserted.

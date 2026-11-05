@@ -325,7 +325,7 @@ assert_stopped "$CASE_DIR" "cleanup detach retry"
 # Status must surface failed cleanup instead of presenting a clean inactive state.
 prepare_case status-cleanup-detach-failure
 run_proxy "$CASE_DIR" >/dev/null || fail "status cleanup failure setup failed"
-if status_out=$(run_status "$CASE_DIR" MOCK_FAIL_IPV4_DETACH=1 2>/dev/null); then
+if status_out=$(run_status "$CASE_DIR" MOCK_FAIL_IPV4_DETACH=1 MOCK_DNS_PROBE_FAIL=1 2>/dev/null); then
   fail "status reported success while its FX-owned IPv4 hook remained attached"
 fi
 printf "%s\n" "$status_out" | grep -Fqx cleanup=failed || fail "status did not expose incomplete firewall cleanup"
