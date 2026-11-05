@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-gkd-automation-regression.sh
-          sh scripts/tests/fx-gkd-selector-integration-regression.sh
+          bash scripts/tests/fx-gkd-selector-integration-regression.sh
       - name: Compile FX app and the GKD Accessibility adapter
         shell: bash
         run: |
