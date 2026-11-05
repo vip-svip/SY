@@ -22,6 +22,11 @@ shield_batch_cleanup="$root/adhook/app/src/main/java/de/privacyguard/adhook/impo
 shield_screen_filter="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScreenFilterActivity.java"
 shield_warning="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java"
 dia_backup="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaBackupActivity.java"
+dia_activity_browser="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java"
+dia_code_editor="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCodeEditorActivity.java"
+dia_crash_report="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCrashReportActivity.java"
+dia_file="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFileActivity.java"
+dia_inspector="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaInspectorActivity.java"
 ad_summary="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java"
 ad_firewall="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
 shield_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java"
@@ -30,7 +35,7 @@ shield_daily="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shi
 shield_warning="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java"
 dia_frida="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
-for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_rescue" "$shield_blacklist" "$shield_batch_cleanup" "$shield_screen_filter" "$shield_warning" "$dia_backup" "$dia_frida" "$dia_scripts"; do
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_rescue" "$shield_blacklist" "$shield_batch_cleanup" "$shield_screen_filter" "$shield_warning" "$dia_backup" "$dia_activity_browser" "$dia_code_editor" "$dia_crash_report" "$dia_file" "$dia_inspector" "$dia_frida" "$dia_scripts"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -272,6 +277,10 @@ done
 grep -Fq 'showFxDialog(dialog)' "$shield_blacklist" || { echo "FAIL: custom Shield multi-select dialog bypasses the shared Skin"; exit 1; }
 grep -Fq 'protected final AlertDialog.Builder fxDialogBuilder()' "$host" || { echo "FAIL: integrated Activity host does not expose the shared Skin-aware Builder"; exit 1; }
 grep -Fq 'protected final void showFxDialog(AlertDialog dialog)' "$host" || { echo "FAIL: integrated Activity host does not expose the custom modal Skin path"; exit 1; }
+for page in "$dia_activity_browser" "$dia_code_editor" "$dia_crash_report" "$dia_file" "$dia_inspector"; do
+  grep -Fq 'fxDialogBuilder()' "$page" || { echo "FAIL: Dia Hook Activity bypasses the shared dialog Skin: $page"; exit 1; }
+  ! grep -Fq 'new AlertDialog.Builder' "$page" || { echo "FAIL: Dia Hook Activity still uses a platform AlertDialog builder: $page"; exit 1; }
+done
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'static void applyComponents(Activity activity, View content)' "$skin" || { echo "FAIL: detached dialog component Skin entry is missing"; exit 1; }
 grep -Fq 'FxNativeSkin.applyComponents(this, panel);' "$activity" || { echo "FAIL: dynamic privacy dialog must use the detached component-only renderer"; exit 1; }
