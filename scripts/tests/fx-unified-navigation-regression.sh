@@ -72,6 +72,21 @@ for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
     assert feature in ad_page, f"migrated Ad feature is not reachable from Ad tab: {feature}"
 assert "游龙广告插件" not in ad_page, "Ad home still exposes a source-app identity"
 assert "不会启动来源 APK 或第二套过滤服务" in ad_page, "Ad home must clarify unified FX service ownership"
+group_helper_start = activity.index("private void addNativeActionGroup(LinearLayout group)")
+group_helper_end = activity.index("private void addNativeActionCard(", group_helper_start)
+group_helper = activity[group_helper_start:group_helper_end]
+for token in ("group.setPadding", "group.setBackground(uiPanelDrawable())", "content.addView(group, params)"):
+    assert token in group_helper, f"native action group is missing shared Skin container behavior: {token}"
+for group in ("hostActions", "ruleActions", "yulongActions"):
+    assert f"addNativeActionGroup({group})" in ad_page, f"Ad {group} is not wrapped by the unified native card container"
+privacy_start = activity.index("private void buildNativePrivacyPage()")
+privacy_end = activity.index("private void refreshNativePrivacyStatus(", privacy_start)
+privacy_page = activity[privacy_start:privacy_end]
+assert "addNativeActionGroup(actions)" in privacy_page, "Privacy authorization controls are not grouped into a shared Skin surface"
+script_start_for_group = activity.index("private void buildNativeScriptPage()")
+script_end_for_group = activity.index("private String nativeScriptStoreCommand(", script_start_for_group)
+script_page = activity[script_start_for_group:script_end_for_group]
+assert "addNativeActionGroup(actions)" in script_page, "Script management actions are not grouped into a shared Skin surface"
 # Per-app VPN routing belongs to VPN (not Ad or Settings) and is directly reachable.
 vpn_start = activity.index("    private void renderNativePage(int index)")
 vpn_end = activity.index("            case 1:", vpn_start)
