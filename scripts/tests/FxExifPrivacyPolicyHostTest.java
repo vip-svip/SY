@@ -8,6 +8,7 @@ public final class FxExifPrivacyPolicyHostTest {
     public static void main(String[] args) {
         String[] privateTags = {
             "GPSLatitude", "GPSLongitude", "GPSAltitude", "GPSProcessingMethod",
+            "gpsLatitude", "GpsProcessingMethod",
             "Make", "Model", "DateTime", "DateTimeOriginal", "DateTimeDigitized",
             "OffsetTime", "OffsetTimeOriginal", "SubSecTimeOriginal",
             "BodySerialNumber", "LensSerialNumber", "CameraOwnerName",
