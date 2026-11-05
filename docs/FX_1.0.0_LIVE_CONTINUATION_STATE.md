@@ -4762,3 +4762,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 1cb631109b1bfea5f3ffddeca28403c389bdfb59 — 加入 VPN 诊断静态回归断言。
   - 756181ff9bae1742f16d520fd43fa531a45344e3 — 明确断言 FX APK 不注册 VpnService。
 - GitHub 回读静态检查 10/10 通过；未运行 Shell/Gradle 测试、未在设备上与第三方 VPN 做真实数据面共存测试。该改动是检测与产品透明度补强，不是多 VpnService 或 TPROXY/UID 路由兼容验收。
+
+## 2026-11-05 — Android VPN / Root DNS 状态文案纠偏与 Host 回归
+
+- 回读 MainActivity.handleLegacyVpnShortcut() 发现无节点 fallback 分支启动 FX Root Proxy 后，成功提示曾写成“已通过第三方 VPN / FX Root DNS 启用网络保护”。该提示把 FX Root DNS 服务与第三方 Android VpnService 状态混在一起，可能误导用户以为第三方 VPN 已连接。
+- 已修正：3bca5a03b8d5341903be01685f5636e2362bb06e，提示改为“已启动 FX Root Proxy DNS 保护（不代表第三方 VPN 已连接）”。
+- 已增加防回归断言：b2d25b2c51cce0e243900be28d7e83fefb1c513a，同时拒绝旧文案并要求新文案明确区分服务归属。
+- 已通过 GitHub API 回读确认两个文件的最新 blob SHA 与新文案/断言一致。
+- 对应 FX Targeted Host Regression workflow run 42007424220 已完成，结论 success；运行链接：https://github.com/vip-svip/SY/actions/runs/42007424220
+- 同一分支此前 42007316576（FX 内核代理不占 Android VpnService 名额的断言）和 42007234671（活动 Android VPN transport 诊断断言）也为 success。
+- 验证边界：这些是 Host regression 成功，不是 Android Gradle 编译、APK 构建、模拟器或真机 VPN 共存测试。ConnectivityManager.TRANSPORT_VPN 只能统计当前可见活动 VPN 网络，不能证明具体 VPN 应用身份、UID 路由可兼容或多 TUN 能同时稳定工作。
