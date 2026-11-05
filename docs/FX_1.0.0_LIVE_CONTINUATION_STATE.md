@@ -4979,3 +4979,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 代码提交：RootAccess `986b58e289ceafb06c6bbe343d5bdf7693e5d4b3`；Frida Activity `6bb4ddb50142131dc7e9e828c99a833eefd2af42`，随后队列前置暂存及失败清理修正 `2ec191ac2c79ed95edcca28de73b92ed37d974a3`、`e1c44bf2004466ceb9063b76f2aa17652f96b360`。测试提交：Gadget `b890edcde27e65d1e825522d7f73d92fe48bc524`、清理生命周期与 file-backed 断言 `b061c8fa96fa7d14131b19b4967c1c99dbd65087`；进程身份 `c2f6aeaac7d1e86bab6bcbae6d62a7d9c96ae357`。
 - 验证状态：GitHub 源码提交成功；最新 Gadget lifecycle regression 提交已触发 Targeted Host Regression。当前 GitHub connector 返回该提交的 commit status/checks 为空，尚不能确认 Actions 执行结果。没有声称 Android Gradle 构建、Frida 真注入或真机测试通过。
 - 说明：不设人为脚本字节上限不代表设备存储/内存无限；编辑器仍持有当前文本，磁盘空间、Android 进程内存、Root 超时和目标 Frida CLI 能力是实际资源约束，UI 不应再将 8 MiB 宣称为产品限制。
+
+
+## 2026-11-05 — RootAccess 大脚本流式传输 Host 行为回归
+
+- 在现有 scripts/tests/fx-dia-frida-gadget-session-regression.sh 内加入真实 Java Host 行为测试：编译项目当前 RootAccess.java，通过隔离的 fake su broker 执行 InputStream 数据桥。
+- 测试生成 9 MiB 确定性二进制输入，实际调用 RootAccess.executeWithInput(String, InputStream, ...)，在接收端校验 SHA-256 与字节数；另以故障 InputStream 验证 stdin 写入异常不能被误报为成功。
+- 该测试由既有 fx-targeted-regression.yml 的 scripts/tests/** push 触发及 fx-dia-frida- 变更映射执行，无需增加第二个 workflow 或重复工程。
+- 提交：587aeee45121d87bb703b5e19f19a5be316804b4。GitHub 回读已确认测试脚本包含 9 MiB 流完整性和写入失败断言，且旧 byte[] 调用断言不存在。
+- 当前 commit status 接口尚未返回任何 CI status；本条不把源码回读当作测试通过。该 Host test 不代表 Android KernelSU/Magisk root broker、Frida 运行时或真机注入已验证。
