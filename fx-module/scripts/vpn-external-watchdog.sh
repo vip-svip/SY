@@ -37,7 +37,7 @@ snapshot(){
 }
 reconcile(){
   [ -f "$PROXY" ] || { log "Root Proxy helper missing; watcher cannot reconcile"; return 1; }
-  sh "$PROXY" reconcile
+  MP="$MODDIR" PG="$PG" CONF="$PG/settings.conf" sh "$PROXY" reconcile
 }
 watch_loop(){
   trap 'exit 0' HUP INT TERM
@@ -85,7 +85,7 @@ case "$cmd" in
       fi
       rm -f "$PIDFILE" || exit 1
     fi
-    if [ -f "$PROXY" ]; then sh "$PROXY" stop || { log "Root Proxy stop failed"; exit 1; }
+    if [ -f "$PROXY" ]; then MP="$MODDIR" PG="$PG" CONF="$PG/settings.conf" sh "$PROXY" stop || { log "Root Proxy stop failed"; exit 1; }
     elif [ -e "$PG/yulong-root-proxy-active" ] || [ -e "$PG/yulong-root-proxy-active.meta" ] || [ -e "$PG/unbound-vpn-egress-ip" ]; then
       log "Root Proxy helper missing while active state remains"; exit 1
     fi
@@ -93,7 +93,7 @@ case "$cmd" in
     ;;
   status)
     if _old=$(read_pid) && pid_matches "$_old"; then echo "running=1"; echo "pid=$_old"; else echo "running=0"; fi
-    [ -f "$PROXY" ] && sh "$PROXY" status
+    [ -f "$PROXY" ] && MP="$MODDIR" PG="$PG" CONF="$PG/settings.conf" sh "$PROXY" status
     ;;
   _watch)
     MODDIR=${2:-$MODDIR}; PG=${3:-$PG}; PROXY="$MODDIR/scripts/yulong-root-proxy.sh"; PIDFILE="$PG/vpn-external-watchdog.pid"; LOG="$PG/vpn-external-watchdog.log"
