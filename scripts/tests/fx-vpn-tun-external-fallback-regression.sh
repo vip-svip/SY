@@ -39,8 +39,10 @@ cat > "$MOD/scripts/status.sh" <<'STATUS'
 VPN_MODE=${VPN_MODE:-direct}
 VPN_NODE=$(grep -m1 '^vpn_node=' "$PG/settings.conf" 2>/dev/null | cut -d= -f2-)
 vpn_status_text(){ printf '%s' stopped; }
-echo "VPN: $(vpn_status_text) (规则=$VPN_RULES_ACTIVE 监听=$VPN_LISTENER_ON:$VPN_LISTENER_PORT)"
-printf '{"vpn_mode":"%s","vpn_on":%s}\\n' "$VPN_MODE" "$VPN_ON"
+  echo "VPN: $(vpn_status_text) (规则=$VPN_RULES_ACTIVE 监听=$VPN_LISTENER_ON:$VPN_LISTENER_PORT)"
+printf '{"vpn_mode":"%s","vpn_on":%s}\\n' \\
+  "$VPN_MODE" \\
+  "$VPN_ON" \\
 STATUS
 chmod 0755 "$MOD/scripts/"*.sh
 python3 "$PATCHER" "$MOD" >/dev/null || fail "patcher rejected canonical VPN anchors"
