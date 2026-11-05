@@ -101,6 +101,7 @@ final class CupertinoSkinRenderer {
         }
         if ("fx-action-row".equals(role) && view instanceof Button) {
             Button action = (Button) view;
+            if (FxNativeSkin.shouldPreserveSemanticAction(action)) return;
             action.setAllCaps(false);
             action.setTextColor(CupertinoColorTokens.ACCENT);
             action.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
