@@ -31,6 +31,7 @@ second_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
 [ "$first_sha" = "$second_sha" ] || fail "Hosts cache patcher changed apply.sh on its second pass"
 sh -n "$MOD/scripts/apply.sh" || fail "patched apply.sh shell syntax invalid"
 grep -Fq '# FX_HOSTS_FILE_LOCK_V3' "$MOD/scripts/apply.sh" || fail "V3 lock marker missing"
+grep -Fq 'if [ "$_hf_release_owner" = "$" ]; then' "$MOD/scripts/apply.sh" || fail "Hosts release must verify exact PID ownership"
 if grep -Fq 'rm -rf "$_hf_path"' "$MOD/scripts/apply.sh"; then
   fail "legacy lock cleanup still recursively removes unknown directory contents"
 fi
