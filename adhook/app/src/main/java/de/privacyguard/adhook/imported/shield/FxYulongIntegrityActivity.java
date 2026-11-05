@@ -197,7 +197,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         moduleStatus.setText("正在通过 Root 读取模块文件与语法状态…");
         try {
             worker.execute(() -> {
-                final String report;
+                String report;
                 try {
                     RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
                     report = "Root 退出码：" + result.exitCode + "\n"
