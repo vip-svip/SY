@@ -5160,3 +5160,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 等待超时返回 `FX_GADGET_FEEDER_STOP_TIMEOUT`，保留旧会话记录和 FIFO，避免旧 feeder 与新 FIFO 生命周期重叠。
 - Frida 进程身份回归增加有界等待及 degraded/feeder PID 冲突断言。
 - 本次提交 `9e22a3d378fa02a1c67dc9e3c76746a19d689de4` 对应的 FX Targeted Host Regression（运行 `42054317181`）与 FX Module Runtime Regression（运行 `42054317293`）均通过。该结果为 GitHub Actions 主机/模块回归，不代表 Android 真机验证。
+
+## 2026-11-05 — Gadget stale feeder recovery 行为回归
+
+- `768b880d78ec4ee3b881bc12b596d6547d723e32` 将 Gadget 重连行为测试夹具更新为与原生实现一致：CLI 仍运行时验证 feeder PID/命令行；CLI 退出后验证旧 feeder 身份，终止并等待最多 5 秒；超时保留 PID 记录与 FIFO。
+- `0be6ae87fb1aa038667ef34bd7a9a83ae7e96824` 修正测试 PID 记录的换行格式，并在清理模拟 feeder 时显式 wait 回收子进程。
+- 对应 FX Targeted Host Regression（运行 `42055263388`）与 FX Module Runtime Regression（运行 `42055263323`）均通过。
+- 该行为回归在 Linux/GitHub Actions 主机上模拟 PID/FIFO 生命周期；不等同于 Android Root Shell、Frida Gadget 远程连接或真机行为验证。
