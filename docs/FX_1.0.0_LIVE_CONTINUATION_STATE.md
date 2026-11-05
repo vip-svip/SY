@@ -4694,3 +4694,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 这项纠偏不删除原始历史记录，但本节优先级高于此前记录；后续 AI 必须以当前产品规格和正式接管提示词为准。
 
 本次文档修订状态：需求纠偏已写入产品规格、正式接管提示词和实时状态文档；这不代表其他 FX 功能已实现或通过设备测试。
+
+
+## 2026-11-05 — 六种全局界面模式纠偏（独立 Default + 五种皮肤）
+
+- 从源码发现并修复一个与最新权威需求冲突的实现缺口：`FxUiMode` 仍只有五个枚举项，缺省/未知值回退 `classic`，设置页仍写“五种模式”；Default 并未作为独立 renderer 存在。
+- 已提交的代码变更：
+  - `6f44a3f` — 新增首位 `DEFAULT_STANDARD/default/NATIVE_DEFAULT`；首次无偏好、null 和未知/损坏值回退 `default`；历史 `classic/glass/miuix/huawei/ios` 继续原样映射。
+  - `a2e8b7e` — 设置页增加 Default 首项并更新为六种模式。
+  - `7f5e6ac` — 新增独立 Default Compose shell tokens，Classic 显式保持 Classic renderer；Default 66dp、Classic 60dp、Glass 72dp、Miuix 68dp、Harmony 72dp、Cupertino 76dp。
+  - `1186f2c` — Android View Skin palette 为 Default 增加独立分支。
+  - `7092db5` — MainActivity 默认 ID 和默认模式颜色/圆角/导航强调色改为 Default。
+  - `504bf41` — 单元测试改为断言六项稳定顺序、Default 独立 renderer、未知/空值安全回退和五个旧皮肤 ID 保留。
+  - `956a1a1` — 全局 UI 回归增加六项枚举/设置卡顺序、Default token 和独立 palette 检查。
+- 影响文件：`FxUiMode.kt`、`FxDesignModePanel.kt`、`FxComposeSkinTokens.kt`、`FxNativeSkin.java`、`FxUiModeTest.kt`、`MainActivity.java`、`scripts/tests/fx-global-ui-modes-regression.sh`。
+- 版本保持 `versionName=1.0.0/versionCode=10000`；未生成 APK/模块。
+- 验证状态：已通过 GitHub API 回读逐文件检查提交内容（回读验证）；尚未执行 Shell regression、Kotlin/JUnit、Android Gradle compile/assemble、UI 自动化、模拟器或真机测试。不得把源码回读称为测试通过。
+- 下一步：读取最新分支 HEAD 与 workflow 权限/状态，执行可用的定向 Host regression；随后继续检查六种模式在所有迁入 Activity 的覆盖，尤其 Default/Classic 的 renderer 分离与服务不重启行为。
