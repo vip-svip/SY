@@ -3315,26 +3315,33 @@ public final class MainActivity extends ComponentActivity {
         licenseIntro.setText("查看随 FX Hook APK 分发的第三方开源组件许可证和版权声明。");
         licenseIntro.setTextColor(0xff66727e);
         licenseIntro.setPadding(dp(18), dp(6), dp(18), dp(8));
-        content.addView(licenseIntro);
+        LinearLayout licenseGroup = new LinearLayout(this);
+        licenseGroup.setOrientation(LinearLayout.VERTICAL);
+        licenseGroup.addView(licenseIntro);
         Button openLicenses = new Button(this);
         openLicenses.setAllCaps(false);
         openLicenses.setText("查看开源许可证");
         openLicenses.setOnClickListener(v -> startActivity(
                 new Intent(this, FxOpenSourceLicensesActivity.class)));
-        content.addView(openLicenses);
+        licenseGroup.addView(openLicenses);
+        addNativeActionGroup(licenseGroup);
         section("模块与运行状态");
         TextView runtimeStatus = new TextView(this);
         runtimeStatus.setText("点击刷新，读取设备端 FX 模块状态。");
         runtimeStatus.setTextColor(0xff344451);
         runtimeStatus.setPadding(dp(16), dp(12), dp(16), dp(12));
-        runtimeStatus.setBackground(uiPanelDrawable());
-        content.addView(runtimeStatus);
+        LinearLayout runtimeGroup = new LinearLayout(this);
+        runtimeGroup.setOrientation(LinearLayout.VERTICAL);
+        runtimeGroup.addView(runtimeStatus);
         Button refreshRuntime = new Button(this);
         refreshRuntime.setAllCaps(false);
         refreshRuntime.setText("刷新模块状态与诊断信息");
         refreshRuntime.setOnClickListener(v -> refreshNativeModuleStatus(runtimeStatus, 2));
-        content.addView(refreshRuntime);
+        runtimeGroup.addView(refreshRuntime);
+        addNativeActionGroup(runtimeGroup);
         section("系统授权");
+        LinearLayout authorizationGroup = new LinearLayout(this);
+        authorizationGroup.setOrientation(LinearLayout.VERTICAL);
         Button accessibilitySettings = new Button(this);
         accessibilitySettings.setAllCaps(false);
         accessibilitySettings.setText("打开 Android 无障碍设置");
@@ -3342,7 +3349,7 @@ public final class MainActivity extends ComponentActivity {
             try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
             catch (Exception e) { Toast.makeText(this, "无法打开系统无障碍设置", Toast.LENGTH_LONG).show(); }
         });
-        content.addView(accessibilitySettings);
+        authorizationGroup.addView(accessibilitySettings);
         Button appDetails = new Button(this);
         appDetails.setAllCaps(false);
         appDetails.setText("打开 FX Hook 应用信息");
@@ -3355,9 +3362,13 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "无法打开应用信息", Toast.LENGTH_LONG).show();
             }
         });
-        content.addView(appDetails);
+        authorizationGroup.addView(appDetails);
+        addNativeActionGroup(authorizationGroup);
         section("运行日志");
-        content.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+        LinearLayout logsGroup = new LinearLayout(this);
+        logsGroup.setOrientation(LinearLayout.VERTICAL);
+        logsGroup.addView(nativeAction("查看最近 FX 模块日志", this::showNativeRuntimeLogs));
+        addNativeActionGroup(logsGroup);
     }
 
     private void showNativeWallpaperDialog() {
