@@ -20,6 +20,7 @@ STATE="$PG/unbound"
 CFG="$STATE/unbound.conf"
 WORK="$STATE/work"
 PIDFILE="$STATE/managed.pid"
+EGRESS="$PG/unbound-vpn-egress-ip"
 LOG="$STATE/engine.log"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
@@ -71,7 +72,7 @@ _prepare_state_dirs() {
     (umask 077; mkdir "$WORK") || return 1
   fi
   chmod 700 "$STATE" "$WORK" 2>/dev/null || :
-  for _safe_candidate in "$CFG" "$PIDFILE" "$LOG" "$STATE/root.key"; do
+  for _safe_candidate in "$CFG" "$PIDFILE" "$LOG" "$STATE/root.key" "$EGRESS"; do
     _safe_file_or_absent "$_safe_candidate" || {
       echo "Unbound refuses a symlink or non-regular state file: $_safe_candidate" >&2
       return 1
@@ -139,7 +140,36 @@ _owned_pid() {
   _cmd=$(tr '\000' ' ' < "/proc/$_p/cmdline" 2>/dev/null)
   case "$_cmd" in *"$BIN"*"$CFG"*) printf '%s\n' "$_p"; return 0 ;; *) return 1 ;; esac
 }
+_vpn_egress_config() {
+  # Root Proxy publishes this marker only after proving that the selected
+  # third-party VPN tunnel owns the route to multiple authoritative DNS IPs.
+  # Bind Unbound's recursive sockets to that tunnel address so the kernel
+  # cannot silently send root/TLD queries over the device's ordinary network.
+  _safe_file_or_absent "$EGRESS" || {
+    _log "unsafe VPN egress marker; refusing an unbound config without a proven route"
+    return 1
+  }
+  [ -f "$EGRESS" ] || return 0
+  _vpn_ip=$(tr -d '\\r\\n' < "$EGRESS" 2>/dev/null) || return 1
+  [ -n "$_vpn_ip" ] || { _log "empty VPN egress marker"; return 1; }
+  printf '%s\\n' "$_vpn_ip" | awk -F. '
+    NF != 4 {ok=0; exit}
+    {
+      ok=1
+      for (i=1; i<=4; i++) {
+        if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255 ||
+            ($i != "0" && $i ~ /^0/)) ok=0
+      }
+      first=$1+0; second=$2+0
+      if (first==0 || first==127 || first>=224 ||
+          (first==169 && second==254)) ok=0
+    }
+    END {exit(ok ? 0 : 1)}
+  ' || { _log "invalid VPN egress marker; refusing unbound startup"; return 1; }
+  printf '  outgoing-interface: %s\\n' "$_vpn_ip"
+}
 _render_config() {
+  _egress_config=$(_vpn_egress_config) || return 1
   cat <<EOF_CFG
 server:
   username: ""
@@ -151,7 +181,7 @@ server:
   verbosity: 1
   num-threads: 1
   interface: 127.0.0.1
-  port: 5353
+$_egress_config  port: 5353
   access-control: 127.0.0.0/8 allow
   do-ip4: yes
   do-ip6: yes
