@@ -493,7 +493,7 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "False" ] || fail "comment-only API mention was treated as an invocation: $out"
 pass "comment-only VpnService mention is not treated as executable API usage"
 
-echo "== case 8f: VpnService$Builder signature is detected =="
+echo '== case 8f: VpnService$Builder signature is detected =='
 cp -a "$TMP/mod_clean/." "$TMP/mod_dollar_builder/"
 cat > "$TMP/mod_dollar_builder/scripts/dollar-builder-helper.sh" <<'EOF'
 #!/system/bin/sh
@@ -501,7 +501,7 @@ VpnService$Builder(context)
 EOF
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_dollar_builder")
 rc=${r%%|*}; out=${r#*|}
-[ "$rc" -eq 3 ] || fail "VpnService$Builder helper must return rc=3, got $rc: $out"
+[ "$rc" -eq 3 ] || fail "VpnService\\$Builder helper must return rc=3, got $rc: $out"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "VpnService$Builder signature was not detected"
 pass "VpnService$Builder signature is detected"
 
