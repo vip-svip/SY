@@ -28,6 +28,16 @@ class FxUiModeTest {
     }
 
     @Test
+    fun mapsEverySkinToItsDedicatedRenderer() {
+        assertEquals(FxUiMode.Renderer.NATIVE_DEFAULT, FxUiMode.DEFAULT_STANDARD.renderer)
+        assertEquals(FxUiMode.Renderer.WEB_COMPAT, FxUiMode.CLASSIC_WEB_COMPAT.renderer)
+        assertEquals(FxUiMode.Renderer.NATIVE_LIQUID, FxUiMode.FX_LIQUID_NATIVE.renderer)
+        assertEquals(FxUiMode.Renderer.NATIVE_MIUIX, FxUiMode.MIUIX_STYLE.renderer)
+        assertEquals(FxUiMode.Renderer.NATIVE_HARMONY, FxUiMode.HUAWEI_HARMONY_STYLE.renderer)
+        assertEquals(FxUiMode.Renderer.NATIVE_CUPERTINO, FxUiMode.IOS_CUPERTINO_STYLE.renderer)
+    }
+
+    @Test
     fun mapsStableStorageIdsToExpectedRenderers() {
         assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.fromStorageId("default"))
         assertEquals(FxUiMode.CLASSIC_WEB_COMPAT, FxUiMode.fromStorageId("classic"))
