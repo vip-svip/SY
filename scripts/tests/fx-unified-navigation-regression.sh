@@ -46,11 +46,20 @@ dia_signature = Path(sys.argv[17]).read_text(encoding="utf-8")
 dia_system = Path(sys.argv[18]).read_text(encoding="utf-8")
 dia_json = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaJsonActivity.java")
 settings_start = activity.index("    private void showSettings()")
-settings_end = activity.index("    private String importedSuiteTitle(", settings_start)
+settings_end = activity.index("    private void showNativeWallpaperDialog()", settings_start)
 settings = activity[settings_start:settings_end]
 for forbidden in ('section("迁移应用")', 'Dia 23.11', '游龙广告插件 7.0.1', '游龙安全护盾 9.9.60'):
     assert forbidden not in settings, f"obsolete source-app entry remains in Settings: {forbidden}"
 assert "Ad/Hosts" not in settings and "Ad / Hosts" not in settings
+for obsolete_symbol in ("migrationSuite", "migrationCategory", "migrationPage",
+                       "migrationLevel", "migrationChildActive", "showImportedSuite",
+                       "importedSuiteTitle", "restoreMigrationNavigation"):
+    assert obsolete_symbol not in activity, f"legacy migration hub code remains: {obsolete_symbol}"
+assert 'case 1: return "pageAd";' in activity, "Ad must be the canonical second-tab WebUI route"
+assert 'case "pageAd": tab = "ad"; break;' in activity
+assert 'case "pageHosts": tab = "ad"; break;' in activity, "pageHosts is only a compatibility alias"
+assert "if(id==='pageHosts')id='pageAd';" in activity, "legacy DOM ID must normalize to Ad"
+assert 'var navTab=\'" + tab + "\';' in activity
 ad_start = activity.index("    private void buildNativeHostsPage()")
 ad_end = activity.index("    private void refreshHostsStatus(", ad_start)
 ad_page = activity[ad_start:ad_end]
