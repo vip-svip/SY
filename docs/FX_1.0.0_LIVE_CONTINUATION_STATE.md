@@ -6726,3 +6726,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Unbound 状态目录准备阶段将 VPN 出口标记纳入安全文件路径检查。
 - 该移植补上 Root Proxy 已验证 VPN 出口与 Unbound 实际递归 socket 之间的配置连接；不代表所有 Android ROM、VPN 隧道和 IPv6 出口均已真机验证。
 - 按用户当前要求，本批未运行静态检查、Shell 检查、构建、回归或真机测试。
+
+- 后续补充提交：`839667648f6a140106c7d9b718fe69888cf0337e` — 当 VPN 出口标记存在时，跳过独立的 `unbound-anchor` 一次性联网刷新。该辅助程序不读取 Unbound 的 `outgoing-interface` 配置，直接运行可能绕过已绑定的 VPN 出口；改由已启动的 Unbound RFC5011 维护信任锚，避免启动阶段的 DNS/HTTPS 更新请求走普通默认路由。
