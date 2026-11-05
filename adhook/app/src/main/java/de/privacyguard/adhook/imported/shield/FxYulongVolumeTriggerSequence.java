@@ -17,6 +17,8 @@ public final class FxYulongVolumeTriggerSequence {
     private long sequenceStartedAt = -1L;
     private int pressCount;
     private long lastTriggeredAt = -1L;
+    private int activeWantedDirection;
+    private int activeRequiredCount;
 
     public static int normalizeCount(int value) {
         return Math.max(MIN_COUNT, Math.min(MAX_COUNT, value));
@@ -48,7 +50,15 @@ public final class FxYulongVolumeTriggerSequence {
             return false;
         }
 
-        long window = sequenceWindowMs(requiredCount);
+        int normalizedCount = normalizeCount(requiredCount);
+        if (pressCount > 0 && (activeWantedDirection != wantedDirection
+                || activeRequiredCount != normalizedCount)) {
+            resetSequence();
+        }
+        activeWantedDirection = wantedDirection;
+        activeRequiredCount = normalizedCount;
+
+        long window = sequenceWindowMs(normalizedCount);
         if (sequenceStartedAt < 0L || elapsedRealtimeMs < sequenceStartedAt
                 || elapsedRealtimeMs - sequenceStartedAt > window) {
             sequenceStartedAt = elapsedRealtimeMs;
@@ -56,7 +66,7 @@ public final class FxYulongVolumeTriggerSequence {
         }
         pressCount++;
 
-        if (pressCount < normalizeCount(requiredCount)) return false;
+        if (pressCount < normalizedCount) return false;
 
         resetSequence();
         if (lastTriggeredAt >= 0L && (elapsedRealtimeMs < lastTriggeredAt
@@ -70,5 +80,7 @@ public final class FxYulongVolumeTriggerSequence {
     public void resetSequence() {
         sequenceStartedAt = -1L;
         pressCount = 0;
+        activeWantedDirection = 0;
+        activeRequiredCount = 0;
     }
 }
