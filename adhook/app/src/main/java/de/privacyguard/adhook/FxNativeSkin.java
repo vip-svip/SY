@@ -101,11 +101,27 @@ final class FxNativeSkin {
         final int switchOffTrack;
         final int cornerRadiusDp;
         final int inputBorder;
+        final float buttonTextSizeSp;
+        final int buttonMinHeightDp;
+        final int buttonMinWidthDp;
+        final int buttonHorizontalPaddingDp;
+        final int buttonVerticalPaddingDp;
+        final float buttonElevationDp;
+        final float switchTextSizeSp;
+        final int switchHorizontalPaddingDp;
+        final int switchVerticalPaddingDp;
+        final float choiceTextSizeSp;
+        final float inputTextSizeSp;
+        final int inputMinHeightDp;
 
         Palette(int background, int surface, int surfaceVariant, int divider,
                 int primaryText, int secondaryText, int actionBackground,
                 int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp,
-                int inputBorder) {
+                int inputBorder, float buttonTextSizeSp, int buttonMinHeightDp,
+                int buttonMinWidthDp, int buttonHorizontalPaddingDp, int buttonVerticalPaddingDp,
+                float buttonElevationDp, float switchTextSizeSp, int switchHorizontalPaddingDp,
+                int switchVerticalPaddingDp, float choiceTextSizeSp,
+                float inputTextSizeSp, int inputMinHeightDp) {
             this.background = background;
             this.surface = surface;
             this.surfaceVariant = surfaceVariant;
@@ -118,6 +134,18 @@ final class FxNativeSkin {
             this.switchOffTrack = switchOffTrack;
             this.cornerRadiusDp = cornerRadiusDp;
             this.inputBorder = inputBorder;
+            this.buttonTextSizeSp = buttonTextSizeSp;
+            this.buttonMinHeightDp = buttonMinHeightDp;
+            this.buttonMinWidthDp = buttonMinWidthDp;
+            this.buttonHorizontalPaddingDp = buttonHorizontalPaddingDp;
+            this.buttonVerticalPaddingDp = buttonVerticalPaddingDp;
+            this.buttonElevationDp = buttonElevationDp;
+            this.switchTextSizeSp = switchTextSizeSp;
+            this.switchHorizontalPaddingDp = switchHorizontalPaddingDp;
+            this.switchVerticalPaddingDp = switchVerticalPaddingDp;
+            this.choiceTextSizeSp = choiceTextSizeSp;
+            this.inputTextSizeSp = inputTextSizeSp;
+            this.inputMinHeightDp = inputMinHeightDp;
         }
     }
 
@@ -147,11 +175,11 @@ final class FxNativeSkin {
             case FX_LIQUID_NATIVE:
                 return new Palette(0xffe8eef4, 0xddefffff, 0xccefffff,
                         0x66ffffff, 0xff24394c, 0xff718091,
-                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24, 0x88ffffff);
+                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24, 0x88ffffff, 14f, 46, 64, 16, 9, 2f, 15f, 16, 10, 15f, 14f, 48);
             case MIUIX_STYLE:
                 return new Palette(0xfff3f5fa, 0xffeaf0fb, 0xffe5ecf8,
                         0xffd8e1ef, 0xff202b3c, 0xff718091,
-                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20, 0xffcbd7e8);
+                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20, 0xffcbd7e8, 14f, 46, 64, 16, 10, 0f, 15f, 16, 10, 15f, 14f, 48);
             case HUAWEI_HARMONY_STYLE:
                 return HarmonySkinRenderer.palette();
             case IOS_CUPERTINO_STYLE:
@@ -160,7 +188,7 @@ final class FxNativeSkin {
             default:
                 return new Palette(0xfff4f6f8, 0xffffffff, 0xffe9eef3,
                         0xffe3e8ee, 0xff17212b, 0xff66727e,
-                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc);
+                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc, 14f, 46, 64, 16, 9, 0f, 15f, 16, 10, 15f, 14f, 48);
         }
     }
 
@@ -248,13 +276,14 @@ final class FxNativeSkin {
                 surface, mask));
         button.setAllCaps(false);
         button.setTextColor(palette.accent);
-        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
-                mode == FxUiMode.IOS_CUPERTINO_STYLE ? 15 : 14);
-        button.setMinHeight(Math.round((mode == FxUiMode.IOS_CUPERTINO_STYLE ? 44 : 46) * density));
-        button.setMinWidth(Math.round(64 * density));
-        button.setPadding(Math.round(16 * density), Math.round(9 * density),
-                Math.round(16 * density), Math.round(9 * density));
-        button.setElevation(Math.round((mode == FxUiMode.FX_LIQUID_NATIVE ? 2 : 0) * density));
+        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, palette.buttonTextSizeSp);
+        button.setMinHeight(Math.round(palette.buttonMinHeightDp * density));
+        button.setMinWidth(Math.round(palette.buttonMinWidthDp * density));
+        button.setPadding(Math.round(palette.buttonHorizontalPaddingDp * density),
+                Math.round(palette.buttonVerticalPaddingDp * density),
+                Math.round(palette.buttonHorizontalPaddingDp * density),
+                Math.round(palette.buttonVerticalPaddingDp * density));
+        button.setElevation(Math.round(palette.buttonElevationDp * density));
     }
 
     private static boolean isSemanticActionBackground(Drawable background) {
@@ -290,11 +319,9 @@ final class FxNativeSkin {
         float density = activity.getResources().getDisplayMetrics().density;
         control.setTextColor(palette.primaryText);
         control.setHintTextColor(palette.secondaryText);
-        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
-                mode == FxUiMode.IOS_CUPERTINO_STYLE ? 16
-                        : mode == FxUiMode.HUAWEI_HARMONY_STYLE ? 15 : 14);
+        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, palette.inputTextSizeSp);
         control.setMinimumHeight(Math.max(control.getMinimumHeight(),
-                Math.round(48 * density)));
+                Math.round(palette.inputMinHeightDp * density)));
         tintKnownFormBackground(control, palette);
     }
 
@@ -306,7 +333,7 @@ final class FxNativeSkin {
         }
         float density = activity.getResources().getDisplayMetrics().density;
         control.setMinimumHeight(Math.max(control.getMinimumHeight(),
-                Math.round(48 * density)));
+                Math.round(palette.inputMinHeightDp * density)));
         tintKnownFormBackground(control, palette);
     }
 
@@ -346,10 +373,11 @@ final class FxNativeSkin {
         control.setTrackTintList(new ColorStateList(states,
                 new int[] { palette.accent, palette.switchOffTrack }));
         control.setTextColor(palette.primaryText);
-        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
-                mode == FxUiMode.IOS_CUPERTINO_STYLE ? 16 : 15);
-        control.setPadding(Math.round(16 * density), Math.round(10 * density),
-                Math.round(16 * density), Math.round(10 * density));
+        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, palette.switchTextSizeSp);
+        control.setPadding(Math.round(palette.switchHorizontalPaddingDp * density),
+                Math.round(palette.switchVerticalPaddingDp * density),
+                Math.round(palette.switchHorizontalPaddingDp * density),
+                Math.round(palette.switchVerticalPaddingDp * density));
     }
 
     private static void applyChoiceControlSkin(Activity activity,
@@ -363,6 +391,12 @@ final class FxNativeSkin {
                 new int[][] { new int[] { android.R.attr.state_checked }, new int[] {} },
                 new int[] { palette.accent, palette.switchOffTrack }));
         control.setTextColor(palette.primaryText);
+        control.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, palette.choiceTextSizeSp);
+        float density = activity.getResources().getDisplayMetrics().density;
+        control.setPadding(Math.round(palette.switchHorizontalPaddingDp * density),
+                Math.round(palette.switchVerticalPaddingDp * density),
+                Math.round(palette.switchHorizontalPaddingDp * density),
+                Math.round(palette.switchVerticalPaddingDp * density));
     }
 
     private static int withAlpha(int color, int alpha) {
