@@ -4441,3 +4441,44 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已完成 GitHub 源码回读：四个页面角色标签存在，脚本库/监控事件动态行均交给对应 Renderer；日志正文与 CodeEditor 组件未被全局 Skin 改写；跨包 Dialog API 已公开。
 - 最新定向 Host run `41987810702` 在读取本节时尚未取得 job 记录/最终结论；不得把它当作通过，后续必须读取其最终状态及具体步骤日志。
 - 本批未执行 Android Gradle compile、Android JUnit、APK assemble、安装、UI 自动化或真机视觉检查；尚不能声称五种 Skin 的所有 Activity 已逐页完成。
+
+
+## 2026-11-05 — Ad / Hook 子页弹窗全面接入共享五 Skin renderer
+
+### 实际源码改动
+- 统一弹窗渲染底层使用 FxNativeSkin.showDialog(Activity, android.app.Dialog)，同时兼容 MainActivity 使用的 AndroidX AlertDialog 和迁入 Activity 原有的平台 AlertDialog / TimePickerDialog。
+- FxNativeSkin.builder(Activity) 是 MainActivity 原生页的共享 AppCompat Builder；FxNativeTabActivity.fxDialogBuilder() 是保留平台 AlertDialog 类型的来源 Activity 兼容 Builder；showFxDialog(Dialog) 用于先创建、设置自定义 OnShowListener 后再显示的弹窗。
+- Ad 业务页：
+  - FxYulongAdActivity.java：14 个 AlertDialog Builder 改用 fxDialogBuilder()。
+  - FxYulongDnsActivity.java：2 个 DNS 日志/缓存确认对话框改用 fxDialogBuilder()。
+  - FxYulongFirewallActivity.java：应用防火墙规则编辑器改用 fxDialogBuilder()；自定义按钮保存监听通过 showFxDialog(dialog) 显示；TimePickerDialog 也走 showFxDialog(picker)。
+- Hook 业务页：
+  - FxDiaFridaActivity.java：16 个 Builder 改用 FX Builder；4 个 create 后添加/保留自定义监听的弹窗改用 showFxDialog()，包括脚本编辑、debuggable 目标选择等。
+  - FxDiaDexBrowserActivity.java：3 个 APK/方法选择与详情对话框改用 FX Builder。
+  - FxDiaGlobalSettingsActivity.java：3 个 Hook 全局设置确认框改用 FX Builder。
+- MainActivity 已有并行改动接入 FxNativeSkin.builder()；当前读回看到约 95 个共享 Builder 调用，且已无直接 new AlertDialog.Builder(...) 残留。该数据是源码字符串计数，不代表每个 modal 视觉验收完成。
+
+### 相关提交
+- caf577d19c37ea6b7dac065fe38ca9fc19801d97 — FxNativeTabActivity 平台 AlertDialog Skin Builder。
+- cd75fc7418fa46e3d70c54c3babc5adeb5175496 — Ad 控制中心 14 个对话框接入。
+- 3475a70118b9ec29d63711a1955492007708f545 — Ad DNS 对话框接入。
+- 745f7bf8a0c9aa97d08e3cd4c3f21117e2f7c1a1 — Firewall 自定义 OnShow 对话框接入。
+- 4f73213c5107e84cc8688c88bdc2d08b8222cd10 — Firewall TimePickerDialog 接入。
+- 4bf1f0351b355566f157cecde5d5d8e3f09eede9 — Dia Frida 16 个 Builder 与 4 个自定义 Dialog 接入。
+- 951658fcb55e7e0e33d07ecb68a8338902953cb5 — Dia DEX 浏览器 3 个 Dialog 接入。
+- 12c932cc883f0c9a5b997de361ded4cd4224b47d — Dia Hook 全局设置 3 个 Dialog 接入。
+- 14cfe1a4dfcc8837e864c374004f17b3c451ccdf — 对话框回归检查对齐公共 Dialog 类型和平台 Builder。
+- 88d8254a0b32a2b4909c6846b73b162c4c763689 — Ad 子页共享 Dialog Skin 回归。
+- 5aea796a0afcc500873e53e262e5f3367ca4b19a — Frida/DEX/Hook 设置共享 Dialog Skin 回归。
+- 当前 HEAD 以 GitHub 实时 ref 为准；以上只列出本批关键提交，不可将它们误认为当前分支 HEAD。
+
+### 验证级别
+- 已完成 GitHub 源码读回：共享 builder、AndroidX 与平台 Dialog 公共显示、Ad/Hook 对话框调用点及回归断言均可检索。
+- 没有在当前环境执行 bash regression、Android JUnit、Gradle 编译、APK assemble、安装、UI 自动化或真机视觉检查；本批不能标记 CI PASS 或五 Skin 完整验收。
+- 当前 commit status/Actions 必须针对最新 HEAD 重新读取；历史 41986350889 只属于它自己的旧 HEAD 和上一批 Skin 静态回归。
+
+### 下一批继续执行
+1. 将共享 Dialog renderer 接入剩余 Dia Activity Browser、Inspector、Signature、File/JSON、Backup、Crash Report 与 Wi-Fi Proxy 页面；对自定义 create()/setOnShowListener/show() 保留回调。
+2. 将同一 Builder 接入隐私 Shield 高风险确认、白名单/黑名单编辑与扫描详情弹窗，并核验警告/删除/成功语义色不被全局 Skin 改写。
+3. 继续给表单、Spinner、搜索框、代码编辑器、空态/加载态打语义 Skin 标记和定向断言；完成一组后检查最新 HEAD 的 Host regression，不要反复触发全套 Actions。
+
