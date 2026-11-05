@@ -37,6 +37,14 @@ object FxGkdRuleStore {
     const val MAX_COOLDOWN_MS = 60_000L
     const val DEFAULT_COOLDOWN_MS = 3_000L
 
+    // Accessibility events can arrive frequently. Cache the decoded rules by
+    // their persisted JSON value so the event hot path does not rebuild a
+    // JSONArray/list for every content-changed or scroll event.
+    @Volatile
+    private var cachedRulesRaw: String? = null
+    @Volatile
+    private var cachedRules: List<FxGkdRule> = emptyList()
+
     @JvmStatic
     @Synchronized
     fun isEnabled(context: Context): Boolean =
@@ -71,7 +79,9 @@ object FxGkdRuleStore {
     fun getRules(context: Context): List<FxGkdRule> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_RULES, "[]") ?: "[]"
-        return try {
+        if (raw == cachedRulesRaw) return cachedRules
+
+        val parsed = try {
             val array = JSONArray(raw)
             buildList {
                 for (index in 0 until minOf(array.length(), MAX_RULES)) {
@@ -87,6 +97,9 @@ object FxGkdRuleStore {
         } catch (_: Exception) {
             emptyList()
         }
+        cachedRulesRaw = raw
+        cachedRules = parsed
+        return parsed
     }
 
     /**
@@ -260,6 +273,11 @@ object FxGkdRuleStore {
             .edit()
             .putString(KEY_RULES, array.toString())
         if (rules.none { it.enabled }) editor.putBoolean(KEY_MASTER_ENABLED, false)
-        return editor.commit()
+        val committed = editor.commit()
+        if (committed) {
+            cachedRules = rules.toList()
+            cachedRulesRaw = array.toString()
+        }
+        return committed
     }
 }
