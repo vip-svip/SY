@@ -6210,3 +6210,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 页面仍将操作限制为 `dns-log-tail`、`cache-flush`、`dns-log-clear` 三种固定值；防火墙固定绑定 `yulong-app-firewall.sh`，不会接受可替换脚本路径。
 - 扩展 JDK Host allowlist 与共享 Root resolver 回归，覆盖新增 Ad 主页、DNS、防火墙消费方；同步更新原有 Ad/DNS/Firewall 测试和 targeted workflow 路径映射。
 - 本批等待提交后的 Targeted Host Actions；没有声称 Android 构建、设备 Root 执行或真实流量拦截验收通过。
+
+
+## 2026-11-06 — 修复系统应用开机校验的临时文件碰撞
+
+- 修复提交：`308c5730ff2d33d68ee80aee23d9c312e6407b86`（补丁源）；`899ae53d3437d2d8c8300545ba488799b0772265`（模块内同步）。
+- CI 在早期开机覆盖层回归中发现 deployment marker 临时文件名未包含 PID：测试预置 `system-app-apk.sha256.tmp.<pid>` 符号链接时，脚本却写入固定的 `tmp.$` 名称，未能触发预期的安全拒绝/重试路径。
+- 将 retry marker 与 deployment marker 临时路径统一改为 `tmp.$$`，使每个执行进程使用自己的临时文件名，并与现有原子创建（`set -C`）、符号链接检查及失败重试逻辑配套。
+- 两份源文件已从目标分支回读：`fx-patches/fx_system_app_post_fs_data.sh` 与 `fx-module/post-fs-data.sh` 均包含 PID 后缀。
+- GitHub Actions：`FX System App Install Stage` 在 `899ae53` 成功（run `42104541678`，job `127515820097`）；安装期幂等、行为测试、early-boot overlay hardening 与打包阶段检查全部通过。
+- 验证仅为 GitHub Host CI；尚未在真实 KernelSU/Magisk 设备上验证重启后的 PackageManager 扫描、SELinux 实际标签或 OTA 行为。
