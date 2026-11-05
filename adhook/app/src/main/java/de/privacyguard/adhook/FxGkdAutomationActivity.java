@@ -242,7 +242,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         CharSequence[] labels = new CharSequence[candidates.size()];
         for (int index = 0; index < candidates.size(); index++) {
             ApplicationInfo info = candidates.get(index);
-            labels[index] = getPackageManager().getApplicationLabel(info) + "\\n" + info.packageName;
+            labels[index] = getPackageManager().getApplicationLabel(info) + "\n" + info.packageName;
         }
         new AlertDialog.Builder(this)
                 .setTitle("选择 GKD 规则目标应用")
