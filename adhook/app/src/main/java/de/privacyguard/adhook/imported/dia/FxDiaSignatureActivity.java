@@ -58,8 +58,8 @@ public final class FxDiaSignatureActivity extends de.privacyguard.adhook.FxNativ
         root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · APK 签名信息", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · APK 签名信息", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
