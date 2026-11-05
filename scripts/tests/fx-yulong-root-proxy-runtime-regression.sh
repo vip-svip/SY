@@ -511,7 +511,7 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
 assert_stopped "$CASE_DIR" "status orphan hooks"
 
-for scenario in route route2 package-manager unbound adguard probe probe-server-only probe-invalid-answer route-recheck address-recheck; do
+for scenario in route route2 package-manager unbound adguard probe probe-ipv6 probe-server-only probe-invalid-answer route-recheck address-recheck; do
   prepare_case "$scenario"
   case "$scenario" in
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
