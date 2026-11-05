@@ -4502,3 +4502,39 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ### 当前验证边界
 - 文档写入后需回读并检查六 Tab、Ad-only、Settings 无迁移应用、五 Skin、壁纸、所有功能域与安全边界关键词。
 - 本批不执行整套 Actions，不声称 Gradle、APK 或真机验证。
+
+
+## 2026-11-05 — Shield / Dia 剩余弹窗接入共享 FX Skin
+
+### 实际源码改动
+- Dia Wi-Fi Proxy 页面 `FxDiaWifiProxyActivity.java` 剩余 3 个确认对话框改为 `fxDialogBuilder()`；继续保留平台 AlertDialog 类型与原来的系统代理确认/恢复操作回调。
+- Shield 主控制中心 `FxYulongShieldActivity.java` 的 6 个平台 AlertDialog Builder 改为 `fxDialogBuilder()`。
+- 复核 Shield 关联页：
+  - `BlacklistActivity.java`：4 个 FX Builder，1 个自定义 OnShow Dialog 使用 `showFxDialog(dialog)`。
+  - `FxYulongScanActivity.java`：1 个 FX Builder。
+  - `FxYulongBatchCleanupActivity.java`：1 个 FX Builder。
+  - `FxYulongWarningActivity.java`：3 个 FX Builder。
+  - `FxYulongRescueActivity.java`：2 个 FX Builder。
+  - White/Blacklist picker 页面本身未检出平台 AlertDialog Builder；不代表其列表/表单视觉覆盖已完全验收。
+- 扩展 `scripts/tests/fx-unified-navigation-regression.sh`：
+  - Dia ActivityBrowser / Inspector / Signature / File / CrashReport / Wi-Fi Proxy 均要求 FX Builder 且禁止遗留直接 Builder；ActivityBrowser 自定义 Dialog 要使用 `showFxDialog`。
+  - Shield 中心、Blacklist、Scan、Batch Cleanup、Warning、Rescue 要求 FX Builder 且禁止平台 AlertDialog Builder；Blacklist 的自定义 OnShow Dialog 要调用共享显示入口。
+- 既有 Ad / Hook / Dia Frida Dialog 检查继续保留；主 Activity 约 95 个对话框路径使用共享 Skin Builder。
+
+### 关键提交
+- `e0a5b7150cbe3cf642e9e83ee657fb7bd39428ff` — Dia Wi-Fi Proxy 3 个对话框改为 FX Builder。
+- `cb9e464b4dace6d3b30b3f9d37de1ca4439d92fb` — 剩余 Dia 页面弹窗回归。
+- `8898bef2ed0ecb6e4207974705e3eb17133f49ba` — Shield 主控制中心 6 个对话框改为 FX Builder。
+- `dd16f847f3948a5ba0a617f2f4c76ac1cfdd296a` — Shield 弹窗专项静态断言。
+- 上述为具体变更提交，不代表当前分支 HEAD；新窗口必须重新读取 HEAD。
+
+### 验证级别
+- 已完成目标源码和脚本的 GitHub 回读核对：本批覆盖文件中不再存在直接 `new AlertDialog.Builder(this)`；Shield 主页面为 6 个 FX Builder，Dia Wi-Fi Proxy 为 3 个 FX Builder。
+- 当前环境没有运行回归 Shell、Gradle/JUnit、APK 构建、安装、UI 自动化或真机触控/视觉检查；本批只能标记为源码写入 + GitHub 回读，不是测试 PASS。
+- Actions 的历史 run `41987810702` 对应更早 HEAD `4bf1f035...`，最终 `cancelled`；不可当作本批通过。对最新 HEAD 必须重新查询状态。
+
+### 下一批直接实施
+1. 检查 Shield 的扫描结果、风险详情、Stellar 子树、名单管理和 Rescue 页面自定义 Dialog/PopupWindow/BottomSheet；保留危险操作语义色与原回调。
+2. 检查 Dia Backup / JSON / Inspector / Signature / Activity Browser / Wi-Fi Proxy 的剩余自定义弹窗与空/加载/错误状态，继续用共同 Dialog Renderer。
+3. 继续把共享 Skin tokens 接到未覆盖的表单、Spinner、搜索、多行编辑器和列表；有新的动态页时增加最小回归覆盖。
+
