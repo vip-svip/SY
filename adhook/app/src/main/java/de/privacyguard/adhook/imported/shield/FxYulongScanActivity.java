@@ -397,7 +397,7 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
     }
 
     private void confirmUninstall(FxYulongScanEngine.Finding finding){
-        new AlertDialog.Builder(this).setTitle("请先核实扫描结果")
+        fxDialogBuilder().setTitle("请先核实扫描结果")
                 .setMessage("病毒库命中可能存在误报：\n\n"+finding.label+"\n"+finding.packageName
                         +"\n\n只有你确认该应用需要移除时，才会继续打开 Android 系统卸载确认界面。FX 不会在后台静默卸载。")
                 .setNegativeButton("返回",null)
