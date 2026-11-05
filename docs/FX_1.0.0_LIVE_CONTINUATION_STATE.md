@@ -47,9 +47,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ## 重要现有工程事实
 
-- `MainActivity.java` 保存 `selectedBottomTab`、`lastWebTabIndex`，恢复范围为 0–5，并保留 Hook/Settings/Migration 的多级返回状态。
+- `MainActivity.java` 保存 `selectedBottomTab`、`lastWebTabIndex`，恢复范围为 0–5；保留 Hook 目标/规则编辑栈、Settings 状态和 VPN 分应用路由恢复。旧来源应用 Migration 多级导航已从 MainActivity 移除。
 - MainActivity 已接入安装/卸载/更新包广播刷新 Hook 应用列表，并缓存名称/图标、分页显示应用行。
-- 主工程存在原生 VPN 控件、Hook UI 和三套应用的多个原生 Activity。
+- 主工程存在原生 VPN 控件、Hook UI，以及按 FX 业务域承载的原来源 Activity；来源 Activity 不构成独立产品入口。
 - Manifest 中已登记 Dia、游龙广告、安全护盾和 Stellar 内部的多个 Activity/Service/Receiver/Provider。
 - 当前项目仍包含 WebViewAssetLoader/内嵌兼容运行时用于旧 WebUI 状态 API 的过渡桥接。不能把这当成最终全原生 UI；应逐页迁移，再谨慎退役旧依赖。
 - 已有原生页示例：Dia Frida、代码编辑器、备份、DEX/文件浏览器、Inspector、JSON、签名、Activity 浏览器、Global Settings、System Expand、Wi-Fi Proxy、Crash Report；游龙广告 Ad/General/Summary/Stats/App Whitelist/DNS/Firewall；安全护盾 Shield/Rescue/Daily Summary/Scan/Warning/Batch Cleanup/Whitelist/Blacklist/Virus DB/Integrity/Screen Filter，以及 Stellar 子树。
@@ -70,8 +70,8 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ### UI 优先工作队列
 
-1. **六 Tab 主壳和首页交互回归：** 对照固定顺序 VPN / Ad-Hosts / 隐私 / 脚本 / Hook / 设置；重点复核底栏高度/可见性、顶部错误横幅、按钮/开关布局、页面切换与返回恢复。只针对确实未完成的页面改动，不重复审计已核实的状态字段。
-2. **迁移应用三级/四级 UI 完整度：** 三套应用各自独立；建立原始页面 → 原生路由 → Activity/控件的差异清单，按一组完整页面一起补 UI。禁止新增泛化空壳页。
+1. **六 Tab 主壳和首页交互回归：** 对照固定顺序 VPN / Ad / 隐私 / 脚本 / Hook / 设置；第二 Tab 只能显示 Ad，Hosts 只能是 Ad 的内部工具页。复核底栏高度/可见性、顶部错误横幅、按钮/开关布局、页面切换与返回恢复。
+2. **来源功能的业务域页面完整度：** 将 Dia、游龙广告、安全护盾、GKD 的具体功能拆入 Ad/VPN/隐私/脚本/Hook 的真实页面；只维护研发映射表，不新增迁移应用页、来源应用启动器或独立三级菜单。按完整页面组补齐 UI 和真实操作，禁止新增泛化空壳页。
 3. **Dia 页面组：** Frida WAIT/RESUME/listener/message 流程；原生 JS 编辑器/脚本库；方法/类/字段 Hook 页面；扩展管理和仍缺的系统设置控件。对原始组件按 Manifest 对照，现有 Frida 模板不能被称为原生监控引擎完整迁移。
 4. **游龙广告页面组：** DNS/规则订阅/General/Firewall/App Whitelist/Stats/Tasker/Widget UI；明确各页面的数据源和状态。Hosts 必须继续独立于订阅列表，且编辑真实系统文件。
 5. **安全护盾页面组：** 主界面、扫描/风险详情、白黑名单、批量清理、数据库、Stellar 页面和原版内部导航。Stellar 保留在护盾内部。
@@ -89,7 +89,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ## 不能遗漏的约束
 
 - 固定六 Tab；设置第六。
-- 三套应用各有独立三级入口，原生页面保持四级及更深层。
+- 旧来源项目只作为源码和功能证据；最终 UI 不保留任何独立来源应用三级入口。每个子页面必须按所属业务 Tab 高亮，并使用 FX 的返回路径。
 - Hook 是第五 Tab，单 APK、单入口、单配置/生命周期。
 - Android 每个用户/配置文件只有一个活动 VPN 槽位；必须共享 TUN ingress，不得多个 VpnService 抢占。
 - 本地 Hosts 文件与订阅规则分开；外部编辑后可重新读取/同步。
@@ -3946,3 +3946,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 这不代表全部功能已迁入。Ad 多层执行、VPN 内核级代理与第三方 VPN 共存、防泄漏、MITM/证书、全部隐私护盾、Dia/GKD 运行时、代理脚本 API 和浏览器扩展仍需逐项实现与验证。五 Skin 页面级覆盖、10.0.2 逐页 UI 复刻也未全部验收。
 - 当前可报告验证级别：GitHub 源码回读与静态文本断言；未在本批执行 Gradle 构建、APK 安装、UI 自动化或真机验收。不得发最终 APK/KernelSU ZIP。
 - 下一步：回读最新导航源码与回归脚本、运行针对性 Host 回归；随后选择 Ad 完整业务链或 VPN Root 数据面风险项继续实际实现。
+
+
+## 2026-11-05 — 移除来源应用导航、统一 Ad Tab 命名并修正续接提示词
+
+### 本批源码变更
+- `MainActivity.java`：移除旧来源应用的多级导航状态与路由（`migrationSuite`、`migrationCategory`、`migrationPage`、`migrationLevel`、`migrationChildActive`、`showImportedSuite*`、`restoreMigrationNavigation` 等）；来源功能直接进入 FX 的 Ad/VPN/隐私/脚本/Hook 对应页面。
+- 统一方法名：`showImportedVpnAppManager()` → `showNativeVpnAppManager()`；`handleImportedNativeTabIntent()` → `handleNativeTabIntent()`。VPN 分应用路由仍保留在 VPN 业务域，不再使用来源导入命名。
+- Native Shell 六个 Tab 固定为 VPN、Ad、隐私、脚本、Hook、设置。ClassicWebCompat 的主路由使用 `pageAd`；旧 `pageHosts` 仅作为 DOM 兼容别名，导航标题统一显示 `Ad`，中文标题不再显示“广告”或“Ad/Hosts”。
+- Settings 保留全局外观/壁纸、备份恢复、系统授权/诊断、许可与关于；不再出现“迁移应用”入口。
+
+### 回归和文档
+- 更新 `scripts/tests/fx-imported-suite-back-navigation-regression.sh`：检查来源应用导航状态/方法不存在，并确认 Ad、隐私、Hook、脚本的功能入口仍在各自业务域。
+- 更新 `scripts/tests/fx-unified-navigation-regression.sh`：修复已删除迁移页边界引用，改用 `showNativeVpnAppManager`、`addNativeSettingsCategory`、`showNativeWallpaperDialog` 和 `handleNativeTabIntent`；增加 ClassicWebCompat 的 Ad-only 标题断言。
+- 更新 `docs/FX_1.0.0_MASTER_AI_TAKEOVER_PROMPT.md`：加入当前源码纠偏状态和后续直接开工任务，明确禁止把迁移应用入口加回去。
+- 更新 `docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md` 第 11/12 节已明确的规范继续作为产品基线：唯一六 Tab、Ad-only、来源功能按业务域归属、Settings 仅系统级配置。
+
+### 提交记录
+- MainActivity 命名与 Ad 标题：`16280c6d624849c3977803e7a3fbe29bd342d983`
+- Unified navigation regression 迁移边界与调用名：`033122764b727b606ca7dbf72a67fc81cb955bf7`
+- ClassicWebCompat Ad-only 标题断言：`95a64aa6ae36c04affff2fa77a1cfe7007b4439e`
+- 本节同步提交时的 HEAD 以 GitHub 最新分支 ref 为准；下一窗口必须重新读取，不能复用上述历史 HEAD。
+
+### 验证等级与边界
+- 已完成 GitHub 源码回读和静态内容核对：旧导航符号缺失、六 Tab 标签保持、ClassicWebCompat 的 Ad 标题与兼容别名关系明确、VPN 路由页面调用名一致。
+- 当前轮次未在 Android SDK/Gradle 环境实际执行上述 shell regression；未执行 Gradle 单测、APK 构建、安装、UI 自动化或真机验收。不能将源码回读标为测试通过。
+- 尚未证明所有来源应用功能均已完整迁入。该批仅清理导航/命名和回归断言；业务功能按各领域矩阵继续推进，不能用删除来源入口冒充功能全部完成。
+
+### 下一批直接实施
+1. 五 Skin × 六 Tab 的真实页面组件覆盖：从表单、列表、弹窗、编辑器、扫描/统计页中选择仍未适配的页面组，为 Harmony/Cupertino 补独立 Tokens/Renderer，不只换色。
+2. 按 Ad / VPN / 隐私 / Hook / 脚本检查对应原来源功能页是否真实接到 FX Repository/Service；优先修复无后端按钮、虚假状态和缺失权限。
+3. 针对本批导航脚本做一次定向执行；若 Actions 自动运行，读取结果并严格区分 Host 静态回归、Gradle、安装和真机层级。
+
