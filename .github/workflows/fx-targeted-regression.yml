@@ -105,7 +105,7 @@ jobs:
             run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (install_adhook_app|adhook-app-installer-regression) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (install_adhook_app|post-fs-data|adhook-app-installer-regression) ]]; then
             run_sh scripts/tests/adhook-app-installer-regression.sh
           fi
 
