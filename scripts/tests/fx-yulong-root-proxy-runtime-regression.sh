@@ -141,6 +141,8 @@ cat > "$BIN/nslookup" <<'NSLOOKUP'
 [ "${MOCK_DNS_PROBE_FAIL:-0}" = 0 ] || exit 1
 if [ "${MOCK_DNS_SERVER_ONLY:-0}" = 1 ]; then
   printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\n'
+elif [ "${MOCK_DNS_INVALID_ANSWER:-0}" = 1 ]; then
+  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 127.0.0.1\n'
 else
   printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 93.184.216.34\n'
 fi
@@ -346,7 +348,7 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
 assert_stopped "$CASE_DIR" "status orphan hooks"
 
-for scenario in route route2 package-manager unbound adguard probe probe-server-only route-recheck address-recheck; do
+for scenario in route route2 package-manager unbound adguard probe probe-server-only probe-invalid-answer route-recheck address-recheck; do
   prepare_case "$scenario"
   case "$scenario" in
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
@@ -362,6 +364,10 @@ for scenario in route route2 package-manager unbound adguard probe probe-server-
     probe-server-only)
       if run_proxy "$CASE_DIR" MOCK_DNS_SERVER_ONLY=1 >/dev/null 2>&1; then
         fail "resolver server header was mistaken for an answer"
+      fi ;;
+    probe-invalid-answer)
+      if run_proxy "$CASE_DIR" MOCK_DNS_INVALID_ANSWER=1 >/dev/null 2>&1; then
+        fail "non-unicast DNS answer was accepted as healthy"
       fi ;;
     route-recheck)
       if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL_RECHECK=1 >/dev/null 2>&1; then

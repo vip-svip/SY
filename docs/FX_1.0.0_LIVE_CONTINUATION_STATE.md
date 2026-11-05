@@ -5268,3 +5268,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增统一 `_local_dns_probe`，只接受 `Name: example.com` 后的有效 IPv4 答案；ensure 和 status 共用同一验证逻辑。
 - 增加启动与 status 回归：模拟 nslookup 仅返回 Server/127.0.0.1、不返回域名答案，必须 fail-open 并清理 FX 自有重定向。
 - 本次功能测试结果以随后 Host Regression 和 FX Module Runtime Regression 为准；Android 真机 DNS 故障注入未执行。
+
+
+## 2026-11-06 — Root Proxy rejects unusable DNS answer addresses
+
+- 基线 HEAD：`5a429a81313dea2ca10b85e08ab7fbe7b0e099fe`；生产健康探测器已在前一提交中要求域名答案，避免将 Server header 误判为 DNS 成功。
+- 本批补充回归：DNS 查询虽返回 `Name: example.com`，但答案地址为 `127.0.0.1` 时，必须因非可用单播地址而失败；确保不会仅凭存在答案字段就报告 DNS 健康。
+- 新增 `probe-invalid-answer` 场景，复用生产 `_valid_ipv4` 策略校验答案地址。
+- 待本批 CI 验证；不代表完成设备级网络故障注入。
