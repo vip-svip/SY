@@ -6151,3 +6151,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 旧版/缺失 arbiter 字段回退到默认端口号与 `unknown`，不会把未知当空闲。已有 `dns`、`proxy` 等快照消费者保持兼容，新增 `dns_filter`。
 - MainActivity 的共存卡新增端口状态展示：DNS 上游、DNS 过滤入口与代理分别显示空闲/已占用/未知；不把 `other` 进一步推断为具体应用进程身份。
 - Host 状态发布回归和 UI 源码契约扩展同步覆盖端口传递、旧 arbiter 缺字段回退和页面显示。构建、设备端 Root / procfs 权限和真实监听进程归属仍以对应 CI/真机结果为准。
+
+
+## 2026-11-06 — GKD test invocation / system-app overlay regression follow-up
+
+- GKD CI 修复提交：`92e0ee9b0183b794fcc4591ab139835c54377beb`。修正 `.github/workflows/fx-gkd-selector.yml` 的 Gradle 多行参数缺少续行符，确保 selector、package throttle、pending package scan 三组 JUnit 一次性传入 Gradle。
+- GKD Actions run `42102998771` 最终 SUCCESS：上游 selector contract、隐私/路由静态契约、FX Android app + Accessibility adapter 编译、FX GKD selector adapter JUnit 全部完成。该结果是 GitHub CI，不是设备无障碍服务真机验证。
+- 系统应用 early-boot 日志目录 symlink guard 提交：`5990d3a5516c7d35e36681e2424b6326503e431c`（模板）及 `360a26f224ae7dd4141c708edab6131fdf678d86`（模块脚本同步）。post-fs-data 日志写入在逐路径组件检查之外显式拒绝 LOG_DIR 本身为符号链接。
+- FX Hook native UI regression 中的 Miuix Card 断言已恢复为真实 Card 检查（`f99db43bfe368a57a6bbce15836073145f08bbe8`）；依赖并行修复提交 `153cf09` 在模式选择页恢复真实 Miuix Card，未降低原测试要求。
+- System App Install Stage Actions run `42103559203` 在提交 `7e9664e` 上 SUCCESS：patcher 幂等性、安装期校验/部署、early-boot overlay symlink/digest/marker 测试、打包接线均通过。此前 run `42103453530` 的唯一失败是测试脚本 mktemp 模板引号错误；并行提交 `7e9664e` 修正测试路径后通过。
+- VPN arbiter failed-interface-inventory 回归：`6f5c195e97b9fa182dd0f6f603d920a60883b859` 新增部分 stdout + 非零 ip 退出的 fail-closed 场景；`bba5e10275de0b847c49c848ce827f393c009596` 修正 fixture 转义。VPN Coexistence Arbiter run `42102744421`、Targeted Host run `42102745222`、Six UI Modes run `42102744474` 均 SUCCESS。
+- 验证边界：Miuix Card 最终 Targeted Host 结果仍被后续并行提交取消；Module Runtime run `42103559262` 在当前状态更新时仍运行。未声称 KernelSU 真机安装、SELinux 标签、OnePlus 12 VPN/DNS/TUN 数据面或 LSPosed 实际注入通过。
