@@ -43,6 +43,7 @@ final class HarmonySkinTokens {
         static final float PAGE_TITLE_SP = 23f;
         static final float SECTION_TITLE_SP = 15f;
         static final float CARD_TITLE_SP = 16f;
+        static final float CARD_DESCRIPTION_SP = 13.5f;
         static final float ACTION_LABEL_SP = 14f;
         static final float SWITCH_LABEL_SP = 15f;
         static final float CHOICE_LABEL_SP = 15f;
