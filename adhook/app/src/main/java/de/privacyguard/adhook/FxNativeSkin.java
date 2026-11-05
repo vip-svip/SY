@@ -293,6 +293,10 @@ public final class FxNativeSkin {
 
     private static Palette palette(FxUiMode mode) {
         switch (mode) {
+            case DEFAULT_STANDARD:
+                return new Palette(0xfff7f8fc, 0xffffffff, 0xffedf1f7,
+                        0xffdce3ed, 0xff1c2938, 0xff647386,
+                        0xffe8eef6, 0xffd4deeb, 0xff315b9a, 0xffc4ceda, 16, 0xffc6d0dc, 16, 14f, 46, 64, 16, 10, 0f, 15f, 16, 10, 15f, 14f, 48);
             case FX_LIQUID_NATIVE:
                 return new Palette(0xffe8eef4, 0xddefffff, 0xccefffff,
                         0x66ffffff, 0xff24394c, 0xff718091,
@@ -306,10 +310,13 @@ public final class FxNativeSkin {
             case IOS_CUPERTINO_STYLE:
                 return CupertinoSkinRenderer.palette();
             case CLASSIC_WEB_COMPAT:
-            default:
                 return new Palette(0xfff4f6f8, 0xffffffff, 0xffe9eef3,
                         0xffe3e8ee, 0xff17212b, 0xff66727e,
                         0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc, 12, 14f, 46, 64, 16, 9, 0f, 15f, 16, 10, 15f, 14f, 48);
+            default:
+                return new Palette(0xfff7f8fc, 0xffffffff, 0xffedf1f7,
+                        0xffdce3ed, 0xff1c2938, 0xff647386,
+                        0xffe8eef6, 0xffd4deeb, 0xff315b9a, 0xffc4ceda, 16, 0xffc6d0dc, 16, 14f, 46, 64, 16, 10, 0f, 15f, 16, 10, 15f, 14f, 48);
         }
     }
 
