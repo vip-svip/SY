@@ -100,21 +100,22 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['dataplane']")" = "kernel" ] || fail "dataplane must be kernel"
 pass "kernel_only, slot free"
 
-echo "== case 2: external VPN with owner uid -> full_parallel =="
+echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
-[ "$(field "$out" "['verdict']")" = "full_parallel" ] || fail "expected full_parallel, got $(field "$out" "['verdict']")"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "owner UID alone must not certify full_parallel: $(field "$out" "['verdict']")"
+[ "$(field "$out" "['route_probe']")" = "unverified" ] || fail "route probe must remain unverified"
 [ "$(field "$out" "['external_if']")" = "tun0" ] || fail "external_if mismatch"
 [ "$(field "$out" "['external_uid']")" = "10123" ] || fail "external_uid mismatch"
-pass "full_parallel with owner uid"
+pass "owner UID is observed without overstating data-plane proof"
 
-echo "== case 3: external VPN without owner uid -> chained =="
+echo "== case 3: external VPN without owner uid cannot prove chain binding =="
 r=$(run_arb "$LINKS_TUN" "tun0|" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
-[ "$(field "$out" "['verdict']")" = "chained" ] || fail "expected chained, got $(field "$out" "['verdict']")"
-pass "chained when uid unavailable"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "missing owner UID must not certify chained routing: $(field "$out" "['verdict']")"
+pass "outer-tunnel binding remains unverified"
 
 echo "== case 4: external VPN + local DNS port occupied -> partial =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_dns_busy" "$TMP/mod_clean")
