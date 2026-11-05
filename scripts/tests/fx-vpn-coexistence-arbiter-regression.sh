@@ -387,12 +387,12 @@ EOF
 cat > "$TMP/fakebin/cmd" <<'EOF'
 #!/bin/sh
 [ "$1 $2 $3" = "package list packages" ] || exit 2
-printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+printf '%s\n' 'package:de.privacyguard.adhook uid:10000'
 EOF
 cat > "$TMP/fakebin/pm" <<'EOF'
 #!/bin/sh
 [ "$1 $2 $3" = "list packages -U" ] || exit 2
-printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+printf '%s\n' 'package:de.privacyguard.adhook uid:10000'
 EOF
 chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd" "$TMP/fakebin/pm"
 [ "$(PATH="$TMP/fakebin:$PATH" am get-current-user)" = "0" ] || fail "fake Android current-user provider is invalid"
