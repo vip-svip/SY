@@ -5610,3 +5610,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `574c83d64640` 的 case 9 将 `FX_COEXIST_ARBITER` 指向 `/dev/null` 后，测试仍意外得到 `source=arbiter`；状态结果本身已正确为 `unknown/null`。为消除 shell 环境覆盖歧义，改为使用不含 arbiter 文件的独立模块根目录，直接验证发布器的真实 default-path fallback。
 - case 9 继续要求无 arbiter 时 verdict 必须为 unknown、槽位字段必须为 JSON null；不因来源标签而弱化核心安全断言。
+
+
+### Yulong 7.0.1 规则导入数量基线同步（2026-11-06）
+
+- KernelSU package run `42095725390` 已完成 ZIP 解码、规则分类和 Hosts/AdGuard 注册检查，失败仅在回归仍固定期待 210,097 个 DNS 域名；当前校验过 SHA-256 的上游资产实际解码出 210,118 个唯一域名（增加 21 条），cosmetic/exception 规则数仍为 3,476。
+- 将精确域名基线更新为 210,118，并显式断言输出无重复；不改变规则解码、过滤或合并逻辑。由于上游 ZIP SHA-256 固定，此基线仍可重复验证。
+- 当前修订等待新的 KernelSU package workflow；先前该 run 在规则数量断言失败后未进入补丁整合、APK/QuickJS 编译或 ZIP 打包阶段。

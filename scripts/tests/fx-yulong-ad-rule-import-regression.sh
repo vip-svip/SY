@@ -19,7 +19,8 @@ cos=pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
 domains=[x for x in rules if x and not x.startswith("#")]
 selectors=[x for x in cos if x and not x.startswith("!")]
 pat=re.compile(r"^[0-9a-fA-F:.]+[ \t]+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
-assert len(domains)==210097, f"expected 210097 unique DNS domains, got {len(domains)}"
+assert len(domains)==210118, f"expected 210118 unique DNS domains, got {len(domains)}"
+assert len(set(domains))==len(domains), "decoded DNS domain list contains duplicates"
 assert len(selectors)==3476, f"expected 3476 preserved cosmetic/exception rules, got {len(selectors)}"
 assert all(pat.fullmatch(x) for x in domains), "non-DNS-safe terminal entered Hosts list"
 assert any("##" in x for x in selectors) and any("#@#" in x for x in selectors)
