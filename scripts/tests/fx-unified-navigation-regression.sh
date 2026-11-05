@@ -58,6 +58,8 @@ for obsolete_symbol in ("migrationSuite", "migrationCategory", "migrationPage",
 assert 'case 1: return "pageAd";' in activity, "Ad must be the canonical second-tab WebUI route"
 assert 'case "pageAd": tab = "ad"; break;' in activity
 assert 'case "pageHosts": tab = "ad"; break;' in activity, "pageHosts is only a compatibility alias"
+assert "Ad/Hosts" not in activity and "Ad / Hosts" not in activity, "Ad is the only user-facing second-tab name"
+assert "ad:'Ad'" in activity and "ad:'广告'" not in activity, "ClassicWebCompat must label the second tab Ad in Chinese locale too"
 assert "if(id==='pageHosts')id='pageAd';" in activity, "legacy DOM ID must normalize to Ad"
 assert 'var navTab=\'" + tab + "\';' in activity
 ad_start = activity.index("    private void buildNativeHostsPage()")
