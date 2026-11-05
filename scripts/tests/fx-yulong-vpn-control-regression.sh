@@ -94,7 +94,7 @@ export MP="$MOD" PG
 # Ordinary FX VPN route: start, status and stop all confirm the actual state.
 printf 'vpn_mode=direct\nvpn_node=node-test\n' > "$PG/settings.conf"
 printf 'direct\n' > "$PG/live-mode"
-sh "$SOURCE" "$MOD" "$PG" start > "$TMP/fx-start.out" || fail "FX VPN start failed with a selected node"
+if ! sh "$SOURCE" "$MOD" "$PG" start > "$TMP/fx-start.out" 2>&1; then cat "$TMP/fx-start.out" >&2; fail "FX VPN start failed with a selected node"; fi
 grep -Fq 'vpn_started=1' "$TMP/fx-start.out" || fail "FX VPN start confirmation missing"
 grep -Fq 'vpn_mode=global' "$PG/settings.conf" || fail "FX start did not select the unified global route"
 status_output=$(sh "$SOURCE" "$MOD" "$PG" status)
