@@ -192,6 +192,7 @@ jobs:
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_yulong_root_proxy|patch_vpn_tun_external_fallback) ]]; then
             run_sh scripts/tests/fx-atomic-cache-lock-release-regression.sh
             run_sh fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh
+            run_sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
             run_sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
           fi
 
