@@ -37,9 +37,11 @@ required = {
     "proc argv0 matches the selected process exactly": r'\"$proc_name\" = \"$process\"',
     "process enumeration verifies target app UID": r'\"$uid\" = \"$target_uid\"',
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
-    "Frida script execution size is bounded": "sourceBytes.length > MAX_FRIDA_SOURCE_BYTES",
-    "Frida source ceiling is 8 MiB": "MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024",
+    "Frida source is staged in app-private cache": "stageFridaRootInput(source)",
+    "staged source is read as a private file stream": "new java.io.FileInputStream(inputFile)",
     "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
+    "RootAccess accepts InputStream payloads": "executeWithInput(String command, java.io.InputStream input",
+    "RootAccess writes payload in bounded chunks": "byte[] buffer = new byte[64 * 1024]",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',
     "Gadget script temp is private": "chmod 600",
@@ -74,6 +76,10 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+if "MAX_FRIDA_SOURCE_BYTES" in source or "sourceBytes.length >" in source:
+    raise SystemExit("FAIL: Frida runtime still has an arbitrary script-size ceiling")
+if "input.length > 8 * 1024 * 1024" in root_access:
+    raise SystemExit("FAIL: RootAccess still caps streamed script payloads at 8 MiB")
 assert "if (code == 0) code = 5;" in root_access, "Root stdin writer failure must prevent a false-success result"
 assert "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING" in source, "already-running Gadget path must drain streamed input before returning success"
 assert "if (code == 0) code = 5;" in root_access, "Root stdin writer failure must prevent a false-success result"
