@@ -69,7 +69,7 @@ permissions:
 
 concurrency:
   group: fx-gkd-selector-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   selector-tests:
