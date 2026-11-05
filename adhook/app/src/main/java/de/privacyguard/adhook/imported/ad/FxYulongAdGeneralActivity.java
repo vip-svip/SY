@@ -723,7 +723,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 }
                 JSONObject json = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
                 validateBackup(json);
-                runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                runOnUiThread(() -> fxDialogBuilder()
                         .setTitle("确认导入过滤设置")
                         .setMessage("这会替换当前FX 广告过滤来源、域名白/黑名单、DNS 开关和每周过滤计划。导入失败时会恢复导入前配置。")
                         .setNegativeButton("取消", null)
