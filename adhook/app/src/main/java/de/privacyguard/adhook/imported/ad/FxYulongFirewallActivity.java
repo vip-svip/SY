@@ -401,7 +401,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 status.setText("应用列表刷新失败，保留上次列表（只读）：" + safeOutput(result.output));
                 return;
             }
-            parseList(result.output);
+            if (!parseList(result.output)) {
+                rejectInvalidListResponse();
+                return;
+            }
             loadAppsAsync();
         });
     }
@@ -489,7 +492,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 loading = false; inventoryReady = false; master.setEnabled(false);
                 status.setText("无法读取防火墙配置：" + safeOutput(result.output)); return;
             }
-            parseList(result.output);
+            if (!parseList(result.output)) {
+                rejectInvalidListResponse();
+                return;
+            }
             loadAppsAsync();
         });
     }
@@ -520,31 +526,41 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private String safeOutput(String value) {
         return value == null || value.trim().isEmpty() ? "请确认 FX Hook 已获得 Root 权限。" : value.trim();
     }
-    private void parseList(String output) {
-        rules.clear();
-        boolean masterEnabled = false;
-        for (String line : (output == null ? "" : output).split("\\r?\\n")) {
-            if (line.startsWith("master=")) {
-                masterEnabled = "1".equals(line.substring(7).trim());
-                suppressMaster = true; master.setChecked(masterEnabled); suppressMaster = false;
-                continue;
-            }
-            if (line.startsWith("FXYULONGFW")) continue;
-            String[] p = line.split("\\|", -1);
-            if (p.length < 3 || !p[0].contains(".") || !("0".equals(p[2]) || "1".equals(p[2]))) continue;
-            FirewallRule rule = new FirewallRule();
-            rule.enabled = "1".equals(p[2]);
-            if (p.length == 8 && ("0".equals(p[3]) || "1".equals(p[3]))
-                    && ("0".equals(p[4]) || "1".equals(p[4]))
-                    && ("0".equals(p[5]) || "1".equals(p[5]))
-                    && validTime(p[6]) && validTime(p[7])) {
-                rule.blockWifi = "1".equals(p[3]); rule.blockMobile = "1".equals(p[4]);
-                rule.scheduleEnabled = "1".equals(p[5]); rule.startTime = p[6]; rule.endTime = p[7];
-            }
-            rules.put(p[0], rule);
+    private boolean parseList(String output) {
+        final FxYulongFirewallListParser.Snapshot snapshot;
+        try {
+            snapshot = FxYulongFirewallListParser.parse(output);
+        } catch (IllegalArgumentException malformed) {
+            return false;
         }
+        Map<String, FirewallRule> parsedRules = new HashMap<>();
+        for (Map.Entry<String, FxYulongFirewallListParser.Rule> entry : snapshot.rules.entrySet()) {
+            FxYulongFirewallListParser.Rule saved = entry.getValue();
+            FirewallRule rule = new FirewallRule();
+            rule.enabled = saved.enabled;
+            rule.blockWifi = saved.blockWifi;
+            rule.blockMobile = saved.blockMobile;
+            rule.scheduleEnabled = saved.scheduleEnabled;
+            rule.startTime = saved.startTime;
+            rule.endTime = saved.endTime;
+            parsedRules.put(entry.getKey(), rule);
+        }
+        rules.clear();
+        rules.putAll(parsedRules);
+        suppressMaster = true;
+        master.setChecked(snapshot.masterEnabled);
+        suppressMaster = false;
         getSharedPreferences("yulong_app_firewall", MODE_PRIVATE).edit()
-                .putBoolean("master_enabled", masterEnabled).apply();
+                .putBoolean("master_enabled", snapshot.masterEnabled).apply();
+        return true;
+    }
+
+    private void rejectInvalidListResponse() {
+        loading = false;
+        inventoryReady = false;
+        refreshAfterLoad = false;
+        master.setEnabled(false);
+        status.setText("防火墙配置响应格式无效，修改入口已锁定；请检查 Root 后端配置后重试。");
     }
     /** Package enumeration, label resolution and sorting must never block the Activity UI. */
     private void enqueueLatestAppLoad(Runnable task) {

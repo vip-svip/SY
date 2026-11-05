@@ -101,11 +101,19 @@ list_rows() {
     function validtime(v) { return v ~ /^([01][0-9]|2[0-3]):[0-5][0-9]$/ }
     $0=="[list:yulong_app_firewall]" {inlist=1; next}
     /^\[/ {inlist=0}
-    inlist && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ && $2 ~ /^[0-9]+$/ && bit($3) {
+    inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
+      if ($1 !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
+          $2 !~ /^[0-9]+$/ || ($2+0)<=0 || !bit($3) || seen[$1]++) {
+        bad=1
+        next
+      }
       if (NF==3) print $1 "|" $2 "|" $3 "|1|1|0|22:00|06:00"
-      else if (NF>=8 && bit($4) && bit($5) && bit($6) && validtime($7) && validtime($8))
+      else if (NF==8 && bit($4) && bit($5) && bit($6)
+               && validtime($7) && validtime($8))
         print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8
+      else bad=1
     }
+    END {if (bad) exit 2}
   ' "$CONF"
 }
 set_master_value() {

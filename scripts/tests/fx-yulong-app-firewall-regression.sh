@@ -192,6 +192,14 @@ if run list >/dev/null 2>&1; then fail "firewall accepted a symlinked settings.c
 rm -f "$CONF"
 mv "$TMP/settings.saved" "$CONF"
 
+# Malformed saved records must fail the full list query instead of disappearing.
+cp "$CONF" "$TMP/settings.valid"
+printf '%s\n' 'not-a-valid-firewall-record' >> "$CONF"
+if run list > "$TMP/malformed-list" 2>&1; then
+  fail "firewall list silently skipped a malformed persisted row"
+fi
+mv "$TMP/settings.valid" "$CONF"
+
 run list > "$TMP/list"
 grep -qx 'FXYULONGFW2' "$TMP/list" || fail "firewall list protocol header missing"
 grep -qx 'master=0' "$TMP/list" || fail "firewall default master state is not disabled"

@@ -5721,3 +5721,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 新增的 12 项 Android-free 快照策略 Host 用例已通过；Targeted Host 在同一脚本后续阶段失败，原因是既有编辑草稿契约列表仍要求 `out.putBundle(STATE_DRAFTS,drafts);`，而当前实现实际保存 `retainedDrafts`，并且前面已有正确断言覆盖该路径。
 - 将过期字面断言同步到实际保存的 `retainedDrafts` 变量，不改变编辑器保存/恢复行为；本修正提交后重新核对 Host Regression。
+
+
+## 2026-11-06 — Ad 防火墙列表协议 fail-closed
+
+- 设备端 `yulong-app-firewall.sh list` 原先只输出通过局部条件的规则行；损坏/畸形行会被静默跳过，导致 UI 可能把缺失的已启用规则展示为默认关闭。
+- Shell 列表读取现完整校验非注释、非空记录：包名格式、正 UID、0/1 状态位、旧版 3 字段或新版恰好 8 字段、时间格式及包名唯一性；异常记录让 list 命令非零退出。
+- 新增 Android-free `FxYulongFirewallListParser`：要求唯一 `FXYULONGFW2` 头、恰好一个 `master=0|1`，每条规则必须是 8 字段且包名/UID/状态/时间有效；拒绝重复包名、重复主状态、未知文本和字段缺失/多余。
+- Activity 初始读取与安装/卸载刷新均须通过严格解析才加载可修改应用列表；响应异常时锁定总开关和规则写入入口、保留旧列表只读，不再默认为“防火墙关闭”。
+- Host 加入纯 Java 协议测试与损坏 `settings.conf` 的 Shell 动态回归；KernelSU workflow 的 patcher 会将 canonical Shell 脚本和回归一并复制到恢复模块。
+- 本批尚未完成 Android Gradle 构建、设备端 Root 列表协议和真实 iptables 网络验收；等待新提交 Host、Module Runtime 与六套 UI Actions。

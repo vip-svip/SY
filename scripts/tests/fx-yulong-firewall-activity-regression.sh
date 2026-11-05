@@ -2,6 +2,8 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SOURCE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
+PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallListParser.java"
+[ -s "$PARSER" ] || { echo "FAIL: strict Yulong firewall list parser missing" >&2; exit 1; }
 [ -s "$SOURCE" ] || { echo "FAIL: Yulong firewall Activity source missing" >&2; exit 1; }
 python3 - "$SOURCE" <<'PY'
 from pathlib import Path
@@ -25,6 +27,10 @@ require("任一成员生效的 Wi-Fi / 移动数据限制都会作用于全部�
 require("此防火墙使用 Android owner UID 匹配，无法只限制其中一个包", "the UI must not claim package isolation for a shared UID")
 require("confirmSharedUidScope(pkg, info.uid, persist, revert)", "the quick rule switch must confirm shared UID scope")
 require("showRuleDialogInternal(packageName, uid)", "the detailed rule form must only open after the shared UID warning")
+require("FxYulongFirewallListParser.parse(output)", "Root list response is not parsed strictly")
+require("private void rejectInvalidListResponse()", "malformed firewall state does not lock writes")
+if source.count("if (!parseList(result.output))") != 2:
+    raise SystemExit("FAIL: initial and refresh list reads must both fail closed")
 require("private void card(String title, String detail, View... children)", "firewall cards must support multiple child controls")
 require("for (View child : children) if (child != null) card.addView(child);", "all card child controls must be attached")
 require("private final ThreadPoolExecutor appWorker =", "bounded app inventory worker is missing")
@@ -101,8 +107,8 @@ POLICY_HOST_TEST="$ROOT/scripts/tests/FxYulongFirewallAppFilterPolicyHostTest.ja
 if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/fx-firewall-uid-policy.XXXXXX")"
   trap 'rm -rf "$WORK"' EXIT HUP INT TERM
-  javac -d "$WORK" "$POLICY" "$POLICY_HOST_TEST"
+  javac -d "$WORK" "$POLICY" "$PARSER" "$POLICY_HOST_TEST"
   java -cp "$WORK" de.privacyguard.adhook.imported.ad.FxYulongFirewallAppFilterPolicyHostTest
 else
-  echo "SKIP: JDK unavailable; shared UID policy runtime assertions were not executed."
+  echo "SKIP: JDK unavailable; firewall policy and strict list parser assertions were not executed."
 fi
