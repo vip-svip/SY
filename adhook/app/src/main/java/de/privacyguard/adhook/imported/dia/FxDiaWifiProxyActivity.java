@@ -112,8 +112,8 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia · 系统 HTTP 代理", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 VPN", this::finish));
+        header.addView(text("VPN · 系统 HTTP 代理", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
