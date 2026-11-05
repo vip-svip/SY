@@ -205,19 +205,19 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         File cache = getCacheDir().getCanonicalFile();
         File staged = File.createTempFile("fx-dia-frida-input-", ".js", cache);
         boolean complete = false;
-        try (java.io.Writer writer = new java.io.OutputStreamWriter(
-                new FileOutputStream(staged), StandardCharsets.UTF_8)) {
-            int offset = 0;
-            while (offset < source.length()) {
-                int count = Math.min(16 * 1024, source.length() - offset);
-                writer.write(source, offset, count);
-                offset += count;
-            }
-            writer.flush();
-        }
-        pendingRootInputFiles.add(staged);
-        complete = true;
         try {
+            try (java.io.Writer writer = new java.io.OutputStreamWriter(
+                    new FileOutputStream(staged), StandardCharsets.UTF_8)) {
+                int offset = 0;
+                while (offset < source.length()) {
+                    int count = Math.min(16 * 1024, source.length() - offset);
+                    writer.write(source, offset, count);
+                    offset += count;
+                }
+                writer.flush();
+            }
+            pendingRootInputFiles.add(staged);
+            complete = true;
             return staged;
         } finally {
             if (!complete) staged.delete();
