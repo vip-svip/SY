@@ -185,10 +185,16 @@ fx_arb_slot_used() {
   # Full-line comments are not executable API usage and are ignored.
   _scan_count=0
   _find_failed=0
-  _scan_files=$(find "$_root" \( -type f -o -type l \) -name '*.sh' -print 2>/dev/null) || _find_failed=1
+  # The binary override is honored only by isolated regression fixtures; on
+  # an installed module the scanner always uses the platform find command.
+  _find_bin=find
+  if [ "${FX_ARB_TESTING:-0}" = "1" ] && [ -n "${FX_ARB_FIND_BIN:-}" ]; then
+    _find_bin=$FX_ARB_FIND_BIN
+  fi
+  _scan_files=$("$_find_bin" "$_root" \( -type f -o -type l \) -name '*.sh' -print 2>/dev/null) || _find_failed=1
   # find does not follow directory symlinks. Reject links below scripts/ so
   # a linked directory cannot conceal a nested shell helper from this scan.
-  _script_links=$(find "$_root/scripts" -type l -print 2>/dev/null) || _find_failed=1
+  _script_links=$("$_find_bin" "$_root/scripts" -type l -print 2>/dev/null) || _find_failed=1
   [ -z "$_script_links" ] || _missing=1
   while IFS= read -r _f; do
     [ -n "$_f" ] || continue
