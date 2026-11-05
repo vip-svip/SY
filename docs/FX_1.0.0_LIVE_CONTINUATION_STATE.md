@@ -6320,3 +6320,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读：两份文件已从目标分支重新读取；源码 blob `c3d52a993bf7dd0f5a168b35653f2c05d8ac3a32`，测试 blob `c36520a090bfdd2cd353d15dd1e9f7c6cdc973b0`。
 - 验证等级：GitHub 提交成功、源码/测试回读确认。当前连接器未提供该分支的一般 Actions run 列表，且新提交的 combined status 为空；因此本批 Host regression / CI 尚未确认通过。未运行本地完整回归、Android Gradle 构建或真机测试。
 - 限制：此检查只覆盖模块 `scripts/*.sh` 顶层脚本中的静态 API 特征；不能证明运行时没有动态加载、二进制或 APK 内部创建 VpnService，也不能证明第三方 VPN 流量路径共存。真实数据面仍须设备级测试。
+
+
+## 2026-11-06 — VPN coexistence IPv6 DNS port-conflict regression
+
+- 回归提交：`0f62bb234f5625a891764a2a02da6148c790622c`（`scripts/tests/fx-vpn-coexistence-arbiter-regression.sh`）。
+- 新增独立 IPv6 TCP/5353 与 UDP/5353 监听夹具，分别验证 arbiter 从 `/proc/net/tcp6`、`/proc/net/udp6` 识别上游 DNS 端口占用；两种情况均必须显示 `dns.owner=other`，不能把 IPv6-only listener 误判为空闲。
+- 工作流 `.github/workflows/fx-vpn-coexistence-arbiter.yml` 已核实会在该回归脚本路径变更时触发。
+- GitHub 回读验证：分支版本测试文件 blob SHA 为 `629bf7155e385a34eed320e24a1ab9e8ab6de2c5`；IPv6 TCP/UDP fixture 与 case 4e/4f 均存在。未能通过当前可用 GitHub Actions 读取接口获取 push-triggered run 结果；因此不宣称 CI/测试通过。当前环境也未执行本地 Shell 回归。
+- 未修改生产路由、DNS、iptables/nftables 或用户 VPN 状态；未运行 Android Gradle、APK/KernelSU 构建或真机测试。
+- 后续：读取本次 push 对应的 VPN Coexistence Arbiter Actions 结果；若失败按日志修复 fixture/实现，不放宽断言。继续补齐 IPv6/DNS 实际路由和真机第三方 VPN 数据面验证。
