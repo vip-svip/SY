@@ -188,6 +188,27 @@ grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'static void showDialog(Activity activity, AlertDialog dialog)' "$skin" || { echo "FAIL: shared native dialog renderer missing"; exit 1; }
+grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: Skin-aware AlertDialog Builder missing"; exit 1; }
+python3 - "$activity" "$skin" <<'PY'
+from pathlib import Path
+import sys
+activity = Path(sys.argv[1]).read_text(encoding="utf-8")
+skin = Path(sys.argv[2]).read_text(encoding="utf-8")
+assert "new AlertDialog.Builder(this)" not in activity
+assert "new AlertDialog.Builder(MainActivity.this)" not in activity
+assert "FxNativeSkin.builder(this)" in activity
+assert "FxNativeSkin.builder(MainActivity.this)" in activity
+assert activity.count("FxNativeSkin.builder(") >= 90, "MainActivity must route native dialogs through the shared Skin-aware Builder"
+start = skin.index("static AlertDialog.Builder builder(Activity activity)")
+end = skin.index("static void showDialog(Activity activity, AlertDialog dialog)", start)
+builder = skin[start:end]
+assert "if (activity == null)" in builder
+assert "@Override public AlertDialog show()" in builder
+assert "AlertDialog dialog = create();" in builder
+assert "FxNativeSkin.showDialog(activity, dialog);" in builder
+print("PASS: MainActivity native dialogs preserve Builder callbacks while all show() paths apply the active global Skin.")
+PY
+
 grep -Fq 'applyComponents(activity, decor);' "$skin" || { echo "FAIL: dialog renderer does not skin the inflated decor tree"; exit 1; }
 grep -Fq 'decor.post(() ->' "$skin" || { echo "FAIL: dialog renderer does not reapply after first layout"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(this, managedDialog);' "$activity" || { echo "FAIL: Ad rule add/edit dialogs bypass the shared Skin"; exit 1; }
