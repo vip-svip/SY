@@ -144,7 +144,7 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
             finish();
             return;
         }
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("代码尚未保存")
                 .setMessage("是否将当前编辑内容返回 Dia Frida 页面？")
                 .setPositiveButton("保存并返回", (dialog, which) -> saveAndReturn())
