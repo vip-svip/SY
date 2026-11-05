@@ -215,8 +215,11 @@ PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
-grep -Fq 'private static final WeakHashMap<View, Boolean> WATCHED' "$skin" || { echo "FAIL: Skin observer deduplication is missing"; exit 1; }
-grep -Fq 'WATCHED.containsKey(pageContent)' "$skin" || { echo "FAIL: re-mounted pages can register duplicate Skin observers"; exit 1; }
+grep -Fq 'private static final class SkinSnapshot' "$skin" || { echo "FAIL: Skin observer has no mutable per-page snapshot"; exit 1; }
+grep -Fq 'private static final WeakHashMap<View, SkinSnapshot> WATCHED' "$skin" || { echo "FAIL: Skin observer deduplication is missing"; exit 1; }
+grep -Fq 'existing.mode = mode' "$skin" || { echo "FAIL: repeated watch() calls do not refresh the live Skin mode"; exit 1; }
+grep -Fq 'existing.wallpaperActive = wallpaperActive' "$skin" || { echo "FAIL: repeated watch() calls do not refresh the live wallpaper state"; exit 1; }
+grep -Fq 'apply(activity, pageContent, snapshot.mode, snapshot.wallpaperActive)' "$skin" || { echo "FAIL: layout observer can replay stale Skin state"; exit 1; }
 grep -Fq 'activity.isDestroyed()' "$skin" || { echo "FAIL: Skin observer does not stop for destroyed Activities"; exit 1; }
 grep -Fq 'applyButtonSkin(activity, (Button) view, mode, palette)' "$skin" || { echo "FAIL: native buttons do not receive Skin tokens"; exit 1; }
 grep -Fq 'new RippleDrawable(' "$skin" || { echo "FAIL: native buttons lack mode-aware ripple surfaces"; exit 1; }
