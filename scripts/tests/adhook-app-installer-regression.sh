@@ -48,6 +48,10 @@ grep -Fq '[ ! -L "$STATE_DIR" ] || exit 0' "$POST_FS_DATA" || fail "post-fs-data
 grep -Fq '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]' "$POST_FS_DATA" || fail "post-fs-data log writer does not reject a symlinked log directory"
 ! grep -Eq 'pm grant|privapp-permissions' "$POST_FS_DATA" || fail "unprivileged system app must not receive fabricated privileged grants"
 grep -Fq 'pm list packages -s "$1"' "$INSTALLER" || fail "installer does not verify PackageManager system classification"
+grep -Fq '_stage_dir="$TMP_DIR/.fx-unified-hook-$.d"' "$INSTALLER" || fail "installer still uses a predictable shared APK staging file"
+grep -Fq 'umask 077; mkdir "$_stage_dir"' "$INSTALLER" || fail "Hook staging directory is not created exclusively with a private umask"
+grep -Fq 'chmod 0700 "$_stage_dir"' "$INSTALLER" || fail "Hook staging directory is not private"
+grep -Fq 'cleanup_stage()' "$INSTALLER" || fail "private Hook staging directory has no bounded cleanup"
 # The KSU lane restores an older Release ZIP. It must stage the reviewed installer
 # and remover into that module before this test selects its scripts directory.
 python3 - "$KSU_WORKFLOW" "$ROOT/fx-patches/patch_system_app_install_stage.py" "$ROOT/scripts/tests/fx-system-app-install-stage-behavior-regression.py" <<'PY'
@@ -129,6 +133,15 @@ sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/mod/system/app/FX/FX.apk.sha25
 cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
+# Deterministically simulate another app pre-planting the installer's former
+# predictable staging path between the PackageManager probe and APK copy.
+if [ "${FX_ADHOOK_ATTACK_STAGE_DIR:-0}" = 1 ] && [ "$1" = path ]; then
+  _attack_path="$FX_ADHOOK_TMP_DIR/.fx-unified-hook-$PPID.d"
+  mkdir -p "$FX_ADHOOK_FAKE_PM_STATE/attack-target"
+  printf 'keep-stage-target\\n' > "$FX_ADHOOK_FAKE_PM_STATE/attack-target/sentinel"
+  ln -s "$FX_ADHOOK_FAKE_PM_STATE/attack-target" "$_attack_path" 2>/dev/null || exit 10
+  printf '%s\\n' "$_attack_path" > "$FX_ADHOOK_FAKE_PM_STATE/attack-stage-path"
+fi
 case "$1" in
  path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null || exit 1; if [ "${FX_ADHOOK_FAKE_SYSTEM_DATA_PATH:-0}" = 1 ]; then [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; elif [ "${FX_ADHOOK_FAKE_SYSTEM_OVERLAY:-0}" = 1 ]; then echo "package:/system/app/FX/FX.apk"; else [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; fi;;
  list) [ "$2" = packages ] && [ "$3" = -s ] || exit 2; if [ "${FX_ADHOOK_FAKE_SYSTEM:-0}" = 1 ] && grep -Fxq "$4" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then echo "package:$4"; fi;;
@@ -140,6 +153,19 @@ esac
 PM
 chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
 : > "$TMP/pm/installed"
+
+# A pre-planted symlink at the predictable private-directory name must make
+# exclusive mkdir fail before cp or PackageManager installation can touch it.
+export FX_ADHOOK_ATTACK_STAGE_DIR=1
+out=$(sh "$INSTALLER" "$TMP/mod" 2>&1) && fail "pre-planted Hook staging symlink unexpectedly succeeded"
+unset FX_ADHOOK_ATTACK_STAGE_DIR
+case "$out" in *"exclusive private Hook staging directory"*) ;; *) fail "pre-planted staging path was not rejected: $out" ;; esac
+attack_path=$(cat "$TMP/pm/attack-stage-path")
+[ -L "$attack_path" ] || fail "installer replaced or followed the pre-planted staging symlink"
+grep -Fxq 'keep-stage-target' "$TMP/pm/attack-target/sentinel" || fail "pre-planted staging symlink target was modified"
+[ ! -s "$TMP/pm/install-calls" ] || fail "pre-planted staging symlink reached PackageManager install"
+rm "$attack_path"
+pass "exclusive private staging directory rejects a pre-planted symlink"
 
 # Reject symlinked APK payloads and checksum sidecars before PackageManager.
 mv "$TMP/mod/system/app/FX/FX.apk" "$TMP/overlay-real.apk"
