@@ -214,10 +214,18 @@ _stop_engines() {
     # resolver so it no longer retains the previous tunnel's outgoing address.
     if sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
       _log "refreshed independent Unbound without stale external-VPN egress binding"
+      _log "keeping Unbound running: independent local-DNS forwarding is enabled"
     else
-      _log "WARNING: independent Unbound remains running but its VPN egress binding could not be refreshed"
+      # Do not leave a resolver process running with a stale outgoing-interface
+      # that may no longer exist or may route outside the intended VPN. Prefer
+      # temporary DNS unavailability over silently retaining an obsolete path.
+      _log "WARNING: independent Unbound refresh failed after VPN egress marker removal; stopping resolver to prevent stale egress"
+      if sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1; then
+        _log "stopped Unbound after failed VPN-binding refresh; local DNS will recover on the next ensure"
+      else
+        _log "ERROR: Unbound stop also failed; stale resolver process may remain and requires watchdog/manual recovery"
+      fi
     fi
-    _log "keeping Unbound running: independent local-DNS forwarding is enabled"
   fi
 }
 _stop_locked() {
