@@ -125,6 +125,10 @@ jobs:
           done
           mkdir -p fx-module
           cp -a recovered-fx-module/. fx-module/
+          # Remove any previously imported legacy WebUI snapshot; the package
+          # workflow will restore the APK asset and patch it before acceptance.
+          rm -f fx-module/webroot/index.html
+          rmdir fx-module/webroot 2>/dev/null || :
           git add fx-module docs/fx-module-recovery
           if git diff --cached --quiet; then
             echo "Recovered module source already matches the integration PR branch."
