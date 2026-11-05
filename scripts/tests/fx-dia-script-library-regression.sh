@@ -15,7 +15,7 @@ for file in "$ACTIVITY" "$STORE" "$POLICY" "$MAIN" "$MANIFEST" "$HOST_TEST"; do
 done
 grep -Fq 'Frida JavaScript 脚本库' "$MAIN" || fail "native Frida script-library entry is missing"
 grep -Fq 'FxDiaScriptLibraryActivity.class' "$MAIN" || fail "script pages do not route to the dedicated native Activity"
-grep -Fq 'open_new_script' "$MAIN" || fail "script editor route does not open the native editor flow"
+grep -Fq 'getBooleanExtra("open_new_script"' "$ACTIVITY" || fail "native script-library Activity does not preserve the optional initial-editor intent"
 grep -Fq 'android:name=".imported.dia.FxDiaScriptLibraryActivity" android:exported="false"' "$MANIFEST" || fail "private script-library Activity is not registered"
 grep -Fq 'fx_dia_frida' "$STORE" || fail "script library does not share the original Frida preference file"
 grep -Fq 'frida_script_library_v1' "$STORE" || fail "script library does not preserve the existing storage key"
