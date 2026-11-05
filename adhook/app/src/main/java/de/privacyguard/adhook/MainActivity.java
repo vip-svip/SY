@@ -4592,7 +4592,7 @@ public final class MainActivity extends ComponentActivity {
     private TextView title(String value, int size) {
         TextView t = new TextView(this);
         boolean pageHeading = size >= 18;
-        t.setTag(pageHeading ? "fx-page-title" : "fx-section-title");
+        t.setTag("fx-title:" + size);
         t.setText(value);
         float textSize = size;
         int horizontal = 18;
