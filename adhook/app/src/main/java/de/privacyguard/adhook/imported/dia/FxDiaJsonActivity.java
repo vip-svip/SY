@@ -75,7 +75,7 @@ public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabA
         LinearLayout root = new LinearLayout(this); root.setOrientation(1); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
+        header.addView(button("‹ 返回 Hook", this::finish));
         header.addView(text("Hook · JSON 操作", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -182,7 +182,7 @@ public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabA
     private void copy(String value) {
         ClipboardManager manager = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         if (manager != null) {
-            manager.setPrimaryClip(ClipData.newPlainText("FX Dia JSON", value));
+            manager.setPrimaryClip(ClipData.newPlainText("FX Hook JSON", value));
             Toast.makeText(this, "已复制到剪贴板。", Toast.LENGTH_SHORT).show();
         }
     }
@@ -195,7 +195,7 @@ public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabA
     private void pickExport() {
         try { readSource(); } catch (Throwable e) { status.setText(e.getMessage()); return; }
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT); intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/json"); intent.putExtra(Intent.EXTRA_TITLE, "dia-json-export.json");
+        intent.setType("application/json"); intent.putExtra(Intent.EXTRA_TITLE, "fx-hook-json.json");
         try { startActivityForResult(intent, EXPORT_REQUEST); }
         catch (Throwable e) { status.setText("无法创建导出文件：" + e.getClass().getSimpleName()); }
     }
