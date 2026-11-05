@@ -82,7 +82,11 @@ if run set local_port 5354 >/dev/null 2>&1; then fail "VPN config editor accepte
 [ ! -e "$TMP/sentinel" ] || fail "VPN config lock symlink target was created"
 rm "$STATE/native-vpn-config.lock"
 
-run list | grep -Fqx 'local_port|5353' || fail "canonical VPN config read no longer works"
+list_output=$(run list) || fail "canonical VPN config read failed"
+printf '%s\n' "$list_output" | grep -Fqx 'FXVPNCONF1' || fail "canonical VPN config list header is missing"
+printf '%s\n' "$list_output" | grep -Fqx 'local_ip|127.0.0.1' || fail "canonical VPN local_ip key/value mapping is incorrect"
+printf '%s\n' "$list_output" | grep -Fqx 'local_port|5353' || fail "canonical VPN local_port key/value mapping is incorrect"
+printf '%s\n' "$list_output" | grep -Fqx 'remote_dns|1.1.1.1' || fail "canonical VPN remote_dns key/value mapping is incorrect"
 run set local_port 5354 | grep -Fqx 'applied=1' || fail "validated VPN config transaction did not apply"
 grep -Fqx 'local_port=5354' "$STATE/settings.conf" || fail "VPN config write did not persist"
 [ "$(stat -c '%a' "$STATE/settings.conf")" = 600 ] || fail "VPN config permissions are not private"
