@@ -87,7 +87,12 @@ rm -f "$TMP/state/adhook-apk-privacyguardhook.sha256" "$TMP/state/adhook-apk-pri
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with unowned legacy app failed"
 grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "unowned user Hook app was removed"
 [ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "unowned legacy package was uninstalled"
-printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
+# The installer prefers the systemless overlay; mutate and re-hash the actual selected payload
+# as well as the legacy optional copy so this scenario really exercises signature migration.
+printf 'changed payload\n' >> "$TMP/mod/system/app/FX/FX.apk"
+sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/mod/system/app/FX/FX.apk.sha256"
+printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"
+sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "signature mismatch not reported"; fi
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "old package was not restored after signature-mismatch migration"
